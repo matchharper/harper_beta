@@ -1,0 +1,481 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300..700;1,300..700&family=Hedvig+Letters+Serif:opsz@12..24&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap");
+
+@font-face {
+  font-family: "PretendardVariable";
+  src: url("/fonts/pretendard/PretendardVariable.woff2")
+    format("woff2-variations");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+.hedvig-letters-serif {
+  font-family: "Hedvig Letters Serif", serif;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: normal;
+}
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 0, 0, 0;
+  --background-end-rgb: 0, 0, 0;
+  --font-roboto: var(--font-roboto);
+  --font-serif: var(--font-averia);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --foreground-rgb: 0, 0, 0;
+    --background-start-rgb: 0, 0, 0;
+    --background-end-rgb: 0, 0, 0;
+  }
+}
+
+html,
+body {
+  color: rgb(var(--foreground-rgb));
+  background-color: black;
+}
+
+@layer base {
+  html.noneoverscroll {
+    overscroll-behavior-y: none;
+  }
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.5rem;
+  }
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+.pattern {
+  background-image: "url(/images/pattern.png)";
+}
+
+/* globals.css */
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE/Edge */
+  scrollbar-width: none; /* Firefox */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari */
+}
+
+/* 기본 링 모양 */
+.ring-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(var(--scale-start, 1));
+  border-radius: 9999px;
+
+  /* 보더/색/그라디언트는 취향대로 조절 */
+  border: 1px solid rgba(122, 122, 122, 0.5); /* blue-500-ish */
+  box-shadow: 0 0 40px rgba(22, 22, 22, 0.35);
+
+  opacity: var(--opacity, 0.5);
+  filter: blur(var(--blur, 0px));
+}
+
+/* 강한 리플 */
+.animate-ripple {
+  animation-name: mic-ripple;
+  animation-duration: var(--dur, 1200ms);
+  animation-timing-function: ease-out;
+  animation-iteration-count: infinite;
+  animation-delay: var(--delay, 0ms);
+}
+
+/* 부드러운 리플 */
+.animate-ripple-soft {
+  animation-name: mic-ripple-soft;
+  animation-duration: var(--dur, 1400ms);
+  animation-timing-function: ease-out;
+  animation-iteration-count: infinite;
+  animation-delay: var(--delay, 0ms);
+}
+
+@keyframes mic-ripple {
+  0% {
+    transform: translate(-50%, -50%) scale(var(--scale-start, 1));
+    opacity: var(--opacity, 0.5);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(var(--scale-end, 1.6));
+    opacity: 0;
+  }
+}
+
+@keyframes mic-ripple-soft {
+  0% {
+    transform: translate(-50%, -50%) scale(var(--scale-start, 1));
+    opacity: calc(var(--opacity, 0.4) * 0.9);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(var(--scale-end, 1.8));
+    opacity: 0;
+  }
+}
+
+/* globals.css */
+.hero-bg {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  color: #f9fafb;
+
+  background-color: #020617;
+
+  /* 1) 위 레이어: 아주 은은한 라이트
+     2) 아래 레이어: 거의 안 보이는 점 패턴
+  */
+  background-image: radial-gradient(
+      circle at var(--mouse-x, 50%) var(--mouse-y, 40%),
+      rgba(56, 189, 248, 0.32) 0%,
+      /* 중심도 많이 안 밝게 */ rgba(15, 23, 42, 0.12) 22%,
+      /* 금방 어두워지고 */ transparent 55% /* 꽤 좁은 범위까지만 영향 */
+    ),
+    radial-gradient(
+      rgba(148, 163, 184, 0.1) 1px,
+      /* 점 거의 안 보이게 */ transparent 0
+    );
+
+  background-repeat: no-repeat, repeat;
+  background-size: 100% 100%, 42px 42px; /* 점 간격도 조금 넓게 */
+}
+
+/* 안쪽 컨텐츠는 항상 위에 */
+.hero-bg > * {
+  position: relative;
+  z-index: 1;
+}
+
+@import url("https://fonts.googleapis.com/css?family=Montserrat:400,700");
+
+:root {
+  --color-bg1: rgb(8, 10, 15);
+  --color-bg2: rgb(0, 17, 32);
+  --color1: 18, 93, 155;
+  --color2: 87, 54, 155;
+  --color3: 80, 80, 155;
+  --color4: 35, 120, 120;
+  --color5: 60, 47, 102;
+  --color-interactive: 140, 100, 255;
+  --circle-size: 80%;
+  --blending: hard-light;
+}
+
+/* 애니메이션 */
+@keyframes moveInCircle {
+  0% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(180deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes moveVertical {
+  0% {
+    transform: translateY(-50%);
+  }
+  50% {
+    transform: translateY(50%);
+  }
+  100% {
+    transform: translateY(-50%);
+  }
+}
+
+@keyframes moveHorizontal {
+  0% {
+    transform: translateX(-50%) translateY(-10%);
+  }
+  50% {
+    transform: translateX(50%) translateY(10%);
+  }
+  100% {
+    transform: translateX(-50%) translateY(-10%);
+  }
+}
+
+/* 배경 gradient + blob */
+.gradient-bg {
+  overflow: hidden;
+  background: linear-gradient(40deg, var(--color-bg1), var(--color-bg2));
+  top: 0;
+  left: 0;
+}
+
+.gradient-bg .svgBlur {
+  display: none; /* 필터 정의용이라 안 보여도 됨 */
+}
+
+.gradient-bg .noiseBg {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  mix-blend-mode: soft-light;
+  opacity: 0.3;
+}
+
+.gradient-bg .gradients-container {
+  filter: url(#goo) blur(40px);
+  width: 100%;
+  height: 100%;
+}
+
+.gradient-bg .g1,
+.gradient-bg .g2,
+.gradient-bg .g3,
+.gradient-bg .g4,
+.gradient-bg .g5,
+.gradient-bg .interactive {
+  position: absolute;
+  mix-blend-mode: var(--blending);
+}
+
+/* 각 blob들 원래 코드 그대로 옮김 */
+.gradient-bg .g1 {
+  background: radial-gradient(
+      circle at center,
+      rgba(var(--color1), 0.8) 0,
+      rgba(var(--color1), 0) 50%
+    )
+    no-repeat;
+  width: var(--circle-size);
+  height: var(--circle-size);
+  top: calc(50% - var(--circle-size) / 2);
+  left: calc(50% - var(--circle-size) / 2);
+  transform-origin: center center;
+  animation: moveVertical 30s ease infinite;
+  opacity: 1;
+}
+
+.gradient-bg .g2 {
+  background: radial-gradient(
+      circle at center,
+      rgba(var(--color2), 0.8) 0,
+      rgba(var(--color2), 0) 50%
+    )
+    no-repeat;
+  width: var(--circle-size);
+  height: var(--circle-size);
+  top: calc(50% - var(--circle-size) / 2);
+  left: calc(50% - var(--circle-size) / 2);
+  transform-origin: calc(50% - 400px);
+  animation: moveInCircle 20s reverse infinite;
+  opacity: 1;
+}
+
+.gradient-bg .g3 {
+  background: radial-gradient(
+      circle at center,
+      rgba(var(--color3), 0.8) 0,
+      rgba(var(--color3), 0) 50%
+    )
+    no-repeat;
+  width: var(--circle-size);
+  height: var(--circle-size);
+  top: calc(50% - var(--circle-size) / 2 + 200px);
+  left: calc(50% - var(--circle-size) / 2 - 500px);
+  transform-origin: calc(50% + 400px);
+  animation: moveInCircle 40s linear infinite;
+  opacity: 1;
+}
+
+.gradient-bg .g4 {
+  background: radial-gradient(
+      circle at center,
+      rgba(var(--color4), 0.8) 0,
+      rgba(var(--color4), 0) 50%
+    )
+    no-repeat;
+  width: var(--circle-size);
+  height: var(--circle-size);
+  top: calc(50% - var(--circle-size) / 2);
+  left: calc(50% - var(--circle-size) / 2);
+  transform-origin: calc(50% - 200px);
+  animation: moveHorizontal 40s ease infinite;
+  opacity: 0.7;
+}
+
+.gradient-bg .g5 {
+  background: radial-gradient(
+      circle at center,
+      rgba(var(--color5), 0.8) 0,
+      rgba(var(--color5), 0) 50%
+    )
+    no-repeat;
+  width: calc(var(--circle-size) * 2);
+  height: calc(var(--circle-size) * 2);
+  top: calc(50% - var(--circle-size));
+  left: calc(50% - var(--circle-size));
+  transform-origin: calc(50% - 800px) calc(50% + 200px);
+  animation: moveInCircle 20s ease infinite;
+  opacity: 1;
+}
+
+.gradient-bg .interactive {
+  background: radial-gradient(
+      circle at center,
+      rgba(var(--color-interactive), 0.8) 0,
+      rgba(var(--color-interactive), 0) 50%
+    )
+    no-repeat;
+  width: 100%;
+  height: 100%;
+  top: -50%;
+  left: -50%;
+  opacity: 0.7;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+.cell {
+  height: 100%;
+}
+
+.cell1 {
+  padding: 0px 16px;
+  height: 100%;
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: start;
+  gap: 0;
+}
+
+/* globals.css */
+.shimmer-bg {
+  --shimmer-a: 0.05;
+  --shimmer-b: 0.1;
+  --shimmer-c: 0.16;
+
+  background-image: linear-gradient(
+    110deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, var(--shimmer-a)) 38%,
+    rgba(255, 255, 255, var(--shimmer-b)) 46%,
+    rgba(255, 255, 255, var(--shimmer-c)) 50%,
+    rgba(255, 255, 255, var(--shimmer-b)) 54%,
+    rgba(255, 255, 255, var(--shimmer-a)) 62%,
+    rgba(255, 255, 255, 0) 100%
+  );
+
+  background-size: 240% 100%;
+  background-position: 120% 0;
+  animation: shimmer 2.9s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: background-position;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 140% 0;
+  }
+  100% {
+    background-position: -140% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shimmer-bg {
+    animation: none;
+  }
+}
+
+
+@keyframes stepDropIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.98);
+    filter: blur(1px);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(2px) scale(1);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0px) scale(1);
+    filter: blur(0);
+  }
+}
+
+.animate-stepDropIn {
+  animation: stepDropIn 420ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
+}

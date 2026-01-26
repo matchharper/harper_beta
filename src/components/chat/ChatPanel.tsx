@@ -1,0 +1,301 @@
+// components/chat/ChatPanel.tsx
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+} from "react";
+import ChatMessageList from "@/components/chat/ChatMessageList";
+import ChatComposer from "@/components/chat/ChatComposer";
+import { useChatSessionDB } from "@/hooks/chat/useChatSession";
+import { ArrowDown, ArrowLeft, Loader2, ScreenShareIcon, XIcon } from "lucide-react";
+import { logger } from "@/utils/logger";
+import { Tooltips } from "../ui/tooltip";
+import { useRouter } from "next/router";
+import { CandidateDetail } from "@/hooks/useCandidateDetail";
+import { Skeleton } from "../ui/skeleton";
+
+export type ChatScope =
+  | { type: "query"; queryId: string }
+  | { type: "candid"; candidId: string };
+
+type Props = {
+  title: string;
+  scope?: ChatScope;
+  userId?: string;
+
+  onSearchFromConversation: (messageId: number) => Promise<void>;
+
+  disabled?: boolean;
+  candidDoc?: CandidateDetail;
+  isChatFull?: boolean;
+  setIsChatFull?: (isChatFull: boolean) => void;
+  finishedTick?: number;
+};
+
+export const BOTTOM_THRESHOLD_PX = 120;
+export const AUTO_SCROLL_THROTTLE_MS = 120;
+
+export default function ChatPanel({
+  title,
+  scope,
+  userId,
+  onSearchFromConversation,
+  disabled,
+  candidDoc,
+  isChatFull,
+  setIsChatFull,
+  finishedTick,
+}: Props) {
+  const [isSearchSyncing, setIsSearchSyncing] = useState(false);
+  const [stickToBottom, setStickToBottom] = useState(true);
+  const [showJumpToBottom, setShowJumpToBottom] = useState(false);
+  const router = useRouter();
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  const chat = useChatSessionDB({ model: "grok-4-fast-reasoning", scope, userId, candidDoc }); // ✅ 바뀐 부분
+  const autoStartedRef = useRef(false);
+
+  const isQueryScope = scope?.type === "query";
+
+  useEffect(() => {
+    if (!finishedTick) return;
+    void chat.reload();
+  }, [finishedTick]);
+
+
+  // ✅ auto-start: query scope에서만
+  useEffect(() => {
+    if (!isQueryScope) return;
+
+    if (!chat.ready) return;
+    if (chat.isLoadingHistory) return;
+
+    if (chat.messages.length !== 1) return;
+    if (chat.messages[0]?.role !== "user") return;
+
+    if (autoStartedRef.current) return;
+    autoStartedRef.current = true;
+    logger.log("\n 자동 시작 메시지: ", chat.messages);
+
+    void chat.send(chat.messages[0].content ?? "");
+  }, [
+    isQueryScope,
+    chat.ready,
+    chat.isLoadingHistory,
+    chat.messages,
+    chat.send,
+  ]);
+
+  // ✅ scope가 바뀌면 autoStarted도 리셋 (중요)
+  useEffect(() => {
+    autoStartedRef.current = false;
+  }, [scope?.type, isQueryScope ? scope?.queryId : scope?.candidId]);
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior });
+  }, []);
+
+  const recomputeStickiness = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const atBottom = distanceToBottom <= BOTTOM_THRESHOLD_PX;
+
+    setStickToBottom(atBottom);
+    setShowJumpToBottom(!atBottom);
+  }, []);
+
+  const loadedOnceRef = useRef(false);
+
+  useEffect(() => {
+    if (!chat.ready) return;
+    if (loadedOnceRef.current) return;
+    loadedOnceRef.current = true;
+    void chat.loadHistory();
+  }, [chat.ready, chat.loadHistory]);
+
+  useEffect(() => {
+    if (!chat.ready) return;
+    loadedOnceRef.current = true;
+    logger.log("chat.ready ", chat.ready, loadedOnceRef.current, scope);
+    void chat.loadHistory();
+  }, [chat.ready, scope]);
+
+  // ✅ attach scroll listener
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const onScroll = () => recomputeStickiness();
+    el.addEventListener("scroll", onScroll, { passive: true });
+
+    recomputeStickiness();
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [recomputeStickiness]);
+
+  // ✅ 자연스러운 auto-follow (only if pinned)
+  const lastAutoScrollTsRef = useRef(0);
+  useEffect(() => {
+    if (!stickToBottom) return;
+
+    const now = Date.now();
+    if (now - lastAutoScrollTsRef.current < AUTO_SCROLL_THROTTLE_MS) return;
+    lastAutoScrollTsRef.current = now;
+
+    const id = requestAnimationFrame(() => {
+      scrollToBottom(chat.isStreaming ? "auto" : "smooth");
+    });
+    return () => cancelAnimationFrame(id);
+  }, [chat.messages, chat.isStreaming, stickToBottom, scrollToBottom]);
+
+  // ✅ initial load: jump to bottom once (instant)
+  const initialScrollDone = useRef(false);
+  useEffect(() => {
+    if (initialScrollDone.current) return;
+    if (chat.isLoadingHistory) return;
+    if (chat.messages.length === 0) return;
+
+    initialScrollDone.current = true;
+    requestAnimationFrame(() => scrollToBottom("auto"));
+  }, [chat.isLoadingHistory, chat.messages.length, scrollToBottom]);
+
+  // ✅ 검색 가능한 상태인지 (query scope에서만)
+  const canSearch = useMemo(() => {
+    if (!isQueryScope) return false;
+
+    if (disabled) return false;
+    if (!scope || scope.type !== "query") return false;
+    if (!userId) return false;
+    if (isSearchSyncing || chat.isStreaming) return false;
+
+    return (
+      chat.messages.length > 0 && chat.messages.some((m) => m.role === "user")
+    );
+  }, [
+    isQueryScope,
+    disabled,
+    scope,
+    userId,
+    isSearchSyncing,
+    chat.isStreaming,
+    chat.messages,
+  ]);
+
+  const onClickSearch = async (messageId: number) => {
+    if (!canSearch) return;
+    if (!messageId) return;
+
+    setIsSearchSyncing(true);
+    try {
+      await chat.addAssistantMessage(
+        "검색을 시작하겠습니다. 최대 1~2분이 소요될 수 있습니다."
+      );
+      await onSearchFromConversation(messageId);
+    } finally {
+      setIsSearchSyncing(false);
+    }
+  };
+
+  return (
+    <div className="w-full flex flex-col min-h-0 h-screen">
+      {/* Header (fixed) */}
+      <div className="flex items-center justify-between flex-none h-14 px-4 text-hgray900">
+        <div
+          onClick={() => router.back()}
+          className="text-sm font-medium flex items-center gap-1.5 hover:gap-2 cursor-pointer hover:text-hgray900 transition-all duration-200"
+        >
+          <ArrowLeft className="w-3.5 h-3.5 text-hgray600" />
+          <div>{title === "" ? <Skeleton className="w-20 h-5" /> : title}</div>
+        </div>
+        <div>
+          {
+            isChatFull ? (
+              <XIcon
+                onClick={() => setIsChatFull?.(false)}
+                className="w-3.5 h-3.5 text-hgray600 cursor-pointer"
+                strokeWidth={1.4}
+              />
+            ) : (
+              <ScreenShareIcon
+                onClick={() => setIsChatFull?.(true)}
+                className="w-3.5 h-3.5 text-hgray600 cursor-pointer"
+                strokeWidth={1.4}
+              />
+            )
+          }
+        </div>
+      </div>
+
+      {/* Messages (scroll only here) */}
+      <div className="flex-1 min-h-0 relative">
+        <div ref={scrollRef}
+          className="h-full overflow-y-auto px-4 pt-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent hover:scrollbar-thumb-white/20">
+          {chat.isLoadingHistory && (
+            <div className="text-xs text-hgray600 flex items-center gap-2 py-2">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              대화 기록 불러오는 중...
+            </div>
+          )}
+
+          <ChatMessageList
+            messages={chat.messages}
+            isStreaming={chat.isStreaming}
+            error={chat.error}
+            onConfirmCriteriaCard={isQueryScope ? onClickSearch : undefined} // ✅ query scope에서만
+            onChangeCriteriaCard={(args) => {
+              logger.log("\n onChangeCriteriaCard in ChatPanel", args);
+              void chat.patchAssistantUiBlock(
+                args.messageId,
+                args.modifiedBlock
+              );
+            }}
+          />
+          <br />
+        </div>
+
+        {showJumpToBottom && (
+          <button
+            type="button"
+            onClick={() => {
+              scrollToBottom("smooth");
+              setStickToBottom(true);
+              setShowJumpToBottom(false);
+            }}
+            className="absolute bottom-3 right-3 flex items-center gap-1 cursor-pointer rounded-full bg-white/5 hover:bg-white/10 px-2 py-2 text-xs text-hgray900"
+          >
+            <ArrowDown className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
+      {scope?.type === "candid" && (
+        <Tooltips
+          text="현재 화면에서는 검색이 아니라 프로필에 대해서 질문할 수 있습니다. 검색을 하시기 위해서는 다시 검색 화면으로 돌아가주시기 바랍니다."
+          side="top"
+        >
+          <div className="px-2 py-1 mx-4 bg-blue-600/60 text-white rounded-lg mb-1">
+            <div className="text-xs font-medium">
+              {title}에 대해 질문할 수 있습니다.
+            </div>
+          </div>
+        </Tooltips>
+      )}
+
+      {/* Composer (fixed) */}
+      <ChatComposer
+        value={chat.input}
+        onChange={chat.setInput}
+        onSend={() => void chat.send()}
+        onStop={chat.stop}
+        onRetry={() => void chat.reload()}
+        disabledSend={!chat.canSend || disabled || isSearchSyncing}
+        isStreaming={chat.isStreaming}
+      />
+    </div>
+  );
+}
