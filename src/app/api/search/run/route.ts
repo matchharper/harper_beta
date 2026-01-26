@@ -167,7 +167,6 @@ export async function POST(req: NextRequest) {
       .eq("id", run.id);
   }
 
-  // 6) Run search
   let searchResults: any[] = [];
   let searchStatus: string = "";
   try {
