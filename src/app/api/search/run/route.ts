@@ -152,7 +152,7 @@ export async function POST(req: NextRequest) {
   if (!sql_query) {
     await updateRunStatus(run.id, ko.loading.making_query);
 
-    const parsedQuery = await makeSqlQuery(query_text, criteria, "");
+    const parsedQuery = await makeSqlQuery(query_text, criteria, "", run.id);
     if (typeof parsedQuery !== "string") {
       await updateRunStatus(run.id, JSON.stringify(parsedQuery));
       return NextResponse.json(parsedQuery, { status: 404 });
