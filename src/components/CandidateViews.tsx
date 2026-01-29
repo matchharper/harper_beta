@@ -37,7 +37,7 @@ const CandidateViews = ({
     }
   };
 
-  const criteriaList = asArr(criterias);
+  const criteriaList = useMemo(() => asArr(criterias), [criterias]);
   const gridTemplateColumns = useMemo(() => {
     // Candidate | Company | Location | School | (criteria * N) | Actions
     const fixed = [isMyList ? "400px" : "280px"];
