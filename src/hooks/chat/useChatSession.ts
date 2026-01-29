@@ -7,11 +7,13 @@ import {
   updateMessageContent,
 } from "@/lib/message";
 import { CandidateDetail } from "../useCandidateDetail";
+import { logger } from "@/utils/logger";
 
 const CHAT_MODEL = "grok-4-fast-reasoning";
 
 export const UI_START = "<<UI>>";
 export const UI_END = "<<END_UI>>";
+
 
 export type ChatScope =
   | { type: "query"; queryId: string }
@@ -34,6 +36,54 @@ export function replaceUiBlockInText(rawText: string, modifiedBlockObj: any) {
   return `${before}\n${json}\n${after}`;
 }
 
+function splitTextByAnchors(text: string): UiSegment[] {
+  const A_TAG_RE =
+    /<a\b[^>]*\bhref\s*=\s*(?:"([^"]*)"|'([^']*)')[^>]*>([\s\S]*?)<\/a>/gi;
+
+  const out: UiSegment[] = [];
+  let cursor = 0;
+
+  while (true) {
+    const m = A_TAG_RE.exec(text);
+    if (!m) break;
+
+    const start = m.index;
+    const end = start + m[0].length;
+
+    const before = text.slice(cursor, start);
+    if (before) out.push({ type: "text", content: before });
+
+    const href = (m[1] ?? m[2] ?? "").trim();
+    const innerHtml = (m[3] ?? "").trim();
+
+    // If href is missing or looks unsafe, just keep raw as text
+    // (You can relax/tighten this depending on your input trust)
+    const safe =
+      href &&
+      (href.startsWith("http://") ||
+        href.startsWith("https://") ||
+        href.startsWith("mailto:"));
+
+    if (!safe) {
+      out.push({ type: "text", content: m[0] });
+    } else {
+      // Inner text: strip nested tags (simple + safe)
+      const innerText = innerHtml.replace(/<[^>]+>/g, "").trim();
+      out.push({
+        type: "block",
+        content: { type: "link", text: innerText || href.split("https://")[1].slice(0, 10), href },
+      });
+    }
+
+    cursor = end;
+  }
+
+  const tail = text.slice(cursor);
+  if (tail) out.push({ type: "text", content: tail });
+
+  return out;
+}
+
 export function extractUiSegments(text: string): { segments: UiSegment[] } {
   const segments: UiSegment[] = [];
   let cursor = 0;
@@ -42,9 +92,14 @@ export function extractUiSegments(text: string): { segments: UiSegment[] } {
     const start = text.indexOf(UI_START, cursor);
     if (start === -1) break;
 
+    // 1) Before UI block
     const before = text.slice(cursor, start);
-    if (before) segments.push({ type: "text", content: before });
+    if (before) {
+      // split <a> inside text
+      segments.push(...splitTextByAnchors(before));
+    }
 
+    // 2) UI block
     const afterStart = start + UI_START.length;
     const end = text.indexOf(UI_END, afterStart);
 
@@ -58,19 +113,30 @@ export function extractUiSegments(text: string): { segments: UiSegment[] } {
       const obj = JSON.parse(jsonStr);
       segments.push({ type: "block", content: obj });
     } catch {
-      segments.push({
-        type: "text",
-        content: text.slice(start, end + UI_END.length),
-      });
+      // If broken JSON, treat the whole thing as text (and still split anchors inside)
+      const raw = text.slice(start, end + UI_END.length);
+      segments.push(...splitTextByAnchors(raw));
     }
 
     cursor = end + UI_END.length;
   }
 
+  // 3) Tail text
   const tail = text.slice(cursor);
-  if (tail) segments.push({ type: "text", content: tail });
+  if (tail) segments.push(...splitTextByAnchors(tail));
 
-  return { segments };
+  // 4) Optional: merge adjacent text segments to keep render clean
+  const merged: UiSegment[] = [];
+  for (const seg of segments) {
+    const prev = merged[merged.length - 1];
+    if (seg.type === "text" && prev?.type === "text") {
+      prev.content += seg.content;
+    } else {
+      merged.push(seg);
+    }
+  }
+
+  return { segments: merged };
 }
 
 export function buildConversationText(messages: ChatMessage[]) {
@@ -94,7 +160,8 @@ export function useChatSessionDB(args: {
   candidDoc?: CandidateDetail;
 }) {
   const { scope, userId } = args;
-  const apiPath = args.apiPath ?? "/api/chat";
+  const isCandidScope = scope?.type === "candid";
+  const apiPath = isCandidScope ? "/api/chat/candid" : "/api/chat";
   const model = args.model ?? CHAT_MODEL;
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -109,6 +176,7 @@ export function useChatSessionDB(args: {
 
   // ✅ 최신 messages 참조 (클로저 stale 방지)
   const messagesRef = useRef<ChatMessage[]>([]);
+
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
@@ -127,6 +195,7 @@ export function useChatSessionDB(args: {
         ...scopeToDbArgs(scope!),
         userId: userId!,
       });
+      logger.log("\n\n loadHistory in useChatSessionDB ", rows.length, "\n\n")
 
       const hydrated = rows.map((m: any) => {
         const raw = (m as any).rawContent ?? m.content ?? "";
@@ -155,9 +224,11 @@ export function useChatSessionDB(args: {
 
   const send = useCallback(
     async (content?: string) => {
+      logger.log("\n\nsend in useChatSessionDB : ", content, "\n\n");
+
       if (!ready) return;
 
-      const trimmed = content?.trim() ?? input.trim();
+      const trimmed = content ? content.trim() : input.trim();
       if (!trimmed) return;
       if (isStreaming) return;
 
@@ -178,7 +249,6 @@ export function useChatSessionDB(args: {
             : null;
 
         let userMsg: ChatMessage;
-        let appendToHistory = false;
 
         if (!existingUserMsg) {
           // 1) insert user message
@@ -188,7 +258,6 @@ export function useChatSessionDB(args: {
             role: "user",
             content: trimmed,
           });
-          appendToHistory = true;
 
           // UI 반영: content를 직접 호출했을 때도 userMsg는 화면에 보여줘야 자연스러움
           // (원래 코드는 content 인자로 호출하면 화면에 안 붙는 케이스가 생김)
@@ -223,9 +292,7 @@ export function useChatSessionDB(args: {
 
         // ✅ 최신 messages를 기준으로 모델 대화 구성
         const historyForModel = (
-          appendToHistory
-            ? [...messagesRef.current, userMsg]
-            : [...messagesRef.current]
+          [...messagesRef.current]
         ).map((m) => ({
           role: m.role,
           content: (m as any).rawContent ?? m.content ?? "",

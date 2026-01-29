@@ -258,7 +258,7 @@ export const buildLongDoc = (doc: any) => {
   });
 
   const publications = doc.publications
-    ?.slice(0, 60)
+    ?.slice(0, 20)
     .map((pub: any, idx: number) => {
       return `${idx + 1}. Title: ${pub.title}, Published At: ${pub.published_at}`;
     });
@@ -281,6 +281,9 @@ export const buildLongDoc = (doc: any) => {
   }
   if (bio) {
     docSummary += `\nBio: ${bio}`;
+  }
+  if (doc.links) {
+    docSummary += `\nPersonal Links: ${doc.links}`;
   }
   if (exps) {
     docSummary += `\nExperiences: ${exps}`;

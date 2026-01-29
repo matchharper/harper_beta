@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import { StatusEnum } from "@/types/type";
-import { Check, CircleSlash, Clock, Loader2, Square } from "lucide-react";
+import { logger } from "@/utils/logger";
+import { Check, Circle, CircleSlash, Clock, Loader2, Square } from "lucide-react";
 import React, { useEffect, useCallback, useMemo, useState, useRef } from "react";
 
 type StepState = "done" | "active" | "pending" | "error";
@@ -42,7 +43,7 @@ export function deriveProgress(statusMessage: string): DerivedProgress {
       key: "parse",
       title: "요청 이해",
       description: "기준을 해석하고 검색 전략을 구성합니다.",
-      match: (x) => x.includes("aasadwq---default done"),
+      match: (x) => x.includes("aasadwq---default-done"),
     },
     {
       key: "plan",
@@ -66,7 +67,7 @@ export function deriveProgress(statusMessage: string): DerivedProgress {
       key: "ranking",
       title: "랭킹/스코어링",
       description: "기준에 맞게 우선순위를 계산합니다.",
-      match: (x) => x.includes("ranking") || x.includes("scoring"),
+      match: (x) => x.includes("ranking") || x.includes("scoring") || x.includes("partial") || x.includes("done"),
     },
   ];
 
@@ -245,7 +246,7 @@ const Timeline = ({ statusMessage, runId }: { statusMessage: string, runId: stri
                     if (step.state === "done") return Check;
                     if (step.state === "error") return CircleSlash;
                     if (step.state === "active") return Loader2;
-                    return Clock;
+                    return Circle;
                   })();
 
                   const delayMs = idx * 140;
@@ -265,10 +266,17 @@ const Timeline = ({ statusMessage, runId }: { statusMessage: string, runId: stri
                             step.state === "error" ? "bg-white/0" : "",
                           ].join(" ")}
                         >
-                          {step.state === "active" ? (
+                          {step.state === "active" && (
                             <Icon className="w-4 h-4 animate-spin text-hgray900" strokeWidth={2} />
-                          ) : (
+                          )}
+                          {step.state === "done" && (
                             <Icon className="w-3 h-3 text-green-400" strokeWidth={2} />
+                          )}
+                          {step.state === "pending" && (
+                            <Icon className="w-3 h-3 text-hgray600" strokeWidth={2} />
+                          )}
+                          {step.state === "error" && (
+                            <Icon className="w-3 h-3 text-red-500" strokeWidth={2} />
                           )}
                         </div>
 
@@ -307,7 +315,7 @@ const Timeline = ({ statusMessage, runId }: { statusMessage: string, runId: stri
 
             {/* Optional: small reassurance row */}
             <div className="text-xs text-hgray600 mt-3">
-              * 길게 걸릴 수 있지만, 후보는 준비되는 대로 순차적으로 표시할 수 있어요.
+              * max 플랜 사용자라면 동시에 여러 개의 검색을 실행할 수 있습니다.
             </div>
           </div>
         )}

@@ -1,12 +1,9 @@
 import {
   CandidateTypeWithConnection,
-  ExperienceUserType,
-} from "@/hooks/useSearchCandidates";
+} from "@/hooks/useSearchChatCandidates";
 import React, { useMemo } from "react";
-import { companyEnToKo, locationEnToKo } from "@/utils/language_map";
-import { useCompanyModalStore } from "@/store/useModalStore";
-import { useQueryClient } from "@tanstack/react-query";
-import NameProfile, { Avatar } from "./NameProfile";
+import { locationEnToKo } from "@/utils/language_map";
+import { Avatar } from "./NameProfile";
 import Bookmarkbutton from "./ui/bookmarkbutton";
 import { dateToFormat } from "@/utils/textprocess";
 import { Tooltips } from "./ui/tooltip";
@@ -83,7 +80,7 @@ function CandidateCard({
       onClick={() => {
         router.push(`/my/p/${candidId}`);
       }}
-      className="group relative w-full rounded-[28px] max-w-[980px] text-white bg-white/5 p-6 cursor-pointer hover:bg-[#FFFFFF0a]"
+      className="group relative w-full rounded-[28px] max-w-[980px] text-white bg-white/5 p-6 cursor-pointer hover:bg-[#FFFFFF18] transition-colors duration-200"
     >
       <div className="flex flex-row flex-1 items-start gap-4">
         <div className="w-[40%]">
@@ -134,38 +131,6 @@ function CandidateCard({
               field={school.field}
             />
           )}
-          {/* {latestCompany && (
-            <CompanyCard
-              company={latestCompany}
-              text={m.data.currentExperience}
-            />
-          )} */}
-          {/* {firstCompany && (
-            <CompanyCard
-              company={firstCompany}
-              text={isOnlyOneCompany ? "Single Experience" : "First Career"}
-            />
-          )} */}
-          {/* {school && (
-            <div className="flex flex-row items-start justify-start font-normal pt-3 border-t border-white/5">
-              <div className="text-hgray600 text-sm w-24 pt-0.5 font-normal">
-                {m.data.education}
-              </div>
-              <div className="flex flex-col gap-0.5 text-sm w-full">
-                <div className="flex flex-row items-center justify-between">
-                  <div className="text-white">
-                    {koreaUniversityEnToKo(school.school)}
-                    {school.degree && (
-                      <span className="text-hgray600 font-light">
-                        {" "}
-                        &nbsp; {degreeEnToKo(school.degree)}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )} */}
         </div>
       </div>
 
@@ -185,9 +150,8 @@ function CandidateCard({
       </div>
 
       <div
-        className={`flex flex-row items-center justify-start group-hover:opacity-100  absolute top-3 right-3 ${
-          isMyList ? "opacity-100" : "opacity-0"
-        }`}
+        className={`flex flex-row items-center justify-start group-hover:opacity-100  absolute top-3 right-3 ${isMyList ? "opacity-100" : "opacity-0"
+          }`}
         onClick={(e) => {
           e.stopPropagation();
         }}
@@ -205,59 +169,6 @@ function CandidateCard({
   );
 }
 export default React.memo(CandidateCard);
-
-const CompanyCard = ({
-  company,
-  text,
-}: {
-  company: ExperienceUserType;
-  text: string;
-}) => {
-  const startDate = useMemo(
-    () => dateToFormat(company.start_date ?? ""),
-    [company.start_date]
-  );
-  const endDate = useMemo(
-    () => dateToFormat(company.end_date ?? ""),
-    [company.end_date]
-  );
-
-  //
-  const handleOpenCompany = useCompanyModalStore((s) => s.handleOpenCompany);
-  const qc = useQueryClient();
-
-  const onButtonClick = () => {
-    handleOpenCompany({
-      companyId: company.company_id ?? "",
-      queryClient: qc,
-    });
-  };
-
-  return (
-    <div className="flex flex-row items-start justify-start font-normal">
-      <div className="text-hgray600 text-sm w-24 pt-0.5 font-normal">
-        {text}
-      </div>
-      <div className="flex flex-col gap-1 text-sm w-full">
-        <div className="flex flex-row items-center justify-between">
-          <div
-            className="text-white font-normal text-[15px] hover:underline cursor-pointer"
-            onClick={onButtonClick}
-          >
-            {companyEnToKo(company.company_db.name)}
-          </div>
-          <div className="text-xgray800 text-[13px] font-light">
-            {startDate} -{" "}
-            {endDate ? endDate : <span className="text-accenta1">현재</span>}
-          </div>
-        </div>
-        <div className="flex flex-row items-center justify-between text-hgray600 font-light">
-          <div>{company.role}</div>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const CriteriaBox = ({
   reason,

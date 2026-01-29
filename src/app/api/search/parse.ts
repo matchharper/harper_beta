@@ -8,7 +8,6 @@ import { ScoredCandidate } from "./utils";
 import { mapWithConcurrency } from "./utils";
 import { generateSummary } from "./criteria_summarize/utils";
 import { sumScore } from "./utils";
-import { ko } from "@/lang/ko";
 import { ThinkingLevel } from "@google/genai";
 import { rpc_set_timeout_and_execute_raw_sql_via_runs } from "./worker";
 import { SYSTEM_MESSAGE_ENUM } from "@/lib/system";
@@ -45,7 +44,7 @@ export async function makeSqlQuery(
 
     const sqlQuery = `
 SELECT DISTINCT ON (T1.id)
-  to_json(T1.id) AS id,
+  T1.id AS id,
   T1.name,
   T1.headline,
   T1.location
@@ -85,17 +84,63 @@ export const reranking = async ({ candidates, criteria, query_text, review_count
   const start = performance.now();
 
   let doneCount = 0;
-  let stack: any[] = [];
   let totalCandidates: any = [];
   let runs_pages_id: number | null = null;
+
+  let buffer: any[] = [];
+  let flushPromise = Promise.resolve();
+
+  function shuffle<T>(arr: T[]) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+  }
+
+
+  const flush = async (drainAll = false) => {
+    // 한 번에 20개씩만 빼서 처리 (레이스 방지)
+    while (buffer.length >= 20 || (drainAll && buffer.length > 0)) {
+      const take = drainAll ? Math.min(20, buffer.length) : 20;
+      const batch = buffer.splice(0, take);
+
+      const forUpsert = batch
+        .filter((s) => typeof s.summary === "string" && s.summary.trim().length > 0)
+        .map((s) => ({ candid_id: s.id, run_id: runId, text: s.summary }));
+
+      if (forUpsert.length > 0) {
+        await supabase.from("synthesized_summary").upsert(forUpsert as any);
+      }
+
+      if (totalCandidates.length === 0) {
+        await supabase.from("runs").update({ status: "partially_finished" }).eq("id", runId);
+      }
+
+      totalCandidates = [...totalCandidates, ...batch];
+      totalCandidates.sort((a: any, b: any) => b.score - a.score);
+
+      const cands = totalCandidates.map((c: any) => ({ score: c.score, id: c.id }));
+      const { data, error } = await supabase
+        .from("runs_pages")
+        .upsert({
+          run_id: runId,
+          page_idx: 0,
+          candidate_ids: cands,
+          id: runs_pages_id ?? undefined,
+        })
+        .select()
+        .single();
+
+      if (!error) runs_pages_id = data?.id ?? runs_pages_id;
+    }
+  };
+
 
   const scored: (ScoredCandidate & { summary: string })[] =
     await mapWithConcurrency(
       candidates.slice(0, review_count_num) as any[],
       20,
       async (candidate) => {
-        const id = candidate.id as string;
-
         let summary = "";
         let lines: string[] = [];
         try {
@@ -112,77 +157,34 @@ export const reranking = async ({ candidates, criteria, query_text, review_count
 
         const score = fullScore != 0 ? Math.round((sumScore(lines) / fullScore) * 100) / 100 : 1;
         const data = {
-          id,
+          id: candidate.id,
           score: score,
           summary,
         };
         doneCount++;
 
-        stack.push(data);
-        if (stack.length % 20 === 0) {
-          const forUpsert = stack.filter((s) => s.summary != null)
-            .map((s) => ({
-              candid_id: s.id,
-              run_id: runId,
-              text: s.summary,
-            }));
-          logger.log("Done Count 20 : ");
-
-          if (forUpsert.length > 0) {
-            await supabase
-              .from("synthesized_summary")
-              .upsert(forUpsert as any);
-          }
-          if (totalCandidates.length === 0)
-            await supabase.from("runs").update({
-              status: "partially_finished",
-            }).eq("id", runId);
-
-          totalCandidates = [...totalCandidates, ...stack];
-          totalCandidates.sort((a: any, b: any) => b.score - a.score || a.id.localeCompare(b.id));
-          const cands = totalCandidates.map((c: any) => ({ score: c.score, id: c.id }));
-          const { data: runs_pages_data, error: runs_pages_error } = await supabase.from("runs_pages").upsert({
-            run_id: runId,
-            page_idx: 0,
-            candidate_ids: cands,
-            id: runs_pages_id ?? undefined,
-          }).select().single();
-          if (runs_pages_error) {
-            logger.log("runs_pages upsert error: ", runs_pages_error);
-          } else {
-            runs_pages_id = runs_pages_data?.id;
-          }
-          stack = []
+        buffer.push(data);
+        if (buffer.length >= 20) {
+          flushPromise = flushPromise.then(() => flush(false));
         }
-
         return data;
       }
     );
 
-  logger.log(`💠 전체 ${scored.length}명 스코어링 완료 [${((performance.now() - start) / 1000).toFixed(3)}s]`);
+  logger.log(`💠 전체 ${scored.length}명 스코어링 완료 [${((performance.now() - start) / 1000).toFixed(3)}s], 남은건 : ${buffer.length}`);
 
-  const forUpsert = stack.filter((s) => s.summary != null)
-    .map((s) => ({
-      candid_id: s.id,
-      run_id: runId,
-      text: s.summary,
-    }));
-  if (forUpsert.length > 0) {
-    await supabase
-      .from("synthesized_summary")
-      .upsert(forUpsert as any);
-  }
-
-  totalCandidates = [...totalCandidates, ...stack];
-  totalCandidates.sort((a: any, b: any) => b.score - a.score || a.id.localeCompare(b.id));
-  const cands = totalCandidates.map((c: any) => ({ score: c.score, id: c.id }));
-  await supabase.from("runs_pages").insert({
+  await flushPromise;
+  await flush(true);
+  shuffle(totalCandidates);
+  const final = [...totalCandidates].sort((a, b) => b.score - a.score);
+  const cands = final.map((c) => ({ score: c.score, id: c.id }));
+  await supabase.from("runs_pages").upsert({
     run_id: runId,
     page_idx: 0,
     candidate_ids: cands,
+    id: runs_pages_id ?? undefined,
   });
-
-  return totalCandidates;
+  return final;
 }
 
 export type RunRow = {
@@ -241,7 +243,7 @@ export const searchDatabase = async ({
 
   // Fix query on error (timeout or syntax)
   if (error || candidates.length < 10) {
-    logger.log("First sql query error [error || candidates.length < 10] => ", error, data?.[0]?.length);
+    logger.log("First sql query error [error || candidates.length < 10] => error : ", error, ", Found candidates : ", data?.[0]?.length);
     // case 1) timeout
     // case 2) 너무 좁게 검색해서 결과가 잡히지 않음.
     let additional_prompt = "";
@@ -384,8 +386,6 @@ input text for searching: ${query_text}
   await updateRunStatus(run.id, SYSTEM_MESSAGE_ENUM.RANKING);
 
   const scored = await reranking({ candidates, criteria, query_text, review_count_num, runId: run.id });
-
-  await updateRunStatus(run.id, "finished");
 
   return {
     data: scored,

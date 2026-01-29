@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import type { CandidateType } from "@/types/type";
-import { CandidateTypeWithConnection } from "./useSearchCandidates";
+import { CandidateTypeWithConnection } from "./useSearchChatCandidates";
 import { useState } from "react";
 
 export type ConnectionTyped = 0 | 1 | 2;

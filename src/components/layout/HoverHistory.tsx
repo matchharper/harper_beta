@@ -5,7 +5,7 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 import { DropdownMenu } from "../ui/dropdown-menu";
-import { History } from "lucide-react";
+import { ChevronRight, History } from "lucide-react";
 import { ChevronUp } from "lucide-react";
 import { ChevronDown } from "lucide-react";
 import QueryHistories from "./QueryHistories";
@@ -68,21 +68,19 @@ const HoverHistory = ({
       <>
         <div
           onClick={() => setOpenHistory((v) => !v)}
-          className={`flex flex-row items-center justify-between px-2 py-1 text-[12px] text-hgray600 cursor-pointer ${
-            collapsed ? "hidden" : "flex"
-          }`}
+          className={`group flex flex-row items-center justify-start gap-2 px-2.5 py-1 text-[13px] text-hgray600 cursor-pointer ${collapsed ? "hidden" : "flex"}`}
         >
           <div>History</div>
           <div>
             {openHistory ? (
-              <ChevronUp size={16} strokeWidth={1.5} />
+              <ChevronDown className="hidden group-hover:block" size={16} strokeWidth={1.5} />
             ) : (
-              <ChevronDown size={16} strokeWidth={1.5} />
+              <ChevronRight size={16} strokeWidth={1.5} />
             )}
           </div>
         </div>
         <div
-          className="mt-1 px-2 pb-3 gap-1 flex-1 overflow-y-auto
+          className="mt-1 pb-3 gap-1 flex-1 max-h-[54vh] overflow-y-auto
     [scrollbar-width:none]
     [-ms-overflow-style:none]
     [&::-webkit-scrollbar]:hidden"

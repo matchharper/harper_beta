@@ -4,6 +4,7 @@ import type { CandidateType } from "@/types/type";
 
 export type CandidateDetail = CandidateType & {
   connection?: { user_id: string; typed: number }[];
+  unlock_profile?: any[];
 };
 
 export const candidateKey = (id?: string, userId?: string) =>
@@ -54,6 +55,7 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
         user_id,
         typed
       ),
+      unlock_profile(*),
       s:summary ( text )
     `
     )

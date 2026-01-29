@@ -71,16 +71,17 @@ const Home: NextPage = () => {
     const start = performance.now();
     console.log("testSqlQuery start");
     const sql =
-      `WITH candidate_ids AS (   SELECT DISTINCT T1.id   FROM candid AS T1   WHERE T1.total_exp_months <= 72     AND T1.fts @@ to_tsquery('english', 'AI <-> artificial <-> intelligence | machine <-> learning | ML | deep <-> learning | neural <-> network | NLP | natural <-> language | computer <-> vision')     AND EXISTS (       SELECT 1       FROM experience_user ex       JOIN company_db c ON c.id = ex.company_id       WHERE ex.candid_id = T1.id         AND ex.role ILIKE ANY (ARRAY[           '%product manager%',           '%pm%',           '%product owner%',           '%프로덕트 매니저%',           '%프로덕트 오너%',           '%project manager%'         ])         AND (           c.specialities ILIKE ANY (ARRAY[             '%AI%',             '%artificial intelligence%',             '%machine learning%',             '%ML%',             '%deep learning%',             '%neural network%',             '%NLP%',             '%natural language%',             '%computer vision%'           ])           OR c.description ILIKE ANY (ARRAY[             '%AI%',             '%artificial intelligence%',             '%machine learning%',             '%ML%',             '%deep learning%',             '%neural network%',             '%NLP%',             '%natural language%',             '%computer vision%'           ])           OR c.name ILIKE ANY (ARRAY[             '%AI%',             '%artificial intelligence%',             '%machine learning%',             '%ML%',             '%deep learning%',             '%neural network%',             '%NLP%',             '%natural language%',             '%computer vision%'           ])         )     ) ) SELECT    to_json(T1.id) AS id,   T1.name,   T1.headline,   T1.location FROM candid AS T1 JOIN candidate_ids ci ON T1.id = ci.id ORDER BY ts_rank(T1.fts, to_tsquery('english', 'AI <-> artificial <-> intelligence | machine <-> learning | ML | deep <-> learning | neural <-> network | NLP | natural <-> language | computer <-> vision')) DESC`;
-    const newSql = ensureGroupBy(sql, ""); // 이건 무시해도 됨.
-    // console.log("newSql", newSql);
+      `
+WITH params AS ( SELECT to_tsquery('english', 'performance <-> marketing | growth <-> marketing | data <-> driven') AS rank_tsq, to_tsquery('english', 'data <-> driven | roas | conversion | optimization | analytics') AS filter_tsq ), identified_ids AS ( SELECT T1.id, ts_rank(T1.fts, params.rank_tsq) AS fts_rank FROM candid AS T1 CROSS JOIN params WHERE EXISTS ( SELECT 1 FROM experience_user ex LEFT JOIN company_db c ON ex.company_id = c.id WHERE ex.candid_id = T1.id AND ( c.name ILIKE ANY (ARRAY['%toss%', '%토스%', '%viva republica%', '%비바리퍼블리카%', '%baemin%', '%배달의민족%', '%woowahan%', '%우아한형제들%', '%kurly%', '%컬리%', '%마켓컬리%', '%당근%', '%daangn%', '%carrot%', '%coupang%', '%쿠팡%', '%yanolja%', '%야놀자%', '%musinsa%', '%무신사%', '%zigzag%', '%지그재그%', '%kakaopay%', '%카카오페이%', '%naverpay%', '%네이버페이%', '%bucketplace%', '%오늘의집%', '%ably%', '%에이블리%', '%socar%', '%쏘카%']) OR c.specialities ILIKE ANY (ARRAY['%platform%', '%unicorn%', '%e-commerce%', '%fintech%', '%travel%', '%logistics%']) ) ) AND ( EXISTS ( SELECT 1 FROM experience_user ex2 WHERE ex2.candid_id = T1.id AND ex2.role ILIKE ANY (ARRAY['%performance marketing%', '%performance marketer%', '%growth marketing%', '%growth marketer%', '%digital marketing%', '%퍼포먼스 마케팅%', '%퍼포먼스 마케터%', '%그로스 마케팅%', '%그로스 마케터%']) ) OR T1.summary ILIKE ANY (ARRAY['%performance marketing%', '%growth marketing%']) ) AND ( EXISTS ( SELECT 1 FROM experience_user ex3 WHERE ex3.candid_id = T1.id AND ex3.description ILIKE ANY (ARRAY['%data%', '%analytics%', '%optimization%', '%roas%', '%roi%', '%conversion%', '%sql%', '%tableau%', '%amplitude%', '%ga4%', '%adjust%', '%appsflyer%', '%데이터%', '%최적화%', '%성과%', '%분석%']) ) OR T1.fts @@ params.filter_tsq ) ORDER BY fts_rank DESC LIMIT 10 ) SELECT to_json(c.id) AS id, c.name, i.fts_rank FROM identified_ids i JOIN candid c ON c.id = i.id ORDER BY i.fts_rank DESC
+`;
+    const newSql = ensureGroupBy(sql, "");
 
     const { data: data1, error: error1 } = await supabase.rpc(
       "set_timeout_and_execute_raw_sql",
       {
         sql_query: newSql,
         page_idx: 0,
-        limit_num: 150,
+        limit_num: 10,
         offset_num: 0,
       }
     );

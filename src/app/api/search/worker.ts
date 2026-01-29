@@ -55,16 +55,19 @@ export async function rpc_set_timeout_and_execute_raw_sql_via_runs(params: {
     headline,
     location,
     experience_user(
-        *,
-        company_db(
-            name,
-            investors,
-            short_description,
-            employee_count_range,
-            founded_year,
-            location,
-            specialities
-        )
+      role,
+      description,
+      start_date,
+      end_date,
+      company_db(
+          name,
+          investors,
+          short_description,
+          employee_count_range,
+          founded_year,
+          location,
+          specialities
+      )
     ),
     edu_user(
         school,
@@ -134,7 +137,6 @@ export async function rpc_set_timeout_and_execute_raw_sql_via_runs(params: {
       }
 
       // 4) ids로 최종 데이터 JOIN해서 생성 (candid 기준 예시)
-      // - 너가 원하는 join/select는 finalSelect로 제어
       const { data: rows, error: jErr } = await supabase
         .from("candid")
         .select(finalSelect)

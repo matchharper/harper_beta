@@ -32,7 +32,7 @@ const SummaryCell = ({
 
   return (
     <div
-      className="relative overflow-visible flex items-center justify-center h-full px-8 py-4 w-full border-r border-white/5"
+      className="relative overflow-visible flex items-center justify-center h-full px-2 py-4 w-full border-r border-white/5"
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
     >

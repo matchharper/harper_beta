@@ -15,8 +15,6 @@ type Props = {
   canPrev: boolean;
   canNext: boolean;
   isFetchingNextPage: boolean;
-  runId: string;
-  onRunMoreSearch: () => void;
   onPrevPage: () => void;
   onNextPage: () => void;
   criterias: string[];
@@ -36,8 +34,6 @@ export default function ResultBody(props: Props) {
     canPrev,
     canNext,
     isFetchingNextPage,
-    runId,
-    onRunMoreSearch,
     onPrevPage,
     onNextPage,
     criterias,
@@ -65,7 +61,7 @@ export default function ResultBody(props: Props) {
           items={items}
           userId={userId}
           queryItem={queryItem}
-          criterias={criterias ?? []}
+          criterias={criterias}
         />
       )}
       {!isQueryDetailLoading &&
@@ -89,9 +85,8 @@ export default function ResultBody(props: Props) {
                 type="button"
                 onClick={onPrevPage}
                 disabled={!canPrev}
-                className={`flex items-center justify-center px-8 minw-16 h-16 rounded-sm border border-xgray400 hover:opacity-90 ${
-                  canPrev ? "cursor-pointer" : "opacity-40 cursor-not-allowed"
-                }`}
+                className={`flex items-center justify-center px-8 minw-16 h-16 rounded-sm border border-xgray400 hover:opacity-90 ${canPrev ? "cursor-pointer" : "opacity-40 cursor-not-allowed"
+                  }`}
               >
                 Previous
               </button>
@@ -100,11 +95,10 @@ export default function ResultBody(props: Props) {
                 type="button"
                 onClick={onNextPage}
                 disabled={!canNext || isFetchingNextPage}
-                className={`flex items-center justify-center px-8 minw-16 h-16 bg-accenta1 text-black rounded-sm hover:opacity-90 ${
-                  canNext && !isFetchingNextPage
-                    ? "cursor-pointer"
-                    : "opacity-40 cursor-not-allowed"
-                }`}
+                className={`flex items-center justify-center px-8 minw-16 h-16 bg-accenta1 text-black rounded-sm hover:opacity-90 ${canNext && !isFetchingNextPage
+                  ? "cursor-pointer"
+                  : "opacity-40 cursor-not-allowed"
+                  }`}
               >
                 <div>Search next 10 more</div>
               </button>

@@ -5,6 +5,7 @@ import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import ChatPanel, { ChatScope } from "@/components/chat/ChatPanel";
 import { useCallback, useMemo } from "react";
 import { useCandidateDetail } from "@/hooks/useCandidateDetail";
+import CandidChatPanel from "@/components/chat/CandidChatPanel";
 
 export default function ProfileDetailPage() {
   const router = useRouter();
@@ -20,19 +21,17 @@ export default function ProfileDetailPage() {
   );
   const { data, isLoading, error } = useCandidateDetail(userId, candidId);
 
-  const noFunc = useCallback(async () => { }, []);
-
   return (
     <AppLayout>
       <div className="w-full flex flex-row min-h-screen items-start justify-between">
         {candidId && data && (
           <div className={`flex-shrink-0 border-r w-[30%] min-w-[390px] border-white/10`}>
-            <ChatPanel
+            <CandidChatPanel
               title={`${data?.name ?? ""}님`}
               scope={scope}
               userId={userId}
-              onSearchFromConversation={noFunc}
               candidDoc={data}
+              disabled={false}
             />
           </div>
         )}

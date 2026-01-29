@@ -112,16 +112,13 @@ async function fetchCandidatesByIds(
           user_id,
           typed
         ),
-        synthesized_summary ( text ),
-        reveal ( company_user_id )
+        synthesized_summary ( text )
       `
     )
     .in("id", ids)
     .eq("connection.user_id", userId)
-    .eq("synthesized_summary.run_id", runId)
-    .eq("reveal.company_user_id", userId);
+    .eq("synthesized_summary.run_id", runId);
 
-  logger.log("fetchCandidatesByIds time ", performance.now() - start_time);
   if (error) throw error;
 
   const dataById = new Map((data ?? []).map((item: any) => [item.id, item]));
@@ -201,7 +198,7 @@ export function useChatSearchCandidates(
       });
 
       if (ids?.length) {
-        // if (isNewSearch) await deduct(ids.length * 3);
+        if (isNewSearch) await deduct(1);
         const items = await fetchCandidatesByIds(ids, userId!, runId!);
         return { pageIdx, ids, items, isNewSearch };
       }
@@ -264,3 +261,7 @@ export function useChatSearchCandidates(
     runSearch,
   };
 }
+function deduct(arg0: number) {
+  throw new Error("Function not implemented.");
+}
+

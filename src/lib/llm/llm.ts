@@ -65,7 +65,6 @@ export const xaiInference = async (
     temperature: temperature,
     prompt_cache_key: prompt_cache_key,
   });
-
   const content = response.choices[0]?.message?.content;
 
   const usage = response.usage ?? {
@@ -89,7 +88,6 @@ export const xaiInference = async (
 };
 
 import { GoogleGenAI, ThinkingLevel } from "@google/genai";
-import { supabase } from "../supabase";
 const gemini = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
 });

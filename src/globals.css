@@ -101,6 +101,10 @@ body {
   }
 }
 
+button{
+  cursor: pointer;
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

@@ -29,6 +29,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { useMessages } from "@/i18n/useMessage";
 import HoverHistory from "./HoverHistory";
+import Image from "next/image";
 
 const AppLayout = ({
   children,
@@ -106,9 +107,7 @@ const AppLayout = ({
             </button>
           </Tooltips>
         </div>
-
         <div className="flex flex-col mt-4 px-3 gap-1 flex-1">
-          {/* flex-1과 overflow-y-auto를 주어 남은 공간을 차지하고 스크롤 발생 */}
           <NavItem
             collapsed={collapsed}
             active={isHome}
@@ -119,7 +118,7 @@ const AppLayout = ({
           <NavItem
             collapsed={collapsed}
             active={isList}
-            label="Activity / List"
+            label="Shortlist"
             icon={<List size={16} />}
             onClick={() => router.push("/my/list")}
           />
@@ -154,7 +153,7 @@ const AppLayout = ({
                         width: `${Math.min(
                           ((credits?.remain_credit ?? 0) /
                             (credits?.charged_credit ?? 1)) *
-                            100,
+                          100,
                           100
                         )}%`,
                       }}
@@ -168,15 +167,18 @@ const AppLayout = ({
             <DropdownMenuTrigger asChild>
               <button
                 className={[
-                  "w-full flex text-base font-extralight items-center gap-3 rounded-[6px] px-3 py-2",
+                  "w-full flex text-base font-extralight items-center gap-3 rounded-[6px] px-2.5 py-2",
                   "transition duration-200 text-white bg-transparent hover:bg-white/10",
                 ].join(" ")}
               >
                 <div className="shrink-0">
-                  <Settings size={18} />
+                  {
+                    companyUser?.profile_picture ?
+                      <img src={companyUser?.profile_picture ?? ""} alt="profile" width={24} height={24} className="rounded-lg" /> : <User size={18} />
+                  }
                 </div>
                 {!collapsed && (
-                  <div className="truncate text-[15px] font-normal">
+                  <div className="truncate text-sm font-normal">
                     {companyUser?.name ?? "Settings"}
                   </div>
                 )}

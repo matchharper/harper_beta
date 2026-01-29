@@ -123,7 +123,7 @@ export default function CandidateProfileDetailPage({
   logger.log("c ", c);
 
   return (
-    <div className="w-full mx-auto overflow-y-auto h-screen">
+    <div className="w-full mx-auto overflow-y-auto h-screen relative">
       <div className="w-[95%] max-w-[1080px] mx-auto px-4 py-10 space-y-12">
         {/* Header */}
         <div className="flex flex-row items-start justify-between w-full">

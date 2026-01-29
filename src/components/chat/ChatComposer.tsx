@@ -21,6 +21,7 @@ export default function ChatComposer({
   disabledSend,
   isStreaming,
 }: Props) {
+
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       // Enter -> send, Shift+Enter -> newline
@@ -48,11 +49,10 @@ export default function ChatComposer({
         <button
           type="button"
           onClick={isStreaming ? onStop : onSend}
-          className={`absolute right-2 bottom-2 h-8 w-8 rounded-2xl flex items-center justify-center cursor-pointer hover:opacity-90 ${
-            isStreaming
-              ? "bg-hgray700 text-hgray100"
-              : "bg-accenta1 text-black disabled:opacity-50"
-          }`}
+          className={`absolute right-2 bottom-2 h-8 w-8 rounded-2xl flex items-center justify-center cursor-pointer hover:opacity-90 ${isStreaming
+            ? "bg-hgray700 text-hgray100"
+            : "bg-accenta1 text-black disabled:opacity-50"
+            }`}
           disabled={disabledSend}
           aria-label="Send"
         >

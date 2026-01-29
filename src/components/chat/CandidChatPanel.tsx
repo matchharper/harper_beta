@@ -19,6 +19,11 @@ import { supabase } from "@/lib/supabase";
 import { useCredits } from "@/hooks/useCredit";
 import { useQueryClient } from "@tanstack/react-query";
 
+const CANDID_SUGGESTIONS = [
+  "이 사람이 이직 의사가 있을까?",
+  "이 사람이 우리 팀에 적합한지, 근거와 함께 평가해줘.",
+  "처음 대화를 할 때, 어떤 주제로 시작하면 좋을지 알려줘.",
+];
 
 export type ChatScope =
   | { type: "query"; queryId: string }
@@ -29,75 +34,37 @@ type Props = {
   scope?: ChatScope;
   userId?: string;
 
-  onSearchFromConversation: (messageId: number) => Promise<void>;
-
-  disabled?: boolean;
+  disabled: boolean;
   candidDoc?: CandidateDetail;
-  isChatFull?: boolean;
-  setIsChatFull?: (isChatFull: boolean) => void;
-  finishedTick?: number;
 };
 
 export const BOTTOM_THRESHOLD_PX = 120;
 export const AUTO_SCROLL_THROTTLE_MS = 120;
 
-export default function ChatPanel({
+export default function CandidChatPanel({
   title,
   scope,
   userId,
-  onSearchFromConversation,
   disabled,
   candidDoc,
-  isChatFull,
-  setIsChatFull,
-  finishedTick,
 }: Props) {
-  const [isSearchSyncing, setIsSearchSyncing] = useState(false);
+  const router = useRouter();
+
   const [stickToBottom, setStickToBottom] = useState(true);
   const [showJumpToBottom, setShowJumpToBottom] = useState(false);
-  const router = useRouter();
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const queryClient = useQueryClient();
+  const { deduct } = useCredits();
+  const [isUnlockConfirmOpen, setIsUnlockConfirmOpen] = useState(false);
+  const [isUnlocking, setIsUnlocking] = useState(false);
 
   const chat = useChatSessionDB({ model: "grok-4-fast-reasoning", scope, userId, candidDoc }); // ✅ 바뀐 부분
-  const autoStartedRef = useRef(false);
 
-  const isQueryScope = scope?.type === "query";
-
-  useEffect(() => {
-    if (!finishedTick) return;
-    logger.log("\n\n FINISHED!! in ChatPanel \n\n")
-    setTimeout(() => {
-      void chat.loadHistory();
-    }, 1000);
-  }, [finishedTick]);
-
-  // ✅ auto-start: query scope에서만
-  useEffect(() => {
-    if (!isQueryScope) return;
-
-    if (!chat.ready) return;
-    if (chat.isLoadingHistory) return;
-
-    if (chat.messages.length !== 1) return;
-    if (chat.messages[0]?.role !== "user") return;
-
-    if (autoStartedRef.current) return;
-    autoStartedRef.current = true;
-    logger.log("\n 자동 시작 메시지: ", chat.messages);
-
-    void chat.send(chat.messages[0].content ?? "");
-  }, [
-    isQueryScope,
-    chat.ready,
-    chat.isLoadingHistory,
-    chat.messages,
-    chat.send,
-  ]);
-
-  // ✅ scope가 바뀌면 autoStarted도 리셋 (중요)
-  useEffect(() => {
-    autoStartedRef.current = false;
-  }, [scope?.type, isQueryScope ? scope?.queryId : scope?.candidId]);
+  const candidId = useMemo(() => {
+    if (scope?.type === "candid") return scope.candidId;
+    return candidDoc?.id;
+  }, [scope, candidDoc?.id]);
+  const isUnlockProfile = candidDoc?.unlock_profile && candidDoc?.unlock_profile?.length > 0 ? true : false
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
     const el = scrollRef.current;
@@ -169,65 +136,88 @@ export default function ChatPanel({
     requestAnimationFrame(() => scrollToBottom("auto"));
   }, [chat.isLoadingHistory, chat.messages.length, scrollToBottom]);
 
-  // ✅ 검색 가능한 상태인지 (query scope에서만)
-  const canSearch = useMemo(() => {
-    if (!isQueryScope) return false;
+  // ✅ candid scope에서 '아직 대화가 시작 안 된 상태' 판단
+  // (원하면 "messages.length === 0"로만 해도 되는데,
+  //  혹시 시스템 메시지 같은 걸 1개 넣는 경우를 대비해서 user/assistant가 없으면로 판단)
+  const isCandidEmpty = useMemo(() => {
+    const hasAnyChat =
+      chat.messages?.some((m) => m.role === "user" || m.role === "assistant") ??
+      false;
+    return !hasAnyChat && !chat.isLoadingHistory;
+  }, [chat.messages, chat.isLoadingHistory]);
 
-    if (disabled) return false;
-    if (!scope || scope.type !== "query") return false;
-    if (!userId) return false;
-    if (isSearchSyncing || chat.isStreaming) return false;
+  // ✅ 예시 질문 클릭 → 바로 대화 시작
+  const onClickCandidSuggestion = useCallback(
+    async (text: string) => {
+      chat.setMessages([{
+        role: "user",
+        rawContent: text,
+        content: text,
+        segments: [{ type: "text", content: text }],
+      }]);
+      await chat.send(text);
 
-    return (
-      chat.messages.length > 0 && chat.messages.some((m) => m.role === "user")
-    );
-  }, [
-    isQueryScope,
-    disabled,
-    scope,
-    userId,
-    isSearchSyncing,
-    chat.isStreaming,
-    chat.messages,
-  ]);
+      requestAnimationFrame(() => scrollToBottom("smooth"));
+    },
+    [chat, scrollToBottom]
+  );
 
-  const onClickSearch = async (messageId: number) => {
-    if (!canSearch) return;
-    if (!messageId) return;
-    if (!userId) return;
+  const onClickUnlockProfile = useCallback(async () => {
+    if (isUnlockProfile) return;
+    setIsUnlockConfirmOpen(true);
+  }, [isUnlockProfile]);
 
-    // const { data } = await supabase
-    //   .from("runs")
-    //   .select("status, created_at")
-    //   .eq("user_id", userId)
-    //   .not("status", "in", "(running,error,finished,queued)")
-    //   .order("created_at", { ascending: false })
-    //   .limit(1)
-    //   .single();
+  const onConfirmUnlockProfile = useCallback(async () => {
+    if (!userId || !candidId) return;
+    if (isUnlocking) return;
 
-    // const createdAt = new Date(data?.created_at ?? "").getTime();
-    // const now = Date.now();
+    setIsUnlocking(true);
+    let insertedRow: any | null = null;
 
-    // const isWithin5Min = now - createdAt <= 5 * 60 * 1000;
-    // logger.log("isWithin5Min", data, isWithin5Min);
-    // if (data && isWithin5Min) {
-    //   showToast({
-    //     message: "이미 검색이 진행중입니다. 기존 검색이 종료된 후에 다시 시도해주세요.",
-    //     variant: "white",
-    //   });
-    //   return;
-    // }
-
-    setIsSearchSyncing(true);
     try {
-      await chat.addAssistantMessage(
-        "검색을 시작하겠습니다. 최대 1~3분이 소요될 수 있습니다."
-      );
-      await onSearchFromConversation(messageId);
+      const { data, error } = await supabase
+        .from("unlock_profile")
+        .insert({
+          company_user_id: userId,
+          candid_id: candidId,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      insertedRow = data;
+
+      try {
+        await deduct(1);
+      } catch (deductError) {
+        if (insertedRow?.id) {
+          await supabase.from("unlock_profile").delete().eq("id", insertedRow.id);
+        }
+        throw deductError;
+      }
+
+      queryClient.setQueryData(candidateKey(candidId, userId), (prev: any) => {
+        if (!prev) return prev;
+        const current = Array.isArray(prev.unlock_profile)
+          ? prev.unlock_profile
+          : [];
+        if (current.some((u: any) => u?.id === insertedRow?.id)) return prev;
+        return {
+          ...prev,
+          unlock_profile: [...current, insertedRow],
+        };
+      });
+
+      setIsUnlockConfirmOpen(false);
+    } catch (error) {
+      console.error("Unlock profile failed:", error);
+      alert("Unlock에 실패했습니다. 잠시 후 다시 시도해주세요.");
     } finally {
-      setIsSearchSyncing(false);
+      setIsUnlocking(false);
     }
-  };
+  }, [userId, candidId, isUnlocking, deduct, queryClient]);
+
+  logger.log("chat.messages ", chat.messages)
 
   return (
     <div className="w-full flex flex-col min-h-0 h-screen">
@@ -240,29 +230,22 @@ export default function ChatPanel({
           <ArrowLeft className="w-3.5 h-3.5 text-hgray600" />
           <div>{title === "" ? <Skeleton className="w-20 h-5" /> : title}</div>
         </div>
-        <div>
-          {
-            isChatFull ? (
-              <XIcon
-                onClick={() => setIsChatFull?.(false)}
-                className="w-3.5 h-3.5 text-hgray600 cursor-pointer"
-                strokeWidth={1.4}
-              />
-            ) : (
-              <ScreenShareIcon
-                onClick={() => setIsChatFull?.(true)}
-                className="w-3.5 h-3.5 text-hgray600 cursor-pointer"
-                strokeWidth={1.4}
-              />
-            )
-          }
-        </div>
       </div>
 
       {/* Messages (scroll only here) */}
       <div className="flex-1 min-h-0 relative">
         <div ref={scrollRef}
           className="h-full overflow-y-auto px-4 pt-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent hover:scrollbar-thumb-white/20">
+          <ConfirmModal
+            open={isUnlockConfirmOpen}
+            onClose={() => setIsUnlockConfirmOpen(false)}
+            onConfirm={() => void onConfirmUnlockProfile()}
+            title="프로필 잠금 해제"
+            description="프로필 잠금을 해제하고 제한없이 대화를 시작할 수 있습니다. 1 크레딧이 차감됩니다."
+            confirmLabel="확인"
+            cancelLabel="취소"
+            isLoading={isUnlocking}
+          />
           {chat.isLoadingHistory && (
             <div className="text-xs text-hgray600 flex items-center gap-2 py-2">
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -270,18 +253,30 @@ export default function ChatPanel({
             </div>
           )}
 
+          {
+            !isUnlockProfile && (
+              <div className="flex items-center h-[70%] w-full justify-center">
+                <div
+                  onClick={() => void onClickUnlockProfile()}
+                  className="flex flex-row justify-center items-center gap-2 bg-white/10 rounded-md px-3 py-2 cursor-pointer hover:bg-white/15 transition-all duration-200"
+                >
+                  <Lock className="w-4 h-4 text-hgray600" />
+                  <span className="text-xs text-hgray900">Unlock Profile to start the conversation</span>
+                </div>
+              </div>
+            )
+          }
+
+          {
+            isUnlockProfile && (
               <ChatMessageList
                 messages={chat.messages}
                 isStreaming={chat.isStreaming}
                 error={chat.error}
-                onConfirmCriteriaCard={isQueryScope ? onClickSearch : undefined} // ✅ query scope에서만
-                onChangeCriteriaCard={(args) => {
-              void chat.patchAssistantUiBlock(
-                args.messageId,
-                args.modifiedBlock
-              );
-            }}
-          />
+                onConfirmCriteriaCard={undefined} // ✅ query scope에서만
+                onChangeCriteriaCard={() => { }}
+              />)
+          }
           <br />
         </div>
 
@@ -300,6 +295,22 @@ export default function ChatPanel({
         )}
       </div>
 
+      {/* ✅ candid + empty 일 때만 예시 질문 */}
+      {isCandidEmpty && (
+        <div className="flex flex-col gap-2 p-3">
+          {CANDID_SUGGESTIONS.map((q) => (
+            <button
+              key={q}
+              type="button"
+              onClick={() => void onClickCandidSuggestion(q)}
+              className="inline-flex w-fit text-left rounded-lg bg-white/5 hover:bg-white/10 px-3 py-2 text-xs text-hgray900 cursor-pointer"
+            >
+              {q}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Composer (fixed) */}
       <ChatComposer
         value={chat.input}
@@ -307,7 +318,7 @@ export default function ChatPanel({
         onSend={() => void chat.send()}
         onStop={chat.stop}
         onRetry={() => void chat.reload()}
-        disabledSend={!chat.canSend || disabled || isSearchSyncing}
+        disabledSend={!chat.canSend || disabled}
         isStreaming={chat.isStreaming}
       />
     </div>

@@ -1,111 +1,4 @@
-export const criteriaPrompt = `
-Your core objective is:
-1. To **Rephrase** the user's natural language query into a precise, professional definition to confirm understanding.
-2. To professionally interpret the intent to define clear **Search Criteria**.
-3. To design and explain the **Thinking Process** of how Harper will find the best talent in a way that is engaging and transparent.
-4. criteria와 thinking은 영어 키워드를 제외하면 한글로 작성해야한다.
-
-**Output Format:** JSON (keys: "rephrasing", "thinking", "criteria")
-Only return the JSON object, no other text or comments or code block or markdown.
-
----
-
-### Database Schema
-
-candid : T1
-- id (PK), headline, bio, name, location, summary, total_exp_months: 본인의 총 경력 개월수 이지만 대체로 실제보다 더 길게 들어가기 때문에 여유를 둬야한다.
-
-experience_user
-- candid_id (FK → candid.id), role : 직무, description : 본인이 한 일에대한 설명, start_date (DATE, format: YYYY-MM-DD), end_date (DATE), company_id (FK → company_db.id)
-
-company_db  
-- id (PK)
-- name : name of the company
-- description : 회사에 대한 설명
-- specialities: 회사의 특성 혹은 전문성. ex) Online Accommodation, Leisure Booking & Advertisement, Hotel Property Management System, Interior & Remodeling, Hotelier Recruiting, Travel Tech
-- investors: 투자자 목록, 투자회사명(라운드) 형태로 들어가있음. ex) SBVA(Series B)
-
-edu_user  
-- candid_id (FK → candid.id)
-- school : 학교명
-- degree : 학위 ex) Bachelor of Science, Master of Science, phd
-- field : 전공
-- start_date (DATE)
-- end_date (DATE)
-
-publications
-- candid_id (FK → candid.id)
-- title : 논문 혹은 책의 제목
-- link
-- published_at : 논문 혹은 책이 발행된 곳. 학회, 워크샵 등 + 발행 날짜
----
-
-### [Internal Data Intelligence] (Reference Logic)
-Harper matches talent using the following data structure:
-- **Basic Info (T1):** Summary, Bio, Location, Headline. (Uses FTS)
-- **Experience (experience_user, company_db):** Role, Company Name, Company Specialities, Employee Count, Founded Year.
-- **Education (edu_user):** School Name, Degree, Major/Field.
-- **Achievements (publications):** Publication Titles, Venues/Dates.
-
----
-[Rephrasing Guide] (의도 명확화)
-- rephrasing 필드는 사용자가 가장 먼저 보게 되는 문장으로, 네가 요청의 뉘앙스를 정확히 이해했는지를 확인시켜 줍니다.
-- 명확화 & 확장: 줄임말이나 구어체를 전문적인 표현으로 변환합니다 (예: “grad” → “졸업생”, “dev” → “소프트웨어 엔지니어”).
-- 맥락 보완: “AI 스타트업”처럼 모호한 표현이 나오면, 비즈니스 관점에서 의미를 구체화합니다 (예: “핵심 AI 기술을 직접 개발하는 기업”).
-- 형식: 한 문장으로 간결하고 명확하게 작성합니다.
-
----
-
-[Thinking Guide] (탐색 로직 설명 · 외부 노출용)
-- thinking 필드는 재구성된 요청을 바탕으로 후보를 어떻게 탐색할지에 대한 과정을 설명합니다.
-- 전문가 브리핑 톤: 내부 데이터 구조나 기술적 구현 방식은 절대 드러내지 않습니다.
-- 데이터베이스 구조에 있는 내용안에서 검색 방법을 설계해야합니다. **직접적으로 schema와 table/column명을 드러내진 않고**, 문장으로 풀어서 작성합니다.
-  - ex) 카이스트와 서울대를 다닌적 있는 사람들 중 제목에 "TTS"라는 키워드가 포함된 논문을 작성한 적 있는 사람을 탐색합니다. 혹은 ~~
-- 톤: 정중하고 신뢰감 있으며, 사용자를 위해 일하고 있다는 느낌을 줍니다 (약 250자 미만).
-- 검색 내용과 직접적으로 연관이 없는 내용이나 목표를 추가하지마. ex) founder를 검색했는데 혁신적인 리더십을 가진 잠재적 창업자를 효과적으로 매칭하겠습니다. 이런 말을 추가하지말고 검색을 어떻게 할지에 대해서만 말해.
-
----
-
-### [Criteria Output Rules]
-- criteria는 최소 1개 이상, 최대 5개 이하여야 한다. 각 기준은 명확히 다르고 겹치지 않아야 한다. 특정 키워드를 제외하고는 한글로 작성해야 한다.
-- 가능한 4개 이하로 해보고, 전체 검색 내용을 커버하기 위해 필요하면 5개로 늘려도 좋다.
-- criteria는 자연어 입력에 대해서만 세팅되고, thinking/rephrasing 과정의 기준은 반영되지 않아야 한다.
-- 각 criteria는 최대 30자 이하여야 한다.
-- criteria는 중복되지 않아야 한다. 하나로 묶을 수 있다면 묶어서 하나로 표현해라.
-- 검색 query에 기반하는 것이 가장 중요하고, Database의 schema와 별개의 조건이어도 된다. ex) 일을 열심히 하는 편인가, 나이가 2, 30대인가 등.
-
----
-
-### [Output Example - Good Case]
-User Input: "stanford grad working in ai startup"
-Output:
-{
-  "rephrasing": "인공지능을 핵심 제품으로 개발하고 있는 고성장 스타트업에서 현재 근무 중인 스탠퍼드 대학교 졸업생",
-  "thinking": "스탠퍼드 대학교 졸업생 중 AI/ML 전문 분야로 분류된 기업들의 현재 재직 정보와 교차 분석하고 있습니다. 특히 임직원 수가 적거나 설립된 지 얼마 되지 않은 기업을 중심으로 선별해 ‘스타트업’을 타겟팅하며, 후보자 정보를 직접 분석해 실제 AI 제품 개발에 적극적으로 관여하고 있는지를 확인하고 있습니다.",
-  "criteria": [
-    "Stanford 졸업생",
-    "AI/ML에 대한 전문성",
-    "고성장 스타트업 근무"
-  ]
-}
-
----
-
-### Input Starts Here
-Natural Language Query:`;
-
-export const firstSqlPrompt = `Core Objective:
-Your goal is to generate high-quality SQL WHERE clauses that retrieve a relevant but sufficiently inclusive candidate set from the database.
-- Preserve the user's core intent (never to merge different roles or domains).
-- The SQL stage prioritizes recall under correct intent.
-  Do not over-constrain queries to the point of returning zero results.
-- The system runs in two steps:
-  1) SQL retrieval using your WHERE clause
-  2) LLM-based evaluation and filtering on candidate details
-- If exact matching is uncertain, prefer inclusion over exclusion, and defer final judgment to the second stage.
-
----
-
+const db_schema = `
 ### Database Schema
 
 candid : T1
@@ -137,6 +30,21 @@ publications
 - title : 논문 혹은 책의 제목
 - link
 - published_at : 논문 혹은 책이 발행된 곳. 학회, 워크샵 등 + 발행 날짜
+`
+
+export const firstSqlPrompt = `Core Objective:
+Your goal is to generate high-quality SQL WHERE clauses that retrieve a relevant but sufficiently inclusive candidate set from the database.
+- Preserve the user's core intent (never to merge different roles or domains).
+- The SQL stage prioritizes recall under correct intent.
+  Do not over-constrain queries to the point of returning zero results.
+- The system runs in two steps:
+  1) SQL retrieval using your WHERE clause
+  2) LLM-based evaluation and filtering on candidate details
+- If exact matching is uncertain, prefer inclusion over exclusion, and defer final judgment to the second stage.
+
+---
+
+${db_schema}
 
 ---
 
@@ -224,7 +132,6 @@ Output Rules (Strict — Must Not Be Violated)
   - 전공 유사어 (computer science / software / AI / ML / data 등)
 - 검색이 명확한 하나의 조건이라면 sql_query를 짧게 구성해도 되니, 지나치게 길게 작성하지 마라.
 - 겹치는 조건을 두번 추가하지 마라. (ex. ILIKE '%서울대학교|서울대%' -> ILIKE 조건에 의해 서울대 만 넣더라도 서울대학교도 같이 잡힌다.)
-- If you use to_tsquery, 마지막에 ORDER BY ts_rank(fts, to_tsquery('english', '<query in to_tsquery>')) DESC 를 추가해라.
 - Never match company names or school names against ex.role, ex.description, or T1.summary.
   Company names or school names may ONLY be matched against company_db.name or education_user.school.
 - 논문을 제외한 데이터는 linkedin의 포맷을 따르고 있다. 이 점을 참고해서 구성해라. (ex. company_db.name이 stealth면 직접 창업하였고 법인 설립 이전을 의미.)
@@ -288,7 +195,7 @@ ex.role ILIKE '%computer vision|vision engineer|research|researcher%'
 OR ex.description ILIKE '%segmentation|detection%'
 )
 AND(
-p.title ILIKE '%vision|object detection|segmentation|image processing|image generation|video generation|video processing|ViT|GAN|Nerf|Gaussian splatting|Convolution|image classification%'
+p.title ILIKE '%vision|object detection|segmentation| vlm |image processing|image generation|video generation|video processing|ViT|GAN|Nerf|Gaussian splatting|Convolution|image classification%'
 )
 AND(
 p.published_at ILIKE '%CVPR|ICCV|ECCV|NeurIPS|ICML|AAAI%'
@@ -327,7 +234,7 @@ EXISTS (
   JOIN company_db c ON c.id = ex.company_id
   WHERE ex.candid_id = T1.id
     AND c.name ILIKE '%kakao|카카오%'
-    AND ex.role ILIKE '%engineer|developer|software engineer|backend|frontend|full stack|full-stack|programmer|개발자|researcher|scientist%'
+    AND ex.role ILIKE '%engineer|developer|software engineer|backend|frontend|full stack|full-stack|programmer|개발자| fde |researcher|scientist%'
 )
 )
 
@@ -357,20 +264,17 @@ export const sqlExistsPrompt = `
 PostgreSQL Query Optimizer for LLM-generated search pipelines.
 
 # Goal
-Transform a logically correct candidate-filtering SQL into a
-high-performance Postgres query that:
+Transform a logically correct candidate-filtering SQL into a high-performance Postgres query that:
 - finds matching candid_id first,
 - uses EXISTS, ILIKE ANY, and CTEs,
 - and is optimized for Supabase-scale datasets.
+- 항상 candid id를 리턴하고, id DESC로 정렬하는 SQL Query를 출력해줘. (ts_rank로 정렬/계산하지 마라.)
 
-항상 candid id를 리턴하고, 최소한 하나의 fts 조건이 있어야 하고, ORDER BY fts_rank DESC로 정렬하는 SQL Query를 출력해줘.
-만약 fts 조건이 없다면 추가해줘. fts 칼럼은 summary 칼럼을 ts_vector로 사용하는 칼럼이고, 회사-직무, 학교-전공-학위, 논문-수상기록 정보다 간략하게 들어가있어. 칼럼명은 'summary_fts'가 아니라 'fts'야.
-
-**중요** to_tsquery 안에서는 만약 두개 이상의 단어를 사용한다면 공백으로 구분하지 말고, <-> 연산자를 사용해야 한다.
+SQL 규칙
+1. 만약 Postgres에서 DISTINCT ON (expr) 를 쓰면 ORDER BY는 반드시 그 expr로 시작해야 한다. 
+2. to_tsquery 안에서는 단어에 co-founder 같이 하이픈(-)을 쓸 수 없습니다.
+3. **중요** to_tsquery 안에서는 만약 두개 이상의 단어를 사용한다면 공백으로 구분하지 말고, <-> 연산자를 사용해야 한다.
 사용 예시 : fts @@ to_tsquery('english', 'computer <-> vision | research <-> scientist | researcher')
-... ORDER BY fts_rank DESC
-
-Logic은 유지하되, 불필요한 키워드나 필요한 키워드가 있다면 수정해도 됨.
 
 ---
 
@@ -391,165 +295,13 @@ major(전공)는 너무 폭넓게 잡히면 노이즈 커지니까, “핵심 �
 - 겹치는 조건을 여러개 추가하지 마라. (ex. ILIKE '%서울대학교|서울대%' -> ILIKE 조건에 의해 서울대 만 넣더라도 서울대학교도 같이 잡힌다.)
 - Never match company names or school names against ex.role, ex.description.
 - 논문을 제외한 데이터는 linkedin의 포맷을 따르고 있다. 이 점을 참고해서 구성해라. (ex. company_db.name이 stealth면 직접 창업하였고 법인 설립 이전을 의미.)
-- 불필요한 일반 단어 금지: good, great, team, experience, work 같은 건 조건에 넣지 말기(노이즈)
+- 불필요한 일반 단어 금지: good, great, team, experience, work 같은 건 조건에 넣지 말기(노이즈일 뿐이다.)
+- Logic은 유지하되, 불필요한 키워드나 필요한 키워드가 있다면 수정해도 됨. ex. description 등에서 ai로 찾고싶다면 %ai% 는 main과 같은 의미 없는 단어가 너무 많이 걸릴 수 있기 때문에 앞뒤에 공백을 추가해서 % ai %로 하거나, 헷갈리지 않게 %artificial intelligence% 처럼 풀어서 적어야 의도대로 검색이 일어날 수 있다.
+
+### 주의
+Postgres SQL 규칙을 정확히 지킨, 속도면에서 최적화된 SQL Query를 출력해야해.
 
 `
-
-export const sqlExistsPrompt2 = `
-# Role
-PostgreSQL Query Optimizer and Refiner for LLM-generated search pipelines.
-
-# Goal
-Transform a logically correct candidate-filtering SQL into a
-high-performance Postgres query that:
-- finds matching candid_id first,
-- uses EXISTS, ILIKE ANY, and CTEs,
-- and is optimized for Supabase-scale datasets.
-
-항상 WITH identified_ids AS ( ... ) 형식으로 출력해줘. 마지막에 SELECT는 붙이지 않아도 괜찮아. 너가 출력을 만들면, 마지막에 
-  SELECT
-    to_json(c.id) AS id,
-    c.name,
-    i.fts_rank
-  FROM identified_ids i
-  JOIN candid c ON c.id = i.id
-  ORDER BY i.fts_rank DESC
-를 추가해서 사용할거야.
-
-Do NOT change the meaning of the query.
-Only change how it is executed.
-
----
-
-# Core Principles
-
-1. Preserve all logical conditions.
-2. Improve execution plan, not semantics.
-3. Prefer index-friendly constructs (EXISTS, ANY, CTEs, UNION).
-4. Never explode rows by joining large tables before filtering candid_id.
-
----
-
-# Mandatory Rewrite Strategy
-
-You MUST rewrite every query into this pipeline:
-1) Produce sets of candid_id from each independent condition group
-   (education, experience, publication, company, etc.)
-2) Combine those sets using:
-   - JOIN for AND
-   - UNION / INTERSECT for OR
-3) Apply LIMIT at the candid_id stage, not after joining candid.
-4) Only after candid_id is finalized, join candid or return id + fts_rank.
-
----
-
-# Full-Text Search (FTS) Rules
-
-- FTS may appear ONLY in one CTE.
-- That CTE must produce:
-    candid_id, fts_rank
-- Never put FTS inside EXISTS, OR, or JOIN conditions.
-- Never repeat the same tsquery in multiple places.
-
-Example:
-
-fts_ids AS (
-  SELECT
-    c.id AS candid_id,
-    ts_rank(c.fts, p.tsq) AS fts_rank
-  FROM candid c
-  CROSS JOIN params p
-  WHERE c.fts @@ p.tsq
-)
-
----
-
-# EXISTS Rules (critical)
-
-- NEVER use JOIN to enforce constraints on experience_user, edu_user, publications, or company_db.
-- Always use EXISTS to test conditions on related tables.
-
-Example:
-
-EXISTS (
-  SELECT 1
-  FROM experience_user ex
-  WHERE ex.candid_id = base.candid_id
-    AND ex.role ILIKE ANY (ARRAY['%engineer%', '%developer%'])
-)
-
-This guarantees same-row semantics without row explosion.
-
----
-
-# ILIKE rules
-Rewrite every pattern like:
-ILIKE '%a|b|c%'
-into:
-ILIKE ANY (ARRAY['%a%', '%b%', '%c%'])
-Never leave '|' inside ILIKE.
----
-
-# Query shape
-Your final SQL must have this shape:
-
-WITH
-params AS (... optional tsquery ...),
-
-<condition_1>_ids AS (
-  SELECT DISTINCT candid_id
-  FROM <source_table>
-  WHERE ...
-),
-
-<condition_2>_ids AS (
-  SELECT DISTINCT candid_id
-  FROM <source_table>
-  WHERE ...
-),
-
-(optional fts_ids AS ...),
-
-combined_ids AS (
-  -- Use JOIN for AND, UNION for OR
-),
-
-final_ids AS (
-  SELECT
-    id,
-    COALESCE(fts_rank, 0) AS fts_rank
-  FROM combined_ids
-  LEFT JOIN fts_ids USING (candid_id)
-  ORDER BY fts_rank DESC, candid_id
-  LIMIT <N>
-)
-
-SELECT
-  candid_id,
-  fts_rank
-FROM final_ids
-
----
-
-# Performance rules
-- NEVER start a query from candid when filtering.
-- NEVER JOIN large tables before candid_id is reduced.
-- Always reduce to candid_id first.
-- Use GROUP BY or DISTINCT only on candid_id.
-- LIMIT must be applied to candid_id, not after joining candid.
-
----
-
-# Output
-- Output a single valid PostgreSQL query.
-- No comments.
-- No explanation.
-- No markdown outside SQL.
-- Do not output final joins to candid details; only id + fts_rank.
-
-Your job is to compile the query into an execution-plan-efficient form, not to reinterpret intent.
-
-`;
 
 export const timeoutHandlePrompt = `Rules:
 - Fix ONLY what is necessary.
@@ -574,37 +326,9 @@ export const expandingSearchPrompt = `현재 아래 SQL query로 한번 내부 D
 따라서 이번 검색에서는 최대한 조건에 맞는 유저가 잡힐 수 있도록 좀 더 범위를 넓혀서 검색을 시도해줘. 완전히 새롭게 작성하기 보다는 기존 SQL query에서 조건을 넓히거나 완화하는 정도로 해줘.
 특히 SQL query로 얻은 데이터를 바로 유저에게 주는게 아니라 한번 LLM이 필터링 할거기 때문에, 꼭 모든 조건을 만족안해도 두번째 단계에서 거를 수 있어서 많은 사람이 들어오는게 중요해.(High recall is important.)
 
-### Database Schema
-
-candid : T1
-- id (PK), name, location: location은 항상 영어로 들어있다, summary, total_exp_months: 본인의 총 경력 개월수 이지만 대체로 실제보다 더 길게 들어가기 때문에 여유를 둬야한다.
-* summary: 본인에 대한 간략한 설명. 최대 500자 이하. 다른 모든 데이터들은 비어있을 수도 있지만, summary는 모든 candid row에 존재한다. summary는 full-text search를 위해 fts 칼럼에 저장되어 있으니, summary를 사용할 때는 fts 칼럼을 사용해야 한다.
-사용 예시 : fts @@ to_tsquery('english', 'computer <-> vision | research <-> scientist | researcher')
-
-experience_user
-- candid_id (FK → candid.id), role : 직무, description : 본인이 한 일에대한 설명, start_date (DATE, format: YYYY-MM-DD), end_date (DATE), company_id (FK → company_db.id)
-
-company_db
-- id (PK)
-- name : name of the company
-- description : 회사에 대한 설명
-- specialities: 회사의 특성 혹은 전문성. ex) Online Accommodation, Leisure Booking & Advertisement, Hotel Property Management System, Interior & Remodeling, Hotelier Recruiting, Travel Tech
-- investors: 투자자 목록, 투자회사명(라운드) 형태로 들어가있음. ex) SBVA(Series B)
-
-edu_user
-- candid_id (FK → candid.id)
-- school : 학교명
-- degree : 학위 ex) Bachelor of Science, Master of Science, phd
-- field : 전공
-- start_date (DATE)
-- end_date (DATE)
-
-publications
-- candid_id (FK → candid.id)
-- title : 논문 혹은 책의 제목
-- link
-- published_at : 논문 혹은 책이 발행된 곳. 학회, 워크샵 등 + 발행 날짜
-----
+---
+${db_schema}
+---
 `;
 
 export const tsvectorPrompt2 = `
@@ -621,7 +345,6 @@ Based on the user's requirements, write a SQL query that targets the 'fts' colum
 - Combine as many synonyms or similar words as possible using the OR (|) operator.
 2. Identification Structure:
 - You must use the 'fts' column: T1.fts @@ to_tsquery('english', 'keyword1 | keyword2 | ...')
-- Sort by relevance using ts_rank_cd, but adhere to the DISTINCT ON (id) rule.
 3. 다음 단계에서 해당 검색으로 가져온 candidate들이 적합한지 판단하기 위해 읽어야하는 테이블을 알려주세요.
 - edu_user, experience_user, publications, extra_experience 중 어떤 테이블이 필요한지 알려주세요.
 - extra_experience는 수상기록, experience_user는 회사를 다닌 경력, edu_user는 학력, publications는 논문 정보를 의미합니다.

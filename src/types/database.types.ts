@@ -69,19 +69,30 @@ export type Database = {
         Row: {
           candid_id: string
           created_at: string
-          identifier: string | null
+          identifier: string
+          is_current: boolean
         }
         Insert: {
-          candid_id?: string
+          candid_id: string
           created_at?: string
-          identifier?: string | null
+          identifier: string
+          is_current?: boolean
         }
         Update: {
           candid_id?: string
           created_at?: string
-          identifier?: string | null
+          identifier?: string
+          is_current?: boolean
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "candid_id_map_candid_id_fkey"
+            columns: ["candid_id"]
+            isOneToOne: false
+            referencedRelation: "candid"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       company_code: {
         Row: {
@@ -340,6 +351,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      documents: {
+        Row: {
+          created_at: string
+          excerpt: string | null
+          id: number
+          markdown: string | null
+          title: string | null
+          url: string | null
+        }
+        Insert: {
+          created_at?: string
+          excerpt?: string | null
+          id?: number
+          markdown?: string | null
+          title?: string | null
+          url?: string | null
+        }
+        Update: {
+          created_at?: string
+          excerpt?: string | null
+          id?: number
+          markdown?: string | null
+          title?: string | null
+          url?: string | null
+        }
+        Relationships: []
       }
       edu_user: {
         Row: {
@@ -859,41 +897,6 @@ export type Database = {
           },
         ]
       }
-      query_pages: {
-        Row: {
-          candidate_ids: Json[] | null
-          created_at: string
-          id: number
-          message_id: number
-          page_idx: number | null
-          query_id: string | null
-        }
-        Insert: {
-          candidate_ids?: Json[] | null
-          created_at?: string
-          id?: number
-          message_id: number
-          page_idx?: number | null
-          query_id?: string | null
-        }
-        Update: {
-          candidate_ids?: Json[] | null
-          created_at?: string
-          id?: number
-          message_id?: number
-          page_idx?: number | null
-          query_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "query_pages_query_id_fkey"
-            columns: ["query_id"]
-            isOneToOne: false
-            referencedRelation: "queries"
-            referencedColumns: ["query_id"]
-          },
-        ]
-      }
       request: {
         Row: {
           candid_id: string | null
@@ -930,42 +933,6 @@ export type Database = {
           {
             foreignKeyName: "request_user_id_fkey"
             columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "company_users"
-            referencedColumns: ["user_id"]
-          },
-        ]
-      }
-      reveal: {
-        Row: {
-          candid_id: string | null
-          company_user_id: string | null
-          created_at: string
-          id: number
-        }
-        Insert: {
-          candid_id?: string | null
-          company_user_id?: string | null
-          created_at?: string
-          id?: number
-        }
-        Update: {
-          candid_id?: string | null
-          company_user_id?: string | null
-          created_at?: string
-          id?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "reveal_candid_id_fkey"
-            columns: ["candid_id"]
-            isOneToOne: false
-            referencedRelation: "candid"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "reveal_company_user_id_fkey"
-            columns: ["company_user_id"]
             isOneToOne: false
             referencedRelation: "company_users"
             referencedColumns: ["user_id"]
@@ -1128,6 +1095,42 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "runs"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      unlock_profile: {
+        Row: {
+          candid_id: string | null
+          company_user_id: string | null
+          created_at: string
+          id: number
+        }
+        Insert: {
+          candid_id?: string | null
+          company_user_id?: string | null
+          created_at?: string
+          id?: number
+        }
+        Update: {
+          candid_id?: string | null
+          company_user_id?: string | null
+          created_at?: string
+          id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reveal_candid_id_fkey"
+            columns: ["candid_id"]
+            isOneToOne: false
+            referencedRelation: "candid"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reveal_company_user_id_fkey"
+            columns: ["company_user_id"]
+            isOneToOne: false
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
           },
         ]
       }

@@ -31,7 +31,7 @@ const HistoryItem = ({
   return (
     <div
       className={[
-        "group relative flex flex-row items-center justify-between px-2.5 min-h-10 py-1.5 text-white font-normal cursor-pointer rounded-lg gap-1 hover:bg-white/5 transition-all duration-200",
+        "group relative flex flex-row items-center justify-between px-2.5 min-h-10 py-1.5 text-white font-normal cursor-pointer rounded-lg gap-1 hover:bg-white/5",
         isActive ? "bg-white/10" : "",
       ].join(" ")}
       key={queryItem.query_id}
@@ -120,16 +120,16 @@ export function NavItem({
         type="button"
         onClick={onClick}
         className={[
-          "w-full flex text-sm font-extralight items-center gap-3 rounded-[6px] px-3 h-9",
-          "transition duration-200 text-white",
+          "w-full flex text-sm font-extralight items-center gap-2 rounded-[6px] h-9 text-white",
           active
             ? "bg-bgDark500  shadow-sm"
             : "bg-transparent hover:bg-white/10",
+          collapsed ? "px-3" : "px-2.5",
         ].join(" ")}
       >
         <div className="shrink-0">{icon}</div>
         {!collapsed && (
-          <div className="truncate text-[14px] font-normal">{label}</div>
+          <div className="truncate text-sm font-normal">{label}</div>
         )}
       </button>
     </Tooltips>

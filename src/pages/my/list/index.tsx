@@ -9,7 +9,7 @@ import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 type PageKey = "bookmark" | "request" | "connected";
 
 const TABS: { key: PageKey; label: string }[] = [
-  { key: "bookmark", label: "Activity" },
+  { key: "bookmark", label: "Shortlist" },
   { key: "request", label: "Requests" },
   { key: "connected", label: "Connections" },
 ];
@@ -39,7 +39,7 @@ export default function MyPage() {
     <AppLayout>
       <div className="min-h-screen w-full">
         {/* Header */}
-        <div className="sticky top-0 z-20 w-full backdrop-blur">
+        <div className="sticky top-0 z-50 w-full backdrop-blur">
           <div className="mx-auto w-full px-4 pt-6 pb-2">
             <div className="flex items-end justify-between gap-4">
               <div className="text-3xl font-hedvig font-light tracking-tight text-white">
@@ -53,8 +53,7 @@ export default function MyPage() {
             </div>
 
             {/* Tabs */}
-            <div className="mt-5">
-              {/* <div className="inline-flex rounded-2xl border border-bgDark400 bg-bgDark500 p-1"> */}
+            {/* <div className="mt-5">
               <div className="inline-flex rounded-2xl p-1">
                 {TABS.map((t) => {
                   const active = t.key === currentPage;
@@ -83,12 +82,12 @@ export default function MyPage() {
                   );
                 })}
               </div>
-            </div>
+            </div> */}
           </div>
         </div>
 
         {/* Content */}
-        <div className="mx-auto w-full px-4 py-8">
+        <div className="mx-auto w-full px-4 pb-8">
           <div className="">{page}</div>
         </div>
       </div>

@@ -2,9 +2,7 @@ import { xaiInference } from "@/lib/llm/llm";
 import { supabase } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
 import { assertNotCanceled, deduplicateAndScore, UI_END, UI_START } from "../utils";
-import { ko } from "@/lang/ko";
 import { logger } from "@/utils/logger";
-import { updateRunStatus } from "../utils";
 import { makeSqlQuery } from "../parse";
 import { searchDatabase } from "../parse";
 import { notifyToSlack } from "@/lib/slack";
@@ -109,7 +107,7 @@ export async function POST(req: NextRequest) {
     logger.log("\n\n 🚥 종료된 run입니다. ", run?.status, "\n\n");
     return NextResponse.json({ error: "Stopped run found" }, { status: 200 });
   }
-  if (!(run?.status?.includes("error") || run?.status === null || run?.status.includes("done") || run?.status.includes("finished"))) {
+  if (!(run?.status?.includes("error") || run?.status === null || run?.status.includes("finished"))) {
     logger.log("\n\n 🦾 지금 진행중입니다. 건드리지 마세요. ", run?.status, "\n\n");
     return NextResponse.json({ error: "Run not found" }, { status: 200 });
   }
@@ -160,7 +158,7 @@ export async function POST(req: NextRequest) {
         pageIdx: page,
         run: run as RunRow,
         sql_query: sql_query,
-        limit: 150,
+        limit: 300,
         offset: offset,
         review_count: 100
       });
@@ -212,7 +210,6 @@ Now write the additional message:`,
       0.8,
       1
     );
-    logger.log("msg ======================== ", msg);
 
     const res1 = await supabase.from("messages").insert({
       query_id: queryId,
@@ -220,6 +217,7 @@ Now write the additional message:`,
       role: 1,
       content: defaultMsg + "\n" + msg,
     });
+    logger.log("메세지 업로드 시점", res1)
 
     await supabase.from("runs").update({
       status: "finished"

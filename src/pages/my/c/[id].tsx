@@ -100,8 +100,6 @@ export default function ResultPage() {
   const doSearchRef = useRef(false);
 
   useEffect(() => {
-    console.log("[effect] fired");
-
     if (isLoading) return console.log("[effect] return: isLoading");
     if (isFetchingNextPage) return console.log("[effect] return: isFetchingNextPage");
     if (!ready) return console.log("[effect] return: !ready");
@@ -130,8 +128,10 @@ export default function ResultPage() {
     }
     if (queryItem && queryItem.runs && queryItem.runs.length === 0 && !runId) {
       setIsChatFull(true);
+    } else {
+      setIsChatFull(false);
     }
-  }, [queryItem, runId]);
+  }, [queryItem, runId, router]);
 
   const pages = data?.pages ?? [];
   const current = pages[pageIdx];
@@ -250,7 +250,6 @@ export default function ResultPage() {
     logger.log("queryItem: ", queryItem);
   }, [queryItem]);
 
-  const finishedTickRef = useRef(0);
   const [finishedTick, setFinishedTick] = useState(0);
 
   const prevStatusRef = useRef<string | undefined>(undefined);
@@ -260,6 +259,7 @@ export default function ResultPage() {
     const curr = runData?.status;
 
     if (prev && curr && prev !== "finished" && curr === "finished") {
+      logger.log("\n\n FINISHED!! \n\n")
       setFinishedTick((t) => t + 1);
     }
 
@@ -311,10 +311,8 @@ export default function ResultPage() {
                 canPrev={canPrev}
                 canNext={canNext}
                 isFetchingNextPage={isFetchingNextPage}
-                onRunMoreSearch={() => { }}
                 onPrevPage={prevPage}
                 onNextPage={nextPage}
-                runId={runId}
                 criterias={currentRunCriterias}
               />
             )}

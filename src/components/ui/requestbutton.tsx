@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import ConnectionModal from "../Modal/ConnectionModal";
-import { CandidateTypeWithConnection } from "@/hooks/useSearchCandidates";
+import { CandidateTypeWithConnection } from "@/hooks/useSearchChatCandidates";
 import { useMessages } from "@/i18n/useMessage";
 
 type ModalMode = "request" | "cancel";

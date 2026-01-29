@@ -47,8 +47,7 @@ async function fetchCandidatesByIds(
             user_id,
             typed
           ),
-          synthesized_summary ( text ),
-          reveal ( company_user_id )
+          synthesized_summary ( text )
         `
         )
         .in("id", ids)
@@ -64,7 +63,7 @@ async function fetchCandidatesByIds(
     return ordered as CandidateTypeWithConnection[];
 }
 
-async function fetchRunPage(params: {
+async function fetchRunPage12(params: {
     runId: string;
     pageIdx: number;
     userId: string;
@@ -87,6 +86,35 @@ async function fetchRunPage(params: {
         ids,
     };
 }
+
+async function fetchRunPage(params: {
+    runId: string;
+    pageIdx: number; // this is now the "virtual page" inside a single row
+    userId: string;
+}) {
+    const { runId, pageIdx } = params;
+
+    // NOTE: always read the latest single row for this runId
+    const { data, error } = await supabase
+        .from("runs_pages")
+        .select("candidate_ids, created_at")
+        .eq("run_id", runId)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+    if (error) throw error;
+
+    const row = data?.[0];
+    const all = (row?.candidate_ids ?? []) as Array<{ id: string }>;
+
+    const start = pageIdx * 10;
+    const end = start + 10;
+
+    const ids = all.slice(start, end).map((r) => r.id);
+
+    return { ids, total: all.length };
+}
+
 
 export function useRunPagesInfinite({
     userId,
@@ -149,7 +177,6 @@ export function useRunPagesInfinite({
             return { pageIdx, ids, items };
         },
         getNextPageParam: (lastPage) => {
-            // “해당 pageIdx row가 존재하고 ids가 0이면 undefined” 같은 룰로도 가능
             if (!lastPage?.ids?.length) return undefined;
             return lastPage.pageIdx + 1;
         },

@@ -1,4 +1,4 @@
-import { CandidateTypeWithConnection } from "@/hooks/useSearchCandidates";
+import { CandidateTypeWithConnection } from "@/hooks/useSearchChatCandidates";
 import React, { useMemo, useState } from "react";
 import {
   companyEnToKo,

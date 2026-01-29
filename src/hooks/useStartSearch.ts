@@ -73,8 +73,9 @@ async function createRunFromMessage(params: {
   messageId: number;
   criteria: any;
   queryText: string;
+  userId: string;
 }) {
-  const { queryId, messageId, criteria, queryText } = params;
+  const { queryId, messageId, criteria, queryText, userId } = params;
   console.log("\n createRunFromMessage: ", queryId, messageId, criteria);
 
   if (!queryId) throw new Error("createRunFromMessage: missing queryId");
@@ -90,6 +91,7 @@ async function createRunFromMessage(params: {
       message_id: messageId,
       criteria,
       query_text: queryText,
+      user_id: userId,
     })
     .select("id")
     .single();
@@ -136,6 +138,7 @@ export const runSearch =
       messageId,
       criteria: inputs.criteria,
       queryText: inputs.thinking ?? "",
+      userId: userId
     });
 
     if (!newRunId) return null;

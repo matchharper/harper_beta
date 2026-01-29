@@ -11,6 +11,7 @@ import { Bolt, Check, FileSpreadsheet, Loader2, Plus } from "lucide-react";
 import { logger } from "@/utils/logger";
 import { useRouter } from "next/router";
 import Image from "next/image";
+import { LinkChip } from "../information/LinkChips";
 
 type CriteriaItemProps = {
   criteria: string;
@@ -217,7 +218,7 @@ function CriteriaCard({
         Search
       </div>
       <div
-        className={`mt-2 rounded-3xl border border-white/10 bg-white/5 px-2 py-4 transition-all duration-200
+        className={`mt-2 rounded-3xl border border-white/10 bg-white/5 px-4 py-4 transition-all duration-200
       ${disabled ? "pointer-events-none cursor-default" : ""}`}
       >
         <div className="text-sm text-hgray900 font-semibold flex items-center gap-2">
@@ -305,10 +306,9 @@ const CriteriaLoading = () => {
 const SearchResultCard = ({ text, runId }: { text: string; runId: string }) => {
   const router = useRouter();
   const firstText = text.split(" ").slice(0, 2).join(" ");
-  const restText = text.split(" ").slice(2).join(" ");
 
   return (
-    <div>
+    <div className="w-full">
       <div
         onClick={() => {
           router.replace(
@@ -320,7 +320,7 @@ const SearchResultCard = ({ text, runId }: { text: string; runId: string }) => {
             { shallow: true, scroll: false }
           );
         }}
-        className="mt-4 relative rounded-3xl border border-white/5 px-4 py-4 overflow-hidden cursor-pointer hover:bg-white/5 transition-all duration-200"
+        className="w-full mt-4 relative rounded-3xl border border-white/5 px-4 py-4 overflow-hidden cursor-pointer hover:bg-white/5 transition-all duration-200"
       >
         <div className="text-sm text-hgray900 font-normal flex flex-row items-center gap-2">
           <FileSpreadsheet className="w-4 h-4 text-green-500" />
@@ -401,16 +401,16 @@ export default function ChatMessageList({
             <div
               className={`max-w-[98%] rounded-3xl text-sm leading-relaxed ${bubbleCls}`}
             >
-              <div className="whitespace-pre-wrap break-words">
+              <div className="whitespace-pre-wrap break-words flex flex-row flex-wrap gap-1">
                 {m.segments?.map((s, si) => {
                   if (s.type === "text") {
                     return (
                       <div
                         key={`text-${idx}-${si}`}
                         className="whitespace-pre-wrap break-words"
-                      // dangerouslySetInnerHTML={{ __html: s.content }}
                       >
                         {s.content.replace(/<br\s*\/?>/g, "\n")}
+
                         {!isUser &&
                           isStreaming &&
                           idx === messages.length - 1 &&
@@ -423,6 +423,11 @@ export default function ChatMessageList({
                     );
                   }
                   if (s.type === "block") {
+                    if (s.content.type === "link") {
+                      return (
+                        <LinkChip raw={s.content.href} size="md" key={`block-${idx}-${si}`} />
+                      );
+                    }
                     if (s.content.type === "criteria_card") {
                       return (
                         <CriteriaCard

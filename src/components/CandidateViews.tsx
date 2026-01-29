@@ -1,12 +1,11 @@
-import { CandidateTypeWithConnection } from "@/hooks/useSearchCandidates";
-import { QueryType } from "@/types/type";
-import React, { useMemo } from "react";
+import { CandidateTypeWithConnection } from "@/hooks/useSearchChatCandidates";
+import React, { useMemo, useState } from "react";
 import CandidateRow from "./CandidatesListTable";
 import CandidateCard from "./CandidatesList";
 import { useSettingStore } from "@/store/useSettingStore";
 import { supabase } from "@/lib/supabase";
 import { Tooltips } from "./ui/tooltip";
-import { Columns2, Table } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsLeftRight, Columns2, Table } from "lucide-react";
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
 
 const CandidateViews = ({
@@ -19,10 +18,15 @@ const CandidateViews = ({
   items: any[];
   userId: string;
   queryItem: any;
-  criterias?: string[];
+  criterias: string[];
   isMyList?: boolean;
 }) => {
   const { viewType, setViewType } = useSettingStore();
+  const [isFolded, setIsFolded] = useState(false);
+
+  const toggleFold = () => {
+    setIsFolded(!isFolded);
+  };
 
   const changeViewType = async (type: "table" | "card") => {
     setViewType(type);
@@ -33,15 +37,15 @@ const CandidateViews = ({
     }
   };
 
-  const criteriaList = asArr(criterias ?? []);
+  const criteriaList = asArr(criterias);
   const gridTemplateColumns = useMemo(() => {
     // Candidate | Company | Location | School | (criteria * N) | Actions
     const fixed = [isMyList ? "400px" : "280px"];
     const defaultCols = isMyList ? "320px" : "240px";
-    const criteriaCols = criteriaList.map(() => "140px"); // 한 criteria는 작은 칸
+    const criteriaCols = criteriaList.map(() => isFolded ? "60px" : "140px"); // 한 criteria는 작은 칸
     const actions = ["0px"];
 
-    if (criterias?.length === 0)
+    if (criterias.length === 0)
       return [...fixed, defaultCols, defaultCols, ...actions].join(" ");
     return [
       ...fixed,
@@ -50,13 +54,13 @@ const CandidateViews = ({
       defaultCols,
       ...actions,
     ].join(" ");
-  }, [criteriaList]);
+  }, [criteriaList, isFolded]);
 
   return (
     <div className="w-full px-4 relative h-full">
       {items.length > 0 && (
         <div
-          className={`${viewType === "table" ? "w-full " : "w-[980px]"
+          className={`${viewType === "table" ? "w-full " : "w-full"
             } flex flex-row items-center justify-between mt-2`}
         >
           <div></div>
@@ -92,7 +96,7 @@ const CandidateViews = ({
           >
             <div className="w-max min-w-full">
               <div
-                className="inline-grid items-center py-2 text-xs text-hgray800 font-light bg-hgray200 border border-white/5 w-full"
+                className="inline-grid items-center py-2 text-xs text-hgray800 font-light bg-hgray200 border border-white/5 w-full relative"
                 style={{ gridTemplateColumns }}
               >
                 <div className="sticky left-0 z-30 px-4 bg-hgray200 border-r border-white/5">
@@ -102,11 +106,23 @@ const CandidateViews = ({
                 {!isMyList && (
                   <>
                     {criteriaList.map((criteria: string, idx: number) => (
-                      <Tooltips key={`header-crit-${idx}`} text={criteria}>
-                        <div className="w-full px-2 text-left truncate border-r border-white/5">
-                          {criteria}
-                        </div>
-                      </Tooltips>
+                      <div className="relative">
+                        <Tooltips key={`header-crit-${idx}`} text={criteria}>
+                          <div className="w-full px-2 text-left truncate border-r border-white/5">
+                            {criteria}
+                          </div>
+                        </Tooltips>
+                        {
+                          idx === criteriaList.length - 1 && (
+                            <div onClick={toggleFold} className="absolute top-[-8px] right-0 bg-hgray300 p-0.5 rounded-bl-lg cursor-pointer h-4 w-4 hover:bg-hgray400 transition-colors duration-200">
+                              {
+                                isFolded ?
+                                  <ChevronRight className="w-3 h-3 absolute top-[1px] right-[1px]" /> :
+                                  <ChevronLeft className="w-3 h-3 absolute top-[1px] right-[1px]" />
+                              }
+                            </div>)
+                        }
+                      </div>
                     ))}
                   </>
                 )}
@@ -133,7 +149,7 @@ const CandidateViews = ({
         </div>
       )}
       {viewType === "card" && items.length > 0 && (
-        <div className="w-full space-y-2 mt-4">
+        <div className="w-full space-y-2 mt-4 flex items-start justify-center">
           <div className="space-y-4">
             {items.map((c: any) => (
               <CandidateCard
