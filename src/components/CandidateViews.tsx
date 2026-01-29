@@ -106,7 +106,7 @@ const CandidateViews = ({
                 {!isMyList && (
                   <>
                     {criteriaList.map((criteria: string, idx: number) => (
-                      <div className="relative">
+                      <div className="relative" key={`header-crit-${idx}`}>
                         <Tooltips key={`header-crit-${idx}`} text={criteria}>
                           <div className="w-full px-2 text-left truncate border-r border-white/5">
                             {criteria}
