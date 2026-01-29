@@ -264,8 +264,7 @@ async function streamWithTools(params: {
                     // If no tool call happened, we're done.
                     if (!sawAnyToolCall || toolCallsByIndex.size === 0) break;
 
-                    // Convert tool calls into assistant tool_call message + tool results.
-                    const orderedToolCalls = [...toolCallsByIndex.entries()]
+                    const orderedToolCalls = Array.from(toolCallsByIndex.entries())
                         .sort((a, b) => a[0] - b[0])
                         .map(([_, v]) => v);
 
