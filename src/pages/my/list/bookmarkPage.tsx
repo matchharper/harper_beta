@@ -70,7 +70,6 @@ export default function BookmarksPage() {
       <CandidateViews
         items={items}
         userId={userId}
-        queryItem={null}
         isMyList={true}
         criterias={[]}
       />
