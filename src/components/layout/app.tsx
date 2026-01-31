@@ -29,7 +29,6 @@ import {
 import { supabase } from "@/lib/supabase";
 import { useMessages } from "@/i18n/useMessage";
 import HoverHistory from "./HoverHistory";
-import Image from "next/image";
 
 const AppLayout = ({
   children,

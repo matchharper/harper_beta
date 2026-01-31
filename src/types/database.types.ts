@@ -844,47 +844,32 @@ export type Database = {
       queries: {
         Row: {
           created_at: string
-          criteria: string[] | null
           is_deleted: boolean
-          message: string | null
           query: string | null
           query_id: string
           query_keyword: string | null
           raw_input_text: string | null
-          recommendation: string | null
           retries: number
-          status: string | null
-          thinking: string | null
           user_id: string
         }
         Insert: {
           created_at?: string
-          criteria?: string[] | null
           is_deleted?: boolean
-          message?: string | null
           query?: string | null
           query_id?: string
           query_keyword?: string | null
           raw_input_text?: string | null
-          recommendation?: string | null
           retries?: number
-          status?: string | null
-          thinking?: string | null
           user_id: string
         }
         Update: {
           created_at?: string
-          criteria?: string[] | null
           is_deleted?: boolean
-          message?: string | null
           query?: string | null
           query_id?: string
           query_keyword?: string | null
           raw_input_text?: string | null
-          recommendation?: string | null
           retries?: number
-          status?: string | null
-          thinking?: string | null
           user_id?: string
         }
         Relationships: [
@@ -954,6 +939,7 @@ export type Database = {
           results: Json | null
           sql_query: string | null
           status: string | null
+          user_id: string | null
         }
         Insert: {
           backend_pid?: number | null
@@ -969,6 +955,7 @@ export type Database = {
           results?: Json | null
           sql_query?: string | null
           status?: string | null
+          user_id?: string | null
         }
         Update: {
           backend_pid?: number | null
@@ -984,6 +971,7 @@ export type Database = {
           results?: Json | null
           sql_query?: string | null
           status?: string | null
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -992,6 +980,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "queries"
             referencedColumns: ["query_id"]
+          },
+          {
+            foreignKeyName: "runs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -1027,6 +1022,41 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "runs"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      settings: {
+        Row: {
+          created_at: string
+          is_exclude_shortlist: boolean | null
+          is_korean: boolean | null
+          max_years_exp: number | null
+          min_years_exp: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          is_exclude_shortlist?: boolean | null
+          is_korean?: boolean | null
+          max_years_exp?: number | null
+          min_years_exp?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          is_exclude_shortlist?: boolean | null
+          is_korean?: boolean | null
+          max_years_exp?: number | null
+          min_years_exp?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
           },
         ]
       }

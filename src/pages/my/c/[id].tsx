@@ -9,13 +9,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { useQueryDetail } from "@/hooks/useQueryDetail";
 import { logger } from "@/utils/logger";
-import { useChatSearchCandidates } from "@/hooks/useSearchChatCandidates";
 import { MIN_CREDITS_FOR_SEARCH } from "@/utils/constantkeys";
 import { useCredits } from "@/hooks/useCredit";
 import { showToast } from "@/components/toast/toast";
 import { useRunDetail } from "@/hooks/useRunDetail";
 import { useRunPagesInfinite } from "@/hooks/useRunResults";
 import { doSearch, runSearch } from "@/hooks/useStartSearch";
+import { scrollToTop } from "@/utils/func";
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -24,8 +24,6 @@ function clamp(n: number, min: number, max: number) {
 const MAX_PREFETCH_PAGES = 20;
 
 export default function ResultPage() {
-  const [searchEnabled, setSearchEnabled] = useState(false);
-
   const router = useRouter();
   const { id, page, run } = router.query;
 
@@ -34,6 +32,7 @@ export default function ResultPage() {
   const { data: runData, isLoading: isRunDetailLoading } = useRunDetail(runId);
 
   const [isChatFull, setIsChatFull] = useState(false);
+  const [finishedTick, setFinishedTick] = useState(0);
 
   const { companyUser } = useCompanyUserStore();
   const userId = companyUser?.user_id;
@@ -55,12 +54,6 @@ export default function ResultPage() {
     return clamp(normalized, 0, MAX_PREFETCH_PAGES);
   }, [pageIdxRaw]);
 
-  const scrollToTop = useCallback(() => {
-    const el = document.getElementById("app-scroll");
-    if (el) el.scrollTo({ top: 0, left: 0, behavior: "auto" });
-    else window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-  }, []);
-
   const setPageInUrl = useCallback(
     (nextIdx: number, mode: "push" | "replace" = "push") => {
       const method = mode === "push" ? router.push : router.replace;
@@ -75,15 +68,10 @@ export default function ResultPage() {
         { shallow: true, scroll: false }
       );
     },
-    [router, scrollToTop]
+    [router]
   );
 
-  // ✅ runId가 URL에 들어오면 결과 패널은 검색 가능 상태로 전환
-  useEffect(() => {
-    if (!ready) return;
-    if (!runId) return;
-    setSearchEnabled(true);
-  }, [ready, runId]);
+  const searchEnabled = useMemo(() => ready && !!runId, [ready, runId]);
 
   const {
     data,
@@ -217,7 +205,6 @@ export default function ResultPage() {
         const newRunId = await runSearch({ messageId: messageId, queryId: queryId, userId: userId });
         if (!newRunId) return;
 
-        setSearchEnabled(true);
         router.replace(
           {
             pathname: router.pathname,
@@ -236,21 +223,16 @@ export default function ResultPage() {
   );
 
   const currentRunCriterias = useMemo(() => {
-    if (!queryItem || !queryItem.runs || queryItem.runs.length === 0) return [];
+    if (!runData || !runData.criteria || runData.criteria.length === 0) return [];
 
-    return queryItem.runs[0].criteria ?? [];
-  }, [queryItem]);
+    return runData.criteria
+  }, [runData, runId]);
 
   const scope = useMemo(
     () => ({ type: "query", queryId: queryId ?? "" } as ChatScope),
     [queryId]
   );
 
-  useEffect(() => {
-    logger.log("queryItem: ", queryItem);
-  }, [queryItem]);
-
-  const [finishedTick, setFinishedTick] = useState(0);
 
   const prevStatusRef = useRef<string | undefined>(undefined);
 

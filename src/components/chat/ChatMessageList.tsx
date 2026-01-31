@@ -409,7 +409,8 @@ export default function ChatMessageList({
                         key={`text-${idx}-${si}`}
                         className="whitespace-pre-wrap break-words"
                       >
-                        {s.content.replace(/<br\s*\/?>/g, "\n")}
+                        <div dangerouslySetInnerHTML={{ __html: s.content.replace(/<br\s*\/?>/g, "\n").replace(/\*\*/g, "").replace(/#/g, "") }}></div>
+                        {/* {s.content.replace(/<br\s*\/?>/g, "\n")} */}
 
                         {!isUser &&
                           isStreaming &&

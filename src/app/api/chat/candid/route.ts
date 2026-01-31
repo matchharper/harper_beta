@@ -3,7 +3,7 @@ import { xaiClient } from "@/lib/llm/llm";
 import { ChatScope } from "@/hooks/chat/useChatSession";
 import { buildLongDoc } from "@/utils/textprocess";
 import { logger } from "@/utils/logger";
-import { CANDID_SYSTEM_PROMPT } from "../chat_prompt";
+import { CANDID_SYSTEM_PROMPT, MAX_MESSEGE_LENGTH } from "../chat_prompt";
 
 type ChatMessage = {
     role: "user" | "assistant" | "system" | "tool";
@@ -166,13 +166,20 @@ const tools = [
     },
 ] as const;
 
-function buildToolAugmentedSystemPrompt(candidateDoc: any) {
+function buildToolAugmentedSystemPrompt(
+    candidateDoc: any,
+    systemPromptOverride?: string
+) {
     const information = buildLongDoc(candidateDoc);
+    const basePrompt =
+        typeof systemPromptOverride === "string" && systemPromptOverride.trim().length > 0
+            ? systemPromptOverride
+            : CANDID_SYSTEM_PROMPT;
 
     // IMPORTANT: user asked "no markdown"; allow <strong>/<br/>
     // Also: make tool-grounding behavior explicit.
     return (
-        CANDID_SYSTEM_PROMPT +
+        basePrompt +
         `
 
 ### Candidate Information
@@ -181,7 +188,7 @@ ${information}
 ### Tool Use Policy (IMPORTANT)
 - You MAY call tools when needed to answer factual / up-to-date / web-based questions.
 - Tools available: web_search, website_scraping.
-- When you use tool results, you MUST cite sources by including a Sources section at the end.
+- When you use tool results, you MUST cite sources at the end.
   Format example (no markdown, space between a tags):
   <a href="URL">TITLE</a> <a href="URL">TITLE</a>
 - Do NOT fabricate URLs or citations.
@@ -203,7 +210,8 @@ async function streamWithTools(params: {
     const encoder = new TextEncoder();
 
     // We keep a mutable messages array to append tool results across loops.
-    const messages: any[] = [{ role: "system", content: systemPrompt }, ...baseMessages];
+    const recent = baseMessages.slice(-MAX_MESSEGE_LENGTH);
+    const messages: any[] = [{ role: "system", content: systemPrompt }, ...recent];
 
     // This stream is what we return to the browser.
     return new ReadableStream<Uint8Array>({
@@ -343,6 +351,7 @@ export async function POST(req: NextRequest) {
         messages?: ChatMessage[];
         scope?: ChatScope;
         doc?: any;
+        systemPromptOverride?: string;
     };
 
     const model = DEFAULT_MODEL;
@@ -354,7 +363,10 @@ export async function POST(req: NextRequest) {
     }
     logger.log("\n 첫 호출 messages", messages);
 
-    const systemPrompt = buildToolAugmentedSystemPrompt(body.doc);
+    const systemPrompt = buildToolAugmentedSystemPrompt(
+        body.doc,
+        body.systemPromptOverride
+    );
 
     const responseStream = await streamWithTools({
         req,

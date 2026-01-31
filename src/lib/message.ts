@@ -1,4 +1,3 @@
-// lib/messages.ts
 import { supabase } from "@/lib/supabase";
 import type { ChatMessage } from "@/types/chat";
 

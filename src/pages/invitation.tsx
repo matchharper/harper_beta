@@ -11,6 +11,8 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 
+const INITIAL_CREDIT = 10;
+
 export default function LoginSuccess() {
   const router = useRouter();
   const [code, setCode] = useState("");
@@ -63,8 +65,8 @@ export default function LoginSuccess() {
           if (!companyUser.is_authenticated) {
             await supabase.from("credits").insert({
               user_id: companyUser?.user_id,
-              remain_credit: 300,
-              charged_credit: 300,
+              remain_credit: INITIAL_CREDIT,
+              charged_credit: INITIAL_CREDIT,
               type: "initial",
             });
             await supabase.from("company_code").upsert({
@@ -111,9 +113,8 @@ export default function LoginSuccess() {
         {/* Card */}
         <div className="w-full max-w-lg">
           <div
-            className={`rounded-3xl bg-white/5 backdrop-blur-md border border-white/10 shadow-xl px-6 py-6 md:px-8 md:py-8 ${
-              isShake ? "animate-shake" : ""
-            }`}
+            className={`rounded-3xl bg-white/5 backdrop-blur-md border border-white/10 shadow-xl px-6 py-6 md:px-8 md:py-8 ${isShake ? "animate-shake" : ""
+              }`}
           >
             {/* Invite code + continue */}
             <form

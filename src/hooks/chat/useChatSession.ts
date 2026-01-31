@@ -158,11 +158,13 @@ export function useChatSessionDB(args: {
   apiPath?: string;
   model?: "grok-4-fast-reasoning" | "gemini-3-flash-preview";
   candidDoc?: CandidateDetail;
+  systemPromptOverride?: string;
 }) {
   const { scope, userId } = args;
   const isCandidScope = scope?.type === "candid";
   const apiPath = isCandidScope ? "/api/chat/candid" : "/api/chat";
   const model = args.model ?? CHAT_MODEL;
+  const systemPromptOverride = args.systemPromptOverride;
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -306,6 +308,7 @@ export function useChatSessionDB(args: {
             messages: historyForModel,
             scope: scope,
             doc: candidDoc,
+            systemPromptOverride,
             // scope도 서버에 필요하면 같이 보낼 수 있음
             // scope,
           }),

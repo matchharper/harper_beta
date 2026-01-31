@@ -9,15 +9,17 @@ import React, {
 import ChatMessageList from "@/components/chat/ChatMessageList";
 import ChatComposer from "@/components/chat/ChatComposer";
 import { useChatSessionDB } from "@/hooks/chat/useChatSession";
-import { ArrowDown, ArrowLeft, Loader2, Lock, ScreenShareIcon, XIcon } from "lucide-react";
+import { ArrowDown, ArrowLeft, Loader2, Lock, Settings } from "lucide-react";
 import { logger } from "@/utils/logger";
 import { useRouter } from "next/router";
 import { CandidateDetail, candidateKey } from "@/hooks/useCandidateDetail";
 import { Skeleton } from "../ui/skeleton";
 import ConfirmModal from "../Modal/ConfirmModal";
+import BaseModal from "../Modal/BaseModal";
 import { supabase } from "@/lib/supabase";
 import { useCredits } from "@/hooks/useCredit";
 import { useQueryClient } from "@tanstack/react-query";
+import { CANDID_SYSTEM_PROMPT } from "@/app/api/chat/chat_prompt";
 
 const CANDID_SUGGESTIONS = [
   "이 사람이 이직 의사가 있을까?",
@@ -57,8 +59,19 @@ export default function CandidChatPanel({
   const { deduct } = useCredits();
   const [isUnlockConfirmOpen, setIsUnlockConfirmOpen] = useState(false);
   const [isUnlocking, setIsUnlocking] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [systemPromptOverride, setSystemPromptOverride] = useState<string | null>(
+    null
+  );
+  const [promptDraft, setPromptDraft] = useState(CANDID_SYSTEM_PROMPT);
 
-  const chat = useChatSessionDB({ model: "grok-4-fast-reasoning", scope, userId, candidDoc }); // ✅ 바뀐 부분
+  const chat = useChatSessionDB({
+    model: "grok-4-fast-reasoning",
+    scope,
+    userId,
+    candidDoc,
+    systemPromptOverride: systemPromptOverride ?? undefined,
+  }); // ✅ 바뀐 부분
 
   const candidId = useMemo(() => {
     if (scope?.type === "candid") return scope.candidId;
@@ -217,6 +230,11 @@ export default function CandidChatPanel({
     }
   }, [userId, candidId, isUnlocking, deduct, queryClient]);
 
+  useEffect(() => {
+    if (!isSettingsOpen) return;
+    setPromptDraft(systemPromptOverride ?? CANDID_SYSTEM_PROMPT);
+  }, [isSettingsOpen, systemPromptOverride]);
+
   logger.log("chat.messages ", chat.messages)
 
   return (
@@ -229,6 +247,17 @@ export default function CandidChatPanel({
         >
           <ArrowLeft className="w-3.5 h-3.5 text-hgray600" />
           <div>{title === "" ? <Skeleton className="w-20 h-5" /> : title}</div>
+        </div>
+        <div className="flex flex-row justify-center items-center gap-2 text-hgray700">
+          <div
+            className="p-1 cursor-pointer"
+            onClick={() => setIsSettingsOpen(true)}
+          >
+            <Settings
+              className="w-3.5 h-3.5"
+              strokeWidth={1.4}
+            />
+          </div>
         </div>
       </div>
 
@@ -321,6 +350,42 @@ export default function CandidChatPanel({
         disabledSend={!chat.canSend || disabled}
         isStreaming={chat.isStreaming}
       />
+
+      {isSettingsOpen && (
+        <BaseModal
+          onClose={() => setIsSettingsOpen(false)}
+          onConfirm={() => {
+            setSystemPromptOverride(promptDraft);
+            setIsSettingsOpen(false);
+          }}
+          confirmLabel="적용"
+          isCloseButton={true}
+          size="lg"
+        >
+          <div className="space-y-4">
+            <div className="text-lg font-normal text-hgray900">
+              Candid System Prompt (테스트용)
+            </div>
+            <textarea
+              className="w-full min-h-[220px] rounded-xl bg-black/40 border border-white/10 p-3 text-xs text-hgray900"
+              value={promptDraft}
+              onChange={(e) => setPromptDraft(e.target.value)}
+            />
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                className="text-xs text-hgray600 hover:text-hgray900"
+                onClick={() => setPromptDraft(CANDID_SYSTEM_PROMPT)}
+              >
+                기본값 불러오기
+              </button>
+              <div className="text-xs text-hgray600">
+                저장 후 다음 메시지부터 적용됨
+              </div>
+            </div>
+          </div>
+        </BaseModal>
+      )}
     </div>
   );
 }

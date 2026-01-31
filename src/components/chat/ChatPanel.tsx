@@ -9,15 +9,13 @@ import React, {
 import ChatMessageList from "@/components/chat/ChatMessageList";
 import ChatComposer from "@/components/chat/ChatComposer";
 import { useChatSessionDB } from "@/hooks/chat/useChatSession";
-import { ArrowDown, ArrowLeft, Loader2, Lock, ScreenShareIcon, XIcon } from "lucide-react";
+import { ArrowDown, ArrowLeft, Loader2, ScreenShareIcon, Settings, XIcon } from "lucide-react";
 import { logger } from "@/utils/logger";
 import { useRouter } from "next/router";
-import { CandidateDetail, candidateKey } from "@/hooks/useCandidateDetail";
+import { CandidateDetail } from "@/hooks/useCandidateDetail";
 import { Skeleton } from "../ui/skeleton";
-import ConfirmModal from "../Modal/ConfirmModal";
-import { supabase } from "@/lib/supabase";
-import { useCredits } from "@/hooks/useCredit";
-import { useQueryClient } from "@tanstack/react-query";
+import ChatSettingsModal from "../Modal/ChatSettingsModal";
+import { useSettings } from "@/hooks/useSettings";
 
 
 export type ChatScope =
@@ -55,11 +53,13 @@ export default function ChatPanel({
   const [isSearchSyncing, setIsSearchSyncing] = useState(false);
   const [stickToBottom, setStickToBottom] = useState(true);
   const [showJumpToBottom, setShowJumpToBottom] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const router = useRouter();
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const chat = useChatSessionDB({ model: "grok-4-fast-reasoning", scope, userId, candidDoc }); // ✅ 바뀐 부분
   const autoStartedRef = useRef(false);
+  const { settings, isLoading: isSettingsLoading, saveSettings, isSaving } = useSettings(userId);
 
   const isQueryScope = scope?.type === "query";
 
@@ -240,20 +240,34 @@ export default function ChatPanel({
           <ArrowLeft className="w-3.5 h-3.5 text-hgray600" />
           <div>{title === "" ? <Skeleton className="w-20 h-5" /> : title}</div>
         </div>
-        <div>
+        <div className="flex flex-row justify-center items-center gap-2 text-hgray700">
+          <div
+            className="p-1 cursor-pointer"
+            onClick={() => setIsSettingsOpen(true)}
+          >
+            {/* <Settings
+              className="w-3.5 h-3.5"
+              strokeWidth={1.4}
+            /> */}
+          </div>
           {
             isChatFull ? (
-              <XIcon
-                onClick={() => setIsChatFull?.(false)}
-                className="w-3.5 h-3.5 text-hgray600 cursor-pointer"
-                strokeWidth={1.4}
-              />
+              <div
+                className="p-1 cursor-pointer"
+                onClick={() => setIsChatFull?.(false)}>
+                <XIcon
+                  className="w-3.5 h-3.5"
+                  strokeWidth={1.4}
+                />
+              </div>
             ) : (
-              <ScreenShareIcon
-                onClick={() => setIsChatFull?.(true)}
-                className="w-3.5 h-3.5 text-hgray600 cursor-pointer"
-                strokeWidth={1.4}
-              />
+              <div className="p-1 cursor-pointer"
+                onClick={() => setIsChatFull?.(true)}>
+                <ScreenShareIcon
+                  className="w-3.5 h-3.5"
+                  strokeWidth={1.4}
+                />
+              </div>
             )
           }
         </div>
@@ -270,12 +284,12 @@ export default function ChatPanel({
             </div>
           )}
 
-              <ChatMessageList
-                messages={chat.messages}
-                isStreaming={chat.isStreaming}
-                error={chat.error}
-                onConfirmCriteriaCard={isQueryScope ? onClickSearch : undefined} // ✅ query scope에서만
-                onChangeCriteriaCard={(args) => {
+          <ChatMessageList
+            messages={chat.messages}
+            isStreaming={chat.isStreaming}
+            error={chat.error}
+            onConfirmCriteriaCard={isQueryScope ? onClickSearch : undefined} // ✅ query scope에서만
+            onChangeCriteriaCard={(args) => {
               void chat.patchAssistantUiBlock(
                 args.messageId,
                 args.modifiedBlock
@@ -309,6 +323,17 @@ export default function ChatPanel({
         onRetry={() => void chat.reload()}
         disabledSend={!chat.canSend || disabled || isSearchSyncing}
         isStreaming={chat.isStreaming}
+      />
+
+      <ChatSettingsModal
+        open={isSettingsOpen}
+        settings={settings}
+        onClose={() => setIsSettingsOpen(false)}
+        onSave={async (next) => {
+          await saveSettings(next);
+        }}
+        isLoading={isSettingsLoading}
+        isSaving={isSaving}
       />
     </div>
   );

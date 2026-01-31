@@ -353,7 +353,7 @@ Based on the user's requirements, write a SQL query that targets the 'fts' colum
 [Output Format Guide]
 - **return json format like this: {"tables": ["edu_user", "experience_user", "company_db", "publications", "extra_experience"], "sql": "..."}**
 - Return only one json with executable SQL statement in string format and tables. without any other explanations.
-- Set the LIMIT to 200.
+- Never include LIMIT.
 - **When searching for two or more words within to_tsquery, you must use the <-> operator between words. Never use only spaces.**
 
 [예시]
@@ -371,7 +371,7 @@ FROM candid t1
 CROSS JOIN q
 WHERE t1.fts @@ (q.q_company || q.q_role) -- 여기는 |가 두개여야한다.
 ORDER BY fts_rank_cd DESC, t1.id
-LIMIT 200"
+"
 }
 
 [Hard rules]

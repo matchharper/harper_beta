@@ -6,6 +6,8 @@ import { useSettingStore } from "@/store/useSettingStore";
 import { supabase } from "@/lib/supabase";
 import { Tooltips } from "./ui/tooltip";
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsLeftRight, Columns2, Table } from "lucide-react";
+import { useLogEvent } from "@/hooks/useLog";
+
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
 
 const CandidateViews = ({
@@ -23,6 +25,7 @@ const CandidateViews = ({
 }) => {
   const { viewType, setViewType } = useSettingStore();
   const [isFolded, setIsFolded] = useState(false);
+  const logEvent = useLogEvent();
 
   const toggleFold = () => {
     setIsFolded(!isFolded);
@@ -30,11 +33,9 @@ const CandidateViews = ({
 
   const changeViewType = async (type: "table" | "card") => {
     setViewType(type);
-    if (userId) {
-      const res = await supabase
-        .from("logs")
-        .insert({ type: type, user_id: userId });
-    }
+    if (userId)
+      await logEvent(type);
+
   };
 
   const criteriaList = useMemo(() => asArr(criterias), [criterias]);
