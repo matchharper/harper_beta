@@ -379,6 +379,8 @@ Now extract all information and output JSON only. Do not include \`\`\`json or \
 
 // 한 번 호출해서 문자열로 답만 받아오는 헬퍼
 export async function queryKeyword(input_query: string): Promise<any> {
+  if (input_query.length < 10) return input_query;
+
   const response = await xaiClient.chat.completions.create({
     model: "grok-4-fast-reasoning",
     messages: [
@@ -391,7 +393,6 @@ Below is the input query of a user. Who is trying to search candidates for a job
 You should return in korean.
 
 Input Query: ${input_query}
-
 Output:
 `,
       },

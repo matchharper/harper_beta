@@ -6,7 +6,6 @@ type Props = {
   searchEnabled: boolean;
   items: any[];
   userId?: string;
-  queryItem: any;
   isLoading: boolean;
   isQueryDetailLoading: boolean;
   pageIdx: number;
@@ -25,7 +24,6 @@ export default function ResultBody(props: Props) {
     searchEnabled,
     items,
     userId,
-    queryItem,
     isLoading,
     isQueryDetailLoading,
     pageIdx,
@@ -60,7 +58,6 @@ export default function ResultBody(props: Props) {
         <CandidateViews
           items={items}
           userId={userId}
-          queryItem={queryItem}
           criterias={criterias}
         />
       )}

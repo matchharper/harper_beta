@@ -197,7 +197,6 @@ export function useChatSessionDB(args: {
         ...scopeToDbArgs(scope!),
         userId: userId!,
       });
-      logger.log("\n\n loadHistory in useChatSessionDB ", rows.length, "\n\n")
 
       const hydrated = rows.map((m: any) => {
         const raw = (m as any).rawContent ?? m.content ?? "";
@@ -326,6 +325,7 @@ export function useChatSessionDB(args: {
           if (done) break;
 
           assistantText += decoder.decode(value, { stream: true });
+          logger.log("\n\n assistantText in useChatSessionDB ", assistantText, " === ", assistantPlaceholder.id, "\n\n");
 
           const { segments } = extractUiSegments(assistantText);
 

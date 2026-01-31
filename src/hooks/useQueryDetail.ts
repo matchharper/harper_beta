@@ -37,11 +37,6 @@ async function fetchQueryDetail(id: string) {
     )
     .eq("query_id", id)
     .eq("is_deleted", false)
-    .order("created_at", {
-      referencedTable: "runs",
-      ascending: false,
-    })
-    .limit(1, { referencedTable: "runs" })
     .maybeSingle();
 
   if (error) throw error;
@@ -59,32 +54,41 @@ export function useQueryDetail(queryId?: string) {
     retry: false,
   });
 
+
   useEffect(() => {
     if (!queryId) return;
 
-    // Query row updates → invalidate → refetch
+    // 1) 같은 이름 채널이 남아있을 가능성 대비해서 먼저 정리
+    // (특히 dev StrictMode / hot reload 에서 중요)
+    supabase.getChannels?.().forEach((ch: any) => {
+      if (ch.topic === `realtime:queries:${queryId}`) {
+        supabase.removeChannel(ch);
+      }
+    });
+
+    // 2) 채널 이름을 "완전 고유"하게 (최소 queryId 포함, 필요하면 랜덤도)
     const channel = supabase
-      .channel(`queries:${queryId}`)
+      .channel(`queries:${queryId}:${Date.now()}`) // <- 핵심
       .on(
         "postgres_changes",
         {
           event: "UPDATE",
           schema: "public",
           table: "queries",
-          filter: `query_id=eq.${queryId}`, // column name must match your table
+          filter: `query_id=eq.${queryId}`,
         },
         () => {
           qc.invalidateQueries({ queryKey: queryKey(queryId) });
         }
       )
-      .subscribe((status) => {
-        // Optional: if you want to react to subscription state
+      .subscribe((status, err) => {
       });
 
     return () => {
       supabase.removeChannel(channel);
     };
   }, [queryId, qc]);
+
 
   return q;
 }

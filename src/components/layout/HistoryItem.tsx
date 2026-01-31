@@ -11,8 +11,6 @@ import { MoreHorizontal } from "lucide-react";
 import { QueryType } from "@/types/type";
 import { useRouter } from "next/router";
 import { Tooltips } from "../ui/tooltip";
-import { queryKeyword } from "@/lib/llm/llm";
-import { logger } from "@/utils/logger";
 
 const HistoryItem = ({
   queryItem,

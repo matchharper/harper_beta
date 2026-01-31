@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import type { ChatMessage } from "@/types/chat";
+import { logger } from "@/utils/logger";
 
 const ID_ROLE = ["user", "assistant"] as const;
 const ROLE_ID = {

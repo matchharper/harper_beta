@@ -205,7 +205,7 @@ function CriteriaCard({
   };
 
   return (
-    <div className="mt-2">
+    <div className="mt-2 w-full max-w-[440px]">
       <div className="text-xs text-hgray600 font-extralight flex flex-row items-center gap-1.5">
         <span>
           {/* <img
@@ -354,12 +354,6 @@ export default function ChatMessageList({
   onConfirmCriteriaCard,
   onChangeCriteriaCard,
 }: Props) {
-  const lastBlockMessageIdx = useMemo(() => {
-    return messages.findIndex((m) =>
-      m.segments?.some((s) => s.type === "block")
-    );
-  }, [messages]);
-
   return (
     <div className="flex-1 pr-2 space-y-8">
       {messages.length === 0 && (

@@ -13,13 +13,11 @@ const asArr = (v: any) => (Array.isArray(v) ? v : []);
 const CandidateViews = ({
   items,
   userId,
-  queryItem,
   criterias = [],
   isMyList = false,
 }: {
   items: any[];
   userId: string;
-  queryItem: any;
   criterias: string[];
   isMyList?: boolean;
 }) => {

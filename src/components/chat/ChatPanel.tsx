@@ -116,20 +116,27 @@ export default function ChatPanel({
     setShowJumpToBottom(!atBottom);
   }, []);
 
-  const loadedOnceRef = useRef(false);
+  const lastScopeKeyRef = useRef<string | null>(null);
+
+  const scopeKey = useMemo(() => {
+    if (!scope) return null;
+    return scope.type === "query" ? `q:${scope.queryId}` : `c:${scope.candidId}`;
+  }, [scope]);
 
   useEffect(() => {
     if (!chat.ready) return;
-    if (loadedOnceRef.current) return;
-    loadedOnceRef.current = true;
-    void chat.loadHistory();
-  }, [chat.ready, chat.loadHistory]);
+    if (!scopeKey) return;
 
-  useEffect(() => {
-    if (!chat.ready) return;
-    loadedOnceRef.current = true;
+    // scope가 진짜 바뀐 경우에만
+    if (lastScopeKeyRef.current === scopeKey) return;
+    lastScopeKeyRef.current = scopeKey;
+
+    // ✅ 스트리밍 중이면 로드하지 마 (제일 중요)
+    if (chat.isStreaming) return;
+
     void chat.loadHistory();
-  }, [chat.ready, scope]);
+  }, [chat.ready, scopeKey, chat.loadHistory, chat.isStreaming]);
+
 
   // ✅ attach scroll listener
   useEffect(() => {

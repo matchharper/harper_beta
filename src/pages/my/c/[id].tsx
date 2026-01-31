@@ -31,7 +31,6 @@ export default function ResultPage() {
   const runId = typeof run === "string" ? run : undefined; // ✅ runs.id (uuid)
   const { data: runData, isLoading: isRunDetailLoading } = useRunDetail(runId);
 
-  const [isChatFull, setIsChatFull] = useState(false);
   const [finishedTick, setFinishedTick] = useState(0);
 
   const { companyUser } = useCompanyUserStore();
@@ -40,6 +39,10 @@ export default function ResultPage() {
   const { data: queryItem, isLoading: isQueryDetailLoading } =
     useQueryDetail(queryId);
 
+  const derivedChatFull = !!queryId && (!runId && (queryItem?.runs?.length ?? 0) === 0);
+  const [userChatFull, setUserChatFull] = useState<boolean | null>(null);
+
+  const isChatFull = userChatFull ?? derivedChatFull;
   const ready = !!userId && !!queryId && !!queryItem?.query_id;
 
   // URL에서 page 읽기 (0-based)
@@ -114,11 +117,6 @@ export default function ResultPage() {
         { shallow: true, scroll: false }
       );
     }
-    if (queryItem && queryItem.runs && queryItem.runs.length === 0 && !runId) {
-      setIsChatFull(true);
-    } else {
-      setIsChatFull(false);
-    }
   }, [queryItem, runId, router]);
 
   const pages = data?.pages ?? [];
@@ -182,11 +180,6 @@ export default function ResultPage() {
     });
   }, [ready, searchEnabled, runId, pageIdx, ensurePageLoaded]);
 
-  /**
-   * ✅ ChatPanel에서 confirm 눌렀을 때:
-   * - messageId 기반으로 run 생성 + 검색 실행
-   * - URL을 newRunId로 이동 (?run=...&page=0)
-   */
   const onSearchFromConversation = useCallback(
     async (messageId: number) => {
       if (!queryId || !userId) return;
@@ -201,7 +194,7 @@ export default function ResultPage() {
       try {
         logger.log("\n 검색 messageId: ", messageId);
         doSearchRef.current = false;
-        setIsChatFull(false);
+        setUserChatFull(false);
         const newRunId = await runSearch({ messageId: messageId, queryId: queryId, userId: userId });
         if (!newRunId) return;
 
@@ -223,10 +216,11 @@ export default function ResultPage() {
   );
 
   const currentRunCriterias = useMemo(() => {
+
     if (!runData || !runData.criteria || runData.criteria.length === 0) return [];
 
     return runData.criteria
-  }, [runData, runId]);
+  }, [runData, runId, isRunDetailLoading]);
 
   const scope = useMemo(
     () => ({ type: "query", queryId: queryId ?? "" } as ChatScope),
@@ -261,7 +255,7 @@ export default function ResultPage() {
             userId={userId}
             onSearchFromConversation={onSearchFromConversation}
             isChatFull={isChatFull}
-            setIsChatFull={setIsChatFull}
+            setIsChatFull={setUserChatFull}
             finishedTick={finishedTick}
           />
         </div>
@@ -284,7 +278,6 @@ export default function ResultPage() {
                 searchEnabled={searchEnabled}
                 items={items}
                 userId={userId}
-                queryItem={queryItem}
                 isLoading={isLoading}
                 isQueryDetailLoading={isQueryDetailLoading}
                 pageIdx={pageIdx}

@@ -1,8 +1,10 @@
 import { useQueriesHistory } from "@/hooks/useSearchHistory";
 import { supabase } from "@/lib/supabase";
-import React from "react";
+import React, { useEffect } from "react";
 import HistoryItem from "./HistoryItem";
 import { useMessages } from "@/i18n/useMessage";
+import { useQueryDetail } from "@/hooks/useQueryDetail";
+import { logger } from "@/utils/logger";
 
 const QueryHistories = ({
   collapsed,
