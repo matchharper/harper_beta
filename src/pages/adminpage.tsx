@@ -114,7 +114,7 @@ const AdminPage = () => {
         const { data, error } = await q;
         if (error) throw error;
 
-        const page = (data ?? []) as QueryRow[];
+        const page = (data ?? []) as unknown as QueryRow[];
 
         setRows((prev) => {
           if (reset) return page;
