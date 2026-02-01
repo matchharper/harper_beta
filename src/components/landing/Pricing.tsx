@@ -226,8 +226,10 @@ function PlanCard({
 
                 <div className="mt-7 md:mt-8">
                     {price === null ? (
-                        <div className="text-[28px] md:text-[36px] font-semibold tracking-tight">
-                            별도 문의
+                        <div className="flex items-end gap-2">
+                            <div className="text-[28px] md:text-[36px] font-semibold tracking-tight leading-none">
+                                별도 문의
+                            </div>
                         </div>
                     ) : (
                         <div className="flex items-end gap-2">

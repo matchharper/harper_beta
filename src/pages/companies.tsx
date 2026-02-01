@@ -20,6 +20,7 @@ import PricingSection from "@/components/landing/Pricing";
 import { logger } from "@/utils/logger";
 import { supabase } from "@/lib/supabase";
 import LoginModal from "@/components/Modal/LoginModal";
+import RotatingWord from "@/components/landing/RotatingWord";
 
 export const isValidEmail = (email: string): boolean => {
   const trimmed = email.trim();
@@ -236,7 +237,7 @@ const CandidatePage = () => {
             </div>
           </div>
           <div className="md:text-[56px] text-[40px] font-semibold leading-snug mt-2">
-            Don{"'"}t Buy Data.<br />
+            Don{"'"}t Buy <RotatingWord /><br />
             Pay for Intelligence.
           </div>
           <div className="text-sm md:text-base text-hgray700 font-light mt-6">
