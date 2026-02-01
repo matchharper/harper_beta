@@ -70,7 +70,7 @@ const Account = () => {
   };
 
   return (
-    <AppLayout>
+    <AppLayout initialCollapse={false}>
       <div className="min-h-screen w-full">
         {/* Header */}
         <div className="mx-auto w-full px-4 pt-6 pb-2 flex flex-col items-center justify-start">

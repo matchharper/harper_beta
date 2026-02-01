@@ -54,7 +54,7 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
 
       {description && (
         <p
-          className="mt-4 text-sm text-hgray800 font-normal"
+          className="mt-4 text-sm text-hgray800 font-normal leading-relaxed"
           dangerouslySetInnerHTML={{ __html: description }}
         />
       )}

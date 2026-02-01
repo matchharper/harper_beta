@@ -22,6 +22,7 @@ export type Database = {
           fts: unknown
           headline: string | null
           id: string
+          is_korean: boolean | null
           last_updated_at: string | null
           linkedin_url: string | null
           links: string[] | null
@@ -38,6 +39,7 @@ export type Database = {
           fts?: unknown
           headline?: string | null
           id?: string
+          is_korean?: boolean | null
           last_updated_at?: string | null
           linkedin_url?: string | null
           links?: string[] | null
@@ -54,6 +56,7 @@ export type Database = {
           fts?: unknown
           headline?: string | null
           id?: string
+          is_korean?: boolean | null
           last_updated_at?: string | null
           linkedin_url?: string | null
           links?: string[] | null
@@ -697,6 +700,7 @@ export type Database = {
           content: string | null
           created_at: string
           id: number
+          latency: number | null
           query_id: string | null
           role: number | null
           user_id: string | null
@@ -706,6 +710,7 @@ export type Database = {
           content?: string | null
           created_at?: string
           id?: number
+          latency?: number | null
           query_id?: string | null
           role?: number | null
           user_id?: string | null
@@ -715,6 +720,7 @@ export type Database = {
           content?: string | null
           created_at?: string
           id?: number
+          latency?: number | null
           query_id?: string | null
           role?: number | null
           user_id?: string | null

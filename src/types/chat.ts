@@ -7,7 +7,15 @@ export type CriteriaCardBlock = {
   ready: boolean;
 };
 
-export type ChatBlock = CriteriaCardBlock;
+export type ToolStatusBlock = {
+  type: "tool_status";
+  id?: string;
+  name?: string;
+  state?: "running" | "done" | "error";
+  message?: string;
+};
+
+export type ChatBlock = CriteriaCardBlock | ToolStatusBlock;
 
 export type ChatMessage = {
   id?: string | number;

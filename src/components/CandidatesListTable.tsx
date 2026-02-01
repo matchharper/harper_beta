@@ -13,6 +13,7 @@ import router from "next/router";
 import { Avatar } from "./NameProfile";
 import { Tooltips } from "./ui/tooltip";
 import SummaryCell, { SynthItem } from "./information/SummaryCell";
+import { useLogEvent } from "@/hooks/useLog";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
 
@@ -48,7 +49,7 @@ function CandidateRow({
   gridTemplateColumns: string;
 }) {
   const candidId = c.id;
-
+  const logEvent = useLogEvent();
   const exps = asArr(c.experience_user ?? []);
   const edus = asArr(c.edu_user ?? []);
 
@@ -64,8 +65,10 @@ function CandidateRow({
     <div className="w-full">
       <div
         role="row"
-        onClick={() => router.push(`/my/p/${candidId}`)}
-        // onClick={() => router.push(`/my/p/${candidId}`)}
+        onClick={() => {
+          logEvent("candidate_card_click: " + candidId);
+          router.push(`/my/p/${candidId}`)
+        }}
         className="group relative w-full border-b border-white/5 hover:bg-[#242424] transition-colors cursor-pointer"
       >
         <div

@@ -9,9 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { useQueryDetail } from "@/hooks/useQueryDetail";
 import { logger } from "@/utils/logger";
-import { MIN_CREDITS_FOR_SEARCH } from "@/utils/constantkeys";
 import { useCredits } from "@/hooks/useCredit";
-import { showToast } from "@/components/toast/toast";
 import { useRunDetail } from "@/hooks/useRunDetail";
 import { useRunPagesInfinite } from "@/hooks/useRunResults";
 import { doSearch, runSearch } from "@/hooks/useStartSearch";
@@ -36,8 +34,7 @@ export default function ResultPage() {
   const { companyUser } = useCompanyUserStore();
   const userId = companyUser?.user_id;
 
-  const { data: queryItem, isLoading: isQueryDetailLoading } =
-    useQueryDetail(queryId);
+  const { data: queryItem } = useQueryDetail(queryId);
 
   const derivedChatFull = !!queryId && (!runId && (queryItem?.runs?.length ?? 0) === 0);
   const [userChatFull, setUserChatFull] = useState<boolean | null>(null);
@@ -183,13 +180,6 @@ export default function ResultPage() {
   const onSearchFromConversation = useCallback(
     async (messageId: number) => {
       if (!queryId || !userId) return;
-      if (credits && credits.remain_credit <= MIN_CREDITS_FOR_SEARCH) {
-        showToast({
-          message: "크레딧이 부족합니다.",
-          variant: "white",
-        });
-        return;
-      }
 
       try {
         logger.log("\n 검색 messageId: ", messageId);
@@ -216,7 +206,6 @@ export default function ResultPage() {
   );
 
   const currentRunCriterias = useMemo(() => {
-
     if (!runData || !runData.criteria || runData.criteria.length === 0) return [];
 
     return runData.criteria
@@ -241,7 +230,6 @@ export default function ResultPage() {
 
     prevStatusRef.current = curr ?? undefined;
   }, [runData?.status]);
-
 
   if (!queryId) return <AppLayout>Loading...</AppLayout>;
 
@@ -279,7 +267,6 @@ export default function ResultPage() {
                 items={items}
                 userId={userId}
                 isLoading={isLoading}
-                isQueryDetailLoading={isQueryDetailLoading}
                 pageIdx={pageIdx}
                 pageIdxRaw={pageIdxRaw}
                 maxPrefetchPages={MAX_PREFETCH_PAGES}

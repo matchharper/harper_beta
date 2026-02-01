@@ -3,7 +3,7 @@ export const OPENAI_KEY = "";
 export const ELEVENLABS_VOICE_ID = "";
 export const ELEVENLABS_API_KEY = "";
 
-export const MIN_CREDITS_FOR_SEARCH = 10;
+export const MIN_CREDITS_FOR_SEARCH = 1;
 
 export const NO_RESULT_MESSAGES = [
   "검색 결과를 찾을 수 없습니다. 다른 관점에서 다시 시도해볼까요?",

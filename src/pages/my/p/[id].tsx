@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 import CandidateProfileDetailPage from "./CandidateProfile";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import ChatPanel, { ChatScope } from "@/components/chat/ChatPanel";
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 import { useCandidateDetail } from "@/hooks/useCandidateDetail";
 import CandidChatPanel from "@/components/chat/CandidChatPanel";
 

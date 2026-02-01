@@ -8,16 +8,17 @@ import { useQueryClient } from "@tanstack/react-query";
 import { refreshQueriesHistory } from "@/hooks/useSearchHistory";
 import { useCredits } from "@/hooks/useCredit";
 import { MIN_CREDITS_FOR_SEARCH } from "@/utils/constantkeys";
-import { showToast } from "@/components/toast/toast";
 import { supabase } from "@/lib/supabase";
 import { useMessages } from "@/i18n/useMessage";
 import { ensureGroupBy } from "@/utils/textprocess";
 import { firstSqlPrompt } from "@/lib/prompt";
+import ConfirmModal from "@/components/Modal/ConfirmModal";
 
 const Home: NextPage = () => {
   const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { m } = useMessages();
+  const [isNoCreditModalOpen, setIsNoCreditModalOpen] = useState(false);
 
   const { companyUser } = useCompanyUserStore();
   const { credits } = useCredits();
@@ -35,10 +36,7 @@ const Home: NextPage = () => {
       return;
     }
     if (credits.remain_credit <= MIN_CREDITS_FOR_SEARCH) {
-      showToast({
-        message: "크레딧이 부족합니다.",
-        variant: "white",
-      });
+      setIsNoCreditModalOpen(true);
       setIsLoading(false);
       return;
     }
@@ -110,7 +108,15 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
   };
 
   return (
-    <AppLayout>
+    <AppLayout initialCollapse={false}>
+      <ConfirmModal
+        open={isNoCreditModalOpen}
+        onClose={() => setIsNoCreditModalOpen(false)}
+        onConfirm={() => setIsNoCreditModalOpen(false)}
+        title="크레딧이 모두 소진되었습니다."
+        description="크레딧 충전 후 다시 시도해주세요."
+        confirmLabel="확인"
+      />
       <main className="flex-1 flex font-sans items-center justify-center px-6 w-full">
         <div className="w-full flex flex-col items-center">
           <h1

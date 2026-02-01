@@ -38,9 +38,8 @@ const BaseModal = ({
 
       <div
         className={`relative z-50 w-full rounded-[28px] bg-ngray300 p-6 shadow-sm border border-white/10
-  transition-[max-width,padding] duration-300 ease-in-out ${
-    isCloseButton ? `${sizeClass}` : "max-w-[520px]"
-  }`}
+  transition-[max-width,padding] duration-300 ease-in-out ${isCloseButton ? `${sizeClass}` : "max-w-[520px]"
+          }`}
       >
         {children}
 
@@ -48,10 +47,9 @@ const BaseModal = ({
           {isCloseButton && (
             <button
               className={`transition-colors duration-200 inline-flex items-center justify-center rounded-xl px-6 py-3 text-sm font-medium text-white hover:bg-white/5 
-                ${
-                  isCloseButton
-                    ? "opacity-100"
-                    : "opacity-0 pointer-events-none"
+                ${isCloseButton
+                  ? "opacity-100"
+                  : "opacity-0 pointer-events-none"
                 }
               `}
               onClick={onClose}
@@ -76,4 +74,4 @@ const BaseModal = ({
   );
 };
 
-export default BaseModal;
+export default React.memo(BaseModal);

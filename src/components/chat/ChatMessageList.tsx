@@ -6,8 +6,19 @@ import React, {
   useRef,
   useState,
 } from "react";
-import type { ChatMessage, CriteriaCardBlock } from "@/types/chat";
-import { Bolt, Check, FileSpreadsheet, Loader2, Plus } from "lucide-react";
+import type {
+  ChatMessage,
+  CriteriaCardBlock,
+  ToolStatusBlock,
+} from "@/types/chat";
+import {
+  AlertTriangle,
+  Bolt,
+  Check,
+  FileSpreadsheet,
+  Loader2,
+  Plus,
+} from "lucide-react";
 import { logger } from "@/utils/logger";
 import { useRouter } from "next/router";
 import Image from "next/image";
@@ -233,7 +244,6 @@ function CriteriaCard({
 
         <div className="mt-3 text-xs text-hgray600">Criteria</div>
 
-        {/* ✅ criteria 목록: 수정/삭제 */}
         {Array.isArray(draft.criteria) && draft.criteria.length > 0 && (
           <div className="mt-2 flex flex-col gap-1">
             {draft.criteria.map((c, idx) => (
@@ -247,7 +257,6 @@ function CriteriaCard({
           </div>
         )}
 
-        {/* ✅ pending add row (UI only, not committed yet) */}
         {pendingAdd && (
           <div className="mt-2">
             <CriteriaItem
@@ -262,11 +271,9 @@ function CriteriaCard({
           </div>
         )}
 
-        {/* ✅ criteria 추가 버튼 */}
         <button
           type="button"
           onClick={() => {
-            // ✅ 이미 추가 중이면 다시 누르지 않게
             if (!pendingAdd) setPendingAdd(true);
           }}
           className="rounded-2xl font-light hover:bg-white/5 pl-2 pr-3 py-2 text-sm text-hgray900 flex items-center gap-1 mt-4 transition-all duration-200"
@@ -299,6 +306,67 @@ const CriteriaLoading = () => {
       <div className="relative text-sm text-hgray900 font-normal">
         후보자를 찾을 방법을 설계하고 있습니다...
       </div>
+    </div>
+  );
+};
+
+const ToolStatusCard = ({
+  name,
+  state = "running",
+  message,
+}: ToolStatusBlock) => {
+  const label =
+    name === "web_search"
+      ? "웹 검색"
+      : name === "website_scraping"
+        ? "필요한 정보를 읽고 있습니다"
+        : "도구 실행";
+
+  if (state === "done") {
+    return (
+      <div className="w-full text-xs text-hgray700 flex flex-row items-center gap-1">
+        <Check size={12} /> {label} 완료
+      </div>
+    );
+  }
+
+  // if (state === "error") {
+  //   return (
+  //     <div className="w-full text-xs text-red-400 flex flex-row items-center gap-1">
+  //       <AlertTriangle size={12} /> 실패{message ? `: ${message}` : ""}
+  //     </div>
+  //   );
+  // }
+
+  return (
+    <div className="w-full text-xs text-hgray600 flex items-center gap-1 mt-2">
+      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+      {label}...
+    </div>
+  );
+};
+
+const ToolStatusToggle = ({ items }: { items: ToolStatusBlock[] }) => {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="w-full mt-1 mb-2">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="text-xs text-hgray700 flex flex-row items-center gap-1 group"
+      >
+        <Check size={12} />
+        검색 완료
+        <span className="text-hgray600 group-hover:text-hgray900 transition-all duration-200">{open ? "접기" : "보기"}</span>
+      </button>
+      {open && (
+        <div className="mt-2 flex flex-col gap-2">
+          {items.map((s, idx) => (
+            <ToolStatusCard key={`${s.id ?? s.name ?? "tool"}-${idx}`} {...s} />
+          ))}
+        </div>
+      )}
     </div>
   );
 };
@@ -354,6 +422,17 @@ export default function ChatMessageList({
   onConfirmCriteriaCard,
   onChangeCriteriaCard,
 }: Props) {
+  const hasActiveToolCall = useMemo(() => {
+    const last = messages[messages.length - 1];
+    if (!last?.segments?.length) return false;
+    return last.segments.some(
+      (s) =>
+        s.type === "block" &&
+        (s as any).content?.type === "tool_status" &&
+        (s as any).content?.state === "running"
+    );
+  }, [messages]);
+
   return (
     <div className="flex-1 pr-2 space-y-8">
       {messages.length === 0 && (
@@ -367,6 +446,24 @@ export default function ChatMessageList({
         const bubbleCls = isUser
           ? "ml-auto border border-white/10 bg-hgray100/70 text-hgray900 py-3 px-4"
           : "bg-white/0 text-hgray800 mt-1";
+        const segments = m.segments ?? [];
+        const toolSegments = segments
+          .filter(
+            (s) => s.type === "block" && (s as any).content?.type === "tool_status"
+          )
+          .map((s) => (s as any).content as ToolStatusBlock);
+        const hasMainContent = segments.some(
+          (s) => !(s.type === "block" && (s as any).content?.type === "tool_status")
+        );
+        const showToolToggle = toolSegments.length > 0 && hasMainContent;
+        const segmentsToRender = showToolToggle
+          ? segments.filter(
+            (s) =>
+              !(
+                s.type === "block" && (s as any).content?.type === "tool_status"
+              )
+          )
+          : segments;
 
         return (
           <div className="flex flex-col gap-1" key={`${m.role}-${idx}`}>
@@ -396,7 +493,8 @@ export default function ChatMessageList({
               className={`max-w-[98%] rounded-3xl text-sm leading-relaxed ${bubbleCls}`}
             >
               <div className="whitespace-pre-wrap break-words flex flex-row flex-wrap gap-1">
-                {m.segments?.map((s, si) => {
+                {showToolToggle && <ToolStatusToggle items={toolSegments} />}
+                {segmentsToRender.map((s, si) => {
                   if (s.type === "text") {
                     return (
                       <div
@@ -446,6 +544,14 @@ export default function ChatMessageList({
                     if (s.content.type === "criteria_loading") {
                       return <CriteriaLoading key={`block-${idx}-${si}`} />;
                     }
+                    if (s.content.type === "tool_status") {
+                      return (
+                        <ToolStatusCard
+                          key={`block-${idx}-${si}`}
+                          {...(s.content as ToolStatusBlock)}
+                        />
+                      );
+                    }
                     if (s.content.type === "search_result") {
                       return (
                         <SearchResultCard
@@ -464,7 +570,7 @@ export default function ChatMessageList({
         );
       })}
 
-      {isStreaming && (
+      {isStreaming && !hasActiveToolCall && (
         <div className="text-xs text-hgray600 flex items-center gap-2">
           <Loader2 className="w-3.5 h-3.5 animate-spin" />
           응답 작성 중...

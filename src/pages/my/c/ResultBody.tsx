@@ -7,7 +7,6 @@ type Props = {
   items: any[];
   userId?: string;
   isLoading: boolean;
-  isQueryDetailLoading: boolean;
   pageIdx: number;
   pageIdxRaw: number;
   maxPrefetchPages: number;
@@ -25,7 +24,6 @@ export default function ResultBody(props: Props) {
     items,
     userId,
     isLoading,
-    isQueryDetailLoading,
     pageIdx,
     pageIdxRaw,
     maxPrefetchPages,
@@ -47,11 +45,6 @@ export default function ResultBody(props: Props) {
 
   const isNoResultAtall = pageIdx === 0 && items.length === 0 && !isLoading;
 
-  const isLessResultThan10 =
-    pageIdx === 0 && items.length !== 0 && items.length < 10 && !isLoading;
-
-  const isLessThan10 = items.length < 10 && !isLoading;
-
   return (
     <div className="flex flex-col w-full h-full">
       {userId && (
@@ -61,11 +54,9 @@ export default function ResultBody(props: Props) {
           criterias={criterias}
         />
       )}
-      {!isQueryDetailLoading &&
+      {
         !isLoading &&
-        !isNoResultAtall &&
-        !isLessResultThan10 &&
-        !isLessThan10 && (
+        !isNoResultAtall && (
           <div className="flex items-center justify-center w-full py-16 flex-col">
             <div className="text-sm text-white">
               Page {pageIdx + 1}

@@ -20,6 +20,7 @@ import { supabase } from "@/lib/supabase";
 import { useCredits } from "@/hooks/useCredit";
 import { useQueryClient } from "@tanstack/react-query";
 import { CANDID_SYSTEM_PROMPT } from "@/app/api/chat/chat_prompt";
+import CreditModal from "../Modal/CreditModal";
 
 const CANDID_SUGGESTIONS = [
   "이 사람이 이직 의사가 있을까?",
@@ -56,9 +57,10 @@ export default function CandidChatPanel({
   const [showJumpToBottom, setShowJumpToBottom] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const queryClient = useQueryClient();
-  const { deduct } = useCredits();
+  const { deduct, credits } = useCredits();
   const [isUnlockConfirmOpen, setIsUnlockConfirmOpen] = useState(false);
   const [isUnlocking, setIsUnlocking] = useState(false);
+  const [isNoCreditModalOpen, setIsNoCreditModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [systemPromptOverride, setSystemPromptOverride] = useState<string | null>(
     null
@@ -149,9 +151,6 @@ export default function CandidChatPanel({
     requestAnimationFrame(() => scrollToBottom("auto"));
   }, [chat.isLoadingHistory, chat.messages.length, scrollToBottom]);
 
-  // ✅ candid scope에서 '아직 대화가 시작 안 된 상태' 판단
-  // (원하면 "messages.length === 0"로만 해도 되는데,
-  //  혹시 시스템 메시지 같은 걸 1개 넣는 경우를 대비해서 user/assistant가 없으면로 판단)
   const isCandidEmpty = useMemo(() => {
     const hasAnyChat =
       chat.messages?.some((m) => m.role === "user" || m.role === "assistant") ??
@@ -162,6 +161,10 @@ export default function CandidChatPanel({
   // ✅ 예시 질문 클릭 → 바로 대화 시작
   const onClickCandidSuggestion = useCallback(
     async (text: string) => {
+      if (!isUnlockProfile) {
+        setIsUnlockConfirmOpen(true);
+        return;
+      };
       chat.setMessages([{
         role: "user",
         rawContent: text,
@@ -172,17 +175,25 @@ export default function CandidChatPanel({
 
       requestAnimationFrame(() => scrollToBottom("smooth"));
     },
-    [chat, scrollToBottom]
+    [chat, scrollToBottom, isUnlockProfile]
   );
 
   const onClickUnlockProfile = useCallback(async () => {
     if (isUnlockProfile) return;
+    if (credits && credits.remain_credit <= 0) {
+      setIsNoCreditModalOpen(true);
+      return;
+    }
     setIsUnlockConfirmOpen(true);
-  }, [isUnlockProfile]);
+  }, [isUnlockProfile, credits]);
 
   const onConfirmUnlockProfile = useCallback(async () => {
     if (!userId || !candidId) return;
     if (isUnlocking) return;
+    if (credits && credits.remain_credit <= 0) {
+      setIsNoCreditModalOpen(true);
+      return;
+    }
 
     setIsUnlocking(true);
     let insertedRow: any | null = null;
@@ -202,9 +213,16 @@ export default function CandidChatPanel({
 
       try {
         await deduct(1);
-      } catch (deductError) {
+      } catch (deductError: any) {
+        const isInsufficient = String(deductError?.message ?? "").includes(
+          "Insufficient credits"
+        );
         if (insertedRow?.id) {
           await supabase.from("unlock_profile").delete().eq("id", insertedRow.id);
+        }
+        if (isInsufficient) {
+          setIsNoCreditModalOpen(true);
+          return;
         }
         throw deductError;
       }
@@ -228,14 +246,12 @@ export default function CandidChatPanel({
     } finally {
       setIsUnlocking(false);
     }
-  }, [userId, candidId, isUnlocking, deduct, queryClient]);
+  }, [userId, candidId, isUnlocking, deduct, queryClient, credits]);
 
   useEffect(() => {
     if (!isSettingsOpen) return;
     setPromptDraft(systemPromptOverride ?? CANDID_SYSTEM_PROMPT);
   }, [isSettingsOpen, systemPromptOverride]);
-
-  logger.log("chat.messages ", chat.messages)
 
   return (
     <div className="w-full flex flex-col min-h-0 h-screen">
@@ -273,6 +289,11 @@ export default function CandidChatPanel({
             description="프로필 잠금을 해제하고 제한없이 대화를 시작할 수 있습니다. 1 크레딧이 차감됩니다."
             confirmLabel="확인"
             cancelLabel="취소"
+            isLoading={isUnlocking}
+          />
+          <CreditModal
+            open={isNoCreditModalOpen}
+            onClose={() => setIsNoCreditModalOpen(false)}
             isLoading={isUnlocking}
           />
           {chat.isLoadingHistory && (

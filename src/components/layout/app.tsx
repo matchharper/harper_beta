@@ -3,21 +3,17 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   Search,
   List,
-  Settings,
-  ChevronUp,
-  ChevronDown,
   PanelLeft,
   PanelLeftOpen,
   Database,
   User,
   LogOut,
   HelpCircle,
-  History,
 } from "lucide-react";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { useCredits } from "@/hooks/useCredit";
-import HistoryItem, { NavItem } from "./HistoryItem";
+import { NavItem } from "./HistoryItem";
 import { Tooltips } from "../ui/tooltip";
 import {
   DropdownMenu,
@@ -29,6 +25,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { useMessages } from "@/i18n/useMessage";
 import HoverHistory from "./HoverHistory";
+import { useLogEvent } from "@/hooks/useLog";
 
 const AppLayout = ({
   children,
@@ -41,6 +38,7 @@ const AppLayout = ({
   const { credits, isLoading: isLoadingCredits } = useCredits();
   const { m } = useMessages();
   const { companyUser, loading, initialized } = useCompanyUserStore();
+  const logEvent = useLogEvent();
 
   const router = useRouter();
   const params = useParams();
@@ -79,7 +77,6 @@ const AppLayout = ({
           "transition-all duration-300 ease-out flex-shrink-0", // flex-shrink-0 추가
         ].join(" ")}
       >
-        {/* 1. Top bar: 고정 */}
         <div className="flex items-center justify-between px-3 pt-4 flex-shrink-0">
           {!collapsed && (
             <div
@@ -200,6 +197,7 @@ const AppLayout = ({
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
+                    logEvent("enter_help");
                     router.push("/my/help");
                   }}
                 >
@@ -211,6 +209,7 @@ const AppLayout = ({
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
+                    logEvent("enter_account");
                     router.push("/my/account");
                   }}
                 >
@@ -222,6 +221,7 @@ const AppLayout = ({
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
+                    logEvent("logout");
                     supabase.auth.signOut();
                     router.push("/companies");
                   }}

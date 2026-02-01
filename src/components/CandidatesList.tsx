@@ -8,10 +8,10 @@ import Bookmarkbutton from "./ui/bookmarkbutton";
 import { dateToFormat } from "@/utils/textprocess";
 import { Tooltips } from "./ui/tooltip";
 import { Check, Dot, X } from "lucide-react";
-import { useMessages } from "@/i18n/useMessage";
 import { useRouter } from "next/navigation";
 import { RoleBox, SchoolBox } from "./CandidatesListTable";
 import { SummaryScore } from "@/types/type";
+import { useLogEvent } from "@/hooks/useLog";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
 
@@ -48,7 +48,7 @@ function CandidateCard({
   criterias: string[];
 }) {
   const router = useRouter();
-  const { m } = useMessages();
+  const logEvent = useLogEvent();
 
   const candidId = c.id;
   const synthesizedSummary =
@@ -78,6 +78,7 @@ function CandidateCard({
     <div
       key={c.id}
       onClick={() => {
+        logEvent("candidate_card_click: " + candidId);
         router.push(`/my/p/${candidId}`);
       }}
       className="group relative w-full rounded-[28px] max-w-[980px] text-white bg-white/5 p-6 cursor-pointer hover:bg-[#FFFFFF18] transition-colors duration-200"

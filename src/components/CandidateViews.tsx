@@ -39,8 +39,8 @@ const CandidateViews = ({
   const criteriaList = useMemo(() => asArr(criterias), [criterias]);
   const gridTemplateColumns = useMemo(() => {
     // Candidate | Company | Location | School | (criteria * N) | Actions
-    const fixed = [isMyList ? "400px" : "280px"];
-    const defaultCols = isMyList ? "320px" : "240px";
+    const fixed = [isMyList ? "480px" : "280px"];
+    const defaultCols = isMyList ? "340px" : "240px";
     const criteriaCols = criteriaList.map(() => isFolded ? "60px" : "140px"); // 한 criteria는 작은 칸
     const actions = ["0px"];
 

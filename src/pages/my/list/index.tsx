@@ -36,7 +36,7 @@ export default function MyPage() {
   }, [currentPage]);
 
   return (
-    <AppLayout>
+    <AppLayout initialCollapse={false}>
       <div className="min-h-screen w-full">
         {/* Header */}
         <div className="sticky top-0 z-50 w-full backdrop-blur">

@@ -189,17 +189,17 @@ export const FallingTags = ({
             animate={
               start
                 ? {
-                    x: tag.x,
-                    y: tag.y,
-                    rotate: tag.rotate,
-                    opacity: 1,
-                    scale: 1,
-                  }
+                  x: tag.x,
+                  y: tag.y,
+                  rotate: tag.rotate,
+                  opacity: 1,
+                  scale: 1,
+                }
                 : {
-                    // 시작 전 상태 그대로 유지
-                    y: -220,
-                    opacity: 0,
-                  }
+                  // 시작 전 상태 그대로 유지
+                  y: -220,
+                  opacity: 0,
+                }
             }
             transition={{
               type: "spring",
@@ -212,10 +212,9 @@ export const FallingTags = ({
             <motion.div
               className={`select-none rounded-lg pl-2 pr-4 py-2 text-[10px] md:text-xs font-medium shadow-xl \
                 flex flex-row items-center justify-start gap-1.5 cursor-grab \
-                active:cursor-grabbing border ${
-                  theme === "white"
-                    ? "bg-white border-gray-400/50 text-xgray700"
-                    : "bg-gray-500/10 border-white/10 text-white"
+                active:cursor-grabbing border ${theme === "white"
+                  ? "bg-white border-gray-400/50 text-xgray700"
+                  : "bg-gray-500/10 border-white/10 text-white"
                 } backdrop-blur-sm`}
               drag
               dragElastic={0.25}

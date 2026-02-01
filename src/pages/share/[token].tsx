@@ -123,9 +123,9 @@ export default function ShareTokenPage() {
             }
             <div className="h-screen bg-hgray200 font-sans text-white w-full overflow-y-auto">
                 {/* Top bar */}
-                <div className="sticky top-0 z-20 border-b border-b-white/10 backdrop-blur">
-                    <div className="mx-auto max-w-[920px] px-4 py-3 flex items-center justify-between">
-                        <div className="cursor-pointer hover:underline" onClick={() => window.open("https://matchharper.com/companies", "_blank")}><span className="text-sm text-hgray900">From </span> <span className="font-bold text-accenta1 font-hedvig">Harper</span></div>
+                <div className="sticky top-0 z-20 border-b border-b-white/5 backdrop-blur">
+                    <div className="mx-auto max-w-full px-4 py-3 flex items-center justify-between">
+                        <div className="text-sm cursor-pointer hover:underline" onClick={() => window.open("https://matchharper.com/companies", "_blank")}><span className="text-hgray900">From </span> <span className="text-accenta1">Harper</span></div>
                     </div>
                 </div>
 

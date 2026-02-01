@@ -33,12 +33,24 @@ type ScrapeResponse = {
 
 const DEFAULT_MODEL = "grok-4-1-fast-reasoning";
 const MAX_TOOL_LOOPS = 3;
+const MAX_TOTAL_TOOL_CALLS = 5;
 const MAX_TOOL_TEXT_CHARS = 18_000; // hard cap to avoid prompt blow-ups
+const UI_START = "<<UI>>";
+const UI_END = "<<END_UI>>";
 
 function clampText(s: string, maxChars: number) {
     if (!s) return "";
     if (s.length <= maxChars) return s;
     return s.slice(0, maxChars) + `\n...[truncated ${s.length - maxChars} chars]`;
+}
+
+function emitUiBlock(
+    controller: ReadableStreamDefaultController<Uint8Array>,
+    encoder: TextEncoder,
+    block: any
+) {
+    const payload = `${UI_START}\n${JSON.stringify(block)}\n${UI_END}`;
+    controller.enqueue(encoder.encode(payload));
 }
 
 /**
@@ -198,27 +210,18 @@ ${information}
     );
 }
 
-async function streamWithTools(params: {
-    req: NextRequest;
-    model: string;
-    baseMessages: ChatMessage[];
-    systemPrompt: string;
-    temperature: number;
-}) {
+async function streamWithTools(params: { req: NextRequest; model: string; baseMessages: ChatMessage[]; systemPrompt: string; temperature: number; }) {
     const { req, model, baseMessages, systemPrompt, temperature } = params;
-
     const encoder = new TextEncoder();
-
-    // We keep a mutable messages array to append tool results across loops.
     const recent = baseMessages.slice(-MAX_MESSEGE_LENGTH);
     const messages: any[] = [{ role: "system", content: systemPrompt }, ...recent];
 
-    // This stream is what we return to the browser.
+    let totalToolCallsUsed = 0;
+
     return new ReadableStream<Uint8Array>({
         async start(controller) {
             try {
                 for (let loop = 0; loop < MAX_TOOL_LOOPS; loop++) {
-                    // Start a model stream for this loop.
                     const llmStream = await xaiClient.chat.completions.create({
                         model,
                         messages,
@@ -228,28 +231,19 @@ async function streamWithTools(params: {
                         tool_choice: "auto",
                     });
 
-                    // Accumulate tool calls (streaming deltas deliver them gradually).
-                    // OpenAI-style structure: delta.tool_calls: [{id, index, function:{name, arguments}}]
-                    const toolCallsByIndex = new Map<
-                        number,
-                        { id?: string; name?: string; argumentsStr: string }
-                    >();
-
+                    const toolCallsByIndex = new Map<number, { id?: string; name?: string; argumentsStr: string }>();
                     let sawAnyToolCall = false;
 
                     for await (const chunk of llmStream as any) {
                         const choice = chunk?.choices?.[0];
                         const delta = choice?.delta ?? {};
 
-                        // 1) Normal assistant text → stream to client
                         const text = delta?.content ?? "";
                         if (text) controller.enqueue(encoder.encode(text));
 
-                        // 2) Tool calls → intercept (do NOT stream to client)
                         const tcs = delta?.tool_calls;
                         if (Array.isArray(tcs) && tcs.length) {
                             sawAnyToolCall = true;
-
                             for (const tc of tcs) {
                                 const idx = typeof tc.index === "number" ? tc.index : 0;
                                 const existing = toolCallsByIndex.get(idx) ?? {
@@ -257,70 +251,83 @@ async function streamWithTools(params: {
                                     name: tc.function?.name,
                                     argumentsStr: "",
                                 };
-
                                 if (tc.id) existing.id = tc.id;
                                 if (tc.function?.name) existing.name = tc.function.name;
-
                                 const argDelta = tc.function?.arguments ?? "";
                                 if (argDelta) existing.argumentsStr += argDelta;
-
                                 toolCallsByIndex.set(idx, existing);
                             }
                         }
                     }
 
-                    // If no tool call happened, we're done.
                     if (!sawAnyToolCall || toolCallsByIndex.size === 0) break;
 
+                    // ✅ id를 여기서 확정(assistant/tool 동일 id 보장)
                     const orderedToolCalls = Array.from(toolCallsByIndex.entries())
                         .sort((a, b) => a[0] - b[0])
-                        .map(([_, v]) => v);
+                        .map(([_, v]) => ({
+                            id: v.id ?? `toolcall_${crypto.randomUUID()}`,
+                            name: v.name ?? "",
+                            argumentsStr: v.argumentsStr ?? "",
+                        }));
 
-                    // Append the assistant "tool_calls" message (so the model has a record of what it asked).
                     messages.push({
                         role: "assistant",
                         content: "",
                         tool_calls: orderedToolCalls.map((tc) => ({
-                            id: tc.id ?? `toolcall_${Math.random().toString(16).slice(2)}`,
+                            id: tc.id,
                             type: "function",
                             function: { name: tc.name, arguments: tc.argumentsStr },
                         })),
                     });
 
-                    // Execute each tool call and append a corresponding tool message.
-                    for (const tc of orderedToolCalls) {
-                        const toolCallId = tc.id ?? `toolcall_${Math.random().toString(16).slice(2)}`;
-                        const toolName = tc.name ?? "";
+                    // ✅ 글로벌 예산 고려해서 이번에 실행할 tool call만 자르기
+                    const remaining = MAX_TOTAL_TOOL_CALLS - totalToolCallsUsed;
+                    const toExecute = remaining > 0 ? orderedToolCalls.slice(0, remaining) : [];
+                    const skipped = orderedToolCalls.slice(toExecute.length);
+
+                    // 1) 실행
+                    for (const tc of toExecute) {
+                        totalToolCallsUsed++;
+
+                        const toolCallId = tc.id;
+                        const toolName = tc.name;
+
+                        emitUiBlock(controller, encoder, {
+                            type: "tool_status",
+                            id: toolCallId,
+                            name: toolName,
+                            state: "running",
+                        });
 
                         let parsedArgs: any = {};
                         try {
                             parsedArgs = tc.argumentsStr ? JSON.parse(tc.argumentsStr) : {};
-                        } catch (e) {
-                            // If JSON parsing fails, feed back the raw arguments to the model.
+                        } catch {
                             parsedArgs = { _raw: tc.argumentsStr ?? "" };
                         }
 
                         let toolPayload: any;
                         try {
-                            if (toolName === "web_search") {
-                                toolPayload = await callWebSearch(req, parsedArgs);
-                            } else if (toolName === "website_scraping") {
-                                toolPayload = await callWebsiteScraping(req, parsedArgs);
-                            } else {
-                                toolPayload = { error: `Unknown tool: ${toolName}` };
-                            }
+                            if (toolName === "web_search") toolPayload = await callWebSearch(req, parsedArgs);
+                            else if (toolName === "website_scraping") toolPayload = await callWebsiteScraping(req, parsedArgs);
+                            else toolPayload = { error: `Unknown tool: ${toolName}` };
                         } catch (e: any) {
                             toolPayload = { error: String(e?.message ?? e) };
                         }
 
-                        // Clamp large contents before feeding to the model.
+                        emitUiBlock(controller, encoder, {
+                            type: "tool_status",
+                            id: toolCallId,
+                            name: toolName,
+                            state: toolPayload?.error ? "error" : "done",
+                            ...(toolPayload?.error ? { message: String(toolPayload.error).slice(0, 140) } : {}),
+                        });
+
                         if (toolName === "website_scraping" && toolPayload?.markdown) {
                             toolPayload.markdown = clampText(String(toolPayload.markdown), MAX_TOOL_TEXT_CHARS);
                         }
 
-                        logger.log("\n tool calling의 결과를 저장합니다. ", toolName, "\npayload: ", JSON.stringify(toolPayload))
-
-                        // Append tool output message.
                         messages.push({
                             role: "tool",
                             tool_call_id: toolCallId,
@@ -329,7 +336,29 @@ async function streamWithTools(params: {
                         });
                     }
 
-                    // Continue next loop: model will see tool outputs and produce final answer (or more tool calls).
+                    // 2) 예산 초과로 스킵된 툴콜들 처리(모델이 계속 요구하지 않게 “응답을 줬다”고 남김)
+                    if (skipped.length) {
+                        for (const tc of skipped) {
+                            messages.push({
+                                role: "tool",
+                                tool_call_id: tc.id,
+                                name: tc.name,
+                                content: JSON.stringify({
+                                    error: "Tool call budget exceeded",
+                                    max_total_tool_calls: MAX_TOTAL_TOOL_CALLS,
+                                }),
+                            });
+                        }
+
+                        // 여기서 바로 break 해도 되고, 다음 루프로 가서 모델이 “이제 도구 못 씀” 상태에서 답을 내게 해도 됨.
+                        // 보통은 다음 루프로 한 번 더 돌리는 게 마무리 답이 잘 나옴.
+                    }
+
+                    // ✅ 글로벌 예산이 0이면, 다음 루프에서 tools를 꺼버리는 것도 강력 추천(모델이 더 요청 못하게)
+                    if (totalToolCallsUsed >= MAX_TOTAL_TOOL_CALLS) {
+                        // 다음 loop에서 tools 제거하는 전략을 쓰려면,
+                        // loop 상단 create() 호출 부분을 조건부로 바꿔야 함(아래 “옵션” 참고).
+                    }
                 }
             } catch (err) {
                 logger.log("streamWithTools error:", err);
@@ -361,7 +390,6 @@ export async function POST(req: NextRequest) {
     if (!messages.length) {
         return NextResponse.json({ error: "Missing messages" }, { status: 400 });
     }
-    logger.log("\n 첫 호출 messages", messages);
 
     const systemPrompt = buildToolAugmentedSystemPrompt(
         body.doc,

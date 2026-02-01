@@ -492,7 +492,7 @@ const JoinWaitlistButton = ({
   );
 };
 
-function QuestionAnswer({
+export function QuestionAnswer({
   question,
   answer,
   index = 1,
@@ -505,9 +505,8 @@ function QuestionAnswer({
 
   return (
     <div
-      className={`border-b border-white/20 w-full px-1 md:px-[30px] py-6 md:py-[32px] gap-4 ${
-        index === 3 ? "border-b-0" : ""
-      }`}
+      className={`border-b border-white/20 w-full px-1 md:px-[30px] py-6 md:py-[32px] gap-4 ${index === 3 ? "border-b-0" : ""
+        }`}
     >
       <button
         type="button"
@@ -515,17 +514,15 @@ function QuestionAnswer({
         className="flex w-full items-center justify-between md:justify-start text-left"
       >
         <span
-          className={`text-base transition-colors hover:text-white ${
-            open ? "text-white" : "text-hgray700"
-          }`}
+          className={`text-base transition-colors hover:text-white ${open ? "text-white" : "text-hgray700"
+            }`}
         >
           {question}
         </span>
 
         <span
-          className={`ml-6 inline-flex h-6 w-6 items-center justify-center transition-transform duration-300 ${
-            open ? "rotate-180" : "rotate-0"
-          }`}
+          className={`ml-6 inline-flex h-6 w-6 items-center justify-center transition-transform duration-300 ${open ? "rotate-180" : "rotate-0"
+            }`}
         >
           <ChevronDown size={16} strokeWidth={1.5} className="text-hgray700" />
         </span>
@@ -609,9 +606,8 @@ const ImageSection = ({
 }) => {
   return (
     <div
-      className={`flex flex-col md:flex-row justify-center items-center w-full max-w-full md:gap-[60px] gap-6 mb-8 md:mt-0 ${
-        opposite ? "flex-col md:flex-row-reverse" : ""
-      } px-5 md:px-0`}
+      className={`flex flex-col md:flex-row justify-center items-center w-full max-w-full md:gap-[60px] gap-6 mb-8 md:mt-0 ${opposite ? "flex-col md:flex-row-reverse" : ""
+        } px-5 md:px-0`}
     >
       <div className="h-[26vw] min-h-[250px] md:min-h-[380px] w-full flex relative overflow-hidden justify-end items-end rounded-3xl bg-white/10 md:bg-white/5">
         {imageSrc === "orbit" ? (

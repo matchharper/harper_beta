@@ -6,6 +6,7 @@ export function useLogEvent() {
     const { companyUser } = useCompanyUserStore();
 
     return async (type: string) => {
+        console.log("logEvent: ", type, companyUser?.user_id);
         if (!companyUser?.user_id) return;
 
         await supabase

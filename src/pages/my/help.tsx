@@ -30,9 +30,8 @@ const Help = () => {
       content: feedback,
       user_id: companyUser?.user_id,
     });
-    await notifyToSlack(`💬 *Feedback from user: ${companyUser?.name}* (${
-      companyUser?.company ?? "회사 정보 없음"
-    })
+    await notifyToSlack(`💬 *Feedback from user: ${companyUser?.name}* (${companyUser?.company ?? "회사 정보 없음"
+      })
 
       • *Content*: ${feedback}
       • *Time(Standard Korea Time)*: ${new Date().toLocaleString("ko-KR")}`);
@@ -44,7 +43,7 @@ const Help = () => {
   };
 
   return (
-    <AppLayout>
+    <AppLayout initialCollapse={false}>
       <InnerLayout title="Help">
         <div className="flex flex-col items-start w-full justify-start mt-12 font-normal">
           <div>{m.help.intro}</div>

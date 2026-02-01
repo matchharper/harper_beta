@@ -40,7 +40,7 @@ const HistoryItem = ({
           }`}
       >
         <div className="truncate text-[13px] w-full">
-          {queryItem.query_keyword ?? queryItem.raw_input_text}
+          {queryItem.query_keyword !== "" ? queryItem.query_keyword : queryItem.raw_input_text}
         </div>
         {!collapsed && (
           <div className="text-[12px] text-hgray600">

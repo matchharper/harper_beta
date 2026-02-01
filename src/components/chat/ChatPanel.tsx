@@ -16,7 +16,10 @@ import { CandidateDetail } from "@/hooks/useCandidateDetail";
 import { Skeleton } from "../ui/skeleton";
 import ChatSettingsModal from "../Modal/ChatSettingsModal";
 import { useSettings } from "@/hooks/useSettings";
-
+import ConfirmModal from "../Modal/ConfirmModal";
+import { useCredits } from "@/hooks/useCredit";
+import { MIN_CREDITS_FOR_SEARCH } from "@/utils/constantkeys";
+import CreditModal from "../Modal/CreditModal";
 
 export type ChatScope =
   | { type: "query"; queryId: string }
@@ -54,6 +57,10 @@ export default function ChatPanel({
   const [stickToBottom, setStickToBottom] = useState(true);
   const [showJumpToBottom, setShowJumpToBottom] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isNoCreditModalOpen, setIsNoCreditModalOpen] = useState(false);
+
+  const { credits } = useCredits();
+
   const router = useRouter();
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -224,6 +231,10 @@ export default function ChatPanel({
     //   });
     //   return;
     // }
+    if (credits && credits.remain_credit <= MIN_CREDITS_FOR_SEARCH) {
+      setIsNoCreditModalOpen(true);
+      return;
+    }
 
     setIsSearchSyncing(true);
     try {
@@ -238,6 +249,10 @@ export default function ChatPanel({
 
   return (
     <div className="w-full flex flex-col min-h-0 h-screen">
+      <CreditModal
+        open={isNoCreditModalOpen}
+        onClose={() => setIsNoCreditModalOpen(false)}
+      />
       {/* Header (fixed) */}
       <div className="flex items-center justify-between flex-none h-14 px-4 text-hgray900">
         <div

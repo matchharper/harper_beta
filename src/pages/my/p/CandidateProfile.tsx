@@ -5,10 +5,8 @@ import {
 import ShareProfileModal from "@/components/Modal/ShareProfileModal";
 import { Share2, Upload } from "lucide-react";
 import Bookmarkbutton from "@/components/ui/bookmarkbutton";
-import Requestbutton from "@/components/ui/requestbutton";
 import ItemBox from "./components/ItemBox";
 import PublicationBox from "./components/PublicationBox";
-import LinkChips from "./components/LinkChips";
 import { replaceName } from "@/utils/textprocess";
 import { useEffect, useMemo, useState } from "react";
 import { useMessages } from "@/i18n/useMessage";
@@ -16,14 +14,12 @@ import {
   companyEnToKo,
   degreeEnToKo,
   koreaUniversityEnToKo,
-  locationEnToKo,
   majorEnToKo,
 } from "@/utils/language_map";
-import { logger } from "@/utils/logger";
-import { Loader2, MapPin } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import MainProfile from "./components/MainProfile";
 import ProfileBio from "./components/ProfileBio";
+import { useLogEvent } from "@/hooks/useLog";
 
 export const ExperienceCal = (months: number) => {
   const years = Math.floor(months / 12);
@@ -47,7 +43,7 @@ export default function CandidateProfileDetailPage({
   const [isLoadingOneline, setIsLoadingOneline] = useState(false);
   const [oneline, setOneline] = useState<string | null>(null);
   const [isShareOpen, setIsShareOpen] = useState(false);
-
+  const logEvent = useLogEvent();
   const { m } = useMessages();
   const { companyUser } = useCompanyUserStore();
   const userId = companyUser?.user_id;
@@ -120,19 +116,18 @@ export default function CandidateProfileDetailPage({
     emails = c.email ? [String(c.email)] : [];
   }
 
-  logger.log("c ", c);
-
   return (
     <div className="w-full mx-auto overflow-y-auto h-screen relative">
       <div className="w-[95%] max-w-[1080px] mx-auto px-4 py-10 space-y-12">
-        {/* Header */}
         <div className="flex flex-row items-start justify-between w-full">
           <MainProfile profile_picture={c.profile_picture} name={c.name} headline={c.headline} location={c.location} total_exp_months={c.total_exp_months} />
           <div className="flex flex-row absolute top-2 right-2 items-start justify-end gap-2 font-normal">
             <div className="flex flex-col items-end gap-2">
-              {/* <Requestbutton c={c} /> */}
               <button
-                onClick={() => setIsShareOpen(true)}
+                onClick={() => {
+                  logEvent("open share: " + candidId);
+                  setIsShareOpen(true)
+                }}
                 className="inline-flex items-center gap-2 rounded-xl px-2 py-2 text-sm hover:bg-hgray900/5"
               >
                 <Upload className="w-4 h-4" />

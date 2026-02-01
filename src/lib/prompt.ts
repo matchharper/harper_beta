@@ -275,6 +275,7 @@ SQL 규칙
 2. to_tsquery 안에서는 단어에 co-founder 같이 하이픈(-)을 쓸 수 없습니다.
 3. **중요** to_tsquery 안에서는 만약 두개 이상의 단어를 사용한다면 공백으로 구분하지 말고, <-> 연산자를 사용해야 한다.
 사용 예시 : fts @@ to_tsquery('english', 'computer <-> vision | research <-> scientist | researcher')
+4. Postgres에서 date - date 는 interval이 아니라 “정수(일 수)” 를 리턴합니다.
 
 ---
 

@@ -143,7 +143,6 @@ function buildMarkdown(title: string, sourceUrl: string, bodyMd: string, links: 
  * Takes raw HTML and a canonical page URL, returns LLM-friendly Markdown + normalized links.
  */
 export function htmlToReadableMarkdown(html: string, pageUrl: string, opts: Options = {}): PreprocessResult {
-    logger.log("\n\n 찾아온 내용 ", html, "\n\n")
     const {
         maxLinks = 80,
         stripTracking = true,

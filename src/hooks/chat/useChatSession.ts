@@ -121,19 +121,46 @@ export function extractUiSegments(text: string): { segments: UiSegment[] } {
     cursor = end + UI_END.length;
   }
 
-  // 3) Tail text
   const tail = text.slice(cursor);
   if (tail) segments.push(...splitTextByAnchors(tail));
 
-  // 4) Optional: merge adjacent text segments to keep render clean
+  // Remove duplicate tool_status blocks per tool call id.
+  // Keep only the latest tool_status for each id (running -> done/error).
+  const lastToolStatusIndexById = new Map<string, number>();
+  segments.forEach((seg, idx) => {
+    if (seg.type !== "block") return;
+    const content = (seg as any).content;
+    if (content?.type !== "tool_status" || !content?.id) return;
+    lastToolStatusIndexById.set(String(content.id), idx);
+  });
+  const filtered = segments.filter((seg, idx) => {
+    if (seg.type !== "block") return true;
+    const content = (seg as any).content;
+    if (content?.type !== "tool_status" || !content?.id) return true;
+    return lastToolStatusIndexById.get(String(content.id)) === idx;
+  });
+
   const merged: UiSegment[] = [];
-  for (const seg of segments) {
+  for (const seg of filtered) {
     const prev = merged[merged.length - 1];
     if (seg.type === "text" && prev?.type === "text") {
       prev.content += seg.content;
-    } else {
-      merged.push(seg);
+      continue;
     }
+    if (
+      seg.type === "block" &&
+      (seg as any).content?.type === "tool_status" &&
+      prev?.type === "block" &&
+      (prev as any).content?.type === "tool_status"
+    ) {
+      const prevId = (prev as any).content?.id;
+      const nextId = (seg as any).content?.id;
+      if (prevId && nextId && prevId === nextId) {
+        merged[merged.length - 1] = seg;
+        continue;
+      }
+    }
+    merged.push(seg);
   }
 
   return { segments: merged };
@@ -145,7 +172,6 @@ export function buildConversationText(messages: ChatMessage[]) {
     .join("\n");
 }
 
-// ✅ scope -> insert/fetch payload로 바꿔주는 헬퍼
 function scopeToDbArgs(scope: ChatScope) {
   return scope.type === "query"
     ? ({ queryId: scope.queryId } as const)
@@ -235,6 +261,7 @@ export function useChatSessionDB(args: {
 
       setError(null);
       setIsStreaming(true);
+      const startAt = Date.now();
 
       try {
         const baseDbArgs = scopeToDbArgs(scope!);
@@ -346,9 +373,11 @@ export function useChatSessionDB(args: {
           });
         }
 
+        const latency = Date.now() - startAt;
         await updateMessageContent({
           id: assistantPlaceholder.id!,
           content: assistantText,
+          latency,
         });
       } catch (err: any) {
         if (err?.name === "AbortError") return;

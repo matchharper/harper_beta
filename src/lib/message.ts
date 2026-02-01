@@ -73,10 +73,11 @@ export async function insertMessage(args: InsertMessageParams) {
 export async function updateMessageContent(args: {
   id: number;
   content: string;
+  latency?: number;
 }) {
   const { error } = await supabase
     .from("messages")
-    .update({ content: args.content })
+    .update({ content: args.content, latency: args.latency })
     .eq("id", args.id);
 
   if (error) throw error;

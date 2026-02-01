@@ -137,7 +137,7 @@ export const LinkChip = ({ raw, size = "default" }: { raw: string, size?: "defau
       href={url}
       target="_blank"
       rel="noreferrer"
-      className={`inline-flex items-center justify-center rounded-md transition-all duration-200
+      className={`mt-2 inline-flex items-center justify-center rounded-md transition-all duration-200
         ${isSm
           ? "bg-white/0 p-0 hover:bg-white/0"
           : isMd ? "bg-white/5 px-2 py-1 text-xs text-white hover:bg-white/10" : "bg-white/5 px-2.5 py-1.5 text-sm text-white hover:bg-white/20"

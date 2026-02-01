@@ -260,7 +260,7 @@ export const buildLongDoc = (doc: any) => {
   const publications = doc.publications
     ?.slice(0, 20)
     .map((pub: any, idx: number) => {
-      return `${idx + 1}. Title: ${pub.title}, Published At: ${pub.published_at}`;
+      return `\n${idx + 1}. Title: ${pub.title}, Published At: ${pub.published_at}`;
     });
 
   const awards = doc.extra_experience
