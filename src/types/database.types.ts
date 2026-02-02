@@ -187,6 +187,7 @@ export type Database = {
           created_at: string
           email: string | null
           is_authenticated: boolean
+          is_custom: boolean
           location: string | null
           name: string | null
           profile_picture: string | null
@@ -198,6 +199,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           is_authenticated?: boolean
+          is_custom?: boolean
           location?: string | null
           name?: string | null
           profile_picture?: string | null
@@ -209,6 +211,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           is_authenticated?: boolean
+          is_custom?: boolean
           location?: string | null
           name?: string | null
           profile_picture?: string | null
@@ -223,6 +226,7 @@ export type Database = {
           created_at: string
           id: number
           last_updated_at: string
+          text: string | null
           typed: number | null
           user_id: string | null
         }
@@ -231,6 +235,7 @@ export type Database = {
           created_at?: string
           id?: number
           last_updated_at?: string
+          text?: string | null
           typed?: number | null
           user_id?: string | null
         }
@@ -239,6 +244,7 @@ export type Database = {
           created_at?: string
           id?: number
           last_updated_at?: string
+          text?: string | null
           typed?: number | null
           user_id?: string | null
         }
@@ -593,12 +599,12 @@ export type Database = {
           company_link: string | null
           created_at: string
           email: string
-          expect: string | null
           is_mobile: boolean | null
+          is_submit: boolean
+          main: string | null
           name: string | null
           needs: string[] | null
           role: string | null
-          salary: string | null
           size: string | null
         }
         Insert: {
@@ -607,12 +613,12 @@ export type Database = {
           company_link?: string | null
           created_at?: string
           email: string
-          expect?: string | null
           is_mobile?: boolean | null
+          is_submit?: boolean
+          main?: string | null
           name?: string | null
           needs?: string[] | null
           role?: string | null
-          salary?: string | null
           size?: string | null
         }
         Update: {
@@ -621,12 +627,12 @@ export type Database = {
           company_link?: string | null
           created_at?: string
           email?: string
-          expect?: string | null
           is_mobile?: boolean | null
+          is_submit?: boolean
+          main?: string | null
           name?: string | null
           needs?: string[] | null
           role?: string | null
-          salary?: string | null
           size?: string | null
         }
         Relationships: []
@@ -635,16 +641,22 @@ export type Database = {
         Row: {
           created_at: string
           id: number
+          is_mobile: boolean | null
+          local_id: string | null
           type: string | null
         }
         Insert: {
           created_at?: string
           id?: number
+          is_mobile?: boolean | null
+          local_id?: string | null
           type?: string | null
         }
         Update: {
           created_at?: string
           id?: number
+          is_mobile?: boolean | null
+          local_id?: string | null
           type?: string | null
         }
         Relationships: []

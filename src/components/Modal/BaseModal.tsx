@@ -14,7 +14,7 @@ const BaseModal = ({
   children: React.ReactNode;
   onClose: () => void;
   onConfirm: () => void;
-  confirmLabel: string;
+  confirmLabel: string | React.ReactNode;
   isCloseButton?: boolean;
   isLoading?: boolean;
   size?: "sm" | "md" | "lg";
@@ -37,7 +37,7 @@ const BaseModal = ({
       />
 
       <div
-        className={`relative z-50 w-full rounded-[28px] bg-ngray300 p-6 shadow-sm border border-white/10
+        className={`relative z-50 w-full rounded-[28px] bg-hgray200 p-6 shadow-sm border border-white/10
   transition-[max-width,padding] duration-300 ease-in-out ${isCloseButton ? `${sizeClass}` : "max-w-[520px]"
           }`}
       >

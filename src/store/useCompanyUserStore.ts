@@ -6,7 +6,7 @@ type CompanyUser = any;
 
 type S = {
   loading: boolean;
-  initialized: boolean; // ✅ 추가
+  initialized: boolean;
   companyUser: CompanyUser | null;
   load: (userId: string) => Promise<void>;
   clear: () => void;
@@ -14,7 +14,7 @@ type S = {
 
 export const useCompanyUserStore = create<S>((set) => ({
   loading: false,
-  initialized: false, // ✅ 초기에는 "아직 확인 안 함"
+  initialized: false,
   companyUser: null,
 
   load: async (userId) => {
@@ -33,7 +33,7 @@ export const useCompanyUserStore = create<S>((set) => ({
     set({
       companyUser: data ?? null,
       loading: false,
-      initialized: true, // ✅ 여기서 "확인 완료"
+      initialized: true,
     });
   },
 

@@ -153,7 +153,7 @@ const InputLabel = ({
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full text-white h-[56px] px-5 py-2 border border-white/10 bg-white/5 rounded-xl text-base font-normal leading-5 outline-none mt-1"
+        className="w-full text-white px-4 py-3 border border-white/10 bg-white/5 rounded-xl text-base font-normal leading-5 outline-none mt-1"
       />
     </div>
   );

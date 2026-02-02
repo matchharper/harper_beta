@@ -47,13 +47,15 @@ export default function ResultBody(props: Props) {
 
   return (
     <div className="flex flex-col w-full h-full">
-      {userId && (
-        <CandidateViews
-          items={items}
-          userId={userId}
-          criterias={criterias}
-        />
-      )}
+      <div className="w-full px-4">
+        {userId && (
+          <CandidateViews
+            items={items}
+            userId={userId}
+            criterias={criterias}
+          />
+        )}
+      </div>
       {
         !isLoading &&
         !isNoResultAtall && (

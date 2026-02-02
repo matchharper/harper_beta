@@ -8,7 +8,7 @@ import {
   majorEnToKo,
 } from "@/utils/language_map";
 import Bookmarkbutton from "./ui/bookmarkbutton";
-import { GraduationCap, BriefcaseBusiness } from "lucide-react";
+import { GraduationCap, BriefcaseBusiness, XIcon, CheckIcon } from "lucide-react";
 import router from "next/router";
 import { Avatar } from "./NameProfile";
 import { Tooltips } from "./ui/tooltip";
@@ -137,6 +137,10 @@ function CandidateRow({
                 ${latestEdu?.field_of_study && latestEdu?.degree ? " • " : ""}
                 ${latestEdu?.degree ? degreeEnToKo(latestEdu.degree) : ""}`}
           />
+          <div className="flex flex-row items-center justify-center gap-3">
+            {c.connection?.map((con: any) => con.typed).includes(4) && <CheckIcon className="w-4 h-4 text-green-500" />}
+            {c.connection?.map((con: any) => con.typed).includes(5) && <XIcon className="w-4 h-4 text-red-500" />}
+          </div>
         </div>
       </div>
     </div>

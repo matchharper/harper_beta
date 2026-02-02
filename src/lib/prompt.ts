@@ -379,3 +379,62 @@ ORDER BY fts_rank_cd DESC, t1.id
 - **When searching for two or more words within to_tsquery, you must use the <-> operator between words. Never use only spaces. (ex. 'computer vision' -> 'computer <-> vision') **
 - **When using weighted ranking, you must us two | operators between each queries. (ex. q.q_role || q.q_school)**
 `
+
+export function fixFtsOrOperator(sql: string, rewriteAll = false): string {
+  let i = 0;
+  let out = "";
+  let changed = false;
+
+  while (i < sql.length) {
+    const idx = sql.indexOf("fts @@ (", i);
+    if (idx === -1) {
+      out += sql.slice(i);
+      break;
+    }
+
+    // Copy text before match
+    out += sql.slice(i, idx);
+
+    // Copy the matched prefix as-is
+    const prefix = "fts @@ (";
+    out += prefix;
+    i = idx + prefix.length;
+
+    // Parse until the matching ')', respecting nested parens
+    let depth = 1;
+    const startInner = i;
+
+    while (i < sql.length && depth > 0) {
+      const ch = sql[i];
+      if (ch === "(") depth++;
+      else if (ch === ")") depth--;
+      i++;
+    }
+
+    // If we didn't find a matching ')', just bail out and append the rest.
+    if (depth !== 0) {
+      out += sql.slice(startInner);
+      break;
+    }
+
+    const endInnerExclusive = i - 1; // i is positioned right after ')'
+    const inner = sql.slice(startInner, endInnerExclusive);
+
+    // Replace single | with || inside this segment.
+    // If LLM sometimes already outputs ||, this will turn it into ||||, so guard it:
+    // Replace only '|' not already part of '||'.
+    const fixedInner = inner.replace(/(?<!\|)\|(?!\|)/g, "||");
+
+    out += fixedInner;
+    out += ")";
+
+    changed = changed || fixedInner !== inner;
+    if (!rewriteAll) {
+      out += sql.slice(i);
+      break;
+    }
+  }
+
+  // No change? return original to avoid accidental diffs
+  return changed ? out : sql;
+}

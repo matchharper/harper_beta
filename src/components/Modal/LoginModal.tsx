@@ -39,16 +39,11 @@ const LoginModal = ({
   onClose,
   onConfirm,
   onGoogle,
-  onForgotPassword,
-  onSignUp,
 }: LoginModalProps) => {
-  const { m } = useMessages();
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [needsEmailConfirmation, setNeedsEmailConfirmation] = useState(false);
 
@@ -112,11 +107,9 @@ const LoginModal = ({
       />
 
       <div className="relative z-50 w-full max-w-[460px] rounded-2xl bg-hgray100 border border-hgray200 shadow-2xl transition-all duration-300">
-        <div className="p-6">
+        <div className="p-6 pb-10">
           <div className="flex flex-col items-start justify-start mb-6">
-            {isSignUp && (
-              <img src="/svgs/logo.svg" alt="logo" className="w-10 h-10 mb-6" />
-            )}
+            <img src="/svgs/logo.svg" alt="logo" className="w-10 h-10 mb-6" />
             <div className="text-3xl font-bold tracking-tight text-hgray700">
               {isSignUp ? "회원가입" : "로그인"}
             </div>
@@ -139,7 +132,7 @@ const LoginModal = ({
               {!isSignUp && (
                 <>
                   {/* Social buttons */}
-                  <div className="space-y-3">
+                  <div className="space-y-3 mt-2">
                     <button
                       type="button"
                       onClick={onGoogle}
@@ -150,20 +143,19 @@ const LoginModal = ({
                     </button>
                   </div>
 
-                  {/* Divider */}
-                  <div className="mt-6 mb-2 flex items-center gap-4">
+                  {/* <div className="mt-6 mb-2 flex items-center gap-4">
                     <div className="h-px flex-1 bg-hgray500" />
                     <div className="text-xs font-normal tracking-widest text-hgray500">
                       OR
                     </div>
                     <div className="h-px flex-1 bg-hgray500" />
-                  </div>
+                  </div> */}
                 </>
               )}
 
               {/* Form */}
               <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-1">
+                {/* <div className="space-y-1">
                   <label className="text-sm font-medium text-white">
                     이메일
                   </label>
@@ -192,7 +184,7 @@ const LoginModal = ({
                     placeholder=""
                     className="w-full rounded-md text-sm font-light bg-hgray200 px-3 py-2.5 text-white placeholder:text-hgray500 outline-none focus:border-hgray500 focus:ring-2 focus:ring-hgray600/40"
                   />
-                </div>
+                </div> */}
 
                 {isSignUp && (
                   <div className="space-y-1">
@@ -210,27 +202,20 @@ const LoginModal = ({
                     />
                   </div>
                 )}
-                {/* <button
-              type="button"
-              onClick={() => onForgotPassword?.(email)}
-              className="text-sm text-hgray500 hover:text-hgray200 transition underline underline-offset-4"
-            >
-              Forgot your password?
-            </button> */}
               </form>
 
               {error && (
                 <div className="text-sm text-red-500 mt-2">{error}</div>
               )}
-              <button
+              {/* <button
                 type="submit"
                 onClick={handleLogin}
                 className="w-full py-2.5 text-sm rounded-md bg-accenta1 text-black font-medium hover:bg-accenta2 transition duration-300 mt-6"
               >
                 {isSignUp ? "Sign up" : "Login"}
-              </button>
+              </button> */}
 
-              {!isSignUp ? (
+              {/* {isSignUp ? (
                 <>
                   <div className="pt-1 text-center text-sm font-light text-hgray700 mt-2">
                     계정이 없으신가요?{" "}
@@ -267,7 +252,7 @@ const LoginModal = ({
                     </button>
                   </div>
                 </>
-              )}
+              )} */}
             </>
           )}
         </div>

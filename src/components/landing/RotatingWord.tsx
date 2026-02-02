@@ -3,10 +3,11 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
 
-const words = ["Data", "List", "Profile"];
+const words = ["Data.", "List.", "Profile."];
+// const words = ["Intelligence", "Knowledge", "Decision", "Intuition"];
 const longest = words.reduce((a, b) => (a.length > b.length ? a : b), "");
 
-function RotatingWord({ intervalMs = 2400 }: { intervalMs?: number }) {
+function RotatingWord({ intervalMs = 1600 }: { intervalMs?: number }) {
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
@@ -30,7 +31,7 @@ function RotatingWord({ intervalMs = 2400 }: { intervalMs?: number }) {
             initial={{ y: "100%", opacity: 0 }}
             animate={{ y: "0%", opacity: 1 }}
             exit={{ y: "-100%", opacity: 0 }}
-            transition={{ duration: 0.36, ease: "easeOut" }}
+            transition={{ duration: 0.16, ease: "easeOut" }}
             className="inline-block"
           >
             {words[index]}

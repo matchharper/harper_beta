@@ -39,10 +39,10 @@ const CandidateViews = ({
   const criteriaList = useMemo(() => asArr(criterias), [criterias]);
   const gridTemplateColumns = useMemo(() => {
     // Candidate | Company | Location | School | (criteria * N) | Actions
-    const fixed = [isMyList ? "480px" : "280px"];
-    const defaultCols = isMyList ? "340px" : "240px";
+    const fixed = [isMyList ? "460px" : "280px"];
+    const defaultCols = isMyList ? "320px" : "240px";
     const criteriaCols = criteriaList.map(() => isFolded ? "60px" : "140px"); // 한 criteria는 작은 칸
-    const actions = ["0px"];
+    const actions = ["80px"];
 
     if (criterias.length === 0)
       return [...fixed, defaultCols, defaultCols, ...actions].join(" ");
@@ -56,7 +56,7 @@ const CandidateViews = ({
   }, [criteriaList, isFolded]);
 
   return (
-    <div className="w-full px-4 relative h-full">
+    <div className="w-full relative h-full">
       {items.length > 0 && (
         <div
           className={`${viewType === "table" ? "w-full " : "w-full"

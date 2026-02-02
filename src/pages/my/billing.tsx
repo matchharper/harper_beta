@@ -39,7 +39,7 @@ const Billing = () => {
   };
 
   return (
-    <AppLayout>
+    <AppLayout initialCollapse={false}>
       <RequestCreditModal
         open={isRequestModalOpen}
         onClose={() => setIsRequestModalOpen(false)}
@@ -62,7 +62,7 @@ const Billing = () => {
                     width: `${Math.min(
                       ((credits?.remain_credit ?? 0) /
                         (credits?.charged_credit ?? 1)) *
-                        100,
+                      100,
                       100
                     )}%`,
                   }}
@@ -126,11 +126,10 @@ const Billing = () => {
 
                     <div className="col-span-1 flex justify-end">
                       <div
-                        className={`px-3 py-1 rounded-full text-sm font-normal ${
-                          item.is_done
+                        className={`px-3 py-1 rounded-full text-sm font-normal ${item.is_done
                             ? "bg-emerald-400/10 text-emerald-300"
                             : "bg-white/10 text-white/70"
-                        }`}
+                          }`}
                       >
                         {item.is_done ? m.system.done : m.system.pending}
                       </div>

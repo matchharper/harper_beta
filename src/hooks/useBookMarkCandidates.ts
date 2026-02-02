@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { CandidateTypeWithConnection } from "./useSearchChatCandidates";
 import { useState } from "react";
 
-export type ConnectionTyped = 0 | 1 | 2;
+export type ConnectionTyped = 0 | 1 | 2 | 3;
 
 export const connectionsKey = (
   userId?: string,
@@ -139,6 +139,14 @@ export function useRequestedCandidates(
   return useCandidatesByConnectionTyped(userId, 1, pageIdx, pageSize);
 }
 
+export function usePickedCandidates(
+  userId?: string,
+  pageIdx = 0,
+  pageSize = 10
+) {
+  return useCandidatesByConnectionTyped(userId, 3, pageIdx, pageSize);
+}
+
 export function useConnectedCandidates(
   userId?: string,
   pageIdx = 0,
@@ -167,13 +175,12 @@ export function useConnectionCounts(userId?: string) {
     enabled: !!userId,
     queryFn: async () => {
       const uid = userId!;
-      const [bookmark, request, connected] = await Promise.all([
+      const [bookmark, picked] = await Promise.all([
         fetchConnectionCount(uid, 0),
-        fetchConnectionCount(uid, 1),
-        fetchConnectionCount(uid, 2),
+        fetchConnectionCount(uid, 3),
       ]);
 
-      return { bookmark, request, connected };
+      return { bookmark, picked };
     },
 
     // "그때그때 바뀌는 값 반영"을 위해 보통 이 조합이 무난

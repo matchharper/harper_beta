@@ -1,7 +1,7 @@
 import { logger } from "@/utils/logger";
 import { geminiInference, xaiInference } from "@/lib/llm/llm";
 import { ensureGroupBy, sqlRefine } from "@/utils/textprocess";
-import { expandingSearchPrompt, sqlExistsPrompt, firstSqlPrompt, timeoutHandlePrompt, tsvectorPrompt2 } from "@/lib/prompt";
+import { expandingSearchPrompt, sqlExistsPrompt, firstSqlPrompt, timeoutHandlePrompt, tsvectorPrompt2, fixFtsOrOperator } from "@/lib/prompt";
 import { supabase } from "@/lib/supabase";
 import { assertNotCanceled, deduplicateCandidates, updateQuery, updateRunStatus } from "./utils";
 import { ScoredCandidate } from "./utils";
@@ -330,8 +330,9 @@ input text for searching: ${query_text}
     )
 
     const out = JSON.parse(fallback_sql);
-    const finalQuery = sqlRefine(out.sql as string, false);
+    let finalQuery = sqlRefine(out.sql as string, false);
     logger.log(" 🦕 Third sql query : ", finalQuery, "\n\n");
+    finalQuery = fixFtsOrOperator(finalQuery)
 
     const final = `
     WITH identified_ids AS (

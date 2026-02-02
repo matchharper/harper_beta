@@ -21,6 +21,7 @@ import { logger } from "@/utils/logger";
 import { supabase } from "@/lib/supabase";
 import LoginModal from "@/components/Modal/LoginModal";
 import RotatingWord from "@/components/landing/RotatingWord";
+import RowImageSection from "@/components/landing/RowImageSection";
 
 export const isValidEmail = (email: string): boolean => {
   const trimmed = email.trim();
@@ -226,7 +227,7 @@ const CandidatePage = () => {
         </div>
       </header>
 
-      <div className="flex flex-col items-center justify-center px-0 md:px-20 w-full bg-black text-white h-[90vh]">
+      <div className="flex flex-col items-center justify-center px-0 md:px-20 w-full bg-black text-white h-[86vh] md:h-[90vh]">
         <div className="flex flex-col items-center justify-start md:justify-center pt-32 md:pt-0 w-full h-full text-center px-4">
           <div className="mb-4 flex flex-row items-center justify-center pl-[2px] py-[2px] pr-[12px] bg-white/80 text-black gap-2 rounded-full">
             <div className="w-[24px] h-[24px] bg-black rounded-full flex items-center justify-center">
@@ -236,9 +237,9 @@ const CandidatePage = () => {
               Hiring Intelligence
             </div>
           </div>
-          <div className="md:text-[56px] text-[40px] font-semibold leading-snug mt-2">
-            Don{"'"}t Buy <RotatingWord /><br />
-            Pay for Intelligence.
+          <div className="md:text-[56px] text-[36px] font-semibold leading-snug mt-2">
+            &nbsp;Don{"'"}t Buy <RotatingWord /><br />
+            Pay for <span className="font-hedvig text-accenta1 font-normal italic">Intelligence</span>
           </div>
           <div className="text-sm md:text-base text-hgray700 font-light mt-6">
             단순한 검색을 넘어, 인재를 이해하는 지능을 경험하세요.
@@ -252,8 +253,8 @@ const CandidatePage = () => {
         </div>
       </div>
       <div className="mb-20 flex flex-col items-center justify-center">
-        <div className="w-90% max-w-[960px] bg-gradpastel2 overflow-hidden rounded-[30px] pt-8 flex flex-col items-center justify-center">
-          <video src="/videos/usemain.mp4" autoPlay loop muted playsInline className="w-[90%] h-full object-cover rounded-t-[30px] translate-y-[40px] shadow-lg" />
+        <div className="w-[90%] max-w-[960px] bg-gradpastel2 overflow-hidden md:rounded-[30px] rounded-2xl pt-8 md:pt-0 flex flex-col items-center justify-center">
+          <video src="/videos/usemain.mp4" poster="/images/usemain.png" autoPlay loop muted playsInline className="w-[90%] h-full object-cover  md:rounded-t-[30px] rounded-t-2xl md:translate-y-[40px] translate-y-0 shadow-lg" />
         </div>
       </div>
       <Animate>
@@ -295,7 +296,7 @@ const CandidatePage = () => {
               />
               <WhyImageSection
                 title="Intelligence on Top of Data"
-                desc="정적인 정보 제공을 넘어 흩어진 정보를 하나로 모아 의사결정을 돕습니다"
+                desc="정적인 정보 제공을 넘어 흩어진 정보를 하나로 모아 분석하고 의사결정을 돕습니다"
                 imageSrc="orbit"
               />
             </div>
@@ -424,7 +425,7 @@ const FeatureSection = () => {
       </Animate>
       <div className="flex flex-col w-full mt-12 gap-[30px]">
         <Animate>
-          <ImageSection
+          <RowImageSection
             opposite={true}
             title="동료에게 설명하듯,<br />편안하게 말씀해 주세요."
             desc="정확한 직무명을 모르셔도 괜찮습니다.<br />원하시는 인재에 대해 풀어서 검색해 보세요."
@@ -432,7 +433,7 @@ const FeatureSection = () => {
           />
         </Animate>
         <Animate>
-          <ImageSection
+          <RowImageSection
             title="텍스트 뒤에 숨겨진,<br />진짜 이야기를 찾아냅니다"
             desc="어떤 관심사를 가지고 커리어를 쌓아왔는지, <br />
 꾸준함과 열정은 어느 정도인지... <br />
@@ -457,54 +458,6 @@ const FeatureSection = () => {
         </Animate> */}
       </div>
     </BaseSectionLayout>
-  );
-};
-
-const ImageSection = ({
-  title,
-  desc,
-  imageSrc,
-  opposite = false,
-  padding = false,
-}: {
-  title: string;
-  desc: string;
-  imageSrc: string;
-  opposite?: boolean;
-  padding?: boolean;
-}) => {
-  return (
-    <div
-      className={`flex flex-col md:flex-row justify-center items-center w-full max-w-full md:gap-[60px] gap-6 mb-8 md:mt-0 ${opposite ? "flex-col md:flex-row-reverse" : ""
-        } px-5 md:px-0`}
-    >
-      <div className="h-[26vw] min-h-[250px] md:min-h-[380px] w-full flex relative overflow-hidden justify-end items-end rounded-3xl bg-white/10 md:bg-white/5">
-        {imageSrc === "orbit" ? (
-          <RotatingOrbTiles />
-        ) : (
-          <>
-            <video
-              src={imageSrc}
-              autoPlay
-              loop
-              muted
-              playsInline
-              className="w-full h-full object-cover"
-            />
-          </>
-        )}
-      </div>
-      <div className="flex flex-col items-start justify-start w-full text-left gap-5">
-        <div
-          className="text-[26px] md:text-[32px] font-normal leading-[2.2rem] md:leading-[2.5rem]"
-          dangerouslySetInnerHTML={{ __html: title }}
-        />
-        <div
-          className="text-[15px] md:text-base leading-6 font-light text-hgray700"
-          dangerouslySetInnerHTML={{ __html: desc }}
-        />
-      </div>
-    </div>
   );
 };
 

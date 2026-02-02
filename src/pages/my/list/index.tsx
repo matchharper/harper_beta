@@ -5,13 +5,14 @@ import BookmarkPage from "./bookmarkPage";
 import RequestedPage from "./requestedPage";
 import { useConnectionCounts } from "@/hooks/useBookMarkCandidates";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
+import PickedPage from "./pickedPage";
 
-type PageKey = "bookmark" | "request" | "connected";
+type PageKey = "bookmark" | "picked" | "connected";
 
 const TABS: { key: PageKey; label: string }[] = [
   { key: "bookmark", label: "Shortlist" },
-  { key: "request", label: "Requests" },
-  { key: "connected", label: "Connections" },
+  { key: "picked", label: "Harper's Pick" },
+  // { key: "connected", label: "Connections" },
 ];
 
 export default function MyPage() {
@@ -28,10 +29,8 @@ export default function MyPage() {
     switch (currentPage) {
       case "bookmark":
         return <BookmarkPage />;
-      case "request":
-        return <RequestedPage />;
-      case "connected":
-        return <ConnectedPage />;
+      case "picked":
+        return <PickedPage />;
     }
   }, [currentPage]);
 
@@ -53,7 +52,7 @@ export default function MyPage() {
             </div>
 
             {/* Tabs */}
-            {/* <div className="mt-5">
+            <div className="mt-2">
               <div className="inline-flex rounded-2xl p-1">
                 {TABS.map((t) => {
                   const active = t.key === currentPage;
@@ -63,17 +62,16 @@ export default function MyPage() {
                       type="button"
                       onClick={() => setCurrentPage(t.key)}
                       className={[
-                        "relative rounded-3xl px-5 py-3 text-sm font-normal transition",
-                        "focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900/20",
+                        "relative rounded-3xl py-2 text-sm font-normal transition pr-4",
                         active
-                          ? "bg-white/10 text-white shadow-sm"
+                          ? "text-white shadow-sm"
                           : "text-xgray800 hover:text-white",
                       ].join(" ")}
                     >
                       {t.label}{" "}
-                      {data?.[t.key] ? (
+                      {data?.[t.key as keyof typeof data] ? (
                         <span className="ml-1 text-[14px] text-accenta1">
-                          {data?.[t.key]}
+                          {data?.[t.key as keyof typeof data]}
                         </span>
                       ) : (
                         ""
@@ -82,7 +80,7 @@ export default function MyPage() {
                   );
                 })}
               </div>
-            </div> */}
+            </div>
           </div>
         </div>
 

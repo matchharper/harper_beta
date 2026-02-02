@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
+import { useAuthStore } from "@/store/useAuthStore";
 import { useCredits } from "@/hooks/useCredit";
 import { NavItem } from "./HistoryItem";
 import { Tooltips } from "../ui/tooltip";
@@ -38,17 +39,26 @@ const AppLayout = ({
   const { credits, isLoading: isLoadingCredits } = useCredits();
   const { m } = useMessages();
   const { companyUser, loading, initialized } = useCompanyUserStore();
+  const { user, loading: authLoading } = useAuthStore();
   const logEvent = useLogEvent();
 
   const router = useRouter();
   const params = useParams();
-  useEffect(() => {
-    if (!initialized) return; // ✅ 로드 완료 전엔 아무 것도 하지 않음
 
-    if (!companyUser || !companyUser.is_authenticated) {
-      router.replace("/companies"); // push보다 replace 추천 (뒤로가기로 돌아오는거 방지)
+  useEffect(() => {
+    console.log("loading", authLoading, loading, initialized, companyUser);
+    // Wait for auth to resolve first.
+    if (authLoading) return;
+    if (!user) {
+      router.replace("/companies");
+      return;
     }
-  }, [initialized, companyUser]);
+    // Wait until the company user load has completed at least once.
+    if (!initialized || loading) return;
+    if (!companyUser || !companyUser.is_authenticated) {
+      router.replace("/companies");
+    }
+  }, [authLoading, user, loading, initialized, companyUser, router]);
 
   const pathname = usePathname();
   const isHome = pathname === "/my";

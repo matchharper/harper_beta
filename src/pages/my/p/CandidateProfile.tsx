@@ -3,7 +3,7 @@ import {
   CandidateDetail,
 } from "@/hooks/useCandidateDetail";
 import ShareProfileModal from "@/components/Modal/ShareProfileModal";
-import { Share2, Upload } from "lucide-react";
+import { Check, Share2, Upload, XIcon } from "lucide-react";
 import Bookmarkbutton from "@/components/ui/bookmarkbutton";
 import ItemBox from "./components/ItemBox";
 import PublicationBox from "./components/PublicationBox";
@@ -20,6 +20,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import MainProfile from "./components/MainProfile";
 import ProfileBio from "./components/ProfileBio";
 import { useLogEvent } from "@/hooks/useLog";
+import SimpleAreaModal from "@/components/Modal/SimpleAreaModal";
+import { logger } from "@/utils/logger";
 
 export const ExperienceCal = (months: number) => {
   const years = Math.floor(months / 12);
@@ -43,14 +45,19 @@ export default function CandidateProfileDetailPage({
   const [isLoadingOneline, setIsLoadingOneline] = useState(false);
   const [oneline, setOneline] = useState<string | null>(null);
   const [isShareOpen, setIsShareOpen] = useState(false);
+  const [isLikeOpen, setIsLikeOpen] = useState(false);
+  const [isPassOpen, setIsPassOpen] = useState(false);
+
   const logEvent = useLogEvent();
   const { m } = useMessages();
   const { companyUser } = useCompanyUserStore();
   const userId = companyUser?.user_id;
   const qc = useQueryClient();
 
-  // const { data, isLoading, error } = useCandidateDetail(userId, candidId);
   const c: any = data;
+  logger.log("c >>> ", c.connection);
+  const isLiked = c.connection?.some((connection: any) => connection.typed === 4);
+  const isPassed = c.connection?.some((connection: any) => connection.typed === 5);
 
   const links: string[] = useMemo(() => {
     if (!c?.links) return [];
@@ -121,8 +128,8 @@ export default function CandidateProfileDetailPage({
       <div className="w-[95%] max-w-[1080px] mx-auto px-4 py-10 space-y-12">
         <div className="flex flex-row items-start justify-between w-full">
           <MainProfile profile_picture={c.profile_picture} name={c.name} headline={c.headline} location={c.location} total_exp_months={c.total_exp_months} />
-          <div className="flex flex-row absolute top-2 right-2 items-start justify-end gap-2 font-normal">
-            <div className="flex flex-col items-end gap-2">
+          <div className="absolute top-2 right-2 font-normal flex flex-col gap-1 ">
+            <div className="flex flex-row items-end justify-end gap-2">
               <button
                 onClick={() => {
                   logEvent("open share: " + candidId);
@@ -132,13 +139,70 @@ export default function CandidateProfileDetailPage({
               >
                 <Upload className="w-4 h-4" />
               </button>
+              <Bookmarkbutton
+                userId={userId}
+                candidId={c.id}
+                connection={c.connection}
+              />
             </div>
-            <Bookmarkbutton
-              userId={userId}
-              candidId={c.id}
-              connection={c.connection}
-            />
+            {
+              companyUser.is_custom && (
+                <div className="flex flex-row items-end justify-end gap-2 mt-1">
+                  <button
+                    onClick={() => {
+                      setIsLikeOpen(true)
+                    }}
+                    className={`inline-flex items-center gap-2 rounded-xl px-2 py-2 pr-3 text-sm hover:bg-opacity-90 ${isLiked ? "bg-green-500/10" : ""}`}
+                  >
+                    <Check className="w-4 h-4 text-green-500" />{isLiked ? "등록됨" : "관심있어요"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsPassOpen(true)
+                    }}
+                    className={`inline-flex items-center gap-2 rounded-xl px-2 py-2 pr-3 text-sm hover:bg-opacity-90 ${isPassed ? "bg-red-500/10" : ""}`}
+                  >
+                    <XIcon
+                      className="w-4 h-4 text-red-500"
+                    />
+                    {isPassed ? "등록됨" : "아쉬워요"}
+                  </button>
+                  <SimpleAreaModal
+                    open={isLikeOpen}
+                    candidId={candidId}
+                    name={c.name}
+                    onClose={() => setIsLikeOpen(false)}
+                    title={isLiked ? "선호 후보자로 등록되어 있습니다." : "선호 후보자로 등록합니다."}
+                    placeholder="여기에 선호 이유 혹은 원하는 다음 과정을 짧게 적어주세요. (ex. 커피챗 잡고 싶습니다.)"
+                    // placeholder="여기에 키워드나 이유를 짧게 적어주세요. 더 완벽한 분을 찾아오겠습니다!"
+                    onConfirm={async () => {
+                      await qc.invalidateQueries({
+                        queryKey: ["candidate", candidId, userId], // 너 useCandidateDetail의 키랑 반드시 동일해야 함
+                      });
+                      setIsLikeOpen(false);
+                    }}
+                    isLike={true}
+                  />
+                  <SimpleAreaModal
+                    open={isPassOpen}
+                    candidId={candidId}
+                    name={c.name}
+                    onClose={() => setIsPassOpen(false)}
+                    title="추천 결과가 아쉬우셨나요?"
+                    placeholder="예: 기술 스택 불일치, 연차가 너무 높음... (빈칸으로 제출하실 수 있습니다.)"
+                    onConfirm={async () => {
+                      await qc.invalidateQueries({
+                        queryKey: ["candidate", candidId, userId], // 너 useCandidateDetail의 키랑 반드시 동일해야 함
+                      });
+                      setIsPassOpen(false);
+                    }}
+                    isLike={false}
+                  />
+                </div>
+              )
+            }
           </div>
+
           <ShareProfileModal
             open={isShareOpen}
             onClose={() => setIsShareOpen(false)}
