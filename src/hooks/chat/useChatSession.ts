@@ -287,8 +287,6 @@ export function useChatSessionDB(args: {
             content: trimmed,
           });
 
-          // UI 반영: content를 직접 호출했을 때도 userMsg는 화면에 보여줘야 자연스러움
-          // (원래 코드는 content 인자로 호출하면 화면에 안 붙는 케이스가 생김)
           if (!content) {
             setMessages((prev) => [
               ...prev,
@@ -335,8 +333,6 @@ export function useChatSessionDB(args: {
             scope: scope,
             doc: candidDoc,
             systemPromptOverride,
-            // scope도 서버에 필요하면 같이 보낼 수 있음
-            // scope,
           }),
           signal: controller.signal,
         });

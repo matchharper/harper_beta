@@ -6,8 +6,6 @@ import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { supabase } from "@/lib/supabase";
 import { useCreditRequestHistory } from "@/hooks/useCreditRequestHistory";
 import { dateToFormatLong } from "@/utils/textprocess";
-import router from "next/router";
-import { showToast } from "@/components/toast/toast";
 import { useMessages } from "@/i18n/useMessage";
 import { notifyToSlack } from "@/lib/slack";
 
@@ -49,6 +47,7 @@ const Billing = () => {
         <div className="text-3xl font-hedvig font-light tracking-tight text-white">
           {m.system.credits}
         </div>
+        <div className="mt-4 text-sm text-hgray700 font-light">현재 베타 테스트 진행 중이며, 크레딧은 요청하신 만큼 지급될 예정입니다.<br />경우에 따라 추가 연락이 갈 수 있습니다.</div>
         <div className="mt-8">
           <div className="rounded-3xl bg-white/5 p-6">
             <div className="flex flex-col items-start justify-center">
@@ -94,17 +93,10 @@ const Billing = () => {
         </div>
         <div className="mt-8">
           <div className="text-base text-hgray900 font-light">
-            {m.system.credit_history} (Latest 10)
+            {m.system.credit_history} (최근 10개)
           </div>
 
           <div className="mt-3">
-            {/* header */}
-            {/* <div className="grid grid-cols-12 gap-3 pb-3 text-sm text-white font-light">
-              <div className="col-span-4">Credits</div>
-              <div className="col-span-5">Requested at</div>
-              <div className="col-span-3 text-right">Status</div>
-            </div> */}
-
             {/* rows */}
             <div className="mt-3 flex flex-col gap-2">
               {creditRequestHistory?.length ? (
@@ -127,8 +119,8 @@ const Billing = () => {
                     <div className="col-span-1 flex justify-end">
                       <div
                         className={`px-3 py-1 rounded-full text-sm font-normal ${item.is_done
-                            ? "bg-emerald-400/10 text-emerald-300"
-                            : "bg-white/10 text-white/70"
+                          ? "bg-emerald-400/10 text-emerald-300"
+                          : "bg-white/10 text-white/70"
                           }`}
                       >
                         {item.is_done ? m.system.done : m.system.pending}

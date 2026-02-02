@@ -19,16 +19,20 @@ interface RequestCreditModalProps {
 
 const CREDIT_OPTIONS = [
   {
+    label: "20",
+    value: 20,
+  },
+  {
+    label: "50",
+    value: 50,
+  },
+  {
     label: "100",
     value: 100,
   },
   {
-    label: "500",
-    value: 500,
-  },
-  {
-    label: "1000",
-    value: 1000,
+    label: "150",
+    value: 150,
   },
 ];
 
@@ -37,7 +41,7 @@ const RequestCreditModal = ({
   onClose,
   onConfirm,
 }: RequestCreditModalProps) => {
-  const [selectedCredit, setSelectedCredit] = useState(100);
+  const [selectedCredit, setSelectedCredit] = useState(20);
   const [sentRequest, setSentRequest] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 

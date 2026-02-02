@@ -193,7 +193,6 @@ function buildToolAugmentedSystemPrompt(
     return (
         basePrompt +
         `
-
 ### Candidate Information
 ${information}
 

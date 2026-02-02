@@ -3,9 +3,6 @@ import { useCompanyModalStore } from "@/store/useModalStore";
 import LinkChips from "@/pages/my/p/components/LinkChips";
 import {
   Calendar,
-  Globe,
-  House,
-  Linkedin,
   MapPinHouse,
   Users,
   XIcon,
@@ -130,7 +127,7 @@ export default function CompanyModalRoot() {
             </div>
 
             {/* Header */}
-            <div className="flex items-start justify-between gap-4 px-5 py-4 pt-16">
+            <div className="flex items-start justify-between gap-4 pb-8 pt-12">
               <div className="flex flex-row gap-6 items-start justify-start">
                 <img
                   src={company.logo ?? ""}
@@ -149,49 +146,54 @@ export default function CompanyModalRoot() {
               </div>
             </div>
 
-            {company.short_description && (
-              <div className="mt-2 mb-6 px-5">
-                <div className="text-accenta1 text-sm">한 줄 설명</div>
-                <div className="mt-2 text-base text-hgray900">
-                  {company.short_description}
+            <div className="flex flex-col gap-8">
+              {company.short_description && (
+                <div>
+                  <div className="text-accenta1 text-sm">한 줄 설명</div>
+                  <div className="mt-2 text-base text-hgray900">
+                    {company.short_description}
+                  </div>
                 </div>
-              </div>
-            )}
-            <div className="mt-2 mb-6 px-5 text-sm flex flex-col gap-2">
-              <Row
-                label={<MapPinHouse className="w-4 h-4 text-hgray700" />}
-                // label={m.company.hq}
-                value={countryEnToKo(company.location ?? "")}
-              />
-              {company.founded_year !== null &&
-                company.founded_year !== undefined &&
-                company.founded_year > 1000 && (
-                  <Row
-                    label={<Calendar className="w-4 h-4 text-hgray700" />}
-                    value={company.founded_year + "년 설립"}
-                  />
-                )}
-              {employeeCount && (
-                <Row
-                  label={<Users className="w-4 h-4 text-hgray700" />}
-                  value={employeeCount}
-                />
               )}
-              <div className="mt-6 flex flex-wrap gap-2">
-                {tags.map((t) => (
-                  <span
-                    key={t}
-                    className="rounded-md bg-white/5 px-3 py-2 text-xs"
-                  >
-                    {t}
-                  </span>
-                ))}
-              </div>
-            </div>
+              <Section title={`${company.name} 정보`}>
+                <div className="px-4 text-sm flex flex-col gap-2 bg-white/5 py-4 rounded-lg">
+                  <Row
+                    label={<MapPinHouse className="w-4 h-4 text-hgray700" />}
+                    // label={m.company.hq}
+                    value={countryEnToKo(company.location ?? "")}
+                  />
+                  {company.founded_year !== null &&
+                    company.founded_year !== undefined &&
+                    company.founded_year > 1000 && (
+                      <Row
+                        label={<Calendar className="w-4 h-4 text-hgray700" />}
+                        value={company.founded_year + "년 설립"}
+                      />
+                    )}
+                  {employeeCount && (
+                    <Row
+                      label={<Users className="w-4 h-4 text-hgray700" />}
+                      value={employeeCount}
+                    />
+                  )}
+                </div>
+              </Section>
+              <Section title={`전문 분야`}>
+                <div className="flex flex-wrap gap-2">
+                  {tags.map((t) => (
+                    <span
+                      key={t}
+                      className="rounded-md bg-white/5 px-3 py-2 text-xs"
+                    >
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              </Section>
 
-            {/* Body */}
-            <div className="h-[calc(100%-64px)] px-5 py-4 flex flex-col gap-8">
-              {/* <Section title={m.company.information}>
+              {/* Body */}
+              <div className="h-[calc(100%-64px)] py-4 flex flex-col gap-8">
+                {/* <Section title={m.company.information}>
                 <div className="space-y-2 text-sm w-full">
                   <Row
                     label={<MapPinHouse className="w-4 h-4 text-hgray700" />}
@@ -221,40 +223,41 @@ export default function CompanyModalRoot() {
                 </div>
               </Section> */}
 
-              {!company.short_description && company.description ? (
-                <Section title={m.company.description}>
-                  <p className="text-sm leading-6 whitespace-pre-wrap font-light">
-                    {company.description}
-                  </p>
-                </Section>
-              ) : null}
+                {!company.short_description && company.description ? (
+                  <Section title={m.company.description}>
+                    <p className="text-sm leading-6 whitespace-pre-wrap font-light">
+                      {company.description}
+                    </p>
+                  </Section>
+                ) : null}
 
-              {company.investors && (
-                <Section title={m.company.investors}>
-                  <div className="flex flex-wrap gap-2">
-                    {company.investors.split(",").map((i: string) => (
-                      <span
-                        key={i}
-                        className="rounded-md bg-white/5 px-3 py-2 text-xs"
-                      >
-                        {i}
-                      </span>
-                    ))}
-                  </div>
-                </Section>
-              )}
+                {company.investors && (
+                  <Section title={m.company.investors}>
+                    <div className="flex flex-wrap gap-2">
+                      {company.investors.split(",").map((i: string) => (
+                        <span
+                          key={i}
+                          className="rounded-md bg-white/5 px-3 py-2 text-xs"
+                        >
+                          {i}
+                        </span>
+                      ))}
+                    </div>
+                  </Section>
+                )}
 
-              {company.related_links && (
-                <Section title={m.company.news}>
-                  <div className="flex flex-wrap gap-2">
-                    {company.related_links.map((l: string) => (
-                      <LinkPreview key={l} url={l} />
-                    ))}
-                  </div>
-                </Section>
-              )}
-              <br />
-              <br />
+                {company.related_links && (
+                  <Section title={m.company.news}>
+                    <div className="flex flex-wrap gap-2">
+                      {company.related_links.map((l: string) => (
+                        <LinkPreview key={l} url={l} />
+                      ))}
+                    </div>
+                  </Section>
+                )}
+                <br />
+                <br />
+              </div>
             </div>
           </motion.aside>
         </motion.div>
@@ -303,9 +306,9 @@ const Section = ({
   children: React.ReactNode;
 }) => {
   return (
-    <div className="flex flex-col gap-2 w-full max-w-full">
-      <div className="text-lg text-hgray900 font-normal">{title}</div>
-      <div className="text-hgray900 max-w-full overflow-x-hidden mt-[10px]">
+    <div className="flex flex-col text-hgray900 gap-2 w-full max-w-full">
+      <div className="text-base font-semibold">{title}</div>
+      <div className="max-w-full overflow-x-hidden">
         {children}
       </div>
     </div>

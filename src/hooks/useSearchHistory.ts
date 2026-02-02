@@ -22,6 +22,8 @@ export async function fetchQueriesHistory({
     .select("*")
     .eq("user_id", userId)
     .eq("is_deleted", false)
+    .not("query_keyword", "eq", "Deep Automation")
+    .not("raw_input_text", "eq", "Deep Automation")
     .order("created_at", { ascending: false })
     .limit(limit);
 

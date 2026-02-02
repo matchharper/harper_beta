@@ -16,7 +16,6 @@ import { CandidateDetail } from "@/hooks/useCandidateDetail";
 import { Skeleton } from "../ui/skeleton";
 import ChatSettingsModal from "../Modal/ChatSettingsModal";
 import { useSettings } from "@/hooks/useSettings";
-import ConfirmModal from "../Modal/ConfirmModal";
 import { useCredits } from "@/hooks/useCredit";
 import { MIN_CREDITS_FOR_SEARCH } from "@/utils/constantkeys";
 import CreditModal from "../Modal/CreditModal";
@@ -29,6 +28,8 @@ type Props = {
   title: string;
   scope?: ChatScope;
   userId?: string;
+  systemPromptOverride?: string;
+  onBack?: () => void;
 
   onSearchFromConversation: (messageId: number) => Promise<void>;
 
@@ -46,6 +47,8 @@ export default function ChatPanel({
   title,
   scope,
   userId,
+  systemPromptOverride,
+  onBack,
   onSearchFromConversation,
   disabled,
   candidDoc,
@@ -64,7 +67,13 @@ export default function ChatPanel({
   const router = useRouter();
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  const chat = useChatSessionDB({ model: "grok-4-fast-reasoning", scope, userId, candidDoc }); // ✅ 바뀐 부분
+  const chat = useChatSessionDB({
+    model: "grok-4-fast-reasoning",
+    scope,
+    userId,
+    candidDoc,
+    systemPromptOverride,
+  });
   const autoStartedRef = useRef(false);
   const { settings, isLoading: isSettingsLoading, saveSettings, isSaving } = useSettings(userId);
 
@@ -256,7 +265,13 @@ export default function ChatPanel({
       {/* Header (fixed) */}
       <div className="flex items-center justify-between flex-none h-14 px-4 text-hgray900">
         <div
-          onClick={() => router.back()}
+          onClick={() => {
+            if (onBack) {
+              onBack();
+            } else {
+              router.back();
+            }
+          }}
           className="text-sm font-medium flex items-center gap-1.5 hover:gap-2 cursor-pointer hover:text-hgray900 transition-all duration-200"
         >
           <ArrowLeft className="w-3.5 h-3.5 text-hgray600" />
@@ -267,33 +282,36 @@ export default function ChatPanel({
             className="p-1 cursor-pointer"
             onClick={() => setIsSettingsOpen(true)}
           >
-            {/* <Settings
-              className="w-3.5 h-3.5"
-              strokeWidth={1.4}
-            /> */}
           </div>
           {
-            isChatFull ? (
-              <div
-                className="p-1 cursor-pointer"
-                onClick={() => setIsChatFull?.(false)}>
-                <XIcon
-                  className="w-3.5 h-3.5"
-                  strokeWidth={1.4}
-                />
-              </div>
-            ) : (
-              <div className="p-1 cursor-pointer"
-                onClick={() => setIsChatFull?.(true)}>
-                <ScreenShareIcon
-                  className="w-3.5 h-3.5"
-                  strokeWidth={1.4}
-                />
-              </div>
-            )
+            !systemPromptOverride && <>
+
+              {
+                isChatFull ? (
+                  <div
+                    className="p-1 cursor-pointer"
+                    onClick={() => setIsChatFull?.(false)}>
+                    <XIcon
+                      className="w-3.5 h-3.5"
+                      strokeWidth={1.4}
+                    />
+                  </div>
+                ) : (
+                  <div className="p-1 cursor-pointer"
+                    onClick={() => setIsChatFull?.(true)}>
+                    <ScreenShareIcon
+                      className="w-3.5 h-3.5"
+                      strokeWidth={1.4}
+                    />
+                  </div>
+                )
+              }</>
           }
         </div>
       </div>
+      {
+        systemPromptOverride && <br />
+      }
 
       {/* Messages (scroll only here) */}
       <div className="flex-1 min-h-0 relative">

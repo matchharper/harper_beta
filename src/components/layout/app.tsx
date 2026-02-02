@@ -3,12 +3,14 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   Search,
   List,
+  Sparkles,
   PanelLeft,
   PanelLeftOpen,
   Database,
   User,
   LogOut,
   HelpCircle,
+  ScanSearch,
 } from "lucide-react";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
@@ -63,6 +65,7 @@ const AppLayout = ({
   const pathname = usePathname();
   const isHome = pathname === "/my";
   const isList = pathname === "/my/list";
+  const isAutomation = pathname?.startsWith("/my/automation");
 
   const userId = companyUser?.user_id;
 
@@ -127,6 +130,13 @@ const AppLayout = ({
             label="Shortlist"
             icon={<List size={16} />}
             onClick={() => router.push("/my/list")}
+          />
+          <NavItem
+            collapsed={collapsed}
+            active={isAutomation}
+            label="Deep Automation"
+            icon={<Sparkles size={16} />}
+            onClick={() => router.push("/my/automation")}
           />
           <div className="flex h-16"></div>
           <HoverHistory

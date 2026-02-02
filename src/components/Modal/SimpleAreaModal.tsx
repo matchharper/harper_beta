@@ -122,7 +122,7 @@ const SimpleAreaModal = ({
                     placeholder={placeholder}
                     disabled={isBusy}
                     rows={4}
-                    className="w-full mt-2 resize-none rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-hgray900 outline-none disabled:bg-hgray50 disabled:text-hgray500"
+                    className="w-full mt-2 placeholder:text-xs resize-none rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-hgray900 outline-none disabled:bg-hgray50 disabled:text-hgray500"
                 />
             </div>
         </BaseModal>

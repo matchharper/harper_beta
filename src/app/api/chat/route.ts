@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
     messages?: ChatMessage[];
     scope?: ChatScope;
     doc?: any;
+    systemPromptOverride?: string;
   };
 
   const model = body.model ?? "grok-4-fast-reasoning";
@@ -43,7 +44,11 @@ ${information}
 `;
   }
   if (body.scope?.type === "query") {
-    systemPrompt = SYSTEM_PROMPT;
+    systemPrompt =
+      typeof body.systemPromptOverride === "string" &&
+      body.systemPromptOverride.trim().length > 0
+        ? body.systemPromptOverride
+        : SYSTEM_PROMPT;
   }
 
   if (model === "grok-4-fast-reasoning") {

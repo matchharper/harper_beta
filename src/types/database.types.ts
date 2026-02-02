@@ -21,6 +21,7 @@ export type Database = {
           is_deleted: boolean | null
           is_in_progress: boolean | null
           last_updated_at: string | null
+          title: string | null
           user_id: string | null
         }
         Insert: {
@@ -29,6 +30,7 @@ export type Database = {
           is_deleted?: boolean | null
           is_in_progress?: boolean | null
           last_updated_at?: string | null
+          title?: string | null
           user_id?: string | null
         }
         Update: {
@@ -37,11 +39,61 @@ export type Database = {
           is_deleted?: boolean | null
           is_in_progress?: boolean | null
           last_updated_at?: string | null
+          title?: string | null
           user_id?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "automation_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      automation_results: {
+        Row: {
+          automation_id: string | null
+          candid_id: string | null
+          created_at: string
+          id: number
+          text: string | null
+          user_id: string | null
+        }
+        Insert: {
+          automation_id?: string | null
+          candid_id?: string | null
+          created_at?: string
+          id?: number
+          text?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          automation_id?: string | null
+          candid_id?: string | null
+          created_at?: string
+          id?: number
+          text?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_results_automation_id_fkey"
+            columns: ["automation_id"]
+            isOneToOne: false
+            referencedRelation: "automation"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_results_candid_id_fkey"
+            columns: ["candid_id"]
+            isOneToOne: false
+            referencedRelation: "candid"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_results_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "company_users"

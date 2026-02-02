@@ -51,8 +51,7 @@ export default function MyPage() {
               </button> */}
             </div>
 
-            {/* Tabs */}
-            <div className="mt-2">
+            {/* <div className="mt-2">
               <div className="inline-flex rounded-2xl p-1">
                 {TABS.map((t) => {
                   const active = t.key === currentPage;
@@ -80,7 +79,7 @@ export default function MyPage() {
                   );
                 })}
               </div>
-            </div>
+            </div> */}
           </div>
         </div>
 
