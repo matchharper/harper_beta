@@ -14,6 +14,41 @@ export type Database = {
   }
   public: {
     Tables: {
+      automation: {
+        Row: {
+          created_at: string
+          id: string
+          is_deleted: boolean | null
+          is_in_progress: boolean | null
+          last_updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_deleted?: boolean | null
+          is_in_progress?: boolean | null
+          last_updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_deleted?: boolean | null
+          is_in_progress?: boolean | null
+          last_updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       candid: {
         Row: {
           bio: string | null

@@ -55,9 +55,8 @@ export default function CandidateProfileDetailPage({
   const qc = useQueryClient();
 
   const c: any = data;
-  logger.log("c >>> ", c.connection);
-  const isLiked = c.connection?.some((connection: any) => connection.typed === 4);
-  const isPassed = c.connection?.some((connection: any) => connection.typed === 5);
+  const isLiked = c && c.connection?.some((connection: any) => connection.typed === 4);
+  const isPassed = c && c.connection?.some((connection: any) => connection.typed === 5);
 
   const links: string[] = useMemo(() => {
     if (!c?.links) return [];
