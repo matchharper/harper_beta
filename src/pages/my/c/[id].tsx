@@ -14,6 +14,8 @@ import { useRunDetail } from "@/hooks/useRunDetail";
 import { useRunPagesInfinite } from "@/hooks/useRunResults";
 import { doSearch, runSearch } from "@/hooks/useStartSearch";
 import { scrollToTop } from "@/utils/func";
+import { Loading } from "@/components/ui/loading";
+import { supabase } from "@/lib/supabase";
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -119,10 +121,125 @@ export default function ResultPage() {
   const pages = data?.pages ?? [];
   const current = pages[pageIdx];
   const items = current?.items ?? [];
-  const { credits } = useCredits();
+  const totalCandidates =
+    pages.find((p) => typeof (p as any)?.total === "number")?.total ?? null;
+  const { credits, deduct, isDeducting } = useCredits();
 
   const canPrev = pageIdx > 0;
-  const canNext = pageIdx + 1 < pages.length || !!hasNextPage;
+  const nextPageKnownCount =
+    totalCandidates != null
+      ? Math.max(0, Math.min(10, totalCandidates - (pageIdx + 1) * 10))
+      : null;
+  const canNextBase = pageIdx + 1 < pages.length || !!hasNextPage;
+  const canNext =
+    totalCandidates != null ? (nextPageKnownCount ?? 0) > 0 : canNextBase;
+
+  const [runPagesMeta, setRunPagesMeta] = useState<{
+    id: number;
+    seen_page: number;
+  } | null>(null);
+  const seenPageRef = useRef(-1);
+  const updatingSeenRef = useRef(false);
+  const isRunPagesMetaLoadingRef = useRef(false);
+
+  const loadRunPagesMeta = useCallback(async () => {
+    if (!runId || isRunPagesMetaLoadingRef.current) return;
+    isRunPagesMetaLoadingRef.current = true;
+    const { data, error } = await supabase
+      .from("runs_pages")
+      .select("id, seen_page, created_at")
+      .eq("run_id", runId)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (error) {
+      logger.log("runs_pages meta load error:", error);
+      isRunPagesMetaLoadingRef.current = false;
+      return;
+    }
+
+    const row = data?.[0];
+    if (row) {
+      setRunPagesMeta({
+        id: row.id,
+        seen_page: Number.isFinite(row.seen_page) ? row.seen_page : -1,
+      });
+    }
+    isRunPagesMetaLoadingRef.current = false;
+  }, [runId]);
+
+  useEffect(() => {
+    setRunPagesMeta(null);
+    seenPageRef.current = -1;
+    updatingSeenRef.current = false;
+    isRunPagesMetaLoadingRef.current = false;
+    if (runId) loadRunPagesMeta();
+  }, [runId, loadRunPagesMeta]);
+
+  useEffect(() => {
+    if (!runPagesMeta && pages.length > 0) loadRunPagesMeta();
+  }, [runPagesMeta, pages.length, loadRunPagesMeta]);
+
+  const seenPage = runPagesMeta?.seen_page ?? -1;
+  const isPageLoaded = pageIdx < pages.length && !isLoading;
+  const shouldChargeForPage = items.length >= 10;
+
+  useEffect(() => {
+    if (!ready || !runId || !userId) return;
+    if (!isPageLoaded) return;
+    if (!runPagesMeta) return;
+
+    const targetSeen = pageIdx;
+    const effectiveSeen = Math.max(seenPage, seenPageRef.current);
+    if (targetSeen <= effectiveSeen) return;
+    if (updatingSeenRef.current) return;
+    if (shouldChargeForPage && isDeducting) return;
+
+    updatingSeenRef.current = true;
+    (async () => {
+      try {
+        if (shouldChargeForPage) {
+          await deduct(1);
+        }
+        seenPageRef.current = targetSeen;
+
+        const { error } = await supabase
+          .from("runs_pages")
+          .update({ seen_page: targetSeen })
+          .eq("id", runPagesMeta.id);
+
+        if (error) {
+          logger.log("runs_pages seen_page update error:", error);
+        } else {
+          setRunPagesMeta((prev) =>
+            prev
+              ? { ...prev, seen_page: Math.max(prev.seen_page ?? -1, targetSeen) }
+              : prev
+          );
+        }
+      } catch (e) {
+        logger.log("deduct or seen_page update failed:", e);
+      } finally {
+        updatingSeenRef.current = false;
+      }
+    })();
+  }, [
+    ready,
+    runId,
+    userId,
+    isPageLoaded,
+    runPagesMeta,
+    pageIdx,
+    seenPage,
+    deduct,
+    isDeducting,
+    shouldChargeForPage,
+  ]);
+
+  const nextWillCharge =
+    canNext &&
+    pageIdx + 1 > Math.max(seenPage, seenPageRef.current) &&
+    (nextPageKnownCount == null || nextPageKnownCount >= 10);
 
   const prevPage = () => {
     if (!canPrev) return;
@@ -231,7 +348,12 @@ export default function ResultPage() {
     prevStatusRef.current = curr ?? undefined;
   }, [runData?.status]);
 
-  if (!queryId) return <AppLayout>Loading...</AppLayout>;
+  if (!queryId)
+    return (
+      <AppLayout>
+        <Loading className="p-6 text-xgray800" />
+      </AppLayout>
+    );
 
   return (
     <AppLayout initialCollapse={true}>
@@ -276,6 +398,7 @@ export default function ResultPage() {
                 onPrevPage={prevPage}
                 onNextPage={nextPage}
                 criterias={currentRunCriterias}
+                nextWillCharge={nextWillCharge}
               />
             )}
           </div>

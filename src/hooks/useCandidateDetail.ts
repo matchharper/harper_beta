@@ -5,6 +5,7 @@ import type { CandidateType } from "@/types/type";
 export type CandidateDetail = CandidateType & {
   connection?: { user_id: string; typed: number }[];
   unlock_profile?: any[];
+  isAutomationResult?: boolean;
 };
 
 export const candidateKey = (id?: string, userId?: string) =>
@@ -70,7 +71,24 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
   // : await q;
 
   if (error) throw error;
-  return data as CandidateDetail | null;
+  if (!data) return null;
+
+  if (userId) {
+    const { data: autoRow, error: autoError } = await supabase
+      .from("automation_results")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("candid_id", id)
+      .maybeSingle();
+
+    if (autoError) throw autoError;
+    return {
+      ...data,
+      isAutomationResult: !!autoRow?.id,
+    } as CandidateDetail;
+  }
+
+  return data as CandidateDetail;
 }
 
 export function useCandidateDetail(userId?: string, candidId?: string) {

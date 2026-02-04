@@ -49,7 +49,7 @@ const Billing = () => {
         </div>
         <div className="mt-4 text-sm text-hgray700 font-light">현재 베타 테스트 진행 중이며, 크레딧은 요청하신 만큼 지급될 예정입니다.<br />경우에 따라 추가 연락이 갈 수 있습니다.</div>
         <div className="mt-8">
-          <div className="rounded-3xl bg-white/5 p-6">
+          <div className="rounded-lg bg-white/5 p-6">
             <div className="flex flex-col items-start justify-center">
               <div className="text-lg text-hgray900 font-normal">
                 Credit Usage
@@ -82,7 +82,7 @@ const Billing = () => {
               <div>
                 <button
                   onClick={() => setIsRequestModalOpen(true)}
-                  className="mt-4 text-accenta1 bg-accenta1/10 px-5 py-3 rounded-2xl cursor-pointer text-base font-normal"
+                  className="mt-4 text-accenta1 bg-accenta1/10 px-5 py-3 rounded-lg cursor-pointer text-sm font-normal"
                   disabled={isLoading}
                 >
                   {isLoading ? m.loading.processing : m.system.credit_request}
@@ -103,7 +103,7 @@ const Billing = () => {
                 creditRequestHistory.map((item) => (
                   <div
                     key={item.id}
-                    className="grid grid-cols-12 items-center font-light gap-3 py-4 rounded-2xl hover:bg-white/5 transition-colors px-6 bg-white/5"
+                    className="grid grid-cols-12 items-center font-light gap-3 py-4 rounded-lg hover:bg-white/5 transition-colors px-6 bg-white/5"
                   >
                     <div className="flex flex-row items-center col-span-8 text-white/90 font-normal">
                       <span className="text-accenta1">{item.credit_num}</span>
@@ -118,7 +118,7 @@ const Billing = () => {
 
                     <div className="col-span-1 flex justify-end">
                       <div
-                        className={`px-3 py-1 rounded-full text-sm font-normal ${item.is_done
+                        className={`px-3 py-1 rounded-xl text-sm font-normal ${item.is_done
                           ? "bg-emerald-400/10 text-emerald-300"
                           : "bg-white/10 text-white/70"
                           }`}

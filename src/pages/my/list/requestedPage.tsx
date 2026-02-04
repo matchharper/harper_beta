@@ -3,6 +3,7 @@ import React, { useMemo } from "react";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { useRequestedCandidates } from "@/hooks/useBookMarkCandidates";
 import PrevNextButtons from "./components/PrevNextButtons";
+import { Loading } from "@/components/ui/loading";
 
 const RequestedPage = () => {
   const { companyUser } = useCompanyUserStore();
@@ -10,7 +11,7 @@ const RequestedPage = () => {
 
   const { data, isLoading, error } = useRequestedCandidates(userId);
 
-  if (isLoading) return <div>Loading...</div>;
+  if (isLoading) return <Loading className="text-hgray600" />;
   if (error) return <div>Error</div>;
 
   return (

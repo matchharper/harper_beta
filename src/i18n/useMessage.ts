@@ -23,9 +23,7 @@ const DICTS = { ko, en } as const;
 
 export function useMessages() {
   // 1) render 단계에서는 navigator 접근 X
-  const [locale, setLocale] = useState<Locale>(() => {
-    return getLocaleFromCookie() ?? "en"; // 기본값
-  });
+  const [locale, setLocale] = useState<Locale>("en");
 
   // 2) mount 이후에만 navigator로 보정
   useEffect(() => {

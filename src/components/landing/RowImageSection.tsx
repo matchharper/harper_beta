@@ -21,12 +21,14 @@ const fadeSlide: Variants = {
 };
 
 const RowImageSection = ({
+    label,
     title,
     desc,
     imageSrc,
     opposite = false,
     padding = false,
 }: {
+    label: string;
     title: string;
     desc: string;
     imageSrc: string;
@@ -66,7 +68,7 @@ const RowImageSection = ({
 
             {/* text */}
             <motion.div
-                className="flex flex-col items-start justify-start w-full text-left gap-5"
+                className="flex flex-col items-start justify-start w-full text-left gap-3"
                 variants={fadeSlide}
                 custom={textFrom}
                 initial="hidden"
@@ -74,12 +76,13 @@ const RowImageSection = ({
                 viewport={{ once: false, amount: 0.35 }}
                 transition={{ delay: 1.25 }} // 살짝 텍스트가 늦게 오게(선택)
             >
+                {/* <div className="font-hedvig md:text-base text-sm text-accenta1">{label}</div> */}
                 <div
                     className="text-[26px] md:text-[32px] font-normal leading-[2.2rem] md:leading-[2.5rem]"
                     dangerouslySetInnerHTML={{ __html: title }}
                 />
                 <div
-                    className="text-[15px] md:text-base leading-6 font-light text-hgray700"
+                    className="text-[15px] md:text-base leading-6 font-light text-hgray700 mt-2"
                     dangerouslySetInnerHTML={{ __html: desc }}
                 />
             </motion.div>

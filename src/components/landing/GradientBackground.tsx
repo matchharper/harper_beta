@@ -40,7 +40,7 @@ const GradientBackground = ({
 
   return (
     <>
-      <div className="absolute bg-black/60 md:bg-black/80 top-0 left-0 w-full h-full inset-0 z-10"></div>
+      <div className="absolute bg-black/60 md:bg-black/70 top-0 left-0 w-full h-full inset-0 z-10"></div>
       <div className="gradient-bg absolute top-0 left-0 w-full h-full inset-0 z-0">
         {/* goo 필터 정의용 SVG */}
         <svg xmlns="http://www.w3.org/2000/svg" className="svgBlur">

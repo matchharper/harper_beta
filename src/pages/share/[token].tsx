@@ -17,6 +17,7 @@ import {
     majorEnToKo,
 } from "@/utils/language_map";
 import SharedChatPanel from "@/components/chat/SharedChatPanel";
+import { Loading } from "@/components/ui/loading";
 
 type SharePayload = {
     candid: any;
@@ -103,7 +104,7 @@ export default function ShareTokenPage() {
 
     const links = useMemo(() => normalizeLinks(candid?.links), [candid?.links]);
 
-    if (loading) return <div>Loading...</div>;
+    if (loading) return <Loading className="min-h-screen justify-center text-gray-600" />;
 
     if (err || !candid) {
         return (

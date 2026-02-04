@@ -156,23 +156,23 @@ export default function CompanyModalRoot() {
                 </div>
               )}
               <Section title={`${company.name} 정보`}>
-                <div className="px-4 text-sm flex flex-col gap-2 bg-white/5 py-4 rounded-lg">
-                  <Row
-                    label={<MapPinHouse className="w-4 h-4 text-hgray700" />}
+                <div className="px-4 text-sm flex flex-col gap-4 bg-white/5 py-4 rounded-lg">
+                  <ColRow
+                    label="본사 위치"
                     // label={m.company.hq}
                     value={countryEnToKo(company.location ?? "")}
                   />
                   {company.founded_year !== null &&
                     company.founded_year !== undefined &&
                     company.founded_year > 1000 && (
-                      <Row
-                        label={<Calendar className="w-4 h-4 text-hgray700" />}
-                        value={company.founded_year + "년 설립"}
+                      <ColRow
+                        label="설립 연도"
+                        value={company.founded_year}
                       />
                     )}
                   {employeeCount && (
-                    <Row
-                      label={<Users className="w-4 h-4 text-hgray700" />}
+                    <ColRow
+                      label="직원 수"
                       value={employeeCount}
                     />
                   )}
@@ -266,6 +266,38 @@ export default function CompanyModalRoot() {
   );
 }
 
+function ColRow({
+  label,
+  value,
+  isLink,
+}: {
+  label: string;
+  value: any;
+  isLink?: boolean;
+}) {
+  const v = value ? String(value) : "—";
+
+  return (
+    <div className="flex flex-col items-start justify-start gap-0">
+      <div className="text-left text-hgray900 text-base font-medium">
+        {isLink && v !== "—" ? (
+          <a
+            href={v}
+            target="_blank"
+            rel="noreferrer"
+            className="hover:underline"
+          >
+            {v}
+          </a>
+        ) : (
+          v
+        )}
+      </div>
+      <div className="text-left text-[13px] text-hgray700 font-light">{label}</div>
+    </div>
+  );
+}
+
 function Row({
   label,
   value,
@@ -307,7 +339,7 @@ const Section = ({
 }) => {
   return (
     <div className="flex flex-col text-hgray900 gap-2 w-full max-w-full">
-      <div className="text-base font-semibold">{title}</div>
+      <div className="text-base font-medium">{title}</div>
       <div className="max-w-full overflow-x-hidden">
         {children}
       </div>

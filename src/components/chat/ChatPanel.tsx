@@ -29,6 +29,7 @@ type Props = {
   scope?: ChatScope;
   userId?: string;
   systemPromptOverride?: string;
+  memoryMode?: "automation";
   onBack?: () => void;
 
   onSearchFromConversation: (messageId: number) => Promise<void>;
@@ -48,6 +49,7 @@ export default function ChatPanel({
   scope,
   userId,
   systemPromptOverride,
+  memoryMode,
   onBack,
   onSearchFromConversation,
   disabled,
@@ -73,6 +75,7 @@ export default function ChatPanel({
     userId,
     candidDoc,
     systemPromptOverride,
+    memoryMode,
   });
   const autoStartedRef = useRef(false);
   const { settings, isLoading: isSettingsLoading, saveSettings, isSaving } = useSettings(userId);

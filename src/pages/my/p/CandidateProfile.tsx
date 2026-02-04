@@ -1,6 +1,7 @@
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import {
   CandidateDetail,
+  candidateKey,
 } from "@/hooks/useCandidateDetail";
 import ShareProfileModal from "@/components/Modal/ShareProfileModal";
 import { Check, Share2, Upload, XIcon } from "lucide-react";
@@ -22,6 +23,7 @@ import ProfileBio from "./components/ProfileBio";
 import { useLogEvent } from "@/hooks/useLog";
 import SimpleAreaModal from "@/components/Modal/SimpleAreaModal";
 import { logger } from "@/utils/logger";
+import { Loading } from "@/components/ui/loading";
 
 export const ExperienceCal = (months: number) => {
   const years = Math.floor(months / 12);
@@ -57,6 +59,8 @@ export default function CandidateProfileDetailPage({
   const c: any = data;
   const isLiked = c && c.connection?.some((connection: any) => connection.typed === 4);
   const isPassed = c && c.connection?.some((connection: any) => connection.typed === 5);
+  const showAutomationFeedback =
+    data?.isAutomationResult && companyUser.is_custom;
 
   const links: string[] = useMemo(() => {
     if (!c?.links) return [];
@@ -89,7 +93,7 @@ export default function CandidateProfileDetailPage({
     setOneline(data.result);
     // ✅ 서버에서 DB 업데이트 끝났으면 캐시 무효화 → 최신 재조회
     await qc.invalidateQueries({
-      queryKey: ["candidate", candidId, userId], // 너 useCandidateDetail의 키랑 반드시 동일해야 함
+      queryKey: candidateKey(candidId, userId), // 너 useCandidateDetail의 키랑 반드시 동일해야 함
     });
     setIsLoadingOneline(false);
   };
@@ -112,7 +116,7 @@ export default function CandidateProfileDetailPage({
   }, [isLoading, c, userId, candidId, requested]);
 
   if (!candidId || !userId || isLoading || error || !data)
-    return <div>Loading...</div>;
+    return <Loading className="text-xgray800" />;
 
   // 대충: email은 string일 수도 / JSON string일 수도 있어서 try-catch 한 번만
   let emails: string[] = [];
@@ -145,7 +149,7 @@ export default function CandidateProfileDetailPage({
               />
             </div>
             {
-              companyUser.is_custom && (
+              showAutomationFeedback && (
                 <div className="flex flex-row items-end justify-end gap-2 mt-1">
                   <button
                     onClick={() => {
@@ -176,7 +180,7 @@ export default function CandidateProfileDetailPage({
                     // placeholder="여기에 키워드나 이유를 짧게 적어주세요. 더 완벽한 분을 찾아오겠습니다!"
                     onConfirm={async () => {
                       await qc.invalidateQueries({
-                        queryKey: ["candidate", candidId, userId], // 너 useCandidateDetail의 키랑 반드시 동일해야 함
+                        queryKey: candidateKey(candidId, userId), // 너 useCandidateDetail의 키랑 반드시 동일해야 함
                       });
                       setIsLikeOpen(false);
                     }}
@@ -191,7 +195,7 @@ export default function CandidateProfileDetailPage({
                     placeholder="예: 기술 스택 불일치, 연차가 너무 높음... (빈칸으로 제출하실 수 있습니다.)"
                     onConfirm={async () => {
                       await qc.invalidateQueries({
-                        queryKey: ["candidate", candidId, userId], // 너 useCandidateDetail의 키랑 반드시 동일해야 함
+                        queryKey: candidateKey(candidId, userId), // 너 useCandidateDetail의 키랑 반드시 동일해야 함
                       });
                       setIsPassOpen(false);
                     }}

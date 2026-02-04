@@ -6,6 +6,7 @@ import { Check } from "lucide-react";
 import { BaseSectionLayout } from "@/components/landing/GridSectionLayout";
 import Head1 from "@/components/landing/Head1";
 import Animate from "@/components/landing/Animate";
+import { useMessages } from "@/i18n/useMessage";
 
 type Billing = "monthly" | "yearly";
 
@@ -13,6 +14,17 @@ function formatKRW(n: number) {
     // 149000 -> "149,000"
     return n.toLocaleString("ko-KR");
 }
+const formatPrice = (isEnglish: boolean, value: number) => {
+    if (isEnglish) {
+        return new Intl.NumberFormat("en-US", {
+            style: "currency",
+            currency: "USD",
+            maximumFractionDigits: 0,
+        }).format(value);
+    }
+    return formatKRW(value);
+};
+
 
 function calcDiscountedMonthly(monthly: number, discountRate: number) {
     // 20% off => * 0.8
@@ -21,70 +33,66 @@ function calcDiscountedMonthly(monthly: number, discountRate: number) {
 
 export default function PricingSection({ onClick }: { onClick: (plan: string) => void }) {
     const [billing, setBilling] = useState<Billing>("monthly");
+    const { m, locale } = useMessages();
+    const pricing = m.companyLanding.pricing;
 
     const DISCOUNT = 0.2;
+    const isEnglish = locale === "en";
 
     const plans = useMemo(() => {
-        const proMonthly = 149_000;
-        const maxMonthly = 279_000;
+        const proMonthlyKRW = 149_000;
+        const maxMonthlyKRW = 279_000;
+        const proMonthlyUSD = 109;
+        const maxMonthlyUSD = 199;
+        const proYearlyUSD = 89;
+        const maxYearlyUSD = 159;
 
         const proShown =
             billing === "monthly"
-                ? proMonthly
-                : calcDiscountedMonthly(proMonthly, DISCOUNT);
+                ? (isEnglish ? proMonthlyUSD : proMonthlyKRW)
+                : (isEnglish ? proYearlyUSD : calcDiscountedMonthly(proMonthlyKRW, DISCOUNT));
 
         const maxShown =
             billing === "monthly"
-                ? maxMonthly
-                : calcDiscountedMonthly(maxMonthly, DISCOUNT);
+                ? (isEnglish ? maxMonthlyUSD : maxMonthlyKRW)
+                : (isEnglish ? maxYearlyUSD : calcDiscountedMonthly(maxMonthlyKRW, DISCOUNT));
 
         return [
             {
                 key: "pro",
-                name: "Pro",
-                tagline: "소수 정예 팀이 지금 필요한 1~2명을 찾는 데 최적화",
+                name: pricing.plans.pro.name,
+                tagline: pricing.plans.pro.tagline,
                 price: proShown,
-                priceUnit: "원/월",
-                buttonLabel: "문의하기",
+                priceUnit: pricing.plans.pro.priceUnit,
+                buttonLabel: pricing.plans.pro.buttonLabel,
                 isPrimary: false,
                 isMostPopular: false,
-                features: ["월 150 Credits<br />(10명 검색당 1 credit)", "AI 스마트 서치", "정보 수집 및 인재 분석<br />(후보자 1명에 대한 딥리서치)", "무제한 채팅"],
+                features: pricing.plans.pro.features,
             },
             {
                 key: "max",
-                name: "Max",
-                tagline: "공격적인 소싱과 빠른 조직 확장이 필요한 플랜",
+                name: pricing.plans.max.name,
+                tagline: pricing.plans.max.tagline,
                 price: maxShown,
-                priceUnit: "원/월",
-                buttonLabel: "문의하기",
+                priceUnit: pricing.plans.max.priceUnit,
+                buttonLabel: pricing.plans.max.buttonLabel,
                 isPrimary: true,
                 isMostPopular: true,
-                features: [
-                    "Pro의 모든 기능 포함, 및:",
-                    "월 350 Credits",
-                    "동시 검색 기능",
-                    "AI 소싱 에이전트",
-                ],
+                features: pricing.plans.max.features,
             },
             {
                 key: "enterprise",
-                name: "Enterprise",
-                tagline: "무제한 데이터 접근 권한과 커스텀 연동을 위한 전용 플랜",
+                name: pricing.plans.enterprise.name,
+                tagline: pricing.plans.enterprise.tagline,
                 price: null as number | null,
-                priceUnit: "",
-                buttonLabel: "문의하기",
+                priceUnit: pricing.plans.enterprise.priceUnit,
+                buttonLabel: pricing.plans.enterprise.buttonLabel,
                 isPrimary: false,
                 isMostPopular: false,
-                features: [
-                    "Max의 모든 기능 포함, 및:",
-                    "Credits 무제한",
-                    "온보딩 및 교육 지원",
-                    "팀 협업 및 관리 시트",
-                    "전담 고객 지원",
-                ],
+                features: pricing.plans.enterprise.features,
             },
         ];
-    }, [billing]);
+    }, [billing, isEnglish, pricing]);
 
     return (
         <section id="pricing" className="w-full bg-black text-white">
@@ -93,10 +101,10 @@ export default function PricingSection({ onClick }: { onClick: (plan: string) =>
                     <div className="w-full flex flex-col items-center justify-center text-center px-4 md:px-0">
                         {/* <Head1 className="text-white">Pricing</Head1> */}
                         <div className="mt-4 md:mt-6 text-[24px] md:text-[40px] font-semibold tracking-tight">
-                            팀의 성장에 맞는 합리적인 플랜
+                            {pricing.title}
                         </div>
                         <div className="mt-3 text-sm md:text-base text-white/60 font-light">
-                            비즈니스 성장에 필요한 모든 기능을 제공합니다.
+                            {pricing.subtitle}
                         </div>
 
                         <div className="mt-8 md:mt-10">
@@ -108,7 +116,7 @@ export default function PricingSection({ onClick }: { onClick: (plan: string) =>
                         </div>
 
                         <div className="mt-12 md:mt-16 w-full max-w-[1200px]">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-4">
                                 {plans.map((p) => (
                                     <PlanCard
                                         key={p.key}
@@ -139,6 +147,8 @@ function BillingToggle({
     billing: Billing;
     setBilling: (b: Billing) => void;
 }) {
+    const { m } = useMessages();
+    const pricing = m.companyLanding.pricing;
     const isYearly = billing === "yearly";
 
     return (
@@ -150,22 +160,21 @@ function BillingToggle({
                     className={`relative z-10 px-6 md:px-7 py-2.5 rounded-full text-sm md:text-sm transition-colors ${!isYearly ? "text-black" : "text-white/70 hover:text-white"
                         }`}
                 >
-                    월간 결제
+                    {pricing.billing.monthly}
                 </button>
                 <button
                     type="button"
                     onClick={() => setBilling("yearly")}
-                    className={`relative z-10 px-6 md:px-7 py-2.5 rounded-full text-sm md:text-sm transition-colors ${isYearly ? "text-black" : "text-white/70 hover:text-white"
-                        }`}
+                    className={`relative z-10 px-6 md:px-7 py-2.5 rounded-full text-sm md:text-sm transition-colors ${isYearly ? "text-black" : "text-white/70 hover:text-white"}`}
                 >
-                    연간 결제
+                    {pricing.billing.yearly}
                 </button>
 
                 {/* sliding pill */}
                 <motion.div
                     className="absolute top-1 bottom-1 w-[50%] rounded-full bg-white"
                     initial={false}
-                    animate={{ x: isYearly ? "100%" : "0%" }}
+                    animate={{ x: isYearly ? "93%" : "0%" }}
                     transition={{ type: "spring", stiffness: 500, damping: 40 }}
                 />
             </div>
@@ -173,7 +182,7 @@ function BillingToggle({
             {/* discount badge */}
             <div className="absolute -right-6 -top-3 md:-right-8 md:-top-3">
                 <div className="px-3 py-1 rounded-full text-[11px] md:text-xs font-semibold bg-accenta1 text-black shadow-sm">
-                    20% 할인
+                    {pricing.billing.discountLabel}
                 </div>
             </div>
         </div>
@@ -201,40 +210,37 @@ function PlanCard({
     features: string[];
     onClick: (plan: string) => void;
 }) {
+    const { m, locale } = useMessages();
+    const pricing = m.companyLanding.pricing;
+    const isEnglish = locale === "en";
+
     return (
         <div
             className={[
-                "relative w-full rounded-[28px] md:rounded-[32px] overflow-hidden",
+                "relative w-full rounded-xl md:rounded-xl overflow-hidden",
                 "bg-white/[0.06] border border-white/10",
-                "px-5 md:px-7 pt-4 md:pt-6 pb-4 md:pb-6",
+                "px-5 md:px-7 pt-4 md:pt-6 pb-4 md:pb-20",
                 isPrimary ? "bg-white/[0.08]" : "",
             ].join(" ")}
         >
-            {/* {isMostPopular && (
-                <div className="absolute top-0 right-0">
-                    <div className="px-4 py-1.5 rounded-full text-[11px] md:text-xs font-medium font-hedvig bg-accenta1 text-black">
-                        MOST POPULAR
-                    </div>
-                </div>
-            )} */}
 
             <div className="flex flex-col items-start justify-start">
-                <div className="text-[28px] md:text-[30px] font-semibold tracking-tight">
+                <div className="text-[24px] md:text-[28px] font-medium tracking-tight">
                     {name}
                 </div>
-                <div className="mt-2 text-left w-full text-sm text-white/55 leading-6 h-8">{tagline}</div>
+                <div className="mt-0 text-left w-full text-sm text-white/55 leading-6 min-h-6">{tagline}</div>
 
-                <div className="mt-7 md:mt-8">
+                <div className="mt-4 md:mt-6">
                     {price === null ? (
                         <div className="flex items-end gap-2">
-                            <div className="text-[28px] md:text-[36px] font-semibold tracking-tight leading-none">
-                                별도 문의
+                            <div className="text-[24px] md:text-[32px] font-semibold tracking-tight leading-none">
+                                {pricing.contactLabel}
                             </div>
                         </div>
                     ) : (
                         <div className="flex items-end gap-2">
-                            <div className="text-[28px] md:text-[36px] font-semibold tracking-tight leading-none">
-                                {formatKRW(price)}
+                            <div className="text-[24px] md:text-[32px] font-medium tracking-tight leading-none">
+                                {formatPrice(isEnglish, price)}
                             </div>
                             <div className="text-base md:text-lg text-white/60 pb-1">
                                 {priceUnit}
@@ -243,15 +249,15 @@ function PlanCard({
                     )}
                 </div>
 
-                <div className="mt-7 md:mt-8 w-full">
+                <div className="mt-4 md:mt-6 w-full">
                     <button
                         type="button"
                         onClick={() => onClick(name)}
                         className={[
-                            "w-full rounded-full py-2.5 md:py-3 text-sm md:text-base font-medium transition-colors",
+                            "w-full rounded-full py-2.5 md:py-3 text-sm md:text-sm font-normal transition-colors",
                             isPrimary
                                 ? "bg-accenta1 text-black hover:opacity-95"
-                                : "bg-transparent text-accenta1 border border-accenta1/80 hover:bg-accenta1/10",
+                                : "bg-white/10 text-accenta1 border border-white/0 hover:bg-accenta1/10",
                         ].join(" ")}
                     >
                         {buttonLabel}
@@ -260,7 +266,7 @@ function PlanCard({
 
                 <div className="mt-7 md:mt-8 h-px w-full bg-white/10" />
 
-                <ul className="mt-6 md:mt-7 flex flex-col gap-3">
+                <ul className="mt-6 md:mt-7 flex flex-col gap-4">
                     {features.map((f, idx) => (
                         <li key={idx} className="flex items-start gap-3 text-sm md:text-sm">
                             {f.endsWith("및:") || f.endsWith(":") ? (

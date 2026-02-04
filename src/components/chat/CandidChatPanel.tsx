@@ -265,7 +265,7 @@ export default function CandidChatPanel({
           <div>{title === "" ? <Skeleton className="w-20 h-5" /> : title}</div>
         </div>
         <div className="flex flex-row justify-center items-center gap-2 text-hgray700">
-          <div
+          {/* <div
             className="p-1 cursor-pointer"
             onClick={() => setIsSettingsOpen(true)}
           >
@@ -273,7 +273,7 @@ export default function CandidChatPanel({
               className="w-3.5 h-3.5"
               strokeWidth={1.4}
             />
-          </div>
+          </div> */}
         </div>
       </div>
 
@@ -372,7 +372,7 @@ export default function CandidChatPanel({
         isStreaming={chat.isStreaming}
       />
 
-      {isSettingsOpen && (
+      {/* {isSettingsOpen && (
         <BaseModal
           onClose={() => setIsSettingsOpen(false)}
           onConfirm={() => {
@@ -406,7 +406,7 @@ export default function CandidChatPanel({
             </div>
           </div>
         </BaseModal>
-      )}
+      )} */}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 // components/result/ResultBody.tsx
 import React, { useMemo } from "react";
 import CandidateViews from "@/components/CandidateViews";
+import { logger } from "@/utils/logger";
 
 type Props = {
   searchEnabled: boolean;
@@ -16,6 +17,7 @@ type Props = {
   onPrevPage: () => void;
   onNextPage: () => void;
   criterias: string[];
+  nextWillCharge: boolean;
 };
 
 export default function ResultBody(props: Props) {
@@ -33,6 +35,7 @@ export default function ResultBody(props: Props) {
     onPrevPage,
     onNextPage,
     criterias,
+    nextWillCharge,
   } = props;
 
   if (!searchEnabled) {
@@ -44,6 +47,8 @@ export default function ResultBody(props: Props) {
   }
 
   const isNoResultAtall = pageIdx === 0 && items.length === 0 && !isLoading;
+
+  logger.log("nextWillCharge ", nextWillCharge)
 
   return (
     <div className="flex flex-col w-full h-full">
@@ -90,7 +95,9 @@ export default function ResultBody(props: Props) {
                   : "opacity-40 cursor-not-allowed"
                   }`}
               >
-                <div>Search next 10 more</div>
+                <div>
+                  Search next 10 more{nextWillCharge ? " (1 credit)" : " (no credit)"}
+                </div>
               </button>
             </div>
           </div>

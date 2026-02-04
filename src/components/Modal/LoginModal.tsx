@@ -40,6 +40,7 @@ const LoginModal = ({
   onConfirm,
   onGoogle,
 }: LoginModalProps) => {
+  const { m } = useMessages();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -60,7 +61,7 @@ const LoginModal = ({
     } else {
       const data = await onConfirm(email, password);
       if (data) {
-        setError("존재하지 않는 계정입니다.");
+        setError(m.auth.invalidAccount);
       }
     }
   };
@@ -111,20 +112,20 @@ const LoginModal = ({
           <div className="flex flex-col items-start justify-start mb-6">
             <img src="/svgs/logo.svg" alt="logo" className="w-10 h-10 mb-6" />
             <div className="text-3xl font-bold tracking-tight text-hgray700">
-              {isSignUp ? "회원가입" : "로그인"}
+              {isSignUp ? m.auth.signup : m.auth.login}
             </div>
           </div>
 
           {needsEmailConfirmation ? (
             <div className="flex flex-col items-start justify-center">
               <div className="text-base text-hgray900 my-4">
-                인증 메일을 발송했습니다. 이메일을 확인해주세요.
+                {m.auth.emailConfirmationSent}
               </div>
               <div
                 className="cursor-pointer text-base text-hgray600 hover:text-hgray700 hover:underline transition w-full text-left mb-6"
                 onClick={onClose}
               >
-                닫기
+                {m.system.close}
               </div>
             </div>
           ) : (
@@ -139,7 +140,7 @@ const LoginModal = ({
                       className="w-full py-2 text-[13px] rounded-md bg-white hover:bg-accenta1 transition duration-300 flex items-center justify-center gap-3 text-hgray100"
                     >
                       <GoogleIcon />
-                      <span className="font-medium">Continue with Google</span>
+                      <span className="font-medium">{m.auth.continueWithGoogle}</span>
                     </button>
                   </div>
 
@@ -189,7 +190,7 @@ const LoginModal = ({
                 {isSignUp && (
                   <div className="space-y-1">
                     <label className="text-sm font-medium text-white">
-                      비밀번호 확인
+                      {m.auth.confirmPassword}
                     </label>
 
                     <input

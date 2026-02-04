@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import { supabase } from "@/lib/supabase";
 import { showToast } from "@/components/toast/toast";
+import { Loading } from "@/components/ui/loading";
 
 type QueryRow = {
   query_id: string;
@@ -263,7 +264,12 @@ const AdminPage = () => {
           </div>
 
           {(loadingMore || loading) && (
-            <div className="text-[12px] text-black/55">Loading…</div>
+            <Loading
+              size="sm"
+              label="Loading…"
+              className="text-[12px] text-black/55"
+              inline={true}
+            />
           )}
         </div>
 
@@ -289,7 +295,11 @@ const AdminPage = () => {
         {/* List */}
         <div className="border border-black/10" style={{ borderRadius: 0 }}>
           {loading ? (
-            <div className="p-6 text-[13px] text-black/55">Loading…</div>
+            <Loading
+              size="sm"
+              label="Loading…"
+              className="p-6 text-[13px] text-black/55"
+            />
           ) : filtered.length === 0 ? (
             <div className="p-10 text-center">
               <div className="text-[14px] font-semibold">No results</div>

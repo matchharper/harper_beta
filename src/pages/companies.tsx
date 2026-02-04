@@ -5,7 +5,7 @@ import {
   Menu,
 } from "lucide-react";
 import router from "next/router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { showToast } from "@/components/toast/toast";
 import { DropdownMenu } from "@/components/ui/menu";
@@ -22,6 +22,8 @@ import { supabase } from "@/lib/supabase";
 import LoginModal from "@/components/Modal/LoginModal";
 import RotatingWord from "@/components/landing/RotatingWord";
 import RowImageSection from "@/components/landing/RowImageSection";
+import GradientBackground from "@/components/landing/GradientBackground";
+import { useMessages } from "@/i18n/useMessage";
 
 export const isValidEmail = (email: string): boolean => {
   const trimmed = email.trim();
@@ -34,8 +36,10 @@ const CandidatePage = () => {
   const [abtest, setAbtest] = useState(-1);
   const [landingId, setLandingId] = useState("");
   const [isOpenLoginModal, setIsOpenLoginModal] = useState(false);
+  const { m, locale } = useMessages();
 
   const isMobile = useIsMobile();
+  const interactiveRef = useRef<HTMLDivElement>(null);
 
   const whySectionRef = useRef<HTMLDivElement>(null);
   const priceSectionRef = useRef<HTMLDivElement>(null);
@@ -116,9 +120,15 @@ const CandidatePage = () => {
   const handleContactUs = async () => {
     await navigator.clipboard.writeText("chris@asksonus.com");
     showToast({
-      message: "Email copied to clipboard",
+      message: m.help.emailCopied,
       variant: "white",
     });
+  };
+
+  const setLocaleCookie = (next: "ko" | "en") => {
+    if (typeof document === "undefined") return;
+    document.cookie = `NEXT_LOCALE=${next}; path=/; max-age=31536000`;
+    window.location.reload();
   };
 
 
@@ -178,6 +188,41 @@ const CandidatePage = () => {
     );
   };
 
+  const StartButton = ({ type, size = "md" }: { type: string, size?: "md" | "sm" }) => {
+    const sizeClass = {
+      md: "py-4 px-8 mt-12 text-base",
+      sm: "py-3 px-6 text-xs",
+    }[size];
+
+    return (
+      <div
+        onClick={() => {
+          addLog(type)
+          setIsOpenLoginModal(true)
+        }}
+        className={`
+        group relative
+        font-medium 
+        cursor-pointer
+        rounded-full
+        bg-accenta1 text-black
+        z-10
+
+        ring-1 ring-white/10
+        shadow-[0_12px_40px_rgba(180,255,120,0.25)]
+
+        transition-all duration-200
+        hover:shadow-[0_18px_60px_rgba(180,255,120,0.35)]
+        hover:-translate-y-[1px]
+        active:translate-y-[0px]
+        active:shadow-[0_8px_20px_rgba(180,255,120,0.2)]
+        ${sizeClass}`}
+      >
+        {m.companyLanding.startButton}
+      </div>
+    )
+  }
+
   return (
     <main className={`min-h-screen font-inter text-white bg-black`}>
       <LoginModal
@@ -192,35 +237,27 @@ const CandidatePage = () => {
             Harper
           </div>
           <nav className="hidden font-normal text-white bg-[#444444aa] backdrop-blur rounded-full md:flex items-center justify-center gap-2 text-xs sm:text-sm px-4 py-2">
-            <NavItem label="소개" onClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} />
-            <NavItem label="작동 방식" onClick={() => { window.scrollTo({ top: whySectionRef.current?.offsetTop, behavior: "smooth" }); }} />
-            <NavItem label="가격 정책" onClick={() => { window.scrollTo({ top: priceSectionRef.current?.offsetTop, behavior: "smooth" }); }} />
-            <NavItem label="FAQ" onClick={() => { window.scrollTo({ top: faqSectionRef.current?.offsetTop, behavior: "smooth" }); }} />
+            <NavItem label={m.companyLanding.nav.intro} onClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} />
+            <NavItem label={m.companyLanding.nav.howItWorks} onClick={() => { window.scrollTo({ top: whySectionRef.current?.offsetTop, behavior: "smooth" }); }} />
+            <NavItem label={m.companyLanding.nav.pricing} onClick={() => { window.scrollTo({ top: priceSectionRef.current?.offsetTop, behavior: "smooth" }); }} />
+            <NavItem label={m.companyLanding.nav.faq} onClick={() => { window.scrollTo({ top: faqSectionRef.current?.offsetTop, behavior: "smooth" }); }} />
           </nav>
           <div className="hidden md:flex w-[10%] md:w-[15%] items-center justify-end">
-            <button
-              onClick={() => {
-                addLog("click_nav_start")
-                setIsOpenLoginModal(true)
-              }}
-              className="font-medium text-xs cursor-pointer py-3.5 px-6 bg-accenta1 text-black rounded-full"
-            >
-              시작하기
-            </button>
+            <StartButton type="click_nav_start" size="sm" />
           </div>
           <div className="block md:hidden">
             <DropdownMenu
               buttonLabel={<Menu className="w-4 h-4" />}
               items={[
                 {
-                  label: "Join Waitlist",
+                  label: m.companyLanding.dropdown.joinWaitlist,
                   onClick: upScroll,
                 },
                 {
-                  label: "For companies",
+                  label: m.companyLanding.dropdown.forCompanies,
                   onClick: () => router.push("companies"),
                 },
-                { label: "Referral", onClick: () => router.push("referral") },
+                { label: m.companyLanding.dropdown.referral, onClick: () => router.push("referral") },
               ]}
             />
           </div>
@@ -234,22 +271,24 @@ const CandidatePage = () => {
               <Image src="/svgs/logo.svg" alt="logo" width={12} height={12} />
             </div>
             <div className="text-[12px] font-normal">
-              Hiring Intelligence
+              {m.companyLanding.hero.badge}
             </div>
           </div>
           <div className="md:text-[56px] text-[36px] font-semibold leading-snug mt-2">
-            &nbsp;Don{"'"}t Buy <RotatingWord /><br />
-            Pay for <span className="font-hedvig text-accenta1 font-normal italic">Intelligence</span>
+            &nbsp;{m.companyLanding.hero.titleLine1} <RotatingWord /><br />
+            {m.companyLanding.hero.titleLine2Prefix}{" "}
+            <span className="font-hedvig text-accenta1 font-normal italic">
+              {m.companyLanding.hero.titleLine2Highlight}
+            </span>
           </div>
           <div className="text-sm md:text-base text-hgray700 font-light mt-6">
-            단순한 검색을 넘어, 인재를 이해하는 지능을 경험하세요.
+            <span
+              dangerouslySetInnerHTML={{
+                __html: m.companyLanding.hero.subtitle,
+              }}
+            />
           </div>
-          <div
-            onClick={() => {
-              addLog("click_hero_start")
-              setIsOpenLoginModal(true)
-            }}
-            className="px-10 py-3 bg-accenta1 text-black rounded-full font-medium text-base cursor-pointer mt-12">시작하기</div>
+          <StartButton type="click_hero_start" />
         </div>
       </div>
       <div className="mb-20 flex flex-col items-center justify-center">
@@ -260,16 +299,16 @@ const CandidatePage = () => {
       <Animate>
         <BaseSectionLayout>
           <div className="gap-2 w-full flex flex-col items-center justify-center text-center py-8 md:py-10 px-0">
-            <Head1>Harper is for you.</Head1>
+            <Head1>{m.companyLanding.section1.title}</Head1>
             <h2 className="text-[22px] md:text-3xl text-white font-normal mt-10">
-              최고의 인재는
+              {m.companyLanding.section1.headlineLine1}
               <br />
-              일반 채용 시장에 공개되지 않습니다.
+              {m.companyLanding.section1.headlineLine2}
             </h2>
             <p className="text-base font-hedvig font-light md:text-lg mt-6 text-hgray700">
-              채용은 회사의 미래를 결정하는 가장 중요한 의사결정입니다.
+              {m.companyLanding.section1.bodyLine1}
               <br />
-              하퍼는 24시간 일하고, 10배 더 빠른 AI Recruiter입니다.
+              {m.companyLanding.section1.bodyLine2}
             </p>
           </div>
         </BaseSectionLayout>
@@ -280,23 +319,23 @@ const CandidatePage = () => {
       <Animate>
         <BaseSectionLayout>
           <Animate>
-            <Head1 className="text-white">Why harper?</Head1>
+            <Head1 className="text-white">{m.companyLanding.why.title}</Head1>
           </Animate>
           <Animate>
             <div className="flex flex-col md:flex-row mt-12 gap-8">
               <WhyImageSection
-                title="Beyond Keywords"
-                desc="단순한 키워드 검색을 넘어, <br />인재와 맥락을 이해하고 찾아주는 지능을 경험하세요"
+                title={m.companyLanding.why.cards[0].title}
+                desc={m.companyLanding.why.cards[0].desc}
                 imageSrc="/images/feat1.png"
               />
               <WhyImageSection
-                title="Focus on Value"
-                desc="불필요한 정보를 걸러내는 시간은 <br/>저희에게 맡기세요. 꼭 필요한<br />인재만 보여드립니다."
+                title={m.companyLanding.why.cards[1].title}
+                desc={m.companyLanding.why.cards[1].desc}
                 imageSrc="/images/feat4.png"
               />
               <WhyImageSection
-                title="Intelligence on Top of Data"
-                desc="정적인 정보 제공을 넘어 흩어진 정보를 하나로 모아 분석하고 의사결정을 돕습니다"
+                title={m.companyLanding.why.cards[2].title}
+                desc={m.companyLanding.why.cards[2].desc}
                 imageSrc="orbit"
               />
             </div>
@@ -310,9 +349,11 @@ const CandidatePage = () => {
         <BaseSectionLayout>
           <div className="flex flex-col items-start gap-4 bg-white/20 rounded-2xl px-6 md:px-[30px] py-6 md:py-8 w-[90%] max-w-[600px]">
             <div className="text-[15px] md:text-base text-left leading-[30px] font-normal text-hgray700">
-              하퍼는 단순한 검색 필터 서비스가 아닙니다.<br />AI Agent가 수많은 웹 정보, 글, 기록을 종합해
-              이력서에 없는 맥락까지 읽고, 사람처럼 추론하고 판단하며
-              조직이 원하는 인재를 직접 탐색할 수 있게 합니다.
+              <span
+                dangerouslySetInnerHTML={{
+                  __html: m.companyLanding.testimonial.body,
+                }}
+              />
             </div>
             <div className="flex flex-row items-center justify-start gap-4 mt-6">
               <div>
@@ -324,8 +365,8 @@ const CandidatePage = () => {
                 />
               </div>
               <div className="flex flex-col items-start justify-start gap-1">
-                <div className="text-sm">Chris & Daniel</div>
-                <div className="text-hgray700 text-xs">Co-founder</div>
+                <div className="text-sm">{m.companyLanding.testimonial.name}</div>
+                <div className="text-hgray700 text-xs">{m.companyLanding.testimonial.role}</div>
               </div>
             </div>
           </div>
@@ -344,27 +385,17 @@ const CandidatePage = () => {
           <div className="flex flex-col items-center justify-center w-full pt-4">
             <div className="w-full flex flex-col items-center justify-center pb-2">
               <div className="text-[28px] md:text-4xl font-garamond font-medium">
-                Questions & Answers
+                {m.companyLanding.faq.title}
               </div>
               <div className="flex flex-col items-start justify-start text-white/70 font-light w-full mt-12 px-4 md:px-0">
-                <QuestionAnswer
-                  question="지금 바로 가입해서 사용할 수 없나요? (초대 코드는 어떻게 받나요?)"
-                  answer="현재 Harper는 데이터 품질과 AI 리소스 최적화를 위해 엄선된 소수의 테크 기업을 대상으로 Private Beta를 운영 중입니다. 올해 2분기(Q2) 정식 출시를 목표로 하고 있으며, 대기명단에 등록해 주시면 온보딩을 통해 초대 코드를 발송해 드립니다."
-                />
-                <QuestionAnswer
-                  question="AI가 분석한 데이터를 신뢰할 수 있나요?"
-                  answer="네, 신뢰할 수 있습니다. Harper의 AI는 추측하지 않고 증명합니다. LinkedIn, Google Scholar, GitHub, 블로그등 웹상에 실존하는 '검증 가능한 데이터'만을 기반으로 분석하기 때문입니다. 또한, AI가 도출한 모든 인사이트에는 원본 출처가 함께 제공되므로 직접 팩트 체크가 가능합니다."
-                />
-                <QuestionAnswer
-                  question="'키워드 검색'과 Harper의 '시맨틱 서치'는 무엇이 다른가요?"
-                  answer="'Python 개발자'를 검색하는 것과, '대규모 트래픽 처리를 경험해 본 Python 백엔드 리드'를 찾는 것은 다릅니다. Harper는 단순 키워드 매칭이 아니라, 채용 담당자가 말하는 맥락과 의도를 이해하여 기술적 난제를 해결할 수 있는 최적의 후보자를 찾아냅니다."
-                />
-                <QuestionAnswer
-                  question="어떤 직군의 인재를 찾을 수 있나요?"
-                  answer="Harper의 AI 엔진은 AI 리서처(AI Researcher)와 머신러닝 엔지니어(ML Engineer) 같은 고난이도 테크 인재 발굴에 가장 특화되어 있습니다.
-하지만 이에 국한되지 않고, 현재 PM(Product Manager) 및 PD(Product Designer) 등 테크 조직 내 핵심 직군에 대해서도 유의미한 검색과 프로파일링 기능을 이미 지원하고 있습니다."
-                  index={3}
-                />
+                {m.companyLanding.faq.items.map((item, index) => (
+                  <QuestionAnswer
+                    key={item.question}
+                    question={item.question}
+                    answer={item.answer}
+                    index={index}
+                  />
+                ))}
               </div>
             </div>
           </div>
@@ -372,41 +403,55 @@ const CandidatePage = () => {
       </Animate>
       <div className="h-4 md:h-40" />
       <Animate duration={0.8}>
-        <BaseSectionLayout>
-          <div className="w-full flex flex-col items-center justify-center bg-black">
-            <div className="flex flex-col items-center justify-center w-full lg:w-[94%] py-40 text-white">
-              <Head1 className="text-xl md:text-[32px]">
-                Meet your AI recruiter.
-              </Head1>
-              <div className="text-3xl md:text-5xl font-medium text-white/90 mt-8 md:leading-normal">
-                Harper와 함께,
-                <div className="md:h-2 h-1" />
-                채용을 즐거운 발견으로.
-                {/* <br />
+        <div className="relative bg-black w-screen py-10">
+          <GradientBackground interactiveRef={interactiveRef} />
+          <div className="absolute top-0 left-0 w-full h-[50%] bg-gradient-to-t from-transparent to-black" />
+          <div className="flex flex-col items-center justify-center w-full lg:w-[94%] py-40 text-white z-40">
+            <Head1 className="text-xl md:text-[32px] z-40">
+              {m.companyLanding.closing.title}
+            </Head1>
+            <div className="text-3xl md:text-5xl text-center font-medium text-white/90 mt-8 md:leading-normal z-40">
+              {m.companyLanding.closing.headlineLine1}
+              <div className="md:h-1 h-1" />
+              {m.companyLanding.closing.headlineLine2}
+              {/* <br />
                 우선 기회를 받아보고 결정하세요. */}
-              </div>
-              <div
-                onClick={() => {
-                  addLog("click_footer_start")
-                  setIsOpenLoginModal(true)
-                }}
-                className="px-10 py-3 bg-accenta1 text-black rounded-full font-medium text-base cursor-pointer mt-12">시작하기</div>
             </div>
+            <StartButton type="click_footer_start" />
           </div>
-        </BaseSectionLayout>
+        </div>
       </Animate>
-      <div className="flex flex-row items-end justify-between border-t border-white/20 py-10 md:py-8 w-[100%] md:w-[94%] mx-auto px-4 md:px-0">
+      <div className="flex flex-col md:flex-row items-start md:items-end justify-between border-t border-white/20 py-10 md:py-8 w-[100%] md:w-[94%] mx-auto px-4 md:px-0 gap-6 md:gap-0">
         <div className="flex flex-row items-end justify-start gap-8 md:gap-10">
           <div className="text-3xl font-semibold font-garamond">Harper</div>
           <div className="text-xs md:text-sm font-extralight">
             © Harper. <span className="ml-4">2026</span>
           </div>
         </div>
-        <div
-          onClick={handleContactUs}
-          className="text-xs md:text-sm font-extralight cursor-pointer hover:text-white/90 text-white/80"
-        >
-          Contact Us
+        <div className="flex flex-row items-center gap-4">
+          <div className="flex items-center gap-2 text-xs md:text-sm font-extralight text-white/80">
+            <button
+              type="button"
+              onClick={() => setLocaleCookie("ko")}
+              className={`hover:text-white/90 transition ${locale === "ko" ? "text-white" : ""}`}
+            >
+              한국어
+            </button>
+            <span className="text-white/40">|</span>
+            <button
+              type="button"
+              onClick={() => setLocaleCookie("en")}
+              className={`hover:text-white/90 transition ${locale === "en" ? "text-white" : ""}`}
+            >
+              English
+            </button>
+          </div>
+          <div
+            onClick={handleContactUs}
+            className="text-xs md:text-sm font-extralight cursor-pointer hover:text-white/90 text-white/80"
+          >
+            {m.companyLanding.footer.contact}
+          </div>
         </div>
       </div>
     </main>
@@ -416,33 +461,42 @@ const CandidatePage = () => {
 export default CandidatePage;
 
 const FeatureSection = () => {
-  const isMobile = useIsMobile();
+  const { m } = useMessages();
 
   return (
     <BaseSectionLayout>
       <Animate>
-        <Head1 className="text-white">How it works.</Head1>
+        <Head1 className="text-white">{m.companyLanding.feature.title}</Head1>
       </Animate>
       <div className="flex flex-col w-full mt-12 gap-[30px]">
         <Animate>
           <RowImageSection
             opposite={true}
-            title="동료에게 설명하듯,<br />편안하게 말씀해 주세요."
-            desc="정확한 직무명을 모르셔도 괜찮습니다.<br />원하시는 인재에 대해 풀어서 검색해 보세요."
+            label={m.companyLanding.feature.rows[0].label}
+            title={m.companyLanding.feature.rows[0].title}
+            desc={m.companyLanding.feature.rows[0].desc}
             imageSrc="/videos/use1.mp4"
           />
         </Animate>
         <Animate>
           <RowImageSection
-            title="텍스트 뒤에 숨겨진,<br />진짜 이야기를 찾아냅니다"
-            desc="어떤 관심사를 가지고 커리어를 쌓아왔는지, <br />
-꾸준함과 열정은 어느 정도인지... <br />
-이력서의 빈 공간을 채워주는 풍부한 배경 정보를 제공합니다. <br />
-인터뷰 전에 이미 후보자와 깊은 대화를 나눈 듯한 경험을 드립니다"
+            label={m.companyLanding.feature.rows[1].label}
+            title={m.companyLanding.feature.rows[1].title}
+            desc={m.companyLanding.feature.rows[1].desc}
             imageSrc="/videos/use2.mp4"
             padding
           />
         </Animate>
+        {/* <Animate>
+          <RowImageSection
+            opposite={true}
+            label={m.companyLanding.feature.rows[2].label}
+            title={m.companyLanding.feature.rows[2].title}
+            desc={m.companyLanding.feature.rows[2].desc}
+            imageSrc="/videos/use2.mp4"
+            padding
+          />
+        </Animate> */}
         {/* <Animate>
           <ImageSection
             title={

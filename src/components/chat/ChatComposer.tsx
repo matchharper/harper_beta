@@ -56,7 +56,7 @@ export default function ChatComposer({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="추가 질문을 입력하세요 (Enter 전송 / Shift+Enter 줄바꿈)"
+          placeholder="Ask anything (Enter 전송 / Shift+Enter 줄바꿈)"
           className="w-full min-h-[94px] max-h-[140px] resize-none rounded-[20px] bg-white/5 px-4 py-2.5 text-[13px] text-hgray900 outline-none border border-white/10 focus:border-white/20"
         />
 

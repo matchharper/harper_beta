@@ -2,6 +2,7 @@ import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { useBookmarkedCandidates, usePickedCandidates } from "@/hooks/useBookMarkCandidates";
 import { useMemo, useState, useEffect } from "react";
 import CandidateViews from "@/components/CandidateViews";
+import { Loading } from "@/components/ui/loading";
 
 const PAGE_SIZE = 10;
 
@@ -29,7 +30,7 @@ export default function PickedPage() {
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  if (isLoading) return <div>Loading...</div>;
+  if (isLoading) return <Loading className="text-hgray600" />;
   if (error) return <div>Error</div>;
 
   return (

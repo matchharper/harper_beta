@@ -11,6 +11,7 @@ import { MAX_ACTIVE_AUTOMATIONS } from "./[id]";
 import CandidateViews from "@/components/CandidateViews";
 import { useAutomationResults } from "@/hooks/useAutomationResults";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Loading } from "@/components/ui/loading";
 
 export const LIMIT_MESSAGE = "자동화는 한번에 최대 2개까지 진행 가능합니다."
 
@@ -71,7 +72,7 @@ export default function AutomationIndexPage() {
               <div className="w-full">
                 <div className="flex flex-row items-center justify-between">
                   <div className="text-3xl font-hedvig font-light tracking-tight text-white">
-                    Deep Automation
+                    Harper Scout
                   </div>
                   <button
                     type="button"
@@ -101,8 +102,7 @@ export default function AutomationIndexPage() {
 
                 </div>
                 <div className="mt-4 text-sm text-xgray800">
-                  Harper가 헤드헌터로서 필요한 인재, 팀 문화 등을 채팅으로
-                  파악하고 자동 추천을 진행합니다. 각 Automation당 매일 1~2명이 추천되며, 각 후보자당 1 크레딧이 소모됩니다.
+                  Harper가 헤드헌터로서 필요한 인재 역량, 팀 문화 등을 바탕으로 매일 후보자를 찾아 추천합니다.<br />각 Automation당 매일 1~2명이 추천되며, 각 후보자당 1 크레딧이 소모됩니다.
                 </div>
               </div>
             </div>
@@ -111,11 +111,11 @@ export default function AutomationIndexPage() {
 
         <div className="mx-auto w-full px-4 pb-16 mt-8">
           {isLoading && (
-            <div className="py-8 text-sm text-xgray800">불러오는 중...</div>
+            <div className="py-8 text-sm text-xgray800"><Loading label="불러오는 중..." className="text-xgray800" isFullScreen={true} /></div>
           )}
 
           {!isLoading && items.length === 0 && (
-            <div className="py-12 text-sm text-xgray800">
+            <div className="py-2 text-sm text-xgray800">
               아직 등록된 자동화가 없습니다.
             </div>
           )}
@@ -149,7 +149,7 @@ export default function AutomationIndexPage() {
                     >
                       <div className="flex items-start justify-between">
                         <div className="text-base font-medium text-white">
-                          {item.title ?? "Automation"} #{item.id.slice(0, 6)}
+                          {item.title ?? "Scout"} #{item.id.slice(0, 6)}
                         </div>
                         <span
                           className={[
@@ -174,7 +174,7 @@ export default function AutomationIndexPage() {
                           e.stopPropagation();
                           router.push(`/my/automation/${item.id}`);
                         }}
-                        className="absolute right-3 bottom-3 rounded-full bg-accenta1 px-3 py-1.5 text-xs text-black transition hover:bg-accenta1/80"
+                        className="absolute right-3 bottom-3 rounded-md bg-accenta1 px-3 py-1.5 text-xs text-black transition hover:bg-accenta1/80"
                       >
                         내용 수정
                       </button>
@@ -226,7 +226,7 @@ function AutomationResultsList({
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  if (isLoading) return <div className="text-sm text-xgray800">Loading...</div>;
+  if (isLoading) return <Loading className="text-xgray800" />;
   if (error)
     return <div className="text-sm text-red-400">불러오지 못했습니다.</div>;
 

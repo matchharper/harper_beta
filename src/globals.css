@@ -101,7 +101,7 @@ body {
   }
 }
 
-button{
+button {
   cursor: pointer;
 }
 
@@ -192,7 +192,8 @@ button{
   /* 1) 위 레이어: 아주 은은한 라이트
      2) 아래 레이어: 거의 안 보이는 점 패턴
   */
-  background-image: radial-gradient(
+  background-image:
+    radial-gradient(
       circle at var(--mouse-x, 50%) var(--mouse-y, 40%),
       rgba(56, 189, 248, 0.32) 0%,
       /* 중심도 많이 안 밝게 */ rgba(15, 23, 42, 0.12) 22%,
@@ -204,7 +205,9 @@ button{
     );
 
   background-repeat: no-repeat, repeat;
-  background-size: 100% 100%, 42px 42px; /* 점 간격도 조금 넓게 */
+  background-size:
+    100% 100%,
+    42px 42px; /* 점 간격도 조금 넓게 */
 }
 
 /* 안쪽 컨텐츠는 항상 위에 */
@@ -460,7 +463,6 @@ button{
     animation: none;
   }
 }
-
 
 @keyframes stepDropIn {
   0% {

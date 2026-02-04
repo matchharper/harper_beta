@@ -13,19 +13,7 @@ import TextInput from "@/components/apply/TextInput";
 import { Selections } from "@/components/landing/Join";
 import { isValidEmail } from ".";
 import { useIsMobile } from "@/hooks/useIsMobile";
-
-const RolesOptions = [
-  "전문 Recruiter",
-  "CEO",
-  "채용 담당자",
-  "CTO",
-  "인사팀 매니저",
-  "Team Lead",
-  "Engineer",
-  "기타",
-];
-
-const SizeOptions = ["1-10명", "11-50명", "51-100명", "101-200명", "201-500명", "501 이상"];
+import { useMessages } from "@/i18n/useMessage";
 
 type StepKey =
   | "contact"
@@ -45,6 +33,7 @@ type StepDef = {
 const Onboard: React.FC = () => {
   // ✅ step은 “visibleSteps 기준 index”
   const [step, setStep] = useState(0);
+  const { m } = useMessages();
 
   const [submitLoading, setSubmitLoading] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -63,7 +52,10 @@ const Onboard: React.FC = () => {
   const [additional, setAdditional] = useState("");
 
   // ✅ recruiter path 판정
-  const isRecruiter = useMemo(() => roles.includes("전문 Recruiter"), [roles]);
+  const recruiterRole = m.join.roles.recruiter;
+  const rolesOptions = Array.from(m.join.roles.options);
+  const sizeOptions = Array.from(m.join.sizes);
+  const isRecruiter = useMemo(() => roles.includes(recruiterRole), [recruiterRole, roles]);
 
   const isMobile = useIsMobile();
 
@@ -72,13 +64,13 @@ const Onboard: React.FC = () => {
     const base: StepDef[] = [
       {
         key: "contact",
-        title: "성함과 연락받으실 이메일 주소를 알려주세요.",
-        description: "",
+        title: m.join.steps.contact.title,
+        description: m.join.steps.contact.description,
       },
       {
         key: "role",
-        title: "회사에서 어떤 역할을 담당하고 계시나요?",
-        description: "",
+        title: m.join.steps.role.title,
+        description: m.join.steps.role.description,
       },
     ];
 
@@ -86,23 +78,23 @@ const Onboard: React.FC = () => {
       base.push(
         {
           key: "company",
-          title: "회사명과 홈페이지를 알려주세요.",
-          description: "(홈페이지는 선택사항입니다.)",
+          title: m.join.steps.company.title,
+          description: m.join.steps.company.description,
         },
         {
           key: "size",
-          title: "회사의 규모 (총 직원 수)는 어떻게 되나요?",
-          description: "",
+          title: m.join.steps.size.title,
+          description: m.join.steps.size.description,
         },
         {
           key: "needs",
-          title: "가장 중요하게 채용이 필요한 포지션(직무)과 대략적인 인원수를 알려주세요.",
-          description: "optional",
+          title: m.join.steps.needs.title,
+          description: m.join.steps.needs.description,
         },
         {
           key: "additional",
-          title: "하퍼에게 추가로 전달하고 싶은 내용이나, 현재 채용에 대한 고민이 있다면 자유롭게 적어주세요.",
-          description: "optional",
+          title: m.join.steps.additional.title,
+          description: m.join.steps.additional.description,
         }
       );
     }
@@ -111,19 +103,19 @@ const Onboard: React.FC = () => {
       base.push(
         {
           key: "company",
-          title: "소속/에이전시명과 홈페이지를 알려주세요.",
-          description: "(홈페이지는 선택사항입니다.)",
+          title: m.join.steps.companyRecruiter.title,
+          description: m.join.steps.companyRecruiter.description,
         },
         {
           key: "additional",
-          title: "하퍼에게 추가로 전달하고 싶은 내용이나, 가장 해결되었으면 하는 니즈가 있다면 자유롭게 적어주세요.",
-          description: "optional",
+          title: m.join.steps.additionalRecruiter.title,
+          description: m.join.steps.additionalRecruiter.description,
         }
       );
     }
 
     return base;
-  }, [isRecruiter]);
+  }, [isRecruiter, m]);
 
   const isDone = step === visibleSteps.length;
 
@@ -146,22 +138,22 @@ const Onboard: React.FC = () => {
     const key = currentStep?.key;
 
     if (key === "contact") {
-      if (!name.trim()) return toast("이름을 입력해주세요."), false;
-      if (!email.trim()) return toast("이메일을 입력해주세요."), false;
-      if (!isValidEmail(email)) return toast("유효한 이메일을 입력해주세요."), false;
+      if (!name.trim()) return toast(m.join.validation.nameRequired), false;
+      if (!email.trim()) return toast(m.join.validation.emailRequired), false;
+      if (!isValidEmail(email)) return toast(m.join.validation.emailInvalid), false;
     }
 
     if (key === "company") {
-      if (!company.trim()) return toast("회사명을 입력해주세요."), false;
+      if (!company.trim()) return toast(m.join.validation.companyRequired), false;
       // if (!companyLink.trim()) return toast("홈페이지 URL을 입력해주세요."), false;
     }
 
     if (key === "size") {
-      if (!size && !value) return toast("회사 규모를 선택해주세요."), false;
+      if (!size && !value) return toast(m.join.validation.sizeRequired), false;
     }
 
     return true;
-  }, [currentStep?.key, name, email, company, companyLink, size, toast]);
+  }, [currentStep?.key, name, email, company, companyLink, size, toast, m]);
 
   const saveIfDirty = useCallback(async () => {
     if (!isDirty) return;
@@ -291,17 +283,20 @@ const Onboard: React.FC = () => {
       {isDone ? (
         <div className="flex flex-1 flex-col gap-4 items-center justify-center pb-0 md:pb-28 h-full w-full text-center px-6">
           <Image src="/images/logo.png" alt="Harper Logo" width={32} height={32} />
-          <div className="text-2xl font-normal mt-2">등록이 완료되었습니다.</div>
+          <div className="text-2xl font-normal mt-2">{m.join.done.title}</div>
           <div className="text-lg font-normal text-xgray700">
-            Harper는 여러분의 팀에 가장 적합한 지원자를 소개하기 위해 준비 중입니다.
-            <br />
-            빠른 시일 내 연락드리겠습니다.
+            {m.join.done.description.split("\n").map((line) => (
+              <React.Fragment key={line}>
+                {line}
+                <br />
+              </React.Fragment>
+            ))}
           </div>
           <button
             onClick={() => router.push("/companies")}
             className="bg-brightnavy text-white mt-4 px-4 h-11 rounded-[4px] text-lg font-medium hover:opacity-90"
           >
-            돌아가기
+            {m.join.done.backToCompanies}
           </button>
         </div>
       ) : (
@@ -344,8 +339,8 @@ const Onboard: React.FC = () => {
                   <>
                     <TextInput
                       autoFocus
-                      label="이름"
-                      placeholder="이름"
+                      label={m.join.fields.nameLabel}
+                      placeholder={m.join.fields.namePlaceholder}
                       value={name}
                       onChange={(e) => {
                         setName(e.target.value);
@@ -353,8 +348,8 @@ const Onboard: React.FC = () => {
                       }}
                     />
                     <TextInput
-                      label="이메일"
-                      placeholder="example@company.com"
+                      label={m.join.fields.emailLabel}
+                      placeholder={m.join.fields.emailPlaceholder}
                       value={email}
                       onChange={(e) => {
                         setEmail(e.target.value);
@@ -376,7 +371,7 @@ const Onboard: React.FC = () => {
                       // }, 350);
                     }}
                     setIsDirty={setIsDirty}
-                    options={RolesOptions}
+                    options={rolesOptions}
                   />
                 )}
 
@@ -384,8 +379,8 @@ const Onboard: React.FC = () => {
                   <>
                     <TextInput
                       autoFocus
-                      label="회사명"
-                      placeholder="예) Harper"
+                      label={m.join.fields.companyLabel}
+                      placeholder={m.join.fields.companyPlaceholder}
                       value={company}
                       onChange={(e) => {
                         setCompany(e.target.value);
@@ -393,8 +388,8 @@ const Onboard: React.FC = () => {
                       }}
                     />
                     <TextInput
-                      label="홈페이지 URL"
-                      placeholder="예) https://matchharper.com"
+                      label={m.join.fields.companyLinkLabel}
+                      placeholder={m.join.fields.companyLinkPlaceholder}
                       value={companyLink}
                       onChange={(e) => {
                         setCompanyLink(e.target.value);
@@ -413,14 +408,14 @@ const Onboard: React.FC = () => {
                       setTimeout(() => void goNext(v), 350);
                     }}
                     setIsDirty={setIsDirty}
-                    options={SizeOptions}
+                    options={sizeOptions}
                   />
                 )}
 
                 {currentStep.key === "needs" && (
                   <TextInput
                     autoFocus
-                    placeholder="예) Machine Learning 엔지니어 2명, Deep Learning 연구원 1명"
+                    placeholder={m.join.fields.needsPlaceholder}
                     value={needs}
                     onChange={(e) => {
                       setNeeds(e.target.value);
@@ -432,13 +427,26 @@ const Onboard: React.FC = () => {
                 {currentStep.key === "additional" && (
                   <TextInput
                     autoFocus
-                    placeholder="예) 현재 채용이 급한데, 어떤 기준으로 후보를 보면 좋을지 고민입니다."
+                    placeholder={m.join.fields.additionalPlaceholder}
                     value={additional}
                     onChange={(e) => {
                       setAdditional(e.target.value);
                       setIsDirty(true);
                     }}
                     rows={3}
+                  />
+                )}
+
+                {currentStep.key === "size" && (
+                  <Selections
+                    selected={size}
+                    setSelected={(v) => {
+                      setSize(v);
+                      setIsDirty(true);
+                      setTimeout(() => void goNext(v), 350);
+                    }}
+                    setIsDirty={setIsDirty}
+                    options={sizeOptions}
                   />
                 )}
 
@@ -454,20 +462,20 @@ const Onboard: React.FC = () => {
                         <LoaderCircle className="w-6 h-6 animate-spin text-white" />
                       </span>
                     ) : step === visibleSteps.length - 1 ? (
-                      "Submit"
+                      m.join.actions.submit
                     ) : (
-                      "Next"
+                      m.join.actions.next
                     )}
                   </button>
 
                   <span className="text-[14px] font-light flex-row items-center gap-1 hidden md:flex">
-                    <span className="text-xgray700">press</span>
-                    <span className="text-black font-medium">Enter</span>
+                    <span className="text-xgray700">{m.join.actions.press}</span>
+                    <span className="text-black font-medium">{m.join.actions.enter}</span>
                     <CornerDownLeft size={14} strokeWidth={2} />
                   </span>
 
                   {/* 저장중 표시(원하면) */}
-                  {loading ? <span className="text-sm text-xgray600">저장중...</span> : null}
+                  {loading ? <span className="text-sm text-xgray600">{m.join.actions.saving}</span> : null}
                 </div>
               </motion.div>
             </AnimatePresence>
@@ -476,10 +484,10 @@ const Onboard: React.FC = () => {
           {/* Bottom-left dev nav */}
           <div className="flex flex-row items-center gap-2 fixed bottom-4 left-4 text-sm text-xgray600">
             <button type="button" className="underline hover:text-black" onClick={goPrev}>
-              Back
+              {m.join.actions.back}
             </button>
             <button type="button" className="underline hover:text-black" onClick={() => void goNext()}>
-              Next
+              {m.join.actions.next}
             </button>
           </div>
         </div>

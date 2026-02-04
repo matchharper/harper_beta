@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 
 import { supabase } from "@/lib/supabase";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
+import { useMessages } from "@/i18n/useMessage";
 
 const INITIAL_CREDIT = 10;
 
@@ -19,6 +20,7 @@ export default function LoginSuccess() {
   const [isLoading, setIsLoading] = useState(false);
   const [invalidMessage, setInvalidMessage] = useState("");
   const [isShake, setIsShake] = useState(false);
+  const { m } = useMessages();
 
   const interactiveRef = useRef<HTMLDivElement>(null);
 
@@ -43,7 +45,7 @@ export default function LoginSuccess() {
 
     if (!code) {
       setIsShake(true);
-      setInvalidMessage("초대 코드를 입력해주세요.");
+      setInvalidMessage(m.invitation.errors.emptyCode);
       setIsLoading(false);
       return;
     }
@@ -78,7 +80,7 @@ export default function LoginSuccess() {
           router.push("/my");
         } else {
           setIsShake(true);
-          setInvalidMessage("초대 코드가 일치하지 않습니다.");
+          setInvalidMessage(m.invitation.errors.invalidCode);
         }
         setIsLoading(false);
       });
@@ -101,12 +103,15 @@ export default function LoginSuccess() {
         {/* Heading */}
         <div className="">
           <h1 className="text-2xl md:text-4xl font-normal tracking-tight">
-            코드를 입력해주세요.
+            {m.invitation.title}
           </h1>
           <p className="text-sm md:text-base font-light text-xgray500 leading-relaxed mt-8">
-            하퍼는 현재 비공개 베타 중입니다. 초대 코드를 입력해주세요.
-            <br />
-            초대코드가 필요하신분은 대기자 명단에 등록해주세요.
+            {m.invitation.description.split("\n").map((line) => (
+              <React.Fragment key={line}>
+                {line}
+                <br />
+              </React.Fragment>
+            ))}
           </p>
         </div>
 
@@ -128,7 +133,7 @@ export default function LoginSuccess() {
                 type="text"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                placeholder="초대 코드"
+                placeholder={m.invitation.placeholder}
                 className="flex-1 rounded-3xl w-full bg-white/10 border border-neutral-800/80 px-4 py-4 text-sm md:text-sm
                 transition-all duration-200 hover:border-xgray700
                  placeholder:text-neutral-300 focus:outline-none font-light focus:ring-0.5 focus:ring-xgray600 focus:border-xgray600"
@@ -141,7 +146,7 @@ export default function LoginSuccess() {
                 {isLoading ? (
                   <LoaderCircle size={16} className="animate-spin" />
                 ) : (
-                  "입력하기"
+                  m.invitation.submit
                 )}
               </button>
             </form>
@@ -155,7 +160,7 @@ export default function LoginSuccess() {
             {/* Divider */}
             <div className="flex items-center gap-4 mt-10 mb-9">
               <div className="h-px flex-1 bg-neutral-600" />
-              <span className="text-xs text-neutral-500">또는</span>
+              <span className="text-xs text-neutral-500">{m.invitation.divider}</span>
               <div className="h-px flex-1 bg-neutral-600" />
             </div>
 
@@ -166,7 +171,7 @@ export default function LoginSuccess() {
               }}
               className="w-full rounded-full bg-neutral-50 text-black py-3.5 text-sm md:text-base font-medium hover:bg-neutral-200 active:scale-95 transition-all duration-200"
             >
-              사전 등록하기
+              {m.invitation.waitlist}
             </button>
 
             {/* Logout */}
@@ -174,7 +179,7 @@ export default function LoginSuccess() {
               onClick={handleContactUs}
               className="mt-8 w-full text-xs md:text-sm text-neutral-500 hover:text-neutral-400 mb-2 md:mb-4 transition-all duration-200"
             >
-              문의하기
+              {m.invitation.contact}
             </button>
           </div>
         </div>

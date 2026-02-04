@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import React, { useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { useMessages } from "@/i18n/useMessage";
 
 type Tag = {
   label: string;
@@ -11,39 +12,6 @@ type Tag = {
   y: number;
   rotate: number;
 };
-
-const CANDIDATE_MOBILE_TAGS: Tag[] = [
-  {
-    label: "San Francisco 기반 스타트업",
-    x: -60,
-    y: 40,
-    rotate: -14,
-  },
-  {
-    label: "0 to 1 경험, 경력 3년차 이하 개발자",
-    x: 5,
-    y: 50,
-    rotate: -4,
-  },
-  {
-    label: "우리 회사 문화에 맞는 Backend Engineer",
-    x: 0,
-    y: 5,
-    rotate: 6,
-  },
-  {
-    label: "반도체 공장 후공정 업무 경험 2년 이상",
-    x: 60,
-    y: 0,
-    rotate: 30,
-  },
-  {
-    label: "Ex-FAANG engineer open to startup",
-    x: 90,
-    y: 40,
-    rotate: 10,
-  },
-];
 
 export const FallingTagsSmall = ({
   theme = "transparent",
@@ -54,6 +22,40 @@ export const FallingTagsSmall = ({
 }) => {
   const [start, setStart] = useState(false);
   const isMobile = useIsMobile();
+  const { m } = useMessages();
+
+  const CANDIDATE_MOBILE_TAGS: Tag[] = [
+    {
+      label: "San Francisco 기반 스타트업",
+      x: -60,
+      y: 40,
+      rotate: -14,
+    },
+    {
+      label: "0 to 1 경험, 경력 3년차 이하 개발자",
+      x: 5,
+      y: 50,
+      rotate: -4,
+    },
+    {
+      label: "우리 회사 문화에 맞는 Backend Engineer",
+      x: 0,
+      y: 5,
+      rotate: 6,
+    },
+    {
+      label: "반도체 공장 후공정 업무 경험 2년 이상",
+      x: 60,
+      y: 0,
+      rotate: 30,
+    },
+    {
+      label: "Ex-FAANG engineer open to startup",
+      x: 90,
+      y: 40,
+      rotate: 10,
+    },
+  ];
 
   useEffect(() => {
     const t = setTimeout(() => setStart(true), startDelay);

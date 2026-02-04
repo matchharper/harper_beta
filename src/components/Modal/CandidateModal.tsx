@@ -6,6 +6,7 @@ import { ExpandIcon, XIcon } from "lucide-react";
 import { useRouter } from "next/router";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { useCandidateDetail } from "@/hooks/useCandidateDetail";
+import { Loading } from "@/components/ui/loading";
 
 const CandidateModalRoot = () => {
   const router = useRouter();
@@ -63,7 +64,9 @@ const CandidateModalRoot = () => {
               error={error}
             />
           )}
-          {(!payload.candidId || isLoading) && <div>로딩중입니다.</div>}
+          {(!payload.candidId || isLoading) && (
+            <Loading label="로딩중입니다." className="text-hgray600" />
+          )}
         </motion.div>
       )}
     </AnimatePresence>

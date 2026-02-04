@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import React from "react";
 import HistoryItem from "./HistoryItem";
 import { useMessages } from "@/i18n/useMessage";
+import { Loading } from "@/components/ui/loading";
 
 const QueryHistories = ({
   collapsed,
@@ -55,7 +56,15 @@ const QueryHistories = ({
           disabled={isFetchingNextPage}
           className="text-xs text-gray-500 py-2 hover:text-white transition-all duration-200"
         >
-          {isFetchingNextPage ? "Loading..." : m.system.loadmore}
+          {isFetchingNextPage ? (
+            <Loading
+              inline={true}
+              size="sm"
+              className="text-gray-500"
+            />
+          ) : (
+            m.system.loadmore
+          )}
         </button>
       )}
     </div>

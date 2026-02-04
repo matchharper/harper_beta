@@ -7,6 +7,7 @@ import { useMemo, useState } from "react";
 import { useCandidateDetail } from "@/hooks/useCandidateDetail";
 import CandidChatPanel from "@/components/chat/CandidChatPanel";
 import AddCustomModal from "@/components/Modal/AddCustomModal";
+import { Loading } from "@/components/ui/loading";
 
 export default function ProfileDetailPage() {
   const [isAddCustomModalOpen, setIsAddCustomModalOpen] = useState(false);
@@ -61,7 +62,9 @@ export default function ProfileDetailPage() {
             error={error}
           />
         )}
-        {(!candidId || isLoading) && <div>로딩중입니다</div>}
+        {(!candidId || isLoading) && (
+          <Loading label="로딩중입니다" className="text-hgray600" isFullScreen={true} />
+        )}
       </div>
     </AppLayout>
   );

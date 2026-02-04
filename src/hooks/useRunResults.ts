@@ -163,7 +163,7 @@ export function useRunPagesInfinite({
         queryFn: async ({ pageParam }) => {
             const pageIdx = pageParam as number;
 
-            const { ids } = await fetchRunPage({
+            const { ids, total } = await fetchRunPage({
                 runId: runId!,
                 pageIdx,
                 userId: userId!,
@@ -174,7 +174,7 @@ export function useRunPagesInfinite({
                 ? await fetchCandidatesByIds(ids, userId!, runId!)
                 : [];
 
-            return { pageIdx, ids, items };
+            return { pageIdx, ids, items, total };
         },
         getNextPageParam: (lastPage) => {
             if (!lastPage?.ids?.length) return undefined;

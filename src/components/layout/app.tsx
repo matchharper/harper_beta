@@ -134,7 +134,7 @@ const AppLayout = ({
           <NavItem
             collapsed={collapsed}
             active={isAutomation}
-            label="Deep Automation"
+            label="Harper Scout"
             icon={<Sparkles size={16} />}
             onClick={() => router.push("/my/automation")}
           />

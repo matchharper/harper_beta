@@ -190,24 +190,33 @@ export type Database = {
           company: string | null
           count: number
           created_at: string
+          credit: number
           domain: string | null
           id: string
+          limit: number
+          text: string | null
         }
         Insert: {
           code?: string | null
           company?: string | null
           count?: number
           created_at?: string
+          credit?: number
           domain?: string | null
           id?: string
+          limit?: number
+          text?: string | null
         }
         Update: {
           code?: string | null
           company?: string | null
           count?: number
           created_at?: string
+          credit?: number
           domain?: string | null
           id?: string
+          limit?: number
+          text?: string | null
         }
         Relationships: []
       }
@@ -686,6 +695,7 @@ export type Database = {
           company_link: string | null
           created_at: string
           email: string
+          is_betatest_agree: boolean
           is_mobile: boolean | null
           is_submit: boolean
           main: string | null
@@ -700,6 +710,7 @@ export type Database = {
           company_link?: string | null
           created_at?: string
           email: string
+          is_betatest_agree?: boolean
           is_mobile?: boolean | null
           is_submit?: boolean
           main?: string | null
@@ -714,6 +725,7 @@ export type Database = {
           company_link?: string | null
           created_at?: string
           email?: string
+          is_betatest_agree?: boolean
           is_mobile?: boolean | null
           is_submit?: boolean
           main?: string | null
@@ -721,6 +733,33 @@ export type Database = {
           needs?: string[] | null
           role?: string | null
           size?: string | null
+        }
+        Relationships: []
+      }
+      homepage: {
+        Row: {
+          bio: string | null
+          created_at: string
+          id: number
+          page_type: string | null
+          related_links: string | null
+          url: string | null
+        }
+        Insert: {
+          bio?: string | null
+          created_at?: string
+          id?: number
+          page_type?: string | null
+          related_links?: string | null
+          url?: string | null
+        }
+        Update: {
+          bio?: string | null
+          created_at?: string
+          id?: number
+          page_type?: string | null
+          related_links?: string | null
+          url?: string | null
         }
         Relationships: []
       }
@@ -792,6 +831,38 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      memory: {
+        Row: {
+          content: string | null
+          created_at: string
+          id: number
+          last_updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string
+          id?: number
+          last_updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          content?: string | null
+          created_at?: string
+          id?: number
+          last_updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "memory_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       messages: {
         Row: {
@@ -1103,6 +1174,7 @@ export type Database = {
           message_id: number | null
           page_idx: number | null
           run_id: string | null
+          seen_page: number
         }
         Insert: {
           candidate_ids?: Json[] | null
@@ -1111,6 +1183,7 @@ export type Database = {
           message_id?: number | null
           page_idx?: number | null
           run_id?: string | null
+          seen_page?: number
         }
         Update: {
           candidate_ids?: Json[] | null
@@ -1119,6 +1192,7 @@ export type Database = {
           message_id?: number | null
           page_idx?: number | null
           run_id?: string | null
+          seen_page?: number
         }
         Relationships: [
           {
@@ -1129,6 +1203,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      scraped_additional_links: {
+        Row: {
+          candid_id: string
+          created_at: string
+          identifier: string | null
+          links: Json | null
+        }
+        Insert: {
+          candid_id?: string
+          created_at?: string
+          identifier?: string | null
+          links?: Json | null
+        }
+        Update: {
+          candid_id?: string
+          created_at?: string
+          identifier?: string | null
+          links?: Json | null
+        }
+        Relationships: []
       }
       settings: {
         Row: {

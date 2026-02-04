@@ -15,12 +15,13 @@ import { DEEP_AUTOMATION_PROMPT } from "@/app/api/chat/chat_prompt";
 import { cn } from "@/lib/utils";
 import { LIMIT_MESSAGE } from "../automation";
 import { Play, Square } from "lucide-react";
+import { Loading } from "@/components/ui/loading";
 
 type AutomationRow = Database["public"]["Tables"]["automation"]["Row"];
 
 export const MAX_ACTIVE_AUTOMATIONS = 2;
 const INITIAL_ASSISTANT_MESSAGE =
-  "안녕하세요 하퍼입니다. 찾고자하시는 후보자에 대해서 알려주시면 가장 적합한 후보자를 찾아 매일 1~3명을 추천해드립니다.\n담당하실 역할, 필요한 기술/경험, 팀 문화, 채용 일정 등 핵심 정보를 알려주세요.\n충분히 정보가 모이면 오른쪽 위의 등록 버튼을 눌러 진행하실 수 있어요.";
+  "안녕하세요, Harper입니다.\n이번 채용에서 어떤 문제를 해결하고 싶은지부터 편하게 말씀해주세요.\n\n포지션, 팀 상황, 꼭 필요한 역량이 정리되지 않아도 괜찮습니다.\n대화를 통해 함께 구조화하고, 가장 적합한 후보를 찾아드릴게요.";
 
 function createLocalId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -284,10 +285,18 @@ export default function AutomationDetailPage() {
     if (wasDraft) {
       try {
         await notifyToSlack(
-          `[Deep Automation 시작]\n유저: ${companyUser?.name} - ${companyUser?.company}\nuser_id=${userId}\nautomation_id=${automationId}`
+          `🤖 [Harper Scout 시작]\n유저: ${companyUser?.name} - ${companyUser?.company}\nuser_id=${userId}\nautomation_id=${automationId}`
         );
       } catch { }
     }
+    void fetch("/api/memory/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId,
+        queryId: automationId,
+      }),
+    });
     setIsSaving(false);
     router.push("/my/automation");
   }, [automationId, userId, qc, router, fetchActiveAutomationCount, isDraft, credits]);
@@ -319,7 +328,7 @@ export default function AutomationDetailPage() {
     await qc.invalidateQueries({ queryKey: ["automation", userId] });
     try {
       await notifyToSlack(
-        `[Deep Automation 진행 정지] user_id=${userId} automation_id=${automationId}`
+        `🍊 [Harper Scout 진행 정지] user_id=${userId} automation_id=${automationId}`
       );
     } catch { }
     setIsSaving(false);
@@ -359,7 +368,7 @@ export default function AutomationDetailPage() {
     await qc.invalidateQueries({ queryKey: ["automation", userId] });
     try {
       await notifyToSlack(
-        `[Deep Automation 진행 재개] user_id=${userId} automation_id=${automationId}`
+        `🪙 [Harper Scout 진행 재개] user_id=${userId} automation_id=${automationId}`
       );
     } catch { }
     setIsSaving(false);
@@ -378,7 +387,7 @@ export default function AutomationDetailPage() {
   }, [isDraft, automation?.is_in_progress]);
 
   const statusMessage = useMemo(() => {
-    if (isDraft) return "자동 추천 등록 전입니다. 충분한 정보가 모이면 등록을 눌러주세요.";
+    if (isDraft) return "자동 추천 등록 전입니다. 충분한 정보가 모이면 등록을 눌러주세요. 언제든지 내용을 수정하거나 추가하실 수 있습니다.";
     if (automation?.is_in_progress) return "현재 매일 후보자 추천 중입니다.";
     return "현재 추천이 중지되어 있습니다. 진행을 누르면 다시 추천이 시작됩니다.";
   }, [isDraft, automation?.is_in_progress]);
@@ -439,7 +448,7 @@ export default function AutomationDetailPage() {
       <div className="relative flex w-full min-h-screen">
         {(isLoading || !isMessageReady) && (
           <div className="w-full px-6 py-8 text-sm text-xgray800">
-            불러오는 중...
+            <Loading label="불러오는 중..." className="text-xgray800" isFullScreen={true} />
           </div>
         )}
 
@@ -449,12 +458,12 @@ export default function AutomationDetailPage() {
             <div className="w-full max-w-[780px] px-3 md:px-0">
               {/* Sticky header: title + status + actions */}
               <div className="absolute top-2 z-30 w-full max-w-[780px] ">
-                <div className="rounded-2xl border border-white/10 bg-black/90 backdrop-blur-xl shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
+                <div className="bg-hgray200">
                   <div className="flex items-start justify-between gap-3 px-3 py-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <div className="text-sm font-medium text-white">
-                          Deep Automation
+                          Harper Scout
                         </div>
 
                         <span
@@ -467,7 +476,7 @@ export default function AutomationDetailPage() {
                         </span>
                       </div>
 
-                      <div className="mt-1 text-[12px] text-white/70">
+                      <div className="mt-2 text-[13px] text-hgray700">
                         {statusMessage}
                       </div>
                     </div>
@@ -479,11 +488,12 @@ export default function AutomationDetailPage() {
 
               {/* Chat */}
               <ChatPanel
-                title="Deep Automation"
+                title="Harper Scout"
                 scope={{ type: "query", queryId: automationId }}
                 userId={userId}
                 onSearchFromConversation={async () => { }}
                 systemPromptOverride={DEEP_AUTOMATION_PROMPT}
+                memoryMode="automation"
                 onBack={handleBack}
               />
             </div>

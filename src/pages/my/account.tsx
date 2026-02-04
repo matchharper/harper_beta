@@ -90,23 +90,21 @@ const Account = () => {
                 />
               )}
             </div>
-            <InputLabel label="Name" value={name} onChange={setName} />
-            {/* <div className="flex flex-row items-center justify-between w-full gap-4"> */}
+            <div className="flex flex-row items-center justify-between w-full gap-4">
+              <InputLabel label="Name" value={name} onChange={setName} />
+              <InputLabel label="Role/Title" value={role} onChange={setRole} />
+            </div>
             <InputLabel
               label="Company Name"
               value={company}
               onChange={setCompany}
             />
-            <InputLabel label="Role/Title" value={role} onChange={setRole} />
             {/* </div> */}
-            <div className="flex flex-row items-center justify-between w-full gap-4">
-              <InputLabel label="City" value={city} onChange={setCity} />
-              <InputLabel
-                label="Country"
-                value={country}
-                onChange={setCountry}
-              />
-            </div>
+            <InputLabel
+              label="본사/근무 위치"
+              value={country}
+              onChange={setCountry}
+            />
             {isModified && (
               <div className="flex flex-row gap-2 w-full items-end justify-end absolute bottom-0 right-0">
                 <button
