@@ -1,8 +1,8 @@
 import { supabase } from "@/lib/supabase";
 import { StatusEnum } from "@/types/type";
-import { logger } from "@/utils/logger";
-import { Check, Circle, CircleSlash, Clock, Loader2, Square } from "lucide-react";
+import { Check, Circle, CircleSlash, Loader2, Square } from "lucide-react";
 import React, { useEffect, useCallback, useMemo, useState, useRef } from "react";
+import { useMessages } from "@/i18n/useMessage";
 
 type StepState = "done" | "active" | "pending" | "error";
 
@@ -24,11 +24,35 @@ type DerivedProgress = {
   detail?: string;
 };
 
+type TimelineLabels = {
+  steps: {
+    parseTitle: string;
+    parseDesc: string;
+    planTitle: string;
+    planDesc: string;
+    refineTitle: string;
+    refineDesc: string;
+    runningTitle: string;
+    runningDesc: string;
+    rankingTitle: string;
+    rankingDesc: string;
+    recoveryTitle: string;
+    recoveryDesc: string;
+    recoveryRetryTitle: string;
+    recoveryRetryDesc: string;
+    retryTitle: string;
+    retryDesc: string;
+  };
+};
+
 /**
  * Derives a progress timeline from statusMessage string.
  * Intentionally string-based because status is “human sentences”.
  */
-export function deriveProgress(statusMessage: string): DerivedProgress {
+export function deriveProgress(
+  statusMessage: string,
+  labels: TimelineLabels
+): DerivedProgress {
   const raw = statusMessage || "";
   const s = raw.toLowerCase();
 
@@ -41,32 +65,32 @@ export function deriveProgress(statusMessage: string): DerivedProgress {
   const base: StepDef[] = [
     {
       key: "parse",
-      title: "요청 이해",
-      description: "기준을 해석하고 검색 전략을 구성합니다.",
+      title: labels.steps.parseTitle,
+      description: labels.steps.parseDesc,
       match: (x) => x.includes("aasadwq---default-done"),
     },
     {
       key: "plan",
-      title: "검색 전략 세우기",
-      description: "기준을 구체화하고 검색 범위를 정합니다.",
+      title: labels.steps.planTitle,
+      description: labels.steps.planDesc,
       match: (x) => x.includes("parsing"),
     },
     {
       key: "refine",
-      title: "검색 방법 최적화",
-      description: "쿼리/조건을 다듬어 성능과 정확도를 최적화합니다.",
+      title: labels.steps.refineTitle,
+      description: labels.steps.refineDesc,
       match: (x) => x.includes("refine") || x.includes("optimiz"),
     },
     {
       key: "running",
-      title: "전체 후보자 찾기",
-      description: "경력/회사/키워드 기반으로 후보를 넓게 찾습니다.",
+      title: labels.steps.runningTitle,
+      description: labels.steps.runningDesc,
       match: (x) => x.includes("running") || x.includes("searching") || x.includes("queued"),
     },
     {
       key: "ranking",
-      title: "랭킹/스코어링",
-      description: "기준에 맞게 우선순위를 계산합니다.",
+      title: labels.steps.rankingTitle,
+      description: labels.steps.rankingDesc,
       match: (x) => x.includes("ranking") || x.includes("scoring") || x.includes("partial") || x.includes("done"),
     },
   ];
@@ -79,10 +103,12 @@ export function deriveProgress(statusMessage: string): DerivedProgress {
   if (rankingIdx >= 0) {
     defs.splice(rankingIdx, 0, {
       key: insertedKey,
-      title: isRetry ? "복구/재시도 경로 실행" : "조건 추가하기",
+      title: isRetry
+        ? labels.steps.recoveryRetryTitle
+        : labels.steps.recoveryTitle,
       description: isRetry
-        ? "조건을 완화하거나 다른 전략으로 재시도합니다."
-        : "문제를 분석하고 안전한 방식으로 계속 진행합니다.",
+        ? labels.steps.recoveryRetryDesc
+        : labels.steps.recoveryDesc,
       match: (x) =>
         // Make it easy to activate this step from string status
         x.includes("error_handling") || x.includes("recovery") || x.includes("fallback"),
@@ -91,8 +117,8 @@ export function deriveProgress(statusMessage: string): DerivedProgress {
     if (isRetry) {
       defs.splice(rankingIdx + 1, 0, {
         key: "retry_run",
-        title: "대체 전략으로 후보 재탐색",
-        description: "타임아웃/실패 조건을 회피해 다시 후보를 찾습니다.",
+        title: labels.steps.retryTitle,
+        description: labels.steps.retryDesc,
         match: (x) => x.includes("expanding") || x.includes("retry") || x.includes("rerun"),
       });
     }
@@ -154,7 +180,11 @@ export function deriveProgress(statusMessage: string): DerivedProgress {
 
 
 const Timeline = ({ statusMessage, runId }: { statusMessage: string, runId: string }) => {
-  const progress = useMemo(() => deriveProgress(statusMessage || ""), [statusMessage]);
+  const { m } = useMessages();
+  const progress = useMemo(
+    () => deriveProgress(statusMessage || "", m.search.timeline),
+    [statusMessage, m.search.timeline]
+  );
 
   const stopRun = useCallback(async () => {
     if (!runId) return;
@@ -214,7 +244,7 @@ const Timeline = ({ statusMessage, runId }: { statusMessage: string, runId: stri
           <div className="flex flex-col gap-2 items-center justify-center">
             <div className="text-sm font-light mt-4 text-hgray900 flex flex-row gap-2 items-center">
               <CircleSlash className="w-3.5 h-3.5 text-hgray900" />
-              <div className="animate-textGlow">검색 중지됨</div>
+              <div className="animate-textGlow">{m.search.timeline.stopped}</div>
             </div>
           </div>
         ) : (
@@ -223,7 +253,7 @@ const Timeline = ({ statusMessage, runId }: { statusMessage: string, runId: stri
             <div className="flex flex-row items-center justify-between mb-4">
               <div className="flex flex-col">
                 <div className="text-base font-medium text-hgray900">
-                  Harper가 후보를 찾는 중이에요
+                  {m.search.timeline.headerTitle}
                 </div>
               </div>
 
@@ -232,7 +262,7 @@ const Timeline = ({ statusMessage, runId }: { statusMessage: string, runId: stri
                 className="py-1.5 px-2 rounded-sm text-hgray900/80 text-sm font-light hover:bg-white/0 cursor-pointer bg-white/0 flex flex-row gap-2 items-center hover:text-red-500/80 transition-colors duration-200"
               >
                 <Square className="w-3 h-3" fill="currentColor" />
-                <span>Stop</span>
+                <span>{m.search.timeline.stop}</span>
               </button>
             </div>
 
@@ -315,7 +345,7 @@ const Timeline = ({ statusMessage, runId }: { statusMessage: string, runId: stri
 
             {/* Optional: small reassurance row */}
             <div className="text-xs text-hgray600 mt-3">
-              * max 플랜 사용자라면 동시에 여러 개의 검색을 실행할 수 있습니다.
+              {m.search.timeline.note}
             </div>
           </div>
         )}

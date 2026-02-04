@@ -2,12 +2,31 @@ import { xaiInference } from "@/lib/llm/llm";
 import { supabase } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
 import { deduplicateAndScore, UI_END, UI_START } from "../utils";
-import { ko } from "@/lang/ko";
 import { logger } from "@/utils/logger";
 import { updateRunStatus } from "../utils";
 import { makeSqlQuery } from "../parse";
 import { searchDatabase } from "../parse";
 import { notifyToSlack } from "@/lib/slack";
+import { en } from "@/lang/en";
+import { ko } from "@/lang/ko";
+
+type Locale = "ko" | "en";
+
+const getLocaleFromRequest = (req: NextRequest): Locale => {
+  const cookie = req.cookies.get("NEXT_LOCALE")?.value;
+  if (cookie === "ko" || cookie === "en") return cookie;
+  const accept = req.headers.get("accept-language")?.toLowerCase() ?? "";
+  return accept.startsWith("ko") ? "ko" : "en";
+};
+
+const formatTemplate = (
+  template: string,
+  vars: Record<string, string | number>
+) => {
+  return template.replace(/\{(\w+)\}/g, (_, key) =>
+    String(vars[key] ?? "")
+  );
+};
 
 type RunRow = {
   id: string;
@@ -19,6 +38,9 @@ type RunRow = {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
+  const locale = getLocaleFromRequest(req);
+  const messages = locale === "ko" ? ko : en;
+  const searchMessages = messages.search;
   const { queryId, runId, pageIdx, userId } = body as {
     queryId?: string;
     runId?: string;
@@ -150,9 +172,9 @@ export async function POST(req: NextRequest) {
   }
 
   if (!sql_query) {
-    await updateRunStatus(run.id, ko.loading.making_query);
+    await updateRunStatus(run.id, searchMessages.status.parsing);
 
-    const parsedQuery = await makeSqlQuery(query_text, criteria, "", run.id);
+    const parsedQuery = await makeSqlQuery(query_text, criteria, "", run.id, locale);
     if (typeof parsedQuery !== "string") {
       await updateRunStatus(run.id, JSON.stringify(parsedQuery));
       return NextResponse.json(parsedQuery, { status: 404 });
@@ -178,7 +200,8 @@ export async function POST(req: NextRequest) {
       sql_query: sql_query,
       limit: 150,
       offset: offset,
-      review_count: 100
+      review_count: 100,
+      locale,
     });
     searchResults = searchResultsData;
     searchStatus = searchStatusData;
@@ -193,16 +216,32 @@ export async function POST(req: NextRequest) {
 
   logger.log(`${searchResults.length}명을 찾았습니다. 전체 만족은 ${fullScoreCount}명, 0.5점 이상은 ${onlyPartCriteriaSatisfiedCount}명입니다.`);
 
-  let defaultMsg = `전체 후보자들 중 ${searchResults.length}명을 선정하고, 기준을 만족하는지 검사했습니다. ${fullScoreCount}명이 모든 기준을 만족했습니다.`;
-  if (criteria.length > 1)
-    defaultMsg += ` ${onlyPartCriteriaSatisfiedCount}명이 일부 기준만 만족했습니다.`;
-  if (searchResults.length > 0)
-    defaultMsg += `\n${UI_START}{"type": "search_result", "text": "검색 결과 ${fullScoreCount}/${searchResults.length}", "run_id": "${runId}"}${UI_END}`;
+  let defaultMsg = formatTemplate(searchMessages.defaultMessage.intro, {
+    total: searchResults.length,
+  });
+  defaultMsg +=
+    " " +
+    formatTemplate(searchMessages.defaultMessage.full, {
+      full: fullScoreCount,
+    });
+  if (criteria.length > 1) {
+    defaultMsg +=
+      " " +
+      formatTemplate(searchMessages.defaultMessage.partial, {
+        partial: onlyPartCriteriaSatisfiedCount,
+      });
+  }
+  if (searchResults.length > 0) {
+    const resultText = formatTemplate(searchMessages.ui.searchResult, {
+      full: fullScoreCount,
+      total: searchResults.length,
+    });
+    defaultMsg += `\n${UI_START}{"type": "search_result", "text": "${resultText}", "run_id": "${runId}"}${UI_END}`;
+  }
 
-  const msg = await xaiInference(
-    "grok-4-fast-reasoning",
-    "You are a helpful assistant agent, named Harper.",
-    `You are Harper’s “search completion messenger”.
+  const prompt =
+    locale === "ko"
+      ? `You are Harper’s “search completion messenger”.
 Write ONLY the additional message that will be appended after the default message.
 
 Hard rules:
@@ -224,7 +263,35 @@ Context (facts you may use):
 Default message (already shown to user; never repeat):
 ${defaultMsg}
 
-Now write the additional message:`,
+Now write the additional message:`
+      : `You are Harper’s “search completion messenger”.
+Write ONLY the additional message that will be appended after the default message.
+
+Hard rules:
+- Do NOT repeat or paraphrase the default message.
+- Output must be English.
+- Keep it short: 1–3 sentences (max 280 characters).
+- Be helpful and action-oriented: suggest what the user can do next.
+- Do not mention internal implementation details (SQL, LLM, limit=50, merged, fullScoreCount) unless it is necessary to clarify confusing results.
+- If status is ERROR, do not reveal technical details. Tell them the search failed, credits were not deducted, and suggest trying again.
+
+Context (facts you may use):
+- user_query: "${run.query_text}"
+- search_status: "${searchStatus}"  // e.g., SUCCESS | PARTIAL | ERROR
+- candidates_matched: ${merged.length}   // count from SQL-filtered set (max 50)
+- candidates_fully_satisfied: ${fullScoreCount}  // count judged by assistant reading details
+- candidates_partially_satisfied: ${onlyPartCriteriaSatisfiedCount}
+- criteria: ${criteria?.join(", ")}
+
+Default message (already shown to user; never repeat):
+${defaultMsg}
+
+Now write the additional message:`;
+
+  const msg = await xaiInference(
+    "grok-4-fast-reasoning",
+    "You are a helpful assistant agent, named Harper.",
+    prompt,
     0.8,
     1
   );

@@ -56,7 +56,7 @@ function LinkChips({ links }: Props) {
 
         try {
           host = new URL(url).hostname.replace("www.", "");
-        } catch {}
+        } catch { }
 
         const brand = BRAND_MAP.find((b) => b.match(url)) ?? {
           label: host,
@@ -69,13 +69,12 @@ function LinkChips({ links }: Props) {
             href={url}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex font-normal items-center gap-2 rounded-lg bg-white/5 px-2.5 py-1.5 text-sm text-white hover:bg-white/20 transition-all duration-200"
+            className="inline-flex font-normal items-center gap-2 rounded-lg bg-white/5 px-2.5 py-1.5 text-sm text-white hover:bg-white/10 transition-all duration-200"
           >
             <img
               src={brand.icon}
-              className={`${
-                brand.icon.includes("/svgs/chain") ? "h-3.5 w-3.5" : "h-4 w-4 "
-              }`}
+              className={`${brand.icon.includes("/svgs/chain") ? "h-3.5 w-3.5" : "h-4 w-4 "
+                }`}
               alt=""
             />
             {brand.label}

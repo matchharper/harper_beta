@@ -10,16 +10,32 @@ import { generateSummary } from "./criteria_summarize/utils";
 import { sumScore } from "./utils";
 import { ThinkingLevel } from "@google/genai";
 import { rpc_set_timeout_and_execute_raw_sql_via_runs } from "./worker";
-import { SYSTEM_MESSAGE_ENUM } from "@/lib/system";
+import { en } from "@/lang/en";
+import { ko } from "@/lang/ko";
+
+type Locale = "ko" | "en";
+
+const getMessages = (locale: Locale) => (locale === "ko" ? ko : en);
+
+const formatTemplate = (
+  template: string,
+  vars: Record<string, string | number>
+) => {
+  return template.replace(/\{(\w+)\}/g, (_, key) =>
+    String(vars[key] ?? "")
+  );
+};
 
 export async function makeSqlQuery(
   queryText: string,
   criteria: string[],
   extraInfo: string = "",
-  runId: string
+  runId: string,
+  locale: Locale = "en"
 ): Promise<string | any> {
   logger.log("🔥 시작 makeSqlQuery: ", queryText, criteria);
-  await updateRunStatus(runId, SYSTEM_MESSAGE_ENUM.PARSING);
+  const statusMessages = getMessages(locale).search.status;
+  await updateRunStatus(runId, statusMessages.parsing);
 
   try {
     let prompt = `
@@ -57,7 +73,7 @@ ${outText}
     const refinePrompt =
       sqlExistsPrompt + `\n Input SQL Query: """${sqlQueryWithGroupBy}"""`;
 
-    await updateRunStatus(runId, SYSTEM_MESSAGE_ENUM.REFINE);
+    await updateRunStatus(runId, statusMessages.refine);
 
     const start = performance.now();
     const outText2 = (await geminiInference(
@@ -208,7 +224,8 @@ export const searchDatabase = async ({
   sql_query,
   limit = 50,
   offset = 0,
-  review_count = 50
+  review_count = 50,
+  locale = "en"
 }: {
   query_text: string;
   criteria: string[];
@@ -218,9 +235,11 @@ export const searchDatabase = async ({
   limit?: number;
   offset?: number;
   review_count?: number;
+  locale?: Locale;
 }) => {
   let limit_num = limit;
   let review_count_num = review_count;
+  const statusMessages = getMessages(locale).search.status;
 
 
   let data: any[] | null = [];
@@ -257,10 +276,15 @@ export const searchDatabase = async ({
       additional_prompt += `\n\n [ERROR]\n ${error.message}\n`;
 
     if (error)
-      await updateRunStatus(run.id, SYSTEM_MESSAGE_ENUM.ERROR_HANDLING)
+      await updateRunStatus(run.id, statusMessages.errorHandling)
 
     if (!error && candidates.length < 10)
-      await updateRunStatus(run.id, `error_handling: ${candidates.length}명의 후보자를 찾았습니다. 더 많은 후보자를 찾기 위해 검색 조건을 확장하겠습니다. `);
+      await updateRunStatus(
+        run.id,
+        formatTemplate(statusMessages.errorHandlingWithCount, {
+          count: candidates.length,
+        })
+      );
 
     const fixed_query = await geminiInference(
       "gemini-3-flash-preview",
@@ -307,13 +331,12 @@ ${sql_query}
     if (!error) {
       await updateRunStatus(
         run.id,
-        "expanding: " + candidates.length + "명의 후보자를 찾았습니다. 더 많은 후보자를 찾기 위해 검색 범위를 넓혀서 검색을 시도하겠습니다..."
+        formatTemplate(statusMessages.expandingWithCount, {
+          count: candidates.length,
+        })
       );
     } else
-      await updateRunStatus(
-        run.id,
-        "expanding: 더 많은 후보자를 찾기 위해 검색 범위를 넓혀서 검색을 시도하겠습니다..."
-      );
+      await updateRunStatus(run.id, statusMessages.expanding);
 
     let fallback_sql = '';
 
@@ -384,7 +407,7 @@ input text for searching: ${query_text}
   }
 
   await assertNotCanceled(run.id);
-  await updateRunStatus(run.id, SYSTEM_MESSAGE_ENUM.RANKING);
+  await updateRunStatus(run.id, statusMessages.ranking);
 
   const scored = await reranking({ candidates, criteria, query_text, review_count_num, runId: run.id });
 

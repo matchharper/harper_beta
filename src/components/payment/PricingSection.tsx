@@ -93,47 +93,43 @@ export default function PricingSection({ onClick }: { onClick: (plan: string) =>
     }, [billing, isEnglish, pricing]);
 
     return (
-        <section id="pricing" className="w-full bg-black text-white">
-            <Animate>
-                <BaseSectionLayout>
-                    <div className="w-full flex flex-col items-center justify-center text-center px-4 md:px-0">
-                        {/* <Head1 className="text-white">Pricing</Head1> */}
-                        <div className="mt-4 md:mt-6 text-[24px] md:text-[40px] font-semibold tracking-tight">
-                            {pricing.title}
-                        </div>
-                        <div className="mt-3 text-sm md:text-base text-white/60 font-light">
-                            {pricing.subtitle}
-                        </div>
+        <section id="pricing" className="w-full text-hgray900">
+            <div className="w-full flex flex-col items-center justify-center text-center px-4 md:px-0">
+                {/* <Head1 className="text-white">Pricing</Head1> */}
+                <div className="mt-4 md:mt-6 text-[24px] md:text-[40px] font-semibold tracking-tight">
+                    {pricing.title}
+                </div>
+                <div className="mt-3 text-sm md:text-base text-white/60 font-light">
+                    {pricing.subtitle}
+                </div>
 
-                        <div className="mt-8 md:mt-10">
-                            <BillingToggle billing={billing} setBilling={setBilling} />
-                            {/* <div className="mt-3 text-xs text-white/45">
+                <div className="mt-8 md:mt-10">
+                    <BillingToggle billing={billing} setBilling={setBilling} />
+                    {/* <div className="mt-3 text-xs text-white/45">
                                 연간 결제 시 <span className="text-white/70">20% 할인</span>{" "}
                                 적용된 월 환산 가격입니다.
                             </div> */}
-                        </div>
+                </div>
 
-                        <div className="mt-12 md:mt-16 w-full max-w-[1200px]">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-4">
-                                {plans.map((p) => (
-                                    <PlanCard
-                                        key={p.key}
-                                        name={p.name}
-                                        tagline={p.tagline}
-                                        price={p.price}
-                                        priceUnit={p.priceUnit}
-                                        isPrimary={p.isPrimary}
-                                        isMostPopular={p.isMostPopular}
-                                        buttonLabel={p.buttonLabel}
-                                        features={Array.from(p.features)}
-                                        onClick={onClick}
-                                    />
-                                ))}
-                            </div>
-                        </div>
+                <div className="mt-12 md:mt-16 w-full max-w-[1200px]">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-4">
+                        {plans.map((p) => (
+                            <PlanCard
+                                key={p.key}
+                                name={p.name}
+                                tagline={p.tagline}
+                                price={p.price}
+                                priceUnit={p.priceUnit}
+                                isPrimary={p.isPrimary}
+                                isMostPopular={p.isMostPopular}
+                                buttonLabel={p.buttonLabel}
+                                features={Array.from(p.features)}
+                                onClick={onClick}
+                            />
+                        ))}
                     </div>
-                </BaseSectionLayout>
-            </Animate>
+                </div>
+            </div>
         </section>
     );
 }

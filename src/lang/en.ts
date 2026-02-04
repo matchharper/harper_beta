@@ -335,6 +335,76 @@ export const en = {
     established: "Established",
     hq: "HQ",
   },
+  search: {
+    resultHeader: {
+      by: "By",
+      readingCandidates: "Reading candidate info and checking fit...",
+      finished: "Search complete",
+    },
+    resultBody: {
+      emptyPrompt:
+        "After finishing the conversation, click “Search” and results will appear here.",
+      page: "Page {page}",
+      loadingSuffix: " (loading...)",
+      capped: "(capped to {cap})",
+      previous: "Previous",
+      next: "Search next 10 more",
+      credit: {
+        withCredit: " (1 credit)",
+        noCredit: " (no credit)",
+      },
+    },
+    timeline: {
+      headerTitle: "Harper is finding candidates",
+      stopped: "Search stopped",
+      stop: "Stop",
+      note: "* Max plan users can run multiple searches in parallel.",
+      steps: {
+        parseTitle: "Understand the request",
+        parseDesc: "Interpreting criteria and building a search strategy.",
+        planTitle: "Plan the search strategy",
+        planDesc: "Clarifying criteria and setting the search scope.",
+        refineTitle: "Optimize search method",
+        refineDesc: "Refining queries/filters for performance and accuracy.",
+        runningTitle: "Find candidates broadly",
+        runningDesc: "Searching across experience/company/keywords.",
+        rankingTitle: "Ranking & scoring",
+        rankingDesc: "Calculating priority based on your criteria.",
+        recoveryTitle: "Add recovery conditions",
+        recoveryDesc: "Analyzing issues and proceeding safely.",
+        recoveryRetryTitle: "Run recovery & retry path",
+        recoveryRetryDesc: "Relaxing constraints or retrying with another strategy.",
+        retryTitle: "Retry with alternative strategy",
+        retryDesc: "Relaxing constraints and searching again.",
+      },
+    },
+    status: {
+      parsing: "parsing: Designing how to find matching candidates...",
+      refine: "refine: Optimizing the search method.",
+      running: "running: Searching across the candidate pool...",
+      errorHandling:
+        "error_handling: An issue occurred during search. Resolving it now...",
+      errorHandlingWithCount:
+        "error_handling: Found {count} candidates. Broadening search to find more...",
+      expanding:
+        "expanding: Broadening the search to find more candidates...",
+      expandingWithCount:
+        "expanding: Found {count} candidates. Broadening search to find more...",
+      ranking: "ranking: Reviewing candidates and scoring fit...",
+    },
+    defaultMessage: {
+      intro:
+        "We selected {total} candidates from the full pool and checked them against your criteria.",
+      full: "{full} fully met all criteria.",
+      partial: "{partial} met some criteria.",
+    },
+    ui: {
+      searchResult: "Search results {full}/{total}",
+    },
+    completionPrompt: {
+      outputLanguage: "English",
+    },
+  },
   data: {
     currentExperience: "Current Experience",
     experience: "Experiences",

@@ -8,7 +8,6 @@ import { Check, Share2, Upload, XIcon } from "lucide-react";
 import Bookmarkbutton from "@/components/ui/bookmarkbutton";
 import ItemBox from "./components/ItemBox";
 import PublicationBox from "./components/PublicationBox";
-import { replaceName } from "@/utils/textprocess";
 import { useEffect, useMemo, useState } from "react";
 import { useMessages } from "@/i18n/useMessage";
 import {
@@ -128,9 +127,9 @@ export default function CandidateProfileDetailPage({
 
   return (
     <div className="w-full mx-auto overflow-y-auto h-screen relative">
-      <div className="w-[95%] max-w-[1080px] mx-auto px-4 py-10 space-y-12">
+      <div className="w-[95%] max-w-[1080px] mx-auto px-4 py-10 space-y-10">
         <div className="flex flex-row items-start justify-between w-full">
-          <MainProfile profile_picture={c.profile_picture} name={c.name} headline={c.headline} location={c.location} total_exp_months={c.total_exp_months} />
+          <MainProfile profile_picture={c.profile_picture} name={c.name} headline={c.headline} location={c.location} links={links} />
           <div className="absolute top-2 right-2 font-normal flex flex-col gap-1 ">
             <div className="flex flex-row items-end justify-end gap-2">
               <button
@@ -215,11 +214,9 @@ export default function CandidateProfileDetailPage({
 
         <ProfileBio summary={c.s ?? []} bio={c.bio ?? ""} name={c.name ?? ""} oneline={oneline ?? ""} isLoadingOneline={isLoadingOneline ?? false} links={links} />
 
-        {/* <ExperienceTimeline experiences={c.experience_user ?? []} /> */}
-
         {/* Experiences */}
         <Box title={`${m.data.experience}`}>
-          <div className="space-y-3">
+          <div className="space-y-0">
             {(c.experience_user ?? []).map((e: any, idx: number) => {
               return (
                 <ItemBox
@@ -233,6 +230,7 @@ export default function CandidateProfileDetailPage({
                   description={e.description}
                   logo_url={e.company_db.logo}
                   months={e.months}
+                  isLast={idx === (c.experience_user ?? []).length - 1 ? true : false}
                 />
               );
             })}
@@ -241,7 +239,7 @@ export default function CandidateProfileDetailPage({
 
         {/* Educations */}
         <Box title={`${m.data.education}`}>
-          <div className="space-y-3">
+          <div className="space-y-0">
             {(c.edu_user ?? []).map((ed: any, idx: number) => (
               <ItemBox
                 key={idx}
@@ -256,6 +254,7 @@ export default function CandidateProfileDetailPage({
                 link={ed.url}
                 description={""}
                 typed="edu"
+                isLast={idx === (c.edu_user ?? []).length - 1 ? true : false}
               />
             ))}
           </div>
@@ -265,7 +264,7 @@ export default function CandidateProfileDetailPage({
         {
           (c.extra_experience ?? []).length > 0 && (
             <Box title={`수상 기록`}>
-              <div className="space-y-3">
+              <div className="space-y-0">
                 {(c.extra_experience ?? []).map((extra: any, idx: number) => (
                   <ItemBox
                     key={idx}
@@ -278,6 +277,7 @@ export default function CandidateProfileDetailPage({
                     link={''}
                     description={extra.description}
                     typed="award"
+                    isLast={idx === (c.extra_experience ?? []).length - 1 ? true : false}
                   />
                 ))}
               </div>
@@ -316,12 +316,14 @@ export const Box = ({
   children: React.ReactNode;
 }) => {
   return (
-    <div className="rounded-xl shadow-sm w-full">
-      <div className="flex items-center gap-2 text-base font-normal text-hgray900">
-        {icon}
-        {title}
+    <div className="rounded-xl shadow-sm w-full grid grid-cols-7">
+      <div className="col-span-1">
+        <div className="flex items-center gap-2 text-base font-normal text-hgray1000">
+          {icon}
+          {title}
+        </div>
       </div>
-      <div className="mt-[10px]">{children}</div>
+      <div className="col-span-6">{children}</div>
     </div>
   );
 };

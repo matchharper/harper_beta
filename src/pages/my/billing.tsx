@@ -7,7 +7,12 @@ import { supabase } from "@/lib/supabase";
 import { useCreditRequestHistory } from "@/hooks/useCreditRequestHistory";
 import { dateToFormatLong } from "@/utils/textprocess";
 import { useMessages } from "@/i18n/useMessage";
+import { showToast } from "@/components/toast/toast";
 import { notifyToSlack } from "@/lib/slack";
+import PricingSection from "@/components/payment/PricingSection";
+
+const PRO_CHECKOUT_URL =
+  "https://matchharper.lemonsqueezy.com/checkout/buy/ea41e57e-6dc1-4ddd-8b7f-f5636bc35ec5";
 
 const Billing = () => {
   const { credits } = useCredits();
@@ -136,6 +141,31 @@ const Billing = () => {
             </div>
           </div>
         </div>
+
+        <PricingSection
+          onClick={(planName: string) => {
+            const proName = m.companyLanding.pricing.plans.pro.name;
+            if (planName !== proName) {
+              showToast({
+                message: "현재는 Pro 플랜만 테스트 중입니다.",
+                variant: "white",
+              });
+              return;
+            }
+
+            if (!companyUser?.user_id) {
+              showToast({
+                message: "로그인 정보를 확인할 수 없습니다.",
+                variant: "white",
+              });
+              return;
+            }
+
+            const url = new URL(PRO_CHECKOUT_URL);
+            url.searchParams.set("checkout[custom][user_id]", companyUser.user_id);
+            window.location.href = url.toString();
+          }}
+        />
       </div>
     </AppLayout>
   );

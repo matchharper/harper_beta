@@ -33,14 +33,10 @@ const ProfileBio = ({
     }, [summary, oneline, name]);
 
     const hasBio = Boolean(bio?.trim());
-    const hasLinks = (links?.length ?? 0) > 0;
 
     return (
-        <div className="text-hgray900 flex flex-col gap-2 mb-2">
-            {/* Header */}
-            <div className="flex flex-row items-center justify-between gap-2">
-                <div className="text-base font-normal">{m?.data?.summary ?? "요약"}</div>
-
+        <div>
+            <div className="flex flex-row w-full items-center justify-end gap-2">
                 {hasBio && (
                     <button
                         type="button"
@@ -52,35 +48,34 @@ const ProfileBio = ({
                     </button>
                 )}
             </div>
-
-            {/* Summary / One-line / Loading */}
-            {displayLine ? (
-                <div>{displayLine}</div>
-            ) : isLoadingOneline ? (
-                <div className="flex flex-row items-center gap-1">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <div className="animate-textGlow text-sm">설명을 작성중입니다...</div>
+            <div className="text-hgray900 grid grid-cols-7 mt-2">
+                {/* Header */}
+                <div className="col-span-1">
+                    <div className="text-base font-normal text-hgray1000">{m?.data?.summary ?? "요약"}</div>
                 </div>
-            ) : null}
+                <div className="text-hgray900 col-span-6 flex flex-col gap-2 mb-2">
 
-            {/* Bio */}
-            {hasBio && (
-                <div className="text-[15px] text-hgray700 leading-6 font-light mt-1">
-                    {isBioOpen ? (
-                        <div className="whitespace-pre-wrap">{replaceName(bio, name)}</div>
-                    ) : (
-                        <div className="line-clamp-1">{replaceName(bio, name)}</div>
+                    {/* Summary / One-line / Loading */}
+                    {displayLine ? (
+                        <div>{displayLine}</div>
+                    ) : isLoadingOneline ? (
+                        <div className="flex flex-row items-center gap-1">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <div className="animate-textGlow text-sm">설명을 작성중입니다...</div>
+                        </div>
+                    ) : null}
+
+                    {/* Bio */}
+                    {hasBio && (
+                        <div className="text-[15px] text-hgray700 leading-6 font-light mt-1">
+                            {isBioOpen ? (
+                                <div className="whitespace-pre-wrap">{replaceName(bio, name)}</div>
+                            ) : (
+                                <div className="line-clamp-1">{replaceName(bio, name)}</div>
+                            )}
+                        </div>
                     )}
                 </div>
-            )}
-
-            {/* Links */}
-            <div className="mt-4">
-                {!hasLinks ? (
-                    <div className="text-sm text-xgray600">No links</div>
-                ) : (
-                    <LinkChips links={links} />
-                )}
             </div>
         </div>
     );

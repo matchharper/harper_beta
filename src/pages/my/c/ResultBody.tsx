@@ -1,7 +1,8 @@
 // components/result/ResultBody.tsx
-import React, { useMemo } from "react";
+import React from "react";
 import CandidateViews from "@/components/CandidateViews";
 import { logger } from "@/utils/logger";
+import { useMessages } from "@/i18n/useMessage";
 
 type Props = {
   searchEnabled: boolean;
@@ -21,6 +22,7 @@ type Props = {
 };
 
 export default function ResultBody(props: Props) {
+  const { m } = useMessages();
   const {
     searchEnabled,
     items,
@@ -41,7 +43,7 @@ export default function ResultBody(props: Props) {
   if (!searchEnabled) {
     return (
       <div className="w-full px-4 py-12 text-sm text-hgray600">
-        대화를 마친 뒤 “검색하기”를 누르면 결과가 여기에 표시됩니다.
+        {m.search.resultBody.emptyPrompt}
       </div>
     );
   }
@@ -66,11 +68,14 @@ export default function ResultBody(props: Props) {
         !isNoResultAtall && (
           <div className="flex items-center justify-center w-full py-16 flex-col">
             <div className="text-sm text-white">
-              Page {pageIdx + 1}
-              {isFetchingNextPage ? " (loading...)" : ""}
+              {m.search.resultBody.page.replace("{page}", String(pageIdx + 1))}
+              {isFetchingNextPage ? m.search.resultBody.loadingSuffix : ""}
               {pageIdxRaw > maxPrefetchPages ? (
                 <span className="ml-2 text-xgray400">
-                  (capped to {maxPrefetchPages + 1})
+                  {m.search.resultBody.capped.replace(
+                    "{cap}",
+                    String(maxPrefetchPages + 1)
+                  )}
                 </span>
               ) : null}
             </div>
@@ -83,7 +88,7 @@ export default function ResultBody(props: Props) {
                 className={`flex items-center justify-center px-8 minw-16 h-16 rounded-sm border border-xgray400 hover:opacity-90 ${canPrev ? "cursor-pointer" : "opacity-40 cursor-not-allowed"
                   }`}
               >
-                Previous
+                {m.search.resultBody.previous}
               </button>
 
               <button
@@ -96,7 +101,10 @@ export default function ResultBody(props: Props) {
                   }`}
               >
                 <div>
-                  Search next 10 more{nextWillCharge ? " (1 credit)" : " (no credit)"}
+                  {m.search.resultBody.next}
+                  {nextWillCharge
+                    ? m.search.resultBody.credit.withCredit
+                    : m.search.resultBody.credit.noCredit}
                 </div>
               </button>
             </div>

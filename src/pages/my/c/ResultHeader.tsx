@@ -1,10 +1,10 @@
 // components/result/ResultHeader.tsx
 import React, { useCallback, useMemo } from "react";
-import { Check, CircleSlash, Clock, Loader2, Square, Tags, ThumbsDown, ThumbsUp } from "lucide-react";
+import { Check, Clock, Loader2, ThumbsDown, ThumbsUp } from "lucide-react";
 import { dateToFormatLong } from "@/utils/textprocess";
 import { supabase } from "@/lib/supabase";
-import { StatusEnum } from "@/types/type";
 import Timeline from "./timeline";
+import { useMessages } from "@/i18n/useMessage";
 
 type Props = {
   queryItem: any;
@@ -19,6 +19,7 @@ export default function ResultHeader({
   status,
   feedback,
 }: Props) {
+  const { m } = useMessages();
   const statusMessage = useMemo(() => {
     return status;
   }, [status]);
@@ -52,7 +53,9 @@ export default function ResultHeader({
         <div className="text-sm text-hgray600 font-normal flex flex-row items-center justify-start gap-4">
           <div>
             {queryItem.company_users ? (
-              <>By {queryItem.company_users.name}</>
+              <>
+                {m.search.resultHeader.by} {queryItem.company_users.name}
+              </>
             ) : (
               ""
             )}
@@ -85,14 +88,16 @@ export default function ResultHeader({
             statusMessage === "partially_finished" && (
               <div className="text-sm font-light text-hgray900 flex flex-row gap-2 items-start absolute top-3 left-5">
                 <Loader2 className="w-4 h-4 animate-spin" strokeWidth={2} />
-                <div className="animate-textGlow">후보자들의 정보를 읽고 정합성을 확인하고 있습니다...</div>
+                <div className="animate-textGlow">
+                  {m.search.resultHeader.readingCandidates}
+                </div>
               </div>
             )}
           {
             statusMessage === "finished" && (
               <div className="text-sm font-light text-hgray900 flex flex-row gap-2 items-start absolute top-3 left-5">
                 <Check className="w-4 h-4 text-green-500 mt-0.5" strokeWidth={2} />
-                <div className="">검색 완료</div>
+                <div className="">{m.search.resultHeader.finished}</div>
               </div>
             )
           }

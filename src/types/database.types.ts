@@ -56,6 +56,7 @@ export type Database = {
         Row: {
           automation_id: string | null
           candid_id: string | null
+          concerns: string | null
           created_at: string
           id: number
           text: string | null
@@ -64,6 +65,7 @@ export type Database = {
         Insert: {
           automation_id?: string | null
           candid_id?: string | null
+          concerns?: string | null
           created_at?: string
           id?: number
           text?: string | null
@@ -72,6 +74,7 @@ export type Database = {
         Update: {
           automation_id?: string | null
           candid_id?: string | null
+          concerns?: string | null
           created_at?: string
           id?: number
           text?: string | null
@@ -398,6 +401,7 @@ export type Database = {
           charged_credit: number | null
           created_at: string
           id: number
+          last_updated_at: string | null
           remain_credit: number | null
           type: string | null
           user_id: string | null
@@ -406,6 +410,7 @@ export type Database = {
           charged_credit?: number | null
           created_at?: string
           id?: number
+          last_updated_at?: string | null
           remain_credit?: number | null
           type?: string | null
           user_id?: string | null
@@ -414,6 +419,7 @@ export type Database = {
           charged_credit?: number | null
           created_at?: string
           id?: number
+          last_updated_at?: string | null
           remain_credit?: number | null
           type?: string | null
           user_id?: string | null
@@ -421,6 +427,38 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "credits_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      credits_history: {
+        Row: {
+          charged_credits: number | null
+          created_at: string
+          event_type: string | null
+          id: number
+          user_id: string | null
+        }
+        Insert: {
+          charged_credits?: number | null
+          created_at?: string
+          event_type?: string | null
+          id?: number
+          user_id?: string | null
+        }
+        Update: {
+          charged_credits?: number | null
+          created_at?: string
+          event_type?: string | null
+          id?: number
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credits_history_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "company_users"
@@ -940,6 +978,90 @@ export type Database = {
           linkedin_id?: string
           name?: string | null
           url?: string | null
+        }
+        Relationships: []
+      }
+      payments: {
+        Row: {
+          cancel_at_period_end: boolean | null
+          created_at: string
+          current_period_end: string | null
+          current_period_start: string | null
+          id: number
+          ls_customer_id: string | null
+          ls_subscription_id: string | null
+          plan_id: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          cancel_at_period_end?: boolean | null
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: number
+          ls_customer_id?: string | null
+          ls_subscription_id?: string | null
+          plan_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          cancel_at_period_end?: boolean | null
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: number
+          ls_customer_id?: string | null
+          ls_subscription_id?: string | null
+          plan_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["plan_id"]
+          },
+          {
+            foreignKeyName: "payments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      plans: {
+        Row: {
+          created_at: string
+          credit: number
+          display_name: string | null
+          ls_variant_id: string | null
+          name: string | null
+          plan_id: string
+          price_krw: number | null
+        }
+        Insert: {
+          created_at?: string
+          credit?: number
+          display_name?: string | null
+          ls_variant_id?: string | null
+          name?: string | null
+          plan_id?: string
+          price_krw?: number | null
+        }
+        Update: {
+          created_at?: string
+          credit?: number
+          display_name?: string | null
+          ls_variant_id?: string | null
+          name?: string | null
+          plan_id?: string
+          price_krw?: number | null
         }
         Relationships: []
       }

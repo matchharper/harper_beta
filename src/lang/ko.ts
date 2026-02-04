@@ -327,6 +327,75 @@ export const ko = {
     established: "설립 연도",
     hq: "본사",
   },
+  search: {
+    resultHeader: {
+      by: "작성자",
+      readingCandidates: "후보자들의 정보를 읽고 정합성을 확인하고 있습니다...",
+      finished: "검색 완료",
+    },
+    resultBody: {
+      emptyPrompt: "대화를 마친 뒤 “검색하기”를 누르면 결과가 여기에 표시됩니다.",
+      page: "페이지 {page}",
+      loadingSuffix: " (로딩 중...)",
+      capped: "({cap} 페이지로 제한됨)",
+      previous: "이전",
+      next: "다음 10명 더 검색",
+      credit: {
+        withCredit: " (크레딧 1)",
+        noCredit: " (크레딧 없음)",
+      },
+    },
+    timeline: {
+      headerTitle: "Harper가 후보를 찾는 중이에요",
+      stopped: "검색 중지됨",
+      stop: "중지",
+      note: "* Max 플랜 사용자라면 동시에 여러 개의 검색을 실행할 수 있습니다.",
+      steps: {
+        parseTitle: "요청 이해",
+        parseDesc: "기준을 해석하고 검색 전략을 구성합니다.",
+        planTitle: "검색 전략 세우기",
+        planDesc: "기준을 구체화하고 검색 범위를 정합니다.",
+        refineTitle: "검색 방법 최적화",
+        refineDesc: "쿼리/조건을 다듬어 성능과 정확도를 최적화합니다.",
+        runningTitle: "전체 후보자 찾기",
+        runningDesc: "경력/회사/키워드 기반으로 후보를 넓게 찾습니다.",
+        rankingTitle: "랭킹/스코어링",
+        rankingDesc: "기준에 맞게 우선순위를 계산합니다.",
+        recoveryTitle: "조건 추가하기",
+        recoveryDesc: "문제를 분석하고 안전한 방식으로 계속 진행합니다.",
+        recoveryRetryTitle: "복구/재시도 경로 실행",
+        recoveryRetryDesc: "조건을 완화하거나 다른 전략으로 재시도합니다.",
+        retryTitle: "대체 전략으로 후보 재탐색",
+        retryDesc: "타임아웃/실패 조건을 회피해 다시 후보를 찾습니다.",
+      },
+    },
+    status: {
+      parsing: "parsing: 해당하는 사람을 찾을 방법을 설계하고 있습니다...",
+      refine: "refine: 검색 방법을 최적화하고 있습니다.",
+      running: "running: 전체 인재를 탐색하여 후보자를 찾는 중입니다...",
+      errorHandling:
+        "error_handling: 검색 과정에서 문제가 발생하여 해결하고 있습니다...",
+      errorHandlingWithCount:
+        "error_handling: {count}명의 후보자를 찾았습니다. 더 많은 후보자를 찾기 위해 검색 조건을 확장하겠습니다.",
+      expanding:
+        "expanding: 더 많은 후보자를 찾기 위해 검색 범위를 넓혀서 검색을 시도하겠습니다...",
+      expandingWithCount:
+        "expanding: {count}명의 후보자를 찾았습니다. 더 많은 후보자를 찾기 위해 검색 범위를 넓혀서 검색을 시도하겠습니다...",
+      ranking: "ranking: 각 후보자의 정보를 확인하고 적합성을 판단하고 있습니다...",
+    },
+    defaultMessage: {
+      intro:
+        "전체 후보자들 중 {total}명을 선정하고, 기준을 만족하는지 검사했습니다.",
+      full: "{full}명이 모든 기준을 만족했습니다.",
+      partial: "{partial}명이 일부 기준만 만족했습니다.",
+    },
+    ui: {
+      searchResult: "검색 결과 {full}/{total}",
+    },
+    completionPrompt: {
+      outputLanguage: "Korean",
+    },
+  },
   data: {
     currentExperience: "현재",
     experience: "경력 사항",
