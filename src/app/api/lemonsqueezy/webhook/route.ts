@@ -19,15 +19,31 @@ type PlanRow = {
   ls_variant_id: string | null;
 };
 
-function verifySignature(rawBody: string, signature: string) {
+function verifySignature(rawBody: string, signatureHeader: string) {
   if (!SIGNING_SECRET) return false;
-  if (!signature) return false;
-  const hmac = crypto.createHmac("sha256", SIGNING_SECRET);
-  const digest = Buffer.from(hmac.update(rawBody).digest("hex"), "utf8");
-  const signatureBuf = Buffer.from(signature, "utf8");
-  if (digest.length !== signatureBuf.length) return false;
-  return crypto.timingSafeEqual(digest, signatureBuf);
+  if (!signatureHeader) return false;
+
+  const sig = signatureHeader.startsWith("sha256=")
+    ? signatureHeader.slice("sha256=".length)
+    : signatureHeader;
+
+  const computedHex = crypto
+    .createHmac("sha256", SIGNING_SECRET)
+    .update(rawBody, "utf8")
+    .digest("hex");
+
+  const a = computedHex.trim().toLowerCase();
+  const b = sig.trim().toLowerCase();
+
+  if (a.length !== b.length) return false;
+
+  const aBuf = Buffer.from(a, "hex");
+  const bBuf = Buffer.from(b, "hex");
+  if (aBuf.length !== bBuf.length) return false;
+
+  return crypto.timingSafeEqual(aBuf, bBuf);
 }
+
 
 async function getPlanByVariantId(variantId: string) {
   const { data, error } = await supabaseAdmin
@@ -153,8 +169,8 @@ function getSubscriptionDates(payload: any) {
       typeof attrs.cancel_at_period_end === "boolean"
         ? attrs.cancel_at_period_end
         : typeof attrs.cancelled === "boolean"
-        ? attrs.cancelled
-        : null,
+          ? attrs.cancelled
+          : null,
   };
 }
 
@@ -169,10 +185,12 @@ export async function POST(req: Request) {
     );
   }
 
+  console.log("signature", signature);
   if (!verifySignature(rawBody, signature)) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
+  console.log("rawBody", rawBody);
   let payload: any;
   try {
     payload = JSON.parse(rawBody);
@@ -181,11 +199,14 @@ export async function POST(req: Request) {
   }
 
   const eventName = getEventName(req, payload);
+  console.log("eventName", eventName);
   if (!eventName) {
     return NextResponse.json({ error: "Missing event name" }, { status: 400 });
   }
 
   const userIdFromCustom = getCustomUserId(payload);
+
+  console.log("userIdFromCustom", userIdFromCustom);
 
   if (eventName === "subscription_created") {
     const subscriptionId = getSubscriptionId(payload);
@@ -195,6 +216,7 @@ export async function POST(req: Request) {
     }
 
     const plan = await getPlanByVariantId(variantId);
+    console.log("plan", plan);
     if (!plan) {
       return NextResponse.json({ error: "Unknown plan variant" }, { status: 400 });
     }
@@ -208,6 +230,7 @@ export async function POST(req: Request) {
       currentPeriodEnd: getSubscriptionDates(payload).currentPeriodEnd,
       cancelAtPeriodEnd: getSubscriptionDates(payload).cancelAtPeriodEnd,
     });
+    console.log("upsertPayment", subscriptionId);
 
     return NextResponse.json({ ok: true });
   }
