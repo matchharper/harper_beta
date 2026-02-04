@@ -37,8 +37,7 @@ async function insertLog(userId: string | null, type: string) {
     // If userId is unknown, still write a log with a placeholder.
     const uid = userId ?? "unknown";
 
-    const { error } = await supabaseAdmin.from("logs").insert({
-      user_id: uid,
+    const { error } = await supabaseAdmin.from("new_logs").insert({
       type,
     });
 

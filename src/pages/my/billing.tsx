@@ -11,6 +11,18 @@ import { showToast } from "@/components/toast/toast";
 import { notifyToSlack } from "@/lib/slack";
 import PricingSection from "@/components/payment/PricingSection";
 
+function pickCustomDebug(payload: any) {
+  return {
+    meta_custom_data: payload?.meta?.custom_data ?? null,
+    meta_custom: payload?.meta?.custom ?? null,
+    attrs_custom_data: payload?.data?.attributes?.custom_data ?? null,
+    attrs_custom: payload?.data?.attributes?.custom ?? null,
+    // 혹시 깊게 들어오는 경우 대비
+    raw_meta: payload?.meta ? Object.keys(payload.meta) : null,
+    raw_attrs: payload?.data?.attributes ? Object.keys(payload.data.attributes) : null,
+  };
+}
+
 const PRO_CHECKOUT_URL =
   "https://matchharper.lemonsqueezy.com/checkout/buy/ea41e57e-6dc1-4ddd-8b7f-f5636bc35ec5";
 
