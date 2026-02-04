@@ -127,7 +127,7 @@ export default function PricingSection({ onClick }: { onClick: (plan: string) =>
                                         isPrimary={p.isPrimary}
                                         isMostPopular={p.isMostPopular}
                                         buttonLabel={p.buttonLabel}
-                                        features={p.features}
+                                        features={Array.from(p.features)}
                                         onClick={onClick}
                                     />
                                 ))}
