@@ -143,6 +143,21 @@ function getSubscriptionId(payload: any) {
   );
 }
 
+function getSubscriptionDates(payload: any) {
+  const attrs = payload?.data?.attributes ?? {};
+  return {
+    currentPeriodStart: attrs.current_period_start ?? attrs.created_at ?? null,
+    currentPeriodEnd: attrs.current_period_end ?? attrs.renews_at ?? attrs.ends_at ?? null,
+    cancelledAt: attrs.cancelled_at ?? null,
+    cancelAtPeriodEnd:
+      typeof attrs.cancel_at_period_end === "boolean"
+        ? attrs.cancel_at_period_end
+        : typeof attrs.cancelled === "boolean"
+        ? attrs.cancelled
+        : null,
+  };
+}
+
 export async function POST(req: Request) {
   const rawBody = await req.text();
   const signature = req.headers.get("x-signature") ?? "";
@@ -189,9 +204,9 @@ export async function POST(req: Request) {
       userId: String(userIdFromCustom),
       planId: plan.plan_id ?? null,
       customerId: payload?.data?.attributes?.customer_id?.toString?.() ?? null,
-      currentPeriodStart: payload?.data?.attributes?.created_at ?? null,
-      currentPeriodEnd: payload?.data?.attributes?.renews_at ?? null,
-      cancelAtPeriodEnd: payload?.data?.attributes?.cancelled ?? null,
+      currentPeriodStart: getSubscriptionDates(payload).currentPeriodStart,
+      currentPeriodEnd: getSubscriptionDates(payload).currentPeriodEnd,
+      cancelAtPeriodEnd: getSubscriptionDates(payload).cancelAtPeriodEnd,
     });
 
     return NextResponse.json({ ok: true });
@@ -235,9 +250,9 @@ export async function POST(req: Request) {
       userId: payment.user_id,
       planId: payment.plan_id,
       customerId: payload?.data?.attributes?.customer_id?.toString?.() ?? null,
-      currentPeriodStart: payload?.data?.attributes?.created_at ?? null,
-      currentPeriodEnd: payload?.data?.attributes?.renews_at ?? null,
-      cancelAtPeriodEnd: payload?.data?.attributes?.cancelled ?? null,
+      currentPeriodStart: getSubscriptionDates(payload).currentPeriodStart,
+      currentPeriodEnd: getSubscriptionDates(payload).currentPeriodEnd,
+      cancelAtPeriodEnd: getSubscriptionDates(payload).cancelAtPeriodEnd,
     });
 
     const { data: plan, error } = await supabaseAdmin
@@ -251,6 +266,33 @@ export async function POST(req: Request) {
     }
 
     await applyCredits(payment.user_id, plan as PlanRow);
+    return NextResponse.json({ ok: true });
+  }
+
+  if (eventName === "subscription_cancelled" || eventName === "subscription_expired") {
+    const subscriptionId = getSubscriptionId(payload);
+    if (!subscriptionId) {
+      return NextResponse.json({ ok: true, ignored: true });
+    }
+
+    const payment = await getPaymentBySubscriptionId(subscriptionId);
+    if (!payment?.user_id || !payment?.plan_id) {
+      return NextResponse.json({ ok: true, ignored: true });
+    }
+
+    const dates = getSubscriptionDates(payload);
+    const finalEnd = dates.currentPeriodEnd ?? dates.cancelledAt ?? new Date().toISOString();
+
+    await upsertPayment({
+      subscriptionId,
+      userId: payment.user_id,
+      planId: payment.plan_id,
+      customerId: payload?.data?.attributes?.customer_id?.toString?.() ?? null,
+      currentPeriodStart: dates.currentPeriodStart,
+      currentPeriodEnd: finalEnd,
+      cancelAtPeriodEnd: true,
+    });
+
     return NextResponse.json({ ok: true });
   }
 

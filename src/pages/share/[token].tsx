@@ -140,7 +140,7 @@ export default function ShareTokenPage() {
                                 name={candid.name}
                                 headline={candid.headline}
                                 location={candid.location}
-                                total_exp_months={candid.total_exp_months}
+                                links={links}
                             />
 
                             {/* 오른쪽 정보/액션 (공유 전용) */}
