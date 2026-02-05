@@ -6,6 +6,7 @@ import pdf from "pdf-parse-fork";
 import { htmlToReadableMarkdown } from "../utils";
 import { supabase } from "@/lib/supabase";
 import { logger } from "@/utils/logger";
+import { ApifyClient } from "apify-client";
 
 // (선택) 혹시 런타임이 Edge로 잡히는 환경이면 강제로 Node로
 export const runtime = "nodejs";
@@ -19,6 +20,37 @@ function isPdfUrl(url: string) {
         return url.toLowerCase().split("?")[0].endsWith(".pdf");
     }
 }
+const isTwitterUrl = (url: string): boolean => {
+    try {
+        const u = new URL(url.startsWith("http") ? url : `https://${url}`);
+        const host = u.hostname.replace(/^www\./, "");
+
+        if (host !== "twitter.com" && host !== "x.com") return false;
+
+        const parts = u.pathname.split("/").filter(Boolean);
+
+        // profile URL = exactly one path segment
+        return parts.length === 1;
+    } catch {
+        return false;
+    }
+};
+
+const isGithubProfile = (url: string): boolean => {
+    try {
+        const u = new URL(url.startsWith("http") ? url : `https://${url}`);
+        const host = u.hostname.replace(/^www\./, "");
+
+        if (host !== "github.com") return false;
+
+        const parts = u.pathname.split("/").filter(Boolean);
+
+        // profile URL = exactly one path segment
+        return parts.length === 1;
+    } catch {
+        return false;
+    }
+};
 
 function normalizeText(s: string) {
     return s
@@ -118,6 +150,78 @@ export async function POST(req: NextRequest) {
                     title,
                     markdown,
                     excerpt,
+                },
+                { status: 200 }
+            );
+        }
+
+        if (isTwitterUrl(url)) {
+            const token = process.env.APIFY_CLIENT_KEY;
+            const client = new ApifyClient({
+                token: token,
+            });
+
+
+            // Prepare Actor input
+            const input = {
+                "startUrls": [
+                    url
+                ],
+                "searchTerms": [
+                ],
+                "twitterHandles": [
+                ],
+                "maxItems": 10,
+                "sort": "Latest",
+                "tweetLanguage": "en",
+                "customMapFunction": (object: any) => { return { ...object } }
+            };
+
+            const run = await client.actor("61RPP7dywgiy0JPD0").call(input);
+
+            const { items } = await client.dataset(run.defaultDatasetId).listItems();
+            let results: any[] = [];
+            items.forEach((item) => {
+                results.push({
+                    url: item.url,
+                    text: item.text,
+                    retweetCount: item.retweetCount,
+                    replyCount: item.replyCount,
+                    likeCount: item.likeCount,
+                    createdAt: item.createdAt,
+                    quoteCount: item.quoteCount,
+                    isQuote: item.isQuote,
+                    isRetweet: item.isRetweet,
+                    author: (item.author as any).userName ?? "",
+                });
+            });
+            console.log(results);
+
+            const { data: ins, error: insErr } = await supabase
+                .from("documents")
+                .insert({
+                    url,
+                    title: url,
+                    markdown: JSON.stringify(results),
+                    excerpt: "",
+                })
+                .select("id")
+                .single();
+
+            if (insErr || !ins) {
+                return NextResponse.json(
+                    { error: insErr?.message ?? "Failed to insert document" },
+                    { status: 500 }
+                );
+            }
+
+            return NextResponse.json(
+                {
+                    id: ins.id,
+                    url,
+                    title: url,
+                    markdown: JSON.stringify(results),
+                    excerpt: "",
                 },
                 { status: 200 }
             );

@@ -8,6 +8,7 @@ import Animate from "@/components/landing/Animate";
 import { useMessages } from "@/i18n/useMessage";
 
 type Billing = "monthly" | "yearly";
+type PlanKey = "pro" | "max" | "enterprise" | "free";
 
 function formatKRW(n: number) {
     return n.toLocaleString("ko-KR");
@@ -29,7 +30,19 @@ function calcDiscountedMonthly(monthly: number, discountRate: number) {
     return Math.round(monthly * (1 - discountRate));
 }
 
-export default function PricingSection({ onClick }: { onClick: (plan: string) => void }) {
+export default function PricingSection({
+    onClick,
+    currentPlanKey,
+    currentBilling,
+    currentLabel,
+    changeLabel,
+}: {
+    onClick: (plan: string) => void;
+    currentPlanKey?: PlanKey | null;
+    currentBilling?: Billing | null;
+    currentLabel?: string;
+    changeLabel?: string;
+}) {
     const [billing, setBilling] = useState<Billing>("monthly");
     const { m, locale } = useMessages();
     const pricing = m.companyLanding.pricing;
@@ -92,41 +105,55 @@ export default function PricingSection({ onClick }: { onClick: (plan: string) =>
         ];
     }, [billing, isEnglish, pricing]);
 
+    const hasCurrent = Boolean(currentPlanKey && currentBilling);
+    const currentButtonLabel =
+        currentLabel ?? (isEnglish ? "Current plan" : "현재 이용 중");
+    const changeButtonLabel =
+        changeLabel ?? (isEnglish ? "Change plan" : "구독 변경하기");
+    const enterpriseButtonLabel = pricing.plans.enterprise.buttonLabel;
+
     return (
         <section id="pricing" className="w-full text-hgray900">
             <div className="w-full flex flex-col items-center justify-center text-center px-4 md:px-0">
-                {/* <Head1 className="text-white">Pricing</Head1> */}
-                <div className="mt-4 md:mt-6 text-[24px] md:text-[40px] font-semibold tracking-tight">
-                    {pricing.title}
-                </div>
-                <div className="mt-3 text-sm md:text-base text-white/60 font-light">
-                    {pricing.subtitle}
-                </div>
-
-                <div className="mt-8 md:mt-10">
+                <div className="mt-16 md:mt-10">
                     <BillingToggle billing={billing} setBilling={setBilling} />
-                    {/* <div className="mt-3 text-xs text-white/45">
-                                연간 결제 시 <span className="text-white/70">20% 할인</span>{" "}
-                                적용된 월 환산 가격입니다.
-                            </div> */}
                 </div>
-
-                <div className="mt-12 md:mt-16 w-full max-w-[1200px]">
+                <div className="mt-4 w-full max-w-[1200px]">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-4">
-                        {plans.map((p) => (
-                            <PlanCard
-                                key={p.key}
-                                name={p.name}
-                                tagline={p.tagline}
-                                price={p.price}
-                                priceUnit={p.priceUnit}
-                                isPrimary={p.isPrimary}
-                                isMostPopular={p.isMostPopular}
-                                buttonLabel={p.buttonLabel}
-                                features={Array.from(p.features)}
-                                onClick={onClick}
-                            />
-                        ))}
+                        {plans.map((p) => {
+                            const isEnterprise = p.key === "enterprise";
+                            const isCurrent =
+                                hasCurrent &&
+                                currentPlanKey === p.key &&
+                                currentBilling === billing;
+                            const buttonLabel = isEnterprise
+                                ? enterpriseButtonLabel
+                                : isCurrent
+                                    ? currentButtonLabel
+                                    : hasCurrent
+                                        ? changeButtonLabel
+                                        : p.buttonLabel;
+                            const isDisabled = isCurrent || isEnterprise;
+                            const handleClick = isEnterprise
+                                ? (_plan: string) => { }
+                                : onClick;
+
+                            return (
+                                <PlanCard
+                                    key={p.key}
+                                    name={p.name}
+                                    tagline={p.tagline}
+                                    price={p.price}
+                                    priceUnit={p.priceUnit}
+                                    isPrimary={p.isPrimary}
+                                    isMostPopular={p.isMostPopular}
+                                    buttonLabel={buttonLabel}
+                                    features={Array.from(p.features)}
+                                    disabled={isDisabled}
+                                    onClick={handleClick}
+                                />
+                            );
+                        })}
                     </div>
                 </div>
             </div>
@@ -192,6 +219,7 @@ function PlanCard({
     isMostPopular,
     buttonLabel,
     features,
+    disabled,
     onClick,
 }: {
     name: string;
@@ -202,6 +230,7 @@ function PlanCard({
     isMostPopular: boolean;
     buttonLabel: string;
     features: string[];
+    disabled?: boolean;
     onClick: (plan: string) => void;
 }) {
     const { m, locale } = useMessages();
@@ -247,11 +276,13 @@ function PlanCard({
                     <button
                         type="button"
                         onClick={() => onClick(name)}
+                        disabled={disabled}
                         className={[
                             "w-full rounded-full py-2.5 md:py-3 text-sm md:text-sm font-normal transition-colors",
                             isPrimary
                                 ? "bg-accenta1 text-black hover:opacity-95"
                                 : "bg-white/10 text-accenta1 border border-white/0 hover:bg-accenta1/10",
+                            "disabled:opacity-60 disabled:cursor-not-allowed",
                         ].join(" ")}
                     >
                         {buttonLabel}

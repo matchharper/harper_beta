@@ -62,6 +62,7 @@ Output Rules (Strict — Must Not Be Violated)
 - Top-level WHERE structure:
   - The WHERE clause must follow grouped logic of intent dimensions:
     (A OR B OR C) AND (D OR E) AND (F OR G)
+  - POSTGRES는 AND가 OR보다 우선순위가 높기 때문에 괄호를 잘 사용해야해.
   - Each parenthesized group corresponds to ONE intent dimension (role/company/school/publication/location/etc.).
   - OR is allowed only inside a single group.
 
@@ -298,6 +299,9 @@ major(전공)는 너무 폭넓게 잡히면 노이즈 커지니까, “핵심 �
 - 논문을 제외한 데이터는 linkedin의 포맷을 따르고 있다. 이 점을 참고해서 구성해라. (ex. company_db.name이 stealth면 직접 창업하였고 법인 설립 이전을 의미.)
 - 불필요한 일반 단어 금지: good, great, team, experience, work 같은 건 조건에 넣지 말기(노이즈일 뿐이다.)
 - Logic은 유지하되, 불필요한 키워드나 필요한 키워드가 있다면 수정해도 됨. ex. description 등에서 ai로 찾고싶다면 %ai% 는 main과 같은 의미 없는 단어가 너무 많이 걸릴 수 있기 때문에 앞뒤에 공백을 추가해서 % ai %로 하거나, 헷갈리지 않게 %artificial intelligence% 처럼 풀어서 적어야 의도대로 검색이 일어날 수 있다.
+
+### Postgres SQL 팁
+- POSTGRES는 AND가 OR보다 우선순위가 높기 때문에 원하는 로직을 구현하기 위해서는 괄호를 잘 사용해야해.
 
 ### 주의
 Postgres SQL 규칙을 정확히 지킨, 속도면에서 최적화된 SQL Query를 출력해야해.

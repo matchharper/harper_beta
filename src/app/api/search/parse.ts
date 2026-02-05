@@ -71,7 +71,12 @@ ${outText}
     const sqlQueryWithGroupBy = ensureGroupBy(sqlQuery, "");
 
     const refinePrompt =
-      sqlExistsPrompt + `\n Input SQL Query: """${sqlQueryWithGroupBy}"""`;
+      sqlExistsPrompt + `\n Input SQL Query: """${sqlQueryWithGroupBy}"""
+
+# Original Input from user
+Natural Language Query: ${queryText}
+Criteria: ${criteria}
+`;
 
     await updateRunStatus(runId, statusMessages.refine);
 

@@ -69,9 +69,7 @@ const Home: NextPage = () => {
     const start = performance.now();
     console.log("testSqlQuery start");
     const sql =
-      `
-WITH params AS ( SELECT to_tsquery('english', 'performance <-> marketing | growth <-> marketing | data <-> driven') AS rank_tsq, to_tsquery('english', 'data <-> driven | roas | conversion | optimization | analytics') AS filter_tsq ), identified_ids AS ( SELECT T1.id, ts_rank(T1.fts, params.rank_tsq) AS fts_rank FROM candid AS T1 CROSS JOIN params WHERE EXISTS ( SELECT 1 FROM experience_user ex LEFT JOIN company_db c ON ex.company_id = c.id WHERE ex.candid_id = T1.id AND ( c.name ILIKE ANY (ARRAY['%toss%', '%토스%', '%viva republica%', '%비바리퍼블리카%', '%baemin%', '%배달의민족%', '%woowahan%', '%우아한형제들%', '%kurly%', '%컬리%', '%마켓컬리%', '%당근%', '%daangn%', '%carrot%', '%coupang%', '%쿠팡%', '%yanolja%', '%야놀자%', '%musinsa%', '%무신사%', '%zigzag%', '%지그재그%', '%kakaopay%', '%카카오페이%', '%naverpay%', '%네이버페이%', '%bucketplace%', '%오늘의집%', '%ably%', '%에이블리%', '%socar%', '%쏘카%']) OR c.specialities ILIKE ANY (ARRAY['%platform%', '%unicorn%', '%e-commerce%', '%fintech%', '%travel%', '%logistics%']) ) ) AND ( EXISTS ( SELECT 1 FROM experience_user ex2 WHERE ex2.candid_id = T1.id AND ex2.role ILIKE ANY (ARRAY['%performance marketing%', '%performance marketer%', '%growth marketing%', '%growth marketer%', '%digital marketing%', '%퍼포먼스 마케팅%', '%퍼포먼스 마케터%', '%그로스 마케팅%', '%그로스 마케터%']) ) OR T1.summary ILIKE ANY (ARRAY['%performance marketing%', '%growth marketing%']) ) AND ( EXISTS ( SELECT 1 FROM experience_user ex3 WHERE ex3.candid_id = T1.id AND ex3.description ILIKE ANY (ARRAY['%data%', '%analytics%', '%optimization%', '%roas%', '%roi%', '%conversion%', '%sql%', '%tableau%', '%amplitude%', '%ga4%', '%adjust%', '%appsflyer%', '%데이터%', '%최적화%', '%성과%', '%분석%']) ) OR T1.fts @@ params.filter_tsq ) ORDER BY fts_rank DESC LIMIT 10 ) SELECT to_json(c.id) AS id, c.name, i.fts_rank FROM identified_ids i JOIN candid c ON c.id = i.id ORDER BY i.fts_rank DESC
-`;
+      ``;
     const newSql = ensureGroupBy(sql, "");
 
     const { data: data1, error: error1 } = await supabase.rpc(
@@ -117,11 +115,11 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
         description="크레딧 충전 후 다시 시도해주세요."
         confirmLabel="확인"
       />
-      <main className="flex-1 flex font-sans items-center justify-center px-6 w-full">
+      <main className="flex-1 flex font-sans items-center justify-center px-6 w-full pt-[25vh]">
         <div className="w-full flex flex-col items-center">
           <h1
             className="text-2xl sm:text-3xl font-medium tracking-tight text-center leading-relaxed"
-            onClick={testSqlQuery}
+          // onClick={testSqlQuery}
           >
             {m.system.hello}, {companyUser?.name.split(" ")[0]}님
             <div className="h-3" />
@@ -129,27 +127,26 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
           </h1>
 
           <form className="mt-8 w-full max-w-[640px]">
-            <div className={`w-full`}>
-              <div className="relative rounded-3xl p-1 bg-white/5 border border-white/10">
-                <div className="rounded-2xl backdrop-blur-xl">
-                  <textarea
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="국내 대학을 졸업하고 미국 M7에서 AI/ML 경험 있는 사람"
-                    rows={4}
-                    autoFocus={true}
-                    className={[
-                      "w-full resize-none rounded-2xl bg-transparent",
-                      "px-4 py-4 text-[15px] leading-6 text-white/95",
-                      "placeholder:text-hgray600",
-                      "outline-none",
-                      "min-h-[140px]",
-                      "disabled:cursor-not-allowed disabled:opacity-60",
-                    ].join(" ")}
-                  />
-                </div>
-                <div className="flex flex-row items-center justify-center gap-2 absolute right-5 bottom-5">
-                  {/* <Tooltips text="Search by JD file or link">
+            <div className="w-full relative rounded-3xl p-1 bg-white/5 border border-white/10">
+              <div className="rounded-2xl backdrop-blur-xl">
+                <textarea
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder={m.home.queryPlaceholder}
+                  rows={4}
+                  autoFocus={true}
+                  className={[
+                    "w-full resize-none rounded-2xl bg-transparent",
+                    "px-4 py-4 text-[15px] leading-6 text-white/95",
+                    "placeholder:text-hgray600",
+                    "outline-none",
+                    "min-h-[140px]",
+                    "disabled:cursor-not-allowed disabled:opacity-60",
+                  ].join(" ")}
+                />
+              </div>
+              <div className="flex flex-row items-center justify-center gap-2 absolute right-5 bottom-5">
+                {/* <Tooltips text="Search by JD file or link">
                     <button
                       disabled={!canSend}
                       className={[
@@ -162,39 +159,38 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
                       <Plus size={20} color="white" />
                     </button>
                   </Tooltips> */}
-                  <button
-                    onClick={onSubmit}
-                    disabled={!canSend}
-                    className={[
-                      "inline-flex items-center justify-center rounded-full cursor-pointer hover:opacity-90",
-                      "h-11 w-11",
-                      canSend
-                        ? "bg-accenta1 text-black cursor-not-allowed"
-                        : "bg-accenta1/50 text-black",
-                      "transition active:scale-[0.98]",
-                    ].join(" ")}
-                    aria-label="Send"
-                  >
-                    {isLoading ? (
-                      <Loader2 size={20} className="animate-spin" />
-                    ) : (
-                      <ArrowUp size={20} />
-                    )}
-                  </button>
-                </div>
-              </div>
-              <div className="w-full flex flex-row items-start justify-between gap-4 mt-6">
-                <ExampleQuery
-                  query="국내 과학고 졸업 후 서울대 / KAIST에 진학하여 미국 M7에서 AI / Machine Learning 경험 2년 이하 보유한 사람"
-                  onClick={(v) => setQuery(v)}
-                />
-                <ExampleQuery
-                  query="네카라쿠배 출신 프로덕트 매니저 + 개발 역량 보유"
-                  onClick={(v) => setQuery(v)}
-                />
+                <button
+                  onClick={onSubmit}
+                  disabled={!canSend}
+                  className={[
+                    "inline-flex items-center justify-center rounded-full cursor-pointer hover:opacity-90",
+                    "h-11 w-11",
+                    canSend
+                      ? "bg-accenta1 text-black cursor-not-allowed"
+                      : "bg-accenta1/50 text-black",
+                    "transition active:scale-[0.98]",
+                  ].join(" ")}
+                  aria-label="Send"
+                >
+                  {isLoading ? (
+                    <Loader2 size={20} className="animate-spin" />
+                  ) : (
+                    <ArrowUp size={20} />
+                  )}
+                </button>
               </div>
             </div>
           </form>
+          <div className="grid grid-cols-3 items-start justify-between gap-4 mt-[25vh] max-w-[1080px] w-[90%] pb-20">
+            {m.home.examples.map((example) => (
+              <ExampleQuery
+                key={`${example.label}-${example.query}`}
+                label={example.label}
+                query={example.query}
+                onClick={(v) => setQuery(v)}
+              />
+            ))}
+          </div>
 
           <div className="flex flex-row items-center gap-2"></div>
         </div>
@@ -206,16 +202,18 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
 export default Home;
 
 const ExampleQuery = ({
+  label,
   query,
   onClick,
 }: {
+  label: string;
   query: string;
   onClick: (v: string) => void;
 }) => {
   return (
     <div
       className={[
-        "group relative w-full cursor-pointer",
+        "group relative col-span-1 cursor-pointer",
         "rounded-2xl py-5 px-6",
         "bg-white/5 text-hgray900 text-sm",
         "border border-white/0",
@@ -228,6 +226,9 @@ const ExampleQuery = ({
       role="button"
       tabIndex={0}
     >
+      <div className="text-xs text-accenta1 mb-2">
+        {label}
+      </div>
       {query}
     </div>
   );

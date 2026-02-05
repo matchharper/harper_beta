@@ -487,16 +487,16 @@ const FeatureSection = () => {
             padding
           />
         </Animate>
-        {/* <Animate>
+        <Animate>
           <RowImageSection
             opposite={true}
             label={m.companyLanding.feature.rows[2].label}
             title={m.companyLanding.feature.rows[2].title}
             desc={m.companyLanding.feature.rows[2].desc}
-            imageSrc="/videos/use2.mp4"
+            imageSrc="/videos/use3.mp4"
             padding
           />
-        </Animate> */}
+        </Animate>
         {/* <Animate>
           <ImageSection
             title={

@@ -101,7 +101,7 @@ const SimpleAreaModal = ({
                     isLike ? (
                         <div className="text-sm mt-0 font-light text-hgray800">
                             {/* 관심 리스트에 저장했습니다.<br /> */}
-                            연결 가능한 방법이 있는지 저희가 확인해 드릴게요.
+                            원하신다면 연결 가능한 방법이 있는지 저희가 확인해 드릴게요.
                             {/* <div className='bg-white/40 my-3 h-[1px]' /> */}
                             <br />
                             <span className='text-white'>어떤 점이 가장 마음에 드셨나요?</span>

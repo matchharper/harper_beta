@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ApifyClient } from "apify-client"; // ✅ server-only
-import { logger } from "@/utils/logger";
 import { supabase } from "@/lib/supabase";
 
 export async function POST(req: NextRequest) {

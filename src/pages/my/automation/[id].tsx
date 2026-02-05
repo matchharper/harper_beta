@@ -13,15 +13,13 @@ import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DEEP_AUTOMATION_PROMPT } from "@/app/api/chat/chat_prompt";
 import { cn } from "@/lib/utils";
-import { LIMIT_MESSAGE } from "../automation";
 import { Play, Square } from "lucide-react";
 import { Loading } from "@/components/ui/loading";
+import { useMessages } from "@/i18n/useMessage";
 
 type AutomationRow = Database["public"]["Tables"]["automation"]["Row"];
 
 export const MAX_ACTIVE_AUTOMATIONS = 2;
-const INITIAL_ASSISTANT_MESSAGE =
-  "안녕하세요, Harper입니다.\n이번 채용에서 어떤 문제를 해결하고 싶은지부터 편하게 말씀해주세요.\n\n포지션, 팀 상황, 꼭 필요한 역량이 정리되지 않아도 괜찮습니다.\n대화를 통해 함께 구조화하고, 가장 적합한 후보를 찾아드릴게요.";
 
 function createLocalId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -35,8 +33,10 @@ export default function AutomationDetailPage() {
   const qc = useQueryClient();
   const { companyUser } = useCompanyUserStore();
   const { credits } = useCredits();
+  const { m } = useMessages();
   const userId = companyUser?.user_id;
   const draftCreatedRef = useRef(false);
+  const initialAssistantMessage = m.scout.initialAssistantMessage;
 
   const idParam =
     typeof router.query.id === "string" ? router.query.id : undefined;
@@ -106,7 +106,7 @@ export default function AutomationDetailPage() {
       if (error) throw error;
       if ((count ?? 0) >= MAX_ACTIVE_AUTOMATIONS) {
         showToast({
-          message: LIMIT_MESSAGE,
+          message: m.scout.limitMessage,
           variant: "white",
         });
         setIsLoading(false);
@@ -115,7 +115,7 @@ export default function AutomationDetailPage() {
       }
     } catch {
       showToast({
-        message: "자동화 상태를 확인하지 못했습니다.",
+        message: m.scout.checkAutomationFail,
         variant: "white",
       });
       setIsLoading(false);
@@ -155,7 +155,7 @@ export default function AutomationDetailPage() {
     setAutomationId(newId);
     setAutomation(data as AutomationRow);
     setIsLoading(false);
-  }, [userId, router]);
+  }, [userId, router, m.scout.limitMessage, m.scout.checkAutomationFail]);
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -186,7 +186,7 @@ export default function AutomationDetailPage() {
             queryId: automationId,
             userId,
             role: "assistant",
-            content: INITIAL_ASSISTANT_MESSAGE,
+            content: initialAssistantMessage,
           });
         }
       } finally {
@@ -195,7 +195,7 @@ export default function AutomationDetailPage() {
     };
 
     void ensureInitialMessage();
-  }, [automationId, userId]);
+  }, [automationId, userId, initialAssistantMessage]);
 
   useEffect(() => {
     if (!isDraft) return;
@@ -249,14 +249,14 @@ export default function AutomationDetailPage() {
       const activeCount = await fetchActiveAutomationCount(automationId);
       if (activeCount >= MAX_ACTIVE_AUTOMATIONS) {
         showToast({
-          message: LIMIT_MESSAGE,
+          message: m.scout.limitMessage,
           variant: "white",
         });
         return;
       }
     } catch {
       showToast({
-        message: "자동화 상태를 확인하지 못했습니다.",
+        message: m.scout.checkAutomationFail,
         variant: "white",
       });
       return;
@@ -299,7 +299,7 @@ export default function AutomationDetailPage() {
     });
     setIsSaving(false);
     router.push("/my/automation");
-  }, [automationId, userId, qc, router, fetchActiveAutomationCount, isDraft, credits]);
+  }, [automationId, userId, qc, router, fetchActiveAutomationCount, isDraft, credits, m.scout.limitMessage, m.scout.checkAutomationFail]);
 
   const handleDelete = useCallback(async () => {
     if (!automationId) return;
@@ -347,14 +347,14 @@ export default function AutomationDetailPage() {
       const activeCount = await fetchActiveAutomationCount(automationId);
       if (activeCount >= MAX_ACTIVE_AUTOMATIONS) {
         showToast({
-          message: LIMIT_MESSAGE,
+          message: m.scout.limitMessage,
           variant: "white",
         });
         return;
       }
     } catch {
       showToast({
-        message: "자동화 상태를 확인하지 못했습니다.",
+        message: m.scout.checkAutomationFail,
         variant: "white",
       });
       return;
@@ -372,7 +372,7 @@ export default function AutomationDetailPage() {
       );
     } catch { }
     setIsSaving(false);
-  }, [automationId, loadAutomation, qc, userId, fetchActiveAutomationCount, credits]);
+  }, [automationId, loadAutomation, qc, userId, fetchActiveAutomationCount, credits, m.scout.limitMessage, m.scout.checkAutomationFail]);
 
   const buttonClassName = "rounded-lg bg-white/10 px-3 py-2 text-xs text-white transition hover:bg-white/20 disabled:opacity-60 flex flex-row gap-1 items-center justify-center";
 
@@ -387,7 +387,7 @@ export default function AutomationDetailPage() {
   }, [isDraft, automation?.is_in_progress]);
 
   const statusMessage = useMemo(() => {
-    if (isDraft) return "자동 추천 등록 전입니다. 충분한 정보가 모이면 등록을 눌러주세요. 언제든지 내용을 수정하거나 추가하실 수 있습니다.";
+    if (isDraft) return "자동 추천이 시작되기 전입니다. 충분한 정보가 모이면 등록을 눌러주세요. 언제든지 내용을 수정하거나 추가하실 수 있습니다.";
     if (automation?.is_in_progress) return "현재 매일 후보자 추천 중입니다.";
     return "현재 추천이 중지되어 있습니다. 진행을 누르면 다시 추천이 시작됩니다.";
   }, [isDraft, automation?.is_in_progress]);

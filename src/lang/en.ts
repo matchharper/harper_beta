@@ -312,7 +312,7 @@ export const en = {
     close: "close",
     hello: "Hello",
     intro: "Who are you looking for?",
-    credits: "Credits",
+    credits: "Billing",
     credit_history: "Credits Request history",
     no_credit_request: "No credit request history.",
     processing: "Processing...",
@@ -326,6 +326,66 @@ export const en = {
     credit_request_submitted: "Your request has been submitted.",
     credit_request_submitted_description:
       "Thank you for requesting! Your credit increase is being reviewed, and a decision will be made soon. If opted in, you’ll receive updates on the status via email.",
+  },
+  home: {
+    queryPlaceholder:
+      "Graduated from a domestic university and has AI/ML experience at a US M7 company",
+    examples: [
+      {
+        label: "Engineer",
+        query:
+          "Graduated from a Korean science high school, studied at Seoul National University / KAIST, and has up to 2 years of AI/Machine Learning experience at a US M7 company",
+      },
+      {
+        label: "Product Manager",
+        query:
+          "Product Manager with experience at Naver/Kakao/Line/Coupang/Baemin + strong development skills",
+      },
+      {
+        label: "Researcher",
+        query:
+          "AI researcher (Master's or above, excluding professors) with CVPR/NeurIPS publications and strong Vision Embedding or multimodal (VLM) research experience",
+      },
+    ],
+  },
+  chat: {
+    composerPlaceholder: "Ask anything (Enter to send / Shift+Enter for newline)",
+    candidSuggestions: [
+      "Is this person open to a job change?",
+      "Evaluate whether this person is a good fit for our team, with reasons.",
+      "What’s a good topic to start the first conversation with?",
+    ],
+    unlockProfileCta: "Unlock the profile to start the conversation",
+    loadingHistory: "Loading conversation history...",
+  },
+  scout: {
+    title: "Harper Scout",
+    addAgent: "+ Add Agent",
+    intro:
+      "Harper acts as your agent to find and recommend candidates daily based on the role, skills, and team culture.\nEach agent recommends 1–2 candidates per day, and 1 credit is used per candidate.",
+    emptyTag: "Get started with Harper Scout",
+    emptyTitle: "Welcome to Harper Scout.",
+    emptySubtitle: "No agents have been created yet",
+    emptyDesc:
+      "Tell Harper about the role, stack, and team culture, and Harper will recommend suitable candidates daily.",
+    emptyDesc2: "Create your first agent and get started right away.",
+    feedbackPrefix: "Provide",
+    feedbackPositive: "Interested",
+    feedbackNegative: "Not a fit",
+    feedbackSuffix: "feedback on candidates to keep improving results.",
+    createAgent: "Create Agent",
+    perAgentNote: "Each agent recommends 1–2 candidates per day, 1 credit per candidate.",
+    statusRunning: "Running",
+    statusStopped: "Paused",
+    createdAt: "Created:",
+    updatedAt: "Last updated:",
+    edit: "Edit",
+    loadingList: "Loading...",
+    limitMessage: "You can run up to 2 automations at a time.",
+    checkAutomationFail: "Could not check automation status.",
+    itemFallbackTitle: "Scout",
+    initialAssistantMessage:
+      "Hi, I'm Harper.\nTell me, in simple terms, what problems you want to solve in this hiring process.\n\nIt's okay if the role, team context, and must-have skills aren't fully defined yet.\nWe'll structure it together and find the best-fit candidates.",
   },
   company: {
     information: "Company Information",

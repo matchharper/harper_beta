@@ -21,12 +21,7 @@ import { useCredits } from "@/hooks/useCredit";
 import { useQueryClient } from "@tanstack/react-query";
 import { CANDID_SYSTEM_PROMPT } from "@/app/api/chat/chat_prompt";
 import CreditModal from "../Modal/CreditModal";
-
-const CANDID_SUGGESTIONS = [
-  "이 사람이 이직 의사가 있을까?",
-  "이 사람이 우리 팀에 적합한지, 근거와 함께 평가해줘.",
-  "처음 대화를 할 때, 어떤 주제로 시작하면 좋을지 알려줘.",
-];
+import { useMessages } from "@/i18n/useMessage";
 
 export type ChatScope =
   | { type: "query"; queryId: string }
@@ -52,6 +47,7 @@ export default function CandidChatPanel({
   candidDoc,
 }: Props) {
   const router = useRouter();
+  const { m } = useMessages();
 
   const [stickToBottom, setStickToBottom] = useState(true);
   const [showJumpToBottom, setShowJumpToBottom] = useState(false);
@@ -299,7 +295,7 @@ export default function CandidChatPanel({
           {chat.isLoadingHistory && (
             <div className="text-xs text-hgray600 flex items-center gap-2 py-2">
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              대화 기록 불러오는 중...
+              {m.chat.loadingHistory}
             </div>
           )}
 
@@ -311,7 +307,7 @@ export default function CandidChatPanel({
                   className="flex flex-row justify-center items-center gap-2 bg-white/10 rounded-md px-3 py-2 cursor-pointer hover:bg-white/15 transition-all duration-200"
                 >
                   <Lock className="w-4 h-4 text-hgray600" />
-                  <span className="text-xs text-hgray900">Unlock Profile to start the conversation</span>
+                  <span className="text-xs text-hgray900">{m.chat.unlockProfileCta}</span>
                 </div>
               </div>
             )
@@ -348,7 +344,7 @@ export default function CandidChatPanel({
       {/* ✅ candid + empty 일 때만 예시 질문 */}
       {isCandidEmpty && (
         <div className="flex flex-col gap-2 p-3">
-          {CANDID_SUGGESTIONS.map((q) => (
+          {m.chat.candidSuggestions.map((q) => (
             <button
               key={q}
               type="button"

@@ -145,8 +145,8 @@ async function applyCredits(userId: string, plan: PlanRow) {
     const { error } = await supabaseAdmin
       .from("credits")
       .update({
-        charged_credit: nextCharged,
-        remain_credit: nextRemain,
+        charged_credit: creditAmount,
+        remain_credit: creditAmount,
         last_updated_at: new Date().toISOString(),
       })
       .eq("id", creditsRow.id);
@@ -154,8 +154,8 @@ async function applyCredits(userId: string, plan: PlanRow) {
   } else {
     const { error } = await supabaseAdmin.from("credits").insert({
       user_id: userId,
-      charged_credit: nextCharged,
-      remain_credit: nextRemain,
+      charged_credit: creditAmount,
+      remain_credit: creditAmount,
       last_updated_at: new Date().toISOString(),
     });
     if (error) throw error;
@@ -331,6 +331,15 @@ export async function POST(req: Request) {
     }
 
     if (eventName === "order_created") {
+      const isSubscriptionOrder =
+        Boolean(payload?.data?.attributes?.subscription_id) ||
+        Boolean(payload?.data?.attributes?.first_order_item?.subscription_id) ||
+        Boolean(payload?.data?.relationships?.subscription?.data?.id);
+
+      if (isSubscriptionOrder) {
+        return NextResponse.json({ ok: true, ignored: true });
+      }
+
       const orderItem = payload?.data?.attributes?.first_order_item ?? null;
       const variantId = orderItem?.variant_id?.toString?.() ?? null;
       const subscriptionId =

@@ -150,7 +150,7 @@ export const ko = {
         {
           title: "Intelligence on Top of Data",
           desc:
-            "단순한 데이터 제공이 아니라 흩어진 모든 정보를 하나로 모아 분석하고, 의사결정을 돕습니다.",
+            "데이터만 제공하는게 아니라 흩어진 linkedin, github, scholar, twitter, blog 등 정보를 하나로 모아 분석하고<br />인사이트를 추출해 알려줍니다.",
         },
       ],
     },
@@ -304,7 +304,7 @@ export const ko = {
     close: "닫기",
     hello: "안녕하세요",
     intro: "어떤 인재를 찾고 계신가요?",
-    credits: "크레딧",
+    credits: "Billing",
     credit_history: "크레딧 요청 내역",
     no_credit_request: "크레딧 요청 내역이 없습니다.",
     processing: "처리 중...",
@@ -318,6 +318,64 @@ export const ko = {
     credit_request_submitted: "요청이 성공적으로 접수되었습니다.",
     credit_request_submitted_description:
       "신청해 주셔서 감사합니다. 현재 크레딧 증액 요청을 검토 중이며, 곧 결과가 안내될 예정입니다. 알림 수신에 동의하신 경우, 진행 상황을 이메일로 받아보실 수 있습니다.",
+  },
+  home: {
+    queryPlaceholder: "국내 대학을 졸업하고 미국 M7에서 AI/ML 경험 있는 사람",
+    examples: [
+      {
+        label: "엔지니어",
+        query:
+          "국내 과학고 졸업 후 서울대 / KAIST에 진학하여 미국 M7에서 AI / Machine Learning 경험 2년 이하 보유한 사람",
+      },
+      {
+        label: "프로덕트 매니저",
+        query: "네카라쿠배 출신 프로덕트 매니저 + 개발 역량 보유",
+      },
+      {
+        label: "리서처",
+        query:
+          "CVPR / NeurIPS 논문 경험이 있고 Vision Embedding 또는 멀티모달(VLM) 연구를 잘하는 석사 졸업 이상 AI 리서처 (교수 제외)",
+      },
+    ],
+  },
+  chat: {
+    composerPlaceholder: "무엇이든 질문하세요 (Enter 전송 / Shift+Enter 줄바꿈)",
+    candidSuggestions: [
+      "이 사람이 이직 의사가 있을까?",
+      "이 사람이 우리 팀에 적합한지, 근거와 함께 평가해줘.",
+      "처음 대화를 할 때, 어떤 주제로 시작하면 좋을지 알려줘.",
+    ],
+    unlockProfileCta: "프로필 잠금 해제 후 대화를 시작할 수 있어요",
+    loadingHistory: "대화 기록 불러오는 중...",
+  },
+  scout: {
+    title: "Harper Scout",
+    addAgent: "+ 에이전트 추가",
+    intro:
+      "Harper가 Agent로서 필요한 인재 역량, 팀 문화 등을 바탕으로 매일 후보자를 찾아 추천합니다.\n각 Agent당 매일 1~2명이 추천되며, 각 후보자당 1 크레딧이 소모됩니다.",
+    emptyTag: "Harper Scout 시작하기",
+    emptyTitle: "Harper Scout에 오신걸 환영합니다.",
+    emptySubtitle: "아직 등록된 Agent가 없습니다",
+    emptyDesc:
+      "Harper와 대화하며 역할, 스택, 팀 문화 등을 알려주면 Harper가 매일 적합한 후보자를 찾아 추천합니다.",
+    emptyDesc2: "첫 Agent를 만들고 바로 시작해보세요.",
+    feedbackPrefix: "후보자에 대한",
+    feedbackPositive: "관심있어요",
+    feedbackNegative: "아쉬워요",
+    feedbackSuffix: "피드백을 통해 결과가 점점 더 개선됩니다.",
+    createAgent: "Agent 만들기",
+    perAgentNote: "각 Agent당 추천은 하루 1~2명, 후보자당 1 크레딧이 소모됩니다.",
+    statusRunning: "진행 중",
+    statusStopped: "진행 정지",
+    createdAt: "생성:",
+    updatedAt: "최근 업데이트:",
+    edit: "내용 수정",
+    loadingList: "불러오는 중...",
+    limitMessage: "자동화는 한번에 최대 2개까지 진행 가능합니다.",
+    checkAutomationFail: "자동화 상태를 확인하지 못했습니다.",
+    itemFallbackTitle: "Scout",
+    initialAssistantMessage:
+      "안녕하세요, Harper입니다.\n이번 채용에서 어떤 문제를 해결하고 싶은지부터 편하게 말씀해주세요.\n\n포지션, 팀 상황, 꼭 필요한 역량이 정리되지 않아도 괜찮습니다.\n대화를 통해 함께 구조화하고, 가장 적합한 후보를 찾아드릴게요.",
   },
   company: {
     information: "회사 정보",

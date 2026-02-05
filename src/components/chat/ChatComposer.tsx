@@ -1,6 +1,7 @@
 // components/chat/ChatComposer.tsx
 import React, { useCallback, useRef } from "react";
 import { SendHorizonal, Square, RotateCcw, ArrowUp } from "lucide-react";
+import { useMessages } from "@/i18n/useMessage";
 
 type Props = {
   value: string;
@@ -22,6 +23,7 @@ export default function ChatComposer({
   isStreaming,
 }: Props) {
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const { m } = useMessages();
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -56,7 +58,7 @@ export default function ChatComposer({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="Ask anything (Enter 전송 / Shift+Enter 줄바꿈)"
+          placeholder={m.chat.composerPlaceholder}
           className="w-full min-h-[94px] max-h-[140px] resize-none rounded-[20px] bg-white/5 px-4 py-2.5 text-[13px] text-hgray900 outline-none border border-white/10 focus:border-white/20"
         />
 

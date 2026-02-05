@@ -10,10 +10,9 @@ import { showToast } from "@/components/toast/toast";
 import { MAX_ACTIVE_AUTOMATIONS } from "./[id]";
 import CandidateViews from "@/components/CandidateViews";
 import { useAutomationResults } from "@/hooks/useAutomationResults";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Loading } from "@/components/ui/loading";
-
-export const LIMIT_MESSAGE = "자동화는 한번에 최대 2개까지 진행 가능합니다."
+import { useMessages } from "@/i18n/useMessage";
 
 type AutomationRow = Database["public"]["Tables"]["automation"]["Row"];
 const PAGE_SIZE = 10;
@@ -47,6 +46,7 @@ export default function AutomationIndexPage() {
   const { companyUser } = useCompanyUserStore();
   const userId = companyUser?.user_id;
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const { m } = useMessages();
 
   const { data, isLoading } = useQuery({
     queryKey: ["automation", userId],
@@ -63,70 +63,116 @@ export default function AutomationIndexPage() {
     }
   }, [expandedId, items]);
 
+  const handleAddAutomation = async () => {
+    if (!userId) return;
+    try {
+      const activeCount = await fetchActiveAutomationCount(userId);
+      if (activeCount >= MAX_ACTIVE_AUTOMATIONS) {
+        showToast({
+          message: m.scout.limitMessage,
+          variant: "white",
+        });
+        return;
+      }
+      router.push("/my/automation/new");
+    } catch {
+      showToast({
+        message: m.scout.checkAutomationFail,
+        variant: "white",
+      });
+    }
+  };
+
   return (
     <AppLayout initialCollapse={false}>
       <div className="min-h-screen w-full text-white">
-        <div className="sticky top-0 z-40 w-full backdrop-blur bg-hgray200/60">
-          <div className="mx-auto w-full px-4 pt-6 pb-4">
-            <div className="flex items-end justify-between gap-4 w-full">
-              <div className="w-full">
-                <div className="flex flex-row items-center justify-between">
-                  <div className="text-3xl font-hedvig font-light tracking-tight text-white">
-                    Harper Scout
-                  </div>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (!userId) return;
-                      try {
-                        const activeCount = await fetchActiveAutomationCount(userId);
-                        if (activeCount >= MAX_ACTIVE_AUTOMATIONS) {
-                          showToast({
-                            message: LIMIT_MESSAGE,
-                            variant: "white",
-                          });
-                          return;
-                        }
-                        router.push("/my/automation/new");
-                      } catch {
-                        showToast({
-                          message: "자동화 상태를 확인하지 못했습니다.",
-                          variant: "white",
-                        });
-                      }
-                    }}
-                    className="min-w-[280px] rounded-lg border border-white/10 bg-accenta1/90 py-3 text-sm font-medium text-black transition hover:bg-accenta1"
-                  >
-                    + Add Automation
-                  </button>
+        {
+          items.length !== 0 && (
+            <div className="sticky top-0 z-40 w-full backdrop-blur bg-hgray200/60">
+              <div className="mx-auto w-full px-4 pt-6 pb-4 flex items-end justify-between gap-4">
+                <div className="w-full">
+                  <div className="flex flex-row items-center justify-between">
+                    <div className="text-3xl font-hedvig font-light tracking-tight text-white">
+                      {m.scout.title}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddAutomation}
+                      className="min-w-[280px] rounded-lg border border-white/10 bg-accenta1/90 py-3 text-sm font-medium text-black transition hover:bg-accenta1"
+                    >
+                      {m.scout.addAgent}
+                    </button>
 
-                </div>
-                <div className="mt-4 text-sm text-xgray800">
-                  Harper가 헤드헌터로서 필요한 인재 역량, 팀 문화 등을 바탕으로 매일 후보자를 찾아 추천합니다.<br />각 Automation당 매일 1~2명이 추천되며, 각 후보자당 1 크레딧이 소모됩니다.
+                  </div>
+                  <div className="mt-4 text-sm text-xgray800 whitespace-pre-line">
+                    {m.scout.intro}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
+          )
+        }
 
-        <div className="mx-auto w-full px-4 pb-16 mt-8">
-          {isLoading && (
-            <div className="py-8 text-sm text-xgray800"><Loading label="불러오는 중..." className="text-xgray800" isFullScreen={true} /></div>
-          )}
-
-          {!isLoading && items.length === 0 && (
-            <div className="py-2 text-sm text-xgray800">
-              아직 등록된 자동화가 없습니다.
+        {!isLoading && items.length === 0 && (
+          <div className="relative mt-4 mx-4 min-h-[90vh] overflow-hidden rounded-2xl">
+            {/* <div className="pointer-events-none absolute -left-20 -top-20 h-64 w-64 rounded-full bg-accenta1/15 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-16 -right-10 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-white/5 to-transparent" /> */}
+            <div className="relative z-10 flex h-full min-h-[88vh] flex-col items-center justify-center text-center">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-white/80">
+                {m.scout.emptyTag}
+              </div>
+              <div className="text-2xl md:text-3xl font-hedvig font-light tracking-tight text-white">
+                {m.scout.emptyTitle}
+              </div>
+              <div className="text-lg mt-4 font-hedvig font-light tracking-tight text-white">
+                {m.scout.emptySubtitle}
+              </div>
+              <div className="mt-4 max-w-[560px] text-sm md:text-base text-xgray800 font-light">
+                <div>{m.scout.emptyDesc}</div>
+                <div>{m.scout.emptyDesc2}</div>
+                <br />
+                <div className="flex flex-row gap-2 items-center mt-2 flex-wrap text-center">
+                  {m.scout.feedbackPrefix}{" "}
+                  <span className="flex flex-row gap-1 items-center">
+                    <Check className="w-4 h-4 text-green-500" />
+                    {m.scout.feedbackPositive}
+                  </span>
+                  {" "}
+                  <span className="flex flex-row gap-1 items-center">
+                    <X className="w-4 h-4 text-red-500" />
+                    {m.scout.feedbackNegative}
+                  </span>
+                  {" "}
+                  {m.scout.feedbackSuffix}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleAddAutomation}
+                className="mt-8 rounded-full bg-accenta1 px-8 py-4 text-sm font-semibold text-black shadow-[0_16px_40px_rgba(180,255,120,0.3)] transition hover:-translate-y-[1px] hover:shadow-[0_20px_50px_rgba(180,255,120,0.4)]"
+              >
+                {m.scout.createAgent}
+              </button>
+              <div className="mt-6 text-xs text-white/50">
+                {m.scout.perAgentNote}
+              </div>
             </div>
-          )}
+          </div>
+        )}
 
-          {items.length > 0 && (
+        {items.length > 0 && (
+          <div className="mx-auto w-full px-4 pb-16 mt-8">
+            {isLoading && (
+              <div className="py-8 text-sm text-xgray800"><Loading label={m.scout.loadingList} className="text-xgray800" isFullScreen={true} /></div>
+            )}
+
             <div className="grid grid-cols-3 gap-4 mt-8">
               {items.map((item) => {
                 const updatedAt = item.last_updated_at || item.created_at;
                 const statusLabel = item.is_in_progress
-                  ? "진행 중"
-                  : "진행 정지";
+                  ? m.scout.statusRunning
+                  : m.scout.statusStopped;
                 const isExpanded = expandedId === item.id;
                 return (
                   <div key={item.id}>
@@ -149,7 +195,7 @@ export default function AutomationIndexPage() {
                     >
                       <div className="flex items-start justify-between">
                         <div className="text-base font-medium text-white">
-                          {item.title ?? "Scout"} #{item.id.slice(0, 6)}
+                          {item.title ?? m.scout.itemFallbackTitle} #{item.id.slice(0, 6)}
                         </div>
                         <span
                           className={[
@@ -163,10 +209,10 @@ export default function AutomationIndexPage() {
                         </span>
                       </div>
                       <div className="text-xs text-xgray800 mt-4">
-                        생성: {dateToFormatLong(item.created_at)}
+                        {m.scout.createdAt} {dateToFormatLong(item.created_at)}
                       </div>
                       <div className="text-xs text-xgray800">
-                        최근 업데이트: {dateToFormatLong(updatedAt)}
+                        {m.scout.updatedAt} {dateToFormatLong(updatedAt)}
                       </div>
                       <button
                         type="button"
@@ -176,24 +222,24 @@ export default function AutomationIndexPage() {
                         }}
                         className="absolute right-3 bottom-3 rounded-md bg-accenta1 px-3 py-1.5 text-xs text-black transition hover:bg-accenta1/80"
                       >
-                        내용 수정
+                        {m.scout.edit}
                       </button>
                     </div>
                   </div>
                 );
               })}
             </div>
-          )}
 
-          {expandedId && (
-            <div className="mt-8">
-              <AutomationResultsList
-                userId={userId}
-                automationId={expandedId}
-              />
-            </div>
-          )}
-        </div>
+            {expandedId && (
+              <div className="mt-8">
+                <AutomationResultsList
+                  userId={userId}
+                  automationId={expandedId}
+                />
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </AppLayout>
   );

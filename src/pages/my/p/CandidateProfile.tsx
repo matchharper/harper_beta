@@ -221,6 +221,7 @@ export default function CandidateProfileDetailPage({
               return (
                 <ItemBox
                   key={idx}
+                  isContinued={idx > 0 && (c.experience_user ?? [])[idx - 1].company_db?.name === e.company_db?.name}
                   title={e.role}
                   company_id={e.company_id}
                   name={companyEnToKo(e.company_db.name)}

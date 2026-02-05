@@ -10,7 +10,7 @@ import {
   Cormorant_Garamond,
 } from "next/font/google";
 import { Analytics } from "@vercel/analytics/react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import CompanyModalRoot from "@/components/Modal/CompanyModal";
@@ -51,6 +51,7 @@ export default function App({ Component, pageProps }: AppProps) {
     load,
     loading: companyUserLoading,
   } = useCompanyUserStore();
+  const lastFreeRefreshUserId = useRef<string | null>(null);
 
   useEffect(() => {
     if (!loading && user && !companyUser && !companyUserLoading) {
@@ -61,6 +62,22 @@ export default function App({ Component, pageProps }: AppProps) {
   useEffect(() => {
     init();
   }, [init]);
+
+  useEffect(() => {
+    if (!companyUser?.user_id) return;
+    if (companyUserLoading) return;
+    if (lastFreeRefreshUserId.current === companyUser.user_id) return;
+
+    lastFreeRefreshUserId.current = companyUser.user_id;
+
+    fetch("/api/credits/free-refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: companyUser.user_id }),
+    }).catch((err) => {
+      console.error("Failed to refresh free credits:", err);
+    });
+  }, [companyUser?.user_id, companyUserLoading]);
 
   return (
     <ReactQueryProvider>
