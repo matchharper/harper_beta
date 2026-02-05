@@ -10,6 +10,7 @@ import { useMessages } from "@/i18n/useMessage";
 import { showToast } from "@/components/toast/toast";
 import { notifyToSlack } from "@/lib/slack";
 import PricingSection from "@/components/payment/PricingSection";
+import ConfirmModal from "@/components/Modal/ConfirmModal";
 
 const PRO_MONTHLYCHECKOUT_URL =
   "https://matchharper.lemonsqueezy.com/checkout/buy/ea41e57e-6dc1-4ddd-8b7f-f5636bc35ec5";
@@ -108,6 +109,8 @@ const Billing = () => {
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(
     null
   );
+  const [isCanceling, setIsCanceling] = useState(false);
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const { m } = useMessages();
   const pricing = m.companyLanding.pricing;
   const currentPlanKey =
@@ -128,6 +131,13 @@ const Billing = () => {
       : subscription?.billing === "monthly"
         ? "월간"
         : "주기 정보 없음";
+  const canCancelSubscription =
+    !!subscription &&
+    subscription.planKey !== "free" &&
+    !subscription.cancelAtPeriodEnd;
+  const freeStartDateLabel = subscription?.currentPeriodEnd
+    ? dateToFormatLong(subscription.currentPeriodEnd)
+    : "";
 
   useEffect(() => {
     let isCancelled = false;
@@ -252,6 +262,60 @@ const Billing = () => {
 
   return (
     <AppLayout initialCollapse={false}>
+      <ConfirmModal
+        open={isCancelModalOpen}
+        onClose={() => setIsCancelModalOpen(false)}
+        onConfirm={async () => {
+          if (!companyUser?.user_id) {
+            showToast({
+              message: "로그인 정보를 확인할 수 없습니다.",
+              variant: "white",
+            });
+            return;
+          }
+          if (!canCancelSubscription) return;
+
+          setIsCanceling(true);
+          try {
+            const res = await fetch("/api/lemonsqueezy/cancel", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ userId: companyUser.user_id }),
+            });
+            if (!res.ok) {
+              showToast({
+                message: "구독 취소에 실패했습니다.",
+                variant: "white",
+              });
+              return;
+            }
+            setSubscription((prev) =>
+              prev ? { ...prev, cancelAtPeriodEnd: true } : prev
+            );
+            showToast({
+              message: "구독 취소 요청이 완료되었습니다.",
+              variant: "white",
+            });
+          } catch (error) {
+            showToast({
+              message: "구독 취소 중 오류가 발생했습니다.",
+              variant: "white",
+            });
+          } finally {
+            setIsCanceling(false);
+            setIsCancelModalOpen(false);
+          }
+        }}
+        isLoading={isCanceling}
+        title="구독을 취소할까요?"
+        description={
+          freeStartDateLabel
+            ? `현재 결제 주기 종료 후 해지되며, <span class="text-white">${freeStartDateLabel}</span>부터 Free 플랜으로 전환됩니다.`
+            : "현재 결제 주기 종료 후 해지되며, 이후 Free 플랜으로 전환됩니다."
+        }
+        confirmLabel="구독 취소"
+        cancelLabel="닫기"
+      />
       <div className="px-6 py-8 w-full">
         <div className="text-3xl font-hedvig font-light tracking-tight text-white">
           {m.system.credits}
@@ -364,7 +428,7 @@ const Billing = () => {
                     </span>
                   </div>
                   {subscription.currentPeriodEnd ? (
-                    <div className="text-hgray700">
+                    <div className="text-hgray700 font-light">
                       {subscription.cancelAtPeriodEnd
                         ? "기간 종료 후 해지 예정"
                         : "다음 결제일"}
@@ -445,6 +509,20 @@ const Billing = () => {
             window.location.href = url.toString();
           }}
         />
+
+        <div className="mt-20 px-2 flex flex-row items-center justify-between">
+          <button
+            type="button"
+            disabled={!canCancelSubscription || isCanceling}
+            className="text-sm text-red-600/50 hover:text-red-600/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            onClick={() => setIsCancelModalOpen(true)}
+          >
+            {isCanceling ? "취소 중..." : "구독 취소"}
+          </button>
+          <button
+            className="text-sm text-white/50 hover:text-white/70 transition-colors"
+          >환불 정책</button>
+        </div>
       </div>
     </AppLayout>
   );
