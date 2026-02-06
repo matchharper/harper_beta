@@ -129,8 +129,8 @@ export const ko = {
     },
     section1: {
       title: "Recruiting Agent, Harper",
-      headlineLine1: "원하는 인재를",
-      headlineLine2: "하퍼가 찾아드립니다.",
+      headlineLine1: "",
+      headlineLine2: "",
       bodyLine1: "채용은 회사의 미래를 결정하는 가장 중요한 의사결정입니다.",
       bodyLine2: "하퍼는 10배 더 빠르고, 10배 더 저렴한 전담 AI Recruiter입니다.",
     },

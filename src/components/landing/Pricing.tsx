@@ -29,7 +29,11 @@ function calcDiscountedMonthly(monthly: number, discountRate: number) {
     return Math.round(monthly * (1 - discountRate));
 }
 
-export default function PricingSection({ onClick }: { onClick: (plan: string) => void }) {
+export default function PricingSection({
+    onClick,
+}: {
+    onClick: (plan: string, billing: Billing) => void;
+}) {
     const [billing, setBilling] = useState<Billing>("monthly");
     const { m, locale } = useMessages();
     const pricing = m.companyLanding.pricing;
@@ -126,6 +130,7 @@ export default function PricingSection({ onClick }: { onClick: (plan: string) =>
                                         isMostPopular={p.isMostPopular}
                                         buttonLabel={p.buttonLabel}
                                         features={Array.from(p.features)}
+                                        billing={billing}
                                         onClick={onClick}
                                     />
                                 ))}
@@ -197,6 +202,7 @@ function PlanCard({
     buttonLabel,
     features,
     onClick,
+    billing,
 }: {
     name: string;
     tagline: string;
@@ -206,7 +212,8 @@ function PlanCard({
     isMostPopular: boolean;
     buttonLabel: string;
     features: string[];
-    onClick: (plan: string) => void;
+    billing: Billing;
+    onClick: (plan: string, billing: Billing) => void;
 }) {
     const { m, locale } = useMessages();
     const pricing = m.companyLanding.pricing;
@@ -250,7 +257,7 @@ function PlanCard({
                 <div className="mt-4 md:mt-6 w-full">
                     <button
                         type="button"
-                        onClick={() => onClick(name)}
+                        onClick={() => onClick(name, billing)}
                         className={[
                             "w-full rounded-full py-2.5 md:py-3 text-sm md:text-sm font-normal transition-colors",
                             isPrimary
