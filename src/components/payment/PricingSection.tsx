@@ -3,8 +3,6 @@
 import React, { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Check } from "lucide-react";
-import { BaseSectionLayout } from "@/components/landing/GridSectionLayout";
-import Animate from "@/components/landing/Animate";
 import { useMessages } from "@/i18n/useMessage";
 
 type Billing = "monthly" | "yearly";
@@ -150,6 +148,7 @@ export default function PricingSection({
                                     buttonLabel={buttonLabel}
                                     features={Array.from(p.features)}
                                     disabled={isDisabled}
+                                    billing={billing}
                                     onClick={handleClick}
                                 />
                             );
@@ -211,6 +210,7 @@ function BillingToggle({
 }
 
 function PlanCard({
+    billing,
     name,
     tagline,
     price,
@@ -231,6 +231,7 @@ function PlanCard({
     buttonLabel: string;
     features: string[];
     disabled?: boolean;
+    billing: Billing;
     onClick: (plan: string, billing: Billing) => void;
 }) {
     const { m, locale } = useMessages();

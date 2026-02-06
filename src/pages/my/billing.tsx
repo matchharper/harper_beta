@@ -211,7 +211,7 @@ const Billing = () => {
       }
 
       const planName =
-        activePayment?.plans?.display_name ?? activePayment?.plans?.name ?? null;
+        (activePayment as any)?.plans?.display_name ?? (activePayment as any)?.plans?.name ?? null;
       const cycle = (activePayment as any)?.plans?.cycle ?? null;
       const billing =
         cycle === 1
@@ -219,11 +219,11 @@ const Billing = () => {
           : cycle === 0
             ? "monthly"
             : inferBillingPeriod({
-                planLabel: planName,
-                planId: activePayment.plan_id ?? null,
-                start: activePayment.current_period_start ?? null,
-                end: activePayment.current_period_end ?? null,
-              });
+              planLabel: planName,
+              planId: activePayment.plan_id ?? null,
+              start: activePayment.current_period_start ?? null,
+              end: activePayment.current_period_end ?? null,
+            });
       const planKey = inferPlanKey({
         planLabel: planName,
         planId: activePayment.plan_id ?? null,
