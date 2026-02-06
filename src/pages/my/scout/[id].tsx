@@ -110,7 +110,7 @@ export default function AutomationDetailPage() {
           variant: "white",
         });
         setIsLoading(false);
-        router.push("/my/automation");
+        router.push("/my/scout");
         return;
       }
     } catch {
@@ -119,7 +119,7 @@ export default function AutomationDetailPage() {
         variant: "white",
       });
       setIsLoading(false);
-      router.push("/my/automation");
+      router.push("/my/scout");
       return;
     }
     const newId = createLocalId();
@@ -232,7 +232,7 @@ export default function AutomationDetailPage() {
       setConfirmLeaveOpen(true);
       return;
     }
-    router.push("/my/automation");
+    router.push("/my/scout");
   }, [isDraft, router]);
 
   const handleRegister = useCallback(async () => {
@@ -298,7 +298,7 @@ export default function AutomationDetailPage() {
       }),
     });
     setIsSaving(false);
-    router.push("/my/automation");
+    router.push("/my/scout");
   }, [automationId, userId, qc, router, fetchActiveAutomationCount, isDraft, credits, m.scout.limitMessage, m.scout.checkAutomationFail]);
 
   const handleDelete = useCallback(async () => {
@@ -314,7 +314,7 @@ export default function AutomationDetailPage() {
       .eq("query_id", automationId);
     await qc.invalidateQueries({ queryKey: ["automation", userId] });
     setIsSaving(false);
-    router.push("/my/automation");
+    router.push("/my/scout");
   }, [automationId, qc, router, userId]);
 
   const handlePause = useCallback(async () => {
@@ -511,7 +511,7 @@ export default function AutomationDetailPage() {
         onConfirm={async () => {
           setConfirmLeaveOpen(false);
           await cleanupDraft();
-          router.push("/my/automation");
+          router.push("/my/scout");
         }}
       />
 

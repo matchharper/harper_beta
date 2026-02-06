@@ -70,12 +70,17 @@ export default function App({ Component, pageProps }: AppProps) {
 
     lastFreeRefreshUserId.current = companyUser.user_id;
 
-    fetch("/api/credits/free-refresh", {
+    const payload = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId: companyUser.user_id }),
-    }).catch((err) => {
-      console.error("Failed to refresh free credits:", err);
+    };
+
+    Promise.all([
+      fetch("/api/credits/free-refresh", payload),
+      fetch("/api/credits/annual-refresh", payload),
+    ]).catch((err) => {
+      console.error("Failed to refresh credits:", err);
     });
   }, [companyUser?.user_id, companyUserLoading]);
 

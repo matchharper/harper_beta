@@ -65,7 +65,7 @@ const AppLayout = ({
   const pathname = usePathname();
   const isHome = pathname === "/my";
   const isList = pathname === "/my/list";
-  const isAutomation = pathname?.startsWith("/my/automation");
+  const isAutomation = pathname?.startsWith("/my/scout");
 
   const userId = companyUser?.user_id;
 
@@ -136,7 +136,7 @@ const AppLayout = ({
             active={isAutomation}
             label="Harper Scout"
             icon={<Sparkles size={16} />}
-            onClick={() => router.push("/my/automation")}
+            onClick={() => router.push("/my/scout")}
           />
           <div className="flex h-16"></div>
           <HoverHistory

@@ -125,14 +125,14 @@ export const ko = {
       titleLine1: "Don\u2019t Buy",
       titleLine2Prefix: "Pay for",
       titleLine2Highlight: "Intelligence",
-      subtitle: "단순한 검색을 넘어, 인재를 이해하는 지능을 경험하세요.<br />하퍼는 매일, 팀을 위한 인재를 추천합니다.",
+      subtitle: "단순한 검색을 넘어, 인재를 이해하는 지능을 경험하세요.<br />하퍼는 매일, 후보자를 추천해주고 끊임없이 개선됩니다.",
     },
     section1: {
       title: "Recruiting Agent, Harper",
-      headlineLine1: "최고의 인재는",
-      headlineLine2: "일반 채용 시장에 공개되지 않습니다.",
+      headlineLine1: "원하는 인재를",
+      headlineLine2: "하퍼가 찾아드립니다.",
       bodyLine1: "채용은 회사의 미래를 결정하는 가장 중요한 의사결정입니다.",
-      bodyLine2: "하퍼는 24시간 동안 일하고, 10배 더 빠른 전담 AI Recruiter입니다.",
+      bodyLine2: "하퍼는 10배 더 빠르고, 10배 더 저렴한 전담 AI Recruiter입니다.",
     },
     why: {
       title: "Why harper?",
@@ -140,7 +140,7 @@ export const ko = {
         {
           title: "Beyond Keywords",
           desc:
-            "단순한 키워드 검색을 넘어, <br />인재와 맥락을 이해하고 찾아주는 지능을 경험하세요.",
+            "단순한 키워드 검색을 넘어, <br />역량과 맥락을 이해하고 찾아주는 지능을 경험하세요.",
         },
         {
           title: "Focus on Value",
@@ -174,7 +174,7 @@ export const ko = {
           label: "Harper Scout",
           title: "매일 후보자를 찾아<br />추천해드립니다.",
           desc:
-            "원하는 인재상을 등록하면 매일 적절한 후보자를 추천해드립니다.<br />피드백을 바탕으로 추천결과가 점점 더 팀에 맞춰집니다.",
+            "원하는 인재상을 자유롭게 등록하면 매일 적절한 후보자를 추천해드립니다.<br />피드백을 바탕으로 추천 결과가 점점 더 개선됩니다.",
         }
       ],
     },

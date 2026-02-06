@@ -20,10 +20,11 @@ import PricingSection from "@/components/landing/Pricing";
 import { logger } from "@/utils/logger";
 import { supabase } from "@/lib/supabase";
 import LoginModal from "@/components/Modal/LoginModal";
-import RotatingWord from "@/components/landing/RotatingWord";
 import RowImageSection from "@/components/landing/RowImageSection";
 import GradientBackground from "@/components/landing/GradientBackground";
 import { useMessages } from "@/i18n/useMessage";
+import RotatingText from '@/components/RotatingText'
+import DarkVeil from '@/components/Darkveli';
 
 export const isValidEmail = (email: string): boolean => {
   const trimmed = email.trim();
@@ -265,21 +266,46 @@ const CandidatePage = () => {
       </header>
 
       <div className="flex flex-col items-center justify-center px-0 md:px-20 w-full bg-black text-white h-[86vh] md:h-[90vh]">
-        <div className="flex flex-col items-center justify-start md:justify-center pt-32 md:pt-0 w-full h-full text-center px-4">
-          <div className="mb-4 flex flex-row items-center justify-center pl-[2px] py-[2px] pr-[12px] bg-white/80 text-black gap-2 rounded-full">
+
+        <div className="absolute top-0 left-0 w-full h-[90%] opacity-40">
+          <DarkVeil
+            hueShift={189}
+            noiseIntensity={0}
+            scanlineIntensity={0}
+            speed={1.2}
+            scanlineFrequency={0}
+            warpAmount={0}
+          />
+        </div>
+        <div className="z-10 flex flex-col items-center justify-start md:justify-center pt-32 md:pt-0 w-full h-full text-center px-4">
+          {/* <div className="mb-4 flex flex-row items-center justify-center pl-[2px] py-[2px] pr-[12px] text-white bg-[#444444aa] backdrop-blur gap-2 rounded-full">
             <div className="w-[24px] h-[24px] bg-black rounded-full flex items-center justify-center">
               <Image src="/svgs/logo.svg" alt="logo" width={12} height={12} />
             </div>
             <div className="text-[12px] font-normal">
               {m.companyLanding.hero.badge}
             </div>
-          </div>
-          <div className="md:text-[56px] text-[36px] font-semibold leading-snug mt-2">
-            &nbsp;{m.companyLanding.hero.titleLine1} <RotatingWord /><br />
-            {m.companyLanding.hero.titleLine2Prefix}{" "}
-            <span className="font-hedvig text-accenta1 font-normal italic">
+          </div> */}
+          <div className="md:text-[56px] text-[36px] font-semibold leading-snug mt-2 flex flex-col items-center justify-center gap-2">
+            <div>{m.companyLanding.hero.titleLine1} Data.</div>
+            <div className="flex flex-row items-center justify-center gap-4">
+              {m.companyLanding.hero.titleLine2Prefix}{" "}
+              <RotatingText
+                texts={['Intelligence', 'Decisions', 'Hires']}
+                mainClassName="lg:px-4 md:px-3 px-2 font-hedvig bg-accenta1 text-black overflow-hidden py-0 sm:py-0 md:py-0 justify-center rounded-lg inline-block"
+                staggerFrom={"last"}
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "-120%" }}
+                staggerDuration={0.02}
+                splitLevelClassName="overflow-hidden pb-0.5 sm:pb-1 md:pb-1"
+                transition={{ type: "spring", damping: 30, stiffness: 400 }}
+                rotationInterval={2800}
+              />
+            </div>
+            {/* <span className="font-hedvig text-accenta1 font-normal italic">
               {m.companyLanding.hero.titleLine2Highlight}
-            </span>
+            </span> */}
           </div>
           <div className="text-sm md:text-base text-hgray700 font-light mt-6">
             <span
@@ -374,7 +400,7 @@ const CandidatePage = () => {
       </Animate>
       <div ref={priceSectionRef} />
       <div className="h-28 md:h-40" />
-      <PricingSection onClick={(plan: string) => {
+      <PricingSection onClick={(plan: string, _billing: "monthly" | "yearly") => {
         addLog("click_pricing_" + plan)
         setIsOpenLoginModal(true)
       }} />

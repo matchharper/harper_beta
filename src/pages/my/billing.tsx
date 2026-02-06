@@ -12,10 +12,10 @@ import { notifyToSlack } from "@/lib/slack";
 import PricingSection from "@/components/payment/PricingSection";
 import ConfirmModal from "@/components/Modal/ConfirmModal";
 
-const PRO_MONTHLYCHECKOUT_URL =
-  "https://matchharper.lemonsqueezy.com/checkout/buy/ea41e57e-6dc1-4ddd-8b7f-f5636bc35ec5";
-const MAX_MONTHLY_CHECKOUT_URL =
-  "https://matchharper.lemonsqueezy.com/checkout/buy/0526b657-757f-45bb-bc9f-4466a6ec360f";
+const PRO_MONTHLY_CHECKOUT_URL = "https://matchharper.lemonsqueezy.com/checkout/buy/ea41e57e-6dc1-4ddd-8b7f-f5636bc35ec5";
+const PRO_YEARLY_CHECKOUT_URL = "https://matchharper.lemonsqueezy.com/checkout/buy/9fc75131-090e-4407-9801-f917985b4539"
+const MAX_MONTHLY_CHECKOUT_URL = "https://matchharper.lemonsqueezy.com/checkout/buy/0526b657-757f-45bb-bc9f-4466a6ec360f";
+const MAX_YEARLY_CHECKOUT_URL = "https://matchharper.lemonsqueezy.com/checkout/buy/33a8c986-702b-42ca-bed4-716976b1f496";
 
 type BillingPeriod = "monthly" | "yearly";
 
@@ -161,7 +161,8 @@ const Billing = () => {
             plans (
               plan_id,
               name,
-              display_name
+              display_name,
+              cycle
             )
           `
         )
@@ -211,12 +212,18 @@ const Billing = () => {
 
       const planName =
         activePayment?.plans?.display_name ?? activePayment?.plans?.name ?? null;
-      const billing = inferBillingPeriod({
-        planLabel: planName,
-        planId: activePayment.plan_id ?? null,
-        start: activePayment.current_period_start ?? null,
-        end: activePayment.current_period_end ?? null,
-      });
+      const cycle = (activePayment as any)?.plans?.cycle ?? null;
+      const billing =
+        cycle === 1
+          ? "yearly"
+          : cycle === 0
+            ? "monthly"
+            : inferBillingPeriod({
+                planLabel: planName,
+                planId: activePayment.plan_id ?? null,
+                start: activePayment.current_period_start ?? null,
+                end: activePayment.current_period_end ?? null,
+              });
       const planKey = inferPlanKey({
         planLabel: planName,
         planId: activePayment.plan_id ?? null,
@@ -473,7 +480,7 @@ const Billing = () => {
         <PricingSection
           currentPlanKey={currentPlanKey}
           currentBilling={currentBilling}
-          onClick={(planName: string) => {
+          onClick={(planName: string, billing: "monthly" | "yearly") => {
             const proName = m.companyLanding.pricing.plans.pro.name;
             const maxName = m.companyLanding.pricing.plans.max.name;
 
@@ -495,9 +502,17 @@ const Billing = () => {
 
             let url;
             if (planName === proName) {
-              url = new URL(PRO_MONTHLYCHECKOUT_URL);
+              url = new URL(
+                billing === "yearly"
+                  ? PRO_YEARLY_CHECKOUT_URL
+                  : PRO_MONTHLY_CHECKOUT_URL
+              );
             } else if (planName === maxName) {
-              url = new URL(MAX_MONTHLY_CHECKOUT_URL);
+              url = new URL(
+                billing === "yearly"
+                  ? MAX_YEARLY_CHECKOUT_URL
+                  : MAX_MONTHLY_CHECKOUT_URL
+              );
             } else {
               showToast({
                 message: "현재는 Pro, Max 플랜만 테스트 중입니다.",

@@ -37,7 +37,7 @@ export default function PricingSection({
     currentLabel,
     changeLabel,
 }: {
-    onClick: (plan: string) => void;
+    onClick: (plan: string, billing: Billing) => void;
     currentPlanKey?: PlanKey | null;
     currentBilling?: Billing | null;
     currentLabel?: string;
@@ -135,7 +135,7 @@ export default function PricingSection({
                                         : p.buttonLabel;
                             const isDisabled = isCurrent || isEnterprise;
                             const handleClick = isEnterprise
-                                ? (_plan: string) => { }
+                                ? (_plan: string, _billing: Billing) => { }
                                 : onClick;
 
                             return (
@@ -231,7 +231,7 @@ function PlanCard({
     buttonLabel: string;
     features: string[];
     disabled?: boolean;
-    onClick: (plan: string) => void;
+    onClick: (plan: string, billing: Billing) => void;
 }) {
     const { m, locale } = useMessages();
     const pricing = m.companyLanding.pricing;
@@ -275,7 +275,7 @@ function PlanCard({
                 <div className="mt-4 md:mt-6 w-full">
                     <button
                         type="button"
-                        onClick={() => onClick(name)}
+                        onClick={() => onClick(name, billing)}
                         disabled={disabled}
                         className={[
                             "w-full rounded-full py-2.5 md:py-3 text-sm md:text-sm font-normal transition-colors",

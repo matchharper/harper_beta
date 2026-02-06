@@ -74,7 +74,7 @@ export default function AutomationIndexPage() {
         });
         return;
       }
-      router.push("/my/automation/new");
+      router.push("/my/scout/new");
     } catch {
       showToast({
         message: m.scout.checkAutomationFail,
@@ -112,54 +112,57 @@ export default function AutomationIndexPage() {
             </div>
           )
         }
-
         {!isLoading && items.length === 0 && (
-          <div className="relative mt-4 mx-4 min-h-[90vh] overflow-hidden rounded-2xl">
-            {/* <div className="pointer-events-none absolute -left-20 -top-20 h-64 w-64 rounded-full bg-accenta1/15 blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-16 -right-10 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-white/5 to-transparent" /> */}
-            <div className="relative z-10 flex h-full min-h-[88vh] flex-col items-center justify-center text-center">
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-white/80">
+          <div className="mx-4 mt-6">
+            <div className="flex min-h-[72vh] flex-col items-center justify-center px-6 py-14 text-center">
+              {/* <div className="mb-4 inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] tracking-wide text-white/70">
                 {m.scout.emptyTag}
-              </div>
-              <div className="text-2xl md:text-3xl font-hedvig font-light tracking-tight text-white">
+              </div> */}
+
+              <div className="text-2xl font-hedvig font-light tracking-tight text-white md:text-3xl">
                 {m.scout.emptyTitle}
               </div>
-              <div className="text-lg mt-4 font-hedvig font-light tracking-tight text-white">
+
+              <div className="mt-3 text-sm text-white/60 md:text-base">
                 {m.scout.emptySubtitle}
               </div>
-              <div className="mt-4 max-w-[560px] text-sm md:text-base text-xgray800 font-light">
+
+              <div className="mt-6 max-w-[590px] space-y-2 text-sm leading-relaxed text-white/55">
                 <div>{m.scout.emptyDesc}</div>
                 <div>{m.scout.emptyDesc2}</div>
-                <br />
-                <div className="flex flex-row gap-2 items-center mt-2 flex-wrap text-center">
-                  {m.scout.feedbackPrefix}{" "}
-                  <span className="flex flex-row gap-1 items-center">
-                    <Check className="w-4 h-4 text-green-500" />
-                    {m.scout.feedbackPositive}
-                  </span>
-                  {" "}
-                  <span className="flex flex-row gap-1 items-center">
-                    <X className="w-4 h-4 text-red-500" />
-                    {m.scout.feedbackNegative}
-                  </span>
-                  {" "}
-                  {m.scout.feedbackSuffix}
-                </div>
               </div>
+
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-2 text-sm text-white/75">
+                <span className="text-white/45">{m.scout.feedbackPrefix}</span>
+
+                <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
+                  <Check className="h-4 w-4 text-white/60" />
+                  {m.scout.feedbackPositive}
+                </span>
+
+                <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
+                  <X className="h-4 w-4 text-white/60" />
+                  {m.scout.feedbackNegative}
+                </span>
+
+                <span className="text-white/45">{m.scout.feedbackSuffix}</span>
+              </div>
+
               <button
                 type="button"
                 onClick={handleAddAutomation}
-                className="mt-8 rounded-full bg-accenta1 px-8 py-4 text-sm font-semibold text-black shadow-[0_16px_40px_rgba(180,255,120,0.3)] transition hover:-translate-y-[1px] hover:shadow-[0_20px_50px_rgba(180,255,120,0.4)]"
+                className="mt-8 inline-flex items-center justify-center rounded-full border border-white/15 bg-accenta1 px-6 py-3 text-sm font-medium text-black transition"
               >
                 {m.scout.createAgent}
               </button>
-              <div className="mt-6 text-xs text-white/50">
+
+              <div className="mt-4 text-sm text-white/40">
                 {m.scout.perAgentNote}
               </div>
             </div>
           </div>
         )}
+
 
         {items.length > 0 && (
           <div className="mx-auto w-full px-4 pb-16 mt-8">
@@ -218,7 +221,7 @@ export default function AutomationIndexPage() {
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          router.push(`/my/automation/${item.id}`);
+                          router.push(`/my/scout/${item.id}`);
                         }}
                         className="absolute right-3 bottom-3 rounded-md bg-accenta1 px-3 py-1.5 text-xs text-black transition hover:bg-accenta1/80"
                       >
