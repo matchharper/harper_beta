@@ -18,6 +18,7 @@ const PRO_MONTHLY_CHECKOUT_URL = "https://matchharper.lemonsqueezy.com/checkout/
 const PRO_YEARLY_CHECKOUT_URL = "https://matchharper.lemonsqueezy.com/checkout/buy/c2397869-0c46-477d-9315-7cbb03c2d464"
 const MAX_MONTHLY_CHECKOUT_URL = "https://matchharper.lemonsqueezy.com/checkout/buy/0526b657-757f-45bb-bc9f-4466a6ec360f";
 const MAX_YEARLY_CHECKOUT_URL = "https://matchharper.lemonsqueezy.com/checkout/buy/5f88e60e-f43f-4699-b4a1-3a71fe90b13d";
+const CONTACT_EMAIL = "chris@asksonus.com";
 
 type BillingPeriod = "monthly" | "yearly";
 
@@ -113,6 +114,8 @@ const Billing = () => {
   );
   const [isCanceling, setIsCanceling] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [isPlanChangeBlockedOpen, setIsPlanChangeBlockedOpen] =
+    useState(false);
   const { m } = useMessages();
   const logEvent = useLogEvent();
   const pricing = m.companyLanding.pricing;
@@ -326,6 +329,15 @@ const Billing = () => {
         confirmLabel="구독 취소"
         cancelLabel="닫기"
       />
+      <ConfirmModal
+        open={isPlanChangeBlockedOpen}
+        onClose={() => setIsPlanChangeBlockedOpen(false)}
+        onConfirm={() => setIsPlanChangeBlockedOpen(false)}
+        title="연간 플랜에서 월간 플랜으로 바로 변경할 수 없습니다."
+        description={`월간 플랜으로 전환을 원하시면 <span class="text-white">${CONTACT_EMAIL}</span>로 문의해주세요.`}
+        confirmLabel="확인"
+        cancelLabel="닫기"
+      />
       <div className="px-6 py-8 w-full">
         <div className="text-3xl font-hedvig font-light tracking-tight text-white">
           {m.system.credits}
@@ -387,7 +399,7 @@ const Billing = () => {
                   <div className="text-sm text-hgray900 font-normal">구독 상태</div>
                   <div className="text-hgray900">
                     <span className="text-white text-xl font-medium">{subscriptionPlanLabel}</span>
-                    <span className="text-hgray500">
+                    <span className="text-hgray700">
                       {" "}
                       · {subscriptionBillingLabel}
                     </span>
@@ -401,7 +413,7 @@ const Billing = () => {
                     </div>
                   ) : null}
                 </div>
-                <div className="w-[70%] flex items-start justify-start flex-col">
+                <div className="w-[70%] flex items-end justify-end flex-col h-full">
                   <div className="w-full flex flex-row items-start justify-start gap-2 text-hgray900 text-sm font-normal">
                     Credit 사용량
                     <span className="text-accenta1">
@@ -412,7 +424,7 @@ const Billing = () => {
                       / {credits?.charged_credit}
                     </span>
                   </div>
-                  <div className="mt-4 w-full flex relative rounded-xl h-2 bg-accenta1/20">
+                  <div className="mt-2 w-full flex relative rounded-xl h-2 bg-accenta1/20">
                     <div
                       className="w-full flex absolute left-0 top-0 rounded-xl h-2 bg-accenta1 transition-all duration-500 ease-out"
                       style={{
@@ -438,7 +450,7 @@ const Billing = () => {
         <PricingSection
           currentPlanKey={currentPlanKey}
           currentBilling={currentBilling}
-          onClick={(planName: string, billing: "monthly" | "yearly") => {
+          onClick={async (planName: string, billing: "monthly" | "yearly") => {
             const proName = m.companyLanding.pricing.plans.pro.name;
             const maxName = m.companyLanding.pricing.plans.max.name;
             logEvent(`enter_billing_checkout, planName: ${planName}, billing: ${billing}`);
@@ -449,6 +461,36 @@ const Billing = () => {
                 variant: "white",
               });
               return;
+            }
+
+            if (currentBilling === "yearly" && billing === "monthly") {
+              setIsPlanChangeBlockedOpen(true);
+              return;
+            }
+
+            const hasActivePaidSubscription =
+              !!subscription && subscription.planKey !== "free";
+            if (hasActivePaidSubscription) {
+              try {
+                const res = await fetch("/api/lemonsqueezy/cancel", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ userId: companyUser.user_id }),
+                });
+                if (!res.ok) {
+                  showToast({
+                    message: "기존 구독 취소에 실패했습니다.",
+                    variant: "white",
+                  });
+                  return;
+                }
+              } catch (error) {
+                showToast({
+                  message: "기존 구독 취소 중 오류가 발생했습니다.",
+                  variant: "white",
+                });
+                return;
+              }
             }
 
             let url;
@@ -476,20 +518,20 @@ const Billing = () => {
           }}
         />
 
-        <div>
+        {/* <div>
           <QuestionAnswer
             key={"item.question"}
             question={"이거 사기 아니죠?"}
             answer={"당연하죠"}
             index={0}
           />
-        </div>
+        </div> */}
 
         <div className="mt-20 px-2 flex flex-row items-center justify-between">
           <button
             type="button"
             disabled={!canCancelSubscription || isCanceling}
-            className="text-sm text-red-600/50 hover:text-red-600/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="text-sm text-red-600/60 hover:text-red-600/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             onClick={() => setIsCancelModalOpen(true)}
           >
             {isCanceling ? "취소 중..." : "구독 취소"}

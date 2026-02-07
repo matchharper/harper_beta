@@ -177,7 +177,7 @@ function BillingToggle({
                 <button
                     type="button"
                     onClick={() => setBilling("monthly")}
-                    className={`relative z-10 px-6 md:px-7 py-2.5 rounded-full text-sm md:text-sm transition-colors ${!isYearly ? "text-black" : "text-white/70 hover:text-white"
+                    className={`relative z-10 px-6 py-2 rounded-full text-sm md:text-sm transition-colors ${!isYearly ? "text-black" : "text-white/70 hover:text-white"
                         }`}
                 >
                     {pricing.billing.monthly}
@@ -185,16 +185,16 @@ function BillingToggle({
                 <button
                     type="button"
                     onClick={() => setBilling("yearly")}
-                    className={`relative z-10 px-6 md:px-7 py-2.5 rounded-full text-sm md:text-sm transition-colors ${isYearly ? "text-black" : "text-white/70 hover:text-white"}`}
+                    className={`relative z-10 px-6 py-2 rounded-full text-sm md:text-sm transition-colors ${isYearly ? "text-black" : "text-white/70 hover:text-white"}`}
                 >
                     {pricing.billing.yearly}
                 </button>
 
                 {/* sliding pill */}
                 <motion.div
-                    className="absolute top-1 bottom-1 w-[50%] rounded-full bg-white"
+                    className="absolute top-1 bottom-1 w-[48%] rounded-full bg-white"
                     initial={false}
-                    animate={{ x: isYearly ? "93%" : "0%" }}
+                    animate={{ x: isYearly ? "100%" : "0%" }}
                     transition={{ type: "spring", stiffness: 500, damping: 40 }}
                 />
             </div>
