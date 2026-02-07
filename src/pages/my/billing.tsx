@@ -11,11 +11,13 @@ import { showToast } from "@/components/toast/toast";
 import { notifyToSlack } from "@/lib/slack";
 import PricingSection from "@/components/payment/PricingSection";
 import ConfirmModal from "@/components/Modal/ConfirmModal";
+import { useLogEvent } from "@/hooks/useLog";
+import { QuestionAnswer } from "..";
 
 const PRO_MONTHLY_CHECKOUT_URL = "https://matchharper.lemonsqueezy.com/checkout/buy/ea41e57e-6dc1-4ddd-8b7f-f5636bc35ec5";
-const PRO_YEARLY_CHECKOUT_URL = "https://matchharper.lemonsqueezy.com/checkout/buy/9fc75131-090e-4407-9801-f917985b4539"
+const PRO_YEARLY_CHECKOUT_URL = "https://matchharper.lemonsqueezy.com/checkout/buy/c2397869-0c46-477d-9315-7cbb03c2d464"
 const MAX_MONTHLY_CHECKOUT_URL = "https://matchharper.lemonsqueezy.com/checkout/buy/0526b657-757f-45bb-bc9f-4466a6ec360f";
-const MAX_YEARLY_CHECKOUT_URL = "https://matchharper.lemonsqueezy.com/checkout/buy/33a8c986-702b-42ca-bed4-716976b1f496";
+const MAX_YEARLY_CHECKOUT_URL = "https://matchharper.lemonsqueezy.com/checkout/buy/5f88e60e-f43f-4699-b4a1-3a71fe90b13d";
 
 type BillingPeriod = "monthly" | "yearly";
 
@@ -112,6 +114,7 @@ const Billing = () => {
   const [isCanceling, setIsCanceling] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const { m } = useMessages();
+  const logEvent = useLogEvent();
   const pricing = m.companyLanding.pricing;
   const currentPlanKey =
     subscription?.planKey ??
@@ -372,51 +375,6 @@ const Billing = () => {
           </div>
         </div> */}
 
-        {/* <div className="mt-8">
-          <div className="text-base text-hgray900 font-light">
-            {m.system.credit_history} (최근 10개)
-          </div>
-
-          <div className="mt-3">
-            <div className="mt-3 flex flex-col gap-2">
-              {creditRequestHistory?.length ? (
-                creditRequestHistory.map((item) => (
-                  <div
-                    key={item.id}
-                    className="grid grid-cols-12 items-center font-light gap-3 py-4 rounded-lg hover:bg-white/5 transition-colors px-6 bg-white/5"
-                  >
-                    <div className="flex flex-row items-center col-span-8 text-white/90 font-normal">
-                      <span className="text-accenta1">{item.credit_num}</span>
-                      <span className="text-hgray700 text-sm ml-1.5">
-                        {m.system.credits}
-                      </span>
-                    </div>
-
-                    <div className="col-span-3 text-hgray900 text-sm truncate text-right pr-2">
-                      {dateToFormatLong(item.created_at)}
-                    </div>
-
-                    <div className="col-span-1 flex justify-end">
-                      <div
-                        className={`px-3 py-1 rounded-xl text-sm font-normal ${item.is_done
-                          ? "bg-emerald-400/10 text-emerald-300"
-                          : "bg-white/10 text-white/70"
-                          }`}
-                      >
-                        {item.is_done ? m.system.done : m.system.pending}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="py-8 text-center text-hgray500 text-sm">
-                  {m.system.no_credit_request}
-                </div>
-              )}
-            </div>
-          </div>
-        </div> */}
-
         <div className="mt-8">
           <div className="rounded-lg bg-white/5 p-6">
             {isSubscriptionLoading ? (
@@ -483,14 +441,7 @@ const Billing = () => {
           onClick={(planName: string, billing: "monthly" | "yearly") => {
             const proName = m.companyLanding.pricing.plans.pro.name;
             const maxName = m.companyLanding.pricing.plans.max.name;
-
-            // if (planName !== proName) {
-            //   showToast({
-            //     message: "현재는 Pro 플랜만 테스트 중입니다.",
-            //     variant: "white",
-            //   });
-            //   return;
-            // }
+            logEvent(`enter_billing_checkout, planName: ${planName}, billing: ${billing}`);
 
             if (!companyUser?.user_id) {
               showToast({
@@ -524,6 +475,15 @@ const Billing = () => {
             window.location.href = url.toString();
           }}
         />
+
+        <div>
+          <QuestionAnswer
+            key={"item.question"}
+            question={"이거 사기 아니죠?"}
+            answer={"당연하죠"}
+            index={0}
+          />
+        </div>
 
         <div className="mt-20 px-2 flex flex-row items-center justify-between">
           <button

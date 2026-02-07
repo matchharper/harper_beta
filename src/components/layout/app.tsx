@@ -10,7 +10,6 @@ import {
   User,
   LogOut,
   HelpCircle,
-  ScanSearch,
 } from "lucide-react";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
@@ -129,14 +128,20 @@ const AppLayout = ({
             active={isList}
             label="Shortlist"
             icon={<List size={16} />}
-            onClick={() => router.push("/my/list")}
+            onClick={() => {
+              logEvent("enter_shortlist");
+              router.push("/my/list")
+            }}
           />
           <NavItem
             collapsed={collapsed}
             active={isAutomation}
             label="Harper Scout"
             icon={<Sparkles size={16} />}
-            onClick={() => router.push("/my/scout")}
+            onClick={() => {
+              logEvent("enter_scout");
+              router.push("/my/scout")
+            }}
           />
           <div className="flex h-16"></div>
           <HoverHistory
@@ -152,7 +157,10 @@ const AppLayout = ({
             <>
               <div
                 className="cursor-pointer"
-                onClick={() => router.push("/my/billing")}
+                onClick={() => {
+                  logEvent("enter_billing");
+                  router.push("/my/billing")
+                }}
               >
                 <div className="rounded-lg p-4 pt-3 flex flex-col gap-2 border border-white/5 transition-color duration-300 ease-out hover:bg-[#FFFFFF12]">
                   <div className="w-full flex flex-row items-center justify-between text-[15px]">
