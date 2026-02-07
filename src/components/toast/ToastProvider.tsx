@@ -68,8 +68,8 @@ function Toast({ item, onClose }: { item: Item; onClose: () => void }) {
     item.variant === "success"
       ? CheckCircle2
       : item.variant === "error"
-      ? XCircle
-      : null;
+        ? XCircle
+        : null;
 
   return (
     <Animate
@@ -81,16 +81,16 @@ function Toast({ item, onClose }: { item: Item; onClose: () => void }) {
         item.variant === "success"
           ? "border-green-400/20 bg-green-400/10 text-green-100"
           : item.variant === "error"
-          ? "border-rose-400/20 bg-rose-400/10 text-rose-100"
-          : item.variant === "white"
-          ? "border-white/100 bg-white/80 text-black"
-          : "border-xopp/15 bg-xopp/10 text-white/90",
+            ? "border-rose-400/20 bg-rose-400/10 text-rose-100"
+            : item.variant === "white"
+              ? "border-white/100 bg-white/80 text-black"
+              : "border-xopp/15 bg-xopp/10 text-white/90",
         "",
       ].join(" ")}
       aria-live="polite"
     >
       {Icon ? <Icon className="h-4 w-4 shrink-0 opacity-90" /> : null}
-      <span className="flex-1">{item.message}</span>
+      <span className="flex-1" dangerouslySetInnerHTML={{ __html: item.message }} />
       {/* <button
         onClick={onClose}
         className="rounded-full p-1 hover:bg-xopp/10"

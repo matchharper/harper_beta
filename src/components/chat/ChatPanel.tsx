@@ -19,6 +19,10 @@ import { useSettings } from "@/hooks/useSettings";
 import { useCredits } from "@/hooks/useCredit";
 import { MIN_CREDITS_FOR_SEARCH } from "@/utils/constantkeys";
 import CreditModal from "../Modal/CreditModal";
+import { supabase } from "@/lib/supabase";
+import { showToast } from "../toast/toast";
+import { usePlanStore } from "@/store/usePlanStore";
+import { StatusEnum } from "@/types/type";
 
 export type ChatScope =
   | { type: "query"; queryId: string }
@@ -65,6 +69,7 @@ export default function ChatPanel({
   const [isNoCreditModalOpen, setIsNoCreditModalOpen] = useState(false);
 
   const { credits } = useCredits();
+  const { planKey, load: loadPlan } = usePlanStore();
 
   const router = useRouter();
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -117,6 +122,11 @@ export default function ChatPanel({
   useEffect(() => {
     autoStartedRef.current = false;
   }, [scope?.type, isQueryScope ? scope?.queryId : scope?.candidId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    loadPlan(userId);
+  }, [userId, loadPlan]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
     const el = scrollRef.current;
@@ -222,27 +232,25 @@ export default function ChatPanel({
     if (!messageId) return;
     if (!userId) return;
 
-    // const { data } = await supabase
-    //   .from("runs")
-    //   .select("status, created_at")
-    //   .eq("user_id", userId)
-    //   .not("status", "in", "(running,error,finished,queued)")
-    //   .order("created_at", { ascending: false })
-    //   .limit(1)
-    //   .single();
+    const maxParallel = planKey === "max" ? 3 : 1;
+    const { count, error } = await supabase
+      .from("runs")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .in("status", [StatusEnum.QUEUED, StatusEnum.FINISHED, StatusEnum.ERROR]);
 
-    // const createdAt = new Date(data?.created_at ?? "").getTime();
-    // const now = Date.now();
-
-    // const isWithin5Min = now - createdAt <= 5 * 60 * 1000;
-    // logger.log("isWithin5Min", data, isWithin5Min);
-    // if (data && isWithin5Min) {
-    //   showToast({
-    //     message: "이미 검색이 진행중입니다. 기존 검색이 종료된 후에 다시 시도해주세요.",
-    //     variant: "white",
-    //   });
-    //   return;
-    // }
+    if (error) {
+      console.error("Failed to check running searches:", error);
+    } else if ((count ?? 0) >= maxParallel) {
+      showToast({
+        message:
+          maxParallel === 3
+            ? "동시 검색은 최대 3개까지 가능합니다."
+            : "이미 검색이 진행중입니다. 기존 검색이 종료된 후에 다시 시도해주세요.<br />(Max 플랜의 경우 동시에 3개까지 가능합니다.)",
+        variant: "white",
+      });
+      return;
+    }
     if (credits && credits.remain_credit <= MIN_CREDITS_FOR_SEARCH) {
       setIsNoCreditModalOpen(true);
       return;

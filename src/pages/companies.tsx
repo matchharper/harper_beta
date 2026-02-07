@@ -1,9 +1,7 @@
 "use client";
 
 import { BaseSectionLayout } from "@/components/landing/GridSectionLayout";
-import {
-  Menu,
-} from "lucide-react";
+import { Menu } from "lucide-react";
 import router from "next/router";
 import React, { useEffect, useRef, useState } from "react";
 import Image from "next/image";
@@ -440,8 +438,6 @@ const CandidatePage = () => {
               {m.companyLanding.closing.headlineLine1}
               <div className="md:h-1 h-1" />
               {m.companyLanding.closing.headlineLine2}
-              {/* <br />
-                우선 기회를 받아보고 결정하세요. */}
             </div>
             <StartButton type="click_footer_start" />
           </div>
