@@ -364,6 +364,23 @@ export async function POST(req: Request) {
       }
 
       const dates = getSubscriptionDates(payload);
+      const previousSubscriptions = await getActiveSubscriptionsForUser(
+        String(userIdFromCustom),
+        subscriptionId
+      );
+      const toCancel = previousSubscriptions.filter(
+        (row) => row.ls_subscription_id && !row.cancel_at_period_end
+      );
+      if (toCancel.length > 0) {
+        await insertLog(
+          String(userIdFromCustom),
+          `[${requestId}] cancel_old_subscription:before_upsert count=${toCancel.length}`
+        );
+        for (const row of toCancel) {
+          await cancelSubscriptionNow(String(row.ls_subscription_id), requestId);
+        }
+      }
+
       await insertLog(
         String(userIdFromCustom),
         `[${requestId}] upsertPayment:begin periodStart=${dates.currentPeriodStart ?? "null"} periodEnd=${dates.currentPeriodEnd ?? "null"

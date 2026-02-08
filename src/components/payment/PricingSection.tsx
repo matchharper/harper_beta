@@ -110,7 +110,9 @@ export default function PricingSection({
         currentLabel ?? (isEnglish ? "Current plan" : "현재 이용 중");
     const changeButtonLabel =
         changeLabel ?? (isEnglish ? "Change plan" : "구독 변경하기");
+    const subscribeButtonLabel = isEnglish ? "Subscribe" : "구독하기";
     const enterpriseButtonLabel = pricing.plans.enterprise.buttonLabel;
+    const shouldShowSubscribe = hasCurrent && currentPlanKey === "free";
 
     return (
         <section id="pricing" className="w-full text-hgray900">
@@ -130,9 +132,11 @@ export default function PricingSection({
                                 ? enterpriseButtonLabel
                                 : isCurrent
                                     ? currentButtonLabel
-                                    : hasCurrent
-                                        ? changeButtonLabel
-                                        : p.buttonLabel;
+                                    : shouldShowSubscribe
+                                        ? subscribeButtonLabel
+                                        : hasCurrent
+                                            ? changeButtonLabel
+                                            : p.buttonLabel;
                             const isDisabled = isCurrent;
                             const handleClick = isEnterprise
                                 ? (_plan: string, _billing: Billing) => {
