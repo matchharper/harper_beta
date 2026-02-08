@@ -4,6 +4,7 @@ import React, { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Check } from "lucide-react";
 import { useMessages } from "@/i18n/useMessage";
+import { useLogEvent } from "@/hooks/useLog";
 
 type Billing = "monthly" | "yearly";
 type PlanKey = "pro" | "max" | "enterprise" | "free";
@@ -44,6 +45,7 @@ export default function PricingSection({
     const [billing, setBilling] = useState<Billing>("monthly");
     const { m, locale } = useMessages();
     const pricing = m.companyLanding.pricing;
+    const logEvent = useLogEvent();
 
     const DISCOUNT = 0.2;
     const isEnglish = locale === "en";
@@ -131,9 +133,12 @@ export default function PricingSection({
                                     : hasCurrent
                                         ? changeButtonLabel
                                         : p.buttonLabel;
-                            const isDisabled = isCurrent || isEnterprise;
+                            const isDisabled = isCurrent;
                             const handleClick = isEnterprise
-                                ? (_plan: string, _billing: Billing) => { }
+                                ? (_plan: string, _billing: Billing) => {
+                                    logEvent("enter_billing_enterprise_contact");
+                                    window.open("https://form.typeform.com/to/sYZQlYOd", "_blank");
+                                }
                                 : onClick;
 
                             return (

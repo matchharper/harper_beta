@@ -116,6 +116,12 @@ const Billing = () => {
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [isPlanChangeBlockedOpen, setIsPlanChangeBlockedOpen] =
     useState(false);
+  const [isPlanChangeConfirmOpen, setIsPlanChangeConfirmOpen] =
+    useState(false);
+  const [pendingPlanChange, setPendingPlanChange] = useState<{
+    planName: string;
+    billing: "monthly" | "yearly";
+  } | null>(null);
   const { m } = useMessages();
   const logEvent = useLogEvent();
   const pricing = m.companyLanding.pricing;
@@ -144,6 +150,43 @@ const Billing = () => {
   const freeStartDateLabel = subscription?.currentPeriodEnd
     ? dateToFormatLong(subscription.currentPeriodEnd)
     : "";
+
+  const startCheckout = async (planName: string, billing: "monthly" | "yearly") => {
+    const proName = m.companyLanding.pricing.plans.pro.name;
+    const maxName = m.companyLanding.pricing.plans.max.name;
+    logEvent(`enter_billing_checkout, planName: ${planName}, billing: ${billing}`);
+
+    if (!companyUser?.user_id) {
+      showToast({
+        message: "로그인 정보를 확인할 수 없습니다.",
+        variant: "white",
+      });
+      return;
+    }
+
+    let url;
+    if (planName === proName) {
+      url = new URL(
+        billing === "yearly"
+          ? PRO_YEARLY_CHECKOUT_URL
+          : PRO_MONTHLY_CHECKOUT_URL
+      );
+    } else if (planName === maxName) {
+      url = new URL(
+        billing === "yearly"
+          ? MAX_YEARLY_CHECKOUT_URL
+          : MAX_MONTHLY_CHECKOUT_URL
+      );
+    } else {
+      showToast({
+        message: "현재는 Pro, Max 플랜만 테스트 중입니다.",
+        variant: "white",
+      });
+      return;
+    }
+    url.searchParams.set("checkout[custom][user_id]", companyUser.user_id);
+    window.location.href = url.toString();
+  };
 
   useEffect(() => {
     let isCancelled = false;
@@ -338,6 +381,27 @@ const Billing = () => {
         confirmLabel="확인"
         cancelLabel="닫기"
       />
+      <ConfirmModal
+        open={isPlanChangeConfirmOpen}
+        onClose={() => {
+          setIsPlanChangeConfirmOpen(false);
+          setPendingPlanChange(null);
+        }}
+        onConfirm={() => {
+          if (!pendingPlanChange) {
+            setIsPlanChangeConfirmOpen(false);
+            return;
+          }
+          const next = pendingPlanChange;
+          setIsPlanChangeConfirmOpen(false);
+          setPendingPlanChange(null);
+          startCheckout(next.planName, next.billing);
+        }}
+        title="플랜 변경을 진행할까요?"
+        description="진행시 현재 시점부터 결제가 시작되며 새로운 플랜이 적용됩니다."
+        confirmLabel="확인하고 진행"
+        cancelLabel="닫기"
+      />
       <div className="px-6 py-8 w-full">
         <div className="text-3xl font-hedvig font-light tracking-tight text-white">
           {m.system.credits}
@@ -451,70 +515,20 @@ const Billing = () => {
           currentPlanKey={currentPlanKey}
           currentBilling={currentBilling}
           onClick={async (planName: string, billing: "monthly" | "yearly") => {
-            const proName = m.companyLanding.pricing.plans.pro.name;
-            const maxName = m.companyLanding.pricing.plans.max.name;
-            logEvent(`enter_billing_checkout, planName: ${planName}, billing: ${billing}`);
-
-            if (!companyUser?.user_id) {
-              showToast({
-                message: "로그인 정보를 확인할 수 없습니다.",
-                variant: "white",
-              });
-              return;
-            }
-
             if (currentBilling === "yearly" && billing === "monthly") {
               setIsPlanChangeBlockedOpen(true);
               return;
             }
 
-            const hasActivePaidSubscription =
+            const isPlanChange =
               !!subscription && subscription.planKey !== "free";
-            if (hasActivePaidSubscription) {
-              try {
-                const res = await fetch("/api/lemonsqueezy/cancel", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ userId: companyUser.user_id }),
-                });
-                if (!res.ok) {
-                  showToast({
-                    message: "기존 구독 취소에 실패했습니다.",
-                    variant: "white",
-                  });
-                  return;
-                }
-              } catch (error) {
-                showToast({
-                  message: "기존 구독 취소 중 오류가 발생했습니다.",
-                  variant: "white",
-                });
-                return;
-              }
-            }
-
-            let url;
-            if (planName === proName) {
-              url = new URL(
-                billing === "yearly"
-                  ? PRO_YEARLY_CHECKOUT_URL
-                  : PRO_MONTHLY_CHECKOUT_URL
-              );
-            } else if (planName === maxName) {
-              url = new URL(
-                billing === "yearly"
-                  ? MAX_YEARLY_CHECKOUT_URL
-                  : MAX_MONTHLY_CHECKOUT_URL
-              );
-            } else {
-              showToast({
-                message: "현재는 Pro, Max 플랜만 테스트 중입니다.",
-                variant: "white",
-              });
+            if (isPlanChange) {
+              setPendingPlanChange({ planName, billing });
+              setIsPlanChangeConfirmOpen(true);
               return;
             }
-            url.searchParams.set("checkout[custom][user_id]", companyUser.user_id);
-            window.location.href = url.toString();
+
+            await startCheckout(planName, billing);
           }}
         />
 
@@ -531,7 +545,7 @@ const Billing = () => {
           <button
             type="button"
             disabled={!canCancelSubscription || isCanceling}
-            className="text-sm text-red-600/60 hover:text-red-600/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="text-sm text-red-600/80 hover:text-red-600/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             onClick={() => setIsCancelModalOpen(true)}
           >
             {isCanceling ? "취소 중..." : "구독 취소"}

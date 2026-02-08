@@ -47,7 +47,8 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
       publications (
         title,
         link,
-        published_at
+        published_at,
+        citation_num
       ),
       extra_experience(
         *

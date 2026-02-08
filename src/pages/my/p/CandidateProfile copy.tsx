@@ -77,70 +77,6 @@ export default function CandidateProfileDetailPage({
     return [];
   }, [c]);
 
-  const mergedExperience = useMemo(() => {
-    const expItems = (c.experience_user ?? []).map((e: any) => ({
-      kind: "exp" as const,
-      item: e,
-    }));
-    const eduItems = (c.edu_user ?? []).map((ed: any, index: number) => ({
-      kind: "edu" as const,
-      index,
-      item: ed,
-    }));
-
-    const parseStartDate = (value: string | null | undefined) => {
-      if (!value) return null;
-      const date = new Date(value);
-      return Number.isNaN(date.getTime()) ? null : date;
-    };
-
-    const datedItems = [
-      ...expItems,
-      ...eduItems.filter((ed: any) => !!parseStartDate(ed.item?.start_date)),
-    ];
-
-    datedItems.sort((a, b) => {
-      const aDate = parseStartDate(a.item?.start_date);
-      const bDate = parseStartDate(b.item?.start_date);
-      if (aDate && bDate) {
-        return bDate.getTime() - aDate.getTime();
-      }
-      if (aDate && !bDate) return -1;
-      if (!aDate && bDate) return 1;
-      return 0;
-    });
-
-    const undatedEdu = eduItems.filter((ed: any) => !parseStartDate(ed.item?.start_date));
-    if (undatedEdu.length === 0) return datedItems;
-
-    const merged = [...datedItems];
-
-    undatedEdu.forEach((edu: any) => {
-      const nextDatedEdu = eduItems
-        .slice(edu.index + 1)
-        .find((next: any) => !!parseStartDate(next.item?.start_date));
-
-      if (!nextDatedEdu) {
-        merged.push(edu);
-        return;
-      }
-
-      const insertAt = merged.findIndex(
-        (entry) =>
-          entry.kind === "edu" &&
-          entry.item === nextDatedEdu.item
-      );
-
-      if (insertAt === -1) {
-        merged.push(edu);
-      } else {
-        merged.splice(insertAt, 0, edu);
-      }
-    });
-
-    return merged;
-  }, [c]);
-
   const generateOneLineSummary = async () => {
     setIsLoadingOneline(true);
     const res = await fetch("/api/search/criteria_summarize", {
@@ -281,50 +217,47 @@ export default function CandidateProfileDetailPage({
         {/* Experiences */}
         <Box title={`${m.data.experience}`}>
           <div className="space-y-0">
-            {mergedExperience.map((entry, idx) => {
-              if (entry.kind === "exp") {
-                const e = entry.item;
-                return (
-                  <ItemBox
-                    key={`exp-${idx}`}
-                    isContinued={
-                      idx > 0 &&
-                      mergedExperience[idx - 1]?.kind === "exp" &&
-                      mergedExperience[idx - 1]?.item?.company_db?.name === e.company_db?.name
-                    }
-                    title={e.role}
-                    company_id={e.company_id}
-                    name={companyEnToKo(e.company_db.name)}
-                    start_date={e.start_date}
-                    end_date={e.end_date}
-                    link={e.company_db.linkedin_url}
-                    description={e.description}
-                    logo_url={e.company_db.logo}
-                    months={e.months}
-                    isLast={idx === mergedExperience.length - 1}
-                  />
-                );
-              }
-
-              const ed = entry.item;
+            {(c.experience_user ?? []).map((e: any, idx: number) => {
               return (
                 <ItemBox
-                  key={`edu-${idx}`}
-                  title={`${koreaUniversityEnToKo(ed.school)}`}
-                  name={
-                    ed.field
-                      ? `${majorEnToKo(ed.field)}, ${degreeEnToKo(ed.degree)}`
-                      : ed.degree
-                  }
-                  start_date={ed.start_date}
-                  end_date={ed.end_date}
-                  link={ed.url}
-                  description={""}
-                  typed="edu"
-                  isLast={idx === mergedExperience.length - 1}
+                  key={idx}
+                  isContinued={idx > 0 && (c.experience_user ?? [])[idx - 1].company_db?.name === e.company_db?.name}
+                  title={e.role}
+                  company_id={e.company_id}
+                  name={companyEnToKo(e.company_db.name)}
+                  start_date={e.start_date}
+                  end_date={e.end_date}
+                  link={e.company_db.linkedin_url}
+                  description={e.description}
+                  logo_url={e.company_db.logo}
+                  months={e.months}
+                  isLast={idx === (c.experience_user ?? []).length - 1 ? true : false}
                 />
               );
             })}
+          </div>
+        </Box>
+
+        {/* Educations */}
+        <Box title={`${m.data.education}`}>
+          <div className="space-y-0">
+            {(c.edu_user ?? []).map((ed: any, idx: number) => (
+              <ItemBox
+                key={idx}
+                title={`${koreaUniversityEnToKo(ed.school)}`}
+                name={
+                  ed.field
+                    ? `${majorEnToKo(ed.field)}, ${degreeEnToKo(ed.degree)}`
+                    : ed.degree
+                }
+                start_date={ed.start_date}
+                end_date={ed.end_date}
+                link={ed.url}
+                description={""}
+                typed="edu"
+                isLast={idx === (c.edu_user ?? []).length - 1 ? true : false}
+              />
+            ))}
           </div>
         </Box>
 
@@ -355,7 +288,7 @@ export default function CandidateProfileDetailPage({
         {/* Publications */}
         {
           c.publications && c.publications.length > 0 && (
-            <Box title={`${m.data.publications} (${c.publications.length})`}>
+            <Box title={`${m.data.publications}`}>
               <div className="grid grid-cols-1 md:grid-cols-1 gap-3">
                 {(c.publications ?? []).map((p: any, idx: number) => (
                   <PublicationBox
@@ -363,7 +296,7 @@ export default function CandidateProfileDetailPage({
                     title={p.title}
                     published_at={p.published_at}
                     link={p.link}
-                    citation_num={p.citation_num ?? -1}
+                    citation_num={p.citation_num ?? 0}
                   />
                 ))}
               </div>

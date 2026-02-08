@@ -13,7 +13,6 @@ import { useCredits } from "@/hooks/useCredit";
 import { useRunDetail } from "@/hooks/useRunDetail";
 import { useRunPagesInfinite } from "@/hooks/useRunResults";
 import { doSearch, runSearch } from "@/hooks/useStartSearch";
-import { scrollToTop } from "@/utils/func";
 import { Loading } from "@/components/ui/loading";
 import { supabase } from "@/lib/supabase";
 
@@ -26,6 +25,7 @@ const MAX_PREFETCH_PAGES = 20;
 export default function ResultPage() {
   const router = useRouter();
   const { id, page, run } = router.query;
+  const resultScrollRef = useRef<HTMLDivElement>(null);
 
   const queryId = typeof id === "string" ? id : undefined;
   const runId = typeof run === "string" ? run : undefined; // ✅ runs.id (uuid)
@@ -56,10 +56,16 @@ export default function ResultPage() {
     return clamp(normalized, 0, MAX_PREFETCH_PAGES);
   }, [pageIdxRaw]);
 
+  const scrollResultToTop = useCallback((behavior: ScrollBehavior = "auto") => {
+    const el = resultScrollRef.current;
+    if (!el) return;
+    el.scrollTo({ top: 0, left: 0, behavior });
+  }, []);
+
   const setPageInUrl = useCallback(
     (nextIdx: number, mode: "push" | "replace" = "push") => {
       const method = mode === "push" ? router.push : router.replace;
-      scrollToTop();
+      scrollResultToTop();
 
       method(
         {
@@ -70,7 +76,7 @@ export default function ResultPage() {
         { shallow: true, scroll: false }
       );
     },
-    [router]
+    [router, scrollResultToTop]
   );
 
   const searchEnabled = useMemo(() => ready && !!runId, [ready, runId]);
@@ -294,6 +300,10 @@ export default function ResultPage() {
     });
   }, [ready, searchEnabled, runId, pageIdx, ensurePageLoaded]);
 
+  useEffect(() => {
+    scrollResultToTop();
+  }, [pageIdx, scrollResultToTop]);
+
   const onSearchFromConversation = useCallback(
     async (messageId: number) => {
       if (!queryId || !userId) return;
@@ -372,6 +382,7 @@ export default function ResultPage() {
         <div className={`relative transition-all duration-300 ease-in-out ${isChatFull ? "w-0 opacity-0 pointer-events-none" : "w-[70%] opacity-100"}`}>
           {/* <CandidateModalRoot /> */}
           <div
+            ref={resultScrollRef}
             className={`w-full max-h-screen min-h-screen py-2 transition-all duration-200 relative overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent hover:scrollbar-thumb-white/20`}
           >
             {queryItem && runId && (

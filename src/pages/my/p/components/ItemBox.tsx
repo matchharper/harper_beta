@@ -96,15 +96,16 @@ const ItemBox = ({
           {/* )} */}
 
           <div className="flex flex-col items-start justify-start gap-[2px] font-normal min-w-0 mt-[-4px]">
-            <div className="text-base font-medium truncate text-hgray1000 flex flex-col items-start justify-start">
-              {title ? title : isEdu ? "Student" : "Employee"}
+            <div className="text-base font-medium truncate text-hgray1000 flex flex-row items-center justify-start gap-2">
+              {isEdu ? <span className="text-accenta1/80 text-xs font-light">학력</span> : null} {title ? title : isEdu ? "Student" : "Employee"}
+              {/* <SchoolIcon size={14} strokeWidth={1.3} className="text-hgray700" /> */}
             </div>
 
             <div
-              className="cursor-pointer hover:underline text-hgray700 flex flex-row gap-2 items-center font-light text-sm"
+              className={`${isEdu ? "" : "cursor-pointer"} text-hgray700 flex flex-row gap-2 items-center font-light text-sm`}
               onClick={() => onButtonClick()}
             >
-              <span className="truncate">{name}</span>
+              <span className={`flex flex-row items-center gap-1 truncate ${isEdu ? "" : "hover:underline"}`}>{name} {isEdu ? null : <ExternalLink size={12} />}</span>
               <span> · </span>
               {startDate ? (
                 <div className="flex flex-row items-center gap-1">

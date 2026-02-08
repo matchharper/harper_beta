@@ -13,6 +13,10 @@ const supabaseAdmin = createClient(
 const SIGNING_SECRET =
   process.env.LEMON_SQUEEZY_SIGNING_SECRET ||
   process.env.LEMON_SQUEEZY_WEBHOOK_SECRET;
+const LS_API_KEY =
+  process.env.LEMON_SQUEEZY_API_KEY ||
+  process.env.LEMONSQUEEZY_API_KEY ||
+  "";
 
 type PlanRow = {
   plan_id: string;
@@ -93,6 +97,57 @@ async function getPaymentBySubscriptionId(subscriptionId: string) {
     .maybeSingle();
   if (error) throw error;
   return data ?? null;
+}
+
+async function getActiveSubscriptionsForUser(userId: string, excludeId: string) {
+  const nowIso = new Date().toISOString();
+  const { data, error } = await supabaseAdmin
+    .from("payments")
+    .select("ls_subscription_id, current_period_end, cancel_at_period_end")
+    .eq("user_id", userId)
+    .not("ls_subscription_id", "is", null)
+    .neq("ls_subscription_id", excludeId)
+    .gte("current_period_end", nowIso)
+    .order("current_period_end", { ascending: false, nullsFirst: false });
+  if (error) throw error;
+  return (data ?? []) as Array<{
+    ls_subscription_id: string | null;
+    current_period_end: string | null;
+    cancel_at_period_end: boolean | null;
+  }>;
+}
+
+async function cancelSubscriptionNow(subscriptionId: string, requestId: string) {
+  if (!LS_API_KEY) {
+    await insertLog(null, `[${requestId}] cancel_old_subscription:missing_api_key`);
+    return { ok: false, status: 500 };
+  }
+
+  const res = await fetch(
+    `https://api.lemonsqueezy.com/v1/subscriptions/${subscriptionId}`,
+    {
+      method: "DELETE",
+      headers: {
+        Accept: "application/vnd.api+json",
+        "Content-Type": "application/vnd.api+json",
+        Authorization: `Bearer ${LS_API_KEY}`,
+      },
+    }
+  );
+
+  if (!res.ok) {
+    await insertLog(
+      null,
+      `[${requestId}] cancel_old_subscription:fail status=${res.status} subscriptionId=${subscriptionId}`
+    );
+    return { ok: false, status: res.status };
+  }
+
+  await insertLog(
+    null,
+    `[${requestId}] cancel_old_subscription:success subscriptionId=${subscriptionId}`
+  );
+  return { ok: true, status: res.status };
 }
 
 async function upsertPayment(args: {
@@ -470,6 +525,24 @@ export async function POST(req: Request) {
       await insertLog(payment.user_id, `[${requestId}] applyCredits:begin`);
       await applyCredits(payment.user_id, plan as PlanRow);
       await insertLog(payment.user_id, `[${requestId}] applyCredits:done`);
+
+      const previousSubscriptions = await getActiveSubscriptionsForUser(
+        payment.user_id,
+        subscriptionId
+      );
+      const toCancel = previousSubscriptions.filter(
+        (row) => row.ls_subscription_id && !row.cancel_at_period_end
+      );
+      if (toCancel.length > 0) {
+        await insertLog(
+          payment.user_id,
+          `[${requestId}] cancel_old_subscription:start count=${toCancel.length}`
+        );
+        for (const row of toCancel) {
+          await cancelSubscriptionNow(String(row.ls_subscription_id), requestId);
+        }
+      }
+
       await insertLog(payment.user_id, `[${requestId}] subscription_payment_success:success`);
 
       return NextResponse.json({ ok: true });

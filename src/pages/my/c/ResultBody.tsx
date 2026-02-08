@@ -80,7 +80,7 @@ export default function ResultBody(props: Props) {
               ) : null}
             </div>
 
-            <div className="flex items-center justify-center gap-1 flex-row mt-2">
+            <div className="flex items-center justify-center gap-1 flex-row mt-2 text-sm">
               <button
                 type="button"
                 onClick={onPrevPage}

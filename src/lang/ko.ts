@@ -399,8 +399,8 @@ export const ko = {
       previous: "이전",
       next: "다음 10명 더 검색",
       credit: {
-        withCredit: " (크레딧 1)",
-        noCredit: " (크레딧 없음)",
+        withCredit: " (크레딧 1 소모)",
+        noCredit: " (크레딧 소모 없음)",
       },
     },
     timeline: {

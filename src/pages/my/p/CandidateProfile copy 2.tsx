@@ -78,8 +78,9 @@ export default function CandidateProfileDetailPage({
   }, [c]);
 
   const mergedExperience = useMemo(() => {
-    const expItems = (c.experience_user ?? []).map((e: any) => ({
+    const expItems = (c.experience_user ?? []).map((e: any, index: number) => ({
       kind: "exp" as const,
+      index,
       item: e,
     }));
     const eduItems = (c.edu_user ?? []).map((ed: any, index: number) => ({
@@ -94,12 +95,15 @@ export default function CandidateProfileDetailPage({
       return Number.isNaN(date.getTime()) ? null : date;
     };
 
-    const datedItems = [
-      ...expItems,
-      ...eduItems.filter((ed: any) => !!parseStartDate(ed.item?.start_date)),
-    ];
+    const combined = [...expItems, ...eduItems];
 
-    datedItems.sort((a, b) => {
+    combined.sort((a, b) => {
+      const aIsEduNoStart = a.kind === "edu" && !a.item?.start_date;
+      const bIsEduNoStart = b.kind === "edu" && !b.item?.start_date;
+      if (aIsEduNoStart !== bIsEduNoStart) {
+        return aIsEduNoStart ? 1 : -1;
+      }
+
       const aDate = parseStartDate(a.item?.start_date);
       const bDate = parseStartDate(b.item?.start_date);
       if (aDate && bDate) {
@@ -107,38 +111,11 @@ export default function CandidateProfileDetailPage({
       }
       if (aDate && !bDate) return -1;
       if (!aDate && bDate) return 1;
-      return 0;
+
+      return a.index - b.index;
     });
 
-    const undatedEdu = eduItems.filter((ed: any) => !parseStartDate(ed.item?.start_date));
-    if (undatedEdu.length === 0) return datedItems;
-
-    const merged = [...datedItems];
-
-    undatedEdu.forEach((edu: any) => {
-      const nextDatedEdu = eduItems
-        .slice(edu.index + 1)
-        .find((next: any) => !!parseStartDate(next.item?.start_date));
-
-      if (!nextDatedEdu) {
-        merged.push(edu);
-        return;
-      }
-
-      const insertAt = merged.findIndex(
-        (entry) =>
-          entry.kind === "edu" &&
-          entry.item === nextDatedEdu.item
-      );
-
-      if (insertAt === -1) {
-        merged.push(edu);
-      } else {
-        merged.splice(insertAt, 0, edu);
-      }
-    });
-
-    return merged;
+    return combined;
   }, [c]);
 
   const generateOneLineSummary = async () => {
@@ -355,7 +332,7 @@ export default function CandidateProfileDetailPage({
         {/* Publications */}
         {
           c.publications && c.publications.length > 0 && (
-            <Box title={`${m.data.publications} (${c.publications.length})`}>
+            <Box title={`${m.data.publications}`}>
               <div className="grid grid-cols-1 md:grid-cols-1 gap-3">
                 {(c.publications ?? []).map((p: any, idx: number) => (
                   <PublicationBox
@@ -363,7 +340,7 @@ export default function CandidateProfileDetailPage({
                     title={p.title}
                     published_at={p.published_at}
                     link={p.link}
-                    citation_num={p.citation_num ?? -1}
+                    citation_num={p.citation_num ?? 0}
                   />
                 ))}
               </div>
