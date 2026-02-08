@@ -78,6 +78,7 @@ export default function CandidateProfileDetailPage({
   }, [c]);
 
   const mergedExperience = useMemo(() => {
+    if (!c) return [];
     const expItems = (c.experience_user ?? []).map((e: any) => ({
       kind: "exp" as const,
       item: e,
