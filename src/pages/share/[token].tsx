@@ -248,6 +248,7 @@ export default function ShareTokenPage() {
                                         title={p.title}
                                         published_at={p.published_at}
                                         link={p.link}
+                                        citation_num={p.citation_num ?? -1}
                                     />
                                 ))}
                             </div>
