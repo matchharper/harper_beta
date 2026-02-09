@@ -19,6 +19,7 @@ export enum SummaryScore {
 export enum StatusEnum {
   DONE = "done",
   FINISHED = "finished",
+  PARTIALLY_FINISHED = "partially_finished",
   RUNNING = "running",
   ERROR = "error",
   QUEUED = "queued",

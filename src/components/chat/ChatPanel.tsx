@@ -233,11 +233,14 @@ export default function ChatPanel({
     if (!userId) return;
 
     const maxParallel = planKey === "max" ? 3 : 1;
+    const threeMinAgo = new Date(Date.now() - 1 * 10 * 1000).toISOString();
+
     const { count, error } = await supabase
       .from("runs")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
-      .in("status", [StatusEnum.QUEUED, StatusEnum.FINISHED, StatusEnum.ERROR]);
+      .in("status", [StatusEnum.DONE, StatusEnum.RUNNING, StatusEnum.QUEUED])
+      .gte("created_at", threeMinAgo);
 
     if (error) {
       console.error("Failed to check running searches:", error);

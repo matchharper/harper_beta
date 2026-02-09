@@ -11,7 +11,7 @@ import { v4 } from "uuid";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import Head1 from "@/components/landing/Head1";
 import Animate from "@/components/landing/Animate";
-import RotatingOrbTiles, { OrbitIconsSmall } from "@/components/landing/Orbit";
+import { OrbitIconsSmall } from "@/components/landing/Orbit";
 import { QuestionAnswer } from ".";
 import { FallingTagsSmall } from "@/components/landing/FallingTagsSmall";
 import PricingSection from "@/components/landing/Pricing";
@@ -61,8 +61,8 @@ const CandidatePage = () => {
       setLandingId(newId);
 
       const body = {
-        local_id: landingId,
-        type: "enter_landing",
+        local_id: newId,
+        type: "new_visit",
         is_mobile: isMobile,
       };
       supabase.from("landing_logs").insert(body);
@@ -108,12 +108,6 @@ const CandidatePage = () => {
 
   const upScroll = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-  const downScroll = () => {
-    window.scrollTo({
-      top: document.documentElement.scrollHeight - 1400,
-      behavior: "smooth",
-    });
   };
 
   const handleContactUs = async () => {
@@ -289,7 +283,7 @@ const CandidatePage = () => {
             <div className="flex flex-row items-center justify-center gap-4">
               {m.companyLanding.hero.titleLine2Prefix}{" "}
               <RotatingText
-                texts={['Intelligence', 'Decisions', 'Hires']}
+                texts={['Intelligence', 'Decision', 'Knowledge', 'Insight']}
                 mainClassName="lg:px-4 md:px-3 px-2 font-hedvig bg-accenta1 text-black overflow-hidden py-0 sm:py-0 md:py-0 justify-center rounded-lg inline-block"
                 staggerFrom={"last"}
                 initial={{ y: "100%" }}

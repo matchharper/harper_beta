@@ -283,7 +283,6 @@ Now write the additional message:`;
       role: 1,
       content: defaultMsg + "\n" + msg,
     });
-    logger.log("메세지 업로드 시점", res1)
 
     await supabase.from("runs").update({
       status: "finished"

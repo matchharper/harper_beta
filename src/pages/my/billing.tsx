@@ -366,8 +366,8 @@ const Billing = () => {
         title="구독을 취소할까요?"
         description={
           freeStartDateLabel
-            ? `현재 결제 주기 종료 후 해지되며, <span class="text-white">${freeStartDateLabel}</span>부터 Free 플랜으로 전환됩니다.`
-            : "현재 결제 주기 종료 후 해지되며, 이후 Free 플랜으로 전환됩니다."
+            ? `현재 결제 주기 종료(<span class="text-accenta1 px-1">${freeStartDateLabel}</span>)후 Free 플랜으로 전환됩니다.`
+            : "현재 결제 주기 종료 후 Free 플랜으로 전환됩니다."
         }
         confirmLabel="구독 취소"
         cancelLabel="닫기"

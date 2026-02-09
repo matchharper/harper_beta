@@ -5,6 +5,7 @@ import { dateToFormatLong } from "@/utils/textprocess";
 import { supabase } from "@/lib/supabase";
 import Timeline from "./timeline";
 import { useMessages } from "@/i18n/useMessage";
+import { StatusEnum } from "@/types/type";
 
 type Props = {
   queryItem: any;
@@ -85,7 +86,7 @@ export default function ResultHeader({
         statusMessage &&
         <div className="w-full relative flex items-start justify-start">
           {
-            statusMessage === "partially_finished" && (
+            statusMessage === StatusEnum.PARTIALLY_FINISHED && (
               <div className="text-sm font-light text-hgray900 flex flex-row gap-2 items-start absolute top-3 left-5">
                 <Loader2 className="w-4 h-4 animate-spin" strokeWidth={2} />
                 <div className="animate-textGlow">
@@ -94,7 +95,7 @@ export default function ResultHeader({
               </div>
             )}
           {
-            statusMessage === "finished" && (
+            statusMessage === StatusEnum.FINISHED && (
               <div className="text-sm font-light text-hgray900 flex flex-row gap-2 items-start absolute top-3 left-5">
                 <Check className="w-4 h-4 text-green-500 mt-0.5" strokeWidth={2} />
                 <div className="">{m.search.resultHeader.finished}</div>

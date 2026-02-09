@@ -69,7 +69,7 @@ export default function ChatComposer({
             ? "bg-hgray700 text-hgray100"
             : "bg-accenta1 text-black disabled:opacity-50"
             }`}
-          disabled={disabledSend}
+          disabled={!isStreaming && disabledSend}
           aria-label="Send"
         >
           {isStreaming ? (

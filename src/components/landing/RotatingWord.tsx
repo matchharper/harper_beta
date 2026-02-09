@@ -4,7 +4,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
 
 const words = ["Data.", "List.", "Profile."];
-// const words = ["Intelligence", "Knowledge", "Decision", "Intuition"];
 const longest = words.reduce((a, b) => (a.length > b.length ? a : b), "");
 
 function RotatingWord({ intervalMs = 1600 }: { intervalMs?: number }) {
