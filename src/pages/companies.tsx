@@ -35,6 +35,8 @@ const CandidatePage = () => {
   const [abtest, setAbtest] = useState(-1);
   const [landingId, setLandingId] = useState("");
   const [isOpenLoginModal, setIsOpenLoginModal] = useState(false);
+  const [isTeamEmail, setIsTeamEmail] = useState(false);
+  const [isTeamEmailChecked, setIsTeamEmailChecked] = useState(false);
   const { m, locale } = useMessages();
 
   const isMobile = useIsMobile();
@@ -43,8 +45,10 @@ const CandidatePage = () => {
   const whySectionRef = useRef<HTMLDivElement>(null);
   const priceSectionRef = useRef<HTMLDivElement>(null);
   const faqSectionRef = useRef<HTMLDivElement>(null);
+  const hasLoggedFirstScrollRef = useRef(false);
 
   const addLog = async (type: string) => {
+    if (!isTeamEmailChecked || isTeamEmail || !landingId) return;
     const body = {
       local_id: landingId,
       type: type,
@@ -54,44 +58,95 @@ const CandidatePage = () => {
   };
 
   useEffect(() => {
-    const localId = localStorage.getItem("harper_landing_id");
-    if (!localId) {
-      const newId = v4();
-      localStorage.setItem("harper_landing_id", newId);
-      setLandingId(newId);
+    const excludedEmails = new Set([
+      "hongbeom.heo@gmail.com",
+      // "khj605123@gmail.com",
+    ]);
 
-      const body = {
-        local_id: newId,
-        type: "new_visit",
-        is_mobile: isMobile,
-      };
-      supabase.from("landing_logs").insert(body);
-    } else {
-      setLandingId(localId as string);
-    }
+    const updateTeamEmail = (email?: string | null) => {
+      setIsTeamEmail(email ? excludedEmails.has(email) : false);
+      setIsTeamEmailChecked(true);
+    };
+
+    supabase.auth.getUser().then(({ data }) => {
+      updateTeamEmail(data.user?.email);
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        updateTeamEmail(session?.user?.email);
+      }
+    );
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
+
 
   useEffect(() => {
-    const abtest = localStorage.getItem("harper_abtest");
-    if (abtest) {
-      setAbtest(parseInt(abtest));
-    } else {
-      let newAbtest = Math.random();
+    if (!isTeamEmailChecked) return;
+    const localId = localStorage.getItem("harper_landing_id_0209");
+    if (!localId) {
+      const newId = v4();
+      localStorage.setItem("harper_landing_id_0209", newId);
+      localStorage.setItem("harper_landing_last_visit_at", Date.now().toString());
+      setLandingId(newId);
 
-      if (newAbtest < 0.5) {
-        newAbtest = 0;
-      } else {
-        newAbtest = 1;
+      if (!isTeamEmail) {
+        const body = {
+          local_id: newId,
+          type: "new_visit",
+          is_mobile: isMobile,
+        };
+        supabase.from("landing_logs").insert(body);
       }
-      setAbtest(newAbtest);
-
-      localStorage.setItem("harper_abtest", newAbtest.toString());
+    } else {
+      logger.log("\n\n 호출 👻 localId : ", localId);
+      setLandingId(localId as string);
     }
-  }, []);
+  }, [isTeamEmailChecked, isTeamEmail]);
+
+  useEffect(() => {
+    if (!landingId) return;
+    const lastVisitRaw = localStorage.getItem("harper_landing_last_visit_at");
+    const now = Date.now();
+    const thirtyMinutesMs = 30 * 60 * 1000;
+    const lastVisitAt = lastVisitRaw ? Number(lastVisitRaw) : null;
+
+    if (!lastVisitAt || now - lastVisitAt >= thirtyMinutesMs) {
+      addLog("new_session");
+    }
+
+    localStorage.setItem("harper_landing_last_visit_at", now.toString());
+  }, [landingId]);
+
+  // useEffect(() => {
+  //   const abtest = localStorage.getItem("harper_abtest");
+  //   if (abtest) {
+  //     setAbtest(parseInt(abtest));
+  //   } else {
+  //     let newAbtest = Math.random();
+
+  //     if (newAbtest < 0.5) {
+  //       newAbtest = 0;
+  //     } else {
+  //       newAbtest = 1;
+  //     }
+  //     setAbtest(newAbtest);
+
+  //     localStorage.setItem("harper_abtest", newAbtest.toString());
+  //   }
+  // }, []);
 
   useEffect(() => {
     const handleScroll = () => {
       const currentY = window.scrollY;
+
+      if (!hasLoggedFirstScrollRef.current && currentY > 0 && landingId) {
+        hasLoggedFirstScrollRef.current = true;
+        addLog("first_scroll_down");
+      }
 
       if (!isBelow && currentY > window.innerHeight - 100) {
         setIsBelow(true);
@@ -104,7 +159,7 @@ const CandidatePage = () => {
 
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [isBelow]);
+  }, [isBelow, landingId]);
 
   const upScroll = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -126,19 +181,18 @@ const CandidatePage = () => {
 
 
   const login = async () => {
+    addLog("click_login_google");
     const redirectTo =
       typeof window !== "undefined"
-        ? `${window.location.origin}/auth/callback`
+        ? `${window.location.origin}/auth/callback?lid=${localStorage.getItem("harper_landing_id_0209") ?? ""}`
         : undefined;
 
-    logger.log("redirectTo : ", redirectTo);
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo: redirectTo,
       },
     });
-    logger.log(data);
 
     if (error) throw error;
     return data;
@@ -412,6 +466,7 @@ const CandidatePage = () => {
                     question={item.question}
                     answer={item.answer}
                     index={index}
+                    onOpen={() => addLog(`click_faq_${index}`)}
                   />
                 ))}
               </div>

@@ -439,7 +439,7 @@ export const ko = {
         "expanding: 더 많은 후보자를 찾기 위해 검색 범위를 넓혀서 검색을 시도하겠습니다...",
       expandingWithCount:
         "expanding: {count}명의 후보자를 찾았습니다. 더 많은 후보자를 찾기 위해 검색 범위를 넓혀서 검색을 시도하겠습니다...",
-      ranking: "ranking: 각 후보자의 정보를 확인하고 적합성을 판단하고 있습니다...",
+      ranking: "reranking: 각 후보자의 정보를 확인하고 적합성을 판단하고 있습니다...",
     },
     defaultMessage: {
       intro:

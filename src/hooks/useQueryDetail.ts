@@ -33,10 +33,11 @@ async function fetchQueryDetail(id: string) {
         user_id,
         name
       )
-    `
+      `
     )
     .eq("query_id", id)
     .eq("is_deleted", false)
+    .neq("runs.status", "stopped")
     .maybeSingle();
 
   if (error) throw error;

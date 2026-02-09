@@ -1,27 +1,26 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { showToast } from "@/components/toast/toast";
 import { Loading } from "@/components/ui/loading";
 
-type QueryRow = {
-  query_id: string;
-  user_id: string;
+type LandingLog = {
+  id: string;
+  local_id: string;
+  type: string;
   created_at: string;
-  raw_input_text: string | null;
-  criteria: string[] | null;
-  thinking: string | null;
-  company_users: {
-    name: string | null;
-  } | null;
+  is_mobile: boolean | null;
 };
 
-const PAGE_SIZE = 10;
+type GroupedLogs = {
+  local_id: string;
+  entryTime: string;
+  logs: LandingLog[];
+};
+
+const PAGE_SIZE = 50;
+const PASSWORD = "39773977";
+
+const ENTRY_TYPES = new Set(["new_visit", "new_session"]);
 
 function formatKST(iso?: string) {
   if (!iso) return "";
@@ -36,26 +35,17 @@ function formatKST(iso?: string) {
   });
 }
 
-function truncate(s: string, n = 180) {
-  const t = s.trim();
-  if (t.length <= n) return t;
-  return t.slice(0, n) + "…";
-}
-
-const PASSWORD = "39773977";
-
 const AdminPage = () => {
   const [password, setPassword] = useState("");
   const [isPassed, setIsPassed] = useState(false);
 
-  const [rows, setRows] = useState<QueryRow[]>([]);
+  const [logs, setLogs] = useState<LandingLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [hasMore, setHasMore] = useState(true);
-  const [cursor, setCursor] = useState<string | null>(null); // created_at 커서
-  const [search, setSearch] = useState("");
+  const [cursor, setCursor] = useState<string | null>(null);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -66,25 +56,6 @@ const AdminPage = () => {
     }
   }, []);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((r) => {
-      const a = (r.raw_input_text ?? "").toLowerCase();
-      const b = (r.thinking ?? "").toLowerCase();
-      const c = (r.criteria ?? []).join(" ").toLowerCase();
-      const d = (r.user_id ?? "").toLowerCase();
-      const e = (r.query_id ?? "").toLowerCase();
-      return (
-        a.includes(q) ||
-        b.includes(q) ||
-        c.includes(q) ||
-        d.includes(q) ||
-        e.includes(q)
-      );
-    });
-  }, [rows, search]);
-
   const fetchPage = useCallback(
     async ({ reset }: { reset: boolean }) => {
       if (!reset && (!hasMore || loadingMore)) return;
@@ -92,7 +63,7 @@ const AdminPage = () => {
       if (reset) {
         setLoading(true);
         setError(null);
-        setRows([]);
+        setLogs([]);
         setCursor(null);
         setHasMore(true);
       } else {
@@ -102,10 +73,8 @@ const AdminPage = () => {
 
       try {
         let q = supabase
-          .from("queries")
-          .select(
-            "query_id,user_id,created_at,raw_input_text,criteria,thinking,company_users(name)"
-          )
+          .from("landing_logs")
+          .select("id,local_id,type,created_at,is_mobile")
           .order("created_at", { ascending: false })
           .limit(PAGE_SIZE);
 
@@ -115,15 +84,14 @@ const AdminPage = () => {
         const { data, error } = await q;
         if (error) throw error;
 
-        const page = (data ?? []) as unknown as QueryRow[];
+        const page = (data ?? []) as any[];
 
-        setRows((prev) => {
+        setLogs((prev) => {
           if (reset) return page;
-          // 혹시 중복 방지
-          const seen = new Set(prev.map((x) => x.query_id));
+          const seen = new Set(prev.map((x) => x.id));
           const merged = [...prev];
           for (const item of page) {
-            if (!seen.has(item.query_id)) merged.push(item);
+            if (!seen.has(item.id)) merged.push(item);
           }
           return merged;
         });
@@ -131,7 +99,6 @@ const AdminPage = () => {
         const last = page[page.length - 1];
         setCursor(last?.created_at ?? cur);
 
-        // 10개 미만이면 더 없음
         if (page.length < PAGE_SIZE) setHasMore(false);
       } catch (e: any) {
         setError(e?.message ?? "Failed to load");
@@ -148,7 +115,6 @@ const AdminPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Infinite scroll observer
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
@@ -181,6 +147,44 @@ const AdminPage = () => {
     }
   };
 
+  const grouped = useMemo<GroupedLogs[]>(() => {
+    if (logs.length === 0) return [];
+
+    const byUser = new Map<string, LandingLog[]>();
+    for (const item of logs) {
+      const list = byUser.get(item.local_id) ?? [];
+      list.push(item);
+      byUser.set(item.local_id, list);
+    }
+
+    const groups: GroupedLogs[] = [];
+    for (const [local_id, list] of Array.from(byUser.entries())) {
+      const entryCandidates = list.filter((l) => ENTRY_TYPES.has(l.type));
+      const entryTimeSource =
+        entryCandidates.length > 0
+          ? entryCandidates
+            .slice()
+            .sort((a: LandingLog, b: LandingLog) => b.created_at.localeCompare(a.created_at))[0]
+          : list
+            .slice()
+            .sort((a: LandingLog, b: LandingLog) => b.created_at.localeCompare(a.created_at))[0];
+
+      const entryTime = entryTimeSource?.created_at ?? "";
+
+      const orderedLogs = list
+        .slice()
+        .sort((a: LandingLog, b: LandingLog) => a.created_at.localeCompare(b.created_at));
+
+      groups.push({
+        local_id,
+        entryTime,
+        logs: orderedLogs,
+      });
+    }
+
+    return groups.sort((a, b) => b.entryTime.localeCompare(a.entryTime));
+  }, [logs]);
+
   if (!isPassed) {
     return (
       <div className="min-h-screen bg-white text-black font-inter">
@@ -205,37 +209,18 @@ const AdminPage = () => {
 
   return (
     <div className="min-h-screen bg-white text-black font-inter">
-      {/* Top bar */}
       <div className="sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-black/10">
         <div className="mx-auto max-w-[1100px] px-6 py-4 flex items-center gap-3">
           <div className="flex flex-col">
             <div className="text-[15px] font-semibold tracking-tight">
-              Queries Admin
+              Landing Logs Admin
             </div>
             <div className="text-[12px] text-black/55 leading-4">
-              raw_input_text · criteria · thinking
+              local_id 기준 · 액션 타임라인
             </div>
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            <div className="relative">
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search text / criteria / user_id / query_id…"
-                className="w-[360px] h-9 px-3 text-[13px] bg-white border border-black/15 outline-none focus:border-black/35"
-                style={{ borderRadius: 0 }}
-              />
-              {search ? (
-                <button
-                  onClick={() => setSearch("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px] text-black/45 hover:text-black"
-                >
-                  ⨯
-                </button>
-              ) : null}
-            </div>
-
             <button
               onClick={onRefresh}
               className="h-9 px-3 text-[13px] border border-black/15 hover:border-black/30 hover:bg-black/[0.03] active:bg-black/[0.06]"
@@ -248,19 +233,11 @@ const AdminPage = () => {
         </div>
       </div>
 
-      {/* Content */}
       <div className="mx-auto max-w-[1100px] px-6 py-6">
-        {/* Status row */}
         <div className="mb-4 flex items-center justify-between">
           <div className="text-[12px] text-black/55">
-            Total loaded: <span className="text-black">{rows.length}</span>
-            {search.trim() ? (
-              <>
-                {" "}
-                · Filtered:{" "}
-                <span className="text-black">{filtered.length}</span>
-              </>
-            ) : null}{" "}
+            Loaded logs: <span className="text-black">{logs.length}</span> ·
+            Users: <span className="text-black">{grouped.length}</span>
           </div>
 
           {(loadingMore || loading) && (
@@ -292,7 +269,6 @@ const AdminPage = () => {
           </div>
         ) : null}
 
-        {/* List */}
         <div className="border border-black/10" style={{ borderRadius: 0 }}>
           {loading ? (
             <Loading
@@ -300,83 +276,38 @@ const AdminPage = () => {
               label="Loading…"
               className="p-6 text-[13px] text-black/55"
             />
-          ) : filtered.length === 0 ? (
+          ) : grouped.length === 0 ? (
             <div className="p-10 text-center">
-              <div className="text-[14px] font-semibold">No results</div>
+              <div className="text-[14px] font-semibold">No logs</div>
               <div className="text-[13px] text-black/55 mt-2">
-                {search.trim() ? "Try a different keyword." : "No queries yet."}
+                No landing logs yet.
               </div>
             </div>
           ) : (
-            filtered.map((r, idx) => (
+            grouped.map((group) => (
               <div
-                key={r.query_id ?? `${r.created_at}-${idx}`}
+                key={group.local_id}
                 className="border-t border-black/10 first:border-t-0"
               >
                 <div className="px-5 py-4">
-                  {/* header */}
-                  <div className="flex items-start gap-4">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <div className="text-[16px] font-semibold">
-                          <span className="text-black/55">검색어 :</span>{" "}
-                          {r.raw_input_text ?? "(empty)"}
-                        </div>
-                      </div>
+                  <div className="text-[14px] font-semibold">
+                    local_id: {group.local_id}
+                  </div>
+                  <div className="text-[12px] text-black/55 mt-1">
+                    entry: {formatKST(group.entryTime)}
+                  </div>
 
-                      <div className="mt-1 text-[14px] text-black/55 flex flex-wrap gap-x-3 gap-y-1">
-                        <span className="text-black text-[15px]">
-                          {r.company_users?.name ?? "(empty)"}
+                  <div className="mt-3 text-[13px] text-black/80">
+                    {group.logs.map((log) => (
+                      <div key={log.id} className="flex gap-2">
+                        <span className="text-black/50">•</span>
+                        <span>
+                          {ENTRY_TYPES.has(log.type)
+                            ? `${log.type} (${formatKST(log.created_at)})`
+                            : log.type}
                         </span>
-                        <span>{formatKST(r.created_at)}</span>
                       </div>
-                    </div>
-
-                    <button
-                      onClick={() =>
-                        navigator.clipboard.writeText(r.raw_input_text ?? "")
-                      }
-                      className="h-8 px-2 text-[12px] border border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
-                      style={{ borderRadius: 0 }}
-                      title="Copy raw_input_text"
-                    >
-                      Copy
-                    </button>
-                  </div>
-
-                  {/* criteria */}
-                  <div className="mt-3">
-                    <div className="text-[12px] text-black/45 mb-1">
-                      criteria
-                    </div>
-                    {r.criteria && r.criteria.length > 0 ? (
-                      <div className="flex flex-wrap gap-2">
-                        {r.criteria.map((c, i) => (
-                          <span
-                            key={`${r.query_id}-c-${i}`}
-                            className="px-2 py-1 text-[12px] border border-black/15 bg-white"
-                            style={{ borderRadius: 0 }}
-                          >
-                            {c}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-[13px] text-black/55">(empty)</div>
-                    )}
-                  </div>
-
-                  {/* thinking */}
-                  <div className="mt-4">
-                    <div className="text-[12px] text-black/45 mb-1">
-                      thinking
-                    </div>
-                    <pre
-                      className="whitespace-pre-wrap text-[13px] leading-5 text-black/80 "
-                      style={{ borderRadius: 0 }}
-                    >
-                      {r.thinking ? r.thinking : "(empty)"}
-                    </pre>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -384,7 +315,6 @@ const AdminPage = () => {
           )}
         </div>
 
-        {/* Sentinel + footer */}
         <div ref={sentinelRef} className="h-10" />
 
         <div className="mt-4 text-[12px] text-black/45">

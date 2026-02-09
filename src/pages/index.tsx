@@ -496,10 +496,12 @@ export function QuestionAnswer({
   question,
   answer,
   index = 1,
+  onOpen,
 }: {
   question: string;
   answer: string;
   index?: number;
+  onOpen?: () => void;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -510,7 +512,13 @@ export function QuestionAnswer({
     >
       <button
         type="button"
-        onClick={() => setOpen((p) => !p)}
+        onClick={() =>
+          setOpen((prev) => {
+            const next = !prev;
+            if (next) onOpen?.();
+            return next;
+          })
+        }
         className="flex w-full items-center justify-between md:justify-start text-left"
       >
         <span

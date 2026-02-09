@@ -15,6 +15,7 @@ import { useRunPagesInfinite } from "@/hooks/useRunResults";
 import { doSearch, runSearch } from "@/hooks/useStartSearch";
 import { Loading } from "@/components/ui/loading";
 import { supabase } from "@/lib/supabase";
+import Head from "next/head";
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -23,6 +24,8 @@ function clamp(n: number, min: number, max: number) {
 const MAX_PREFETCH_PAGES = 20;
 
 export default function ResultPage() {
+  const [finishedTick, setFinishedTick] = useState(0);
+
   const router = useRouter();
   const { id, page, run } = router.query;
   const resultScrollRef = useRef<HTMLDivElement>(null);
@@ -31,7 +34,6 @@ export default function ResultPage() {
   const runId = typeof run === "string" ? run : undefined; // ✅ runs.id (uuid)
   const { data: runData, isLoading: isRunDetailLoading } = useRunDetail(runId);
 
-  const [finishedTick, setFinishedTick] = useState(0);
 
   const { companyUser } = useCompanyUserStore();
   const userId = companyUser?.user_id;
@@ -103,8 +105,6 @@ export default function ResultPage() {
     if (doSearchRef.current) return console.log("[effect] return: doSearchRef.current");
     if (data?.pages?.length === 0) return console.log("[effect] return: pages length 0");
     if (runData?.status?.includes("error") || runData?.status?.includes("finished")) return console.log("[effect] return: finished/error");
-
-    console.log("[ResultPage effect] doSearch about to run", { runId, pageIdx, pagesLen: data?.pages?.length, status: runData?.status });
 
     doSearchRef.current = true;
     doSearch({ runId: runId, queryId: queryId, userId: userId, pageIdx: pageIdx });
@@ -367,6 +367,9 @@ export default function ResultPage() {
 
   return (
     <AppLayout initialCollapse={true}>
+      <Head>
+        <title>Harper: 검색</title>
+      </Head>
       <div className={`w-full flex flex-row min-h-screen overflow-hidden ${isChatFull ? "items-center justify-center" : "items-start justify-between"}`}>
         <div className={`flex-shrink-0 transition-all duration-300 ease-in-out border-r ${isChatFull ? "w-[50%] border-transparent" : "w-[30%] min-w-[390px] border-white/10"}`}>
           <ChatPanel

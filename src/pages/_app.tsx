@@ -3,6 +3,7 @@ import ToastProvider from "@/components/toast/ToastProvider";
 import "@/globals.css";
 import type { AppProps } from "next/app";
 import ReactQueryProvider from "@/components/Provider";
+import Head from "next/head";
 import {
   Roboto,
   Averia_Serif_Libre,
@@ -86,6 +87,10 @@ export default function App({ Component, pageProps }: AppProps) {
 
   return (
     <ReactQueryProvider>
+      <Head>
+        <title>Harper — AI Recruiter</title>
+        <meta name="description" content="Harper는 모든 팀들을 위한 전담 AI Recruiter입니다." />
+      </Head>
       <div
         className={`${inter.className} ${inter.variable} ${garamond.className} ${garamond.variable} ${roboto.variable} ${averia.variable}`}
       >

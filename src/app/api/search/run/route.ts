@@ -9,6 +9,7 @@ import { searchDatabase } from "../parse";
 import { notifyToSlack } from "@/lib/slack";
 import { en } from "@/lang/en";
 import { ko } from "@/lang/ko";
+import { StatusEnum } from "@/types/type";
 
 type Locale = "ko" | "en";
 
@@ -172,7 +173,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (!sql_query) {
-    await updateRunStatus(run.id, searchMessages.status.parsing);
+    await updateRunStatus(run.id, StatusEnum.PARSING);
 
     const parsedQuery = await makeSqlQuery(query_text, criteria, "", run.id, locale);
     if (typeof parsedQuery !== "string") {

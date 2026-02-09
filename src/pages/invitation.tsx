@@ -11,6 +11,8 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { useMessages } from "@/i18n/useMessage";
+import { useIsMobile } from "@/hooks/useIsMobile";
+import { v4 } from "uuid";
 
 const INITIAL_CREDIT = 10;
 
@@ -20,11 +22,72 @@ export default function LoginSuccess() {
   const [isLoading, setIsLoading] = useState(false);
   const [invalidMessage, setInvalidMessage] = useState("");
   const [isShake, setIsShake] = useState(false);
+  const [landingId, setLandingId] = useState("");
+  const [isTeamEmail, setIsTeamEmail] = useState(false);
+  const [isTeamEmailChecked, setIsTeamEmailChecked] = useState(false);
   const { m } = useMessages();
 
   const interactiveRef = useRef<HTMLDivElement>(null);
+  const hasLoggedEnterRef = useRef(false);
+  const hasLoggedCodeInputRef = useRef(false);
+  const isMobile = useIsMobile();
 
   const { companyUser, load } = useCompanyUserStore();
+
+  const addLog = async (type: string) => {
+    if (!isTeamEmailChecked || isTeamEmail || !landingId) return;
+    const body = {
+      local_id: landingId,
+      type: type,
+      is_mobile: isMobile,
+    };
+    await supabase.from("landing_logs").insert(body);
+  };
+
+  useEffect(() => {
+    const localId = localStorage.getItem("harper_landing_id_0209");
+    if (!localId) {
+      const newId = v4();
+      localStorage.setItem("harper_landing_id_0209", newId);
+      setLandingId(newId);
+    } else {
+      setLandingId(localId);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!landingId || hasLoggedEnterRef.current || !isTeamEmailChecked) return;
+    hasLoggedEnterRef.current = true;
+    const emailSuffix = companyUser?.email ? `:${companyUser.email}` : "";
+    addLog(`invitation_enter_${emailSuffix}`);
+  }, [landingId, isTeamEmailChecked]);
+
+  useEffect(() => {
+    const excludedEmails = new Set([
+      "chris@gmail.com",
+      // "khj605123@gmail.com",
+    ]);
+
+    const updateTeamEmail = (email?: string | null) => {
+      setIsTeamEmail(email ? excludedEmails.has(email) : false);
+      setIsTeamEmailChecked(true);
+    };
+
+    supabase.auth.getUser().then(({ data }) => {
+      updateTeamEmail(data.user?.email);
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        updateTeamEmail(session?.user?.email);
+      }
+    );
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
+
 
   useEffect(() => {
     if (companyUser?.is_authenticated) {
@@ -133,6 +196,12 @@ export default function LoginSuccess() {
                 type="text"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
+                onFocus={() => {
+                  if (!hasLoggedCodeInputRef.current) {
+                    hasLoggedCodeInputRef.current = true;
+                    addLog("click_invitation_code_input");
+                  }
+                }}
                 placeholder={m.invitation.placeholder}
                 className="flex-1 rounded-3xl w-full bg-white/10 border border-neutral-800/80 px-4 py-4 text-sm md:text-sm
                 transition-all duration-200 hover:border-xgray700
@@ -167,6 +236,7 @@ export default function LoginSuccess() {
             {/* Waitlist button */}
             <button
               onClick={() => {
+                addLog("click_invitation_waitlist");
                 router.push("/join");
               }}
               className="w-full rounded-full bg-neutral-50 text-black py-3.5 text-sm md:text-base font-medium hover:bg-neutral-200 active:scale-95 transition-all duration-200"

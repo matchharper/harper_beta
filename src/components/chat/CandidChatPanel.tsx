@@ -361,7 +361,15 @@ export default function CandidChatPanel({
       <ChatComposer
         value={chat.input}
         onChange={chat.setInput}
-        onSend={() => void chat.send()}
+        onSend={() => {
+          if (isUnlockProfile) {
+            void chat.send()
+            return;
+          } else {
+            setIsUnlockConfirmOpen(true);
+          }
+          // void chat.send()
+        }}
         onStop={chat.stop}
         onRetry={() => void chat.reload()}
         disabledSend={!chat.canSend || disabled}

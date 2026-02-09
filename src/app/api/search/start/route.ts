@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
     logger.log("\n\n 🚥 종료된 run입니다. ", run?.status, "\n\n");
     return NextResponse.json({ error: "Stopped run found" }, { status: 200 });
   }
-  if (!(run?.status?.includes("error") || run?.status === null || run?.status.includes("finished"))) {
+  if (!(run?.status?.includes(StatusEnum.ERROR) || run?.status === null || run?.status.includes(StatusEnum.FINISHED))) {
     logger.log("\n\n 🦾 지금 진행중입니다. 건드리지 마세요. ", run?.status, "\n\n");
     return NextResponse.json({ error: "Run not found" }, { status: 200 });
   }
@@ -285,7 +285,7 @@ Now write the additional message:`;
     });
 
     await supabase.from("runs").update({
-      status: "finished"
+      status: StatusEnum.FINISHED
     }).eq("id", runId);
 
     // 7) Cache candidates for this page into runs_pages

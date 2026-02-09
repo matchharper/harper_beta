@@ -17,9 +17,14 @@ export enum SummaryScore {
 }
 
 export enum StatusEnum {
+  STARTING = "starting",
+  EXPANDING = "expanding",
+  PARSING = "parsing",
+  REFINE = "refine",
   DONE = "done",
   FINISHED = "finished",
-  PARTIALLY_FINISHED = "partially_finished",
+  RERANKING = "reranking",
+  RERANKING_STREAMING = "streaming",
   RUNNING = "running",
   ERROR = "error",
   QUEUED = "queued",

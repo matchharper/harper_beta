@@ -73,25 +73,25 @@ export function deriveProgress(
       key: "plan",
       title: labels.steps.planTitle,
       description: labels.steps.planDesc,
-      match: (x) => x.includes("parsing"),
+      match: (x) => x.includes(StatusEnum.PARSING),
     },
     {
       key: "refine",
       title: labels.steps.refineTitle,
       description: labels.steps.refineDesc,
-      match: (x) => x.includes("refine") || x.includes("optimiz"),
+      match: (x) => x.includes(StatusEnum.REFINE) || x.includes("optimiz"),
     },
     {
       key: "running",
       title: labels.steps.runningTitle,
       description: labels.steps.runningDesc,
-      match: (x) => x.includes("running") || x.includes("searching") || x.includes("queued"),
+      match: (x) => x.includes(StatusEnum.RUNNING) || x.includes("searching") || x.includes(StatusEnum.QUEUED),
     },
     {
       key: "ranking",
       title: labels.steps.rankingTitle,
       description: labels.steps.rankingDesc,
-      match: (x) => x.includes("ranking") || x.includes("scoring") || x.includes("partial") || x.includes("done"),
+      match: (x) => x.includes(StatusEnum.RERANKING) || x.includes("scoring") || x.includes("partial") || x.includes("done"),
     },
   ];
 

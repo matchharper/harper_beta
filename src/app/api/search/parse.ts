@@ -12,6 +12,7 @@ import { ThinkingLevel } from "@google/genai";
 import { rpc_set_timeout_and_execute_raw_sql_via_runs } from "./worker";
 import { en } from "@/lang/en";
 import { ko } from "@/lang/ko";
+import { StatusEnum } from "@/types/type";
 
 type Locale = "ko" | "en";
 
@@ -35,7 +36,7 @@ export async function makeSqlQuery(
 ): Promise<string | any> {
   logger.log("🔥 시작 makeSqlQuery: ", queryText, criteria);
   const statusMessages = getMessages(locale).search.status;
-  await updateRunStatus(runId, statusMessages.parsing);
+  await updateRunStatus(runId, StatusEnum.PARSING);
 
   try {
     let prompt = `
@@ -78,7 +79,7 @@ Natural Language Query: ${queryText}
 Criteria: ${criteria}
 `;
 
-    await updateRunStatus(runId, statusMessages.refine);
+    await updateRunStatus(runId, StatusEnum.REFINE);
 
     const start = performance.now();
     const outText2 = (await geminiInference(
@@ -134,7 +135,7 @@ export const reranking = async ({ candidates, criteria, query_text, review_count
       }
 
       if (totalCandidates.length === 0) {
-        await supabase.from("runs").update({ status: "partially_finished" }).eq("id", runId);
+        await supabase.from("runs").update({ status: StatusEnum.RERANKING_STREAMING }).eq("id", runId);
       }
 
       totalCandidates = [...totalCandidates, ...batch];
@@ -246,7 +247,6 @@ export const searchDatabase = async ({
   let review_count_num = review_count;
   const statusMessages = getMessages(locale).search.status;
 
-
   let data: any[] | null = [];
   let error: any;
 
@@ -281,15 +281,10 @@ export const searchDatabase = async ({
       additional_prompt += `\n\n [ERROR]\n ${error.message}\n`;
 
     if (error)
-      await updateRunStatus(run.id, statusMessages.errorHandling)
+      await updateRunStatus(run.id, StatusEnum.ERROR)
 
     if (!error && candidates.length < 10)
-      await updateRunStatus(
-        run.id,
-        formatTemplate(statusMessages.errorHandlingWithCount, {
-          count: candidates.length,
-        })
-      );
+      await updateRunStatus(run.id, StatusEnum.ERROR);
 
     const fixed_query = await geminiInference(
       "gemini-3-flash-preview",
@@ -334,14 +329,9 @@ ${sql_query}
 
     // 유저에게 상황을 친절하게 알림
     if (!error) {
-      await updateRunStatus(
-        run.id,
-        formatTemplate(statusMessages.expandingWithCount, {
-          count: candidates.length,
-        })
-      );
+      await updateRunStatus(run.id, StatusEnum.EXPANDING);
     } else
-      await updateRunStatus(run.id, statusMessages.expanding);
+      await updateRunStatus(run.id, StatusEnum.EXPANDING);
 
     let fallback_sql = '';
 
@@ -404,7 +394,7 @@ input text for searching: ${query_text}
   }
 
   if (candidates.length === 0) {
-    await updateRunStatus(run.id, "done");
+    await updateRunStatus(run.id, StatusEnum.FINISHED);
     return {
       data: [],
       status: "no data found",
@@ -412,7 +402,7 @@ input text for searching: ${query_text}
   }
 
   await assertNotCanceled(run.id);
-  await updateRunStatus(run.id, statusMessages.ranking);
+  await updateRunStatus(run.id, StatusEnum.RERANKING);
 
   const scored = await reranking({ candidates, criteria, query_text, review_count_num, runId: run.id });
 

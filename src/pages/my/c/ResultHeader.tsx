@@ -80,13 +80,16 @@ export default function ResultHeader({
         </div>
       </div>
 
-      <Timeline statusMessage={statusMessage} runId={runId} />
+      {
+        statusMessage && statusMessage !== StatusEnum.FINISHED && statusMessage !== StatusEnum.RERANKING_STREAMING &&
+        <Timeline statusMessage={statusMessage} runId={runId} />
+      }
 
       {
         statusMessage &&
         <div className="w-full relative flex items-start justify-start">
           {
-            statusMessage === StatusEnum.PARTIALLY_FINISHED && (
+            statusMessage === StatusEnum.RERANKING_STREAMING && (
               <div className="text-sm font-light text-hgray900 flex flex-row gap-2 items-start absolute top-3 left-5">
                 <Loader2 className="w-4 h-4 animate-spin" strokeWidth={2} />
                 <div className="animate-textGlow">
