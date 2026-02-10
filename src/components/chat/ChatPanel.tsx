@@ -8,7 +8,7 @@ import React, {
 } from "react";
 import ChatMessageList from "@/components/chat/ChatMessageList";
 import ChatComposer from "@/components/chat/ChatComposer";
-import { useChatSessionDB } from "@/hooks/chat/useChatSession";
+import { UI_END, UI_START, useChatSessionDB } from "@/hooks/chat/useChatSession";
 import { ArrowDown, ArrowLeft, Loader2, ScreenShareIcon, Settings, XIcon } from "lucide-react";
 import { logger } from "@/utils/logger";
 import { useRouter } from "next/router";
@@ -36,7 +36,7 @@ type Props = {
   memoryMode?: "automation";
   onBack?: () => void;
 
-  onSearchFromConversation: (messageId: number) => Promise<void>;
+  onSearchFromConversation: (messageId: number) => Promise<string | null>;
 
   disabled?: boolean;
   candidDoc?: CandidateDetail;
@@ -261,12 +261,26 @@ export default function ChatPanel({
       return;
     }
 
+    const searchStartText = "검색을 시작하겠습니다. 최대 1~3분이 소요될 수 있습니다.";
+    const searchStartBlock = {
+      type: "search_start",
+      text: searchStartText,
+      run_id: "",
+    };
+
     setIsSearchSyncing(true);
     try {
-      await chat.addAssistantMessage(
-        "검색을 시작하겠습니다. 최대 1~3분이 소요될 수 있습니다."
+      const pendingMsg = await chat.addAssistantMessage(
+        `${UI_START}\n${JSON.stringify(searchStartBlock)}\n${UI_END}`
       );
-      await onSearchFromConversation(messageId);
+
+      const runId = await onSearchFromConversation(messageId);
+      if (pendingMsg?.id && runId) {
+        await chat.patchAssistantUiBlock(Number(pendingMsg.id), {
+          ...searchStartBlock,
+          run_id: runId,
+        });
+      }
     } finally {
       setIsSearchSyncing(false);
     }

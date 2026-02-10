@@ -12,7 +12,6 @@ import type {
   ToolStatusBlock,
 } from "@/types/chat";
 import {
-  AlertTriangle,
   Bolt,
   Check,
   FileSpreadsheet,
@@ -396,9 +395,54 @@ const SearchResultCard = ({ text, runId }: { text: string; runId: string }) => {
           {/* <span className="text-hgray600 text-xs">{restText}</span> */}
         </div>
       </div>
-      <div className="text-xs text-green-500 flex flex-row items-center gap-1 px-0 mt-2">
+      {/* <div className="text-xs text-green-500 flex flex-row items-center gap-1 px-0 mt-2">
         <Check size={12} /> 검색 완료!
+      </div> */}
+    </div>
+  );
+};
+
+const SearchStartCard = ({
+  text,
+  runId,
+  isDone = false,
+}: {
+  text: string;
+  runId?: string;
+  isDone?: boolean;
+}) => {
+  const router = useRouter();
+  const canOpen = !!runId && !isDone;
+
+  return (
+    <div
+      onClick={() => {
+        if (!canOpen) return;
+        router.replace(
+          {
+            pathname: router.pathname,
+            query: { ...router.query, run: runId, page: "0" },
+          },
+          undefined,
+          { shallow: true, scroll: false }
+        );
+      }}
+      className={`w-full relative rounded-md overflow-hidden transition-all duration-200 ${canOpen ? "cursor-pointer hover:bg-white/5" : "cursor-default"
+        }`}
+    >
+      <div className="text-[13px] text-hgray900 font-normal flex flex-row items-center gap-2">
+        {isDone ? (
+          <Check className="w-4 h-4 text-green-500" />
+        ) : (
+          <Loader2 className="w-4 h-4 animate-spin text-hgray600" />
+        )}
+        <span>{isDone ? "검색 완료" : text}</span>
       </div>
+      {canOpen && (
+        <div className="text-xs text-hgray600 mt-1">
+          클릭하면 검색 진행 화면으로 이동합니다.
+        </div>
+      )}
     </div>
   );
 };
@@ -431,6 +475,34 @@ export default function ChatMessageList({
         (s as any).content?.type === "tool_status" &&
         (s as any).content?.state === "running"
     );
+  }, [messages]);
+
+  const doneBySearchStartMessageId = useMemo(() => {
+    const doneSet = new Set<string | number>();
+    let lastSearchStartMessageId: string | number | null = null;
+
+    for (const m of messages) {
+      const segments = m.segments ?? [];
+
+      for (const s of segments) {
+        if (s.type === "block" && (s as any).content?.type === "search_start") {
+          lastSearchStartMessageId = m.id ?? null;
+          continue;
+        }
+
+        if (m.role === "assistant" && s.type === "text") {
+          const text = (s.content ?? "").trim();
+          const isDoneText = text.startsWith("[완료]") || text.startsWith("전체");
+
+          if (isDoneText && lastSearchStartMessageId != null) {
+            doneSet.add(lastSearchStartMessageId);
+            lastSearchStartMessageId = null;
+          }
+        }
+      }
+    }
+
+    return doneSet;
   }, [messages]);
 
   return (
@@ -557,6 +629,21 @@ export default function ChatMessageList({
                         <SearchResultCard
                           text={s.content.text}
                           runId={s.content.run_id}
+                          key={`block-${idx}-${si}`}
+                        />
+                      );
+                    }
+                    if (s.content.type === "search_start") {
+                      const runId = s.content.run_id as string | undefined;
+                      const isDone =
+                        m.id != null &&
+                        doneBySearchStartMessageId.has(m.id);
+
+                      return (
+                        <SearchStartCard
+                          text={s.content.text}
+                          runId={runId}
+                          isDone={isDone}
                           key={`block-${idx}-${si}`}
                         />
                       );

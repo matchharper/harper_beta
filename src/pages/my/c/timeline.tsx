@@ -237,103 +237,101 @@ const Timeline = ({ statusMessage, runId }: { statusMessage: string, runId: stri
     };
   }, [statusMessage, progress.steps.length]);
 
-  return (<>
-    {statusMessage && !statusMessage.includes("finished") && (
-      <div className="w-full h-full flex items-center justify-center min-h-[80vh] px-6">
-        {statusMessage && statusMessage.includes(StatusEnum.STOPPED) ? (
-          <div className="flex flex-col gap-2 items-center justify-center">
-            <div className="text-sm font-light mt-4 text-hgray900 flex flex-row gap-2 items-center">
-              <CircleSlash className="w-3.5 h-3.5 text-hgray900" />
-              <div className="animate-textGlow">{m.search.timeline.stopped}</div>
+  return <div className="w-full h-full flex items-center justify-center min-h-[80vh] px-6">
+    {statusMessage && statusMessage.includes(StatusEnum.STOPPED) ? (
+      <div className="flex flex-col gap-2 items-center justify-center">
+        <div className="text-sm font-light mt-4 text-hgray900 flex flex-row gap-2 items-center">
+          <CircleSlash className="w-3.5 h-3.5 text-hgray900" />
+          <div className="animate-textGlow">{m.search.timeline.stopped}</div>
+        </div>
+      </div>
+    ) : (
+      <div className="w-full max-w-[520px]">
+        {/* Header */}
+        <div className="flex flex-row items-center justify-between mb-4">
+          <div className="flex flex-col">
+            <div className="text-base font-medium text-hgray900">
+              {m.search.timeline.headerTitle}
             </div>
           </div>
-        ) : (
-          <div className="w-full max-w-[520px]">
-            {/* Header */}
-            <div className="flex flex-row items-center justify-between mb-4">
-              <div className="flex flex-col">
-                <div className="text-base font-medium text-hgray900">
-                  {m.search.timeline.headerTitle}
-                </div>
-              </div>
 
-              <button
-                onClick={stopRun}
-                className="py-1.5 px-2 rounded-sm text-hgray900/80 text-sm font-light hover:bg-white/0 cursor-pointer bg-white/0 flex flex-row gap-2 items-center hover:text-red-500/80 transition-colors duration-200"
-              >
-                <Square className="w-3 h-3" fill="currentColor" />
-                <span>{m.search.timeline.stop}</span>
-              </button>
-            </div>
+          <button
+            onClick={stopRun}
+            className="py-1.5 px-2 rounded-sm text-hgray900/80 text-sm font-light hover:bg-white/0 cursor-pointer bg-white/0 flex flex-row gap-2 items-center hover:text-red-500/80 transition-colors duration-200"
+          >
+            <Square className="w-3 h-3" fill="currentColor" />
+            <span>{m.search.timeline.stop}</span>
+          </button>
+        </div>
 
-            {/* Timeline */}
-            <div className="rounded-lg bg-white/5 p-3 min-h-[280px]">
-              <div className="flex flex-col gap-4">
-                {progress.steps.slice(0, shownCount).map((step, idx) => {
-                  const isLast = idx === progress.steps.length - 1;
+        {/* Timeline */}
+        <div className="rounded-lg bg-white/5 p-3 min-h-[280px]">
+          <div className="flex flex-col gap-4">
+            {progress.steps.slice(0, shownCount).map((step, idx) => {
+              const isLast = idx === progress.steps.length - 1;
 
-                  const Icon = (() => {
-                    if (step.state === "done") return Check;
-                    if (step.state === "error") return CircleSlash;
-                    if (step.state === "active") return Loader2;
-                    return Circle;
-                  })();
+              const Icon = (() => {
+                if (step.state === "done") return Check;
+                if (step.state === "error") return CircleSlash;
+                if (step.state === "active") return Loader2;
+                return Circle;
+              })();
 
-                  const delayMs = idx * 140;
+              const delayMs = idx * 140;
 
-                  return (
-                    <div key={step.key}
-                      className="flex flex-row gap-3 will-change-transform animate-stepDropIn"
-                      style={{ animationDelay: `${delayMs}ms`, padding: step.state === "active" ? "8px 0px" : "0px" }}>
-                      {/* Left rail */}
-                      <div className="flex flex-col items-center pt-0.5">
-                        <div
-                          className={[
-                            "w-4 h-4 rounded-full flex items-center justify-center",
-                            step.state === "done" ? "bg-white/0" : "",
-                            step.state === "active" ? "bg-white/0" : "",
-                            step.state === "pending" ? "bg-white/0" : "",
-                            step.state === "error" ? "bg-white/0" : "",
-                          ].join(" ")}
-                        >
-                          {step.state === "active" && (
-                            <Icon className="w-4 h-4 animate-spin text-hgray900" strokeWidth={2} />
-                          )}
-                          {step.state === "done" && (
-                            <Icon className="w-3 h-3 text-green-400" strokeWidth={2} />
-                          )}
-                          {step.state === "pending" && (
-                            <Icon className="w-3 h-3 text-hgray600" strokeWidth={2} />
-                          )}
-                          {step.state === "error" && (
-                            <Icon className="w-3 h-3 text-red-500" strokeWidth={2} />
-                          )}
-                        </div>
+              return (
+                <div key={step.key}
+                  className="flex flex-row gap-3 will-change-transform animate-stepDropIn"
+                  style={{ animationDelay: `${delayMs}ms`, padding: step.state === "active" ? "8px 0px" : "0px" }}>
+                  {/* Left rail */}
+                  <div className="flex flex-col items-center pt-0.5">
+                    <div
+                      className={[
+                        "w-4 h-4 rounded-full flex items-center justify-center",
+                        step.state === "done" ? "bg-white/0" : "",
+                        step.state === "active" ? "bg-white/0" : "",
+                        step.state === "pending" ? "bg-white/0" : "",
+                        step.state === "error" ? "bg-white/0" : "",
+                      ].join(" ")}
+                    >
+                      {step.state === "active" && (
+                        <Icon className="w-4 h-4 animate-spin text-hgray900" strokeWidth={2} />
+                      )}
+                      {step.state === "done" && (
+                        <Icon className="w-3 h-3 text-green-400" strokeWidth={2} />
+                      )}
+                      {step.state === "pending" && (
+                        <Icon className="w-3 h-3 text-hgray600" strokeWidth={2} />
+                      )}
+                      {step.state === "error" && (
+                        <Icon className="w-3 h-3 text-red-500" strokeWidth={2} />
+                      )}
+                    </div>
 
-                        {/* {!isLast && <div className="w-px flex-1 bg-white/10 my-1" />} */}
-                      </div>
+                    {/* {!isLast && <div className="w-px flex-1 bg-white/10 my-1" />} */}
+                  </div>
 
-                      {/* Content */}
-                      <div className="flex flex-col">
-                        <div className="flex flex-row items-center gap-2">
-                          <div className="text-sm font-medium text-hgray900">
-                            {step.title}
-                          </div>
-                        </div>
-
-                        {step.state === "active" && step.description && (
-                          <div className="text-sm text-hgray800 mt-1 leading-5 animate-textGlow">
-                            {step.description}
-                          </div>
-                        )}
+                  {/* Content */}
+                  <div className="flex flex-col">
+                    <div className="flex flex-row items-center gap-2">
+                      <div className="text-sm font-medium text-hgray900">
+                        {step.title}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
 
-              {/* Live detail line */}
-              {/* {progress.detail && (
+                    {step.state === "active" && step.description && (
+                      <div className="text-sm text-hgray800 mt-1 leading-5 animate-textGlow">
+                        {step.description}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Live detail line */}
+          {/* {progress.detail && (
                 <div className="mt-4 pt-3 border-t border-white/10">
                   <div className="text-xs text-hgray600">현재 상태</div>
                   <div className="text-sm text-hgray900 mt-1">
@@ -341,17 +339,15 @@ const Timeline = ({ statusMessage, runId }: { statusMessage: string, runId: stri
                   </div>
                 </div>
               )} */}
-            </div>
+        </div>
 
-            {/* Optional: small reassurance row */}
-            <div className="text-xs text-hgray600 mt-3">
-              {m.search.timeline.note}
-            </div>
-          </div>
-        )}
+        {/* Optional: small reassurance row */}
+        <div className="text-xs text-hgray600 mt-3 leading-relaxed">
+          {m.search.timeline.note}
+        </div>
       </div>
     )}
-  </>)
+  </div>
 }
 
 export default React.memo(Timeline);

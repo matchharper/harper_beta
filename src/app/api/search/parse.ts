@@ -32,7 +32,7 @@ export async function makeSqlQuery(
   criteria: string[],
   extraInfo: string = "",
   runId: string,
-  locale: Locale = "en"
+  locale: Locale = "ko"
 ): Promise<string | any> {
   logger.log("🔥 시작 makeSqlQuery: ", queryText, criteria);
   const statusMessages = getMessages(locale).search.status;

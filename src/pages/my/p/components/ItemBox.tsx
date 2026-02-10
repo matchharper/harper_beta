@@ -41,6 +41,9 @@ const ItemBox = ({
     if (isEdu) {
       return getSchoolLogo(link);
     }
+    if (logo_url?.includes("media.licdn.com")) {
+      return "";
+    }
     return logo_url;
   }, [link, isEdu]);
 
@@ -65,12 +68,12 @@ const ItemBox = ({
   const logoSize = "w-10 h-10 outline outline-4 outline-hgray200";
   const logoIcon = useMemo(() => {
     if (isEdu) {
-      return <SchoolIcon size={24} strokeWidth={1.3} className="text-hgray900" />;
+      return <SchoolIcon size={20} strokeWidth={1.3} className="text-hgray900" />;
     }
     if (typed === "award") {
-      return <AwardIcon size={24} strokeWidth={1.3} className="text-hgray900" />;
+      return <AwardIcon size={20} strokeWidth={1.3} className="text-hgray900" />;
     }
-    return <Building2 size={24} strokeWidth={1.3} className="text-hgray900" />;
+    return <Building2 size={20} strokeWidth={1.3} className="text-hgray900" />;
   }, [isEdu, typed]);
 
   return (

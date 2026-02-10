@@ -491,7 +491,7 @@ export default function AutomationDetailPage() {
                 title="Harper Scout"
                 scope={{ type: "query", queryId: automationId }}
                 userId={userId}
-                onSearchFromConversation={async () => { }}
+                onSearchFromConversation={async () => null}
                 systemPromptOverride={DEEP_AUTOMATION_PROMPT}
                 memoryMode="automation"
                 onBack={handleBack}

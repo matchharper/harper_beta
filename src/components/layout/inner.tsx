@@ -16,7 +16,7 @@ const InnerLayout = ({
             {title}
           </div>
         </div>
-        <div className="w-full max-w-full flex flex-col items-start justify-start relative pb-32">
+        <div className="w-full max-w-full flex flex-col items-start justify-start relative pb-16">
           {children}
         </div>
       </div>

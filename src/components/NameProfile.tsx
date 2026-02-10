@@ -72,9 +72,9 @@ const NameProfile = ({
   );
 };
 
-export default NameProfile;
+export default React.memo(NameProfile);
 
-const initials = (name?: string | null) =>
+export const initials = (name?: string | null) =>
   (name ?? "")
     .trim()
     .split(/\s+/)

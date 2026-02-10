@@ -12,7 +12,7 @@ import { notifyToSlack } from "@/lib/slack";
 const Help = () => {
   const [feedback, setFeedback] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { m } = useMessages();
+  const { m, locale } = useMessages();
 
   const { companyUser } = useCompanyUserStore();
 
@@ -42,35 +42,60 @@ const Help = () => {
     setIsLoading(false);
   };
 
+  const setLocaleCookie = (next: "ko" | "en") => {
+    if (typeof document === "undefined") return;
+    document.cookie = `NEXT_LOCALE=${next}; path=/; max-age=31536000`;
+    window.location.reload();
+  };
+
   return (
     <AppLayout initialCollapse={false}>
       <InnerLayout title="Help">
-        <div className="flex flex-col items-start w-full justify-start mt-12 font-normal">
-          <div>{m.help.intro}</div>
-          <div className="underline cursor-pointer" onClick={handleContactUs}>
-            chris@asksonus.com
+        <div className="flex flex-col items-start w-full justify-between min-h-[75vh]">
+          <div className="flex flex-col items-start w-full justify-start mt-12 font-normal">
+            <div className="mt-2">{m.help.intro}</div>
+            <div className="underline cursor-pointer" onClick={handleContactUs}>
+              chris@asksonus.com
+            </div>
+            <div className="text-hgray800 mt-16 font-normal text-sm">
+              {m.help.prompt}
+            </div>
+            <Textarea
+              placeholder=""
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              className="mt-4 max-w-[770px] text-[15px] font-normal"
+              rows={3}
+            />
+            <button
+              onClick={handleSubmit}
+              disabled={isLoading}
+              className="px-4 py-2 cursor-pointer mt-4 text-sm bg-accenta1 text-black rounded-lg font-normal"
+            >
+              {isLoading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                m.help.submit
+              )}
+            </button>
           </div>
-          <div className="text-hgray800 mt-16 font-normal text-sm">
-            {m.help.prompt}
+          <div className="flex items-end justify-end w-full">
+            <div className="flex items-center gap-3 text-sm text-hgray700">
+              <button
+                onClick={() => setLocaleCookie("ko")}
+                className={`transition hover:text-hgray900 ${locale === "ko" ? "text-hgray900 font-medium" : ""}`}
+              >
+                한국어
+              </button>
+              <span className="text-hgray500">|</span>
+              <button
+                onClick={() => setLocaleCookie("en")}
+                className={`transition hover:text-hgray900 ${locale === "en" ? "text-hgray900 font-medium" : ""}`}
+              >
+                English
+              </button>
+            </div>
           </div>
-          <Textarea
-            placeholder=""
-            value={feedback}
-            onChange={(e) => setFeedback(e.target.value)}
-            className="mt-4 max-w-[770px] text-[15px] font-normal"
-            rows={3}
-          />
-          <button
-            onClick={handleSubmit}
-            disabled={isLoading}
-            className="px-4 py-2 cursor-pointer mt-4 text-sm bg-accenta1 text-black rounded-lg font-normal"
-          >
-            {isLoading ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              m.help.submit
-            )}
-          </button>
         </div>
       </InnerLayout>
     </AppLayout>

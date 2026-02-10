@@ -23,7 +23,7 @@ const DICTS = { ko, en } as const;
 
 export function useMessages() {
   // 1) render 단계에서는 navigator 접근 X
-  const [locale, setLocale] = useState<Locale>("en");
+  const [locale, setLocale] = useState<Locale>("ko");
 
   // 2) mount 이후에만 navigator로 보정
   useEffect(() => {
@@ -32,10 +32,6 @@ export function useMessages() {
       setLocale(fromCookie);
       return;
     }
-
-    const lang =
-      typeof navigator !== "undefined" ? navigator.language?.toLowerCase() : "";
-    setLocale(lang.startsWith("ko") ? "ko" : "en");
   }, []);
 
   const m = useMemo(() => DICTS[locale], [locale]);

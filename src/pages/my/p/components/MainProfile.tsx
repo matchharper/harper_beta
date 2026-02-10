@@ -1,19 +1,17 @@
 import React from 'react'
 import LinkChips from './LinkChips'
 import { locationEnToKo } from '@/utils/language_map'
-import { ExperienceCal } from '../CandidateProfile'
-import { useMessages } from '@/i18n/useMessage'
 import { MapPin } from 'lucide-react'
+import { initials } from '@/components/NameProfile'
 
 const MainProfile = ({ profile_picture, name, headline, location, links }: { profile_picture: string, name: string, headline: string, location: string, links: string[] }) => {
-    const { m } = useMessages();
     const hasLinks = (links?.length ?? 0) > 0;
 
     return (
         <div className="items-start w-[100%] grid grid-cols-7">
             <div className="col-span-1">
                 <div className="w-24 h-24 rounded-full overflow-hidden bg-hgray900 border border-hgray1000/5 shrink-0">
-                    {profile_picture ? (
+                    {profile_picture && !profile_picture.includes("media.licdn.com") ? (
                         <img
                             src={profile_picture}
                             alt={name ?? "profile"}
@@ -22,8 +20,8 @@ const MainProfile = ({ profile_picture, name, headline, location, links }: { pro
                             className="w-24 h-24 object-cover"
                         />
                     ) : (
-                        <div className="w-full h-full flex items-center justify-center text-hgray1000 font-normal">
-                            {(name ?? "U").slice(0, 1).toUpperCase()}
+                        <div className="w-full h-full flex items-center justify-center text-hgray1000 bg-gradblack font-normal text-2xl">
+                            {initials(name)}
                         </div>
                     )}
                 </div>
@@ -56,13 +54,6 @@ const MainProfile = ({ profile_picture, name, headline, location, links }: { pro
                         <LinkChips links={links} />
                     )}
                 </div>
-                {/* <div className="flex items-center text-sm text-ngray600 font-normal">
-                    {typeof total_exp_months === "number" && (
-                        <span className="">
-                            {m.data.totalexp}: {ExperienceCal(total_exp_months)}
-                        </span>
-                    )}
-                </div> */}
             </div>
         </div>
     )

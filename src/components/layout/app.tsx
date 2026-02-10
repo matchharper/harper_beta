@@ -152,7 +152,7 @@ const AppLayout = ({
         </div>
 
         {/* 3. Bottom Section: 고정 */}
-        <div className="p-3 gap-2 flex flex-col flex-shrink-0 border-t border-white/5">
+        <div className="p-3 gap-2 flex flex-col flex-shrink-0 border-t border-white/5 bg-hgray100 absolute bottom-0 left-0 min-w-full">
           {!collapsed && (
             <>
               <div

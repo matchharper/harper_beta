@@ -408,6 +408,7 @@ export const ko = {
       stopped: "검색 중지됨",
       stop: "중지",
       note: "* Max 플랜 사용자라면 동시에 여러 개의 검색을 실행할 수 있습니다.",
+      // note2: "* 같은 기준으로 검색했을 때도 검색 결과는 ",
       steps: {
         parseTitle: "요청 이해",
         parseDesc: "기준을 해석하고 검색 전략을 구성합니다.",
@@ -443,9 +444,9 @@ export const ko = {
     },
     defaultMessage: {
       intro:
-        "전체 후보자들 중 {total}명을 선정하고, 기준을 만족하는지 검사했습니다.",
-      full: "{full}명이 모든 기준을 만족했습니다.",
-      partial: "{partial}명이 일부 기준만 만족했습니다.",
+        "전체 중 이번 검색에서는 후보 {total}명을 먼저 검토해 기준 충족 여부를 확인했습니다.",
+      full: "그 중 {full}명이 모든 기준을 만족했고, ",
+      partial: "{partial}명이 일부 기준을 만족했습니다.",
     },
     ui: {
       searchResult: "검색 결과 {full}/{total}",

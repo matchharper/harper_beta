@@ -305,15 +305,15 @@ export default function ResultPage() {
   }, [pageIdx, scrollResultToTop]);
 
   const onSearchFromConversation = useCallback(
-    async (messageId: number) => {
-      if (!queryId || !userId) return;
+    async (messageId: number): Promise<string | null> => {
+      if (!queryId || !userId) return null;
 
       try {
         logger.log("\n 검색 messageId: ", messageId);
         doSearchRef.current = false;
         setUserChatFull(false);
         const newRunId = await runSearch({ messageId: messageId, queryId: queryId, userId: userId });
-        if (!newRunId) return;
+        if (!newRunId) return null;
 
         router.replace(
           {
@@ -324,9 +324,10 @@ export default function ResultPage() {
           { shallow: true, scroll: false }
         );
 
-        // 여기서 함수 실행
+        return newRunId;
       } catch (e) {
         logger.log("onSearchFromConversation failed:", e);
+        return null;
       }
     },
     [queryId, userId, router, credits]
@@ -343,6 +344,7 @@ export default function ResultPage() {
     [queryId]
   );
 
+  const isStreaming = runData?.status === "streaming";
 
   const prevStatusRef = useRef<string | undefined>(undefined);
 
@@ -409,6 +411,7 @@ export default function ResultPage() {
                 canPrev={canPrev}
                 canNext={canNext}
                 isFetchingNextPage={isFetchingNextPage}
+                isStreaming={isStreaming}
                 onPrevPage={prevPage}
                 onNextPage={nextPage}
                 criterias={currentRunCriterias}

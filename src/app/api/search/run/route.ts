@@ -16,8 +16,7 @@ type Locale = "ko" | "en";
 const getLocaleFromRequest = (req: NextRequest): Locale => {
   const cookie = req.cookies.get("NEXT_LOCALE")?.value;
   if (cookie === "ko" || cookie === "en") return cookie;
-  const accept = req.headers.get("accept-language")?.toLowerCase() ?? "";
-  return accept.startsWith("ko") ? "ko" : "en";
+  return "ko";
 };
 
 const formatTemplate = (

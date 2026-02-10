@@ -82,7 +82,9 @@ export default function ResultHeader({
 
       {
         statusMessage && statusMessage !== StatusEnum.FINISHED && statusMessage !== StatusEnum.RERANKING_STREAMING &&
-        <Timeline statusMessage={statusMessage} runId={runId} />
+        <>
+          <Timeline statusMessage={statusMessage} runId={runId} />
+        </>
       }
 
       {
