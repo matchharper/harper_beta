@@ -428,6 +428,8 @@ export const en = {
         refineDesc: "Refining queries/filters for performance and accuracy.",
         runningTitle: "Find candidates broadly",
         runningDesc: "Searching across experience/company/keywords.",
+        partialTitle: "Collect candidates",
+        partialDesc: "Merging and organizing results across variants.",
         rankingTitle: "Ranking & scoring",
         rankingDesc: "Calculating priority based on your criteria.",
         recoveryTitle: "Add recovery conditions",

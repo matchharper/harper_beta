@@ -12,7 +12,7 @@ import { logger } from "@/utils/logger";
 import { useCredits } from "@/hooks/useCredit";
 import { useRunDetail } from "@/hooks/useRunDetail";
 import { useRunPagesInfinite } from "@/hooks/useRunResults";
-import { doSearch, runSearch } from "@/hooks/useStartSearch";
+import { runSearch } from "@/hooks/useStartSearch";
 import { Loading } from "@/components/ui/loading";
 import { supabase } from "@/lib/supabase";
 import Head from "next/head";
@@ -95,20 +95,7 @@ export default function ResultPage() {
     enabled: ready && !!runId,
   });
 
-  const doSearchRef = useRef(false);
-
-  useEffect(() => {
-    if (isLoading) return console.log("[effect] return: isLoading");
-    if (isFetchingNextPage) return console.log("[effect] return: isFetchingNextPage");
-    if (!ready) return console.log("[effect] return: !ready");
-    if (!runId || !queryId || !userId) return console.log("[effect] return: missing ids");
-    if (doSearchRef.current) return console.log("[effect] return: doSearchRef.current");
-    if (data?.pages?.length === 0) return console.log("[effect] return: pages length 0");
-    if (runData?.status?.includes("error") || runData?.status?.includes("finished")) return console.log("[effect] return: finished/error");
-
-    doSearchRef.current = true;
-    doSearch({ runId: runId, queryId: queryId, userId: userId, pageIdx: pageIdx });
-  }, [data, runData, isLoading, isFetchingNextPage, runId, ready, pageIdx, queryId, userId]);
+  // Search execution now happens entirely in the worker.
 
   useEffect(() => {
     if (!runId && queryItem && queryItem.runs && queryItem.runs.length > 0) {
@@ -310,7 +297,6 @@ export default function ResultPage() {
 
       try {
         logger.log("\n 검색 messageId: ", messageId);
-        doSearchRef.current = false;
         setUserChatFull(false);
         const newRunId = await runSearch({ messageId: messageId, queryId: queryId, userId: userId });
         if (!newRunId) return null;

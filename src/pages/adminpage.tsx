@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { supabase } from "@/lib/supabase";
 import { showToast } from "@/components/toast/toast";
 import { Loading } from "@/components/ui/loading";
@@ -24,6 +30,7 @@ const ENTRY_TYPES = new Set(["new_visit", "new_session"]);
 
 function formatKST(iso?: string) {
   if (!iso) return "";
+
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleString("ko-KR", {
@@ -163,17 +170,23 @@ const AdminPage = () => {
       const entryTimeSource =
         entryCandidates.length > 0
           ? entryCandidates
-            .slice()
-            .sort((a: LandingLog, b: LandingLog) => b.created_at.localeCompare(a.created_at))[0]
+              .slice()
+              .sort((a: LandingLog, b: LandingLog) =>
+                b.created_at.localeCompare(a.created_at)
+              )[0]
           : list
-            .slice()
-            .sort((a: LandingLog, b: LandingLog) => b.created_at.localeCompare(a.created_at))[0];
+              .slice()
+              .sort((a: LandingLog, b: LandingLog) =>
+                b.created_at.localeCompare(a.created_at)
+              )[0];
 
       const entryTime = entryTimeSource?.created_at ?? "";
 
       const orderedLogs = list
         .slice()
-        .sort((a: LandingLog, b: LandingLog) => a.created_at.localeCompare(b.created_at));
+        .sort((a: LandingLog, b: LandingLog) =>
+          a.created_at.localeCompare(b.created_at)
+        );
 
       groups.push({
         local_id,

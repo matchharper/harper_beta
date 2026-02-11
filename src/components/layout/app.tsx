@@ -130,7 +130,7 @@ const AppLayout = ({
             icon={<List size={16} />}
             onClick={() => {
               logEvent("enter_shortlist");
-              router.push("/my/list")
+              router.push("/my/list");
             }}
           />
           <NavItem
@@ -140,7 +140,7 @@ const AppLayout = ({
             icon={<Sparkles size={16} />}
             onClick={() => {
               logEvent("enter_scout");
-              router.push("/my/scout")
+              router.push("/my/scout");
             }}
           />
           <div className="flex h-16"></div>
@@ -159,7 +159,7 @@ const AppLayout = ({
                 className="cursor-pointer"
                 onClick={() => {
                   logEvent("enter_billing");
-                  router.push("/my/billing")
+                  router.push("/my/billing");
                 }}
               >
                 <div className="rounded-lg p-4 pt-3 flex flex-col gap-2 border border-white/5 transition-color duration-300 ease-out hover:bg-[#FFFFFF12]">
@@ -177,7 +177,7 @@ const AppLayout = ({
                         width: `${Math.min(
                           ((credits?.remain_credit ?? 0) /
                             (credits?.charged_credit ?? 1)) *
-                          100,
+                            100,
                           100
                         )}%`,
                       }}
@@ -196,10 +196,17 @@ const AppLayout = ({
                 ].join(" ")}
               >
                 <div className="shrink-0">
-                  {
-                    companyUser?.profile_picture ?
-                      <img src={companyUser?.profile_picture ?? ""} alt="profile" width={24} height={24} className="rounded-lg" /> : <User size={18} />
-                  }
+                  {companyUser?.profile_picture ? (
+                    <img
+                      src={companyUser?.profile_picture ?? ""}
+                      alt="profile"
+                      width={24}
+                      height={24}
+                      className="rounded-lg"
+                    />
+                  ) : (
+                    <User size={18} />
+                  )}
                 </div>
                 {!collapsed && (
                   <div className="truncate text-sm font-normal">

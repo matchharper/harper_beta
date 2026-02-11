@@ -28,22 +28,29 @@ export default function ResultHeader({
   // implement like (= runs.feedback = 1)
   const like = useCallback(() => {
     if (!runId) return;
-    supabase.from("runs").update({ feedback: feedback === 1 ? 0 : 1 }).eq("id", runId).then(({ error }) => {
-      if (error) {
-        console.error("Like feedback update failed:", error);
-      }
-    });
+    supabase
+      .from("runs")
+      .update({ feedback: feedback === 1 ? 0 : 1 })
+      .eq("id", runId)
+      .then(({ error }) => {
+        if (error) {
+          console.error("Like feedback update failed:", error);
+        }
+      });
   }, [feedback, runId]);
 
   // implement dislike (= runs.feedback = -1)
   const dislike = useCallback(() => {
     if (!runId) return;
-    supabase.from("runs").update({ feedback: feedback === -1 ? 0 : -1 }).eq("id", runId).then(({ error }) => {
-      if (error) {
-        console.error("Dislike feedback update failed:", error);
-      }
-    });
-
+    supabase
+      .from("runs")
+      .update({ feedback: feedback === -1 ? 0 : -1 })
+      .eq("id", runId)
+      .then(({ error }) => {
+        if (error) {
+          console.error("Dislike feedback update failed:", error);
+        }
+      });
   }, [feedback, runId]);
 
   if (!queryItem) return null;
@@ -71,44 +78,54 @@ export default function ResultHeader({
           )}
         </div>
         <div className="flex flex-row items-center justify-center gap-4 text-hgray600">
-          <button onClick={like} className="p-1.5 rounded-sm hover:bg-white/10 cursor-pointer">
-            <ThumbsUp className={`w-3.5 h-3.5`} fill={feedback === 1 ? "rgba(255,255,255,0.9)" : "none"} strokeWidth={1.6} />
+          <button
+            onClick={like}
+            className="p-1.5 rounded-sm hover:bg-white/10 cursor-pointer"
+          >
+            <ThumbsUp
+              className={`w-3.5 h-3.5`}
+              fill={feedback === 1 ? "rgba(255,255,255,0.9)" : "none"}
+              strokeWidth={1.6}
+            />
           </button>
-          <button onClick={dislike} className="p-1.5 rounded-sm hover:bg-white/10 cursor-pointer">
-            <ThumbsDown className={`w-3.5 h-3.5`} fill={feedback === -1 ? "rgba(255,255,255,0.9)" : "none"} strokeWidth={1.6} />
+          <button
+            onClick={dislike}
+            className="p-1.5 rounded-sm hover:bg-white/10 cursor-pointer"
+          >
+            <ThumbsDown
+              className={`w-3.5 h-3.5`}
+              fill={feedback === -1 ? "rgba(255,255,255,0.9)" : "none"}
+              strokeWidth={1.6}
+            />
           </button>
         </div>
       </div>
 
-      {
-        statusMessage && statusMessage !== StatusEnum.FINISHED && statusMessage !== StatusEnum.RERANKING_STREAMING &&
-        <>
-          <Timeline statusMessage={statusMessage} runId={runId} />
-        </>
-      }
+      {statusMessage && statusMessage !== StatusEnum.FINISHED && (
+        <Timeline statusMessage={statusMessage} runId={runId} />
+      )}
 
-      {
-        statusMessage &&
+      {statusMessage && (
         <div className="w-full relative flex items-start justify-start">
-          {
-            statusMessage === StatusEnum.RERANKING_STREAMING && (
-              <div className="text-sm font-light text-hgray900 flex flex-row gap-2 items-start absolute top-3 left-5">
-                <Loader2 className="w-4 h-4 animate-spin" strokeWidth={2} />
-                <div className="animate-textGlow">
-                  {m.search.resultHeader.readingCandidates}
-                </div>
+          {/* {statusMessage === StatusEnum.RERANKING_STREAMING && (
+            <div className="text-sm font-light text-hgray900 flex flex-row gap-2 items-start absolute top-3 left-5">
+              <Loader2 className="w-4 h-4 animate-spin" strokeWidth={2} />
+              <div className="animate-textGlow">
+                {m.search.resultHeader.readingCandidates}
               </div>
-            )}
-          {
-            statusMessage === StatusEnum.FINISHED && (
-              <div className="text-sm font-light text-hgray900 flex flex-row gap-2 items-start absolute top-3 left-5">
-                <Check className="w-4 h-4 text-green-500 mt-0.5" strokeWidth={2} />
-                <div className="">{m.search.resultHeader.finished}</div>
-              </div>
-            )
-          }
+            </div>
+          )} */}
+          {statusMessage === StatusEnum.FINISHED && (
+            <div className="text-sm font-light text-hgray900 flex flex-row gap-2 items-start absolute top-3 left-5">
+              <Check
+                className="w-4 h-4 text-green-500 mt-0.5"
+                strokeWidth={2}
+              />
+              <div className="">{m.search.resultHeader.finished}</div>
+            </div>
+          )}
         </div>
-      }
+      )}
     </>
   );
 }

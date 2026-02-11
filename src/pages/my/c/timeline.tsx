@@ -1,7 +1,13 @@
 import { supabase } from "@/lib/supabase";
 import { StatusEnum } from "@/types/type";
 import { Check, Circle, CircleSlash, Loader2, Square } from "lucide-react";
-import React, { useEffect, useCallback, useMemo, useState, useRef } from "react";
+import React, {
+  useEffect,
+  useCallback,
+  useMemo,
+  useState,
+  useRef,
+} from "react";
 import { useMessages } from "@/i18n/useMessage";
 
 type StepState = "done" | "active" | "pending" | "error";
@@ -34,6 +40,8 @@ type TimelineLabels = {
     refineDesc: string;
     runningTitle: string;
     runningDesc: string;
+    partialTitle: string;
+    partialDesc: string;
     rankingTitle: string;
     rankingDesc: string;
     recoveryTitle: string;
@@ -67,7 +75,10 @@ export function deriveProgress(
       key: "parse",
       title: labels.steps.parseTitle,
       description: labels.steps.parseDesc,
-      match: (x) => x.includes("aasadwq---default-done"),
+      match: (x) =>
+        x.includes("aasadwq---default-done") ||
+        x.includes(StatusEnum.QUEUED) ||
+        x.includes(StatusEnum.STARTING),
     },
     {
       key: "plan",
@@ -75,54 +86,44 @@ export function deriveProgress(
       description: labels.steps.planDesc,
       match: (x) => x.includes(StatusEnum.PARSING),
     },
-    {
-      key: "refine",
-      title: labels.steps.refineTitle,
-      description: labels.steps.refineDesc,
-      match: (x) => x.includes(StatusEnum.REFINE) || x.includes("optimiz"),
-    },
+    // {
+    //   key: "refine",
+    //   title: labels.steps.refineTitle,
+    //   description: labels.steps.refineDesc,
+    //   match: (x) => x.includes(StatusEnum.REFINE) || x.includes("optimiz"),
+    // },
     {
       key: "running",
       title: labels.steps.runningTitle,
       description: labels.steps.runningDesc,
-      match: (x) => x.includes(StatusEnum.RUNNING) || x.includes("searching") || x.includes(StatusEnum.QUEUED),
+      match: (x) => x.includes(StatusEnum.RUNNING) || x.includes("searching"),
+    },
+    {
+      key: "partial",
+      title: labels.steps.partialTitle,
+      description: labels.steps.partialDesc,
+      match: (x) => x.includes(StatusEnum.PARTIAL),
     },
     {
       key: "ranking",
       title: labels.steps.rankingTitle,
       description: labels.steps.rankingDesc,
-      match: (x) => x.includes(StatusEnum.RERANKING) || x.includes("scoring") || x.includes("partial") || x.includes("done"),
+      match: (x) =>
+        x.includes(StatusEnum.RERANKING) ||
+        x.includes(StatusEnum.RERANKING_STREAMING) ||
+        x.includes("scoring") ||
+        x.includes("done"),
     },
   ];
 
   // Build steps list (insert error-handling ALWAYS right before ranking)
-  const rankingIdx = Math.max(0, base.findIndex((b) => b.key === "ranking"));
+  const rankingIdx = Math.max(
+    0,
+    base.findIndex((b) => b.key === "ranking")
+  );
   const insertedKey = isRetry ? "recovery_retry" : "recovery";
 
   const defs: StepDef[] = base.slice();
-  if (rankingIdx >= 0) {
-    defs.splice(rankingIdx, 0, {
-      key: insertedKey,
-      title: isRetry
-        ? labels.steps.recoveryRetryTitle
-        : labels.steps.recoveryTitle,
-      description: isRetry
-        ? labels.steps.recoveryRetryDesc
-        : labels.steps.recoveryDesc,
-      match: (x) =>
-        // Make it easy to activate this step from string status
-        x.includes("error_handling") || x.includes("recovery") || x.includes("fallback"),
-    });
-
-    if (isRetry) {
-      defs.splice(rankingIdx + 1, 0, {
-        key: "retry_run",
-        title: labels.steps.retryTitle,
-        description: labels.steps.retryDesc,
-        match: (x) => x.includes("expanding") || x.includes("retry") || x.includes("rerun"),
-      });
-    }
-  }
 
   // Decide active step index
   const activeIdx = (() => {
@@ -146,7 +147,10 @@ export function deriveProgress(
     }
 
     // Default: planning-ish
-    return Math.max(0, defs.findIndex((d) => d.key === "plan"));
+    return Math.max(
+      0,
+      defs.findIndex((d) => d.key === "plan")
+    );
   })();
 
   // Determine step states
@@ -178,20 +182,88 @@ export function deriveProgress(
   return { steps, detail };
 }
 
-
-const Timeline = ({ statusMessage, runId }: { statusMessage: string, runId: string }) => {
+const Timeline = ({
+  statusMessage,
+  runId,
+}: {
+  statusMessage: string;
+  runId: string;
+}) => {
   const { m } = useMessages();
   const progress = useMemo(
     () => deriveProgress(statusMessage || "", m.search.timeline),
     [statusMessage, m.search.timeline]
   );
+  const [rerankProgress, setRerankProgress] = useState<{
+    current: number;
+    total: number | null;
+    percent: number | null;
+  }>({ current: 0, total: null, percent: null });
+
+  const isReranking = useMemo(() => {
+    const s = (statusMessage || "").toLowerCase();
+    return (
+      s.includes(StatusEnum.RERANKING) ||
+      s.includes(StatusEnum.RERANKING_STREAMING) ||
+      s.includes("scoring")
+    );
+  }, [statusMessage]);
+
+  const loadRerankProgress = useCallback(async () => {
+    if (!runId) return;
+    const { data, error } = await supabase
+      .from("runs_pages")
+      .select("candidate_ids, total_candidates, created_at")
+      .eq("run_id", runId)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (error) return;
+
+    const row = data?.[0];
+    const current = Array.isArray(row?.candidate_ids)
+      ? row?.candidate_ids.length
+      : 0;
+    const total =
+      typeof row?.total_candidates === "number" ? row.total_candidates : null;
+    const percent =
+      total && total > 0
+        ? Math.min(100, Math.floor((current / total) * 100))
+        : null;
+
+    setRerankProgress({ current, total, percent });
+  }, [runId]);
+
+  useEffect(() => {
+    if (!runId) return;
+    loadRerankProgress();
+    const channel = supabase
+      .channel(`runs_pages_progress:${runId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "runs_pages",
+          filter: `run_id=eq.${runId}`,
+        },
+        () => {
+          loadRerankProgress();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [runId, loadRerankProgress]);
 
   const stopRun = useCallback(async () => {
     if (!runId) return;
 
     // .update 대신 .rpc를 사용하여 서버 측 함수를 호출합니다.
-    const { error } = await supabase.rpc('stop_run_worker', {
-      target_run_id: runId
+    const { error } = await supabase.rpc("stop_run_worker", {
+      target_run_id: runId,
     });
 
     if (error) {
@@ -201,8 +273,6 @@ const Timeline = ({ statusMessage, runId }: { statusMessage: string, runId: stri
     }
   }, [runId]);
 
-
-  // NEW: step reveal
   const [shownCount, setShownCount] = useState(0);
   const firstShownRef = useRef(false);
 
@@ -237,117 +307,142 @@ const Timeline = ({ statusMessage, runId }: { statusMessage: string, runId: stri
     };
   }, [statusMessage, progress.steps.length]);
 
-  return <div className="w-full h-full flex items-center justify-center min-h-[80vh] px-6">
-    {statusMessage && statusMessage.includes(StatusEnum.STOPPED) ? (
-      <div className="flex flex-col gap-2 items-center justify-center">
-        <div className="text-sm font-light mt-4 text-hgray900 flex flex-row gap-2 items-center">
-          <CircleSlash className="w-3.5 h-3.5 text-hgray900" />
-          <div className="animate-textGlow">{m.search.timeline.stopped}</div>
+  if (statusMessage && statusMessage.includes(StatusEnum.RERANKING_STREAMING)) {
+    return (
+      <div className="w-full relative flex items-start justify-start">
+        <div className="text-sm font-light text-hgray900 flex flex-row gap-2 items-center absolute top-3 left-5">
+          <Loader2 className="w-4 h-4 animate-spin" strokeWidth={2} />
+          <div className="animate-textGlow">
+            {m.search.resultHeader.readingCandidates}{" "}
+            {rerankProgress.percent !== null
+              ? ` · ${rerankProgress.percent}%`
+              : ""}
+          </div>
         </div>
       </div>
-    ) : (
-      <div className="w-full max-w-[520px]">
-        {/* Header */}
-        <div className="flex flex-row items-center justify-between mb-4">
-          <div className="flex flex-col">
-            <div className="text-base font-medium text-hgray900">
-              {m.search.timeline.headerTitle}
+    );
+  }
+
+  return (
+    <div className="w-full h-full flex items-center justify-center min-h-[80vh] px-6">
+      {statusMessage && statusMessage.includes(StatusEnum.STOPPED) ? (
+        <div className="flex flex-col gap-2 items-center justify-center">
+          <div className="text-sm font-light mt-4 text-hgray900 flex flex-row gap-2 items-center">
+            <CircleSlash className="w-3.5 h-3.5 text-hgray900" />
+            <div className="animate-textGlow">{m.search.timeline.stopped}</div>
+          </div>
+        </div>
+      ) : (
+        <div className="w-full max-w-[520px]">
+          {/* Header */}
+          <div className="flex flex-row items-center justify-between mb-4">
+            <div className="flex flex-col">
+              <div className="text-base font-medium text-hgray900">
+                {m.search.timeline.headerTitle}
+              </div>
+            </div>
+
+            <button
+              onClick={stopRun}
+              className="py-1.5 px-2 rounded-sm text-hgray900/80 text-sm font-light hover:bg-white/0 cursor-pointer bg-white/0 flex flex-row gap-2 items-center hover:text-red-500/80 transition-colors duration-200"
+            >
+              <Square className="w-3 h-3" fill="currentColor" />
+              <span>{m.search.timeline.stop}</span>
+            </button>
+          </div>
+
+          {/* Timeline */}
+          <div className="rounded-lg bg-white/5 p-3 min-h-[240px]">
+            <div className="flex flex-col gap-4">
+              {progress.steps.slice(0, shownCount).map((step, idx) => {
+                const isLast = idx === progress.steps.length - 1;
+
+                const Icon = (() => {
+                  if (step.state === "done") return Check;
+                  if (step.state === "error") return CircleSlash;
+                  if (step.state === "active") return Loader2;
+                  return Circle;
+                })();
+
+                const delayMs = idx * 140;
+
+                return (
+                  <div
+                    key={step.key}
+                    className="flex flex-row gap-3 will-change-transform animate-stepDropIn"
+                    style={{
+                      animationDelay: `${delayMs}ms`,
+                      padding: step.state === "active" ? "8px 0px" : "0px",
+                    }}
+                  >
+                    {/* Left rail */}
+                    <div className="flex flex-col items-center pt-0.5">
+                      <div
+                        className={[
+                          "w-4 h-4 rounded-full flex items-center justify-center",
+                          step.state === "done" ? "bg-white/0" : "",
+                          step.state === "active" ? "bg-white/0" : "",
+                          step.state === "pending" ? "bg-white/0" : "",
+                          step.state === "error" ? "bg-white/0" : "",
+                        ].join(" ")}
+                      >
+                        {step.state === "active" && (
+                          <Icon
+                            className="w-4 h-4 animate-spin text-hgray900"
+                            strokeWidth={2}
+                          />
+                        )}
+                        {step.state === "done" && (
+                          <Icon
+                            className="w-3 h-3 text-green-400"
+                            strokeWidth={2}
+                          />
+                        )}
+                        {step.state === "pending" && (
+                          <Icon
+                            className="w-3 h-3 text-hgray600"
+                            strokeWidth={2}
+                          />
+                        )}
+                        {step.state === "error" && (
+                          <Icon
+                            className="w-3 h-3 text-red-500"
+                            strokeWidth={2}
+                          />
+                        )}
+                      </div>
+
+                      {/* {!isLast && <div className="w-px flex-1 bg-white/10 my-1" />} */}
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex flex-col">
+                      <div className="flex flex-row items-center gap-2">
+                        <div className="text-sm font-medium text-hgray900">
+                          {step.title}
+                        </div>
+                      </div>
+
+                      {step.state === "active" && step.description && (
+                        <div className="text-sm text-hgray800 mt-1 leading-5 animate-textGlow">
+                          {step.description}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          <button
-            onClick={stopRun}
-            className="py-1.5 px-2 rounded-sm text-hgray900/80 text-sm font-light hover:bg-white/0 cursor-pointer bg-white/0 flex flex-row gap-2 items-center hover:text-red-500/80 transition-colors duration-200"
-          >
-            <Square className="w-3 h-3" fill="currentColor" />
-            <span>{m.search.timeline.stop}</span>
-          </button>
-        </div>
-
-        {/* Timeline */}
-        <div className="rounded-lg bg-white/5 p-3 min-h-[280px]">
-          <div className="flex flex-col gap-4">
-            {progress.steps.slice(0, shownCount).map((step, idx) => {
-              const isLast = idx === progress.steps.length - 1;
-
-              const Icon = (() => {
-                if (step.state === "done") return Check;
-                if (step.state === "error") return CircleSlash;
-                if (step.state === "active") return Loader2;
-                return Circle;
-              })();
-
-              const delayMs = idx * 140;
-
-              return (
-                <div key={step.key}
-                  className="flex flex-row gap-3 will-change-transform animate-stepDropIn"
-                  style={{ animationDelay: `${delayMs}ms`, padding: step.state === "active" ? "8px 0px" : "0px" }}>
-                  {/* Left rail */}
-                  <div className="flex flex-col items-center pt-0.5">
-                    <div
-                      className={[
-                        "w-4 h-4 rounded-full flex items-center justify-center",
-                        step.state === "done" ? "bg-white/0" : "",
-                        step.state === "active" ? "bg-white/0" : "",
-                        step.state === "pending" ? "bg-white/0" : "",
-                        step.state === "error" ? "bg-white/0" : "",
-                      ].join(" ")}
-                    >
-                      {step.state === "active" && (
-                        <Icon className="w-4 h-4 animate-spin text-hgray900" strokeWidth={2} />
-                      )}
-                      {step.state === "done" && (
-                        <Icon className="w-3 h-3 text-green-400" strokeWidth={2} />
-                      )}
-                      {step.state === "pending" && (
-                        <Icon className="w-3 h-3 text-hgray600" strokeWidth={2} />
-                      )}
-                      {step.state === "error" && (
-                        <Icon className="w-3 h-3 text-red-500" strokeWidth={2} />
-                      )}
-                    </div>
-
-                    {/* {!isLast && <div className="w-px flex-1 bg-white/10 my-1" />} */}
-                  </div>
-
-                  {/* Content */}
-                  <div className="flex flex-col">
-                    <div className="flex flex-row items-center gap-2">
-                      <div className="text-sm font-medium text-hgray900">
-                        {step.title}
-                      </div>
-                    </div>
-
-                    {step.state === "active" && step.description && (
-                      <div className="text-sm text-hgray800 mt-1 leading-5 animate-textGlow">
-                        {step.description}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+          {/* Optional: small reassurance row */}
+          <div className="text-xs text-hgray600 mt-3 leading-relaxed">
+            {m.search.timeline.note}
           </div>
-
-          {/* Live detail line */}
-          {/* {progress.detail && (
-                <div className="mt-4 pt-3 border-t border-white/10">
-                  <div className="text-xs text-hgray600">현재 상태</div>
-                  <div className="text-sm text-hgray900 mt-1">
-                    <span className="animate-textGlow">{progress.detail}</span>
-                  </div>
-                </div>
-              )} */}
         </div>
-
-        {/* Optional: small reassurance row */}
-        <div className="text-xs text-hgray600 mt-3 leading-relaxed">
-          {m.search.timeline.note}
-        </div>
-      </div>
-    )}
-  </div>
-}
+      )}
+    </div>
+  );
+};
 
 export default React.memo(Timeline);

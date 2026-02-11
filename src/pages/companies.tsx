@@ -21,8 +21,8 @@ import LoginModal from "@/components/Modal/LoginModal";
 import RowImageSection from "@/components/landing/RowImageSection";
 import GradientBackground from "@/components/landing/GradientBackground";
 import { useMessages } from "@/i18n/useMessage";
-import RotatingText from '@/components/RotatingText'
-import DarkVeil from '@/components/Darkveli';
+import RotatingText from "@/components/RotatingText";
+import DarkVeil from "@/components/Darkveli";
 
 export const isValidEmail = (email: string): boolean => {
   const trimmed = email.trim();
@@ -48,7 +48,7 @@ const CandidatePage = () => {
   const hasLoggedFirstScrollRef = useRef(false);
 
   const addLog = async (type: string) => {
-    if (!isTeamEmailChecked || isTeamEmail || !landingId) return;
+    // if (!isTeamEmailChecked || isTeamEmail || !landingId) return;
     const body = {
       local_id: landingId,
       type: type,
@@ -83,24 +83,26 @@ const CandidatePage = () => {
     };
   }, []);
 
-
   useEffect(() => {
     if (!isTeamEmailChecked) return;
     const localId = localStorage.getItem("harper_landing_id_0209");
     if (!localId) {
       const newId = v4();
       localStorage.setItem("harper_landing_id_0209", newId);
-      localStorage.setItem("harper_landing_last_visit_at", Date.now().toString());
+      localStorage.setItem(
+        "harper_landing_last_visit_at",
+        Date.now().toString()
+      );
       setLandingId(newId);
 
-      if (!isTeamEmail) {
-        const body = {
-          local_id: newId,
-          type: "new_visit",
-          is_mobile: isMobile,
-        };
-        supabase.from("landing_logs").insert(body);
-      }
+      // if (!isTeamEmail) {
+      const body = {
+        local_id: newId,
+        type: "new_visit",
+        is_mobile: isMobile,
+      };
+      supabase.from("landing_logs").insert(body);
+      // }
     } else {
       logger.log("\n\n 호출 👻 localId : ", localId);
       setLandingId(localId as string);
@@ -179,7 +181,6 @@ const CandidatePage = () => {
     window.location.reload();
   };
 
-
   const login = async () => {
     addLog("click_login_google");
     const redirectTo =
@@ -215,7 +216,6 @@ const CandidatePage = () => {
       if (data.user?.user_metadata.email_verified) {
         setIsOpenLoginModal(false);
         router.push("/invitation");
-        // return data;
       }
 
       return null;
@@ -224,7 +224,13 @@ const CandidatePage = () => {
     }
   };
 
-  const NavItem = ({ label, onClick }: { label: string, onClick: () => void }) => {
+  const NavItem = ({
+    label,
+    onClick,
+  }: {
+    label: string;
+    onClick: () => void;
+  }) => {
     return (
       <div
         className="cursor-pointer hover:opacity-95 px-5 py-2 hover:bg-white/5 rounded-full transition-colors duration-200"
@@ -235,7 +241,13 @@ const CandidatePage = () => {
     );
   };
 
-  const StartButton = ({ type, size = "md" }: { type: string, size?: "md" | "sm" }) => {
+  const StartButton = ({
+    type,
+    size = "md",
+  }: {
+    type: string;
+    size?: "md" | "sm";
+  }) => {
     const sizeClass = {
       md: "py-4 px-8 mt-12 text-base",
       sm: "py-3 px-6 text-xs",
@@ -244,8 +256,8 @@ const CandidatePage = () => {
     return (
       <div
         onClick={() => {
-          addLog(type)
-          setIsOpenLoginModal(true)
+          addLog(type);
+          setIsOpenLoginModal(true);
         }}
         className={`
         group relative
@@ -267,8 +279,8 @@ const CandidatePage = () => {
       >
         {m.companyLanding.startButton}
       </div>
-    )
-  }
+    );
+  };
 
   return (
     <main className={`min-h-screen font-inter text-white bg-black`}>
@@ -284,10 +296,39 @@ const CandidatePage = () => {
             Harper
           </div>
           <nav className="hidden font-normal text-white bg-[#444444aa] backdrop-blur rounded-full md:flex items-center justify-center gap-2 text-xs sm:text-sm px-4 py-2">
-            <NavItem label={m.companyLanding.nav.intro} onClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} />
-            <NavItem label={m.companyLanding.nav.howItWorks} onClick={() => { window.scrollTo({ top: whySectionRef.current?.offsetTop, behavior: "smooth" }); }} />
-            <NavItem label={m.companyLanding.nav.pricing} onClick={() => { window.scrollTo({ top: priceSectionRef.current?.offsetTop, behavior: "smooth" }); }} />
-            <NavItem label={m.companyLanding.nav.faq} onClick={() => { window.scrollTo({ top: faqSectionRef.current?.offsetTop, behavior: "smooth" }); }} />
+            <NavItem
+              label={m.companyLanding.nav.intro}
+              onClick={() => {
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+            />
+            <NavItem
+              label={m.companyLanding.nav.howItWorks}
+              onClick={() => {
+                window.scrollTo({
+                  top: whySectionRef.current?.offsetTop,
+                  behavior: "smooth",
+                });
+              }}
+            />
+            <NavItem
+              label={m.companyLanding.nav.pricing}
+              onClick={() => {
+                window.scrollTo({
+                  top: priceSectionRef.current?.offsetTop,
+                  behavior: "smooth",
+                });
+              }}
+            />
+            <NavItem
+              label={m.companyLanding.nav.faq}
+              onClick={() => {
+                window.scrollTo({
+                  top: faqSectionRef.current?.offsetTop,
+                  behavior: "smooth",
+                });
+              }}
+            />
           </nav>
           <div className="hidden md:flex w-[10%] md:w-[15%] items-center justify-end">
             <StartButton type="click_nav_start" size="sm" />
@@ -304,7 +345,10 @@ const CandidatePage = () => {
                   label: m.companyLanding.dropdown.forCompanies,
                   onClick: () => router.push("companies"),
                 },
-                { label: m.companyLanding.dropdown.referral, onClick: () => router.push("referral") },
+                {
+                  label: m.companyLanding.dropdown.referral,
+                  onClick: () => router.push("referral"),
+                },
               ]}
             />
           </div>
@@ -312,7 +356,6 @@ const CandidatePage = () => {
       </header>
 
       <div className="flex flex-col items-center justify-center px-0 md:px-20 w-full bg-black text-white h-[86vh] md:h-[90vh]">
-
         <div className="absolute top-0 left-0 w-full h-[90%] opacity-40">
           <DarkVeil
             hueShift={189}
@@ -337,7 +380,7 @@ const CandidatePage = () => {
             <div className="flex flex-row items-center justify-center gap-4">
               {m.companyLanding.hero.titleLine2Prefix}{" "}
               <RotatingText
-                texts={['Intelligence', 'Decision', 'Knowledge', 'Insight']}
+                texts={["Intelligence", "Decision", "Knowledge", "Insight"]}
                 mainClassName="lg:px-4 md:px-3 px-2 font-hedvig bg-accenta1 text-black overflow-hidden py-0 sm:py-0 md:py-0 justify-center rounded-lg inline-block"
                 staggerFrom={"last"}
                 initial={{ y: "100%" }}
@@ -365,7 +408,15 @@ const CandidatePage = () => {
       </div>
       <div className="mb-20 flex flex-col items-center justify-center">
         <div className="w-[90%] max-w-[960px] bg-gradpastel2 overflow-hidden md:rounded-[30px] rounded-2xl pt-8 md:pt-0 flex flex-col items-center justify-center">
-          <video src="/videos/usemain.mp4" poster="/images/usemain.png" autoPlay loop muted playsInline className="w-[90%] h-full object-cover  md:rounded-t-[30px] rounded-t-2xl md:translate-y-[40px] translate-y-0 shadow-lg" />
+          <video
+            src="/videos/usemain.mp4"
+            poster="/images/usemain.png"
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="w-[90%] h-full object-cover  md:rounded-t-[30px] rounded-t-2xl md:translate-y-[40px] translate-y-0 shadow-lg"
+          />
         </div>
       </div>
       <Animate>
@@ -437,8 +488,12 @@ const CandidatePage = () => {
                 />
               </div>
               <div className="flex flex-col items-start justify-start gap-1">
-                <div className="text-sm">{m.companyLanding.testimonial.name}</div>
-                <div className="text-hgray700 text-xs">{m.companyLanding.testimonial.role}</div>
+                <div className="text-sm">
+                  {m.companyLanding.testimonial.name}
+                </div>
+                <div className="text-hgray700 text-xs">
+                  {m.companyLanding.testimonial.role}
+                </div>
               </div>
             </div>
           </div>
@@ -446,10 +501,12 @@ const CandidatePage = () => {
       </Animate>
       <div ref={priceSectionRef} />
       <div className="h-28 md:h-40" />
-      <PricingSection onClick={(plan: string, _billing: "monthly" | "yearly") => {
-        addLog("click_pricing_" + plan)
-        setIsOpenLoginModal(true)
-      }} />
+      <PricingSection
+        onClick={(plan: string, _billing: "monthly" | "yearly") => {
+          addLog("click_pricing_" + plan);
+          setIsOpenLoginModal(true);
+        }}
+      />
       <div ref={faqSectionRef} />
       <div className="h-28 md:h-40" />
       <Animate>
@@ -597,28 +654,34 @@ const WhyImageSection = ({
 }) => {
   const imgReturn = () => {
     if (imageSrc === "/images/feat1.png") {
-      return <div className="h-[200px] md:h-[280px] relative w-full flex justify-center items-center rounded-2xl bg-gradpastel2 overflow-hidden">
-        <div className="mr-8 w-full">
-          <FallingTagsSmall theme="white" startDelay={800} />
+      return (
+        <div className="h-[200px] md:h-[280px] relative w-full flex justify-center items-center rounded-2xl bg-gradpastel2 overflow-hidden">
+          <div className="mr-8 w-full">
+            <FallingTagsSmall theme="white" startDelay={800} />
+          </div>
         </div>
-      </div>
+      );
     }
 
     if (imageSrc === "orbit") {
-      return <div className="h-[200px] md:h-[280px] relative w-full flex justify-center items-center rounded-2xl bg-gradpastel2 overflow-hidden">
-        <OrbitIconsSmall />
-      </div>
+      return (
+        <div className="h-[200px] md:h-[280px] relative w-full flex justify-center items-center rounded-2xl bg-gradpastel2 overflow-hidden">
+          <OrbitIconsSmall />
+        </div>
+      );
     }
-    return <div className="h-[200px] md:h-[280px] relative w-full flex justify-end items-end rounded-2xl bg-gradpastel2 overflow-hidden">
-      <Image
-        src={imageSrc}
-        alt={title}
-        width={400}
-        height={320}
-        className="max-w-[90%]"
-      />
-    </div>
-  }
+    return (
+      <div className="h-[200px] md:h-[280px] relative w-full flex justify-end items-end rounded-2xl bg-gradpastel2 overflow-hidden">
+        <Image
+          src={imageSrc}
+          alt={title}
+          width={400}
+          height={320}
+          className="max-w-[90%]"
+        />
+      </div>
+    );
+  };
   return (
     <div className="flex flex-col w-full items-center justify-center md:items-start md:justify-start max-w-full gap-8 px-5 md:px-0">
       {imgReturn()}

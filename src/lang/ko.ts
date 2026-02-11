@@ -35,7 +35,14 @@ export const ko = {
         "기타",
       ],
     },
-    sizes: ["1-10명", "11-50명", "51-100명", "101-200명", "201-500명", "501 이상"],
+    sizes: [
+      "1-10명",
+      "11-50명",
+      "51-100명",
+      "101-200명",
+      "201-500명",
+      "501 이상",
+    ],
     steps: {
       contact: {
         title: "성함과 연락받으실 이메일 주소를 알려주세요.",
@@ -58,7 +65,8 @@ export const ko = {
         description: "",
       },
       needs: {
-        title: "가장 중요하게 채용이 필요한 포지션(직무)과 대략적인 인원수를 알려주세요.",
+        title:
+          "가장 중요하게 채용이 필요한 포지션(직무)과 대략적인 인원수를 알려주세요.",
         description: "optional",
       },
       additional: {
@@ -81,7 +89,8 @@ export const ko = {
       companyPlaceholder: "예) Harper",
       companyLinkLabel: "홈페이지 URL",
       companyLinkPlaceholder: "예) https://matchharper.com",
-      needsPlaceholder: "예) Machine Learning 엔지니어 2명, Deep Learning 연구원 1명",
+      needsPlaceholder:
+        "예) Machine Learning 엔지니어 2명, Deep Learning 연구원 1명",
       additionalPlaceholder:
         "예) 현재 채용이 급한데, 어떤 기준으로 후보를 보면 좋을지 고민입니다.",
     },
@@ -125,32 +134,31 @@ export const ko = {
       titleLine1: "Don\u2019t Buy",
       titleLine2Prefix: "Pay for",
       titleLine2Highlight: "Intelligence",
-      subtitle: "단순한 검색을 넘어, 인재를 이해하는 지능을 경험하세요.<br />하퍼는 매일, 후보자를 추천해주고 끊임없이 개선됩니다.",
+      subtitle:
+        "단순한 검색을 넘어, 인재를 이해하는 지능을 경험하세요.<br />하퍼는 매일, 후보자를 추천해주고 끊임없이 개선됩니다.",
     },
     section1: {
       title: "Recruiting Agent, Harper",
       headlineLine1: "",
       headlineLine2: "",
       bodyLine1: "채용은 회사의 미래를 결정하는 가장 중요한 의사결정입니다.",
-      bodyLine2: "하퍼는 10배 더 빠르고, 10배 더 저렴한 전담 AI Recruiter입니다.",
+      bodyLine2:
+        "하퍼는 10배 더 빠르고, 10배 더 저렴한 전담 AI Recruiter입니다.",
     },
     why: {
       title: "Why harper?",
       cards: [
         {
           title: "Beyond Keywords",
-          desc:
-            "단순한 키워드 검색을 넘어, <br />역량과 맥락을 이해하고 찾아주는 지능을 경험하세요.",
+          desc: "단순한 키워드 검색을 넘어, <br />역량과 맥락을 이해하고 찾아주는 지능을 경험하세요.",
         },
         {
           title: "Focus on Value",
-          desc:
-            "불필요한 정보를 걸러내는 시간은 <br/>저희에게 맡기세요. 꼭 필요한<br />인재만 보여드립니다.",
+          desc: "불필요한 정보를 걸러내는 시간은 <br/>저희에게 맡기세요. 꼭 필요한<br />인재만 보여드립니다.",
         },
         {
           title: "Intelligence on Top of Data",
-          desc:
-            "데이터만 제공하는게 아니라 흩어진 linkedin, github, scholar, twitter, blog 등 정보를 하나로 모아 분석하고<br />인사이트를 추출해 알려줍니다.",
+          desc: "데이터만 제공하는게 아니라 흩어진 linkedin, github, scholar, twitter, blog 등 정보를 하나로 모아 분석하고<br />인사이트를 추출해 알려줍니다.",
         },
       ],
     },
@@ -160,27 +168,23 @@ export const ko = {
         {
           label: "People Search",
           title: "동료에게 설명하듯,<br />편안하게 말씀해 주세요.",
-          desc:
-            "정확한 직무명을 모르셔도 괜찮습니다.<br />원하시는 인재에 대해 풀어서 알려주시면<br />해당하는 사람을 찾아드립니다.",
+          desc: "정확한 직무명을 모르셔도 괜찮습니다.<br />원하시는 인재에 대해 풀어서 알려주시면<br />해당하는 사람을 찾아드립니다.",
         },
         {
           label: "People Intelligence",
           title: "모든 정보를 바탕으로,<br />후보자에 대한 이해를 돕습니다.",
-          desc:
-            "후보자에 대한 퍼져있는 정보들을 모으고<br/>이를 바탕으로 질문에 대답해<br />인터뷰 전에 이미 후보자와 대화를 나눈 듯한 경험을 드립니다.",
+          desc: "후보자에 대한 퍼져있는 정보들을 모으고<br/>이를 바탕으로 질문에 대답해<br />인터뷰 전에 이미 후보자와 대화를 나눈 듯한 경험을 드립니다.",
           // "어떤 관심사를 가지고 커리어를 쌓아왔는지, <br />꾸준함과 열정은 어느 정도인지... <br />이력서의 빈 공간을 채워주는 풍부한 배경 정보를 제공합니다. <br />인터뷰 전에 이미 후보자와 깊은 대화를 나눈 듯한 경험을 드립니다",
         },
         {
           label: "Harper Scout",
           title: "매일 후보자를 찾아<br />추천해드립니다.",
-          desc:
-            "원하는 인재상을 자유롭게 등록하면 매일 적절한 후보자를 추천해드립니다.<br />피드백을 바탕으로 추천 결과가 점점 더 개선됩니다.",
-        }
+          desc: "원하는 인재상을 자유롭게 등록하면 매일 적절한 후보자를 추천해드립니다.<br />피드백을 바탕으로 추천 결과가 점점 더 개선됩니다.",
+        },
       ],
     },
     testimonial: {
-      body:
-        "하퍼는 단순한 검색 필터 서비스가 아닙니다.<br />AI Agent가 수많은 웹 정보, 글, 기록을 종합해<br />이력서에 없는 맥락까지 읽고, 사람처럼 추론하고 판단하며<br />조직이 원하는 인재를 직접 탐색할 수 있게 합니다.",
+      body: "하퍼는 단순한 검색 필터 서비스가 아닙니다.<br />AI Agent가 수많은 웹 정보, 글, 기록을 종합해<br />이력서에 없는 맥락까지 읽고, 사람처럼 추론하고 판단하며<br />조직이 원하는 인재를 직접 탐색할 수 있게 합니다.",
       name: "Chris & Daniel",
       role: "Co-founder",
     },
@@ -199,8 +203,7 @@ export const ko = {
             "네, 신뢰할 수 있습니다. Harper의 AI는 추측하지 않고 증명합니다. LinkedIn, Google Scholar, GitHub, 블로그등 웹상에 실존하는 '검증 가능한 데이터'만을 기반으로 분석하기 때문입니다. 또한, AI가 도출한 모든 인사이트에는 원본 출처가 함께 제공되므로 직접 팩트 체크가 가능합니다.",
         },
         {
-          question:
-            "'키워드 검색'과 Harper의 '시맨틱 서치'는 무엇이 다른가요?",
+          question: "'키워드 검색'과 Harper의 '시맨틱 서치'는 무엇이 다른가요?",
           answer:
             "'Python 개발자'를 검색하는 것과, '대규모 트래픽 처리를 경험해 본 Python 백엔드 리드'를 찾는 것은 다릅니다. Harper는 단순 키워드 매칭이 아니라, 채용 담당자가 말하는 맥락과 의도를 이해하여 기술적 난제를 해결할 수 있는 최적의 후보자를 찾아냅니다.",
         },
@@ -339,7 +342,8 @@ export const ko = {
     ],
   },
   chat: {
-    composerPlaceholder: "무엇이든 질문하세요 (Enter 전송 / Shift+Enter 줄바꿈)",
+    composerPlaceholder:
+      "무엇이든 질문하세요 (Enter 전송 / Shift+Enter 줄바꿈)",
     candidSuggestions: [
       "이 사람이 이직 의사가 있을까?",
       "이 사람이 우리 팀에 적합한지, 근거와 함께 평가해줘.",
@@ -364,7 +368,8 @@ export const ko = {
     feedbackNegative: "아쉬워요",
     feedbackSuffix: "피드백을 통해 결과가 점점 더 개선됩니다.",
     createAgent: "Agent 만들기",
-    perAgentNote: "각 Agent당 추천은 하루 1~2명, 후보자당 1 크레딧이 소모됩니다.",
+    perAgentNote:
+      "각 Agent당 추천은 하루 1~2명, 후보자당 1 크레딧이 소모됩니다.",
     statusRunning: "진행 중",
     statusStopped: "진행 정지",
     createdAt: "생성:",
@@ -392,7 +397,8 @@ export const ko = {
       finished: "검색 완료",
     },
     resultBody: {
-      emptyPrompt: "대화를 마친 뒤 “검색하기”를 누르면 결과가 여기에 표시됩니다.",
+      emptyPrompt:
+        "대화를 마친 뒤 “검색하기”를 누르면 결과가 여기에 표시됩니다.",
       page: "페이지 {page}",
       loadingSuffix: " (로딩 중...)",
       capped: "({cap} 페이지로 제한됨)",
@@ -408,7 +414,8 @@ export const ko = {
       stopped: "검색 중지됨",
       stop: "중지",
       note: "* Max 플랜 사용자라면 동시에 여러 개의 검색을 실행할 수 있습니다.",
-      // note2: "* 같은 기준으로 검색했을 때도 검색 결과는 ",
+      note2:
+        "* LLM의 특성상 같은 기준으로 검색했을 때도 검색 결과가 경우에 따라 달라질 수 있습니다.",
       steps: {
         parseTitle: "요청 이해",
         parseDesc: "기준을 해석하고 검색 전략을 구성합니다.",
@@ -418,8 +425,10 @@ export const ko = {
         refineDesc: "쿼리/조건을 다듬어 성능과 정확도를 최적화합니다.",
         runningTitle: "전체 후보자 찾기",
         runningDesc: "경력/회사/키워드 기반으로 후보를 넓게 찾습니다.",
-        rankingTitle: "랭킹/스코어링",
-        rankingDesc: "기준에 맞게 우선순위를 계산합니다.",
+        partialTitle: "후보자 모으기",
+        partialDesc: "범위를 확장해서 더 많은 후보자를 검토합니다.",
+        rankingTitle: "랭킹/재정렬",
+        rankingDesc: "기준에 적합한지 판단하고 우선순위를 계산합니다.",
         recoveryTitle: "조건 추가하기",
         recoveryDesc: "문제를 분석하고 안전한 방식으로 계속 진행합니다.",
         recoveryRetryTitle: "복구/재시도 경로 실행",
@@ -440,7 +449,8 @@ export const ko = {
         "expanding: 더 많은 후보자를 찾기 위해 검색 범위를 넓혀서 검색을 시도하겠습니다...",
       expandingWithCount:
         "expanding: {count}명의 후보자를 찾았습니다. 더 많은 후보자를 찾기 위해 검색 범위를 넓혀서 검색을 시도하겠습니다...",
-      ranking: "reranking: 각 후보자의 정보를 확인하고 적합성을 판단하고 있습니다...",
+      ranking:
+        "reranking: 각 후보자의 정보를 확인하고 적합성을 판단하고 있습니다...",
     },
     defaultMessage: {
       intro:
