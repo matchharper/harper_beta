@@ -311,6 +311,8 @@ export default function AutomationIndexPage() {
 
             <div className="grid grid-cols-3 gap-4 mt-8">
               {items.map((item) => {
+                if (!item) return null;
+
                 return (
                   <ScoutCard
                     key={item.id}
