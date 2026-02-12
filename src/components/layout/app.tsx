@@ -24,7 +24,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import { supabase } from "@/lib/supabase";
 import { useMessages } from "@/i18n/useMessage";
 import HoverHistory from "./HoverHistory";
 import { useLogEvent } from "@/hooks/useLog";
@@ -39,8 +38,8 @@ const AppLayout = ({
   const [collapsed, setCollapsed] = useState(initialCollapse);
   const { credits, isLoading: isLoadingCredits } = useCredits();
   const { m } = useMessages();
-  const { companyUser, loading, initialized } = useCompanyUserStore();
-  const { user, loading: authLoading } = useAuthStore();
+  const { companyUser, loading, initialized, clear } = useCompanyUserStore();
+  const { user, loading: authLoading, signOut } = useAuthStore();
   const logEvent = useLogEvent();
 
   const router = useRouter();
@@ -253,11 +252,12 @@ const AppLayout = ({
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   className="flex flex-row gap-1 mt-1 cursor-pointer"
-                  onClick={(e) => {
+                  onClick={async (e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     logEvent("logout");
-                    supabase.auth.signOut();
+                    await signOut();
+                    clear();
                     router.push("/companies");
                   }}
                 >
