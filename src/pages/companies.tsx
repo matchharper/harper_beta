@@ -23,6 +23,8 @@ import GradientBackground from "@/components/landing/GradientBackground";
 import { useMessages } from "@/i18n/useMessage";
 import RotatingText from "@/components/RotatingText";
 import DarkVeil from "@/components/Darkveli";
+import { useCountryLang } from "@/hooks/useCountryLang";
+import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 
 export const isValidEmail = (email: string): boolean => {
   const trimmed = email.trim();
@@ -38,6 +40,8 @@ const CandidatePage = () => {
   const [isTeamEmail, setIsTeamEmail] = useState(false);
   const [isTeamEmailChecked, setIsTeamEmailChecked] = useState(false);
   const { m, locale } = useMessages();
+  const { companyUser } = useCompanyUserStore();
+  const countryLang = useCountryLang();
 
   const isMobile = useIsMobile();
   const interactiveRef = useRef<HTMLDivElement>(null);
@@ -53,6 +57,7 @@ const CandidatePage = () => {
       local_id: landingId,
       type: type,
       is_mobile: isMobile,
+      country_lang: countryLang,
     };
     await supabase.from("landing_logs").insert(body);
   };
@@ -83,26 +88,26 @@ const CandidatePage = () => {
     };
   }, []);
 
+  const initLog = async () => {
+    const newId = v4();
+    localStorage.setItem("harper_landing_id_0209", newId);
+    localStorage.setItem("harper_landing_last_visit_at", Date.now().toString());
+    setLandingId(newId);
+
+    const body = {
+      local_id: newId,
+      type: "new_visit",
+      is_mobile: isMobile,
+      country_lang: countryLang,
+    };
+    await supabase.from("landing_logs").insert(body);
+  };
+
   useEffect(() => {
     if (!isTeamEmailChecked) return;
     const localId = localStorage.getItem("harper_landing_id_0209");
     if (!localId) {
-      const newId = v4();
-      localStorage.setItem("harper_landing_id_0209", newId);
-      localStorage.setItem(
-        "harper_landing_last_visit_at",
-        Date.now().toString()
-      );
-      setLandingId(newId);
-
-      // if (!isTeamEmail) {
-      const body = {
-        local_id: newId,
-        type: "new_visit",
-        is_mobile: isMobile,
-      };
-      supabase.from("landing_logs").insert(body);
-      // }
+      initLog();
     } else {
       logger.log("\n\n 호출 👻 localId : ", localId);
       setLandingId(localId as string);
@@ -185,7 +190,7 @@ const CandidatePage = () => {
     addLog("click_login_google");
     const redirectTo =
       typeof window !== "undefined"
-        ? `${window.location.origin}/auth/callback?lid=${localStorage.getItem("harper_landing_id_0209") ?? ""}`
+        ? `${window.location.origin}/auths/callback?lid=${localStorage.getItem("harper_landing_id_0209") ?? ""}&cl=${encodeURIComponent(countryLang)}`
         : undefined;
 
     const { data, error } = await supabase.auth.signInWithOAuth({
@@ -196,6 +201,9 @@ const CandidatePage = () => {
     });
 
     if (error) throw error;
+    if (data?.url && typeof window !== "undefined") {
+      window.location.assign(data.url);
+    }
     return data;
   };
 
@@ -257,6 +265,14 @@ const CandidatePage = () => {
       <div
         onClick={() => {
           addLog(type);
+          if (companyUser && companyUser.email) {
+            if (companyUser.is_authenticated) {
+              router.push("/my");
+              return;
+            }
+            router.push("/invitation");
+            return;
+          }
           setIsOpenLoginModal(true);
         }}
         className={`

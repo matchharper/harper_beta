@@ -15,11 +15,13 @@ type LandingLog = {
   type: string;
   created_at: string;
   is_mobile: boolean | null;
+  country_lang: string | null;
 };
 
 type GroupedLogs = {
   local_id: string;
   entryTime: string;
+  country_lang: string;
   logs: LandingLog[];
 };
 
@@ -81,8 +83,10 @@ const AdminPage = () => {
       try {
         let q = supabase
           .from("landing_logs")
-          .select("id,local_id,type,created_at,is_mobile")
+          .select("id,local_id,type,created_at,is_mobile,country_lang")
           .order("created_at", { ascending: false })
+          .neq("local_id", "a22bb523-42cd-4d39-9667-c527c40941d3")
+          .neq("local_id", "a4d4df1a-aa6d-401e-a34a-00d426630fe2")
           .limit(PAGE_SIZE);
 
         const cur = reset ? null : cursor;
@@ -192,6 +196,7 @@ const AdminPage = () => {
         local_id,
         entryTime,
         logs: orderedLogs,
+        country_lang: list[0]?.country_lang ?? "",
       });
     }
 
@@ -246,8 +251,8 @@ const AdminPage = () => {
         </div>
       </div>
 
-      <div className="mx-auto max-w-[1100px] px-6 py-6">
-        <div className="mb-4 flex items-center justify-between">
+      <div className="mx-auto max-w-[1100px] px-6 py-6 w-full">
+        <div className="mb-4 flex items-center justify-between w-full">
           <div className="text-[12px] text-black/55">
             Loaded logs: <span className="text-black">{logs.length}</span> ·
             Users: <span className="text-black">{grouped.length}</span>
@@ -282,7 +287,10 @@ const AdminPage = () => {
           </div>
         ) : null}
 
-        <div className="border border-black/10" style={{ borderRadius: 0 }}>
+        <div
+          className="border border-black/10 w-full"
+          style={{ borderRadius: 0 }}
+        >
           {loading ? (
             <Loading
               size="sm"
@@ -300,25 +308,28 @@ const AdminPage = () => {
             grouped.map((group) => (
               <div
                 key={group.local_id}
-                className="border-t border-black/10 first:border-t-0"
+                className="border-t border-black/10 first:border-t-0 w-full"
               >
-                <div className="px-5 py-4">
+                <div className="px-5 py-4 w-full">
                   <div className="text-[14px] font-semibold">
-                    local_id: {group.local_id}
+                    local_id: {group.local_id} - {group.country_lang}
                   </div>
                   <div className="text-[12px] text-black/55 mt-1">
                     entry: {formatKST(group.entryTime)}
                   </div>
 
-                  <div className="mt-3 text-[13px] text-black/80">
+                  <div className="mt-3 text-[13px] text-black/80 w-full space-y-1">
                     {group.logs.map((log) => (
-                      <div key={log.id} className="flex gap-2">
+                      <div key={log.id} className="flex gap-2 w-full">
                         <span className="text-black/50">•</span>
-                        <span>
-                          {ENTRY_TYPES.has(log.type)
-                            ? `${log.type} (${formatKST(log.created_at)})`
-                            : log.type}
-                        </span>
+                        {ENTRY_TYPES.has(log.type) ? (
+                          `${log.type} (${formatKST(log.created_at)})`
+                        ) : (
+                          <div className="flex flex-row w-full items-center justify-between">
+                            <div>{log.type}</div>
+                            <div>{formatKST(log.created_at)}</div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

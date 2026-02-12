@@ -818,6 +818,7 @@ export type Database = {
       }
       landing_logs: {
         Row: {
+          country_lang: string | null
           created_at: string
           id: number
           is_mobile: boolean | null
@@ -825,6 +826,7 @@ export type Database = {
           type: string | null
         }
         Insert: {
+          country_lang?: string | null
           created_at?: string
           id?: number
           is_mobile?: boolean | null
@@ -832,6 +834,7 @@ export type Database = {
           type?: string | null
         }
         Update: {
+          country_lang?: string | null
           created_at?: string
           id?: number
           is_mobile?: boolean | null
@@ -1264,6 +1267,7 @@ export type Database = {
           error: string | null
           id: number
           latency_ms: number | null
+          llm_sql_latency: number | null
           result_count: number | null
           run_id: string
           sql_query: string | null
@@ -1275,6 +1279,7 @@ export type Database = {
           error?: string | null
           id?: never
           latency_ms?: number | null
+          llm_sql_latency?: number | null
           result_count?: number | null
           run_id: string
           sql_query?: string | null
@@ -1286,6 +1291,7 @@ export type Database = {
           error?: string | null
           id?: never
           latency_ms?: number | null
+          llm_sql_latency?: number | null
           result_count?: number | null
           run_id?: string
           sql_query?: string | null

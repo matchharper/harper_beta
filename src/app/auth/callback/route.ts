@@ -5,6 +5,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const lid = url.searchParams.get("lid");
+  const countryLang = url.searchParams.get("cl");
 
   if (code) {
     await supabase.auth.exchangeCodeForSession(code);
@@ -18,6 +19,7 @@ export async function GET(request: Request) {
         local_id: lid,
         type: `login_email:${email}`,
         is_mobile: null,
+        country_lang: countryLang,
       });
     }
   }

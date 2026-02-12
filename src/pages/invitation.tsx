@@ -12,7 +12,7 @@ import { supabase } from "@/lib/supabase";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { useMessages } from "@/i18n/useMessage";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import { v4 } from "uuid";
+import { useCountryLang } from "@/hooks/useCountryLang";
 
 const INITIAL_CREDIT = 10;
 
@@ -23,77 +23,80 @@ export default function LoginSuccess() {
   const [invalidMessage, setInvalidMessage] = useState("");
   const [isShake, setIsShake] = useState(false);
   const [landingId, setLandingId] = useState("");
-  const [isTeamEmail, setIsTeamEmail] = useState(false);
-  const [isTeamEmailChecked, setIsTeamEmailChecked] = useState(false);
   const { m } = useMessages();
 
   const interactiveRef = useRef<HTMLDivElement>(null);
   const hasLoggedEnterRef = useRef(false);
   const hasLoggedCodeInputRef = useRef(false);
   const isMobile = useIsMobile();
+  const countryLang = useCountryLang();
 
   const { companyUser, load } = useCompanyUserStore();
 
   const addLog = async (type: string) => {
-    if (!isTeamEmailChecked || isTeamEmail || !landingId) return;
     const body = {
       local_id: landingId,
       type: type,
       is_mobile: isMobile,
+      country_lang: countryLang,
     };
     await supabase.from("landing_logs").insert(body);
   };
 
   useEffect(() => {
     const localId = localStorage.getItem("harper_landing_id_0209");
-    if (!localId) {
-      const newId = v4();
-      localStorage.setItem("harper_landing_id_0209", newId);
-      setLandingId(newId);
-    } else {
-      setLandingId(localId);
+    if (localId) {
+      setLandingId(localId as string);
     }
   }, []);
 
   useEffect(() => {
-    if (!landingId || hasLoggedEnterRef.current || !isTeamEmailChecked) return;
+    console.log(
+      "\n\n 🐙 landingId : ",
+      landingId,
+      hasLoggedEnterRef.current,
+      companyUser
+    );
+    if (!landingId || hasLoggedEnterRef.current) return;
     hasLoggedEnterRef.current = true;
     const emailSuffix = companyUser?.email ? `:${companyUser.email}` : "";
+    console.log("\n\n 🐙 emailSuffix : ", emailSuffix);
     addLog(`invitation_enter_${emailSuffix}`);
-  }, [landingId, isTeamEmailChecked]);
+  }, [landingId]);
+
+  // useEffect(() => {
+  //   const excludedEmails = new Set([
+  //     "chris@gmail.com",
+  //     // "khj605123@gmail.com",
+  //   ]);
+
+  //   const updateTeamEmail = (email?: string | null) => {
+  //     setIsTeamEmail(email ? excludedEmails.has(email) : false);
+  //     setIsTeamEmailChecked(true);
+  //   };
+
+  //   supabase.auth.getUser().then(({ data }) => {
+  //     updateTeamEmail(data.user?.email);
+  //   });
+
+  //   const { data: authListener } = supabase.auth.onAuthStateChange(
+  //     (_event, session) => {
+  //       updateTeamEmail(session?.user?.email);
+  //     }
+  //   );
+
+  //   return () => {
+  //     authListener.subscription.unsubscribe();
+  //   };
+  // }, []);
 
   useEffect(() => {
-    const excludedEmails = new Set([
-      "chris@gmail.com",
-      // "khj605123@gmail.com",
-    ]);
-
-    const updateTeamEmail = (email?: string | null) => {
-      setIsTeamEmail(email ? excludedEmails.has(email) : false);
-      setIsTeamEmailChecked(true);
-    };
-
-    supabase.auth.getUser().then(({ data }) => {
-      updateTeamEmail(data.user?.email);
-    });
-
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        updateTeamEmail(session?.user?.email);
-      }
-    );
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, []);
-
-
-  useEffect(() => {
-    if (companyUser?.is_authenticated) {
+    if (companyUser?.is_authenticated && landingId) {
+      const emailSuffix = companyUser?.email ? `${companyUser.email}` : "";
+      addLog(`enter_my_page_${emailSuffix}`);
       router.push("/my");
     }
-  }, [companyUser]);
+  }, [landingId, companyUser]);
 
   useEffect(() => {
     if (isShake) {
@@ -181,8 +184,9 @@ export default function LoginSuccess() {
         {/* Card */}
         <div className="w-full max-w-lg">
           <div
-            className={`rounded-3xl bg-white/5 backdrop-blur-md border border-white/10 shadow-xl px-6 py-6 md:px-8 md:py-8 ${isShake ? "animate-shake" : ""
-              }`}
+            className={`rounded-3xl bg-white/5 backdrop-blur-md border border-white/10 shadow-xl px-6 py-6 md:px-8 md:py-8 ${
+              isShake ? "animate-shake" : ""
+            }`}
           >
             {/* Invite code + continue */}
             <form
@@ -229,7 +233,9 @@ export default function LoginSuccess() {
             {/* Divider */}
             <div className="flex items-center gap-4 mt-10 mb-9">
               <div className="h-px flex-1 bg-neutral-600" />
-              <span className="text-xs text-neutral-500">{m.invitation.divider}</span>
+              <span className="text-xs text-neutral-500">
+                {m.invitation.divider}
+              </span>
               <div className="h-px flex-1 bg-neutral-600" />
             </div>
 
