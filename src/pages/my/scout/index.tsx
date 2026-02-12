@@ -16,7 +16,7 @@ import { useAutomationResults } from "@/hooks/useAutomationResults";
 import { Check, ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
 import { Loading } from "@/components/ui/loading";
 import { useMessages } from "@/i18n/useMessage";
-import ScoutCard from "./components/ScoutCard";
+import ScoutCard from "@/components/scout/ScoutCard";
 
 type AutomationRow = Database["public"]["Tables"]["automation"]["Row"];
 const PAGE_SIZE = 10;
