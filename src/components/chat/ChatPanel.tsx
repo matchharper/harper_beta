@@ -239,7 +239,7 @@ export default function ChatPanel({
       .from("runs")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
-      .in("status", [StatusEnum.DONE, StatusEnum.RUNNING, StatusEnum.QUEUED, StatusEnum.RERANKING_STREAMING, StatusEnum.PARSING, StatusEnum.REFINE, StatusEnum.EXPANDING, StatusEnum.RERANKING])
+      .in("status", [StatusEnum.DONE, StatusEnum.RUNNING, StatusEnum.PARTIAL, StatusEnum.FOUND, StatusEnum.STARTING, StatusEnum.QUEUED, StatusEnum.RERANKING_STREAMING, StatusEnum.PARSING, StatusEnum.REFINE, StatusEnum.EXPANDING, StatusEnum.RERANKING])
       .gte("created_at", threeMinAgo);
 
     console.log("count", count);

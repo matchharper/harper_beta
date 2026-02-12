@@ -51,6 +51,7 @@ type TimelineLabels = {
     retryTitle: string;
     retryDesc: string;
   };
+  found: string;
 };
 
 /**
@@ -307,6 +308,17 @@ const Timeline = ({
     };
   }, [statusMessage, progress.steps.length]);
 
+  if (statusMessage && statusMessage.includes(StatusEnum.FOUND)) {
+    return (
+      <div className="w-full relative flex items-start justify-start">
+        <div className="text-sm font-light text-hgray900 flex flex-row gap-2 items-center absolute top-3 left-5">
+          <Check className="w-4 h-4 text-green-500" strokeWidth={2} />
+          <div className="animate-textGlow">{m.search.timeline.found}</div>
+        </div>
+      </div>
+    );
+  }
+
   if (statusMessage && statusMessage.includes(StatusEnum.RERANKING_STREAMING)) {
     return (
       <div className="w-full relative flex items-start justify-start">
@@ -438,6 +450,8 @@ const Timeline = ({
           {/* Optional: small reassurance row */}
           <div className="text-xs text-hgray600 mt-3 leading-relaxed">
             {m.search.timeline.note}
+            <br />
+            {m.search.timeline.note3}
           </div>
         </div>
       )}
