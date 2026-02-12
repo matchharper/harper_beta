@@ -80,7 +80,7 @@ const HoverHistory = ({
           </div>
         </div>
         <div
-          className="mt-1 pb-3 gap-1 flex-1 max-h-[54vh] overflow-y-auto
+          className="mt-1 pb-12 gap-1 flex-1 max-h-[50vh] overflow-y-auto
     [scrollbar-width:none]
     [-ms-overflow-style:none]
     [&::-webkit-scrollbar]:hidden"

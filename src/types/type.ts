@@ -26,6 +26,8 @@ export enum StatusEnum {
   RERANKING = "reranking",
   RERANKING_STREAMING = "streaming",
   RUNNING = "running",
+  PARTIAL = "partial",
+  FOUND = "found",
   ERROR = "error",
   QUEUED = "queued",
   STOPPED = "stopped"

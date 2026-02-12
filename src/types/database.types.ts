@@ -109,10 +109,13 @@ export type Database = {
           bio: string | null
           created_at: string
           email: string | null
+          embedding: string | null
           fts: unknown
           headline: string | null
           id: string
+          is_duplicated_old: boolean
           is_korean: boolean | null
+          is_linkedin_deprecated: boolean
           last_updated_at: string | null
           linkedin_url: string | null
           links: string[] | null
@@ -126,10 +129,13 @@ export type Database = {
           bio?: string | null
           created_at?: string
           email?: string | null
+          embedding?: string | null
           fts?: unknown
           headline?: string | null
           id?: string
+          is_duplicated_old?: boolean
           is_korean?: boolean | null
+          is_linkedin_deprecated?: boolean
           last_updated_at?: string | null
           linkedin_url?: string | null
           links?: string[] | null
@@ -143,10 +149,13 @@ export type Database = {
           bio?: string | null
           created_at?: string
           email?: string | null
+          embedding?: string | null
           fts?: unknown
           headline?: string | null
           id?: string
+          is_duplicated_old?: boolean
           is_korean?: boolean | null
+          is_linkedin_deprecated?: boolean
           last_updated_at?: string | null
           linkedin_url?: string | null
           links?: string[] | null
@@ -164,18 +173,24 @@ export type Database = {
           created_at: string
           identifier: string
           is_current: boolean
+          is_duplicated: boolean
+          last_updated_at: string
         }
         Insert: {
           candid_id: string
           created_at?: string
           identifier: string
           is_current?: boolean
+          is_duplicated?: boolean
+          last_updated_at?: string
         }
         Update: {
           candid_id?: string
           created_at?: string
           identifier?: string
           is_current?: boolean
+          is_duplicated?: boolean
+          last_updated_at?: string
         }
         Relationships: [
           {
@@ -957,6 +972,24 @@ export type Database = {
           },
         ]
       }
+      new_logs: {
+        Row: {
+          created_at: string
+          id: number
+          type: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          type?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          type?: string | null
+        }
+        Relationships: []
+      }
       new_people: {
         Row: {
           content: string | null
@@ -1039,6 +1072,7 @@ export type Database = {
         Row: {
           created_at: string
           credit: number
+          cycle: number
           display_name: string | null
           ls_variant_id: string | null
           name: string | null
@@ -1048,6 +1082,7 @@ export type Database = {
         Insert: {
           created_at?: string
           credit?: number
+          cycle?: number
           display_name?: string | null
           ls_variant_id?: string | null
           name?: string | null
@@ -1057,6 +1092,7 @@ export type Database = {
         Update: {
           created_at?: string
           credit?: number
+          cycle?: number
           display_name?: string | null
           ls_variant_id?: string | null
           name?: string | null
@@ -1222,6 +1258,50 @@ export type Database = {
           },
         ]
       }
+      run_variants: {
+        Row: {
+          created_at: string
+          error: string | null
+          id: number
+          latency_ms: number | null
+          result_count: number | null
+          run_id: string
+          sql_query: string | null
+          status: string
+          variant: string
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          id?: never
+          latency_ms?: number | null
+          result_count?: number | null
+          run_id: string
+          sql_query?: string | null
+          status?: string
+          variant: string
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          id?: never
+          latency_ms?: number | null
+          result_count?: number | null
+          run_id?: string
+          sql_query?: string | null
+          status?: string
+          variant?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "run_variants_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       runs: {
         Row: {
           backend_pid: number | null
@@ -1230,7 +1310,8 @@ export type Database = {
           feedback: number
           id: string
           latency: number | null
-          limit: number
+          limit_num: number
+          locale: string
           message_id: number | null
           query_id: string | null
           query_text: string | null
@@ -1246,7 +1327,8 @@ export type Database = {
           feedback?: number
           id?: string
           latency?: number | null
-          limit?: number
+          limit_num?: number
+          locale?: string
           message_id?: number | null
           query_id?: string | null
           query_text?: string | null
@@ -1262,7 +1344,8 @@ export type Database = {
           feedback?: number
           id?: string
           latency?: number | null
-          limit?: number
+          limit_num?: number
+          locale?: string
           message_id?: number | null
           query_id?: string | null
           query_text?: string | null
@@ -1293,28 +1376,28 @@ export type Database = {
           candidate_ids: Json[] | null
           created_at: string
           id: number
-          message_id: number | null
           page_idx: number | null
           run_id: string | null
           seen_page: number
+          total_candidates: number | null
         }
         Insert: {
           candidate_ids?: Json[] | null
           created_at?: string
           id?: number
-          message_id?: number | null
           page_idx?: number | null
           run_id?: string | null
           seen_page?: number
+          total_candidates?: number | null
         }
         Update: {
           candidate_ids?: Json[] | null
           created_at?: string
           id?: number
-          message_id?: number | null
           page_idx?: number | null
           run_id?: string | null
           seen_page?: number
+          total_candidates?: number | null
         }
         Relationships: [
           {

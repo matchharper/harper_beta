@@ -4,7 +4,8 @@ export const en = {
     signup: "Sign up",
     continueWithGoogle: "Continue with Google",
     confirmPassword: "Confirm password",
-    emailConfirmationSent: "We've sent a confirmation email. Please check your inbox.",
+    emailConfirmationSent:
+      "We've sent a confirmation email. Please check your inbox.",
     invalidAccount: "Account not found.",
   },
   invitation: {
@@ -35,14 +36,7 @@ export const en = {
         "Other",
       ],
     },
-    sizes: [
-      "1-10",
-      "11-50",
-      "51-100",
-      "101-200",
-      "201-500",
-      "501+",
-    ],
+    sizes: ["1-10", "11-50", "51-100", "101-200", "201-500", "501+"],
     steps: {
       contact: {
         title: "Please share your name and email.",
@@ -134,7 +128,8 @@ export const en = {
       titleLine1: "Don't Buy",
       titleLine2Prefix: "Pay for",
       titleLine2Highlight: "Intelligence",
-      subtitle: "Go beyond simple search and experience intelligence that understands talent.",
+      subtitle:
+        "Go beyond simple search and experience intelligence that understands talent.",
     },
     section1: {
       title: "Recruiting Agent, Harper",
@@ -149,18 +144,15 @@ export const en = {
       cards: [
         {
           title: "Beyond Keywords",
-          desc:
-            "Go beyond simple keyword search, <br />and experience intelligence that understands context and talent.",
+          desc: "Go beyond simple keyword search, <br />and experience intelligence that understands context and talent.",
         },
         {
           title: "Focus on Value",
-          desc:
-            "Let us filter the noise. <br />We show only the talent that truly matters.",
+          desc: "Let us filter the noise. <br />We show only the talent that truly matters.",
         },
         {
           title: "Intelligence on Top of Data",
-          desc:
-            "We unify scattered data, analyze it, and help you make better decisions.",
+          desc: "We unify scattered data, analyze it, and help you make better decisions.",
         },
       ],
     },
@@ -170,26 +162,22 @@ export const en = {
         {
           label: "People Search",
           title: "Explain it like a teammate.<br />Just speak naturally.",
-          desc:
-            "You don't need the exact job title.<br />Describe the talent you want and search freely.",
+          desc: "You don't need the exact job title.<br />Describe the talent you want and search freely.",
         },
         {
           label: "People Intelligence",
           title: "Discover the real story<br />behind the text.",
-          desc:
-            "We uncover interests, consistency, and passion... <br />Providing rich context that fills resume gaps. <br />Feel like you've already had a deep conversation before the interview.",
+          desc: "We uncover interests, consistency, and passion... <br />Providing rich context that fills resume gaps. <br />Feel like you've already had a deep conversation before the interview.",
         },
         {
           label: "Harper Scout",
           title: "매일 후보자를 찾아<br />추천해드립니다.",
-          desc:
-            "원하는 인재상을 자유롭게 등록하면 매일 적절한 후보자를 추천해드립니다.<br />피드백을 바탕으로 추천 결과가 점점 더 개선됩니다.",
-        }
+          desc: "원하는 인재상을 자유롭게 등록하면 매일 적절한 후보자를 추천해드립니다.<br />피드백을 바탕으로 추천 결과가 점점 더 개선됩니다.",
+        },
       ],
     },
     testimonial: {
-      body:
-        "Harper is not just a search filter.<br />An AI agent synthesizes countless web sources,<br />reads context beyond resumes, reasons like a human,<br />and helps you directly discover the right talent.",
+      body: "Harper is not just a search filter.<br />An AI agent synthesizes countless web sources,<br />reads context beyond resumes, reasons like a human,<br />and helps you directly discover the right talent.",
       name: "Chris & Daniel",
       role: "Co-founder",
     },
@@ -264,7 +252,8 @@ export const en = {
         },
         enterprise: {
           name: "Enterprise",
-          tagline: "Dedicated plan with unlimited data access and custom integrations",
+          tagline:
+            "Dedicated plan with unlimited data access and custom integrations",
           priceUnit: "",
           buttonLabel: "Contact us",
           features: [
@@ -349,7 +338,8 @@ export const en = {
     ],
   },
   chat: {
-    composerPlaceholder: "Ask anything (Enter to send / Shift+Enter for newline)",
+    composerPlaceholder:
+      "Ask anything (Enter to send / Shift+Enter for newline)",
     candidSuggestions: [
       "Is this person open to a job change?",
       "Evaluate whether this person is a good fit for our team, with reasons.",
@@ -374,7 +364,8 @@ export const en = {
     feedbackNegative: "Not a fit",
     feedbackSuffix: "feedback on candidates to keep improving results.",
     createAgent: "Create Agent",
-    perAgentNote: "Each agent recommends 1–2 candidates per day, 1 credit per candidate.",
+    perAgentNote:
+      "Each agent recommends 1–2 candidates per day, 1 credit per candidate.",
     statusRunning: "Running",
     statusStopped: "Paused",
     createdAt: "Created:",
@@ -419,6 +410,11 @@ export const en = {
       stopped: "Search stopped",
       stop: "Stop",
       note: "* Max plan users can run multiple searches in parallel.",
+      note2:
+        "* Due to the characteristics of LLMs, the search results may vary depending on the criteria.",
+      note3:
+        "* Even if you close the site or switch to another screen, the search will continue.",
+      found: "Found 10 candidates matching all criteria.",
       steps: {
         parseTitle: "Understand the request",
         parseDesc: "Interpreting criteria and building a search strategy.",
@@ -428,12 +424,15 @@ export const en = {
         refineDesc: "Refining queries/filters for performance and accuracy.",
         runningTitle: "Find candidates broadly",
         runningDesc: "Searching across experience/company/keywords.",
+        partialTitle: "Collect candidates",
+        partialDesc: "Merging and organizing results across variants.",
         rankingTitle: "Ranking & scoring",
         rankingDesc: "Calculating priority based on your criteria.",
         recoveryTitle: "Add recovery conditions",
         recoveryDesc: "Analyzing issues and proceeding safely.",
         recoveryRetryTitle: "Run recovery & retry path",
-        recoveryRetryDesc: "Relaxing constraints or retrying with another strategy.",
+        recoveryRetryDesc:
+          "Relaxing constraints or retrying with another strategy.",
         retryTitle: "Retry with alternative strategy",
         retryDesc: "Relaxing constraints and searching again.",
       },
@@ -446,8 +445,7 @@ export const en = {
         "error_handling: An issue occurred during search. Resolving it now...",
       errorHandlingWithCount:
         "error_handling: Found {count} candidates. Broadening search to find more...",
-      expanding:
-        "expanding: Broadening the search to find more candidates...",
+      expanding: "expanding: Broadening the search to find more candidates...",
       expandingWithCount:
         "expanding: Found {count} candidates. Broadening search to find more...",
       ranking: "ranking: Reviewing candidates and scoring fit...",

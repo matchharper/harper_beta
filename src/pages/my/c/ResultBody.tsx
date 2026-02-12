@@ -15,6 +15,7 @@ type Props = {
   canPrev: boolean;
   canNext: boolean;
   isFetchingNextPage: boolean;
+  isStreaming: boolean;
   onPrevPage: () => void;
   onNextPage: () => void;
   criterias: string[];
@@ -34,6 +35,7 @@ export default function ResultBody(props: Props) {
     canPrev,
     canNext,
     isFetchingNextPage,
+    isStreaming,
     onPrevPage,
     onNextPage,
     criterias,
@@ -94,8 +96,8 @@ export default function ResultBody(props: Props) {
               <button
                 type="button"
                 onClick={onNextPage}
-                disabled={!canNext || isFetchingNextPage}
-                className={`flex items-center justify-center px-8 minw-16 h-16 bg-accenta1 text-black rounded-sm hover:opacity-90 ${canNext && !isFetchingNextPage
+                disabled={!canNext || isFetchingNextPage || isStreaming}
+                className={`flex items-center justify-center px-8 minw-16 h-16 bg-accenta1 text-black rounded-sm hover:opacity-90 ${canNext && !isFetchingNextPage && !isStreaming
                   ? "cursor-pointer"
                   : "opacity-40 cursor-not-allowed"
                   }`}

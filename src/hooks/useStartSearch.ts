@@ -1,10 +1,22 @@
 // hooks/useSearchChatCandidates.ts
-import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { CandidateType, EduUserType, ExpUserType } from "@/types/type";
-import { useCallback } from "react";
 import { logger } from "@/utils/logger";
 import { UI_END, UI_START } from "./chat/useChatSession";
+import type { Locale } from "@/i18n/useMessage";
+
+function getCookie(name: string) {
+  if (typeof document === "undefined") return null;
+  return document.cookie
+    .split("; ")
+    .find((row) => row.startsWith(name + "="))
+    ?.split("=")[1];
+}
+
+function getLocaleFromCookie(): Locale {
+  const c = getCookie("NEXT_LOCALE");
+  return c === "ko" || c === "en" ? c : "ko";
+}
 
 export type ExperienceUserType = ExpUserType & {
   company_db: {
@@ -44,23 +56,30 @@ function extractUiJsonFromMessage(content: string): any | null {
 }
 
 async function fetchSearchIds(params: {
-  queryId: string;
   runId: string;
   pageIdx: number;
-  userId: string;
 }) {
-  const res = await fetch("/api/search/run", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-  });
+  const { runId, pageIdx } = params;
 
-  if (!res.ok) throw new Error("search api failed");
-  const data = await res.json();
+  const { data, error } = await supabase
+    .from("runs_pages")
+    .select("candidate_ids, created_at")
+    .eq("run_id", runId)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (error) throw error;
+
+  const row = data?.[0];
+  const all = (row?.candidate_ids ?? []) as Array<{ id: string }>;
+
+  const start = pageIdx * 10;
+  const end = start + 10;
+  const ids = all.slice(start, end).map((r) => r.id);
 
   return {
-    ids: (data?.results ?? []) as string[],
-    isNewSearch: data?.isNewSearch ?? false,
+    ids,
+    isNewSearch: false,
   };
 }
 /**
@@ -84,6 +103,8 @@ async function createRunFromMessage(params: {
   if (criteria == null)
     throw new Error("createRunFromMessage: missing criteria");
 
+  const locale = getLocaleFromCookie();
+
   const { data, error } = await supabase
     .from("runs")
     .insert({
@@ -92,6 +113,8 @@ async function createRunFromMessage(params: {
       criteria,
       query_text: queryText,
       user_id: userId,
+      status: "queued",
+      locale,
     })
     .select("id")
     .single();
@@ -146,30 +169,10 @@ export const runSearch =
     return newRunId;
   }
 
-export const doSearch = async ({ runId, queryId, userId, pageIdx }: { runId: string, queryId: string, userId: string, pageIdx: number }) => {
+export const doSearch = async ({ runId, pageIdx }: { runId: string, pageIdx: number }) => {
   console.trace("[doSearch] stack");
-  if (!queryId || !userId) return null;
-  logger.log("doSearch: ", runId, queryId, userId, pageIdx);
+  logger.log("doSearch: ", runId, pageIdx);
 
-  const params = {
-    queryId,
-    runId,
-    pageIdx,
-    userId,
-  }
-
-  const res = await fetch("/api/search/start", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-  });
-
-  if (!res.ok) throw new Error("search api failed");
-
-  const data = await res.json();
-  logger.log("doSearch data: ", data);
-
-  return {
-    ids: (data?.results ?? []) as string[]
-  };
+  const { ids } = await fetchSearchIds({ runId, pageIdx });
+  return { ids };
 }

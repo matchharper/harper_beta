@@ -2,9 +2,23 @@
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { CandidateType, EduUserType, ExpUserType } from "@/types/type";
-import { useCallback } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { logger } from "@/utils/logger";
 import { UI_END, UI_START } from "./chat/useChatSession";
+import type { Locale } from "@/i18n/useMessage";
+
+function getCookie(name: string) {
+  if (typeof document === "undefined") return null;
+  return document.cookie
+    .split("; ")
+    .find((row) => row.startsWith(name + "="))
+    ?.split("=")[1];
+}
+
+function getLocaleFromCookie(): Locale {
+  const c = getCookie("NEXT_LOCALE");
+  return c === "ko" || c === "en" ? c : "ko";
+}
 
 export type ExperienceUserType = ExpUserType & {
   company_db: {
@@ -50,23 +64,29 @@ function extractUiJsonFromMessage(content: string): any | null {
  * resp: { results: string[], isNewSearch?: boolean }
  */
 async function fetchSearchIds(params: {
-  queryId: string;
   runId: string;
   pageIdx: number;
-  userId: string;
 }) {
-  const res = await fetch("/api/search/run", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-  });
+  const { runId, pageIdx } = params;
 
-  if (!res.ok) throw new Error("search api failed");
-  const data = await res.json();
+  const { data, error } = await supabase
+    .from("runs_pages")
+    .select("candidate_ids, created_at")
+    .eq("run_id", runId)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (error) throw error;
+
+  const row = data?.[0];
+  const all = (row?.candidate_ids ?? []) as Array<{ id: string }>;
+  const start = pageIdx * 10;
+  const end = start + 10;
+  const ids = all.slice(start, end).map((r) => r.id);
 
   return {
-    ids: (data?.results ?? []) as string[],
-    isNewSearch: data?.isNewSearch ?? false,
+    ids,
+    isNewSearch: false,
   };
 }
 
@@ -137,8 +157,9 @@ async function createRunFromMessage(params: {
   messageId: number;
   criteria: any;
   queryText: string;
+  userId?: string;
 }) {
-  const { queryId, messageId, criteria, queryText } = params;
+  const { queryId, messageId, criteria, queryText, userId } = params;
   console.log("\n createRunFromMessage: ", queryId, messageId, criteria);
 
   if (!queryId) throw new Error("createRunFromMessage: missing queryId");
@@ -152,6 +173,8 @@ async function createRunFromMessage(params: {
   // - runs.id is uuid with default gen_random_uuid() (or uuid_generate_v4())
   // - runs.query_id (uuid), runs.trigger_message_id (int/bigint), runs.criteria (jsonb)
   // - RLS policy allows insert when the user owns the query
+  const locale = getLocaleFromCookie();
+
   const { data, error } = await supabase
     .from("runs")
     .insert({
@@ -159,6 +182,9 @@ async function createRunFromMessage(params: {
       message_id: messageId,
       criteria,
       query_text: queryText,
+      user_id: userId,
+      status: "queued",
+      locale,
     })
     .select("id")
     .single();
@@ -183,17 +209,44 @@ export function useChatSearchCandidates(
 ) {
   const queryClient = useQueryClient();
 
+  const qk = useMemo(
+    () => ["searchCandidatesByRun", queryId, userId, runId],
+    [queryId, userId, runId]
+  );
+
+  useEffect(() => {
+    if (!enabled || !runId) return;
+
+    const channel = supabase
+      .channel(`runs_pages:${runId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "runs_pages",
+          filter: `run_id=eq.${runId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: qk });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [enabled, runId, queryClient, qk]);
+
   const infinite = useInfiniteQuery({
-    queryKey: ["searchCandidatesByRun", queryId, userId, runId],
+    queryKey: qk,
     enabled: enabled && !!userId && !!queryId && !!runId,
     initialPageParam: 0,
     queryFn: async ({ pageParam }) => {
       const pageIdx = pageParam as number;
 
       const { ids, isNewSearch } = await fetchSearchIds({
-        queryId: queryId!,
         runId: runId!,
-        userId: userId!,
         pageIdx,
       });
 
@@ -247,6 +300,7 @@ export function useChatSearchCandidates(
         messageId,
         criteria: inputs.criteria,
         queryText: inputs.thinking ?? "",
+        userId,
       });
 
       if (!newRunId) return null;
@@ -264,4 +318,3 @@ export function useChatSearchCandidates(
 function deduct(arg0: number) {
   throw new Error("Function not implemented.");
 }
-

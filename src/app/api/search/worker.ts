@@ -93,7 +93,7 @@ export async function rpc_set_timeout_and_execute_raw_sql_via_runs(params: {
     .update({
       sql_query,
       status: Status.QUEUED,
-      limit: limit_num,
+      limit_num: limit_num,
       results: null,
     })
     .eq("id", runId)
