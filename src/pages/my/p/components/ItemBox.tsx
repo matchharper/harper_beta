@@ -1,7 +1,13 @@
 import { useCompanyModalStore } from "@/store/useModalStore";
 import { dateToFormat } from "@/utils/textprocess";
 import { useQueryClient } from "@tanstack/react-query";
-import { AwardIcon, Building2, ChevronDown, ExternalLink, SchoolIcon } from "lucide-react";
+import {
+  AwardIcon,
+  Building2,
+  ChevronDown,
+  ExternalLink,
+  SchoolIcon,
+} from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { getSchoolLogo } from "@/utils/school_logo";
 import { ExperienceCal } from "../CandidateProfile";
@@ -36,6 +42,7 @@ const ItemBox = ({
   const startDate = useMemo(() => dateToFormat(start_date), [start_date]);
   const endDate = useMemo(() => dateToFormat(end_date), [end_date]);
   const isEdu = typed === "edu";
+  const isAward = typed === "award";
 
   const logoUrl = useMemo(() => {
     if (isEdu) {
@@ -68,20 +75,31 @@ const ItemBox = ({
   const logoSize = "w-10 h-10 outline outline-4 outline-hgray200";
   const logoIcon = useMemo(() => {
     if (isEdu) {
-      return <SchoolIcon size={20} strokeWidth={1.3} className="text-hgray900" />;
+      return (
+        <SchoolIcon size={20} strokeWidth={1.3} className="text-hgray900" />
+      );
     }
     if (typed === "award") {
-      return <AwardIcon size={20} strokeWidth={1.3} className="text-hgray900" />;
+      return (
+        <AwardIcon size={20} strokeWidth={1.3} className="text-hgray900" />
+      );
     }
     return <Building2 size={20} strokeWidth={1.3} className="text-hgray900" />;
   }, [isEdu, typed]);
 
   return (
     <div className="relative">
-      {isLast ? null : <div className="h-full bg-hgray1000/10 w-[2px] absolute left-[19px] top-0" />}
-      <div className={`flex flex-row items-start justify-between gap-4 relative pb-12 ${isContinued ? "mt-[-24px] pb-16" : "mt-0"}`}>
+      {isLast ? null : (
+        <div className="h-full bg-hgray1000/10 w-[2px] absolute left-[19px] top-0" />
+      )}
+      <div
+        className={`flex flex-row items-start justify-between gap-4 relative pb-12 ${isContinued ? "mt-[-24px] pb-16" : "mt-0"}`}
+      >
         <div className="flex flex-row items-start justify-start gap-4 min-w-0">
-          <div onClick={() => onButtonClick()} className={`min-w-10 ${isContinued ? "opacity-0" : "opacity-100"}`}>
+          <div
+            onClick={() => onButtonClick()}
+            className={`min-w-10 ${isContinued ? "opacity-0" : "opacity-100"}`}
+          >
             {logoUrl ? (
               <img
                 src={logoUrl}
@@ -90,7 +108,9 @@ const ItemBox = ({
               />
             ) : (
               <>
-                <div className={`${logoSize} mt-[1px] rounded-full flex items-center justify-center text-lg bg-hgray500`}>
+                <div
+                  className={`${logoSize} mt-[1px] rounded-full flex items-center justify-center text-lg bg-hgray500`}
+                >
                   {logoIcon}
                 </div>
               </>
@@ -100,15 +120,23 @@ const ItemBox = ({
 
           <div className="flex flex-col items-start justify-start gap-[2px] font-normal min-w-0 mt-[-4px]">
             <div className="text-base font-medium truncate text-hgray1000 flex flex-row items-center justify-start gap-2">
-              {isEdu ? <span className="text-accenta1/80 text-xs font-light">학력</span> : null} {title ? title : isEdu ? "Student" : "Employee"}
-              {/* <SchoolIcon size={14} strokeWidth={1.3} className="text-hgray700" /> */}
+              {isEdu ? (
+                <span className="text-accenta1/80 text-xs font-light">
+                  학력
+                </span>
+              ) : null}{" "}
+              {title ? title : isEdu ? "Student" : "Employee"}
             </div>
 
             <div
               className={`${isEdu ? "" : "cursor-pointer"} text-hgray700 flex flex-row gap-2 items-center font-light text-sm`}
               onClick={() => onButtonClick()}
             >
-              <span className={`flex flex-row items-center gap-1 truncate ${isEdu ? "" : "hover:underline"}`}>{name} {isEdu ? null : <ExternalLink size={12} />}</span>
+              <span
+                className={`flex flex-row items-center gap-1 truncate ${isEdu ? "" : "hover:underline"}`}
+              >
+                {name} {isEdu || isAward ? null : <ExternalLink size={12} />}
+              </span>
               <span> · </span>
               {startDate ? (
                 <div className="flex flex-row items-center gap-1">
@@ -154,8 +182,9 @@ const ItemBox = ({
               <ChevronDown
                 size={24}
                 strokeWidth={1.3}
-                className={`transition-transform duration-200 text-hgray1000 ${isOpen ? "rotate-180" : "rotate-0"
-                  }`}
+                className={`transition-transform duration-200 text-hgray1000 ${
+                  isOpen ? "rotate-180" : "rotate-0"
+                }`}
               />
             </button>
           </div>

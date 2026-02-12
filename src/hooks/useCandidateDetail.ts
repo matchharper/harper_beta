@@ -80,12 +80,12 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
       .select("id")
       .eq("user_id", userId)
       .eq("candid_id", id)
-      .maybeSingle();
+      .limit(1);
 
     if (autoError) throw autoError;
     return {
       ...data,
-      isAutomationResult: !!autoRow?.id,
+      isAutomationResult: autoRow?.length > 0,
     } as CandidateDetail;
   }
 

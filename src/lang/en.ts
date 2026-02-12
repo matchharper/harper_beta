@@ -350,7 +350,7 @@ export const en = {
   },
   scout: {
     title: "Harper Scout",
-    addAgent: "+ Add Agent",
+    addAgent: "Add Agent",
     intro:
       "Harper acts as your agent to find and recommend candidates daily based on the role, skills, and team culture.\nEach agent recommends 1–2 candidates per day, and 1 credit is used per candidate.",
     emptyTag: "Get started with Harper Scout",
@@ -372,6 +372,7 @@ export const en = {
     updatedAt: "Last updated:",
     edit: "Edit",
     loadingList: "Loading...",
+    resultCountLabel: "Candidates {count}",
     limitMessage: "You can run up to 2 automations at a time.",
     checkAutomationFail: "Could not check automation status.",
     itemFallbackTitle: "Scout",
