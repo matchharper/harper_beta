@@ -1,6 +1,6 @@
 // hooks/chat/useChatSession.ts
 import { useCallback, useMemo, useRef, useState, useEffect } from "react";
-import type { ChatMessage } from "@/types/chat";
+import type { ChatMessage, FileAttachmentPayload, FileContextBlock } from "@/types/chat";
 import {
   fetchMessages,
   insertMessage,
@@ -252,13 +252,18 @@ export function useChatSessionDB(args: {
   );
 
   const send = useCallback(
-    async (content?: string) => {
+    async (
+      content?: string,
+      options?: { attachments?: FileAttachmentPayload[] }
+    ) => {
       logger.log("\n\nsend in useChatSessionDB : ", content, "\n\n");
 
       if (!ready) return;
 
       const trimmed = content ? content.trim() : input.trim();
-      if (!trimmed) return;
+      const attachments = options?.attachments ?? [];
+      const hasAttachments = attachments.length > 0;
+      if (!trimmed && !hasAttachments) return;
       if (isStreaming) return;
 
       setError(null);
@@ -268,25 +273,46 @@ export function useChatSessionDB(args: {
       try {
         const baseDbArgs = scopeToDbArgs(scope!);
         const existingUserMsg =
-          content != null
+          content != null && !hasAttachments
             ? [...messagesRef.current]
-              .reverse()
-              .find(
-                (m) =>
-                  m.role === "user" &&
-                  ((m as any).rawContent ?? m.content ?? "") === trimmed
-              )
+                .reverse()
+                .find(
+                  (m) =>
+                    m.role === "user" &&
+                    ((m as any).rawContent ?? m.content ?? "") === trimmed
+                )
             : null;
 
         let userMsg: ChatMessage;
 
         if (!existingUserMsg) {
+          const attachmentBlocks: FileContextBlock[] = attachments.map((a) => ({
+            type: "file_context",
+            name: a.name,
+            size: a.size,
+            mime: a.mime,
+            excerpt: a.excerpt,
+            truncated: a.truncated,
+          }));
+          const attachmentUi =
+            attachmentBlocks.length > 0
+              ? attachmentBlocks
+                  .map(
+                    (block) =>
+                      `${UI_START}\n${JSON.stringify(block)}\n${UI_END}`
+                  )
+                  .join("\n")
+              : "";
+          const userContentForDb = [trimmed, attachmentUi]
+            .filter((v) => v && v.length > 0)
+            .join("\n\n");
+
           // 1) insert user message
           userMsg = await insertMessage({
             ...baseDbArgs,
             userId: userId!,
             role: "user",
-            content: trimmed,
+            content: userContentForDb,
           });
 
           if (!content) {
@@ -294,8 +320,10 @@ export function useChatSessionDB(args: {
               ...prev,
               {
                 ...userMsg,
-                rawContent: trimmed,
-                segments: [{ type: "text", content: trimmed }],
+                rawContent: userContentForDb,
+                segments: userContentForDb
+                  ? extractUiSegments(userContentForDb).segments
+                  : [],
               },
             ]);
           }
@@ -319,12 +347,20 @@ export function useChatSessionDB(args: {
         abortRef.current = controller;
 
         // ✅ 최신 messages를 기준으로 모델 대화 구성
-        const historyForModel = (
-          [...messagesRef.current]
-        ).map((m) => ({
+        const historyForModel = [...messagesRef.current].map((m) => ({
           role: m.role,
           content: (m as any).rawContent ?? m.content ?? "",
         }));
+        if (!existingUserMsg) {
+          const latestContent =
+            (userMsg as any)?.rawContent ?? userMsg.content ?? "";
+          if (latestContent) {
+            historyForModel.push({
+              role: "user",
+              content: latestContent,
+            });
+          }
+        }
 
         const res = await fetch(apiPath, {
           method: "POST",
@@ -337,6 +373,7 @@ export function useChatSessionDB(args: {
             systemPromptOverride,
             userId,
             memoryMode,
+            attachments: attachments.length > 0 ? attachments : undefined,
           }),
           signal: controller.signal,
         });

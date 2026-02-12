@@ -1,14 +1,11 @@
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
-import {
-  CandidateDetail,
-  candidateKey,
-} from "@/hooks/useCandidateDetail";
+import { CandidateDetail, candidateKey } from "@/hooks/useCandidateDetail";
 import ShareProfileModal from "@/components/Modal/ShareProfileModal";
 import { Check, Share2, Upload, XIcon } from "lucide-react";
 import Bookmarkbutton from "@/components/ui/bookmarkbutton";
 import ItemBox from "./components/ItemBox";
 import PublicationBox from "./components/PublicationBox";
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useMessages } from "@/i18n/useMessage";
 import {
   companyEnToKo,
@@ -20,18 +17,19 @@ import { useQueryClient } from "@tanstack/react-query";
 import MainProfile from "./components/MainProfile";
 import ProfileBio from "./components/ProfileBio";
 import { useLogEvent } from "@/hooks/useLog";
-import SimpleAreaModal from "@/components/Modal/SimpleAreaModal";
 import { logger } from "@/utils/logger";
 import { Loading } from "@/components/ui/loading";
+import FeedbackBanner from "./components/FeedbackBanner";
 
 export const ExperienceCal = (months: number) => {
   const years = Math.floor(months / 12);
   const remainingMonths = months % 12;
-  return `${years > 0 ? `${years}년 ` : ""}${remainingMonths}${remainingMonths > 1 ? "개월" : "개월"
-    }`;
+  return `${years > 0 ? `${years}년 ` : ""}${remainingMonths}${
+    remainingMonths > 1 ? "개월" : "개월"
+  }`;
 };
 
-export default function CandidateProfileDetailPage({
+function CandidateProfileDetailPage({
   candidId,
   data,
   isLoading,
@@ -46,8 +44,6 @@ export default function CandidateProfileDetailPage({
   const [isLoadingOneline, setIsLoadingOneline] = useState(false);
   const [oneline, setOneline] = useState<string | null>(null);
   const [isShareOpen, setIsShareOpen] = useState(false);
-  const [isLikeOpen, setIsLikeOpen] = useState(false);
-  const [isPassOpen, setIsPassOpen] = useState(false);
 
   const logEvent = useLogEvent();
   const { m } = useMessages();
@@ -56,8 +52,6 @@ export default function CandidateProfileDetailPage({
   const qc = useQueryClient();
 
   const c: any = data;
-  const isLiked = c && c.connection?.some((connection: any) => connection.typed === 4);
-  const isPassed = c && c.connection?.some((connection: any) => connection.typed === 5);
   const showAutomationFeedback =
     data?.isAutomationResult && companyUser.is_custom;
 
@@ -111,7 +105,9 @@ export default function CandidateProfileDetailPage({
       return 0;
     });
 
-    const undatedEdu = eduItems.filter((ed: any) => !parseStartDate(ed.item?.start_date));
+    const undatedEdu = eduItems.filter(
+      (ed: any) => !parseStartDate(ed.item?.start_date)
+    );
     if (undatedEdu.length === 0) return datedItems;
 
     const merged = [...datedItems];
@@ -127,9 +123,7 @@ export default function CandidateProfileDetailPage({
       }
 
       const insertAt = merged.findIndex(
-        (entry) =>
-          entry.kind === "edu" &&
-          entry.item === nextDatedEdu.item
+        (entry) => entry.kind === "edu" && entry.item === nextDatedEdu.item
       );
 
       if (insertAt === -1) {
@@ -192,15 +186,30 @@ export default function CandidateProfileDetailPage({
 
   return (
     <div className="w-full mx-auto overflow-y-auto h-screen relative">
-      <div className="w-[95%] max-w-[1080px] mx-auto px-4 py-10 space-y-10">
+      {showAutomationFeedback && (
+        <FeedbackBanner
+          name={c.name}
+          connection={c.connection}
+          candidId={candidId}
+          userId={userId}
+          qc={qc}
+        />
+      )}
+      <div className="relative w-[95%] max-w-[1080px] mx-auto px-4 py-10 space-y-10">
         <div className="flex flex-row items-start justify-between w-full">
-          <MainProfile profile_picture={c.profile_picture} name={c.name} headline={c.headline} location={c.location} links={links} />
+          <MainProfile
+            profile_picture={c.profile_picture}
+            name={c.name}
+            headline={c.headline}
+            location={c.location}
+            links={links}
+          />
           <div className="absolute top-2 right-2 font-normal flex flex-col gap-1 ">
             <div className="flex flex-row items-end justify-end gap-2">
               <button
                 onClick={() => {
                   logEvent("open share: " + candidId);
-                  setIsShareOpen(true)
+                  setIsShareOpen(true);
                 }}
                 className="inline-flex items-center gap-2 rounded-xl px-2 py-2 text-sm hover:bg-hgray900/5"
               >
@@ -212,62 +221,6 @@ export default function CandidateProfileDetailPage({
                 connection={c.connection}
               />
             </div>
-            {
-              showAutomationFeedback && (
-                <div className="flex flex-row items-end justify-end gap-2 mt-1">
-                  <button
-                    onClick={() => {
-                      setIsLikeOpen(true)
-                    }}
-                    className={`inline-flex items-center gap-2 rounded-xl px-2 py-2 pr-3 text-sm hover:bg-opacity-90 ${isLiked ? "bg-green-500/10" : ""}`}
-                  >
-                    <Check className="w-4 h-4 text-green-500" />{isLiked ? "등록됨" : "관심있어요"}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setIsPassOpen(true)
-                    }}
-                    className={`inline-flex items-center gap-2 rounded-xl px-2 py-2 pr-3 text-sm hover:bg-opacity-90 ${isPassed ? "bg-red-500/10" : ""}`}
-                  >
-                    <XIcon
-                      className="w-4 h-4 text-red-500"
-                    />
-                    {isPassed ? "등록됨" : "아쉬워요"}
-                  </button>
-                  <SimpleAreaModal
-                    open={isLikeOpen}
-                    candidId={candidId}
-                    name={c.name}
-                    onClose={() => setIsLikeOpen(false)}
-                    title={isLiked ? "선호 후보자로 등록되어 있습니다." : "선호 후보자로 등록합니다."}
-                    placeholder="여기에 선호 이유 혹은 원하는 다음 과정을 짧게 적어주세요. (ex. 커피챗 잡고 싶습니다.)"
-                    // placeholder="여기에 키워드나 이유를 짧게 적어주세요. 더 완벽한 분을 찾아오겠습니다!"
-                    onConfirm={async () => {
-                      await qc.invalidateQueries({
-                        queryKey: candidateKey(candidId, userId), // 너 useCandidateDetail의 키랑 반드시 동일해야 함
-                      });
-                      setIsLikeOpen(false);
-                    }}
-                    isLike={true}
-                  />
-                  <SimpleAreaModal
-                    open={isPassOpen}
-                    candidId={candidId}
-                    name={c.name}
-                    onClose={() => setIsPassOpen(false)}
-                    title="추천 결과가 아쉬우셨나요?"
-                    placeholder="예: 기술 스택 불일치, 연차가 너무 높음... (빈칸으로 제출하실 수 있습니다.)"
-                    onConfirm={async () => {
-                      await qc.invalidateQueries({
-                        queryKey: candidateKey(candidId, userId), // 너 useCandidateDetail의 키랑 반드시 동일해야 함
-                      });
-                      setIsPassOpen(false);
-                    }}
-                    isLike={false}
-                  />
-                </div>
-              )
-            }
           </div>
 
           <ShareProfileModal
@@ -277,7 +230,14 @@ export default function CandidateProfileDetailPage({
           />
         </div>
 
-        <ProfileBio summary={c.s ?? []} bio={c.bio ?? ""} name={c.name ?? ""} oneline={oneline ?? ""} isLoadingOneline={isLoadingOneline ?? false} links={links} />
+        <ProfileBio
+          summary={c.s ?? []}
+          bio={c.bio ?? ""}
+          name={c.name ?? ""}
+          oneline={oneline ?? ""}
+          isLoadingOneline={isLoadingOneline ?? false}
+          links={links}
+        />
 
         {/* Experiences */}
         <Box title={`${m.data.experience}`}>
@@ -291,7 +251,8 @@ export default function CandidateProfileDetailPage({
                     isContinued={
                       idx > 0 &&
                       mergedExperience[idx - 1]?.kind === "exp" &&
-                      mergedExperience[idx - 1]?.item?.company_db?.name === e.company_db?.name
+                      mergedExperience[idx - 1]?.item?.company_db?.name ===
+                        e.company_db?.name
                     }
                     title={e.role}
                     company_id={e.company_id}
@@ -330,51 +291,50 @@ export default function CandidateProfileDetailPage({
         </Box>
 
         {/* Awards */}
-        {
-          (c.extra_experience ?? []).length > 0 && (
-            <Box title={`수상 기록`}>
-              <div className="space-y-0">
-                {(c.extra_experience ?? []).map((extra: any, idx: number) => (
-                  <ItemBox
-                    key={idx}
-                    title={`${extra.title}`}
-                    name={
-                      extra.issued_by
-                    }
-                    start_date={extra.issued_at}
-                    end_date={""}
-                    link={''}
-                    description={extra.description}
-                    typed="award"
-                    isLast={idx === (c.extra_experience ?? []).length - 1 ? true : false}
-                  />
-                ))}
-              </div>
-            </Box>)
-        }
+        {(c.extra_experience ?? []).length > 0 && (
+          <Box title={`수상 기록`}>
+            <div className="space-y-0">
+              {(c.extra_experience ?? []).map((extra: any, idx: number) => (
+                <ItemBox
+                  key={idx}
+                  title={`${extra.title}`}
+                  name={extra.issued_by}
+                  start_date={extra.issued_at}
+                  end_date={""}
+                  link={""}
+                  description={extra.description}
+                  typed="award"
+                  isLast={
+                    idx === (c.extra_experience ?? []).length - 1 ? true : false
+                  }
+                />
+              ))}
+            </div>
+          </Box>
+        )}
 
         {/* Publications */}
-        {
-          c.publications && c.publications.length > 0 && (
-            <Box title={`${m.data.publications} (${c.publications.length})`}>
-              <div className="grid grid-cols-1 md:grid-cols-1 gap-3">
-                {(c.publications ?? []).map((p: any, idx: number) => (
-                  <PublicationBox
-                    key={idx}
-                    title={p.title}
-                    published_at={p.published_at}
-                    link={p.link}
-                    citation_num={p.citation_num ?? -1}
-                  />
-                ))}
-              </div>
-            </Box>
-          )
-        }
+        {c.publications && c.publications.length > 0 && (
+          <Box title={`${m.data.publications} (${c.publications.length})`}>
+            <div className="grid grid-cols-1 md:grid-cols-1 gap-3">
+              {(c.publications ?? []).map((p: any, idx: number) => (
+                <PublicationBox
+                  key={idx}
+                  title={p.title}
+                  published_at={p.published_at}
+                  link={p.link}
+                  citation_num={p.citation_num ?? -1}
+                />
+              ))}
+            </div>
+          </Box>
+        )}
       </div>
     </div>
   );
 }
+
+export default React.memo(CandidateProfileDetailPage);
 
 export const Box = ({
   title,

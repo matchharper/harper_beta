@@ -12,12 +12,16 @@ import { notifyToSlack } from "@/lib/slack";
 import PricingSection from "@/components/payment/PricingSection";
 import ConfirmModal from "@/components/Modal/ConfirmModal";
 import { useLogEvent } from "@/hooks/useLog";
-import { QuestionAnswer } from "..";
+import QuestionAnswer from "@/components/landing/Questions";
 
-const PRO_MONTHLY_CHECKOUT_URL = "https://matchharper.lemonsqueezy.com/checkout/buy/ea41e57e-6dc1-4ddd-8b7f-f5636bc35ec5";
-const PRO_YEARLY_CHECKOUT_URL = "https://matchharper.lemonsqueezy.com/checkout/buy/c2397869-0c46-477d-9315-7cbb03c2d464"
-const MAX_MONTHLY_CHECKOUT_URL = "https://matchharper.lemonsqueezy.com/checkout/buy/0526b657-757f-45bb-bc9f-4466a6ec360f";
-const MAX_YEARLY_CHECKOUT_URL = "https://matchharper.lemonsqueezy.com/checkout/buy/5f88e60e-f43f-4699-b4a1-3a71fe90b13d";
+const PRO_MONTHLY_CHECKOUT_URL =
+  "https://matchharper.lemonsqueezy.com/checkout/buy/ea41e57e-6dc1-4ddd-8b7f-f5636bc35ec5";
+const PRO_YEARLY_CHECKOUT_URL =
+  "https://matchharper.lemonsqueezy.com/checkout/buy/c2397869-0c46-477d-9315-7cbb03c2d464";
+const MAX_MONTHLY_CHECKOUT_URL =
+  "https://matchharper.lemonsqueezy.com/checkout/buy/0526b657-757f-45bb-bc9f-4466a6ec360f";
+const MAX_YEARLY_CHECKOUT_URL =
+  "https://matchharper.lemonsqueezy.com/checkout/buy/5f88e60e-f43f-4699-b4a1-3a71fe90b13d";
 const CONTACT_EMAIL = "chris@asksonus.com";
 
 type BillingPeriod = "monthly" | "yearly";
@@ -45,7 +49,9 @@ function inferBillingPeriod(args: {
   start?: string | null;
   end?: string | null;
 }): BillingPeriod | null {
-  const hay = normalizePlanValue(`${args.planLabel ?? ""} ${args.planId ?? ""}`);
+  const hay = normalizePlanValue(
+    `${args.planLabel ?? ""} ${args.planId ?? ""}`
+  );
 
   if (
     hay.includes("year") ||
@@ -84,7 +90,9 @@ function inferPlanKey(args: {
   planId?: string | null;
   pricing: typeof import("@/lang/ko").ko.companyLanding.pricing;
 }) {
-  const hay = normalizePlanValue(`${args.planLabel ?? ""} ${args.planId ?? ""}`);
+  const hay = normalizePlanValue(
+    `${args.planLabel ?? ""} ${args.planId ?? ""}`
+  );
 
   if (hay.includes("free") || hay.includes("프리")) return "free";
   const candidates = [
@@ -105,8 +113,9 @@ function inferPlanKey(args: {
 const Billing = () => {
   const { credits } = useCredits();
   const { companyUser } = useCompanyUserStore();
-  const { refetch: refetchCreditRequestHistory } =
-    useCreditRequestHistory(companyUser?.user_id);
+  const { refetch: refetchCreditRequestHistory } = useCreditRequestHistory(
+    companyUser?.user_id
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [isSubscriptionLoading, setIsSubscriptionLoading] = useState(false);
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(
@@ -114,10 +123,8 @@ const Billing = () => {
   );
   const [isCanceling, setIsCanceling] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
-  const [isPlanChangeBlockedOpen, setIsPlanChangeBlockedOpen] =
-    useState(false);
-  const [isPlanChangeConfirmOpen, setIsPlanChangeConfirmOpen] =
-    useState(false);
+  const [isPlanChangeBlockedOpen, setIsPlanChangeBlockedOpen] = useState(false);
+  const [isPlanChangeConfirmOpen, setIsPlanChangeConfirmOpen] = useState(false);
   const [pendingPlanChange, setPendingPlanChange] = useState<{
     planName: string;
     billing: "monthly" | "yearly";
@@ -129,10 +136,10 @@ const Billing = () => {
     subscription?.planKey ??
     (subscription
       ? inferPlanKey({
-        planLabel: subscription.planName,
-        planId: subscription.planId,
-        pricing: m.companyLanding.pricing as any,
-      })
+          planLabel: subscription.planName,
+          planId: subscription.planId,
+          pricing: m.companyLanding.pricing as any,
+        })
       : null);
   const currentBilling = subscription?.billing ?? null;
   const subscriptionPlanLabel =
@@ -151,10 +158,15 @@ const Billing = () => {
     ? dateToFormatLong(subscription.currentPeriodEnd)
     : "";
 
-  const startCheckout = async (planName: string, billing: "monthly" | "yearly") => {
+  const startCheckout = async (
+    planName: string,
+    billing: "monthly" | "yearly"
+  ) => {
     const proName = m.companyLanding.pricing.plans.pro.name;
     const maxName = m.companyLanding.pricing.plans.max.name;
-    logEvent(`enter_billing_checkout, planName: ${planName}, billing: ${billing}`);
+    logEvent(
+      `enter_billing_checkout, planName: ${planName}, billing: ${billing}`
+    );
 
     if (!companyUser?.user_id) {
       showToast({
@@ -260,7 +272,9 @@ const Billing = () => {
       }
 
       const planName =
-        (activePayment as any)?.plans?.display_name ?? (activePayment as any)?.plans?.name ?? null;
+        (activePayment as any)?.plans?.display_name ??
+        (activePayment as any)?.plans?.name ??
+        null;
       const cycle = (activePayment as any)?.plans?.cycle ?? null;
       const billing =
         cycle === 1
@@ -268,11 +282,11 @@ const Billing = () => {
           : cycle === 0
             ? "monthly"
             : inferBillingPeriod({
-              planLabel: planName,
-              planId: activePayment.plan_id ?? null,
-              start: activePayment.current_period_start ?? null,
-              end: activePayment.current_period_end ?? null,
-            });
+                planLabel: planName,
+                planId: activePayment.plan_id ?? null,
+                start: activePayment.current_period_start ?? null,
+                end: activePayment.current_period_end ?? null,
+              });
       const planKey = inferPlanKey({
         planLabel: planName,
         planId: activePayment.plan_id ?? null,
@@ -458,11 +472,15 @@ const Billing = () => {
                 구독 정보를 불러오는 중...
               </div>
             ) : subscription ? (
-              <div className='flex flex-row items-start justify-between'>
+              <div className="flex flex-row items-start justify-between">
                 <div className="flex flex-col gap-2 text-sm w-[30%]">
-                  <div className="text-sm text-hgray900 font-normal">구독 상태</div>
+                  <div className="text-sm text-hgray900 font-normal">
+                    구독 상태
+                  </div>
                   <div className="text-hgray900">
-                    <span className="text-white text-xl font-medium">{subscriptionPlanLabel}</span>
+                    <span className="text-white text-xl font-medium">
+                      {subscriptionPlanLabel}
+                    </span>
                     <span className="text-hgray700">
                       {" "}
                       · {subscriptionBillingLabel}
@@ -483,10 +501,7 @@ const Billing = () => {
                     <span className="text-accenta1">
                       {credits?.remain_credit}
                     </span>
-                    <span className="">
-                      {" "}
-                      / {credits?.charged_credit}
-                    </span>
+                    <span className=""> / {credits?.charged_credit}</span>
                   </div>
                   <div className="mt-2 w-full flex relative rounded-xl h-2 bg-accenta1/20">
                     <div
@@ -495,7 +510,7 @@ const Billing = () => {
                         width: `${Math.min(
                           ((credits?.remain_credit ?? 0) /
                             (credits?.charged_credit ?? 1)) *
-                          100,
+                            100,
                           100
                         )}%`,
                       }}
@@ -532,14 +547,37 @@ const Billing = () => {
           }}
         />
 
-        {/* <div>
+        <div>
+          <div className="font-hedvig text-lg mt-20">결제 및 구독 FAQ</div>
+          <br />
           <QuestionAnswer
             key={"item.question"}
-            question={"이거 사기 아니죠?"}
-            answer={"당연하죠"}
+            question={"크레딧은 언제 차감되나요?"}
+            answer={
+              "검색이 실제로 실행될 때만 1회 차감됩니다. 실패한 검색이나 중단된 요청에는 크레딧이 차감되지 않습니다."
+            }
             index={0}
+            variant="small"
           />
-        </div> */}
+          <QuestionAnswer
+            key={"item.question2"}
+            question={"크레딧은 매달 초기화되나요?"}
+            answer={
+              "네. 구독 갱신 시 크레딧은 새로 지급되며 이월되지는 않습니다."
+            }
+            index={1}
+            variant="small"
+          />
+          <QuestionAnswer
+            key={"item.question3"}
+            question={"주기 중간에 플랜을 변경하면 어떻게 되나요?"}
+            answer={
+              "플랜 변경은 즉시 적용되며, 결제 주기가 갱신되고, 새로운 플랜의 크레딧이 지급됩니다. 기존의 크레딧은 초기화되니 주의해주세요. 문의 사항이 있다면 알려주세요."
+            }
+            index={3}
+            variant="small"
+          />
+        </div>
 
         <div className="mt-20 px-2 flex flex-row items-center justify-between">
           <button
@@ -550,9 +588,9 @@ const Billing = () => {
           >
             {isCanceling ? "취소 중..." : "구독 취소"}
           </button>
-          <button
-            className="text-sm text-white/50 hover:text-white/70 transition-colors"
-          >환불 정책</button>
+          <button className="text-sm text-white/50 hover:text-white/70 transition-colors">
+            환불 정책
+          </button>
         </div>
       </div>
     </AppLayout>

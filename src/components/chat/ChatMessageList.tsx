@@ -10,6 +10,8 @@ import type {
   ChatMessage,
   CriteriaCardBlock,
   ToolStatusBlock,
+  ToolResultBlock,
+  FileContextBlock,
 } from "@/types/chat";
 import {
   Bolt,
@@ -17,6 +19,7 @@ import {
   FileSpreadsheet,
   Loader2,
   Plus,
+  Paperclip,
 } from "lucide-react";
 import { logger } from "@/utils/logger";
 import { useRouter } from "next/router";
@@ -101,9 +104,10 @@ export const CriteriaItem = ({
         if (!isEditing) setIsEditing(true);
       }}
       className={`relative flex items-center gap-2 rounded-2xl text-[13px] font-light px-3 pt-2 group cursor-pointer hover:bg-white/5 transition-all duration-200
-        ${isEditing
-          ? "border border-white/5 bg-white/5 pb-4"
-          : "border border-white/0 pb-2"
+        ${
+          isEditing
+            ? "border border-white/5 bg-white/5 pb-4"
+            : "border border-white/0 pb-2"
         }
         `}
     >
@@ -149,14 +153,14 @@ export const CriteriaItem = ({
             }}
             className={`absolute bottom-1 right-2 text-xs opacity-100 transition-all duration-200
               ${
-              // ✅ Add-mode should be enabled when there's text
-              autoRemoveIfEmpty
-                ? draft.trim()
-                  ? "text-accenta1"
-                  : "text-hgray600"
-                : isChanged
-                  ? "text-accenta1"
-                  : "text-hgray600"
+                // ✅ Add-mode should be enabled when there's text
+                autoRemoveIfEmpty
+                  ? draft.trim()
+                    ? "text-accenta1"
+                    : "text-hgray600"
+                  : isChanged
+                    ? "text-accenta1"
+                    : "text-hgray600"
               }
               `}
           >
@@ -283,8 +287,9 @@ function CriteriaCard({
 
         <button
           type="button"
-          className={`mt-4 w-full rounded-full bg-accenta1 text-black py-2.5 text-sm hover:opacity-90 disabled:opacity-50 ${disabled ? "cursor-not-allowed" : "cursor-pointer"
-            }`}
+          className={`mt-4 w-full rounded-full bg-accenta1 text-black py-2.5 text-sm hover:opacity-90 disabled:opacity-50 ${
+            disabled ? "cursor-not-allowed" : "cursor-pointer"
+          }`}
           disabled={disabled}
           // disabled={!draft.ready || disabled}
           onClick={() => onConfirm?.(draft)}
@@ -357,13 +362,108 @@ const ToolStatusToggle = ({ items }: { items: ToolStatusBlock[] }) => {
       >
         <Check size={12} />
         검색 완료
-        <span className="text-hgray600 group-hover:text-hgray900 transition-all duration-200">{open ? "접기" : "보기"}</span>
+        <span className="text-hgray600 group-hover:text-hgray900 transition-all duration-200">
+          {open ? "접기" : "보기"}
+        </span>
       </button>
       {open && (
         <div className="mt-2 flex flex-col gap-2">
           {items.map((s, idx) => (
             <ToolStatusCard key={`${s.id ?? s.name ?? "tool"}-${idx}`} {...s} />
           ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const formatBytes = (bytes?: number) => {
+  if (!bytes || Number.isNaN(bytes)) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${kb.toFixed(1)} KB`;
+  const mb = kb / 1024;
+  return `${mb.toFixed(1)} MB`;
+};
+
+const DocumentCard = ({
+  title,
+  url,
+  excerpt,
+  label,
+}: {
+  title?: string;
+  url?: string;
+  excerpt?: string;
+  label: string;
+}) => {
+  const [expanded, setExpanded] = useState(false);
+  const displayText = excerpt ?? "";
+  const hasText = displayText.trim().length > 0;
+
+  return (
+    <div className="mt-2 mb-4 rounded-2xl border border-white/10 bg-white/5 px-4 pb-3 pt-2">
+      {(title || url) && (
+        <div className="mt-2 flex flex-col gap-1">
+          {title && (
+            <div className="text-sm text-hgray900 font-medium">{title}</div>
+          )}
+        </div>
+      )}
+      <div className="text-xs text-hgray600 flex items-center">
+        {url && <LinkChip raw={url} size="md" />}
+      </div>
+      {hasText && (
+        <div className="mt-4 text-xs text-hgray700 whitespace-pre-wrap">
+          {expanded ? displayText : displayText.slice(0, 360)}
+          {displayText.length > 360 && (
+            <>
+              {!expanded && "…"}
+              <button
+                type="button"
+                onClick={() => setExpanded((v) => !v)}
+                className="ml-2 text-xs text-hgray600 hover:text-hgray900"
+              >
+                {expanded ? "접기" : "더보기"}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const FileContextCard = ({ block }: { block: FileContextBlock }) => {
+  const [expanded, setExpanded] = useState(false);
+  const excerpt = block.excerpt ?? "";
+  const hasExcerpt = excerpt.trim().length > 0;
+
+  return (
+    <div className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+      <div className="text-xs text-hgray600 flex items-center gap-1.5">
+        <Paperclip className="w-3 h-3" />
+        첨부 파일
+      </div>
+      <div className="mt-2 text-sm text-hgray900 font-medium">{block.name}</div>
+      <div className="text-[11px] text-hgray600">
+        {[block.mime, formatBytes(block.size)].filter(Boolean).join(" · ")}
+      </div>
+      {hasExcerpt && (
+        <div className="mt-2 text-xs text-hgray700 whitespace-pre-wrap">
+          {expanded ? excerpt : excerpt.slice(0, 360)}
+          {excerpt.length > 360 && (
+            <>
+              {!expanded && "…"}
+              <button
+                type="button"
+                onClick={() => setExpanded((v) => !v)}
+                className="ml-2 text-xs text-hgray600 hover:text-hgray900"
+              >
+                {expanded ? "접기" : "더보기"}
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -427,8 +527,9 @@ const SearchStartCard = ({
           { shallow: true, scroll: false }
         );
       }}
-      className={`w-full relative rounded-md overflow-hidden transition-all duration-200 ${canOpen ? "cursor-pointer hover:bg-white/5" : "cursor-default"
-        }`}
+      className={`w-full relative rounded-md overflow-hidden transition-all duration-200 ${
+        canOpen ? "cursor-pointer hover:bg-white/5" : "cursor-default"
+      }`}
     >
       <div className="text-[13px] text-hgray900 font-normal flex flex-row items-center gap-2">
         {isDone ? (
@@ -492,7 +593,8 @@ export default function ChatMessageList({
 
         if (m.role === "assistant" && s.type === "text") {
           const text = (s.content ?? "").trim();
-          const isDoneText = text.startsWith("[완료]") || text.startsWith("전체");
+          const isDoneText =
+            text.startsWith("[완료]") || text.startsWith("전체");
 
           if (isDoneText && lastSearchStartMessageId != null) {
             doneSet.add(lastSearchStartMessageId);
@@ -521,27 +623,31 @@ export default function ChatMessageList({
         const segments = m.segments ?? [];
         const toolSegments = segments
           .filter(
-            (s) => s.type === "block" && (s as any).content?.type === "tool_status"
+            (s) =>
+              s.type === "block" && (s as any).content?.type === "tool_status"
           )
           .map((s) => (s as any).content as ToolStatusBlock);
         const hasMainContent = segments.some(
-          (s) => !(s.type === "block" && (s as any).content?.type === "tool_status")
+          (s) =>
+            !(s.type === "block" && (s as any).content?.type === "tool_status")
         );
         const showToolToggle = toolSegments.length > 0 && hasMainContent;
         const segmentsToRender = showToolToggle
           ? segments.filter(
-            (s) =>
-              !(
-                s.type === "block" && (s as any).content?.type === "tool_status"
-              )
-          )
+              (s) =>
+                !(
+                  s.type === "block" &&
+                  (s as any).content?.type === "tool_status"
+                )
+            )
           : segments;
 
         return (
           <div className="flex flex-col gap-1" key={`${m.role}-${idx}`}>
             <div
-              className={`text-xs text-ngray600 ${isUser ? "text-right" : "text-left"
-                }`}
+              className={`text-xs text-ngray600 ${
+                isUser ? "text-right" : "text-left"
+              }`}
             >
               {isUser ? (
                 "me"
@@ -573,7 +679,14 @@ export default function ChatMessageList({
                         key={`text-${idx}-${si}`}
                         className="whitespace-pre-wrap break-words"
                       >
-                        <div dangerouslySetInnerHTML={{ __html: s.content.replace(/<br\s*\/?>/g, "\n").replace(/\*\*/g, "").replace(/#/g, "") }}></div>
+                        <div
+                          dangerouslySetInnerHTML={{
+                            __html: s.content
+                              .replace(/<br\s*\/?>/g, "\n")
+                              .replace(/\*\*/g, "")
+                              .replace(/#/g, ""),
+                          }}
+                        ></div>
                         {/* {s.content.replace(/<br\s*\/?>/g, "\n")} */}
 
                         {!isUser &&
@@ -590,7 +703,11 @@ export default function ChatMessageList({
                   if (s.type === "block") {
                     if (s.content.type === "link") {
                       return (
-                        <LinkChip raw={s.content.href} size="md" key={`block-${idx}-${si}`} />
+                        <LinkChip
+                          raw={s.content.href}
+                          size="md"
+                          key={`block-${idx}-${si}`}
+                        />
                       );
                     }
                     if (s.content.type === "criteria_card") {
@@ -609,7 +726,6 @@ export default function ChatMessageList({
                             onConfirmCriteriaCard?.(Number(m.id))
                           }
                           disabled={false}
-                        // disabled={idx < lastBlockMessageIdx}
                         />
                       );
                     }
@@ -621,6 +737,27 @@ export default function ChatMessageList({
                         <ToolStatusCard
                           key={`block-${idx}-${si}`}
                           {...(s.content as ToolStatusBlock)}
+                        />
+                      );
+                    }
+                    if (s.content.type === "tool_result") {
+                      const block = s.content as ToolResultBlock;
+
+                      return (
+                        <DocumentCard
+                          key={`block-${idx}-${si}`}
+                          title={block.title}
+                          url={block.url}
+                          excerpt={block.excerpt}
+                          label="읽어온 웹사이트"
+                        />
+                      );
+                    }
+                    if (s.content.type === "file_context") {
+                      return (
+                        <FileContextCard
+                          key={`block-${idx}-${si}`}
+                          block={s.content as FileContextBlock}
                         />
                       );
                     }
@@ -636,8 +773,7 @@ export default function ChatMessageList({
                     if (s.content.type === "search_start") {
                       const runId = s.content.run_id as string | undefined;
                       const isDone =
-                        m.id != null &&
-                        doneBySearchStartMessageId.has(m.id);
+                        m.id != null && doneBySearchStartMessageId.has(m.id);
 
                       return (
                         <SearchStartCard
