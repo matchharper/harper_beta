@@ -46,14 +46,11 @@ const AppLayout = ({
   const params = useParams();
 
   useEffect(() => {
-    console.log("loading", authLoading, loading, initialized, companyUser);
-    // Wait for auth to resolve first.
     if (authLoading) return;
     if (!user) {
       router.replace("/companies");
       return;
     }
-    // Wait until the company user load has completed at least once.
     if (!initialized || loading) return;
     if (!companyUser || !companyUser.is_authenticated) {
       router.replace("/companies");

@@ -354,7 +354,7 @@ export const ko = {
   },
   scout: {
     title: "Harper Scout",
-    addAgent: "+ 에이전트 추가",
+    addAgent: "에이전트 추가",
     intro:
       "Harper가 Agent로서 필요한 인재 역량, 팀 문화 등을 바탕으로 매일 후보자를 찾아 추천합니다.\n각 Agent당 매일 1~2명이 추천되며, 각 후보자당 1 크레딧이 소모됩니다.",
     emptyTag: "Harper Scout 시작하기",
@@ -374,8 +374,9 @@ export const ko = {
     statusStopped: "진행 정지",
     createdAt: "생성:",
     updatedAt: "최근 업데이트:",
-    edit: "내용 수정",
+    edit: "수정하기",
     loadingList: "불러오는 중...",
+    resultCountLabel: "추천된 후보 {count}명",
     limitMessage: "자동화는 한번에 최대 2개까지 진행 가능합니다.",
     checkAutomationFail: "자동화 상태를 확인하지 못했습니다.",
     itemFallbackTitle: "Scout",
