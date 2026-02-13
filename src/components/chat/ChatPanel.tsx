@@ -8,8 +8,19 @@ import React, {
 } from "react";
 import ChatMessageList from "@/components/chat/ChatMessageList";
 import ChatComposer from "@/components/chat/ChatComposer";
-import { UI_END, UI_START, useChatSessionDB } from "@/hooks/chat/useChatSession";
-import { ArrowDown, ArrowLeft, Loader2, ScreenShareIcon, Settings, XIcon } from "lucide-react";
+import {
+  UI_END,
+  UI_START,
+  useChatSessionDB,
+} from "@/hooks/chat/useChatSession";
+import {
+  ArrowDown,
+  ArrowLeft,
+  Loader2,
+  ScreenShareIcon,
+  Settings,
+  XIcon,
+} from "lucide-react";
 import { logger } from "@/utils/logger";
 import { useRouter } from "next/router";
 import { CandidateDetail } from "@/hooks/useCandidateDetail";
@@ -23,6 +34,7 @@ import { supabase } from "@/lib/supabase";
 import { showToast } from "../toast/toast";
 import { usePlanStore } from "@/store/usePlanStore";
 import { StatusEnum } from "@/types/type";
+import type { FileAttachmentPayload } from "@/types/chat";
 
 export type ChatScope =
   | { type: "query"; queryId: string }
@@ -67,6 +79,8 @@ export default function ChatPanel({
   const [showJumpToBottom, setShowJumpToBottom] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNoCreditModalOpen, setIsNoCreditModalOpen] = useState(false);
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [isReadingFile, setIsReadingFile] = useState(false);
 
   const { credits } = useCredits();
   const { planKey, load: loadPlan } = usePlanStore();
@@ -83,13 +97,63 @@ export default function ChatPanel({
     memoryMode,
   });
   const autoStartedRef = useRef(false);
-  const { settings, isLoading: isSettingsLoading, saveSettings, isSaving } = useSettings(userId);
+  const {
+    settings,
+    isLoading: isSettingsLoading,
+    saveSettings,
+    isSaving,
+  } = useSettings(userId);
 
   const isQueryScope = scope?.type === "query";
 
+  const allowAttachments = memoryMode === "automation";
+  const MAX_FILE_BYTES = 10 * 1024 * 1024;
+
+  const normalizeText = useCallback((text: string) => {
+    return text
+      .replace(/\r/g, "")
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }, []);
+
+  const readFileContent = useCallback(
+    async (file: File): Promise<{ text: string; truncated: boolean }> => {
+      const MAX_CHARS = 12000;
+      let text = "";
+
+      if (
+        file.type === "application/pdf" ||
+        file.name.toLowerCase().endsWith(".pdf")
+      ) {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch("/api/pdf", { method: "POST", body: formData });
+        if (!res.ok) {
+          throw new Error("PDF read failed");
+        }
+        const data = await res.json();
+        text = String(data?.text ?? "");
+      } else {
+        text = await file.text();
+      }
+
+      const normalized = normalizeText(text);
+      if (!normalized) {
+        throw new Error("Empty file content");
+      }
+      const truncated = normalized.length > MAX_CHARS;
+      return {
+        text: truncated ? normalized.slice(0, MAX_CHARS) : normalized,
+        truncated,
+      };
+    },
+    [normalizeText]
+  );
+
   useEffect(() => {
     if (!finishedTick) return;
-    logger.log("\n\n FINISHED!! in ChatPanel \n\n")
+    logger.log("\n\n FINISHED!! in ChatPanel \n\n");
     setTimeout(() => {
       void chat.loadHistory();
     }, 1000);
@@ -149,7 +213,9 @@ export default function ChatPanel({
 
   const scopeKey = useMemo(() => {
     if (!scope) return null;
-    return scope.type === "query" ? `q:${scope.queryId}` : `c:${scope.candidId}`;
+    return scope.type === "query"
+      ? `q:${scope.queryId}`
+      : `c:${scope.candidId}`;
   }, [scope]);
 
   useEffect(() => {
@@ -165,7 +231,6 @@ export default function ChatPanel({
 
     void chat.loadHistory();
   }, [chat.ready, scopeKey, chat.loadHistory, chat.isStreaming]);
-
 
   // ✅ attach scroll listener
   useEffect(() => {
@@ -239,7 +304,19 @@ export default function ChatPanel({
       .from("runs")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
-      .in("status", [StatusEnum.DONE, StatusEnum.RUNNING, StatusEnum.PARTIAL, StatusEnum.FOUND, StatusEnum.STARTING, StatusEnum.QUEUED, StatusEnum.RERANKING_STREAMING, StatusEnum.PARSING, StatusEnum.REFINE, StatusEnum.EXPANDING, StatusEnum.RERANKING])
+      .in("status", [
+        StatusEnum.DONE,
+        StatusEnum.RUNNING,
+        StatusEnum.PARTIAL,
+        StatusEnum.FOUND,
+        StatusEnum.STARTING,
+        StatusEnum.QUEUED,
+        StatusEnum.RERANKING_STREAMING,
+        StatusEnum.PARSING,
+        StatusEnum.REFINE,
+        StatusEnum.EXPANDING,
+        StatusEnum.RERANKING,
+      ])
       .gte("created_at", threeMinAgo);
 
     console.log("count", count);
@@ -261,7 +338,8 @@ export default function ChatPanel({
       return;
     }
 
-    const searchStartText = "검색을 시작하겠습니다. 최대 1~3분이 소요될 수 있습니다.";
+    const searchStartText =
+      "검색을 시작하겠습니다. 최대 1~3분이 소요될 수 있습니다.";
     const searchStartBlock = {
       type: "search_start",
       text: searchStartText,
@@ -285,6 +363,60 @@ export default function ChatPanel({
       setIsSearchSyncing(false);
     }
   };
+
+  const handleSend = useCallback(async () => {
+    if (isReadingFile) return;
+
+    let attachments: FileAttachmentPayload[] | undefined;
+
+    if (allowAttachments && attachedFile) {
+      setIsReadingFile(true);
+      try {
+        const { text, truncated } = await readFileContent(attachedFile);
+        const excerpt = text.slice(0, 600);
+        attachments = [
+          {
+            name: attachedFile.name,
+            size: attachedFile.size,
+            mime: attachedFile.type,
+            text,
+            excerpt,
+            truncated,
+          },
+        ];
+        setAttachedFile(null);
+      } catch (error) {
+        showToast({
+          message: "파일을 읽지 못했습니다. 다시 시도해주세요.",
+          variant: "white",
+        });
+        setIsReadingFile(false);
+        return;
+      } finally {
+        setIsReadingFile(false);
+      }
+    }
+
+    void chat.send(undefined, { attachments });
+  }, [allowAttachments, attachedFile, chat, isReadingFile, readFileContent]);
+
+  const handleAttach = useCallback(
+    (file: File | null) => {
+      if (!file) {
+        setAttachedFile(null);
+        return;
+      }
+      if (file.size > MAX_FILE_BYTES) {
+        showToast({
+          message: "파일 용량이 너무 큽니다. 10MB 이하로 업로드해주세요.",
+          variant: "white",
+        });
+        return;
+      }
+      setAttachedFile(file);
+    },
+    [MAX_FILE_BYTES]
+  );
 
   return (
     <div className="w-full flex flex-col min-h-0 h-screen">
@@ -311,42 +443,36 @@ export default function ChatPanel({
           <div
             className="p-1 cursor-pointer"
             onClick={() => setIsSettingsOpen(true)}
-          >
-          </div>
-          {
-            !systemPromptOverride && <>
-
-              {
-                isChatFull ? (
-                  <div
-                    className="p-1 cursor-pointer"
-                    onClick={() => setIsChatFull?.(false)}>
-                    <XIcon
-                      className="w-3.5 h-3.5"
-                      strokeWidth={1.4}
-                    />
-                  </div>
-                ) : (
-                  <div className="p-1 cursor-pointer"
-                    onClick={() => setIsChatFull?.(true)}>
-                    <ScreenShareIcon
-                      className="w-3.5 h-3.5"
-                      strokeWidth={1.4}
-                    />
-                  </div>
-                )
-              }</>
-          }
+          ></div>
+          {!systemPromptOverride && (
+            <>
+              {isChatFull ? (
+                <div
+                  className="p-1 cursor-pointer"
+                  onClick={() => setIsChatFull?.(false)}
+                >
+                  <XIcon className="w-3.5 h-3.5" strokeWidth={1.4} />
+                </div>
+              ) : (
+                <div
+                  className="p-1 cursor-pointer"
+                  onClick={() => setIsChatFull?.(true)}
+                >
+                  <ScreenShareIcon className="w-3.5 h-3.5" strokeWidth={1.4} />
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
-      {
-        systemPromptOverride && <br />
-      }
+      {systemPromptOverride && <br />}
 
       {/* Messages (scroll only here) */}
       <div className="flex-1 min-h-0 relative">
-        <div ref={scrollRef}
-          className="h-full overflow-y-auto px-4 pt-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent hover:scrollbar-thumb-white/20">
+        <div
+          ref={scrollRef}
+          className="h-full overflow-y-auto px-4 pt-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent hover:scrollbar-thumb-white/20"
+        >
           {chat.isLoadingHistory && (
             <div className="text-xs text-hgray600 flex items-center gap-2 py-2">
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -388,11 +514,20 @@ export default function ChatPanel({
       <ChatComposer
         value={chat.input}
         onChange={chat.setInput}
-        onSend={() => void chat.send()}
+        onSend={handleSend}
         onStop={chat.stop}
         onRetry={() => void chat.reload()}
-        disabledSend={!chat.canSend || disabled || isSearchSyncing}
+        disabledSend={
+          (!chat.canSend && !(allowAttachments && attachedFile)) ||
+          disabled ||
+          isSearchSyncing ||
+          isReadingFile
+        }
         isStreaming={chat.isStreaming}
+        allowAttachments={allowAttachments}
+        attachment={attachedFile}
+        onAttach={handleAttach}
+        isPreparing={isReadingFile}
       />
 
       <ChatSettingsModal

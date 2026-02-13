@@ -15,7 +15,38 @@ export type ToolStatusBlock = {
   message?: string;
 };
 
-export type ChatBlock = CriteriaCardBlock | ToolStatusBlock;
+export type ToolResultBlock = {
+  type: "tool_result";
+  name?: string;
+  title?: string;
+  url?: string;
+  excerpt?: string;
+  truncated?: boolean;
+};
+
+export type FileContextBlock = {
+  type: "file_context";
+  name: string;
+  size?: number;
+  mime?: string;
+  excerpt?: string;
+  truncated?: boolean;
+};
+
+export type FileAttachmentPayload = {
+  name: string;
+  text: string;
+  size?: number;
+  mime?: string;
+  excerpt?: string;
+  truncated?: boolean;
+};
+
+export type ChatBlock =
+  | CriteriaCardBlock
+  | ToolStatusBlock
+  | ToolResultBlock
+  | FileContextBlock;
 
 export type ChatMessage = {
   id?: string | number;

@@ -38,21 +38,21 @@ export const FallingTagsSmall = ({
       rotate: -4,
     },
     {
-      label: "우리 회사 문화에 맞는 Backend Engineer",
-      x: 0,
-      y: 5,
-      rotate: 6,
-    },
-    {
       label: "반도체 공장 후공정 업무 경험 2년 이상",
       x: 60,
-      y: 0,
-      rotate: 30,
+      y: -10,
+      rotate: 10,
+    },
+    {
+      label: "일본 문화에 대한 이해도가 높은 한국인 SNS/Viral 마케터",
+      x: 10,
+      y: -5,
+      rotate: -12,
     },
     {
       label: "Ex-FAANG engineer open to startup",
       x: 90,
-      y: 40,
+      y: 30,
       rotate: 10,
     },
   ];
@@ -85,17 +85,17 @@ export const FallingTagsSmall = ({
             animate={
               start
                 ? {
-                  x: tag.x,
-                  y: tag.y,
-                  rotate: tag.rotate,
-                  opacity: 1,
-                  scale: 1,
-                }
+                    x: tag.x,
+                    y: tag.y,
+                    rotate: tag.rotate,
+                    opacity: 1,
+                    scale: 1,
+                  }
                 : {
-                  // 시작 전 상태 그대로 유지
-                  y: -220,
-                  opacity: 0,
-                }
+                    // 시작 전 상태 그대로 유지
+                    y: -220,
+                    opacity: 0,
+                  }
             }
             transition={{
               type: "spring",
@@ -108,9 +108,10 @@ export const FallingTagsSmall = ({
             <motion.div
               className={`select-none rounded-lg pl-2 pr-4 py-2 text-[10px] md:text-xs font-medium shadow-xl \
                 flex flex-row items-center justify-start gap-1.5 cursor-grab \
-                active:cursor-grabbing border ${theme === "white"
-                  ? "bg-white border-gray-400/50 text-xgray700"
-                  : "bg-gray-500/10 border-white/10 text-white"
+                active:cursor-grabbing border ${
+                  theme === "white"
+                    ? "bg-white border-gray-400/50 text-xgray700"
+                    : "bg-gray-500/10 border-white/10 text-white"
                 } backdrop-blur-sm`}
               drag
               dragElastic={0.25}

@@ -340,6 +340,9 @@ export const en = {
   chat: {
     composerPlaceholder:
       "Ask anything (Enter to send / Shift+Enter for newline)",
+    attachFile: "Attach file",
+    fileReading: "Reading file...",
+    fileReadFail: "Could not read the file. Please try again.",
     candidSuggestions: [
       "Is this person open to a job change?",
       "Evaluate whether this person is a good fit for our team, with reasons.",

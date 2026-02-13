@@ -38,7 +38,7 @@ export default function ProfileDetailPage() {
             onConfirm={() => {}}
           />
         )}
-        {[
+        {/* {[
           "111fe5c4-8f66-4392-9a27-e81fb8dfa7dd",
           "5219cf7f-90fa-4b71-907a-6f7ad03bb837",
         ].includes(companyUser?.user_id) && (
@@ -50,7 +50,7 @@ export default function ProfileDetailPage() {
               Add
             </button>
           </div>
-        )}
+        )} */}
         {candidId && data && (
           <div
             className={`flex-shrink-0 border-r w-[30%] min-w-[390px] border-white/10`}

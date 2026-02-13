@@ -179,7 +179,7 @@ export const ko = {
         {
           label: "Harper Scout",
           title: "매일 후보자를 찾아<br />추천해드립니다.",
-          desc: "원하는 인재상을 자유롭게 등록하면 매일 적절한 후보자를 추천해드립니다.<br />피드백을 바탕으로 추천 결과가 점점 더 개선됩니다.",
+          desc: "원하는 인재상을 자유롭게 등록하면 매일 1~2명의 후보자를 추천해드립니다.<br />좋아요/싫어요 피드백을 바탕으로 추천 결과가 매일 개선됩니다.<br />요청시 후보자와의 연결까지 도와드립니다.",
         },
       ],
     },
@@ -344,6 +344,9 @@ export const ko = {
   chat: {
     composerPlaceholder:
       "무엇이든 질문하세요 (Enter 전송 / Shift+Enter 줄바꿈)",
+    attachFile: "파일 첨부",
+    fileReading: "파일을 읽는 중...",
+    fileReadFail: "파일을 읽지 못했습니다. 다시 시도해주세요.",
     candidSuggestions: [
       "이 사람이 이직 의사가 있을까?",
       "이 사람이 우리 팀에 적합한지, 근거와 함께 평가해줘.",

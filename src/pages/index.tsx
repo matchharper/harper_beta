@@ -1,18 +1,10 @@
 "use client";
 
 import { BaseSectionLayout } from "@/components/landing/GridSectionLayout";
-import {
-  ArrowRight,
-  Building,
-  ChevronDown,
-  ChevronRight,
-  LoaderCircle,
-  Menu,
-} from "lucide-react";
+import { ArrowRight, Menu } from "lucide-react";
 import router from "next/router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
-import { AnimatePresence, motion } from "framer-motion";
 import { showToast } from "@/components/toast/toast";
 import { supabase } from "@/lib/supabase";
 import {
@@ -21,13 +13,13 @@ import {
 } from "@/components/Modal/WaitlistInfoModal";
 import { useCountdown } from "@/hooks/useCountDown";
 import { DropdownMenu } from "@/components/ui/menu";
-import VCLogos from "@/components/landing/VCLogos";
 import { v4 } from "uuid";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import Head1 from "@/components/landing/Head1";
 import VCLogosWidth from "@/components/landing/VCLogosWidth";
 import Animate from "@/components/landing/Animate";
 import RotatingOrbTiles from "@/components/landing/Orbit";
+import QuestionAnswer from "@/components/landing/Questions";
 import { FallingTags } from "@/components/landing/FallingTags";
 
 export const isValidEmail = (email: string): boolean => {
@@ -492,70 +484,6 @@ const JoinWaitlistButton = ({
   );
 };
 
-export function QuestionAnswer({
-  question,
-  answer,
-  index = 1,
-  onOpen,
-}: {
-  question: string;
-  answer: string;
-  index?: number;
-  onOpen?: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <div
-      className={`border-b border-white/20 w-full px-1 md:px-[30px] py-6 md:py-[32px] gap-4 ${index === 3 ? "border-b-0" : ""
-        }`}
-    >
-      <button
-        type="button"
-        onClick={() =>
-          setOpen((prev) => {
-            const next = !prev;
-            if (next) onOpen?.();
-            return next;
-          })
-        }
-        className="flex w-full items-center justify-between md:justify-start text-left"
-      >
-        <span
-          className={`text-base transition-colors hover:text-white ${open ? "text-white" : "text-hgray700"
-            }`}
-        >
-          {question}
-        </span>
-
-        <span
-          className={`ml-6 inline-flex h-6 w-6 items-center justify-center transition-transform duration-300 ${open ? "rotate-180" : "rotate-0"
-            }`}
-        >
-          <ChevronDown size={16} strokeWidth={1.5} className="text-hgray700" />
-        </span>
-      </button>
-
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            key="content"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.22, ease: "easeInOut" }}
-            className="overflow-hidden"
-          >
-            <div className="mt-3 pb-2 pr-10 text-sm leading-6 text-white/70 text-left">
-              {answer}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
 const FeatureSection = () => {
   const isMobile = useIsMobile();
 
@@ -614,8 +542,9 @@ const ImageSection = ({
 }) => {
   return (
     <div
-      className={`flex flex-col md:flex-row justify-center items-center w-full max-w-full md:gap-[60px] gap-6 mb-8 md:mt-0 ${opposite ? "flex-col md:flex-row-reverse" : ""
-        } px-5 md:px-0`}
+      className={`flex flex-col md:flex-row justify-center items-center w-full max-w-full md:gap-[60px] gap-6 mb-8 md:mt-0 ${
+        opposite ? "flex-col md:flex-row-reverse" : ""
+      } px-5 md:px-0`}
     >
       <div className="h-[26vw] min-h-[250px] md:min-h-[380px] w-full flex relative overflow-hidden justify-end items-end rounded-3xl bg-white/10 md:bg-white/5">
         {imageSrc === "orbit" ? (

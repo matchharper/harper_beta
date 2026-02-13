@@ -11,15 +11,76 @@ type ChatMessage = {
   content: string;
 };
 
+type AttachmentPayload = {
+  name: string;
+  text: string;
+  size?: number;
+  mime?: string;
+  truncated?: boolean;
+};
+
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
 const MAX_MEMORY_CHARS = 2000;
+const MAX_ATTACHMENT_CHARS = 12000;
+const MAX_TOOL_TEXT_CHARS = 12000;
+const MAX_TOOL_LOOPS = 3;
+const MAX_TOTAL_TOOL_CALLS = 4;
+const UI_START = "<<UI>>";
+const UI_END = "<<END_UI>>";
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+function clampText(s: string, maxChars: number) {
+  if (!s) return "";
+  if (s.length <= maxChars) return s;
+  return s.slice(0, maxChars) + `\n...[truncated ${s.length - maxChars} chars]`;
+}
+
+function emitUiBlock(
+  controller: ReadableStreamDefaultController<Uint8Array>,
+  encoder: TextEncoder,
+  block: any
+) {
+  const payload = `${UI_START}\n${JSON.stringify(block)}\n${UI_END}`;
+  controller.enqueue(encoder.encode(payload));
+}
+
+function makeInternalUrl(req: NextRequest, path: string) {
+  const base = new URL(req.url);
+  base.pathname = path;
+  base.search = "";
+  base.hash = "";
+  return base.toString();
+}
+
+async function callWebsiteScraping(req: NextRequest, args: any) {
+  const url = makeInternalUrl(req, "/api/tool/scrape");
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      url: String(args?.url ?? ""),
+    }),
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`website_scraping failed: ${res.status} ${txt}`);
+  }
+
+  const json = (await res.json()) as any;
+  return {
+    url: String(json?.url ?? args?.url ?? ""),
+    title: json?.title ?? "",
+    markdown: json?.markdown ?? "",
+    excerpt: json?.excerpt ?? "",
+  };
 }
 
 async function fetchLatestMemory(userId: string) {
@@ -58,6 +119,197 @@ Instructions:
 `;
 }
 
+const tools = [
+  {
+    type: "function",
+    function: {
+      name: "website_scraping",
+      description:
+        "Fetch and read the content of a specific URL. Use when a user provides a link or asks about a specific page.",
+      parameters: {
+        type: "object",
+        properties: {
+          url: { type: "string", description: "URL to scrape." },
+        },
+        required: ["url"],
+        additionalProperties: false,
+      },
+    },
+  },
+] as const;
+
+async function streamWithTools(params: {
+  req: NextRequest;
+  model: string;
+  baseMessages: ChatMessage[];
+  systemPrompt: string;
+  temperature: number;
+}) {
+  const { req, model, baseMessages, systemPrompt, temperature } = params;
+  const encoder = new TextEncoder();
+  const messages: any[] = [{ role: "system", content: systemPrompt }, ...baseMessages];
+  let totalToolCallsUsed = 0;
+
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        for (let loop = 0; loop < MAX_TOOL_LOOPS; loop++) {
+          const llmStream = await xaiClient.chat.completions.create({
+            model,
+            messages,
+            temperature,
+            stream: true,
+            tools: tools as any,
+            tool_choice: "auto",
+          });
+
+          const toolCallsByIndex = new Map<
+            number,
+            { id?: string; name?: string; argumentsStr: string }
+          >();
+          let sawAnyToolCall = false;
+
+          for await (const chunk of llmStream as any) {
+            const choice = chunk?.choices?.[0];
+            const delta = choice?.delta ?? {};
+
+            const text = delta?.content ?? "";
+            if (text) controller.enqueue(encoder.encode(text));
+
+            const tcs = delta?.tool_calls;
+            if (Array.isArray(tcs) && tcs.length) {
+              sawAnyToolCall = true;
+              for (const tc of tcs) {
+                const idx = typeof tc.index === "number" ? tc.index : 0;
+                const existing = toolCallsByIndex.get(idx) ?? {
+                  id: tc.id,
+                  name: tc.function?.name,
+                  argumentsStr: "",
+                };
+                if (tc.id) existing.id = tc.id;
+                if (tc.function?.name) existing.name = tc.function.name;
+                const argDelta = tc.function?.arguments ?? "";
+                if (argDelta) existing.argumentsStr += argDelta;
+                toolCallsByIndex.set(idx, existing);
+              }
+            }
+          }
+
+          if (!sawAnyToolCall || toolCallsByIndex.size === 0) break;
+
+          const orderedToolCalls = Array.from(toolCallsByIndex.entries())
+            .sort((a, b) => a[0] - b[0])
+            .map(([_, v]) => ({
+              id: v.id ?? `toolcall_${crypto.randomUUID()}`,
+              name: v.name ?? "",
+              argumentsStr: v.argumentsStr ?? "",
+            }));
+
+          messages.push({
+            role: "assistant",
+            content: "",
+            tool_calls: orderedToolCalls.map((tc) => ({
+              id: tc.id,
+              type: "function",
+              function: { name: tc.name, arguments: tc.argumentsStr },
+            })),
+          });
+
+          const remaining = MAX_TOTAL_TOOL_CALLS - totalToolCallsUsed;
+          const toExecute = remaining > 0 ? orderedToolCalls.slice(0, remaining) : [];
+          const skipped = orderedToolCalls.slice(toExecute.length);
+
+          for (const tc of toExecute) {
+            totalToolCallsUsed++;
+
+            const toolCallId = tc.id;
+            const toolName = tc.name;
+
+            emitUiBlock(controller, encoder, {
+              type: "tool_status",
+              id: toolCallId,
+              name: toolName,
+              state: "running",
+            });
+
+            let parsedArgs: any = {};
+            try {
+              parsedArgs = tc.argumentsStr ? JSON.parse(tc.argumentsStr) : {};
+            } catch {
+              parsedArgs = { _raw: tc.argumentsStr ?? "" };
+            }
+
+            let toolPayload: any;
+            try {
+              if (toolName === "website_scraping") {
+                toolPayload = await callWebsiteScraping(req, parsedArgs);
+              } else {
+                toolPayload = { error: `Unknown tool: ${toolName}` };
+              }
+            } catch (e: any) {
+              toolPayload = { error: String(e?.message ?? e) };
+            }
+
+            emitUiBlock(controller, encoder, {
+              type: "tool_status",
+              id: toolCallId,
+              name: toolName,
+              state: toolPayload?.error ? "error" : "done",
+              ...(toolPayload?.error
+                ? { message: String(toolPayload.error).slice(0, 140) }
+                : {}),
+            });
+
+            if (toolName === "website_scraping" && toolPayload?.markdown) {
+              const trimmed = clampText(String(toolPayload.markdown), MAX_TOOL_TEXT_CHARS);
+              const excerpt =
+                toolPayload.excerpt ||
+                trimmed.replace(/\s+/g, " ").slice(0, 600);
+              emitUiBlock(controller, encoder, {
+                type: "tool_result",
+                name: "website_scraping",
+                title: toolPayload.title ?? "",
+                url: toolPayload.url ?? "",
+                excerpt,
+                truncated: trimmed.length < String(toolPayload.markdown).length,
+              });
+              toolPayload.markdown = trimmed;
+            }
+
+            messages.push({
+              role: "tool",
+              tool_call_id: toolCallId,
+              name: toolName,
+              content: JSON.stringify(toolPayload),
+            });
+          }
+
+          if (skipped.length) {
+            for (const tc of skipped) {
+              messages.push({
+                role: "tool",
+                tool_call_id: tc.id,
+                name: tc.name,
+                content: JSON.stringify({
+                  error: "Tool call budget exceeded",
+                  max_total_tool_calls: MAX_TOTAL_TOOL_CALLS,
+                }),
+              });
+            }
+          }
+
+          if (totalToolCallsUsed >= MAX_TOTAL_TOOL_CALLS) break;
+        }
+      } catch (err) {
+        logger.log("streamWithTools error:", err);
+        controller.error(err);
+      } finally {
+        controller.close();
+      }
+    },
+  });
+}
+
 export async function POST(req: NextRequest) {
   if (req.method !== "POST") {
     return NextResponse.json({ error: "Method not allowed" }, { status: 405 });
@@ -71,6 +323,7 @@ export async function POST(req: NextRequest) {
     systemPromptOverride?: string;
     userId?: string;
     memoryMode?: "automation";
+    attachments?: AttachmentPayload[];
   };
 
   const model = body.model ?? "grok-4-fast-reasoning";
@@ -97,6 +350,20 @@ ${information}
         : SYSTEM_PROMPT;
   }
 
+  const attachments = Array.isArray(body.attachments) ? body.attachments : [];
+  if (attachments.length > 0) {
+    const attachmentText = attachments
+      .map((a, idx) => {
+        const safeText = clampText(String(a.text ?? ""), MAX_ATTACHMENT_CHARS);
+        return `### Attachment ${idx + 1}: ${a.name ?? "파일"}\n${
+          a.mime ? `Type: ${a.mime}\n` : ""
+        }${a.size ? `Size: ${a.size} bytes\n` : ""}\n${safeText}`;
+      })
+      .join("\n\n");
+
+    systemPrompt += `\n\n### Attachments (User-provided)\n${attachmentText}\n\nInstructions:\n- Use the attachment content to answer the user's request.\n- If the attachment is insufficient, ask a concise follow-up question.\n`;
+  }
+
   if (
     body.scope?.type === "query" &&
     body.memoryMode === "automation" &&
@@ -108,10 +375,36 @@ ${information}
       systemPrompt = buildAutomationSystemPrompt(systemPrompt, memoryContent);
     } catch (error) {
       logger.log("Failed to load team memory:", error);
-      if (systemPrompt.trim() === DEEP_AUTOMATION_PROMPT.trim()) {
-        systemPrompt = buildAutomationSystemPrompt(systemPrompt, "");
-      }
+      systemPrompt = buildAutomationSystemPrompt(systemPrompt, "");
     }
+  }
+
+  const allowTools =
+    body.scope?.type === "query" && body.memoryMode === "automation";
+
+  if (model === "grok-4-fast-reasoning" && allowTools) {
+    const toolPrompt = `${systemPrompt}
+
+### Tool Use
+- You may call website_scraping when the user provides a URL or asks about a specific page.
+- After using the tool, incorporate the key points from the content into your response.
+`;
+
+    const responseStream = await streamWithTools({
+      req,
+      model,
+      baseMessages: messages,
+      systemPrompt: toolPrompt,
+      temperature: 0.7,
+    });
+
+    return new Response(responseStream, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+      },
+    });
   }
 
   if (model === "grok-4-fast-reasoning") {
