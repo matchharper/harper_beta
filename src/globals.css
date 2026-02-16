@@ -40,6 +40,10 @@ html,
 body {
   color: rgb(var(--foreground-rgb));
   background-color: black;
+  width: 100%;
+  overflow-x: hidden;
+  margin: 0;
+  padding: 0;
 }
 
 @layer base {

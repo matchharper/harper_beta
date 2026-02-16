@@ -299,7 +299,7 @@ const CandidatePage = () => {
   };
 
   return (
-    <main className={`min-h-screen font-inter text-white bg-black`}>
+    <main className={`min-h-screen font-inter text-white bg-black w-screen`}>
       <LoginModal
         open={isOpenLoginModal}
         onClose={() => setIsOpenLoginModal(false)}
@@ -354,16 +354,33 @@ const CandidatePage = () => {
               buttonLabel={<Menu className="w-4 h-4" />}
               items={[
                 {
-                  label: m.companyLanding.dropdown.joinWaitlist,
-                  onClick: upScroll,
+                  label: m.companyLanding.nav.intro,
+                  onClick: () =>
+                    window.scrollTo({ top: 0, behavior: "smooth" }),
                 },
                 {
-                  label: m.companyLanding.dropdown.forCompanies,
-                  onClick: () => router.push("companies"),
+                  label: m.companyLanding.nav.howItWorks,
+                  onClick: () =>
+                    window.scrollTo({
+                      top: whySectionRef.current?.offsetTop,
+                      behavior: "smooth",
+                    }),
                 },
                 {
-                  label: m.companyLanding.dropdown.referral,
-                  onClick: () => router.push("referral"),
+                  label: m.companyLanding.nav.pricing,
+                  onClick: () =>
+                    window.scrollTo({
+                      top: priceSectionRef.current?.offsetTop,
+                      behavior: "smooth",
+                    }),
+                },
+                {
+                  label: m.companyLanding.nav.faq,
+                  onClick: () =>
+                    window.scrollTo({
+                      top: faqSectionRef.current?.offsetTop,
+                      behavior: "smooth",
+                    }),
                 },
               ]}
             />
@@ -391,7 +408,7 @@ const CandidatePage = () => {
               {m.companyLanding.hero.badge}
             </div>
           </div> */}
-          <div className="md:text-[56px] text-[36px] font-semibold leading-snug mt-2 flex flex-col items-center justify-center gap-2">
+          <div className="md:text-[56px] text-[32px] font-semibold leading-snug mt-2 flex flex-col items-center justify-center gap-2">
             <div>{m.companyLanding.hero.titleLine1} Data.</div>
             <div className="flex flex-row items-center justify-center gap-4">
               {m.companyLanding.hero.titleLine2Prefix}{" "}
@@ -422,7 +439,7 @@ const CandidatePage = () => {
           <StartButton type="click_hero_start" />
         </div>
       </div>
-      <div className="mb-20 flex flex-col items-center justify-center">
+      <div className="mb-20 mt-12 md:mt-0 flex flex-col items-center justify-center">
         <div className="w-[90%] max-w-[960px] bg-gradpastel2 overflow-hidden md:rounded-[30px] rounded-2xl pt-8 md:pt-0 flex flex-col items-center justify-center">
           <video
             src="/videos/usemain.mp4"
@@ -444,7 +461,7 @@ const CandidatePage = () => {
               <br />
               {m.companyLanding.section1.headlineLine2}
             </h2>
-            <p className="text-base font-hedvig font-light md:text-lg mt-6 text-hgray700">
+            <p className="text-base font-hedvig font-light md:text-lg mt-6 px-2 text-hgray700">
               {m.companyLanding.section1.bodyLine1}
               <br />
               {m.companyLanding.section1.bodyLine2}

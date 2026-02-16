@@ -57,11 +57,12 @@ export const DropdownMenu: React.FC<DropdownMenuProps> = ({
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.12 }}
             className="absolute right-0 mt-1.5 w-44 
-              rounded-xl backdrop-blur bg-white/95
+              rounded-xl backdrop-blur bg-hgray200/70 text-white
+              border border-white/10
               shadow-[0_8px_24px_rgba(0,0,0,0.12)]
               ring-1 ring-black/10"
           >
-            <ul className="py-1 text-sm text-black/80">
+            <ul className="py-1 text-sm">
               {items.map((item) => (
                 <li key={item.label}>
                   <button
