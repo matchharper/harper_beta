@@ -124,9 +124,10 @@ export const ko = {
       faq: "FAQ",
     },
     dropdown: {
-      joinWaitlist: "대기 명단",
-      forCompanies: "기업용",
-      referral: "추천",
+      intro: "소개",
+      howItWorks: "작동 방식",
+      pricing: "가격 정책",
+      faq: "FAQ",
     },
     startButton: "시작하기",
     hero: {
