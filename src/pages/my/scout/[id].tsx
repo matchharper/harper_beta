@@ -20,6 +20,8 @@ import { useMessages } from "@/i18n/useMessage";
 type AutomationRow = Database["public"]["Tables"]["automation"]["Row"];
 
 export const MAX_ACTIVE_AUTOMATIONS = 2;
+const UI_START = "<<UI>>";
+const UI_END = "<<END_UI>>";
 
 function createLocalId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -37,6 +39,8 @@ export default function AutomationDetailPage() {
   const userId = companyUser?.user_id;
   const draftCreatedRef = useRef(false);
   const initialAssistantMessage = m.scout.initialAssistantMessage;
+  const shouldShowCompanyDescriptionCta =
+    String(companyUser?.company_description ?? "").trim().length === 0;
 
   const idParam =
     typeof router.query.id === "string" ? router.query.id : undefined;
@@ -182,11 +186,26 @@ export default function AutomationDetailPage() {
       try {
         const existing = await fetchMessages({ queryId: automationId, userId });
         if (!existing.length) {
+          let content = initialAssistantMessage;
+
+          if (shouldShowCompanyDescriptionCta) {
+            const settingsCtaBlock = {
+              type: "settings_cta",
+              text: m.scout.companyDescriptionCtaMessage,
+              buttonLabel: m.scout.companyDescriptionCtaButton,
+              href: "/my/account",
+            };
+
+            content = `${content}\n\n${UI_START}\n${JSON.stringify(
+              settingsCtaBlock
+            )}\n${UI_END}`;
+          }
+
           await insertMessage({
             queryId: automationId,
             userId,
             role: "assistant",
-            content: initialAssistantMessage,
+            content,
           });
         }
       } finally {
@@ -195,7 +214,14 @@ export default function AutomationDetailPage() {
     };
 
     void ensureInitialMessage();
-  }, [automationId, userId, initialAssistantMessage]);
+  }, [
+    automationId,
+    userId,
+    initialAssistantMessage,
+    shouldShowCompanyDescriptionCta,
+    m.scout.companyDescriptionCtaMessage,
+    m.scout.companyDescriptionCtaButton,
+  ]);
 
   useEffect(() => {
     if (!isDraft) return;
@@ -494,6 +520,8 @@ export default function AutomationDetailPage() {
                 onSearchFromConversation={async () => null}
                 systemPromptOverride={DEEP_AUTOMATION_PROMPT}
                 memoryMode="automation"
+                companyDescription={companyUser?.company_description ?? ""}
+                teamLocation={companyUser?.location ?? ""}
                 onBack={handleBack}
               />
             </div>

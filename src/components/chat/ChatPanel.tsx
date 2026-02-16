@@ -46,6 +46,8 @@ type Props = {
   userId?: string;
   systemPromptOverride?: string;
   memoryMode?: "automation";
+  companyDescription?: string;
+  teamLocation?: string;
   onBack?: () => void;
 
   onSearchFromConversation: (messageId: number) => Promise<string | null>;
@@ -66,6 +68,8 @@ export default function ChatPanel({
   userId,
   systemPromptOverride,
   memoryMode,
+  companyDescription,
+  teamLocation,
   onBack,
   onSearchFromConversation,
   disabled,
@@ -95,6 +99,8 @@ export default function ChatPanel({
     candidDoc,
     systemPromptOverride,
     memoryMode,
+    companyDescription,
+    teamLocation,
   });
   const autoStartedRef = useRef(false);
   const {

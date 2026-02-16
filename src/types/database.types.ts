@@ -298,6 +298,7 @@ export type Database = {
       company_users: {
         Row: {
           company: string | null
+          company_description: string | null
           created_at: string
           email: string | null
           is_authenticated: boolean
@@ -310,6 +311,7 @@ export type Database = {
         }
         Insert: {
           company?: string | null
+          company_description?: string | null
           created_at?: string
           email?: string | null
           is_authenticated?: boolean
@@ -322,6 +324,7 @@ export type Database = {
         }
         Update: {
           company?: string | null
+          company_description?: string | null
           created_at?: string
           email?: string | null
           is_authenticated?: boolean

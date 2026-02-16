@@ -9,7 +9,7 @@ const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-const MAX_MEMORY_CHARS = 800;
+const MAX_MEMORY_CHARS = 2000;
 
 function buildConversationText(rows: Array<{ role: number | null; content: string | null }>) {
   const roleMap = ["User", "Assistant"] as const;
@@ -38,6 +38,42 @@ function safeParseJson(raw: string) {
       return null;
     }
   }
+}
+
+function formatDateLabel(isoDateTime: string) {
+  return isoDateTime.slice(0, 10);
+}
+
+function normalizeBulletText(text: string) {
+  return text
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => (line.startsWith("- ") ? line : `- ${line}`))
+    .join("\n");
+}
+
+function splitMemoryEntries(memory: string) {
+  const trimmed = memory.trim();
+  if (!trimmed) return [] as string[];
+  if (!trimmed.includes("### ")) return [trimmed];
+  return trimmed
+    .split(/\n{2,}(?=### \d{4}-\d{2}-\d{2})/g)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function mergeMemoryWithEntry(currentMemory: string, newEntry: string, maxChars: number) {
+  const entries = splitMemoryEntries(currentMemory);
+  entries.push(newEntry.trim());
+
+  while (entries.length > 1 && entries.join("\n\n").length > maxChars) {
+    entries.shift();
+  }
+
+  const merged = entries.join("\n\n");
+  if (merged.length <= maxChars) return merged;
+  return merged.slice(merged.length - maxChars);
 }
 
 export async function POST(req: Request) {
@@ -85,9 +121,9 @@ If the conversation does not add or clarify team info, do not update.
 
 Output JSON only with keys:
 - should_update: boolean
-- memory: string (full updated memory). If should_update is false, memory must be an empty string.
+- update_summary: string (ONLY newly learned/changed team info from this conversation; no date). If should_update is false, update_summary must be an empty string.
 
-Memory must be concise Korean, neutral tone, max 600 chars.`;
+update_summary must be concise Korean, neutral tone, max 400 chars.`;
 
     const userPrompt = `Current memory:
 ${currentMemory.length > 0 ? currentMemory : "(none)"}
@@ -111,18 +147,21 @@ ${conversationText}`;
       return NextResponse.json({ updated: false });
     }
 
-    const nextMemory = String(parsed.memory ?? "").trim();
-    if (!nextMemory) {
+    const updateSummary = String(parsed.update_summary ?? parsed.memory ?? "").trim();
+    if (!updateSummary) {
       return NextResponse.json({ updated: false, reason: "empty_memory" });
     }
 
-    const trimmedMemory = nextMemory.slice(0, MAX_MEMORY_CHARS);
     const now = new Date().toISOString();
+    const dateLabel = formatDateLabel(now);
+    const entryBody = normalizeBulletText(updateSummary);
+    const newEntry = `### ${dateLabel}\n${entryBody}`;
+    const mergedMemory = mergeMemoryWithEntry(currentMemory, newEntry, MAX_MEMORY_CHARS);
 
     if (memoryRow?.id) {
       const { error: updateError } = await supabaseAdmin
         .from("memory")
-        .update({ content: trimmedMemory, last_updated_at: now })
+        .update({ content: mergedMemory, last_updated_at: now })
         .eq("id", memoryRow.id);
 
       if (updateError) {
@@ -131,7 +170,7 @@ ${conversationText}`;
     } else {
       const { error: insertError } = await supabaseAdmin
         .from("memory")
-        .insert({ user_id: userId, content: trimmedMemory, last_updated_at: now });
+        .insert({ user_id: userId, content: mergedMemory, last_updated_at: now });
 
       if (insertError) {
         return NextResponse.json({ error: insertError.message }, { status: 500 });

@@ -33,6 +33,13 @@ export type FileContextBlock = {
   truncated?: boolean;
 };
 
+export type SettingsCtaBlock = {
+  type: "settings_cta";
+  text: string;
+  buttonLabel?: string;
+  href?: string;
+};
+
 export type FileAttachmentPayload = {
   name: string;
   text: string;
@@ -46,7 +53,8 @@ export type ChatBlock =
   | CriteriaCardBlock
   | ToolStatusBlock
   | ToolResultBlock
-  | FileContextBlock;
+  | FileContextBlock
+  | SettingsCtaBlock;
 
 export type ChatMessage = {
   id?: string | number;

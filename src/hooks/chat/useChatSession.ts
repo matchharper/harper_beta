@@ -186,6 +186,8 @@ export function useChatSessionDB(args: {
   candidDoc?: CandidateDetail;
   systemPromptOverride?: string;
   memoryMode?: "automation";
+  companyDescription?: string;
+  teamLocation?: string;
 }) {
   const { scope, userId } = args;
   const isCandidScope = scope?.type === "candid";
@@ -193,6 +195,8 @@ export function useChatSessionDB(args: {
   const model = args.model ?? CHAT_MODEL;
   const systemPromptOverride = args.systemPromptOverride;
   const memoryMode = args.memoryMode;
+  const companyDescription = args.companyDescription;
+  const teamLocation = args.teamLocation;
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -373,6 +377,8 @@ export function useChatSessionDB(args: {
             systemPromptOverride,
             userId,
             memoryMode,
+            companyDescription,
+            teamLocation,
             attachments: attachments.length > 0 ? attachments : undefined,
           }),
           signal: controller.signal,
@@ -424,7 +430,20 @@ export function useChatSessionDB(args: {
         setIsStreaming(false);
       }
     },
-    [ready, input, isStreaming, scope, userId, apiPath, model]
+    [
+      ready,
+      input,
+      isStreaming,
+      scope,
+      userId,
+      apiPath,
+      model,
+      candidDoc,
+      systemPromptOverride,
+      memoryMode,
+      companyDescription,
+      teamLocation,
+    ]
   );
 
   const reload = useCallback(async () => {

@@ -83,7 +83,7 @@ function CandidateProfileDetailPage({
       item: ed,
     }));
 
-    const parseStartDate = (value: string | null | undefined) => {
+    const parseDate = (value: string | null | undefined) => {
       if (!value) return null;
       const date = new Date(value);
       return Number.isNaN(date.getTime()) ? null : date;
@@ -91,22 +91,28 @@ function CandidateProfileDetailPage({
 
     const datedItems = [
       ...expItems,
-      ...eduItems.filter((ed: any) => !!parseStartDate(ed.item?.start_date)),
+      ...eduItems.filter((ed: any) => !!parseDate(ed.item?.start_date)),
     ];
 
     datedItems.sort((a, b) => {
-      const aDate = parseStartDate(a.item?.start_date);
-      const bDate = parseStartDate(b.item?.start_date);
-      if (aDate && bDate) {
-        return bDate.getTime() - aDate.getTime();
+      const aIsOngoing = !parseDate(a.item?.end_date);
+      const bIsOngoing = !parseDate(b.item?.end_date);
+      if (aIsOngoing !== bIsOngoing) {
+        return aIsOngoing ? -1 : 1;
       }
-      if (aDate && !bDate) return -1;
-      if (!aDate && bDate) return 1;
+
+      const aStartDate = parseDate(a.item?.start_date);
+      const bStartDate = parseDate(b.item?.start_date);
+      if (aStartDate && bStartDate) {
+        return bStartDate.getTime() - aStartDate.getTime();
+      }
+      if (aStartDate && !bStartDate) return -1;
+      if (!aStartDate && bStartDate) return 1;
       return 0;
     });
 
     const undatedEdu = eduItems.filter(
-      (ed: any) => !parseStartDate(ed.item?.start_date)
+      (ed: any) => !parseDate(ed.item?.start_date)
     );
     if (undatedEdu.length === 0) return datedItems;
 
@@ -115,7 +121,7 @@ function CandidateProfileDetailPage({
     undatedEdu.forEach((edu: any) => {
       const nextDatedEdu = eduItems
         .slice(edu.index + 1)
-        .find((next: any) => !!parseStartDate(next.item?.start_date));
+        .find((next: any) => !!parseDate(next.item?.start_date));
 
       if (!nextDatedEdu) {
         merged.push(edu);
