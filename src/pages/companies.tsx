@@ -486,29 +486,34 @@ const CandidatePage = () => {
       <div className="h-28 md:h-48" />
       <Animate>
         <BaseSectionLayout>
-          <div className="flex flex-col items-start gap-4 bg-white/20 rounded-2xl px-6 md:px-[30px] py-6 md:py-8 w-[90%] max-w-[600px]">
-            <div className="text-[15px] md:text-base text-left leading-[30px] font-normal text-hgray700">
-              <span
-                dangerouslySetInnerHTML={{
-                  __html: m.companyLanding.testimonial.body,
-                }}
-              />
-            </div>
-            <div className="flex flex-row items-center justify-start gap-4 mt-6">
-              <div>
-                <Image
-                  src="/images/cofounder.png"
-                  alt="person1"
-                  width={60}
-                  height={60}
+          <div className="w-[90%] max-w-[600px] flex flex-col">
+            {/* <div className="font-hedvig mb-2 text-xl text-accenta1 w-full text-center">
+              Why choose us
+            </div> */}
+            <div className="flex flex-col items-start gap-4 bg-white/20 rounded-2xl px-6 md:px-[30px] py-6 md:py-8">
+              <div className="text-[15px] md:text-base text-left leading-[30px] font-normal text-hgray700">
+                <span
+                  dangerouslySetInnerHTML={{
+                    __html: m.companyLanding.testimonial.body,
+                  }}
                 />
               </div>
-              <div className="flex flex-col items-start justify-start gap-1">
-                <div className="text-sm">
-                  {m.companyLanding.testimonial.name}
+              <div className="flex flex-row items-center justify-start gap-4 mt-6">
+                <div>
+                  <Image
+                    src="/images/cofounder.png"
+                    alt="person1"
+                    width={60}
+                    height={60}
+                  />
                 </div>
-                <div className="text-hgray700 text-xs">
-                  {m.companyLanding.testimonial.role}
+                <div className="flex flex-col items-start justify-start gap-1">
+                  <div className="text-sm">
+                    {m.companyLanding.testimonial.name}
+                  </div>
+                  <div className="text-hgray700 text-xs">
+                    {m.companyLanding.testimonial.role}
+                  </div>
                 </div>
               </div>
             </div>

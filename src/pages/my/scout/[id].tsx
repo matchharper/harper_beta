@@ -20,6 +20,8 @@ import { useMessages } from "@/i18n/useMessage";
 type AutomationRow = Database["public"]["Tables"]["automation"]["Row"];
 
 export const MAX_ACTIVE_AUTOMATIONS = 2;
+const UI_START = "<<UI>>";
+const UI_END = "<<END_UI>>";
 
 function createLocalId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -37,6 +39,8 @@ export default function AutomationDetailPage() {
   const userId = companyUser?.user_id;
   const draftCreatedRef = useRef(false);
   const initialAssistantMessage = m.scout.initialAssistantMessage;
+  const shouldShowCompanyDescriptionCta =
+    String(companyUser?.company_description ?? "").trim().length === 0;
 
   const idParam =
     typeof router.query.id === "string" ? router.query.id : undefined;
@@ -78,21 +82,18 @@ export default function AutomationDetailPage() {
     [userId]
   );
 
-  const loadAutomation = useCallback(
-    async (automationIdToLoad: string) => {
-      setIsLoading(true);
-      const { data, error } = await supabase
-        .from("automation")
-        .select("*")
-        .eq("id", automationIdToLoad)
-        .single();
-      if (!error) {
-        setAutomation(data as AutomationRow);
-      }
-      setIsLoading(false);
-    },
-    []
-  );
+  const loadAutomation = useCallback(async (automationIdToLoad: string) => {
+    setIsLoading(true);
+    const { data, error } = await supabase
+      .from("automation")
+      .select("*")
+      .eq("id", automationIdToLoad)
+      .single();
+    if (!error) {
+      setAutomation(data as AutomationRow);
+    }
+    setIsLoading(false);
+  }, []);
 
   const createDraftAutomation = useCallback(async () => {
     if (!userId) return;
@@ -171,7 +172,14 @@ export default function AutomationDetailPage() {
 
     setAutomationId(idParam);
     void loadAutomation(idParam);
-  }, [router.isReady, userId, idParam, isNew, loadAutomation, createDraftAutomation]);
+  }, [
+    router.isReady,
+    userId,
+    idParam,
+    isNew,
+    loadAutomation,
+    createDraftAutomation,
+  ]);
 
   useEffect(() => {
     if (!automationId || !userId) return;
@@ -182,11 +190,31 @@ export default function AutomationDetailPage() {
       try {
         const existing = await fetchMessages({ queryId: automationId, userId });
         if (!existing.length) {
+          let content = initialAssistantMessage;
+
+          if (shouldShowCompanyDescriptionCta) {
+            const settingsCtaBlock = {
+              type: "settings_cta",
+              text: m.scout.companyDescriptionCtaMessage,
+              buttonLabel: m.scout.companyDescriptionCtaButton,
+              href: "/my/account",
+            };
+
+            content =
+              content +
+              "\n\n" +
+              UI_START +
+              "\n" +
+              JSON.stringify(settingsCtaBlock) +
+              "\n" +
+              UI_END;
+          }
+
           await insertMessage({
             queryId: automationId,
             userId,
             role: "assistant",
-            content: initialAssistantMessage,
+            content,
           });
         }
       } finally {
@@ -195,7 +223,14 @@ export default function AutomationDetailPage() {
     };
 
     void ensureInitialMessage();
-  }, [automationId, userId, initialAssistantMessage]);
+  }, [
+    automationId,
+    userId,
+    initialAssistantMessage,
+    shouldShowCompanyDescriptionCta,
+    m.scout.companyDescriptionCtaMessage,
+    m.scout.companyDescriptionCtaButton,
+  ]);
 
   useEffect(() => {
     if (!isDraft) return;
@@ -287,7 +322,7 @@ export default function AutomationDetailPage() {
         await notifyToSlack(
           `🤖 [Harper Scout 시작]\n유저: ${companyUser?.name} - ${companyUser?.company}\nuser_id=${userId}\nautomation_id=${automationId}`
         );
-      } catch { }
+      } catch {}
     }
     void fetch("/api/memory/update", {
       method: "POST",
@@ -299,7 +334,17 @@ export default function AutomationDetailPage() {
     });
     setIsSaving(false);
     router.push("/my/scout");
-  }, [automationId, userId, qc, router, fetchActiveAutomationCount, isDraft, credits, m.scout.limitMessage, m.scout.checkAutomationFail]);
+  }, [
+    automationId,
+    userId,
+    qc,
+    router,
+    fetchActiveAutomationCount,
+    isDraft,
+    credits,
+    m.scout.limitMessage,
+    m.scout.checkAutomationFail,
+  ]);
 
   const handleDelete = useCallback(async () => {
     if (!automationId) return;
@@ -322,7 +367,10 @@ export default function AutomationDetailPage() {
     setIsSaving(true);
     await supabase
       .from("automation")
-      .update({ is_in_progress: false, last_updated_at: new Date().toISOString() })
+      .update({
+        is_in_progress: false,
+        last_updated_at: new Date().toISOString(),
+      })
       .eq("id", automationId);
     await loadAutomation(automationId);
     await qc.invalidateQueries({ queryKey: ["automation", userId] });
@@ -330,7 +378,7 @@ export default function AutomationDetailPage() {
       await notifyToSlack(
         `🍊 [Harper Scout 진행 정지] user_id=${userId} automation_id=${automationId}`
       );
-    } catch { }
+    } catch {}
     setIsSaving(false);
   }, [automationId, loadAutomation, qc, userId]);
 
@@ -362,7 +410,10 @@ export default function AutomationDetailPage() {
     setIsSaving(true);
     await supabase
       .from("automation")
-      .update({ is_in_progress: true, last_updated_at: new Date().toISOString() })
+      .update({
+        is_in_progress: true,
+        last_updated_at: new Date().toISOString(),
+      })
       .eq("id", automationId);
     await loadAutomation(automationId);
     await qc.invalidateQueries({ queryKey: ["automation", userId] });
@@ -370,24 +421,44 @@ export default function AutomationDetailPage() {
       await notifyToSlack(
         `🪙 [Harper Scout 진행 재개] user_id=${userId} automation_id=${automationId}`
       );
-    } catch { }
+    } catch {}
     setIsSaving(false);
-  }, [automationId, loadAutomation, qc, userId, fetchActiveAutomationCount, credits, m.scout.limitMessage, m.scout.checkAutomationFail]);
+  }, [
+    automationId,
+    loadAutomation,
+    qc,
+    userId,
+    fetchActiveAutomationCount,
+    credits,
+    m.scout.limitMessage,
+    m.scout.checkAutomationFail,
+  ]);
 
-  const buttonClassName = "rounded-lg bg-white/10 px-3 py-2 text-xs text-white transition hover:bg-white/20 disabled:opacity-60 flex flex-row gap-1 items-center justify-center";
+  const buttonClassName =
+    "rounded-lg bg-white/10 px-3 py-2 text-xs text-white transition hover:bg-white/20 disabled:opacity-60 flex flex-row gap-1 items-center justify-center";
 
   const statusBadge = useMemo(() => {
     if (isDraft) {
-      return { label: "Draft", tone: "bg-white/10 text-white/80 border-white/10" };
+      return {
+        label: "Draft",
+        tone: "bg-white/10 text-white/80 border-white/10",
+      };
     }
     if (automation?.is_in_progress) {
-      return { label: "Active", tone: "bg-emerald-500/15 text-emerald-200 border-emerald-500/20" };
+      return {
+        label: "Active",
+        tone: "bg-emerald-500/15 text-emerald-200 border-emerald-500/20",
+      };
     }
-    return { label: "Paused", tone: "bg-yellow-500/15 text-yellow-200 border-yellow-500/20" };
+    return {
+      label: "Paused",
+      tone: "bg-yellow-500/15 text-yellow-200 border-yellow-500/20",
+    };
   }, [isDraft, automation?.is_in_progress]);
 
   const statusMessage = useMemo(() => {
-    if (isDraft) return "자동 추천이 시작되기 전입니다. 충분한 정보가 모이면 등록을 눌러주세요. 언제든지 내용을 수정하거나 추가하실 수 있습니다.";
+    if (isDraft)
+      return "자동 추천이 시작되기 전입니다. 충분한 정보가 모이면 등록을 눌러주세요. 언제든지 내용을 수정하거나 추가하실 수 있습니다.";
     if (automation?.is_in_progress) return "현재 매일 후보자 추천 중입니다.";
     return "현재 추천이 중지되어 있습니다. 진행을 누르면 다시 추천이 시작됩니다.";
   }, [isDraft, automation?.is_in_progress]);
@@ -413,7 +484,10 @@ export default function AutomationDetailPage() {
               type="button"
               onClick={() => setConfirmPauseOpen(true)}
               disabled={isSaving}
-              className={cn(buttonClassName, "bg-white/70 hover:bg-white/60 text-black")}
+              className={cn(
+                buttonClassName,
+                "bg-white/70 hover:bg-white/60 text-black"
+              )}
             >
               <Square fill="currentColor" className="w-3 h-3" />
               진행 정지
@@ -423,7 +497,10 @@ export default function AutomationDetailPage() {
               type="button"
               onClick={() => setConfirmResumeOpen(true)}
               disabled={isSaving}
-              className={cn(buttonClassName, "bg-white/70 hover:bg-white/60 text-black")}
+              className={cn(
+                buttonClassName,
+                "bg-white/70 hover:bg-white/60 text-black"
+              )}
             >
               <Play fill="currentColor" className="w-3 h-3" />
               진행
@@ -448,10 +525,13 @@ export default function AutomationDetailPage() {
       <div className="relative flex w-full min-h-screen">
         {(isLoading || !isMessageReady) && (
           <div className="w-full px-6 py-8 text-sm text-xgray800">
-            <Loading label="불러오는 중..." className="text-xgray800" isFullScreen={true} />
+            <Loading
+              label="불러오는 중..."
+              className="text-xgray800"
+              isFullScreen={true}
+            />
           </div>
         )}
-
 
         {!isLoading && isMessageReady && automationId && (
           <div className="flex w-full items-start justify-center">
@@ -494,6 +574,8 @@ export default function AutomationDetailPage() {
                 onSearchFromConversation={async () => null}
                 systemPromptOverride={DEEP_AUTOMATION_PROMPT}
                 memoryMode="automation"
+                companyDescription={companyUser?.company_description ?? ""}
+                teamLocation={companyUser?.location ?? ""}
                 onBack={handleBack}
               />
             </div>

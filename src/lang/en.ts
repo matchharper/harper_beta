@@ -172,7 +172,7 @@ export const en = {
         {
           label: "Harper Scout",
           title: "매일 후보자를 찾아<br />추천해드립니다.",
-          desc: "원하는 인재상을 자유롭게 등록하면 매일 적절한 후보자를 추천해드립니다.<br />피드백을 바탕으로 추천 결과가 점점 더 개선됩니다.",
+          desc: "원하는 인재상을 등록하면 매일 적절한 후보자를 추천해드립니다.<br />피드백을 바탕으로 추천 결과가 점점 더 개선됩니다.",
         },
       ],
     },
@@ -381,6 +381,9 @@ export const en = {
     itemFallbackTitle: "Scout",
     initialAssistantMessage:
       "Hi, I'm Harper.\nTell me, in simple terms, what problems you want to solve in this hiring process.\n\nIt's okay if the role, team context, and must-have skills aren't fully defined yet.\nWe'll structure it together and find the best-fit candidates.",
+    companyDescriptionCtaMessage:
+      "It helps if you share company/team context before we start.",
+    companyDescriptionCtaButton: "Go to Settings",
   },
   company: {
     information: "Company Information",

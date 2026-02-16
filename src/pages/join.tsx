@@ -2,7 +2,13 @@
 
 import ProgressBar from "@/components/apply/ProgressBar";
 import { ArrowRight, CornerDownLeft, LoaderCircle } from "lucide-react";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Image from "next/image";
 import router from "next/router";
@@ -55,7 +61,10 @@ const Onboard: React.FC = () => {
   const recruiterRole = m.join.roles.recruiter;
   const rolesOptions = Array.from(m.join.roles.options);
   const sizeOptions = Array.from(m.join.sizes);
-  const isRecruiter = useMemo(() => roles.includes(recruiterRole), [recruiterRole, roles]);
+  const isRecruiter = useMemo(
+    () => roles.includes(recruiterRole),
+    [recruiterRole, roles]
+  );
 
   const isMobile = useIsMobile();
 
@@ -134,26 +143,33 @@ const Onboard: React.FC = () => {
     showToast({ message, variant: "white" });
   }, []);
 
-  const validateStep = useCallback((value?: string): boolean => {
-    const key = currentStep?.key;
+  const validateStep = useCallback(
+    (value?: string): boolean => {
+      const key = currentStep?.key;
 
-    if (key === "contact") {
-      if (!name.trim()) return toast(m.join.validation.nameRequired), false;
-      if (!email.trim()) return toast(m.join.validation.emailRequired), false;
-      if (!isValidEmail(email)) return toast(m.join.validation.emailInvalid), false;
-    }
+      if (key === "contact") {
+        if (!name.trim()) return (toast(m.join.validation.nameRequired), false);
+        if (!email.trim())
+          return (toast(m.join.validation.emailRequired), false);
+        if (!isValidEmail(email))
+          return (toast(m.join.validation.emailInvalid), false);
+      }
 
-    if (key === "company") {
-      if (!company.trim()) return toast(m.join.validation.companyRequired), false;
-      // if (!companyLink.trim()) return toast("홈페이지 URL을 입력해주세요."), false;
-    }
+      if (key === "company") {
+        if (!company.trim())
+          return (toast(m.join.validation.companyRequired), false);
+        // if (!companyLink.trim()) return toast("홈페이지 URL을 입력해주세요."), false;
+      }
 
-    if (key === "size") {
-      if (!size && !value) return toast(m.join.validation.sizeRequired), false;
-    }
+      if (key === "size") {
+        if (!size && !value)
+          return (toast(m.join.validation.sizeRequired), false);
+      }
 
-    return true;
-  }, [currentStep?.key, name, email, company, companyLink, size, toast, m]);
+      return true;
+    },
+    [currentStep?.key, name, email, company, companyLink, size, toast, m]
+  );
 
   const saveIfDirty = useCallback(async () => {
     if (!isDirty) return;
@@ -189,37 +205,40 @@ const Onboard: React.FC = () => {
     additional,
   ]);
 
-  const goNext = useCallback(async (value?: string) => {
-    isNext.current = true;
+  const goNext = useCallback(
+    async (value?: string) => {
+      isNext.current = true;
 
-    if (!validateStep(value)) return;
+      if (!validateStep(value)) return;
 
-    await saveIfDirty();
+      await saveIfDirty();
 
-    // 마지막 step이면 완료 화면으로
-    if (step === visibleSteps.length - 1) {
-      setSubmitLoading(true);
-      await supabase.from("harper_waitlist_company").upsert({
-        name,
-        email,
-        role: roles.length > 0 ? roles.join(", ") : null,
-        company: isRecruiter ? null : company || null,
-        company_link: isRecruiter ? null : companyLink || null,
-        size: isRecruiter ? null : size || null,
-        needs: needs ? [needs] : null,
-        additional: additional || null,
-        is_mobile: isMobile,
-        is_submit: true,
-      });
-      setTimeout(() => {
-        setSubmitLoading(false);
-        setStep(visibleSteps.length); // ✅ done
-      }, 700);
-      return;
-    }
+      // 마지막 step이면 완료 화면으로
+      if (step === visibleSteps.length - 1) {
+        setSubmitLoading(true);
+        await supabase.from("harper_waitlist_company").upsert({
+          name,
+          email,
+          role: roles.length > 0 ? roles.join(", ") : null,
+          company: isRecruiter ? null : company || null,
+          company_link: isRecruiter ? null : companyLink || null,
+          size: isRecruiter ? null : size || null,
+          needs: needs ? [needs] : null,
+          additional: additional || null,
+          is_mobile: isMobile,
+          is_submit: true,
+        });
+        setTimeout(() => {
+          setSubmitLoading(false);
+          setStep(visibleSteps.length); // ✅ done
+        }, 700);
+        return;
+      }
 
-    setStep((prev) => Math.min(prev + 1, visibleSteps.length));
-  }, [saveIfDirty, step, validateStep, visibleSteps.length]);
+      setStep((prev) => Math.min(prev + 1, visibleSteps.length));
+    },
+    [saveIfDirty, step, validateStep, visibleSteps.length]
+  );
 
   const goPrev = useCallback(() => {
     isNext.current = false;
@@ -277,12 +296,20 @@ const Onboard: React.FC = () => {
     <main className="flex flex-col justify-start md:justify-center items-center min-h-screen bg-white text-black font-inter pt-4 md:pt-0">
       <div className="w-full fixed top-0 left-0 z-20">
         {/* ✅ done screen에서는 꽉 찬 걸로 보여도 되고, 유지해도 됨 */}
-        <ProgressBar currentStep={Math.min(step + 1, visibleSteps.length)} totalSteps={visibleSteps.length} />
+        <ProgressBar
+          currentStep={Math.min(step + 1, visibleSteps.length)}
+          totalSteps={visibleSteps.length}
+        />
       </div>
 
       {isDone ? (
         <div className="flex flex-1 flex-col gap-4 items-center justify-center pb-0 md:pb-28 h-full w-full text-center px-6">
-          <Image src="/images/logo.png" alt="Harper Logo" width={32} height={32} />
+          <Image
+            src="/images/logo.png"
+            alt="Harper Logo"
+            width={32}
+            height={32}
+          />
           <div className="text-2xl font-normal mt-2">{m.join.done.title}</div>
           <div className="text-lg font-normal text-xgray700">
             {m.join.done.description.split("\n").map((line) => (
@@ -325,11 +352,15 @@ const Onboard: React.FC = () => {
               >
                 {/* Title / description */}
                 {currentStep.title ? (
-                  <div className="flex text-xl md:text-2xl font-normal">{currentStep.title}</div>
+                  <div className="flex text-xl md:text-2xl font-normal">
+                    {currentStep.title}
+                  </div>
                 ) : null}
 
                 {currentStep.description ? (
-                  <div className="text-xgray600 text-md md:text-lg font-normal mb-4">{currentStep.description}</div>
+                  <div className="text-xgray600 text-md md:text-lg font-normal mb-4">
+                    {currentStep.description}
+                  </div>
                 ) : (
                   <div className="mb-4" />
                 )}
@@ -437,19 +468,6 @@ const Onboard: React.FC = () => {
                   />
                 )}
 
-                {currentStep.key === "size" && (
-                  <Selections
-                    selected={size}
-                    setSelected={(v) => {
-                      setSize(v);
-                      setIsDirty(true);
-                      setTimeout(() => void goNext(v), 350);
-                    }}
-                    setIsDirty={setIsDirty}
-                    options={sizeOptions}
-                  />
-                )}
-
                 {/* Buttons */}
                 <div className="flex flex-col md:flex-row items-center gap-3 mt-12 md:mt-4">
                   <button
@@ -469,13 +487,21 @@ const Onboard: React.FC = () => {
                   </button>
 
                   <span className="text-[14px] font-light flex-row items-center gap-1 hidden md:flex">
-                    <span className="text-xgray700">{m.join.actions.press}</span>
-                    <span className="text-black font-medium">{m.join.actions.enter}</span>
+                    <span className="text-xgray700">
+                      {m.join.actions.press}
+                    </span>
+                    <span className="text-black font-medium">
+                      {m.join.actions.enter}
+                    </span>
                     <CornerDownLeft size={14} strokeWidth={2} />
                   </span>
 
                   {/* 저장중 표시(원하면) */}
-                  {loading ? <span className="text-sm text-xgray600">{m.join.actions.saving}</span> : null}
+                  {loading ? (
+                    <span className="text-sm text-xgray600">
+                      {m.join.actions.saving}
+                    </span>
+                  ) : null}
                 </div>
               </motion.div>
             </AnimatePresence>
@@ -483,10 +509,18 @@ const Onboard: React.FC = () => {
 
           {/* Bottom-left dev nav */}
           <div className="flex flex-row items-center gap-2 fixed bottom-4 left-4 text-sm text-xgray600">
-            <button type="button" className="underline hover:text-black" onClick={goPrev}>
+            <button
+              type="button"
+              className="underline hover:text-black"
+              onClick={goPrev}
+            >
               {m.join.actions.back}
             </button>
-            <button type="button" className="underline hover:text-black" onClick={() => void goNext()}>
+            <button
+              type="button"
+              className="underline hover:text-black"
+              onClick={() => void goNext()}
+            >
               {m.join.actions.next}
             </button>
           </div>

@@ -138,12 +138,12 @@ export const ko = {
         "단순한 검색을 넘어, 인재를 이해하는 지능을 경험하세요.<br />하퍼는 매일, 후보자를 추천해주고 끊임없이 개선됩니다.",
     },
     section1: {
-      title: "Recruiting Agent, Harper",
-      headlineLine1: "",
-      headlineLine2: "",
-      bodyLine1: "채용은 회사의 미래를 결정하는 가장 중요한 의사결정입니다.",
-      bodyLine2:
-        "하퍼는 10배 더 빠르고, 10배 더 저렴한 전담 AI Recruiter입니다.",
+      title: "Faster, Cheaper, Better",
+      headlineLine1: "채용은 회사의 미래를 결정하는 ",
+      headlineLine2: "가장 중요한 의사결정입니다.",
+      bodyLine1: "",
+      bodyLine2: "채용팀이 몇 주 동안 하던 일을, Harper는 며칠 만에 끝냅니다.",
+      // "It shrinks weeks of work that a whole recruiting team would do, into days."
     },
     why: {
       title: "Why harper?",
@@ -179,12 +179,12 @@ export const ko = {
         {
           label: "Harper Scout",
           title: "매일 후보자를 찾아<br />추천해드립니다.",
-          desc: "원하는 인재상을 자유롭게 등록하면 매일 1~2명의 후보자를 추천해드립니다.<br />좋아요/싫어요 피드백을 바탕으로 추천 결과가 매일 개선됩니다.<br />요청시 후보자와의 연결까지 도와드립니다.",
+          desc: "원하는 인재상을 등록하면 매일 1~2명의 후보자를 추천해드립니다.<br />좋아요/싫어요 피드백을 바탕으로 추천 결과가 매일 개선됩니다.<br />요청시 후보자와의 연결까지 도와드립니다.",
         },
       ],
     },
     testimonial: {
-      body: "하퍼는 단순한 검색 필터 서비스가 아닙니다.<br />AI Agent가 수많은 웹 정보, 글, 기록을 종합해<br />이력서에 없는 맥락까지 읽고, 사람처럼 추론하고 판단하며<br />조직이 원하는 인재를 직접 탐색할 수 있게 합니다.",
+      body: "하퍼는 단순한 검색 필터 서비스가 아닙니다.<br />AI Agent가 수많은 웹 정보, 글, 기록을 종합해<br />이력서에 없는 맥락까지 읽고, 사람처럼 추론하고 판단하며<br />최고의 인재를 연결해드립니다.",
       name: "Chris & Daniel",
       role: "Co-founder",
     },
@@ -384,7 +384,10 @@ export const ko = {
     checkAutomationFail: "자동화 상태를 확인하지 못했습니다.",
     itemFallbackTitle: "Scout",
     initialAssistantMessage:
-      "안녕하세요, Harper입니다.\n이번 채용에서 어떤 문제를 해결하고 싶은지부터 편하게 말씀해주세요.\n\n포지션, 팀 상황, 꼭 필요한 역량이 정리되지 않아도 괜찮습니다.\n대화를 통해 함께 구조화하고, 가장 적합한 후보를 찾아드릴게요.",
+      "안녕하세요, Harper입니다.\n이번 채용에서 어떤 문제를 해결하고 싶은지부터 편하게 말씀해주세요.\n\n포지션, 팀 상황, 꼭 필요한 역량이 정리되지 않아도 괜찮습니다.\n대화를 통해 함께 구조화하고, 가장 적합한 후보를 찾아드릴게요.\n\n이미 작성된 JD나 참고 자료가 있다면 공유해 주셔도 좋습니다.",
+    companyDescriptionCtaMessage:
+      "대화를 시작하기 전에 회사 정보를 미리 입력해두면<br />더 정확한 추천을 받을 수 있어요.",
+    companyDescriptionCtaButton: "Settings로 이동",
   },
   company: {
     information: "회사 정보",
@@ -422,7 +425,8 @@ export const ko = {
         "* LLM의 특성상 같은 기준으로 검색했을 때도 검색 결과가 경우에 따라 달라질 수 있습니다.",
       note3:
         "* 사이트를 종료하거나 다른 화면으로 이동하셔도 검색은 계속 진행됩니다.",
-      found: "조건을 만족하는 후보자 10명을 발견했습니다.",
+      found:
+        "조건을 만족하는 후보자 10명을 발견했습니다. (더 많은 후보자를 탐색 중입니다.)",
       steps: {
         parseTitle: "요청 이해",
         parseDesc: "기준을 해석하고 검색 전략을 구성합니다.",

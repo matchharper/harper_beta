@@ -5,7 +5,6 @@ import { notifyToSlack } from "@/lib/slack";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { useCredits } from "@/hooks/useCredit";
 import type { Database } from "@/types/database.types";
-import { dateToFormatLong } from "@/utils/textprocess";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/router";
 import { useCallback, useMemo, useState, useEffect } from "react";

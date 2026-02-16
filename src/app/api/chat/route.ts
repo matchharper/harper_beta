@@ -4,7 +4,11 @@ import { geminiChatStream, xaiClient } from "@/lib/llm/llm";
 import { ChatScope } from "@/hooks/chat/useChatSession";
 import { buildLongDoc } from "@/utils/textprocess";
 import { logger } from "@/utils/logger";
-import { CANDID_SYSTEM_PROMPT, DEEP_AUTOMATION_PROMPT, SYSTEM_PROMPT } from "./chat_prompt";
+import {
+  CANDID_SYSTEM_PROMPT,
+  DEEP_AUTOMATION_PROMPT,
+  SYSTEM_PROMPT,
+} from "./chat_prompt";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -26,6 +30,7 @@ const supabaseAdmin = createClient(
 
 const MAX_MEMORY_CHARS = 2000;
 const MAX_ATTACHMENT_CHARS = 12000;
+const MAX_TEAM_CONTEXT_CHARS = 1200;
 const MAX_TOOL_TEXT_CHARS = 12000;
 const MAX_TOOL_LOOPS = 3;
 const MAX_TOTAL_TOOL_CALLS = 4;
@@ -97,12 +102,19 @@ async function fetchLatestMemory(userId: string) {
   return data ?? null;
 }
 
-function buildAutomationSystemPrompt(basePrompt: string, memoryContent: string) {
+function buildAutomationSystemPrompt(
+  basePrompt: string,
+  memoryContent: string
+) {
   const normalized = memoryContent.trim().slice(0, MAX_MEMORY_CHARS);
+  const today = new Date().toISOString().slice(0, 10);
 
   return `${basePrompt}
 
-### Memory about the about the user/team; not role-specific
+### Today
+${today}
+
+### Memory about the user/team; not role-specific
 ${normalized.length > 0 ? normalized : "(none)"}
 
 ---
@@ -110,12 +122,20 @@ ${normalized.length > 0 ? normalized : "(none)"}
 Instructions:
 - Use Team Memory only as background about the team/user, not as role requirements.
 - Do not invent or assume memory details beyond what is written above.
+- Team Memory may contain dated entries such as "### YYYY-MM-DD".
+- If a memory point is old or likely to have changed (team size, product direction, urgency, compensation, hiring priorities), do not assume it is still valid.
+- In that case, either:
+  - treat it as unknown for now, or
+  - ask a short confirmation question like:
+    "이전에 YYYY-MM-DD 기준으로 ~라고 말씀해주셨는데, 지금도 동일한가요?"
+- If user gives newer info in this chat, prioritize the latest user message over old memory.
 - If team memory is empty or insufficient, then in the first assistant reply after the user's first message:
   - Start with "알겠습니다."
   - Say you need team information for better recommendations.
   - Ask first about: team culture, what the team is building, team size, and preferred talent profile.
   - Ask these before any other questions.
   - 직접 적으로 메모리라는 단어를 쓰지 말고, 좋은 추천을 위해서 팀의 정보가 더 있으면 좋다는걸 알려주는게 나아.
+  - 회사/팀에 대한 설명을 대신해주는 링크가 있다면 그걸 알려줘도 좋다고 말해줘.
 `;
 }
 
@@ -147,7 +167,10 @@ async function streamWithTools(params: {
 }) {
   const { req, model, baseMessages, systemPrompt, temperature } = params;
   const encoder = new TextEncoder();
-  const messages: any[] = [{ role: "system", content: systemPrompt }, ...baseMessages];
+  const messages: any[] = [
+    { role: "system", content: systemPrompt },
+    ...baseMessages,
+  ];
   let totalToolCallsUsed = 0;
 
   return new ReadableStream<Uint8Array>({
@@ -216,7 +239,8 @@ async function streamWithTools(params: {
           });
 
           const remaining = MAX_TOTAL_TOOL_CALLS - totalToolCallsUsed;
-          const toExecute = remaining > 0 ? orderedToolCalls.slice(0, remaining) : [];
+          const toExecute =
+            remaining > 0 ? orderedToolCalls.slice(0, remaining) : [];
           const skipped = orderedToolCalls.slice(toExecute.length);
 
           for (const tc of toExecute) {
@@ -261,7 +285,10 @@ async function streamWithTools(params: {
             });
 
             if (toolName === "website_scraping" && toolPayload?.markdown) {
-              const trimmed = clampText(String(toolPayload.markdown), MAX_TOOL_TEXT_CHARS);
+              const trimmed = clampText(
+                String(toolPayload.markdown),
+                MAX_TOOL_TEXT_CHARS
+              );
               const excerpt =
                 toolPayload.excerpt ||
                 trimmed.replace(/\s+/g, " ").slice(0, 600);
@@ -323,6 +350,8 @@ export async function POST(req: NextRequest) {
     systemPromptOverride?: string;
     userId?: string;
     memoryMode?: "automation";
+    companyDescription?: string;
+    teamLocation?: string;
     attachments?: AttachmentPayload[];
   };
 
@@ -345,7 +374,7 @@ ${information}
   if (body.scope?.type === "query") {
     systemPrompt =
       typeof body.systemPromptOverride === "string" &&
-        body.systemPromptOverride.trim().length > 0
+      body.systemPromptOverride.trim().length > 0
         ? body.systemPromptOverride
         : SYSTEM_PROMPT;
   }
@@ -369,6 +398,27 @@ ${information}
     body.memoryMode === "automation" &&
     body.userId
   ) {
+    const description = clampText(
+      String(body.companyDescription ?? "").trim(),
+      MAX_TEAM_CONTEXT_CHARS
+    );
+    const location = clampText(
+      String(body.teamLocation ?? "").trim(),
+      200
+    );
+    if (description.length > 0 || location.length > 0) {
+      const profileLines = [
+        description.length > 0
+          ? `- Company/Team description: ${description}`
+          : "",
+        location.length > 0 ? `- Location: ${location}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      systemPrompt += `\n\n### Team Profile (from Account settings)\n${profileLines}\n\nInstructions:\n- Use this as stable background context for recommendations.\n- If this conflicts with the latest user message, prioritize the latest user message.\n`;
+    }
+
     try {
       const memoryRow = await fetchLatestMemory(body.userId);
       const memoryContent = (memoryRow?.content ?? "").trim();
@@ -448,7 +498,12 @@ ${information}
 
   if (model === "gemini-3-flash-preview") {
     try {
-      const responseStream = await geminiChatStream({ model: "gemini-3-flash-preview", systemPrompt, messages, temperature: 0.7 });
+      const responseStream = await geminiChatStream({
+        model: "gemini-3-flash-preview",
+        systemPrompt,
+        messages,
+        temperature: 0.7,
+      });
       return new Response(responseStream, {
         headers: {
           "Content-Type": "text/plain; charset=utf-8",
