@@ -25,6 +25,23 @@ type GroupedLogs = {
   logs: LandingLog[];
 };
 
+type WaitlistCompany = {
+  additional: string | null;
+  company: string | null;
+  company_link: string | null;
+  created_at: string;
+  email: string;
+  is_mobile: boolean | null;
+  is_submit: boolean;
+  main: string | null;
+  name: string | null;
+  needs: string[] | null;
+  role: string | null;
+  size: string | null;
+};
+
+type AdminTab = "landingLogs" | "waitlistCompany";
+
 const PAGE_SIZE = 50;
 const PASSWORD = "39773977";
 
@@ -47,6 +64,7 @@ function formatKST(iso?: string) {
 const AdminPage = () => {
   const [password, setPassword] = useState("");
   const [isPassed, setIsPassed] = useState(false);
+  const [activeTab, setActiveTab] = useState<AdminTab>("landingLogs");
 
   const [logs, setLogs] = useState<LandingLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,6 +73,11 @@ const AdminPage = () => {
 
   const [hasMore, setHasMore] = useState(true);
   const [cursor, setCursor] = useState<string | null>(null);
+
+  const [waitlistRows, setWaitlistRows] = useState<WaitlistCompany[]>([]);
+  const [waitlistLoading, setWaitlistLoading] = useState(false);
+  const [waitlistLoaded, setWaitlistLoaded] = useState(false);
+  const [waitlistError, setWaitlistError] = useState<string | null>(null);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -127,7 +150,37 @@ const AdminPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const fetchWaitlistCompanies = useCallback(async () => {
+    setWaitlistLoading(true);
+    setWaitlistError(null);
+    try {
+      const { data, error } = await supabase
+        .from("harper_waitlist_company")
+        .select(
+          "created_at,email,name,company,company_link,role,size,needs,main,additional,is_submit,is_mobile"
+        )
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      setWaitlistRows((data ?? []) as WaitlistCompany[]);
+      setWaitlistLoaded(true);
+    } catch (e: any) {
+      setWaitlistError(e?.message ?? "Failed to load");
+    } finally {
+      setWaitlistLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
+    if (activeTab !== "waitlistCompany") return;
+    if (waitlistLoaded || waitlistLoading) return;
+    fetchWaitlistCompanies();
+  }, [activeTab, fetchWaitlistCompanies, waitlistLoaded, waitlistLoading]);
+
+  useEffect(() => {
+    if (activeTab !== "landingLogs") return;
+
     const el = sentinelRef.current;
     if (!el) return;
 
@@ -141,10 +194,14 @@ const AdminPage = () => {
 
     io.observe(el);
     return () => io.disconnect();
-  }, [fetchPage]);
+  }, [activeTab, fetchPage]);
 
   const onRefresh = async () => {
-    await fetchPage({ reset: true });
+    if (activeTab === "landingLogs") {
+      await fetchPage({ reset: true });
+      return;
+    }
+    await fetchWaitlistCompanies();
   };
 
   const onSubmit = async () => {
@@ -204,6 +261,16 @@ const AdminPage = () => {
     return groups.sort((a, b) => b.entryTime.localeCompare(a.entryTime));
   }, [logs]);
 
+  const isLandingTab = activeTab === "landingLogs";
+  const pageTitle = isLandingTab
+    ? "Landing Logs Admin"
+    : "Waitlist Company Admin";
+  const pageSubTitle = isLandingTab
+    ? "local_id 기준 · 액션 타임라인"
+    : "harper_waitlist_company 목록";
+  const isLoading = isLandingTab ? loading || loadingMore : waitlistLoading;
+  const pageError = isLandingTab ? error : waitlistError;
+
   if (!isPassed) {
     return (
       <div className="min-h-screen bg-white text-black font-inter">
@@ -232,10 +299,34 @@ const AdminPage = () => {
         <div className="mx-auto max-w-[1100px] px-6 py-4 flex items-center gap-3">
           <div className="flex flex-col">
             <div className="text-[15px] font-semibold tracking-tight">
-              Landing Logs Admin
+              {pageTitle}
             </div>
             <div className="text-[12px] text-black/55 leading-4">
-              local_id 기준 · 액션 타임라인
+              {pageSubTitle}
+            </div>
+            <div className="mt-3 flex items-center gap-2">
+              <button
+                onClick={() => setActiveTab("landingLogs")}
+                className={`h-8 px-3 text-[12px] border ${
+                  isLandingTab
+                    ? "border-black bg-black text-white"
+                    : "border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
+                }`}
+                style={{ borderRadius: 0 }}
+              >
+                Landing Logs
+              </button>
+              <button
+                onClick={() => setActiveTab("waitlistCompany")}
+                className={`h-8 px-3 text-[12px] border ${
+                  !isLandingTab
+                    ? "border-black bg-black text-white"
+                    : "border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
+                }`}
+                style={{ borderRadius: 0 }}
+              >
+                Waitlist Company
+              </button>
             </div>
           </div>
 
@@ -244,7 +335,7 @@ const AdminPage = () => {
               onClick={onRefresh}
               className="h-9 px-3 text-[13px] border border-black/15 hover:border-black/30 hover:bg-black/[0.03] active:bg-black/[0.06]"
               style={{ borderRadius: 0 }}
-              disabled={loading}
+              disabled={isLoading}
             >
               Refresh
             </button>
@@ -253,98 +344,213 @@ const AdminPage = () => {
       </div>
 
       <div className="mx-auto max-w-[1100px] px-6 py-6 w-full">
-        <div className="mb-4 flex items-center justify-between w-full">
-          <div className="text-[12px] text-black/55">
-            Loaded logs: <span className="text-black">{logs.length}</span> ·
-            Users: <span className="text-black">{grouped.length}</span>
-          </div>
+        {isLandingTab ? (
+          <>
+            <div className="mb-4 flex items-center justify-between w-full">
+              <div className="text-[12px] text-black/55">
+                Loaded logs: <span className="text-black">{logs.length}</span> ·
+                Users: <span className="text-black">{grouped.length}</span>
+              </div>
 
-          {(loadingMore || loading) && (
-            <Loading
-              size="sm"
-              label="Loading…"
-              className="text-[12px] text-black/55"
-              inline={true}
-            />
-          )}
-        </div>
-
-        {error ? (
-          <div
-            className="border border-black/15 bg-black/[0.02] p-4 text-[13px] flex items-start justify-between gap-4"
-            style={{ borderRadius: 0 }}
-          >
-            <div>
-              <div className="font-semibold">Error</div>
-              <div className="text-black/70 mt-1">{error}</div>
+              {(loadingMore || loading) && (
+                <Loading
+                  size="sm"
+                  label="Loading…"
+                  className="text-[12px] text-black/55"
+                  inline={true}
+                />
+              )}
             </div>
-            <button
-              onClick={onRefresh}
-              className="h-9 px-3 text-[13px] border border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
+
+            {pageError ? (
+              <div
+                className="border border-black/15 bg-black/[0.02] p-4 text-[13px] flex items-start justify-between gap-4"
+                style={{ borderRadius: 0 }}
+              >
+                <div>
+                  <div className="font-semibold">Error</div>
+                  <div className="text-black/70 mt-1">{pageError}</div>
+                </div>
+                <button
+                  onClick={onRefresh}
+                  className="h-9 px-3 text-[13px] border border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
+                  style={{ borderRadius: 0 }}
+                >
+                  Retry
+                </button>
+              </div>
+            ) : null}
+
+            <div
+              className="border border-black/10 w-full"
               style={{ borderRadius: 0 }}
             >
-              Retry
-            </button>
-          </div>
-        ) : null}
-
-        <div
-          className="border border-black/10 w-full"
-          style={{ borderRadius: 0 }}
-        >
-          {loading ? (
-            <Loading
-              size="sm"
-              label="Loading…"
-              className="p-6 text-[13px] text-black/55"
-            />
-          ) : grouped.length === 0 ? (
-            <div className="p-10 text-center">
-              <div className="text-[14px] font-semibold">No logs</div>
-              <div className="text-[13px] text-black/55 mt-2">
-                No landing logs yet.
-              </div>
-            </div>
-          ) : (
-            grouped.map((group) => (
-              <div
-                key={group.local_id}
-                className="border-t border-black/10 first:border-t-0 w-full"
-              >
-                <div className="px-5 py-4 w-full">
-                  <div className="text-[14px] font-semibold">
-                    local_id: {group.local_id} - {group.country_lang}
-                  </div>
-                  <div className="text-[12px] text-black/55 mt-1">
-                    entry: {formatKST(group.entryTime)}
-                  </div>
-
-                  <div className="mt-3 text-[13px] text-black/80 w-full space-y-1">
-                    {group.logs.map((log) => (
-                      <div key={log.id} className="flex gap-2 w-full">
-                        <span className="text-black/50">•</span>
-                        {ENTRY_TYPES.has(log.type) ? (
-                          `${log.type} (${formatKST(log.created_at)})`
-                        ) : (
-                          <div className="flex flex-row w-full items-center justify-between">
-                            <div>{log.type}</div>
-                            <div>{formatKST(log.created_at)}</div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
+              {loading ? (
+                <Loading
+                  size="sm"
+                  label="Loading…"
+                  className="p-6 text-[13px] text-black/55"
+                />
+              ) : grouped.length === 0 ? (
+                <div className="p-10 text-center">
+                  <div className="text-[14px] font-semibold">No logs</div>
+                  <div className="text-[13px] text-black/55 mt-2">
+                    No landing logs yet.
                   </div>
                 </div>
+              ) : (
+                grouped.map((group) => (
+                  <div
+                    key={group.local_id}
+                    className="border-t border-black/10 first:border-t-0 w-full"
+                  >
+                    <div className="px-5 py-4 w-full">
+                      <div className="text-[14px] font-semibold">
+                        local_id: {group.local_id} - {group.country_lang}
+                      </div>
+                      <div className="text-[12px] text-black/55 mt-1">
+                        entry: {formatKST(group.entryTime)}
+                      </div>
+
+                      <div className="mt-3 text-[13px] text-black/80 w-full space-y-1">
+                        {group.logs.map((log) => (
+                          <div key={log.id} className="flex gap-2 w-full">
+                            <span className="text-black/50">•</span>
+                            {ENTRY_TYPES.has(log.type) ? (
+                              `${log.type} (${formatKST(log.created_at)})`
+                            ) : (
+                              <div className="flex flex-row w-full items-center justify-between">
+                                <div>{log.type}</div>
+                                <div>{formatKST(log.created_at)}</div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div ref={sentinelRef} className="h-10" />
+
+            <div className="mt-4 text-[12px] text-black/45">
+              {hasMore ? "Scroll to load more…" : "No more rows."}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="mb-4 flex items-center justify-between w-full">
+              <div className="text-[12px] text-black/55">
+                Rows: <span className="text-black">{waitlistRows.length}</span>
               </div>
-            ))
-          )}
-        </div>
 
-        <div ref={sentinelRef} className="h-10" />
+              {waitlistLoading && (
+                <Loading
+                  size="sm"
+                  label="Loading…"
+                  className="text-[12px] text-black/55"
+                  inline={true}
+                />
+              )}
+            </div>
 
-        <div className="mt-4 text-[12px] text-black/45">
-          {hasMore ? "Scroll to load more…" : "No more rows."}
-        </div>
+            {pageError ? (
+              <div
+                className="border border-black/15 bg-black/[0.02] p-4 text-[13px] flex items-start justify-between gap-4"
+                style={{ borderRadius: 0 }}
+              >
+                <div>
+                  <div className="font-semibold">Error</div>
+                  <div className="text-black/70 mt-1">{pageError}</div>
+                </div>
+                <button
+                  onClick={onRefresh}
+                  className="h-9 px-3 text-[13px] border border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
+                  style={{ borderRadius: 0 }}
+                >
+                  Retry
+                </button>
+              </div>
+            ) : null}
+
+            <div
+              className="border border-black/10 w-full"
+              style={{ borderRadius: 0 }}
+            >
+              {waitlistLoading ? (
+                <Loading
+                  size="sm"
+                  label="Loading…"
+                  className="p-6 text-[13px] text-black/55"
+                />
+              ) : waitlistRows.length === 0 ? (
+                <div className="p-10 text-center">
+                  <div className="text-[14px] font-semibold">No rows</div>
+                  <div className="text-[13px] text-black/55 mt-2">
+                    No company waitlist data yet.
+                  </div>
+                </div>
+              ) : (
+                waitlistRows.map((row) => (
+                  <div
+                    key={`${row.email}-${row.created_at}`}
+                    className="border-t border-black/10 first:border-t-0 w-full"
+                  >
+                    <div className="px-5 py-4 w-full">
+                      <div className="flex flex-row items-start justify-between gap-4">
+                        <div className="text-[14px] font-semibold break-all">
+                          {row.email}
+                        </div>
+                        <div className="text-[12px] text-black/55 whitespace-nowrap">
+                          {formatKST(row.created_at)}
+                        </div>
+                      </div>
+
+                      <div className="mt-3 text-[13px] text-black/80 w-full space-y-1">
+                        <div>Name: {row.name ?? "-"}</div>
+                        <div className="break-all">
+                          Company: {row.company ?? "-"}
+                          {row.company_link ? (
+                            <>
+                              {" "}
+                              (
+                              <a
+                                href={row.company_link}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="underline"
+                              >
+                                link
+                              </a>
+                              )
+                            </>
+                          ) : null}
+                        </div>
+                        <div>
+                          Role / Size: {row.role ?? "-"} / {row.size ?? "-"}
+                        </div>
+                        <div>Needs: {row.needs?.join(", ") || "-"}</div>
+                        <div>Main: {row.main ?? "-"}</div>
+                        <div>Additional: {row.additional ?? "-"}</div>
+                        <div>
+                          Submit: {row.is_submit ? "Y" : "N"} · Beta Agree: ·
+                          Mobile:{" "}
+                          {row.is_mobile === null
+                            ? "-"
+                            : row.is_mobile
+                              ? "Y"
+                              : "N"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
