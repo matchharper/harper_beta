@@ -141,6 +141,7 @@ export const en = {
     },
     why: {
       title: "Why Harper?",
+      sub: "",
       cards: [
         {
           title: "Beyond Keywords",

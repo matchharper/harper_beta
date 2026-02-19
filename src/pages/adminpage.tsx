@@ -13,6 +13,7 @@ type LandingLog = {
   id: string;
   local_id: string;
   type: string;
+  abtest_type: string | null;
   created_at: string;
   is_mobile: boolean | null;
   country_lang: string | null;
@@ -22,7 +23,17 @@ type GroupedLogs = {
   local_id: string;
   entryTime: string;
   country_lang: string;
+  abtest_type: string;
   logs: LandingLog[];
+};
+
+type AbtestSummary = {
+  abtestType: string;
+  totalUsers: number;
+  scrolledUsers: number;
+  startClickedUsers: number;
+  pricingClickedUsers: number;
+  loggedInUsers: number;
 };
 
 type WaitlistCompany = {
@@ -50,6 +61,10 @@ const ENTRY_TYPES = new Set(["new_visit", "new_session"]);
 function isStartClickLogType(type: string) {
   if (type === "click_start") return true;
   return type.startsWith("click_") && type.endsWith("_start");
+}
+
+function isPricingClickLogType(type: string) {
+  return type.startsWith("click_pricing_");
 }
 
 function formatPercent(numerator: number, denominator: number) {
@@ -116,7 +131,7 @@ const AdminPage = () => {
       try {
         let q = supabase
           .from("landing_logs")
-          .select("id,local_id,type,created_at,is_mobile,country_lang")
+          .select("id,local_id,type,abtest_type,created_at,is_mobile,country_lang")
           .order("created_at", { ascending: false })
           .neq("local_id", "a22bb523-42cd-4d39-9667-c527c40941d3")
           .neq("local_id", "a4d4df1a-aa6d-401e-a34a-00d426630fe2")
@@ -258,6 +273,10 @@ const AdminPage = () => {
               )[0];
 
       const entryTime = entryTimeSource?.created_at ?? "";
+      const abtestType =
+        entryTimeSource?.abtest_type ??
+        list.find((log) => !!log.abtest_type)?.abtest_type ??
+        "unknown";
 
       const orderedLogs = list
         .slice()
@@ -268,6 +287,7 @@ const AdminPage = () => {
       groups.push({
         local_id,
         entryTime,
+        abtest_type: abtestType,
         logs: orderedLogs,
         country_lang: list[0]?.country_lang ?? "",
       });
@@ -294,6 +314,47 @@ const AdminPage = () => {
       startClickedUsers,
       loggedInUsers,
     };
+  }, [grouped]);
+
+  const abtestSummary = useMemo<AbtestSummary[]>(() => {
+    if (grouped.length === 0) return [];
+
+    const byAbtest = new Map<string, GroupedLogs[]>();
+
+    for (const group of grouped) {
+      const key = group.abtest_type || "unknown";
+      const list = byAbtest.get(key) ?? [];
+      list.push(group);
+      byAbtest.set(key, list);
+    }
+
+    const summary: AbtestSummary[] = [];
+    for (const [abtestType, list] of Array.from(byAbtest.entries())) {
+      const totalUsers = list.length;
+      const scrolledUsers = list.filter((group) =>
+        group.logs.some((log) => log.type === "first_scroll_down")
+      ).length;
+      const startClickedUsers = list.filter((group) =>
+        group.logs.some((log) => isStartClickLogType(log.type))
+      ).length;
+      const pricingClickedUsers = list.filter((group) =>
+        group.logs.some((log) => isPricingClickLogType(log.type))
+      ).length;
+      const loggedInUsers = list.filter((group) =>
+        group.logs.some((log) => log.type.startsWith("login_email:"))
+      ).length;
+
+      summary.push({
+        abtestType,
+        totalUsers,
+        scrolledUsers,
+        startClickedUsers,
+        pricingClickedUsers,
+        loggedInUsers,
+      });
+    }
+
+    return summary.sort((a, b) => b.totalUsers - a.totalUsers);
   }, [grouped]);
 
   const isLandingTab = activeTab === "landingLogs";
@@ -424,6 +485,55 @@ const AdminPage = () => {
               </div>
             </div>
 
+            <div
+              className="mb-4 border border-black/10 p-4 text-[12px] text-black/80"
+              style={{ borderRadius: 0 }}
+            >
+              <div className="font-semibold text-black mb-2">
+                AB Test summary (abtest_type)
+              </div>
+              {abtestSummary.length === 0 ? (
+                <div className="text-black/55">No AB test data.</div>
+              ) : (
+                <div className="space-y-1">
+                  <div className="grid grid-cols-[1.6fr_0.7fr_1fr_1fr_1fr_1fr] gap-2 font-semibold border-b border-black/10 pb-1">
+                    <div>abtest_type</div>
+                    <div className="text-right">Users</div>
+                    <div className="text-right">Scroll</div>
+                    <div className="text-right">Start</div>
+                    <div className="text-right">Pricing</div>
+                    <div className="text-right">Login</div>
+                  </div>
+                  {abtestSummary.map((item) => (
+                    <div
+                      key={item.abtestType}
+                      className="grid grid-cols-[1.6fr_0.7fr_1fr_1fr_1fr_1fr] gap-2"
+                    >
+                      <div className="break-all">{item.abtestType}</div>
+                      <div className="text-right">{item.totalUsers}</div>
+                      <div className="text-right">
+                        {item.scrolledUsers} (
+                        {formatPercent(item.scrolledUsers, item.totalUsers)})
+                      </div>
+                      <div className="text-right">
+                        {item.startClickedUsers} (
+                        {formatPercent(item.startClickedUsers, item.totalUsers)})
+                      </div>
+                      <div className="text-right">
+                        {item.pricingClickedUsers} (
+                        {formatPercent(item.pricingClickedUsers, item.totalUsers)}
+                        )
+                      </div>
+                      <div className="text-right">
+                        {item.loggedInUsers} (
+                        {formatPercent(item.loggedInUsers, item.totalUsers)})
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="mb-4 flex items-center justify-between w-full">
               <div className="text-[12px] text-black/55">
                 Loaded logs: <span className="text-black">{logs.length}</span> ·
@@ -487,7 +597,8 @@ const AdminPage = () => {
                         local_id: {group.local_id} - {group.country_lang}
                       </div>
                       <div className="text-[12px] text-black/55 mt-1">
-                        entry: {formatKST(group.entryTime)}
+                        entry: {formatKST(group.entryTime)} · abtest:{" "}
+                        {group.abtest_type}
                       </div>
 
                       <div className="mt-3 text-[13px] text-black/80 w-full space-y-1">

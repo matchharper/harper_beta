@@ -1,27 +1,37 @@
 "use client";
 
 import { BaseSectionLayout } from "@/components/landing/GridSectionLayout";
-import { ArrowRight, Menu } from "lucide-react";
+import { Menu } from "lucide-react";
 import router from "next/router";
-import React, { useEffect, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Image from "next/image";
 import { showToast } from "@/components/toast/toast";
-import { supabase } from "@/lib/supabase";
-import {
-  WaitlistExtraInfo,
-  WaitlistExtraInfoModal,
-} from "@/components/Modal/WaitlistInfoModal";
-import { useCountdown } from "@/hooks/useCountDown";
 import { DropdownMenu } from "@/components/ui/menu";
 import { v4 } from "uuid";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import Head1 from "@/components/landing/Head1";
-import VCLogosWidth from "@/components/landing/VCLogosWidth";
 import Animate from "@/components/landing/Animate";
-import RotatingOrbTiles from "@/components/landing/Orbit";
+import { OrbitIconsSmall } from "@/components/landing/Orbit";
+import { FallingTagsSmall } from "@/components/landing/FallingTagsSmall";
 import QuestionAnswer from "@/components/landing/Questions";
-import { FallingTags } from "@/components/landing/FallingTags";
-import GaPageView from "@/components/ga";
+import PricingSection from "@/components/landing/Pricing";
+import { logger } from "@/utils/logger";
+import { supabase } from "@/lib/supabase";
+import LoginModal from "@/components/Modal/LoginModal";
+import RowImageSection from "@/components/landing/RowImageSection";
+import GradientBackground from "@/components/landing/GradientBackground";
+import { useMessages } from "@/i18n/useMessage";
+import RotatingText from "@/components/RotatingText";
+import DarkVeil from "@/components/Darkveli";
+import { useCountryLang } from "@/hooks/useCountryLang";
+import { useCompanyUserStore } from "@/store/useCompanyUserStore";
+import Examples from "@/components/landing/Examples";
 
 export const isValidEmail = (email: string): boolean => {
   const trimmed = email.trim();
@@ -29,401 +39,766 @@ export const isValidEmail = (email: string): boolean => {
   return emailRegex.test(trimmed);
 };
 
+type SectionKey = "why" | "examples" | "pricing" | "faq" | "last";
+type CompanyAbtestType = "company_copy_a_v1" | "company_copy_b_v1";
+
+const SECTION_VIEW_INTERSECTION_THRESHOLD = 0.35;
+const SECTION_VIEW_LOG_COOLDOWN_MS = 15000;
+const COMPANY_ABTEST_STORAGE_KEY = "harper_company_abtest_type_2026_02";
+const COMPANY_ABTEST_TYPES: CompanyAbtestType[] = [
+  "company_copy_a_v1",
+  "company_copy_b_v1",
+];
+
+const isCompanyAbtestType = (
+  value: string | null
+): value is CompanyAbtestType =>
+  !!value && COMPANY_ABTEST_TYPES.includes(value as CompanyAbtestType);
+
+const pickCompanyAbtestType = () =>
+  COMPANY_ABTEST_TYPES[Math.floor(Math.random() * COMPANY_ABTEST_TYPES.length)];
+
 const CandidatePage = () => {
-  const LANDING_ID_KEY = "harper_landing_id_0209";
-  const LEGACY_LANDING_ID_KEY = "harper_landing_id";
-  const [email, setEmail] = useState("");
-  const [isBelow, setIsBelow] = useState(false);
-  const [isOpenModal, setIsOpenModal] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [abtest, setAbtest] = useState(-1);
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [abtestType, setAbtestType] = useState<CompanyAbtestType | null>(null);
   const [landingId, setLandingId] = useState("");
+  const [isOpenLoginModal, setIsOpenLoginModal] = useState(false);
+  const [isTeamEmail, setIsTeamEmail] = useState(false);
+  const [isTeamEmailChecked, setIsTeamEmailChecked] = useState(false);
+  const { m, locale } = useMessages();
+  const { companyUser } = useCompanyUserStore();
+  const countryLang = useCountryLang();
 
   const isMobile = useIsMobile();
+  const interactiveRef = useRef<HTMLDivElement>(null);
+
+  const whySectionRef = useRef<HTMLDivElement>(null);
+  const priceSectionRef = useRef<HTMLDivElement>(null);
+  const faqSectionRef = useRef<HTMLDivElement>(null);
+  const whyTrackRef = useRef<HTMLDivElement>(null);
+  const lastTrackRef = useRef<HTMLDivElement>(null);
+  const pricingTrackRef = useRef<HTMLDivElement>(null);
+  const faqTrackRef = useRef<HTMLDivElement>(null);
+  const examplesTrackRef = useRef<HTMLDivElement>(null);
+  const hasLoggedFirstScrollRef = useRef(false);
+  const sectionLastLoggedAtRef = useRef<Record<SectionKey, number>>({
+    why: 0,
+    examples: 0,
+    pricing: 0,
+    faq: 0,
+    last: 0,
+  });
+
+  const addLog = useCallback(
+    async (type: string) => {
+      if (!abtestType) return;
+      // if (!isTeamEmailChecked || isTeamEmail || !landingId) return;
+      const body = {
+        local_id: landingId,
+        type: type,
+        abtest_type: abtestType,
+        is_mobile: isMobile,
+        country_lang: countryLang,
+      };
+      await supabase.from("landing_logs").insert(body);
+    },
+    [abtestType, countryLang, isMobile, landingId]
+  );
 
   useEffect(() => {
-    const localId =
-      localStorage.getItem(LANDING_ID_KEY) ??
-      localStorage.getItem(LEGACY_LANDING_ID_KEY);
+    if (typeof window === "undefined") return;
+
+    const queryAbtestType = new URLSearchParams(window.location.search).get(
+      "ab"
+    );
+    if (isCompanyAbtestType(queryAbtestType)) {
+      localStorage.setItem(COMPANY_ABTEST_STORAGE_KEY, queryAbtestType);
+      setAbtestType(queryAbtestType);
+      return;
+    }
+
+    const cached = localStorage.getItem(COMPANY_ABTEST_STORAGE_KEY);
+    if (isCompanyAbtestType(cached)) {
+      setAbtestType(cached);
+      return;
+    }
+
+    const assigned = pickCompanyAbtestType();
+    localStorage.setItem(COMPANY_ABTEST_STORAGE_KEY, assigned);
+    setAbtestType(assigned);
+  }, []);
+
+  useEffect(() => {
+    const excludedEmails = new Set([
+      "hongbeom.heo@gmail.com",
+      // "khj605123@gmail.com",
+    ]);
+
+    const updateTeamEmail = (email?: string | null) => {
+      setIsTeamEmail(email ? excludedEmails.has(email) : false);
+      setIsTeamEmailChecked(true);
+    };
+
+    supabase.auth.getUser().then(({ data }) => {
+      updateTeamEmail(data.user?.email);
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        updateTeamEmail(session?.user?.email);
+      }
+    );
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
+
+  const initLog = useCallback(async () => {
+    if (!abtestType) return;
+
+    const newId = v4();
+    localStorage.setItem("harper_landing_id_0209", newId);
+    localStorage.setItem("harper_landing_last_visit_at", Date.now().toString());
+    setLandingId(newId);
+
+    const body = {
+      local_id: newId,
+      type: "new_visit",
+      abtest_type: abtestType,
+      is_mobile: isMobile,
+      country_lang: countryLang,
+    };
+    await supabase.from("landing_logs").insert(body);
+  }, [abtestType, countryLang, isMobile]);
+
+  useEffect(() => {
+    if (!isTeamEmailChecked || !abtestType) return;
+    const localId = localStorage.getItem("harper_landing_id_0209");
     if (!localId) {
-      const newId = v4();
-      localStorage.setItem(LANDING_ID_KEY, newId);
-      setLandingId(newId);
+      initLog();
     } else {
-      localStorage.setItem(LANDING_ID_KEY, localId);
-      localStorage.removeItem(LEGACY_LANDING_ID_KEY);
+      logger.log("\n\n 호출 👻 localId : ", localId);
       setLandingId(localId as string);
     }
-  }, []);
+  }, [abtestType, initLog, isTeamEmailChecked, isTeamEmail]);
 
   useEffect(() => {
-    const abtest = localStorage.getItem("harper_abtest");
-    if (abtest) {
-      setAbtest(parseInt(abtest));
-    } else {
-      let newAbtest = Math.random();
+    if (!landingId || !abtestType) return;
+    const lastVisitRaw = localStorage.getItem("harper_landing_last_visit_at");
+    const now = Date.now();
+    const thirtyMinutesMs = 30 * 60 * 1000;
+    const lastVisitAt = lastVisitRaw ? Number(lastVisitRaw) : null;
 
-      if (newAbtest < 0.5) {
-        newAbtest = 0;
-      } else {
-        newAbtest = 1;
-      }
-      setAbtest(newAbtest);
-
-      localStorage.setItem("harper_abtest", newAbtest.toString());
+    if (!lastVisitAt || now - lastVisitAt >= thirtyMinutesMs) {
+      addLog("new_session");
     }
-  }, []);
+
+    localStorage.setItem("harper_landing_last_visit_at", now.toString());
+  }, [abtestType, addLog, landingId]);
 
   useEffect(() => {
     const handleScroll = () => {
       const currentY = window.scrollY;
 
-      if (!isBelow && currentY > window.innerHeight - 100) {
-        setIsBelow(true);
-      }
-
-      if (isBelow && currentY <= window.innerHeight - 100) {
-        setIsBelow(false);
+      if (!hasLoggedFirstScrollRef.current && currentY > 0 && landingId) {
+        hasLoggedFirstScrollRef.current = true;
+        addLog("first_scroll_down");
       }
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [isBelow]);
+  }, [addLog, landingId]);
+
+  useEffect(() => {
+    if (!landingId || !abtestType) return;
+
+    const sectionElements: Array<{
+      key: SectionKey;
+      element: HTMLDivElement | null;
+    }> = [
+      { key: "why", element: whyTrackRef.current },
+      { key: "examples", element: examplesTrackRef.current },
+      { key: "pricing", element: pricingTrackRef.current },
+      { key: "faq", element: faqTrackRef.current },
+      { key: "last", element: lastTrackRef.current },
+    ];
+
+    const observedSections = sectionElements.filter(
+      (
+        section
+      ): section is {
+        key: SectionKey;
+        element: HTMLDivElement;
+      } => section.element !== null
+    );
+
+    if (observedSections.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const now = Date.now();
+
+        entries.forEach((entry) => {
+          const section = (entry.target as HTMLDivElement).dataset.section as
+            | SectionKey
+            | undefined;
+          if (!section) return;
+
+          const isVisible =
+            entry.isIntersecting &&
+            entry.intersectionRatio >= SECTION_VIEW_INTERSECTION_THRESHOLD;
+
+          if (!isVisible) return;
+
+          const lastLoggedAt = sectionLastLoggedAtRef.current[section] ?? 0;
+          if (now - lastLoggedAt < SECTION_VIEW_LOG_COOLDOWN_MS) return;
+
+          sectionLastLoggedAtRef.current[section] = now;
+          addLog(`view_section_${section}`);
+        });
+      },
+      {
+        root: null,
+        threshold: [0, SECTION_VIEW_INTERSECTION_THRESHOLD, 0.7],
+        rootMargin: "0px 0px -15% 0px",
+      }
+    );
+
+    observedSections.forEach(({ element }) => observer.observe(element));
+    return () => observer.disconnect();
+  }, [abtestType, addLog, landingId]);
 
   const upScroll = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-  const downScroll = () => {
-    window.scrollTo({
-      top: document.documentElement.scrollHeight - 1400,
-      behavior: "smooth",
-    });
   };
 
   const handleContactUs = async () => {
     await navigator.clipboard.writeText("chris@asksonus.com");
     showToast({
-      message: "Email copied to clipboard",
+      message: m.help.emailCopied,
       variant: "white",
     });
   };
 
-  const joinWaitlist = async () => {
-    setUploading(true);
-    if (!isValidEmail(email)) {
-      showToast({
-        message: "Please enter a valid email",
-        variant: "white",
+  const setLocaleCookie = (next: "ko" | "en") => {
+    if (typeof document === "undefined") return;
+    document.cookie = `NEXT_LOCALE=${next}; path=/; max-age=31536000`;
+    window.location.reload();
+  };
+
+  const login = async () => {
+    addLog("click_login_google");
+    const redirectTo =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/auths/callback?lid=${localStorage.getItem("harper_landing_id_0209") ?? ""}&cl=${encodeURIComponent(countryLang)}&ab=${encodeURIComponent(abtestType ?? "")}`
+        : undefined;
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: redirectTo,
+      },
+    });
+
+    if (error) throw error;
+    if (data?.url && typeof window !== "undefined") {
+      window.location.assign(data.url);
+    }
+    return data;
+  };
+
+  const customLogin = async (email: string, password: string) => {
+    logger.log("customLogin : ", email, password);
+    const redirectTo =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/auth/callback`
+        : undefined;
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
-      setUploading(false);
-      return;
+      logger.log("성공 ", data);
+
+      if (data.user?.user_metadata.email_verified) {
+        setIsOpenLoginModal(false);
+        router.push("/invitation");
+      }
+
+      return null;
+    } catch (error) {
+      return null;
+    }
+  };
+
+  const copyVariant = useMemo(() => {
+    const defaultCopy = {
+      startButton: m.companyLanding.startButton,
+      whySubtitle: m.companyLanding.why.sub,
+      heroSubtitle: m.companyLanding.hero.subtitle,
+      section1HeadlineLine2: m.companyLanding.section1.headlineLine2,
+      section1BodyLine2: m.companyLanding.section1.bodyLine2,
+      closingHeadlineLine2: m.companyLanding.closing.headlineLine2,
+      whyFirstCardDesc: m.companyLanding.why.cards[0].desc,
+      whyThirdCardDesc: m.companyLanding.why.cards[2].desc,
+      rotatingTexts: ["Intelligence", "Decision", "Knowledge", "Insight"],
+    };
+
+    if (abtestType !== "company_copy_b_v1") {
+      return defaultCopy;
     }
 
-    const body = {
-      email: email,
-      local_id: landingId,
-      type: 0,
-      abtest: "2025_12_" + abtest.toString(),
-      is_mobile: isMobile,
-    };
-    await supabase.from("harper_waitlist").insert(body);
+    if (locale === "ko") {
+      return {
+        ...defaultCopy,
+        startButton: "무료로 시작하기",
+        whySubtitle:
+          "Harper는 링크드인 세일즈 네비게이터보다 더 많은 소스와 입력을 바탕으로<br />적합도가 높은 후보만 찾아서 보여드립니다.",
+        whyFirstCardDesc:
+          "단순한 키워드 검색을 넘어, <br />역량과 맥락을 이해하고 찾아주는 지능을 경험하세요.",
+        whyThirdCardDesc:
+          "링크드인, github, 논문, 트위터, SNS, 블로그 등<br />흩어진 정보를 하나로 모아 분석하고<br />인사이트를 추출해 알려줍니다.",
+        heroSubtitle:
+          "어떤 조건이던 AI 검색 엔진이<br />원하는 프로필을 가진 사람을 즉시 찾아드려요.",
+        section1BodyLine2: "Harper는 리크루팅의 미래를 새롭게 정의합니다.",
+        closingHeadlineLine2: "리크루팅의 미래를 경험하세요.",
+      };
+    }
 
-    setIsOpenModal(true);
-    setUploading(false);
-    setIsSubmitted(true);
+    return {
+      ...defaultCopy,
+      startButton: "Start for Free",
+      whySubtitle:
+        "Harper analyzes more sources and richer signals than LinkedIn Sales Navigator<br />to surface only the most relevant, high-fit candidates.",
+      whyFirstCardDesc:
+        "Go beyond simple keyword search.<br />Experience intelligence that understands skills and real-world context.",
+      whyThirdCardDesc:
+        "LinkedIn, GitHub, papers, Twitter, blogs, and more —<br />Harper brings scattered information together,<br />analyzes it, and extracts actionable insights.",
+      heroSubtitle:
+        "No matter your criteria,<br />our AI search engine instantly finds the right profiles for you.",
+      section1BodyLine2:
+        "Not just search results — evidence-based hiring priorities you can act on.",
+      closingHeadlineLine2: "Turn hiring into a joyful discovery.",
+    };
+  }, [abtestType, locale, m]);
+
+  const NavItem = ({
+    label,
+    onClick,
+  }: {
+    label: string;
+    onClick: () => void;
+  }) => {
+    return (
+      <div
+        className="cursor-pointer hover:opacity-95 px-5 py-2 hover:bg-white/5 rounded-full transition-colors duration-200"
+        onClick={onClick}
+      >
+        {label}
+      </div>
+    );
   };
 
-  const handleSubmit = async (data: WaitlistExtraInfo) => {
-    const body = {
-      email: email,
-      type: 0,
-      role: data.currentRole,
-      expect: data.interests,
-      links: data.profileUrl,
-      abtest: "2025_12_" + abtest.toString(),
-      is_mobile: isMobile,
-    };
-    await supabase.from("harper_waitlist").upsert(body);
+  const StartButton = ({
+    type,
+    size = "md",
+  }: {
+    type: string;
+    size?: "md" | "sm";
+  }) => {
+    const sizeClass = {
+      md: "py-4 px-8 mt-12 text-base",
+      sm: "py-3 px-6 text-xs",
+    }[size];
 
-    showToast({
-      message: "등록이 완료되었습니다. 감사합니다.",
-      variant: "white",
-    });
+    return (
+      <div
+        onClick={() => {
+          addLog(type);
+          if (companyUser && companyUser.email) {
+            if (companyUser.is_authenticated) {
+              router.push("/my");
+              return;
+            }
+            router.push("/invitation");
+            return;
+          }
+          setIsOpenLoginModal(true);
+        }}
+        className={`
+        group relative
+        font-medium 
+        cursor-pointer
+        rounded-full
+        bg-accenta1 text-black
+        z-10
+
+        ring-1 ring-white/10
+        shadow-[0_12px_40px_rgba(180,255,120,0.25)]
+
+        transition-all duration-200
+        hover:shadow-[0_18px_60px_rgba(180,255,120,0.35)]
+        hover:-translate-y-[1px]
+        active:translate-y-[0px]
+        active:shadow-[0_8px_20px_rgba(180,255,120,0.2)]
+        ${sizeClass}`}
+      >
+        {copyVariant.startButton}
+      </div>
+    );
   };
-
-  const date = new Date();
-  const formattedDate = date.toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
-
-  const remain = useCountdown("2025-12-19T00:00:00");
 
   return (
-    <main className={`min-h-screen font-inter text-white bg-black`}>
-      <WaitlistExtraInfoModal
-        isOpen={isOpenModal}
-        onClose={() => setIsOpenModal(false)}
-        onSubmit={handleSubmit}
+    <main className={`min-h-screen font-inter text-white bg-black w-screen`}>
+      <LoginModal
+        open={isOpenLoginModal}
+        onClose={() => setIsOpenLoginModal(false)}
+        onGoogle={login}
+        onConfirm={customLogin}
       />
       <header className="fixed top-0 left-0 z-20 w-full flex items-center justify-between px-0 lg:px-4 h-14 md:h-20 text-sm text-white transition-all duration-300">
         <div className="flex items-center justify-between w-full px-4 md:px-8 h-full">
           <div className="text-[26px] font-garamond font-semibold w-[40%] md:w-[15%]">
             Harper
           </div>
-          <nav className="hidden font-normal text-white bg-[#444444aa] backdrop-blur rounded-full md:flex items-center justify-center gap-4 text-xs sm:text-sm px-4 py-2">
-            <div
-              className="cursor-pointer hover:opacity-95 px-4 py-2 hover:bg-white/5 rounded-full transition-colors duration-200"
+          <nav className="hidden font-normal text-white bg-[#444444aa] backdrop-blur rounded-full md:flex items-center justify-center gap-2 text-xs sm:text-sm px-4 py-2">
+            <NavItem
+              label={m.companyLanding.nav.intro}
               onClick={() => {
-                router.push("companies");
+                window.scrollTo({ top: 0, behavior: "smooth" });
               }}
-            >
-              For companies
-            </div>
-            <div
-              onClick={downScroll}
-              className="cursor-pointer hover:opacity-95 px-4 py-2 hover:bg-white/5 rounded-full transition-colors duration-200"
-            >
-              FAQ
-            </div>
+            />
+            <NavItem
+              label={m.companyLanding.nav.howItWorks}
+              onClick={() => {
+                window.scrollTo({
+                  top: whySectionRef.current?.offsetTop,
+                  behavior: "smooth",
+                });
+              }}
+            />
+            <NavItem
+              label={m.companyLanding.nav.pricing}
+              onClick={() => {
+                window.scrollTo({
+                  top: priceSectionRef.current?.offsetTop,
+                  behavior: "smooth",
+                });
+              }}
+            />
+            <NavItem
+              label={m.companyLanding.nav.faq}
+              onClick={() => {
+                window.scrollTo({
+                  top: faqSectionRef.current?.offsetTop,
+                  behavior: "smooth",
+                });
+              }}
+            />
           </nav>
           <div className="hidden md:flex w-[10%] md:w-[15%] items-center justify-end">
-            <button
-              onClick={upScroll}
-              className="font-medium text-xs cursor-pointer py-3.5 px-6 bg-accenta1 text-black rounded-full"
-            >
-              Join Waitlist
-            </button>
+            <StartButton type="click_nav_start" size="sm" />
           </div>
           <div className="block md:hidden">
             <DropdownMenu
               buttonLabel={<Menu className="w-4 h-4" />}
               items={[
                 {
-                  label: "Join Waitlist",
-                  onClick: upScroll,
+                  label: m.companyLanding.nav.intro,
+                  onClick: () =>
+                    window.scrollTo({ top: 0, behavior: "smooth" }),
                 },
                 {
-                  label: "For companies",
-                  onClick: () => router.push("companies"),
+                  label: m.companyLanding.nav.howItWorks,
+                  onClick: () =>
+                    window.scrollTo({
+                      top: whySectionRef.current?.offsetTop,
+                      behavior: "smooth",
+                    }),
                 },
-                { label: "Referral", onClick: () => router.push("referral") },
+                {
+                  label: m.companyLanding.nav.pricing,
+                  onClick: () =>
+                    window.scrollTo({
+                      top: priceSectionRef.current?.offsetTop,
+                      behavior: "smooth",
+                    }),
+                },
+                {
+                  label: m.companyLanding.nav.faq,
+                  onClick: () =>
+                    window.scrollTo({
+                      top: faqSectionRef.current?.offsetTop,
+                      behavior: "smooth",
+                    }),
+                },
               ]}
             />
           </div>
         </div>
       </header>
 
-      <div className="flex flex-col items-center justify-center px-0 md:px-20 w-full bg-black text-white h-screen">
-        <div className="flex flex-col items-center justify-start md:justify-center pt-40 md:pt-0 w-full h-full text-center px-4">
-          {/* <div className="mb-4 flex flex-row items-center justify-center pl-[2px] py-[2px] pr-[12px] bg-white/50 text-black gap-1.5 rounded-full">
+      <div className="flex flex-col items-center justify-center px-0 md:px-20 w-full bg-black text-white h-[86vh] md:h-[90vh]">
+        <div className="absolute top-0 left-0 w-full h-[90%] opacity-40">
+          <DarkVeil
+            hueShift={189}
+            noiseIntensity={0}
+            scanlineIntensity={0}
+            speed={1.2}
+            scanlineFrequency={0}
+            warpAmount={0}
+          />
+        </div>
+        <div className="z-10 flex flex-col items-center justify-start md:justify-center pt-32 md:pt-0 w-full h-full text-center px-4">
+          {/* <div className="mb-4 flex flex-row items-center justify-center pl-[2px] py-[2px] pr-[12px] text-white bg-[#444444aa] backdrop-blur gap-2 rounded-full">
             <div className="w-[24px] h-[24px] bg-black rounded-full flex items-center justify-center">
-              <Building className="w-[14px] text-white" />
+              <Image src="/svgs/logo.svg" alt="logo" width={12} height={12} />
             </div>
             <div className="text-[12px] font-normal">
-              현재 미국의 회사들과의 연결에 집중하고 있습니다.
+              {m.companyLanding.hero.badge}
             </div>
           </div> */}
-          <div className="md:text-[44px] text-[28px] font-normal leading-snug mt-2">
-            세계 최고 <span className="hidden md:inline">AI/ML</span> 엔지니어의
-            <br /> 다음 커리어가 시작되는 곳
+          <div className="md:text-[56px] text-[32px] font-semibold leading-snug mt-2 flex flex-col items-center justify-center gap-2">
+            <div>{m.companyLanding.hero.titleLine1} Data.</div>
+            <div className="flex flex-row items-center justify-center gap-4">
+              {m.companyLanding.hero.titleLine2Prefix}{" "}
+              <RotatingText
+                texts={copyVariant.rotatingTexts}
+                mainClassName="lg:px-4 md:px-3 px-2 font-hedvig bg-accenta1 text-black overflow-hidden py-0 sm:py-0 md:py-0 justify-center rounded-lg inline-block"
+                staggerFrom={"last"}
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "-120%" }}
+                staggerDuration={0.02}
+                splitLevelClassName="overflow-hidden pb-0.5 sm:pb-1 md:pb-1"
+                transition={{ type: "spring", damping: 30, stiffness: 400 }}
+                rotationInterval={2800}
+              />
+            </div>
+            {/* <span className="font-hedvig text-accenta1 font-normal italic">
+              {m.companyLanding.hero.titleLine2Highlight}
+            </span> */}
           </div>
-          <div className="text-sm md:text-base text-hgray700 font-light mt-6">
-            {/* 하퍼만의 노하우로 완벽에 가까운 포지션을 연결해드립니다. */}
-            풀타임, 리모트, 파트타임, 인턴 등 글로벌 테크 스타트업으로부터 먼저
-            커리어 기회를 제안 받으세요.
+          <div className="text-base md:text-lg text-hgray700 font-light mt-6">
+            <span
+              dangerouslySetInnerHTML={{
+                __html: copyVariant.heroSubtitle,
+              }}
+            />
           </div>
-          <JoinWaitlistButton
-            isSubmitted={isSubmitted}
-            email={email}
-            setEmail={setEmail}
-            joinWaitlist={joinWaitlist}
+          <StartButton type="click_hero_start" />
+        </div>
+      </div>
+      <div className="mb-20 mt-12 md:mt-0 flex flex-col items-center justify-center">
+        <div className="w-[90%] max-w-[960px] bg-gradpastel2 overflow-hidden md:rounded-[30px] rounded-2xl pt-8 md:pt-0 flex flex-col items-center justify-center">
+          <video
+            src="/videos/usemain.mp4"
+            poster="/images/usemain.png"
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="w-[90%] h-full object-cover  md:rounded-t-[30px] rounded-t-2xl md:translate-y-[40px] translate-y-0 shadow-lg"
           />
-
-          <div className="flex items-center flex-row gap-2 mt-16">
-            <div className="relative items-baseline gap-1 text-hgray700 font-normal flex">
-              <div>500+ in the waitlist </div>
-            </div>
-            <div className="flex -space-x-2">
-              <div className="h-7 w-7 rounded-full border border-white/30">
-                <Image
-                  src="/images/person1.png"
-                  alt="person1"
-                  className="rounded-full"
-                  width={28}
-                  height={28}
-                />
-              </div>
-              <div className="h-7 w-7 rounded-full border border-white/30 bg-white/40">
-                <Image
-                  src="/images/person2.png"
-                  alt="person2"
-                  className="rounded-full"
-                  width={28}
-                  height={28}
-                />
-              </div>
-              <div className="h-7 w-7 rounded-full border border-white/30 bg-white/40">
-                <Image
-                  src="/images/person3.png"
-                  alt="person3"
-                  className="rounded-full"
-                  width={28}
-                  height={28}
-                />
-              </div>
-            </div>
-          </div>
         </div>
       </div>
       <Animate>
         <BaseSectionLayout>
-          <div className="gap-2 w-full flex flex-col items-center justify-center text-center py-6 md:py-10 px-0">
-            <Head1>Harper is for you.</Head1>
+          <div className="gap-2 w-full flex flex-col items-center justify-center text-center py-8 md:py-10 px-0">
+            <Head1>{m.companyLanding.section1.title}</Head1>
             <h2 className="text-[22px] md:text-3xl text-white font-normal mt-10">
-              숨겨진 최고의 기회는
+              {m.companyLanding.section1.headlineLine1}
               <br />
-              일반 채용 시장에 공개되지 않습니다.
+              {copyVariant.section1HeadlineLine2}
             </h2>
-            <p className="text-base font-light md:text-lg mt-6 text-hgray700">
-              {/* 하퍼는 최고의 회사와 인재에 집중하고 있습니다. */}
-              {/* 하퍼는 오직 글로벌 AI 리더십의 중심의 */}
-              하퍼는 현재 해외 회사들과의 연결에 집중하고 있습니다.
+            <p className="text-base font-hedvig font-light md:text-lg mt-6 px-2 text-hgray700">
+              {m.companyLanding.section1.bodyLine1}
               <br />
-              오직 하퍼에서만, 미국의 팀에게서 이직 제안을 받을 수 있습니다.
-              {/* 가장 영향력 있는 기회만을 선별하여 연결합니다. */}
+              {copyVariant.section1BodyLine2}
             </p>
           </div>
         </BaseSectionLayout>
-        <VCLogosWidth />
+        {/* <VCLogosWidth /> */}
       </Animate>
+      <div ref={whySectionRef} />
       <div className="h-48" />
       <Animate>
         <BaseSectionLayout>
           <Animate>
-            <Head1 className="text-white">Why harper?</Head1>
+            <Head1 className="text-white text-center w-full">
+              {m.companyLanding.why.title}
+            </Head1>
+            <div className="text-sm font-hedvig font-light md:text-lg mt-6 px-2 text-hgray700">
+              <span
+                dangerouslySetInnerHTML={{
+                  __html: copyVariant.whySubtitle,
+                }}
+              />
+            </div>
           </Animate>
           <Animate>
-            <div className="flex flex-col md:flex-row mt-12 gap-16">
-              <WhyImageSection
-                title="하퍼와의 단 한 번의 대화로,<br />무한한 기회를 얻으세요"
-                desc="서류 지원과 인터뷰를 공고마다 반복할 필요가 없습니다.<br />단 한 번의 대화만으로 등록한 뒤 정규직·파트타임·프리랜서 등 개인에게 최적화된 모든 커리어 기회를 제안받으세요."
-                imageSrc="/images/feat1.png"
-              />
-              <WhyImageSection
-                title="기존에 볼 수 없었던<br />지원자에 대한 깊은 이해"
-                desc="블로그, GitHub, 작성한 논문 등 모든 비정형 정보를 종합적으로 분석하여 기존의 이력서에는 담기지 않았던 디테일한 정보까지 프로필에 담아냅니다. 데이터에 기반해 지원자의 선호와 숨겨진 역량까지 정확히 파악하고, 완벽에 가까운 포지션만을 선별하여 제안합니다."
-                imageSrc="/images/why2.png"
-              />
+            <div ref={whyTrackRef} data-section="why">
+              <div className="flex flex-col md:flex-row mt-12 gap-8">
+                <WhyImageSection
+                  title={m.companyLanding.why.cards[0].title}
+                  desc={copyVariant.whyFirstCardDesc}
+                  imageSrc="/images/feat1.png"
+                />
+                <WhyImageSection
+                  title={m.companyLanding.why.cards[1].title}
+                  desc={m.companyLanding.why.cards[1].desc}
+                  imageSrc="/images/feat4.png"
+                />
+                <WhyImageSection
+                  title={m.companyLanding.why.cards[2].title}
+                  desc={copyVariant.whyThirdCardDesc}
+                  imageSrc="orbit"
+                />
+              </div>
             </div>
           </Animate>
         </BaseSectionLayout>
       </Animate>
       <div className="h-48" />
       <FeatureSection />
+      {abtestType === "company_copy_b_v1" && (
+        <>
+          <div ref={examplesTrackRef} data-section="examples" />
+          <div className="h-28 md:h-48" />
+          <Examples />
+        </>
+      )}
       <div className="h-28 md:h-48" />
       <Animate>
         <BaseSectionLayout>
-          <div className="flex flex-col items-start gap-4 bg-white/20 rounded-2xl px-6 md:px-[30px] py-6 md:py-8 w-[90%] max-w-[600px]">
-            <div className="text-[15px] md:text-base text-left leading-[26px] font-normal text-hgray700">
-              하퍼는 올라왔다 사라지는 공고들, 반복적인 지원 및 1차 인터뷰,
-              그리고 지원자의 역량과 역량과 니즈를 제대로 이해하지 못한 채
-              이루어지는 리크루터의 제안들.
-              <br /> 이러한 비효율적인 채용 프로세스를 AI로 개선하고자 합니다.
-            </div>
-            <div className="flex flex-row items-center justify-start gap-4 mt-6">
-              <div>
-                <Image
-                  src="/images/cofounder.png"
-                  alt="person1"
-                  width={60}
-                  height={60}
+          <div className="w-[90%] max-w-[600px] flex flex-col">
+            {/* <div className="font-hedvig mb-2 text-xl text-accenta1 w-full text-center">
+                Why choose us
+              </div> */}
+            <div className="flex flex-col items-start gap-4 bg-white/20 rounded-2xl px-6 md:px-[30px] py-6 md:py-8">
+              <div className="text-[15px] md:text-base text-left leading-[30px] font-normal text-hgray700">
+                <span
+                  dangerouslySetInnerHTML={{
+                    __html: m.companyLanding.testimonial.body,
+                  }}
                 />
               </div>
-              <div className="flex flex-col items-start justify-start gap-1">
-                <div className="text-sm">Chris & Daniel</div>
-                <div className="text-hgray700 text-xs">Co-founder</div>
-              </div>
-            </div>
-          </div>
-        </BaseSectionLayout>
-      </Animate>
-      <div className="h-28 md:h-40" />
-      <Animate>
-        <BaseSectionLayout>
-          <div className="flex flex-col items-center justify-center w-full pt-4">
-            <div className="w-full flex flex-col items-center justify-center pb-2">
-              <div className="text-[28px] md:text-4xl font-garamond font-medium">
-                Questions & Answers
-              </div>
-              <div className="flex flex-col items-start justify-start text-white/70 font-light w-full mt-12 px-4 md:px-0">
-                <QuestionAnswer
-                  question="누가 제 프로필을 볼 수 있나요?"
-                  answer="하퍼의 엄격한 심사 기준을 통과한 검증된 기업만 프로필을 열람할 수 있습니다. 특히, 지원자의 현재 소속된 회사는 IP/도메인 차단 시스템을 통해 철저히 비공개 처리되어 익명성을 완벽하게 보장합니다."
-                />
-                <QuestionAnswer
-                  question="당장 구직/이직 의사가 없더라도 등록해둘 수 있나요?"
-                  answer="네 가능합니다. 하퍼는 정규직 채용 외에도 파트타임, 프리랜싱, 자문 등 지원자님의 커리어에 도움이 될 수 있는 다양한 형태의 기회를 함께 연결합니다. 현재 이직 의사나 정규직 여부와 관계없이, 시장 최고 수준의 제안을 받아보시고, 커리어를 확장할 수 있는 새로운 가능성을 편하게 탐색하세요."
-                />
-                <QuestionAnswer
-                  question="어떤 회사들에게서 제안이 오나요?"
-                  answer="글로벌 성장 잠재력을 갖춘 딥테크(Deep Tech) 및 AI 분야의 혁신적인 테크 기업들입니다. 하퍼는 AI 매칭 시스템을 통해 지원자분들의 역량과 니즈에 부합하는 포지션을 직접 찾아 해당 기업에 가입을 요청합니다. 이처럼 맞춤형 매칭을 통해 모든 지원자분들이 최소 한 번 이상의 퀄리티 높은 제안을 반드시 받으실 수 있도록 보장합니다."
-                  index={3}
-                />
-              </div>
-            </div>
-          </div>
-        </BaseSectionLayout>
-      </Animate>
-      <div className="h-4 md:h-40" />
-      <Animate duration={0.8}>
-        <BaseSectionLayout>
-          <div className="w-full flex flex-col items-center justify-center bg-black">
-            <div className="flex flex-col items-center justify-center w-full lg:w-[94%] py-40 text-white">
-              <Head1 className="text-3xl md:text-[42px]">
-                Get Opportunities.
-              </Head1>
-              <div className="text-lg font-light text-white/90 mt-8 leading-7">
-                하퍼는 구직 서비스가 아닙니다.
-                <br />
-                커리어의 옵션을 늘리는 인프라입니다.
-                {/* <br />
-                우선 기회를 받아보고 결정하세요. */}
-              </div>
-              <div>
-                <JoinWaitlistButton
-                  isSubmitted={isSubmitted}
-                  email={email}
-                  setEmail={setEmail}
-                  joinWaitlist={joinWaitlist}
-                />
-                <div className="text-sm md:text-base font-light text-white/80 mt-2 leading-7">
-                  서비스 런칭까지{" "}
-                  <span className="text-white font-normal">{remain}</span>{" "}
-                  남았습니다.
-                  <br />
-                  {/* 메일을 남겨주시면 출시와 함께 가장 먼저 안내드릴게요. */}
+              <div className="flex flex-row items-center justify-start gap-4 mt-6">
+                <div>
+                  <Image
+                    src="/images/cofounder.png"
+                    alt="person1"
+                    width={60}
+                    height={60}
+                  />
+                </div>
+                <div className="flex flex-col items-start justify-start gap-1">
+                  <div className="text-sm">
+                    {m.companyLanding.testimonial.name}
+                  </div>
+                  <div className="text-hgray700 text-xs">
+                    {m.companyLanding.testimonial.role}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </BaseSectionLayout>
       </Animate>
-      <div className="flex flex-row items-end justify-between border-t border-white/20 py-10 md:py-8 w-[100%] md:w-[94%] mx-auto px-4 md:px-0">
+      <div ref={priceSectionRef} />
+
+      {abtestType !== "company_copy_b_v1" && (
+        <>
+          <div className="h-28 md:h-40" />
+          <div ref={pricingTrackRef} data-section="pricing">
+            <PricingSection
+              onClick={(plan: string, _billing: "monthly" | "yearly") => {
+                addLog("click_pricing_" + plan);
+                setIsOpenLoginModal(true);
+              }}
+            />
+          </div>
+        </>
+      )}
+      <div ref={faqSectionRef} />
+      <div ref={faqTrackRef} data-section="faq">
+        <div className="h-28 md:h-40" />
+        <Animate>
+          <BaseSectionLayout>
+            <div className="flex flex-col items-center justify-center w-full pt-4">
+              <div className="w-full flex flex-col items-center justify-center pb-2">
+                <div className="text-[28px] md:text-4xl font-garamond font-medium">
+                  {m.companyLanding.faq.title}
+                </div>
+                <div className="flex flex-col items-start justify-start text-white/70 font-light w-full mt-12 px-4 md:px-0">
+                  {m.companyLanding.faq.items.map((item, index) => (
+                    <QuestionAnswer
+                      key={item.question}
+                      question={item.question}
+                      answer={item.answer}
+                      index={index}
+                      onOpen={() => addLog(`click_faq_${index}`)}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </BaseSectionLayout>
+        </Animate>
+      </div>
+      <div className="h-4 md:h-40" />
+      <Animate duration={0.8}>
+        <div ref={lastTrackRef} data-section="last">
+          <div className="relative bg-black w-screen py-10">
+            <GradientBackground interactiveRef={interactiveRef} />
+            <div className="absolute top-0 left-0 w-full h-[50%] bg-gradient-to-t from-transparent to-black" />
+            <div className="flex flex-col items-center justify-center w-full lg:w-[94%] py-40 text-white z-40">
+              <Head1 className="text-xl md:text-[32px] z-40">
+                {m.companyLanding.closing.title}
+              </Head1>
+              <div className="text-2xl md:text-[40px] text-center font-medium text-white/90 mt-8 md:leading-normal z-40">
+                {m.companyLanding.closing.headlineLine1}
+                <div className="md:h-1 h-1" />
+                {copyVariant.closingHeadlineLine2}
+              </div>
+              <StartButton type="click_footer_start" />
+            </div>
+          </div>
+        </div>
+      </Animate>
+      <div className="flex flex-col md:flex-row items-start md:items-end justify-between border-t border-white/20 py-10 md:py-8 w-[100%] md:w-[94%] mx-auto px-4 md:px-0 gap-6 md:gap-0">
         <div className="flex flex-row items-end justify-start gap-8 md:gap-10">
           <div className="text-3xl font-semibold font-garamond">Harper</div>
           <div className="text-xs md:text-sm font-extralight">
             © Harper. <span className="ml-4">2026</span>
           </div>
         </div>
-        <div
-          onClick={handleContactUs}
-          className="text-xs md:text-sm font-extralight cursor-pointer hover:text-white/90 text-white/80"
-        >
-          Contact Us
+        <div className="flex flex-row items-center gap-4">
+          <div className="flex items-center gap-2 text-xs md:text-sm font-extralight text-white/80">
+            <button
+              type="button"
+              onClick={() => setLocaleCookie("ko")}
+              className={`hover:text-white/90 transition ${locale === "ko" ? "text-white" : ""}`}
+            >
+              한국어
+            </button>
+            <span className="text-white/40">|</span>
+            <button
+              type="button"
+              onClick={() => setLocaleCookie("en")}
+              className={`hover:text-white/90 transition ${locale === "en" ? "text-white" : ""}`}
+            >
+              English
+            </button>
+          </div>
+          <div
+            onClick={handleContactUs}
+            className="text-xs md:text-sm font-extralight cursor-pointer hover:text-white/90 text-white/80"
+          >
+            {m.companyLanding.footer.contact}
+          </div>
         </div>
       </div>
     </main>
@@ -432,83 +807,44 @@ const CandidatePage = () => {
 
 export default CandidatePage;
 
-const JoinWaitlistButton = ({
-  isSubmitted,
-  email,
-  setEmail,
-  joinWaitlist,
-}: {
-  isSubmitted: boolean;
-  email: string;
-  setEmail: (email: string) => void;
-  joinWaitlist: () => void;
-}) => {
-  return (
-    <>
-      {isSubmitted ? (
-        <div className="relative mt-16">
-          <div
-            className={`py-5 px-8 font-light text-sm border text-white bg-white/10 border-white/15 hover:border-white/30 focus:ring-white/50 rounded-lg transition-all duration-300 focus:outline-none focus:ring-1`}
-          >
-            감사합니다! 곧 연락드리겠습니다.
-          </div>
-        </div>
-      ) : (
-        <div className="relative mt-16">
-          <input
-            type="email"
-            className="py-5 px-6 font-light text-sm sm:text-sm border text-white
-                  bg-white/20 border-[rgba(255,255,255,0.04)] rounded-full min-w-[320px] sm:min-w-[380px]
-                  transition-all duration-300 hover:border-white/30 focus:outline-none focus:ring-1 focus:ring-white/50"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Example@gmail.com"
-          />
-          <div
-            onClick={joinWaitlist}
-            className="absolute flex flex-row items-center justify-center gap-1 font-medium
-                  group cursor-pointer right-1.5 top-1/2 -translate-y-1/2 text-[14px]
-                  bg-accenta1 text-black px-4 md:px-5 py-4 rounded-full transition-all duration-300"
-          >
-            <span>Join waitlist</span>
-            <ArrowRight
-              size={18}
-              strokeWidth={2.2}
-              className="text-black group-hover:w-[14px] w-0 transition-all duration-300"
-            />
-          </div>
-        </div>
-      )}
-    </>
-  );
-};
-
 const FeatureSection = () => {
-  const isMobile = useIsMobile();
+  const { m } = useMessages();
 
   return (
     <BaseSectionLayout>
       <Animate>
-        <Head1 className="text-white">How it works.</Head1>
+        <Head1 className="text-white">{m.companyLanding.feature.title}</Head1>
       </Animate>
       <div className="flex flex-col w-full mt-12 gap-[30px]">
         <Animate>
-          <ImageSection
+          <RowImageSection
             opposite={true}
-            title="간단한 가입 만으로,<br />역량 심층 분석 프로필 생성"
-            desc="간단히 가입하고, 기존 이력서와 공개 활동 데이터(블로그, 포트폴리오 등)를 통합하세요. 하퍼가 이를 다각도로 분석하여, 이력서에 담기지 않은 당신의 잠재력과 선호도까지 담아내는 프로필을 완성하고 보호합니다."
-            imageSrc="orbit"
+            label={m.companyLanding.feature.rows[0].label}
+            title={m.companyLanding.feature.rows[0].title}
+            desc={m.companyLanding.feature.rows[0].desc}
+            imageSrc="/videos/use1.mp4"
           />
         </Animate>
         <Animate>
-          <ImageSection
-            title="단 하나의 프로필로<br />숨겨진 모든 기회를 선점"
-            desc="완성된 심층 프로필을 기반으로, 하퍼가 정규직, 파트타임을 가리지 않고 커리어 성장에 딱 맞는 좋은 기회를 쉬지 않고 상시로 선별하여 연결해 드립니다.<br />하퍼는 지원자님만을 위한 24/7 AI recruiter입니다."
-            imageSrc="/images/feat3.png"
+          <RowImageSection
+            label={m.companyLanding.feature.rows[1].label}
+            title={m.companyLanding.feature.rows[1].title}
+            desc={m.companyLanding.feature.rows[1].desc}
+            imageSrc="/videos/use2.mp4"
             padding
           />
         </Animate>
         <Animate>
+          <RowImageSection
+            opposite={true}
+            label={m.companyLanding.feature.rows[2].label}
+            title={m.companyLanding.feature.rows[2].title}
+            desc={m.companyLanding.feature.rows[2].desc}
+            imageSrc="/videos/use3.mp4"
+            padding
+          />
+        </Animate>
+        {/* <Animate>
           <ImageSection
             title={
               isMobile
@@ -520,61 +856,9 @@ const FeatureSection = () => {
             imageSrc="/images/why1.png"
             opposite
           />
-        </Animate>
+        </Animate> */}
       </div>
     </BaseSectionLayout>
-  );
-};
-
-const ImageSection = ({
-  title,
-  desc,
-  imageSrc,
-  opposite = false,
-  padding = false,
-}: {
-  title: string;
-  desc: string;
-  imageSrc: string;
-  opposite?: boolean;
-  padding?: boolean;
-}) => {
-  return (
-    <div
-      className={`flex flex-col md:flex-row justify-center items-center w-full max-w-full md:gap-[60px] gap-6 mb-8 md:mt-0 ${
-        opposite ? "flex-col md:flex-row-reverse" : ""
-      } px-5 md:px-0`}
-    >
-      <div className="h-[26vw] min-h-[250px] md:min-h-[380px] w-full flex relative overflow-hidden justify-end items-end rounded-3xl bg-white/10 md:bg-white/5">
-        {imageSrc === "orbit" ? (
-          <RotatingOrbTiles />
-        ) : (
-          <>
-            {padding ? (
-              <Image
-                src={imageSrc}
-                alt={title}
-                width={480}
-                height={320}
-                className="object-cover w-[90%]"
-              />
-            ) : (
-              <Image src={imageSrc} alt={title} fill className="object-cover" />
-            )}
-          </>
-        )}
-      </div>
-      <div className="flex flex-col items-start justify-start w-full text-left gap-5">
-        <div
-          className="text-[26px] md:text-[32px] font-normal leading-[2.2rem] md:leading-[2.5rem]"
-          dangerouslySetInnerHTML={{ __html: title }}
-        />
-        <div
-          className="text-[15px] md:text-base leading-6 font-light text-hgray700"
-          dangerouslySetInnerHTML={{ __html: desc }}
-        />
-      </div>
-    </div>
   );
 };
 
@@ -587,23 +871,39 @@ const WhyImageSection = ({
   desc: string;
   imageSrc: string;
 }) => {
+  const imgReturn = () => {
+    if (imageSrc === "/images/feat1.png") {
+      return (
+        <div className="h-[200px] md:h-[280px] relative w-full flex justify-center items-center rounded-2xl bg-gradpastel2 overflow-hidden">
+          <div className="mr-8 w-full">
+            <FallingTagsSmall theme="white" startDelay={800} />
+          </div>
+        </div>
+      );
+    }
+
+    if (imageSrc === "orbit") {
+      return (
+        <div className="h-[200px] md:h-[280px] relative w-full flex justify-center items-center rounded-2xl bg-gradpastel2 overflow-hidden">
+          <OrbitIconsSmall />
+        </div>
+      );
+    }
+    return (
+      <div className="h-[200px] md:h-[280px] relative w-full flex justify-end items-end rounded-2xl bg-gradpastel2 overflow-hidden">
+        <Image
+          src={imageSrc}
+          alt={title}
+          width={400}
+          height={320}
+          className="max-w-[90%]"
+        />
+      </div>
+    );
+  };
   return (
     <div className="flex flex-col w-full items-center justify-center md:items-start md:justify-start max-w-full gap-8 px-5 md:px-0">
-      <div className="h-[240px] md:h-[380px] relative w-full flex justify-center items-center rounded-2xl bg-gradpastel2">
-        {imageSrc === "/images/feat1.png" ? (
-          <div className="mr-8 w-full">
-            <FallingTags theme="white" startDelay={800} />
-          </div>
-        ) : (
-          <Image
-            src={imageSrc}
-            alt={title}
-            width={400}
-            height={320}
-            className="max-w-[80%]"
-          />
-        )}
-      </div>
+      {imgReturn()}
       <div className="flex flex-col items-start justify-start w-full gap-4 text-left">
         <div
           className="text-[26px] md:text-3xl font-normal leading-[2.2rem] md:leading-[2.5rem]"
