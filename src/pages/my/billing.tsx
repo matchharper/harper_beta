@@ -357,7 +357,7 @@ const Billing = () => {
       } else {
         showToast({
           message:
-            "플랜이 즉시 변경되었습니다. 요금 정산은 Polar 정책에 따라 즉시 또는 다음 청구서에서 처리될 수 있습니다.",
+            "플랜이 즉시 변경되며 차액은 즉시 정산됩니다. 크레딧은 결제 완료(order.paid) 웹훅 반영 후 충전됩니다.",
           variant: "white",
         });
       }
@@ -600,7 +600,7 @@ const Billing = () => {
           setPendingPlanChange(null);
         }}
         title="플랜 변경을 진행할까요?"
-        description="플랜 변경은 즉시 적용됩니다. 요금 정산은 Polar 청구 정책에 따라 즉시 또는 다음 청구서에 반영될 수 있습니다."
+        description="플랜 변경은 즉시 적용되고 차액도 즉시 정산됩니다. 크레딧은 결제 완료(order.paid) 후 반영됩니다."
         confirmLabel="확인하고 진행"
         cancelLabel="닫기"
         isLoading={isPlanChanging}
@@ -756,7 +756,7 @@ const Billing = () => {
             key={"item.question3"}
             question={"주기 중간에 플랜을 변경하면 어떻게 되나요?"}
             answer={
-              "플랜 변경은 구독 업데이트로 즉시 반영됩니다. 요금 차액은 Polar 청구 정책에 따라 즉시 또는 다음 청구서에서 정산됩니다."
+              "플랜은 구독 업데이트로 즉시 변경되며 차액은 즉시 정산됩니다. 새로운 플랜 크레딧은 결제 완료(order.paid) 웹훅 반영 후 충전됩니다."
             }
             index={3}
             variant="small"

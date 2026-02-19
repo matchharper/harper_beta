@@ -21,6 +21,7 @@
 - Decision review:
   - Keep Lemon route and logic intact to allow rollback.
   - Add Polar routes in parallel under `/api/polar/*`.
+  - Plan changes use Polar `subscriptions.update` with `prorationBehavior: "invoice"` (immediate settlement).
 - Risk review:
   - Risk: user mapping missing in webhook payload.
     - Mitigation: support multiple payload paths and allow metadata-based mapping.
@@ -28,6 +29,8 @@
     - Mitigation: support environment-based mapping (`POLAR_PLAN_MAP_JSON`) and metadata fallback.
   - Risk: webhook arrives before/after checkout redirect.
     - Mitigation: success page instructs user that activation can take a short delay; source of truth is webhook.
+  - Risk: plan status can update before credits are recharged.
+    - Mitigation: credits are applied only on `order.paid`; UI copy explicitly explains this timing.
 - Validation plan:
   - TypeScript check on changed files.
   - Manual endpoint sanity checks (no runtime execution of external API calls).
@@ -63,3 +66,17 @@
   - `https://matchharper.com/billing/success?checkout_id={CHECKOUT_ID}`
 - Webhook URL:
   - `https://matchharper.com/api/polar/webhook`
+
+## Plan Change Billing Policy (Current)
+
+- Endpoint: `src/app/api/polar/change-plan/route.ts`
+- Behavior:
+  - Calls `subscriptions.update({ productId, prorationBehavior: "invoice" })`
+  - Plan is updated immediately.
+  - Difference amount is settled immediately by Polar invoice flow.
+  - Credits are recharged when `order.paid` webhook is received.
+- UI messaging:
+  - `src/pages/my/billing.tsx` confirm modal/toast/FAQ use the same policy text:
+    - immediate plan update
+    - immediate settlement
+    - credits on `order.paid`

@@ -36,8 +36,8 @@
 
 - 유료 구독 상태에서 플랜 변경 시 `/api/polar/change-plan` 호출
 - Polar `subscriptions.update`로 product 변경 처리
-- 현재 구현은 Polar 기본 동작(조직 기본 proration 설정)으로 호출
-- UI 안내 문구는 "플랜 즉시 반영 + 요금 정산은 Polar 정책" 기준으로 제공
+- 현재 구현은 `prorationBehavior = "invoice"`로 호출(즉시 정산)
+- UI 안내 문구도 "플랜 즉시 반영 + 즉시 정산 + 결제 완료 후 크레딧 반영" 기준으로 제공
 
 코드:
 - `src/pages/my/billing.tsx`
@@ -95,7 +95,7 @@
 
 - 사용자 취소는 기간 종료 해지로 동작 (`cancelAtPeriodEnd=true`)
 - 플랜 변경은 `subscription update`로 처리(기존 cancel + 신규 checkout 방식 제거)
-- 기존 UI 정책(연간 -> 월간 직접 다운그레이드 차단)은 그대로 유지
+- 월간/연간 변경도 Polar 기본 update 흐름으로 처리
 
 근거:
 - `src/app/api/polar/cancel/route.ts`
