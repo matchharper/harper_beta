@@ -153,6 +153,12 @@ const Billing = () => {
   const [isCanceling, setIsCanceling] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [isDowngradeGuideOpen, setIsDowngradeGuideOpen] = useState(false);
+  const [isUpgradeConfirmOpen, setIsUpgradeConfirmOpen] = useState(false);
+  const [pendingUpgradeChange, setPendingUpgradeChange] = useState<{
+    planName: string;
+    billing: "monthly" | "yearly";
+  } | null>(null);
+  const [isUpgradeConfirming, setIsUpgradeConfirming] = useState(false);
   const { m } = useMessages();
   const logEvent = useLogEvent();
   const pricing = m.companyLanding.pricing;
@@ -472,7 +478,7 @@ const Billing = () => {
 
     loadSubscription();
     if (isCheckoutSync) {
-      for (const delayMs of [2000, 5000, 9000]) {
+      for (const delayMs of [3000, 7000, 13000]) {
         const timerId = window.setTimeout(() => {
           void loadSubscription();
           void refetchCredits();
@@ -541,7 +547,7 @@ const Billing = () => {
             setIsDowngradeGuideOpen(false);
           }
         }}
-        title="다운그레이드는 갱신 시점 반영을 권장합니다."
+        title="구독 변경"
         description={
           freeStartDateLabel
             ? `다운그레이드의 경우 우선 구독을 취소하고 기존 구독 갱신 날짜(<span class="text-accenta1 px-1">${freeStartDateLabel}</span>) 이후 새로운 플랜으로 결제하시는 것을 추천드립니다.`
@@ -550,6 +556,36 @@ const Billing = () => {
         confirmLabel="구독 취소"
         cancelLabel="닫기"
         isLoading={isCanceling}
+      />
+      <ConfirmModal
+        open={isUpgradeConfirmOpen}
+        onClose={() => {
+          if (isUpgradeConfirming) return;
+          setIsUpgradeConfirmOpen(false);
+          setPendingUpgradeChange(null);
+        }}
+        onConfirm={async () => {
+          if (!pendingUpgradeChange) {
+            setIsUpgradeConfirmOpen(false);
+            return;
+          }
+
+          setIsUpgradeConfirming(true);
+          try {
+            await startCheckout(pendingUpgradeChange.planName, pendingUpgradeChange.billing, {
+              allowSubscriptionSwitch: true,
+            });
+          } finally {
+            setIsUpgradeConfirming(false);
+            setIsUpgradeConfirmOpen(false);
+            setPendingUpgradeChange(null);
+          }
+        }}
+        title="플랜 변경을 진행할까요?"
+        description="확인하면 즉시 결제가 진행되며 결제 완료 직후 새 플랜으로 변경됩니다. 기존 구독은 자동으로 종료됩니다."
+        confirmLabel="확인하고 결제 진행"
+        cancelLabel="닫기"
+        isLoading={isUpgradeConfirming}
       />
       <div className="px-6 py-8 w-full">
         <div className="text-3xl font-hedvig font-light tracking-tight text-white">
@@ -683,9 +719,8 @@ const Billing = () => {
                 return;
               }
 
-              await startCheckout(planName, billing, {
-                allowSubscriptionSwitch: true,
-              });
+              setPendingUpgradeChange({ planName, billing });
+              setIsUpgradeConfirmOpen(true);
               return;
             }
 
