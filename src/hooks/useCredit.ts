@@ -8,7 +8,7 @@ export const useCredits = () => {
   const queryClient = useQueryClient();
 
   // 1. 크레딧 조회 (useQuery)
-  const { data: credits, isLoading } = useQuery({
+  const { data: credits, isLoading, refetch } = useQuery({
     queryKey: CREDIT_QUERY_KEY,
     queryFn: async () => {
       const {
@@ -27,7 +27,8 @@ export const useCredits = () => {
         charged_credit: data?.[0]?.charged_credit ?? 0,
       };
     },
-    staleTime: 1000 * 60 * 30, // 5분간 데이터를 신선한 것으로 간주
+    staleTime: 1000 * 60 * 30,
+    refetchOnWindowFocus: true,
   });
 
   // 2. 크레딧 차감 (useMutation)
@@ -62,6 +63,7 @@ export const useCredits = () => {
   return {
     credits, // 현재 잔액
     isLoading, // 로딩 상태
+    refetch,
     deduct: mutation.mutateAsync, // 차감 함수 (async/await 가능)
     isDeducting: mutation.isPending, // 차감 중 상태
   };

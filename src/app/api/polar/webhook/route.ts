@@ -345,11 +345,6 @@ function getCandidatePlanIdsFromEvent(event: any) {
 }
 
 async function resolvePlanForEvent(event: any, fallbackPlanId?: string | null) {
-  if (fallbackPlanId) {
-    const existingPlan = await getPlanByPlanId(fallbackPlanId);
-    if (existingPlan) return existingPlan;
-  }
-
   const data = event?.data ?? {};
   const eventMeta = getMetadata(data);
   const checkoutMeta = getMetadata(data?.checkout);
@@ -382,6 +377,11 @@ async function resolvePlanForEvent(event: any, fallbackPlanId?: string | null) {
   for (const candidate of candidates) {
     const byVariant = await getPlanByVariantId(candidate);
     if (byVariant) return byVariant;
+  }
+
+  if (fallbackPlanId) {
+    const existingPlan = await getPlanByPlanId(fallbackPlanId);
+    if (existingPlan) return existingPlan;
   }
 
   return null;
@@ -550,10 +550,30 @@ export async function POST(req: Request) {
         ? await getPaymentBySubscriptionId(orderSubscriptionId)
         : null;
       const userId = getUserIdFromEvent(event, paymentFromOrderSubscription);
-      const plan = await resolvePlanForEvent(
-        event,
-        paymentFromOrderSubscription?.plan_id ?? null
-      );
+      const subscription = orderSubscriptionId
+        ? await getSubscriptionForOrder(order)
+        : null;
+
+      let plan = await resolvePlanForEvent(event, null);
+      if (!plan && subscription) {
+        const subscriptionProductId = pickFirstString(
+          subscription?.productId,
+          subscription?.product_id,
+          subscription?.product?.id
+        );
+        if (subscriptionProductId) {
+          const mappedPlanId = getPlanMap()[subscriptionProductId];
+          if (mappedPlanId) {
+            plan = await getPlanByPlanId(mappedPlanId);
+          }
+          if (!plan) {
+            plan = await getPlanByVariantId(subscriptionProductId);
+          }
+        }
+      }
+      if (!plan && paymentFromOrderSubscription?.plan_id) {
+        plan = await getPlanByPlanId(paymentFromOrderSubscription.plan_id);
+      }
 
       if (!userId || !plan) {
         await insertLog(
@@ -565,7 +585,6 @@ export async function POST(req: Request) {
       }
 
       if (orderSubscriptionId) {
-        const subscription = await getSubscriptionForOrder(order);
         const previousSubscriptions = await getActiveSubscriptionsForUser(
           userId,
           orderSubscriptionId
