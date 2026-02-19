@@ -14,6 +14,7 @@ import ConfirmModal from "@/components/Modal/ConfirmModal";
 import { useLogEvent } from "@/hooks/useLog";
 import QuestionAnswer from "@/components/landing/Questions";
 import { BILLING_PROVIDER } from "@/lib/polar/config";
+import { useRouter } from "next/router";
 
 const PRO_MONTHLY_CHECKOUT_URL =
   "https://matchharper.lemonsqueezy.com/checkout/buy/ea41e57e-6dc1-4ddd-8b7f-f5636bc35ec5";
@@ -23,7 +24,6 @@ const MAX_MONTHLY_CHECKOUT_URL =
   "https://matchharper.lemonsqueezy.com/checkout/buy/0526b657-757f-45bb-bc9f-4466a6ec360f";
 const MAX_YEARLY_CHECKOUT_URL =
   "https://matchharper.lemonsqueezy.com/checkout/buy/5f88e60e-f43f-4699-b4a1-3a71fe90b13d";
-const CONTACT_EMAIL = "chris@asksonus.com";
 
 type BillingPeriod = "monthly" | "yearly";
 
@@ -112,7 +112,8 @@ function inferPlanKey(args: {
 }
 
 const Billing = () => {
-  const { credits } = useCredits();
+  const { credits, refetch: refetchCredits } = useCredits();
+  const router = useRouter();
   const { companyUser } = useCompanyUserStore();
   const { refetch: refetchCreditRequestHistory } = useCreditRequestHistory(
     companyUser?.user_id
@@ -123,8 +124,8 @@ const Billing = () => {
     null
   );
   const [isCanceling, setIsCanceling] = useState(false);
+  const [isPlanChanging, setIsPlanChanging] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
-  const [isPlanChangeBlockedOpen, setIsPlanChangeBlockedOpen] = useState(false);
   const [isPlanChangeConfirmOpen, setIsPlanChangeConfirmOpen] = useState(false);
   const [pendingPlanChange, setPendingPlanChange] = useState<{
     planName: string;
@@ -133,6 +134,7 @@ const Billing = () => {
   const { m } = useMessages();
   const logEvent = useLogEvent();
   const pricing = m.companyLanding.pricing;
+  const isCheckoutSync = router.query.checkout_synced === "1";
   const currentPlanKey =
     subscription?.planKey ??
     (subscription
@@ -278,8 +280,104 @@ const Billing = () => {
     window.location.href = url.toString();
   };
 
+  const changePlanWithPolarUpdate = async (
+    planName: string,
+    billing: "monthly" | "yearly"
+  ) => {
+    const proName = m.companyLanding.pricing.plans.pro.name;
+    const maxName = m.companyLanding.pricing.plans.max.name;
+
+    if (!companyUser?.user_id) {
+      showToast({
+        message: "로그인 정보를 확인할 수 없습니다.",
+        variant: "white",
+      });
+      return;
+    }
+
+    let planKey: "pro" | "max" | null = null;
+    if (planName === proName) {
+      planKey = "pro";
+    } else if (planName === maxName) {
+      planKey = "max";
+    } else {
+      showToast({
+        message: "현재는 Pro, Max 플랜만 테스트 중입니다.",
+        variant: "white",
+      });
+      return;
+    }
+
+    if (BILLING_PROVIDER !== "polar") {
+      await startCheckout(planName, billing);
+      return;
+    }
+
+    setIsPlanChanging(true);
+    try {
+      const res = await fetch("/api/polar/change-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: companyUser.user_id,
+          planKey,
+          billing,
+        }),
+      });
+
+      if (!res.ok) {
+        let errorMessage = `구독 플랜 변경에 실패했습니다. (status ${res.status})`;
+        try {
+          const payload = await res.json();
+          const detail =
+            typeof payload?.message === "string"
+              ? payload.message
+              : typeof payload?.error === "string"
+                ? payload.error
+                : null;
+          if (detail) {
+            errorMessage = `${errorMessage} ${detail}`;
+          }
+        } catch {
+          // Keep generic fallback message.
+        }
+        showToast({
+          message: errorMessage,
+          variant: "white",
+        });
+        return;
+      }
+
+      const payload = await res.json();
+      if (payload?.status === "no_change") {
+        showToast({
+          message: "이미 동일한 플랜을 사용 중입니다.",
+          variant: "white",
+        });
+      } else {
+        showToast({
+          message:
+            "플랜이 즉시 변경되었습니다. 요금 정산은 Polar 정책에 따라 즉시 또는 다음 청구서에서 처리될 수 있습니다.",
+          variant: "white",
+        });
+      }
+
+      await router.replace("/my/billing?checkout_synced=1", undefined, {
+        shallow: true,
+      });
+    } catch {
+      showToast({
+        message: "플랜 변경 요청 중 오류가 발생했습니다.",
+        variant: "white",
+      });
+    } finally {
+      setIsPlanChanging(false);
+    }
+  };
+
   useEffect(() => {
     let isCancelled = false;
+    const retryTimers: number[] = [];
 
     async function loadSubscription() {
       if (!companyUser?.user_id) {
@@ -384,11 +482,27 @@ const Billing = () => {
     }
 
     loadSubscription();
+    if (isCheckoutSync) {
+      for (const delayMs of [2000, 5000, 9000]) {
+        const timerId = window.setTimeout(() => {
+          void loadSubscription();
+          void refetchCredits();
+        }, delayMs);
+        retryTimers.push(timerId);
+      }
+      const cleanupTimer = window.setTimeout(() => {
+        router.replace("/my/billing", undefined, { shallow: true });
+      }, 12000);
+      retryTimers.push(cleanupTimer);
+    }
 
     return () => {
       isCancelled = true;
+      for (const timerId of retryTimers) {
+        window.clearTimeout(timerId);
+      }
     };
-  }, [companyUser?.user_id, m]);
+  }, [companyUser?.user_id, isCheckoutSync, m, refetchCredits, router]);
 
   const onConfirm = async (credit_num: number) => {
     if (!companyUser?.user_id) return false;
@@ -469,34 +583,27 @@ const Billing = () => {
         cancelLabel="닫기"
       />
       <ConfirmModal
-        open={isPlanChangeBlockedOpen}
-        onClose={() => setIsPlanChangeBlockedOpen(false)}
-        onConfirm={() => setIsPlanChangeBlockedOpen(false)}
-        title="연간 플랜에서 월간 플랜으로 바로 변경할 수 없습니다."
-        description={`월간 플랜으로 전환을 원하시면 <span class="text-white">${CONTACT_EMAIL}</span>로 문의해주세요.`}
-        confirmLabel="확인"
-        cancelLabel="닫기"
-      />
-      <ConfirmModal
         open={isPlanChangeConfirmOpen}
         onClose={() => {
+          if (isPlanChanging) return;
           setIsPlanChangeConfirmOpen(false);
           setPendingPlanChange(null);
         }}
-        onConfirm={() => {
+        onConfirm={async () => {
           if (!pendingPlanChange) {
             setIsPlanChangeConfirmOpen(false);
             return;
           }
           const next = pendingPlanChange;
+          await changePlanWithPolarUpdate(next.planName, next.billing);
           setIsPlanChangeConfirmOpen(false);
           setPendingPlanChange(null);
-          startCheckout(next.planName, next.billing);
         }}
         title="플랜 변경을 진행할까요?"
-        description="진행시 현재 시점부터 결제가 시작되며 새로운 플랜이 적용됩니다."
+        description="플랜 변경은 즉시 적용됩니다. 요금 정산은 Polar 청구 정책에 따라 즉시 또는 다음 청구서에 반영될 수 있습니다."
         confirmLabel="확인하고 진행"
         cancelLabel="닫기"
+        isLoading={isPlanChanging}
       />
       <div className="px-6 py-8 w-full">
         <div className="text-3xl font-hedvig font-light tracking-tight text-white">
@@ -612,11 +719,6 @@ const Billing = () => {
           currentPlanKey={currentPlanKey}
           currentBilling={currentBilling}
           onClick={async (planName: string, billing: "monthly" | "yearly") => {
-            if (currentBilling === "yearly" && billing === "monthly") {
-              setIsPlanChangeBlockedOpen(true);
-              return;
-            }
-
             const isPlanChange =
               !!subscription && subscription.planKey !== "free";
             if (isPlanChange) {
@@ -654,7 +756,7 @@ const Billing = () => {
             key={"item.question3"}
             question={"주기 중간에 플랜을 변경하면 어떻게 되나요?"}
             answer={
-              "플랜 변경은 즉시 적용되며, 결제 주기가 갱신되고, 새로운 플랜의 크레딧이 지급됩니다. 기존의 크레딧은 초기화되니 주의해주세요. 문의 사항이 있다면 알려주세요."
+              "플랜 변경은 구독 업데이트로 즉시 반영됩니다. 요금 차액은 Polar 청구 정책에 따라 즉시 또는 다음 청구서에서 정산됩니다."
             }
             index={3}
             variant="small"

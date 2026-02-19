@@ -37,6 +37,7 @@
 - [x] Add `src/app/api/polar/webhook/route.ts`.
 - [x] Add `src/app/api/polar/cancel/route.ts`.
 - [x] Add `src/app/api/polar/checkout/route.ts`.
+- [x] Add `src/app/api/polar/change-plan/route.ts`.
 - [x] Add `src/pages/billing/success.tsx`.
 - [x] Install `@polar-sh/sdk` dependency.
 - [x] Set billing provider to hardcoded Polar in `src/lib/polar/config.ts`.

@@ -13,18 +13,25 @@ export default function BillingSuccessPage() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      router.replace("/my/billing");
+      const query = new URLSearchParams({ checkout_synced: "1" });
+      if (checkoutId) {
+        query.set("checkout_id", checkoutId);
+      }
+      router.replace(`/my/billing?${query.toString()}`);
     }, REDIRECT_DELAY_MS);
 
     return () => window.clearTimeout(timer);
-  }, [router]);
+  }, [checkoutId, router]);
 
   return (
-    <main className="min-h-screen w-full bg-black text-white flex items-center justify-center px-6">
+    <main className="min-h-screen w-full bg-black text-white flex items-center justify-center px-6 font-sans">
       <div className="w-full max-w-xl rounded-xl border border-white/10 bg-white/[0.03] p-8">
-        <h1 className="text-2xl font-semibold tracking-tight">Payment Received</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Payment Received
+        </h1>
         <p className="mt-3 text-sm text-white/70">
-          Your checkout is complete. We are syncing your subscription and credits.
+          Your checkout is complete. We are syncing your subscription and
+          credits.
         </p>
         {checkoutId ? (
           <p className="mt-4 text-xs text-white/50 break-all">
