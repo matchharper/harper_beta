@@ -21,7 +21,7 @@
 - Decision review:
   - Keep Lemon route and logic intact to allow rollback.
   - Add Polar routes in parallel under `/api/polar/*`.
-  - Plan changes use Polar `subscriptions.update` with `prorationBehavior: "invoice"` (immediate settlement).
+  - Plan changes use checkout flow (new subscription) instead of `subscriptions.update`.
 - Risk review:
   - Risk: user mapping missing in webhook payload.
     - Mitigation: support multiple payload paths and allow metadata-based mapping.
@@ -69,14 +69,11 @@
 
 ## Plan Change Billing Policy (Current)
 
-- Endpoint: `src/app/api/polar/change-plan/route.ts`
+- Endpoint: `src/app/api/polar/checkout/route.ts`
 - Behavior:
-  - Calls `subscriptions.update({ productId, prorationBehavior: "invoice" })`
-  - Plan is updated immediately.
-  - Difference amount is settled immediately by Polar invoice flow.
-  - Credits are recharged when `order.paid` webhook is received.
-- UI messaging:
-  - `src/pages/my/billing.tsx` confirm modal/toast/FAQ use the same policy text:
-    - immediate plan update
-    - immediate settlement
-    - credits on `order.paid`
+  - Upgrade path uses `checkouts.create` (new subscription + immediate payment).
+  - Existing subscription is revoked by webhook cleanup when the new one starts.
+  - Credits are recharged on `order.paid`.
+- Downgrade UX:
+  - In billing UI, downgrades show guidance modal.
+  - Recommended flow is: cancel current subscription first, then subscribe to lower plan after renewal date.
