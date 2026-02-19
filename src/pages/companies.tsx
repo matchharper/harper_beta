@@ -25,6 +25,7 @@ import RotatingText from "@/components/RotatingText";
 import DarkVeil from "@/components/Darkveli";
 import { useCountryLang } from "@/hooks/useCountryLang";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
+import GaPageView from "@/components/ga";
 
 export const isValidEmail = (email: string): boolean => {
   const trimmed = email.trim();
@@ -300,6 +301,7 @@ const CandidatePage = () => {
 
   return (
     <main className={`min-h-screen font-inter text-white bg-black w-screen`}>
+      <GaPageView />
       <LoginModal
         open={isOpenLoginModal}
         onClose={() => setIsOpenLoginModal(false)}

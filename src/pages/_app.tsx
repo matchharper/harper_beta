@@ -15,7 +15,6 @@ import { useEffect, useRef } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import CompanyModalRoot from "@/components/Modal/CompanyModal";
-import CandidateModalRoot from "@/components/Modal/CandidateModal";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -89,7 +88,10 @@ export default function App({ Component, pageProps }: AppProps) {
     <ReactQueryProvider>
       <Head>
         <title>Harper — AI Recruiter</title>
-        <meta name="description" content="Harper는 모든 팀들을 위한 전담 AI Recruiter입니다." />
+        <meta
+          name="description"
+          content="Harper는 모든 팀들을 위한 전담 AI Recruiter입니다."
+        />
       </Head>
       <div
         className={`${inter.className} ${inter.variable} ${garamond.className} ${garamond.variable} ${roboto.variable} ${averia.variable}`}
