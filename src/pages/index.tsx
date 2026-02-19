@@ -21,6 +21,7 @@ import Animate from "@/components/landing/Animate";
 import RotatingOrbTiles from "@/components/landing/Orbit";
 import QuestionAnswer from "@/components/landing/Questions";
 import { FallingTags } from "@/components/landing/FallingTags";
+import GaPageView from "@/components/ga";
 
 export const isValidEmail = (email: string): boolean => {
   const trimmed = email.trim();

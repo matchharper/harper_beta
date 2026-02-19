@@ -96,15 +96,13 @@ export async function openaiInference({
   model,
   systemPrompt,
   userPrompt,
-  temperature
+  temperature,
 }: {
   model: "gpt-4.1-mini" | "gpt-4.1-nano" | "gpt-5-mini" | "gpt-5.2";
   systemPrompt: string;
   userPrompt: string;
   temperature: number;
 }): Promise<string> {
-  console.log("openaiInference", model, temperature);
-
   const response = await client.chat.completions.create({
     model: model,
     messages: [
@@ -124,7 +122,15 @@ export async function geminiInference(
   temperature: number = 0.7,
   thinkingLevel: ThinkingLevel = ThinkingLevel.LOW
 ): Promise<string | object> {
-  const response = await xaiInference("grok-4-fast-reasoning", systemPrompt, userPrompt, temperature, 1, false, "geminiInferenceError");
+  const response = await xaiInference(
+    "grok-4-fast-reasoning",
+    systemPrompt,
+    userPrompt,
+    temperature,
+    1,
+    false,
+    "geminiInferenceError"
+  );
   return response;
 
   try {
@@ -143,13 +149,18 @@ export async function geminiInference(
 
     const cost =
       (response.usageMetadata?.promptTokenCount ?? 0) *
-      pricingTable[model].input +
+        pricingTable[model].input +
       (response.usageMetadata?.candidatesTokenCount ?? 0) *
-      pricingTable[model].output;
+        pricingTable[model].output;
 
     logger.log("[GEMINI] cost ", cost * 1450, "원");
 
-    const text = response?.text?.trim()?.replace(/^```\w*\s*/, "")?.replace(/\s*```$/, "")?.trim() ?? "";
+    const text =
+      response?.text
+        ?.trim()
+        ?.replace(/^```\w*\s*/, "")
+        ?.replace(/\s*```$/, "")
+        ?.trim() ?? "";
     if (text.length === 0) {
       throw new Error("Gemini inference returned empty text");
     }
@@ -159,7 +170,15 @@ export async function geminiInference(
     // await supabase.from("landing_logs").insert({
     //   type: JSON.stringify(e),
     // });
-    const response = await xaiInference("grok-4-fast-reasoning", systemPrompt, userPrompt, temperature, 1, false, "geminiInferenceError");
+    const response = await xaiInference(
+      "grok-4-fast-reasoning",
+      systemPrompt,
+      userPrompt,
+      temperature,
+      1,
+      false,
+      "geminiInferenceError"
+    );
     return response;
 
     // const response = await openaiInference({
@@ -448,13 +467,11 @@ export async function geminiChatStream({
   });
 
   const encoder = new TextEncoder();
-  let usage:
-    | {
-      promptTokenCount?: number;
-      candidatesTokenCount?: number;
-      totalTokenCount?: number;
-    }
-    | null = null;
+  let usage: {
+    promptTokenCount?: number;
+    candidatesTokenCount?: number;
+    totalTokenCount?: number;
+  } | null = null;
   const responseStream = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
@@ -469,7 +486,6 @@ export async function geminiChatStream({
 
           if (delta) controller.enqueue(encoder.encode(delta));
 
-
           // ✅ usageMetadata는 보통 마지막 chunk에 있음
           if ((chunk as any).usageMetadata) {
             usage = (chunk as any).usageMetadata;
@@ -479,7 +495,6 @@ export async function geminiChatStream({
         controller.error(error);
       } finally {
         controller.close();
-
 
         // ✅ 여기서 비용 로그
         if (usage) {

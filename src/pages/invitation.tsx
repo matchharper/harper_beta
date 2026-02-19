@@ -52,16 +52,9 @@ export default function LoginSuccess() {
   }, []);
 
   useEffect(() => {
-    console.log(
-      "\n\n 🐙 landingId : ",
-      landingId,
-      hasLoggedEnterRef.current,
-      companyUser
-    );
     if (!landingId || hasLoggedEnterRef.current) return;
     hasLoggedEnterRef.current = true;
     const emailSuffix = companyUser?.email ? `:${companyUser.email}` : "";
-    console.log("\n\n 🐙 emailSuffix : ", emailSuffix);
     addLog(`invitation_enter_${emailSuffix}`);
   }, [landingId]);
 
@@ -155,7 +148,6 @@ export default function LoginSuccess() {
 
   return (
     <div className="relative min-h-screen bg-black font-inter text-white flex items-center justify-center px-4 w-full h-full">
-      <GaPageView />
       <Header page="company" />
       <GradientBackground interactiveRef={interactiveRef} />
       <div className="z-20 flex flex-col items-center text-center max-w-xl w-full space-y-10">

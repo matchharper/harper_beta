@@ -15,6 +15,10 @@ import { useEffect, useRef } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import CompanyModalRoot from "@/components/Modal/CompanyModal";
+import Script from "next/script";
+import { useRouter } from "next/router";
+
+const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
 
 const inter = Inter({
   subsets: ["latin"],
@@ -52,6 +56,29 @@ export default function App({ Component, pageProps }: AppProps) {
     loading: companyUserLoading,
   } = useCompanyUserStore();
   const lastFreeRefreshUserId = useRef<string | null>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!GA_ID) return;
+
+    const pageview = (url: string) => {
+      // @ts-ignore
+      if (typeof window.gtag !== "function") return;
+      // @ts-ignore
+      window.gtag("event", "page_view", {
+        page_location: window.location.href,
+        page_path: url,
+      });
+    };
+
+    // ✅ 첫 진입도 기록
+    pageview(window.location.pathname + window.location.search);
+
+    const handleRouteChange = (url: string) => pageview(url);
+
+    router.events.on("routeChangeComplete", handleRouteChange);
+    return () => router.events.off("routeChangeComplete", handleRouteChange);
+  }, [router.events]);
 
   useEffect(() => {
     if (!loading && user && !companyUser && !companyUserLoading) {
@@ -93,6 +120,23 @@ export default function App({ Component, pageProps }: AppProps) {
           content="Harper는 모든 팀들을 위한 전담 AI Recruiter입니다."
         />
       </Head>
+      {GA_ID && (
+        <>
+          <Script
+            src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
+            strategy="afterInteractive"
+          />
+          <Script id="ga-init" strategy="afterInteractive">
+            {`
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              window.gtag = gtag;
+              gtag('js', new Date());
+              gtag('config', '${GA_ID}', { send_page_view: false });
+            `}
+          </Script>
+        </>
+      )}
       <div
         className={`${inter.className} ${inter.variable} ${garamond.className} ${garamond.variable} ${roboto.variable} ${averia.variable}`}
       >
