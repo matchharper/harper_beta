@@ -57,6 +57,7 @@ const PAGE_SIZE = 50;
 const PASSWORD = "39773977";
 
 const ENTRY_TYPES = new Set(["new_visit", "new_session"]);
+const EXCLUDED_TYPE_KEYWORD = "index";
 
 function isStartClickLogType(type: string) {
   if (type === "click_start") return true;
@@ -65,6 +66,10 @@ function isStartClickLogType(type: string) {
 
 function isPricingClickLogType(type: string) {
   return type.startsWith("click_pricing_");
+}
+
+function isExcludedLandingLogType(type: string) {
+  return type.toLowerCase().includes(EXCLUDED_TYPE_KEYWORD);
 }
 
 function formatPercent(numerator: number, denominator: number) {
@@ -131,8 +136,11 @@ const AdminPage = () => {
       try {
         let q = supabase
           .from("landing_logs")
-          .select("id,local_id,type,abtest_type,created_at,is_mobile,country_lang")
+          .select(
+            "id,local_id,type,abtest_type,created_at,is_mobile,country_lang"
+          )
           .order("created_at", { ascending: false })
+          .not("type", "ilike", `%${EXCLUDED_TYPE_KEYWORD}%`)
           .neq("local_id", "a22bb523-42cd-4d39-9667-c527c40941d3")
           .neq("local_id", "a4d4df1a-aa6d-401e-a34a-00d426630fe2")
           .neq("local_id", "ce032ed7-8836-44e5-8605-64e80f5fe234")
@@ -251,6 +259,7 @@ const AdminPage = () => {
 
     const byUser = new Map<string, LandingLog[]>();
     for (const item of logs) {
+      if (isExcludedLandingLogType(item.type)) continue;
       const list = byUser.get(item.local_id) ?? [];
       list.push(item);
       byUser.set(item.local_id, list);
@@ -517,11 +526,15 @@ const AdminPage = () => {
                       </div>
                       <div className="text-right">
                         {item.startClickedUsers} (
-                        {formatPercent(item.startClickedUsers, item.totalUsers)})
+                        {formatPercent(item.startClickedUsers, item.totalUsers)}
+                        )
                       </div>
                       <div className="text-right">
                         {item.pricingClickedUsers} (
-                        {formatPercent(item.pricingClickedUsers, item.totalUsers)}
+                        {formatPercent(
+                          item.pricingClickedUsers,
+                          item.totalUsers
+                        )}
                         )
                       </div>
                       <div className="text-right">
