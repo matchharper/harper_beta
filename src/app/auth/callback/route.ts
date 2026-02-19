@@ -6,6 +6,7 @@ export async function GET(request: Request) {
   const code = url.searchParams.get("code");
   const lid = url.searchParams.get("lid");
   const countryLang = url.searchParams.get("cl");
+  const abtestType = url.searchParams.get("ab");
 
   if (code) {
     await supabase.auth.exchangeCodeForSession(code);
@@ -18,6 +19,7 @@ export async function GET(request: Request) {
       await supabase.from("landing_logs").insert({
         local_id: lid,
         type: `login_email:${email}`,
+        abtest_type: abtestType,
         is_mobile: null,
         country_lang: countryLang,
       });

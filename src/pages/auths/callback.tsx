@@ -14,6 +14,8 @@ export default function AuthCallback() {
       const lid = typeof router.query.lid === "string" ? router.query.lid : "";
       const countryLang =
         typeof router.query.cl === "string" ? router.query.cl : null;
+      const abtestType =
+        typeof router.query.ab === "string" ? router.query.ab : null;
 
       // 1) 여기서 getSession() 호출하면, supabase-js가 URL에 붙은 code를 처리해서 세션을 잡는 경우가 많음
       await supabase.auth.getSession();
@@ -31,6 +33,7 @@ export default function AuthCallback() {
         const { error: loginLogError } = await supabase.from("landing_logs").insert({
           local_id: lid,
           type: `login_email:${user.email}`,
+          abtest_type: abtestType,
           is_mobile: null,
           country_lang: countryLang,
         });
@@ -65,7 +68,7 @@ export default function AuthCallback() {
       // 4) 완료 후 이동
       router.replace("/invitation");
     })();
-  }, [router.isReady]);
+  }, [router]);
 
   return null;
 }

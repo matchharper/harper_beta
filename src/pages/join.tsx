@@ -20,7 +20,6 @@ import { Selections } from "@/components/landing/Join";
 import { isValidEmail } from ".";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useMessages } from "@/i18n/useMessage";
-import GaPageView from "@/components/ga";
 
 type StepKey =
   | "contact"

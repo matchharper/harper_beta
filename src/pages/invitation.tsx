@@ -13,7 +13,6 @@ import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { useMessages } from "@/i18n/useMessage";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useCountryLang } from "@/hooks/useCountryLang";
-import GaPageView from "@/components/ga";
 
 const INITIAL_CREDIT = 10;
 

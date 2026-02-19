@@ -3,7 +3,13 @@
 import { BaseSectionLayout } from "@/components/landing/GridSectionLayout";
 import { Menu } from "lucide-react";
 import router from "next/router";
-import React, { useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Image from "next/image";
 import { showToast } from "@/components/toast/toast";
 import { DropdownMenu } from "@/components/ui/menu";
@@ -25,7 +31,7 @@ import RotatingText from "@/components/RotatingText";
 import DarkVeil from "@/components/Darkveli";
 import { useCountryLang } from "@/hooks/useCountryLang";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
-import GaPageView from "@/components/ga";
+import Examples from "@/components/landing/Examples";
 
 export const isValidEmail = (email: string): boolean => {
   const trimmed = email.trim();
@@ -33,9 +39,27 @@ export const isValidEmail = (email: string): boolean => {
   return emailRegex.test(trimmed);
 };
 
+type SectionKey = "why" | "examples" | "pricing" | "faq" | "last";
+type CompanyAbtestType = "company_copy_a_v1" | "company_copy_b_v1";
+
+const SECTION_VIEW_INTERSECTION_THRESHOLD = 0.35;
+const SECTION_VIEW_LOG_COOLDOWN_MS = 15000;
+const COMPANY_ABTEST_STORAGE_KEY = "harper_company_abtest_type_2026_02";
+const COMPANY_ABTEST_TYPES: CompanyAbtestType[] = [
+  "company_copy_a_v1",
+  "company_copy_b_v1",
+];
+
+const isCompanyAbtestType = (
+  value: string | null
+): value is CompanyAbtestType =>
+  !!value && COMPANY_ABTEST_TYPES.includes(value as CompanyAbtestType);
+
+const pickCompanyAbtestType = () =>
+  COMPANY_ABTEST_TYPES[Math.floor(Math.random() * COMPANY_ABTEST_TYPES.length)];
+
 const CandidatePage = () => {
-  const [isBelow, setIsBelow] = useState(false);
-  const [abtest, setAbtest] = useState(-1);
+  const [abtestType, setAbtestType] = useState<CompanyAbtestType | null>(null);
   const [landingId, setLandingId] = useState("");
   const [isOpenLoginModal, setIsOpenLoginModal] = useState(false);
   const [isTeamEmail, setIsTeamEmail] = useState(false);
@@ -50,18 +74,58 @@ const CandidatePage = () => {
   const whySectionRef = useRef<HTMLDivElement>(null);
   const priceSectionRef = useRef<HTMLDivElement>(null);
   const faqSectionRef = useRef<HTMLDivElement>(null);
+  const whyTrackRef = useRef<HTMLDivElement>(null);
+  const lastTrackRef = useRef<HTMLDivElement>(null);
+  const pricingTrackRef = useRef<HTMLDivElement>(null);
+  const faqTrackRef = useRef<HTMLDivElement>(null);
+  const examplesTrackRef = useRef<HTMLDivElement>(null);
   const hasLoggedFirstScrollRef = useRef(false);
+  const sectionLastLoggedAtRef = useRef<Record<SectionKey, number>>({
+    why: 0,
+    examples: 0,
+    pricing: 0,
+    faq: 0,
+    last: 0,
+  });
 
-  const addLog = async (type: string) => {
-    // if (!isTeamEmailChecked || isTeamEmail || !landingId) return;
-    const body = {
-      local_id: landingId,
-      type: type,
-      is_mobile: isMobile,
-      country_lang: countryLang,
-    };
-    await supabase.from("landing_logs").insert(body);
-  };
+  const addLog = useCallback(
+    async (type: string) => {
+      if (!abtestType) return;
+      // if (!isTeamEmailChecked || isTeamEmail || !landingId) return;
+      const body = {
+        local_id: landingId,
+        type: type,
+        abtest_type: abtestType,
+        is_mobile: isMobile,
+        country_lang: countryLang,
+      };
+      await supabase.from("landing_logs").insert(body);
+    },
+    [abtestType, countryLang, isMobile, landingId]
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const queryAbtestType = new URLSearchParams(window.location.search).get(
+      "ab"
+    );
+    if (isCompanyAbtestType(queryAbtestType)) {
+      localStorage.setItem(COMPANY_ABTEST_STORAGE_KEY, queryAbtestType);
+      setAbtestType(queryAbtestType);
+      return;
+    }
+
+    const cached = localStorage.getItem(COMPANY_ABTEST_STORAGE_KEY);
+    if (isCompanyAbtestType(cached)) {
+      setAbtestType(cached);
+      return;
+    }
+
+    const assigned = pickCompanyAbtestType();
+    localStorage.setItem(COMPANY_ABTEST_STORAGE_KEY, assigned);
+    setAbtestType(assigned);
+  }, []);
 
   useEffect(() => {
     const excludedEmails = new Set([
@@ -89,7 +153,9 @@ const CandidatePage = () => {
     };
   }, []);
 
-  const initLog = async () => {
+  const initLog = useCallback(async () => {
+    if (!abtestType) return;
+
     const newId = v4();
     localStorage.setItem("harper_landing_id_0209", newId);
     localStorage.setItem("harper_landing_last_visit_at", Date.now().toString());
@@ -98,14 +164,15 @@ const CandidatePage = () => {
     const body = {
       local_id: newId,
       type: "new_visit",
+      abtest_type: abtestType,
       is_mobile: isMobile,
       country_lang: countryLang,
     };
     await supabase.from("landing_logs").insert(body);
-  };
+  }, [abtestType, countryLang, isMobile]);
 
   useEffect(() => {
-    if (!isTeamEmailChecked) return;
+    if (!isTeamEmailChecked || !abtestType) return;
     const localId = localStorage.getItem("harper_landing_id_0209");
     if (!localId) {
       initLog();
@@ -113,10 +180,10 @@ const CandidatePage = () => {
       logger.log("\n\n 호출 👻 localId : ", localId);
       setLandingId(localId as string);
     }
-  }, [isTeamEmailChecked, isTeamEmail]);
+  }, [abtestType, initLog, isTeamEmailChecked, isTeamEmail]);
 
   useEffect(() => {
-    if (!landingId) return;
+    if (!landingId || !abtestType) return;
     const lastVisitRaw = localStorage.getItem("harper_landing_last_visit_at");
     const now = Date.now();
     const thirtyMinutesMs = 30 * 60 * 1000;
@@ -127,25 +194,7 @@ const CandidatePage = () => {
     }
 
     localStorage.setItem("harper_landing_last_visit_at", now.toString());
-  }, [landingId]);
-
-  // useEffect(() => {
-  //   const abtest = localStorage.getItem("harper_abtest");
-  //   if (abtest) {
-  //     setAbtest(parseInt(abtest));
-  //   } else {
-  //     let newAbtest = Math.random();
-
-  //     if (newAbtest < 0.5) {
-  //       newAbtest = 0;
-  //     } else {
-  //       newAbtest = 1;
-  //     }
-  //     setAbtest(newAbtest);
-
-  //     localStorage.setItem("harper_abtest", newAbtest.toString());
-  //   }
-  // }, []);
+  }, [abtestType, addLog, landingId]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -155,19 +204,70 @@ const CandidatePage = () => {
         hasLoggedFirstScrollRef.current = true;
         addLog("first_scroll_down");
       }
-
-      if (!isBelow && currentY > window.innerHeight - 100) {
-        setIsBelow(true);
-      }
-
-      if (isBelow && currentY <= window.innerHeight - 100) {
-        setIsBelow(false);
-      }
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [isBelow, landingId]);
+  }, [addLog, landingId]);
+
+  useEffect(() => {
+    if (!landingId || !abtestType) return;
+
+    const sectionElements: Array<{
+      key: SectionKey;
+      element: HTMLDivElement | null;
+    }> = [
+      { key: "why", element: whyTrackRef.current },
+      { key: "examples", element: examplesTrackRef.current },
+      { key: "pricing", element: pricingTrackRef.current },
+      { key: "faq", element: faqTrackRef.current },
+      { key: "last", element: lastTrackRef.current },
+    ];
+
+    const observedSections = sectionElements.filter(
+      (
+        section
+      ): section is {
+        key: SectionKey;
+        element: HTMLDivElement;
+      } => section.element !== null
+    );
+
+    if (observedSections.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const now = Date.now();
+
+        entries.forEach((entry) => {
+          const section = (entry.target as HTMLDivElement).dataset.section as
+            | SectionKey
+            | undefined;
+          if (!section) return;
+
+          const isVisible =
+            entry.isIntersecting &&
+            entry.intersectionRatio >= SECTION_VIEW_INTERSECTION_THRESHOLD;
+
+          if (!isVisible) return;
+
+          const lastLoggedAt = sectionLastLoggedAtRef.current[section] ?? 0;
+          if (now - lastLoggedAt < SECTION_VIEW_LOG_COOLDOWN_MS) return;
+
+          sectionLastLoggedAtRef.current[section] = now;
+          addLog(`view_section_${section}`);
+        });
+      },
+      {
+        root: null,
+        threshold: [0, SECTION_VIEW_INTERSECTION_THRESHOLD, 0.7],
+        rootMargin: "0px 0px -15% 0px",
+      }
+    );
+
+    observedSections.forEach(({ element }) => observer.observe(element));
+    return () => observer.disconnect();
+  }, [abtestType, addLog, landingId]);
 
   const upScroll = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -191,7 +291,7 @@ const CandidatePage = () => {
     addLog("click_login_google");
     const redirectTo =
       typeof window !== "undefined"
-        ? `${window.location.origin}/auths/callback?lid=${localStorage.getItem("harper_landing_id_0209") ?? ""}&cl=${encodeURIComponent(countryLang)}`
+        ? `${window.location.origin}/auths/callback?lid=${localStorage.getItem("harper_landing_id_0209") ?? ""}&cl=${encodeURIComponent(countryLang)}&ab=${encodeURIComponent(abtestType ?? "")}`
         : undefined;
 
     const { data, error } = await supabase.auth.signInWithOAuth({
@@ -232,6 +332,57 @@ const CandidatePage = () => {
       return null;
     }
   };
+
+  const copyVariant = useMemo(() => {
+    const defaultCopy = {
+      startButton: m.companyLanding.startButton,
+      whySubtitle: m.companyLanding.why.sub,
+      heroSubtitle: m.companyLanding.hero.subtitle,
+      section1HeadlineLine2: m.companyLanding.section1.headlineLine2,
+      section1BodyLine2: m.companyLanding.section1.bodyLine2,
+      closingHeadlineLine2: m.companyLanding.closing.headlineLine2,
+      whyFirstCardDesc: m.companyLanding.why.cards[0].desc,
+      whyThirdCardDesc: m.companyLanding.why.cards[2].desc,
+      rotatingTexts: ["Intelligence", "Decision", "Knowledge", "Insight"],
+    };
+
+    if (abtestType !== "company_copy_b_v1") {
+      return defaultCopy;
+    }
+
+    if (locale === "ko") {
+      return {
+        ...defaultCopy,
+        startButton: "무료로 시작하기",
+        whySubtitle:
+          "Harper는 링크드인 세일즈 네비게이터보다 더 많은 소스와 입력을 바탕으로<br />적합도가 높은 후보만 찾아서 보여드립니다.",
+        whyFirstCardDesc:
+          "단순한 키워드 검색을 넘어, <br />역량과 맥락을 이해하고 찾아주는 지능을 경험하세요.",
+        whyThirdCardDesc:
+          "링크드인, github, 논문, 트위터, SNS, 블로그 등<br />흩어진 정보를 하나로 모아 분석하고<br />인사이트를 추출해 알려줍니다.",
+        heroSubtitle:
+          "어떤 조건이던 AI 검색 엔진이<br />원하는 프로필을 가진 사람을 즉시 찾아드려요.",
+        section1BodyLine2: "Harper는 리크루팅의 미래를 새롭게 정의합니다.",
+        closingHeadlineLine2: "리크루팅의 미래를 경험하세요.",
+      };
+    }
+
+    return {
+      ...defaultCopy,
+      startButton: "Start for Free",
+      whySubtitle:
+        "Harper analyzes more sources and richer signals than LinkedIn Sales Navigator<br />to surface only the most relevant, high-fit candidates.",
+      whyFirstCardDesc:
+        "Go beyond simple keyword search.<br />Experience intelligence that understands skills and real-world context.",
+      whyThirdCardDesc:
+        "LinkedIn, GitHub, papers, Twitter, blogs, and more —<br />Harper brings scattered information together,<br />analyzes it, and extracts actionable insights.",
+      heroSubtitle:
+        "No matter your criteria,<br />our AI search engine instantly finds the right profiles for you.",
+      section1BodyLine2:
+        "Not just search results — evidence-based hiring priorities you can act on.",
+      closingHeadlineLine2: "Turn hiring into a joyful discovery.",
+    };
+  }, [abtestType, locale, m]);
 
   const NavItem = ({
     label,
@@ -294,7 +445,7 @@ const CandidatePage = () => {
         active:shadow-[0_8px_20px_rgba(180,255,120,0.2)]
         ${sizeClass}`}
       >
-        {m.companyLanding.startButton}
+        {copyVariant.startButton}
       </div>
     );
   };
@@ -414,7 +565,7 @@ const CandidatePage = () => {
             <div className="flex flex-row items-center justify-center gap-4">
               {m.companyLanding.hero.titleLine2Prefix}{" "}
               <RotatingText
-                texts={["Intelligence", "Decision", "Knowledge", "Insight"]}
+                texts={copyVariant.rotatingTexts}
                 mainClassName="lg:px-4 md:px-3 px-2 font-hedvig bg-accenta1 text-black overflow-hidden py-0 sm:py-0 md:py-0 justify-center rounded-lg inline-block"
                 staggerFrom={"last"}
                 initial={{ y: "100%" }}
@@ -430,10 +581,10 @@ const CandidatePage = () => {
               {m.companyLanding.hero.titleLine2Highlight}
             </span> */}
           </div>
-          <div className="text-sm md:text-base text-hgray700 font-light mt-6">
+          <div className="text-base md:text-lg text-hgray700 font-light mt-6">
             <span
               dangerouslySetInnerHTML={{
-                __html: m.companyLanding.hero.subtitle,
+                __html: copyVariant.heroSubtitle,
               }}
             />
           </div>
@@ -460,12 +611,12 @@ const CandidatePage = () => {
             <h2 className="text-[22px] md:text-3xl text-white font-normal mt-10">
               {m.companyLanding.section1.headlineLine1}
               <br />
-              {m.companyLanding.section1.headlineLine2}
+              {copyVariant.section1HeadlineLine2}
             </h2>
             <p className="text-base font-hedvig font-light md:text-lg mt-6 px-2 text-hgray700">
               {m.companyLanding.section1.bodyLine1}
               <br />
-              {m.companyLanding.section1.bodyLine2}
+              {copyVariant.section1BodyLine2}
             </p>
           </div>
         </BaseSectionLayout>
@@ -476,38 +627,56 @@ const CandidatePage = () => {
       <Animate>
         <BaseSectionLayout>
           <Animate>
-            <Head1 className="text-white">{m.companyLanding.why.title}</Head1>
+            <Head1 className="text-white text-center w-full">
+              {m.companyLanding.why.title}
+            </Head1>
+            <div className="text-sm font-hedvig font-light md:text-lg mt-6 px-2 text-hgray700">
+              <span
+                dangerouslySetInnerHTML={{
+                  __html: copyVariant.whySubtitle,
+                }}
+              />
+            </div>
           </Animate>
           <Animate>
-            <div className="flex flex-col md:flex-row mt-12 gap-8">
-              <WhyImageSection
-                title={m.companyLanding.why.cards[0].title}
-                desc={m.companyLanding.why.cards[0].desc}
-                imageSrc="/images/feat1.png"
-              />
-              <WhyImageSection
-                title={m.companyLanding.why.cards[1].title}
-                desc={m.companyLanding.why.cards[1].desc}
-                imageSrc="/images/feat4.png"
-              />
-              <WhyImageSection
-                title={m.companyLanding.why.cards[2].title}
-                desc={m.companyLanding.why.cards[2].desc}
-                imageSrc="orbit"
-              />
+            <div ref={whyTrackRef} data-section="why">
+              <div className="flex flex-col md:flex-row mt-12 gap-8">
+                <WhyImageSection
+                  title={m.companyLanding.why.cards[0].title}
+                  desc={copyVariant.whyFirstCardDesc}
+                  imageSrc="/images/feat1.png"
+                />
+                <WhyImageSection
+                  title={m.companyLanding.why.cards[1].title}
+                  desc={m.companyLanding.why.cards[1].desc}
+                  imageSrc="/images/feat4.png"
+                />
+                <WhyImageSection
+                  title={m.companyLanding.why.cards[2].title}
+                  desc={copyVariant.whyThirdCardDesc}
+                  imageSrc="orbit"
+                />
+              </div>
             </div>
           </Animate>
         </BaseSectionLayout>
       </Animate>
       <div className="h-48" />
       <FeatureSection />
+      {abtestType === "company_copy_b_v1" && (
+        <>
+          <div ref={examplesTrackRef} data-section="examples" />
+          <div className="h-28 md:h-48" />
+          <Examples />
+        </>
+      )}
       <div className="h-28 md:h-48" />
       <Animate>
         <BaseSectionLayout>
           <div className="w-[90%] max-w-[600px] flex flex-col">
             {/* <div className="font-hedvig mb-2 text-xl text-accenta1 w-full text-center">
-              Why choose us
-            </div> */}
+                Why choose us
+              </div> */}
             <div className="flex flex-col items-start gap-4 bg-white/20 rounded-2xl px-6 md:px-[30px] py-6 md:py-8">
               <div className="text-[15px] md:text-base text-left leading-[30px] font-normal text-hgray700">
                 <span
@@ -539,52 +708,63 @@ const CandidatePage = () => {
         </BaseSectionLayout>
       </Animate>
       <div ref={priceSectionRef} />
-      <div className="h-28 md:h-40" />
-      <PricingSection
-        onClick={(plan: string, _billing: "monthly" | "yearly") => {
-          addLog("click_pricing_" + plan);
-          setIsOpenLoginModal(true);
-        }}
-      />
+
+      {abtestType !== "company_copy_b_v1" && (
+        <>
+          <div className="h-28 md:h-40" />
+          <div ref={pricingTrackRef} data-section="pricing">
+            <PricingSection
+              onClick={(plan: string, _billing: "monthly" | "yearly") => {
+                addLog("click_pricing_" + plan);
+                setIsOpenLoginModal(true);
+              }}
+            />
+          </div>
+        </>
+      )}
       <div ref={faqSectionRef} />
-      <div className="h-28 md:h-40" />
-      <Animate>
-        <BaseSectionLayout>
-          <div className="flex flex-col items-center justify-center w-full pt-4">
-            <div className="w-full flex flex-col items-center justify-center pb-2">
-              <div className="text-[28px] md:text-4xl font-garamond font-medium">
-                {m.companyLanding.faq.title}
-              </div>
-              <div className="flex flex-col items-start justify-start text-white/70 font-light w-full mt-12 px-4 md:px-0">
-                {m.companyLanding.faq.items.map((item, index) => (
-                  <QuestionAnswer
-                    key={item.question}
-                    question={item.question}
-                    answer={item.answer}
-                    index={index}
-                    onOpen={() => addLog(`click_faq_${index}`)}
-                  />
-                ))}
+      <div ref={faqTrackRef} data-section="faq">
+        <div className="h-28 md:h-40" />
+        <Animate>
+          <BaseSectionLayout>
+            <div className="flex flex-col items-center justify-center w-full pt-4">
+              <div className="w-full flex flex-col items-center justify-center pb-2">
+                <div className="text-[28px] md:text-4xl font-garamond font-medium">
+                  {m.companyLanding.faq.title}
+                </div>
+                <div className="flex flex-col items-start justify-start text-white/70 font-light w-full mt-12 px-4 md:px-0">
+                  {m.companyLanding.faq.items.map((item, index) => (
+                    <QuestionAnswer
+                      key={item.question}
+                      question={item.question}
+                      answer={item.answer}
+                      index={index}
+                      onOpen={() => addLog(`click_faq_${index}`)}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-        </BaseSectionLayout>
-      </Animate>
+          </BaseSectionLayout>
+        </Animate>
+      </div>
       <div className="h-4 md:h-40" />
       <Animate duration={0.8}>
-        <div className="relative bg-black w-screen py-10">
-          <GradientBackground interactiveRef={interactiveRef} />
-          <div className="absolute top-0 left-0 w-full h-[50%] bg-gradient-to-t from-transparent to-black" />
-          <div className="flex flex-col items-center justify-center w-full lg:w-[94%] py-40 text-white z-40">
-            <Head1 className="text-xl md:text-[32px] z-40">
-              {m.companyLanding.closing.title}
-            </Head1>
-            <div className="text-3xl md:text-5xl text-center font-medium text-white/90 mt-8 md:leading-normal z-40">
-              {m.companyLanding.closing.headlineLine1}
-              <div className="md:h-1 h-1" />
-              {m.companyLanding.closing.headlineLine2}
+        <div ref={lastTrackRef} data-section="last">
+          <div className="relative bg-black w-screen py-10">
+            <GradientBackground interactiveRef={interactiveRef} />
+            <div className="absolute top-0 left-0 w-full h-[50%] bg-gradient-to-t from-transparent to-black" />
+            <div className="flex flex-col items-center justify-center w-full lg:w-[94%] py-40 text-white z-40">
+              <Head1 className="text-xl md:text-[32px] z-40">
+                {m.companyLanding.closing.title}
+              </Head1>
+              <div className="text-2xl md:text-[40px] text-center font-medium text-white/90 mt-8 md:leading-normal z-40">
+                {m.companyLanding.closing.headlineLine1}
+                <div className="md:h-1 h-1" />
+                {copyVariant.closingHeadlineLine2}
+              </div>
+              <StartButton type="click_footer_start" />
             </div>
-            <StartButton type="click_footer_start" />
           </div>
         </div>
       </Animate>

@@ -821,6 +821,7 @@ export type Database = {
       }
       landing_logs: {
         Row: {
+          abtest_type: string | null
           country_lang: string | null
           created_at: string
           id: number
@@ -829,6 +830,7 @@ export type Database = {
           type: string | null
         }
         Insert: {
+          abtest_type?: string | null
           country_lang?: string | null
           created_at?: string
           id?: number
@@ -837,6 +839,7 @@ export type Database = {
           type?: string | null
         }
         Update: {
+          abtest_type?: string | null
           country_lang?: string | null
           created_at?: string
           id?: number
