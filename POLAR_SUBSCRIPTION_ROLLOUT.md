@@ -21,6 +21,7 @@
 - Decision review:
   - Keep Lemon route and logic intact to allow rollback.
   - Add Polar routes in parallel under `/api/polar/*`.
+  - Plan changes use checkout flow (new subscription) instead of `subscriptions.update`.
 - Risk review:
   - Risk: user mapping missing in webhook payload.
     - Mitigation: support multiple payload paths and allow metadata-based mapping.
@@ -28,6 +29,8 @@
     - Mitigation: support environment-based mapping (`POLAR_PLAN_MAP_JSON`) and metadata fallback.
   - Risk: webhook arrives before/after checkout redirect.
     - Mitigation: success page instructs user that activation can take a short delay; source of truth is webhook.
+  - Risk: plan status can update before credits are recharged.
+    - Mitigation: credits are applied only on `order.paid`; UI copy explicitly explains this timing.
 - Validation plan:
   - TypeScript check on changed files.
   - Manual endpoint sanity checks (no runtime execution of external API calls).
@@ -63,3 +66,14 @@
   - `https://matchharper.com/billing/success?checkout_id={CHECKOUT_ID}`
 - Webhook URL:
   - `https://matchharper.com/api/polar/webhook`
+
+## Plan Change Billing Policy (Current)
+
+- Endpoint: `src/app/api/polar/checkout/route.ts`
+- Behavior:
+  - Upgrade path uses `checkouts.create` (new subscription + immediate payment).
+  - Existing subscription is revoked by webhook cleanup when the new one starts.
+  - Credits are recharged on `order.paid`.
+- Downgrade UX:
+  - In billing UI, downgrades show guidance modal.
+  - Recommended flow is: cancel current subscription first, then subscribe to lower plan after renewal date.

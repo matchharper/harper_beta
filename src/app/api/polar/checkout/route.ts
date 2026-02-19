@@ -40,11 +40,13 @@ export async function POST(req: Request) {
   let userId = "";
   let planKey = "" as PlanKey | "";
   let billing = "" as Billing | "";
+  let allowSubscriptionSwitch = false;
   try {
     const body = await req.json();
     userId = String(body?.userId ?? "");
     planKey = String(body?.planKey ?? "") as PlanKey | "";
     billing = String(body?.billing ?? "") as Billing | "";
+    allowSubscriptionSwitch = Boolean(body?.allowSubscriptionSwitch);
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
@@ -90,11 +92,11 @@ export async function POST(req: Request) {
     );
   }
 
-  if (activePayment?.ls_subscription_id) {
+  if (activePayment?.ls_subscription_id && !allowSubscriptionSwitch) {
     return NextResponse.json(
       {
         error:
-          "Active subscription already exists. Use subscription update flow for plan changes.",
+          "Active subscription already exists. Cancel first or request checkout with allowSubscriptionSwitch=true.",
       },
       { status: 409 }
     );
@@ -109,6 +111,7 @@ export async function POST(req: Request) {
         user_id: userId,
         plan_key: planKey,
         billing,
+        allow_subscription_switch: allowSubscriptionSwitch ? "1" : "0",
       },
       customerMetadata: {
         user_id: userId,

@@ -141,6 +141,7 @@ export async function POST(req: Request) {
       id: subscriptionId,
       subscriptionUpdate: {
         productId: targetProductId,
+        prorationBehavior: "invoice",
       },
     });
 
@@ -151,6 +152,7 @@ export async function POST(req: Request) {
           id: updated.id,
           productId: updated.productId,
           currentPeriodEnd: toIsoString(updated.currentPeriodEnd),
+          prorationBehavior: "invoice",
         },
       },
       { status: 200 }

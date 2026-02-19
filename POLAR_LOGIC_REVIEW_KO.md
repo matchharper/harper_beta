@@ -23,7 +23,8 @@
 ### 1-1. 체크아웃 생성
 
 - Billing UI에서 하드코딩 provider(`polar`)일 때 `/api/polar/checkout` 호출
-- `/api/polar/checkout`은 활성 유료 구독이 이미 있으면 409로 차단(중복 구독 방지)
+- 신규 구독은 기본적으로 기존처럼 처리하고,
+- 플랜 업그레이드 시에는 `allowSubscriptionSwitch=true`로 활성 구독이 있어도 checkout 허용
 - 서버에서 `planKey + billing` 조합으로 Polar product ID 선택
 - Polar Checkout 생성 시 metadata에 `user_id`, `plan_key`, `billing` 저장
 - 성공 시 `checkout.url`로 리다이렉트
@@ -32,16 +33,17 @@
 - `src/pages/my/billing.tsx`
 - `src/app/api/polar/checkout/route.ts`
 
-### 1-1.1 플랜 변경 (Subscription Update)
+### 1-1.1 플랜 변경 (Checkout 기반)
 
-- 유료 구독 상태에서 플랜 변경 시 `/api/polar/change-plan` 호출
-- Polar `subscriptions.update`로 product 변경 처리
-- 현재 구현은 Polar 기본 동작(조직 기본 proration 설정)으로 호출
-- UI 안내 문구는 "플랜 즉시 반영 + 요금 정산은 Polar 정책" 기준으로 제공
+- 업그레이드(`Pro -> Max`, `Monthly -> Yearly`)는 새 checkout을 생성해 즉시 결제/시작
+- 다운그레이드(`Max -> Pro`, `Yearly -> Monthly`)는 즉시 변경 대신
+  - "현재 구독 취소 후 갱신일 이후 새 플랜 결제 권장" 안내 모달 노출
+  - 모달 하단 `구독 취소` 버튼으로 `cancelAtPeriodEnd=true` 처리
+- 기존 구독은 새 구독 이벤트 처리 시 웹훅에서 자동 revoke
 
 코드:
 - `src/pages/my/billing.tsx`
-- `src/app/api/polar/change-plan/route.ts`
+- `src/app/api/polar/checkout/route.ts`
 
 ### 1-2. 성공 리다이렉트
 
@@ -82,7 +84,7 @@
 ### 1-5. 중복 구독 정리 보호 로직
 
 - 웹훅은 여전히 다중 활성 구독 감지 시 기존 구독 정리(`revoke`) 로직을 유지
-- 현재 플랜 변경은 checkout 신규 생성이 아니라 update API를 사용하므로, 정상 경로에서는 다중 구독이 거의 발생하지 않음
+- 플랜 업그레이드는 checkout 신규 생성 방식이므로, 새 구독 시작 시 기존 구독을 자동 정리
 
 코드:
 - `src/app/api/polar/webhook/route.ts`
@@ -94,8 +96,8 @@
 판정: **정상 (요구사항 충족)**
 
 - 사용자 취소는 기간 종료 해지로 동작 (`cancelAtPeriodEnd=true`)
-- 플랜 변경은 `subscription update`로 처리(기존 cancel + 신규 checkout 방식 제거)
-- 기존 UI 정책(연간 -> 월간 직접 다운그레이드 차단)은 그대로 유지
+- 플랜 업그레이드는 새 checkout으로 즉시 결제/시작
+- 플랜 다운그레이드는 취소 후 갱신일 이후 새 결제를 권장하는 UX로 분기
 
 근거:
 - `src/app/api/polar/cancel/route.ts`
@@ -175,7 +177,7 @@
 
 - 코드 검증
   - `lint`/`tsc`/`build` 통과
-  - Polar checkout/change-plan/cancel/webhook 모두 `POLAR_SERVER = "sandbox"` 기준으로 동작
+  - Polar checkout/cancel/webhook 모두 `POLAR_SERVER = "sandbox"` 기준으로 동작
 - 데이터 매핑
   - 테스트 product ID 2개를 `plans.ls_variant_id`에 넣었다면 웹훅에서 plan 인식 가능
   - `plans.cycle`은 월간 값(0)으로 맞춰야 billing UI가 월간으로 표기됨
@@ -187,5 +189,4 @@
 
 ## 7) 테이블 변경 필요 여부
 
-- 이번 `subscription update` 전환만으로는 **테이블 변경 불필요**
-- 단, "정확히 다음 갱신 시점에만 플랜 자체를 시작"하는 예약 변경을 엄밀히 구현하려면 별도 예약 테이블(예: `pending_plan_changes`)과 스케줄 실행 로직이 필요할 수 있음
+- 이번 checkout 기반 전환만으로는 **테이블 변경 불필요**

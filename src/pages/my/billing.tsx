@@ -111,6 +111,33 @@ function inferPlanKey(args: {
   return null;
 }
 
+function getPlanKeyFromPlanName(args: {
+  planName: string;
+  pricing: {
+    plans: {
+      pro: { name: string };
+      max: { name: string };
+    };
+  };
+}): "pro" | "max" | null {
+  if (args.planName === args.pricing.plans.pro.name) return "pro";
+  if (args.planName === args.pricing.plans.max.name) return "max";
+  return null;
+}
+
+function isDowngradeSelection(args: {
+  currentPlanKey: SubscriptionInfo["planKey"];
+  currentBilling: BillingPeriod | null;
+  nextPlanKey: "pro" | "max" | null;
+  nextBilling: BillingPeriod;
+}) {
+  const planDowngrade =
+    args.currentPlanKey === "max" && args.nextPlanKey === "pro";
+  const billingDowngrade =
+    args.currentBilling === "yearly" && args.nextBilling === "monthly";
+  return planDowngrade || billingDowngrade;
+}
+
 const Billing = () => {
   const { credits, refetch: refetchCredits } = useCredits();
   const router = useRouter();
@@ -124,13 +151,8 @@ const Billing = () => {
     null
   );
   const [isCanceling, setIsCanceling] = useState(false);
-  const [isPlanChanging, setIsPlanChanging] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
-  const [isPlanChangeConfirmOpen, setIsPlanChangeConfirmOpen] = useState(false);
-  const [pendingPlanChange, setPendingPlanChange] = useState<{
-    planName: string;
-    billing: "monthly" | "yearly";
-  } | null>(null);
+  const [isDowngradeGuideOpen, setIsDowngradeGuideOpen] = useState(false);
   const { m } = useMessages();
   const logEvent = useLogEvent();
   const pricing = m.companyLanding.pricing;
@@ -163,10 +185,14 @@ const Billing = () => {
 
   const startCheckout = async (
     planName: string,
-    billing: "monthly" | "yearly"
+    billing: "monthly" | "yearly",
+    options?: {
+      allowSubscriptionSwitch?: boolean;
+    }
   ) => {
     const proName = m.companyLanding.pricing.plans.pro.name;
     const maxName = m.companyLanding.pricing.plans.max.name;
+    const allowSubscriptionSwitch = Boolean(options?.allowSubscriptionSwitch);
     logEvent(
       `enter_billing_checkout, planName: ${planName}, billing: ${billing}`
     );
@@ -212,6 +238,7 @@ const Billing = () => {
             userId: companyUser.user_id,
             planKey,
             billing,
+            allowSubscriptionSwitch,
           }),
         });
 
@@ -280,98 +307,60 @@ const Billing = () => {
     window.location.href = url.toString();
   };
 
-  const changePlanWithPolarUpdate = async (
-    planName: string,
-    billing: "monthly" | "yearly"
-  ) => {
-    const proName = m.companyLanding.pricing.plans.pro.name;
-    const maxName = m.companyLanding.pricing.plans.max.name;
-
+  const requestSubscriptionCancel = async () => {
     if (!companyUser?.user_id) {
       showToast({
         message: "로그인 정보를 확인할 수 없습니다.",
         variant: "white",
       });
-      return;
+      return false;
     }
 
-    let planKey: "pro" | "max" | null = null;
-    if (planName === proName) {
-      planKey = "pro";
-    } else if (planName === maxName) {
-      planKey = "max";
-    } else {
+    if (!canCancelSubscription) {
       showToast({
-        message: "현재는 Pro, Max 플랜만 테스트 중입니다.",
+        message: "이미 구독 취소가 예약되어 있습니다.",
         variant: "white",
       });
-      return;
+      return false;
     }
 
-    if (BILLING_PROVIDER !== "polar") {
-      await startCheckout(planName, billing);
-      return;
-    }
-
-    setIsPlanChanging(true);
+    setIsCanceling(true);
     try {
-      const res = await fetch("/api/polar/change-plan", {
+      const cancelEndpoint =
+        BILLING_PROVIDER === "polar"
+          ? "/api/polar/cancel"
+          : "/api/lemonsqueezy/cancel";
+      const res = await fetch(cancelEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: companyUser.user_id,
-          planKey,
-          billing,
         }),
       });
-
       if (!res.ok) {
-        let errorMessage = `구독 플랜 변경에 실패했습니다. (status ${res.status})`;
-        try {
-          const payload = await res.json();
-          const detail =
-            typeof payload?.message === "string"
-              ? payload.message
-              : typeof payload?.error === "string"
-                ? payload.error
-                : null;
-          if (detail) {
-            errorMessage = `${errorMessage} ${detail}`;
-          }
-        } catch {
-          // Keep generic fallback message.
-        }
         showToast({
-          message: errorMessage,
+          message: "구독 취소에 실패했습니다.",
           variant: "white",
         });
-        return;
+        return false;
       }
 
-      const payload = await res.json();
-      if (payload?.status === "no_change") {
-        showToast({
-          message: "이미 동일한 플랜을 사용 중입니다.",
-          variant: "white",
-        });
-      } else {
-        showToast({
-          message:
-            "플랜이 즉시 변경되었습니다. 요금 정산은 Polar 정책에 따라 즉시 또는 다음 청구서에서 처리될 수 있습니다.",
-          variant: "white",
-        });
-      }
-
-      await router.replace("/my/billing?checkout_synced=1", undefined, {
-        shallow: true,
-      });
-    } catch {
+      setSubscription((prev) =>
+        prev ? { ...prev, cancelAtPeriodEnd: true } : prev
+      );
       showToast({
-        message: "플랜 변경 요청 중 오류가 발생했습니다.",
+        message: "구독 취소 요청이 완료되었습니다.",
         variant: "white",
       });
+      return true;
+    } catch {
+      showToast({
+        message: "구독 취소 중 오류가 발생했습니다.",
+        variant: "white",
+      });
+      return false;
     } finally {
-      setIsPlanChanging(false);
+      setIsCanceling(false);
     }
   };
 
@@ -528,47 +517,8 @@ const Billing = () => {
         open={isCancelModalOpen}
         onClose={() => setIsCancelModalOpen(false)}
         onConfirm={async () => {
-          if (!companyUser?.user_id) {
-            showToast({
-              message: "로그인 정보를 확인할 수 없습니다.",
-              variant: "white",
-            });
-            return;
-          }
-          if (!canCancelSubscription) return;
-
-          setIsCanceling(true);
-          try {
-            const cancelEndpoint =
-              BILLING_PROVIDER === "polar"
-                ? "/api/polar/cancel"
-                : "/api/lemonsqueezy/cancel";
-            const res = await fetch(cancelEndpoint, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ userId: companyUser.user_id }),
-            });
-            if (!res.ok) {
-              showToast({
-                message: "구독 취소에 실패했습니다.",
-                variant: "white",
-              });
-              return;
-            }
-            setSubscription((prev) =>
-              prev ? { ...prev, cancelAtPeriodEnd: true } : prev
-            );
-            showToast({
-              message: "구독 취소 요청이 완료되었습니다.",
-              variant: "white",
-            });
-          } catch (error) {
-            showToast({
-              message: "구독 취소 중 오류가 발생했습니다.",
-              variant: "white",
-            });
-          } finally {
-            setIsCanceling(false);
+          const ok = await requestSubscriptionCancel();
+          if (ok) {
             setIsCancelModalOpen(false);
           }
         }}
@@ -583,27 +533,23 @@ const Billing = () => {
         cancelLabel="닫기"
       />
       <ConfirmModal
-        open={isPlanChangeConfirmOpen}
-        onClose={() => {
-          if (isPlanChanging) return;
-          setIsPlanChangeConfirmOpen(false);
-          setPendingPlanChange(null);
-        }}
+        open={isDowngradeGuideOpen}
+        onClose={() => setIsDowngradeGuideOpen(false)}
         onConfirm={async () => {
-          if (!pendingPlanChange) {
-            setIsPlanChangeConfirmOpen(false);
-            return;
+          const ok = await requestSubscriptionCancel();
+          if (ok) {
+            setIsDowngradeGuideOpen(false);
           }
-          const next = pendingPlanChange;
-          await changePlanWithPolarUpdate(next.planName, next.billing);
-          setIsPlanChangeConfirmOpen(false);
-          setPendingPlanChange(null);
         }}
-        title="플랜 변경을 진행할까요?"
-        description="플랜 변경은 즉시 적용됩니다. 요금 정산은 Polar 청구 정책에 따라 즉시 또는 다음 청구서에 반영될 수 있습니다."
-        confirmLabel="확인하고 진행"
+        title="다운그레이드는 갱신 시점 반영을 권장합니다."
+        description={
+          freeStartDateLabel
+            ? `다운그레이드의 경우 우선 구독을 취소하고 기존 구독 갱신 날짜(<span class="text-accenta1 px-1">${freeStartDateLabel}</span>) 이후 새로운 플랜으로 결제하시는 것을 추천드립니다.`
+            : "다운그레이드의 경우 우선 구독을 취소하고 기존 구독 갱신 날짜 이후 새로운 플랜으로 결제하시는 것을 추천드립니다."
+        }
+        confirmLabel="구독 취소"
         cancelLabel="닫기"
-        isLoading={isPlanChanging}
+        isLoading={isCanceling}
       />
       <div className="px-6 py-8 w-full">
         <div className="text-3xl font-hedvig font-light tracking-tight text-white">
@@ -722,8 +668,24 @@ const Billing = () => {
             const isPlanChange =
               !!subscription && subscription.planKey !== "free";
             if (isPlanChange) {
-              setPendingPlanChange({ planName, billing });
-              setIsPlanChangeConfirmOpen(true);
+              const nextPlanKey = getPlanKeyFromPlanName({
+                planName,
+                pricing,
+              });
+              const isDowngrade = isDowngradeSelection({
+                currentPlanKey: subscription.planKey,
+                currentBilling: subscription.billing,
+                nextPlanKey,
+                nextBilling: billing,
+              });
+              if (isDowngrade) {
+                setIsDowngradeGuideOpen(true);
+                return;
+              }
+
+              await startCheckout(planName, billing, {
+                allowSubscriptionSwitch: true,
+              });
               return;
             }
 
@@ -756,7 +718,7 @@ const Billing = () => {
             key={"item.question3"}
             question={"주기 중간에 플랜을 변경하면 어떻게 되나요?"}
             answer={
-              "플랜 변경은 구독 업데이트로 즉시 반영됩니다. 요금 차액은 Polar 청구 정책에 따라 즉시 또는 다음 청구서에서 정산됩니다."
+              "업그레이드는 신규 구독 결제로 즉시 시작됩니다. 새 구독이 시작되면 기존 구독은 자동으로 종료됩니다. 다운그레이드(연간→월간 또는 Max→Pro)는 현재 구독을 먼저 취소한 뒤 갱신일 이후 새 플랜으로 결제하는 방식을 권장합니다."
             }
             index={3}
             variant="small"
