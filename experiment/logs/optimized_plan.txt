@@ -1,0 +1,76 @@
+Query: database/optimized_query.sql
+Execution Time: 0.72 seconds
+--------------------------------------------------
+Unique  (cost=12553.36..12553.59 rows=45 width=130) (actual time=688.383..688.406 rows=165 loops=1)
+  Buffers: shared hit=9454 read=690
+  ->  Sort  (cost=12553.36..12553.48 rows=45 width=130) (actual time=688.382..688.391 rows=165 loops=1)
+        Sort Key: c.id, (ts_rank(c.fts, '''product'' <-> ''manag'' | ''pm'' | ''product'' <-> ''owner'''::tsquery)) DESC
+        Sort Method: quicksort  Memory: 49kB
+        Buffers: shared hit=9454 read=690
+        ->  Nested Loop  (cost=1646.92..12552.13 rows=45 width=130) (actual time=688.059..688.319 rows=165 loops=1)
+              Buffers: shared hit=9448 read=690
+              ->  Subquery Scan on fi  (cost=1646.63..12210.29 rows=45 width=16) (actual time=688.034..688.060 rows=165 loops=1)
+                    Buffers: shared hit=8953 read=690
+                    ->  HashSetOp Intersect  (cost=1646.63..12210.29 rows=45 width=20) (actual time=688.034..688.048 rows=165 loops=1)
+                          Buffers: shared hit=8953 read=690
+                          ->  Append  (cost=1646.63..12209.68 rows=245 width=20) (actual time=103.069..687.426 rows=9538 loops=1)
+                                Buffers: shared hit=8953 read=690
+                                ->  Subquery Scan on "*SELECT* 3"  (cost=1646.63..4804.97 rows=45 width=20) (actual time=103.068..328.139 rows=448 loops=1)
+                                      Buffers: shared hit=4487 read=20
+                                      ->  Hash Join  (cost=1646.63..4804.52 rows=45 width=16) (actual time=103.068..328.103 rows=448 loops=1)
+                                            Hash Cond: (ex2.company_id = c2.id)
+                                            Buffers: shared hit=4487 read=20
+                                            ->  Bitmap Heap Scan on experience_user ex2  (cost=749.61..3867.83 rows=15111 width=24) (actual time=14.740..239.475 rows=8358 loops=1)
+                                                  Recheck Cond: (role % ANY ('{"%product manager%",%pm%,"%product owner%","%프로덕트 매니저%","%프로덕트 오너%",%manager%,%매니저%,%product%}'::text[]))
+                                                  Rows Removed by Index Recheck: 13410
+                                                  Heap Blocks: exact=2727
+                                                  Buffers: shared hit=3009 read=20
+                                                  ->  Bitmap Index Scan on idx_experience_role_trgm  (cost=0.00..745.83 rows=15111 width=0) (actual time=14.396..14.397 rows=50266 loops=1)
+                                                        Index Cond: (role % ANY ('{"%product manager%",%pm%,"%product owner%","%프로덕트 매니저%","%프로덕트 오너%",%manager%,%매니저%,%product%}'::text[]))
+                                                        Buffers: shared hit=282 read=20
+                                            ->  Hash  (cost=895.85..895.85 rows=94 width=8) (actual time=88.103..88.104 rows=198 loops=1)
+                                                  Buckets: 1024  Batches: 1  Memory Usage: 16kB
+                                                  Buffers: shared hit=1478
+                                                  ->  Bitmap Heap Scan on company_db c2  (cost=587.08..895.85 rows=94 width=8) (actual time=3.904..88.038 rows=198 loops=1)
+                                                        Recheck Cond: (name % ANY ('{%naver%,%네이버%,%kakao%,%카카오%,%line%,%라인%,%coupang%,%쿠팡%,%baemin%,%배달의민족%,"%delivery hero%",%woowhan%}'::text[]))
+                                                        Rows Removed by Index Recheck: 3578
+                                                        Heap Blocks: exact=1301
+                                                        Buffers: shared hit=1478
+                                                        ->  Bitmap Index Scan on idx_company_db_name_trgm  (cost=0.00..587.06 rows=94 width=0) (actual time=2.867..2.867 rows=4070 loops=1)
+                                                              Index Cond: (name % ANY ('{%naver%,%네이버%,%kakao%,%카카오%,%line%,%라인%,%coupang%,%쿠팡%,%baemin%,%배달의민족%,"%delivery hero%",%woowhan%}'::text[]))
+                                                              Buffers: shared hit=177
+                                ->  Result  (cost=3986.96..7403.48 rows=200 width=20) (actual time=357.973..358.847 rows=9090 loops=1)
+                                      Buffers: shared hit=4466 read=670
+                                      ->  HashSetOp Intersect  (cost=3986.96..7401.48 rows=200 width=20) (actual time=357.972..358.323 rows=9090 loops=1)
+                                            Buffers: shared hit=4466 read=670
+                                            ->  Append  (cost=3986.96..7301.66 rows=39931 width=20) (actual time=347.822..354.288 rows=24283 loops=1)
+                                                  Buffers: shared hit=4466 read=670
+                                                  ->  Subquery Scan on "*SELECT* 2"  (cost=3986.96..4570.42 rows=29173 width=20) (actual time=347.821..349.549 rows=13531 loops=1)
+                                                        Buffers: shared hit=2242 read=670
+                                                        ->  HashAggregate  (cost=3986.96..4278.69 rows=29173 width=16) (actual time=347.820..348.715 rows=13531 loops=1)
+                                                              Group Key: candid.id
+                                                              Batches: 1  Memory Usage: 1553kB
+                                                              Buffers: shared hit=2242 read=670
+                                                              ->  Append  (cost=0.00..3914.03 rows=29173 width=16) (actual time=0.020..343.176 rows=25362 loops=1)
+                                                                    Buffers: shared hit=2242 read=670
+                                                                    ->  Seq Scan on candid  (cost=0.00..2444.00 rows=12329 width=16) (actual time=0.020..42.746 rows=9012 loops=1)
+                                                                          Filter: (location % ANY ('{%korea%,%seoul%,%korean%}'::text[]))
+                                                                          Rows Removed by Filter: 6988
+                                                                          Buffers: shared hit=2224
+                                                                    ->  Seq Scan on edu_user  (cost=0.00..1324.16 rows=16844 width=16) (actual time=0.076..299.210 rows=16350 loops=1)
+                                                                          Filter: (school % ANY ('{"%seoul national%",%snu%,%서울대%,"%korea university%",%고려대%,%yonsei%,%연세%,%postech%,%포항공대%,%kaist%}'::text[]))
+                                                                          Rows Removed by Filter: 11924
+                                                                          Buffers: shared hit=18 read=670
+                                                  ->  Subquery Scan on "*SELECT* 1"  (cost=0.00..2531.58 rows=10758 width=20) (actual time=0.004..3.595 rows=10752 loops=1)
+                                                        Buffers: shared hit=2224
+                                                        ->  Seq Scan on candid candid_1  (cost=0.00..2424.00 rows=10758 width=16) (actual time=0.003..2.949 rows=10752 loops=1)
+                                                              Filter: (total_exp_months <= 144)
+                                                              Rows Removed by Filter: 5248
+                                                              Buffers: shared hit=2224
+              ->  Index Scan using candid_pkey on candid c  (cost=0.29..7.59 rows=1 width=99) (actual time=0.001..0.001 rows=1 loops=165)
+                    Index Cond: (id = fi.id)
+                    Buffers: shared hit=495
+Planning:
+  Buffers: shared hit=605
+Planning Time: 23.595 ms
+Execution Time: 689.013 ms

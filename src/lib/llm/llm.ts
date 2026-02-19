@@ -26,6 +26,20 @@ export const xaiClient = new OpenAI({
   baseURL: "https://api.x.ai/v1",
 });
 
+export async function generateEmbedding(text: string): Promise<number[]> {
+  try {
+    const response = await client.embeddings.create({
+      model: "text-embedding-3-small",
+      input: text,
+      encoding_format: "float",
+    });
+    return response.data[0].embedding;
+  } catch (e) {
+    logger.log("🚨 generateEmbedding (OpenAI) error:", e);
+    throw e;
+  }
+}
+
 export type OnToken = (token: string) => void;
 
 const pricingTable = {

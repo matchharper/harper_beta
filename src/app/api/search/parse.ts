@@ -1,7 +1,7 @@
 import { logger } from "@/utils/logger";
 import { geminiInference, xaiInference } from "@/lib/llm/llm";
 import { ensureGroupBy, sqlRefine } from "@/utils/textprocess";
-import { expandingSearchPrompt, sqlExistsPrompt, firstSqlPrompt, timeoutHandlePrompt, tsvectorPrompt2, fixFtsOrOperator } from "@/lib/prompt";
+import { expandingSearchPrompt, sqlExistsPrompt, firstSqlPrompt, timeoutHandlePrompt, tsvectorPrompt2, fixFtsOrOperator, hybridSearchPrompt } from "@/lib/prompt";
 import { supabase } from "@/lib/supabase";
 import { assertNotCanceled, deduplicateCandidates, updateQuery, updateRunStatus } from "./utils";
 import { ScoredCandidate } from "./utils";
@@ -13,6 +13,7 @@ import { rpc_set_timeout_and_execute_raw_sql_via_runs } from "./worker";
 import { en } from "@/lang/en";
 import { ko } from "@/lang/ko";
 import { StatusEnum } from "@/types/type";
+import { generateEmbedding } from "@/lib/llm/llm";
 
 type Locale = "ko" | "en";
 
@@ -34,11 +35,79 @@ export async function makeSqlQuery(
   runId: string,
   locale: Locale = "en"
 ): Promise<string | any> {
-  logger.log("🔥 시작 makeSqlQuery: ", queryText, criteria);
-  const statusMessages = getMessages(locale).search.status;
+  logger.log("🔥 시작 makeSqlQuery (Hybrid Mode): ", queryText, criteria);
   await updateRunStatus(runId, StatusEnum.PARSING);
 
   try {
+    // 1. Semantic Parsing using LLM
+    const parsePrompt = `
+    ${hybridSearchPrompt}
+    Natural Language Query: ${queryText}
+    Criteria: ${criteria}
+    `.trim();
+
+    const startParse = performance.now();
+    const rawParsed = (await geminiInference(
+      "gemini-3-flash-preview",
+      "You are a recruitment search architect. Output JSON only.",
+      parsePrompt,
+      0.1,
+      ThinkingLevel.LOW
+    )) as string;
+    await assertNotCanceled(runId);
+
+    const parsed = JSON.parse(rawParsed.replace(/```json|```/g, "").trim());
+    logger.log(`🎃 하이브리드 파싱 완료 [${((performance.now() - startParse) / 1000).toFixed(3)}s]`, parsed);
+
+    // 2. Generate Embedding for semantic intent
+    const startEmbed = performance.now();
+    const embedding = await generateEmbedding(parsed.semantic_query);
+    const vectorStr = `[${embedding.join(",")}]`;
+    logger.log(`🧬 임베딩 생성 완료 [${((performance.now() - startEmbed) / 1000).toFixed(3)}s]`);
+
+    // 3. Construct Keyword FTS query
+    const keywords = parsed.keywords || [];
+    const tsQueryStr = keywords.join(" | ").replace(/-/g, "<->");
+
+    // 4. Build Hybrid SQL
+    // We combine Vector Similarity (0.7) and FTS Rank (0.3)
+    const hybridSql = `
+WITH semantic_scores AS (
+  SELECT 
+    id,
+    1 - (embedding <=> '${vectorStr}') AS similarity_score
+  FROM candid
+  WHERE embedding IS NOT NULL
+),
+keyword_scores AS (
+  SELECT 
+    id,
+    ts_rank(fts, to_tsquery('english', '${tsQueryStr}')) AS fts_score
+  FROM candid
+  WHERE fts @@ to_tsquery('english', '${tsQueryStr}')
+)
+SELECT 
+  T1.id,
+  T1.name,
+  T1.headline,
+  T1.location,
+  COALESCE(s.similarity_score, 0) * 0.7 + COALESCE(k.fts_score, 0) * 0.3 AS hybrid_score
+FROM candid T1
+LEFT JOIN semantic_scores s ON T1.id = s.id
+LEFT JOIN keyword_scores k ON T1.id = k.id
+WHERE 
+  (s.similarity_score > 0.1 OR k.fts_score > 0)
+  AND (${parsed.hard_filters || 'TRUE'})
+ORDER BY hybrid_score DESC
+`;
+
+    logger.log("🥬 최종 하이브리드 SQL 생성 완료");
+    return hybridSql;
+  } catch (e) {
+    logger.log("makeSqlQuery error", e);
+    // Fallback to old logic if hybrid parsing fails
+    logger.log("⚠️ Hybrid parsing failed. Falling back to classic SQL generation.");
+    
     let prompt = `
   ${firstSqlPrompt}
   Natural Language Query: ${queryText}
@@ -47,57 +116,16 @@ export async function makeSqlQuery(
 
     if (extraInfo) prompt += `Extra Info: ${extraInfo}`;
 
-    const start1 = performance.now();
     let outText = (await geminiInference(
       "gemini-3-flash-preview",
-      "You are a head hunting expertand SQL Query parser. Your input is a natural-language request describing criteria for searching job candidates.",
+      "You are a head hunting expert and SQL Query parser.",
       prompt,
       0.2,
       ThinkingLevel.LOW
     )) as string;
-    await assertNotCanceled(runId);
+    
     outText = sqlRefine(outText);
-    logger.log(`🎃 첫번째 쿼리 완성 [${((performance.now() - start1) / 1000).toFixed(3)}s] ${outText}\n`);
-
-    const sqlQuery = `
-SELECT DISTINCT ON (T1.id)
-  T1.id AS id,
-  T1.name,
-  T1.headline,
-  T1.location
-FROM 
-  candid AS T1
-${outText}
-`;
-    const sqlQueryWithGroupBy = ensureGroupBy(sqlQuery, "");
-
-    const refinePrompt =
-      sqlExistsPrompt + `\n Input SQL Query: """${sqlQueryWithGroupBy}"""
-
-# Original Input from user
-Natural Language Query: ${queryText}
-Criteria: ${criteria}
-`;
-
-    await updateRunStatus(runId, StatusEnum.REFINE);
-
-    const start = performance.now();
-    const outText2 = (await geminiInference(
-      "gemini-3-flash-preview",
-      "You are a SQL Query refinement expert, for stable and fast search.",
-      refinePrompt,
-      0.2,
-      ThinkingLevel.LOW
-    )) as string;
-    await assertNotCanceled(runId);
-
-    const final = sqlRefine(outText2, true);
-    logger.log(`🥬 2차로 쿼리 최종 완성 [${((performance.now() - start) / 1000).toFixed(3)}s] ${final} \n`);
-
-    return final;
-  } catch (e) {
-    logger.log("makeSqlQuery error", e);
-    throw e;
+    return `SELECT DISTINCT ON (T1.id) T1.id, T1.name, T1.headline, T1.location FROM candid AS T1 ${outText}`;
   }
 }
 

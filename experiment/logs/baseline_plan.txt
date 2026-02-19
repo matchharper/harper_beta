@@ -1,0 +1,56 @@
+Query: database/sample_query.sql
+Execution Time: 0.36 seconds
+--------------------------------------------------
+Unique  (cost=7313.56..7519.13 rows=27 width=130) (actual time=341.863..342.220 rows=236 loops=1)
+  Buffers: shared hit=1715 read=5244
+  ->  Incremental Sort  (cost=7313.56..7519.06 rows=27 width=130) (actual time=341.863..342.199 rows=236 loops=1)
+        Sort Key: c.id, (ts_rank(c.fts, '''product'' <-> ''manag'' | ''pm'' | ''product'' <-> ''owner'''::tsquery)) DESC
+        Presorted Key: c.id
+        Full-sort Groups: 8  Sort Method: quicksort  Average Memory: 29kB  Peak Memory: 29kB
+        Buffers: shared hit=1715 read=5244
+        ->  Nested Loop  (cost=7305.70..7517.85 rows=27 width=130) (actual time=341.755..342.110 rows=236 loops=1)
+              Buffers: shared hit=1709 read=5244
+              ->  Unique  (cost=7305.41..7305.55 rows=27 width=16) (actual time=341.730..341.765 rows=236 loops=1)
+                    Buffers: shared hit=1001 read=5244
+                    ->  Sort  (cost=7305.41..7305.48 rows=27 width=16) (actual time=341.729..341.740 rows=236 loops=1)
+                          Sort Key: t1.id
+                          Sort Method: quicksort  Memory: 30kB
+                          Buffers: shared hit=1001 read=5244
+                          ->  Nested Loop  (cost=6874.90..7304.77 rows=27 width=16) (actual time=335.696..341.686 rows=236 loops=1)
+                                Buffers: shared hit=1001 read=5244
+                                ->  HashAggregate  (cost=6874.62..6875.06 rows=44 width=16) (actual time=335.658..335.717 rows=507 loops=1)
+                                      Group Key: ex2.candid_id
+                                      Batches: 1  Memory Usage: 97kB
+                                      Buffers: shared read=4664
+                                      ->  Hash Join  (cost=2634.05..6874.51 rows=44 width=16) (actual time=146.685..335.467 rows=683 loops=1)
+                                            Hash Cond: (ex2.company_id = c2.id)
+                                            Buffers: shared read=4664
+                                            ->  Seq Scan on experience_user ex2  (cost=0.00..4201.94 rows=14673 width=24) (actual time=0.074..188.522 rows=11981 loops=1)
+                                                  Filter: (role ~~* ANY ('{"%product manager%",%pm%,"%product owner%","%프로덕트 매니저%","%프로덕트 오너%",%manager%,%매니저%,%product%}'::text[]))
+                                                  Rows Removed by Filter: 57316
+                                                  Buffers: shared read=2816
+                                            ->  Hash  (cost=2632.88..2632.88 rows=94 width=8) (actual time=146.196..146.196 rows=325 loops=1)
+                                                  Buckets: 1024  Batches: 1  Memory Usage: 21kB
+                                                  Buffers: shared read=1848
+                                                  ->  Seq Scan on company_db c2  (cost=0.00..2632.88 rows=94 width=8) (actual time=2.392..146.093 rows=325 loops=1)
+                                                        Filter: (name ~~* ANY ('{%naver%,%네이버%,%kakao%,%카카오%,%line%,%라인%,%coupang%,%쿠팡%,%baemin%,%배달의민족%,"%delivery hero%",%woowhan%}'::text[]))
+                                                        Rows Removed by Filter: 31070
+                                                        Buffers: shared read=1848
+                                ->  Index Scan using candid_pkey on candid t1  (cost=0.29..9.76 rows=1 width=16) (actual time=0.012..0.012 rows=0 loops=507)
+                                      Index Cond: (id = ex2.candid_id)
+                                      Filter: ((total_exp_months <= 144) AND ((location ~~* ANY ('{%korea%,%seoul%,%korean%}'::text[])) OR (SubPlan 1)))
+                                      Rows Removed by Filter: 1
+                                      Buffers: shared hit=1001 read=580
+                                      SubPlan 1
+                                        ->  Index Scan using idx_edu_user_candid_id on edu_user eu  (cost=0.29..8.48 rows=1 width=0) (actual time=0.023..0.023 rows=0 loops=21)
+                                              Index Cond: (candid_id = t1.id)
+                                              Filter: (school ~~* ANY ('{"%seoul national%",%snu%,%서울대%,"%korea university%",%고려대%,%yonsei%,%연세%,%postech%,%포항공대%,%kaist%}'::text[]))
+                                              Rows Removed by Filter: 2
+                                              Buffers: shared hit=21 read=39
+              ->  Index Scan using candid_pkey on candid c  (cost=0.29..7.86 rows=1 width=99) (actual time=0.001..0.001 rows=1 loops=236)
+                    Index Cond: (id = t1.id)
+                    Buffers: shared hit=708
+Planning:
+  Buffers: shared hit=577 read=29 dirtied=2
+Planning Time: 15.211 ms
+Execution Time: 342.398 ms

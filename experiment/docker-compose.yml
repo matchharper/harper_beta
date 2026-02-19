@@ -1,0 +1,18 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: harper-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: harper
+    ports:
+      - "5432:5432"
+    volumes:
+      # Mount Schema (Runs 1st)
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+      # Mount Data Loader Script (Runs 2nd)
+      - ./scripts/load_data.sql:/docker-entrypoint-initdb.d/02_load_data.sql
+      # Mount CSV Data Directory (Accessible by load_data.sql)
+      - ./database/data:/data
+    restart: always
