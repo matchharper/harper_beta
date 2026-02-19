@@ -301,7 +301,6 @@ const CandidatePage = () => {
 
   return (
     <main className={`min-h-screen font-inter text-white bg-black w-screen`}>
-      <GaPageView />
       <LoginModal
         open={isOpenLoginModal}
         onClose={() => setIsOpenLoginModal(false)}

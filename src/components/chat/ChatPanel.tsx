@@ -325,8 +325,6 @@ export default function ChatPanel({
       ])
       .gte("created_at", threeMinAgo);
 
-    console.log("count", count);
-
     if (error) {
       console.error("Failed to check running searches:", error);
     } else if ((count ?? 0) >= maxParallel) {

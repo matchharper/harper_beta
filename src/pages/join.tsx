@@ -295,7 +295,6 @@ const Onboard: React.FC = () => {
 
   return (
     <main className="flex flex-col justify-start md:justify-center items-center min-h-screen bg-white text-black font-inter pt-4 md:pt-0">
-      <GaPageView />
       <div className="w-full fixed top-0 left-0 z-20">
         <ProgressBar
           currentStep={Math.min(step + 1, visibleSteps.length)}
