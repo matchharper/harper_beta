@@ -47,6 +47,16 @@ const PASSWORD = "39773977";
 
 const ENTRY_TYPES = new Set(["new_visit", "new_session"]);
 
+function isStartClickLogType(type: string) {
+  if (type === "click_start") return true;
+  return type.startsWith("click_") && type.endsWith("_start");
+}
+
+function formatPercent(numerator: number, denominator: number) {
+  if (denominator === 0) return "0.0%";
+  return `${((numerator / denominator) * 100).toFixed(1)}%`;
+}
+
 function formatKST(iso?: string) {
   if (!iso) return "";
 
@@ -111,6 +121,11 @@ const AdminPage = () => {
           .neq("local_id", "a22bb523-42cd-4d39-9667-c527c40941d3")
           .neq("local_id", "a4d4df1a-aa6d-401e-a34a-00d426630fe2")
           .neq("local_id", "ce032ed7-8836-44e5-8605-64e80f5fe234")
+          .neq("local_id", "625e7ae5-2914-4f11-b433-7860ee2b8807")
+          .neq("local_id", "3c148031-8505-42a6-8389-581dc5416ac6")
+          .neq("local_id", "0bb22721-2449-463a-8e95-15f5b92b891a")
+          .neq("local_id", "625e7ae5-2914-4f11-b433-7860ee2b8807")
+          .neq("local_id", "c894cae6-cc5f-4780-93d4-09f351ab2c4e")
           .limit(PAGE_SIZE);
 
         const cur = reset ? null : cursor;
@@ -261,6 +276,26 @@ const AdminPage = () => {
     return groups.sort((a, b) => b.entryTime.localeCompare(a.entryTime));
   }, [logs]);
 
+  const landingSummary = useMemo(() => {
+    const totalUsers = grouped.length;
+    const scrolledUsers = grouped.filter((group) =>
+      group.logs.some((log) => log.type === "first_scroll_down")
+    ).length;
+    const startClickedUsers = grouped.filter((group) =>
+      group.logs.some((log) => isStartClickLogType(log.type))
+    ).length;
+    const loggedInUsers = grouped.filter((group) =>
+      group.logs.some((log) => log.type.startsWith("login_email:"))
+    ).length;
+
+    return {
+      totalUsers,
+      scrolledUsers,
+      startClickedUsers,
+      loggedInUsers,
+    };
+  }, [grouped]);
+
   const isLandingTab = activeTab === "landingLogs";
   const pageTitle = isLandingTab
     ? "Landing Logs Admin"
@@ -346,6 +381,49 @@ const AdminPage = () => {
       <div className="mx-auto max-w-[1100px] px-6 py-6 w-full">
         {isLandingTab ? (
           <>
+            <div
+              className="mb-4 border border-black/10 p-4 text-[13px] text-black/80"
+              style={{ borderRadius: 0 }}
+            >
+              <div className="font-semibold text-black mb-1">
+                Loaded user summary
+              </div>
+              <div className="leading-6">
+                전체 유저:{" "}
+                <span className="text-black font-medium">
+                  {landingSummary.totalUsers}
+                </span>{" "}
+                · 스크롤 다운:{" "}
+                <span className="text-black font-medium">
+                  {landingSummary.scrolledUsers}
+                </span>{" "}
+                (
+                {formatPercent(
+                  landingSummary.scrolledUsers,
+                  landingSummary.totalUsers
+                )}
+                ) · click_*_start:{" "}
+                <span className="text-black font-medium">
+                  {landingSummary.startClickedUsers}
+                </span>{" "}
+                (
+                {formatPercent(
+                  landingSummary.startClickedUsers,
+                  landingSummary.totalUsers
+                )}
+                ) · 로그인:{" "}
+                <span className="text-black font-medium">
+                  {landingSummary.loggedInUsers}
+                </span>{" "}
+                (
+                {formatPercent(
+                  landingSummary.loggedInUsers,
+                  landingSummary.totalUsers
+                )}
+                )
+              </div>
+            </div>
+
             <div className="mb-4 flex items-center justify-between w-full">
               <div className="text-[12px] text-black/55">
                 Loaded logs: <span className="text-black">{logs.length}</span> ·

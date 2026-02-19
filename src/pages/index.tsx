@@ -29,6 +29,8 @@ export const isValidEmail = (email: string): boolean => {
 };
 
 const CandidatePage = () => {
+  const LANDING_ID_KEY = "harper_landing_id_0209";
+  const LEGACY_LANDING_ID_KEY = "harper_landing_id";
   const [email, setEmail] = useState("");
   const [isBelow, setIsBelow] = useState(false);
   const [isOpenModal, setIsOpenModal] = useState(false);
@@ -40,20 +42,16 @@ const CandidatePage = () => {
   const isMobile = useIsMobile();
 
   useEffect(() => {
-    const localId = localStorage.getItem("harper_landing_id");
+    const localId =
+      localStorage.getItem(LANDING_ID_KEY) ??
+      localStorage.getItem(LEGACY_LANDING_ID_KEY);
     if (!localId) {
       const newId = v4();
-      localStorage.setItem("harper_landing_id", newId);
+      localStorage.setItem(LANDING_ID_KEY, newId);
       setLandingId(newId);
-
-      const body = {
-        local_id: landingId,
-        action: "enter",
-        abtest: "2025_12_" + abtest.toString(),
-        is_mobile: isMobile,
-      };
-      // supabase.from("landing_logs").insert(body);
     } else {
+      localStorage.setItem(LANDING_ID_KEY, localId);
+      localStorage.removeItem(LEGACY_LANDING_ID_KEY);
       setLandingId(localId as string);
     }
   }, []);

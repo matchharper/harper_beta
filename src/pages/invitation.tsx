@@ -13,6 +13,7 @@ import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { useMessages } from "@/i18n/useMessage";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useCountryLang } from "@/hooks/useCountryLang";
+import GaPageView from "@/components/ga";
 
 const INITIAL_CREDIT = 10;
 
@@ -154,6 +155,7 @@ export default function LoginSuccess() {
 
   return (
     <div className="relative min-h-screen bg-black font-inter text-white flex items-center justify-center px-4 w-full h-full">
+      <GaPageView />
       <Header page="company" />
       <GradientBackground interactiveRef={interactiveRef} />
       <div className="z-20 flex flex-col items-center text-center max-w-xl w-full space-y-10">
