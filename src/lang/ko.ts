@@ -239,6 +239,7 @@ export const ko = {
           name: "Pro",
           tagline: "소수 정예 팀이 지금 필요한 1~2명을 찾는 데 최적화",
           priceUnit: "원/월",
+          priceUnit2: "/월",
           buttonLabel: "문의하기",
           features: [
             "월 150 Credits<br />(10명 검색당 1 credit)",
@@ -251,6 +252,7 @@ export const ko = {
           name: "Max",
           tagline: "공격적인 소싱과 빠른 조직 확장이 필요한 플랜",
           priceUnit: "원/월",
+          priceUnit2: "/월",
           buttonLabel: "문의하기",
           features: [
             "Pro의 모든 기능 포함, 및:",
@@ -263,6 +265,7 @@ export const ko = {
           name: "Enterprise",
           tagline: "무제한 데이터 접근 권한과 커스텀 연동을 위한 전용 플랜",
           priceUnit: "",
+          priceUnit2: "",
           buttonLabel: "문의하기",
           features: [
             "Max의 모든 기능 포함, 및:",

@@ -7,8 +7,8 @@ export type PolarProductProfile = "live" | "test-monthly";
 export const BILLING_PROVIDER = "polar" as const;
 
 // Current testing mode.
-export const POLAR_SERVER: PolarServer = "sandbox";
-export const POLAR_PRODUCT_PROFILE: PolarProductProfile = "test-monthly";
+export const POLAR_SERVER: PolarServer = "production";
+export const POLAR_PRODUCT_PROFILE: PolarProductProfile = "live";
 export const POLAR_SUCCESS_URL =
   "https://matchharper.com/billing/success?checkout_id={CHECKOUT_ID}";
 

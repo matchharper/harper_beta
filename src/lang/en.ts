@@ -231,6 +231,7 @@ export const en = {
           name: "Pro",
           tagline: "Optimized for lean teams hiring 1–2 key people right now",
           priceUnit: "/ month",
+          priceUnit2: "/ month",
           buttonLabel: "Contact us",
           features: [
             "150 credits / month<br />(1 credit per 10 candidates searched)",
@@ -243,6 +244,7 @@ export const en = {
           name: "Max",
           tagline: "For aggressive sourcing and fast team scaling",
           priceUnit: "/ month",
+          priceUnit2: "/ month",
           buttonLabel: "Contact us",
           features: [
             "Includes all Pro features:",
@@ -256,6 +258,7 @@ export const en = {
           tagline:
             "Dedicated plan with unlimited data access and custom integrations",
           priceUnit: "",
+          priceUnit2: "",
           buttonLabel: "Contact us",
           features: [
             "Includes all Max features:",
