@@ -50,12 +50,12 @@ export default function PricingSection({
   const isEnglish = locale === "en";
 
   const plans = useMemo(() => {
-    const proMonthlyKRW = 110;
-    const maxMonthlyKRW = 198;
-    const proMonthlyUSD = 110;
-    const maxMonthlyUSD = 198;
-    const proYearlyUSD = 89;
-    const maxYearlyUSD = 159;
+    const proMonthlyKRW = 100;
+    const maxMonthlyKRW = 180;
+    const proMonthlyUSD = 100;
+    const maxMonthlyUSD = 180;
+    const proYearlyUSD = 80;
+    const maxYearlyUSD = 144;
 
     const proShown =
       billing === "monthly"
