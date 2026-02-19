@@ -13,6 +13,7 @@ import PricingSection from "@/components/payment/PricingSection";
 import ConfirmModal from "@/components/Modal/ConfirmModal";
 import { useLogEvent } from "@/hooks/useLog";
 import QuestionAnswer from "@/components/landing/Questions";
+import { BILLING_PROVIDER } from "@/lib/polar/config";
 
 const PRO_MONTHLY_CHECKOUT_URL =
   "https://matchharper.lemonsqueezy.com/checkout/buy/ea41e57e-6dc1-4ddd-8b7f-f5636bc35ec5";
@@ -176,14 +177,17 @@ const Billing = () => {
       return;
     }
 
-    let url;
+    let url: URL | null = null;
+    let planKey: "pro" | "max" | null = null;
     if (planName === proName) {
+      planKey = "pro";
       url = new URL(
         billing === "yearly"
           ? PRO_YEARLY_CHECKOUT_URL
           : PRO_MONTHLY_CHECKOUT_URL
       );
     } else if (planName === maxName) {
+      planKey = "max";
       url = new URL(
         billing === "yearly"
           ? MAX_YEARLY_CHECKOUT_URL
@@ -196,6 +200,80 @@ const Billing = () => {
       });
       return;
     }
+
+    if (BILLING_PROVIDER === "polar" && planKey) {
+      try {
+        const res = await fetch("/api/polar/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: companyUser.user_id,
+            planKey,
+            billing,
+          }),
+        });
+
+        if (!res.ok) {
+          let errorMessage = `Polar 결제 세션 생성에 실패했습니다. (status ${res.status})`;
+          try {
+            const payload = await res.json();
+            const detail =
+              typeof payload?.message === "string"
+                ? payload.message
+                : typeof payload?.error === "string"
+                  ? payload.error
+                  : null;
+            if (detail) {
+              errorMessage = `${errorMessage} ${detail}`;
+            }
+          } catch {
+            // Keep generic fallback message.
+          }
+
+          console.error("Polar checkout create failed", {
+            status: res.status,
+            planKey,
+            billing,
+          });
+          showToast({
+            message: errorMessage,
+            variant: "white",
+          });
+          return;
+        }
+
+        const data = await res.json();
+        const checkoutUrl =
+          typeof data?.url === "string" && data.url.length > 0
+            ? data.url
+            : null;
+        if (!checkoutUrl) {
+          showToast({
+            message: "Polar 결제 URL을 확인할 수 없습니다.",
+            variant: "white",
+          });
+          return;
+        }
+
+        window.location.href = checkoutUrl;
+        return;
+      } catch {
+        showToast({
+          message: "Polar 결제 요청 중 오류가 발생했습니다.",
+          variant: "white",
+        });
+        return;
+      }
+    }
+
+    if (!url) {
+      showToast({
+        message: "결제 URL을 확인할 수 없습니다.",
+        variant: "white",
+      });
+      return;
+    }
+
     url.searchParams.set("checkout[custom][user_id]", companyUser.user_id);
     window.location.href = url.toString();
   };
@@ -347,7 +425,11 @@ const Billing = () => {
 
           setIsCanceling(true);
           try {
-            const res = await fetch("/api/lemonsqueezy/cancel", {
+            const cancelEndpoint =
+              BILLING_PROVIDER === "polar"
+                ? "/api/polar/cancel"
+                : "/api/lemonsqueezy/cancel";
+            const res = await fetch(cancelEndpoint, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ userId: companyUser.user_id }),

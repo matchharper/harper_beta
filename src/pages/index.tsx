@@ -94,7 +94,7 @@ const CandidatePage = () => {
       // if (!isTeamEmailChecked || isTeamEmail || !landingId) return;
       const body = {
         local_id: landingId,
-        type: type,
+        type: "index_" + type,
         abtest_type: abtestType,
         is_mobile: isMobile,
         country_lang: countryLang,
@@ -163,7 +163,7 @@ const CandidatePage = () => {
 
     const body = {
       local_id: newId,
-      type: "new_visit",
+      type: "new_visit_index",
       abtest_type: abtestType,
       is_mobile: isMobile,
       country_lang: countryLang,
