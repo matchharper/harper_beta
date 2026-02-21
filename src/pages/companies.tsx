@@ -1,7 +1,6 @@
 "use client";
 
 import { BaseSectionLayout } from "@/components/landing/GridSectionLayout";
-import { Menu } from "lucide-react";
 import router from "next/router";
 import React, {
   useCallback,
@@ -11,8 +10,6 @@ import React, {
   useState,
 } from "react";
 import Image from "next/image";
-import { showToast } from "@/components/toast/toast";
-import { DropdownMenu } from "@/components/ui/menu";
 import { v4 } from "uuid";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import Head1 from "@/components/landing/Head1";
@@ -32,6 +29,8 @@ import DarkVeil from "@/components/Darkveli";
 import { useCountryLang } from "@/hooks/useCountryLang";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import Examples from "@/components/landing/Examples";
+import Footer from "@/components/landing/Footer";
+import LandingHeader from "@/components/landing/LandingHeader";
 
 export const isValidEmail = (email: string): boolean => {
   const trimmed = email.trim();
@@ -269,24 +268,6 @@ const CandidatePage = () => {
     return () => observer.disconnect();
   }, [abtestType, addLog, landingId]);
 
-  const upScroll = () => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const handleContactUs = async () => {
-    await navigator.clipboard.writeText("chris@asksonus.com");
-    showToast({
-      message: m.help.emailCopied,
-      variant: "white",
-    });
-  };
-
-  const setLocaleCookie = (next: "ko" | "en") => {
-    if (typeof document === "undefined") return;
-    document.cookie = `NEXT_LOCALE=${next}; path=/; max-age=31536000`;
-    window.location.reload();
-  };
-
   const login = async () => {
     addLog("click_login_google");
     const redirectTo =
@@ -384,21 +365,17 @@ const CandidatePage = () => {
     };
   }, [abtestType, locale, m]);
 
-  const NavItem = ({
-    label,
-    onClick,
-  }: {
-    label: string;
-    onClick: () => void;
-  }) => {
-    return (
-      <div
-        className="cursor-pointer hover:opacity-95 px-5 py-2 hover:bg-white/5 rounded-full transition-colors duration-200"
-        onClick={onClick}
-      >
-        {label}
-      </div>
-    );
+  const clickStart = (type: string) => {
+    addLog(type);
+    if (companyUser && companyUser.email) {
+      if (companyUser.is_authenticated) {
+        router.push("/my");
+        return;
+      }
+      router.push("/invitation");
+      return;
+    }
+    setIsOpenLoginModal(true);
   };
 
   const StartButton = ({
@@ -416,16 +393,7 @@ const CandidatePage = () => {
     return (
       <div
         onClick={() => {
-          addLog(type);
-          if (companyUser && companyUser.email) {
-            if (companyUser.is_authenticated) {
-              router.push("/my");
-              return;
-            }
-            router.push("/invitation");
-            return;
-          }
-          setIsOpenLoginModal(true);
+          clickStart(type);
         }}
         className={`
         group relative
@@ -458,108 +426,55 @@ const CandidatePage = () => {
         onGoogle={login}
         onConfirm={customLogin}
       />
-      <header className="fixed top-0 left-0 z-20 w-full flex items-center justify-between px-0 lg:px-4 h-14 md:h-20 text-sm text-white transition-all duration-300">
-        <div className="flex items-center justify-between w-full px-4 md:px-8 h-full">
-          <div className="text-[26px] font-garamond font-semibold w-[40%] md:w-[15%]">
-            Harper
-          </div>
-          <nav className="hidden font-normal text-white bg-[#444444aa] backdrop-blur rounded-full md:flex items-center justify-center gap-2 text-xs sm:text-sm px-4 py-2">
-            <NavItem
-              label={m.companyLanding.nav.intro}
-              onClick={() => {
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }}
-            />
-            <NavItem
-              label={m.companyLanding.nav.howItWorks}
-              onClick={() => {
-                window.scrollTo({
-                  top: whySectionRef.current?.offsetTop,
-                  behavior: "smooth",
-                });
-              }}
-            />
-            <NavItem
-              label={m.companyLanding.nav.pricing}
-              onClick={() => {
-                window.scrollTo({
-                  top: priceSectionRef.current?.offsetTop,
-                  behavior: "smooth",
-                });
-              }}
-            />
-            <NavItem
-              label={m.companyLanding.nav.faq}
-              onClick={() => {
-                window.scrollTo({
-                  top: faqSectionRef.current?.offsetTop,
-                  behavior: "smooth",
-                });
-              }}
-            />
-          </nav>
-          <div className="hidden md:flex w-[10%] md:w-[15%] items-center justify-end">
-            <StartButton type="click_nav_start" size="sm" />
-          </div>
-          <div className="block md:hidden">
-            <DropdownMenu
-              buttonLabel={<Menu className="w-4 h-4" />}
-              items={[
-                {
-                  label: m.companyLanding.nav.intro,
-                  onClick: () =>
-                    window.scrollTo({ top: 0, behavior: "smooth" }),
-                },
-                {
-                  label: m.companyLanding.nav.howItWorks,
-                  onClick: () =>
-                    window.scrollTo({
-                      top: whySectionRef.current?.offsetTop,
-                      behavior: "smooth",
-                    }),
-                },
-                {
-                  label: m.companyLanding.nav.pricing,
-                  onClick: () =>
-                    window.scrollTo({
-                      top: priceSectionRef.current?.offsetTop,
-                      behavior: "smooth",
-                    }),
-                },
-                {
-                  label: m.companyLanding.nav.faq,
-                  onClick: () =>
-                    window.scrollTo({
-                      top: faqSectionRef.current?.offsetTop,
-                      behavior: "smooth",
-                    }),
-                },
-              ]}
-            />
-          </div>
-        </div>
-      </header>
+      <LandingHeader
+        onIntroClick={() => {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }}
+        onHowItWorksClick={() => {
+          window.scrollTo({
+            top: whySectionRef.current?.offsetTop,
+            behavior: "smooth",
+          });
+        }}
+        onPricingClick={() => {
+          window.scrollTo({
+            top: priceSectionRef.current?.offsetTop,
+            behavior: "smooth",
+          });
+        }}
+        onFaqClick={() => {
+          window.scrollTo({
+            top: faqSectionRef.current?.offsetTop,
+            behavior: "smooth",
+          });
+        }}
+        startButton={<StartButton type="click_nav_start" size="sm" />}
+      />
 
-      <div className="flex flex-col items-center justify-center px-0 md:px-20 w-full bg-black text-white h-[86vh] md:h-[90vh]">
-        <div className="absolute top-0 left-0 w-full h-[90%] opacity-40">
-          <DarkVeil
+      <div
+        id="intro"
+        className="flex flex-col items-center justify-center px-0 md:px-20 w-full bg-black text-white h-[86vh] md:h-[90vh]"
+      >
+        <div className="absolute top-0 left-0 w-full h-[90%]">
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              opacity: 0.45,
+              backgroundImage:
+                "radial-gradient(rgba(255,255,255,0.2) 0.9px, transparent 0.9px)",
+              backgroundSize: "20px 20px",
+            }}
+          />
+          {/* <DarkVeil
             hueShift={189}
             noiseIntensity={0}
             scanlineIntensity={0}
             speed={1.2}
             scanlineFrequency={0}
             warpAmount={0}
-          />
+          /> */}
         </div>
         <div className="z-10 flex flex-col items-center justify-start md:justify-center pt-32 md:pt-0 w-full h-full text-center px-4">
-          {/* <div className="mb-4 flex flex-row items-center justify-center pl-[2px] py-[2px] pr-[12px] text-white bg-[#444444aa] backdrop-blur gap-2 rounded-full">
-            <div className="w-[24px] h-[24px] bg-black rounded-full flex items-center justify-center">
-              <Image src="/svgs/logo.svg" alt="logo" width={12} height={12} />
-            </div>
-            <div className="text-[12px] font-normal">
-              {m.companyLanding.hero.badge}
-            </div>
-          </div> */}
           <div className="md:text-[56px] text-[32px] font-semibold leading-snug mt-2 flex flex-col items-center justify-center gap-2">
             <div>{m.companyLanding.hero.titleLine1} Data.</div>
             <div className="flex flex-row items-center justify-center gap-4">
@@ -622,7 +537,7 @@ const CandidatePage = () => {
         </BaseSectionLayout>
         {/* <VCLogosWidth /> */}
       </Animate>
-      <div ref={whySectionRef} />
+      <div ref={whySectionRef} id="how-it-works" />
       <div className="h-48" />
       <Animate>
         <BaseSectionLayout>
@@ -674,11 +589,8 @@ const CandidatePage = () => {
       <Animate>
         <BaseSectionLayout>
           <div className="w-[90%] max-w-[600px] flex flex-col">
-            {/* <div className="font-hedvig mb-2 text-xl text-accenta1 w-full text-center">
-                Why choose us
-              </div> */}
             <div className="flex flex-col items-start gap-4 bg-white/20 rounded-2xl px-6 md:px-[30px] py-6 md:py-8">
-              <div className="text-[15px] md:text-base text-left leading-[30px] font-normal text-hgray700">
+              <div className="text-[13px] md:text-base text-left md:leading-[30px] leading-[26px] font-normal text-hgray700">
                 <span
                   dangerouslySetInnerHTML={{
                     __html: m.companyLanding.testimonial.body,
@@ -707,7 +619,7 @@ const CandidatePage = () => {
           </div>
         </BaseSectionLayout>
       </Animate>
-      <div ref={priceSectionRef} />
+      <div ref={priceSectionRef} id="pricing" />
 
       {abtestType !== "company_copy_b_v1" && (
         <>
@@ -722,7 +634,7 @@ const CandidatePage = () => {
           </div>
         </>
       )}
-      <div ref={faqSectionRef} />
+      <div ref={faqSectionRef} id="faq" />
       <div ref={faqTrackRef} data-section="faq">
         <div className="h-28 md:h-40" />
         <Animate>
@@ -768,39 +680,7 @@ const CandidatePage = () => {
           </div>
         </div>
       </Animate>
-      <div className="flex flex-col md:flex-row items-start md:items-end justify-between border-t border-white/20 py-10 md:py-8 w-[100%] md:w-[94%] mx-auto px-4 md:px-0 gap-6 md:gap-0">
-        <div className="flex flex-row items-end justify-start gap-8 md:gap-10">
-          <div className="text-3xl font-semibold font-garamond">Harper</div>
-          <div className="text-xs md:text-sm font-extralight">
-            © Harper. <span className="ml-4">2026</span>
-          </div>
-        </div>
-        <div className="flex flex-row items-center gap-4">
-          <div className="flex items-center gap-2 text-xs md:text-sm font-extralight text-white/80">
-            <button
-              type="button"
-              onClick={() => setLocaleCookie("ko")}
-              className={`hover:text-white/90 transition ${locale === "ko" ? "text-white" : ""}`}
-            >
-              한국어
-            </button>
-            <span className="text-white/40">|</span>
-            <button
-              type="button"
-              onClick={() => setLocaleCookie("en")}
-              className={`hover:text-white/90 transition ${locale === "en" ? "text-white" : ""}`}
-            >
-              English
-            </button>
-          </div>
-          <div
-            onClick={handleContactUs}
-            className="text-xs md:text-sm font-extralight cursor-pointer hover:text-white/90 text-white/80"
-          >
-            {m.companyLanding.footer.contact}
-          </div>
-        </div>
-      </div>
+      <Footer onClickStart={clickStart} />
     </main>
   );
 };
@@ -844,19 +724,6 @@ const FeatureSection = () => {
             padding
           />
         </Animate>
-        {/* <Animate>
-          <ImageSection
-            title={
-              isMobile
-                ? "빠르게 성장하는 글로벌 <br/>스타트업으로부터의 제안"
-                : "한국에서, 해외 스타트업<br />오퍼를 받는 가장 빠른 방법"
-              // : "빠르게 성장하는<br />글로벌 스타트업으로부터의 제안"
-            }
-            desc="하퍼에서는 현재 일본, 미국 등 해외의 스타트업들도 한국의 인재를 찾고 있습니다.<br />최고 퀄리티의 제안을 받고 세계로 진출하세요."
-            imageSrc="/images/why1.png"
-            opposite
-          />
-        </Animate> */}
       </div>
     </BaseSectionLayout>
   );

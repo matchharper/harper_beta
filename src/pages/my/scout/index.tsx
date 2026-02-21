@@ -12,10 +12,11 @@ import { showToast } from "@/components/toast/toast";
 import { MAX_ACTIVE_AUTOMATIONS } from "./[id]";
 import CandidateViews from "@/components/CandidateViews";
 import { useAutomationResults } from "@/hooks/useAutomationResults";
-import { Check, ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Loading } from "@/components/ui/loading";
 import { useMessages } from "@/i18n/useMessage";
 import ScoutCard from "@/components/scout/ScoutCard";
+import ScoutEmptyState from "@/components/scout/ScoutEmptyState";
 
 type AutomationRow = Database["public"]["Tables"]["automation"]["Row"];
 const PAGE_SIZE = 10;
@@ -246,54 +247,7 @@ export default function AutomationIndexPage() {
           </div>
         )}
         {!isLoading && items.length === 0 && (
-          <div className="mx-4 mt-6">
-            <div className="flex min-h-[72vh] flex-col items-center justify-center px-6 py-14 text-center">
-              {/* <div className="mb-4 inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] tracking-wide text-white/70">
-                {m.scout.emptyTag}
-              </div> */}
-
-              <div className="text-2xl font-hedvig font-light tracking-tight text-white md:text-3xl">
-                {m.scout.emptyTitle}
-              </div>
-
-              <div className="mt-3 text-sm text-white/60 md:text-base">
-                {m.scout.emptySubtitle}
-              </div>
-
-              <div className="mt-6 max-w-[590px] space-y-2 text-sm leading-relaxed text-white/55">
-                <div>{m.scout.emptyDesc}</div>
-                <div>{m.scout.emptyDesc2}</div>
-              </div>
-
-              <div className="mt-6 flex flex-wrap items-center justify-center gap-2 text-sm text-white/75">
-                <span className="text-white/45">{m.scout.feedbackPrefix}</span>
-
-                <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
-                  <Check className="h-4 w-4 text-white/60" />
-                  {m.scout.feedbackPositive}
-                </span>
-
-                <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
-                  <X className="h-4 w-4 text-white/60" />
-                  {m.scout.feedbackNegative}
-                </span>
-
-                <span className="text-white/45">{m.scout.feedbackSuffix}</span>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleAddAutomation}
-                className="mt-8 inline-flex items-center justify-center rounded-full border border-white/15 bg-accenta1 px-6 py-3 text-sm font-medium text-black transition"
-              >
-                {m.scout.createAgent}
-              </button>
-
-              <div className="mt-4 text-sm text-white/40">
-                {m.scout.perAgentNote}
-              </div>
-            </div>
-          </div>
+          <ScoutEmptyState onCreateAgent={handleAddAutomation} />
         )}
 
         {items.length > 0 && (

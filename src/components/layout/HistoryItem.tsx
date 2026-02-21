@@ -7,7 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal } from "lucide-react";
+import { Command, MoreHorizontal } from "lucide-react";
 import { QueryType } from "@/types/type";
 import { useRouter } from "next/router";
 import { Tooltips } from "../ui/tooltip";
@@ -36,11 +36,14 @@ const HistoryItem = ({
       onClick={() => router.push(`/my/c/${queryItem.query_id}`)}
     >
       <div
-        className={`flex flex-col items-start w-full font-normal ${collapsed ? "max-w-full" : "max-w-[85%]"
-          }`}
+        className={`flex flex-col items-start w-full font-normal ${
+          collapsed ? "max-w-full" : "max-w-[85%]"
+        }`}
       >
         <div className="truncate text-[13px] w-full">
-          {queryItem.query_keyword !== "" ? queryItem.query_keyword : queryItem.raw_input_text}
+          {queryItem.query_keyword !== ""
+            ? queryItem.query_keyword
+            : queryItem.raw_input_text}
         </div>
         {!collapsed && (
           <div className="text-[12px] text-hgray600">
@@ -105,12 +108,14 @@ export function NavItem({
   label,
   icon,
   onClick,
+  shortcut,
 }: {
   collapsed: boolean;
   active?: boolean;
   label: string;
   icon: React.ReactNode;
   onClick: () => void;
+  shortcut?: string;
 }) {
   return (
     <Tooltips text={collapsed ? label : ""} side="right">
@@ -118,16 +123,24 @@ export function NavItem({
         type="button"
         onClick={onClick}
         className={[
-          "w-full flex text-sm font-extralight items-center gap-2 rounded-[6px] h-9 text-white",
+          "w-full flex text-sm font-extralight items-center justify-between gap-2 rounded-[6px] h-10 text-white",
+          shortcut ? "bg-gray-300/5 border border-white/5" : "",
           active
             ? "bg-bgDark500  shadow-sm"
             : "bg-transparent hover:bg-white/10",
           collapsed ? "px-3" : "px-2.5",
         ].join(" ")}
       >
-        <div className="shrink-0">{icon}</div>
-        {!collapsed && (
-          <div className="truncate text-sm font-normal">{label}</div>
+        <div className="flex flex-row items-center gap-2">
+          <div className="shrink-0">{icon}</div>
+          {!collapsed && (
+            <div className="truncate text-sm font-normal">{label}</div>
+          )}
+        </div>
+        {!collapsed && shortcut && (
+          <div className="flex flex-row items-center gap-0.5 text-xs text-white/50">
+            <Command size={10} /> + K
+          </div>
         )}
       </button>
     </Tooltips>

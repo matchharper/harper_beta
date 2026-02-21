@@ -99,7 +99,12 @@ const UseCaseCard = ({ item }: { item: UseCaseCardItem }) => {
           <div className="text-[13px] md:text-[14px] font-light text-white/55 leading-relaxed">
             {item.desc}
           </div>
+        </div>
+      </div>
+      <div className="flex items-start gap-4">
+        <div className="w-11 rounded-xl bg-white/0 hidden md:flex items-center justify-center shrink-0"></div>
 
+        <div className="flex flex-col gap-2">
           <div className="mt-5 flex items-center gap-10">
             {item.stats.slice(0, 2).map((s) => (
               <Metric key={s.label} label={s.label} value={s.value} />
@@ -114,14 +119,7 @@ const UseCaseCard = ({ item }: { item: UseCaseCardItem }) => {
           <button
             type="button"
             onClick={item.onCtaClick}
-            className="
-    mt-auto pt-6
-    text-left
-    text-[12px] md:text-[13px]
-    text-white/70
-    hover:text-white/90
-    transition
-  "
+            className="mt-auto pt-6 text-left text-[12px] md:text-[13px] text-white/70 hover:text-white/90 transition"
           >
             {item.ctaLabel ?? "찾으러 가기 →"}
           </button>

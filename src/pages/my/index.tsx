@@ -1,6 +1,13 @@
 import React, { useMemo, useState } from "react";
 import type { NextPage } from "next";
-import { ArrowUp, Loader2, Plus, SendHorizonal } from "lucide-react";
+import {
+  ArrowUp,
+  Loader2,
+  Plus,
+  SendHorizonal,
+  Sparkle,
+  Sparkles,
+} from "lucide-react";
 import AppLayout from "@/components/layout/app";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { useRouter } from "next/router";
@@ -68,8 +75,7 @@ const Home: NextPage = () => {
   const testSqlQuery = async () => {
     const start = performance.now();
     console.log("testSqlQuery start");
-    const sql =
-      ``;
+    const sql = ``;
     const newSql = ensureGroupBy(sql, "");
 
     const { data: data1, error: error1 } = await supabase.rpc(
@@ -99,7 +105,10 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
     const response = await fetch("/api/llm", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ systemPrompt: systemPrompt, userPrompt: userPrompt }),
+      body: JSON.stringify({
+        systemPrompt: systemPrompt,
+        userPrompt: userPrompt,
+      }),
     });
     const data = await response.json();
     console.log(data);
@@ -115,11 +124,19 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
         description="크레딧 충전 후 다시 시도해주세요."
         confirmLabel="확인"
       />
-      <main className="flex-1 flex font-sans items-center justify-center px-6 w-full pt-[25vh]">
+      <main className="flex-1 flex relative font-sans items-center justify-center px-6 w-full pt-[25vh]">
+        <div className="absolute top-2 right-2">
+          <div
+            onClick={() => router.push("/my/scout")}
+            className="cursor-pointer hover:bg-white/10 transition text-xs text-accenta1/90 px-3.5 py-2 rounded-full bg-white/5 font-light flex flex-row items-center gap-1"
+          >
+            <Sparkles size={12} /> 인재 추천을 받고 싶다면?
+          </div>
+        </div>
         <div className="w-full flex flex-col items-center">
           <h1
             className="text-2xl sm:text-3xl font-medium tracking-tight text-center leading-relaxed"
-          // onClick={testSqlQuery}
+            // onClick={testSqlQuery}
           >
             {m.system.hello}, {companyUser?.name.split(" ")[0]}님
             <div className="h-3" />
@@ -226,9 +243,7 @@ const ExampleQuery = ({
       role="button"
       tabIndex={0}
     >
-      <div className="text-xs text-accenta1 mb-2">
-        {label}
-      </div>
+      <div className="text-xs text-accenta1 mb-2">{label}</div>
       {query}
     </div>
   );

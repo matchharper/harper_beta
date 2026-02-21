@@ -10,6 +10,7 @@ import {
   User,
   LogOut,
   HelpCircle,
+  Zap,
 } from "lucide-react";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
@@ -61,6 +62,29 @@ const AppLayout = ({
   const isHome = pathname === "/my";
   const isList = pathname === "/my/list";
   const isAutomation = pathname?.startsWith("/my/scout");
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!event.metaKey || event.key.toLowerCase() !== "k") return;
+
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      if (pathname !== "/my") {
+        router.push("/my");
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [pathname, router]);
 
   const userId = companyUser?.user_id;
 
@@ -118,16 +142,7 @@ const AppLayout = ({
             label="Search"
             icon={<Search size={16} />}
             onClick={() => router.push("/my")}
-          />
-          <NavItem
-            collapsed={collapsed}
-            active={isList}
-            label="Shortlist"
-            icon={<List size={16} />}
-            onClick={() => {
-              logEvent("enter_shortlist");
-              router.push("/my/list");
-            }}
+            shortcut="cmdK"
           />
           <NavItem
             collapsed={collapsed}
@@ -137,6 +152,16 @@ const AppLayout = ({
             onClick={() => {
               logEvent("enter_scout");
               router.push("/my/scout");
+            }}
+          />
+          <NavItem
+            collapsed={collapsed}
+            active={isList}
+            label="Shortlist"
+            icon={<List size={16} />}
+            onClick={() => {
+              logEvent("enter_shortlist");
+              router.push("/my/list");
             }}
           />
           <div className="flex h-16"></div>
@@ -158,10 +183,10 @@ const AppLayout = ({
                   router.push("/my/billing");
                 }}
               >
-                <div className="rounded-lg p-4 pt-3 flex flex-col gap-2 border border-white/5 transition-color duration-300 ease-out hover:bg-[#FFFFFF12]">
+                <div className="rounded-lg p-3.5 pt-2.5 flex flex-col gap-2 border border-white/5 transition-color duration-300 ease-out hover:bg-[#FFFFFF12]">
                   <div className="w-full flex flex-row items-center justify-between text-[15px]">
-                    <Database size={14} />
-                    <div className="w-[65%]">Credits</div>
+                    <Zap fill="#fff" size={14} />
+                    <div className="w-[68%]">Credits</div>
                     <div className="w-[20%] text-right text-xs text-accenta1/80">
                       {credits?.remain_credit ?? 0}
                     </div>
