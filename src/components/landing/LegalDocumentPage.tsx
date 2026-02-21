@@ -33,7 +33,7 @@ const LegalDocumentPage = ({
         style={{
           opacity: 0.45,
           backgroundImage:
-            "radial-gradient(rgba(255,255,255,0.2) 0.9px, transparent 0.9px)",
+            "radial-gradient(rgba(255,255,255,0.32) 0.9px, transparent 0.9px)",
           backgroundSize: "16px 16px",
         }}
       />
@@ -68,7 +68,7 @@ const LegalDocumentPage = ({
         }
       />
 
-      <section className="relative z-10 w-full lg:w-[94%] mx-auto px-4 md:px-0 pt-24 md:pt-32 pb-16">
+      <section className="relative z-10 w-full lg:w-[94%] mx-auto px-4 md:px-0 pt-24 md:pt-32 pb-16 md:pb-[20vh]">
         <div className="max-w-4xl mx-auto bg-[#0d0d0dcc] backdrop-blur p-6 md:p-10">
           <h1 className="font-garamond text-3xl md:text-5xl font-semibold">
             {document?.title || fallbackTitle}

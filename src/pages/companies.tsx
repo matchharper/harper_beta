@@ -31,6 +31,7 @@ import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import Examples from "@/components/landing/Examples";
 import Footer from "@/components/landing/Footer";
 import LandingHeader from "@/components/landing/LandingHeader";
+import InteractiveDotGridBackground from "@/components/landing/Background";
 
 export const isValidEmail = (email: string): boolean => {
   const trimmed = email.trim();
@@ -456,12 +457,13 @@ const CandidatePage = () => {
         className="flex flex-col items-center justify-center px-0 md:px-20 w-full bg-black text-white h-[86vh] md:h-[90vh]"
       >
         <div className="absolute top-0 left-0 w-full h-[90%]">
+          {/* <InteractiveDotGridBackground /> */}
           <div
             className="pointer-events-none absolute inset-0"
             style={{
               opacity: 0.45,
               backgroundImage:
-                "radial-gradient(rgba(255,255,255,0.2) 0.9px, transparent 0.9px)",
+                "radial-gradient(rgba(255,255,255,0.3) 0.9px, transparent 0.9px)",
               backgroundSize: "20px 20px",
             }}
           />
