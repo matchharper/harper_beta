@@ -22,7 +22,7 @@ function QuestionAnswer({
   const size = {
     large: {
       wrapper: "px-1 md:px-[30px] py-6 md:py-[32px]",
-      question: "text-base",
+      question: "text-sm md:text-base",
       answer: "mt-3 pb-2 pr-10 text-sm leading-6",
       icon: "ml-6 h-6 w-6",
     },

@@ -37,9 +37,15 @@ const QueryHistories = ({
 
   return (
     <div
-      className={`flex-col gap-2 ${collapsed ? "hidden" : "flex"} ${isHoverModal ? "max-h-64" : "h-full"
-        }`}
+      className={`flex-col gap-2 ${collapsed ? "hidden" : "flex"} ${
+        isHoverModal ? "max-h-64" : "h-full"
+      }`}
     >
+      {queryItems.length === 0 && !isFetchingNextPage && (
+        <div className="text-xs text-gray-500 py-2 px-2.5">
+          검색 결과가 여기 표시됩니다.
+        </div>
+      )}
       {queryItems.map((queryItem: any) => (
         <HistoryItem
           key={queryItem.query_id}
@@ -57,11 +63,7 @@ const QueryHistories = ({
           className="text-xs text-gray-500 py-2 hover:text-white transition-all duration-200"
         >
           {isFetchingNextPage ? (
-            <Loading
-              inline={true}
-              size="sm"
-              className="text-gray-500"
-            />
+            <Loading inline={true} size="sm" className="text-gray-500" />
           ) : (
             m.system.loadmore
           )}
