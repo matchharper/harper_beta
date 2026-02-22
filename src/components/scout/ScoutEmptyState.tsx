@@ -58,8 +58,8 @@ export default function ScoutEmptyState({
       <section className="mx-auto max-w-5xl px-12 py-12">
         <header className="max-w-4xl">
           <p className="text-[11px] uppercase tracking-[0.16em] text-white/45"></p>
-          <h2 className="mt-3 text-3xl font-hedvig font-light leading-relaxed tracking-tight text-white">
-            까다롭고 모호한 조건까지
+          <h2 className="mt-3 text-3xl font-hedvig font-normal leading-relaxed tracking-tight text-white">
+            <span className="text-hgray600">까다롭고 모호한 조건</span>까지
             <br />
             충족하는 후보자를 찾아드립니다.
           </h2>
