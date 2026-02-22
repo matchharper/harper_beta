@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/router";
 import { supabase } from "@/lib/supabase";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
+import { notifyToSlack } from "@/lib/slack";
 
 export default function AuthCallback() {
   const router = useRouter();
@@ -25,21 +26,34 @@ export default function AuthCallback() {
       const user = userData?.user;
 
       if (userErr || !user) {
-        router.replace("/companies?error=no_user");
+        router.replace("?error=no_user");
         return;
       }
 
       if (lid && user.email) {
-        const { error: loginLogError } = await supabase.from("landing_logs").insert({
-          local_id: lid,
-          type: `login_email:${user.email}`,
-          abtest_type: abtestType,
-          is_mobile: null,
-          country_lang: countryLang,
-        });
+        const { error: loginLogError } = await supabase
+          .from("landing_logs")
+          .insert({
+            local_id: lid,
+            type: `login_email:${user.email}`,
+            abtest_type: abtestType,
+            is_mobile: null,
+            country_lang: countryLang,
+          });
         if (loginLogError) {
           console.error("login log insert error:", loginLogError);
         }
+      }
+
+      const { data: existingCompanyUser, error: existingCompanyUserError } =
+        await supabase
+          .from("company_users")
+          .select("user_id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+      if (existingCompanyUserError) {
+        console.error("existing company user check error:", existingCompanyUserError);
       }
 
       // 3) company_users upsert (RLS 정책 + user_id unique 전제)
@@ -61,8 +75,21 @@ export default function AuthCallback() {
 
       if (error) {
         console.error("upsert error:", error);
-        router.replace("/companies?error=profile_upsert_failed");
+        router.replace("?error=profile_upsert_failed");
         return;
+      }
+
+      if (!existingCompanyUserError && !existingCompanyUser) {
+        try {
+          await notifyToSlack(`🎉 *New Signup*
+
+• *Name*: ${payload.name ?? "Anonymous"}
+• *Email*: ${payload.email ?? "N/A"}
+• *User ID*: ${user.id}
+• *Time(Standard Korea Time)*: ${new Date().toLocaleString("ko-KR")}`);
+        } catch (notifyError) {
+          console.error("new signup slack notify error:", notifyError);
+        }
       }
 
       // 4) 완료 후 이동

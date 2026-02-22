@@ -264,7 +264,7 @@ export default function PricingSection() {
           </div>
         </div>
         <div
-          onClick={() => router.push("/companies")}
+          onClick={() => router.push("/")}
           className="text-white underline cursor-pointer w-full text-center mt-4"
         >
           Home

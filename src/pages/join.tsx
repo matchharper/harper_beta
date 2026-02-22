@@ -20,6 +20,7 @@ import { Selections } from "@/components/landing/Join";
 import { isValidEmail } from ".";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useMessages } from "@/i18n/useMessage";
+import { notifyToSlack } from "@/lib/slack";
 
 type StepKey =
   | "contact"
@@ -216,7 +217,7 @@ const Onboard: React.FC = () => {
       // 마지막 step이면 완료 화면으로
       if (step === visibleSteps.length - 1) {
         setSubmitLoading(true);
-        await supabase.from("harper_waitlist_company").upsert({
+        const finalPayload = {
           name,
           email,
           role: roles.length > 0 ? roles.join(", ") : null,
@@ -227,7 +228,32 @@ const Onboard: React.FC = () => {
           additional: additional || null,
           is_mobile: isMobile,
           is_submit: true,
-        });
+        };
+
+        const { error: waitlistSubmitError } = await supabase
+          .from("harper_waitlist_company")
+          .upsert(finalPayload);
+
+        if (!waitlistSubmitError) {
+          try {
+            await notifyToSlack(`📝 *Waitlist Submitted (Company)*
+
+• *Name*: ${name || "N/A"}
+• *Email*: ${email || "N/A"}
+• *Role*: ${roles.length > 0 ? roles.join(", ") : "N/A"}
+• *Company*: ${isRecruiter ? "Recruiter" : company || "N/A"}
+• *Company Link*: ${isRecruiter ? "N/A" : companyLink || "N/A"}
+• *Company Size*: ${isRecruiter ? "N/A" : size || "N/A"}
+• *Needs*: ${needs || "N/A"}
+• *Additional*: ${additional || "N/A"}
+• *Time(Standard Korea Time)*: ${new Date().toLocaleString("ko-KR")}`);
+          } catch (notifyError) {
+            console.error("waitlist slack notify error:", notifyError);
+          }
+        } else {
+          console.error("waitlist submit error:", waitlistSubmitError);
+        }
+
         setTimeout(() => {
           setSubmitLoading(false);
           setStep(visibleSteps.length); // ✅ done
@@ -319,7 +345,7 @@ const Onboard: React.FC = () => {
             ))}
           </div>
           <button
-            onClick={() => router.push("/companies")}
+            onClick={() => router.push("/")}
             className="bg-brightnavy text-white mt-4 px-4 h-11 rounded-[4px] text-lg font-medium hover:opacity-90"
           >
             {m.join.done.backToCompanies}

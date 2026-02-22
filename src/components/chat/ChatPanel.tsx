@@ -35,6 +35,8 @@ import { showToast } from "../toast/toast";
 import { usePlanStore } from "@/store/usePlanStore";
 import { StatusEnum } from "@/types/type";
 import type { FileAttachmentPayload } from "@/types/chat";
+import { notifyToSlack } from "@/lib/slack";
+import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 
 export type ChatScope =
   | { type: "query"; queryId: string }
@@ -62,6 +64,33 @@ type Props = {
 export const BOTTOM_THRESHOLD_PX = 120;
 export const AUTO_SCROLL_THROTTLE_MS = 120;
 
+function extractCriteriaCardPayload(content: string): {
+  thinking: string;
+  criteria: string[];
+} | null {
+  if (!content) return null;
+
+  const start = content.lastIndexOf(UI_START);
+  const end = content.lastIndexOf(UI_END);
+  if (start === -1 || end === -1 || end <= start) return null;
+
+  const jsonText = content.slice(start + UI_START.length, end).trim();
+  if (!jsonText) return null;
+
+  try {
+    const parsed = JSON.parse(jsonText);
+    if (parsed?.type !== "criteria_card") return null;
+    return {
+      thinking: typeof parsed.thinking === "string" ? parsed.thinking : "",
+      criteria: Array.isArray(parsed.criteria)
+        ? parsed.criteria.filter((item: unknown) => typeof item === "string")
+        : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
 export default function ChatPanel({
   title,
   scope,
@@ -85,6 +114,7 @@ export default function ChatPanel({
   const [isNoCreditModalOpen, setIsNoCreditModalOpen] = useState(false);
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [isReadingFile, setIsReadingFile] = useState(false);
+  const { companyUser } = useCompanyUserStore();
 
   const { credits } = useCredits();
   const { planKey, load: loadPlan } = usePlanStore();
@@ -340,6 +370,36 @@ export default function ChatPanel({
     if (credits && credits.remain_credit <= MIN_CREDITS_FOR_SEARCH) {
       setIsNoCreditModalOpen(true);
       return;
+    }
+
+    try {
+      const { data: messageData, error: messageError } = await supabase
+        .from("messages")
+        .select("content")
+        .eq("id", messageId)
+        .single();
+
+      if (messageError) {
+        console.error("search message load error:", messageError);
+      } else {
+        const criteriaCard = extractCriteriaCardPayload(messageData?.content ?? "");
+        const criteriaText =
+          criteriaCard && criteriaCard.criteria.length > 0
+            ? criteriaCard.criteria.map((criteria, idx) => `${idx + 1}. ${criteria}`).join("\n")
+            : "N/A";
+
+        await notifyToSlack(`🔎 *Search Started (Confirm)*
+
+• *User*: ${companyUser?.name ?? "Unknown"} (${companyUser?.email ?? "N/A"})
+• *User ID*: ${userId}
+• *Query ID*: ${scope?.type === "query" ? scope.queryId : "N/A"}
+• *Thinking*: ${criteriaCard?.thinking || "N/A"}
+• *Criteria*:
+${criteriaText}
+• *Time(Standard Korea Time)*: ${new Date().toLocaleString("ko-KR")}`);
+      }
+    } catch (notifyError) {
+      console.error("search start slack notify error:", notifyError);
     }
 
     const searchStartText =

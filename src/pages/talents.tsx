@@ -15,6 +15,7 @@ import { useCountdown } from "@/hooks/useCountDown";
 import { DropdownMenu } from "@/components/ui/menu";
 import { v4 } from "uuid";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { notifyToSlack } from "@/lib/slack";
 import Head1 from "@/components/landing/Head1";
 import VCLogosWidth from "@/components/landing/VCLogosWidth";
 import Animate from "@/components/landing/Animate";
@@ -127,7 +128,24 @@ const CandidatePage = () => {
       abtest: "2025_12_" + abtest.toString(),
       is_mobile: isMobile,
     };
-    await supabase.from("harper_waitlist").insert(body);
+    const { error: waitlistInsertError } = await supabase
+      .from("harper_waitlist")
+      .insert(body);
+
+    if (waitlistInsertError) {
+      console.error("talents waitlist insert error:", waitlistInsertError);
+    } else {
+      try {
+        await notifyToSlack(`📝 *Waitlist Submitted (Talents)*
+
+• *Email*: ${email}
+• *Landing ID*: ${landingId || "N/A"}
+• *AB Test*: 2025_12_${abtest}
+• *Time(Standard Korea Time)*: ${new Date().toLocaleString("ko-KR")}`);
+      } catch (notifyError) {
+        console.error("talents waitlist slack notify error:", notifyError);
+      }
+    }
 
     setIsOpenModal(true);
     setUploading(false);

@@ -41,7 +41,7 @@ const Footer = ({
             onClick={() =>
               onClickStart
                 ? onClickStart("click_footer_start")
-                : router.push("/companies")
+                : router.push("/")
             }
             className="text-white underline cursor-pointer"
           >

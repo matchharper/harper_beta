@@ -204,7 +204,7 @@ export type Database = {
       }
       company_code: {
         Row: {
-          code: string | null
+          code: string
           company: string | null
           count: number
           created_at: string
@@ -215,7 +215,7 @@ export type Database = {
           text: string | null
         }
         Insert: {
-          code?: string | null
+          code?: string
           company?: string | null
           count?: number
           created_at?: string
@@ -226,7 +226,7 @@ export type Database = {
           text?: string | null
         }
         Update: {
-          code?: string | null
+          code?: string
           company?: string | null
           count?: number
           created_at?: string
@@ -996,30 +996,6 @@ export type Database = {
           created_at?: string
           id?: number
           type?: string | null
-        }
-        Relationships: []
-      }
-      new_people: {
-        Row: {
-          content: string | null
-          created_at: string
-          linkedin_id: string
-          name: string | null
-          url: string | null
-        }
-        Insert: {
-          content?: string | null
-          created_at?: string
-          linkedin_id: string
-          name?: string | null
-          url?: string | null
-        }
-        Update: {
-          content?: string | null
-          created_at?: string
-          linkedin_id?: string
-          name?: string | null
-          url?: string | null
         }
         Relationships: []
       }
