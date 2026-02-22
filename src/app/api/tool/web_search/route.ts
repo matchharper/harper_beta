@@ -29,14 +29,13 @@ export async function POST(req: NextRequest) {
     country: "KR",
     page: 1,
     limit: "10",
+    logger: null,
   };
 
   // Run the Actor and wait for it to finish
   const run = await client.actor("563JCPLOqM1kMmbbP").call(input);
 
   const { items } = await client.dataset(run.defaultDatasetId).listItems();
-  console.log(items);
-  console.log("\n\n----------\n\n");
   if (items.length <= 0 || !items) {
     return NextResponse.json({ response: [] }, { status: 200 });
   }
@@ -48,6 +47,8 @@ export async function POST(req: NextRequest) {
       title: i.title,
     };
   });
+  console.log(response);
+  console.log("\n\n----------\n\n");
 
   const { data, error: insErr } = await supabase
     .from("documents")

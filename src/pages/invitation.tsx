@@ -101,19 +101,19 @@ export default function LoginSuccess() {
 
   const checkCode = async () => {
     setIsLoading(true);
+    const normalizedCode = code.trim();
 
-    if (!code) {
+    if (!normalizedCode) {
       setIsShake(true);
       setInvalidMessage(m.invitation.errors.emptyCode);
       setIsLoading(false);
       return;
     }
 
-    const domain = companyUser?.email?.split("@")[1];
     supabase
       .from("company_code")
       .select("*")
-      .eq("code", code)
+      .eq("code", normalizedCode)
       .single()
       .then(async (res) => {
         if (res.data) {
@@ -130,10 +130,19 @@ export default function LoginSuccess() {
               charged_credit: INITIAL_CREDIT,
               type: "initial",
             });
-            await supabase.from("company_code").upsert({
-              code: code,
-              count: res.data.count + 1,
-            });
+            const nextCount =
+              (typeof res.data.count === "number" ? res.data.count : 0) + 1;
+            const { error: companyCodeUpdateError } = await supabase
+              .from("company_code")
+              .update({ count: nextCount })
+              .eq("id", res.data.id);
+
+            if (companyCodeUpdateError) {
+              console.error(
+                "company_code count update error:",
+                companyCodeUpdateError
+              );
+            }
             await load(companyUser?.user_id);
           }
           router.push("/my");

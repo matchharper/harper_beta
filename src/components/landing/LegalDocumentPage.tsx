@@ -20,10 +20,10 @@ const LegalDocumentPage = ({
 
   const navigateLanding = (section?: "how-it-works" | "pricing" | "faq") => {
     if (!section) {
-      router.push("/companies#intro");
+      router.push("#intro");
       return;
     }
-    router.push(`/companies#${section}`);
+    router.push(`#${section}`);
   };
 
   return (
@@ -45,7 +45,7 @@ const LegalDocumentPage = ({
         startButton={
           <button
             type="button"
-            onClick={() => router.push("/companies")}
+            onClick={() => router.push("/")}
             className="
               group relative
               font-medium

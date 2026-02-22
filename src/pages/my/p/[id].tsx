@@ -11,8 +11,6 @@ import { Loading } from "@/components/ui/loading";
 import { logger } from "@/utils/logger";
 
 export default function ProfileDetailPage() {
-  const [isAddCustomModalOpen, setIsAddCustomModalOpen] = useState(false);
-
   const router = useRouter();
   const { companyUser } = useCompanyUserStore();
   const userId = companyUser?.user_id;
@@ -20,12 +18,13 @@ export default function ProfileDetailPage() {
   const candidId =
     typeof router.query.id === "string" ? router.query.id : undefined;
 
+  const [isAddCustomModalOpen, setIsAddCustomModalOpen] = useState(false);
+
   const scope = useMemo(
     () => ({ type: "candid", candidId: candidId ?? "" }) as ChatScope,
     [candidId]
   );
   const { data, isLoading, error } = useCandidateDetail(userId, candidId);
-  logger.log("isLoading >>> ", isLoading, candidId, "data ", data);
 
   return (
     <AppLayout>
@@ -38,19 +37,6 @@ export default function ProfileDetailPage() {
             onConfirm={() => {}}
           />
         )}
-        {/* {[
-          "111fe5c4-8f66-4392-9a27-e81fb8dfa7dd",
-          "5219cf7f-90fa-4b71-907a-6f7ad03bb837",
-        ].includes(companyUser?.user_id) && (
-          <div className="absolute bottom-16 right-3 z-40">
-            <button
-              onClick={() => setIsAddCustomModalOpen(true)}
-              className="w-12 h-12 rounded-full bg-accenta1 text-black font-medium text-sm cursor-pointer"
-            >
-              Add
-            </button>
-          </div>
-        )} */}
         {candidId && data && (
           <div
             className={`flex-shrink-0 border-r w-[30%] min-w-[390px] border-white/10`}

@@ -133,10 +133,12 @@ export default function UseCaseGridSection({
   title = "누구나 찾을 수 있습니다.",
   subtitle = "생각하는 모든 형태의 검색이 가능해요.",
   items,
+  onCtaClick,
 }: {
   title?: string;
   subtitle?: string;
   items?: UseCaseCardItem[];
+  onCtaClick?: (key: string) => void;
 }) {
   const defaultItems: UseCaseCardItem[] = [
     {
@@ -155,6 +157,7 @@ export default function UseCaseGridSection({
         "/images/profiles/avatar2.png",
         "/images/profiles/avatar3.png",
       ],
+      onCtaClick: () => onCtaClick?.("part_time_marketer"),
     },
     {
       key: "deep_learning_researcher",
@@ -172,6 +175,7 @@ export default function UseCaseGridSection({
         "/images/profiles/avatar5.png",
         "/images/profiles/avatar6.png",
       ],
+      onCtaClick: () => onCtaClick?.("deep_learning_researcher"),
     },
     {
       key: "developer",
@@ -185,6 +189,7 @@ export default function UseCaseGridSection({
       queryPlaceholder:
         "Rust 기반 서비스 운영 경험이 있고, GitHub 1K+ stars 프로젝트 기여 또는 주요 오픈소스 PR merge 경험이 있는 풀스택 개발자…",
       avatars: ["/images/profiles/avatar7.png", "/images/profiles/avatar8.png"],
+      onCtaClick: () => onCtaClick?.("developer"),
     },
     {
       key: "recent_funded_founder",
@@ -201,6 +206,7 @@ export default function UseCaseGridSection({
         "/images/profiles/avatar9.png",
         "/images/profiles/avatar10.png",
       ],
+      onCtaClick: () => onCtaClick?.("recent_funded_founder"),
     },
   ];
 

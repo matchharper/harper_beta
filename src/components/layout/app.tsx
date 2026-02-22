@@ -49,12 +49,12 @@ const AppLayout = ({
   useEffect(() => {
     if (authLoading) return;
     if (!user) {
-      router.replace("/companies");
+      router.replace("/");
       return;
     }
     if (!initialized || loading) return;
     if (!companyUser || !companyUser.is_authenticated) {
-      router.replace("/companies");
+      router.replace("/");
     }
   }, [authLoading, user, loading, initialized, companyUser, router]);
 
@@ -280,7 +280,7 @@ const AppLayout = ({
                     logEvent("logout");
                     await signOut();
                     clear();
-                    router.push("/companies");
+                    router.push("/");
                   }}
                 >
                   <LogOut size={18} />
