@@ -27,6 +27,7 @@ import { useCountryLang } from "@/hooks/useCountryLang";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import Footer from "@/components/landing/Footer";
 import LandingHeader from "@/components/landing/LandingHeader";
+import Head from "next/head";
 
 export const isValidEmail = (email: string): boolean => {
   const trimmed = email.trim();
@@ -44,6 +45,15 @@ const COMPANY_ABTEST_TYPES: CompanyAbtestType[] = [
   "company_copy_a_v1",
   "company_copy_b_v1",
 ];
+const LANDING_CANONICAL_URL = "https://matchharper.com/";
+const LANDING_OG_IMAGE_URL = "https://matchharper.com/images/usemain.png";
+
+const stripHtmlTags = (value: string) =>
+  value
+    .replace(/<br\s*\/?>/gi, " ")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
 const isCompanyAbtestType = (
   value: string | null
@@ -60,7 +70,7 @@ const Examples = dynamic(() => import("@/components/landing/Examples"));
 const HERO_DOT_BACKGROUND_STYLE = {
   opacity: 0.45,
   backgroundImage:
-    "radial-gradient(rgba(255,255,255,0.3) 0.9px, transparent 0.9px)",
+    "radial-gradient(rgba(255,255,255,0.2) 0.9px, transparent 0.9px)",
   backgroundSize: "20px 20px",
 };
 
@@ -420,6 +430,58 @@ const CandidatePage = () => {
     };
   }, [abtestType, locale, m]);
 
+  const seoMeta = useMemo(() => {
+    if (locale === "ko") {
+      return {
+        title: "Harper | 스타트업 채용을 위한 AI 리크루터",
+        description:
+          "Harper는 AI 기반 검색과 분석으로 스타트업 팀이 적합한 인재를 더 빠르게 찾도록 돕습니다.",
+        ogLocale: "ko_KR",
+        language: "ko-KR",
+      };
+    }
+
+    return {
+      title: "Harper | AI Recruiter for Startup Hiring",
+      description:
+        "Harper helps startup teams discover and prioritize high-fit candidates with AI-powered sourcing.",
+      ogLocale: "en_US",
+      language: "en-US",
+    };
+  }, [locale]);
+
+  const softwareApplicationStructuredData = useMemo(
+    () => ({
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      name: "Harper",
+      applicationCategory: "BusinessApplication",
+      operatingSystem: "Web",
+      inLanguage: seoMeta.language,
+      url: LANDING_CANONICAL_URL,
+      image: LANDING_OG_IMAGE_URL,
+      description: seoMeta.description,
+    }),
+    [seoMeta.description, seoMeta.language]
+  );
+
+  const faqStructuredData = useMemo(
+    () => ({
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      inLanguage: seoMeta.language,
+      mainEntity: m.companyLanding.faq.items.map((item) => ({
+        "@type": "Question",
+        name: stripHtmlTags(item.question),
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: stripHtmlTags(item.answer),
+        },
+      })),
+    }),
+    [m.companyLanding.faq.items, seoMeta.language]
+  );
+
   const clickStart = useCallback(
     (type: string) => {
       addLog(type);
@@ -486,191 +548,239 @@ const CandidatePage = () => {
   );
 
   return (
-    <main className={`min-h-screen font-inter text-white bg-black w-screen`}>
-      {isOpenLoginModal && (
-        <LoginModal
-          open={isOpenLoginModal}
-          onClose={handleCloseLoginModal}
-          onGoogle={login}
-          onConfirm={customLogin}
+    <>
+      <Head>
+        <title>{seoMeta.title}</title>
+        <meta name="description" content={seoMeta.description} />
+        <meta name="robots" content="index,follow,max-image-preview:large" />
+        <link rel="canonical" href={LANDING_CANONICAL_URL} />
+        <link
+          rel="alternate"
+          hrefLang="x-default"
+          href={LANDING_CANONICAL_URL}
         />
-      )}
-      <LandingHeader
-        onIntroClick={handleIntroClick}
-        onHowItWorksClick={handleHowItWorksClick}
-        onPricingClick={handlePricingClick}
-        onFaqClick={handleFaqClick}
-        startButton={navStartButton}
-      />
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Harper" />
+        <meta property="og:locale" content={seoMeta.ogLocale} />
+        <meta property="og:title" content={seoMeta.title} />
+        <meta property="og:description" content={seoMeta.description} />
+        <meta property="og:url" content={LANDING_CANONICAL_URL} />
+        <meta property="og:image" content={LANDING_OG_IMAGE_URL} />
+        <meta property="og:image:alt" content={seoMeta.title} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={seoMeta.title} />
+        <meta name="twitter:description" content={seoMeta.description} />
+        <meta name="twitter:image" content={LANDING_OG_IMAGE_URL} />
+        <script
+          key="ld-software-app"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(softwareApplicationStructuredData),
+          }}
+        />
+        <script
+          key="ld-faq"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(faqStructuredData),
+          }}
+        />
+      </Head>
 
-      <div
-        id="intro"
-        className="flex flex-col items-center justify-center px-0 md:px-20 w-full bg-black text-white h-[86vh] md:h-[90vh]"
-      >
-        <div className="absolute top-0 left-0 w-full h-[90%]">
-          {/* <InteractiveDotGridBackground /> */}
-          <div
-            className="pointer-events-none absolute inset-0"
-            style={HERO_DOT_BACKGROUND_STYLE}
+      <main className={`min-h-screen font-inter text-white bg-black w-screen`}>
+        {isOpenLoginModal && (
+          <LoginModal
+            open={isOpenLoginModal}
+            onClose={handleCloseLoginModal}
+            onGoogle={login}
+            onConfirm={customLogin}
           />
-        </div>
-        <div className="z-10 flex flex-col items-center justify-start md:justify-center pt-32 md:pt-0 w-full h-full text-center px-4">
-          <div className="md:text-[56px] text-[32px] font-semibold leading-snug mt-2 flex flex-col items-center justify-center gap-2">
-            <div>{m.companyLanding.hero.titleLine1} Data.</div>
-            <div className="flex flex-row items-center justify-center gap-4">
-              {m.companyLanding.hero.titleLine2Prefix}{" "}
-              <RotatingText
-                texts={copyVariant.rotatingTexts}
-                mainClassName="lg:px-4 md:px-3 px-2 font-hedvig bg-accenta1 text-black overflow-hidden py-0 sm:py-0 md:py-0 justify-center rounded-lg inline-block"
-                staggerFrom={"last"}
-                initial={{ y: "100%" }}
-                animate={{ y: 0 }}
-                exit={{ y: "-120%" }}
-                staggerDuration={0.02}
-                splitLevelClassName="overflow-hidden pb-0.5 sm:pb-1 md:pb-1"
-                transition={{ type: "spring", damping: 30, stiffness: 400 }}
-                rotationInterval={2800}
-              />
-            </div>
-            {/* <span className="font-hedvig text-accenta1 font-normal italic">
-              {m.companyLanding.hero.titleLine2Highlight}
-            </span> */}
-          </div>
-          <div className="text-base md:text-lg text-hgray700 font-light mt-6">
-            <span
-              dangerouslySetInnerHTML={{
-                __html: copyVariant.heroSubtitle,
-              }}
+        )}
+        <LandingHeader
+          onIntroClick={handleIntroClick}
+          onHowItWorksClick={handleHowItWorksClick}
+          onPricingClick={handlePricingClick}
+          onFaqClick={handleFaqClick}
+          startButton={navStartButton}
+        />
+        <nav className="sr-only" aria-label="Landing section links">
+          <a href="#intro">{m.companyLanding.nav.intro}</a>
+          <a href="#how-it-works">{m.companyLanding.nav.howItWorks}</a>
+          <a href="#pricing">{m.companyLanding.nav.pricing}</a>
+          <a href="#faq">{m.companyLanding.nav.faq}</a>
+        </nav>
+
+        <div
+          id="intro"
+          className="flex flex-col items-center justify-center px-0 md:px-20 w-full bg-black text-white h-[86vh] md:h-[90vh]"
+        >
+          <div className="absolute top-0 left-0 w-full h-[90%]">
+            {/* <InteractiveDotGridBackground /> */}
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={HERO_DOT_BACKGROUND_STYLE}
             />
           </div>
-          <StartButton
-            type="click_hero_start"
-            onClickStart={clickStart}
-            label={copyVariant.startButton}
-          />
-        </div>
-      </div>
-      <div className="mb-20 mt-12 md:mt-0 flex flex-col items-center justify-center">
-        <div className="w-[90%] max-w-[960px] bg-gradpastel2 overflow-hidden md:rounded-[30px] rounded-2xl pt-8 md:pt-0 flex flex-col items-center justify-center">
-          <video
-            src="/videos/usemain.mp4"
-            poster="/images/usemain.png"
-            autoPlay
-            loop
-            muted
-            playsInline
-            className="w-[90%] h-full object-cover  md:rounded-t-[30px] rounded-t-2xl md:translate-y-[40px] translate-y-0 shadow-lg"
-          />
-        </div>
-      </div>
-      <Animate>
-        <BaseSectionLayout>
-          <div className="gap-2 w-full flex flex-col items-center justify-center text-center py-8 md:py-10 px-0">
-            <Head1>{m.companyLanding.section1.title}</Head1>
-            <h2 className="text-[22px] md:text-3xl text-white font-normal mt-10">
-              {m.companyLanding.section1.headlineLine1}
-              <br />
-              {copyVariant.section1HeadlineLine2}
-            </h2>
-            <p className="text-base font-hedvig font-light md:text-lg mt-6 px-2 text-hgray700">
-              {m.companyLanding.section1.bodyLine1}
-              <br />
-              {copyVariant.section1BodyLine2}
-            </p>
-          </div>
-        </BaseSectionLayout>
-        {/* <VCLogosWidth /> */}
-      </Animate>
-      <div ref={whySectionRef} id="how-it-works" />
-      <div className="h-48" />
-      <Animate>
-        <BaseSectionLayout>
-          <Animate>
-            <Head1 className="text-white text-center w-full">
-              {m.companyLanding.why.title}
-            </Head1>
-            <div className="text-sm font-hedvig font-light md:text-lg mt-6 px-2 text-hgray700">
+          <div className="z-10 flex flex-col items-center justify-start md:justify-center pt-32 md:pt-0 w-full h-full text-center px-4">
+            <h1 className="sr-only">
+              {`${m.companyLanding.hero.titleLine1} Data. ${m.companyLanding.hero.titleLine2Prefix} ${copyVariant.rotatingTexts[0]}.`}
+            </h1>
+            <div className="md:text-[56px] text-[32px] font-semibold leading-snug mt-2 flex flex-col items-center justify-center gap-2">
+              <div>{m.companyLanding.hero.titleLine1} Data.</div>
+              <div className="flex flex-row items-center justify-center gap-4">
+                {m.companyLanding.hero.titleLine2Prefix}{" "}
+                <RotatingText
+                  texts={copyVariant.rotatingTexts}
+                  mainClassName="lg:px-4 md:px-3 px-2 font-hedvig bg-accenta1 text-black overflow-hidden py-0 sm:py-0 md:py-0 justify-center rounded-lg inline-block"
+                  staggerFrom={"last"}
+                  initial={{ y: "100%" }}
+                  animate={{ y: 0 }}
+                  exit={{ y: "-120%" }}
+                  staggerDuration={0.02}
+                  splitLevelClassName="overflow-hidden pb-0.5 sm:pb-1 md:pb-1"
+                  transition={{ type: "spring", damping: 30, stiffness: 400 }}
+                  rotationInterval={2800}
+                />
+              </div>
+              {/* <span className="font-hedvig text-accenta1 font-normal italic">
+              {m.companyLanding.hero.titleLine2Highlight}
+            </span> */}
+            </div>
+            <div className="text-base md:text-lg text-hgray700 font-light mt-6">
               <span
                 dangerouslySetInnerHTML={{
-                  __html: copyVariant.whySubtitle,
+                  __html: copyVariant.heroSubtitle,
                 }}
               />
             </div>
-          </Animate>
-          <Animate>
-            <div ref={whyTrackRef} data-section="why">
-              <div className="flex flex-col md:flex-row mt-12 gap-8">
-                <WhyImageSection
-                  title={m.companyLanding.why.cards[0].title}
-                  desc={copyVariant.whyFirstCardDesc}
-                  imageSrc="/images/feat1.png"
-                />
-                <WhyImageSection
-                  title={m.companyLanding.why.cards[1].title}
-                  desc={m.companyLanding.why.cards[1].desc}
-                  imageSrc="/images/feat4.png"
-                />
-                <WhyImageSection
-                  title={m.companyLanding.why.cards[2].title}
-                  desc={copyVariant.whyThirdCardDesc}
-                  imageSrc="orbit"
-                />
-              </div>
+            <StartButton
+              type="click_hero_start"
+              onClickStart={clickStart}
+              label={copyVariant.startButton}
+            />
+          </div>
+        </div>
+        <div className="mb-20 mt-12 md:mt-0 flex flex-col items-center justify-center">
+          <div className="w-[90%] max-w-[960px] bg-gradpastel2 overflow-hidden md:rounded-[30px] rounded-2xl pt-8 md:pt-0 flex flex-col items-center justify-center">
+            <video
+              src="/videos/usemain.mp4"
+              poster="/images/usemain.png"
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="w-[90%] h-full object-cover  md:rounded-t-[30px] rounded-t-2xl md:translate-y-[40px] translate-y-0 shadow-lg"
+            />
+          </div>
+        </div>
+        <Animate>
+          <BaseSectionLayout>
+            <div className="gap-2 w-full flex flex-col items-center justify-center text-center py-8 md:py-10 px-0">
+              <Head1 as="h2">{m.companyLanding.section1.title}</Head1>
+              <h3 className="text-[22px] md:text-3xl text-white font-normal mt-10">
+                {m.companyLanding.section1.headlineLine1}
+                <br />
+                {copyVariant.section1HeadlineLine2}
+              </h3>
+              <p className="text-base font-hedvig font-light md:text-lg mt-6 px-2 text-hgray700">
+                {m.companyLanding.section1.bodyLine1}
+                <br />
+                {copyVariant.section1BodyLine2}
+              </p>
             </div>
-          </Animate>
-        </BaseSectionLayout>
-      </Animate>
-      <div className="h-48" />
-      <FeatureSection />
-      {abtestType === "company_copy_b_v1" && (
-        <>
-          <div ref={examplesTrackRef} data-section="examples" />
-          <div className="h-28 md:h-48" />
-          <Examples onCtaClick={clickStart} />
-        </>
-      )}
-      <div className="h-28 md:h-48" />
-      <Animate>
-        <BaseSectionLayout>
-          <div className="w-[90%] max-w-[600px] flex flex-col">
-            <div className="flex flex-col items-start gap-4 bg-white/20 rounded-2xl px-6 md:px-[30px] py-6 md:py-8">
-              <div className="text-[13px] md:text-base text-left md:leading-[30px] leading-[26px] font-normal text-hgray700">
+          </BaseSectionLayout>
+          {/* <VCLogosWidth /> */}
+        </Animate>
+        <div ref={whySectionRef} id="how-it-works" />
+        <div className="h-48" />
+        <Animate>
+          <BaseSectionLayout>
+            <Animate>
+              <Head1 as="h2" className="text-white text-center w-full">
+                {m.companyLanding.why.title}
+              </Head1>
+              <div className="text-sm font-hedvig font-light md:text-lg mt-6 px-2 text-hgray700">
                 <span
                   dangerouslySetInnerHTML={{
-                    __html: m.companyLanding.testimonial.body,
+                    __html: copyVariant.whySubtitle,
                   }}
                 />
               </div>
-              <div className="flex flex-row items-center justify-start gap-4 mt-6">
-                <div>
-                  <Image
-                    src="/images/cofounder.png"
-                    alt="person1"
-                    width={60}
-                    height={60}
+            </Animate>
+            <Animate>
+              <div ref={whyTrackRef} data-section="why">
+                <div className="flex flex-col md:flex-row mt-12 gap-8">
+                  <WhyImageSection
+                    title={m.companyLanding.why.cards[0].title}
+                    desc={copyVariant.whyFirstCardDesc}
+                    imageSrc="/images/feat1.png"
+                  />
+                  <WhyImageSection
+                    title={m.companyLanding.why.cards[1].title}
+                    desc={m.companyLanding.why.cards[1].desc}
+                    imageSrc="/images/feat4.png"
+                  />
+                  <WhyImageSection
+                    title={m.companyLanding.why.cards[2].title}
+                    desc={copyVariant.whyThirdCardDesc}
+                    imageSrc="orbit"
                   />
                 </div>
-                <div className="flex flex-col items-start justify-start gap-1">
-                  <div className="text-sm">
-                    {m.companyLanding.testimonial.name}
+              </div>
+            </Animate>
+          </BaseSectionLayout>
+        </Animate>
+        <div className="h-48" />
+        <FeatureSection />
+        {abtestType === "company_copy_b_v1" && (
+          <>
+            <div ref={examplesTrackRef} data-section="examples" />
+            <div className="h-28 md:h-48" />
+            <Examples onCtaClick={clickStart} />
+          </>
+        )}
+        <div className="h-28 md:h-48" />
+        <Animate>
+          <BaseSectionLayout>
+            <div className="w-[90%] max-w-[600px] flex flex-col">
+              <div className="flex flex-col items-start gap-4 bg-white/20 rounded-2xl px-6 md:px-[30px] py-6 md:py-8">
+                <div className="text-[13px] md:text-base text-left md:leading-[30px] leading-[26px] font-normal text-hgray700">
+                  <span
+                    dangerouslySetInnerHTML={{
+                      __html: m.companyLanding.testimonial.body,
+                    }}
+                  />
+                </div>
+                <div className="flex flex-row items-center justify-start gap-4 mt-6">
+                  <div>
+                    <Image
+                      src="/images/cofounder.png"
+                      alt="person1"
+                      width={60}
+                      height={60}
+                    />
                   </div>
-                  <div className="text-hgray700 text-xs">
-                    {m.companyLanding.testimonial.role}
+                  <div className="flex flex-col items-start justify-start gap-1">
+                    <div className="text-sm">
+                      {m.companyLanding.testimonial.name}
+                    </div>
+                    <div className="text-hgray700 text-xs">
+                      {m.companyLanding.testimonial.role}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-        </BaseSectionLayout>
-      </Animate>
-      <div ref={priceSectionRef} id="pricing" />
+          </BaseSectionLayout>
+        </Animate>
+        <div ref={priceSectionRef} id="pricing" />
 
-      <div className="h-28 md:h-40" />
-      <div ref={pricingTrackRef} data-section="pricing">
-        <PricingSection onClick={handlePricingPlanClick} />
-      </div>
+        <div className="h-28 md:h-40" />
+        <div ref={pricingTrackRef} data-section="pricing">
+          <PricingSection onClick={handlePricingPlanClick} />
+        </div>
 
-      {/* {abtestType !== "company_copy_b_v1" && (
+        {/* {abtestType !== "company_copy_b_v1" && (
         <>
           <div className="h-28 md:h-40" />
           <div ref={pricingTrackRef} data-section="pricing">
@@ -681,58 +791,59 @@ const CandidatePage = () => {
         </>
       )} */}
 
-      <div ref={faqSectionRef} id="faq" />
-      <div ref={faqTrackRef} data-section="faq">
-        <div className="h-28 md:h-40" />
-        <Animate>
-          <BaseSectionLayout>
-            <div className="flex flex-col items-center justify-center w-full pt-4">
-              <div className="w-full flex flex-col items-center justify-center pb-2">
-                <div className="text-[28px] md:text-4xl font-garamond font-medium">
-                  {m.companyLanding.faq.title}
-                </div>
-                <div className="flex flex-col items-start justify-start text-white/70 font-light w-full mt-12 px-4 md:px-0">
-                  {m.companyLanding.faq.items.map((item, index) => (
-                    <QuestionAnswer
-                      key={item.question}
-                      question={item.question}
-                      answer={item.answer}
-                      index={index}
-                      onOpen={() => addLog(`click_faq_${index}`)}
-                    />
-                  ))}
+        <div ref={faqSectionRef} id="faq" />
+        <div ref={faqTrackRef} data-section="faq">
+          <div className="h-28 md:h-40" />
+          <Animate>
+            <BaseSectionLayout>
+              <div className="flex flex-col items-center justify-center w-full pt-4">
+                <div className="w-full flex flex-col items-center justify-center pb-2">
+                  <h2 className="text-[28px] md:text-4xl font-garamond font-medium">
+                    {m.companyLanding.faq.title}
+                  </h2>
+                  <div className="flex flex-col items-start justify-start text-white/70 font-light w-full mt-12 px-4 md:px-0">
+                    {m.companyLanding.faq.items.map((item, index) => (
+                      <QuestionAnswer
+                        key={item.question}
+                        question={item.question}
+                        answer={item.answer}
+                        index={index}
+                        onOpen={() => addLog(`click_faq_${index}`)}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
-          </BaseSectionLayout>
-        </Animate>
-      </div>
-      <div className="h-4 md:h-40" />
-      <Animate duration={0.8}>
-        <div ref={lastTrackRef} data-section="last">
-          <div className="relative bg-black w-screen py-10">
-            <GradientBackground interactiveRef={interactiveRef} />
-            <div className="absolute top-0 left-0 w-full h-[50%] bg-gradient-to-t from-transparent to-black" />
-            <div className="flex flex-col items-center justify-center w-full lg:w-[94%] py-40 text-white z-40">
-              <Head1 className="text-xl md:text-[32px] z-40">
-                {m.companyLanding.closing.title}
-              </Head1>
-              <div className="text-2xl md:text-[40px] text-center font-medium text-white/90 mt-8 md:leading-normal z-40">
-                {m.companyLanding.closing.headlineLine1}
-                <div className="md:h-1 h-1" />
-                {copyVariant.closingHeadlineLine2}
+            </BaseSectionLayout>
+          </Animate>
+        </div>
+        <div className="h-4 md:h-40" />
+        <Animate duration={0.8}>
+          <div ref={lastTrackRef} data-section="last">
+            <div className="relative bg-black w-screen py-10">
+              <GradientBackground interactiveRef={interactiveRef} />
+              <div className="absolute top-0 left-0 w-full h-[50%] bg-gradient-to-t from-transparent to-black" />
+              <div className="flex flex-col items-center justify-center w-full lg:w-[94%] py-40 text-white z-40">
+                <Head1 as="h2" className="text-xl md:text-[32px] z-40">
+                  {m.companyLanding.closing.title}
+                </Head1>
+                <div className="text-2xl md:text-[40px] text-center font-medium text-white/90 mt-8 md:leading-normal z-40">
+                  {m.companyLanding.closing.headlineLine1}
+                  <div className="md:h-1 h-1" />
+                  {copyVariant.closingHeadlineLine2}
+                </div>
+                <StartButton
+                  type="click_footer_start"
+                  onClickStart={clickStart}
+                  label={copyVariant.startButton}
+                />
               </div>
-              <StartButton
-                type="click_footer_start"
-                onClickStart={clickStart}
-                label={copyVariant.startButton}
-              />
             </div>
           </div>
-        </div>
-      </Animate>
-      <Footer onClickStart={clickStart} />
-    </main>
+        </Animate>
+        <Footer onClickStart={clickStart} />
+      </main>
+    </>
   );
 };
 
@@ -744,7 +855,9 @@ const FeatureSection = React.memo(function FeatureSection() {
   return (
     <BaseSectionLayout>
       <Animate>
-        <Head1 className="text-white">{m.companyLanding.feature.title}</Head1>
+        <Head1 as="h2" className="text-white">
+          {m.companyLanding.feature.title}
+        </Head1>
       </Animate>
       <div className="flex flex-col w-full mt-12 gap-[30px]">
         <Animate>
@@ -823,7 +936,7 @@ const WhyImageSection = React.memo(function WhyImageSection({
     <div className="flex flex-col w-full items-center justify-center md:items-start md:justify-start max-w-full gap-8 px-5 md:px-0">
       {imgReturn()}
       <div className="flex flex-col items-start justify-start w-full gap-4 text-left">
-        <div
+        <h3
           className="text-[26px] md:text-3xl font-normal leading-[2.2rem] md:leading-[2.5rem]"
           dangerouslySetInnerHTML={{ __html: title }}
         />

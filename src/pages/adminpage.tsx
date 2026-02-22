@@ -140,7 +140,7 @@ const AdminPage = () => {
             "id,local_id,type,abtest_type,created_at,is_mobile,country_lang"
           )
           .order("created_at", { ascending: false })
-          .not("type", "ilike", `%${EXCLUDED_TYPE_KEYWORD}%`)
+          .not("country_lang", "ilike", `%$US_en%`)
           .neq("local_id", "a22bb523-42cd-4d39-9667-c527c40941d3")
           .neq("local_id", "a4d4df1a-aa6d-401e-a34a-00d426630fe2")
           .neq("local_id", "ce032ed7-8836-44e5-8605-64e80f5fe234")

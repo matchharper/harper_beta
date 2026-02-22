@@ -140,10 +140,11 @@ export const ko = {
     },
     section1: {
       title: "Faster, Cheaper, Better",
-      headlineLine1: "채용은 회사의 미래를 결정하는 ",
-      headlineLine2: "가장 중요한 의사결정입니다.",
+      headlineLine1: "사람을 찾는데 사용하던",
+      headlineLine2: "수십 시간을, 몇분으로 줄여드립니다.",
       bodyLine1: "",
-      bodyLine2: "채용팀이 몇 주 동안 하던 일을, Harper는 며칠 만에 끝냅니다.",
+      bodyLine2:
+        "Harper가 역량과 맥락을 먼저 읽고 정리해, 검토 시간을 크게 단축합니다.",
       // "It shrinks weeks of work that a whole recruiting team would do, into days."
     },
     why: {
