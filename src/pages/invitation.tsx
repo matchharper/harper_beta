@@ -147,26 +147,32 @@ export default function LoginSuccess() {
     }
 
     if (!companyUser?.is_authenticated) {
-      const { error: creditsInsertError } = await supabase.from("credits").insert({
-        user_id: userId,
-        remain_credit: initialCredit,
-        charged_credit: initialCredit,
-        type: "initial",
-      });
+      const { error: creditsInsertError } = await supabase
+        .from("credits")
+        .insert({
+          user_id: userId,
+          remain_credit: initialCredit,
+          charged_credit: initialCredit,
+          type: "initial",
+        });
 
       if (creditsInsertError) {
         throw creditsInsertError;
       }
 
       const nextCount =
-        (typeof inviteCodeData.count === "number" ? inviteCodeData.count : 0) + 1;
+        (typeof inviteCodeData.count === "number" ? inviteCodeData.count : 0) +
+        1;
       const { error: companyCodeUpdateError } = await supabase
         .from("company_code")
         .update({ count: nextCount })
-        .eq("id", inviteCodeData.id);
+        .eq("id", inviteCodeData.id as string);
 
       if (companyCodeUpdateError) {
-        console.error("company_code count update error:", companyCodeUpdateError);
+        console.error(
+          "company_code count update error:",
+          companyCodeUpdateError
+        );
       }
     }
 
@@ -288,11 +294,11 @@ export default function LoginSuccess() {
             )
               .split("\n")
               .map((line) => (
-              <React.Fragment key={line}>
-                {line}
-                <br />
-              </React.Fragment>
-            ))}
+                <React.Fragment key={line}>
+                  {line}
+                  <br />
+                </React.Fragment>
+              ))}
           </p>
         </div>
 
@@ -306,7 +312,9 @@ export default function LoginSuccess() {
             {/* Invite code + continue */}
             <div
               className={`transition-opacity duration-150 ${
-                isSwitchingInput ? "opacity-0 pointer-events-none" : "opacity-100"
+                isSwitchingInput
+                  ? "opacity-0 pointer-events-none"
+                  : "opacity-100"
               }`}
             >
               <form
@@ -350,7 +358,9 @@ export default function LoginSuccess() {
                     }
                   }}
                   placeholder={
-                    isNameStep ? m.invitation.namePlaceholder : m.invitation.placeholder
+                    isNameStep
+                      ? m.invitation.namePlaceholder
+                      : m.invitation.placeholder
                   }
                   className="flex-1 rounded-3xl w-full bg-white/10 border border-neutral-800/80 px-4 py-4 text-sm md:text-sm
                   transition-all duration-200 hover:border-xgray700
@@ -367,8 +377,10 @@ export default function LoginSuccess() {
                 >
                   {isLoading ? (
                     <LoaderCircle size={16} className="animate-spin" />
+                  ) : isNameStep ? (
+                    m.invitation.nameSubmit
                   ) : (
-                    isNameStep ? m.invitation.nameSubmit : m.invitation.submit
+                    m.invitation.submit
                   )}
                 </button>
               </form>
