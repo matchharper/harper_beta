@@ -63,10 +63,7 @@ function extractUiJsonFromMessage(content: string): any | null {
  * body: { queryId, runId, pageIdx }
  * resp: { results: string[], isNewSearch?: boolean }
  */
-async function fetchSearchIds(params: {
-  runId: string;
-  pageIdx: number;
-}) {
+async function fetchSearchIds(params: { runId: string; pageIdx: number }) {
   const { runId, pageIdx } = params;
 
   const { data, error } = await supabase
@@ -125,7 +122,8 @@ async function fetchCandidatesByIds(
           company_db (
             name,
             investors,
-            short_description
+            short_description,
+            logo
           )
         ),
         connection (

@@ -32,11 +32,11 @@ const SummaryCell = ({
 
   return (
     <div
-      className="relative overflow-visible flex items-center justify-center h-full px-2 py-4 w-full border-r border-white/5"
+      className="relative overflow-visible flex items-center justify-center px-2 h-[80%] w-full border-r border-white/5"
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
     >
-      <div className="w-full h-[36px] flex items-center justify-center rounded-lg transition-colors px-2">
+      <div className="w-full flex items-center justify-center rounded-lg transition-colors px-2">
         {scoreIcon(score)}
       </div>
 

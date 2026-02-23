@@ -382,10 +382,14 @@ export default function ChatPanel({
       if (messageError) {
         console.error("search message load error:", messageError);
       } else {
-        const criteriaCard = extractCriteriaCardPayload(messageData?.content ?? "");
+        const criteriaCard = extractCriteriaCardPayload(
+          messageData?.content ?? ""
+        );
         const criteriaText =
           criteriaCard && criteriaCard.criteria.length > 0
-            ? criteriaCard.criteria.map((criteria, idx) => `${idx + 1}. ${criteria}`).join("\n")
+            ? criteriaCard.criteria
+                .map((criteria, idx) => `${idx + 1}. ${criteria}`)
+                .join("\n")
             : "N/A";
 
         await notifyToSlack(`🔎 *Search Started (Confirm)*
@@ -399,6 +403,14 @@ ${criteriaText}
 • *Time(Standard Korea Time)*: ${new Date().toLocaleString("ko-KR")}`);
       }
     } catch (notifyError) {
+      await notifyToSlack(`🔎 *Search Started (Confirm)*
+
+• *User*: ${companyUser?.name ?? "Unknown"} (${companyUser?.email ?? "N/A"})
+• *User ID*: ${userId}
+• *Query ID*: ${scope?.type === "query" ? scope.queryId : "N/A"}
+• *Message ID*: ${messageId}
+• *Time(Standard Korea Time)*: ${new Date().toLocaleString("ko-KR")}`);
+
       console.error("search start slack notify error:", notifyError);
     }
 

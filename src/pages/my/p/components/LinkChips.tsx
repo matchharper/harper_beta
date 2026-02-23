@@ -3,7 +3,7 @@ import React from "react";
 export const BRAND_MAP = [
   {
     match: (h: string) => h.includes("linkedin.com"),
-    label: "linkedin",
+    label: "링크드인",
     icon: "https://www.linkedin.com/favicon.ico",
   },
   {
@@ -56,7 +56,7 @@ function LinkChips({ links }: Props) {
 
         try {
           host = new URL(url).hostname.replace("www.", "");
-        } catch { }
+        } catch {}
 
         const brand = BRAND_MAP.find((b) => b.match(url)) ?? {
           label: host,
@@ -73,8 +73,9 @@ function LinkChips({ links }: Props) {
           >
             <img
               src={brand.icon}
-              className={`${brand.icon.includes("/svgs/chain") ? "h-3.5 w-3.5" : "h-4 w-4 "
-                }`}
+              className={`${
+                brand.icon.includes("/svgs/chain") ? "h-3.5 w-3.5" : "h-4 w-4 "
+              }`}
               alt=""
             />
             {brand.label}

@@ -13,7 +13,7 @@ import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DEEP_AUTOMATION_PROMPT } from "@/app/api/chat/chat_prompt";
 import { cn } from "@/lib/utils";
-import { Play, Square } from "lucide-react";
+import { Loader2, Play, Square } from "lucide-react";
 import { Loading } from "@/components/ui/loading";
 import { useMessages } from "@/i18n/useMessage";
 
@@ -22,12 +22,18 @@ type AutomationRow = Database["public"]["Tables"]["automation"]["Row"];
 export const MAX_ACTIVE_AUTOMATIONS = 2;
 const UI_START = "<<UI>>";
 const UI_END = "<<END_UI>>";
+const DEFAULT_AUTOMATION_TITLE = "Scout";
 
 function createLocalId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
   }
   return `auto_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
+function normalizeAutomationTitle(title?: string | null) {
+  const normalized = String(title ?? "").trim();
+  return normalized.length > 0 ? normalized : DEFAULT_AUTOMATION_TITLE;
 }
 
 export default function AutomationDetailPage() {
@@ -61,6 +67,11 @@ export default function AutomationDetailPage() {
     if (!automation) return isNew;
     return !!automation.is_deleted;
   }, [automation, isNew]);
+
+  const automationTitle = useMemo(
+    () => normalizeAutomationTitle(automation?.title),
+    [automation?.title]
+  );
 
   const fetchActiveAutomationCount = useCallback(
     async (excludeId?: string) => {
@@ -133,6 +144,7 @@ export default function AutomationDetailPage() {
         user_id: userId,
         is_deleted: true,
         is_in_progress: true,
+        title: DEFAULT_AUTOMATION_TITLE,
         last_updated_at: now,
       })
       .select("*")
@@ -270,9 +282,33 @@ export default function AutomationDetailPage() {
     router.push("/my/scout");
   }, [isDraft, router]);
 
+  const generateAutomationTitle = useCallback(async () => {
+    if (!automationId || !userId) return null;
+    try {
+      const res = await fetch("/api/scout/title", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          queryId: automationId,
+        }),
+      });
+
+      if (!res.ok) return null;
+
+      const json = await res.json();
+      const generated = String(json?.title ?? "").trim();
+      if (!generated) return null;
+      return normalizeAutomationTitle(generated);
+    } catch {
+      return null;
+    }
+  }, [automationId, userId]);
+
   const handleRegister = useCallback(async () => {
     if (!automationId || !userId) return;
     const now = new Date().toISOString();
+    let titleToSave = normalizeAutomationTitle(automation?.title);
     if (credits && credits.remain_credit <= 3) {
       showToast({
         message: "진행에 필요한 최소 크레딧이 부족합니다.",
@@ -298,11 +334,20 @@ export default function AutomationDetailPage() {
     }
     const wasDraft = isDraft;
     setIsSaving(true);
+
+    if (titleToSave === DEFAULT_AUTOMATION_TITLE) {
+      const generatedTitle = await generateAutomationTitle();
+      if (generatedTitle) {
+        titleToSave = generatedTitle;
+      }
+    }
+
     await supabase
       .from("automation")
       .update({
         is_deleted: false,
         is_in_progress: true,
+        title: titleToSave,
         last_updated_at: now,
       })
       .eq("id", automationId);
@@ -335,11 +380,15 @@ export default function AutomationDetailPage() {
     setIsSaving(false);
     router.push("/my/scout");
   }, [
+    automation?.title,
     automationId,
+    companyUser?.company,
+    companyUser?.name,
     userId,
     qc,
     router,
     fetchActiveAutomationCount,
+    generateAutomationTitle,
     isDraft,
     credits,
     m.scout.limitMessage,
@@ -475,7 +524,13 @@ export default function AutomationDetailPage() {
             "bg-accenta1 font-medium text-black shadow-lg hover:bg-accenta1/90"
           )}
         >
-          등록
+          {isSaving ? (
+            <>
+              <Loader2 className="w-3 h-3 animate-spin" />
+            </>
+          ) : (
+            "등록"
+          )}
         </button>
       ) : (
         <>
@@ -543,7 +598,7 @@ export default function AutomationDetailPage() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <div className="text-sm font-medium text-white">
-                          Harper Scout
+                          {automationTitle}
                         </div>
 
                         <span
@@ -568,7 +623,7 @@ export default function AutomationDetailPage() {
 
               {/* Chat */}
               <ChatPanel
-                title="Harper Scout"
+                title={automationTitle}
                 scope={{ type: "query", queryId: automationId }}
                 userId={userId}
                 onSearchFromConversation={async () => null}

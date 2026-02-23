@@ -1,5 +1,5 @@
 // components/result/ResultBody.tsx
-import React from "react";
+import React, { useState, useEffect } from "react";
 import CandidateViews from "@/components/CandidateViews";
 import { logger } from "@/utils/logger";
 import { useMessages } from "@/i18n/useMessage";
@@ -52,66 +52,101 @@ export default function ResultBody(props: Props) {
 
   const isNoResultAtall = pageIdx === 0 && items.length === 0 && !isLoading;
 
-  logger.log("nextWillCharge ", nextWillCharge)
-
   return (
     <div className="flex flex-col w-full h-full">
-      <div className="w-full px-4">
+      <div className="w-full px-0">
         {userId && (
           <CandidateViews
             items={items}
             userId={userId}
             criterias={criterias}
+            indexStart={pageIdx * 10}
           />
         )}
       </div>
-      {
-        !isLoading &&
-        !isNoResultAtall && (
-          <div className="flex items-center justify-center w-full py-16 flex-col">
-            <div className="text-sm text-white">
-              {m.search.resultBody.page.replace("{page}", String(pageIdx + 1))}
-              {isFetchingNextPage ? m.search.resultBody.loadingSuffix : ""}
-              {pageIdxRaw > maxPrefetchPages ? (
-                <span className="ml-2 text-xgray400">
-                  {m.search.resultBody.capped.replace(
-                    "{cap}",
-                    String(maxPrefetchPages + 1)
-                  )}
-                </span>
-              ) : null}
-            </div>
+      {!isLoading && !isNoResultAtall && (
+        <div className={["w-full z-30 bottom-0 left-0 mt-12 pb-12"].join(" ")}>
+          {/* subtle separator + glass background */}
+          <div className="px-4 pb-1 flex items-center justify-center">
+            {/* shadow-[0_12px_40px_rgba(0,0,0,0.45)] */}
+            <div className="flex rounded-2xl pl-1 bg-black/0 backdrop-blur-md">
+              <div className="flex flex-col gap-4 px-2 py-0 md:flex-row md:items-center md:justify-between">
+                {/* Left: page label (small, muted) */}
+                <div className="flex items-center gap-2 text-sm text-white/70">
+                  <span className="inline-flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-white/40" />
+                    {m.search.resultBody.page.replace(
+                      "{page}",
+                      String(pageIdx + 1)
+                    )}
+                  </span>
 
-            <div className="flex items-center justify-center gap-1 flex-row mt-2 text-sm">
-              <button
-                type="button"
-                onClick={onPrevPage}
-                disabled={!canPrev}
-                className={`flex items-center justify-center px-8 minw-16 h-16 rounded-sm border border-xgray400 hover:opacity-90 ${canPrev ? "cursor-pointer" : "opacity-40 cursor-not-allowed"
-                  }`}
-              >
-                {m.search.resultBody.previous}
-              </button>
+                  {isFetchingNextPage ? (
+                    <span className="text-white/50">
+                      {m.search.resultBody.loadingSuffix}
+                    </span>
+                  ) : null}
 
-              <button
-                type="button"
-                onClick={onNextPage}
-                disabled={!canNext || isFetchingNextPage || isStreaming}
-                className={`flex items-center justify-center px-8 minw-16 h-16 bg-accenta1 text-black rounded-sm hover:opacity-90 ${canNext && !isFetchingNextPage && !isStreaming
-                  ? "cursor-pointer"
-                  : "opacity-40 cursor-not-allowed"
-                  }`}
-              >
-                <div>
-                  {m.search.resultBody.next}
-                  {nextWillCharge
-                    ? m.search.resultBody.credit.withCredit
-                    : m.search.resultBody.credit.noCredit}
+                  {pageIdxRaw > maxPrefetchPages ? (
+                    <span className="ml-2 text-white/35">
+                      {m.search.resultBody.capped.replace(
+                        "{cap}",
+                        String(maxPrefetchPages + 1)
+                      )}
+                    </span>
+                  ) : null}
                 </div>
-              </button>
+
+                {/* Right: controls */}
+                <div className="flex text-[13px] items-center justify-between gap-2 md:justify-end">
+                  <button
+                    type="button"
+                    onClick={onPrevPage}
+                    disabled={!canPrev}
+                    className={[
+                      "inline-flex items-center justify-center",
+                      "h-11 px-4 md:px-5 rounded-xl",
+                      "border border-white/10 bg-white/5",
+                      " text-white/80",
+                      "transition",
+                      canPrev
+                        ? "hover:bg-white/10 hover:border-white/15 active:scale-[0.99]"
+                        : "opacity-40 cursor-not-allowed",
+                    ].join(" ")}
+                  >
+                    <span className="mr-2 text-white/60">←</span>
+                    {m.search.resultBody.previous}
+                  </button>
+
+                  <div className="hidden md:block w-px h-8 bg-white/10" />
+
+                  <button
+                    type="button"
+                    onClick={onNextPage}
+                    disabled={!canNext || isFetchingNextPage || isStreaming}
+                    className={[
+                      "inline-flex items-center justify-center",
+                      "h-11 px-4 md:px-5 rounded-xl",
+                      "bg-accenta1 text-black",
+                      "font-medium",
+                      "transition",
+                      canNext && !isFetchingNextPage && !isStreaming
+                        ? "hover:brightness-95 active:scale-[0.99]"
+                        : "opacity-40 cursor-not-allowed",
+                    ].join(" ")}
+                  >
+                    {m.search.resultBody.next}
+                    {nextWillCharge
+                      ? m.search.resultBody.credit.withCredit
+                      : m.search.resultBody.credit.noCredit}
+                    <span className="ml-2 text-black/60">→</span>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        )}
+        </div>
+      )}
     </div>
   );
 }

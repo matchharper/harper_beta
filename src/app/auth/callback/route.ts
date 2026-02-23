@@ -1,30 +1,12 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const code = url.searchParams.get("code");
-  const lid = url.searchParams.get("lid");
-  const countryLang = url.searchParams.get("cl");
-  const abtestType = url.searchParams.get("ab");
+  const redirectUrl = new URL("/auths/callback", url.origin);
 
-  if (code) {
-    await supabase.auth.exchangeCodeForSession(code);
-  }
-  if (lid) {
-    const { data } = await supabase.auth.getUser();
-    console.log("\n\n 🐙 data : ", data);
-    const email = data.user?.email;
-    if (email) {
-      await supabase.from("landing_logs").insert({
-        local_id: lid,
-        type: `login_email:${email}`,
-        abtest_type: abtestType,
-        is_mobile: null,
-        country_lang: countryLang,
-      });
-    }
-  }
+  url.searchParams.forEach((value, key) => {
+    redirectUrl.searchParams.set(key, value);
+  });
 
-  return NextResponse.redirect(new URL("/auths/callback", url.origin));
+  return NextResponse.redirect(redirectUrl);
 }

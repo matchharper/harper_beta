@@ -20,6 +20,12 @@ import ScoutEmptyState from "@/components/scout/ScoutEmptyState";
 
 type AutomationRow = Database["public"]["Tables"]["automation"]["Row"];
 const PAGE_SIZE = 10;
+const DEFAULT_AUTOMATION_TITLE = "Scout";
+
+function normalizeAutomationTitle(title?: string | null) {
+  const normalized = String(title ?? "").trim();
+  return normalized.length > 0 ? normalized : DEFAULT_AUTOMATION_TITLE;
+}
 
 async function fetchAutomations(userId: string) {
   const { data, error } = await supabase
@@ -227,6 +233,39 @@ export default function AutomationIndexPage() {
     [qc, userId]
   );
 
+  const handleRenameTitle = useCallback(
+    async (automationId: string, title: string) => {
+      if (!automationId || !userId) return null;
+      const nextTitle = normalizeAutomationTitle(title);
+      const currentTitle = normalizeAutomationTitle(
+        items.find((item) => item.id === automationId)?.title
+      );
+      if (nextTitle === currentTitle) return nextTitle;
+
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from("automation")
+        .update({
+          title: nextTitle,
+          last_updated_at: now,
+        })
+        .eq("id", automationId)
+        .eq("user_id", userId);
+
+      if (error) {
+        showToast({
+          message: "제목 저장에 실패했습니다. 다시 시도해주세요.",
+          variant: "white",
+        });
+        return null;
+      }
+
+      await qc.invalidateQueries({ queryKey: ["automation", userId] });
+      return nextTitle;
+    },
+    [items, qc, userId]
+  );
+
   return (
     <AppLayout initialCollapse={false}>
       <div className="min-h-screen w-full text-white">
@@ -273,6 +312,7 @@ export default function AutomationIndexPage() {
                     setExpandedId={setExpandedId}
                     expandedId={expandedId}
                     onRequestAction={handleRequestAction}
+                    onRenameTitle={handleRenameTitle}
                     isActionLoading={isSaving}
                     resultCount={resultCountByAutomationId[item.id] ?? 0}
                   />
