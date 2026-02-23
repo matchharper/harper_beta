@@ -116,9 +116,9 @@ const ScoutCard = ({
       }}
       className={`relative flex flex-col items-start justify-between gap-1 border border-white/10 rounded-xl bg-white/5 px-5 py-4 text-left transition hover:bg-white/10 ${isExpanded ? "border-accenta1" : ""}`}
     >
-      <div className="flex items-start justify-between">
+      <div className="w-full flex items-start justify-between">
         <div className="flex flex-col gap-2 text-white">
-          <div className="text-base font-medium flex items-center gap-1">
+          <div className="text-base font-medium flex items-center gap-1 w-full">
             {isEditingTitle ? (
               <input
                 ref={titleInputRef}
@@ -146,7 +146,7 @@ const ScoutCard = ({
                     closeTitleEdit(true);
                   }
                 }}
-                className="h-7 min-w-[140px] rounded-md border border-white/15 bg-white/5 px-2 text-base font-medium text-white outline-none focus:border-white/40"
+                className="h-7 w-full min-w-[300px] rounded-md border border-white/15 bg-white/5 px-2 text-base font-medium text-white outline-none focus:border-white/40"
               />
             ) : (
               <button
