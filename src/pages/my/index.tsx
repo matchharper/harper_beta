@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import type { NextPage } from "next";
 import {
   ArrowUp,
@@ -21,8 +21,17 @@ import { ensureGroupBy } from "@/utils/textprocess";
 import { firstSqlPrompt } from "@/lib/prompt";
 import ConfirmModal from "@/components/Modal/ConfirmModal";
 
+const PLACEHOLDER_SWITCH_MS = 4500;
+const PLACEHOLDER_SLIDE_MS = 500;
+const PLACEHOLDER_LINE_HEIGHT_PX = 24;
+
 const Home: NextPage = () => {
   const [query, setQuery] = useState("");
+  const [placeholderIdx, setPlaceholderIdx] = useState(0);
+  const [nextPlaceholderIdx, setNextPlaceholderIdx] = useState<number | null>(
+    null
+  );
+  const [isPlaceholderAnimating, setIsPlaceholderAnimating] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { m } = useMessages();
   const [isNoCreditModalOpen, setIsNoCreditModalOpen] = useState(false);
@@ -30,9 +39,62 @@ const Home: NextPage = () => {
   const { companyUser } = useCompanyUserStore();
   const { credits } = useCredits();
   const router = useRouter();
+  const isQueryEmpty = query.trim().length === 0;
   const canSend = query.trim().length > 0 && credits && !isLoading;
+  const placeholderOptions = useMemo(() => {
+    if (m.home.queryPlaceholders?.length) {
+      return m.home.queryPlaceholders;
+    }
+    return [m.home.queryPlaceholder];
+  }, [m.home.queryPlaceholder, m.home.queryPlaceholders]);
+  const activePlaceholder =
+    placeholderOptions[placeholderIdx % placeholderOptions.length] ??
+    m.home.queryPlaceholder;
+  const incomingPlaceholder =
+    placeholderOptions[
+      (nextPlaceholderIdx ?? placeholderIdx + 1) % placeholderOptions.length
+    ] ?? activePlaceholder;
 
   const qc = useQueryClient();
+
+  useEffect(() => {
+    setPlaceholderIdx((prev) => prev % placeholderOptions.length);
+    setNextPlaceholderIdx(null);
+    setIsPlaceholderAnimating(false);
+  }, [placeholderOptions.length]);
+
+  useEffect(() => {
+    if (!isQueryEmpty) {
+      setNextPlaceholderIdx(null);
+      setIsPlaceholderAnimating(false);
+      return;
+    }
+    if (placeholderOptions.length <= 1 || isPlaceholderAnimating) return;
+
+    const timer = window.setTimeout(() => {
+      setNextPlaceholderIdx((placeholderIdx + 1) % placeholderOptions.length);
+      setIsPlaceholderAnimating(true);
+    }, PLACEHOLDER_SWITCH_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    isPlaceholderAnimating,
+    isQueryEmpty,
+    placeholderIdx,
+    placeholderOptions.length,
+  ]);
+
+  useEffect(() => {
+    if (!isPlaceholderAnimating || nextPlaceholderIdx === null) return;
+
+    const timer = window.setTimeout(() => {
+      setPlaceholderIdx(nextPlaceholderIdx);
+      setNextPlaceholderIdx(null);
+      setIsPlaceholderAnimating(false);
+    }, PLACEHOLDER_SLIDE_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [isPlaceholderAnimating, nextPlaceholderIdx]);
 
   const onSubmit = async (e?: React.FormEvent) => {
     setIsLoading(true);
@@ -145,17 +207,43 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
 
           <form className="mt-8 w-full max-w-[640px]">
             <div className="w-full relative rounded-3xl p-1 bg-white/5 border border-white/10">
-              <div className="rounded-2xl backdrop-blur-xl">
+              <div className="relative rounded-2xl backdrop-blur-xl">
+                {isQueryEmpty && (
+                  <div
+                    className="pointer-events-none absolute left-4 right-20 top-4 h-6 overflow-hidden text-[15px] leading-6 text-hgray600"
+                    aria-hidden="true"
+                  >
+                    <div
+                      className="flex flex-col"
+                      style={{
+                        transition: isPlaceholderAnimating
+                          ? `transform ${PLACEHOLDER_SLIDE_MS}ms ease-out`
+                          : "none",
+                        transform: isPlaceholderAnimating
+                          ? `translateY(-${PLACEHOLDER_LINE_HEIGHT_PX}px)`
+                          : "translateY(0)",
+                      }}
+                    >
+                      <div className="h-6 whitespace-nowrap overflow-hidden text-ellipsis">
+                        {activePlaceholder}
+                      </div>
+                      <div className="h-6 whitespace-nowrap overflow-hidden text-ellipsis">
+                        {incomingPlaceholder}
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <textarea
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder={m.home.queryPlaceholder}
+                  placeholder=""
+                  aria-label={m.home.queryPlaceholder}
                   rows={4}
                   autoFocus={true}
                   className={[
                     "w-full resize-none rounded-2xl bg-transparent",
                     "px-4 py-4 text-[15px] leading-6 text-white/95",
-                    "placeholder:text-hgray600",
+                    "placeholder:text-transparent",
                     "outline-none",
                     "min-h-[140px]",
                     "disabled:cursor-not-allowed disabled:opacity-60",

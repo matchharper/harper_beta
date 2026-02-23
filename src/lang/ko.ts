@@ -11,7 +11,12 @@ export const ko = {
     title: "코드를 입력해주세요.",
     description:
       "하퍼는 현재 비공개 베타 중입니다. 초대 코드를 입력해주세요.\n초대코드가 필요하신분은 대기자 명단에 등록해주세요.",
+    nameTitle: "이름을 입력해주세요.",
+    nameDescription:
+      "초대 코드가 확인되었습니다. 사용자분의 이름을 입력해주세요.",
+    namePlaceholder: "이름",
     placeholder: "초대 코드",
+    nameSubmit: "저장하기",
     submit: "입력하기",
     divider: "또는",
     waitlist: "사전 등록하기",
@@ -19,6 +24,8 @@ export const ko = {
     errors: {
       emptyCode: "초대 코드를 입력해주세요.",
       invalidCode: "초대 코드가 일치하지 않습니다.",
+      emptyName: "이름을 입력해주세요.",
+      saveNameFailed: "이름 저장에 실패했습니다. 다시 시도해주세요.",
     },
   },
   join: {
@@ -331,6 +338,13 @@ export const ko = {
   },
   home: {
     queryPlaceholder: "국내 대학을 졸업하고 미국 M7에서 AI/ML 경험 있는 사람",
+    queryPlaceholders: [
+      "국내 대학을 졸업하고 미국 M7에서 AI/ML 경험 있는 사람",
+      "네카라쿠배 출신 프로덕트 매니저 + 개발 역량 보유",
+      "CVPR / NeurIPS 논문 경험이 있는 비전·멀티모달 AI 리서처",
+      "Series A~C 스타트업에서 0→1 제품 출시를 이끈 백엔드 엔지니어",
+      "영어 커뮤니케이션이 가능하고 해외 고객 온보딩 경험이 있는 B2B 세일즈",
+    ],
     examples: [
       {
         label: "엔지니어",
@@ -417,7 +431,7 @@ export const ko = {
       loadingSuffix: " (로딩 중...)",
       capped: "({cap} 페이지로 제한됨)",
       previous: "이전",
-      next: "다음 10명 더 검색",
+      next: "다음 10명 더 보기",
       credit: {
         withCredit: " (크레딧 1 소모)",
         noCredit: " (크레딧 소모 없음)",

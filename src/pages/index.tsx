@@ -359,25 +359,40 @@ const CandidatePage = () => {
   }, [abtestType, addLog, countryLang]);
 
   const customLogin = useCallback(async (email: string, password: string) => {
-    logger.log("customLogin : ", email, password);
+    logger.log("customLogin :", email);
 
     try {
-      const { data } = await supabase.auth.signInWithPassword({
-        email,
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
         password,
       });
-      logger.log("성공 ", data);
 
-      if (data.user?.user_metadata.email_verified) {
-        setIsOpenLoginModal(false);
-        router.push("/invitation");
+      if (error) {
+        return { message: error.message };
       }
 
+      const user = data.user;
+      if (!user) {
+        return { message: m.auth.invalidAccount };
+      }
+
+      const isEmailConfirmed = Boolean(
+        user.email_confirmed_at || user.user_metadata?.email_verified
+      );
+      if (!isEmailConfirmed) {
+        return { message: m.auth.emailConfirmationSent };
+      }
+
+      setIsOpenLoginModal(false);
+      router.push("/invitation");
       return null;
-    } catch {
-      return null;
+    } catch (error) {
+      if (error instanceof Error && error.message) {
+        return { message: error.message };
+      }
+      return { message: m.auth.invalidAccount };
     }
-  }, []);
+  }, [m.auth.emailConfirmationSent, m.auth.invalidAccount]);
 
   const copyVariant = useMemo(() => {
     const defaultCopy = {
@@ -409,7 +424,7 @@ const CandidatePage = () => {
         heroSubtitle:
           "어떤 조건이던 AI 검색 엔진이<br />원하는 프로필을 가진 사람을 즉시 찾아드려요.",
         section1BodyLine2: "Harper는 리크루팅의 미래를 새롭게 정의합니다.",
-        closingHeadlineLine2: "리크루팅의 미래를 경험하세요.",
+        closingHeadlineLine2: "사람을 찾는 방식을 바꾸세요.",
       };
     }
 
@@ -435,7 +450,7 @@ const CandidatePage = () => {
       return {
         title: "Harper | 스타트업 채용을 위한 AI 리크루터",
         description:
-          "Harper는 AI 기반 검색과 분석으로 스타트업 팀이 적합한 인재를 더 빠르게 찾도록 돕습니다.",
+          "Harper는 인터넷의 모든 정보를 사용하여 원하는 사람을 찾을 수 있게 도와주는 리크루팅을 위한 도구입니다.",
         ogLocale: "ko_KR",
         language: "ko-KR",
       };

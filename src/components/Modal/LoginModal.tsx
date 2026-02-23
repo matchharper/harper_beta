@@ -1,11 +1,13 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import { useMessages } from "@/i18n/useMessage";
 import { supabase } from "@/lib/supabase";
+
+type LoginResult = { message?: string } | null;
 
 interface LoginModalProps {
   open: boolean;
   onClose: () => void;
-  onConfirm: (email: string, password: string) => Promise<any>;
+  onConfirm: (email: string, password: string) => Promise<LoginResult>;
 
   // (optional) 소셜 로그인 핸들러가 있으면 넘겨서 사용
   onGoogle?: () => void;
@@ -47,22 +49,71 @@ const LoginModal = ({
   const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError] = useState("");
   const [needsEmailConfirmation, setNeedsEmailConfirmation] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!open) return null;
 
+  const resetAuthForm = () => {
+    setEmail("");
+    setPassword("");
+    setConfirmPassword("");
+    setError("");
+    setNeedsEmailConfirmation(false);
+  };
+
+  const switchToSignUp = () => {
+    resetAuthForm();
+    setIsSignUp(true);
+  };
+
+  const switchToLogin = () => {
+    resetAuthForm();
+    setIsSignUp(false);
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSignUp) {
-      const data = await signUpWithEmailPassword(email, password);
-      if (data && data.needsEmailConfirmation) {
-        setNeedsEmailConfirmation(true);
+    if (isSubmitting) return;
+
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail) {
+      setError("이메일을 입력해주세요.");
+      return;
+    }
+    if (!password) {
+      setError("비밀번호를 입력해주세요.");
+      return;
+    }
+    if (isSignUp && password !== confirmPassword) {
+      setError("비밀번호가 일치하지 않습니다.");
+      return;
+    }
+
+    setError("");
+    setIsSubmitting(true);
+    try {
+      if (isSignUp) {
+        const data = await signUpWithEmailPassword(normalizedEmail, password);
+        if (!data) {
+          return;
+        }
+        if (data.needsEmailConfirmation) {
+          setNeedsEmailConfirmation(true);
+          return;
+        }
+
+        if (typeof window !== "undefined") {
+          window.location.assign("/auths/callback");
+        }
         return;
       }
-    } else {
-      const data = await onConfirm(email, password);
-      if (data) {
-        setError(m.auth.invalidAccount);
+
+      const data = await onConfirm(normalizedEmail, password);
+      if (data?.message) {
+        setError(data.message);
       }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -70,10 +121,26 @@ const LoginModal = ({
     email: string,
     password: string
   ): Promise<any> => {
-    const redirectTo =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/auth/callback`
-        : undefined;
+    let redirectTo: string | undefined;
+    if (typeof window !== "undefined") {
+      const redirectUrl = new URL("/auths/callback", window.location.origin);
+      const landingId = localStorage.getItem("harper_landing_id_0209");
+      if (landingId) {
+        redirectUrl.searchParams.set("lid", landingId);
+      }
+      const searchParams = new URLSearchParams(window.location.search);
+      const countryLang = searchParams.get("cl");
+      if (countryLang) {
+        redirectUrl.searchParams.set("cl", countryLang);
+      }
+      const abtestType =
+        searchParams.get("ab") ??
+        localStorage.getItem("harper_company_abtest_type_2026_02");
+      if (abtestType) {
+        redirectUrl.searchParams.set("ab", abtestType);
+      }
+      redirectTo = redirectUrl.toString();
+    }
 
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -130,33 +197,30 @@ const LoginModal = ({
             </div>
           ) : (
             <>
-              {!isSignUp && (
-                <>
-                  {/* Social buttons */}
-                  <div className="space-y-3 mt-2">
-                    <button
-                      type="button"
-                      onClick={onGoogle}
-                      className="w-full py-2 text-[13px] rounded-md bg-white hover:bg-accenta1 transition duration-300 flex items-center justify-center gap-3 text-hgray100"
-                    >
-                      <GoogleIcon />
-                      <span className="font-medium">{m.auth.continueWithGoogle}</span>
-                    </button>
-                  </div>
+              {/* Social buttons */}
+              <div className="space-y-3 mt-2">
+                <button
+                  type="button"
+                  onClick={onGoogle}
+                  disabled={isSubmitting}
+                  className="w-full py-3 text-[13px] rounded-md bg-white hover:bg-accenta1 transition duration-300 flex items-center justify-center gap-3 text-hgray100"
+                >
+                  <GoogleIcon />
+                  <span className="font-medium">{m.auth.continueWithGoogle}</span>
+                </button>
+              </div>
 
-                  {/* <div className="mt-6 mb-2 flex items-center gap-4">
-                    <div className="h-px flex-1 bg-hgray500" />
-                    <div className="text-xs font-normal tracking-widest text-hgray500">
-                      OR
-                    </div>
-                    <div className="h-px flex-1 bg-hgray500" />
-                  </div> */}
-                </>
-              )}
+              <div className="mt-6 mb-2 flex items-center gap-4">
+                <div className="h-px flex-1 bg-hgray500" />
+                <div className="text-xs font-normal tracking-widest text-hgray500">
+                  OR
+                </div>
+                <div className="h-px flex-1 bg-hgray500" />
+              </div>
 
               {/* Form */}
               <form onSubmit={handleLogin} className="space-y-4">
-                {/* <div className="space-y-1">
+                <div className="space-y-1">
                   <label className="text-sm font-medium text-white">
                     이메일
                   </label>
@@ -165,6 +229,7 @@ const LoginModal = ({
                     onChange={(e) => setEmail(e.target.value)}
                     type="email"
                     autoComplete="email"
+                    disabled={isSubmitting}
                     placeholder={"m@example.com"}
                     className="w-full rounded-md text-sm font-light bg-hgray200 px-3 py-2.5 text-white placeholder:text-hgray500 outline-none focus:border-hgray500 focus:ring-2 focus:ring-hgray600/40"
                   />
@@ -182,10 +247,11 @@ const LoginModal = ({
                     onChange={(e) => setPassword(e.target.value)}
                     type="password"
                     autoComplete="current-password"
+                    disabled={isSubmitting}
                     placeholder=""
                     className="w-full rounded-md text-sm font-light bg-hgray200 px-3 py-2.5 text-white placeholder:text-hgray500 outline-none focus:border-hgray500 focus:ring-2 focus:ring-hgray600/40"
                   />
-                </div> */}
+                </div>
 
                 {isSignUp && (
                   <div className="space-y-1">
@@ -198,62 +264,50 @@ const LoginModal = ({
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       type="password"
                       autoComplete="current-password"
+                      disabled={isSubmitting}
                       placeholder=""
                       className="w-full rounded-md text-sm font-light bg-hgray200 px-3 py-2.5 text-white placeholder:text-hgray500 outline-none focus:border-hgray500 focus:ring-2 focus:ring-hgray600/40"
                     />
                   </div>
                 )}
+
+                {error && <div className="text-sm text-red-500 mt-2">{error}</div>}
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full py-2.5 text-sm rounded-md bg-accenta1 text-black font-medium hover:bg-accenta2 transition duration-300 mt-6 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSignUp ? "Sign up" : "Login"}
+                </button>
               </form>
 
-              {error && (
-                <div className="text-sm text-red-500 mt-2">{error}</div>
-              )}
-              {/* <button
-                type="submit"
-                onClick={handleLogin}
-                className="w-full py-2.5 text-sm rounded-md bg-accenta1 text-black font-medium hover:bg-accenta2 transition duration-300 mt-6"
-              >
-                {isSignUp ? "Sign up" : "Login"}
-              </button> */}
-
-              {/* {isSignUp ? (
-                <>
-                  <div className="pt-1 text-center text-sm font-light text-hgray700 mt-2">
-                    계정이 없으신가요?{" "}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEmail("");
-                        setPassword("");
-                        setError("");
-                        setIsSignUp(true);
-                      }}
-                      className="transition underline underline-offset-4 font-normal hover:text-white"
-                    >
-                      Sign up
-                    </button>
-                  </div>
-                </>
-              ) : (
+              {isSignUp ? (
                 <>
                   <div className="pt-1 text-center text-sm font-light text-hgray700 mt-2">
                     Already have an account?{" "}
                     <button
                       type="button"
-                      onClick={() => {
-                        setEmail("");
-                        setPassword("");
-                        setConfirmPassword("");
-                        setError("");
-                        setIsSignUp(false);
-                      }}
+                      onClick={switchToLogin}
                       className="transition underline underline-offset-4 font-normal hover:text-white"
                     >
                       Login
                     </button>
                   </div>
                 </>
-              )} */}
+              ) : (
+                <>
+                  <div className="pt-1 text-center text-sm font-light text-hgray700 mt-2">
+                    계정이 없으신가요?{" "}
+                    <button
+                      type="button"
+                      onClick={switchToSignUp}
+                      className="transition underline underline-offset-4 font-normal hover:text-white"
+                    >
+                      Sign up
+                    </button>
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>

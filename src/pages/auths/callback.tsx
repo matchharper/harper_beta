@@ -17,6 +17,16 @@ export default function AuthCallback() {
         typeof router.query.cl === "string" ? router.query.cl : null;
       const abtestType =
         typeof router.query.ab === "string" ? router.query.ab : null;
+      const code = typeof router.query.code === "string" ? router.query.code : "";
+
+      if (code) {
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(
+          code
+        );
+        if (exchangeError) {
+          console.error("exchangeCodeForSession error:", exchangeError);
+        }
+      }
 
       // 1) 여기서 getSession() 호출하면, supabase-js가 URL에 붙은 code를 처리해서 세션을 잡는 경우가 많음
       await supabase.auth.getSession();

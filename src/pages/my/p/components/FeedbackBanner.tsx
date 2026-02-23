@@ -83,7 +83,7 @@ const FeedbackBar = ({
               <ActionButton
                 kind="like"
                 active={state.liked}
-                disabled={false}
+                disabled={state.passed}
                 onClick={() => setOpenLike(true)}
                 label={state.liked ? "등록됨" : "좋아요"}
                 icon={Check}
@@ -91,7 +91,7 @@ const FeedbackBar = ({
               <ActionButton
                 kind="pass"
                 active={state.passed}
-                disabled={false}
+                disabled={state.liked}
                 onClick={() => setOpenPass(true)}
                 label={state.passed ? "Skipped" : "아쉬워요"}
                 icon={X}

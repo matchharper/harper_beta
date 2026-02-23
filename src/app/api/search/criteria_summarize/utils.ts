@@ -8,7 +8,7 @@ export const generateSummary = async (
   raw_input_text: string
 ) => {
   let information = "";
-  try{
+  try {
     information = buildSummary(doc);
     // logger.log("information for generating summary:", information);
   } catch (e) {
@@ -66,6 +66,8 @@ export const generateOneLineSummary = async (doc: string) => {
 - 꼭 한글로 작성해줘. 지칭할 때는 직접 이름을 쓰지 말고 <name>님 이라고 태그와 name이라는 변수로 해줘.
 - 적히진 않은 내용을 만들어내거나 지나치게 띄워주는 말은 하지마. 차세대 인재이자 리더라던가 등등 이런 과장된거 하지마. 적혀있으면 몰라도.
 - 중요한 기술적 키워드 명사나 고유명사는 영어가 더 정확한 표현이라면 영어로 해도 됨. 그래도 최대한 한글로 적어줘.
+- 한국의 대학교나 회사의 경우는 이름이 영어로 적혀있더라도 가능하면 한글로 말해줘. 회사의 규모가 작아서 유명하지 않고, 회사이름이 영어라면 그대로 영어로(Furiosa AI 등)
+- 문단을 구분하고 싶으면 <br/> 태그를 사용해도 됨.
 
 ## 예시
 Information : 생략

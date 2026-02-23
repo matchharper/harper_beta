@@ -12,7 +12,11 @@ export const en = {
     title: "Please enter your code.",
     description:
       "Harper is currently in private beta. Enter your invite code below.\nIf you need a code, join the waitlist.",
+    nameTitle: "Please enter your name.",
+    nameDescription: "Invite code verified. Please enter the name you want to use.",
+    namePlaceholder: "Name",
     placeholder: "Invite code",
+    nameSubmit: "Save",
     submit: "Enter",
     divider: "OR",
     waitlist: "Join waitlist",
@@ -20,6 +24,8 @@ export const en = {
     errors: {
       emptyCode: "Please enter the invite code.",
       invalidCode: "Invite code doesn't match.",
+      emptyName: "Please enter your name.",
+      saveNameFailed: "Failed to save your name. Please try again.",
     },
   },
   join: {
@@ -324,6 +330,13 @@ export const en = {
   home: {
     queryPlaceholder:
       "Graduated from a domestic university and has AI/ML experience at a US M7 company",
+    queryPlaceholders: [
+      "Graduated from a domestic university and has AI/ML experience at a US M7 company",
+      "Product Manager with experience at Naver/Kakao/Line/Coupang/Baemin + strong development skills",
+      "AI researcher with CVPR/NeurIPS publications in vision or multimodal models",
+      "Backend engineer who led a 0-to-1 product launch in a Series A-C startup",
+      "B2B sales professional with strong English communication and global onboarding experience",
+    ],
     examples: [
       {
         label: "Engineer",

@@ -5,21 +5,31 @@ import CandidateCard from "./CandidatesList";
 import { useSettingStore } from "@/store/useSettingStore";
 import { supabase } from "@/lib/supabase";
 import { Tooltips } from "./ui/tooltip";
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsLeftRight, Columns2, Table } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsLeftRight,
+  Columns2,
+  Table,
+} from "lucide-react";
 import { useLogEvent } from "@/hooks/useLog";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
+const INDEX_COLUMN_WIDTH = "56px";
 
 const CandidateViews = ({
   items,
   userId,
   criterias = [],
   isMyList = false,
+  indexStart = 0,
 }: {
   items: any[];
   userId: string;
   criterias: string[];
   isMyList?: boolean;
+  indexStart?: number;
 }) => {
   const { viewType, setViewType } = useSettingStore();
   const [isFolded, setIsFolded] = useState(false);
@@ -31,17 +41,15 @@ const CandidateViews = ({
 
   const changeViewType = async (type: "table" | "card") => {
     setViewType(type);
-    if (userId)
-      await logEvent(type);
-
+    if (userId) await logEvent(type);
   };
 
   const criteriaList = useMemo(() => asArr(criterias), [criterias]);
   const gridTemplateColumns = useMemo(() => {
-    // Candidate | Company | Location | School | (criteria * N) | Actions
-    const fixed = [isMyList ? "460px" : "280px"];
+    // Index | Candidate | (criteria * N) | Company | School | Actions
+    const fixed = [INDEX_COLUMN_WIDTH, isMyList ? "460px" : "280px"];
     const defaultCols = isMyList ? "320px" : "240px";
-    const criteriaCols = criteriaList.map(() => isFolded ? "60px" : "140px"); // 한 criteria는 작은 칸
+    const criteriaCols = criteriaList.map(() => (isFolded ? "60px" : "140px")); // 한 criteria는 작은 칸
     const actions = ["80px"];
 
     if (criterias.length === 0)
@@ -53,21 +61,23 @@ const CandidateViews = ({
       defaultCols,
       ...actions,
     ].join(" ");
-  }, [criteriaList, isFolded]);
+  }, [criteriaList, criterias.length, isFolded, isMyList]);
 
   return (
     <div className="w-full relative h-full">
       {items.length > 0 && (
         <div
-          className={`${viewType === "table" ? "w-full " : "w-full"
-            } flex flex-row items-center justify-between mt-2`}
+          className={`${
+            viewType === "table" ? "w-full " : "w-full"
+          } flex flex-row items-center justify-between mt-2 px-4`}
         >
           <div></div>
           <div className="flex flex-row items-center justify-start gap-2">
             <Tooltips text="Table view">
               <button
-                className={`cursor-pointer p-1.5 rounded-sm hover:bg-white/10 transition-all duration-200 ${viewType === "table" ? "bg-white/10" : ""
-                  }`}
+                className={`cursor-pointer p-1.5 rounded-sm hover:bg-white/10 transition-all duration-200 ${
+                  viewType === "table" ? "bg-white/10" : ""
+                }`}
                 onClick={() => changeViewType("table")}
               >
                 <Table className="w-4 h-4" strokeWidth={1.6} />
@@ -75,8 +85,9 @@ const CandidateViews = ({
             </Tooltips>
             <Tooltips text="Card view">
               <button
-                className={`cursor-pointer p-1.5 rounded-sm hover:bg-white/10 transition-all duration-200 ${viewType === "card" ? "bg-white/10" : ""
-                  }`}
+                className={`cursor-pointer p-1.5 rounded-sm hover:bg-white/10 transition-all duration-200 ${
+                  viewType === "card" ? "bg-white/10" : ""
+                }`}
                 onClick={() => changeViewType("card")}
               >
                 <Columns2 className="w-4 h-4" strokeWidth={1.6} />
@@ -86,19 +97,20 @@ const CandidateViews = ({
         </div>
       )}
       {viewType === "table" && items.length > 0 && (
-        <div className="w-full mt-4 h-full flex">
+        <div className="w-full mt-2 h-full flex">
           <div
-            className="w-full overflow-x-auto pb-52
+            className="w-full overflow-x-auto pb-26
             [scrollbar-width:none]
             [-ms-overflow-style:none]
             [&::-webkit-scrollbar]:hidden"
           >
             <div className="w-max min-w-full">
               <div
-                className="inline-grid items-center py-2 text-xs text-hgray800 font-light bg-hgray200 border border-white/5 w-full relative"
+                className="inline-grid items-center py-2 text-xs text-hgray800 font-light bg-hgray200 border-y border-white/5 w-full relative"
                 style={{ gridTemplateColumns }}
               >
-                <div className="sticky left-0 z-30 px-4 bg-hgray200 border-r border-white/5">
+                <div className="sticky left-0 z-30 bg-hgray200 w-full border-r border-white/5 h-full" />
+                <div className="sticky left-14 z-30 px-4 bg-hgray200 border-r border-white/5">
                   프로필
                 </div>
 
@@ -111,16 +123,18 @@ const CandidateViews = ({
                             {criteria}
                           </div>
                         </Tooltips>
-                        {
-                          idx === criteriaList.length - 1 && (
-                            <div onClick={toggleFold} className="absolute top-[-8px] right-0 bg-hgray300 p-0.5 rounded-bl-lg cursor-pointer h-4 w-4 hover:bg-hgray400 transition-colors duration-200">
-                              {
-                                isFolded ?
-                                  <ChevronRight className="w-3 h-3 absolute top-[1px] right-[1px]" /> :
-                                  <ChevronLeft className="w-3 h-3 absolute top-[1px] right-[1px]" />
-                              }
-                            </div>)
-                        }
+                        {idx === criteriaList.length - 1 && (
+                          <div
+                            onClick={toggleFold}
+                            className="absolute top-[-8px] right-0 bg-hgray300 p-0.5 rounded-bl-lg cursor-pointer h-4 w-4 hover:bg-hgray400 transition-colors duration-200"
+                          >
+                            {isFolded ? (
+                              <ChevronRight className="w-3 h-3 absolute top-[1px] right-[1px]" />
+                            ) : (
+                              <ChevronLeft className="w-3 h-3 absolute top-[1px] right-[1px]" />
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </>
@@ -131,8 +145,8 @@ const CandidateViews = ({
               </div>
 
               {/* Rows */}
-              <div className="border-x border-white/5">
-                {items.map((c: any) => (
+              <div className="">
+                {items.map((c: any, idx: number) => (
                   <CandidateRow
                     isMyList={isMyList}
                     key={c?.id}
@@ -140,6 +154,7 @@ const CandidateViews = ({
                     userId={userId}
                     criterias={criterias}
                     gridTemplateColumns={gridTemplateColumns}
+                    rowIndex={indexStart + idx}
                   />
                 ))}
               </div>

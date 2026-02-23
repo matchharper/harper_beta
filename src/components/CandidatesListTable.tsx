@@ -8,12 +8,19 @@ import {
   majorEnToKo,
 } from "@/utils/language_map";
 import Bookmarkbutton from "./ui/bookmarkbutton";
-import { GraduationCap, BriefcaseBusiness, XIcon, CheckIcon } from "lucide-react";
+import {
+  GraduationCap,
+  BriefcaseBusiness,
+  XIcon,
+  CheckIcon,
+} from "lucide-react";
 import router from "next/router";
 import { Avatar } from "./NameProfile";
 import { Tooltips } from "./ui/tooltip";
 import SummaryCell, { SynthItem } from "./information/SummaryCell";
 import { useLogEvent } from "@/hooks/useLog";
+import Image from "next/image";
+import { getSchoolLogo } from "@/utils/school_logo";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
 
@@ -41,12 +48,14 @@ function CandidateRow({
   isMyList = false,
   criterias,
   gridTemplateColumns,
+  rowIndex,
 }: {
   c: CandidateTypeWithConnection;
   userId: string;
   isMyList?: boolean;
   criterias: string[];
   gridTemplateColumns: string;
+  rowIndex: number;
 }) {
   const candidId = c.id;
   const logEvent = useLogEvent();
@@ -61,13 +70,24 @@ function CandidateRow({
     return parseSynthesizedSummary(rawText);
   }, [c.synthesized_summary]);
 
+  const companyLogo = useMemo(() => {
+    if (latestCompany?.company_db?.logo?.includes("media.licdn.com")) {
+      return "";
+    }
+    return latestCompany?.company_db?.logo;
+  }, [latestCompany]);
+
+  const schoolLogo = useMemo(() => {
+    return getSchoolLogo(latestEdu?.url);
+  }, [latestEdu]);
+
   return (
     <div className="w-full">
       <div
         role="row"
         onClick={() => {
           logEvent("candidate_card_click: " + candidId);
-          router.push(`/my/p/${candidId}`)
+          router.push(`/my/p/${candidId}`);
         }}
         className="group relative w-full border-b border-white/5 hover:bg-[#242424] transition-colors cursor-pointer"
       >
@@ -75,7 +95,10 @@ function CandidateRow({
           className="inline-grid items-center"
           style={{ gridTemplateColumns }}
         >
-          <div className="sticky left-0 z-20 h-full px-4 py-3 flex items-center gap-3 min-w-0 bg-hgray200 border-r border-white/5 group-hover:bg-[#242424] transition-colors cursor-pointer">
+          <div className="sticky left-0 z-30 h-full px-3 flex items-center justify-center text-xs text-hgray700 bg-hgray200 group-hover:bg-[#242424] transition-colors">
+            {rowIndex + 1}
+          </div>
+          <div className="sticky left-14 z-20 h-full px-4 py-3 flex items-center gap-3 min-w-0 bg-hgray200 border-r border-white/5 group-hover:bg-[#242424] transition-colors cursor-pointer">
             <div className="shrink-0 rounded-full border border-transparent hover:border-accenta1/80 transition-colors">
               <Avatar url={c.profile_picture} name={c.name} size="md" />
             </div>
@@ -94,7 +117,10 @@ function CandidateRow({
             >
               <div
                 className={
-                  isMyList || c.connection?.map((con: any) => con.typed).includes(0) ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                  isMyList ||
+                  c.connection?.map((con: any) => con.typed).includes(0)
+                    ? "opacity-100"
+                    : "opacity-0 group-hover:opacity-100"
                 }
               >
                 <Bookmarkbutton
@@ -109,7 +135,10 @@ function CandidateRow({
           </div>
 
           {criterias.map((criteria: string, idx: number) => (
-            <div key={`${candidId}-critwrap-${idx}`} className="min-w-0">
+            <div
+              key={`${candidId}-critwrap-${idx}`}
+              className="min-w-0 h-full flex items-center justify-center"
+            >
               <SummaryCell
                 key={`${candidId}-crit-${idx}`}
                 criteria={criteria}
@@ -120,26 +149,59 @@ function CandidateRow({
 
           <Cell
             title={
-              latestCompany?.company_db?.name
-                ? companyEnToKo(latestCompany.company_db.name)
-                : "-"
+              latestCompany?.company_db?.name ? (
+                <div className="flex flex-row items-center justify-start gap-x-2 min-w-0 relative">
+                  {companyLogo && (
+                    <img
+                      src={companyLogo}
+                      alt={latestCompany.company_db.name}
+                      className="w-4 h-4 rounded-full object-cover"
+                    />
+                  )}
+                  <span className="text-hgray800 font-normal break-words">
+                    {companyEnToKo(latestCompany.company_db.name)}
+                  </span>
+                </div>
+              ) : (
+                "-"
+              )
             }
             description={latestCompany?.role ?? "-"}
           />
           <Cell
             title={
-              latestEdu?.school ? koreaUniversityEnToKo(latestEdu.school) : "-"
+              latestEdu?.school ? (
+                <div className="flex flex-row items-center justify-start gap-x-2 min-w-0 relative">
+                  {schoolLogo && (
+                    <img
+                      src={schoolLogo}
+                      alt={latestEdu.school}
+                      className="w-4 h-4 rounded-full object-cover"
+                    />
+                  )}
+                  <span className="text-hgray800 font-normal break-words">
+                    {koreaUniversityEnToKo(latestEdu.school)}
+                  </span>
+                </div>
+              ) : (
+                "-"
+              )
             }
-            description={`${latestEdu?.field_of_study
-              ? majorEnToKo(latestEdu.field_of_study)
-              : ""
-              }
+            description={`${
+              latestEdu?.field_of_study
+                ? majorEnToKo(latestEdu.field_of_study)
+                : ""
+            }
                 ${latestEdu?.field_of_study && latestEdu?.degree ? " • " : ""}
                 ${latestEdu?.degree ? degreeEnToKo(latestEdu.degree) : ""}`}
           />
           <div className="flex flex-row items-center justify-center gap-3">
-            {c.connection?.map((con: any) => con.typed).includes(4) && <CheckIcon className="w-4 h-4 text-green-500" />}
-            {c.connection?.map((con: any) => con.typed).includes(5) && <XIcon className="w-4 h-4 text-red-500" />}
+            {c.connection?.map((con: any) => con.typed).includes(4) && (
+              <CheckIcon className="w-4 h-4 text-green-500" />
+            )}
+            {c.connection?.map((con: any) => con.typed).includes(5) && (
+              <XIcon className="w-4 h-4 text-red-500" />
+            )}
           </div>
         </div>
       </div>
@@ -153,7 +215,7 @@ const Cell = ({
   title,
   description,
 }: {
-  title: string;
+  title: string | React.ReactNode;
   description: string;
 }) => {
   return (
@@ -184,8 +246,9 @@ export const RoleBox = ({
   return (
     <div className="flex flex-col items-start gap-0 text-sm col-span-4">
       <Tooltips
-        text={`${startDate ? startDate : ""} ${startDate ? " - " : ""} ${endDate && endDate
-          } ${!endDate && startDate && "현재"}`}
+        text={`${startDate ? startDate : ""} ${startDate ? " - " : ""} ${
+          endDate && endDate
+        } ${!endDate && startDate && "현재"}`}
       >
         <div className="flex flex-row items-start justify-between w-full pr-8">
           <div className="flex flex-row items-start justify-start gap-x-2 min-w-0 relative">

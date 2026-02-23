@@ -57,7 +57,7 @@ export default function ResultHeader({
 
   return (
     <>
-      <div className="w-full h-full py-2 flex flex-row items-center justify-between px-4">
+      <div className="w-full h-full py-1 flex flex-row items-center justify-between px-4">
         <div className="text-sm text-hgray600 font-normal flex flex-row items-center justify-start gap-4">
           <div>
             {queryItem.company_users ? (

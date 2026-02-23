@@ -165,6 +165,123 @@ export const CriteriaItem = React.memo(function CriteriaItem({
   );
 });
 
+type QueryTextItemProps = {
+  text: string;
+  onConfirm: (next: string) => void;
+  placeholder?: string;
+};
+
+const QueryTextItem = React.memo(function QueryTextItem({
+  text,
+  onConfirm,
+  placeholder = "검색 query를 입력하세요.",
+}: QueryTextItemProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState(text);
+  const [isChanged, setIsChanged] = useState(false);
+
+  const rootRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (!isEditing) {
+      setDraft(text);
+      setIsChanged(false);
+    }
+  }, [text, isEditing]);
+
+  useEffect(() => {
+    if (!isEditing) return;
+    const t = setTimeout(() => {
+      inputRef.current?.focus();
+      const v = inputRef.current?.value ?? "";
+      inputRef.current?.setSelectionRange(v.length, v.length);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [isEditing]);
+
+  const cancel = () => {
+    setDraft(text);
+    setIsChanged(false);
+    setIsEditing(false);
+  };
+
+  const commit = () => {
+    const v = draft.trim();
+    if (!v) return cancel();
+    onConfirm(v);
+    setIsEditing(false);
+  };
+
+  useEffect(() => {
+    if (!isEditing) return;
+
+    const onMouseDown = (e: MouseEvent) => {
+      const el = rootRef.current;
+      if (!el) return;
+      if (!el.contains(e.target as Node)) cancel();
+    };
+
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, [isEditing, text, draft]);
+
+  return (
+    <div
+      ref={rootRef}
+      onClick={() => {
+        if (!isEditing) setIsEditing(true);
+      }}
+      className={`relative mt-2 rounded-2xl px-3 pt-2 transition-all duration-200 cursor-pointer hover:bg-white/5
+        ${isEditing ? "border border-white/5 bg-white/5 pb-6" : "border border-white/0 pb-2"}`}
+    >
+      {!isEditing ? (
+        <div
+          className={`text-xs whitespace-pre-wrap leading-relaxed ${
+            text ? "text-hgray700" : "text-hgray600"
+          }`}
+        >
+          {text || placeholder}
+        </div>
+      ) : (
+        <>
+          <textarea
+            ref={inputRef}
+            value={draft}
+            rows={3}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              setIsChanged(e.target.value !== text);
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") cancel();
+              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                e.preventDefault();
+                commit();
+              }
+            }}
+            className="w-full resize-none bg-transparent outline-none text-xs text-hgray900 leading-relaxed pr-14"
+          />
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              commit();
+            }}
+            className={`absolute bottom-2 right-2 text-xs transition-all duration-200 ${
+              isChanged ? "text-accenta1" : "text-hgray600"
+            }`}
+          >
+            Confirm
+          </button>
+        </>
+      )}
+    </div>
+  );
+});
+
 export const CriteriaCard = React.memo(function CriteriaCard({
   block,
   onConfirm,
@@ -212,6 +329,12 @@ export const CriteriaCard = React.memo(function CriteriaCard({
     setPendingAdd(false);
   };
 
+  const updateQueryText = (value: string) => {
+    const next = { ...draft, thinking: value };
+    onChange?.(next);
+    setDraft(next);
+  };
+
   return (
     <div className="mt-2 w-full max-w-[440px]">
       <div className="text-xs text-hgray600 font-extralight flex flex-row items-center gap-1.5">
@@ -233,11 +356,10 @@ export const CriteriaCard = React.memo(function CriteriaCard({
           검색 방법
         </div>
 
-        {draft.thinking && (
-          <div className="mt-2 text-xs text-hgray700 whitespace-pre-wrap leading-relaxed">
-            {draft.thinking}
-          </div>
-        )}
+        <QueryTextItem
+          text={draft.thinking ?? ""}
+          onConfirm={updateQueryText}
+        />
 
         <div className="mt-3 text-xs text-hgray600">Criteria</div>
 

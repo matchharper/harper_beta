@@ -14,12 +14,26 @@ import { useMessages } from "@/i18n/useMessage";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useCountryLang } from "@/hooks/useCountryLang";
 
-const INITIAL_CREDIT = 10;
+const isMissingDisplayName = (name?: string | null) => {
+  const normalized = (name ?? "").trim();
+  return !normalized || normalized.toLowerCase() === "anonymous";
+};
+
+type InviteCodeRecord = {
+  id: string | number;
+  count: number | null;
+  credit: number | null;
+};
 
 export default function LoginSuccess() {
   const router = useRouter();
   const [code, setCode] = useState("");
+  const [nameInput, setNameInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isSwitchingInput, setIsSwitchingInput] = useState(false);
+  const [step, setStep] = useState<"code" | "name">("code");
+  const [verifiedInviteCode, setVerifiedInviteCode] =
+    useState<InviteCodeRecord | null>(null);
   const [invalidMessage, setInvalidMessage] = useState("");
   const [isShake, setIsShake] = useState(false);
   const [landingId, setLandingId] = useState("");
@@ -28,10 +42,12 @@ export default function LoginSuccess() {
   const interactiveRef = useRef<HTMLDivElement>(null);
   const hasLoggedEnterRef = useRef(false);
   const hasLoggedCodeInputRef = useRef(false);
+  const hasLoggedNameInputRef = useRef(false);
   const isMobile = useIsMobile();
   const countryLang = useCountryLang();
 
   const { companyUser, load } = useCompanyUserStore();
+  const isNameStep = step === "name";
 
   const addLog = async (type: string) => {
     const body = {
@@ -99,59 +115,151 @@ export default function LoginSuccess() {
     }
   }, [isShake]);
 
-  const checkCode = async () => {
+  const transitionToNameStep = async (inviteCodeData: InviteCodeRecord) => {
+    setVerifiedInviteCode(inviteCodeData);
+    setCode("");
+    setInvalidMessage("");
+    setIsSwitchingInput(true);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    setStep("name");
+    setIsSwitchingInput(false);
+  };
+
+  const completeInvitation = async (inviteCodeData: InviteCodeRecord) => {
+    const userId = companyUser?.user_id;
+    if (!userId) return;
+
+    const initialCredit =
+      typeof inviteCodeData.credit === "number" &&
+      Number.isFinite(inviteCodeData.credit)
+        ? inviteCodeData.credit
+        : 0;
+
+    const { error: authUpdateError } = await supabase
+      .from("company_users")
+      .update({
+        is_authenticated: true,
+      })
+      .eq("user_id", userId);
+
+    if (authUpdateError) {
+      throw authUpdateError;
+    }
+
+    if (!companyUser?.is_authenticated) {
+      const { error: creditsInsertError } = await supabase.from("credits").insert({
+        user_id: userId,
+        remain_credit: initialCredit,
+        charged_credit: initialCredit,
+        type: "initial",
+      });
+
+      if (creditsInsertError) {
+        throw creditsInsertError;
+      }
+
+      const nextCount =
+        (typeof inviteCodeData.count === "number" ? inviteCodeData.count : 0) + 1;
+      const { error: companyCodeUpdateError } = await supabase
+        .from("company_code")
+        .update({ count: nextCount })
+        .eq("id", inviteCodeData.id);
+
+      if (companyCodeUpdateError) {
+        console.error("company_code count update error:", companyCodeUpdateError);
+      }
+    }
+
+    await load(userId);
+    router.push("/my");
+  };
+
+  const saveName = async () => {
+    const userId = companyUser?.user_id;
+    if (!userId) return;
+
+    if (!verifiedInviteCode) {
+      setInvalidMessage(m.invitation.errors.invalidCode);
+      setStep("code");
+      return;
+    }
+
+    const normalizedName = nameInput.trim();
+    if (!normalizedName) {
+      setIsShake(true);
+      setInvalidMessage(m.invitation.errors.emptyName);
+      return;
+    }
+
     setIsLoading(true);
+    setInvalidMessage("");
+    try {
+      const { error } = await supabase
+        .from("company_users")
+        .update({ name: normalizedName })
+        .eq("user_id", userId);
+
+      if (error) {
+        throw error;
+      }
+
+      await completeInvitation(verifiedInviteCode);
+    } catch (error) {
+      console.error("save company user name error:", error);
+      setIsShake(true);
+      setInvalidMessage(m.invitation.errors.saveNameFailed);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const checkCode = async () => {
+    const userId = companyUser?.user_id;
+    if (!userId) return;
+
     const normalizedCode = code.trim();
 
     if (!normalizedCode) {
       setIsShake(true);
       setInvalidMessage(m.invitation.errors.emptyCode);
-      setIsLoading(false);
       return;
     }
 
-    supabase
-      .from("company_code")
-      .select("*")
-      .eq("code", normalizedCode)
-      .single()
-      .then(async (res) => {
-        if (res.data) {
-          await supabase
-            .from("company_users")
-            .update({
-              is_authenticated: true,
-            })
-            .eq("user_id", companyUser?.user_id);
-          if (!companyUser.is_authenticated) {
-            await supabase.from("credits").insert({
-              user_id: companyUser?.user_id,
-              remain_credit: INITIAL_CREDIT,
-              charged_credit: INITIAL_CREDIT,
-              type: "initial",
-            });
-            const nextCount =
-              (typeof res.data.count === "number" ? res.data.count : 0) + 1;
-            const { error: companyCodeUpdateError } = await supabase
-              .from("company_code")
-              .update({ count: nextCount })
-              .eq("id", res.data.id);
+    setIsLoading(true);
+    setInvalidMessage("");
+    try {
+      const { data, error: inviteCodeError } = await supabase
+        .from("company_code")
+        .select("id, count, credit")
+        .eq("code", normalizedCode)
+        .maybeSingle();
 
-            if (companyCodeUpdateError) {
-              console.error(
-                "company_code count update error:",
-                companyCodeUpdateError
-              );
-            }
-            await load(companyUser?.user_id);
-          }
-          router.push("/my");
-        } else {
-          setIsShake(true);
-          setInvalidMessage(m.invitation.errors.invalidCode);
-        }
+      if (inviteCodeError || !data) {
+        setIsShake(true);
+        setInvalidMessage(m.invitation.errors.invalidCode);
+        return;
+      }
+
+      const inviteCodeData: InviteCodeRecord = {
+        id: data.id as string | number,
+        count: (data.count as number | null) ?? null,
+        credit: (data.credit as number | null) ?? null,
+      };
+
+      if (isMissingDisplayName(companyUser?.name)) {
         setIsLoading(false);
-      });
+        await transitionToNameStep(inviteCodeData);
+        return;
+      }
+
+      await completeInvitation(inviteCodeData);
+    } catch (error) {
+      console.error("invite code check error:", error);
+      setIsShake(true);
+      setInvalidMessage(m.invitation.errors.invalidCode);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -171,10 +279,15 @@ export default function LoginSuccess() {
         {/* Heading */}
         <div className="">
           <h1 className="text-2xl md:text-4xl font-normal tracking-tight">
-            {m.invitation.title}
+            {isNameStep ? m.invitation.nameTitle : m.invitation.title}
           </h1>
           <p className="text-sm md:text-base font-light text-xgray500 leading-relaxed mt-8">
-            {m.invitation.description.split("\n").map((line) => (
+            {(isNameStep
+              ? m.invitation.nameDescription
+              : m.invitation.description
+            )
+              .split("\n")
+              .map((line) => (
               <React.Fragment key={line}>
                 {line}
                 <br />
@@ -191,40 +304,75 @@ export default function LoginSuccess() {
             }`}
           >
             {/* Invite code + continue */}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                checkCode();
-              }}
-              className="flex flex-col relative md:flex-row gap-3 md:gap-4 items-stretch"
+            <div
+              className={`transition-opacity duration-150 ${
+                isSwitchingInput ? "opacity-0 pointer-events-none" : "opacity-100"
+              }`}
             >
-              <input
-                type="text"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                onFocus={() => {
-                  if (!hasLoggedCodeInputRef.current) {
-                    hasLoggedCodeInputRef.current = true;
-                    addLog("click_invitation_code_input");
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (isNameStep) {
+                    saveName();
+                    return;
                   }
+                  checkCode();
                 }}
-                placeholder={m.invitation.placeholder}
-                className="flex-1 rounded-3xl w-full bg-white/10 border border-neutral-800/80 px-4 py-4 text-sm md:text-sm
-                transition-all duration-200 hover:border-xgray700
-                 placeholder:text-neutral-300 focus:outline-none font-light focus:ring-0.5 focus:ring-xgray600 focus:border-xgray600"
-              />
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="absolute right-2 top-[7px] flex items-center justify-center rounded-full bg-white/90 hover:bg-white/80 text-xgrayblack active:scale-95 transition-all duration-200 w-20 h-10 text-sm font-normal"
+                className={`flex flex-col gap-3 items-stretch ${
+                  isNameStep ? "" : "relative md:flex-row md:gap-4"
+                }`}
               >
-                {isLoading ? (
-                  <LoaderCircle size={16} className="animate-spin" />
-                ) : (
-                  m.invitation.submit
-                )}
-              </button>
-            </form>
+                <input
+                  type="text"
+                  value={isNameStep ? nameInput : code}
+                  onChange={(e) => {
+                    if (isNameStep) {
+                      setNameInput(e.target.value);
+                    } else {
+                      setCode(e.target.value);
+                    }
+                    if (invalidMessage) {
+                      setInvalidMessage("");
+                    }
+                  }}
+                  onFocus={() => {
+                    if (isNameStep) {
+                      if (!hasLoggedNameInputRef.current) {
+                        hasLoggedNameInputRef.current = true;
+                        addLog("click_invitation_name_input");
+                      }
+                      return;
+                    }
+
+                    if (!hasLoggedCodeInputRef.current) {
+                      hasLoggedCodeInputRef.current = true;
+                      addLog("click_invitation_code_input");
+                    }
+                  }}
+                  placeholder={
+                    isNameStep ? m.invitation.namePlaceholder : m.invitation.placeholder
+                  }
+                  className="flex-1 rounded-3xl w-full bg-white/10 border border-neutral-800/80 px-4 py-4 text-sm md:text-sm
+                  transition-all duration-200 hover:border-xgray700
+                   placeholder:text-neutral-300 focus:outline-none font-light focus:ring-0.5 focus:ring-xgray600 focus:border-xgray600"
+                />
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className={`flex items-center justify-center rounded-full bg-white/90 hover:bg-white/80 text-xgrayblack active:scale-95 transition-all duration-200 text-sm font-normal disabled:opacity-60 ${
+                    isNameStep
+                      ? "w-full py-3.5"
+                      : "absolute right-2 top-[7px] w-20 h-10"
+                  }`}
+                >
+                  {isLoading ? (
+                    <LoaderCircle size={16} className="animate-spin" />
+                  ) : (
+                    isNameStep ? m.invitation.nameSubmit : m.invitation.submit
+                  )}
+                </button>
+              </form>
+            </div>
 
             {invalidMessage && (
               <div className="text-sm text-red-500/90 mt-2">
