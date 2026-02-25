@@ -4,9 +4,13 @@ export const SCHOOL_LOGO_MAP: Record<string, string> = {
   // Ivy / Top US
   "142423":
     "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/yrDJxrp8kWrVegSOKAIKyVFaRqO1oLeAT51qGgXP6zgb-ifFrpG8yiguAalAao1s21eqdZgp2Jv8JPapjB9hDlaas3V_TLQOKFkEqcfeKbj6I-UiaIVpAnhpwmdodyUxo2LGmztWHN5D_8RRMiZ4VA.svg", // Harvard
+  "1646":
+    "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/yrDJxrp8kWrVegSOKAIKyVFaRqO1oLeAT51qGgXP6zgb-ifFrpG8yiguAalAao1s21eqdZgp2Jv8JPapjB9hDlaas3V_TLQOKFkEqcfeKbj6I-UiaIVpAnhpwmdodyUxo2LGmztWHN5D_8RRMiZ4VA.svg", // Harvard
   "17919":
     "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/owTXsc1QjzPSb9d2dEgquKY1J_INz4C2d-mkNnOHVtIQ3A64YQLGjT0Ja0MEoKL0sJHYilU6F7Ox1ThEX7VwXFe0KeUT3N-II_1lCw0K0Ovq0b69ZutoRAjEu7Ac3o7M62-O6GkhIOx0lfC2xvwFIg.svg", // Stanford
   "16396":
+    "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/0uWwEun2zGqrwpcC7JPhlNn6VRMn5m9dTS0NUVx0MUcUyGHEq6mt_TejCnIGyvGCWHHIh1Coceuq7EKqhorbe6Vja40mA7ZV0ry_XgY8R7G3ZC-5ImimJRKoD41RuyDW4bWhzjG8p7w8--_3ARcRKA.svg", // MIT
+  "1503":
     "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/0uWwEun2zGqrwpcC7JPhlNn6VRMn5m9dTS0NUVx0MUcUyGHEq6mt_TejCnIGyvGCWHHIh1Coceuq7EKqhorbe6Vja40mA7ZV0ry_XgY8R7G3ZC-5ImimJRKoD41RuyDW4bWhzjG8p7w8--_3ARcRKA.svg", // MIT
   "16504": "https://www.caltech.edu/favicon.ico", // Caltech
   "18951":
@@ -16,9 +20,21 @@ export const SCHOOL_LOGO_MAP: Record<string, string> = {
   "18483": "https://www.dartmouth.edu/favicon.ico", // Dartmouth
   "16369": "https://www.cornell.edu/favicon.ico", // Cornell
   "19016": "https://www.upenn.edu/favicon.ico", // UPenn
-  "2584": "", // 워싱턴
+  "2584":
+    "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/university_of_washington_logo.jpeg", // 워싱턴
+  "3558":
+    "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/georgia_institute_of_technology_logo.jpeg", // 조지아텍
+  "3147":
+    "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/carnegie_mellon_university_logo.jpeg", // CMU
+  "3159":
+    "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/new_york_university_logo.jpeg", // 뉴욕대
+  // "2477": "", // UCLA
+  "3523":
+    "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/1631339899678.jpeg", // 코넬
+  "": "",
 
-  칭와: "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/Cu_gVCIwkvNcl724fek5ZsHXLUTAsxo7lKHTYzjICbQdu65tJrGpJQf6kursNwBp5LCyO-yICGl4mc8oCpqdTFH8Ejf9M8AOSZeh5DKLkEshp2Xa99QAZlqtjjpOQ3NmjhnQ8uAdnM2LmSBiLJJAxQ.svg",
+  "14022":
+    "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/Cu_gVCIwkvNcl724fek5ZsHXLUTAsxo7lKHTYzjICbQdu65tJrGpJQf6kursNwBp5LCyO-yICGl4mc8oCpqdTFH8Ejf9M8AOSZeh5DKLkEshp2Xa99QAZlqtjjpOQ3NmjhnQ8uAdnM2LmSBiLJJAxQ.svg", // 칭와
 
   // ===== KOREA =====
   // SKY
@@ -35,7 +51,8 @@ export const SCHOOL_LOGO_MAP: Record<string, string> = {
   "307477":
     "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/IPFCAi7Dt0EWmbWufKX3scIyPwMaC5t3UNT_tAYQhDIN-1qHMugs2zwXn_ynoHvVRulXO4pphyXhtR9L_CWqcQ.svg", // POSTECH
 
-  "15096944": "", // 숭실대학교
+  "15096944":
+    "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/1631342456738.jpeg", // 숭실대학교
   // 주요 사립
   "15096111":
     "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/PZxl8Y2cZYVt3R1_3tVxKSNQ7h4WSbZtmdbmPzxw59W09Ax1v27xBADaT8PR5TGomW_KZ3bkCfZCJ0svImtNaw.svg", // 성균관대학교
@@ -50,16 +67,23 @@ export const SCHOOL_LOGO_MAP: Record<string, string> = {
 
   "15094702":
     "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/Kyung_Hee_University_emblem.png", // 경희대
-  "15096918": "", // 이화여대
+  "15096918":
+    "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/1631325367116.jpeg", // 이화여대
   "15095355":
     "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/Pusan_National_University_logo.svg",
-  경북: "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/CI6s4C-G-x_bbkF4JnM-FPdd4mN7cJv3JY9LFMHMdgGtbepyrAm9Y8SPW4teh8fociKr3fxOEXAVXzNtbbYsftsmOzJLJ7bkyTbiAUPUTmfsw8Ub30o9LG_H85DXY0SSotc0dl3ydHIpbW2aROOOGQ.svg",
+  "15094704":
+    "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/CI6s4C-G-x_bbkF4JnM-FPdd4mN7cJv3JY9LFMHMdgGtbepyrAm9Y8SPW4teh8fociKr3fxOEXAVXzNtbbYsftsmOzJLJ7bkyTbiAUPUTmfsw8Ub30o9LG_H85DXY0SSotc0dl3ydHIpbW2aROOOGQ.svg", // 경북대
   "15096090":
     "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/DCP_bEDZkSqbZpRjp5A4MC3C33ImJjQNVuVaiOZpw7qpxG_k0HJ5xYdjmJ_5Xogz9m6FBCX0b3CwVLxVUoLD1Mx8e_SDw1J-u8D9MDgtNwDPfvRnVKZbaHBzqpBJ1yA4eAxu0_2vBaxHP8pD4Vw5mA.svg", // 홍익대
-  "": "",
-  "": "",
-  영낭: "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/P8KVpbLKAkbNyQN2jlTMu_zF5pATodvRYiBMT0rvo7M3GKYl1WTFOQqIhpiquO41OVkVQ3XCaR4WHt64GMSkhA.svg",
-  전남: "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/MTCt22KZLTbB7e20aq4m97zF1gshi5JD7yfKawtqIdM-OvLv_IFNRiMYrWu4u-h6kBgY64eG_t_5x_lb9eZRnVRJJhowvUpa6BDxdyKZ4JqzXVHhl2QmBU0GPTzmM1jR2gGOyAlPmbv80oiy6i3aig.svg",
+  "15095369":
+    "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/P8KVpbLKAkbNyQN2jlTMu_zF5pATodvRYiBMT0rvo7M3GKYl1WTFOQqIhpiquO41OVkVQ3XCaR4WHt64GMSkhA.svg",
+  "15095321":
+    "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/MTCt22KZLTbB7e20aq4m97zF1gshi5JD7yfKawtqIdM-OvLv_IFNRiMYrWu4u-h6kBgY64eG_t_5x_lb9eZRnVRJJhowvUpa6BDxdyKZ4JqzXVHhl2QmBU0GPTzmM1jR2gGOyAlPmbv80oiy6i3aig.svg", // 전남대학교
+  "15096079": "", // 동국대학교
+  "15095343": "", // 국민대
+  "15096088": "", // 한국외대
+  "": "", //
+  "": "", //
 
   // 과기/국립
   "19048":
@@ -79,8 +103,10 @@ export const SCHOOL_LOGO_MAP: Record<string, string> = {
     "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/bU99YzMkHC2ylEDH_qU5d3QJy6mggOqJSrEq2kv7_6DxNy3BaaHkpWWsVnTQc3s_oEtbeNNsPFeu_POC_iD7OHSqsJdQGBQcXcixDfHwkA6ggyQM7rlTAuIqZYYZ-qMT2zd01ICKFI3yT_v_MMdbCw.svg", // 서울여대
   "15094680":
     "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/Jfg9IwFePrY37SVSK9RiKQ_z21CDmClwc8zVr6xJCBd82W-MTRWr1jqjv2AgXBXNEOCKEuWuFxPU_GtSva5PvA.svg", // 한국 항공대
-  "": "", //
-  "": "", //
+  "15094701":
+    "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/_logo.jpeg", // 경기대학교
+  "15094663":
+    "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/1631375602419.jpeg", // 아주대학교
   "": "", //
   "": "", //
 };

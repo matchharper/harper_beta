@@ -234,8 +234,8 @@ export const ko = {
       contact: "Contact Us",
     },
     pricing: {
-      title: "팀의 성장에 맞는 합리적인 플랜",
-      subtitle: "비즈니스 성장에 필요한 모든 기능을 제공합니다.",
+      title: "Pricing",
+      subtitle: "팀의 성장에 맞는 합리적인 플랜",
       contactLabel: "별도 문의",
       billing: {
         monthly: "월간 결제",
@@ -355,6 +355,10 @@ export const ko = {
         label: "프로덕트 매니저",
         query: "네카라쿠배 출신 프로덕트 매니저 + 개발 역량 보유",
       },
+      // {
+      //   label: "질문",
+      //   query: "어떤 기준으로 검색할 수 있나요?",
+      // },
       {
         label: "리서처",
         query:

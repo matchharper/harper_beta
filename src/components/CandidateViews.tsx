@@ -145,7 +145,7 @@ const CandidateViews = ({
               </div>
 
               {/* Rows */}
-              <div className="">
+              <div className="pb-48">
                 {items.map((c: any, idx: number) => (
                   <CandidateRow
                     isMyList={isMyList}
@@ -164,7 +164,7 @@ const CandidateViews = ({
       )}
       {viewType === "card" && items.length > 0 && (
         <div className="w-full flex flex-col space-y-2 mt-4 items-center justify-center">
-          <div className="space-y-4 w-full items-center justify-center flex flex-col">
+          <div className="space-y-4 w-full items-center justify-center flex flex-col pb-48">
             {items.map((c: any) => (
               <CandidateCard
                 isMyList={isMyList}

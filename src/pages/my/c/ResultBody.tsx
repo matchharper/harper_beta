@@ -53,7 +53,7 @@ export default function ResultBody(props: Props) {
   const isNoResultAtall = pageIdx === 0 && items.length === 0 && !isLoading;
 
   return (
-    <div className="flex flex-col w-full h-full">
+    <div className="flex flex-col w-full h-full relative">
       <div className="w-full px-0">
         {userId && (
           <CandidateViews
@@ -65,7 +65,7 @@ export default function ResultBody(props: Props) {
         )}
       </div>
       {!isLoading && !isNoResultAtall && (
-        <div className={["w-full z-30 bottom-0 left-0 mt-12 pb-12"].join(" ")}>
+        <div className={["w-full absolute z-30 bottom-12 left-0"].join(" ")}>
           {/* subtle separator + glass background */}
           <div className="px-4 pb-1 flex items-center justify-center">
             {/* shadow-[0_12px_40px_rgba(0,0,0,0.45)] */}

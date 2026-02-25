@@ -6,6 +6,7 @@ import { Check } from "lucide-react";
 import { BaseSectionLayout } from "@/components/landing/GridSectionLayout";
 import Animate from "@/components/landing/Animate";
 import { useMessages } from "@/i18n/useMessage";
+import Head1 from "./Head1";
 
 type Billing = "monthly" | "yearly";
 
@@ -109,9 +110,7 @@ export default function PricingSection({
         <BaseSectionLayout>
           <div className="w-full flex flex-col items-center justify-center text-center px-4 md:px-0">
             {/* <Head1 className="text-white">Pricing</Head1> */}
-            <div className="mt-4 md:mt-6 text-[24px] md:text-[40px] font-semibold tracking-tight">
-              {pricing.title}
-            </div>
+            <Head1 className="mt-4 md:mt-6 text-white">{pricing.title}</Head1>
             <div className="mt-3 text-sm md:text-base text-white/60 font-light">
               {pricing.subtitle}
             </div>
