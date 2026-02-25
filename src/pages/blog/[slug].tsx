@@ -541,7 +541,7 @@ export default function BlogPostPage({ post }: BlogPostPageProps) {
 
         .blog-markdown p {
           margin: 1.25rem 0;
-          font-weight: 200;
+          font-weight: 300;
           color: rgba(255, 255, 255, 0.86);
         }
 
@@ -587,7 +587,7 @@ export default function BlogPostPage({ post }: BlogPostPageProps) {
         }
 
         .blog-markdown li {
-          font-weight: 200;
+          font-weight: 300;
           color: rgba(255, 255, 255, 0.86);
           line-height: 1.75;
         }
