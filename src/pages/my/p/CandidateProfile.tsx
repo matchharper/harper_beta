@@ -376,24 +376,25 @@ function CandidateProfileDetailPage({
           </Box>
         )}
 
-        {Array.isArray(c.github_repo_contribution) && (
-          <Box title={`GitHub 최근 5년 기록 (${recentGithubContributions.length})`}>
-            <div className="grid grid-cols-1 gap-3">
-              {recentGithubContributions.length > 0 ? (
-                recentGithubContributions.map((repo: any) => (
-                  <GithubRepoContributionBox
-                    key={`${repo.id}-${repo.repo}`}
-                    contribution={repo}
-                  />
-                ))
-              ) : (
-                <div className="text-sm text-hgray700 font-light">
-                  최근 5년 내 GitHub 기여 기록이 없습니다.
-                </div>
-              )}
-            </div>
-          </Box>
-        )}
+        {Array.isArray(c.github_repo_contribution) &&
+          recentGithubContributions.length > 0 && (
+            <Box title={`GitHub\nMain Contributions`}>
+              <div className="grid grid-cols-2 gap-3">
+                {recentGithubContributions.length > 0 ? (
+                  recentGithubContributions.map((repo: any) => (
+                    <GithubRepoContributionBox
+                      key={`${repo.id}-${repo.repo}`}
+                      contribution={repo}
+                    />
+                  ))
+                ) : (
+                  <div className="text-sm text-hgray700 font-light">
+                    최근 5년 내 GitHub 기여 기록이 없습니다.
+                  </div>
+                )}
+              </div>
+            </Box>
+          )}
       </div>
     </div>
   );

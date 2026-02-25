@@ -78,7 +78,7 @@ const UseCaseCard = ({ item }: { item: UseCaseCardItem }) => {
       className="
         w-full
         rounded-2xl
-        bg-white/[0.03]
+        bg-white/5
         ring-1 ring-white/10
         shadow-[0_18px_60px_rgba(0,0,0,0.35)]
         px-6 md:px-7
@@ -92,11 +92,11 @@ const UseCaseCard = ({ item }: { item: UseCaseCardItem }) => {
           {item.icon}
         </div>
 
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-1">
           <div className="text-[18px] md:text-[20px] font-medium text-white/90">
             {item.title}
           </div>
-          <div className="text-[13px] md:text-[14px] font-light text-white/55 leading-relaxed">
+          <div className="text-[13px] md:text-[14px] font-normal text-white/55 leading-relaxed">
             {item.desc}
           </div>
         </div>
@@ -119,7 +119,7 @@ const UseCaseCard = ({ item }: { item: UseCaseCardItem }) => {
           <button
             type="button"
             onClick={item.onCtaClick}
-            className="mt-auto pt-6 text-left text-[12px] md:text-[13px] text-white/70 hover:text-white/90 transition"
+            className="mt-auto pt-6 text-left text-[12px] md:text-[13px] text-white/70 hover:text-accenta1 transition"
           >
             {item.ctaLabel ?? "찾으러 가기 →"}
           </button>
@@ -217,7 +217,7 @@ export default function UseCaseGridSection({
       <BaseSectionLayout>
         <div className="w-full flex flex-col items-start justify-center text-left px-4 md:px-0">
           <Head1 className="text-white">{title}</Head1>
-          <div className="text-sm md:text-base text-white/55 font-light mt-6 max-w-[720px]">
+          <div className="text-sm md:text-base text-white/55 font-normal mt-6 max-w-[720px]">
             {subtitle}
           </div>
 
