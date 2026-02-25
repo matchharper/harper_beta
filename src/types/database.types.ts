@@ -109,7 +109,6 @@ export type Database = {
           bio: string | null
           created_at: string
           email: string | null
-          embedding: string | null
           fts: unknown
           headline: string | null
           id: string
@@ -129,7 +128,6 @@ export type Database = {
           bio?: string | null
           created_at?: string
           email?: string | null
-          embedding?: string | null
           fts?: unknown
           headline?: string | null
           id?: string
@@ -149,7 +147,6 @@ export type Database = {
           bio?: string | null
           created_at?: string
           email?: string | null
-          embedding?: string | null
           fts?: unknown
           headline?: string | null
           id?: string
@@ -702,6 +699,83 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "company_users"
             referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      github_repo_contribution: {
+        Row: {
+          candid_id: string
+          commits: number
+          contributors: number
+          created_at: string
+          default_rank_score: number
+          description: string | null
+          forks: number
+          id: number
+          languages: Json | null
+          last_contrib_at: string | null
+          last_updated_at: string | null
+          merged_prs: number
+          readme_excerpt: string | null
+          repo: string
+          role: string | null
+          search_text: string
+          search_text_fts: unknown
+          stars: number
+          topics: string | null
+          updated_at: string
+        }
+        Insert: {
+          candid_id: string
+          commits?: number
+          contributors?: number
+          created_at?: string
+          default_rank_score?: number
+          description?: string | null
+          forks?: number
+          id?: number
+          languages?: Json | null
+          last_contrib_at?: string | null
+          last_updated_at?: string | null
+          merged_prs?: number
+          readme_excerpt?: string | null
+          repo: string
+          role?: string | null
+          search_text?: string
+          search_text_fts?: unknown
+          stars?: number
+          topics?: string | null
+          updated_at?: string
+        }
+        Update: {
+          candid_id?: string
+          commits?: number
+          contributors?: number
+          created_at?: string
+          default_rank_score?: number
+          description?: string | null
+          forks?: number
+          id?: number
+          languages?: Json | null
+          last_contrib_at?: string | null
+          last_updated_at?: string | null
+          merged_prs?: number
+          readme_excerpt?: string | null
+          repo?: string
+          role?: string | null
+          search_text?: string
+          search_text_fts?: unknown
+          stars?: number
+          topics?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "github_repo_contribution_candid_id_fkey"
+            columns: ["candid_id"]
+            isOneToOne: false
+            referencedRelation: "candid"
+            referencedColumns: ["id"]
           },
         ]
       }

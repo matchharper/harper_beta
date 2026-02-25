@@ -67,7 +67,7 @@ const LoginModal = dynamic(() => import("@/components/Modal/LoginModal"));
 const PricingSection = dynamic(() => import("@/components/landing/Pricing"));
 const Examples = dynamic(() => import("@/components/landing/Examples"));
 
-const HERO_DOT_BACKGROUND_STYLE = {
+export const HERO_DOT_BACKGROUND_STYLE = {
   opacity: 0.45,
   backgroundImage:
     "radial-gradient(rgba(255,255,255,0.2) 0.9px, transparent 0.9px)",
@@ -139,9 +139,6 @@ const CandidatePage = () => {
   const isMobile = useIsMobile();
   const interactiveRef = useRef<HTMLDivElement>(null);
 
-  const whySectionRef = useRef<HTMLDivElement>(null);
-  const priceSectionRef = useRef<HTMLDivElement>(null);
-  const faqSectionRef = useRef<HTMLDivElement>(null);
   const whyTrackRef = useRef<HTMLDivElement>(null);
   const lastTrackRef = useRef<HTMLDivElement>(null);
   const pricingTrackRef = useRef<HTMLDivElement>(null);
@@ -358,41 +355,44 @@ const CandidatePage = () => {
     return data;
   }, [abtestType, addLog, countryLang]);
 
-  const customLogin = useCallback(async (email: string, password: string) => {
-    logger.log("customLogin :", email);
+  const customLogin = useCallback(
+    async (email: string, password: string) => {
+      logger.log("customLogin :", email);
 
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
 
-      if (error) {
-        return { message: error.message };
-      }
+        if (error) {
+          return { message: error.message };
+        }
 
-      const user = data.user;
-      if (!user) {
+        const user = data.user;
+        if (!user) {
+          return { message: m.auth.invalidAccount };
+        }
+
+        const isEmailConfirmed = Boolean(
+          user.email_confirmed_at || user.user_metadata?.email_verified
+        );
+        if (!isEmailConfirmed) {
+          return { message: m.auth.emailConfirmationSent };
+        }
+
+        setIsOpenLoginModal(false);
+        router.push("/invitation");
+        return null;
+      } catch (error) {
+        if (error instanceof Error && error.message) {
+          return { message: error.message };
+        }
         return { message: m.auth.invalidAccount };
       }
-
-      const isEmailConfirmed = Boolean(
-        user.email_confirmed_at || user.user_metadata?.email_verified
-      );
-      if (!isEmailConfirmed) {
-        return { message: m.auth.emailConfirmationSent };
-      }
-
-      setIsOpenLoginModal(false);
-      router.push("/invitation");
-      return null;
-    } catch (error) {
-      if (error instanceof Error && error.message) {
-        return { message: error.message };
-      }
-      return { message: m.auth.invalidAccount };
-    }
-  }, [m.auth.emailConfirmationSent, m.auth.invalidAccount]);
+    },
+    [m.auth.emailConfirmationSent, m.auth.invalidAccount]
+  );
 
   const copyVariant = useMemo(() => {
     const defaultCopy = {
@@ -517,31 +517,6 @@ const CandidatePage = () => {
     setIsOpenLoginModal(false);
   }, []);
 
-  const handleIntroClick = useCallback(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, []);
-
-  const handleHowItWorksClick = useCallback(() => {
-    window.scrollTo({
-      top: whySectionRef.current?.offsetTop ?? 0,
-      behavior: "smooth",
-    });
-  }, []);
-
-  const handlePricingClick = useCallback(() => {
-    window.scrollTo({
-      top: priceSectionRef.current?.offsetTop ?? 0,
-      behavior: "smooth",
-    });
-  }, []);
-
-  const handleFaqClick = useCallback(() => {
-    window.scrollTo({
-      top: faqSectionRef.current?.offsetTop ?? 0,
-      behavior: "smooth",
-    });
-  }, []);
-
   const handlePricingPlanClick = useCallback(
     (plan: string, _billing: "monthly" | "yearly") => {
       addLog("click_pricing_" + plan);
@@ -550,17 +525,9 @@ const CandidatePage = () => {
     [addLog]
   );
 
-  const navStartButton = useMemo(
-    () => (
-      <StartButton
-        type="click_nav_start"
-        size="sm"
-        onClickStart={clickStart}
-        label={copyVariant.startButton}
-      />
-    ),
-    [clickStart, copyVariant.startButton]
-  );
+  const handleHeaderStartClick = useCallback(() => {
+    clickStart("click_nav_start");
+  }, [clickStart]);
 
   return (
     <>
@@ -612,11 +579,8 @@ const CandidatePage = () => {
           />
         )}
         <LandingHeader
-          onIntroClick={handleIntroClick}
-          onHowItWorksClick={handleHowItWorksClick}
-          onPricingClick={handlePricingClick}
-          onFaqClick={handleFaqClick}
-          startButton={navStartButton}
+          onStartClick={handleHeaderStartClick}
+          startButtonLabel={copyVariant.startButton}
         />
         <nav className="sr-only" aria-label="Landing section links">
           <a href="#intro">{m.companyLanding.nav.intro}</a>
@@ -706,7 +670,7 @@ const CandidatePage = () => {
           </BaseSectionLayout>
           {/* <VCLogosWidth /> */}
         </Animate>
-        <div ref={whySectionRef} id="how-it-works" />
+        <div id="how-it-works" />
         <div className="h-48" />
         <Animate>
           <BaseSectionLayout>
@@ -788,7 +752,7 @@ const CandidatePage = () => {
             </div>
           </BaseSectionLayout>
         </Animate>
-        <div ref={priceSectionRef} id="pricing" />
+        <div id="pricing" />
 
         <div className="h-28 md:h-40" />
         <div ref={pricingTrackRef} data-section="pricing">
@@ -806,7 +770,7 @@ const CandidatePage = () => {
         </>
       )} */}
 
-        <div ref={faqSectionRef} id="faq" />
+        <div id="faq" />
         <div ref={faqTrackRef} data-section="faq">
           <div className="h-28 md:h-40" />
           <Animate>

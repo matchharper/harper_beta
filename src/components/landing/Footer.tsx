@@ -27,8 +27,8 @@ const Footer = ({
   };
 
   return (
-    <div className="flex flex-col md:flex-row items-start md:items-end justify-between border-t border-white/20 py-10 md:py-8 pb-[20vh] w-[100%] md:w-[94%] mx-auto px-4 md:px-0 gap-6 md:gap-0">
-      <div className="flex flex-col items-start justify-start gap-4 md:gap-6">
+    <div className="w-full flex flex-col md:flex-row items-start md:items-stretch justify-between border-t border-white/20 py-10 md:py-8 md:px-8 mx-auto px-4 gap-6 md:gap-0 bg-black">
+      <div className="flex flex-1 flex-col items-start justify-start gap-4 md:gap-6">
         <div className="text-left text-3xl font-semibold font-garamond">
           Harper
         </div>
@@ -64,29 +64,42 @@ const Footer = ({
           </Link>
         </div>
       </div>
-      <div className="flex flex-row items-center gap-4">
-        <div className="flex items-center gap-2 text-xs md:text-sm font-extralight text-white/80">
-          <button
-            type="button"
-            onClick={() => setLocaleCookie("ko")}
-            className={`hover:text-white/90 transition ${locale === "ko" ? "text-white" : ""}`}
-          >
-            Korean
-          </button>
-          <span className="text-white/40">|</span>
-          <button
-            type="button"
-            onClick={() => setLocaleCookie("en")}
-            className={`hover:text-white/90 transition ${locale === "en" ? "text-white" : ""}`}
-          >
-            English
-          </button>
-        </div>
-        <div
-          onClick={handleContactUs}
-          className="text-xs md:text-sm cursor-pointer hover:text-white/90 text-white/80"
-        >
-          {m.companyLanding.footer.contact}
+      <div className="flex flex-1 flex-row items-end justify-end gap-8">
+        <div className="flex flex-1 flex-col items-end justify-between gap-4 self-stretch">
+          <div className="flex flex-col text-xs md:text-sm items-end justify-start gap-2">
+            <div className="text-white mb-2">팀에 관하여</div>
+            <div
+              onClick={handleContactUs}
+              className="cursor-pointer hover:text-white/90 text-white/80"
+            >
+              {m.companyLanding.footer.contact}
+            </div>
+            <div
+              onClick={() => router.push("/blog")}
+              className="cursor-pointer hover:text-white/90 text-white/80"
+            >
+              블로그
+            </div>
+          </div>
+          <div className="flex flex-row items-center gap-4">
+            <div className="flex items-center gap-2 text-xs md:text-sm font-extralight text-white/80">
+              <button
+                type="button"
+                onClick={() => setLocaleCookie("ko")}
+                className={`hover:text-white/90 transition ${locale === "ko" ? "text-white" : ""}`}
+              >
+                Korean
+              </button>
+              <span className="text-white/40">|</span>
+              <button
+                type="button"
+                onClick={() => setLocaleCookie("en")}
+                className={`hover:text-white/90 transition ${locale === "en" ? "text-white" : ""}`}
+              >
+                English
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

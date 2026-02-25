@@ -1,7 +1,5 @@
 import React from "react";
-import router from "next/router";
 import Footer from "./Footer";
-import { useMessages } from "@/i18n/useMessage";
 import LandingHeader from "./LandingHeader";
 import { LegalDocument } from "@/lib/notion/legal";
 
@@ -16,16 +14,6 @@ const LegalDocumentPage = ({
   sourceUrl,
   fallbackTitle,
 }: LegalDocumentPageProps) => {
-  const { m } = useMessages();
-
-  const navigateLanding = (section?: "how-it-works" | "pricing" | "faq") => {
-    if (!section) {
-      router.push("#intro");
-      return;
-    }
-    router.push(`#${section}`);
-  };
-
   return (
     <main className="relative min-h-screen font-inter text-white bg-black w-screen overflow-hidden">
       <div
@@ -37,36 +25,7 @@ const LegalDocumentPage = ({
           backgroundSize: "16px 16px",
         }}
       />
-      <LandingHeader
-        onIntroClick={() => navigateLanding()}
-        onHowItWorksClick={() => navigateLanding("how-it-works")}
-        onPricingClick={() => navigateLanding("pricing")}
-        onFaqClick={() => navigateLanding("faq")}
-        startButton={
-          <button
-            type="button"
-            onClick={() => router.push("/")}
-            className="
-              group relative
-              font-medium
-              cursor-pointer
-              rounded-full
-              bg-accenta1 text-black
-              z-10
-              py-3 px-6 text-xs
-              ring-1 ring-white/10
-              shadow-[0_12px_40px_rgba(180,255,120,0.25)]
-              transition-all duration-200
-              hover:shadow-[0_18px_60px_rgba(180,255,120,0.35)]
-              hover:-translate-y-[1px]
-              active:translate-y-[0px]
-              active:shadow-[0_8px_20px_rgba(180,255,120,0.2)]
-            "
-          >
-            {m.companyLanding.startButton}
-          </button>
-        }
-      />
+      <LandingHeader />
 
       <section className="relative z-10 w-full lg:w-[94%] mx-auto px-4 md:px-0 pt-24 md:pt-32 pb-16 md:pb-[20vh]">
         <div className="max-w-4xl mx-auto bg-[#0d0d0dcc] backdrop-blur p-6 md:p-10">

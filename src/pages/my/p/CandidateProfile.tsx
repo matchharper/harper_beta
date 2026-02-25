@@ -3,6 +3,7 @@ import { CandidateDetail, candidateKey } from "@/hooks/useCandidateDetail";
 import ShareProfileModal from "@/components/Modal/ShareProfileModal";
 import { Check, Share2, Upload, XIcon } from "lucide-react";
 import Bookmarkbutton from "@/components/ui/bookmarkbutton";
+import GithubRepoContributionBox from "@/components/profile/GithubRepoContributionBox";
 import ItemBox from "./components/ItemBox";
 import PublicationBox from "./components/PublicationBox";
 import React, { useEffect, useMemo, useState } from "react";
@@ -140,6 +141,45 @@ function CandidateProfileDetailPage({
     });
 
     return merged;
+  }, [c]);
+
+  const recentGithubContributions = useMemo(() => {
+    const repos = Array.isArray(c?.github_repo_contribution)
+      ? c.github_repo_contribution
+      : [];
+
+    const cutoffDate = new Date();
+    cutoffDate.setFullYear(cutoffDate.getFullYear() - 5);
+
+    const parseDate = (value: string | null | undefined) => {
+      if (!value) return null;
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? null : date;
+    };
+
+    const resolveActivityDate = (repo: any) =>
+      parseDate(repo?.last_contrib_at) ??
+      parseDate(repo?.last_updated_at) ??
+      parseDate(repo?.updated_at) ??
+      parseDate(repo?.created_at);
+
+    return repos
+      .filter((repo: any) => {
+        const activityDate = resolveActivityDate(repo);
+        return !!activityDate && activityDate >= cutoffDate;
+      })
+      .sort((a: any, b: any) => {
+        const aDate = resolveActivityDate(a);
+        const bDate = resolveActivityDate(b);
+
+        if (aDate && bDate) {
+          return bDate.getTime() - aDate.getTime();
+        }
+        if (aDate && !bDate) return -1;
+        if (!aDate && bDate) return 1;
+
+        return (b?.default_rank_score ?? 0) - (a?.default_rank_score ?? 0);
+      });
   }, [c]);
 
   const generateOneLineSummary = async () => {
@@ -332,6 +372,25 @@ function CandidateProfileDetailPage({
                   citation_num={p.citation_num ?? -1}
                 />
               ))}
+            </div>
+          </Box>
+        )}
+
+        {Array.isArray(c.github_repo_contribution) && (
+          <Box title={`GitHub 최근 5년 기록 (${recentGithubContributions.length})`}>
+            <div className="grid grid-cols-1 gap-3">
+              {recentGithubContributions.length > 0 ? (
+                recentGithubContributions.map((repo: any) => (
+                  <GithubRepoContributionBox
+                    key={`${repo.id}-${repo.repo}`}
+                    contribution={repo}
+                  />
+                ))
+              ) : (
+                <div className="text-sm text-hgray700 font-light">
+                  최근 5년 내 GitHub 기여 기록이 없습니다.
+                </div>
+              )}
             </div>
           </Box>
         )}

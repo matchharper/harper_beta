@@ -171,7 +171,7 @@ export default function UseCaseGridSection({
       queryPlaceholder:
         "10M+ 멀티모달 데이터셋을 구축하고, deduplication·quality scoring·hard negative mining 파이프라인을 설계해본 리서처…",
       avatars: [
-        "/images/profiles/avatar4.png",
+        "/images/profiles/avatar11.png",
         "/images/profiles/avatar5.png",
         "/images/profiles/avatar6.png",
       ],

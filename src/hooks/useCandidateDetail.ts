@@ -1,10 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { CandidateType } from "@/types/type";
+import type { Database } from "@/types/database.types";
+
+export type GithubRepoContributionRow =
+  Database["public"]["Tables"]["github_repo_contribution"]["Row"];
 
 export type CandidateDetail = CandidateType & {
   connection?: { user_id: string; typed: number }[];
   unlock_profile?: any[];
+  github_repo_contribution?: GithubRepoContributionRow[];
   isAutomationResult?: boolean;
 };
 
@@ -49,6 +54,9 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
         link,
         published_at,
         citation_num
+      ),
+      github_repo_contribution (
+        *
       ),
       extra_experience(
         *
