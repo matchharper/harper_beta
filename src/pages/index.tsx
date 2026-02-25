@@ -36,15 +36,11 @@ export const isValidEmail = (email: string): boolean => {
 };
 
 type SectionKey = "why" | "examples" | "pricing" | "faq" | "last";
-type CompanyAbtestType = "company_copy_a_v1" | "company_copy_b_v1";
+type CompanyAbtestType = "company_copy_b_v1";
 
 const SECTION_VIEW_INTERSECTION_THRESHOLD = 0.35;
 const SECTION_VIEW_LOG_COOLDOWN_MS = 15000;
-const COMPANY_ABTEST_STORAGE_KEY = "harper_company_abtest_type_2026_02";
-const COMPANY_ABTEST_TYPES: CompanyAbtestType[] = [
-  "company_copy_a_v1",
-  "company_copy_b_v1",
-];
+const COMPANY_ABTEST_TYPE: CompanyAbtestType = "company_copy_b_v1";
 const LANDING_CANONICAL_URL = "https://matchharper.com/";
 const LANDING_OG_IMAGE_URL = "https://matchharper.com/images/usemain.png";
 
@@ -54,14 +50,6 @@ const stripHtmlTags = (value: string) =>
     .replace(/<[^>]*>/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-
-const isCompanyAbtestType = (
-  value: string | null
-): value is CompanyAbtestType =>
-  !!value && COMPANY_ABTEST_TYPES.includes(value as CompanyAbtestType);
-
-const pickCompanyAbtestType = () =>
-  COMPANY_ABTEST_TYPES[Math.floor(Math.random() * COMPANY_ABTEST_TYPES.length)];
 
 const LoginModal = dynamic(() => import("@/components/Modal/LoginModal"));
 const PricingSection = dynamic(() => import("@/components/landing/Pricing"));
@@ -127,7 +115,7 @@ const StartButton = React.memo(function StartButton({
 });
 
 const CandidatePage = () => {
-  const [abtestType, setAbtestType] = useState<CompanyAbtestType | null>(null);
+  const abtestType = COMPANY_ABTEST_TYPE;
   const [landingId, setLandingId] = useState("");
   const [isOpenLoginModal, setIsOpenLoginModal] = useState(false);
   const [isTeamEmail, setIsTeamEmail] = useState(false);
@@ -155,7 +143,6 @@ const CandidatePage = () => {
 
   const addLog = useCallback(
     async (type: string) => {
-      if (!abtestType) return;
       // if (!isTeamEmailChecked || isTeamEmail || !landingId) return;
       const body = {
         local_id: landingId,
@@ -168,29 +155,6 @@ const CandidatePage = () => {
     },
     [abtestType, countryLang, isMobile, landingId]
   );
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const queryAbtestType = new URLSearchParams(window.location.search).get(
-      "ab"
-    );
-    if (isCompanyAbtestType(queryAbtestType)) {
-      localStorage.setItem(COMPANY_ABTEST_STORAGE_KEY, queryAbtestType);
-      setAbtestType(queryAbtestType);
-      return;
-    }
-
-    const cached = localStorage.getItem(COMPANY_ABTEST_STORAGE_KEY);
-    if (isCompanyAbtestType(cached)) {
-      setAbtestType(cached);
-      return;
-    }
-
-    const assigned = pickCompanyAbtestType();
-    localStorage.setItem(COMPANY_ABTEST_STORAGE_KEY, assigned);
-    setAbtestType(assigned);
-  }, []);
 
   useEffect(() => {
     const excludedEmails = new Set([
@@ -219,8 +183,6 @@ const CandidatePage = () => {
   }, []);
 
   const initLog = useCallback(async () => {
-    if (!abtestType) return;
-
     const newId = createLandingId();
     localStorage.setItem("harper_landing_id_0209", newId);
     localStorage.setItem("harper_landing_last_visit_at", Date.now().toString());
@@ -237,7 +199,7 @@ const CandidatePage = () => {
   }, [abtestType, countryLang, isMobile]);
 
   useEffect(() => {
-    if (!isTeamEmailChecked || !abtestType) return;
+    if (!isTeamEmailChecked) return;
     const localId = localStorage.getItem("harper_landing_id_0209");
     if (!localId) {
       initLog();
@@ -245,10 +207,10 @@ const CandidatePage = () => {
       logger.log("\n\n 호출 👻 localId : ", localId);
       setLandingId(localId as string);
     }
-  }, [abtestType, initLog, isTeamEmailChecked, isTeamEmail]);
+  }, [initLog, isTeamEmailChecked, isTeamEmail]);
 
   useEffect(() => {
-    if (!landingId || !abtestType) return;
+    if (!landingId) return;
     const lastVisitRaw = localStorage.getItem("harper_landing_last_visit_at");
     const now = Date.now();
     const thirtyMinutesMs = 30 * 60 * 1000;
@@ -259,7 +221,7 @@ const CandidatePage = () => {
     }
 
     localStorage.setItem("harper_landing_last_visit_at", now.toString());
-  }, [abtestType, addLog, landingId]);
+  }, [addLog, landingId]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -276,7 +238,7 @@ const CandidatePage = () => {
   }, [addLog, landingId]);
 
   useEffect(() => {
-    if (!landingId || !abtestType) return;
+    if (!landingId) return;
 
     const sectionElements: Array<{
       key: SectionKey;
@@ -332,13 +294,13 @@ const CandidatePage = () => {
 
     observedSections.forEach(({ element }) => observer.observe(element));
     return () => observer.disconnect();
-  }, [abtestType, addLog, landingId]);
+  }, [addLog, landingId]);
 
   const login = useCallback(async () => {
     addLog("click_login_google");
     const redirectTo =
       typeof window !== "undefined"
-        ? `${window.location.origin}/auths/callback?lid=${localStorage.getItem("harper_landing_id_0209") ?? ""}&cl=${encodeURIComponent(countryLang)}&ab=${encodeURIComponent(abtestType ?? "")}`
+        ? `${window.location.origin}/auths/callback?lid=${localStorage.getItem("harper_landing_id_0209") ?? ""}&cl=${encodeURIComponent(countryLang)}&ab=${encodeURIComponent(abtestType)}`
         : undefined;
 
     const { data, error } = await supabase.auth.signInWithOAuth({
@@ -395,7 +357,7 @@ const CandidatePage = () => {
   );
 
   const copyVariant = useMemo(() => {
-    const defaultCopy = {
+    const baseCopy = {
       startButton: m.companyLanding.startButton,
       whySubtitle: m.companyLanding.why.sub,
       heroSubtitle: m.companyLanding.hero.subtitle,
@@ -407,13 +369,9 @@ const CandidatePage = () => {
       rotatingTexts: ["Intelligence", "Decision", "Knowledge", "Insight"],
     };
 
-    if (abtestType !== "company_copy_b_v1") {
-      return defaultCopy;
-    }
-
     if (locale === "ko") {
       return {
-        ...defaultCopy,
+        ...baseCopy,
         startButton: "무료로 시작하기",
         whySubtitle:
           "Harper는 링크드인 세일즈 네비게이터보다 더 많은 소스와 입력을 바탕으로<br />적합도가 높은 후보만 찾아서 보여드립니다.",
@@ -429,7 +387,7 @@ const CandidatePage = () => {
     }
 
     return {
-      ...defaultCopy,
+      ...baseCopy,
       startButton: "Start for Free",
       whySubtitle:
         "Harper analyzes more sources and richer signals than LinkedIn Sales Navigator<br />to surface only the most relevant, high-fit candidates.",
@@ -443,7 +401,7 @@ const CandidatePage = () => {
         "Not just search results — evidence-based hiring priorities you can act on.",
       closingHeadlineLine2: "Turn hiring into a joyful discovery.",
     };
-  }, [abtestType, locale, m]);
+  }, [locale, m]);
 
   const seoMeta = useMemo(() => {
     if (locale === "ko") {
@@ -711,13 +669,9 @@ const CandidatePage = () => {
         </Animate>
         <div className="h-48" />
         <FeatureSection />
-        {abtestType === "company_copy_b_v1" && (
-          <>
-            <div ref={examplesTrackRef} data-section="examples" />
-            <div className="h-28 md:h-48" />
-            <Examples onCtaClick={clickStart} />
-          </>
-        )}
+        <div ref={examplesTrackRef} data-section="examples" />
+        <div className="h-28 md:h-48" />
+        <Examples onCtaClick={clickStart} />
         <div className="h-28 md:h-48" />
         <Animate>
           <BaseSectionLayout>
@@ -758,17 +712,6 @@ const CandidatePage = () => {
         <div ref={pricingTrackRef} data-section="pricing">
           <PricingSection onClick={handlePricingPlanClick} />
         </div>
-
-        {/* {abtestType !== "company_copy_b_v1" && (
-        <>
-          <div className="h-28 md:h-40" />
-          <div ref={pricingTrackRef} data-section="pricing">
-            <PricingSection
-              onClick={handlePricingPlanClick}
-            />
-          </div>
-        </>
-      )} */}
 
         <div id="faq" />
         <div ref={faqTrackRef} data-section="faq">

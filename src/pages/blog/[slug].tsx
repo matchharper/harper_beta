@@ -134,7 +134,6 @@ export const getStaticProps: GetStaticProps<BlogPostPageProps> = async ({
     props: {
       post,
     },
-    revalidate: 3600,
   };
 };
 
@@ -476,7 +475,7 @@ export default function BlogPostPage({ post }: BlogPostPageProps) {
                       onClick={moveToHome}
                       className="cursor-pointer hover:text-white transition-all duration-200"
                     >
-                      LLM 기반 제품 디자이너
+                      [35살 이하, 해외경험] LLM 기반 제품 디자이너
                     </div>
                     <div>/</div>
                     <div

@@ -41,7 +41,6 @@ export const getStaticProps: GetStaticProps<BlogListPageProps> = async () => {
 
   return {
     props: { posts, categories },
-    revalidate: 3600,
   };
 };
 
@@ -68,8 +67,7 @@ export default function BlogListPage({ posts, categories }: BlogListPageProps) {
       "@type": "Blog",
       name: "Harper Blog",
       url: BLOG_CANONICAL_URL,
-      description:
-        "Insights about recruiting, engineering, and product execution from the Harper team.",
+      description: "Insights, updates, and stories from the Harper team.",
       inLanguage: "en-US",
       blogPost: posts.map((post) => ({
         "@type": "BlogPosting",
@@ -166,9 +164,7 @@ export default function BlogListPage({ posts, categories }: BlogListPageProps) {
             <h1 className="z-10 mt-3 font-garamond text-4xl leading-[0.95] md:text-5xl">
               Blog
             </h1>
-            <p className="z-10 mt-5 max-w-2xl text-base leading-6 text-white/65 md:text-lg">
-              Insights, updates, and stories from the Harper team.
-            </p>
+            <p className="z-10 mt-5 max-w-2xl text-base leading-6 text-white/65 md:text-lg"></p>
           </header>
 
           {/* top: featured grid (screenshot 2 vibe) */}
@@ -202,7 +198,7 @@ export default function BlogListPage({ posts, categories }: BlogListPageProps) {
                       </span>
                     </div>
 
-                    <h2 className="mt-3 text-xl leading-[1.05] text-white md:text-2xl">
+                    <h2 className="mt-3 text-xl leading-[1.25] md:leading-[1.05] text-white md:text-2xl">
                       {featured.title}
                     </h2>
 
@@ -261,7 +257,7 @@ export default function BlogListPage({ posts, categories }: BlogListPageProps) {
                             {post.category}
                           </span>
                         </div>
-                        <h3 className="mt-1 truncate text-base leading-[1.1] text-white">
+                        <h3 className="mt-1 truncate text-base leading-[1.2] md:leading-[1.1] text-white">
                           {post.title}
                         </h3>
 
@@ -334,7 +330,7 @@ export default function BlogListPage({ posts, categories }: BlogListPageProps) {
                 <div className="h-px flex-1 bg-white/15" />
               </div>
 
-              <div className="mt-8">
+              <div className="mt-4 md:mt-8">
                 {restList.map((post, index) => (
                   <article key={post.slug} className="py-5">
                     <Link
@@ -344,33 +340,40 @@ export default function BlogListPage({ posts, categories }: BlogListPageProps) {
                     >
                       <div className="grid grid-cols-1 gap-4 md:items-center">
                         <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-3">
-                            <span className="text-xs font-normal uppercase tracking-[0.18em] text-white/55">
-                              {post.category}
-                            </span>
+                          <div className="flex md:hidden">
                             <h3 className="min-w-0 flex-1 truncate text-base leading-[1.15] text-white transition-colors group-hover:text-white/90">
                               {post.title}
                             </h3>
-                            <div className="flex flex-row items-center gap-2">
-                              <div className="relative h-5 w-5 overflow-hidden rounded-full ring-1 ring-white/15">
-                                <Image
-                                  src={post.authorAvatar}
-                                  alt={post.author}
-                                  fill
-                                  className="object-cover"
-                                  sizes="20px"
-                                />
+                          </div>
+                          <div className="flex flex-wrap items-center justify-between md:justify-start gap-3 mt-4 md:mt-0">
+                            <span className="text-xs font-normal uppercase tracking-[0.18em] text-white/55">
+                              {post.category}
+                            </span>
+                            <h3 className="hidden md:block min-w-0 flex-1 truncate text-base leading-[1.15] text-white transition-colors group-hover:text-white/90">
+                              {post.title}
+                            </h3>
+                            <div className="flex flex-row items-center justify-between gap-3">
+                              <div className="flex flex-row items-center gap-2">
+                                <div className="relative h-5 w-5 overflow-hidden rounded-full ring-1 ring-white/15">
+                                  <Image
+                                    src={post.authorAvatar}
+                                    alt={post.author}
+                                    fill
+                                    className="object-cover"
+                                    sizes="20px"
+                                  />
+                                </div>
+                                <span className="text-sm whitespace-nowrap">
+                                  {post.author}
+                                </span>
                               </div>
-                              <span className="text-sm whitespace-nowrap">
-                                {post.author}
-                              </span>
+                              <time
+                                dateTime={post.publishedAt}
+                                className="text-sm text-white/55 md:justify-self-end"
+                              >
+                                {formatBlogDate(post.publishedAt)}
+                              </time>
                             </div>
-                            <time
-                              dateTime={post.publishedAt}
-                              className="text-sm text-white/55 md:justify-self-end"
-                            >
-                              {formatBlogDate(post.publishedAt)}
-                            </time>
                           </div>
                         </div>
                       </div>

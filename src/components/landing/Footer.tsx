@@ -64,21 +64,23 @@ const Footer = ({
           </Link>
         </div>
       </div>
-      <div className="flex flex-1 flex-row items-end justify-end gap-8">
+      <div className="flex flex-1 flex-row items-end justify-end gap-8 w-full mt-12 md:mt-0">
         <div className="flex flex-1 flex-col items-end justify-between gap-4 self-stretch">
-          <div className="flex flex-col text-xs md:text-sm items-end justify-start gap-2">
+          <div className="flex flex-row md:flex-col text-xs md:text-sm items-start md:items-end justify-between md:justify-start gap-2 w-full">
             <div className="text-white mb-2">팀에 관하여</div>
-            <div
-              onClick={handleContactUs}
-              className="cursor-pointer hover:text-white/90 text-white/80"
-            >
-              {m.companyLanding.footer.contact}
-            </div>
-            <div
-              onClick={() => router.push("/blog")}
-              className="cursor-pointer hover:text-white/90 text-white/80"
-            >
-              블로그
+            <div className="flex flex-col items-end justify-start gap-2">
+              <div
+                onClick={handleContactUs}
+                className="cursor-pointer hover:text-white/90 text-white/80"
+              >
+                {m.companyLanding.footer.contact}
+              </div>
+              <div
+                onClick={() => router.push("/blog")}
+                className="cursor-pointer hover:text-white/90 text-white/80"
+              >
+                블로그
+              </div>
             </div>
           </div>
           <div className="flex flex-row items-center gap-4">
