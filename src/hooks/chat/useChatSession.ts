@@ -21,6 +21,7 @@ export type ChatScope =
 
 export type UiSegment =
   | { type: "text"; content: string }
+  | { type: "suggestion"; content: string }
   | { type: "block"; content: any };
 
 export function replaceUiBlockInText(rawText: string, modifiedBlockObj: any) {
@@ -36,25 +37,40 @@ export function replaceUiBlockInText(rawText: string, modifiedBlockObj: any) {
   return `${before}\n${json}\n${after}`;
 }
 
-function splitTextByAnchors(text: string): UiSegment[] {
-  const A_TAG_RE =
-    /<a\b[^>]*\bhref\s*=\s*(?:"([^"]*)"|'([^']*)')[^>]*>([\s\S]*?)<\/a>/gi;
+function splitTextByTokens(text: string): UiSegment[] {
+  const TOKEN_RE =
+    /<suggestion>([\s\S]*?)<\/suggestion>|<a\b[^>]*\bhref\s*=\s*(?:"([^"]*)"|'([^']*)')[^>]*>([\s\S]*?)<\/a>/gi;
+  const normalizedText = text
+    .replace(/\s*\n+\s*(<suggestion>)/g, " $1")
+    .replace(/(<\/suggestion>)\s*\n+\s*/g, "$1 ");
 
   const out: UiSegment[] = [];
   let cursor = 0;
 
   while (true) {
-    const m = A_TAG_RE.exec(text);
+    const m = TOKEN_RE.exec(normalizedText);
     if (!m) break;
 
     const start = m.index;
     const end = start + m[0].length;
 
-    const before = text.slice(cursor, start);
+    const before = normalizedText.slice(cursor, start);
     if (before) out.push({ type: "text", content: before });
 
-    const href = (m[1] ?? m[2] ?? "").trim();
-    const innerHtml = (m[3] ?? "").trim();
+    const suggestionInner = (m[1] ?? "").trim();
+    if (suggestionInner) {
+      const suggestionText = suggestionInner.replace(/<[^>]+>/g, "").trim();
+      if (suggestionText) {
+        out.push({ type: "suggestion", content: suggestionText });
+      } else {
+        out.push({ type: "text", content: m[0] });
+      }
+      cursor = end;
+      continue;
+    }
+
+    const href = (m[2] ?? m[3] ?? "").trim();
+    const innerHtml = (m[4] ?? "").trim();
 
     // If href is missing or looks unsafe, just keep raw as text
     // (You can relax/tighten this depending on your input trust)
@@ -78,7 +94,7 @@ function splitTextByAnchors(text: string): UiSegment[] {
     cursor = end;
   }
 
-  const tail = text.slice(cursor);
+  const tail = normalizedText.slice(cursor);
   if (tail) out.push({ type: "text", content: tail });
 
   return out;
@@ -95,8 +111,8 @@ export function extractUiSegments(text: string): { segments: UiSegment[] } {
     // 1) Before UI block
     const before = text.slice(cursor, start);
     if (before) {
-      // split <a> inside text
-      segments.push(...splitTextByAnchors(before));
+      // split links/suggestions inside plain text
+      segments.push(...splitTextByTokens(before));
     }
 
     // 2) UI block
@@ -113,16 +129,16 @@ export function extractUiSegments(text: string): { segments: UiSegment[] } {
       const obj = JSON.parse(jsonStr);
       segments.push({ type: "block", content: obj });
     } catch {
-      // If broken JSON, treat the whole thing as text (and still split anchors inside)
+      // If broken JSON, treat the whole thing as text (and still split tokens inside)
       const raw = text.slice(start, end + UI_END.length);
-      segments.push(...splitTextByAnchors(raw));
+      segments.push(...splitTextByTokens(raw));
     }
 
     cursor = end + UI_END.length;
   }
 
   const tail = text.slice(cursor);
-  if (tail) segments.push(...splitTextByAnchors(tail));
+  if (tail) segments.push(...splitTextByTokens(tail));
 
   // Remove duplicate tool_status blocks per tool call id.
   // Keep only the latest tool_status for each id (running -> done/error).
@@ -258,7 +274,10 @@ export function useChatSessionDB(args: {
   const send = useCallback(
     async (
       content?: string,
-      options?: { attachments?: FileAttachmentPayload[] }
+      options?: {
+        attachments?: FileAttachmentPayload[];
+        showUserMessage?: boolean;
+      }
     ) => {
       logger.log("\n\nsend in useChatSessionDB : ", content, "\n\n");
 
@@ -266,6 +285,7 @@ export function useChatSessionDB(args: {
 
       const trimmed = content ? content.trim() : input.trim();
       const attachments = options?.attachments ?? [];
+      const showUserMessage = options?.showUserMessage === true;
       const hasAttachments = attachments.length > 0;
       if (!trimmed && !hasAttachments) return;
       if (isStreaming) return;
@@ -319,7 +339,7 @@ export function useChatSessionDB(args: {
             content: userContentForDb,
           });
 
-          if (!content) {
+          if (!content || showUserMessage) {
             setMessages((prev) => [
               ...prev,
               {

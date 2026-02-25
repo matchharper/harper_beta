@@ -720,9 +720,9 @@ const CandidatePage = () => {
             <BaseSectionLayout>
               <div className="flex flex-col items-center justify-center w-full pt-4">
                 <div className="w-full flex flex-col items-center justify-center pb-2">
-                  <h2 className="text-[28px] md:text-4xl font-garamond font-medium">
+                  <Head1 className="text-white">
                     {m.companyLanding.faq.title}
-                  </h2>
+                  </Head1>
                   <div className="flex flex-col items-start justify-start text-white/70 font-light w-full mt-12 px-4 md:px-0">
                     {m.companyLanding.faq.items.map((item, index) => (
                       <QuestionAnswer

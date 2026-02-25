@@ -4,6 +4,14 @@ import { SummaryScore } from "@/types/type";
 
 export type SynthItem = { score: string; reason: string };
 
+function sanitizeReasonText(raw: string) {
+  return raw
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/?strong>/gi, "")
+    .replace(/<[^>]+>/g, "")
+    .trim();
+}
+
 function scoreIcon(score: string) {
   if (score === SummaryScore.SATISFIED)
     return <Check className="w-4 h-4 text-accenta1" strokeWidth={2.2} />;
@@ -24,10 +32,9 @@ const SummaryCell = ({
   const [open, setOpen] = useState(false);
 
   const score = item?.score ?? "";
-  const reasonHtml = useMemo(() => {
-    const raw = item?.reason ?? "";
-
-    return raw.replace(/strong>/g, 'span class="text-white font-medium">');
+  const reasonText = useMemo(() => {
+    const raw = String(item?.reason ?? "");
+    return sanitizeReasonText(raw);
   }, [item?.reason]);
 
   return (
@@ -44,7 +51,7 @@ const SummaryCell = ({
         open={open}
         criteria={criteria}
         score={score}
-        reasonHtml={reasonHtml}
+        reasonText={reasonText}
       />
     </div>
   );
@@ -57,13 +64,13 @@ const HoverPopover = ({
   title,
   criteria,
   score,
-  reasonHtml,
+  reasonText,
 }: {
   open: boolean;
   title?: string;
   criteria: string;
   score: string;
-  reasonHtml: string;
+  reasonText: string;
 }) => {
   if (!open) return null;
   return (
@@ -93,13 +100,9 @@ const HoverPopover = ({
       <div className="mt-3 h-px bg-white/10" />
 
       <div className="mt-3">
-        <div
-          className="text-[14px] leading-relaxed text-hgray800"
-          dangerouslySetInnerHTML={{
-            __html:
-              reasonHtml || "<span class='text-hgray700'>No details</span>",
-          }}
-        />
+        <div className="text-[14px] leading-relaxed text-hgray800 whitespace-pre-wrap break-words">
+          {reasonText || "No details"}
+        </div>
       </div>
 
       {title && (

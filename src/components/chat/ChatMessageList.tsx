@@ -34,7 +34,16 @@ type Props = {
     messageId: number;
     modifiedBlock: CriteriaCardBlock;
   }) => void;
+  onApplyCriteriaSuggestion?: (text: string) => void;
 };
+
+function sanitizeInlineChatText(raw: string) {
+  return raw
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\*\*/g, "")
+    .replace(/#/g, "");
+}
 
 function ChatMessageList({
   messages,
@@ -42,6 +51,7 @@ function ChatMessageList({
   error,
   onConfirmCriteriaCard,
   onChangeCriteriaCard,
+  onApplyCriteriaSuggestion,
 }: Props) {
   const hasActiveToolCall = useMemo(() => {
     const last = messages[messages.length - 1];
@@ -146,24 +156,17 @@ function ChatMessageList({
             <div
               className={`max-w-[98%] rounded-3xl text-sm leading-relaxed ${bubbleCls}`}
             >
-              <div className="whitespace-pre-wrap break-words flex flex-row flex-wrap gap-1">
+              <div className="whitespace-pre-wrap break-words">
                 {showToolToggle && <ToolStatusToggle items={toolSegments} />}
                 {segmentsToRender.map((s, si) => {
                   if (s.type === "text") {
+                    const safeText = sanitizeInlineChatText(s.content);
                     return (
-                      <div
+                      <span
                         key={`text-${idx}-${si}`}
                         className="whitespace-pre-wrap break-words"
                       >
-                        <div
-                          dangerouslySetInnerHTML={{
-                            __html: s.content
-                              .replace(/<br\s*\/?>/g, "\n")
-                              .replace(/\*\*/g, "")
-                              .replace(/#/g, ""),
-                          }}
-                        ></div>
-                        {/* {s.content.replace(/<br\s*\/?>/g, "\n")} */}
+                        <span>{safeText}</span>
 
                         {!isUser &&
                           isStreaming &&
@@ -173,7 +176,7 @@ function ChatMessageList({
                               ▍
                             </span>
                           )}
-                      </div>
+                      </span>
                     );
                   }
                   if (s.type === "block") {
@@ -268,6 +271,33 @@ function ChatMessageList({
                         />
                       );
                     }
+                  }
+                  if (s.type === "suggestion") {
+                    const text = (s.content ?? "").trim();
+                    const clickable = !isUser && !!onApplyCriteriaSuggestion;
+
+                    if (!text) return null;
+
+                    if (!clickable) {
+                      return (
+                        <span
+                          key={`suggestion-${idx}-${si}`}
+                          className="text-[13px] font-light text-white/90 underline decoration-dotted underline-offset-4 decoration-white/70"
+                        >
+                          {text}
+                        </span>
+                      );
+                    }
+
+                    return (
+                      <span
+                        key={`suggestion-${idx}-${si}`}
+                        onClick={() => onApplyCriteriaSuggestion(text)}
+                        className="text-left font-light text-white/90 underline decoration-dotted underline-offset-4 decoration-white/70 hover:text-white transition-all duration-200 cursor-pointer"
+                      >
+                        {text}
+                      </span>
+                    );
                   }
                   return null;
                 })}

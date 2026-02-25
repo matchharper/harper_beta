@@ -15,6 +15,13 @@ type ProfileBioProps = {
   links?: string[];
 };
 
+function sanitizeProfileLine(raw: string) {
+  return String(raw ?? "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .trim();
+}
+
 const ProfileBio = ({
   summary = [],
   bio = "",
@@ -28,8 +35,8 @@ const ProfileBio = ({
 
   const displayLine = useMemo(() => {
     if (summary?.length > 0 && summary[0]?.text)
-      return replaceName(summary[0].text, name);
-    if (oneline) return replaceName(oneline, name);
+      return sanitizeProfileLine(replaceName(summary[0].text, name));
+    if (oneline) return sanitizeProfileLine(replaceName(oneline, name));
     return "";
   }, [summary, oneline, name]);
 
@@ -58,10 +65,9 @@ const ProfileBio = ({
         </div>
         <div className="text-hgray900 col-span-6 flex flex-col gap-2 mb-2">
           {displayLine ? (
-            <div
-              className="whitespace-pre-wrap leading-relaxed text-[15px]"
-              dangerouslySetInnerHTML={{ __html: displayLine }}
-            />
+            <div className="whitespace-pre-wrap leading-relaxed text-[15px] break-words">
+              {displayLine}
+            </div>
           ) : isLoadingOneline ? (
             <div className="flex flex-row items-center gap-1">
               <Loader2 className="w-4 h-4 animate-spin" />

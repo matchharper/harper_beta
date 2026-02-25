@@ -27,6 +27,13 @@ function addMonths(date: Date, months: number) {
 }
 
 export async function POST(req: Request) {
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return NextResponse.json(
+      { status: "skipped_missing_service_role_key" },
+      { status: 200 }
+    );
+  }
+
   let userId = "";
   try {
     const body = await req.json();

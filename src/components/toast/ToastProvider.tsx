@@ -3,7 +3,7 @@
 import React from "react";
 import { createPortal } from "react-dom";
 import { setToast, ToastOptions } from "./toast";
-import { CheckCircle2, XCircle, X } from "lucide-react";
+import { CheckCircle2, XCircle } from "lucide-react";
 import Animate from "../landing/Animate";
 
 type Item = {
@@ -12,6 +12,12 @@ type Item = {
   variant: "default" | "success" | "error" | "white";
   ttl: number;
 };
+
+function normalizeToastMessage(message: string) {
+  return String(message ?? "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "");
+}
 
 export default function ToastProvider() {
   const [mounted, setMounted] = React.useState(false);
@@ -90,7 +96,9 @@ function Toast({ item, onClose }: { item: Item; onClose: () => void }) {
       aria-live="polite"
     >
       {Icon ? <Icon className="h-4 w-4 shrink-0 opacity-90" /> : null}
-      <span className="flex-1" dangerouslySetInnerHTML={{ __html: item.message }} />
+      <span className="flex-1 whitespace-pre-wrap break-words">
+        {normalizeToastMessage(item.message)}
+      </span>
       {/* <button
         onClick={onClose}
         className="rounded-full p-1 hover:bg-xopp/10"

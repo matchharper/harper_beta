@@ -402,10 +402,7 @@ ${information}
       String(body.companyDescription ?? "").trim(),
       MAX_TEAM_CONTEXT_CHARS
     );
-    const location = clampText(
-      String(body.teamLocation ?? "").trim(),
-      200
-    );
+    const location = clampText(String(body.teamLocation ?? "").trim(), 200);
     if (description.length > 0 || location.length > 0) {
       const profileLines = [
         description.length > 0

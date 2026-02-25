@@ -161,7 +161,7 @@ export default function BlogListPage({ posts, categories }: BlogListPageProps) {
             {/* dark overlay (가독성용) */}
             <div className="absolute inset-0 bg-black/80" />
 
-            <h1 className="z-10 mt-3 font-garamond text-4xl leading-[0.95] md:text-5xl">
+            <h1 className="z-10 mt-3 font-hedvig text-4xl leading-[0.95] md:text-5xl">
               Blog
             </h1>
             <p className="z-10 mt-5 max-w-2xl text-base leading-6 text-white/65 md:text-lg"></p>
@@ -324,7 +324,7 @@ export default function BlogListPage({ posts, categories }: BlogListPageProps) {
 
             <div>
               <div className="flex items-center gap-4">
-                <h2 className="font-garamond text-2xl md:text-3xl">
+                <h2 className="font-hedvig text-2xl md:text-3xl">
                   {headingLabel}
                 </h2>
                 <div className="h-px flex-1 bg-white/15" />

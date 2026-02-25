@@ -19,7 +19,6 @@ import { Avatar } from "./NameProfile";
 import { Tooltips } from "./ui/tooltip";
 import SummaryCell, { SynthItem } from "./information/SummaryCell";
 import { useLogEvent } from "@/hooks/useLog";
-import Image from "next/image";
 import { getSchoolLogo } from "@/utils/school_logo";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);

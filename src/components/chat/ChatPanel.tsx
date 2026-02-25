@@ -476,6 +476,18 @@ ${criteriaText}
     void chat.send(undefined, { attachments });
   }, [allowAttachments, attachedFile, chat, isReadingFile, readFileContent]);
 
+  const handleApplyCriteriaSuggestion = useCallback(
+    (suggestion: string) => {
+      const normalized = String(suggestion ?? "").trim();
+      if (!normalized) return;
+      if (chat.isStreaming) return;
+      if (!isQueryScope) return;
+
+      void chat.send(`${normalized} 조건 추가`, { showUserMessage: true });
+    },
+    [chat, isQueryScope]
+  );
+
   const handleAttach = useCallback(
     (file: File | null) => {
       if (!file) {
@@ -561,6 +573,9 @@ ${criteriaText}
             isStreaming={chat.isStreaming}
             error={chat.error}
             onConfirmCriteriaCard={isQueryScope ? onClickSearch : undefined} // ✅ query scope에서만
+            onApplyCriteriaSuggestion={
+              isQueryScope ? handleApplyCriteriaSuggestion : undefined
+            }
             onChangeCriteriaCard={(args) => {
               void chat.patchAssistantUiBlock(
                 args.messageId,

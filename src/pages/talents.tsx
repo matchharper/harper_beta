@@ -373,9 +373,7 @@ const CandidatePage = () => {
         <BaseSectionLayout>
           <div className="flex flex-col items-center justify-center w-full pt-4">
             <div className="w-full flex flex-col items-center justify-center pb-2">
-              <div className="text-[28px] md:text-4xl font-garamond font-medium">
-                Questions & Answers
-              </div>
+              <Head1 className="text-white">Questions & Answers</Head1>
               <div className="flex flex-col items-start justify-start text-white/70 font-light w-full mt-12 px-4 md:px-0">
                 <QuestionAnswer
                   question="누가 제 프로필을 볼 수 있나요?"

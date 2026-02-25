@@ -336,82 +336,84 @@ export const CriteriaCard = React.memo(function CriteriaCard({
   };
 
   return (
-    <div className="mt-2 w-full max-w-[440px]">
-      <div className="text-xs text-hgray600 font-extralight flex flex-row items-center gap-1.5">
-        <span>
-          {/* <img
+    <div className="mt-2 w-full">
+      <div className="max-w-[440px]">
+        <div className="text-xs text-hgray600 font-extralight flex flex-row items-center gap-1.5">
+          <span>
+            {/* <img
               src="/svgs/logo.svg"
               alt="Harper"
               className="w-[9px] h-[9px] text-hgray600"
             /> */}
-          <Bolt className="w-2.5 h-2.5 text-hgray600" />
-        </span>
-        Search
-      </div>
-      <div
-        className={`mt-2 rounded-3xl border border-white/10 bg-white/5 px-4 py-4 transition-all duration-200
-        ${disabled ? "pointer-events-none cursor-default" : ""}`}
-      >
-        <div className="text-sm text-hgray900 font-semibold flex items-center gap-2">
-          검색 방법
+            <Bolt className="w-2.5 h-2.5 text-hgray600" />
+          </span>
+          Search
         </div>
+        <div
+          className={`mt-2 rounded-3xl border border-white/10 bg-white/5 px-4 py-4 transition-all duration-200
+        ${disabled ? "pointer-events-none cursor-default" : ""}`}
+        >
+          <div className="text-sm text-hgray900 font-semibold flex items-center gap-2">
+            검색 방법
+          </div>
 
-        <QueryTextItem
-          text={draft.thinking ?? ""}
-          onConfirm={updateQueryText}
-        />
+          <QueryTextItem
+            text={draft.thinking ?? ""}
+            onConfirm={updateQueryText}
+          />
 
-        <div className="mt-3 text-xs text-hgray600">Criteria</div>
+          <div className="mt-3 text-xs text-hgray600">Criteria</div>
 
-        {Array.isArray(draft.criteria) && draft.criteria.length > 0 && (
-          <div className="mt-2 flex flex-col gap-1">
-            {draft.criteria.map((c, idx) => (
+          {Array.isArray(draft.criteria) && draft.criteria.length > 0 && (
+            <div className="mt-2 flex flex-col gap-1">
+              {draft.criteria.map((c, idx) => (
+                <CriteriaItem
+                  key={`${idx}`}
+                  criteria={c}
+                  onRemove={() => removeCriteriaAt(idx)}
+                  onConfirm={(next) => updateCriteriaAt(idx, next)}
+                />
+              ))}
+            </div>
+          )}
+
+          {pendingAdd && (
+            <div className="mt-2">
               <CriteriaItem
-                key={`${idx}`}
-                criteria={c}
-                onRemove={() => removeCriteriaAt(idx)}
-                onConfirm={(next) => updateCriteriaAt(idx, next)}
+                criteria=""
+                startEditing
+                autoRemoveIfEmpty
+                placeholder="Add criteria..."
+                onRemove={cancelAdd}
+                onCancel={cancelAdd}
+                onConfirm={(next) => commitAdd(next)}
               />
-            ))}
-          </div>
-        )}
+            </div>
+          )}
 
-        {pendingAdd && (
-          <div className="mt-2">
-            <CriteriaItem
-              criteria=""
-              startEditing
-              autoRemoveIfEmpty
-              placeholder="Add criteria..."
-              onRemove={cancelAdd}
-              onCancel={cancelAdd}
-              onConfirm={(next) => commitAdd(next)}
-            />
-          </div>
-        )}
+          <button
+            type="button"
+            onClick={() => {
+              if (!pendingAdd) setPendingAdd(true);
+            }}
+            className="rounded-2xl font-light hover:bg-white/5 pl-2 pr-3 py-2 text-sm text-hgray900 flex items-center gap-1 mt-4 transition-all duration-200"
+          >
+            <Plus size={16} />
+            Add Criteria
+          </button>
 
-        <button
-          type="button"
-          onClick={() => {
-            if (!pendingAdd) setPendingAdd(true);
-          }}
-          className="rounded-2xl font-light hover:bg-white/5 pl-2 pr-3 py-2 text-sm text-hgray900 flex items-center gap-1 mt-4 transition-all duration-200"
-        >
-          <Plus size={16} />
-          Add Criteria
-        </button>
-
-        <button
-          type="button"
-          className={`mt-4 w-full rounded-full bg-accenta1 text-black py-2.5 text-sm hover:opacity-90 disabled:opacity-50 ${
-            disabled ? "cursor-not-allowed" : "cursor-pointer"
-          }`}
-          disabled={disabled}
-          // disabled={!draft.ready || disabled}
-          onClick={() => onConfirm?.(draft)}
-        >
-          Confirm & Search
-        </button>
+          <button
+            type="button"
+            className={`mt-4 w-full rounded-full bg-accenta1 text-black py-2.5 text-sm hover:opacity-90 disabled:opacity-50 ${
+              disabled ? "cursor-not-allowed" : "cursor-pointer"
+            }`}
+            disabled={disabled}
+            // disabled={!draft.ready || disabled}
+            onClick={() => onConfirm?.(draft)}
+          >
+            Confirm & Search
+          </button>
+        </div>
       </div>
     </div>
   );

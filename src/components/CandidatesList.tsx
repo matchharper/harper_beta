@@ -15,6 +15,14 @@ import { useLogEvent } from "@/hooks/useLog";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
 
+function sanitizeSummaryReason(raw: string) {
+  return String(raw ?? "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/?strong>/gi, "")
+    .replace(/<[^>]+>/g, "")
+    .trim();
+}
+
 type ParsedSummary = { score: string; reason: string };
 
 function parseSummaryText(
@@ -206,6 +214,10 @@ const CriteriaBox = ({
     return "";
   }, [score]);
 
+  const safeReasonText = useMemo(() => {
+    return sanitizeSummaryReason(reason.split(",").slice(1).join(","));
+  }, [reason]);
+
   return (
     <div className="mt-5">
       <Tooltips text={tooltipText}>
@@ -218,16 +230,9 @@ const CriteriaBox = ({
       </Tooltips>
       {/* </Tooltips> */}
       {reason && (
-        <div
-          className="mt-2 text-[14px] font-normal"
-          dangerouslySetInnerHTML={{
-            __html: reason
-              .split(",")
-              .slice(1)
-              .join(",")
-              .replace(/strong>/g, 'span class="text-white font-normal">'),
-          }}
-        />
+        <div className="mt-2 text-[14px] font-normal whitespace-pre-wrap break-words">
+          {safeReasonText}
+        </div>
       )}
     </div>
   );
