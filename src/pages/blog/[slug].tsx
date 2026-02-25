@@ -375,7 +375,7 @@ export default function BlogPostPage({ post }: BlogPostPageProps) {
               <p className="text-base font-normal text-accenta1">
                 {post.category}
               </p>
-              <h1 className="max-w-[70%] md:max-w-[80%] mt-4 font-medium text-3xl leading-normal md:text-4xl md:leading-tight text-center">
+              <h1 className="max-w-[70%] md:max-w-[80%] mt-4 font-medium text-3xl leading-normal md:text-4xl md:leading-normal text-center break-keep">
                 {post.title}
               </h1>
 
