@@ -325,6 +325,46 @@ FOR SELECT
 TO authenticated
 USING (true);
 
+-- 후보 상세 확장 데이터
+GRANT SELECT ON TABLE public.summary TO authenticated;
+DROP POLICY IF EXISTS summary_read_auth ON public.summary;
+CREATE POLICY summary_read_auth
+ON public.summary
+FOR SELECT
+TO authenticated
+USING (true);
+
+GRANT SELECT ON TABLE public.github_repo_contribution TO authenticated;
+DROP POLICY IF EXISTS github_repo_contribution_read_auth ON public.github_repo_contribution;
+CREATE POLICY github_repo_contribution_read_auth
+ON public.github_repo_contribution
+FOR SELECT
+TO authenticated
+USING (true);
+
+-- unlock_profile는 user_id가 아니라 company_user_id 컬럼을 사용
+GRANT SELECT, INSERT, DELETE ON TABLE public.unlock_profile TO authenticated;
+DROP POLICY IF EXISTS unlock_profile_select_own ON public.unlock_profile;
+CREATE POLICY unlock_profile_select_own
+ON public.unlock_profile
+FOR SELECT
+TO authenticated
+USING (auth.uid() = company_user_id);
+
+DROP POLICY IF EXISTS unlock_profile_insert_own ON public.unlock_profile;
+CREATE POLICY unlock_profile_insert_own
+ON public.unlock_profile
+FOR INSERT
+TO authenticated
+WITH CHECK (auth.uid() = company_user_id);
+
+DROP POLICY IF EXISTS unlock_profile_delete_own ON public.unlock_profile;
+CREATE POLICY unlock_profile_delete_own
+ON public.unlock_profile
+FOR DELETE
+TO authenticated
+USING (auth.uid() = company_user_id);
+
 -- 검색 결과 설명(summary)은 본인 run에 연결된 row만 읽기 허용
 GRANT SELECT ON TABLE public.synthesized_summary TO authenticated;
 DROP POLICY IF EXISTS synthesized_summary_select_own_run ON public.synthesized_summary;
@@ -375,6 +415,26 @@ ON public.harper_waitlist_company
 FOR INSERT
 TO anon, authenticated
 WITH CHECK (true);
+```
+
+`/adminpage`를 **비로그인 상태에서 조회**해야 한다면 아래를 추가:
+
+```sql
+GRANT SELECT ON TABLE public.landing_logs TO anon, authenticated;
+DROP POLICY IF EXISTS landing_logs_select_any ON public.landing_logs;
+CREATE POLICY landing_logs_select_any
+ON public.landing_logs
+FOR SELECT
+TO anon, authenticated
+USING (true);
+
+GRANT SELECT ON TABLE public.harper_waitlist_company TO anon, authenticated;
+DROP POLICY IF EXISTS harper_waitlist_company_select_any ON public.harper_waitlist_company;
+CREATE POLICY harper_waitlist_company_select_any
+ON public.harper_waitlist_company
+FOR SELECT
+TO anon, authenticated
+USING (true);
 ```
 
 엄격 모드(보안 우선): 위 3개 정책도 만들지 말고 서버 API로 이관 후 오픈

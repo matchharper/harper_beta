@@ -110,22 +110,38 @@ const Home: NextPage = () => {
       return;
     }
 
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const accessToken = session?.access_token;
+    if (!accessToken) {
+      setIsLoading(false);
+      alert("로그인 세션이 만료되었습니다. 다시 로그인해 주세요.");
+      return;
+    }
+
+    const authHeaders = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    };
+
     // 여기서 첫 메세지까지 들어감.
     const response = await fetch("/api/search/create", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ queryText: query, userId: companyUser.user_id }),
+      headers: authHeaders,
+      body: JSON.stringify({ queryText: query }),
     });
     const data = await response.json();
 
     if (data.error) {
       alert(data.error);
+      setIsLoading(false);
       return;
     }
     const queryId = data.id;
     fetch("/api/search/keyword", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders,
       body: JSON.stringify({ queryId, queryText: query }),
     }).catch((err) => console.error("keyword enqueue failed", err));
     refreshQueriesHistory(qc, companyUser.user_id);

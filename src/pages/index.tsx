@@ -343,6 +343,29 @@ const CandidatePage = () => {
           return { message: m.auth.emailConfirmationSent };
         }
 
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const accessToken = session?.access_token;
+        if (!accessToken) {
+          return { message: "로그인 세션이 만료되었습니다. 다시 로그인해 주세요." };
+        }
+
+        const bootstrapRes = await fetch("/api/auth/bootstrap", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+        if (!bootstrapRes.ok) {
+          const bootstrapJson = await bootstrapRes.json().catch(() => ({}));
+          return {
+            message:
+              bootstrapJson?.error ?? "계정 초기화에 실패했습니다. 다시 시도해 주세요.",
+          };
+        }
+
         setIsOpenLoginModal(false);
         router.push("/invitation");
         return null;
