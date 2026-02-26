@@ -55,18 +55,6 @@ export default function AuthCallback() {
         }
       }
 
-      const { data: existingCompanyUser, error: existingCompanyUserError } =
-        await supabase
-          .from("company_users")
-          .select("user_id")
-          .eq("user_id", user.id)
-          .maybeSingle();
-
-      if (existingCompanyUserError) {
-        console.error("existing company user check error:", existingCompanyUserError);
-      }
-
-      // 3) company_users upsert (RLS 정책 + user_id unique 전제)
       const payload = {
         user_id: user.id,
         email: user.email ?? null,
@@ -77,19 +65,34 @@ export default function AuthCallback() {
         profile_picture: user.user_metadata?.avatar_url ?? null,
       };
 
-      const { data, error } = await supabase
-        .from("company_users")
-        .upsert(payload, { onConflict: "user_id" });
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
 
-      await useCompanyUserStore.getState().load(user.id);
+      if (!accessToken) {
+        router.replace("?error=no_session");
+        return;
+      }
 
-      if (error) {
-        console.error("upsert error:", error);
+      const bootstrapRes = await fetch("/api/auth/bootstrap", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      const bootstrapJson = await bootstrapRes.json().catch(() => ({}));
+      if (!bootstrapRes.ok) {
+        console.error("bootstrap error:", bootstrapJson);
         router.replace("?error=profile_upsert_failed");
         return;
       }
 
-      if (!existingCompanyUserError && !existingCompanyUser) {
+      await useCompanyUserStore.getState().load(user.id);
+
+      if (bootstrapJson?.created) {
         try {
           await notifyToSlack(`🎉 *New Signup*
 

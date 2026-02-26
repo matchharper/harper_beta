@@ -1,24 +1,50 @@
-import { supabase } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
+import { getRequestUser, supabaseServer } from "@/lib/supabaseServer";
 
 export async function POST(req: NextRequest) {
   if (req.method !== "POST")
     return NextResponse.json({ error: "Method not allowed" }, { status: 405 });
 
+  const user = await getRequestUser(req);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await req.json();
-  const { userId, queryText } = body as {
-    userId?: string;
-    queryText?: string;
-  };
-  if (!userId || !queryText?.trim())
+  const { queryText } = body as { queryText?: string };
+  if (!queryText?.trim())
     return NextResponse.json(
-      { error: "Missing userId or queryText" },
+      { error: "Missing queryText" },
       { status: 400 }
     );
-  const { data, error } = await supabase
+
+  // Ensure a company_user row exists for email/password accounts as well.
+  const { error: upsertError } = await supabaseServer
+    .from("company_users")
+    .upsert(
+      {
+        user_id: user.id,
+        email: user.email ?? null,
+        name:
+          user.user_metadata?.full_name ??
+          user.user_metadata?.name ??
+          "Anonymous",
+        profile_picture: user.user_metadata?.avatar_url ?? null,
+      },
+      { onConflict: "user_id" }
+    );
+
+  if (upsertError) {
+    return NextResponse.json(
+      { error: upsertError.message ?? "Failed to upsert profile" },
+      { status: 500 }
+    );
+  }
+
+  const { data, error } = await supabaseServer
     .from("queries")
     .insert({
-      user_id: userId,
+      user_id: user.id,
       raw_input_text: queryText.trim(),
       query_keyword: "",
     })
@@ -31,9 +57,9 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
 
-  const { error: messageError } = await supabase.from("messages").insert({
+  const { error: messageError } = await supabaseServer.from("messages").insert({
     query_id: data.query_id,
-    user_id: userId,
+    user_id: user.id,
     role: 0,
     content: queryText.trim(),
   });
