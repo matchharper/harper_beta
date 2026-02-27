@@ -383,7 +383,7 @@ function CandidateProfileDetailPage({
           />
         </div>
 
-        {criteriaSummaries.length > 0 && (
+        {criteriaSummaries && criteriaSummaries.length > 0 && (
           <Box title="">
             <Criterias criteriaSummaries={criteriaSummaries} />
           </Box>
