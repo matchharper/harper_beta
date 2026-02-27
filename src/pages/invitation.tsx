@@ -411,6 +411,7 @@ export default function LoginSuccess() {
             >
               {m.invitation.waitlist}
             </button>
+            <div className="text-sm text-hgray600 mt-1"></div>
 
             {/* Logout */}
             <button

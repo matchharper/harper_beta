@@ -21,6 +21,9 @@ import { useLogEvent } from "@/hooks/useLog";
 import { logger } from "@/utils/logger";
 import { Loading } from "@/components/ui/loading";
 import FeedbackBanner from "./components/FeedbackBanner";
+import { useRunDetail } from "@/hooks/useRunDetail";
+import { supabase } from "@/lib/supabase";
+import Criterias from "./components/Criterias";
 
 export const ExperienceCal = (months: number) => {
   const years = Math.floor(months / 12);
@@ -30,13 +33,47 @@ export const ExperienceCal = (months: number) => {
   }`;
 };
 
+type SynthesizedSummaryItem = {
+  score: string;
+  reason: string;
+};
+
+function parseSynthesizedSummaryText(
+  rawText: string | null | undefined
+): SynthesizedSummaryItem[] {
+  if (!rawText) return [];
+
+  try {
+    const parsed = JSON.parse(rawText);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.map((value: any) => {
+      const text = String(value ?? "");
+      const score = text.split(",")[0] ?? "";
+      const reason = text.split(",").slice(1).join(",") ?? "";
+      return { score, reason };
+    });
+  } catch {
+    return [];
+  }
+}
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => String(item ?? "").trim())
+    .filter((item) => item.length > 0);
+}
+
 function CandidateProfileDetailPage({
   candidId,
+  runId,
   data,
   isLoading,
   error,
 }: {
   candidId: string;
+  runId?: string;
   data: CandidateDetail;
   isLoading: boolean;
   error: Error | null;
@@ -45,16 +82,41 @@ function CandidateProfileDetailPage({
   const [isLoadingOneline, setIsLoadingOneline] = useState(false);
   const [oneline, setOneline] = useState<string | null>(null);
   const [isShareOpen, setIsShareOpen] = useState(false);
+  const [runSynthesizedSummary, setRunSynthesizedSummary] = useState<
+    SynthesizedSummaryItem[]
+  >([]);
 
   const logEvent = useLogEvent();
   const { m } = useMessages();
   const { companyUser } = useCompanyUserStore();
   const userId = companyUser?.user_id;
   const qc = useQueryClient();
+  const { data: runData } = useRunDetail(runId);
 
   const c: any = data;
   const showAutomationFeedback =
     data?.isAutomationResult && companyUser.is_custom;
+
+  const runCriteriaList = useMemo(
+    () => asStringArray((runData as any)?.criteria),
+    [runData]
+  );
+
+  const criteriaSummaries = useMemo(() => {
+    if (
+      !runId ||
+      runCriteriaList.length === 0 ||
+      runSynthesizedSummary.length === 0
+    ) {
+      return [];
+    }
+
+    return runCriteriaList.map((criteria, index) => ({
+      criteria,
+      score: runSynthesizedSummary[index]?.score ?? "",
+      reason: runSynthesizedSummary[index]?.reason ?? "",
+    }));
+  }, [runId, runCriteriaList, runSynthesizedSummary]);
 
   const links: string[] = useMemo(() => {
     if (!c?.links) return [];
@@ -184,22 +246,35 @@ function CandidateProfileDetailPage({
 
   const generateOneLineSummary = async () => {
     setIsLoadingOneline(true);
-    const res = await fetch("/api/search/criteria_summarize", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        doc: c,
-        is_one_line: true,
-      }),
-    });
+    try {
+      const res = await fetch("/api/search/criteria_summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          doc: c,
+          is_one_line: true,
+        }),
+      });
 
-    const data = await res.json();
-    setOneline(data.result);
-    // ✅ 서버에서 DB 업데이트 끝났으면 캐시 무효화 → 최신 재조회
-    await qc.invalidateQueries({
-      queryKey: candidateKey(candidId, userId), // 너 useCandidateDetail의 키랑 반드시 동일해야 함
-    });
-    setIsLoadingOneline(false);
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        logger.log(
+          "one_line_summary request failed:",
+          payload?.error ?? `status:${res.status}`
+        );
+        return;
+      }
+
+      setOneline(payload?.result ?? null);
+      // ✅ 서버에서 DB 업데이트 끝났으면 캐시 무효화 → 최신 재조회
+      await qc.invalidateQueries({
+        queryKey: candidateKey(candidId, userId), // 너 useCandidateDetail의 키랑 반드시 동일해야 함
+      });
+    } catch (e) {
+      logger.log("one_line_summary request error:", e);
+    } finally {
+      setIsLoadingOneline(false);
+    }
   };
 
   useEffect(() => {
@@ -213,11 +288,43 @@ function CandidateProfileDetailPage({
     if (requested) return;
 
     setRequested(true);
-    generateOneLineSummary().finally(() => {
-      // 실패 시 재시도 허용하고 싶으면 false로 돌려도 됨
-      // setRequested(false);
-    });
+    generateOneLineSummary().finally(() => {});
   }, [isLoading, c, userId, candidId, requested]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    if (!runId || !candidId) {
+      setRunSynthesizedSummary([]);
+      return;
+    }
+
+    const loadSynthesizedSummary = async () => {
+      const { data, error } = await supabase
+        .from("synthesized_summary")
+        .select("text, created_at")
+        .eq("candid_id", candidId)
+        .eq("run_id", runId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (isCancelled) return;
+      if (error) {
+        logger.log("profile synthesized_summary load error:", error);
+        setRunSynthesizedSummary([]);
+        return;
+      }
+
+      setRunSynthesizedSummary(parseSynthesizedSummaryText(data?.text));
+    };
+
+    loadSynthesizedSummary().finally(() => {});
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [candidId, runId]);
 
   if (!candidId || !userId || isLoading || error || !data)
     return <Loading className="text-xgray800" />;
@@ -276,13 +383,18 @@ function CandidateProfileDetailPage({
           />
         </div>
 
+        {criteriaSummaries.length > 0 && (
+          <Box title="">
+            <Criterias criteriaSummaries={criteriaSummaries} />
+          </Box>
+        )}
+
         <ProfileBio
           summary={c.s ?? []}
           bio={c.bio ?? ""}
           name={c.name ?? ""}
           oneline={oneline ?? ""}
           isLoadingOneline={isLoadingOneline ?? false}
-          links={links}
         />
 
         {/* Experiences */}
@@ -412,7 +524,7 @@ export const Box = ({
   children: React.ReactNode;
 }) => {
   return (
-    <div className="rounded-xl shadow-sm w-full grid grid-cols-7">
+    <div className="shadow-sm w-full grid grid-cols-7">
       <div className="col-span-1">
         <div className="flex items-center gap-2 text-base font-normal text-hgray1000">
           {icon}

@@ -8,7 +8,7 @@ import Bookmarkbutton from "./ui/bookmarkbutton";
 import { dateToFormat } from "@/utils/textprocess";
 import { Tooltips } from "./ui/tooltip";
 import { Check, Dot, X } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "next/router";
 import { RoleBox, SchoolBox } from "./CandidatesListTable";
 import { SummaryScore } from "@/types/type";
 import { useLogEvent } from "@/hooks/useLog";
@@ -59,6 +59,17 @@ function CandidateCard({
   const logEvent = useLogEvent();
 
   const candidId = c.id;
+  const sourceRunId =
+    typeof router.query.run === "string" ? router.query.run : "";
+  const profileHref = sourceRunId
+    ? `/my/p/${candidId}?run=${encodeURIComponent(sourceRunId)}`
+    : `/my/p/${candidId}`;
+
+  const openProfile = () => {
+    logEvent("candidate_card_click: " + candidId);
+    router.push(profileHref);
+  };
+
   const synthesizedSummary =
     JSON.parse(c.synthesized_summary?.[0]?.text ?? "[]").map((item: any) => {
       return {
@@ -85,17 +96,17 @@ function CandidateCard({
   return (
     <div
       key={c.id}
-      onClick={() => {
-        logEvent("candidate_card_click: " + candidId);
-        router.push(`/my/p/${candidId}`);
-      }}
+      onClick={openProfile}
       className="group relative w-full rounded-[28px] max-w-[980px] text-white bg-white/5 p-6 cursor-pointer hover:bg-[#FFFFFF18] transition-colors duration-200"
     >
       <div className="flex flex-row flex-1 items-start gap-4">
         <div className="w-[40%]">
           <div className="flex flex-row flex-1 items-start gap-4">
             <div
-              onClick={() => router.push(`/my/p/${candidId}`)}
+              onClick={(e) => {
+                e.stopPropagation();
+                openProfile();
+              }}
               className="cursor-pointer rounded-full hover:border-accenta1/80 border border-transparent transition-colors duration-100"
             >
               <Avatar url={c.profile_picture} name={c.name} size="lg" />
@@ -105,7 +116,10 @@ function CandidateCard({
               <div className="flex flex-col gap-0">
                 <div
                   className="truncate font-medium text-lg hover:underline cursor-pointer relative"
-                  onClick={() => router.push(`/my/p/${candidId}`)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openProfile();
+                  }}
                 >
                   {c.name ?? "None"}
                 </div>

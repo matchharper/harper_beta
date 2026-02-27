@@ -677,18 +677,21 @@ export type Database = {
         Row: {
           content: string | null
           created_at: string
+          from: string | null
           id: number
           user_id: string | null
         }
         Insert: {
           content?: string | null
           created_at?: string
+          from?: string | null
           id?: number
           user_id?: string | null
         }
         Update: {
           content?: string | null
           created_at?: string
+          from?: string | null
           id?: number
           user_id?: string | null
         }
@@ -1636,6 +1639,34 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      candid_with_github: {
+        Args: never
+        Returns: {
+          bio: string | null
+          created_at: string
+          email: string | null
+          fts: unknown
+          headline: string | null
+          id: string
+          is_duplicated_old: boolean
+          is_korean: boolean | null
+          is_linkedin_deprecated: boolean
+          last_updated_at: string | null
+          linkedin_url: string | null
+          links: string[] | null
+          location: string | null
+          name: string | null
+          profile_picture: string | null
+          summary: string | null
+          total_exp_months: number | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "candid"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       deduct_user_credits: {
         Args: { amount_to_deduct: number }
         Returns: number
@@ -1649,6 +1680,7 @@ export type Database = {
         }
         Returns: Json[]
       }
+      is_admin: { Args: never; Returns: boolean }
       reset_org_db_seq: { Args: never; Returns: undefined }
       set_timeout_and_execute_raw_sql: {
         Args: {

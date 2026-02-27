@@ -1,6 +1,6 @@
 import router from "next/router";
 import React, { useCallback } from "react";
-import { Menu } from "lucide-react";
+import { ArrowRightIcon, ArrowUpRight, Menu } from "lucide-react";
 import { DropdownMenu } from "@/components/ui/menu";
 import { useMessages } from "@/i18n/useMessage";
 
@@ -9,22 +9,25 @@ type LandingHeaderProps = {
   startButtonLabel?: string;
 };
 
-type LandingSection = "intro" | "how-it-works" | "pricing" | "faq";
+type LandingSection = "intro" | "how-it-works" | "pricing" | "faq" | "blog";
 
 const NavItem = ({
   label,
   onClick,
+  isArrowRight = false,
 }: {
-  label: string;
+  label: string | React.ReactNode;
   onClick: () => void;
+  isArrowRight?: boolean;
 }) => {
   return (
     <button
       type="button"
-      className="cursor-pointer hover:opacity-95 px-5 py-2 hover:bg-white/5 rounded-full transition-colors duration-200"
+      className={`flex flex-row items-center justify-between gap-2 cursor-pointer hover:opacity-95 pl-5 py-2 hover:bg-white/5 rounded-full transition-colors duration-200 ${isArrowRight ? "pr-3" : "px-5"}`}
       onClick={onClick}
     >
       {label}
+      {isArrowRight && <ArrowUpRight className="w-3 h-3" />}
     </button>
   );
 };
@@ -38,7 +41,39 @@ const LandingHeader = ({
   const navigateToSection = useCallback((section: LandingSection) => {
     if (typeof window === "undefined") return;
 
-    const isLandingPage = window.location.pathname === "/";
+    const pathname = window.location.pathname;
+    const isLandingPage = pathname === "/";
+    const isPricingPage = pathname === "/pricing";
+    const isBlogPage = pathname === "/blog";
+
+    if (section === "pricing") {
+      if (isPricingPage) {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+      router.push("/pricing");
+      return;
+    }
+
+    if (section === "blog") {
+      if (isBlogPage) {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+      router.push("/blog");
+      return;
+    }
+
+    if (section === "faq" && isPricingPage) {
+      const target = document.getElementById("pricing-faq");
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+      window.location.hash = "pricing-faq";
+      return;
+    }
+
     if (!isLandingPage) {
       router.push(section === "intro" ? "/#intro" : `/#${section}`);
       return;
@@ -99,10 +134,12 @@ const LandingHeader = ({
           <NavItem
             label={m.companyLanding.nav.pricing}
             onClick={() => navigateToSection("pricing")}
+            isArrowRight={true}
           />
           <NavItem
-            label={m.companyLanding.nav.faq}
-            onClick={() => navigateToSection("faq")}
+            label={m.companyLanding.nav.blog}
+            onClick={() => navigateToSection("blog")}
+            isArrowRight={true}
           />
         </nav>
         <div className="hidden md:flex w-[10%] md:w-[15%] items-center justify-end">
@@ -143,11 +180,11 @@ const LandingHeader = ({
               },
               {
                 label: m.companyLanding.nav.pricing,
-                onClick: () => navigateToSection("pricing"),
+                onClick: () => router.push("/pricing"),
               },
               {
-                label: m.companyLanding.nav.faq,
-                onClick: () => navigateToSection("faq"),
+                label: m.companyLanding.nav.blog,
+                onClick: () => router.push("/blog"),
               },
             ]}
           />

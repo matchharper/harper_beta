@@ -17,6 +17,8 @@ export default function ProfileDetailPage() {
 
   const candidId =
     typeof router.query.id === "string" ? router.query.id : undefined;
+  const runId =
+    typeof router.query.run === "string" ? router.query.run : undefined;
 
   const [isAddCustomModalOpen, setIsAddCustomModalOpen] = useState(false);
 
@@ -53,6 +55,7 @@ export default function ProfileDetailPage() {
         {candidId && data && (
           <CandidateProfileDetailPage
             candidId={candidId}
+            runId={runId}
             data={data}
             isLoading={isLoading}
             error={error}

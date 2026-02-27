@@ -28,6 +28,7 @@ import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import Footer from "@/components/landing/Footer";
 import LandingHeader from "@/components/landing/LandingHeader";
 import Head from "next/head";
+import Link from "next/link";
 
 export const isValidEmail = (email: string): boolean => {
   const trimmed = email.trim();
@@ -348,7 +349,9 @@ const CandidatePage = () => {
         } = await supabase.auth.getSession();
         const accessToken = session?.access_token;
         if (!accessToken) {
-          return { message: "로그인 세션이 만료되었습니다. 다시 로그인해 주세요." };
+          return {
+            message: "로그인 세션이 만료되었습니다. 다시 로그인해 주세요.",
+          };
         }
 
         const bootstrapRes = await fetch("/api/auth/bootstrap", {
@@ -362,7 +365,8 @@ const CandidatePage = () => {
           const bootstrapJson = await bootstrapRes.json().catch(() => ({}));
           return {
             message:
-              bootstrapJson?.error ?? "계정 초기화에 실패했습니다. 다시 시도해 주세요.",
+              bootstrapJson?.error ??
+              "계정 초기화에 실패했습니다. 다시 시도해 주세요.",
           };
         }
 
@@ -411,7 +415,7 @@ const CandidatePage = () => {
 
     return {
       ...baseCopy,
-      startButton: "Start for Free",
+      startButton: "Try for Free",
       whySubtitle:
         "Harper analyzes more sources and richer signals than LinkedIn Sales Navigator<br />to surface only the most relevant, high-fit candidates.",
       whyFirstCardDesc:
@@ -561,12 +565,12 @@ const CandidatePage = () => {
         )}
         <LandingHeader
           onStartClick={handleHeaderStartClick}
-          startButtonLabel={copyVariant.startButton}
+          startButtonLabel="시작하기"
         />
         <nav className="sr-only" aria-label="Landing section links">
           <a href="#intro">{m.companyLanding.nav.intro}</a>
           <a href="#how-it-works">{m.companyLanding.nav.howItWorks}</a>
-          <a href="#pricing">{m.companyLanding.nav.pricing}</a>
+          <Link href="/pricing">{m.companyLanding.nav.pricing}</Link>
           <a href="#faq">{m.companyLanding.nav.faq}</a>
         </nav>
 
@@ -585,13 +589,13 @@ const CandidatePage = () => {
             <h1 className="sr-only">
               {`${m.companyLanding.hero.titleLine1} Data. ${m.companyLanding.hero.titleLine2Prefix} ${copyVariant.rotatingTexts[0]}.`}
             </h1>
-            <div className="md:text-[56px] text-[32px] font-semibold leading-snug mt-2 flex flex-col items-center justify-center gap-2">
+            <div className="md:text-[52px] text-[32px] font-medium leading-tight mt-2 flex flex-col items-center justify-center gap-2">
               <div>{m.companyLanding.hero.titleLine1} Data.</div>
               <div className="flex flex-row items-center justify-center gap-4">
                 {m.companyLanding.hero.titleLine2Prefix}{" "}
                 <RotatingText
                   texts={copyVariant.rotatingTexts}
-                  mainClassName="lg:px-4 md:px-3 px-2 font-hedvig bg-accenta1 text-black overflow-hidden py-0 sm:py-0 md:py-0 justify-center rounded-lg inline-block"
+                  mainClassName="lg:px-3 md:px-2 px-1.5 rounded-sm font-hedvig bg-accenta1 text-black overflow-hidden py-0 sm:py-0 md:py-0 justify-center inline-block"
                   staggerFrom={"last"}
                   initial={{ y: "100%" }}
                   animate={{ y: 0 }}

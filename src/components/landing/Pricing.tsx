@@ -252,10 +252,10 @@ function PlanCard({
             </div>
           ) : (
             <div className="flex items-end gap-2">
-              <div className="text-[24px] md:text-[32px] font-medium tracking-tight leading-none">
+              <div className="text-[20px] md:text-[28px] font-medium tracking-tight leading-none">
                 {formatPrice(isEnglish, price)}
               </div>
-              <div className="text-base md:text-lg text-white/60 pb-1">
+              <div className="flex justify-end items-end text-base md:text-lg text-white/60 pb-0">
                 {priceUnit}
               </div>
             </div>

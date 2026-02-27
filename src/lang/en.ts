@@ -13,7 +13,8 @@ export const en = {
     description:
       "Harper is currently in private beta. Enter your invite code below.\nIf you need a code, join the waitlist.",
     nameTitle: "Please enter your name.",
-    nameDescription: "Invite code verified. Please enter the name you want to use.",
+    nameDescription:
+      "Invite code verified. Please enter the name you want to use.",
     namePlaceholder: "Name",
     placeholder: "Invite code",
     nameSubmit: "Save",
@@ -123,11 +124,14 @@ export const en = {
       howItWorks: "How it works",
       pricing: "Pricing",
       faq: "FAQ",
+      blog: "Blog",
     },
     dropdown: {
-      joinWaitlist: "Join Waitlist",
-      forCompanies: "For companies",
-      referral: "Referral",
+      intro: "Intro",
+      howItWorks: "How it works",
+      pricing: "Pricing",
+      faq: "FAQ",
+      blog: "Blog",
     },
     startButton: "Get started",
     hero: {
@@ -276,6 +280,31 @@ export const en = {
           ],
         },
       },
+    },
+    pricingFaq: {
+      title: "Billing & Credits FAQ",
+      items: [
+        {
+          question: "How are credits consumed?",
+          answer:
+            "Credits are deducted when you run candidate searches. Each plan includes a monthly credit allowance, and your usage accumulates in Billing.",
+        },
+        {
+          question: "When do credits refresh?",
+          answer:
+            "Monthly plans refresh credits every billing cycle. Annual plans also refresh credits monthly based on your subscription start date.",
+        },
+        {
+          question: "Can I buy more credits or change my plan?",
+          answer:
+            "Yes. You can request additional credits or upgrade your plan anytime. We will guide you to the best option for your hiring volume.",
+        },
+        {
+          question: "Do you provide receipts or invoice support?",
+          answer:
+            "Yes. A receipt is issued after successful payment. If you need additional accounting documents, please contact us.",
+        },
+      ],
     },
   },
   help: {

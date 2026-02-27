@@ -59,9 +59,11 @@ export default function ScoutEmptyState({
         <header className="max-w-4xl">
           <p className="text-[11px] uppercase tracking-[0.16em] text-white/45"></p>
           <h2 className="mt-3 text-3xl font-hedvig font-normal leading-relaxed tracking-tight text-white">
+            끝까지 책임지고
+            <br />
             <span className="text-hgray600">까다롭고 모호한 조건</span>까지
             <br />
-            충족하는 후보자를 찾아드립니다.
+            충족하는 인재를 찾아드립니다.
           </h2>
           {/* <p className="mt-4 max-w-3xl text-sm leading-relaxed text-white/70">
             Harper Scout는 조건에 맞는 후보자를 매일 1~2명씩 찾아 연결해드리고,

@@ -170,7 +170,7 @@ const ItemBox = ({
 
         {hasDescription && !isEdu ? (
           <div
-            className={`flex flex-row gap-2 shrink-0 absolute right-0 top-0 h-20 w-24 items-center justify-center hover:bg-hgray1000/5 transition-all cursor-pointer rounded-r-xl`}
+            className={`flex flex-row gap-2 shrink-0 absolute right-0 top-[-4px] h-20 w-24 items-center justify-center hover:bg-hgray1000/5 transition-all cursor-pointer rounded-r-md`}
             onClick={toggleDesc}
           >
             <button

@@ -205,14 +205,16 @@ export function highlightDifferences2(originalText: string, newText: string) {
 }
 
 export const buildLongDoc = (doc: any) => {
-  const companies: string[] = []
+  const companies: string[] = [];
   const exps = doc.experience_user?.map((exp: any, idx: number) => {
     let expText = `\n${idx + 1}. Role: ${exp.role}, Company: ${exp.company_db.name}`;
     if (exp.start_date) {
       expText += `, Started at: ${exp.start_date}`;
     }
     if (exp.end_date) {
-      expText += exp.end_date ? `, Ended at : ${exp.end_date}` : ", Still working";
+      expText += exp.end_date
+        ? `, Ended at : ${exp.end_date}`
+        : ", Still working";
     }
     if (exp.description) {
       expText += `\nDescription of the experience: ${exp.description}`;
@@ -246,8 +248,9 @@ export const buildLongDoc = (doc: any) => {
   });
 
   const educations = doc.edu_user?.map((edu: any, idx: number) => {
-    let eduText = `${idx + 1}. School: ${edu.school}, Degree: ${edu.degree
-      }, Field: ${edu.field}`;
+    let eduText = `${idx + 1}. School: ${edu.school}, Degree: ${
+      edu.degree
+    }, Field: ${edu.field}`;
     if (edu.start_date) {
       eduText += `, Start Date: ${edu.start_date}`;
     }
@@ -266,8 +269,9 @@ export const buildLongDoc = (doc: any) => {
   const awards = doc.extra_experience
     ?.slice(0, 20)
     .map((award: any, idx: number) => {
-      return `${idx + 1}. Title: ${award.title}, Awarded At: ${award.awarded_at
-        }`;
+      return `${idx + 1}. Title: ${award.title}, Awarded At: ${
+        award.awarded_at
+      }`;
     });
 
   const bio = doc.bio ?? "";
@@ -299,17 +303,22 @@ export const buildLongDoc = (doc: any) => {
   }
 
   return docSummary;
-}
+};
 
 export const buildSummary = (doc: any) => {
+  console.log("\n\ndoc", doc, "\n\n");
+
   const exps = doc.experience_user?.map((exp: any, idx: number) => {
-    let expText = `\n${idx + 1}. Role: ${exp.role}, Company: ${exp.company_db.name
-      }`;
+    let expText = `\n${idx + 1}. Role: ${exp.role}, Company: ${
+      exp.company_db.name
+    }`;
     if (exp.start_date) {
       expText += `, Start at: ${exp.start_date}`;
     }
     if (exp.end_date) {
-      expText += exp.end_date ? `, Ended at : ${exp.end_date}` : ", Still working";
+      expText += exp.end_date
+        ? `, Ended at : ${exp.end_date}`
+        : ", Still working";
     }
     if (exp.description) {
       expText += `\nDescription of the experience: ${exp.description}`;
@@ -334,8 +343,9 @@ export const buildSummary = (doc: any) => {
   });
 
   const educations = doc.edu_user?.map((edu: any, idx: number) => {
-    let eduText = `${idx + 1}. School: ${edu.school}, Degree: ${edu.degree
-      }, Field: ${edu.field}`;
+    let eduText = `${idx + 1}. School: ${edu.school}, Degree: ${
+      edu.degree
+    }, Field: ${edu.field}`;
     if (edu.start_date) {
       eduText += `, Start Date: ${edu.start_date}`;
     }
@@ -348,8 +358,9 @@ export const buildSummary = (doc: any) => {
   const publications = doc.publications
     ?.slice(0, 20)
     .map((pub: any, idx: number) => {
-      return `${idx + 1}. Title: ${pub.title}, Published At: ${pub.published_at
-        }`;
+      return `${idx + 1}. Title: ${pub.title}, Published At: ${
+        pub.published_at
+      }`;
     });
 
   // const awards = doc.awards
@@ -593,8 +604,8 @@ export function ensureGroupBy(sql: string, groupByClause: string): string {
     insertAt === -1
       ? `${s}\n${groupByClause}`
       : `${s.slice(0, insertAt).trimEnd()}\n${groupByClause}\n${s
-        .slice(insertAt)
-        .trimStart()}`;
+          .slice(insertAt)
+          .trimStart()}`;
 
   const replaced = out.replace(
     /\bto_jsonb\s*\(\s*c\s*\)/g,
@@ -613,7 +624,14 @@ export const replaceName = (text: string, name: string) => {
 };
 
 export const sqlRefine = (sql: string, ensure: boolean = false) => {
-  let out = sql.trim()?.replace(/^```\w*\s*/, "")?.replace(/\s*```$/, "")?.trim().trim().replace(/\n/g, " ").trim();
+  let out = sql
+    .trim()
+    ?.replace(/^```\w*\s*/, "")
+    ?.replace(/\s*```$/, "")
+    ?.trim()
+    .trim()
+    .replace(/\n/g, " ")
+    .trim();
   if (ensure) {
     const hasSemi = out.endsWith(";");
     if (hasSemi) out = out.slice(0, -1).trimEnd();
@@ -630,4 +648,4 @@ export const sqlRefine = (sql: string, ensure: boolean = false) => {
     return out;
   }
   return out as string;
-}
+};

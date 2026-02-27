@@ -14,7 +14,7 @@ import {
   XIcon,
   CheckIcon,
 } from "lucide-react";
-import router from "next/router";
+import { useRouter } from "next/router";
 import { Avatar } from "./NameProfile";
 import { Tooltips } from "./ui/tooltip";
 import SummaryCell, { SynthItem } from "./information/SummaryCell";
@@ -56,10 +56,16 @@ function CandidateRow({
   gridTemplateColumns: string;
   rowIndex: number;
 }) {
+  const router = useRouter();
   const candidId = c.id;
   const logEvent = useLogEvent();
   const exps = asArr(c.experience_user ?? []);
   const edus = asArr(c.edu_user ?? []);
+  const sourceRunId =
+    typeof router.query.run === "string" ? router.query.run : "";
+  const profileHref = sourceRunId
+    ? `/my/p/${candidId}?run=${encodeURIComponent(sourceRunId)}`
+    : `/my/p/${candidId}`;
 
   const latestCompany = exps[0];
   const latestEdu = edus[0];
@@ -86,7 +92,7 @@ function CandidateRow({
         role="row"
         onClick={() => {
           logEvent("candidate_card_click: " + candidId);
-          router.push(`/my/p/${candidId}`);
+          router.push(profileHref);
         }}
         className="group relative w-full border-b border-white/5 hover:bg-[#242424] transition-colors cursor-pointer"
       >

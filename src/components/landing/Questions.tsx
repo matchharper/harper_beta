@@ -10,12 +10,14 @@ function QuestionAnswer({
   index = 1,
   onOpen,
   variant = "large",
+  length = 4,
 }: {
   question: string;
   answer: string;
   index?: number;
   onOpen?: () => void;
   variant?: Variant;
+  length?: number;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -38,7 +40,7 @@ function QuestionAnswer({
     <div
       className={`border-b border-white/20 w-full gap-4 ${
         size.wrapper
-      } ${index === 3 ? "border-b-0" : ""}`}
+      } ${index === length - 1 ? "border-b-0" : ""}`}
     >
       <button
         type="button"

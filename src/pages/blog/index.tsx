@@ -16,7 +16,7 @@ const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://matchharper.com")
   .trim()
   .replace(/\/$/, "");
 const BLOG_CANONICAL_URL = `${SITE_URL}/blog`;
-const ALL_ARTICLES_LABEL = "All Articles";
+const ALL_ARTICLES_LABEL = "전체";
 
 type BlogListPageProps = {
   posts: BlogPostMeta[];
@@ -99,16 +99,7 @@ export default function BlogListPage({ posts, categories }: BlogListPageProps) {
   const featured = topPosts[0];
   const rightRail = topPosts.slice(1, 5);
 
-  const topPostSlugs = useMemo(
-    () => new Set(topPosts.map((post) => post.slug)),
-    [topPosts]
-  );
-
-  const restList = useMemo(
-    () => filteredPosts,
-    // () => filteredPosts.filter((post) => !topPostSlugs.has(post.slug)),
-    [filteredPosts, topPostSlugs]
-  );
+  const restList = useMemo(() => filteredPosts, [filteredPosts]);
 
   return (
     <>
@@ -323,15 +314,15 @@ export default function BlogListPage({ posts, categories }: BlogListPageProps) {
             </aside>
 
             <div>
-              <div className="flex items-center gap-4">
+              <div className="flex items-start justify-start gap-4">
                 <h2 className="font-hedvig text-2xl md:text-3xl">
                   {headingLabel}
                 </h2>
-                <div className="h-px flex-1 bg-white/15" />
+                {/* <div className="w-full h-px flex-1 bg-white/15" /> */}
               </div>
 
               <div className="mt-4 md:mt-8">
-                {restList.map((post, index) => (
+                {restList.map((post) => (
                   <article key={post.slug} className="py-5">
                     <Link
                       href={`/blog/${post.slug}`}
