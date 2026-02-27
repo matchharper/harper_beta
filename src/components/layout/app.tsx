@@ -10,6 +10,7 @@ import {
   User,
   LogOut,
   HelpCircle,
+  MessageSquareMore,
   Zap,
 } from "lucide-react";
 import { useParams, usePathname, useRouter } from "next/navigation";
@@ -28,6 +29,8 @@ import {
 import { useMessages } from "@/i18n/useMessage";
 import HoverHistory from "./HoverHistory";
 import { useLogEvent } from "@/hooks/useLog";
+import FeedbackRewardModal from "@/components/Modal/FeedbackRewardModal";
+import { useFeedbackModalStore } from "@/store/useFeedbackModalStore";
 
 const AppLayout = ({
   children,
@@ -42,6 +45,7 @@ const AppLayout = ({
   const { companyUser, loading, initialized, clear } = useCompanyUserStore();
   const { user, loading: authLoading, signOut } = useAuthStore();
   const logEvent = useLogEvent();
+  const { open: openFeedbackModal } = useFeedbackModalStore();
 
   const router = useRouter();
   const params = useParams();
@@ -253,12 +257,24 @@ const AppLayout = ({
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
+                    logEvent("enter_feedback");
+                    openFeedbackModal();
+                  }}
+                >
+                  <MessageSquareMore size={18} />
+                  <div>피드백 남기기</div>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="flex flex-row gap-1 cursor-pointer mt-1"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                     logEvent("enter_help");
                     router.push("/my/help");
                   }}
                 >
                   <HelpCircle size={18} />
-                  <div>Help</div>
+                  <div>도움말</div>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   className="flex flex-row gap-1 cursor-pointer mt-1"
@@ -302,6 +318,7 @@ const AppLayout = ({
           {!isLoadingCredits && userId && children}
         </div>
       </main>
+      <FeedbackRewardModal />
     </div>
   );
 };

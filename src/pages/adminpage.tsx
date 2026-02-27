@@ -8,6 +8,10 @@ import React, {
 import { supabase } from "@/lib/supabase";
 import { showToast } from "@/components/toast/toast";
 import { Loading } from "@/components/ui/loading";
+import {
+  BLOG_CONVERSION_EVENT_PREFIX,
+  BLOG_VIEW_EVENT_PREFIX,
+} from "@/lib/blogMetrics";
 
 type LandingLog = {
   id: string;
@@ -51,9 +55,16 @@ type WaitlistCompany = {
   size: string | null;
 };
 
-type AdminTab = "landingLogs" | "waitlistCompany";
+type BlogMetricRow = {
+  slug: string;
+  viewCount: number;
+  conversionCount: number;
+};
+
+type AdminTab = "landingLogs" | "waitlistCompany" | "blogMetrics";
 
 const PAGE_SIZE = 50;
+const BLOG_METRIC_FETCH_BATCH_SIZE = 1000;
 const PASSWORD = "39773977";
 
 const ENTRY_TYPES = new Set(["new_visit", "new_session"]);
@@ -91,6 +102,12 @@ function formatKST(iso?: string) {
   });
 }
 
+function extractSlugFromEventType(type: string, prefix: string) {
+  if (!type.startsWith(prefix)) return null;
+  const slug = type.slice(prefix.length).trim();
+  return slug.length > 0 ? slug : null;
+}
+
 const AdminPage = () => {
   const [password, setPassword] = useState("");
   const [isPassed, setIsPassed] = useState(false);
@@ -108,6 +125,10 @@ const AdminPage = () => {
   const [waitlistLoading, setWaitlistLoading] = useState(false);
   const [waitlistLoaded, setWaitlistLoaded] = useState(false);
   const [waitlistError, setWaitlistError] = useState<string | null>(null);
+  const [blogMetricRows, setBlogMetricRows] = useState<BlogMetricRow[]>([]);
+  const [blogMetricsLoading, setBlogMetricsLoading] = useState(false);
+  const [blogMetricsLoaded, setBlogMetricsLoaded] = useState(false);
+  const [blogMetricsError, setBlogMetricsError] = useState<string | null>(null);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -210,11 +231,120 @@ const AdminPage = () => {
     }
   }, []);
 
+  const fetchEventTypesByPrefix = useCallback(async (prefix: string) => {
+    let from = 0;
+    const allTypes: string[] = [];
+
+    while (true) {
+      const to = from + BLOG_METRIC_FETCH_BATCH_SIZE - 1;
+
+      const { data, error } = await supabase
+        .from("landing_logs")
+        .select("type")
+        .like("type", `${prefix}%`)
+        .order("id", { ascending: true })
+        .range(from, to);
+
+      if (error) throw error;
+
+      const rows = (data ?? []) as Array<{ type: string | null }>;
+      for (const row of rows) {
+        if (typeof row.type === "string" && row.type.length > 0) {
+          allTypes.push(row.type);
+        }
+      }
+
+      if (rows.length < BLOG_METRIC_FETCH_BATCH_SIZE) {
+        break;
+      }
+
+      from += BLOG_METRIC_FETCH_BATCH_SIZE;
+    }
+
+    return allTypes;
+  }, []);
+
+  const fetchBlogMetrics = useCallback(async () => {
+    setBlogMetricsLoading(true);
+    setBlogMetricsError(null);
+
+    try {
+      const [viewTypes, conversionTypes] = await Promise.all([
+        fetchEventTypesByPrefix(BLOG_VIEW_EVENT_PREFIX),
+        fetchEventTypesByPrefix(BLOG_CONVERSION_EVENT_PREFIX),
+      ]);
+
+      const counter = new Map<string, BlogMetricRow>();
+
+      for (const type of viewTypes) {
+        const slug = extractSlugFromEventType(type, BLOG_VIEW_EVENT_PREFIX);
+        if (!slug) continue;
+
+        const prev = counter.get(slug) ?? {
+          slug,
+          viewCount: 0,
+          conversionCount: 0,
+        };
+        prev.viewCount += 1;
+        counter.set(slug, prev);
+      }
+
+      for (const type of conversionTypes) {
+        const slug = extractSlugFromEventType(
+          type,
+          BLOG_CONVERSION_EVENT_PREFIX
+        );
+        if (!slug) continue;
+
+        const prev = counter.get(slug) ?? {
+          slug,
+          viewCount: 0,
+          conversionCount: 0,
+        };
+        prev.conversionCount += 1;
+        counter.set(slug, prev);
+      }
+
+      const rows = Array.from(counter.values()).sort((a, b) => {
+        if (b.viewCount !== a.viewCount) return b.viewCount - a.viewCount;
+        if (b.conversionCount !== a.conversionCount) {
+          return b.conversionCount - a.conversionCount;
+        }
+        return a.slug.localeCompare(b.slug);
+      });
+
+      setBlogMetricRows(rows);
+      setBlogMetricsLoaded(true);
+    } catch (e: any) {
+      setBlogMetricsError(e?.message ?? "Failed to load");
+    } finally {
+      setBlogMetricsLoading(false);
+    }
+  }, [fetchEventTypesByPrefix]);
+
   useEffect(() => {
     if (activeTab !== "waitlistCompany") return;
-    if (waitlistLoaded || waitlistLoading) return;
+    if (waitlistLoaded || waitlistLoading || waitlistError) return;
     fetchWaitlistCompanies();
-  }, [activeTab, fetchWaitlistCompanies, waitlistLoaded, waitlistLoading]);
+  }, [
+    activeTab,
+    fetchWaitlistCompanies,
+    waitlistLoaded,
+    waitlistLoading,
+    waitlistError,
+  ]);
+
+  useEffect(() => {
+    if (activeTab !== "blogMetrics") return;
+    if (blogMetricsLoaded || blogMetricsLoading || blogMetricsError) return;
+    fetchBlogMetrics();
+  }, [
+    activeTab,
+    blogMetricsLoaded,
+    blogMetricsLoading,
+    blogMetricsError,
+    fetchBlogMetrics,
+  ]);
 
   useEffect(() => {
     if (activeTab !== "landingLogs") return;
@@ -239,7 +369,12 @@ const AdminPage = () => {
       await fetchPage({ reset: true });
       return;
     }
-    await fetchWaitlistCompanies();
+    if (activeTab === "waitlistCompany") {
+      await fetchWaitlistCompanies();
+      return;
+    }
+
+    await fetchBlogMetrics();
   };
 
   const onSubmit = async () => {
@@ -366,15 +501,48 @@ const AdminPage = () => {
     return summary.sort((a, b) => b.totalUsers - a.totalUsers);
   }, [grouped]);
 
+  const blogMetricsSummary = useMemo(() => {
+    const totalPosts = blogMetricRows.length;
+    const totalViews = blogMetricRows.reduce(
+      (acc, row) => acc + row.viewCount,
+      0
+    );
+    const totalConversions = blogMetricRows.reduce(
+      (acc, row) => acc + row.conversionCount,
+      0
+    );
+
+    return {
+      totalPosts,
+      totalViews,
+      totalConversions,
+    };
+  }, [blogMetricRows]);
+
   const isLandingTab = activeTab === "landingLogs";
+  const isWaitlistTab = activeTab === "waitlistCompany";
+  const isBlogMetricsTab = activeTab === "blogMetrics";
+
   const pageTitle = isLandingTab
     ? "Landing Logs Admin"
-    : "Waitlist Company Admin";
+    : isWaitlistTab
+      ? "Waitlist Company Admin"
+      : "Blog Metrics Admin";
   const pageSubTitle = isLandingTab
     ? "local_id 기준 · 액션 타임라인"
-    : "harper_waitlist_company 목록";
-  const isLoading = isLandingTab ? loading || loadingMore : waitlistLoading;
-  const pageError = isLandingTab ? error : waitlistError;
+    : isWaitlistTab
+      ? "harper_waitlist_company 목록"
+      : "blog slug 기준 조회/전환 집계";
+  const isLoading = isLandingTab
+    ? loading || loadingMore
+    : isWaitlistTab
+      ? waitlistLoading
+      : blogMetricsLoading;
+  const pageError = isLandingTab
+    ? error
+    : isWaitlistTab
+      ? waitlistError
+      : blogMetricsError;
 
   if (!isPassed) {
     return (
@@ -424,13 +592,24 @@ const AdminPage = () => {
               <button
                 onClick={() => setActiveTab("waitlistCompany")}
                 className={`h-8 px-3 text-[12px] border ${
-                  !isLandingTab
+                  isWaitlistTab
                     ? "border-black bg-black text-white"
                     : "border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
                 }`}
                 style={{ borderRadius: 0 }}
               >
                 Waitlist Company
+              </button>
+              <button
+                onClick={() => setActiveTab("blogMetrics")}
+                className={`h-8 px-3 text-[12px] border ${
+                  isBlogMetricsTab
+                    ? "border-black bg-black text-white"
+                    : "border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
+                }`}
+                style={{ borderRadius: 0 }}
+              >
+                Blog Metrics
               </button>
             </div>
           </div>
@@ -641,7 +820,7 @@ const AdminPage = () => {
               {hasMore ? "Scroll to load more…" : "No more rows."}
             </div>
           </>
-        ) : (
+        ) : isWaitlistTab ? (
           <>
             <div className="mb-4 flex items-center justify-between w-full">
               <div className="text-[12px] text-black/55">
@@ -749,6 +928,86 @@ const AdminPage = () => {
                     </div>
                   </div>
                 ))
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <div
+              className="mb-4 border border-black/10 p-4 text-[13px] text-black/80"
+              style={{ borderRadius: 0 }}
+            >
+              <div className="font-semibold text-black mb-1">Blog summary</div>
+              <div className="leading-6">
+                글 수:{" "}
+                <span className="text-black font-medium">
+                  {blogMetricsSummary.totalPosts}
+                </span>{" "}
+                · 조회수 합계:{" "}
+                <span className="text-black font-medium">
+                  {blogMetricsSummary.totalViews}
+                </span>{" "}
+                · 전환수 합계:{" "}
+                <span className="text-black font-medium">
+                  {blogMetricsSummary.totalConversions}
+                </span>
+              </div>
+            </div>
+
+            {pageError ? (
+              <div
+                className="border border-black/15 bg-black/[0.02] p-4 text-[13px] flex items-start justify-between gap-4"
+                style={{ borderRadius: 0 }}
+              >
+                <div>
+                  <div className="font-semibold">Error</div>
+                  <div className="text-black/70 mt-1">{pageError}</div>
+                </div>
+                <button
+                  onClick={onRefresh}
+                  className="h-9 px-3 text-[13px] border border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
+                  style={{ borderRadius: 0 }}
+                >
+                  Retry
+                </button>
+              </div>
+            ) : null}
+
+            <div
+              className="border border-black/10 w-full"
+              style={{ borderRadius: 0 }}
+            >
+              {blogMetricsLoading ? (
+                <Loading
+                  size="sm"
+                  label="Loading…"
+                  className="p-6 text-[13px] text-black/55"
+                />
+              ) : blogMetricRows.length === 0 ? (
+                <div className="p-10 text-center">
+                  <div className="text-[14px] font-semibold">No rows</div>
+                  <div className="text-[13px] text-black/55 mt-2">
+                    No blog metric logs yet.
+                  </div>
+                </div>
+              ) : (
+                <div className="w-full">
+                  <div className="grid grid-cols-[1.8fr_0.9fr_0.9fr] gap-2 px-5 py-3 border-b border-black/10 text-[12px] font-semibold text-black/80">
+                    <div>Slug</div>
+                    <div className="text-right">Views</div>
+                    <div className="text-right">Conversions</div>
+                  </div>
+                  {blogMetricRows.map((row) => (
+                    <div
+                      key={row.slug}
+                      className="grid grid-cols-[1.8fr_0.9fr_0.9fr] gap-2 px-5 py-3 border-t border-black/10 first:border-t-0 text-[13px]"
+                    >
+                      <div className="break-all">{row.slug}</div>
+                      <div className="text-right">{row.viewCount}</div>
+                      <div className="text-right">{row.conversionCount}</div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </>

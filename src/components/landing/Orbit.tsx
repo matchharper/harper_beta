@@ -7,13 +7,15 @@ const ICONS = [
   "dropbox.svg",
   "drive.svg",
   "gitlab.svg",
-  "huggingface.svg",
+  "xcom.png",
   "github.svg",
   "linkedin.svg",
   "notion.svg",
   "xcom.png",
   "scholar.png",
   "github.svg",
+  "huggingface.svg",
+  "linkedin.svg",
 ];
 
 export default function OrbitIcons() {

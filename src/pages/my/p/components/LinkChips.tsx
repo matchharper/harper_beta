@@ -69,7 +69,7 @@ function LinkChips({ links }: Props) {
             href={url}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex font-normal items-center gap-2 rounded-lg bg-white/5 px-2.5 py-1.5 text-sm text-white hover:bg-white/10 transition-all duration-200"
+            className="inline-flex font-normal items-center gap-2 rounded-lg bg-white/5 px-2.5 py-1.5 text-xs text-white hover:bg-white/10 transition-all duration-200"
           >
             <img
               src={brand.icon}

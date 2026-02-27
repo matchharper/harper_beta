@@ -6,6 +6,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { BlogPost, formatBlogDate, toIsoDate } from "@/lib/blog";
+import {
+  getOrCreateLandingId,
+  makeBlogConversionEventType,
+  makeBlogViewEventType,
+} from "@/lib/blogMetrics";
 import Footer from "@/components/landing/Footer";
 import LandingHeader from "@/components/landing/LandingHeader";
 import { LinkIcon } from "lucide-react";
@@ -221,6 +226,30 @@ export default function BlogPostPage({ post }: BlogPostPageProps) {
     };
   }, [markdownH1Toc]);
 
+  useEffect(() => {
+    const trackViewEvent = async () => {
+      const landingId = getOrCreateLandingId();
+      if (landingId === "a4d4df1a-aa6d-401e-a34a-00d426630fe2") return;
+
+      const viewSessionKey = `harper_blog_view_logged_${post.slug}`;
+      const shouldLogView =
+        typeof window !== "undefined" &&
+        sessionStorage.getItem(viewSessionKey) !== "1";
+
+      if (shouldLogView) {
+        sessionStorage.setItem(viewSessionKey, "1");
+        await supabase.from("landing_logs").insert({
+          local_id: landingId || null,
+          type: makeBlogViewEventType(post.slug),
+          is_mobile: isMobile,
+          country_lang: "",
+        });
+      }
+    };
+
+    trackViewEvent();
+  }, [isMobile, post.slug]);
+
   const blogPostingStructuredData = {
     "@context": "https://schema.org",
     "@type": "BlogPosting",
@@ -261,16 +290,24 @@ export default function BlogPostPage({ post }: BlogPostPageProps) {
   };
 
   const moveToHome = async () => {
-    let landingId = localStorage.getItem("harper_landing_id_0209");
-    if (!landingId) landingId = "";
+    const landingId = getOrCreateLandingId();
 
-    const body = {
+    const baseBody = {
       local_id: landingId,
-      type: "blog_post_click",
       is_mobile: isMobile,
       country_lang: "",
     };
-    await supabase.from("landing_logs").insert(body);
+
+    await supabase.from("landing_logs").insert([
+      {
+        ...baseBody,
+        type: "blog_post_click",
+      },
+      {
+        ...baseBody,
+        type: makeBlogConversionEventType(post.slug),
+      },
+    ]);
 
     router.push("/");
   };

@@ -1,21 +1,18 @@
-import LinkChips from "@/components/information/LinkChips";
 import { useMessages } from "@/i18n/useMessage";
 import { replaceName } from "@/utils/textprocess";
 import { Loader2 } from "lucide-react";
 import React, { useMemo, useState } from "react";
 
 type SummaryItem = { text: string };
-
 type ProfileBioProps = {
   summary?: SummaryItem[];
   bio?: string;
   name: string;
   oneline?: string;
   isLoadingOneline: boolean;
-  links?: string[];
 };
 
-function sanitizeProfileLine(raw: string) {
+export function sanitizeProfileLine(raw: string) {
   return String(raw ?? "")
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<[^>]+>/g, "")
@@ -28,7 +25,6 @@ const ProfileBio = ({
   name,
   oneline = "",
   isLoadingOneline,
-  links = [],
 }: ProfileBioProps) => {
   const [isBioOpen, setIsBioOpen] = useState(false);
   const { m } = useMessages();
@@ -43,9 +39,9 @@ const ProfileBio = ({
   const hasBio = Boolean(bio?.trim());
 
   return (
-    <div>
-      <div className="flex flex-row w-full items-center justify-end gap-2">
-        {hasBio && (
+    <div className="pb-4">
+      {hasBio && (
+        <div className="flex flex-row w-full items-center justify-end gap-2">
           <button
             type="button"
             className="text-sm text-ngray600 font-normal hover:text-accenta1 transition-all duration-200"
@@ -54,8 +50,8 @@ const ProfileBio = ({
           >
             {isBioOpen ? "접기" : "더보기"}
           </button>
-        )}
-      </div>
+        </div>
+      )}
       <div className="text-hgray900 grid grid-cols-7 mt-2">
         {/* Header */}
         <div className="col-span-1">
