@@ -30,31 +30,33 @@ const Criterias = ({
 }: {
   criteriaSummaries: CriteriaSummaryItem[];
 }) => {
+  if (!criteriaSummaries || criteriaSummaries.length === 0) {
+    return null;
+  }
+
   return (
     <div>
-      {criteriaSummaries.length > 0 && (
-        <div className="flex flex-row flex-wrap items-center gap-2 mb-1">
-          {criteriaSummaries.map((item, idx) => {
-            const safeReason = sanitizeProfileLine(item.reason ?? "");
-            const tooltipText = safeReason
-              ? `${item.criteria}\n${item.score || "정보 없음"}\n${safeReason}`
-              : `${item.criteria}\n${item.score || "정보 없음"}`;
+      <div className="flex flex-row flex-wrap items-center gap-2 mb-1">
+        {criteriaSummaries.map((item, idx) => {
+          const safeReason = sanitizeProfileLine(item.reason ?? "");
+          const tooltipText = safeReason
+            ? `${item.criteria}\n${item.score || "정보 없음"}\n${safeReason}`
+            : `${item.criteria}\n${item.score || "정보 없음"}`;
 
-            return (
-              <Tooltips key={`${item.criteria}-${idx}`} text={tooltipText}>
-                <div
-                  className={`inline-flex max-w-[260px] items-center gap-1.5 rounded-md pr-2 py-1 text-xs font-normal ${scoreClassName(
-                    item.score
-                  )}`}
-                >
-                  {scoreIcon(item.score)}
-                  <span className="truncate">{item.criteria}</span>
-                </div>
-              </Tooltips>
-            );
-          })}
-        </div>
-      )}
+          return (
+            <Tooltips key={`${item.criteria}-${idx}`} text={tooltipText}>
+              <div
+                className={`inline-flex max-w-[260px] items-center gap-1.5 rounded-md pr-2 py-1 text-xs font-normal ${scoreClassName(
+                  item.score
+                )}`}
+              >
+                {scoreIcon(item.score)}
+                <span className="truncate">{item.criteria}</span>
+              </div>
+            </Tooltips>
+          );
+        })}
+      </div>
     </div>
   );
 };
