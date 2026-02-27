@@ -173,7 +173,6 @@ export default function ShareTokenPage() {
                 name={candid.name ?? ""}
                 oneline={candid.oneline ?? ""} // 없으면 빈값
                 isLoadingOneline={false}
-                links={links}
               />
             </div>
           </div>
