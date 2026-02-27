@@ -7,11 +7,13 @@ const MultiSelects = ({
   setSelects,
   setIsDirty,
   options,
+  showOptionNumbers = false,
 }: {
   selects: string[];
   setSelects: (selects: string[]) => void;
   setIsDirty: (isDirty: boolean) => void;
   options: string[];
+  showOptionNumbers?: boolean;
 }) => {
   const handleSelect = (option: string) => {
     if (selects.includes(option)) {
@@ -34,7 +36,7 @@ const MultiSelects = ({
 
   return (
     <div className="flex flex-row gap-2 flex-wrap">
-      {options.map((option) => (
+      {options.map((option, index) => (
         <div
           key={option}
           onClick={() => {
@@ -49,7 +51,12 @@ const MultiSelects = ({
               }
               `}
         >
-          {option}
+          {showOptionNumbers && index < 9 ? (
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-[4px] border border-xgray300 bg-white text-[11px] font-semibold text-xgray700">
+              {index + 1}
+            </span>
+          ) : null}
+          <span>{option}</span>
         </div>
       ))}
 

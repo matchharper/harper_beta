@@ -112,7 +112,7 @@ export const ko = {
     done: {
       title: "등록이 완료되었습니다.",
       description:
-        "Harper는 여러분의 팀에 가장 적합한 지원자를 소개하기 위해 준비 중입니다.\n빠른 시일 내 연락드리겠습니다.",
+        "Harper는 스타트업이 최고의 인재를 찾을 수 있게 하기 위해 준비 중입니다.\n빠른 시일 내 연락드리겠습니다.",
       backToCompanies: "돌아가기",
     },
     validation: {
