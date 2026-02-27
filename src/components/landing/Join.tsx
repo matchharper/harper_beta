@@ -5,11 +5,13 @@ export const Selections = ({
     setSelected,
     setIsDirty,
     options,
+    showOptionNumbers = false,
 }: {
     selected: string;
     setSelected: (selected: string) => void;
     setIsDirty: (isDirty: boolean) => void;
     options: string[];
+    showOptionNumbers?: boolean;
 }) => {
     const [flash, setFlash] = useState(false);
 
@@ -23,7 +25,7 @@ export const Selections = ({
 
     return (
         <div className="flex flex-row gap-2 flex-wrap">
-            {options.map((option) => (
+            {options.map((option, index) => (
                 <div
                     key={option}
                     onClick={() => handleClick(option)}
@@ -35,7 +37,12 @@ export const Selections = ({
                         }
               `}
                 >
-                    {option}
+                    {showOptionNumbers && index < 9 ? (
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-[4px] border border-xgray300 bg-white text-[11px] font-semibold text-xgray700">
+                            {index + 1}
+                        </span>
+                    ) : null}
+                    <span>{option}</span>
                 </div>
             ))}
         </div>

@@ -291,6 +291,63 @@ const Onboard: React.FC = () => {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [goNext]);
 
+  // 숫자 키로 선택형 문항 빠르게 선택 (1~9)
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (lock.current) return;
+
+      const target = e.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT")
+      ) {
+        return;
+      }
+
+      const stepKey = currentStep?.key;
+      if (stepKey !== "role" && stepKey !== "size") return;
+      if (!/^[1-9]$/.test(e.key)) return;
+
+      const optionIndex = Number(e.key) - 1;
+
+      if (stepKey === "role") {
+        const option = rolesOptions[optionIndex];
+        if (!option) return;
+
+        e.preventDefault();
+        setIsDirty(true);
+        setRoles((prev) => {
+          if (prev.includes(option)) {
+            return prev.filter((select) => select !== option);
+          }
+          if (option === "기타") {
+            return [...prev, option, ""];
+          }
+          return [option, ...prev];
+        });
+      }
+
+      if (stepKey === "size") {
+        const option = sizeOptions[optionIndex];
+        if (!option) return;
+
+        e.preventDefault();
+        setSize(option);
+        setIsDirty(true);
+        setTimeout(() => void goNext(option), 350);
+      }
+
+      lock.current = true;
+      setTimeout(() => (lock.current = false), 250);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [currentStep?.key, goNext, rolesOptions, sizeOptions]);
+
   // Wheel step nav (원하면 제거 가능)
   useEffect(() => {
     const onWheel = (e: WheelEvent) => {
@@ -428,6 +485,7 @@ const Onboard: React.FC = () => {
                     }}
                     setIsDirty={setIsDirty}
                     options={rolesOptions}
+                    showOptionNumbers
                   />
                 )}
 
@@ -465,6 +523,7 @@ const Onboard: React.FC = () => {
                     }}
                     setIsDirty={setIsDirty}
                     options={sizeOptions}
+                    showOptionNumbers
                   />
                 )}
 
