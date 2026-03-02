@@ -1,7 +1,6 @@
-import { useCompanyUserStore } from "@/store/useCompanyUserStore";
+import { supabase } from "@/lib/supabase";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import BaseModal from "./BaseModal";
-import { Button } from "../ui/button";
 import { Checkbox } from "../ui/Checkbox";
 
 async function copyToClipboard(text: string) {
@@ -34,7 +33,6 @@ export default function ShareProfileModal({
     const [isCopying, setIsCopying] = useState(false);
     const [copied, setCopied] = useState(false);
     const [errorMsg, setErrorMsg] = useState<string>("");
-    const { companyUser } = useCompanyUserStore();
 
     useEffect(() => {
         if (!open) return;
@@ -61,13 +59,23 @@ export default function ShareProfileModal({
         setErrorMsg("");
 
         try {
+            const {
+                data: { session },
+            } = await supabase.auth.getSession();
+            const accessToken = session?.access_token;
+            if (!accessToken) {
+                throw new Error("로그인 세션이 만료되었습니다. 다시 로그인해 주세요.");
+            }
+
             const res = await fetch("/api/share/create", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${accessToken}`,
+                },
                 body: JSON.stringify({
                     candidId,
                     includeChat,
-                    createdBy: companyUser?.user_id,
                 }),
             });
 
@@ -84,7 +92,7 @@ export default function ShareProfileModal({
         } finally {
             setIsCreating(false);
         }
-    }, [candidId, includeChat, canCreate, companyUser?.user_id]);
+    }, [candidId, includeChat, canCreate]);
 
     const copyUrl = useCallback(async () => {
         if (!url) return;

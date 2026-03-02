@@ -185,6 +185,22 @@ export default function PricingPage() {
             </BaseSectionLayout>
           </Animate>
         </section>
+        <div>
+          <div className="mt-24 text-white/70 font-light text-center mb-40 flex flex-col items-center justify-center">
+            추가 문의 사항이 있으시다면, chris@asksonus.com으로 문의해 주세요.
+            <div
+              className="mt-2 underline decoration-dotted cursor-pointer text-hgray800 hover:text-hgray1000"
+              onClick={() =>
+                window.open(
+                  "https://peat-find-598.notion.site/Refund-policy-2e684af768c6800e8276ccbe16fc8cb4?pvs=74",
+                  "_blank"
+                )
+              }
+            >
+              환불 규정
+            </div>
+          </div>
+        </div>
         <Footer />
       </main>
     </>

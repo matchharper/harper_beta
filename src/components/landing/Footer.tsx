@@ -62,6 +62,18 @@ const Footer = ({
           >
             Privacy
           </Link>
+          <Dot size={8} />
+          <div
+            onClick={() =>
+              window.open(
+                "https://peat-find-598.notion.site/Refund-policy-2e684af768c6800e8276ccbe16fc8cb4?pvs=74",
+                "_blank"
+              )
+            }
+            className="cursor-pointer hover:text-white/90 text-white/80"
+          >
+            Refund Policy
+          </div>
         </div>
       </div>
       <div className="flex flex-1 flex-row items-end justify-end gap-8 w-full mt-12 md:mt-0">
