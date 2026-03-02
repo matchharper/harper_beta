@@ -3,13 +3,25 @@ import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+function getSupabaseAdmin() {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !serviceRoleKey) {
+        throw new Error("Server misconfigured: missing Supabase admin credentials");
+    }
+
+    return createClient(supabaseUrl, serviceRoleKey, {
+        auth: {
+            autoRefreshToken: false,
+            persistSession: false,
+        },
+    });
+}
 
 export async function GET(req: Request) {
     try {
+        const supabaseAdmin = getSupabaseAdmin();
         const { searchParams } = new URL(req.url);
         const token = searchParams.get("token") || "";
         if (!token) {
@@ -18,7 +30,7 @@ export async function GET(req: Request) {
 
         const { data: share, error: shareErr } = await supabaseAdmin
             .from("profile_shares")
-            .select("*")
+            .select("candid_id, created_by, include_chat, revoked_at, expires_at")
             .eq("token", token)
             .maybeSingle();
 

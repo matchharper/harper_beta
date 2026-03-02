@@ -1,13 +1,25 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { createClient } from "@supabase/supabase-js";
+import { getRequestUser } from "@/lib/supabaseServer";
 
 export const runtime = "nodejs";
 
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY! // server-only
-);
+function getSupabaseAdmin() {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !serviceRoleKey) {
+        throw new Error("Server misconfigured: missing Supabase admin credentials");
+    }
+
+    return createClient(supabaseUrl, serviceRoleKey, {
+        auth: {
+            autoRefreshToken: false,
+            persistSession: false,
+        },
+    });
+}
 
 function makeToken() {
     return crypto.randomBytes(24).toString("base64url");
@@ -21,8 +33,14 @@ function getBaseUrl(req: Request) {
     return `${proto}://${host}`;
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
     try {
+        const user = await getRequestUser(req);
+        if (!user) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
+        const supabaseAdmin = getSupabaseAdmin();
         const body = await req.json();
 
         const candidId = body?.candidId as string | undefined;
@@ -32,13 +50,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "candidId required" }, { status: 400 });
         }
 
-        // ✅ IMPORTANT: createdBy는 절대 클라에서 받지 말고 서버에서 확정해야 안전함.
-        // 지금은 네 인증 로직이 여기 없어서, 일단 막아둠.
-        // TODO: Replace with your auth session -> user.id
-        const createdBy = body?.createdBy as string | undefined;
-        if (!createdBy) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
+        const createdBy = user.id;
 
         const baseUrl = getBaseUrl(req);
         const nowIso = new Date().toISOString();
