@@ -58,9 +58,9 @@ export default function CandidChatPanel({
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [isNoCreditModalOpen, setIsNoCreditModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [systemPromptOverride, setSystemPromptOverride] = useState<string | null>(
-    null
-  );
+  const [systemPromptOverride, setSystemPromptOverride] = useState<
+    string | null
+  >(null);
   const [promptDraft, setPromptDraft] = useState(CANDID_SYSTEM_PROMPT);
 
   const chat = useChatSessionDB({
@@ -75,7 +75,10 @@ export default function CandidChatPanel({
     if (scope?.type === "candid") return scope.candidId;
     return candidDoc?.id;
   }, [scope, candidDoc?.id]);
-  const isUnlockProfile = candidDoc?.unlock_profile && candidDoc?.unlock_profile?.length > 0 ? true : false
+  const isUnlockProfile =
+    candidDoc?.unlock_profile && candidDoc?.unlock_profile?.length > 0
+      ? true
+      : false;
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
     const el = scrollRef.current;
@@ -160,13 +163,15 @@ export default function CandidChatPanel({
       if (!isUnlockProfile) {
         setIsUnlockConfirmOpen(true);
         return;
-      };
-      chat.setMessages([{
-        role: "user",
-        rawContent: text,
-        content: text,
-        segments: [{ type: "text", content: text }],
-      }]);
+      }
+      chat.setMessages([
+        {
+          role: "user",
+          rawContent: text,
+          content: text,
+          segments: [{ type: "text", content: text }],
+        },
+      ]);
       await chat.send(text);
 
       requestAnimationFrame(() => scrollToBottom("smooth"));
@@ -214,7 +219,10 @@ export default function CandidChatPanel({
           "Insufficient credits"
         );
         if (insertedRow?.id) {
-          await supabase.from("unlock_profile").delete().eq("id", insertedRow.id);
+          await supabase
+            .from("unlock_profile")
+            .delete()
+            .eq("id", insertedRow.id);
         }
         if (isInsufficient) {
           setIsNoCreditModalOpen(true);
@@ -275,8 +283,10 @@ export default function CandidChatPanel({
 
       {/* Messages (scroll only here) */}
       <div className="flex-1 min-h-0 relative">
-        <div ref={scrollRef}
-          className="h-full overflow-y-auto px-4 pt-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent hover:scrollbar-thumb-white/20">
+        <div
+          ref={scrollRef}
+          className="h-full overflow-y-auto px-4 pt-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent hover:scrollbar-thumb-white/20"
+        >
           <ConfirmModal
             open={isUnlockConfirmOpen}
             onClose={() => setIsUnlockConfirmOpen(false)}
@@ -299,30 +309,29 @@ export default function CandidChatPanel({
             </div>
           )}
 
-          {
-            !isUnlockProfile && (
-              <div className="flex items-center h-[70%] w-full justify-center">
-                <div
-                  onClick={() => void onClickUnlockProfile()}
-                  className="flex flex-row justify-center items-center gap-2 bg-white/10 rounded-md px-3 py-2 cursor-pointer hover:bg-white/15 transition-all duration-200"
-                >
-                  <Lock className="w-4 h-4 text-hgray600" />
-                  <span className="text-xs text-hgray900">{m.chat.unlockProfileCta}</span>
-                </div>
+          {!isUnlockProfile && (
+            <div className="flex items-center h-[70%] w-full justify-center">
+              <div
+                onClick={() => void onClickUnlockProfile()}
+                className="flex flex-row justify-center items-center gap-2 bg-white/10 rounded-md px-3 py-2 cursor-pointer hover:bg-white/15 transition-all duration-200"
+              >
+                <Lock className="w-4 h-4 text-hgray600" />
+                <span className="text-xs text-hgray900">
+                  {m.chat.unlockProfileCta}
+                </span>
               </div>
-            )
-          }
+            </div>
+          )}
 
-          {
-            isUnlockProfile && (
-              <ChatMessageList
-                messages={chat.messages}
-                isStreaming={chat.isStreaming}
-                error={chat.error}
-                onConfirmCriteriaCard={undefined} // ✅ query scope에서만
-                onChangeCriteriaCard={() => { }}
-              />)
-          }
+          {isUnlockProfile && (
+            <ChatMessageList
+              messages={chat.messages}
+              isStreaming={chat.isStreaming}
+              error={chat.error}
+              onConfirmCriteriaCard={undefined} // ✅ query scope에서만
+              onChangeCriteriaCard={() => {}}
+            />
+          )}
           <br />
         </div>
 
@@ -363,7 +372,7 @@ export default function CandidChatPanel({
         onChange={chat.setInput}
         onSend={() => {
           if (isUnlockProfile) {
-            void chat.send()
+            void chat.send();
             return;
           } else {
             setIsUnlockConfirmOpen(true);

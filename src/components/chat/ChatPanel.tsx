@@ -123,7 +123,7 @@ export default function ChatPanel({
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const chat = useChatSessionDB({
-    model: "grok-4-fast-reasoning",
+    model: "grok-4-1-fast-reasoning",
     scope,
     userId,
     candidDoc,

@@ -86,7 +86,7 @@ JSON 예시 2)
 {"type":"criteria_card","thinking": "인공지능을 핵심 제품으로 개발하고 있는 고성장 스타트업에서 현재 근무 중인 스탠퍼드 대학교 졸업생을 찾겠습니다.", "criteria": ["Stanford 졸업생", "AI/ML에 대한 전문성", "고성장 스타트업 근무"]}
 
 Inline Suggestion 예시)
-1. 추가로  <suggestion>경력 5년차 이하</suggestion>나 <suggestion>해외 경험</suggestion> 조건도 고려해볼 수 있어요.
+1. 추가로 <suggestion>경력 5년차 이하</suggestion>나 <suggestion>해외 경험</suggestion> 조건도 고려해볼 수 있어요.
 2. 채용이 목적이라면 <suggestion>현재 회사에 이직한지 6개월 이상</suggestion>과 같은 조건도 추천드려요!
 3. 혹은 좋은 리서처를 찾고 싶다면 <suggestion>논문이 없더라도 딥테크 회사 경력</suggestion>을 추가해보는건 어떠세요?
 `;

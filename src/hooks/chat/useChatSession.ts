@@ -1,6 +1,10 @@
 // hooks/chat/useChatSession.ts
 import { useCallback, useMemo, useRef, useState, useEffect } from "react";
-import type { ChatMessage, FileAttachmentPayload, FileContextBlock } from "@/types/chat";
+import type {
+  ChatMessage,
+  FileAttachmentPayload,
+  FileContextBlock,
+} from "@/types/chat";
 import {
   fetchMessages,
   insertMessage,
@@ -13,7 +17,6 @@ const CHAT_MODEL = "grok-4-fast-reasoning";
 
 export const UI_START = "<<UI>>";
 export const UI_END = "<<END_UI>>";
-
 
 export type ChatScope =
   | { type: "query"; queryId: string }
@@ -87,7 +90,11 @@ function splitTextByTokens(text: string): UiSegment[] {
       const innerText = innerHtml.replace(/<[^>]+>/g, "").trim();
       out.push({
         type: "block",
-        content: { type: "link", text: innerText || href.split("https://")[1].slice(0, 10), href },
+        content: {
+          type: "link",
+          text: innerText || href.split("https://")[1].slice(0, 10),
+          href,
+        },
       });
     }
 
@@ -198,7 +205,10 @@ export function useChatSessionDB(args: {
   scope?: ChatScope;
   userId?: string;
   apiPath?: string;
-  model?: "grok-4-fast-reasoning" | "gemini-3-flash-preview";
+  model?:
+    | "grok-4-fast-reasoning"
+    | "grok-4-1-fast-reasoning"
+    | "gemini-3-flash-preview";
   candidDoc?: CandidateDetail;
   systemPromptOverride?: string;
   memoryMode?: "automation";
@@ -404,7 +414,17 @@ export function useChatSessionDB(args: {
           signal: controller.signal,
         });
 
-        if (!res.ok || !res.body) throw new Error("chat api failed");
+        if (!res.ok) {
+          const errorText = await res.text().catch(() => "");
+          const shortError = errorText.slice(0, 400);
+          throw new Error(
+            `chat api failed (${res.status}): ${shortError || "no body"}`
+          );
+        }
+
+        if (!res.body) {
+          throw new Error("chat api failed: response body is empty");
+        }
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -415,7 +435,6 @@ export function useChatSessionDB(args: {
           if (done) break;
 
           assistantText += decoder.decode(value, { stream: true });
-          logger.log("\n\n assistantText in useChatSessionDB ", assistantText, " === ", assistantPlaceholder.id, "\n\n");
 
           const { segments } = extractUiSegments(assistantText);
 
@@ -444,7 +463,11 @@ export function useChatSessionDB(args: {
         });
       } catch (err: any) {
         if (err?.name === "AbortError") return;
-        setError("메시지를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
+        logger.log("chat send failed:", err);
+        setError(
+          err?.message ||
+            "메시지를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."
+        );
       } finally {
         abortRef.current = null;
         setIsStreaming(false);

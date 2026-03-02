@@ -758,6 +758,7 @@ const CandidatePage = () => {
                         answer={item.answer}
                         index={index}
                         onOpen={() => addLog(`click_faq_${index}`)}
+                        length={m.companyLanding.faq.items.length}
                       />
                     ))}
                   </div>
