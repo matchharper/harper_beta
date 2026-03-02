@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { geminiChatStream, xaiClient } from "@/lib/llm/llm";
+import {
+  geminiChatStream,
+  xaiClient,
+  client,
+  sseAsyncIterableToReadableStream,
+} from "@/lib/llm/llm";
 import { ChatScope } from "@/hooks/chat/useChatSession";
 import { buildLongDoc } from "@/utils/textprocess";
 import { logger } from "@/utils/logger";
-import {
-  CANDID_SYSTEM_PROMPT,
-  DEEP_AUTOMATION_PROMPT,
-  SYSTEM_PROMPT,
-} from "./chat_prompt";
+import { CANDID_SYSTEM_PROMPT, SYSTEM_PROMPT } from "./chat_prompt";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -37,10 +38,6 @@ const MAX_TOOL_LOOPS = 3;
 const MAX_TOTAL_TOOL_CALLS = 4;
 const UI_START = "<<UI>>";
 const UI_END = "<<END_UI>>";
-
-function sleep(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
-}
 
 function clampText(s: string, maxChars: number) {
   if (!s) return "";
@@ -159,6 +156,112 @@ const tools = [
   },
 ] as const;
 
+export async function createXaiOrOpenAIStream(params: {
+  model: string;
+  messages: any[];
+  temperature: number;
+  tools?: any;
+  tool_choice?: any;
+}) {
+  try {
+    logger.log("xAI 스트림 생성 시작");
+
+    return await xaiClient.chat.completions.create({
+      ...params,
+      stream: true,
+    });
+  } catch (err) {
+    logger.log("xAI failed. Falling back to OpenAI...", err);
+
+    // 2️⃣ Fallback to OpenAI
+    return await client.chat.completions.create({
+      ...params,
+      model: "gpt-4.1-mini", // 원하는 fallback 모델
+      stream: true,
+    });
+  }
+}
+
+export async function createXaiGeminiOpenAIReadableStream(params: {
+  // xAI 모델명 (primary)
+  model: string;
+
+  // 공통
+  systemPrompt: string;
+  messages: { role: "user" | "assistant"; content: string }[];
+  temperature: number;
+
+  // tools는 xAI/openai에서만 (gemini는 너 구현에 따라 다름)
+  tools?: any;
+  tool_choice?: any;
+
+  // fallback 모델명들
+  openaiModel?: string; // default: gpt-4.1-mini
+  geminiModel?: string; // default: gemini-3-flash-preview
+}) {
+  const {
+    model,
+    systemPrompt,
+    messages,
+    temperature,
+    tools,
+    tool_choice,
+    openaiModel = "gpt-4.1-mini",
+    geminiModel = "gemini-3-flash-preview",
+  } = params;
+
+  // ---------- 1) xAI ----------
+  try {
+    const xaiSse = await xaiClient.chat.completions.create({
+      model,
+      messages: [{ role: "system", content: systemPrompt }, ...messages],
+      temperature,
+      stream: true,
+      ...(tools ? { tools } : {}),
+      ...(tool_choice ? { tool_choice } : {}),
+    });
+
+    return {
+      provider: "xai" as const,
+      stream: sseAsyncIterableToReadableStream(xaiSse as any),
+    };
+  } catch (err) {
+    logger.log("xAI failed. Falling back to Gemini...", err);
+  }
+
+  // ---------- 2) Gemini ----------
+  try {
+    const geminiReadable = await geminiChatStream({
+      model: geminiModel,
+      systemPrompt,
+      messages,
+      temperature,
+    });
+
+    return {
+      provider: "gemini" as const,
+      stream: geminiReadable,
+    };
+  } catch (err) {
+    logger.log("Gemini failed. Falling back to OpenAI...", err);
+  }
+
+  // ---------- 3) OpenAI ----------
+  const openaiSse = await client.chat.completions.create({
+    model: openaiModel,
+    messages: [{ role: "system", content: systemPrompt }, ...messages],
+    temperature,
+    stream: true,
+    ...(tools ? { tools } : {}),
+    ...(tool_choice ? { tool_choice } : {}),
+  });
+
+  return {
+    provider: "openai" as const,
+    stream: sseAsyncIterableToReadableStream(openaiSse as any),
+  };
+}
+
 async function streamWithTools(params: {
   req: NextRequest;
   model: string;
@@ -178,14 +281,21 @@ async function streamWithTools(params: {
     async start(controller) {
       try {
         for (let loop = 0; loop < MAX_TOOL_LOOPS; loop++) {
-          const llmStream = await xaiClient.chat.completions.create({
+          const llmStream = await createXaiOrOpenAIStream({
             model,
             messages,
             temperature,
-            stream: true,
             tools: tools as any,
             tool_choice: "auto",
           });
+          // const llmStream = await xaiClient.chat.completions.create({
+          //   model,
+          //   messages,
+          //   temperature,
+          //   stream: true,
+          //   tools: tools as any,
+          //   tool_choice: "auto",
+          // });
 
           const toolCallsByIndex = new Map<
             number,
@@ -339,204 +449,118 @@ async function streamWithTools(params: {
 }
 
 export async function POST(req: NextRequest) {
-  if (req.method !== "POST") {
-    return NextResponse.json({ error: "Method not allowed" }, { status: 405 });
-  }
+  try {
+    if (req.method !== "POST") {
+      return NextResponse.json(
+        { error: "Method not allowed" },
+        { status: 405 }
+      );
+    }
 
-  const body = (await req.json()) as {
-    model?: string;
-    messages?: ChatMessage[];
-    scope?: ChatScope;
-    doc?: any;
-    systemPromptOverride?: string;
-    userId?: string;
-    memoryMode?: "automation";
-    companyDescription?: string;
-    teamLocation?: string;
-    attachments?: AttachmentPayload[];
-  };
+    const body = (await req.json()) as {
+      model?: string;
+      messages?: ChatMessage[];
+      scope?: ChatScope;
+      doc?: any;
+      systemPromptOverride?: string;
+      userId?: string;
+      memoryMode?: "automation";
+      companyDescription?: string;
+      teamLocation?: string;
+      attachments?: AttachmentPayload[];
+    };
 
-  const model = body.model ?? "grok-4-fast-reasoning";
+    const model = body.model ?? "grok-4-fast-reasoning";
 
-  const messages = Array.isArray(body.messages) ? body.messages : [];
-  if (!messages.length) {
-    return NextResponse.json({ error: "Missing messages" }, { status: 400 });
-  }
+    const messages = Array.isArray(body.messages) ? body.messages : [];
+    if (!messages.length) {
+      return NextResponse.json({ error: "Missing messages" }, { status: 400 });
+    }
 
-  let systemPrompt = "";
-  if (body.scope?.type === "candid") {
-    const information = buildLongDoc(body.doc);
-    systemPrompt =
-      CANDID_SYSTEM_PROMPT +
-      `### Candidate Information
+    let systemPrompt = "";
+    if (body.scope?.type === "candid") {
+      const information = buildLongDoc(body.doc);
+      systemPrompt =
+        CANDID_SYSTEM_PROMPT +
+        `### Candidate Information
 ${information}
 `;
-  }
-  if (body.scope?.type === "query") {
-    systemPrompt =
-      typeof body.systemPromptOverride === "string" &&
-      body.systemPromptOverride.trim().length > 0
-        ? body.systemPromptOverride
-        : SYSTEM_PROMPT;
-  }
-
-  const attachments = Array.isArray(body.attachments) ? body.attachments : [];
-  if (attachments.length > 0) {
-    const attachmentText = attachments
-      .map((a, idx) => {
-        const safeText = clampText(String(a.text ?? ""), MAX_ATTACHMENT_CHARS);
-        return `### Attachment ${idx + 1}: ${a.name ?? "파일"}\n${
-          a.mime ? `Type: ${a.mime}\n` : ""
-        }${a.size ? `Size: ${a.size} bytes\n` : ""}\n${safeText}`;
-      })
-      .join("\n\n");
-
-    systemPrompt += `\n\n### Attachments (User-provided)\n${attachmentText}\n\nInstructions:\n- Use the attachment content to answer the user's request.\n- If the attachment is insufficient, ask a concise follow-up question.\n`;
-  }
-
-  if (
-    body.scope?.type === "query" &&
-    body.memoryMode === "automation" &&
-    body.userId
-  ) {
-    const description = clampText(
-      String(body.companyDescription ?? "").trim(),
-      MAX_TEAM_CONTEXT_CHARS
-    );
-    const location = clampText(String(body.teamLocation ?? "").trim(), 200);
-    if (description.length > 0 || location.length > 0) {
-      const profileLines = [
-        description.length > 0
-          ? `- Company/Team description: ${description}`
-          : "",
-        location.length > 0 ? `- Location: ${location}` : "",
-      ]
-        .filter(Boolean)
-        .join("\n");
-
-      systemPrompt += `\n\n### Team Profile (from Account settings)\n${profileLines}\n\nInstructions:\n- Use this as stable background context for recommendations.\n- If this conflicts with the latest user message, prioritize the latest user message.\n`;
+    }
+    if (body.scope?.type === "query") {
+      systemPrompt =
+        typeof body.systemPromptOverride === "string" &&
+        body.systemPromptOverride.trim().length > 0
+          ? body.systemPromptOverride
+          : SYSTEM_PROMPT;
     }
 
-    try {
-      const memoryRow = await fetchLatestMemory(body.userId);
-      const memoryContent = (memoryRow?.content ?? "").trim();
-      systemPrompt = buildAutomationSystemPrompt(systemPrompt, memoryContent);
-    } catch (error) {
-      logger.log("Failed to load team memory:", error);
-      systemPrompt = buildAutomationSystemPrompt(systemPrompt, "");
+    const attachments = Array.isArray(body.attachments) ? body.attachments : [];
+    if (attachments.length > 0) {
+      const attachmentText = attachments
+        .map((a, idx) => {
+          const safeText = clampText(
+            String(a.text ?? ""),
+            MAX_ATTACHMENT_CHARS
+          );
+          return `### Attachment ${idx + 1}: ${a.name ?? "파일"}\n${
+            a.mime ? `Type: ${a.mime}\n` : ""
+          }${a.size ? `Size: ${a.size} bytes\n` : ""}\n${safeText}`;
+        })
+        .join("\n\n");
+
+      systemPrompt += `\n\n### Attachments (User-provided)\n${attachmentText}\n\nInstructions:\n- Use the attachment content to answer the user's request.\n- If the attachment is insufficient, ask a concise follow-up question.\n`;
     }
-  }
 
-  const allowTools =
-    body.scope?.type === "query" && body.memoryMode === "automation";
+    if (
+      body.scope?.type === "query" &&
+      body.memoryMode === "automation" &&
+      body.userId
+    ) {
+      const description = clampText(
+        String(body.companyDescription ?? "").trim(),
+        MAX_TEAM_CONTEXT_CHARS
+      );
+      const location = clampText(String(body.teamLocation ?? "").trim(), 200);
+      if (description.length > 0 || location.length > 0) {
+        const profileLines = [
+          description.length > 0
+            ? `- Company/Team description: ${description}`
+            : "",
+          location.length > 0 ? `- Location: ${location}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n");
 
-  if (model === "grok-4-fast-reasoning" && allowTools) {
-    const toolPrompt = `${systemPrompt}
+        systemPrompt += `\n\n### Team Profile (from Account settings)\n${profileLines}\n\nInstructions:\n- Use this as stable background context for recommendations.\n- If this conflicts with the latest user message, prioritize the latest user message.\n`;
+      }
+
+      try {
+        const memoryRow = await fetchLatestMemory(body.userId);
+        const memoryContent = (memoryRow?.content ?? "").trim();
+        systemPrompt = buildAutomationSystemPrompt(systemPrompt, memoryContent);
+      } catch (error) {
+        logger.log("Failed to load team memory:", error);
+        systemPrompt = buildAutomationSystemPrompt(systemPrompt, "");
+      }
+    }
+
+    const allowTools =
+      body.scope?.type === "query" && body.memoryMode === "automation";
+
+    if (model === "grok-4-fast-reasoning" && allowTools) {
+      const toolPrompt = `${systemPrompt}
 
 ### Tool Use
 - You may call website_scraping when the user provides a URL or asks about a specific page.
 - After using the tool, incorporate the key points from the content into your response.
 `;
 
-    const responseStream = await streamWithTools({
-      req,
-      model,
-      baseMessages: messages,
-      systemPrompt: toolPrompt,
-      temperature: 0.7,
-    });
-
-    return new Response(responseStream, {
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Cache-Control": "no-cache, no-transform",
-        Connection: "keep-alive",
-      },
-    });
-  }
-
-  if (model === "grok-4-fast-reasoning") {
-    const stream = await xaiClient.chat.completions.create({
-      model,
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...messages.map((message) => ({
-          role: message.role,
-          content: message.content,
-        })),
-      ],
-      temperature: 0.7,
-      stream: true,
-    });
-
-    const encoder = new TextEncoder();
-    const responseStream = new ReadableStream({
-      async start(controller) {
-        try {
-          for await (const chunk of stream) {
-            const delta = chunk.choices?.[0]?.delta?.content ?? "";
-            if (delta) controller.enqueue(encoder.encode(delta));
-          }
-        } catch (error) {
-          controller.error(error);
-        } finally {
-          controller.close();
-        }
-      },
-    });
-
-    return new Response(responseStream, {
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Cache-Control": "no-cache, no-transform",
-        Connection: "keep-alive",
-      },
-    });
-  }
-
-  if (model === "gemini-3-flash-preview") {
-    try {
-      const responseStream = await geminiChatStream({
-        model: "gemini-3-flash-preview",
-        systemPrompt,
-        messages,
-        temperature: 0.7,
-      });
-      return new Response(responseStream, {
-        headers: {
-          "Content-Type": "text/plain; charset=utf-8",
-          "Cache-Control": "no-cache, no-transform",
-          Connection: "keep-alive",
-        },
-      });
-    } catch (error) {
-      const stream = await xaiClient.chat.completions.create({
+      const responseStream = await streamWithTools({
+        req,
         model,
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...messages.map((message) => ({
-            role: message.role,
-            content: message.content,
-          })),
-        ],
+        baseMessages: messages,
+        systemPrompt: toolPrompt,
         temperature: 0.7,
-        stream: true,
-      });
-
-      const encoder = new TextEncoder();
-      const responseStream = new ReadableStream({
-        async start(controller) {
-          try {
-            for await (const chunk of stream) {
-              const delta = chunk.choices?.[0]?.delta?.content ?? "";
-              if (delta) controller.enqueue(encoder.encode(delta));
-            }
-          } catch (error) {
-            controller.error(error);
-          } finally {
-            controller.close();
-          }
-        },
       });
 
       return new Response(responseStream, {
@@ -547,5 +571,33 @@ ${information}
         },
       });
     }
+    const systemMsg = systemPrompt;
+    const baseMsgs = messages.map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+
+    const { provider, stream } = await createXaiGeminiOpenAIReadableStream({
+      model: "grok-4-fast-reasoning",
+      systemPrompt: systemMsg,
+      messages: baseMsgs,
+      temperature: 0.5,
+    });
+
+    logger.log("LLM provider selected:", provider);
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+      },
+    });
+  } catch (error: any) {
+    logger.log("/api/chat POST failed:", error);
+    return NextResponse.json(
+      { error: String(error?.message ?? "Internal server error") },
+      { status: 500 }
+    );
   }
 }

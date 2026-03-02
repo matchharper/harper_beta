@@ -1,6 +1,27 @@
 import { OpenAI } from "openai";
 import { logger } from "@/utils/logger";
 
+export function sseAsyncIterableToReadableStream(
+  sseStream: AsyncIterable<any>
+): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        for await (const chunk of sseStream as any) {
+          const delta = chunk?.choices?.[0]?.delta?.content ?? "";
+          if (delta) controller.enqueue(encoder.encode(delta));
+        }
+      } catch (e) {
+        controller.error(e);
+      } finally {
+        controller.close();
+      }
+    },
+  });
+}
+
 if (typeof window !== "undefined") {
   throw new Error("llm.ts was bundled into the client!");
 }
@@ -33,6 +54,10 @@ const pricingTable = {
     input: 0.2 / 1_000_000,
     output: 0.5 / 1_000_000,
   },
+  "grok-4-1-fast-reasoning": {
+    input: 0.2 / 1_000_000,
+    output: 0.5 / 1_000_000,
+  },
   "grok-4-fast-non-reasoning": {
     input: 0.2 / 1_000_000,
     output: 0.5 / 1_000_000,
@@ -48,7 +73,11 @@ const pricingTable = {
 };
 
 export const xaiInference = async (
-  model: "grok-4-fast-reasoning" | "grok-4-fast-non-reasoning" | "gpt-5-mini",
+  model:
+    | "grok-4-fast-reasoning"
+    | "grok-4-1-fast-reasoning"
+    | "grok-4-fast-non-reasoning"
+    | "gpt-5-mini",
   systemPrompt: string,
   userPrompt: string,
   temperature: number = 0.7,

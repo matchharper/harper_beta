@@ -219,6 +219,9 @@ export default function UseCaseGridSection({
           <Head1 className="text-white">{title}</Head1>
           <div className="text-sm md:text-base text-white/55 font-normal mt-6 max-w-[720px]">
             {subtitle}
+            <br />
+            Harper는 개인정보를 판매하지 않으며, 공개된 전문 프로필 정보를
+            기반으로 AI 검색 및 발견 도구를 제공합니다.
           </div>
 
           <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-7">
