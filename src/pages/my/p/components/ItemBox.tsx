@@ -25,6 +25,7 @@ const ItemBox = ({
   logo_url,
   company_id,
   isLast,
+  onToggleDescription,
 }: {
   title: string;
   name: string;
@@ -38,6 +39,7 @@ const ItemBox = ({
   months?: string;
   company_id?: string;
   isLast?: boolean;
+  onToggleDescription?: (nextOpen: boolean) => void;
 }) => {
   const startDate = useMemo(() => dateToFormat(start_date), [start_date]);
   const endDate = useMemo(() => dateToFormat(end_date), [end_date]);
@@ -69,7 +71,11 @@ const ItemBox = ({
 
   const toggleDesc = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setIsOpen((v) => !v);
+    setIsOpen((v) => {
+      const nextOpen = !v;
+      onToggleDescription?.(nextOpen);
+      return nextOpen;
+    });
   };
 
   const logoSize = "w-10 h-10 outline outline-4 outline-hgray200";
