@@ -10,12 +10,14 @@ const MainProfile = ({
   headline,
   location,
   links,
+  onLinkClick,
 }: {
   profile_picture: string;
   name: string;
   headline: string;
   location: string;
   links: string[];
+  onLinkClick?: (url: string) => void;
 }) => {
   const hasLinks = (links?.length ?? 0) > 0;
 
@@ -59,7 +61,7 @@ const MainProfile = ({
           {!hasLinks ? (
             <div className="text-sm text-xgray600">No links</div>
           ) : (
-            <LinkChips links={links} />
+            <LinkChips links={links} onLinkClick={onLinkClick} />
           )}
         </div>
       </div>

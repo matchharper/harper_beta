@@ -40,9 +40,10 @@ export const BRAND_MAP = [
 
 type Props = {
   links: string[];
+  onLinkClick?: (url: string) => void;
 };
 
-function LinkChips({ links }: Props) {
+function LinkChips({ links, onLinkClick }: Props) {
   if (!links?.length) return null;
   // logger.log(links.map((l) => l.toLowerCase().includes("cv.pdf")));
 
@@ -69,6 +70,7 @@ function LinkChips({ links }: Props) {
             href={url}
             target="_blank"
             rel="noreferrer"
+            onClick={() => onLinkClick?.(url)}
             className="inline-flex font-normal items-center gap-2 rounded-lg bg-white/5 px-2.5 py-1.5 text-xs text-white hover:bg-white/10 transition-all duration-200"
           >
             <img

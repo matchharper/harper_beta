@@ -10,6 +10,7 @@ type ProfileBioProps = {
   name: string;
   oneline?: string;
   isLoadingOneline: boolean;
+  onToggleMore?: (nextOpen: boolean) => void;
 };
 
 export function sanitizeProfileLine(raw: string) {
@@ -25,6 +26,7 @@ const ProfileBio = ({
   name,
   oneline = "",
   isLoadingOneline,
+  onToggleMore,
 }: ProfileBioProps) => {
   const [isBioOpen, setIsBioOpen] = useState(false);
   const { m } = useMessages();
@@ -45,7 +47,11 @@ const ProfileBio = ({
           <button
             type="button"
             className="text-sm text-ngray600 font-normal hover:text-accenta1 transition-all duration-200"
-            onClick={() => setIsBioOpen((v) => !v)}
+            onClick={() => {
+              const nextOpen = !isBioOpen;
+              onToggleMore?.(nextOpen);
+              setIsBioOpen(nextOpen);
+            }}
             aria-expanded={isBioOpen}
           >
             {isBioOpen ? "접기" : "더보기"}

@@ -6,7 +6,7 @@ import Bookmarkbutton from "@/components/ui/bookmarkbutton";
 import GithubRepoContributionBox from "@/components/profile/GithubRepoContributionBox";
 import ItemBox from "./components/ItemBox";
 import PublicationBox from "./components/PublicationBox";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useMessages } from "@/i18n/useMessage";
 import {
   companyEnToKo,
@@ -244,6 +244,35 @@ function CandidateProfileDetailPage({
       });
   }, [c]);
 
+  const compactLogToken = useCallback((value: unknown) => {
+    return String(value ?? "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 64);
+  }, []);
+
+  const handleProfileLinkClick = useCallback(
+    (url: string) => {
+      let host = url;
+      try {
+        host = new URL(url).hostname.replace("www.", "");
+      } catch {}
+
+      logEvent(
+        `profile_link_click:${candidId}:${compactLogToken(host || "unknown")}`
+      );
+    },
+    [candidId, compactLogToken, logEvent]
+  );
+
+  const handleProfileSummaryToggle = useCallback(
+    (nextOpen: boolean) => {
+      if (!nextOpen) return;
+      logEvent(`profile_summary_more_click:${candidId}`);
+    },
+    [candidId, logEvent]
+  );
+
   const generateOneLineSummary = async () => {
     setIsLoadingOneline(true);
     try {
@@ -356,6 +385,7 @@ function CandidateProfileDetailPage({
             headline={c.headline}
             location={c.location}
             links={links}
+            onLinkClick={handleProfileLinkClick}
           />
           <div className="absolute top-2 right-2 font-normal flex flex-col gap-1 ">
             <div className="flex flex-row items-end justify-end gap-2">
@@ -395,6 +425,7 @@ function CandidateProfileDetailPage({
           name={c.name ?? ""}
           oneline={oneline ?? ""}
           isLoadingOneline={isLoadingOneline ?? false}
+          onToggleMore={handleProfileSummaryToggle}
         />
 
         {/* Experiences */}
@@ -422,6 +453,16 @@ function CandidateProfileDetailPage({
                     logo_url={e.company_db.logo}
                     months={e.months}
                     isLast={idx === mergedExperience.length - 1}
+                    onToggleDescription={(nextOpen) => {
+                      if (!nextOpen) return;
+                      const companyName = companyEnToKo(e.company_db.name);
+                      const target = compactLogToken(
+                        companyName || e.company_db.name || e.role || "unknown"
+                      );
+                      logEvent(
+                        `profile_experience_chevron_click:${candidId}:${target}`
+                      );
+                    }}
                   />
                 );
               }

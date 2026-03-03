@@ -649,13 +649,13 @@ export const SearchResultCard = React.memo(function SearchResultCard({
             { shallow: true, scroll: false }
           );
         }}
-        className="w-full mt-4 relative rounded-3xl border border-white/5 px-4 py-4 overflow-hidden cursor-pointer hover:bg-white/5 transition-all duration-200"
+        className="text-sm text-hgray900 flex flex-row items-center justify-between w-full mt-4 relative rounded-3xl border border-white/5 px-4 py-4 overflow-hidden cursor-pointer hover:bg-white/5 transition-all duration-200"
       >
-        <div className="text-sm text-hgray900 font-normal flex flex-row items-center gap-2">
+        <div className="font-normal flex flex-row items-center gap-2">
           <FileSpreadsheet className="w-4 h-4 text-green-500" />
           <span className="">{firstText}</span>
-          {/* <span className="text-hgray600 text-xs">{restText}</span> */}
         </div>
+        <ArrowRight className="w-4 h-4 text-hgray900" />
       </div>
       {/* <div className="text-xs text-green-500 flex flex-row items-center gap-1 px-0 mt-2">
           <Check size={12} /> 검색 완료!
