@@ -19,10 +19,9 @@ const isMissingDisplayName = (name?: string | null) => {
   return !normalized || normalized.toLowerCase() === "anonymous";
 };
 
-type InviteCodeRecord = {
-  id: string | number;
-  count: number | null;
-  credit: number | null;
+type VerifyInviteResponse = {
+  ok: boolean;
+  requiresName: boolean;
 };
 
 export default function LoginSuccess() {
@@ -32,8 +31,7 @@ export default function LoginSuccess() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSwitchingInput, setIsSwitchingInput] = useState(false);
   const [step, setStep] = useState<"code" | "name">("code");
-  const [verifiedInviteCode, setVerifiedInviteCode] =
-    useState<InviteCodeRecord | null>(null);
+  const [verifiedCode, setVerifiedCode] = useState("");
   const [invalidMessage, setInvalidMessage] = useState("");
   const [isShake, setIsShake] = useState(false);
   const [landingId, setLandingId] = useState("");
@@ -115,8 +113,84 @@ export default function LoginSuccess() {
     }
   }, [isShake]);
 
-  const transitionToNameStep = async (inviteCodeData: InviteCodeRecord) => {
-    setVerifiedInviteCode(inviteCodeData);
+  const getAccessToken = async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    return session?.access_token ?? null;
+  };
+
+  const resolveUserId = async () => {
+    if (companyUser?.user_id) return companyUser.user_id;
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    return user?.id ?? null;
+  };
+
+  const verifyInviteCode = async (
+    inviteCode: string
+  ): Promise<VerifyInviteResponse> => {
+    const accessToken = await getAccessToken();
+    if (!accessToken) {
+      throw new Error("missing_access_token");
+    }
+
+    const response = await fetch("/api/invitation/verify", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ code: inviteCode }),
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      const apiCode = String(payload?.code ?? "").toLowerCase();
+      if (apiCode === "invalid_invite_code" || apiCode === "invite_code_exhausted") {
+        return { ok: false, requiresName: false };
+      }
+      throw new Error(apiCode || `verify_failed_${response.status}`);
+    }
+
+    const payload = (await response.json().catch(() => ({}))) as {
+      requiresName?: boolean;
+    };
+    return {
+      ok: true,
+      requiresName: Boolean(payload?.requiresName),
+    };
+  };
+
+  const redeemInvitation = async (inviteCode: string, name?: string) => {
+    const accessToken = await getAccessToken();
+    if (!accessToken) {
+      throw new Error("missing_access_token");
+    }
+
+    const response = await fetch("/api/invitation/redeem", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        code: inviteCode,
+        name: name?.trim() || undefined,
+      }),
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      const apiCode = String(payload?.code ?? "").toLowerCase();
+      throw new Error(apiCode || `redeem_failed_${response.status}`);
+    }
+  };
+
+  const transitionToNameStep = async (inviteCode: string) => {
+    setVerifiedCode(inviteCode);
     setCode("");
     setInvalidMessage("");
     setIsSwitchingInput(true);
@@ -125,66 +199,20 @@ export default function LoginSuccess() {
     setIsSwitchingInput(false);
   };
 
-  const completeInvitation = async (inviteCodeData: InviteCodeRecord) => {
-    const userId = companyUser?.user_id;
-    if (!userId) return;
-
-    const initialCredit =
-      typeof inviteCodeData.credit === "number" &&
-      Number.isFinite(inviteCodeData.credit)
-        ? inviteCodeData.credit
-        : 0;
-
-    const { error: authUpdateError } = await supabase
-      .from("company_users")
-      .update({
-        is_authenticated: true,
-      })
-      .eq("user_id", userId);
-
-    if (authUpdateError) {
-      throw authUpdateError;
+  const completeInvitation = async (inviteCode: string, name?: string) => {
+    const userId = await resolveUserId();
+    if (!userId) {
+      throw new Error("missing_user_id");
     }
 
-    if (!companyUser?.is_authenticated) {
-      const { error: creditsInsertError } = await supabase
-        .from("credits")
-        .insert({
-          user_id: userId,
-          remain_credit: initialCredit,
-          charged_credit: initialCredit,
-          type: "initial",
-        });
-
-      if (creditsInsertError) {
-        throw creditsInsertError;
-      }
-
-      const nextCount =
-        (typeof inviteCodeData.count === "number" ? inviteCodeData.count : 0) +
-        1;
-      const { error: companyCodeUpdateError } = await supabase
-        .from("company_code")
-        .update({ count: nextCount })
-        .eq("id", inviteCodeData.id as string);
-
-      if (companyCodeUpdateError) {
-        console.error(
-          "company_code count update error:",
-          companyCodeUpdateError
-        );
-      }
-    }
+    await redeemInvitation(inviteCode, name);
 
     await load(userId);
     router.push("/my");
   };
 
   const saveName = async () => {
-    const userId = companyUser?.user_id;
-    if (!userId) return;
-
-    if (!verifiedInviteCode) {
+    if (!verifiedCode) {
       setInvalidMessage(m.invitation.errors.invalidCode);
       setStep("code");
       return;
@@ -200,16 +228,7 @@ export default function LoginSuccess() {
     setIsLoading(true);
     setInvalidMessage("");
     try {
-      const { error } = await supabase
-        .from("company_users")
-        .update({ name: normalizedName })
-        .eq("user_id", userId);
-
-      if (error) {
-        throw error;
-      }
-
-      await completeInvitation(verifiedInviteCode);
+      await completeInvitation(verifiedCode, normalizedName);
     } catch (error) {
       console.error("save company user name error:", error);
       setIsShake(true);
@@ -220,9 +239,6 @@ export default function LoginSuccess() {
   };
 
   const checkCode = async () => {
-    const userId = companyUser?.user_id;
-    if (!userId) return;
-
     const normalizedCode = code.trim();
 
     if (!normalizedCode) {
@@ -234,31 +250,20 @@ export default function LoginSuccess() {
     setIsLoading(true);
     setInvalidMessage("");
     try {
-      const { data, error: inviteCodeError } = await supabase
-        .from("company_code")
-        .select("id, count, credit")
-        .eq("code", normalizedCode)
-        .maybeSingle();
-
-      if (inviteCodeError || !data) {
+      const verifyResult = await verifyInviteCode(normalizedCode);
+      if (!verifyResult.ok) {
         setIsShake(true);
         setInvalidMessage(m.invitation.errors.invalidCode);
         return;
       }
 
-      const inviteCodeData: InviteCodeRecord = {
-        id: data.id as string | number,
-        count: (data.count as number | null) ?? null,
-        credit: (data.credit as number | null) ?? null,
-      };
-
-      if (isMissingDisplayName(companyUser?.name)) {
+      if (verifyResult.requiresName || isMissingDisplayName(companyUser?.name)) {
         setIsLoading(false);
-        await transitionToNameStep(inviteCodeData);
+        await transitionToNameStep(normalizedCode);
         return;
       }
 
-      await completeInvitation(inviteCodeData);
+      await completeInvitation(normalizedCode);
     } catch (error) {
       console.error("invite code check error:", error);
       setIsShake(true);
