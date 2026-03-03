@@ -1,6 +1,4 @@
-import {
-  CandidateTypeWithConnection,
-} from "@/hooks/useSearchChatCandidates";
+import { CandidateTypeWithConnection } from "@/hooks/useSearchChatCandidates";
 import React, { useMemo } from "react";
 import { locationEnToKo } from "@/utils/language_map";
 import { Avatar } from "./NameProfile";
@@ -21,27 +19,6 @@ function sanitizeSummaryReason(raw: string) {
     .replace(/<\/?strong>/gi, "")
     .replace(/<[^>]+>/g, "")
     .trim();
-}
-
-type ParsedSummary = { score: string; reason: string };
-
-function parseSummaryText(
-  summaryText: string | null | undefined
-): ParsedSummary[] {
-  if (!summaryText) return [];
-  try {
-    const temp = JSON.parse(summaryText);
-    if (!Array.isArray(temp)) return [];
-    return temp.map((item: any) => {
-      // 기존: "만족,이유..." 형태의 string이라고 가정
-      const str = String(item ?? "");
-      const score = str.split(",")[0] ?? "";
-      const reason = str.split(",").slice(1).join(",") ?? "";
-      return { score, reason };
-    });
-  } catch {
-    return [];
-  }
 }
 
 function CandidateCard({
@@ -173,8 +150,9 @@ function CandidateCard({
       </div>
 
       <div
-        className={`flex flex-row items-center justify-start group-hover:opacity-100  absolute top-3 right-3 ${isMyList ? "opacity-100" : "opacity-0"
-          }`}
+        className={`flex flex-row items-center justify-start group-hover:opacity-100  absolute top-3 right-3 ${
+          isMyList ? "opacity-100" : "opacity-0"
+        }`}
         onClick={(e) => {
           e.stopPropagation();
         }}
