@@ -149,7 +149,10 @@ export default function LoginSuccess() {
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
       const apiCode = String(payload?.code ?? "").toLowerCase();
-      if (apiCode === "invalid_invite_code" || apiCode === "invite_code_exhausted") {
+      if (
+        apiCode === "invalid_invite_code" ||
+        apiCode === "invite_code_exhausted"
+      ) {
         return { ok: false, requiresName: false };
       }
       throw new Error(apiCode || `verify_failed_${response.status}`);
@@ -257,7 +260,10 @@ export default function LoginSuccess() {
         return;
       }
 
-      if (verifyResult.requiresName || isMissingDisplayName(companyUser?.name)) {
+      if (
+        verifyResult.requiresName ||
+        isMissingDisplayName(companyUser?.name)
+      ) {
         setIsLoading(false);
         await transitionToNameStep(normalizedCode);
         return;
@@ -397,7 +403,6 @@ export default function LoginSuccess() {
               </div>
             )}
 
-            {/* Divider */}
             <div className="flex items-center gap-4 mt-10 mb-9">
               <div className="h-px flex-1 bg-neutral-600" />
               <span className="text-xs text-neutral-500">
@@ -406,7 +411,6 @@ export default function LoginSuccess() {
               <div className="h-px flex-1 bg-neutral-600" />
             </div>
 
-            {/* Waitlist button */}
             <button
               onClick={() => {
                 addLog("click_invitation_waitlist");

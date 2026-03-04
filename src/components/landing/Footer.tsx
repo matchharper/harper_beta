@@ -75,6 +75,15 @@ const Footer = ({
             Refund Policy
           </div>
         </div>
+        <div className="text-[13px] text-hgray700 flex flex-col items-start justify-start gap-0">
+          <div>상호명 : 주식회사 하퍼</div>
+          <div>대표자명 : HEO HONGBEOM</div>
+          <div>사업자등록번호 : 314-86-68621</div>
+          <div>
+            사업장 주소 : 서울특별시 강남구 논현로10길 30, 505-제이 16(개포동)
+          </div>
+          <div>유선번호 : 010-7157-7537</div>
+        </div>
       </div>
       <div className="flex flex-1 flex-row items-end justify-end gap-8 w-full mt-12 md:mt-0">
         <div className="flex flex-1 flex-col items-end justify-between gap-4 self-stretch">
@@ -95,7 +104,7 @@ const Footer = ({
               </div>
             </div>
           </div>
-          <div className="flex flex-row items-center gap-4">
+          {/* <div className="flex flex-row items-center gap-4">
             <div className="flex items-center gap-2 text-xs md:text-sm font-extralight text-white/80">
               <button
                 type="button"
@@ -113,7 +122,7 @@ const Footer = ({
                 English
               </button>
             </div>
-          </div>
+          </div> */}
         </div>
       </div>
     </div>

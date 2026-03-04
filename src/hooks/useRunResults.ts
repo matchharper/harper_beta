@@ -4,6 +4,17 @@ import { supabase } from "@/lib/supabase";
 import { CandidateTypeWithConnection } from "./useSearchChatCandidates";
 import { logger } from "@/utils/logger";
 
+type RunPageCandidate = { id?: string; score?: number | string | null };
+
+function filterPositiveScoreCandidates(items: RunPageCandidate[]) {
+  return items.filter((item) => {
+    const score = Number(item?.score);
+    // Keep legacy rows without score, but exclude explicit zero/negative.
+    if (Number.isNaN(score)) return true;
+    return score > 0;
+  });
+}
+
 async function fetchCandidatesByIds(
   ids: string[],
   userId: string,
@@ -81,7 +92,10 @@ async function fetchRunPage12(params: {
   if (error) throw error;
 
   const row = data?.[0];
-  const ids = (row?.candidate_ids ?? []).slice(0, 10).map((r: any) => r.id);
+  const all = filterPositiveScoreCandidates(
+    (row?.candidate_ids ?? []) as RunPageCandidate[]
+  );
+  const ids = all.slice(0, 10).map((r) => r.id).filter(Boolean) as string[];
 
   return {
     ids,
@@ -106,12 +120,14 @@ async function fetchRunPage(params: {
   if (error) throw error;
 
   const row = data?.[0];
-  const all = (row?.candidate_ids ?? []) as Array<{ id: string }>;
+  const all = filterPositiveScoreCandidates(
+    (row?.candidate_ids ?? []) as RunPageCandidate[]
+  );
 
   const start = pageIdx * 10;
   const end = start + 10;
 
-  const ids = all.slice(start, end).map((r) => r.id);
+  const ids = all.slice(start, end).map((r) => r.id).filter(Boolean) as string[];
 
   return { ids, total: all.length };
 }

@@ -50,8 +50,8 @@ export default function PricingSection({
   const isEnglish = locale === "en";
 
   const plans = useMemo(() => {
-    const proMonthlyKRW = 100;
-    const maxMonthlyKRW = 180;
+    const proMonthlyKRW = 149000;
+    const maxMonthlyKRW = 279000;
     const proMonthlyUSD = 100;
     const maxMonthlyUSD = 180;
     const proYearlyUSD = 80;
@@ -285,7 +285,7 @@ function PlanCard({
           ) : (
             <div className="flex items-end gap-2">
               <div className="text-[24px] md:text-[32px] font-medium tracking-tight leading-none">
-                ${formatPrice(isEnglish, price)}
+                {formatPrice(isEnglish, price)}
               </div>
               <div className="text-base md:text-lg text-white/60 pb-1">
                 {priceUnit}

@@ -14,26 +14,17 @@ import QuestionAnswer from "@/components/landing/Questions";
 import { BILLING_PROVIDER } from "@/lib/polar/config";
 import { useRouter } from "next/router";
 import Animate from "@/components/landing/Animate";
-import {
-  loadTossPayments,
-  type TossPaymentsPayment,
-} from "@tosspayments/tosspayments-sdk";
-import { X } from "lucide-react";
 
-const TOSS_BILLING_CLIENT_KEY =
-  process.env.NEXT_PUBLIC_TOSS_BILLING_CLIENT_KEY ??
-  process.env.NEXT_PUBLIC_TOSS_WIDGET_CLIENT_KEY ??
-  "";
+const PRO_MONTHLY_CHECKOUT_URL =
+  "https://matchharper.lemonsqueezy.com/checkout/buy/ea41e57e-6dc1-4ddd-8b7f-f5636bc35ec5";
+const PRO_YEARLY_CHECKOUT_URL =
+  "https://matchharper.lemonsqueezy.com/checkout/buy/c2397869-0c46-477d-9315-7cbb03c2d464";
+const MAX_MONTHLY_CHECKOUT_URL =
+  "https://matchharper.lemonsqueezy.com/checkout/buy/0526b657-757f-45bb-bc9f-4466a6ec360f";
+const MAX_YEARLY_CHECKOUT_URL =
+  "https://matchharper.lemonsqueezy.com/checkout/buy/5f88e60e-f43f-4699-b4a1-3a71fe90b13d";
 
 type BillingPeriod = "monthly" | "yearly";
-
-function getTossAmountKRW(planKey: "pro" | "max", billing: BillingPeriod) {
-  const monthly = planKey === "pro" ? 149000 : 279000;
-  if (billing === "monthly") {
-    return monthly;
-  }
-  return Math.round(monthly * 0.8);
-}
 
 type SubscriptionInfo = {
   planKey: "pro" | "max" | "enterprise" | "free" | null;
@@ -43,13 +34,6 @@ type SubscriptionInfo = {
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean | null;
   billing: BillingPeriod | null;
-};
-
-type TossCheckoutPreview = {
-  planKey: "pro" | "max";
-  planName: string;
-  billing: BillingPeriod;
-  amount: number;
 };
 
 function normalizePlanValue(value?: string | null) {
@@ -174,13 +158,6 @@ const Billing = () => {
     billing: "monthly" | "yearly";
   } | null>(null);
   const [isUpgradeConfirming, setIsUpgradeConfirming] = useState(false);
-  const [tossPreview, setTossPreview] = useState<TossCheckoutPreview | null>(
-    null
-  );
-  const [isTossBillingLoading, setIsTossBillingLoading] = useState(false);
-  const [tossPreviewError, setTossPreviewError] = useState<string | null>(null);
-  const [isBillingAgreementChecked, setIsBillingAgreementChecked] =
-    useState(false);
   const { m } = useMessages();
   const logEvent = useLogEvent();
   const pricing = m.companyLanding.pricing;
@@ -210,22 +187,17 @@ const Billing = () => {
   const freeStartDateLabel = subscription?.currentPeriodEnd
     ? dateToFormatLong(subscription.currentPeriodEnd)
     : "";
-  const closeTossPreview = () => {
-    setTossPreview(null);
-    setTossPreviewError(null);
-    setIsTossBillingLoading(false);
-    setIsBillingAgreementChecked(false);
-  };
 
   const startCheckout = async (
     planName: string,
     billing: "monthly" | "yearly",
-    _options?: {
+    options?: {
       allowSubscriptionSwitch?: boolean;
     }
   ) => {
     const proName = m.companyLanding.pricing.plans.pro.name;
     const maxName = m.companyLanding.pricing.plans.max.name;
+    const allowSubscriptionSwitch = Boolean(options?.allowSubscriptionSwitch);
     logEvent(
       `enter_billing_checkout, planName: ${planName}, billing: ${billing}`
     );
@@ -238,11 +210,22 @@ const Billing = () => {
       return;
     }
 
+    let url: URL | null = null;
     let planKey: "pro" | "max" | null = null;
     if (planName === proName) {
       planKey = "pro";
+      url = new URL(
+        billing === "yearly"
+          ? PRO_YEARLY_CHECKOUT_URL
+          : PRO_MONTHLY_CHECKOUT_URL
+      );
     } else if (planName === maxName) {
       planKey = "max";
+      url = new URL(
+        billing === "yearly"
+          ? MAX_YEARLY_CHECKOUT_URL
+          : MAX_MONTHLY_CHECKOUT_URL
+      );
     } else {
       showToast({
         message: "현재는 Pro, Max 플랜만 테스트 중입니다.",
@@ -251,14 +234,82 @@ const Billing = () => {
       return;
     }
 
-    setTossPreview({
-      planKey,
-      planName,
-      billing,
-      amount: getTossAmountKRW(planKey, billing),
-    });
-    setTossPreviewError(null);
-    setIsBillingAgreementChecked(false);
+    if (BILLING_PROVIDER === "polar" && planKey) {
+      try {
+        const res = await fetch("/api/polar/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: companyUser.user_id,
+            planKey,
+            billing,
+            allowSubscriptionSwitch,
+          }),
+        });
+
+        if (!res.ok) {
+          let errorMessage = `Polar 결제 세션 생성에 실패했습니다. (status ${res.status})`;
+          try {
+            const payload = await res.json();
+            const detail =
+              typeof payload?.message === "string"
+                ? payload.message
+                : typeof payload?.error === "string"
+                  ? payload.error
+                  : null;
+            if (detail) {
+              errorMessage = `${errorMessage} ${detail}`;
+            }
+          } catch {
+            // Keep generic fallback message.
+          }
+
+          console.error("Polar checkout create failed", {
+            status: res.status,
+            planKey,
+            billing,
+          });
+          showToast({
+            message: errorMessage,
+            variant: "white",
+          });
+          return;
+        }
+
+        const data = await res.json();
+        const checkoutUrl =
+          typeof data?.url === "string" && data.url.length > 0
+            ? data.url
+            : null;
+        if (!checkoutUrl) {
+          showToast({
+            message: "Polar 결제 URL을 확인할 수 없습니다.",
+            variant: "white",
+          });
+          return;
+        }
+
+        window.location.href = checkoutUrl;
+        return;
+      } catch {
+        showToast({
+          message: "Polar 결제 요청 중 오류가 발생했습니다.",
+          variant: "white",
+        });
+        return;
+      }
+    }
+
+    if (!url) {
+      showToast({
+        message: "결제 URL을 확인할 수 없습니다.",
+        variant: "white",
+      });
+      return;
+    }
+
+    url.searchParams.set("checkout[custom][user_id]", companyUser.user_id);
+    window.location.href = url.toString();
   };
 
   const requestSubscriptionCancel = async () => {
@@ -317,99 +368,6 @@ const Billing = () => {
       setIsCanceling(false);
     }
   };
-
-  const requestBillingAuth = async () => {
-    if (!tossPreview) {
-      setTossPreviewError("먼저 플랜을 선택해주세요.");
-      return;
-    }
-
-    if (!companyUser?.user_id) {
-      setTossPreviewError("로그인 정보를 확인할 수 없습니다.");
-      return;
-    }
-
-    if (!TOSS_BILLING_CLIENT_KEY) {
-      setTossPreviewError(
-        "NEXT_PUBLIC_TOSS_BILLING_CLIENT_KEY(또는 NEXT_PUBLIC_TOSS_WIDGET_CLIENT_KEY)가 설정되지 않았습니다."
-      );
-      return;
-    }
-
-    if (TOSS_BILLING_CLIENT_KEY.includes("_gck_")) {
-      setTossPreviewError(
-        "현재 코드는 결제창/빌링 방식입니다. API 개별 연동 키(test_ck_/live_ck_)를 넣어주세요."
-      );
-      return;
-    }
-
-    if (!TOSS_BILLING_CLIENT_KEY.includes("_ck_")) {
-      setTossPreviewError(
-        "API 개별 연동 키 형식이 아닙니다. test_ck_ 또는 live_ck_ 키를 확인해주세요."
-      );
-      return;
-    }
-
-    setIsTossBillingLoading(true);
-    setTossPreviewError(null);
-
-    try {
-      const tossPayments = await loadTossPayments(TOSS_BILLING_CLIENT_KEY);
-      const payment: TossPaymentsPayment = tossPayments.payment({
-        customerKey: companyUser.user_id,
-      });
-
-      const successUrl = `${window.location.origin}/my/billing?billing_auth=success`;
-      const failUrl = `${window.location.origin}/my/billing?billing_auth=fail`;
-
-      await payment.requestBillingAuth({
-        method: "CARD",
-        successUrl,
-        failUrl,
-        customerEmail: companyUser.email ?? undefined,
-        customerName: companyUser.name ?? undefined,
-      });
-    } catch (error) {
-      console.error("Failed to request toss billing auth:", error);
-      const code =
-        typeof (error as { code?: unknown })?.code === "string"
-          ? ((error as { code?: string }).code as string)
-          : "UNKNOWN_ERROR";
-      const message =
-        typeof (error as { message?: unknown })?.message === "string"
-          ? ((error as { message?: string }).message as string)
-          : "알 수 없는 오류";
-      setTossPreviewError(
-        `카드 등록창을 띄우지 못했습니다. (${code}) ${message}`
-      );
-    } finally {
-      setIsTossBillingLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!router.isReady) return;
-    const status = router.query.billing_auth;
-    if (status !== "success" && status !== "fail") return;
-
-    if (status === "success") {
-      showToast({
-        message: "카드 등록 인증이 완료되었습니다. (테스트)",
-        variant: "white",
-      });
-    } else {
-      const failMessage =
-        typeof router.query.message === "string" ? router.query.message : null;
-      showToast({
-        message: failMessage
-          ? `카드 등록 인증 실패: ${failMessage}`
-          : "카드 등록 인증이 실패했습니다.",
-        variant: "white",
-      });
-    }
-
-    void router.replace("/my/billing", undefined, { shallow: true });
-  }, [router]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -710,93 +668,6 @@ const Billing = () => {
             await startCheckout(planName, billing);
           }}
         />
-
-        {tossPreview ? (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center px-4">
-            <button
-              type="button"
-              aria-label="close toss preview modal"
-              className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"
-              onClick={closeTossPreview}
-            />
-            <div className="relative z-[71] w-full max-w-[560px] rounded-[24px] border border-white/10 bg-hgray200 p-6 shadow-xl">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="text-sm text-hgray900">
-                    결제 정보를 확인해주세요
-                  </div>
-                  <div className="mt-1 text-white text-lg font-medium">
-                    {tossPreview.planName} ·{" "}
-                    {tossPreview.billing === "yearly" ? "연간" : "월간"}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  className="text-sm text-hgray700 hover:text-white transition-colors"
-                  onClick={closeTossPreview}
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              {tossPreviewError ? (
-                <div className="mt-4 rounded-md border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                  {tossPreviewError}
-                </div>
-              ) : null}
-
-              <div className="mt-5 border border-hgray900/30 bg-hgray900/10 px-4 py-4">
-                <div className="text-xs text-hgray700">결제 예정 금액</div>
-                <div className="mt-1 text-3xl font-semibold tracking-tight text-accenta1">
-                  {tossPreview.amount.toLocaleString("ko-KR")}원
-                </div>
-              </div>
-
-              <label className="mt-5 flex items-start gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={isBillingAgreementChecked}
-                  onChange={(e) =>
-                    setIsBillingAgreementChecked(e.target.checked)
-                  }
-                  className="mt-0.5 h-4 w-4 rounded border-white/30 bg-transparent accent-accenta1"
-                />
-                <span className="text-sm text-hgray800">
-                  <a
-                    href="https://peat-find-598.notion.site/Refund-policy-2e684af768c6800e8276ccbe16fc8cb4?pvs=74"
-                    target="_blank"
-                    className="text-hgray1000 decoration-dotted underline"
-                  >
-                    구매 조건 확인
-                  </a>{" "}
-                  및 결제 진행에 동의합니다.
-                </span>
-              </label>
-
-              <div className="mt-6 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  className="rounded-xl px-4 py-2 text-sm text-white hover:bg-white/5"
-                  onClick={closeTossPreview}
-                >
-                  닫기
-                </button>
-                <button
-                  type="button"
-                  disabled={isTossBillingLoading || !isBillingAgreementChecked}
-                  onClick={() => {
-                    void requestBillingAuth();
-                  }}
-                  className="rounded-xl bg-accenta1 px-4 py-2 text-sm text-black hover:opacity-95 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {isTossBillingLoading
-                    ? "카드 등록창 여는 중..."
-                    : "결제 진행"}
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
 
         <section id="pricing-faq">
           <Animate>
