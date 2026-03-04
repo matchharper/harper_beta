@@ -103,6 +103,22 @@ const AppLayout = ({
     const m = pathname?.match(/^\/my\/c\/([^/?#]+)/);
     return m?.[1] ?? null;
   }, [params, pathname]);
+  const crispWebsiteId = process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID;
+  const crispScript = crispWebsiteId
+    ? `
+        window.$crisp = window.$crisp || [];
+        window.CRISP_WEBSITE_ID = ${JSON.stringify(crispWebsiteId)};
+        (function() {
+          if (document.getElementById("crisp-loader")) return;
+          const d = document;
+          const s = d.createElement("script");
+          s.id = "crisp-loader";
+          s.src = "https://client.crisp.chat/l.js";
+          s.async = 1;
+          d.getElementsByTagName("head")[0].appendChild(s);
+        })();
+      `
+    : null;
 
   return (
     <div className="flex h-screen font-sans w-full bg-white text-neutral-900 overflow-hidden">
@@ -312,19 +328,11 @@ const AppLayout = ({
           {!isLoadingCredits && userId && children}
         </div>
       </main>
-      <Script id="crisp-chat" strategy="afterInteractive">
-        {`
-          window.$crisp = [];
-          window.CRISP_WEBSITE_ID = "20720374-aeed-4336-af99-64f92c094a38";
-          (function() {
-            const d = document;
-            const s = d.createElement("script");
-            s.src = "https://client.crisp.chat/l.js";
-            s.async = 1;
-            d.getElementsByTagName("head")[0].appendChild(s);
-          })();
-        `}
-      </Script>
+      {crispScript && (
+        <Script id="crisp-chat" strategy="afterInteractive">
+          {crispScript}
+        </Script>
+      )}
       <FeedbackRewardModal />
     </div>
   );
