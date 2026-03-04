@@ -46,20 +46,24 @@ const CandidateViews = ({
 
   const criteriaList = useMemo(() => asArr(criterias), [criterias]);
   const gridTemplateColumns = useMemo(() => {
-    // Index | Candidate | (criteria * N) | Company | School | Actions
-    const fixed = [INDEX_COLUMN_WIDTH, isMyList ? "460px" : "280px"];
-    const defaultCols = isMyList ? "320px" : "240px";
+    // Index | Candidate | (criteria * N) | Company | School | Actions | Summary(my list only)
+    const fixedProfileCols = [INDEX_COLUMN_WIDTH, isMyList ? "360px" : "280px"];
+    const defaultCols = isMyList ? "280px" : "240px";
     const criteriaCols = criteriaList.map(() => (isFolded ? "60px" : "140px")); // 한 criteria는 작은 칸
-    const actions = ["80px"];
+    const summary = isMyList ? ["520px"] : [];
+    const emptyCols = ["80px"];
 
     if (criterias.length === 0)
-      return [...fixed, defaultCols, defaultCols, ...actions].join(" ");
+      return [...fixedProfileCols, defaultCols, defaultCols, ...summary].join(
+        " "
+      );
     return [
-      ...fixed,
+      ...fixedProfileCols,
       ...criteriaCols,
       defaultCols,
       defaultCols,
-      ...actions,
+      ...emptyCols,
+      ...summary,
     ].join(" ");
   }, [criteriaList, criterias.length, isFolded, isMyList]);
 
@@ -141,7 +145,7 @@ const CandidateViews = ({
                 )}
                 <div className="px-4">Company</div>
                 <div className="px-4">School</div>
-                <div />
+                {isMyList && <div className="px-4">Summary</div>}
               </div>
 
               {/* Rows */}

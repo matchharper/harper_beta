@@ -32,7 +32,12 @@ export default function BookmarksPage() {
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  if (isLoading) return <Loading className="text-hgray600" />;
+  if (isLoading)
+    return (
+      <div className="px-4">
+        <Loading className="text-hgray600" />
+      </div>
+    );
   if (error) return <div>Error</div>;
 
   return (
@@ -41,7 +46,7 @@ export default function BookmarksPage() {
       {items.length === 0 && !isFetching && <ShortlistEmptyState />}
       {items.length > 0 && (
         <>
-          <div className="flex items-center justify-between gap-3 mb-4">
+          <div className="flex items-center justify-between gap-3 mb-4 px-4">
             <div className="flex flex-row items-center gap-3 text-sm text-hgray900">
               <span>Page</span>
               <span

@@ -1,25 +1,31 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { useAuthStore } from "@/store/useAuthStore";
 
 // 쿼리 키 정의
-const CREDIT_QUERY_KEY = ["credits"];
+const creditQueryKey = (userId?: string) => ["credits", userId] as const;
 
 export const useCredits = () => {
   const queryClient = useQueryClient();
+  const authUserId = useAuthStore((s) => s.user?.id);
 
   // 1. 크레딧 조회 (useQuery)
   const { data: credits, isLoading, refetch } = useQuery({
-    queryKey: CREDIT_QUERY_KEY,
+    queryKey: creditQueryKey(authUserId),
     queryFn: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("No user logged in");
+      let userId = authUserId;
+      if (!userId) {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        userId = user?.id;
+      }
+      if (!userId) throw new Error("No user logged in");
 
       const { data, error } = await supabase
         .from("credits")
         .select("remain_credit, charged_credit")
-        .eq("user_id", user.id);
+        .eq("user_id", userId);
 
       if (error) throw error;
       return {
@@ -46,7 +52,7 @@ export const useCredits = () => {
     },
     // 성공 시 캐시를 직접 업데이트하여 UI를 즉시 갱신
     onSuccess: (newBalance) => {
-      queryClient.setQueryData(CREDIT_QUERY_KEY, {
+      queryClient.setQueryData(creditQueryKey(authUserId), {
         remain_credit: newBalance,
         charged_credit: credits?.charged_credit ?? 0,
       });

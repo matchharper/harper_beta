@@ -103,7 +103,7 @@ const CandidatePage = () => {
   };
 
   const handleContactUs = async () => {
-    await navigator.clipboard.writeText("chris@asksonus.com");
+    await navigator.clipboard.writeText("chris@matchharper.com");
     showToast({
       message: "Email copied to clipboard",
       variant: "white",

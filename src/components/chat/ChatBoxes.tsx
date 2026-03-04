@@ -5,6 +5,7 @@ import type {
   ToolStatusBlock,
   FileContextBlock,
   SettingsCtaBlock,
+  SearchResultBlock,
 } from "@/types/chat";
 import {
   Bolt,
@@ -15,6 +16,8 @@ import {
   Paperclip,
   Settings,
   ArrowRight,
+  Edit,
+  Pencil,
 } from "lucide-react";
 import { useRouter } from "next/router";
 import { LinkChip } from "../information/LinkChips";
@@ -105,9 +108,9 @@ export const CriteriaItem = React.memo(function CriteriaItem({
           `}
     >
       {!isEditing ? (
-        <>
+        <div className="flex flex-row items-center justify-between gap-2 w-full">
           <span className="text-hgray900">{criteria}</span>
-
+          <Pencil strokeWidth={1.6} className="w-2.5 h-2.5 text-hgray900/50" />
           <button
             type="button"
             onClick={(e) => {
@@ -119,7 +122,7 @@ export const CriteriaItem = React.memo(function CriteriaItem({
           >
             ✕
           </button>
-        </>
+        </div>
       ) : (
         <>
           <input
@@ -627,39 +630,134 @@ export const SettingsCtaCard = React.memo(function SettingsCtaCard({
 });
 
 export const SearchResultCard = React.memo(function SearchResultCard({
-  text,
-  runId,
+  block,
 }: {
-  text: string;
-  runId: string;
+  block: SearchResultBlock;
 }) {
   const router = useRouter();
-  const firstText = text.split(" ").slice(0, 2).join(" ");
+  const queryId =
+    typeof router.query.id === "string" ? router.query.id : undefined;
+  const runId = block.run_id ?? "";
+  const hasCriteriaKey = Object.prototype.hasOwnProperty.call(
+    block,
+    "criteria"
+  );
+  const canOpen = !!runId && !!queryId;
+
+  const openResults = () => {
+    if (!canOpen) return;
+    router.replace(
+      {
+        pathname: "/my/c/" + queryId,
+        query: { run: runId, page: "0" },
+      },
+      undefined,
+      { shallow: true, scroll: false }
+    );
+  };
+
+  if (!hasCriteriaKey) {
+    const text = block.text?.trim() || "검색 결과";
+    const firstText = text.split(" ").slice(0, 2).join(" ");
+    return (
+      <div className="w-full">
+        <div
+          onClick={openResults}
+          className={`text-sm text-hgray900 flex flex-row items-center justify-between w-full mt-4 relative rounded-3xl border border-white/5 px-4 py-4 overflow-hidden transition-all duration-200 ${
+            canOpen ? "cursor-pointer hover:bg-white/5" : "cursor-default"
+          }`}
+        >
+          <div className="font-normal flex flex-row items-center gap-2">
+            <FileSpreadsheet className="w-4 h-4 text-green-500" />
+            <span>{firstText}</span>
+          </div>
+          <ArrowRight className="w-4 h-4 text-hgray900" />
+        </div>
+      </div>
+    );
+  }
+
+  const criteria = Array.isArray(block.criteria)
+    ? block.criteria.filter(
+        (item): item is string =>
+          typeof item === "string" && item.trim().length > 0
+      )
+    : [];
+
+  const fullCount =
+    typeof block.full_count === "number" ? block.full_count : null;
+  const partialCount =
+    typeof block.partial_count === "number" ? block.partial_count : null;
+  const hasCriteria = criteria.length > 0;
+  const totalCount =
+    typeof block.total_count === "number" ? block.total_count : null;
+  const formatCount = (count: number | null) =>
+    count === null ? "-" : `${count}명`;
 
   return (
-    <div className="w-full">
-      <div
-        onClick={() => {
-          router.replace(
-            {
-              pathname: "/my/c/" + router.query.id,
-              query: { run: runId, page: "0" },
-            },
-            undefined,
-            { shallow: true, scroll: false }
-          );
-        }}
-        className="text-sm text-hgray900 flex flex-row items-center justify-between w-full mt-4 relative rounded-3xl border border-white/5 px-4 py-4 overflow-hidden cursor-pointer hover:bg-white/5 transition-all duration-200"
-      >
-        <div className="font-normal flex flex-row items-center gap-2">
-          <FileSpreadsheet className="w-4 h-4 text-green-500" />
-          <span className="">{firstText}</span>
+    <div className="w-full mt-4">
+      <div className="w-full rounded-2xl border border-white/10 bg-white/[0.03] text-hgray900 overflow-hidden">
+        <div className="flex text-[13px] items-center gap-2 border-b border-white/10 px-4 py-3">
+          <FileSpreadsheet className="w-3 h-3 text-green-500" />
+          <span className="font-medium">검색 결과</span>
         </div>
-        <ArrowRight className="w-4 h-4 text-hgray900" />
+
+        <div className="px-4 py-4">
+          <div className="text-xs text-hgray900 font-medium">
+            적용된 검색 조건
+          </div>
+          {hasCriteria ? (
+            <ol className="mt-3 space-y-2">
+              {criteria.map((item, idx) => (
+                <li
+                  key={`${item}-${idx}`}
+                  className="flex flex-row items-center gap-2 text-[13px] text-hgray900/70"
+                >
+                  <Check className="w-3.5 h-3.5" /> {item}
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <div className="mt-2 text-sm text-hgray700">
+              {block.text?.trim() || "검색 조건 정보가 없습니다."}
+            </div>
+          )}
+
+          <div className="mt-6 border-t border-white/10 pt-4">
+            <div className="text-xs text-hgray900 font-medium">
+              검색 결과 요약
+            </div>
+            <div className="mt-2 space-y-1.5 text-[13px]">
+              <div className="flex items-center justify-between">
+                <span className="text-hgray900/70">완벽 일치</span>
+                <span className="text-hgray900 font-medium">
+                  {formatCount(fullCount)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-hgray900/70">부분 일치</span>
+                <span className="text-hgray900/70">
+                  {formatCount(partialCount)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={openResults}
+            disabled={!canOpen}
+            className={`mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-[13px] font-medium transition-all duration-200 ${
+              canOpen
+                ? "bg-accenta1 text-black hover:opacity-80"
+                : "bg-white/10 text-hgray600 cursor-not-allowed"
+            }`}
+          >
+            결과 확인
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
       </div>
-      {/* <div className="text-xs text-green-500 flex flex-row items-center gap-1 px-0 mt-2">
-          <Check size={12} /> 검색 완료!
-        </div> */}
     </div>
   );
 });

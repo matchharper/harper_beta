@@ -7,6 +7,7 @@ import type {
   ToolResultBlock,
   FileContextBlock,
   SettingsCtaBlock,
+  SearchResultBlock,
 } from "@/types/chat";
 import { Loader2 } from "lucide-react";
 import { logger } from "@/utils/logger";
@@ -128,8 +129,9 @@ function ChatMessageList({
             )
           : segments;
 
+        const rowKey = m.id != null ? `msg-${m.id}` : `${m.role}-${idx}`;
         return (
-          <div className="flex flex-col gap-1" key={`${m.role}-${idx}`}>
+          <div className="flex flex-col gap-1" key={rowKey}>
             <div
               className={`text-xs text-ngray600 ${
                 isUser ? "text-right" : "text-left"
@@ -251,8 +253,7 @@ function ChatMessageList({
                     if (s.content.type === "search_result") {
                       return (
                         <SearchResultCard
-                          text={s.content.text}
-                          runId={s.content.run_id}
+                          block={s.content as SearchResultBlock}
                           key={`block-${idx}-${si}`}
                         />
                       );

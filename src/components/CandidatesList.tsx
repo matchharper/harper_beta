@@ -22,6 +22,32 @@ function sanitizeSummaryReason(raw: string) {
     .trim();
 }
 
+function sanitizeSummaryText(raw: string | null | undefined) {
+  return String(raw ?? "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .trim();
+}
+
+function parseSynthesizedSummary(
+  rawText: string | null | undefined
+): { reason: string; score: string }[] {
+  if (!rawText) return [];
+  try {
+    const parsed = JSON.parse(rawText);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item: any) => {
+      const text = String(item ?? "");
+      return {
+        reason: text,
+        score: text.split(",")[0] ?? "",
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
 function CandidateCard({
   c,
   userId,
@@ -43,13 +69,13 @@ function CandidateCard({
     ? `/my/p/${candidId}?run=${encodeURIComponent(sourceRunId)}`
     : `/my/p/${candidId}`;
 
-  const synthesizedSummary =
-    JSON.parse(c.synthesized_summary?.[0]?.text ?? "[]").map((item: any) => {
-      return {
-        reason: item,
-        score: item.split(",")[0] ?? "",
-      };
-    }) ?? null;
+  const synthesizedSummary = useMemo(
+    () => parseSynthesizedSummary(c.synthesized_summary?.[0]?.text),
+    [c.synthesized_summary]
+  );
+  const shortlistSummaryText = useMemo(() => {
+    return sanitizeSummaryText(c.s?.[0]?.text ?? c.summary);
+  }, [c.s, c.summary]);
 
   const exps = asArr(c.experience_user ?? []);
   const edus = asArr(c.edu_user ?? []);
@@ -120,20 +146,32 @@ function CandidateCard({
         </div>
       </div>
 
-      <div className="mt-8 text-hgray700 leading-relaxed font-light">
-        {synthesizedSummary && synthesizedSummary.length !== 0 && (
-          <div>
-            {synthesizedSummary?.map((item: any, index: number) => (
-              <MemoizedSummaryBox
-                key={index}
-                reason={item.reason}
-                criteria={criterias[index] ?? ""}
-                score={item.score}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+      {(synthesizedSummary.length !== 0 ||
+        (isMyList && shortlistSummaryText.length > 0)) && (
+        <div className="mt-8 text-hgray700 leading-relaxed font-light">
+          {synthesizedSummary.length !== 0 && (
+            <div>
+              {synthesizedSummary?.map((item: any, index: number) => (
+                <MemoizedSummaryBox
+                  key={index}
+                  reason={item.reason}
+                  criteria={criterias[index] ?? ""}
+                  score={item.score}
+                />
+              ))}
+            </div>
+          )}
+          {isMyList && shortlistSummaryText.length > 0 && (
+            <div
+              className={`text-[14px] whitespace-pre-wrap break-words ${
+                synthesizedSummary.length !== 0 ? "mt-6" : ""
+              }`}
+            >
+              {shortlistSummaryText}
+            </div>
+          )}
+        </div>
+      )}
 
       <div
         className={`flex flex-row items-center justify-start group-hover:opacity-100  absolute top-3 right-3 ${

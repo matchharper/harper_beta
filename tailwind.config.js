@@ -46,17 +46,17 @@ module.exports = {
         hgray900: "#E3E3E3",
         hgray1000: "#FFFFFF",
 
-        // hgray1000: "#000000",
-        // hgray900: "#111111",
-        // hgray800: "#212121", // bg2
-        // hgray700: "#2B2E35",
-        // hgray600: "#393D46",
-        // hgray500: "#5B606A",
-        // hgray400: "#868B94",
-        // hgray300: "#BDC8CD", // caption
-        // hgray200: "#DCDEE3",
-        // hgray100: "#E3E3E3",
-        // hgray0: "#FFFFFF",
+        hblack1000: "#000000",
+        hblack900: "#111111",
+        hblack800: "#212121",
+        hblack700: "#2B2E35",
+        hblack600: "#393D46",
+        hblack500: "#5B606A",
+        hblack400: "#868B94",
+        hblack300: "#BDC8CD",
+        hblack200: "#DCDEE3",
+        hblack100: "#E3E3E3",
+        hblack000: "#FFFFFF",
 
         brightnavy: "#0624A8",
         beige100: "#FAF9F6",

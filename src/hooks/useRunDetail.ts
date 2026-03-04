@@ -1,9 +1,9 @@
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { logger } from "@/utils/logger";
 
 export const runKey = (id?: string) => ["run", id] as const;
+const TERMINAL_STATUSES = new Set(["finished", "error", "stopped"]);
 
 async function fetchRunDetail(id: string) {
   const { data, error } = await supabase
@@ -27,6 +27,27 @@ export function useRunDetail(runId?: string) {
     retry: false,
   });
 
+  const currentStatus = String((q.data as any)?.status ?? "").toLowerCase();
+  const isTerminal = !!currentStatus && TERMINAL_STATUSES.has(currentStatus);
+  const refetchRun = q.refetch;
+
+  useEffect(() => {
+    if (!runId || isTerminal) return;
+
+    const poll = () => {
+      refetchRun().catch(() => {
+        // Keep polling: realtime misses or transient fetch errors should recover automatically.
+      });
+    };
+
+    poll();
+    const timer = window.setInterval(poll, 1000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [runId, isTerminal, refetchRun]);
+
   useEffect(() => {
     if (!runId) return;
 
@@ -35,7 +56,7 @@ export function useRunDetail(runId?: string) {
       .on(
         "postgres_changes",
         {
-          event: "UPDATE",
+          event: "*",
           schema: "public",
           table: "runs",
           filter: `id=eq.${runId}`,
@@ -46,7 +67,6 @@ export function useRunDetail(runId?: string) {
             exact: true,
             type: "active",
           });
-          // qc.invalidateQueries({ queryKey: runKey(runId) });
         }
       )
       .subscribe();

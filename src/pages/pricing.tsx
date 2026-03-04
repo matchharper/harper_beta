@@ -69,7 +69,21 @@ export default function PricingPage() {
         });
 
         if (error) {
-          return { message: error.message };
+          const authError = error as Error & {
+            code?: string;
+            status?: number;
+          };
+          console.error("[auth] signInWithPassword failed", {
+            message: authError.message,
+            code: authError.code,
+            status: authError.status,
+            name: authError.name,
+          });
+
+          const details = [authError.message];
+          if (authError.status) details.push(`status:${authError.status}`);
+          if (authError.code) details.push(`code:${authError.code}`);
+          return { message: details.join(" | ") };
         }
 
         const user = data.user;
@@ -114,6 +128,7 @@ export default function PricingPage() {
         router.push("/invitation");
         return null;
       } catch (error) {
+        console.error("[auth] signInWithPassword unexpected error", error);
         if (error instanceof Error && error.message) {
           return { message: error.message };
         }
@@ -187,7 +202,8 @@ export default function PricingPage() {
         </section>
         <div>
           <div className="mt-24 text-white/70 font-light text-center mb-40 flex flex-col items-center justify-center">
-            추가 문의 사항이 있으시다면, chris@asksonus.com으로 문의해 주세요.
+            추가 문의 사항이 있으시다면, chris@matchharper.com으로 문의해
+            주세요.
             <div
               className="mt-2 underline decoration-dotted cursor-pointer text-hgray800 hover:text-hgray1000"
               onClick={() =>
