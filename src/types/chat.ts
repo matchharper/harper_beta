@@ -40,6 +40,16 @@ export type SettingsCtaBlock = {
   href?: string;
 };
 
+export type SearchResultBlock = {
+  type: "search_result";
+  run_id?: string;
+  text?: string;
+  criteria?: string[];
+  full_count?: number;
+  partial_count?: number;
+  total_count?: number;
+};
+
 export type FileAttachmentPayload = {
   name: string;
   text: string;
@@ -54,7 +64,8 @@ export type ChatBlock =
   | ToolStatusBlock
   | ToolResultBlock
   | FileContextBlock
-  | SettingsCtaBlock;
+  | SettingsCtaBlock
+  | SearchResultBlock;
 
 export type ChatMessage = {
   id?: string | number;

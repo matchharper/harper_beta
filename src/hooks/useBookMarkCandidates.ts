@@ -98,6 +98,9 @@ export function useCandidatesByConnectionTyped(
         connection (
           user_id,
           typed
+        ),
+        s:summary (
+          text
         )
           `
         )

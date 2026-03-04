@@ -14,6 +14,7 @@ import { CandidateDetail } from "../useCandidateDetail";
 import { logger } from "@/utils/logger";
 
 const CHAT_MODEL = "grok-4-fast-reasoning";
+const STREAM_FLUSH_INTERVAL_MS = 60;
 
 export const UI_START = "<<UI>>";
 export const UI_END = "<<END_UI>>";
@@ -429,15 +430,14 @@ export function useChatSessionDB(args: {
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let assistantText = "";
+        let flushTimerId: number | null = null;
+        let lastFlushedText = "";
 
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-
-          assistantText += decoder.decode(value, { stream: true });
+        const flushAssistantText = () => {
+          if (lastFlushedText === assistantText) return;
+          lastFlushedText = assistantText;
 
           const { segments } = extractUiSegments(assistantText);
-
           setMessages((prev) => {
             const updated = [...prev];
             const idx = updated.findIndex(
@@ -453,7 +453,29 @@ export function useChatSessionDB(args: {
             }
             return updated;
           });
+        };
+
+        const scheduleFlush = () => {
+          if (flushTimerId != null) return;
+          flushTimerId = window.setTimeout(() => {
+            flushTimerId = null;
+            flushAssistantText();
+          }, STREAM_FLUSH_INTERVAL_MS);
+        };
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+
+          assistantText += decoder.decode(value, { stream: true });
+          scheduleFlush();
         }
+
+        if (flushTimerId != null) {
+          window.clearTimeout(flushTimerId);
+          flushTimerId = null;
+        }
+        flushAssistantText();
 
         const latency = Date.now() - startAt;
         await updateMessageContent({

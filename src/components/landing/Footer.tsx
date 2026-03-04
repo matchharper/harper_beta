@@ -19,7 +19,7 @@ const Footer = ({
   };
 
   const handleContactUs = async () => {
-    await navigator.clipboard.writeText("chris@asksonus.com");
+    await navigator.clipboard.writeText("chris@matchharper.com");
     showToast({
       message: m.help.emailCopied,
       variant: "white",

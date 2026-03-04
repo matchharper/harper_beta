@@ -144,9 +144,47 @@ async function createRunFromMessage(params: {
   return { runId: data.id as string };
 }
 
+async function createRunViaLaunchApi(params: {
+  queryId: string;
+  messageId: number;
+}) {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const accessToken = session?.access_token;
+  if (!accessToken) return null;
+
+  const response = await fetch("/api/search/launch", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(params),
+  });
+
+  if (!response.ok) return null;
+
+  const json = (await response.json().catch(() => ({}))) as {
+    runId?: string;
+  };
+  return typeof json.runId === "string" ? json.runId : null;
+}
+
 export const runSearch =
   async ({ messageId, queryId, userId }: { messageId: number, queryId: string, userId: string }) => {
     if (!queryId || !userId) return null;
+
+    // 0) Preferred path: server launch API (auth + ownership check + run creation)
+    try {
+      const launchedRunId = await createRunViaLaunchApi({
+        queryId,
+        messageId,
+      });
+      if (launchedRunId) return launchedRunId;
+    } catch (e) {
+      logger.log("launch api failed, fallback to client path:", e);
+    }
 
     // 1) load message
     const { data, error } = await supabase

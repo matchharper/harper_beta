@@ -36,6 +36,7 @@ export type CandidateTypeWithConnection = CandidateType & {
   connection: { user_id: string; typed: number }[];
   publications?: { title: string; published_at: string }[];
   synthesized_summary?: { text: string }[];
+  s?: { text: string | null }[];
 };
 
 type RunPageCandidate = { id?: string; score?: number | string | null };

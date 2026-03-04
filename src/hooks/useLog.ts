@@ -5,24 +5,29 @@ import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 // hooks/useLogEvent.ts
 export function useLogEvent() {
   const { companyUser } = useCompanyUserStore();
-  const { user } = useAuthStore();
+  const { user, session } = useAuthStore();
 
   return async (type: string) => {
     const trimmedType = String(type ?? "").trim();
     if (!trimmedType) return;
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      let accessToken = session?.access_token;
+      let sessionUserId = session?.user?.id;
+      if (!accessToken) {
+        const {
+          data: { session: latestSession },
+        } = await supabase.auth.getSession();
+        accessToken = latestSession?.access_token;
+        sessionUserId = latestSession?.user?.id;
+      }
 
-      const accessToken = session?.access_token;
       if (!accessToken) {
         console.error("logEvent failed: missing access token");
         return;
       }
 
-      const userId = companyUser?.user_id ?? user?.id ?? session?.user?.id;
+      const userId = companyUser?.user_id ?? user?.id ?? sessionUserId;
       if (!userId) {
         console.error("logEvent failed: missing user id");
         return;

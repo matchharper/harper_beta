@@ -329,7 +329,21 @@ const CandidatePage = () => {
         });
 
         if (error) {
-          return { message: error.message };
+          const authError = error as Error & {
+            code?: string;
+            status?: number;
+          };
+          console.error("[auth] signInWithPassword failed", {
+            message: authError.message,
+            code: authError.code,
+            status: authError.status,
+            name: authError.name,
+          });
+
+          const details = [authError.message];
+          if (authError.status) details.push(`status:${authError.status}`);
+          if (authError.code) details.push(`code:${authError.code}`);
+          return { message: details.join(" | ") };
         }
 
         const user = data.user;
@@ -374,6 +388,7 @@ const CandidatePage = () => {
         router.push("/invitation");
         return null;
       } catch (error) {
+        console.error("[auth] signInWithPassword unexpected error", error);
         if (error instanceof Error && error.message) {
           return { message: error.message };
         }

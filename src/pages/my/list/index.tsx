@@ -50,41 +50,11 @@ export default function MyPage() {
                 설정
               </button> */}
             </div>
-
-            {/* <div className="mt-2">
-              <div className="inline-flex rounded-2xl p-1">
-                {TABS.map((t) => {
-                  const active = t.key === currentPage;
-                  return (
-                    <button
-                      key={t.key}
-                      type="button"
-                      onClick={() => setCurrentPage(t.key)}
-                      className={[
-                        "relative rounded-3xl py-2 text-sm font-normal transition pr-4",
-                        active
-                          ? "text-white shadow-sm"
-                          : "text-xgray800 hover:text-white",
-                      ].join(" ")}
-                    >
-                      {t.label}{" "}
-                      {data?.[t.key as keyof typeof data] ? (
-                        <span className="ml-1 text-[14px] text-accenta1">
-                          {data?.[t.key as keyof typeof data]}
-                        </span>
-                      ) : (
-                        ""
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div> */}
           </div>
         </div>
 
         {/* Content */}
-        <div className="mx-auto w-full px-4 pb-8">
+        <div className="mx-auto w-full pb-8">
           <div className="">{page}</div>
         </div>
       </div>

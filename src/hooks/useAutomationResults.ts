@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { CandidateTypeWithConnection } from "./useSearchChatCandidates";
-import { useState } from "react";
 
 export const automationResultsKey = (
   userId?: string,
@@ -16,15 +15,11 @@ export function useAutomationResults(
   pageIdx: number = 0,
   pageSize: number = 10
 ) {
-  const [isLoading, setIsLoading] = useState(false);
-
   return useQuery({
     queryKey: automationResultsKey(userId, automationId, pageIdx, pageSize),
-    enabled: !!userId && !!automationId && !isLoading,
+    enabled: !!userId && !!automationId,
     queryFn: async () => {
-      setIsLoading(true);
       if (!userId || !automationId) {
-        setIsLoading(false);
         return {
           items: [] as CandidateTypeWithConnection[],
           hasNext: false,
@@ -54,7 +49,6 @@ export function useAutomationResults(
         .filter(Boolean) as string[];
 
       if (ids.length === 0) {
-        setIsLoading(false);
         return {
           items: [] as CandidateTypeWithConnection[],
           hasNext: false,
@@ -109,7 +103,6 @@ export function useAutomationResults(
 
       const total = count ?? 0;
       const hasNext = to + 1 < total;
-      setIsLoading(false);
 
       return { items, hasNext, total };
     },

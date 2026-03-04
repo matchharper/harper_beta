@@ -32,6 +32,7 @@ import { useLogEvent } from "@/hooks/useLog";
 import FeedbackRewardModal from "@/components/Modal/FeedbackRewardModal";
 import { useFeedbackModalStore } from "@/store/useFeedbackModalStore";
 import Link from "next/link";
+import Script from "next/script";
 
 const AppLayout = ({
   children,
@@ -311,6 +312,19 @@ const AppLayout = ({
           {!isLoadingCredits && userId && children}
         </div>
       </main>
+      <Script id="crisp-chat" strategy="afterInteractive">
+        {`
+          window.$crisp = [];
+          window.CRISP_WEBSITE_ID = "20720374-aeed-4336-af99-64f92c094a38";
+          (function() {
+            const d = document;
+            const s = d.createElement("script");
+            s.src = "https://client.crisp.chat/l.js";
+            s.async = 1;
+            d.getElementsByTagName("head")[0].appendChild(s);
+          })();
+        `}
+      </Script>
       <FeedbackRewardModal />
     </div>
   );

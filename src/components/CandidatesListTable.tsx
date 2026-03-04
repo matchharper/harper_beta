@@ -24,6 +24,14 @@ import Link from "next/link";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
 
+function sanitizeSummaryText(raw: string | null | undefined, name: string) {
+  return String(raw ?? "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<name>/g, `${name}`)
+    .replace(/<[^>]+>/g, "")
+    .trim();
+}
+
 function parseSynthesizedSummary(text: string | null | undefined): SynthItem[] {
   if (!text) return [];
   try {
@@ -75,6 +83,9 @@ function CandidateRow({
     const rawText = c.synthesized_summary?.[0]?.text ?? "[]";
     return parseSynthesizedSummary(rawText);
   }, [c.synthesized_summary]);
+  const shortlistSummaryText = useMemo(() => {
+    return sanitizeSummaryText(c.s?.[0]?.text ?? c.summary, c.name ?? "");
+  }, [c.s, c.summary, c.name]);
 
   const companyLogo = useMemo(() => {
     if (latestCompany?.company_db?.logo?.includes("media.licdn.com")) {
@@ -202,14 +213,21 @@ function CandidateRow({
                 ${latestEdu?.field_of_study && latestEdu?.degree ? " • " : ""}
                 ${latestEdu?.degree ? degreeEnToKo(latestEdu.degree) : ""}`}
             />
-            <div className="flex flex-row items-center justify-center gap-3">
+            {/* <div className="flex flex-row items-center justify-center gap-3">
               {c.connection?.map((con: any) => con.typed).includes(4) && (
                 <CheckIcon className="w-4 h-4 text-green-500" />
               )}
               {c.connection?.map((con: any) => con.typed).includes(5) && (
                 <XIcon className="w-4 h-4 text-red-500" />
               )}
-            </div>
+            </div> */}
+            {isMyList && (
+              <div className="px-4 py-3 min-w-0 h-full flex items-center">
+                <div className="text-[13px] font-normal text-hgray900 leading-5 whitespace-pre-wrap break-words line-clamp-3">
+                  {shortlistSummaryText || "-"}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </Link>

@@ -17,7 +17,7 @@ const Help = () => {
   const { companyUser } = useCompanyUserStore();
 
   const handleContactUs = () => {
-    navigator.clipboard.writeText("chris@asksonus.com");
+    navigator.clipboard.writeText("chris@matchharper.com");
     showToast({
       message: m.help.emailCopied,
     });
@@ -30,8 +30,9 @@ const Help = () => {
       content: feedback,
       user_id: companyUser?.user_id,
     });
-    await notifyToSlack(`💬 *Feedback from user: ${companyUser?.name}* (${companyUser?.company ?? "회사 정보 없음"
-      })
+    await notifyToSlack(`💬 *Feedback from user: ${companyUser?.name}* (${
+      companyUser?.company ?? "회사 정보 없음"
+    })
 
       • *Content*: ${feedback}
       • *Time(Standard Korea Time)*: ${new Date().toLocaleString("ko-KR")}`);
@@ -55,7 +56,7 @@ const Help = () => {
           <div className="flex flex-col items-start w-full justify-start mt-12 font-normal">
             <div className="mt-2">{m.help.intro}</div>
             <div className="underline cursor-pointer" onClick={handleContactUs}>
-              chris@asksonus.com
+              chris@matchharper.com
             </div>
             <div className="text-hgray800 mt-16 font-normal text-sm">
               {m.help.prompt}

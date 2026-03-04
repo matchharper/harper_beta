@@ -48,6 +48,7 @@ const LoginModal = ({
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
   const [needsEmailConfirmation, setNeedsEmailConfirmation] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -58,6 +59,7 @@ const LoginModal = ({
     setPassword("");
     setConfirmPassword("");
     setError("");
+    setInfo("");
     setNeedsEmailConfirmation(false);
   };
 
@@ -90,6 +92,7 @@ const LoginModal = ({
     }
 
     setError("");
+    setInfo("");
     setIsSubmitting(true);
     try {
       if (isSignUp) {
@@ -115,6 +118,38 @@ const LoginModal = ({
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleForgotPassword = async () => {
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail) {
+      setError("비밀번호 재설정을 위해 이메일을 먼저 입력해 주세요.");
+      return;
+    }
+
+    setError("");
+    setInfo("");
+    setIsSubmitting(true);
+
+    const redirectTo =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/auths/reset-password`
+        : undefined;
+
+    const { error } = await supabase.auth.resetPasswordForEmail(
+      normalizedEmail,
+      {
+        redirectTo,
+      }
+    );
+
+    setIsSubmitting(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
+    setInfo("비밀번호 재설정 메일을 보냈습니다. 메일의 링크를 열어 새 비밀번호를 설정해 주세요.");
   };
 
   const signUpWithEmailPassword = async (
@@ -240,6 +275,16 @@ const LoginModal = ({
                     <label className="text-sm font-medium text-white">
                       비밀번호
                     </label>
+                    {!isSignUp && (
+                      <button
+                        type="button"
+                        onClick={handleForgotPassword}
+                        disabled={isSubmitting}
+                        className="text-xs text-hgray700 underline underline-offset-2 hover:text-white disabled:opacity-60"
+                      >
+                        비밀번호 재설정
+                      </button>
+                    )}
                   </div>
 
                   <input
@@ -272,6 +317,7 @@ const LoginModal = ({
                 )}
 
                 {error && <div className="text-sm text-red-500 mt-2">{error}</div>}
+                {info && <div className="text-sm text-green-400 mt-2">{info}</div>}
                 <button
                   type="submit"
                   disabled={isSubmitting}
