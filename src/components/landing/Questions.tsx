@@ -51,7 +51,7 @@ function QuestionAnswer({
             return next;
           })
         }
-        className="flex w-full items-center justify-between md:justify-start text-left"
+        className="flex w-full items-center justify-between md:justify-start text-left font-light"
       >
         <span
           className={`${size.question} transition-colors hover:text-white ${

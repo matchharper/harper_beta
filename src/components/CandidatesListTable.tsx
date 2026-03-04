@@ -20,6 +20,7 @@ import { Tooltips } from "./ui/tooltip";
 import SummaryCell, { SynthItem } from "./information/SummaryCell";
 import { useLogEvent } from "@/hooks/useLog";
 import { getSchoolLogo } from "@/utils/school_logo";
+import Link from "next/link";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
 
@@ -88,128 +89,130 @@ function CandidateRow({
 
   return (
     <div className="w-full">
-      <div
+      <Link
+        href={profileHref}
         role="row"
-        onClick={() => {
-          logEvent("candidate_card_click: " + candidId);
-          router.push(profileHref);
-        }}
-        className="group relative w-full border-b border-white/5 hover:bg-[#242424] transition-colors cursor-pointer"
+        onClick={() => logEvent("candidate_card_click: " + candidId)}
       >
-        <div
-          className="inline-grid items-center"
-          style={{ gridTemplateColumns }}
-        >
-          <div className="sticky left-0 z-30 h-full px-3 flex items-center justify-center text-xs text-hgray700 bg-hgray200 group-hover:bg-[#242424] transition-colors">
-            {rowIndex + 1}
-          </div>
-          <div className="sticky left-14 z-20 h-full px-4 py-3 flex items-center gap-3 min-w-0 bg-hgray200 border-r border-white/5 group-hover:bg-[#242424] transition-colors cursor-pointer">
-            <div className="shrink-0 rounded-full border border-transparent hover:border-accenta1/80 transition-colors">
-              <Avatar url={c.profile_picture} name={c.name} size="md" />
+        <div className="group relative w-full border-b border-white/5 hover:bg-[#242424] transition-colors cursor-pointer">
+          <div
+            className="inline-grid items-center"
+            style={{ gridTemplateColumns }}
+          >
+            <div className="sticky left-0 z-30 h-full px-3 flex items-center justify-center text-xs text-hgray700 bg-hgray200 group-hover:bg-[#242424] transition-colors">
+              {rowIndex + 1}
+            </div>
+            <div className="sticky left-14 z-20 h-full px-4 py-3 flex items-center gap-3 min-w-0 bg-hgray200 border-r border-white/5 group-hover:bg-[#242424] transition-colors cursor-pointer">
+              <div className="shrink-0 rounded-full border border-transparent hover:border-accenta1/80 transition-colors">
+                <Avatar url={c.profile_picture} name={c.name} size="md" />
+              </div>
+
+              <div className="min-w-0">
+                <div className="text-[14px] text-white font-normal truncate">
+                  {c.name}
+                </div>
+                <div className="text-xs text-hgray700 truncate">
+                  {c.location ? locationEnToKo(c.location) : "-"}
+                </div>
+              </div>
+              <div
+                className="px-2 absolute right-1 flex items-center justify-end"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+              >
+                <div
+                  className={
+                    isMyList ||
+                    c.connection?.map((con: any) => con.typed).includes(0)
+                      ? "opacity-100"
+                      : "opacity-0 group-hover:opacity-100"
+                  }
+                >
+                  <Bookmarkbutton
+                    userId={userId}
+                    candidId={c.id}
+                    connection={c.connection}
+                    isText={false}
+                    size="sm"
+                  />
+                </div>
+              </div>
             </div>
 
-            <div className="min-w-0">
-              <div className="text-[14px] text-white font-normal truncate">
-                {c.name}
-              </div>
-              <div className="text-xs text-hgray700 truncate">
-                {c.location ? locationEnToKo(c.location) : "-"}
-              </div>
-            </div>
-            <div
-              className="px-2 absolute right-1 flex items-center justify-end"
-              onClick={(e) => e.stopPropagation()}
-            >
+            {criterias.map((criteria: string, idx: number) => (
               <div
-                className={
-                  isMyList ||
-                  c.connection?.map((con: any) => con.typed).includes(0)
-                    ? "opacity-100"
-                    : "opacity-0 group-hover:opacity-100"
-                }
+                key={`${candidId}-critwrap-${idx}`}
+                className="min-w-0 h-full flex items-center justify-center"
               >
-                <Bookmarkbutton
-                  userId={userId}
-                  candidId={c.id}
-                  connection={c.connection}
-                  isText={false}
-                  size="sm"
+                <SummaryCell
+                  key={`${candidId}-crit-${idx}`}
+                  criteria={criteria}
+                  item={synthList[idx]}
                 />
               </div>
-            </div>
-          </div>
+            ))}
 
-          {criterias.map((criteria: string, idx: number) => (
-            <div
-              key={`${candidId}-critwrap-${idx}`}
-              className="min-w-0 h-full flex items-center justify-center"
-            >
-              <SummaryCell
-                key={`${candidId}-crit-${idx}`}
-                criteria={criteria}
-                item={synthList[idx]}
-              />
-            </div>
-          ))}
-
-          <Cell
-            title={
-              latestCompany?.company_db?.name ? (
-                <div className="flex flex-row items-center justify-start gap-x-2 min-w-0 relative">
-                  {companyLogo && (
-                    <img
-                      src={companyLogo}
-                      alt={latestCompany.company_db.name}
-                      className="w-4 h-4 rounded-full object-cover"
-                    />
-                  )}
-                  <span className="text-hgray800 font-normal break-words">
-                    {companyEnToKo(latestCompany.company_db.name)}
-                  </span>
-                </div>
-              ) : (
-                "-"
-              )
-            }
-            description={latestCompany?.role ?? "-"}
-          />
-          <Cell
-            title={
-              latestEdu?.school ? (
-                <div className="flex flex-row items-center justify-start gap-x-2 min-w-0 relative">
-                  {schoolLogo && (
-                    <img
-                      src={schoolLogo}
-                      alt={latestEdu.school}
-                      className="w-4 h-4 rounded-full object-cover"
-                    />
-                  )}
-                  <span className="text-hgray800 font-normal break-words">
-                    {koreaUniversityEnToKo(latestEdu.school)}
-                  </span>
-                </div>
-              ) : (
-                "-"
-              )
-            }
-            description={`${
-              latestEdu?.field_of_study
-                ? majorEnToKo(latestEdu.field_of_study)
-                : ""
-            }
+            <Cell
+              title={
+                latestCompany?.company_db?.name ? (
+                  <div className="flex flex-row items-center justify-start gap-x-2 min-w-0 relative">
+                    {companyLogo && (
+                      <img
+                        src={companyLogo}
+                        alt={latestCompany.company_db.name}
+                        className="w-4 h-4 rounded-full object-cover"
+                      />
+                    )}
+                    <span className="text-hgray800 font-normal break-words">
+                      {companyEnToKo(latestCompany.company_db.name)}
+                    </span>
+                  </div>
+                ) : (
+                  "-"
+                )
+              }
+              description={latestCompany?.role ?? "-"}
+            />
+            <Cell
+              title={
+                latestEdu?.school ? (
+                  <div className="flex flex-row items-center justify-start gap-x-2 min-w-0 relative">
+                    {schoolLogo && (
+                      <img
+                        src={schoolLogo}
+                        alt={latestEdu.school}
+                        className="w-4 h-4 rounded-full object-cover"
+                      />
+                    )}
+                    <span className="text-hgray800 font-normal break-words">
+                      {koreaUniversityEnToKo(latestEdu.school)}
+                    </span>
+                  </div>
+                ) : (
+                  "-"
+                )
+              }
+              description={`${
+                latestEdu?.field_of_study
+                  ? majorEnToKo(latestEdu.field_of_study)
+                  : ""
+              }
                 ${latestEdu?.field_of_study && latestEdu?.degree ? " • " : ""}
                 ${latestEdu?.degree ? degreeEnToKo(latestEdu.degree) : ""}`}
-          />
-          <div className="flex flex-row items-center justify-center gap-3">
-            {c.connection?.map((con: any) => con.typed).includes(4) && (
-              <CheckIcon className="w-4 h-4 text-green-500" />
-            )}
-            {c.connection?.map((con: any) => con.typed).includes(5) && (
-              <XIcon className="w-4 h-4 text-red-500" />
-            )}
+            />
+            <div className="flex flex-row items-center justify-center gap-3">
+              {c.connection?.map((con: any) => con.typed).includes(4) && (
+                <CheckIcon className="w-4 h-4 text-green-500" />
+              )}
+              {c.connection?.map((con: any) => con.typed).includes(5) && (
+                <XIcon className="w-4 h-4 text-red-500" />
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      </Link>
     </div>
   );
 }

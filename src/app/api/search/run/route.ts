@@ -2,6 +2,16 @@ import { supabase } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
 import { logger } from "@/utils/logger";
 
+type RunPageCandidate = { id?: string; score?: number | string | null };
+
+function filterPositiveScoreCandidates(items: RunPageCandidate[]) {
+  return items.filter((item) => {
+    const score = Number(item?.score);
+    if (Number.isNaN(score)) return true;
+    return score > 0;
+  });
+}
+
 async function loadCandidateIds(runId: string, pageIdx: number) {
   const { data, error } = await supabase
     .from("runs_pages")
@@ -13,11 +23,13 @@ async function loadCandidateIds(runId: string, pageIdx: number) {
   if (error) throw error;
 
   const row = data?.[0];
-  const all = (row?.candidate_ids ?? []) as Array<{ id: string }>;
+  const all = filterPositiveScoreCandidates(
+    (row?.candidate_ids ?? []) as RunPageCandidate[]
+  );
 
   const start = pageIdx * 10;
   const end = start + 10;
-  const ids = all.slice(start, end).map((r) => r.id);
+  const ids = all.slice(start, end).map((r) => r.id).filter(Boolean) as string[];
 
   return { ids, total: all.length };
 }

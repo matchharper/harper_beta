@@ -9,8 +9,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Command, MoreHorizontal } from "lucide-react";
 import { QueryType } from "@/types/type";
-import { useRouter } from "next/router";
 import { Tooltips } from "../ui/tooltip";
+import Link from "next/link";
 
 const HistoryItem = ({
   queryItem,
@@ -23,17 +23,16 @@ const HistoryItem = ({
   collapsed: boolean;
   isActive: boolean;
 }) => {
-  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <div
+    <Link
+      href={`/my/c/${queryItem.query_id}`}
       className={[
         "group relative flex flex-row items-center justify-between px-2.5 min-h-10 py-1.5 text-white font-normal cursor-pointer rounded-lg gap-1 hover:bg-white/5",
         isActive ? "bg-white/10" : "",
       ].join(" ")}
       key={queryItem.query_id}
-      onClick={() => router.push(`/my/c/${queryItem.query_id}`)}
     >
       <div
         className={`flex flex-col items-start w-full font-normal ${
@@ -96,7 +95,7 @@ const HistoryItem = ({
           </DropdownMenuContent>
         </DropdownMenu>
       )}
-    </div>
+    </Link>
   );
 };
 
@@ -107,21 +106,23 @@ export function NavItem({
   active = false,
   label,
   icon,
-  onClick,
+  href,
+  onNavigate,
   shortcut,
 }: {
   collapsed: boolean;
   active?: boolean;
   label: string;
   icon: React.ReactNode;
-  onClick: () => void;
+  href: string;
+  onNavigate?: () => void;
   shortcut?: string;
 }) {
   return (
     <Tooltips text={collapsed ? label : ""} side="right">
-      <button
-        type="button"
-        onClick={onClick}
+      <Link
+        href={href}
+        onClick={onNavigate}
         className={[
           "w-full flex text-sm font-extralight items-center justify-between gap-2 rounded-[6px] h-10 text-white",
           shortcut ? "bg-gray-300/5 border border-white/5" : "",
@@ -142,7 +143,7 @@ export function NavItem({
             <Command size={10} /> + K
           </div>
         )}
-      </button>
+      </Link>
     </Tooltips>
   );
 }

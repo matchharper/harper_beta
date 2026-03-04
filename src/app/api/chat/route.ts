@@ -164,16 +164,11 @@ export async function createXaiOrOpenAIStream(params: {
   tool_choice?: any;
 }) {
   try {
-    logger.log("xAI 스트림 생성 시작");
-
     return await xaiClient.chat.completions.create({
       ...params,
       stream: true,
     });
   } catch (err) {
-    logger.log("xAI failed. Falling back to OpenAI...", err);
-
-    // 2️⃣ Fallback to OpenAI
     return await client.chat.completions.create({
       ...params,
       model: "gpt-4.1-mini", // 원하는 fallback 모델
@@ -486,6 +481,7 @@ export async function POST(req: NextRequest) {
 ${information}
 `;
     }
+
     if (body.scope?.type === "query") {
       systemPrompt =
         typeof body.systemPromptOverride === "string" &&
@@ -578,13 +574,11 @@ ${information}
     }));
 
     const { provider, stream } = await createXaiGeminiOpenAIReadableStream({
-      model: "grok-4-fast-reasoning",
+      model: model,
       systemPrompt: systemMsg,
       messages: baseMsgs,
       temperature: 0.5,
     });
-
-    logger.log("LLM provider selected:", provider);
 
     return new Response(stream, {
       headers: {

@@ -31,6 +31,7 @@ import HoverHistory from "./HoverHistory";
 import { useLogEvent } from "@/hooks/useLog";
 import FeedbackRewardModal from "@/components/Modal/FeedbackRewardModal";
 import { useFeedbackModalStore } from "@/store/useFeedbackModalStore";
+import Link from "next/link";
 
 const AppLayout = ({
   children,
@@ -115,12 +116,13 @@ const AppLayout = ({
       >
         <div className="flex items-center justify-between px-3 pt-4 flex-shrink-0">
           {!collapsed && (
-            <div
+            <Link
+              href="/my"
               className="font-hedvig text-xl font-semibold truncate cursor-pointer"
-              onClick={() => router.push("/my")}
+              onClick={() => logEvent("enter_search")}
             >
               Harper
-            </div>
+            </Link>
           )}
           <Tooltips
             text={collapsed ? "Open sidebar" : "Close sidebar"}
@@ -145,7 +147,8 @@ const AppLayout = ({
             active={isHome}
             label="Search"
             icon={<Search size={16} />}
-            onClick={() => router.push("/my")}
+            href="/my"
+            onNavigate={() => logEvent("enter_search")}
             shortcut="cmdK"
           />
           <NavItem
@@ -153,20 +156,16 @@ const AppLayout = ({
             active={isAutomation}
             label="Harper Scout"
             icon={<Sparkles size={16} />}
-            onClick={() => {
-              logEvent("enter_scout");
-              router.push("/my/scout");
-            }}
+            href="/my/scout"
+            onNavigate={() => logEvent("enter_scout")}
           />
           <NavItem
             collapsed={collapsed}
             active={isList}
             label="Shortlist"
             icon={<List size={16} />}
-            onClick={() => {
-              logEvent("enter_shortlist");
-              router.push("/my/list");
-            }}
+            href="/my/list"
+            onNavigate={() => logEvent("enter_shortlist")}
           />
           <div className="flex h-16"></div>
           <HoverHistory
@@ -180,12 +179,10 @@ const AppLayout = ({
         <div className="p-3 gap-2 flex flex-col flex-shrink-0 border-t border-white/5 bg-hgray100 absolute bottom-0 left-0 min-w-full">
           {!collapsed && (
             <>
-              <div
+              <Link
+                href="/my/billing"
                 className="cursor-pointer"
-                onClick={() => {
-                  logEvent("enter_billing");
-                  router.push("/my/billing");
-                }}
+                onClick={() => logEvent("enter_billing")}
               >
                 <div className="rounded-lg p-3.5 pt-2.5 flex flex-col gap-2 border border-white/5 transition-color duration-300 ease-out hover:bg-[#FFFFFF12]">
                   <div className="w-full flex flex-row items-center justify-between text-[15px]">
@@ -209,7 +206,7 @@ const AppLayout = ({
                     ></div>
                   </div>
                 </div>
-              </div>
+              </Link>
             </>
           )}
           <DropdownMenu>
@@ -264,29 +261,25 @@ const AppLayout = ({
                   <MessageSquareMore size={18} />
                   <div>피드백 남기기</div>
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="flex flex-row gap-1 cursor-pointer mt-1"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    logEvent("enter_help");
-                    router.push("/my/help");
-                  }}
-                >
-                  <HelpCircle size={18} />
-                  <div>도움말</div>
+                <DropdownMenuItem asChild className="cursor-pointer mt-1 p-0">
+                  <Link
+                    href="/my/help"
+                    className="w-full flex flex-row gap-1 px-2 py-1.5"
+                    onClick={() => logEvent("enter_help")}
+                  >
+                    <HelpCircle size={18} />
+                    <div>도움말</div>
+                  </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="flex flex-row gap-1 cursor-pointer mt-1"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    logEvent("enter_account");
-                    router.push("/my/account");
-                  }}
-                >
-                  <User size={18} />
-                  <div>{m.system.account}</div>
+                <DropdownMenuItem asChild className="cursor-pointer mt-1 p-0">
+                  <Link
+                    href="/my/account"
+                    className="w-full flex flex-row gap-1 px-2 py-1.5"
+                    onClick={() => logEvent("enter_account")}
+                  >
+                    <User size={18} />
+                    <div>{m.system.account}</div>
+                  </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   className="flex flex-row gap-1 mt-1 cursor-pointer"
