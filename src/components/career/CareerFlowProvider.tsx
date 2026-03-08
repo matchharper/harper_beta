@@ -8,12 +8,12 @@ import {
   CareerSidebarProvider,
   type CareerSidebarContextValue,
 } from "./CareerSidebarContext";
-import { useCareerApi } from "@/pages/career/hooks/useCareerApi";
-import { useCareerAuth } from "@/pages/career/hooks/useCareerAuth";
-import { useCareerChat } from "@/pages/career/hooks/useCareerChat";
-import { useCareerOnboardingVoice } from "@/pages/career/hooks/useCareerOnboardingVoice";
-import { useCareerProfile } from "@/pages/career/hooks/useCareerProfile";
-import { useCareerSession } from "@/pages/career/hooks/useCareerSession";
+import { useCareerApi } from "@/hooks/career/useCareerApi";
+import { useCareerAuth } from "@/hooks/career/useCareerAuth";
+import { useCareerChat } from "@/hooks/career/useCareerChat";
+import { useCareerOnboardingVoice } from "@/hooks/career/useCareerOnboardingVoice";
+import { useCareerProfile } from "@/hooks/career/useCareerProfile";
+import { useCareerSession } from "@/hooks/career/useCareerSession";
 
 const TARGET_QUESTIONS = 5;
 
