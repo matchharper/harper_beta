@@ -23,7 +23,7 @@ module.exports = {
         gray900: "#E3E3E3",
 
         xgrayblack: "#1F2937",
-        xprimary: "#1D9BF0",
+        xprimary: "#0624A8",
         xmain: "#000000",
         xopp: "#FFFFFF",
         xlightgray: "#F6F6F8",

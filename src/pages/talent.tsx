@@ -1,6 +1,13 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  CalendarDays,
+  ArrowRight,
+} from "lucide-react";
 import { useRouter } from "next/router";
 import React, { useMemo, useState } from "react";
+import AppHeader from "@/components/common/AppHeader";
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 const TIME_SLOTS = [
@@ -25,10 +32,10 @@ const TIME_SLOTS = [
 
 const PROCESS_STEPS = [
   {
-    title: "정보 등록",
+    title: "간단한 정보 등록",
     details: [
-      "어떠한 요구사항, 이야기든 자유롭게 등록하세요.",
-      "지금 기준이 완벽하지 않아도 됩니다. 하퍼가 함께 정리합니다.",
+      "LinkedIn, Resume 등 회원님의 기본 정보를 알려주세요.",
+      "추가로 현재 원하는 게 무엇인지 자유롭게 등록하세요.",
     ],
   },
   {
@@ -55,27 +62,28 @@ const PROCESS_STEPS = [
   {
     title: "회사 제안 수신 및 조율",
     details: [
-      "회사가 특정 직군 Offer 혹은 시간당 단가 형태로 제안을 보냅니다.",
-      "조건이 마음에 들면 연결을 도와드리고, 궁금한 내용은 하퍼가 중간에서 조율합니다.",
+      "회사가 Offer 혹은 제안을 보냅니다.",
+      "조건이 마음에 들면 연결을 도와드리고, 궁금한 내용은 하퍼가 중간에서 조율해 드립니다.",
     ],
   },
 ];
 
 const BENEFITS = [
   {
-    title: "숨겨진 최고의 기회 접근",
+    title: "숨겨진 기회 탐색",
     description:
-      "비자 지원 가능한 글로벌 테크 회사, 국내 딥테크 팀 등 일반 채용 시장에 공개되지 않은 기회를 먼저 전달합니다.",
+      "좋은 채용 기회의 상당수는 채용 공고로 공개되지 않습니다.<br />또한 채용 공고의 내용은 대부분 무의미합니다.<br /><br />미국 비자 지원이 가능한 글로벌 테크 회사, <br />국내 딥테크 팀, <br />Remote 팀 <br />등 일반 채용 시장에 공개되지 않은 기회를 먼저 전달합니다.",
   },
+
   {
     title: "부담 없이 시작, 언제든 중지",
     description:
       "요구사항만 남겨두면 조건에 맞는 기회를 계속 찾아드립니다. 바쁜 시기에는 중지했다가 다시 시작할 수 있습니다.",
   },
   {
-    title: "직접 지원 대비 유리한 출발",
+    title: "더 좋은 조건에서 시작",
     description:
-      "하퍼가 후보자의 강점을 맥락 있게 전달해 더 나은 조건에서 대화를 시작할 가능성을 높입니다.",
+      "단순 지원자가 아니라<br />추천 후보자로 소개되기 때문에<br /><br />일반 지원보다 더 좋은 조건에서<br />대화를 시작할 가능성이 높습니다.",
   },
 ];
 
@@ -123,12 +131,7 @@ const COMPARISON_ROWS = [
     agency: "가능",
     selfApply: "직접 수행",
   },
-  {
-    item: "시간 소모",
-    harper: "낮음",
-    agency: "중간",
-    selfApply: "높음",
-  },
+  { item: "시간 소모", harper: "낮음", agency: "중간", selfApply: "높음" },
 ];
 
 const getMonthGrid = (month: Date) => {
@@ -139,16 +142,15 @@ const getMonthGrid = (month: Date) => {
     month.getMonth() + 1,
     0
   ).getDate();
-  const cells: Array<Date | null> = Array.from({ length: startOffset }, () => null);
+  const cells: Array<Date | null> = Array.from(
+    { length: startOffset },
+    () => null
+  );
 
   for (let day = 1; day <= daysInMonth; day += 1) {
     cells.push(new Date(month.getFullYear(), month.getMonth(), day));
   }
-
-  while (cells.length % 7 !== 0) {
-    cells.push(null);
-  }
-
+  while (cells.length % 7 !== 0) cells.push(null);
   return cells;
 };
 
@@ -157,10 +159,16 @@ const sameDay = (a: Date, b: Date) =>
   a.getMonth() === b.getMonth() &&
   a.getDate() === b.getDate();
 
-const cardBase = "rounded-2xl border border-hblack200 bg-hblack000";
+const formatLocalDate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
 const Talent = () => {
   const router = useRouter();
+
   const [monthCursor, setMonthCursor] = useState(
     new Date(new Date().getFullYear(), new Date().getMonth(), 1)
   );
@@ -168,10 +176,16 @@ const Talent = () => {
   const [selectedTime, setSelectedTime] = useState(TIME_SLOTS[2]);
 
   const monthGrid = useMemo(() => getMonthGrid(monthCursor), [monthCursor]);
+
   const monthLabel = useMemo(
-    () => monthCursor.toLocaleDateString("ko-KR", { year: "numeric", month: "long" }),
+    () =>
+      monthCursor.toLocaleDateString("ko-KR", {
+        year: "numeric",
+        month: "long",
+      }),
     [monthCursor]
   );
+
   const selectedDateLabel = useMemo(() => {
     if (!selectedDate) return "날짜를 선택해주세요.";
     return selectedDate.toLocaleDateString("ko-KR", {
@@ -187,269 +201,358 @@ const Talent = () => {
     router.push({
       pathname: "/call",
       query: {
-        date: selectedDate.toISOString().slice(0, 10),
+        date: formatLocalDate(selectedDate),
         time: selectedTime,
       },
     });
   };
 
-  return (
-    <main className="relative min-h-screen bg-hblack000 text-hblack900 font-inter">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="mx-auto h-full max-w-[1440px] border-l border-r border-hblack200/70" />
+  // Flat dashboard tokens (minimal borders, minimal radius)
+  const kicker = "text-xs font-medium text-xprimary";
+  const title = "mt-1 text-lg font-medium text-hblack1000";
+  const body = "text-sm leading-relaxed text-hblack600";
+  const divider = "border-t border-hblack200/70";
+  const subtleDivider = "border-t border-hblack200/50";
+
+  const Head = ({
+    children,
+    className,
+  }: {
+    children: React.ReactNode;
+    className?: string;
+  }) => {
+    return (
+      <div
+        className={`text-4xl font-bold text-hblack1000 lg:text-5xl leading-relaxed ${className}`}
+      >
+        {children}
       </div>
+    );
+  };
 
-      <div className="relative mx-auto grid max-w-[1440px] grid-cols-1 gap-8 px-4 py-8 lg:grid-cols-10 lg:px-8 lg:py-10">
-        <section className="space-y-8 lg:col-span-7">
-          <div className={`${cardBase} p-8 lg:p-10`}>
-            <div className="inline-flex rounded-xl border border-xprimary/30 bg-xprimary/10 px-3 py-2 text-xs font-medium uppercase tracking-[0.08em] text-xprimary">
-              Harper Talent Agent
+  return (
+    <main className="min-h-screen bg-hblack000 text-hblack900 font-inter pt-10">
+      <div className="fixed z-20 top-0 left-0 w-full h-8 flex items-center justify-center text-[13px] font-normal bg-xprimary text-hblack000">
+        현재 Open beta로, 선착순으로 50명의 분들만 받아서 최적의 기회를
+        찾아드리고 있습니다. ~ 3/20
+      </div>
+      <AppHeader topClassName="top-8" />
+      <div className="mx-auto max-w-[1440px] px-4 py-4 lg:px-8 lg:py-6">
+        <header className="mb-2" />
+
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-12">
+          <section className="lg:col-span-8">
+            <div className="flex flex-col gap-5">
+              <div className="max-w-[80ch]">
+                <Head>당신만을 위한 커리어 매니저</Head>
+                <Head className="mt-8">
+                  가만히 있어도
+                  <br />
+                  회원님의 역량에 맞는 좋은 회사와 Role을 찾아드립니다.
+                  <br />
+                  <br />
+                  그리고 좋은 기회라고 판단되면
+                  <br />
+                  Harper가 회사에게 회원님을 대신 추천합니다.
+                </Head>
+                <div className="mt-8 text-xl">
+                  지금 토스, 당근, YC 스타트업, 리벨리온 등에서 Harper를 통해
+                  인재를 찾고 있습니다.
+                </div>
+                <div className={`mt-3 space-y-1 ${body}`}></div>
+              </div>
+
+              <div className="mt-4">
+                <button className="btn-ink">
+                  <span className="font-medium">바로 시작하기</span>
+                  <span className="arrow">→</span>
+                </button>
+              </div>
             </div>
 
-            <h1 className="mt-6 text-[32px] font-medium leading-[1.25] text-hblack1000 lg:text-[36px]">
-              Harper(하퍼): 당신을 위한 Talent Agent 입니다.
-            </h1>
-
-            <div className="mt-6 space-y-4 text-base leading-relaxed text-hblack600">
-              <p>
-                현재 국내/글로벌 테크 스타트업, AI/ML, Engineering 팀들이 하퍼에서
-                인재를 찾고 있습니다.
-              </p>
-              <p>
-                회원님의 역량을 최대한 발휘할 수 있는 좋은 커리어 기회들을 1) 대신
-                찾고, 2) 연결해주고, 3) 하퍼가 대신해서 회원님을 회사에 추천해줍니다.
-              </p>
-              <p>
-                풀타임, 리모트, 파트타임, 인턴 등 국내/글로벌 테크 스타트업으로부터
-                커리어 기회를 먼저 제안 받고 선택하세요.
-              </p>
-            </div>
-          </div>
-
-          <div className={`${cardBase} p-8`}>
-            <div className="mb-6">
-              <p className="text-xs uppercase tracking-[0.08em] text-hblack500">Process</p>
-              <h2 className="mt-2 text-2xl font-medium text-hblack1000">하퍼가 진행되는 방식</h2>
+            <div className={`mt-8 ${divider}`} />
+            <div className="py-2">
+              <p className={kicker}>Overview</p>
+              <h2 className={title}>하퍼는 어떻게 도움을 주나요?</h2>
+              <div className={`mt-2 space-y-1 ${body}`}>
+                <p>
+                  회원님의 역량을 최대한 발휘할 수 있는 좋은 커리어 기회들을 1)
+                  대신 찾고, 2) 연결해주고, 3) 하퍼가 대신해서 회원님을 회사에
+                  추천해줍니다.
+                </p>
+                <p>특히 현재는</p>
+                <p>
+                  풀타임, 리모트, 파트타임, 인턴 등 다양한 형태의 커리어 기회를
+                  제안받고 선택하세요.
+                </p>
+              </div>
             </div>
 
-            <div className="space-y-4">
-              {PROCESS_STEPS.map((step, idx) => (
-                <article
-                  key={step.title}
-                  className={[
-                    "rounded-xl border p-6 transition-colors",
-                    idx === 0
-                      ? "border-xprimary/30 bg-xprimary/5"
-                      : "border-hblack200 bg-hblack000 hover:bg-hblack100",
-                  ].join(" ")}
-                >
-                  <h3 className="flex items-center gap-3 text-lg font-medium text-hblack900">
-                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-xprimary/30 bg-xprimary/10 text-xs font-medium text-xprimary">
-                      {idx + 1}
-                    </span>
-                    {step.title}
-                  </h3>
-                  <div className="mt-4 space-y-2 text-sm leading-relaxed text-hblack600">
-                    {step.details.map((detail) => (
-                      <p key={detail}>{detail}</p>
+            <div className={`my-8 ${divider}`} />
+
+            {/* Process (list + dividers, not cards) */}
+            <div className="py-2">
+              <p className={kicker}>Process</p>
+              <h2 className={title}>하퍼는 이렇게 진행됩니다</h2>
+
+              <div className="mt-5 divide-y divide-hblack200/70">
+                {PROCESS_STEPS.map((step, idx) => (
+                  <div key={step.title} className="py-3">
+                    <div className="flex items-start gap-4">
+                      <div className="w-4 shrink-0 text-lg font-bold text-xprimary">
+                        {idx + 1}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-md font-medium text-hblack1000">
+                          {step.title}
+                        </p>
+                        <div className="mt-2 text-sm leading-relaxed text-hblack600">
+                          {step.details.map((d) => (
+                            <p key={d}>{d}</p>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className={`my-8 ${divider}`} />
+
+            {/* Benefits (flat 2-col rows / minimal separators) */}
+            <div className="py-2">
+              <p className={kicker}>Benefits</p>
+              <h2 className={title}>하퍼의 장점</h2>
+
+              <div className="mt-2 divide-y divide-hblack200/70">
+                {BENEFITS.map((b) => (
+                  <div key={b.title} className="py-4">
+                    <p className="text-sm font-medium text-hblack1000">
+                      {b.title}
+                    </p>
+                    <p
+                      className="mt-2 text-sm leading-relaxed text-hblack600"
+                      dangerouslySetInnerHTML={{ __html: b.description }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className={`my-8 ${divider}`} />
+
+            {/* Comparison (flat table style with grid + dividers) */}
+            <div className="py-2">
+              <p className={kicker}>Comparison</p>
+              <h2 className={title}>Harper vs Agency vs 직접 지원</h2>
+
+              <div className="mt-5">
+                <div className="grid grid-cols-4 py-3 text-[11px] font-medium uppercase tracking-[0.14em] text-hblack500">
+                  <div>비교 항목</div>
+                  <div>Harper</div>
+                  <div>Agency</div>
+                  <div>직접 지원</div>
+                </div>
+                <div className={subtleDivider} />
+                <div className="divide-y divide-hblack200/70">
+                  {COMPARISON_ROWS.map((row) => (
+                    <div
+                      key={row.item}
+                      className="grid grid-cols-4 py-4 text-sm text-hblack700"
+                    >
+                      <div className="font-medium text-hblack900">
+                        {row.item}
+                      </div>
+                      <div>{row.harper}</div>
+                      <div>{row.agency}</div>
+                      <div>{row.selfApply}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className={`my-8 ${divider}`} />
+
+            {/* FAQ (flat list) */}
+            <div className="py-2">
+              <p className={kicker}>FAQ</p>
+              <h2 className={title}>자주 묻는 질문</h2>
+
+              <div className="mt-5 divide-y divide-hblack200/70">
+                {FAQ_ITEMS.map((faq) => (
+                  <div key={faq.question} className="py-5">
+                    <p className="text-sm font-medium text-hblack1000">
+                      {faq.question}
+                    </p>
+                    <p className="mt-2 text-sm leading-relaxed text-hblack600">
+                      {faq.answer}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className={`mt-10 ${divider}`} />
+          </section>
+
+          {/* Right: panel (flat, like reference detail panel) */}
+          <aside className="relative lg:top-0">
+            <div className="lg:col-span-4 fixed">
+              <div className="rounded-lg border border-hblack100 px-5 py-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className={kicker}>Schedule</p>
+                    <h3 className="mt-1 text-md font-medium text-hblack1000">
+                      상담 일정 선택
+                    </h3>
+                    <p className="mt-1 text-sm leading-relaxed text-hblack600">
+                      날짜/시간을 고르고 바로 예약하거나 온보딩을 시작하세요.
+                    </p>
+                  </div>
+                  <Clock3 className="mt-1 h-5 w-5 text-hblack500" />
+                </div>
+
+                <div className={`mt-4 ${divider}`} />
+
+                {/* Calendar controls */}
+                <div className="mt-4">
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      className="inline-flex h-9 w-9 items-center justify-center bg-hblack000 hover:bg-hblack100"
+                      onClick={() =>
+                        setMonthCursor(
+                          new Date(
+                            monthCursor.getFullYear(),
+                            monthCursor.getMonth() - 1,
+                            1
+                          )
+                        )
+                      }
+                      aria-label="이전 달"
+                    >
+                      <ChevronLeft className="h-4 w-4 text-hblack700" />
+                    </button>
+
+                    <p className="text-sm font-medium text-hblack900">
+                      {monthLabel}
+                    </p>
+
+                    <button
+                      type="button"
+                      className="inline-flex h-9 w-9 items-center justify-center bg-hblack000 hover:bg-hblack100"
+                      onClick={() =>
+                        setMonthCursor(
+                          new Date(
+                            monthCursor.getFullYear(),
+                            monthCursor.getMonth() + 1,
+                            1
+                          )
+                        )
+                      }
+                      aria-label="다음 달"
+                    >
+                      <ChevronRight className="h-4 w-4 text-hblack700" />
+                    </button>
+                  </div>
+
+                  <div className="mt-2 grid grid-cols-7 text-center text-[11px] font-medium text-hblack500">
+                    {WEEKDAYS.map((d) => (
+                      <div key={d} className="py-2">
+                        {d}
+                      </div>
                     ))}
                   </div>
-                </article>
-              ))}
-            </div>
-          </div>
 
-          <div className={`${cardBase} p-8`}>
-            <div className="mb-6">
-              <p className="text-xs uppercase tracking-[0.08em] text-hblack500">Strength</p>
-              <h2 className="mt-2 text-2xl font-medium text-hblack1000">하퍼의 장점</h2>
-            </div>
-            <div className="space-y-4">
-              {BENEFITS.map((benefit, idx) => (
-                <article
-                  key={benefit.title}
-                  className="rounded-xl border border-hblack200 bg-hblack000 p-6 transition-colors hover:bg-hblack100"
-                >
-                  <h3 className="text-base font-medium text-hblack900">
-                    {idx + 1}. {benefit.title}
-                  </h3>
-                  <p className="mt-3 text-sm leading-relaxed text-hblack600">
-                    {benefit.description}
+                  <div className="grid grid-cols-7">
+                    {monthGrid.map((cell, index) => {
+                      if (!cell)
+                        return <div key={`empty-${index}`} className="h-10" />;
+
+                      const isSelected = selectedDate
+                        ? sameDay(cell, selectedDate)
+                        : false;
+
+                      return (
+                        <button
+                          key={cell.toISOString()}
+                          type="button"
+                          onClick={() => setSelectedDate(cell)}
+                          className={[
+                            "h-8 text-sm font-medium",
+                            isSelected
+                              ? "bg-xprimary/10 text-xprimary"
+                              : "bg-transparent text-hblack700 hover:bg-hblack100",
+                          ].join(" ")}
+                        >
+                          {cell.getDate()}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className={`mt-4 ${divider}`} />
+
+                {/* Time picker */}
+                <div className="mt-4">
+                  <p className="text-sm font-medium text-hblack900">
+                    {selectedDateLabel}
                   </p>
-                </article>
-              ))}
-            </div>
-          </div>
-
-          <div className={`${cardBase} p-8`}>
-            <div className="mb-6">
-              <p className="text-xs uppercase tracking-[0.08em] text-hblack500">FAQ</p>
-              <h2 className="mt-2 text-2xl font-medium text-hblack1000">자주 묻는 질문</h2>
-            </div>
-            <div className="space-y-4">
-              {FAQ_ITEMS.map((faq) => (
-                <article
-                  key={faq.question}
-                  className="rounded-xl border border-hblack200 bg-hblack000 p-6 transition-colors hover:bg-hblack100"
-                >
-                  <h3 className="text-base font-medium text-hblack900">{faq.question}</h3>
-                  <p className="mt-3 text-sm leading-relaxed text-hblack600">{faq.answer}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-
-          <div className={`${cardBase} p-8`}>
-            <div className="mb-6">
-              <p className="text-xs uppercase tracking-[0.08em] text-hblack500">Comparison</p>
-              <h2 className="mt-2 text-2xl font-medium text-hblack1000">
-                Harper vs Headhunting Agency vs 직접 지원
-              </h2>
-            </div>
-            <div className="overflow-x-auto rounded-xl border border-hblack200">
-              <table className="min-w-full border-collapse text-left">
-                <thead>
-                  <tr className="border-b border-hblack200 bg-hblack100 text-xs uppercase tracking-[0.08em] text-hblack500">
-                    <th className="px-4 py-3 font-medium">비교 항목</th>
-                    <th className="px-4 py-3 font-medium">Harper</th>
-                    <th className="px-4 py-3 font-medium">Headhunting Agency</th>
-                    <th className="px-4 py-3 font-medium">직접 Job 지원</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {COMPARISON_ROWS.map((row, index) => (
-                    <tr
-                      key={row.item}
-                      className={[
-                        "border-b border-hblack200 text-sm",
-                        index % 2 === 0 ? "bg-hblack000" : "bg-hblack100/70",
-                      ].join(" ")}
+                  <p className="mt-3 text-[11px] font-medium uppercase tracking-[0.14em] text-hblack500">
+                    Time
+                  </p>
+                  <div className="mt-2 flex items-center gap-2 border border-hblack100 rounded-md px-3">
+                    <Clock3 className="h-4 w-4 text-hblack500" />
+                    <select
+                      value={selectedTime}
+                      onChange={(e) => setSelectedTime(e.target.value)}
+                      className="h-11 w-full bg-transparent text-sm text-hblack900 outline-none"
                     >
-                      <td className="px-4 py-3 font-medium text-hblack900">{row.item}</td>
-                      <td className="px-4 py-3 text-hblack700">{row.harper}</td>
-                      <td className="px-4 py-3 text-hblack700">{row.agency}</td>
-                      <td className="px-4 py-3 text-hblack700">{row.selfApply}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </section>
+                      {TIME_SLOTS.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-        <aside className="lg:col-span-3 lg:sticky lg:top-8 lg:self-start">
-          <div className={`${cardBase} p-6`}>
-            <div className="mb-6">
-              <p className="text-xs uppercase tracking-[0.08em] text-hblack500">Schedule</p>
-              <h2 className="mt-2 text-xl font-medium text-hblack1000">날짜와 시간 선택</h2>
-              <p className="mt-2 text-sm text-hblack600">
-                일정 선택 후 바로 상담을 예약하거나 온보딩을 시작할 수 있습니다.
-              </p>
-            </div>
+                  <div className="mt-2 bg-hblack000 px-0 py-3 text-sm text-hblack700">
+                    <span className="font-medium text-hblack900">
+                      예약 예정
+                    </span>
+                    <div className="mt-1">
+                      {selectedDateLabel} {selectedDate ? selectedTime : ""}
+                    </div>
+                  </div>
+                </div>
 
-            <div className="rounded-xl border border-hblack200 bg-hblack000 p-4">
-              <div className="mb-4 flex items-center justify-between">
-                <button
-                  type="button"
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-hblack200 text-hblack700 transition-colors hover:bg-hblack100 hover:text-hblack900"
-                  onClick={() =>
-                    setMonthCursor(
-                      new Date(monthCursor.getFullYear(), monthCursor.getMonth() - 1, 1)
-                    )
-                  }
-                  aria-label="이전 달"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <p className="text-sm font-medium text-hblack900">{monthLabel}</p>
-                <button
-                  type="button"
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-hblack200 text-hblack700 transition-colors hover:bg-hblack100 hover:text-hblack900"
-                  onClick={() =>
-                    setMonthCursor(
-                      new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 1)
-                    )
-                  }
-                  aria-label="다음 달"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
+                <div className={`mt-2 ${divider}`} />
 
-              <div className="grid grid-cols-7 gap-1 text-center text-xs text-hblack500">
-                {WEEKDAYS.map((day) => (
-                  <span key={day} className="py-2">
-                    {day}
-                  </span>
-                ))}
-              </div>
+                {/* Actions (flat buttons) */}
+                <div className="mt-6 space-y-2">
+                  <button
+                    type="button"
+                    onClick={handleCallBooking}
+                    className="rounded-sm inline-flex h-11 w-full items-center justify-center gap-2 bg-hblack100 text-sm font-medium text-hblack900 hover:bg-hblack100"
+                  >
+                    Call 예약 <CalendarDays className="h-4 w-4" />
+                  </button>
 
-              <div className="mt-2 grid grid-cols-7 gap-1">
-                {monthGrid.map((cell, index) => {
-                  if (!cell) {
-                    return <div key={`empty-${index}`} className="h-9" />;
-                  }
-                  const isSelected = selectedDate ? sameDay(cell, selectedDate) : false;
-
-                  return (
-                    <button
-                      key={cell.toISOString()}
-                      type="button"
-                      onClick={() => setSelectedDate(cell)}
-                      className={[
-                        "h-9 rounded-lg border text-sm font-medium transition-colors",
-                        isSelected
-                          ? "border-xprimary bg-xprimary/10 text-xprimary"
-                          : "border-transparent text-hblack700 hover:border-hblack200 hover:bg-hblack100",
-                      ].join(" ")}
-                    >
-                      {cell.getDate()}
-                    </button>
-                  );
-                })}
+                  <button
+                    type="button"
+                    onClick={() => router.push("/career")}
+                    className="rounded-sm inline-flex h-11 w-full items-center justify-center gap-2 bg-xprimary text-sm font-medium text-hblack000 hover:opacity-90"
+                  >
+                    지금 대화하기 <ArrowRight className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </div>
-
-            <div className="mt-6">
-              <p className="text-sm font-medium text-hblack700">{selectedDateLabel}</p>
-              <label className="mt-2 block text-xs uppercase tracking-[0.08em] text-hblack500">
-                Time
-              </label>
-              <select
-                value={selectedTime}
-                onChange={(event) => setSelectedTime(event.target.value)}
-                className="mt-2 h-10 w-full rounded-lg border border-hblack200 bg-hblack000 px-3 text-sm text-hblack900 outline-none transition-colors focus:border-xprimary"
-              >
-                {TIME_SLOTS.map((time) => (
-                  <option key={time} value={time}>
-                    {time}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="mt-6 rounded-xl border border-hblack200 bg-hblack100 px-4 py-3 text-sm text-hblack700">
-              예약 예정: {selectedDateLabel} {selectedDate ? selectedTime : ""}
-            </div>
-
-            <div className="mt-6 space-y-3">
-              <button
-                type="button"
-                onClick={handleCallBooking}
-                className="h-10 w-full rounded-lg border border-hblack200 bg-hblack000 text-sm font-medium text-hblack900 transition-colors hover:bg-hblack100"
-              >
-                Call 예약
-              </button>
-              <button
-                type="button"
-                onClick={() => router.push("/career")}
-                className="h-10 w-full rounded-lg border border-xprimary bg-xprimary text-sm font-medium text-hblack000 transition-opacity hover:opacity-90"
-              >
-                지금 시작하기
-              </button>
-            </div>
-          </div>
-        </aside>
+          </aside>
+        </div>
       </div>
     </main>
   );

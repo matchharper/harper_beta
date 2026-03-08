@@ -22,9 +22,26 @@ function clamp(n: number, min: number, max: number) {
 }
 
 const MAX_PREFETCH_PAGES = 20;
+const MIN_CHAT_PANEL_WIDTH = 390;
+const MIN_RESULT_PANEL_WIDTH = 520;
+const ABSOLUTE_MAX_CHAT_PANEL_WIDTH = 920;
+
+function getMaxChatPanelWidth(containerWidth: number) {
+  const byContainer = Math.max(
+    MIN_CHAT_PANEL_WIDTH,
+    containerWidth - MIN_RESULT_PANEL_WIDTH
+  );
+  return Math.max(
+    MIN_CHAT_PANEL_WIDTH,
+    Math.min(ABSOLUTE_MAX_CHAT_PANEL_WIDTH, byContainer)
+  );
+}
 
 export default function ResultPage() {
   const [finishedTick, setFinishedTick] = useState(0);
+  const [chatPanelWidth, setChatPanelWidth] = useState(460);
+  const [isResizing, setIsResizing] = useState(false);
+  const splitRef = useRef<HTMLDivElement>(null);
 
   const router = useRouter();
   const { id, page, run } = router.query;
@@ -34,13 +51,13 @@ export default function ResultPage() {
   const runId = typeof run === "string" ? run : undefined; // ✅ runs.id (uuid)
   const { data: runData, isLoading: isRunDetailLoading } = useRunDetail(runId);
 
-
   const { companyUser } = useCompanyUserStore();
   const userId = companyUser?.user_id;
 
   const { data: queryItem } = useQueryDetail(queryId);
 
-  const derivedChatFull = !!queryId && (!runId && (queryItem?.runs?.length ?? 0) === 0);
+  const derivedChatFull =
+    !!queryId && !runId && (queryItem?.runs?.length ?? 0) === 0;
   const [userChatFull, setUserChatFull] = useState<boolean | null>(null);
 
   const isChatFull = userChatFull ?? derivedChatFull;
@@ -83,17 +100,12 @@ export default function ResultPage() {
 
   const searchEnabled = useMemo(() => ready && !!runId, [ready, runId]);
 
-  const {
-    data,
-    isLoading,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = useRunPagesInfinite({
-    userId,
-    runId,
-    enabled: ready && !!runId,
-  });
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useRunPagesInfinite({
+      userId,
+      runId,
+      enabled: ready && !!runId,
+    });
 
   // Search execution now happens entirely in the worker.
 
@@ -206,7 +218,10 @@ export default function ResultPage() {
         } else {
           setRunPagesMeta((prev) =>
             prev
-              ? { ...prev, seen_page: Math.max(prev.seen_page ?? -1, targetSeen) }
+              ? {
+                  ...prev,
+                  seen_page: Math.max(prev.seen_page ?? -1, targetSeen),
+                }
               : prev
           );
         }
@@ -298,7 +313,11 @@ export default function ResultPage() {
       try {
         logger.log("\n 검색 messageId: ", messageId);
         setUserChatFull(false);
-        const newRunId = await runSearch({ messageId: messageId, queryId: queryId, userId: userId });
+        const newRunId = await runSearch({
+          messageId: messageId,
+          queryId: queryId,
+          userId: userId,
+        });
         if (!newRunId) return null;
 
         router.replace(
@@ -320,13 +339,14 @@ export default function ResultPage() {
   );
 
   const currentRunCriterias = useMemo(() => {
-    if (!runData || !runData.criteria || runData.criteria.length === 0) return [];
+    if (!runData || !runData.criteria || runData.criteria.length === 0)
+      return [];
 
-    return runData.criteria
+    return runData.criteria;
   }, [runData, runId, isRunDetailLoading]);
 
   const scope = useMemo(
-    () => ({ type: "query", queryId: queryId ?? "" } as ChatScope),
+    () => ({ type: "query", queryId: queryId ?? "" }) as ChatScope,
     [queryId]
   );
 
@@ -339,7 +359,7 @@ export default function ResultPage() {
     const curr = runData?.status;
 
     if (prev && curr && prev !== "finished" && curr === "finished") {
-      logger.log("\n\n FINISHED!! \n\n")
+      logger.log("\n\n FINISHED!! \n\n");
       setFinishedTick((t) => t + 1);
     }
 
@@ -353,13 +373,66 @@ export default function ResultPage() {
       </AppLayout>
     );
 
+  const handleResizeStart = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (isChatFull) return;
+    const container = splitRef.current;
+    if (!container) return;
+
+    e.preventDefault();
+    setIsResizing(true);
+
+    const containerRect = container.getBoundingClientRect();
+
+    const onMouseMove = (ev: MouseEvent) => {
+      const offsetX = ev.clientX - containerRect.left;
+      const maxWidth = getMaxChatPanelWidth(containerRect.width);
+      const nextWidth = clamp(offsetX, MIN_CHAT_PANEL_WIDTH, maxWidth);
+      setChatPanelWidth(nextWidth);
+    };
+
+    const onMouseUp = () => {
+      setIsResizing(false);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  };
+
+  const leftPaneStyle = isChatFull
+    ? undefined
+    : {
+        width: `${chatPanelWidth}px`,
+        minWidth: `${MIN_CHAT_PANEL_WIDTH}px`,
+        maxWidth: `${ABSOLUTE_MAX_CHAT_PANEL_WIDTH}px`,
+      };
+
+  const rightPaneStyle = isChatFull
+    ? undefined
+    : { width: `calc(100% - ${chatPanelWidth}px)` };
+
   return (
     <AppLayout initialCollapse={true}>
       <Head>
         <title>Harper: 검색</title>
       </Head>
-      <div className={`w-full flex flex-row min-h-screen overflow-hidden ${isChatFull ? "items-center justify-center" : "items-start justify-between"}`}>
-        <div className={`flex-shrink-0 transition-all duration-300 ease-in-out border-r ${isChatFull ? "w-[50%] border-transparent" : "w-[30%] min-w-[390px] border-white/10"}`}>
+      <div
+        ref={splitRef}
+        className={`w-full flex flex-row min-h-screen overflow-hidden ${isChatFull ? "items-center justify-center" : "items-start justify-between"}`}
+      >
+        <div
+          style={leftPaneStyle}
+          className={`relative flex-shrink-0 border-r ${
+            isResizing
+              ? "transition-none"
+              : "transition-all duration-300 ease-in-out"
+          } ${isChatFull ? "w-[50%] border-transparent" : "border-white/10"}`}
+        >
           <ChatPanel
             title={queryItem?.query_keyword ?? ""}
             scope={scope}
@@ -369,9 +442,23 @@ export default function ResultPage() {
             setIsChatFull={setUserChatFull}
             finishedTick={finishedTick}
           />
+          {!isChatFull && (
+            <div
+              onMouseDown={handleResizeStart}
+              className={`absolute top-0 -right-[3px] z-50 h-full w-[2px] cursor-col-resize ${
+                isResizing ? "bg-white/50" : "bg-transparent hover:bg-white/20"
+              }`}
+            />
+          )}
         </div>
-        <div className={`relative transition-all duration-300 ease-in-out ${isChatFull ? "w-0 opacity-0 pointer-events-none" : "w-[70%] opacity-100"}`}>
-          {/* <CandidateModalRoot /> */}
+        <div
+          style={rightPaneStyle}
+          className={`relative ${
+            isResizing
+              ? "transition-none"
+              : "transition-all duration-300 ease-in-out"
+          } ${isChatFull ? "w-0 opacity-0 pointer-events-none" : "opacity-100"}`}
+        >
           <div
             ref={resultScrollRef}
             className={`w-full max-h-screen min-h-screen py-2 transition-all duration-200 relative overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent hover:scrollbar-thumb-white/20`}

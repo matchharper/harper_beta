@@ -134,7 +134,7 @@ Output Rules (Strict — Must Not Be Violated)
 - 검색이 명확한 하나의 조건이라면 sql_query를 짧게 구성해도 되니, 지나치게 길게 작성하지 마라.
 - 겹치는 조건을 두번 추가하지 마라. (ex. ILIKE '%서울대학교|서울대%' -> ILIKE 조건에 의해 서울대 만 넣더라도 서울대학교도 같이 잡힌다.)
 - Never match company names or school names against ex.role, ex.description, or T1.summary.
-  Company names or school names may ONLY be matched against company_db.name or education_user.school.
+  Company names or school names may ONLY be matched against company_db.name or edu_user.school.
 - 논문을 제외한 데이터는 linkedin의 포맷을 따르고 있다. 이 점을 참고해서 구성해라. (ex. company_db.name이 stealth면 직접 창업하였고 법인 설립 이전을 의미.)
 - 불필요한 일반 단어 금지: good, great, team, experience, work 같은 건 조건에 넣지 말기(노이즈)
 
@@ -142,7 +142,7 @@ Output Rules (Strict — Must Not Be Violated)
 
 ### 조건 해석 가이드
 
-- 학력 조건 → education_user.school, education_user.degree, education_user.field
+- 학력 조건 → edu_user.school, edu_user.degree, edu_user.field
 - 직무/경력 → experience_user.role, experience_user.description, candid.summary
 - 회사 특징 → company_db.name, company_db.description, company_db.specialities
 - 개인 키워드 → candid.location, candid.summary

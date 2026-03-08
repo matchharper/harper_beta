@@ -4,8 +4,11 @@ import {
   TALENT_FIRST_VISIT_TEXT,
   TalentConversationRow,
   ensureTalentUserRecord,
+  fetchTalentUserProfile,
   fetchMessages,
+  getTalentResumeSignedUrl,
   getTalentSupabaseAdmin,
+  isPendingQuestionContent,
 } from "@/lib/talentOnboarding/server";
 
 export async function GET(req: NextRequest) {
@@ -43,7 +46,6 @@ export async function GET(req: NextRequest) {
           user_id: user.id,
           stage: "profile",
           title: "Career Onboarding",
-          resume_links: [],
           relief_nudge_sent: false,
           created_at: now,
           updated_at: now,
@@ -59,18 +61,45 @@ export async function GET(req: NextRequest) {
       }
       conversation = inserted as TalentConversationRow;
 
-      await admin.from("talent_messages").insert({
-        conversation_id: conversation.id,
-        user_id: user.id,
-        role: "assistant",
-        content: TALENT_FIRST_VISIT_TEXT,
-        message_type: "system",
-      });
+      const { error: firstMessageError } = await admin
+        .from("talent_messages")
+        .insert({
+          conversation_id: conversation.id,
+          user_id: user.id,
+          role: "assistant",
+          content: TALENT_FIRST_VISIT_TEXT,
+          message_type: "system",
+        });
+
+      if (firstMessageError) {
+        await admin
+          .from("talent_conversations")
+          .delete()
+          .eq("id", conversation.id)
+          .eq("user_id", user.id);
+
+        return NextResponse.json(
+          {
+            error:
+              firstMessageError.message ??
+              "Failed to initialize first onboarding message",
+          },
+          { status: 500 }
+        );
+      }
     }
 
     const messages = await fetchMessages({
       admin,
       conversationId: conversation.id,
+    });
+    const visibleMessages = messages.filter(
+      (message) => !isPendingQuestionContent(message.content)
+    );
+    const profile = await fetchTalentUserProfile({ admin, userId: user.id });
+    const resumeDownloadUrl = await getTalentResumeSignedUrl({
+      admin,
+      storagePath: profile?.resume_storage_path,
     });
 
     return NextResponse.json({
@@ -79,11 +108,13 @@ export async function GET(req: NextRequest) {
         id: conversation.id,
         stage: conversation.stage,
         title: conversation.title,
-        resumeFileName: conversation.resume_file_name,
-        resumeLinks: conversation.resume_links ?? [],
+        resumeFileName: profile?.resume_file_name ?? null,
+        resumeStoragePath: profile?.resume_storage_path ?? null,
+        resumeDownloadUrl,
+        resumeLinks: profile?.resume_links ?? [],
         reliefNudgeSent: Boolean(conversation.relief_nudge_sent),
       },
-      messages: messages.map((message) => ({
+      messages: visibleMessages.map((message) => ({
         id: message.id,
         role: message.role,
         content: message.content,

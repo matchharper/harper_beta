@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
 import {
+  countUserChatTurns,
+  fetchRecentMessages,
   TalentConversationRow,
   TalentMessageRow,
-  fetchMessages,
+  TalentUserProfileRow,
+  fetchTalentUserProfile,
   getTalentSupabaseAdmin,
 } from "@/lib/talentOnboarding/server";
 
@@ -15,12 +18,12 @@ type Body = {
 };
 
 function buildSystemPrompt(args: {
-  conversation: TalentConversationRow;
+  profile: TalentUserProfileRow | null;
   shouldSendReliefNudge: boolean;
   userTurnCount: number;
 }) {
-  const { conversation, shouldSendReliefNudge, userTurnCount } = args;
-  const linkText = (conversation.resume_links ?? []).join(", ");
+  const { profile, shouldSendReliefNudge, userTurnCount } = args;
+  const linkText = (profile?.resume_links ?? []).join(", ");
 
   return [
     "You are Harper, a Korean AI talent agent for candidate onboarding.",
@@ -33,9 +36,9 @@ function buildSystemPrompt(args: {
     "Avoid markdown tables and long bullet dumps.",
     "",
     `Current user turn count: ${userTurnCount}`,
-    `Resume file: ${conversation.resume_file_name ?? "(none)"}`,
+    `Resume file: ${profile?.resume_file_name ?? "(none)"}`,
     `Resume links: ${linkText || "(none)"}`,
-    `Resume text snippet: ${(conversation.resume_text ?? "").slice(0, 3000)}`,
+    `Resume text snippet: ${(profile?.resume_text ?? "").slice(0, 3000)}`,
     "",
     shouldSendReliefNudge
       ? [
@@ -88,9 +91,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
     }
 
-    const normalizedContent = link
-      ? `${message}\n\n참고 링크: ${link}`
-      : message;
+    const profile = await fetchTalentUserProfile({ admin, userId: user.id });
+
+    const normalizedContent = link ? `${message}\n\n참고 링크: ${link}` : message;
 
     const { data: insertedUserMessage, error: userMessageError } = await admin
       .from("talent_messages")
@@ -111,16 +114,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const messages = await fetchMessages({ admin, conversationId });
-    const userTurnCount = messages.filter(
-      (item) => item.role === "user" && (item.message_type ?? "chat") === "chat"
-    ).length;
+    const userTurnCount = await countUserChatTurns({ admin, conversationId });
+    const recentMessages = await fetchRecentMessages({
+      admin,
+      conversationId,
+      limit: 24,
+    });
 
     const shouldSendReliefNudge =
       userTurnCount >= 5 && !Boolean((conversation as TalentConversationRow).relief_nudge_sent);
 
-    const llmMessages = messages
-      .slice(-24)
+    const llmMessages = recentMessages
       .map((item) => ({
         role: item.role as "user" | "assistant",
         content: item.content,
@@ -132,7 +136,7 @@ export async function POST(req: NextRequest) {
         {
           role: "system",
           content: buildSystemPrompt({
-            conversation: conversation as TalentConversationRow,
+            profile,
             shouldSendReliefNudge,
             userTurnCount,
           }),
@@ -143,7 +147,8 @@ export async function POST(req: NextRequest) {
     });
 
     const safeAssistantText =
-      assistantText.trim() || "좋은 정보 감사합니다. 이어서 가장 우선순위인 조건을 하나만 더 알려주세요.";
+      assistantText.trim() ||
+      "좋은 정보 감사합니다. 이어서 가장 우선순위인 조건을 하나만 더 알려주세요.";
 
     const { data: insertedAssistantMessage, error: assistantError } = await admin
       .from("talent_messages")
@@ -165,7 +170,7 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date().toISOString();
-    await admin
+    const { error: conversationUpdateError } = await admin
       .from("talent_conversations")
       .update({
         stage: "chat",
@@ -176,6 +181,17 @@ export async function POST(req: NextRequest) {
       })
       .eq("id", conversationId)
       .eq("user_id", user.id);
+
+    if (conversationUpdateError) {
+      return NextResponse.json(
+        {
+          error:
+            conversationUpdateError.message ??
+            "Failed to update conversation progress",
+        },
+        { status: 500 }
+      );
+    }
 
     const toResponseMessage = (item: TalentMessageRow) => ({
       id: item.id,

@@ -1,9 +1,13 @@
 import { CandidateTypeWithConnection } from "@/hooks/useSearchChatCandidates";
 import React, { useMemo } from "react";
-import { locationEnToKo } from "@/utils/language_map";
+import {
+  companyEnToKo,
+  degreeEnToKo,
+  koreaUniversityEnToKo,
+  locationEnToKo,
+} from "@/utils/language_map";
 import { Avatar } from "./NameProfile";
 import Bookmarkbutton from "./ui/bookmarkbutton";
-import { dateToFormat } from "@/utils/textprocess";
 import { Tooltips } from "./ui/tooltip";
 import { Check, Dot, X } from "lucide-react";
 import { useRouter } from "next/router";
@@ -11,6 +15,7 @@ import { RoleBox, SchoolBox } from "./CandidatesListTable";
 import { SummaryScore } from "@/types/type";
 import { useLogEvent } from "@/hooks/useLog";
 import Link from "next/link";
+import ShortlistMemoEditor from "./ui/ShortlistMemoEditor";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
 
@@ -48,15 +53,43 @@ function parseSynthesizedSummary(
   }
 }
 
+function formatYearMonth(dateStr?: string | null) {
+  if (!dateStr) return "";
+  if (dateStr === "Present") return "현재";
+
+  const ymMatch = String(dateStr).match(/^(\d{4})-(\d{1,2})/);
+  if (ymMatch) {
+    return `${ymMatch[1]}.${ymMatch[2].padStart(2, "0")}`;
+  }
+
+  const d = new Date(dateStr);
+  if (!Number.isNaN(d.getTime())) {
+    return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }
+
+  return String(dateStr)
+    .replace(/년\s?/g, ".")
+    .replace(/월/g, "")
+    .replace(/\s+/g, "");
+}
+
+function formatPeriod(startDate?: string | null, endDate?: string | null) {
+  const start = formatYearMonth(startDate) || "시작 미상";
+  const end = endDate ? formatYearMonth(endDate) || endDate : "현재";
+  return `${start} ~ ${end}`;
+}
+
 function CandidateCard({
   c,
   userId,
   criterias,
   isMyList = false,
+  showShortlistMemo = false,
 }: {
   c: CandidateTypeWithConnection;
   userId: string;
   isMyList?: boolean;
+  showShortlistMemo?: boolean;
   criterias: string[];
 }) {
   const router = useRouter();
@@ -76,6 +109,9 @@ function CandidateCard({
   const shortlistSummaryText = useMemo(() => {
     return sanitizeSummaryText(c.s?.[0]?.text ?? c.summary);
   }, [c.s, c.summary]);
+  const shortlistMemo = useMemo(() => {
+    return String(c.shortlist_memo ?? "");
+  }, [c.shortlist_memo]);
 
   const exps = asArr(c.experience_user ?? []);
   const edus = asArr(c.edu_user ?? []);
@@ -83,14 +119,29 @@ function CandidateCard({
   const latestCompany = exps[0];
   const school = useMemo(() => edus[0], [edus]);
 
-  const startDate = useMemo(
-    () => (latestCompany ? dateToFormat(latestCompany.start_date ?? "") : ""),
-    [latestCompany]
-  );
-  const endDate = useMemo(
-    () => (latestCompany ? dateToFormat(latestCompany.end_date ?? "") : ""),
-    [latestCompany]
-  );
+  const companyHistoryTooltipText = useMemo(() => {
+    if (exps.length === 0) return "경력 정보 없음";
+    return exps
+      .map((exp: any) => {
+        const companyName = companyEnToKo(exp?.company_db?.name ?? "-");
+        return `${companyName} (${formatPeriod(exp?.start_date, exp?.end_date)})`;
+      })
+      .join("\n");
+  }, [exps]);
+
+  const schoolHistoryTooltipText = useMemo(() => {
+    if (edus.length === 0) return "학력 정보 없음";
+    return edus
+      .map((edu: any) => {
+        const schoolName = koreaUniversityEnToKo(edu?.school ?? "-");
+        const degreeName = degreeEnToKo(edu?.degree ?? "-");
+        return `${schoolName} - ${degreeName}\n${formatPeriod(
+          edu?.start_date,
+          edu?.end_date
+        )}`;
+      })
+      .join("\n\n");
+  }, [edus]);
 
   return (
     <Link
@@ -107,9 +158,7 @@ function CandidateCard({
 
             <div className="flex flex-col items-start justify-between">
               <div className="flex flex-col gap-0">
-                <div
-                  className="truncate font-medium text-lg hover:underline cursor-pointer relative"
-                >
+                <div className="truncate font-medium text-lg hover:underline cursor-pointer relative">
                   {c.name ?? "None"}
                 </div>
                 {c.location && (
@@ -132,8 +181,8 @@ function CandidateCard({
             <RoleBox
               company={latestCompany.company_db.name ?? ""}
               role={latestCompany.role}
-              startDate={startDate}
-              endDate={endDate}
+              tooltipText={companyHistoryTooltipText}
+              tooltipSide="bottom"
             />
           )}
           {school && (
@@ -141,6 +190,8 @@ function CandidateCard({
               school={school.school}
               role={school.degree}
               field={school.field}
+              tooltipText={schoolHistoryTooltipText}
+              tooltipSide="bottom"
             />
           )}
         </div>
@@ -170,6 +221,16 @@ function CandidateCard({
               {shortlistSummaryText}
             </div>
           )}
+        </div>
+      )}
+      {isMyList && showShortlistMemo && (
+        <div className="mt-6 border-t border-white/10 pt-4">
+          <ShortlistMemoEditor
+            userId={userId}
+            candidId={c.id}
+            initialMemo={shortlistMemo}
+            rows={4}
+          />
         </div>
       )}
 

@@ -45,11 +45,10 @@ export function useToggleRequest() {
     },
 
     onSuccess: (_res, vars) => {
-      // 1) 북마크 페이지들 리프레시 (모든 페이지 pageIdx 포함 쿼리들)
-      qc.invalidateQueries({ queryKey: ["requests", vars.userId] });
-
-      // 2) 검색 결과 쿼리도 리프레시 (네 키에 맞게)
-      // qc.invalidateQueries({ queryKey: ["searchCandidates", vars.userId] });
+      qc.invalidateQueries({ queryKey: ["connections", vars.userId] });
+      qc.invalidateQueries({ queryKey: ["connectionsCount", vars.userId] });
+      qc.invalidateQueries({ queryKey: ["candidate"] });
+      qc.invalidateQueries({ queryKey: ["searchCandidatesByRun"] });
     },
   });
 }

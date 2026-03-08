@@ -7,16 +7,14 @@ export const runtime = "nodejs";
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
 const SIGNING_SECRET =
   process.env.LEMON_SQUEEZY_SIGNING_SECRET ||
   process.env.LEMON_SQUEEZY_WEBHOOK_SECRET;
 const LS_API_KEY =
-  process.env.LEMON_SQUEEZY_API_KEY ||
-  process.env.LEMONSQUEEZY_API_KEY ||
-  "";
+  process.env.LEMON_SQUEEZY_API_KEY || process.env.LEMONSQUEEZY_API_KEY || "";
 
 type PlanRow = {
   plan_id: string;
@@ -41,9 +39,10 @@ async function insertLog(userId: string | null, type: string) {
     // If userId is unknown, still write a log with a placeholder.
     const uid = userId ?? "unknown";
 
-    const { error } = await supabaseAdmin.from("new_logs").insert({
-      type,
-    });
+    // const { error } = await supabaseAdmin.from("new_logs").insert({
+    //   type,
+    // });
+    const error = null;
 
     // Do not throw from logging; avoid breaking webhook flow.
     if (error) {
@@ -99,7 +98,10 @@ async function getPaymentBySubscriptionId(subscriptionId: string) {
   return data ?? null;
 }
 
-async function getActiveSubscriptionsForUser(userId: string, excludeId: string) {
+async function getActiveSubscriptionsForUser(
+  userId: string,
+  excludeId: string
+) {
   const nowIso = new Date().toISOString();
   const { data, error } = await supabaseAdmin
     .from("payments")
@@ -117,9 +119,15 @@ async function getActiveSubscriptionsForUser(userId: string, excludeId: string) 
   }>;
 }
 
-async function cancelSubscriptionNow(subscriptionId: string, requestId: string) {
+async function cancelSubscriptionNow(
+  subscriptionId: string,
+  requestId: string
+) {
   if (!LS_API_KEY) {
-    await insertLog(null, `[${requestId}] cancel_old_subscription:missing_api_key`);
+    await insertLog(
+      null,
+      `[${requestId}] cancel_old_subscription:missing_api_key`
+    );
     return { ok: false, status: 500 };
   }
 
@@ -217,11 +225,13 @@ async function applyCredits(userId: string, plan: PlanRow) {
   }
 
   const eventType = `${plan.name ?? "subscription"}_subscription`;
-  const { error: historyErr } = await supabaseAdmin.from("credits_history").insert({
-    user_id: userId,
-    charged_credits: creditAmount,
-    event_type: eventType,
-  });
+  const { error: historyErr } = await supabaseAdmin
+    .from("credits_history")
+    .insert({
+      user_id: userId,
+      charged_credits: creditAmount,
+      event_type: eventType,
+    });
   if (historyErr) throw historyErr;
 }
 
@@ -248,7 +258,8 @@ function getSubscriptionDates(payload: any) {
   const attrs = payload?.data?.attributes ?? {};
   return {
     currentPeriodStart: attrs.current_period_start ?? attrs.created_at ?? null,
-    currentPeriodEnd: attrs.current_period_end ?? attrs.renews_at ?? attrs.ends_at ?? null,
+    currentPeriodEnd:
+      attrs.current_period_end ?? attrs.renews_at ?? attrs.ends_at ?? null,
     cancelledAt: attrs.cancelled_at ?? null,
     cancelAtPeriodEnd:
       typeof attrs.cancel_at_period_end === "boolean"
@@ -267,7 +278,10 @@ export async function POST(req: Request) {
   try {
     rawBody = await req.text();
   } catch (e: any) {
-    await insertLog(null, `[${requestId}] fail_read_body: ${safeStringify(e?.message ?? e)}`);
+    await insertLog(
+      null,
+      `[${requestId}] fail_read_body: ${safeStringify(e?.message ?? e)}`
+    );
     return NextResponse.json({ error: "Failed to read body" }, { status: 400 });
   }
 
@@ -307,8 +321,14 @@ export async function POST(req: Request) {
   try {
     payload = JSON.parse(rawBody);
   } catch (e: any) {
-    await insertLog(null, `[${requestId}] fail_invalid_json: ${safeStringify(e?.message ?? e)}`);
-    return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 });
+    await insertLog(
+      null,
+      `[${requestId}] fail_invalid_json: ${safeStringify(e?.message ?? e)}`
+    );
+    return NextResponse.json(
+      { error: "Invalid JSON payload" },
+      { status: 400 }
+    );
   }
 
   const eventName = getEventName(req, payload);
@@ -316,7 +336,8 @@ export async function POST(req: Request) {
 
   await insertLog(
     userIdFromCustom ? String(userIdFromCustom) : null,
-    `[${requestId}] parsed: event=${eventName ?? "null"}, userIdFromCustom=${userIdFromCustom ? String(userIdFromCustom) : "null"
+    `[${requestId}] parsed: event=${eventName ?? "null"}, userIdFromCustom=${
+      userIdFromCustom ? String(userIdFromCustom) : "null"
     }`
   );
 
@@ -332,11 +353,13 @@ export async function POST(req: Request) {
   try {
     if (eventName === "subscription_created") {
       const subscriptionId = getSubscriptionId(payload);
-      const variantId = payload?.data?.attributes?.variant_id?.toString?.() ?? null;
+      const variantId =
+        payload?.data?.attributes?.variant_id?.toString?.() ?? null;
 
       await insertLog(
         userIdFromCustom ? String(userIdFromCustom) : null,
-        `[${requestId}] subscription_created:start subscriptionId=${subscriptionId ?? "null"
+        `[${requestId}] subscription_created:start subscriptionId=${
+          subscriptionId ?? "null"
         }, variantId=${variantId ?? "null"}`
       );
 
@@ -348,7 +371,10 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true, ignored: true });
       }
 
-      await insertLog(String(userIdFromCustom), `[${requestId}] getPlanByVariantId:begin`);
+      await insertLog(
+        String(userIdFromCustom),
+        `[${requestId}] getPlanByVariantId:begin`
+      );
       const plan = await getPlanByVariantId(variantId);
       await insertLog(
         String(userIdFromCustom),
@@ -360,7 +386,10 @@ export async function POST(req: Request) {
           String(userIdFromCustom),
           `[${requestId}] subscription_created:fail unknown_plan_variant variantId=${variantId}`
         );
-        return NextResponse.json({ error: "Unknown plan variant" }, { status: 400 });
+        return NextResponse.json(
+          { error: "Unknown plan variant" },
+          { status: 400 }
+        );
       }
 
       const dates = getSubscriptionDates(payload);
@@ -377,13 +406,17 @@ export async function POST(req: Request) {
           `[${requestId}] cancel_old_subscription:before_upsert count=${toCancel.length}`
         );
         for (const row of toCancel) {
-          await cancelSubscriptionNow(String(row.ls_subscription_id), requestId);
+          await cancelSubscriptionNow(
+            String(row.ls_subscription_id),
+            requestId
+          );
         }
       }
 
       await insertLog(
         String(userIdFromCustom),
-        `[${requestId}] upsertPayment:begin periodStart=${dates.currentPeriodStart ?? "null"} periodEnd=${dates.currentPeriodEnd ?? "null"
+        `[${requestId}] upsertPayment:begin periodStart=${dates.currentPeriodStart ?? "null"} periodEnd=${
+          dates.currentPeriodEnd ?? "null"
         }`
       );
 
@@ -391,14 +424,21 @@ export async function POST(req: Request) {
         subscriptionId,
         userId: String(userIdFromCustom),
         planId: plan.plan_id ?? null,
-        customerId: payload?.data?.attributes?.customer_id?.toString?.() ?? null,
+        customerId:
+          payload?.data?.attributes?.customer_id?.toString?.() ?? null,
         currentPeriodStart: dates.currentPeriodStart,
         currentPeriodEnd: dates.currentPeriodEnd,
         cancelAtPeriodEnd: dates.cancelAtPeriodEnd,
       });
 
-      await insertLog(String(userIdFromCustom), `[${requestId}] upsertPayment:done`);
-      await insertLog(String(userIdFromCustom), `[${requestId}] subscription_created:success`);
+      await insertLog(
+        String(userIdFromCustom),
+        `[${requestId}] upsertPayment:done`
+      );
+      await insertLog(
+        String(userIdFromCustom),
+        `[${requestId}] subscription_created:success`
+      );
       return NextResponse.json({ ok: true });
     }
 
@@ -415,11 +455,14 @@ export async function POST(req: Request) {
       const orderItem = payload?.data?.attributes?.first_order_item ?? null;
       const variantId = orderItem?.variant_id?.toString?.() ?? null;
       const subscriptionId =
-        orderItem?.subscription_id ?? payload?.data?.attributes?.subscription_id ?? null;
+        orderItem?.subscription_id ??
+        payload?.data?.attributes?.subscription_id ??
+        null;
 
       await insertLog(
         userIdFromCustom ? String(userIdFromCustom) : null,
-        `[${requestId}] order_created:start variantId=${variantId ?? "null"} subscriptionId=${subscriptionId ?? "null"
+        `[${requestId}] order_created:start variantId=${variantId ?? "null"} subscriptionId=${
+          subscriptionId ?? "null"
         }`
       );
 
@@ -440,7 +483,10 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true, ignored: true });
       }
 
-      await insertLog(String(userIdFromCustom), `[${requestId}] getPlanByVariantId:begin`);
+      await insertLog(
+        String(userIdFromCustom),
+        `[${requestId}] getPlanByVariantId:begin`
+      );
       const plan = await getPlanByVariantId(variantId);
       await insertLog(
         String(userIdFromCustom),
@@ -452,13 +498,25 @@ export async function POST(req: Request) {
           String(userIdFromCustom),
           `[${requestId}] order_created:fail unknown_plan_variant variantId=${variantId}`
         );
-        return NextResponse.json({ error: "Unknown plan variant" }, { status: 400 });
+        return NextResponse.json(
+          { error: "Unknown plan variant" },
+          { status: 400 }
+        );
       }
 
-      await insertLog(String(userIdFromCustom), `[${requestId}] applyCredits:begin`);
+      await insertLog(
+        String(userIdFromCustom),
+        `[${requestId}] applyCredits:begin`
+      );
       await applyCredits(String(userIdFromCustom), plan);
-      await insertLog(String(userIdFromCustom), `[${requestId}] applyCredits:done`);
-      await insertLog(String(userIdFromCustom), `[${requestId}] order_created:success`);
+      await insertLog(
+        String(userIdFromCustom),
+        `[${requestId}] applyCredits:done`
+      );
+      await insertLog(
+        String(userIdFromCustom),
+        `[${requestId}] order_created:success`
+      );
 
       return NextResponse.json({ ok: true });
     }
@@ -502,7 +560,8 @@ export async function POST(req: Request) {
       const dates = getSubscriptionDates(payload);
       await insertLog(
         payment.user_id,
-        `[${requestId}] upsertPayment:begin periodStart=${dates.currentPeriodStart ?? "null"} periodEnd=${dates.currentPeriodEnd ?? "null"
+        `[${requestId}] upsertPayment:begin periodStart=${dates.currentPeriodStart ?? "null"} periodEnd=${
+          dates.currentPeriodEnd ?? "null"
         }`
       );
 
@@ -510,7 +569,8 @@ export async function POST(req: Request) {
         subscriptionId,
         userId: payment.user_id,
         planId: payment.plan_id,
-        customerId: payload?.data?.attributes?.customer_id?.toString?.() ?? null,
+        customerId:
+          payload?.data?.attributes?.customer_id?.toString?.() ?? null,
         currentPeriodStart: dates.currentPeriodStart,
         currentPeriodEnd: dates.currentPeriodEnd,
         cancelAtPeriodEnd: dates.cancelAtPeriodEnd,
@@ -518,7 +578,10 @@ export async function POST(req: Request) {
 
       await insertLog(payment.user_id, `[${requestId}] upsertPayment:done`);
 
-      await insertLog(payment.user_id, `[${requestId}] fetchPlanByPlanId:begin plan_id=${payment.plan_id}`);
+      await insertLog(
+        payment.user_id,
+        `[${requestId}] fetchPlanByPlanId:begin plan_id=${payment.plan_id}`
+      );
       const { data: plan, error } = await supabaseAdmin
         .from("plans")
         .select("plan_id, credit, name, ls_variant_id")
@@ -556,16 +619,25 @@ export async function POST(req: Request) {
           `[${requestId}] cancel_old_subscription:start count=${toCancel.length}`
         );
         for (const row of toCancel) {
-          await cancelSubscriptionNow(String(row.ls_subscription_id), requestId);
+          await cancelSubscriptionNow(
+            String(row.ls_subscription_id),
+            requestId
+          );
         }
       }
 
-      await insertLog(payment.user_id, `[${requestId}] subscription_payment_success:success`);
+      await insertLog(
+        payment.user_id,
+        `[${requestId}] subscription_payment_success:success`
+      );
 
       return NextResponse.json({ ok: true });
     }
 
-    if (eventName === "subscription_cancelled" || eventName === "subscription_expired") {
+    if (
+      eventName === "subscription_cancelled" ||
+      eventName === "subscription_expired"
+    ) {
       const subscriptionId = getSubscriptionId(payload);
 
       await insertLog(
@@ -596,7 +668,8 @@ export async function POST(req: Request) {
       }
 
       const dates = getSubscriptionDates(payload);
-      const finalEnd = dates.currentPeriodEnd ?? dates.cancelledAt ?? new Date().toISOString();
+      const finalEnd =
+        dates.currentPeriodEnd ?? dates.cancelledAt ?? new Date().toISOString();
 
       await insertLog(
         payment.user_id,
@@ -607,7 +680,8 @@ export async function POST(req: Request) {
         subscriptionId,
         userId: payment.user_id,
         planId: payment.plan_id,
-        customerId: payload?.data?.attributes?.customer_id?.toString?.() ?? null,
+        customerId:
+          payload?.data?.attributes?.customer_id?.toString?.() ?? null,
         currentPeriodStart: dates.currentPeriodStart,
         currentPeriodEnd: finalEnd,
         cancelAtPeriodEnd: true,
@@ -633,6 +707,9 @@ export async function POST(req: Request) {
     // You might want to also log stack traces during dev:
     // await insertLog(uid, `[${requestId}] handler_error_stack ${safeStringify(e?.stack ?? "")}`);
 
-    return NextResponse.json({ error: "Webhook handler error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Webhook handler error" },
+      { status: 500 }
+    );
   }
 }

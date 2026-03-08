@@ -8,12 +8,7 @@ import {
   majorEnToKo,
 } from "@/utils/language_map";
 import Bookmarkbutton from "./ui/bookmarkbutton";
-import {
-  GraduationCap,
-  BriefcaseBusiness,
-  XIcon,
-  CheckIcon,
-} from "lucide-react";
+import { GraduationCap, BriefcaseBusiness } from "lucide-react";
 import { useRouter } from "next/router";
 import { Avatar } from "./NameProfile";
 import { Tooltips } from "./ui/tooltip";
@@ -21,6 +16,7 @@ import SummaryCell, { SynthItem } from "./information/SummaryCell";
 import { useLogEvent } from "@/hooks/useLog";
 import { getSchoolLogo } from "@/utils/school_logo";
 import Link from "next/link";
+import ShortlistMemoEditor from "./ui/ShortlistMemoEditor";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
 
@@ -50,18 +46,48 @@ function parseSynthesizedSummary(text: string | null | undefined): SynthItem[] {
   }
 }
 
+function formatYearMonth(dateStr?: string | null) {
+  if (!dateStr) return "";
+  if (dateStr === "Present") return "현재";
+
+  const ymMatch = String(dateStr).match(/^(\d{4})-(\d{1,2})/);
+  if (ymMatch) {
+    return `${ymMatch[1]}.${ymMatch[2].padStart(2, "0")}`;
+  }
+
+  const d = new Date(dateStr);
+  if (!Number.isNaN(d.getTime())) {
+    return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }
+
+  return String(dateStr)
+    .replace(/년\s?/g, ".")
+    .replace(/월/g, "")
+    .replace(/\s+/g, "");
+}
+
+function formatPeriod(startDate?: string | null, endDate?: string | null) {
+  const start = formatYearMonth(startDate) || "시작 미상";
+  const end = endDate ? formatYearMonth(endDate) || endDate : "현재";
+  return `${start} ~ ${end}`;
+}
+
 function CandidateRow({
   c,
   userId,
   isMyList = false,
+  showShortlistMemo = false,
   criterias,
+  orderedColumnIds,
   gridTemplateColumns,
   rowIndex,
 }: {
   c: CandidateTypeWithConnection;
   userId: string;
   isMyList?: boolean;
+  showShortlistMemo?: boolean;
   criterias: string[];
+  orderedColumnIds: string[];
   gridTemplateColumns: string;
   rowIndex: number;
 }) {
@@ -86,6 +112,12 @@ function CandidateRow({
   const shortlistSummaryText = useMemo(() => {
     return sanitizeSummaryText(c.s?.[0]?.text ?? c.summary, c.name ?? "");
   }, [c.s, c.summary, c.name]);
+  const shortlistMemo = useMemo(() => {
+    return String(c.shortlist_memo ?? "");
+  }, [c.shortlist_memo]);
+  const isBookmarked = useMemo(() => {
+    return (c.connection ?? []).some((con) => con.typed === 0);
+  }, [c.connection]);
 
   const companyLogo = useMemo(() => {
     if (latestCompany?.company_db?.logo?.includes("media.licdn.com")) {
@@ -98,6 +130,149 @@ function CandidateRow({
     return getSchoolLogo(latestEdu?.url);
   }, [latestEdu]);
 
+  const companyHistoryTooltipText = useMemo(() => {
+    if (exps.length === 0) return "경력 정보 없음";
+    return exps
+      .map((exp: any) => {
+        const companyName = companyEnToKo(exp?.company_db?.name ?? "-");
+        return `${companyName} (${formatPeriod(exp?.start_date, exp?.end_date)})`;
+      })
+      .join("\n");
+  }, [exps]);
+
+  const schoolHistoryTooltipText = useMemo(() => {
+    if (edus.length === 0) return "학력 정보 없음";
+    return edus
+      .map((edu: any) => {
+        const schoolName = koreaUniversityEnToKo(edu?.school ?? "-");
+        const degreeName = degreeEnToKo(edu?.degree ?? "-");
+        return `${schoolName} - ${degreeName}\n${formatPeriod(
+          edu?.start_date,
+          edu?.end_date
+        )}`;
+      })
+      .join("\n\n");
+  }, [edus]);
+
+  const renderColumnCell = (columnId: string) => {
+    if (columnId.startsWith("criteria:")) {
+      const idx = Number(columnId.split(":")[1]);
+      const criteria = criterias[idx] ?? "";
+      return (
+        <div
+          key={columnId}
+          className="min-w-0 h-full flex items-center justify-center"
+        >
+          <SummaryCell criteria={criteria} item={synthList[idx]} />
+        </div>
+      );
+    }
+
+    if (columnId === "company") {
+      return (
+        <Tooltips text={companyHistoryTooltipText} side="bottom">
+          <div>
+            <Cell
+              key={columnId}
+              title={
+                latestCompany?.company_db?.name ? (
+                  <div className="flex flex-row items-center justify-start gap-x-2 min-w-0 relative">
+                    {companyLogo && (
+                      <img
+                        src={companyLogo}
+                        alt={latestCompany.company_db.name}
+                        className="w-4 h-4 rounded-full object-cover"
+                      />
+                    )}
+                    <span className="text-hgray800 font-normal break-words">
+                      {companyEnToKo(latestCompany.company_db.name)}
+                    </span>
+                  </div>
+                ) : (
+                  "-"
+                )
+              }
+              description={latestCompany?.role ?? "-"}
+            />
+          </div>
+        </Tooltips>
+      );
+    }
+
+    if (columnId === "school") {
+      return (
+        <Tooltips text={schoolHistoryTooltipText} side="bottom">
+          <div>
+            <Cell
+              key={columnId}
+              title={
+                latestEdu?.school ? (
+                  <div className="flex flex-row items-center justify-start gap-x-2 min-w-0 relative">
+                    {schoolLogo && (
+                      <img
+                        src={schoolLogo}
+                        alt={latestEdu.school}
+                        className="w-4 h-4 rounded-full object-cover"
+                      />
+                    )}
+                    <span className="text-hgray800 font-normal break-words">
+                      {koreaUniversityEnToKo(latestEdu.school)}
+                    </span>
+                  </div>
+                ) : (
+                  "-"
+                )
+              }
+              description={`${
+                latestEdu?.field_of_study
+                  ? majorEnToKo(latestEdu.field_of_study)
+                  : ""
+              }
+                ${latestEdu?.field_of_study && latestEdu?.degree ? " • " : ""}
+                ${latestEdu?.degree ? degreeEnToKo(latestEdu.degree) : ""}`}
+            />
+          </div>
+        </Tooltips>
+      );
+    }
+
+    if (columnId === "summary") {
+      return (
+        <div
+          key={columnId}
+          className="px-4 py-3 min-w-0 h-full flex items-center"
+        >
+          <div className="text-[13px] font-normal text-hgray900 leading-5 whitespace-pre-wrap break-words line-clamp-3">
+            {shortlistSummaryText || "-"}
+          </div>
+        </div>
+      );
+    }
+
+    if (columnId === "memo") {
+      return (
+        <div
+          key={columnId}
+          className="px-4 py-2 min-w-0 h-full flex items-center"
+        >
+          <ShortlistMemoEditor
+            userId={userId}
+            candidId={c.id}
+            initialMemo={shortlistMemo}
+            rows={2}
+            className="w-full"
+          />
+        </div>
+      );
+    }
+
+    if (columnId === "actions") {
+      return <div key={columnId} className="px-2 py-3 min-w-0 h-full" />;
+    }
+
+    return null;
+  };
+
   return (
     <div className="w-full">
       <Link
@@ -105,7 +280,7 @@ function CandidateRow({
         role="row"
         onClick={() => logEvent("candidate_card_click: " + candidId)}
       >
-        <div className="group relative w-full border-b border-white/5 hover:bg-[#242424] transition-colors cursor-pointer">
+        <div className="group relative w-full border-b border-white/5 hover:bg-[#242424] transition-colors cursor-pointer pr-60">
           <div
             className="inline-grid items-center"
             style={{ gridTemplateColumns }}
@@ -134,12 +309,9 @@ function CandidateRow({
                 }}
               >
                 <div
-                  className={
-                    isMyList ||
-                    c.connection?.map((con: any) => con.typed).includes(0)
-                      ? "opacity-100"
-                      : "opacity-0 group-hover:opacity-100"
-                  }
+                  className={`${
+                    isBookmarked && !isMyList ? "opacity-100" : "opacity-0"
+                  } group-hover:opacity-100`}
                 >
                   <Bookmarkbutton
                     userId={userId}
@@ -152,82 +324,7 @@ function CandidateRow({
               </div>
             </div>
 
-            {criterias.map((criteria: string, idx: number) => (
-              <div
-                key={`${candidId}-critwrap-${idx}`}
-                className="min-w-0 h-full flex items-center justify-center"
-              >
-                <SummaryCell
-                  key={`${candidId}-crit-${idx}`}
-                  criteria={criteria}
-                  item={synthList[idx]}
-                />
-              </div>
-            ))}
-
-            <Cell
-              title={
-                latestCompany?.company_db?.name ? (
-                  <div className="flex flex-row items-center justify-start gap-x-2 min-w-0 relative">
-                    {companyLogo && (
-                      <img
-                        src={companyLogo}
-                        alt={latestCompany.company_db.name}
-                        className="w-4 h-4 rounded-full object-cover"
-                      />
-                    )}
-                    <span className="text-hgray800 font-normal break-words">
-                      {companyEnToKo(latestCompany.company_db.name)}
-                    </span>
-                  </div>
-                ) : (
-                  "-"
-                )
-              }
-              description={latestCompany?.role ?? "-"}
-            />
-            <Cell
-              title={
-                latestEdu?.school ? (
-                  <div className="flex flex-row items-center justify-start gap-x-2 min-w-0 relative">
-                    {schoolLogo && (
-                      <img
-                        src={schoolLogo}
-                        alt={latestEdu.school}
-                        className="w-4 h-4 rounded-full object-cover"
-                      />
-                    )}
-                    <span className="text-hgray800 font-normal break-words">
-                      {koreaUniversityEnToKo(latestEdu.school)}
-                    </span>
-                  </div>
-                ) : (
-                  "-"
-                )
-              }
-              description={`${
-                latestEdu?.field_of_study
-                  ? majorEnToKo(latestEdu.field_of_study)
-                  : ""
-              }
-                ${latestEdu?.field_of_study && latestEdu?.degree ? " • " : ""}
-                ${latestEdu?.degree ? degreeEnToKo(latestEdu.degree) : ""}`}
-            />
-            {/* <div className="flex flex-row items-center justify-center gap-3">
-              {c.connection?.map((con: any) => con.typed).includes(4) && (
-                <CheckIcon className="w-4 h-4 text-green-500" />
-              )}
-              {c.connection?.map((con: any) => con.typed).includes(5) && (
-                <XIcon className="w-4 h-4 text-red-500" />
-              )}
-            </div> */}
-            {isMyList && (
-              <div className="px-4 py-3 min-w-0 h-full flex items-center">
-                <div className="text-[13px] font-normal text-hgray900 leading-5 whitespace-pre-wrap break-words line-clamp-3">
-                  {shortlistSummaryText || "-"}
-                </div>
-              </div>
-            )}
+            {orderedColumnIds.map((columnId) => renderColumnCell(columnId))}
           </div>
         </div>
       </Link>
@@ -263,19 +360,23 @@ export const RoleBox = ({
   role,
   startDate,
   endDate,
+  tooltipText,
+  tooltipSide = "bottom",
 }: {
   company: string;
   role: string;
   startDate?: string;
   endDate?: string;
+  tooltipText?: string;
+  tooltipSide?: "bottom" | "top" | "left" | "right";
 }) => {
+  const defaultTooltipText = `${startDate ? startDate : ""} ${
+    startDate ? " - " : ""
+  } ${endDate && endDate} ${!endDate && startDate && "현재"}`.trim();
+
   return (
     <div className="flex flex-col items-start gap-0 text-sm col-span-4">
-      <Tooltips
-        text={`${startDate ? startDate : ""} ${startDate ? " - " : ""} ${
-          endDate && endDate
-        } ${!endDate && startDate && "현재"}`}
-      >
+      <Tooltips text={tooltipText ?? defaultTooltipText} side={tooltipSide}>
         <div className="flex flex-row items-start justify-between w-full pr-8">
           <div className="flex flex-row items-start justify-start gap-x-2 min-w-0 relative">
             <BriefcaseBusiness className="absolute left-0 top-[2px] w-4 h-4 text-hgray800" />
@@ -295,14 +396,18 @@ export const SchoolBox = ({
   school,
   role,
   field,
+  tooltipText,
+  tooltipSide = "bottom",
 }: {
   school: string;
   role: string;
   field: string;
+  tooltipText?: string;
+  tooltipSide?: "bottom" | "top" | "left" | "right";
 }) => {
   return (
     <div className="flex flex-col items-start gap-0 text-sm col-span-4">
-      <Tooltips text="가장 최근 학력">
+      <Tooltips text={tooltipText ?? "가장 최근 학력"} side={tooltipSide}>
         <div className="flex flex-row items-start justify-start gap-x-2 min-w-0 relative">
           <GraduationCap className="absolute left-0 top-[2px] w-4 h-4 text-hgray800" />
           <span className="text-hgray800 font-normal break-words">

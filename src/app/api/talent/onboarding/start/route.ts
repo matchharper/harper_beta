@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
 import {
+  TALENT_PENDING_QUESTION_PREFIX,
   TalentConversationRow,
   TalentMessageRow,
+  fetchTalentUserProfile,
+  getTalentResumeSignedUrl,
   getTalentSupabaseAdmin,
   toTalentDisplayName,
 } from "@/lib/talentOnboarding/server";
@@ -11,6 +14,7 @@ import {
 type Body = {
   conversationId?: string;
   resumeFileName?: string;
+  resumeStoragePath?: string;
   resumeText?: string;
   links?: string[];
 };
@@ -31,13 +35,17 @@ function parseKickoffPayload(raw: string): LlmKickoff | null {
   try {
     const parsed = JSON.parse(normalized) as Partial<LlmKickoff>;
     if (!parsed || typeof parsed !== "object") return null;
+
     const acknowledgement =
       typeof parsed.acknowledgement === "string"
         ? parsed.acknowledgement.trim()
         : "";
-    const insight = typeof parsed.insight === "string" ? parsed.insight.trim() : "";
+    const insight =
+      typeof parsed.insight === "string" ? parsed.insight.trim() : "";
     const firstQuestion =
-      typeof parsed.firstQuestion === "string" ? parsed.firstQuestion.trim() : "";
+      typeof parsed.firstQuestion === "string"
+        ? parsed.firstQuestion.trim()
+        : "";
 
     if (!acknowledgement || !insight || !firstQuestion) return null;
     return { acknowledgement, insight, firstQuestion };
@@ -63,6 +71,7 @@ export async function POST(req: NextRequest) {
     const body = (await req.json()) as Body;
     const conversationId = body.conversationId?.trim();
     const resumeFileName = body.resumeFileName?.trim();
+    const resumeStoragePath = body.resumeStoragePath?.trim();
     const resumeText = body.resumeText?.trim() ?? "";
     const links = (body.links ?? [])
       .map((link) => String(link).trim())
@@ -80,8 +89,11 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    if (links.length === 0) {
-      return NextResponse.json({ error: "links are required" }, { status: 400 });
+    if (!resumeStoragePath) {
+      return NextResponse.json(
+        { error: "resumeStoragePath is required" },
+        { status: 400 }
+      );
     }
 
     const admin = getTalentSupabaseAdmin();
@@ -99,46 +111,28 @@ export async function POST(req: NextRequest) {
       );
     }
     if (!conversation) {
-      return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Conversation not found" },
+        { status: 404 }
+      );
     }
 
     const now = new Date().toISOString();
-    const { data: updatedConversation, error: updateError } = await admin
-      .from("talent_conversations")
+
+    const { error: profileUpdateError } = await admin
+      .from("talent_users")
       .update({
-        stage: "chat",
         resume_file_name: resumeFileName,
+        resume_storage_path: resumeStoragePath,
         resume_text: resumeText.slice(0, 20000),
         resume_links: links,
         updated_at: now,
       })
-      .eq("id", conversationId)
-      .eq("user_id", user.id)
-      .select("*")
-      .single();
+      .eq("user_id", user.id);
 
-    if (updateError) {
+    if (profileUpdateError) {
       return NextResponse.json(
-        { error: updateError.message ?? "Failed to update conversation" },
-        { status: 500 }
-      );
-    }
-
-    const { data: insertedUserMessage, error: userMessageError } = await admin
-      .from("talent_messages")
-      .insert({
-        conversation_id: conversationId,
-        user_id: user.id,
-        role: "user",
-        content: "이력서와 주요 링크를 제출했습니다.",
-        message_type: "profile_submit",
-      })
-      .select("*")
-      .single();
-
-    if (userMessageError) {
-      return NextResponse.json(
-        { error: userMessageError.message ?? "Failed to insert user message" },
+        { error: profileUpdateError.message ?? "Failed to update talent profile" },
         { status: 500 }
       );
     }
@@ -169,7 +163,7 @@ export async function POST(req: NextRequest) {
           content: [
             `이름: ${displayName}`,
             `이력서 파일명: ${resumeFileName}`,
-            `링크: ${links.join(", ")}`,
+            `링크: ${links.join(", ") || "(없음)"}`,
             `이력서 텍스트(일부): ${resumeText.slice(0, 8000) || "(없음)"}`,
           ].join("\n"),
         },
@@ -179,7 +173,14 @@ export async function POST(req: NextRequest) {
 
     const kickoff = parseKickoffPayload(llmRaw) ?? FALLBACK_KICKOFF;
 
-    const assistantPayloads = [
+    const messagePayloads = [
+      {
+        conversation_id: conversationId,
+        user_id: user.id,
+        role: "user",
+        content: "이력서와 주요 링크를 제출했습니다.",
+        message_type: "profile_submit",
+      },
       {
         conversation_id: conversationId,
         user_id: user.id,
@@ -191,26 +192,49 @@ export async function POST(req: NextRequest) {
         conversation_id: conversationId,
         user_id: user.id,
         role: "assistant",
-        content: "Harper가 당신에게 맞는 기회를 찾기 위해 몇 가지 질문을 할게요.",
+        content: `${TALENT_PENDING_QUESTION_PREFIX}질문 1. ${kickoff.firstQuestion}`,
         message_type: "system",
-      },
-      {
-        conversation_id: conversationId,
-        user_id: user.id,
-        role: "assistant",
-        content: `질문 1. ${kickoff.firstQuestion}`,
-        message_type: "chat",
       },
     ];
 
-    const { data: insertedAssistantMessages, error: assistantError } = await admin
+    const { data: insertedMessages, error: messageInsertError } = await admin
       .from("talent_messages")
-      .insert(assistantPayloads)
+      .insert(messagePayloads)
       .select("*");
 
-    if (assistantError) {
+    if (messageInsertError) {
       return NextResponse.json(
-        { error: assistantError.message ?? "Failed to insert assistant messages" },
+        {
+          error:
+            messageInsertError.message ?? "Failed to insert onboarding messages",
+        },
+        { status: 500 }
+      );
+    }
+
+    const insertedRows = (insertedMessages ?? []) as TalentMessageRow[];
+
+    const { data: updatedConversation, error: conversationUpdateError } = await admin
+      .from("talent_conversations")
+      .update({
+        stage: "chat",
+        updated_at: now,
+      })
+      .eq("id", conversationId)
+      .eq("user_id", user.id)
+      .select("*")
+      .single();
+
+    if (conversationUpdateError) {
+      const insertedIds = insertedRows.map((item) => item.id);
+      if (insertedIds.length > 0) {
+        await admin.from("talent_messages").delete().in("id", insertedIds);
+      }
+      return NextResponse.json(
+        {
+          error:
+            conversationUpdateError.message ?? "Failed to update conversation",
+        },
         { status: 500 }
       );
     }
@@ -223,18 +247,37 @@ export async function POST(req: NextRequest) {
       createdAt: message.created_at,
     });
 
+    const profile = await fetchTalentUserProfile({ admin, userId: user.id });
+    const resumeDownloadUrl = await getTalentResumeSignedUrl({
+      admin,
+      storagePath: profile?.resume_storage_path,
+    });
+    const insertedUserMessage = insertedRows.find((item) => item.role === "user");
+    if (!insertedUserMessage) {
+      return NextResponse.json(
+        { error: "Failed to create profile submit message" },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json({
       ok: true,
       conversation: {
         id: (updatedConversation as TalentConversationRow).id,
         stage: (updatedConversation as TalentConversationRow).stage,
-        resumeFileName: (updatedConversation as TalentConversationRow).resume_file_name,
-        resumeLinks: (updatedConversation as TalentConversationRow).resume_links ?? [],
+        resumeFileName: profile?.resume_file_name ?? null,
+        resumeStoragePath: profile?.resume_storage_path ?? null,
+        resumeDownloadUrl,
+        resumeLinks: profile?.resume_links ?? [],
       },
-      userMessage: toResponseMessage(insertedUserMessage as TalentMessageRow),
-      assistantMessages: (insertedAssistantMessages as TalentMessageRow[]).map(
-        toResponseMessage
-      ),
+      userMessage: toResponseMessage(insertedUserMessage),
+      assistantMessages: insertedRows
+        .filter(
+          (item) =>
+            item.role === "assistant" &&
+            !item.content.startsWith(TALENT_PENDING_QUESTION_PREFIX)
+        )
+        .map(toResponseMessage),
     });
   } catch (error) {
     const message =
