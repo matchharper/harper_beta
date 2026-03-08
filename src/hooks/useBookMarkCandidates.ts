@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { CandidateTypeWithConnection } from "./useSearchChatCandidates";
-import { useState } from "react";
 
 export type ConnectionTyped = 0 | 1 | 2 | 3;
 
@@ -9,24 +8,22 @@ export const connectionsKey = (
   userId?: string,
   typed: ConnectionTyped = 0,
   pageIdx: number = 0,
-  pageSize: number = 10
-) => ["connections", userId, typed, pageIdx, pageSize] as const;
+  pageSize: number = 10,
+  folderId: number | null = null
+) => ["connections", userId, typed, pageIdx, pageSize, folderId] as const;
 
 export function useCandidatesByConnectionTyped(
   userId?: string,
   typed: ConnectionTyped = 0,
   pageIdx: number = 0,
-  pageSize: number = 10
+  pageSize: number = 10,
+  folderId: number | null = null
 ) {
-  const [isLoading, setIsLoading] = useState(false);
-
   return useQuery({
-    queryKey: connectionsKey(userId, typed, pageIdx, pageSize),
-    enabled: !!userId && !isLoading,
+    queryKey: connectionsKey(userId, typed, pageIdx, pageSize, folderId),
+    enabled: !!userId,
     queryFn: async () => {
-      setIsLoading(true);
       if (!userId) {
-        setIsLoading(false);
         return {
           items: [] as CandidateTypeWithConnection[],
           hasNext: false,
@@ -38,17 +35,32 @@ export function useCandidatesByConnectionTyped(
       const to = from + pageSize - 1;
 
       // 1) connection 페이지 단위 + total count
-      const {
-        data: rows,
-        error: e1,
-        count,
-      } = await supabase
-        .from("connection")
-        .select("candid_id", { count: "exact" })
-        .eq("user_id", userId)
-        .eq("typed", typed)
-        .order("created_at", { ascending: false })
-        .range(from, to);
+      let rows: any[] | null = null;
+      let count: number | null = 0;
+      let e1: any = null;
+
+      if (typed === 0 && folderId !== null) {
+        const res = await ((supabase.from("bookmark_folder_item" as any) as any)
+          .select("candid_id", { count: "exact" })
+          .eq("user_id", userId)
+          .eq("folder_id", folderId)
+          .order("created_at", { ascending: false })
+          .range(from, to));
+        rows = res.data;
+        e1 = res.error;
+        count = res.count;
+      } else {
+        const res = await supabase
+          .from("connection")
+          .select("candid_id", { count: "exact" })
+          .eq("user_id", userId)
+          .eq("typed", typed)
+          .order("created_at", { ascending: false })
+          .range(from, to);
+        rows = res.data;
+        e1 = res.error;
+        count = res.count;
+      }
 
       if (e1) throw e1;
 
@@ -57,7 +69,6 @@ export function useCandidatesByConnectionTyped(
         .filter(Boolean) as string[];
 
       if (ids.length === 0) {
-        setIsLoading(false);
         return {
           items: [] as CandidateTypeWithConnection[],
           hasNext: false,
@@ -97,7 +108,8 @@ export function useCandidatesByConnectionTyped(
         ),
         connection (
           user_id,
-          typed
+          typed,
+          text
         ),
         s:summary (
           text
@@ -109,15 +121,37 @@ export function useCandidatesByConnectionTyped(
 
       if (e2) throw e2;
 
+      const memoByCandidId = new Map<string, string>();
+      const { data: memoRows, error: e3 } = await (
+        supabase.from("shortlist_memo" as any) as any
+      )
+        .select("candid_id, memo")
+        .eq("user_id", userId)
+        .in("candid_id", ids);
+
+      if (!e3 && Array.isArray(memoRows)) {
+        for (const row of memoRows) {
+          const cid = String(row?.candid_id ?? "");
+          if (!cid) continue;
+          memoByCandidId.set(cid, String(row?.memo ?? ""));
+        }
+      }
+
       // ids 순서 유지
       const map = new Map((cands ?? []).map((c: any) => [c.id, c]));
       const items = ids
-        .map((id) => map.get(id))
+        .map((id) => {
+          const cand = map.get(id);
+          if (!cand) return null;
+          return {
+            ...cand,
+            shortlist_memo: memoByCandidId.get(id) ?? "",
+          };
+        })
         .filter(Boolean) as CandidateTypeWithConnection[];
 
       const total = count ?? 0;
       const hasNext = to + 1 < total;
-      setIsLoading(false);
 
       return { items, hasNext, total };
     },

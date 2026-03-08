@@ -33,7 +33,8 @@ export type ExperienceUserType = ExpUserType & {
 export type CandidateTypeWithConnection = CandidateType & {
   edu_user: EduUserType[];
   experience_user: ExperienceUserType[];
-  connection: { user_id: string; typed: number }[];
+  connection: { user_id: string; typed: number; text?: string | null }[];
+  shortlist_memo?: string | null;
   publications?: { title: string; published_at: string }[];
   synthesized_summary?: { text: string }[];
   s?: { text: string | null }[];

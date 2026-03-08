@@ -1,7 +1,8 @@
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { CandidateDetail, candidateKey } from "@/hooks/useCandidateDetail";
 import ShareProfileModal from "@/components/Modal/ShareProfileModal";
-import { Check, Share2, Upload, XIcon } from "lucide-react";
+import ConnectionModal from "@/components/Modal/ConnectionModal";
+import { Upload } from "lucide-react";
 import Bookmarkbutton from "@/components/ui/bookmarkbutton";
 import GithubRepoContributionBox from "@/components/profile/GithubRepoContributionBox";
 import ItemBox from "./components/ItemBox";
@@ -24,6 +25,8 @@ import FeedbackBanner from "./components/FeedbackBanner";
 import { useRunDetail } from "@/hooks/useRunDetail";
 import { supabase } from "@/lib/supabase";
 import Criterias from "./components/Criterias";
+import ShortlistMemoEditor from "@/components/ui/ShortlistMemoEditor";
+import { useShortlistMemo } from "@/hooks/useShortlistMemo";
 
 export const ExperienceCal = (months: number) => {
   const years = Math.floor(months / 12);
@@ -82,6 +85,8 @@ function CandidateProfileDetailPage({
   const [isLoadingOneline, setIsLoadingOneline] = useState(false);
   const [oneline, setOneline] = useState<string | null>(null);
   const [isShareOpen, setIsShareOpen] = useState(false);
+  const [isConnectionModalOpen, setIsConnectionModalOpen] = useState(false);
+  const [isIntroRequested, setIsIntroRequested] = useState(false);
   const [runSynthesizedSummary, setRunSynthesizedSummary] = useState<
     SynthesizedSummaryItem[]
   >([]);
@@ -92,10 +97,17 @@ function CandidateProfileDetailPage({
   const userId = companyUser?.user_id;
   const qc = useQueryClient();
   const { data: runData } = useRunDetail(runId);
+  const { data: shortlistMemo = "" } = useShortlistMemo(userId, candidId);
 
   const c: any = data;
   const showAutomationFeedback =
     data?.isAutomationResult && companyUser.is_custom;
+
+  useEffect(() => {
+    setIsIntroRequested(
+      c?.connection?.some((con: { typed: number }) => con.typed === 1) ?? false
+    );
+  }, [c?.connection]);
 
   const runCriteriaList = useMemo(
     () => asStringArray((runData as any)?.criteria),
@@ -379,6 +391,17 @@ function CandidateProfileDetailPage({
       )}
       <div className="relative w-[95%] max-w-[1080px] mx-auto px-4 py-10 space-y-10">
         <div className="flex flex-row items-start justify-between w-full">
+          <ConnectionModal
+            candidId={candidId}
+            open={isConnectionModalOpen}
+            name={c.name ?? ""}
+            headline={c.headline ?? ""}
+            location={c.location ?? ""}
+            profilePicture={c.profile_picture ?? ""}
+            isRequested={isIntroRequested}
+            onClose={() => setIsConnectionModalOpen(false)}
+            onConfirm={() => setIsIntroRequested((prev) => !prev)}
+          />
           <MainProfile
             profile_picture={c.profile_picture}
             name={c.name}
@@ -403,6 +426,12 @@ function CandidateProfileDetailPage({
                 candidId={c.id}
                 connection={c.connection}
               />
+              <button
+                onClick={() => setIsConnectionModalOpen(true)}
+                className="inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-sm text-accenta1 hover:bg-accenta1/10"
+              >
+                {isIntroRequested ? "Intro 요청됨" : "Intro 요청"}
+              </button>
             </div>
           </div>
 
@@ -418,6 +447,17 @@ function CandidateProfileDetailPage({
             <Criterias criteriaSummaries={criteriaSummaries} />
           </Box>
         )}
+
+        <Box title={shortlistMemo ? "내부 메모" : ""} color="accenta1">
+          <ShortlistMemoEditor
+            userId={userId}
+            candidId={candidId}
+            initialMemo={shortlistMemo}
+            rows={4}
+            className={"w-full min-h-[88px]"}
+            isSmall={true}
+          />
+        </Box>
 
         <ProfileBio
           summary={c.s ?? []}
@@ -559,15 +599,19 @@ export const Box = ({
   title,
   icon,
   children,
+  color,
 }: {
   title: string;
   icon?: React.ReactNode;
   children: React.ReactNode;
+  color?: string;
 }) => {
   return (
     <div className="shadow-sm w-full grid grid-cols-7">
       <div className="col-span-1">
-        <div className="flex items-center gap-2 text-base font-normal text-hgray1000">
+        <div
+          className={`flex items-center gap-2 font-normal ${color ? `text-${color} text-sm` : "text-base text-hgray1000"}`}
+        >
           {icon}
           {title}
         </div>

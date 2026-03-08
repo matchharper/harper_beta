@@ -26,6 +26,19 @@ export type TalentConversationRow = {
   updated_at: string;
 };
 
+export type TalentUserProfileRow = {
+  user_id: string;
+  email: string | null;
+  name: string | null;
+  profile_picture: string | null;
+  resume_file_name: string | null;
+  resume_storage_path: string | null;
+  resume_text: string | null;
+  resume_links: string[] | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type TalentMessageRow = {
   id: number;
   conversation_id: string;
@@ -35,6 +48,19 @@ export type TalentMessageRow = {
   message_type: string | null;
   created_at: string;
 };
+
+export const TALENT_RESUME_BUCKET = "talent-resumes";
+export const TALENT_PENDING_QUESTION_PREFIX = "__PENDING_Q__::";
+
+export function isPendingQuestionContent(content: string | null | undefined) {
+  if (!content) return false;
+  return content.startsWith(TALENT_PENDING_QUESTION_PREFIX);
+}
+
+export function stripPendingQuestionPrefix(content: string) {
+  if (!isPendingQuestionContent(content)) return content;
+  return content.slice(TALENT_PENDING_QUESTION_PREFIX.length).trim();
+}
 
 function readEnv(name: string) {
   const value = process.env[name];
@@ -108,4 +134,83 @@ export async function fetchMessages(args: {
   }
 
   return (data ?? []) as TalentMessageRow[];
+}
+
+export async function fetchRecentMessages(args: {
+  admin: ReturnType<typeof getTalentSupabaseAdmin>;
+  conversationId: string;
+  limit?: number;
+}) {
+  const { admin, conversationId, limit = 24 } = args;
+  const { data, error } = await admin
+    .from("talent_messages")
+    .select(
+      "id, conversation_id, user_id, role, content, message_type, created_at"
+    )
+    .eq("conversation_id", conversationId)
+    .order("id", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load recent talent_messages");
+  }
+
+  return ((data ?? []) as TalentMessageRow[]).reverse();
+}
+
+export async function countUserChatTurns(args: {
+  admin: ReturnType<typeof getTalentSupabaseAdmin>;
+  conversationId: string;
+}) {
+  const { admin, conversationId } = args;
+  const { count, error } = await admin
+    .from("talent_messages")
+    .select("id", { count: "exact", head: true })
+    .eq("conversation_id", conversationId)
+    .eq("role", "user")
+    .eq("message_type", "chat");
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to count user chat turns");
+  }
+
+  return count ?? 0;
+}
+
+export async function fetchTalentUserProfile(args: {
+  admin: ReturnType<typeof getTalentSupabaseAdmin>;
+  userId: string;
+}) {
+  const { admin, userId } = args;
+  const { data, error } = await admin
+    .from("talent_users")
+    .select(
+      "user_id, email, name, profile_picture, resume_file_name, resume_storage_path, resume_text, resume_links, created_at, updated_at"
+    )
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load talent_users profile");
+  }
+
+  return (data ?? null) as TalentUserProfileRow | null;
+}
+
+export async function getTalentResumeSignedUrl(args: {
+  admin: ReturnType<typeof getTalentSupabaseAdmin>;
+  storagePath: string | null | undefined;
+  expiresIn?: number;
+}) {
+  const { admin, storagePath, expiresIn = 3600 } = args;
+  if (!storagePath) return null;
+
+  const { data, error } = await admin.storage
+    .from(TALENT_RESUME_BUCKET)
+    .createSignedUrl(storagePath, expiresIn);
+
+  if (error) {
+    return null;
+  }
+  return data?.signedUrl ?? null;
 }

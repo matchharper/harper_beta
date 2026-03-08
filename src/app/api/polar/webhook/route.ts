@@ -2,7 +2,10 @@ import crypto from "crypto";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { Polar } from "@polar-sh/sdk";
-import { WebhookVerificationError, validateEvent } from "@polar-sh/sdk/webhooks";
+import {
+  WebhookVerificationError,
+  validateEvent,
+} from "@polar-sh/sdk/webhooks";
 import { POLAR_SERVER } from "@/lib/polar/config";
 
 export const runtime = "nodejs";
@@ -94,7 +97,9 @@ function getPlanMap() {
     }
 
     const normalized: Record<string, string> = {};
-    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+    for (const [key, value] of Object.entries(
+      parsed as Record<string, unknown>
+    )) {
       const k = asString(key);
       const v = asString(value);
       if (k && v) normalized[k] = v;
@@ -110,7 +115,8 @@ function getPlanMap() {
 async function insertLog(userId: string | null, type: string) {
   try {
     void userId;
-    const { error } = await supabaseAdmin.from("new_logs").insert({ type });
+    // const { error } = await supabaseAdmin.from("new_logs").insert({ type });
+    const error = null;
     if (error) {
       console.error("insertLog failed:", error);
     }
@@ -149,7 +155,10 @@ async function getPaymentBySubscriptionId(subscriptionId: string) {
   return (data ?? null) as PaymentRow | null;
 }
 
-async function getActiveSubscriptionsForUser(userId: string, excludeId: string) {
+async function getActiveSubscriptionsForUser(
+  userId: string,
+  excludeId: string
+) {
   const nowIso = new Date().toISOString();
   const { data, error } = await supabaseAdmin
     .from("payments")
@@ -167,9 +176,15 @@ async function getActiveSubscriptionsForUser(userId: string, excludeId: string) 
   }>;
 }
 
-async function revokeSubscriptionNow(subscriptionId: string, requestId: string) {
+async function revokeSubscriptionNow(
+  subscriptionId: string,
+  requestId: string
+) {
   if (!polarClient) {
-    await insertLog(null, `[${requestId}] cancel_old_subscription:missing_polar_api_key`);
+    await insertLog(
+      null,
+      `[${requestId}] cancel_old_subscription:missing_polar_api_key`
+    );
     return { ok: false };
   }
 
@@ -258,18 +273,21 @@ async function applyCredits(userId: string, plan: PlanRow) {
   }
 
   const eventType = `${plan.name ?? "subscription"}_subscription`;
-  const { error: historyErr } = await supabaseAdmin.from("credits_history").insert({
-    user_id: userId,
-    charged_credits: creditAmount,
-    event_type: eventType,
-  });
+  const { error: historyErr } = await supabaseAdmin
+    .from("credits_history")
+    .insert({
+      user_id: userId,
+      charged_credits: creditAmount,
+      event_type: eventType,
+    });
   if (historyErr) throw historyErr;
 }
 
 function getMetadata(source: any): Record<string, unknown> {
   if (!source || typeof source !== "object") return {};
   const metadata = source.metadata;
-  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return {};
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata))
+    return {};
   return metadata as Record<string, unknown>;
 }
 
@@ -402,7 +420,10 @@ async function getSubscriptionForOrder(order: any) {
     return order.subscription;
   }
 
-  const subscriptionId = pickFirstString(order?.subscriptionId, order?.subscription_id);
+  const subscriptionId = pickFirstString(
+    order?.subscriptionId,
+    order?.subscription_id
+  );
   if (!subscriptionId || !polarClient) return null;
 
   try {
@@ -443,8 +464,14 @@ export async function POST(req: Request) {
       await insertLog(null, `[${requestId}] fail_invalid_signature`);
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
-    await insertLog(null, `[${requestId}] fail_validate_event: ${safeStringify(e)}`);
-    return NextResponse.json({ error: "Failed to validate event" }, { status: 400 });
+    await insertLog(
+      null,
+      `[${requestId}] fail_validate_event: ${safeStringify(e)}`
+    );
+    return NextResponse.json(
+      { error: "Failed to validate event" },
+      { status: 400 }
+    );
   }
 
   const eventType = asString(event?.type);
@@ -461,12 +488,16 @@ export async function POST(req: Request) {
 
   await insertLog(
     userIdFromEvent,
-    `[${requestId}] webhook_received type=${eventType} subscriptionId=${subscriptionId ?? "null"} userId=${userIdFromEvent ?? "null"
+    `[${requestId}] webhook_received type=${eventType} subscriptionId=${subscriptionId ?? "null"} userId=${
+      userIdFromEvent ?? "null"
     }`
   );
 
   try {
-    if (eventType === "subscription.created" || eventType === "subscription.active") {
+    if (
+      eventType === "subscription.created" ||
+      eventType === "subscription.active"
+    ) {
       if (!subscriptionId) {
         await insertLog(
           userIdFromEvent,
@@ -477,11 +508,17 @@ export async function POST(req: Request) {
 
       const userId = userIdFromEvent;
       if (!userId) {
-        await insertLog(userIdFromEvent, `[${requestId}] ${eventType}:ignored missing_userId`);
+        await insertLog(
+          userIdFromEvent,
+          `[${requestId}] ${eventType}:ignored missing_userId`
+        );
         return NextResponse.json({ ok: true, ignored: true });
       }
 
-      const plan = await resolvePlanForEvent(event, existingPayment?.plan_id ?? null);
+      const plan = await resolvePlanForEvent(
+        event,
+        existingPayment?.plan_id ?? null
+      );
       if (!plan) {
         await insertLog(
           userId,
@@ -493,7 +530,10 @@ export async function POST(req: Request) {
       }
 
       const subscription = event?.data ?? {};
-      const previousSubscriptions = await getActiveSubscriptionsForUser(userId, subscriptionId);
+      const previousSubscriptions = await getActiveSubscriptionsForUser(
+        userId,
+        subscriptionId
+      );
       const toCancel = previousSubscriptions.filter(
         (row) => row.ls_subscription_id && !row.cancel_at_period_end
       );
@@ -503,7 +543,10 @@ export async function POST(req: Request) {
           `[${requestId}] cancel_old_subscription:start count=${toCancel.length}`
         );
         for (const row of toCancel) {
-          await revokeSubscriptionNow(String(row.ls_subscription_id), requestId);
+          await revokeSubscriptionNow(
+            String(row.ls_subscription_id),
+            requestId
+          );
         }
       }
 
@@ -578,7 +621,8 @@ export async function POST(req: Request) {
       if (!userId || !plan) {
         await insertLog(
           userIdFromEvent,
-          `[${requestId}] order.paid:ignored missing_user_or_plan userId=${userId ?? "null"} plan=${plan ? plan.plan_id : "null"
+          `[${requestId}] order.paid:ignored missing_user_or_plan userId=${userId ?? "null"} plan=${
+            plan ? plan.plan_id : "null"
           }`
         );
         return NextResponse.json({ ok: true, ignored: true });
@@ -598,7 +642,10 @@ export async function POST(req: Request) {
             `[${requestId}] cancel_old_subscription:start count=${toCancel.length}`
           );
           for (const row of toCancel) {
-            await revokeSubscriptionNow(String(row.ls_subscription_id), requestId);
+            await revokeSubscriptionNow(
+              String(row.ls_subscription_id),
+              requestId
+            );
           }
         }
 
@@ -615,7 +662,8 @@ export async function POST(req: Request) {
             subscription?.customer?.id
           ),
           currentPeriodStart: toIsoString(
-            subscription?.currentPeriodStart ?? subscription?.current_period_start
+            subscription?.currentPeriodStart ??
+              subscription?.current_period_start
           ),
           currentPeriodEnd: toIsoString(
             subscription?.currentPeriodEnd ??
@@ -640,7 +688,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    if (eventType === "subscription.updated" || eventType === "subscription.uncanceled") {
+    if (
+      eventType === "subscription.updated" ||
+      eventType === "subscription.uncanceled"
+    ) {
       if (!subscriptionId) {
         await insertLog(
           userIdFromEvent,
@@ -651,13 +702,22 @@ export async function POST(req: Request) {
 
       const userId = userIdFromEvent;
       if (!userId) {
-        await insertLog(userIdFromEvent, `[${requestId}] ${eventType}:ignored missing_userId`);
+        await insertLog(
+          userIdFromEvent,
+          `[${requestId}] ${eventType}:ignored missing_userId`
+        );
         return NextResponse.json({ ok: true, ignored: true });
       }
 
-      const plan = await resolvePlanForEvent(event, existingPayment?.plan_id ?? null);
+      const plan = await resolvePlanForEvent(
+        event,
+        existingPayment?.plan_id ?? null
+      );
       if (!plan) {
-        await insertLog(userId, `[${requestId}] ${eventType}:ignored unknown_plan`);
+        await insertLog(
+          userId,
+          `[${requestId}] ${eventType}:ignored unknown_plan`
+        );
         return NextResponse.json({ ok: true, ignored: true });
       }
 
@@ -692,7 +752,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    if (eventType === "subscription.canceled" || eventType === "subscription.revoked") {
+    if (
+      eventType === "subscription.canceled" ||
+      eventType === "subscription.revoked"
+    ) {
       if (!subscriptionId) {
         await insertLog(
           userIdFromEvent,
@@ -703,13 +766,22 @@ export async function POST(req: Request) {
 
       const userId = userIdFromEvent;
       if (!userId) {
-        await insertLog(userIdFromEvent, `[${requestId}] ${eventType}:ignored missing_userId`);
+        await insertLog(
+          userIdFromEvent,
+          `[${requestId}] ${eventType}:ignored missing_userId`
+        );
         return NextResponse.json({ ok: true, ignored: true });
       }
 
-      const plan = await resolvePlanForEvent(event, existingPayment?.plan_id ?? null);
+      const plan = await resolvePlanForEvent(
+        event,
+        existingPayment?.plan_id ?? null
+      );
       if (!plan) {
-        await insertLog(userId, `[${requestId}] ${eventType}:ignored unknown_plan`);
+        await insertLog(
+          userId,
+          `[${requestId}] ${eventType}:ignored unknown_plan`
+        );
         return NextResponse.json({ ok: true, ignored: true });
       }
 
@@ -752,6 +824,9 @@ export async function POST(req: Request) {
       userIdFromEvent,
       `[${requestId}] handler_error event=${eventType} message=${safeStringify(e)}`
     );
-    return NextResponse.json({ error: "Webhook handler error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Webhook handler error" },
+      { status: 500 }
+    );
   }
 }

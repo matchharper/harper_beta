@@ -1,8 +1,13 @@
 import { useRouter } from "next/router";
 import { Bookmark } from "lucide-react";
 
-export default function ShortlistEmptyState() {
+export default function ShortlistEmptyState({
+  mode = "bookmark",
+}: {
+  mode?: "bookmark" | "requested";
+}) {
   const router = useRouter();
+  const isRequestedMode = mode === "requested";
 
   return (
     <div className="py-10 mt-24">
@@ -13,12 +18,24 @@ export default function ShortlistEmptyState() {
           </div>
 
           <div className="text-lg font-semibold text-white">
-            아직 저장한 후보가 없습니다
+            {isRequestedMode
+              ? "아직 Intro 요청한 후보가 없습니다"
+              : "아직 저장한 후보가 없습니다"}
           </div>
           <div className="mt-1 text-sm text-white/60">
-            검색 중 마음에 드는 후보를 북마크하면
-            <br />
-            여기에서 한눈에 관리할 수 있어요.
+            {isRequestedMode ? (
+              <>
+                프로필에서 Intro 요청을 보내면
+                <br />
+                여기에서 한눈에 관리할 수 있어요.
+              </>
+            ) : (
+              <>
+                검색 중 마음에 드는 후보를 북마크하면
+                <br />
+                여기에서 한눈에 관리할 수 있어요.
+              </>
+            )}
           </div>
 
           <button

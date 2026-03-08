@@ -10,6 +10,8 @@ import { dateToFormatLong } from "@/utils/textprocess";
 import { showToast } from "../toast/toast";
 import { notifyToSlack } from "@/lib/slack";
 import { useMessages } from "@/i18n/useMessage";
+import { Tooltips } from "../ui/tooltip";
+import { HelpCircle } from "lucide-react";
 
 interface ConnectionModalProps {
   open: boolean;
@@ -56,23 +58,32 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({
   }, [open, onClose]);
 
   useEffect(() => {
-    if (isRequested) {
-      supabase
-        .from("request")
-        .select("text, created_at")
-        .eq("user_id", companyUser.user_id)
-        .eq("candid_id", candidId)
-        .eq("status", 0)
-        .maybeSingle()
-        .then(({ data, error }) => {
-          if (error) {
-            console.error("error ", error);
-            return;
-          }
-          setRequestText(data?.text ?? "");
-          setRequestDate(dateToFormatLong(data?.created_at ?? ""));
-        });
+    if (!open) return;
+    setRequestSent(false);
+    if (!isRequested) {
+      setRequestText("");
+      setRequestDate("");
     }
+  }, [open, isRequested]);
+
+  useEffect(() => {
+    if (!isRequested || !companyUser?.user_id) return;
+
+    supabase
+      .from("request")
+      .select("text, created_at")
+      .eq("user_id", companyUser.user_id)
+      .eq("candid_id", candidId)
+      .eq("status", 0)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("error ", error);
+          return;
+        }
+        setRequestText(data?.text ?? "");
+        setRequestDate(dateToFormatLong(data?.created_at ?? ""));
+      });
   }, [isRequested, companyUser.user_id, candidId]);
 
   const { mutate: toggleRequestMutation } = useToggleRequest();
@@ -81,20 +92,28 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({
     if (!companyUser?.user_id || !candidId) {
       return;
     }
-    toggleRequestMutation({ userId: companyUser.user_id, candidId });
 
-    if (!isRequested && text) {
+    if (!isRequested) {
+      const introText = text.trim();
+      if (!introText) {
+        showToast({
+          message: "Intro 요청 메시지를 입력해주세요.",
+          variant: "white",
+        });
+        return;
+      }
+      toggleRequestMutation({ userId: companyUser.user_id, candidId });
       const { error } = await supabase.from("request").insert({
         user_id: companyUser.user_id,
         candid_id: candidId,
-        text: text,
+        text: introText,
       });
       await notifyToSlack(`💬 *Connection Request from user: ${
         companyUser?.name
       }* (${companyUser?.company ?? "회사 정보 없음"})
 
       • *To*: ${name} - ${headline}
-      • *Content*: ${text}
+      • *Content*: ${introText}
       • *Time(Standard Korea Time)*: ${new Date().toLocaleString("ko-KR")}`);
 
       if (error) {
@@ -102,18 +121,23 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({
       }
       setText("");
       setRequestSent(true);
-    } else {
-      const { error } = await supabase
-        .from("request")
-        .update({
-          status: 1,
-        })
-        .eq("user_id", companyUser.user_id)
-        .eq("candid_id", candidId);
-      showToast({ message: "Request canceled.", variant: "white" });
-      onConfirm();
-      onClose();
+      return;
     }
+
+    toggleRequestMutation({ userId: companyUser.user_id, candidId });
+    const { error } = await supabase
+      .from("request")
+      .update({
+        status: 1,
+      })
+      .eq("user_id", companyUser.user_id)
+      .eq("candid_id", candidId);
+    if (error) {
+      return;
+    }
+    showToast({ message: "Intro 요청이 취소되었습니다.", variant: "white" });
+    onConfirm();
+    onClose();
   };
 
   if (!open) return null;
@@ -140,18 +164,13 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({
 
         {requestSent ? (
           <div className="flex flex-col items-start justify-start mt-8 gap-1 font-light text-[15px] leading-relaxed">
-            Thank you for requesting! <br />
-            Your credit increase is being reviewed, and a decision will be made
-            soon. If opted in, you’ll receive updates on the status via email.{" "}
-            <br />
-            I’m looking for AI engineer, who is exp sdfert in xx I’m looking for
-            AI engineer, who is exp sdfert in xx I’m looking for AI engineer,
-            who is exp sdfert in xx
+            Intro 요청이 전송되었습니다. <br />
+            후보가 수락하면 연결을 도와드릴게요.
           </div>
         ) : (
           <div className="flex flex-col items-start justify-start mt-8 gap-1">
             <div className="text-[16px] font-light">
-              Message
+              Harper에게 보낼 내용
               <span className="text-hgray700 ml-2 text-sm">
                 {isRequested && requestDate
                   ? ` (Requested at ${requestDate})`
@@ -159,18 +178,27 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({
               </span>
             </div>
             {isRequested ? (
-              <div className="w-full mt-2 rounded-md border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-brightnavy">
-                {requestText}
+              <div className="w-full mt-2 rounded-md border border-white/5 bg-white/5 px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-brightnavy">
+                {requestText || "이미 Intro 요청을 보낸 상태입니다."}
               </div>
             ) : (
               <textarea
-                placeholder={`Hi [${name}], \nI hope this message finds you well.`}
+                placeholder={`[${name}]님을 커피챗으로 만나보고 싶습니다.`}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 rows={6}
                 className="w-full text-white mt-2 rounded-2xl border font-light border-white/10 bg-white/5 p-4 text-[15px] focus:outline-none focus:ring-2 focus:ring-white/10"
               />
             )}
+            <Tooltips
+              text="Harper가 연결되기를 원하시는 분과의 중간 연결고리가 되어 드립니다. 꼭 목적을 함께 알려주세요."
+              side="bottom"
+            >
+              <div className="text-xs text-hgray700 mt-2 ml-2 flex flex-row items-center gap-1">
+                <HelpCircle strokeWidth={1.5} className="w-3 h-3" /> Harper가
+                어떻게 도와주나요?
+              </div>
+            </Tooltips>
           </div>
         )}
 
@@ -182,7 +210,7 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({
                 onConfirm();
                 onClose();
                 showToast({
-                  message: "Connection requested.",
+                  message: "Intro 요청이 전송되었습니다.",
                   variant: "white",
                 });
               }}
@@ -202,16 +230,7 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({
                 className="inline-flex items-center justify-center rounded-xl bg-accenta1 px-6 py-3 text-sm font-medium text-black disabled:cursor-not-allowed disabled:opacity-70"
                 onClick={onConfirmHandler}
               >
-                {isRequested ? (
-                  "Cancel Request"
-                ) : (
-                  <div>
-                    {m.data.request}{" "}
-                    <span className="ml-1 text-[10px] font-light text-hgray900 border border-white/10 rounded-md px-1 py-0.5">
-                      BETA
-                    </span>
-                  </div>
-                )}
+                {isRequested ? "요청 취소" : "Intro 요청하기"}
               </button>
             </>
           )}

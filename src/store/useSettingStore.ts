@@ -7,6 +7,8 @@ export type ViewType = "card" | "table";
 type SettingState = {
   viewType: ViewType;
   setViewType: (v: ViewType) => void;
+  columnOrderByKey: Record<string, string[]>;
+  setColumnOrder: (key: string, order: string[]) => void;
 };
 
 export const useSettingStore = create<SettingState>()(
@@ -14,11 +16,22 @@ export const useSettingStore = create<SettingState>()(
     (set, get) => ({
       viewType: "card",
       setViewType: (v) => set({ viewType: v }),
+      columnOrderByKey: {},
+      setColumnOrder: (key, order) =>
+        set((state) => ({
+          columnOrderByKey: {
+            ...state.columnOrderByKey,
+            [key]: order,
+          },
+        })),
     }),
     {
       name: "settings",
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ viewType: s.viewType }),
+      partialize: (s) => ({
+        viewType: s.viewType,
+        columnOrderByKey: s.columnOrderByKey,
+      }),
     }
   )
 );

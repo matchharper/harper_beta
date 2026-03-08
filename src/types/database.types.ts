@@ -104,6 +104,80 @@ export type Database = {
           },
         ]
       }
+      bookmark_folder: {
+        Row: {
+          created_at: string
+          id: number
+          is_default: boolean
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          is_default?: boolean
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          is_default?: boolean
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookmark_folder_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      bookmark_folder_item: {
+        Row: {
+          candid_id: string
+          created_at: string
+          folder_id: number
+          id: number
+          user_id: string
+        }
+        Insert: {
+          candid_id: string
+          created_at?: string
+          folder_id: number
+          id?: number
+          user_id: string
+        }
+        Update: {
+          candid_id?: string
+          created_at?: string
+          folder_id?: number
+          id?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookmark_folder_item_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "bookmark_folder"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookmark_folder_item_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       candid: {
         Row: {
           bio: string | null
@@ -194,6 +268,38 @@ export type Database = {
             foreignKeyName: "candid_id_map_candid_id_fkey"
             columns: ["candid_id"]
             isOneToOne: false
+            referencedRelation: "candid"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      candid_links_index: {
+        Row: {
+          candid_id: string
+          github_links: string | null
+          linkedin_links: string | null
+          scholar_links: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          candid_id: string
+          github_links?: string | null
+          linkedin_links?: string | null
+          scholar_links?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          candid_id?: string
+          github_links?: string | null
+          linkedin_links?: string | null
+          scholar_links?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candid_links_index_candid_id_fkey"
+            columns: ["candid_id"]
+            isOneToOne: true
             referencedRelation: "candid"
             referencedColumns: ["id"]
           },
@@ -478,35 +584,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "company_users"
             referencedColumns: ["user_id"]
-          },
-        ]
-      }
-      crunchbase_company: {
-        Row: {
-          company_id: number | null
-          created_at: string
-          id: number
-          is_crunchbase_done: boolean
-        }
-        Insert: {
-          company_id?: number | null
-          created_at?: string
-          id?: number
-          is_crunchbase_done?: boolean
-        }
-        Update: {
-          company_id?: number | null
-          created_at?: string
-          id?: number
-          is_crunchbase_done?: boolean
-        }
-        Relationships: [
-          {
-            foreignKeyName: "crunchbase_company_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "company_db"
-            referencedColumns: ["id"]
           },
         ]
       }
@@ -1058,24 +1135,6 @@ export type Database = {
           },
         ]
       }
-      new_logs: {
-        Row: {
-          created_at: string
-          id: number
-          type: string | null
-        }
-        Insert: {
-          created_at?: string
-          id?: number
-          type?: string | null
-        }
-        Update: {
-          created_at?: string
-          id?: number
-          type?: string | null
-        }
-        Relationships: []
-      }
       payments: {
         Row: {
           cancel_at_period_end: boolean | null
@@ -1530,6 +1589,48 @@ export type Database = {
           },
         ]
       }
+      shortlist_memo: {
+        Row: {
+          candid_id: string
+          created_at: string
+          id: number
+          memo: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          candid_id: string
+          created_at?: string
+          id?: number
+          memo?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          candid_id?: string
+          created_at?: string
+          id?: number
+          memo?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shortlist_memo_candid_id_fkey"
+            columns: ["candid_id"]
+            isOneToOne: false
+            referencedRelation: "candid"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shortlist_memo_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       summary: {
         Row: {
           candid_id: string | null
@@ -1598,6 +1699,122 @@ export type Database = {
           },
         ]
       }
+      talent_conversations: {
+        Row: {
+          created_at: string
+          id: string
+          relief_nudge_sent: boolean
+          resume_file_name: string | null
+          resume_links: string[]
+          resume_text: string | null
+          stage: string
+          title: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          relief_nudge_sent?: boolean
+          resume_file_name?: string | null
+          resume_links?: string[]
+          resume_text?: string | null
+          stage?: string
+          title?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          relief_nudge_sent?: boolean
+          resume_file_name?: string | null
+          resume_links?: string[]
+          resume_text?: string | null
+          stage?: string
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      talent_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: number
+          message_type: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: number
+          message_type?: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: number
+          message_type?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "talent_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      talent_users: {
+        Row: {
+          created_at: string
+          email: string | null
+          name: string | null
+          profile_picture: string | null
+          resume_file_name: string | null
+          resume_links: string[]
+          resume_storage_path: string | null
+          resume_text: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          name?: string | null
+          profile_picture?: string | null
+          resume_file_name?: string | null
+          resume_links?: string[]
+          resume_storage_path?: string | null
+          resume_text?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          name?: string | null
+          profile_picture?: string | null
+          resume_file_name?: string | null
+          resume_links?: string[]
+          resume_storage_path?: string | null
+          resume_text?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       unlock_profile: {
         Row: {
           candid_id: string | null
@@ -1639,6 +1856,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      candid_ids_scholar_and_pattern: {
+        Args: { pattern: string }
+        Returns: string[]
+      }
       candid_with_github: {
         Args: never
         Returns: {
@@ -1680,6 +1901,17 @@ export type Database = {
         }
         Returns: Json[]
       }
+      filter_candidates_by_pattern: {
+        Args: { candidate_ids: string[]; pattern: string }
+        Returns: string[]
+      }
+      find_candid_ids_by_link_pattern: {
+        Args: { p_pattern: string }
+        Returns: {
+          id: string
+        }[]
+      }
+      get_scholar_candidate_ids: { Args: never; Returns: string[] }
       is_admin: { Args: never; Returns: boolean }
       reset_org_db_seq: { Args: never; Returns: undefined }
       set_timeout_and_execute_raw_sql: {
