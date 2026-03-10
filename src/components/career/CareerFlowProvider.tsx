@@ -13,6 +13,7 @@ import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { useCareerChat } from "@/hooks/career/useCareerChat";
 import { useCareerOnboardingVoice } from "@/hooks/career/useCareerOnboardingVoice";
 import { useCareerProfile } from "@/hooks/career/useCareerProfile";
+import { useCareerTalentSettings } from "@/hooks/career/useCareerTalentSettings";
 import { useCareerSession } from "@/hooks/career/useCareerSession";
 
 const TARGET_QUESTIONS = 5;
@@ -73,6 +74,10 @@ export const CareerFlowProvider = ({ children }: { children: React.ReactNode }) 
     profileSavePending,
     profileSaveError,
     profileSaveInfo,
+    talentUser,
+    talentExperiences,
+    talentEducations,
+    talentExtras,
     applySessionProfile,
     handleProfileSubmit: handleProfileSubmitBase,
     handleProfileLinkChange,
@@ -88,6 +93,22 @@ export const CareerFlowProvider = ({ children }: { children: React.ReactNode }) 
     appendMessage,
     enqueueAssistantTypewriter,
     setChatError,
+  });
+
+  const {
+    settingsLoading,
+    settingsSaving,
+    settingsError,
+    profileVisibility,
+    blockedCompanies,
+    onProfileVisibilityChange,
+    onAddBlockedCompany,
+    onRemoveBlockedCompany,
+    onReloadTalentSettings,
+  } = useCareerTalentSettings({
+    userId,
+    authLoading,
+    fetchWithAuth,
   });
 
   const isComposerLocked =
@@ -114,8 +135,10 @@ export const CareerFlowProvider = ({ children }: { children: React.ReactNode }) 
     inputMode,
     voiceTranscript,
     voiceListening,
+    voiceMuted,
     voiceError,
     handleVoicePrimaryAction,
+    handleToggleVoiceMute,
     handleStartVoiceCall,
     handleUseChatOnly,
     handleSwitchToTextMode,
@@ -203,6 +226,7 @@ export const CareerFlowProvider = ({ children }: { children: React.ReactNode }) 
       stage,
       messages,
       scrollRef,
+      authLoading,
       authPending,
       authError,
       authInfo,
@@ -230,12 +254,15 @@ export const CareerFlowProvider = ({ children }: { children: React.ReactNode }) 
       inputMode,
       voiceTranscript,
       voiceListening,
+      voiceMuted,
       voiceError,
       onVoicePrimaryAction: handleVoicePrimaryAction,
+      onToggleVoiceMute: handleToggleVoiceMute,
       onSwitchToTextMode: handleSwitchToTextMode,
     }),
     [
       assistantTyping,
+      authLoading,
       authError,
       authInfo,
       authPending,
@@ -250,6 +277,7 @@ export const CareerFlowProvider = ({ children }: { children: React.ReactNode }) 
       handleRemoveProfileLink,
       handleStartVoiceCall,
       handleSwitchToTextMode,
+      handleToggleVoiceMute,
       handleUseChatOnly,
       handleVoicePrimaryAction,
       inputMode,
@@ -268,6 +296,7 @@ export const CareerFlowProvider = ({ children }: { children: React.ReactNode }) 
       user,
       voiceError,
       voiceListening,
+      voiceMuted,
       voiceTranscript,
     ]
   );
@@ -293,15 +322,36 @@ export const CareerFlowProvider = ({ children }: { children: React.ReactNode }) 
       onAddProfileLink: handleAddProfileLink,
       onRemoveProfileLink: handleRemoveProfileLink,
       onSaveTalentProfile: handleSaveTalentProfile,
+      talentProfile: {
+        talentUser,
+        talentExperiences,
+        talentEducations,
+        talentExtras,
+      },
+      settingsLoading,
+      settingsSaving,
+      settingsError,
+      profileVisibility,
+      blockedCompanies,
+      onProfileVisibilityChange,
+      onAddBlockedCompany,
+      onRemoveBlockedCompany,
+      onReloadTalentSettings,
     }),
     [
       answeredCount,
+      blockedCompanies,
       handleAddProfileLink,
+      onAddBlockedCompany,
       handleLogout,
       handleProfileLinkChange,
+      onProfileVisibilityChange,
+      onReloadTalentSettings,
       handleRemoveProfileLink,
+      onRemoveBlockedCompany,
       handleSaveTalentProfile,
       profileLinks,
+      profileVisibility,
       profileSaveError,
       profileSaveInfo,
       profileSavePending,
@@ -310,8 +360,15 @@ export const CareerFlowProvider = ({ children }: { children: React.ReactNode }) 
       savedResumeDownloadUrl,
       savedResumeFileName,
       savedResumeStoragePath,
+      settingsError,
+      settingsLoading,
+      settingsSaving,
       setResumeFile,
       stage,
+      talentEducations,
+      talentExperiences,
+      talentExtras,
+      talentUser,
       user,
     ]
   );

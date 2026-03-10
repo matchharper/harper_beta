@@ -3,6 +3,7 @@ import { FormEvent, useState } from "react";
 import { CAREER_LINK_LABELS } from "@/components/career/constants";
 import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
 import CareerMessageBubble from "./CareerMessageBubble";
+import Image from "next/image";
 
 const LOGIN_GREETING_TEXT =
   "안녕하세요. 잘해드리겠습니다.\n\n회원님의 정보를 저장하기 위해서 우선 계정으로 로그인을 해주세요.";
@@ -78,10 +79,7 @@ const CareerTimelineSection = () => {
   };
 
   return (
-    <div
-      ref={scrollRef}
-      className="flex-1 space-y-4 overflow-y-auto px-6 py-6"
-    >
+    <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto px-6 py-6">
       {!user && (
         <>
           <div className="flex flex-col gap-1">
@@ -137,7 +135,9 @@ const CareerTimelineSection = () => {
               <button
                 type="button"
                 onClick={() =>
-                  setAuthMode((prev) => (prev === "signin" ? "signup" : "signin"))
+                  setAuthMode((prev) =>
+                    prev === "signin" ? "signup" : "signin"
+                  )
                 }
                 disabled={authPending}
                 className="font-medium text-xprimary underline underline-offset-4"
@@ -166,11 +166,6 @@ const CareerTimelineSection = () => {
 
       {user && (
         <>
-          <article className="max-w-[96%] rounded-xl border border-hblack200 bg-hblack000 px-4 py-3">
-            <p className="text-sm font-medium text-xprimary">✓ 로그인 완료!</p>
-            <p className="mt-1 text-sm text-hblack600">{user.email}</p>
-          </article>
-
           {sessionPending && (
             <article className="max-w-[96%] rounded-xl border border-hblack200 bg-hblack000 px-4 py-4">
               <div className="flex items-center gap-2 text-sm text-hblack700">
@@ -184,14 +179,19 @@ const CareerTimelineSection = () => {
             messages.map((message, index) => {
               const isUser = message.role === "user";
               return (
-                <div key={`${message.id}-${index}`} className="flex flex-col gap-1">
+                <div
+                  key={`${message.id}-${index}`}
+                  className="flex flex-col gap-1"
+                >
                   <div
                     className={[
-                      "text-xs text-hblack500",
-                      isUser ? "text-right" : "text-left",
+                      "text-xs",
+                      isUser
+                        ? "text-right text-hblack500"
+                        : "text-left text-xprimary",
                     ].join(" ")}
                   >
-                    {isUser ? "me" : "Harper"}
+                    {isUser ? "" : ""}
                   </div>
                   <CareerMessageBubble message={message} isUser={isUser} />
                 </div>
@@ -235,7 +235,9 @@ const CareerTimelineSection = () => {
           {!sessionPending && stage === "profile" && (
             <article className="max-w-[96%] rounded-xl border border-hblack200 bg-hblack000 px-4 py-4">
               <div>
-                <p className="text-sm font-medium text-hblack1000">이력서 업로드</p>
+                <p className="text-sm font-medium text-hblack1000">
+                  이력서 업로드
+                </p>
                 <p className="mt-1 text-xs text-hblack500">
                   PDF, DOC, DOCX, TXT 파일을 업로드할 수 있습니다.
                 </p>
@@ -263,10 +265,15 @@ const CareerTimelineSection = () => {
               </div>
 
               <div className="mt-6">
-                <p className="text-sm font-medium text-hblack1000">주요 링크 입력</p>
+                <p className="text-sm font-medium text-hblack1000">
+                  주요 링크 입력
+                </p>
                 <div className="mt-2 space-y-3">
                   {profileLinks.map((link, index) => (
-                    <div key={`profile-link-${index}`} className="flex items-center gap-2">
+                    <div
+                      key={`profile-link-${index}`}
+                      className="flex items-center gap-2"
+                    >
                       <div className="w-28 text-xs font-medium text-hblack600">
                         {CAREER_LINK_LABELS[index] ?? "추가 링크"}
                       </div>
@@ -348,7 +355,9 @@ const CareerTimelineSection = () => {
                   disabled={onboardingBeginPending}
                   className="h-10 border border-hblack300 bg-hblack000 px-4 text-sm text-hblack700 transition-colors hover:border-xprimary hover:text-xprimary"
                 >
-                  {onboardingBeginPending ? "준비 중..." : "현재 채팅으로만 가능해요"}
+                  {onboardingBeginPending
+                    ? "준비 중..."
+                    : "현재 채팅으로만 가능해요"}
                 </button>
               </div>
             </article>

@@ -9,7 +9,6 @@ export type ExpUserType =
   Database["public"]["Tables"]["experience_user"]["Row"];
 export type EduUserType = Database["public"]["Tables"]["edu_user"]["Row"];
 
-
 export enum SummaryScore {
   SATISFIED = "만족",
   AMBIGUOUS = "모호",
@@ -30,5 +29,5 @@ export enum StatusEnum {
   FOUND = "found",
   ERROR = "error",
   QUEUED = "queued",
-  STOPPED = "stopped"
+  STOPPED = "stopped",
 }

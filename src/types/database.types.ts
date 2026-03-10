@@ -187,8 +187,8 @@ export type Database = {
           headline: string | null
           id: string
           is_duplicated_old: boolean
-          is_korean: boolean | null
           is_linkedin_deprecated: boolean
+          is_selective: boolean
           last_updated_at: string | null
           linkedin_url: string | null
           links: string[] | null
@@ -206,8 +206,8 @@ export type Database = {
           headline?: string | null
           id?: string
           is_duplicated_old?: boolean
-          is_korean?: boolean | null
           is_linkedin_deprecated?: boolean
+          is_selective?: boolean
           last_updated_at?: string | null
           linkedin_url?: string | null
           links?: string[] | null
@@ -225,8 +225,8 @@ export type Database = {
           headline?: string | null
           id?: string
           is_duplicated_old?: boolean
-          is_korean?: boolean | null
           is_linkedin_deprecated?: boolean
+          is_selective?: boolean
           last_updated_at?: string | null
           linkedin_url?: string | null
           links?: string[] | null
@@ -1738,6 +1738,126 @@ export type Database = {
         }
         Relationships: []
       }
+      talent_educations: {
+        Row: {
+          created_at: string
+          degree: string | null
+          end_date: string | null
+          field: string | null
+          id: number
+          memo: string | null
+          school: string | null
+          start_date: string | null
+          talent_id: string
+          url: string | null
+        }
+        Insert: {
+          created_at?: string
+          degree?: string | null
+          end_date?: string | null
+          field?: string | null
+          id?: number
+          memo?: string | null
+          school?: string | null
+          start_date?: string | null
+          talent_id: string
+          url?: string | null
+        }
+        Update: {
+          created_at?: string
+          degree?: string | null
+          end_date?: string | null
+          field?: string | null
+          id?: number
+          memo?: string | null
+          school?: string | null
+          start_date?: string | null
+          talent_id?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_educations_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      talent_experiences: {
+        Row: {
+          company_location: string | null
+          company_name: string | null
+          created_at: string
+          description: string | null
+          end_date: string | null
+          id: number
+          memo: string | null
+          months: number | null
+          role: string | null
+          start_date: string | null
+          talent_id: string
+        }
+        Insert: {
+          company_location?: string | null
+          company_name?: string | null
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: number
+          memo?: string | null
+          months?: number | null
+          role?: string | null
+          start_date?: string | null
+          talent_id: string
+        }
+        Update: {
+          company_location?: string | null
+          company_name?: string | null
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: number
+          memo?: string | null
+          months?: number | null
+          role?: string | null
+          start_date?: string | null
+          talent_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_experiences_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      talent_extras: {
+        Row: {
+          content: Json
+          talent_id: string
+        }
+        Insert: {
+          content?: Json
+          talent_id: string
+        }
+        Update: {
+          content?: Json
+          talent_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_extras_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: true
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       talent_messages: {
         Row: {
           content: string
@@ -1776,10 +1896,89 @@ export type Database = {
           },
         ]
       }
+      talent_publications: {
+        Row: {
+          abstract: string | null
+          citation_num: number | null
+          created_at: string
+          id: number
+          link: string | null
+          memo: string | null
+          published_at: string | null
+          talent_id: string
+          title: string | null
+        }
+        Insert: {
+          abstract?: string | null
+          citation_num?: number | null
+          created_at?: string
+          id?: number
+          link?: string | null
+          memo?: string | null
+          published_at?: string | null
+          talent_id: string
+          title?: string | null
+        }
+        Update: {
+          abstract?: string | null
+          citation_num?: number | null
+          created_at?: string
+          id?: number
+          link?: string | null
+          memo?: string | null
+          published_at?: string | null
+          talent_id?: string
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_publications_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      talent_setting: {
+        Row: {
+          blocked_companies: string[]
+          created_at: string
+          profile_visibility: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          blocked_companies?: string[]
+          created_at?: string
+          profile_visibility?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          blocked_companies?: string[]
+          created_at?: string
+          profile_visibility?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_setting_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       talent_users: {
         Row: {
+          bio: string | null
           created_at: string
           email: string | null
+          headline: string | null
+          location: string | null
           name: string | null
           profile_picture: string | null
           resume_file_name: string | null
@@ -1790,8 +1989,11 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          bio?: string | null
           created_at?: string
           email?: string | null
+          headline?: string | null
+          location?: string | null
           name?: string | null
           profile_picture?: string | null
           resume_file_name?: string | null
@@ -1802,8 +2004,11 @@ export type Database = {
           user_id: string
         }
         Update: {
+          bio?: string | null
           created_at?: string
           email?: string | null
+          headline?: string | null
+          location?: string | null
           name?: string | null
           profile_picture?: string | null
           resume_file_name?: string | null
@@ -1870,8 +2075,8 @@ export type Database = {
           headline: string | null
           id: string
           is_duplicated_old: boolean
-          is_korean: boolean | null
           is_linkedin_deprecated: boolean
+          is_selective: boolean
           last_updated_at: string | null
           linkedin_url: string | null
           links: string[] | null

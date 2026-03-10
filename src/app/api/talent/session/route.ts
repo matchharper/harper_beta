@@ -4,6 +4,7 @@ import {
   TALENT_FIRST_VISIT_TEXT,
   TalentConversationRow,
   ensureTalentUserRecord,
+  fetchTalentStructuredProfile,
   fetchTalentUserProfile,
   fetchMessages,
   getTalentResumeSignedUrl,
@@ -97,6 +98,11 @@ export async function GET(req: NextRequest) {
       (message) => !isPendingQuestionContent(message.content)
     );
     const profile = await fetchTalentUserProfile({ admin, userId: user.id });
+    const talentProfile = await fetchTalentStructuredProfile({
+      admin,
+      userId: user.id,
+      talentUser: profile,
+    });
     const resumeDownloadUrl = await getTalentResumeSignedUrl({
       admin,
       storagePath: profile?.resume_storage_path,
@@ -114,6 +120,7 @@ export async function GET(req: NextRequest) {
         resumeLinks: profile?.resume_links ?? [],
         reliefNudgeSent: Boolean(conversation.relief_nudge_sent),
       },
+      talentProfile,
       messages: visibleMessages.map((message) => ({
         id: message.id,
         role: message.role,

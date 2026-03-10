@@ -22,8 +22,8 @@ module.exports = {
         gray800: "#DCDEE3",
         gray900: "#E3E3E3",
 
+        xprimary: "#D35400",
         xgrayblack: "#1F2937",
-        xprimary: "#0624A8",
         xmain: "#000000",
         xopp: "#FFFFFF",
         xlightgray: "#F6F6F8",
@@ -56,6 +56,7 @@ module.exports = {
         hblack300: "#BDC8CD",
         hblack200: "#DCDEE3",
         hblack100: "#E3E3E3",
+        hblack50: "#F2F2F2",
         hblack000: "#FFFFFF",
 
         brightnavy: "#0624A8",

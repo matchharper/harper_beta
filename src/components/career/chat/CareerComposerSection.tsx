@@ -1,8 +1,10 @@
 import {
   ArrowUp,
-  Check,
   Loader2,
   Mic,
+  MicOff,
+  Phone,
+  PhoneOff,
   Plus,
   X,
 } from "lucide-react";
@@ -24,10 +26,12 @@ const CareerComposerSection = () => {
     inputMode,
     voiceTranscript,
     voiceListening,
+    voiceMuted,
     voiceError,
     onStartVoiceCall,
     onSendChatMessage,
     onVoicePrimaryAction,
+    onToggleVoiceMute,
     onSwitchToTextMode,
   } = useCareerChatPanelContext();
 
@@ -63,6 +67,8 @@ const CareerComposerSection = () => {
     inputMode === "text" &&
     !showVoiceStartPrompt;
 
+  const isVoiceMode = inputMode === "voice";
+
   const handleSend = async () => {
     const text = draft.trim();
     if (!text) return;
@@ -90,109 +96,123 @@ const CareerComposerSection = () => {
   };
 
   return (
-    <div className="border-t border-hblack200 p-4">
+    <div className="border-t border-hblack100/0 p-4 pt-0">
       {showCallQuickAction ? (
         <button
           type="button"
           onClick={onStartVoiceCall}
           disabled={isComposerLocked || onboardingBeginPending}
-          className="mb-3 inline-flex h-10 items-center justify-center rounded-full border border-xprimary bg-xprimary px-4 text-sm font-medium text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          className="mb-3 inline-flex gap-2 h-9 items-center justify-center rounded-full border border-xprimary bg-xprimary px-3 text-sm font-medium text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {onboardingBeginPending ? "준비 중..." : "Call 하기"}
+          <Phone className="h-3.5 w-3.5" />
+          {onboardingBeginPending ? "준비 중..." : "전화로 하기"}
         </button>
       ) : null}
 
-      {inputMode === "voice" ? (
-        <div>
-          <div className="mb-4 flex flex-col items-center gap-3">
+      {!isVoiceMode && showLinkInput ? (
+        <div className="mb-2 flex items-center gap-2 border border-hblack200 bg-hblack100 px-2 py-2">
+          <input
+            value={chatLinkDraft}
+            onChange={(event) => setChatLinkDraft(event.target.value)}
+            placeholder="대화에 포함할 링크를 입력하세요."
+            className="h-9 flex-1 border-none bg-transparent px-2 text-sm text-hblack900 outline-none placeholder:text-hblack500"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setChatLinkDraft("");
+              setShowLinkInput(false);
+            }}
+            className="inline-flex h-8 w-8 items-center justify-center border border-hblack300 text-hblack600 hover:border-xprimary hover:text-xprimary"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      ) : null}
+
+      {isVoiceMode ? (
+        <div className="relative w-full flex items-center justify-center">
+          <div className="inline-flex flex-row items-center justify-center mb-2 gap-2 bg-hblack100/50 p-2.5 rounded-full">
             <button
               type="button"
               onClick={onVoicePrimaryAction}
               disabled={isComposerLocked}
               className={[
-                "inline-flex h-24 w-24 items-center justify-center rounded-full border text-hblack000 transition-all",
-                voiceListening
-                  ? "border-xprimary bg-xprimary shadow-[0_0_0_6px_rgba(29,155,240,0.15)]"
+                "group z-10 text-xs px-4 py-3 flex flex-row items-center justify-center rounded-full border text-hblack000 transition-all overflow-hidden",
+                voiceListening && !voiceMuted
+                  ? "bg-hblack000 text-hblack1000 border border-hblack100"
                   : "border-hblack300 bg-hblack000 text-hblack800 hover:border-xprimary hover:text-xprimary",
                 isComposerLocked ? "cursor-not-allowed opacity-50" : "",
               ].join(" ")}
             >
-              {voiceListening ? (
-                <Check className="h-8 w-8" />
+              {voiceListening && !voiceMuted ? (
+                <div className="flex flex-row items-center gap-2">
+                  <ArrowUp className="h-4 w-4 transition-all group-hover:translate-y-[-32px]" />
+                  말하는 중... (스페이스바를 눌러서 전송)
+                </div>
+              ) : voiceMuted ? (
+                <MicOff className="h-8 w-8" />
               ) : (
                 <Mic className="h-8 w-8" />
               )}
             </button>
-            <p className="text-xs text-hblack500">
-              {voiceListening
-                ? "말이 끝났으면 버튼을 눌러 전송하세요."
-                : "버튼을 눌러 음성 인식 시작 또는 전송하세요."}
-            </p>
-          </div>
 
-          <div className="rounded-lg border border-hblack200 bg-hblack000 px-3 py-3 text-sm text-hblack700">
-            <p className="text-xs uppercase tracking-[0.08em] text-hblack500">
-              Live Transcript
-            </p>
-            <p className="mt-2 min-h-[48px] whitespace-pre-line leading-relaxed">
-              {voiceTranscript || "음성 인식 결과가 여기에 표시됩니다."}
-            </p>
-          </div>
+            {voiceError && (
+              <p className="mt-2 border border-xprimary/30 bg-xprimary/10 px-3 py-2 text-sm text-xprimary">
+                {voiceError}
+              </p>
+            )}
 
-          {voiceError && (
-            <p className="mt-2 border border-xprimary/30 bg-xprimary/10 px-3 py-2 text-sm text-xprimary">
-              {voiceError}
-            </p>
-          )}
-
-          <div className="mt-3 flex justify-end">
+            <button
+              type="button"
+              onClick={onToggleVoiceMute}
+              disabled={isComposerLocked}
+              className="rounded-full inline-flex h-9 w-9 items-center justify-center border border-hblack100 text-hblack500 transition-colors bg-hblack000 hover:bg-hblack100 hover:text-hblack900 disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label={voiceMuted ? "음소거 해제" : "음소거"}
+            >
+              {voiceMuted ? (
+                <MicOff className="h-4 w-4" />
+              ) : (
+                <Mic className="h-4 w-4" />
+              )}
+            </button>
             <button
               type="button"
               onClick={onSwitchToTextMode}
-              className="h-9 border border-hblack300 bg-hblack000 px-3 text-xs text-hblack700 transition-colors hover:border-xprimary hover:text-xprimary"
+              className="rounded-full inline-flex h-9 w-9 items-center justify-center border border-red-400 text-red-400 bg-hblack000 transition-opacity"
             >
-              채팅 입력으로 전환
+              <PhoneOff className="h-3.5 w-3.5" />
             </button>
           </div>
         </div>
-      ) : (
-        <>
-          {showLinkInput && (
-            <div className="mb-2 flex items-center gap-2 border border-hblack200 bg-hblack100 px-2 py-2">
-              <input
-                value={chatLinkDraft}
-                onChange={(event) => setChatLinkDraft(event.target.value)}
-                placeholder="대화에 포함할 링크를 입력하세요."
-                className="h-9 flex-1 border-none bg-transparent px-2 text-sm text-hblack900 outline-none placeholder:text-hblack500"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  setChatLinkDraft("");
-                  setShowLinkInput(false);
-                }}
-                className="inline-flex h-8 w-8 items-center justify-center border border-hblack300 text-hblack600 hover:border-xprimary hover:text-xprimary"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          )}
-
-          <div className="relative flex items-end rounded-2xl border border-hblack200 bg-hblack000 px-2 py-2 shadow-[0_4px_12px_rgba(17,24,39,0.06)]">
-            <textarea
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={handleComposerKeyDown}
-              placeholder={composerPlaceholder}
-              disabled={isComposerLocked}
-              className="min-h-[88px] max-h-[140px] w-full resize-none border-none bg-transparent px-2 py-1 text-sm text-hblack900 outline-none placeholder:text-hblack500 disabled:cursor-not-allowed"
-            />
+      ) : null}
+      <div className={isVoiceMode ? "relative" : "relative"}>
+        <div className="relative z-10 flex items-end rounded-2xl border border-hblack200 bg-hblack000 px-2 py-2 shadow-[0_4px_12px_rgba(17,24,39,0.06)]">
+          <textarea
+            value={isVoiceMode ? voiceTranscript : draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={handleComposerKeyDown}
+            readOnly={isVoiceMode}
+            placeholder={
+              isVoiceMode
+                ? voiceMuted
+                  ? "마이크가 음소거되어 있습니다."
+                  : "듣는 중..."
+                : composerPlaceholder
+            }
+            disabled={isComposerLocked}
+            className={`
+              ${isVoiceMode ? "min-h-[68px] max-h-[120px]" : "min-h-[88px] max-h-[140px]"} w-full transition-all duration-200 resize-none border-none bg-transparent px-2 py-1 text-sm text-hblack900 outline-none placeholder:text-hblack500 disabled:cursor-not-allowed`}
+          />
+          {isVoiceMode ? (
+            <div></div>
+          ) : (
             <div className="absolute bottom-2 right-2 flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setShowLinkInput((prev) => !prev)}
-                disabled={!user || isComposerLocked}
-                className="inline-flex h-8 w-8 items-center justify-center border border-hblack300 text-hblack600 transition-colors hover:bg-hblack100 hover:text-hblack900 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!user || isComposerLocked || isVoiceMode}
+                className="rounded-full inline-flex h-8 w-8 items-center justify-center border border-hblack300 text-hblack600 transition-colors hover:bg-hblack100 hover:text-hblack900 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Plus className="h-4 w-4" />
               </button>
@@ -200,18 +220,18 @@ const CareerComposerSection = () => {
                 type="button"
                 onClick={() => void handleSend()}
                 disabled={isComposerLocked || !draft.trim()}
-                className="inline-flex h-8 w-8 items-center justify-center border border-xprimary bg-xprimary text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-full inline-flex h-7 w-7 items-center justify-center border border-xprimary bg-xprimary text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {chatPending || assistantTyping ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : (
-                  <ArrowUp className="h-4 w-4" />
+                  <ArrowUp className="h-3.5 w-3.5" />
                 )}
               </button>
             </div>
-          </div>
-        </>
-      )}
+          )}
+        </div>
+      </div>
     </div>
   );
 };

@@ -64,7 +64,7 @@ const CareerChatPanel = () => {
   }, []);
 
   return (
-    <section className="flex min-h-[760px] flex-col lg:col-span-7 lg:h-[calc(100vh-80px)]">
+    <section className="flex min-h-0 flex-1 flex-col lg:h-full">
       <CareerTimelineSection />
       <CareerComposerSection />
     </section>

@@ -36,7 +36,7 @@ export async function rpc_set_timeout_and_execute_raw_sql_via_runs(params: {
   offset_num: number;
   // 옵션
   pollIntervalMs?: number; // 기본 600
-  maxWaitMs?: number;      // 기본 25000 (서버리스면 너무 길게 잡지 말 것)
+  maxWaitMs?: number; // 기본 25000 (서버리스면 너무 길게 잡지 말 것)
 }): Promise<RpcLikeResult> {
   const {
     runId,
@@ -127,8 +127,8 @@ export async function rpc_set_timeout_and_execute_raw_sql_via_runs(params: {
 
       const ids: string[] = Array.isArray(raw)
         ? raw
-          .map((v: any) => (typeof v === "string" ? v : v?.id))
-          .filter((x: any) => typeof x === "string" && x.length > 0)
+            .map((v: any) => (typeof v === "string" ? v : v?.id))
+            .filter((x: any) => typeof x === "string" && x.length > 0)
         : [];
 
       if (ids.length === 0) {
@@ -150,7 +150,9 @@ export async function rpc_set_timeout_and_execute_raw_sql_via_runs(params: {
         return (order.get(a.id) ?? 1e9) - (order.get(b.id) ?? 1e9);
       });
 
-      logger.log(`🐙 데이터 조회 완료 ${sorted.length}명 [${((performance.now() - start_time) / 1000).toFixed(3)}s] \n`);
+      logger.log(
+        `🐙 데이터 조회 완료 ${sorted.length}명 [${((performance.now() - start_time) / 1000).toFixed(3)}s] \n`
+      );
 
       return { data: [sorted], error: null };
     }
@@ -158,7 +160,9 @@ export async function rpc_set_timeout_and_execute_raw_sql_via_runs(params: {
     // queued/running/기타면 대기
     await sleep(pollIntervalMs);
   }
-  logger.log(`🐙 데이터 조회 타임아웃 [${((performance.now() - start_time) / 1000).toFixed(3)}s] \n`);
+  logger.log(
+    `🐙 데이터 조회 타임아웃 [${((performance.now() - start_time) / 1000).toFixed(3)}s] \n`
+  );
 
   // 5) 타임아웃: 서버리스면 이 케이스가 있을 수 있음
   return { data: null, error: { message: "Timeout waiting for worker" } };
