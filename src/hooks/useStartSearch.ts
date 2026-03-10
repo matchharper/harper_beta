@@ -119,6 +119,12 @@ async function createRunFromMessage(params: {
 
   const locale = getLocaleFromCookie();
 
+  // 테스트 모드 확인 (환경 변수)
+  const testMode =
+    typeof window !== "undefined" &&
+    process.env.NEXT_PUBLIC_WORKER_TEST_MODE === "true";
+  const queueStatus = testMode ? "queued_test" : "queued";
+
   const { data, error } = await supabase
     .from("runs")
     .insert({
@@ -127,7 +133,7 @@ async function createRunFromMessage(params: {
       criteria,
       query_text: queryText,
       user_id: userId,
-      status: StatusEnum.QUEUED,
+      status: queueStatus,
       locale,
     })
     .select("id")
