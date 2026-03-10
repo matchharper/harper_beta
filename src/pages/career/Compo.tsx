@@ -476,3 +476,7 @@ export const GeometricAnimatedGraphics = () => {
     </div>
   );
 };
+
+export default function CareerPage2() {
+  return <div></div>;
+}
