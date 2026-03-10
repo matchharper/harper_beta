@@ -9,6 +9,7 @@ export type CareerChatPanelContextValue = {
   messages: CareerMessage[];
   scrollRef: React.RefObject<HTMLDivElement>;
 
+  authLoading: boolean;
   authPending: boolean;
   authError: string;
   authInfo: string;
@@ -51,14 +52,15 @@ export type CareerChatPanelContextValue = {
   inputMode: CareerInputMode;
   voiceTranscript: string;
   voiceListening: boolean;
+  voiceMuted: boolean;
   voiceError: string;
   onVoicePrimaryAction: () => void;
+  onToggleVoiceMute: () => void;
   onSwitchToTextMode: () => void;
 };
 
-const CareerChatPanelContext = createContext<CareerChatPanelContextValue | null>(
-  null
-);
+const CareerChatPanelContext =
+  createContext<CareerChatPanelContextValue | null>(null);
 
 export const CareerChatPanelProvider = ({
   value,

@@ -27,7 +27,7 @@ const Footer = ({
   };
 
   return (
-    <div className="w-full flex flex-col md:flex-row items-start md:items-stretch justify-between border-t border-white/20 py-10 md:py-8 md:px-8 mx-auto px-4 gap-6 md:gap-0 bg-black">
+    <div className="w-full flex flex-col md:flex-row items-start md:items-stretch justify-between border-t border-white/20 py-10 md:py-8 md:px-8 mx-auto px-4 gap-6 md:gap-0 bg-black text-hblack000">
       <div className="flex flex-1 flex-col items-start justify-start gap-4 md:gap-6">
         <div className="text-left text-3xl font-semibold font-garamond">
           Harper

@@ -33,11 +33,29 @@ const getSpeechRecognitionCtor = () => {
 
 const notAllowedVoiceErrors = new Set(["not-allowed", "service-not-allowed"]);
 
+const isEditableTarget = (target: EventTarget | null) => {
+  if (!(target instanceof HTMLElement)) return false;
+  const tagName = target.tagName;
+  if (target.isContentEditable) return true;
+
+  if (tagName === "INPUT" || tagName === "TEXTAREA") {
+    const field = target as HTMLInputElement | HTMLTextAreaElement;
+    return !field.readOnly && !field.disabled;
+  }
+
+  if (tagName === "SELECT") {
+    return !(target as HTMLSelectElement).disabled;
+  }
+
+  return false;
+};
+
 export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   const { canInteract, onSendMessage, onUnsupported } = args;
   const [inputMode, setInputMode] = useState<CareerInputMode>("text");
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [voiceListening, setVoiceListening] = useState(false);
+  const [voiceMuted, setVoiceMuted] = useState(false);
   const [voiceError, setVoiceError] = useState("");
   const [isSpeechSupported, setIsSpeechSupported] = useState(false);
 
@@ -45,6 +63,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   const voiceFinalTextRef = useRef("");
   const voiceDraftTextRef = useRef("");
   const commitOnEndRef = useRef(false);
+  const autoResumeAfterResponseRef = useRef(false);
 
   const logVoiceDebug = useCallback(
     (phase: string, payload?: Record<string, unknown>) => {
@@ -128,10 +147,10 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   useEffect(() => {
     if (canInteract) return;
     commitOnEndRef.current = false;
+    if (inputMode !== "voice") return;
     recognitionRef.current?.stop();
     setVoiceListening(false);
-    setInputMode("text");
-  }, [canInteract]);
+  }, [canInteract, inputMode]);
 
   useEffect(() => {
     return () => {
@@ -152,6 +171,9 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
       const text = raw.trim();
       if (!text) return;
       clearVoiceBuffer();
+      if (inputMode === "voice") {
+        autoResumeAfterResponseRef.current = true;
+      }
 
       void onSendMessage({
         text,
@@ -162,7 +184,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
         },
       });
     },
-    [clearVoiceBuffer, onSendMessage]
+    [clearVoiceBuffer, inputMode, onSendMessage]
   );
 
   const ensureSpeechRecognition = useCallback(() => {
@@ -230,7 +252,9 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
             permissionState,
             micProbe,
             isSecureContext:
-              typeof window !== "undefined" ? window.isSecureContext : undefined,
+              typeof window !== "undefined"
+                ? window.isSecureContext
+                : undefined,
             visibilityState:
               typeof document !== "undefined"
                 ? document.visibilityState
@@ -238,7 +262,9 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
             hasFocus:
               typeof document !== "undefined" ? document.hasFocus() : undefined,
             isInIframe:
-              typeof window !== "undefined" ? window.self !== window.top : undefined,
+              typeof window !== "undefined"
+                ? window.self !== window.top
+                : undefined,
           });
         })();
 
@@ -264,10 +290,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
       if (!shouldCommit) return;
 
       const text = voiceDraftTextRef.current.trim();
-      if (!text) {
-        setVoiceError("인식된 음성이 없어 전송하지 않았습니다.");
-        return;
-      }
+      if (!text) return;
       sendTranscript(text);
     };
 
@@ -280,27 +303,92 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     sendTranscript,
   ]);
 
-  const startVoiceListening = useCallback(() => {
-    if (!canInteract) return;
-    try {
-      const recognition = ensureSpeechRecognition();
-      logVoiceDebug("recognition-start-attempt");
-      setVoiceError("");
-      setVoiceListening(true);
-      recognition.start();
-      logVoiceDebug("recognition-start-success");
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "음성 인식을 시작하지 못했습니다.";
-      logVoiceDebug("recognition-start-failed", {
-        error: message,
-      });
-      setVoiceError(message);
-      setVoiceListening(false);
-    }
-  }, [canInteract, ensureSpeechRecognition, logVoiceDebug]);
+  const startVoiceListening = useCallback(
+    (options?: { suppressError?: boolean }) => {
+      if (!canInteract) return false;
+      try {
+        const recognition = ensureSpeechRecognition();
+        logVoiceDebug("recognition-start-attempt");
+        setVoiceError("");
+        setVoiceListening(true);
+        recognition.start();
+        logVoiceDebug("recognition-start-success");
+        return true;
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "음성 인식을 시작하지 못했습니다.";
+        logVoiceDebug("recognition-start-failed", {
+          error: message,
+        });
+        if (!options?.suppressError) {
+          setVoiceError(message);
+        }
+        setVoiceListening(false);
+        return false;
+      }
+    },
+    [canInteract, ensureSpeechRecognition, logVoiceDebug]
+  );
+
+  useEffect(() => {
+    if (!canInteract || inputMode !== "voice") return;
+    if (!autoResumeAfterResponseRef.current) return;
+    if (voiceMuted || voiceListening) return;
+    if (typeof window === "undefined") return;
+
+    let cancelled = false;
+    let timerId: number | null = null;
+    let idleChecks = 0;
+    let startAttempts = 0;
+
+    const tryAutoResume = () => {
+      if (cancelled) return;
+      const synth = window.speechSynthesis;
+      const speaking = Boolean(synth?.speaking);
+      const pending = Boolean(synth?.pending);
+
+      // TTS 재생/큐가 모두 비워진 후에만 마이크를 자동 재개한다.
+      if (speaking || pending) {
+        idleChecks = 0;
+        timerId = window.setTimeout(tryAutoResume, 120);
+        return;
+      }
+
+      idleChecks += 1;
+      if (idleChecks < 2) {
+        timerId = window.setTimeout(tryAutoResume, 120);
+        return;
+      }
+
+      const started = startVoiceListening({ suppressError: true });
+      if (started) {
+        autoResumeAfterResponseRef.current = false;
+        return;
+      }
+
+      startAttempts += 1;
+      if (startAttempts >= 2) {
+        autoResumeAfterResponseRef.current = false;
+        setVoiceError(
+          "마이크 자동 재시작에 실패했습니다. 마이크 버튼을 눌러 다시 시작해 주세요."
+        );
+        return;
+      }
+
+      timerId = window.setTimeout(tryAutoResume, 180);
+    };
+
+    timerId = window.setTimeout(tryAutoResume, 120);
+
+    return () => {
+      cancelled = true;
+      if (timerId !== null) {
+        window.clearTimeout(timerId);
+      }
+    };
+  }, [canInteract, inputMode, startVoiceListening, voiceListening, voiceMuted]);
 
   const startVoiceCall = useCallback(async () => {
     if (!isSpeechSupported) {
@@ -315,6 +403,8 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     logVoiceDebug("start-voice-call-clicked");
     setInputMode("voice");
     setVoiceError("");
+    setVoiceMuted(false);
+    autoResumeAfterResponseRef.current = false;
     clearVoiceBuffer();
     startVoiceListening();
   }, [
@@ -329,7 +419,15 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   const handleVoicePrimaryAction = useCallback(() => {
     if (!canInteract) return;
 
+    if (voiceMuted) {
+      setVoiceMuted(false);
+      startVoiceListening();
+      return;
+    }
+
     if (voiceListening) {
+      const transcript = voiceDraftTextRef.current.trim();
+      if (!transcript) return;
       commitOnEndRef.current = true;
       recognitionRef.current?.stop();
       return;
@@ -341,12 +439,71 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     }
 
     startVoiceListening();
-  }, [canInteract, sendTranscript, startVoiceListening, voiceListening, voiceTranscript]);
+  }, [
+    canInteract,
+    sendTranscript,
+    startVoiceListening,
+    voiceListening,
+    voiceMuted,
+    voiceTranscript,
+  ]);
 
-  const switchToTextMode = useCallback(() => {
+  const sendTranscriptBySpacebar = useCallback(() => {
+    if (!canInteract || inputMode !== "voice" || voiceMuted) return;
+
+    const transcript = voiceDraftTextRef.current.trim();
+    if (!transcript) return;
+
+    if (voiceListening) {
+      commitOnEndRef.current = true;
+      recognitionRef.current?.stop();
+      return;
+    }
+
+    sendTranscript(transcript);
+  }, [canInteract, inputMode, sendTranscript, voiceListening, voiceMuted]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (inputMode !== "voice") return;
+
+    const handleSpacebarDown = (event: KeyboardEvent) => {
+      if (event.repeat) return;
+      if (event.code !== "Space" && event.key !== " ") return;
+      if (isEditableTarget(event.target)) return;
+
+      event.preventDefault();
+      sendTranscriptBySpacebar();
+    };
+
+    window.addEventListener("keydown", handleSpacebarDown);
+    return () => window.removeEventListener("keydown", handleSpacebarDown);
+  }, [inputMode, sendTranscriptBySpacebar]);
+
+  const toggleVoiceMute = useCallback(() => {
+    if (!canInteract) return;
+
+    if (voiceMuted) {
+      setVoiceMuted(false);
+      setVoiceError("");
+      startVoiceListening();
+      logVoiceDebug("voice-unmuted");
+      return;
+    }
+
     commitOnEndRef.current = false;
     recognitionRef.current?.stop();
     setVoiceListening(false);
+    setVoiceMuted(true);
+    logVoiceDebug("voice-muted");
+  }, [canInteract, logVoiceDebug, startVoiceListening, voiceMuted]);
+
+  const switchToTextMode = useCallback(() => {
+    commitOnEndRef.current = false;
+    autoResumeAfterResponseRef.current = false;
+    recognitionRef.current?.stop();
+    setVoiceListening(false);
+    setVoiceMuted(false);
     setInputMode("text");
     logVoiceDebug("switch-to-text-mode");
   }, [logVoiceDebug]);
@@ -358,7 +515,9 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   const resetVoice = useCallback(() => {
     recognitionRef.current?.abort();
     recognitionRef.current = null;
+    autoResumeAfterResponseRef.current = false;
     setVoiceListening(false);
+    setVoiceMuted(false);
     setVoiceError("");
     setInputMode("text");
     clearVoiceBuffer();
@@ -369,11 +528,13 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     inputMode,
     voiceTranscript,
     voiceListening,
+    voiceMuted,
     voiceError,
     onboardingVoiceSupported: isSpeechSupported,
     startVoiceCall,
     switchToChatOnly,
     handleVoicePrimaryAction,
+    toggleVoiceMute,
     switchToTextMode,
     resetVoice,
   };

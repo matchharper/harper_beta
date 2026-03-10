@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
       criteria: parsed.criteria,
       query_text: String(parsed.thinking ?? ""),
       user_id: user.id,
-      status: "queued",
+      status: "queued", // 여기서 queued_test를 넣어서 테스트
       locale,
     })
     .select("id")

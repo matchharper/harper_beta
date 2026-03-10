@@ -1,6 +1,7 @@
 import type { User } from "@supabase/supabase-js";
 import React, { createContext, useContext } from "react";
-import type { CareerStage } from "./types";
+import type { CareerStage, CareerTalentProfile } from "./types";
+import type { CareerProfileVisibility } from "@/hooks/career/useCareerTalentSettings";
 
 export type CareerSidebarContextValue = {
   user: User | null;
@@ -23,6 +24,17 @@ export type CareerSidebarContextValue = {
   onAddProfileLink: () => void;
   onRemoveProfileLink: (index: number) => void;
   onSaveTalentProfile: () => void | Promise<void>;
+  talentProfile: CareerTalentProfile;
+
+  settingsLoading: boolean;
+  settingsSaving: boolean;
+  settingsError: string;
+  profileVisibility: CareerProfileVisibility;
+  blockedCompanies: string[];
+  onProfileVisibilityChange: (value: CareerProfileVisibility) => void;
+  onAddBlockedCompany: (name: string) => void;
+  onRemoveBlockedCompany: (name: string) => void;
+  onReloadTalentSettings: () => void | Promise<void>;
 };
 
 const CareerSidebarContext = createContext<CareerSidebarContextValue | null>(

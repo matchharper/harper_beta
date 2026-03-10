@@ -5,11 +5,15 @@ import {
   TALENT_PENDING_QUESTION_PREFIX,
   TalentConversationRow,
   TalentMessageRow,
+  ensureTalentUserRecord,
+  fetchTalentStructuredProfile,
   fetchTalentUserProfile,
   getTalentResumeSignedUrl,
   getTalentSupabaseAdmin,
   toTalentDisplayName,
 } from "@/lib/talentOnboarding/server";
+import { ingestTalentProfileFromLinkedin } from "@/lib/talentOnboarding/profileIngestion";
+import { logger } from "@/utils/logger";
 
 type Body = {
   conversationId?: string;
@@ -97,6 +101,7 @@ export async function POST(req: NextRequest) {
     }
 
     const admin = getTalentSupabaseAdmin();
+    await ensureTalentUserRecord({ admin, user });
     const { data: conversation, error: conversationError } = await admin
       .from("talent_conversations")
       .select("*")
@@ -138,7 +143,7 @@ export async function POST(req: NextRequest) {
     }
 
     const displayName = toTalentDisplayName(user);
-    const llmRaw = await runTalentAssistantCompletion({
+    const kickoffLlmPromise = runTalentAssistantCompletion({
       messages: [
         {
           role: "system",
@@ -170,6 +175,47 @@ export async function POST(req: NextRequest) {
       ],
       temperature: 0.25,
     });
+
+    const profileIngestionPromise = (async () => {
+      try {
+        const ingestion = await ingestTalentProfileFromLinkedin({
+          admin,
+          userId: user.id,
+          links,
+          resumeText,
+          resumeFileName,
+          resumeStoragePath,
+        });
+        return {
+          ok: true,
+          linkedinUrl: ingestion.linkedinUrl,
+          stats: ingestion.stats,
+        } as {
+          ok: boolean;
+          linkedinUrl?: string;
+          stats?: Record<string, number>;
+          error?: string;
+        };
+      } catch (ingestionError) {
+        const ingestionMessage =
+          ingestionError instanceof Error
+            ? ingestionError.message
+            : "Failed to ingest talent profile";
+        logger.log("[TalentOnboardingStart] profile ingestion failed", {
+          userId: user.id,
+          error: ingestionMessage,
+        });
+        return {
+          ok: false,
+          error: ingestionMessage,
+        };
+      }
+    })();
+
+    const [llmRaw, profileIngestion] = await Promise.all([
+      kickoffLlmPromise,
+      profileIngestionPromise,
+    ]);
 
     const kickoff = parseKickoffPayload(llmRaw) ?? FALLBACK_KICKOFF;
 
@@ -248,6 +294,11 @@ export async function POST(req: NextRequest) {
     });
 
     const profile = await fetchTalentUserProfile({ admin, userId: user.id });
+    const talentProfile = await fetchTalentStructuredProfile({
+      admin,
+      userId: user.id,
+      talentUser: profile,
+    });
     const resumeDownloadUrl = await getTalentResumeSignedUrl({
       admin,
       storagePath: profile?.resume_storage_path,
@@ -270,6 +321,7 @@ export async function POST(req: NextRequest) {
         resumeDownloadUrl,
         resumeLinks: profile?.resume_links ?? [],
       },
+      talentProfile,
       userMessage: toResponseMessage(insertedUserMessage),
       assistantMessages: insertedRows
         .filter(
@@ -278,6 +330,7 @@ export async function POST(req: NextRequest) {
             !item.content.startsWith(TALENT_PENDING_QUESTION_PREFIX)
         )
         .map(toResponseMessage),
+      profileIngestion,
     });
   } catch (error) {
     const message =

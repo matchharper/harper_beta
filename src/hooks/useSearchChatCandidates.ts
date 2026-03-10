@@ -94,7 +94,10 @@ async function fetchSearchIds(params: { runId: string; pageIdx: number }) {
   );
   const start = pageIdx * 10;
   const end = start + 10;
-  const ids = all.slice(start, end).map((r) => r.id).filter(Boolean) as string[];
+  const ids = all
+    .slice(start, end)
+    .map((r) => r.id)
+    .filter(Boolean) as string[];
 
   return {
     ids,

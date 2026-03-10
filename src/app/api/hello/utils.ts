@@ -2,14 +2,31 @@
 import { xaiInference } from "@/lib/llm/llm";
 import { IncomingWebhook } from "@slack/webhook";
 
-const webhookUrl = process.env.SLACK_TOKEN!;
+const getWebhook = (envName: "SLACK_TOKEN" | "SLACK_USAGE_TOKEN") => {
+  const webhookUrl = process.env[envName];
+  if (!webhookUrl) {
+    throw new Error(`${envName} is not configured`);
+  }
 
-export const slack = new IncomingWebhook(webhookUrl);
+  return new IncomingWebhook(webhookUrl);
+};
 
-export async function notifySlack(message: string) {
+async function sendSlackMessage(
+  envName: "SLACK_TOKEN" | "SLACK_USAGE_TOKEN",
+  message: string
+) {
+  const slack = getWebhook(envName);
   await slack.send({
     text: message,
   });
+}
+
+export async function notifySlack(message: string) {
+  await sendSlackMessage("SLACK_TOKEN", message);
+}
+
+export async function notifyUsageSlack(message: string) {
+  await sendSlackMessage("SLACK_USAGE_TOKEN", message);
 }
 
 export const makeMessage = async (

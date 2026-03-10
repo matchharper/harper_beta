@@ -506,7 +506,6 @@ button {
   color: var(--paper);
   font-family: "DM Mono", monospace;
   font-size: 14px;
-  letter-spacing: 0.22em;
   border: none;
   cursor: pointer;
   overflow: hidden;
@@ -537,4 +536,20 @@ button {
 }
 .btn-ink:hover .arrow {
   transform: translateX(5px);
+}
+
+.atag {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1.6px;
+  text-decoration-skip-ink: none;
+  text-decoration-skip: none;
+  text-decoration-skip-ink: none;
+  text-decoration-skip: none;
+  cursor: pointer;
+
+  &:hover {
+    color: rgba(0, 0, 0, 0.6);
+  }
 }

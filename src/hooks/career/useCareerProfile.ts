@@ -8,6 +8,10 @@ import type { User } from "@supabase/supabase-js";
 import type {
   CareerMessage,
   CareerStage,
+  CareerTalentEducation,
+  CareerTalentExperience,
+  CareerTalentExtra,
+  CareerTalentUser,
   SessionResponse,
 } from "@/components/career/types";
 import {
@@ -53,6 +57,25 @@ export const useCareerProfile = ({
   const [profileSavePending, setProfileSavePending] = useState(false);
   const [profileSaveError, setProfileSaveError] = useState("");
   const [profileSaveInfo, setProfileSaveInfo] = useState("");
+  const [talentUser, setTalentUser] = useState<CareerTalentUser | null>(null);
+  const [talentExperiences, setTalentExperiences] = useState<
+    CareerTalentExperience[]
+  >([]);
+  const [talentEducations, setTalentEducations] = useState<
+    CareerTalentEducation[]
+  >([]);
+  const [talentExtras, setTalentExtras] = useState<CareerTalentExtra[]>([]);
+
+  const applyTalentProfileSnapshot = useCallback(
+    (snapshot: SessionResponse["talentProfile"] | undefined) => {
+      if (!snapshot) return;
+      setTalentUser(snapshot.talentUser ?? null);
+      setTalentExperiences(snapshot.talentExperiences ?? []);
+      setTalentEducations(snapshot.talentEducations ?? []);
+      setTalentExtras(snapshot.talentExtras ?? []);
+    },
+    []
+  );
 
   const uploadResumeFile = useCallback(
     async (file: File) => {
@@ -122,7 +145,8 @@ export const useCareerProfile = ({
     setSavedResumeFileName(payload.conversation.resumeFileName ?? null);
     setSavedResumeStoragePath(payload.conversation.resumeStoragePath ?? null);
     setSavedResumeDownloadUrl(payload.conversation.resumeDownloadUrl ?? null);
-  }, []);
+    applyTalentProfileSnapshot(payload.talentProfile);
+  }, [applyTalentProfileSnapshot]);
 
   const handleProfileSubmit = useCallback(
     async (onSuccess?: () => void | Promise<void>) => {
@@ -164,6 +188,23 @@ export const useCareerProfile = ({
           throw new Error(getErrorMessage(payload, "온보딩 시작에 실패했습니다."));
         }
 
+        if (
+          payload?.profileIngestion &&
+          payload.profileIngestion.ok === false
+        ) {
+          const ingestionError =
+            typeof payload?.profileIngestion?.error === "string"
+              ? payload.profileIngestion.error
+              : "원인을 확인하지 못했습니다.";
+          setProfileSaveInfo(
+            `참고: LinkedIn 자동 구조화 저장에 실패했습니다. (${ingestionError})`
+          );
+          console.warn(
+            "[CareerProfile] profile ingestion failed:",
+            payload.profileIngestion
+          );
+        }
+
         setStage((payload?.conversation?.stage as CareerStage) ?? "chat");
         appendMessage(toUiMessage(payload.userMessage));
         setSavedResumeFileName(payload?.conversation?.resumeFileName ?? null);
@@ -174,6 +215,7 @@ export const useCareerProfile = ({
             cleanedLinks
         );
         setResumeFile(null);
+        applyTalentProfileSnapshot(payload?.talentProfile as SessionResponse["talentProfile"]);
 
         const assistants = (payload.assistantMessages ??
           []) as SessionResponse["messages"];
@@ -193,6 +235,7 @@ export const useCareerProfile = ({
       }
     },
     [
+      applyTalentProfileSnapshot,
       appendMessage,
       conversationId,
       enqueueAssistantTypewriter,
@@ -303,6 +346,10 @@ export const useCareerProfile = ({
     setProfileSavePending(false);
     setProfileSaveError("");
     setProfileSaveInfo("");
+    setTalentUser(null);
+    setTalentExperiences([]);
+    setTalentEducations([]);
+    setTalentExtras([]);
   }, []);
 
   return {
@@ -317,6 +364,10 @@ export const useCareerProfile = ({
     profileSavePending,
     profileSaveError,
     profileSaveInfo,
+    talentUser,
+    talentExperiences,
+    talentEducations,
+    talentExtras,
     applySessionProfile,
     handleProfileSubmit,
     handleProfileLinkChange,

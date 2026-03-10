@@ -4,6 +4,7 @@ import type { CandidateType, EduUserType, ExpUserType } from "@/types/type";
 import { logger } from "@/utils/logger";
 import { UI_END, UI_START } from "./chat/useChatSession";
 import type { Locale } from "@/i18n/useMessage";
+import { StatusEnum } from "@/types/type";
 
 function getCookie(name: string) {
   if (typeof document === "undefined") return null;
@@ -66,10 +67,7 @@ function extractUiJsonFromMessage(content: string): any | null {
   }
 }
 
-async function fetchSearchIds(params: {
-  runId: string;
-  pageIdx: number;
-}) {
+async function fetchSearchIds(params: { runId: string; pageIdx: number }) {
   const { runId, pageIdx } = params;
 
   const { data, error } = await supabase
@@ -88,7 +86,10 @@ async function fetchSearchIds(params: {
 
   const start = pageIdx * 10;
   const end = start + 10;
-  const ids = all.slice(start, end).map((r) => r.id).filter(Boolean) as string[];
+  const ids = all
+    .slice(start, end)
+    .map((r) => r.id)
+    .filter(Boolean) as string[];
 
   return {
     ids,
@@ -126,7 +127,7 @@ async function createRunFromMessage(params: {
       criteria,
       query_text: queryText,
       user_id: userId,
-      status: "queued",
+      status: StatusEnum.QUEUED,
       locale,
     })
     .select("id")
@@ -171,59 +172,72 @@ async function createRunViaLaunchApi(params: {
   return typeof json.runId === "string" ? json.runId : null;
 }
 
-export const runSearch =
-  async ({ messageId, queryId, userId }: { messageId: number, queryId: string, userId: string }) => {
-    if (!queryId || !userId) return null;
+export const runSearch = async ({
+  messageId,
+  queryId,
+  userId,
+}: {
+  messageId: number;
+  queryId: string;
+  userId: string;
+}) => {
+  if (!queryId || !userId) return null;
 
-    // 0) Preferred path: server launch API (auth + ownership check + run creation)
-    try {
-      const launchedRunId = await createRunViaLaunchApi({
-        queryId,
-        messageId,
-      });
-      if (launchedRunId) return launchedRunId;
-    } catch (e) {
-      logger.log("launch api failed, fallback to client path:", e);
-    }
-
-    // 1) load message
-    const { data, error } = await supabase
-      .from("messages")
-      .select("id, content")
-      .eq("id", messageId)
-      .single();
-
-    if (error) {
-      logger.log("load message error:", error);
-      return null;
-    }
-    if (!data?.content) return null;
-
-    // 2) parse criteria from UI block
-    const inputs = extractUiJsonFromMessage(data.content);
-    if (!inputs || !inputs.criteria) {
-      logger.log("no criteria parsed from message:", messageId);
-      return null;
-    }
-
-    // 3) create run
-    const { runId: newRunId } = await createRunFromMessage({
+  // 0) Preferred path: server launch API (auth + ownership check + run creation)
+  try {
+    const launchedRunId = await createRunViaLaunchApi({
       queryId,
       messageId,
-      criteria: inputs.criteria,
-      queryText: inputs.thinking ?? "",
-      userId: userId
     });
-
-    if (!newRunId) return null;
-
-    return newRunId;
+    if (launchedRunId) return launchedRunId;
+  } catch (e) {
+    logger.log("launch api failed, fallback to client path:", e);
   }
 
-export const doSearch = async ({ runId, pageIdx }: { runId: string, pageIdx: number }) => {
+  // 1) load message
+  const { data, error } = await supabase
+    .from("messages")
+    .select("id, content")
+    .eq("id", messageId)
+    .single();
+
+  if (error) {
+    logger.log("load message error:", error);
+    return null;
+  }
+  if (!data?.content) return null;
+
+  // 2) parse criteria from UI block
+  const inputs = extractUiJsonFromMessage(data.content);
+  if (!inputs || !inputs.criteria) {
+    logger.log("no criteria parsed from message:", messageId);
+    return null;
+  }
+
+  // 3) create run
+  const { runId: newRunId } = await createRunFromMessage({
+    queryId,
+    messageId,
+    criteria: inputs.criteria,
+    queryText: inputs.thinking ?? "",
+    userId: userId,
+  });
+
+  if (!newRunId) return null;
+
+  return newRunId;
+};
+
+export const doSearch = async ({
+  runId,
+  pageIdx,
+}: {
+  runId: string;
+  pageIdx: number;
+}) => {
   console.trace("[doSearch] stack");
   logger.log("doSearch: ", runId, pageIdx);
 
   const { ids } = await fetchSearchIds({ runId, pageIdx });
   return { ids };
-}
+};

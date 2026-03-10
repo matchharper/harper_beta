@@ -68,7 +68,9 @@ export const useCareerOnboardingVoice = ({
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(getErrorMessage(payload, "대화 시작 준비에 실패했습니다."));
+        throw new Error(
+          getErrorMessage(payload, "대화 시작 준비에 실패했습니다.")
+        );
       }
 
       if (payload?.assistantMessage) {
@@ -102,10 +104,12 @@ export const useCareerOnboardingVoice = ({
     inputMode,
     voiceTranscript,
     voiceListening,
+    voiceMuted,
     voiceError,
     startVoiceCall,
     switchToChatOnly,
     handleVoicePrimaryAction,
+    toggleVoiceMute,
     switchToTextMode,
     resetVoice,
   } = useCareerVoiceInput({
@@ -190,6 +194,10 @@ export const useCareerOnboardingVoice = ({
     switchToTextMode();
   }, [switchToTextMode]);
 
+  const handleToggleVoiceMute = useCallback(() => {
+    toggleVoiceMute();
+  }, [toggleVoiceMute]);
+
   const resetOnboardingState = useCallback(() => {
     setShowVoiceStartPrompt(false);
     setOnboardingBeginPending(false);
@@ -201,8 +209,10 @@ export const useCareerOnboardingVoice = ({
     inputMode,
     voiceTranscript,
     voiceListening,
+    voiceMuted,
     voiceError,
     handleVoicePrimaryAction,
+    handleToggleVoiceMute,
     handleStartVoiceCall,
     handleUseChatOnly,
     handleSwitchToTextMode,

@@ -35,7 +35,7 @@ import { showToast } from "../toast/toast";
 import { usePlanStore } from "@/store/usePlanStore";
 import { StatusEnum } from "@/types/type";
 import type { FileAttachmentPayload } from "@/types/chat";
-import { notifyToSlack } from "@/lib/slack";
+import { notifyUsageToSlack } from "@/lib/slack";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 
 export type ChatScope =
@@ -392,7 +392,7 @@ export default function ChatPanel({
                 .join("\n")
             : "N/A";
 
-        await notifyToSlack(`🔎 *Search Started (Confirm)*
+        await notifyUsageToSlack(`🔎 *Search Started (Confirm)*
 
 • *User*: ${companyUser?.name ?? "Unknown"} (${companyUser?.email ?? "N/A"})
 • *User ID*: ${userId}
@@ -403,7 +403,7 @@ ${criteriaText}
 • *Time(Standard Korea Time)*: ${new Date().toLocaleString("ko-KR")}`);
       }
     } catch (notifyError) {
-      await notifyToSlack(`🔎 *Search Started (Confirm)*
+      await notifyUsageToSlack(`🔎 *Search Started (Confirm)*
 
 • *User*: ${companyUser?.name ?? "Unknown"} (${companyUser?.email ?? "N/A"})
 • *User ID*: ${userId}

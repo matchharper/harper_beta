@@ -2,7 +2,7 @@ import type { CareerMessage } from "@/components/career/types";
 
 // User bubble 색상을 바꾸려면 이 클래스를 수정하세요.
 export const USER_BUBBLE_CLASS =
-  "ml-auto bg-hblack100/80 px-4 py-3 text-hblack1000";
+  "ml-auto bg-hblack100/60 px-3 py-2 text-hblack1000";
 
 export const ASSISTANT_BUBBLE_CLASS = "text-hblack700";
 

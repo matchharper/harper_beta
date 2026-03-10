@@ -1,5 +1,6 @@
 import React from "react";
 import AppHeader from "@/components/common/AppHeader";
+import { AnimatedGraphics, GeometricAnimatedGraphics } from "./Compo";
 
 const PRINCIPLES = [
   {
@@ -29,26 +30,26 @@ const WhyHarperPage = () => {
       <AppHeader />
 
       <section className="mx-auto max-w-[1080px] px-4 pb-20 pt-14 lg:px-8">
-        <p className="text-xs font-medium uppercase tracking-[0.12em] text-xprimary">
-          Why Harper
-        </p>
         <h1 className="mt-3 max-w-[820px] text-3xl font-medium leading-tight text-hblack1000 lg:text-4xl">
           좋은 커리어 기회는 지원 속도보다
           <br />
-          <span className="text-xprimary">정확한 매칭과 타이밍</span>에서 시작됩니다.
+          <span className="text-xprimary">정확한 매칭과 타이밍</span>에서
+          시작됩니다.
         </h1>
         <p className="mt-5 max-w-[760px] text-sm leading-relaxed text-hblack600 lg:text-base">
           하퍼는 AI/ML/Engineering 인재를 위한 AI Talent Agent입니다. 이력서와
-          링크, 그리고 대화에서 얻은 맥락을 기반으로 후보자에게 맞는 기회를
-          찾고 연결합니다. 기회가 맞는 순간에는 하퍼가 먼저 설득하고, 후보자는
-          더 좋은 선택에 집중할 수 있게 만듭니다.
+          링크, 그리고 대화에서 얻은 맥락을 기반으로 후보자에게 맞는 기회를 찾고
+          연결합니다. 기회가 맞는 순간에는 하퍼가 먼저 설득하고, 후보자는 더
+          좋은 선택에 집중할 수 있게 만듭니다.
         </p>
+        {/* <AnimatedGraphics /> */}
+        {/* <GeometricAnimatedGraphics /> */}
 
         <div className="mt-12 grid gap-4 md:grid-cols-3">
           {PRINCIPLES.map((item) => (
             <article
               key={item.title}
-              className="rounded-xl border border-hblack200 bg-hblack000 p-5"
+              className="rounded-md bg-hblack100/50 p-5"
             >
               <h2 className="text-base font-medium text-hblack1000">
                 {item.title}
@@ -61,7 +62,9 @@ const WhyHarperPage = () => {
         </div>
 
         <div className="mt-12 rounded-xl border border-hblack200 bg-hblack000 p-6">
-          <p className="text-sm font-medium text-hblack1000">왜 계속 쓰게 될까?</p>
+          <p className="text-sm font-medium text-hblack1000">
+            왜 계속 쓰게 될까?
+          </p>
           <div className="mt-4 divide-y divide-hblack200">
             {WHY_HARPER_POINTS.map((point) => (
               <p key={point} className="py-3 text-sm text-hblack700">
