@@ -1,4 +1,5 @@
 export const notifyToSlack = async (message: string) => {
+  if (process.env.NEXT_PUBLIC_WORKER_TEST_MODE === "true") return;
   const response = await fetch("/api/hello", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -8,6 +9,7 @@ export const notifyToSlack = async (message: string) => {
 };
 
 export const notifyUsageToSlack = async (message: string) => {
+  if (process.env.NEXT_PUBLIC_WORKER_TEST_MODE === "true") return null;
   try {
     const response = await fetch("/api/hello/usage", {
       method: "POST",
