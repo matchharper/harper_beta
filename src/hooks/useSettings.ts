@@ -5,15 +5,11 @@ import { logger } from "@/utils/logger";
 export type UserSettings = {
   is_korean: boolean;
   is_exclude_shortlist: boolean;
-  max_years_exp: number | null;
-  min_years_exp: number | null;
 };
 
 const DEFAULT_SETTINGS: UserSettings = {
   is_korean: false,
   is_exclude_shortlist: false,
-  max_years_exp: null,
-  min_years_exp: null,
 };
 
 const settingsQueryKey = (userId?: string) => ["settings", userId];
@@ -29,7 +25,7 @@ export const useSettings = (userId?: string) => {
 
       const { data: row, error } = await supabase
         .from("settings")
-        .select("is_korean, is_exclude_shortlist, max_years_exp, min_years_exp")
+        .select("is_korean, is_exclude_shortlist")
         .eq("user_id", userId)
         .maybeSingle();
 
@@ -38,8 +34,6 @@ export const useSettings = (userId?: string) => {
       return {
         is_korean: row?.is_korean ?? false,
         is_exclude_shortlist: row?.is_exclude_shortlist ?? false,
-        max_years_exp: row?.max_years_exp ?? null,
-        min_years_exp: row?.min_years_exp ?? null,
       };
     },
     staleTime: 1000 * 60 * 10,
@@ -57,11 +51,9 @@ export const useSettings = (userId?: string) => {
             user_id: userId,
             is_korean: next.is_korean,
             is_exclude_shortlist: next.is_exclude_shortlist,
-            max_years_exp: next.max_years_exp,
-            min_years_exp: next.min_years_exp,
           }
         )
-        .select("is_korean, is_exclude_shortlist, max_years_exp, min_years_exp")
+        .select("is_korean, is_exclude_shortlist")
         .single();
 
       if (error) throw error;
@@ -69,8 +61,6 @@ export const useSettings = (userId?: string) => {
       return {
         is_korean: row?.is_korean ?? false,
         is_exclude_shortlist: row?.is_exclude_shortlist ?? false,
-        max_years_exp: row?.max_years_exp ?? null,
-        min_years_exp: row?.min_years_exp ?? null,
       };
     },
     onSuccess: (updated) => {

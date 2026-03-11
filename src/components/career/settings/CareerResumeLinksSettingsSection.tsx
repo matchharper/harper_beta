@@ -10,6 +10,7 @@ const CareerResumeLinksSettingsSection = () => {
     savedResumeStoragePath,
     savedResumeDownloadUrl,
     profileLinks,
+    savedProfileLinks,
     profileSavePending,
     profileSaveError,
     profileSaveInfo,
@@ -25,8 +26,18 @@ const CareerResumeLinksSettingsSection = () => {
     [savedResumeFileName, savedResumeStoragePath]
   );
 
+  const hasUnsavedLinkChanges = useMemo(() => {
+    if (profileLinks.length !== savedProfileLinks.length) return true;
+
+    return profileLinks.some(
+      (link, index) => link.trim() !== (savedProfileLinks[index] ?? "").trim()
+    );
+  }, [profileLinks, savedProfileLinks]);
+
+  const shouldShowSaveButton = Boolean(resumeFile) || hasUnsavedLinkChanges;
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="">
         <h2 className="text-lg font-semibold text-hblack1000">
           내 이력서/링크
@@ -36,7 +47,7 @@ const CareerResumeLinksSettingsSection = () => {
         </p>
       </div>
 
-      <div className="rounded-xl border border-hblack200 bg-hblack000 px-4 py-4">
+      <div className="rounded-md bg-hblack50 px-4 py-4">
         <p className="text-xs uppercase tracking-[0.08em] text-hblack500">
           저장된 이력서
         </p>
@@ -71,7 +82,7 @@ const CareerResumeLinksSettingsSection = () => {
         <div className="mt-3 flex items-center gap-2">
           <label
             htmlFor="career-settings-resume-upload"
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-hblack300 px-3 text-xs font-medium text-hblack700 hover:border-xprimary hover:text-xprimary"
+            className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-hblack300 px-3 text-xs font-medium text-hblack700 hover:text-xprimary"
           >
             <Upload className="h-3.5 w-3.5" />새 이력서 선택
           </label>
@@ -92,9 +103,9 @@ const CareerResumeLinksSettingsSection = () => {
         ) : null}
       </div>
 
-      <div className="rounded-xl border border-hblack200 bg-hblack000 px-4 py-4">
+      <div className="">
         <p className="text-xs uppercase tracking-[0.08em] text-hblack500">
-          링크
+          내 링크
         </p>
         <div className="mt-2 space-y-2">
           {profileLinks.map((link, index) => (
@@ -117,7 +128,7 @@ const CareerResumeLinksSettingsSection = () => {
                 <button
                   type="button"
                   onClick={() => onRemoveProfileLink(index)}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-hblack300 text-hblack600 transition-colors hover:border-xprimary hover:text-xprimary"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-hblack50 text-hblack600 transition-colors hover:border-xprimary hover:text-xprimary"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -129,7 +140,7 @@ const CareerResumeLinksSettingsSection = () => {
         <button
           type="button"
           onClick={onAddProfileLink}
-          className="mt-3 inline-flex h-8 items-center gap-1 rounded-lg border border-hblack300 px-3 text-xs text-hblack700 transition-colors hover:border-xprimary hover:text-xprimary"
+          className="mt-3 inline-flex h-8 items-center gap-1 rounded-lg bg-hblack50 px-3 text-xs text-hblack700 transition-colors hover:text-xprimary"
         >
           <Plus className="h-3.5 w-3.5" />
           링크 추가
@@ -147,15 +158,19 @@ const CareerResumeLinksSettingsSection = () => {
         </p>
       ) : null}
 
-      <button
-        type="button"
-        onClick={() => void onSaveTalentProfile()}
-        disabled={profileSavePending}
-        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-xprimary bg-xprimary text-sm font-medium text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        <Save className="h-4 w-4" />
-        {profileSavePending ? "저장 중..." : "이력서/링크 저장"}
-      </button>
+      {shouldShowSaveButton ? (
+        <button
+          type="button"
+          onClick={() => void onSaveTalentProfile()}
+          disabled={profileSavePending}
+          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-xprimary bg-xprimary text-sm font-normal text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <Save className="h-4 w-4" />
+          {profileSavePending
+            ? "저장 중..."
+            : "이력서/링크 저장 및 새로운 정보 업데이트"}
+        </button>
+      ) : null}
     </div>
   );
 };

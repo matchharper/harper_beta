@@ -8,6 +8,8 @@ export type CareerChatPanelContextValue = {
   stage: CareerStage;
   messages: CareerMessage[];
   scrollRef: React.RefObject<HTMLDivElement>;
+  hasOlderMessages: boolean;
+  loadingOlderMessages: boolean;
 
   authLoading: boolean;
   authPending: boolean;
@@ -45,6 +47,7 @@ export type CareerChatPanelContextValue = {
     link?: string;
     onError?: () => void;
   }) => void | Promise<void>;
+  onLoadOlderMessages: () => void | Promise<void>;
 
   showVoiceStartPrompt: boolean;
   onStartVoiceCall: () => void;
@@ -52,8 +55,11 @@ export type CareerChatPanelContextValue = {
   inputMode: CareerInputMode;
   voiceTranscript: string;
   voiceListening: boolean;
+  voiceInputLevel: number;
   voiceMuted: boolean;
   voiceError: string;
+  assistantAudioBusy: boolean;
+  voicePrimaryPressed: boolean;
   onVoicePrimaryAction: () => void;
   onToggleVoiceMute: () => void;
   onSwitchToTextMode: () => void;

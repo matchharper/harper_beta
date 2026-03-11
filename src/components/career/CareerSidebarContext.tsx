@@ -9,6 +9,7 @@ export type CareerSidebarContextValue = {
   answeredCount: number;
   targetQuestions: number;
   progressPercent: number;
+  onOpenSettings: () => void;
   onLogout: () => void | Promise<void>;
 
   resumeFile: File | null;
@@ -16,6 +17,7 @@ export type CareerSidebarContextValue = {
   savedResumeStoragePath: string | null;
   savedResumeDownloadUrl: string | null;
   profileLinks: string[];
+  savedProfileLinks: string[];
   profileSavePending: boolean;
   profileSaveError: string;
   profileSaveInfo: string;

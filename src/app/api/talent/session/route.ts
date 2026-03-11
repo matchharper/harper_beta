@@ -4,12 +4,11 @@ import {
   TALENT_FIRST_VISIT_TEXT,
   TalentConversationRow,
   ensureTalentUserRecord,
+  fetchVisibleMessagesPage,
   fetchTalentStructuredProfile,
   fetchTalentUserProfile,
-  fetchMessages,
   getTalentResumeSignedUrl,
   getTalentSupabaseAdmin,
-  isPendingQuestionContent,
 } from "@/lib/talentOnboarding/server";
 
 export async function GET(req: NextRequest) {
@@ -90,13 +89,22 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const messages = await fetchMessages({
+    const rawLimit = Number(req.nextUrl.searchParams.get("messageLimit") ?? "20");
+    const messageLimit = Number.isFinite(rawLimit)
+      ? Math.max(1, Math.min(Math.floor(rawLimit), 100))
+      : 20;
+    const rawBeforeMessageId = req.nextUrl.searchParams.get("beforeMessageId");
+    const beforeMessageId =
+      rawBeforeMessageId && /^\d+$/.test(rawBeforeMessageId)
+        ? Number(rawBeforeMessageId)
+        : null;
+
+    const { messages, nextBeforeMessageId } = await fetchVisibleMessagesPage({
       admin,
       conversationId: conversation.id,
+      limit: messageLimit,
+      beforeMessageId,
     });
-    const visibleMessages = messages.filter(
-      (message) => !isPendingQuestionContent(message.content)
-    );
     const profile = await fetchTalentUserProfile({ admin, userId: user.id });
     const talentProfile = await fetchTalentStructuredProfile({
       admin,
@@ -121,13 +129,14 @@ export async function GET(req: NextRequest) {
         reliefNudgeSent: Boolean(conversation.relief_nudge_sent),
       },
       talentProfile,
-      messages: visibleMessages.map((message) => ({
+      messages: messages.map((message) => ({
         id: message.id,
         role: message.role,
         content: message.content,
         messageType: message.message_type ?? "chat",
         createdAt: message.created_at,
       })),
+      nextBeforeMessageId,
     });
   } catch (error) {
     const message =

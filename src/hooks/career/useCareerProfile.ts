@@ -7,6 +7,7 @@ import {
 import type { User } from "@supabase/supabase-js";
 import type {
   CareerMessage,
+  CareerMessagePayload,
   CareerStage,
   CareerTalentEducation,
   CareerTalentExperience,
@@ -30,6 +31,9 @@ type UseCareerProfileArgs = {
   appendMessage: (message: CareerMessage) => void;
   enqueueAssistantTypewriter: (message: CareerMessage) => Promise<void>;
   setChatError: Dispatch<SetStateAction<string>>;
+  onMessagesChanged?: (
+    messages: CareerMessagePayload[]
+  ) => void | Promise<void>;
 };
 
 export const useCareerProfile = ({
@@ -40,9 +44,15 @@ export const useCareerProfile = ({
   appendMessage,
   enqueueAssistantTypewriter,
   setChatError,
+  onMessagesChanged,
 }: UseCareerProfileArgs) => {
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [profileLinks, setProfileLinks] = useState<string[]>(["", "", ""]);
+  const [savedProfileLinks, setSavedProfileLinks] = useState<string[]>([
+    "",
+    "",
+    "",
+  ]);
   const [profilePending, setProfilePending] = useState(false);
   const [profileError, setProfileError] = useState("");
   const [savedResumeFileName, setSavedResumeFileName] = useState<string | null>(
@@ -139,27 +149,29 @@ export const useCareerProfile = ({
     [fetchWithAuth]
   );
 
-  const applySessionProfile = useCallback((payload: SessionResponse) => {
-    const links = payload.conversation.resumeLinks ?? [];
-    setProfileLinks(toProfileLinks(links));
-    setSavedResumeFileName(payload.conversation.resumeFileName ?? null);
-    setSavedResumeStoragePath(payload.conversation.resumeStoragePath ?? null);
-    setSavedResumeDownloadUrl(payload.conversation.resumeDownloadUrl ?? null);
-    applyTalentProfileSnapshot(payload.talentProfile);
-  }, [applyTalentProfileSnapshot]);
+  const applySessionProfile = useCallback(
+    (payload: SessionResponse) => {
+      const links = payload.conversation.resumeLinks ?? [];
+      const normalizedLinks = toProfileLinks(links);
+      setProfileLinks(normalizedLinks);
+      setSavedProfileLinks(normalizedLinks);
+      setSavedResumeFileName(payload.conversation.resumeFileName ?? null);
+      setSavedResumeStoragePath(payload.conversation.resumeStoragePath ?? null);
+      setSavedResumeDownloadUrl(payload.conversation.resumeDownloadUrl ?? null);
+      applyTalentProfileSnapshot(payload.talentProfile);
+    },
+    [applyTalentProfileSnapshot]
+  );
 
   const handleProfileSubmit = useCallback(
     async (onSuccess?: () => void | Promise<void>) => {
       if (!user || !conversationId || profilePending) return;
 
-      if (!resumeFile) {
-        setProfileError("이력서를 업로드해 주세요.");
-        return;
-      }
-
-      const cleanedLinks = profileLinks.map((link) => link.trim()).filter(Boolean);
-      if (cleanedLinks.length === 0) {
-        setProfileError("LinkedIn/GitHub 등 링크를 하나 이상 입력해 주세요.");
+      const cleanedLinks = profileLinks
+        .filter((link) => link.trim().includes("linkedin.com"))
+        .filter(Boolean);
+      if (!resumeFile || cleanedLinks.length === 0) {
+        setProfileError("이력서 혹은 링크드인 링크를 업로드해 주세요.");
         return;
       }
 
@@ -185,7 +197,9 @@ export const useCareerProfile = ({
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
-          throw new Error(getErrorMessage(payload, "온보딩 시작에 실패했습니다."));
+          throw new Error(
+            getErrorMessage(payload, "온보딩 시작에 실패했습니다.")
+          );
         }
 
         if (
@@ -208,20 +222,33 @@ export const useCareerProfile = ({
         setStage((payload?.conversation?.stage as CareerStage) ?? "chat");
         appendMessage(toUiMessage(payload.userMessage));
         setSavedResumeFileName(payload?.conversation?.resumeFileName ?? null);
-        setSavedResumeStoragePath(payload?.conversation?.resumeStoragePath ?? null);
-        setSavedResumeDownloadUrl(payload?.conversation?.resumeDownloadUrl ?? null);
-        setProfileLinks(
+        setSavedResumeStoragePath(
+          payload?.conversation?.resumeStoragePath ?? null
+        );
+        setSavedResumeDownloadUrl(
+          payload?.conversation?.resumeDownloadUrl ?? null
+        );
+        const nextLinks = toProfileLinks(
           (payload?.conversation?.resumeLinks as string[] | undefined) ??
             cleanedLinks
         );
+        setProfileLinks(nextLinks);
+        setSavedProfileLinks(nextLinks);
         setResumeFile(null);
-        applyTalentProfileSnapshot(payload?.talentProfile as SessionResponse["talentProfile"]);
+        applyTalentProfileSnapshot(
+          payload?.talentProfile as SessionResponse["talentProfile"]
+        );
 
         const assistants = (payload.assistantMessages ??
           []) as SessionResponse["messages"];
         for (const assistant of assistants) {
           await enqueueAssistantTypewriter(toUiMessage(assistant));
         }
+
+        await onMessagesChanged?.([
+          payload.userMessage as CareerMessagePayload,
+          ...assistants,
+        ]);
 
         await onSuccess?.();
       } catch (error) {
@@ -248,17 +275,23 @@ export const useCareerProfile = ({
       setStage,
       uploadResumeFile,
       user,
+      onMessagesChanged,
     ]
   );
 
-  const handleProfileLinkChange = useCallback((index: number, value: string) => {
-    setProfileLinks((prev) =>
-      prev.map((item, itemIndex) => (itemIndex === index ? value : item))
-    );
-  }, []);
+  const handleProfileLinkChange = useCallback(
+    (index: number, value: string) => {
+      setProfileLinks((prev) =>
+        prev.map((item, itemIndex) => (itemIndex === index ? value : item))
+      );
+    },
+    []
+  );
 
   const handleRemoveProfileLink = useCallback((index: number) => {
-    setProfileLinks((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
+    setProfileLinks((prev) =>
+      prev.filter((_, itemIndex) => itemIndex !== index)
+    );
   }, []);
 
   const handleAddProfileLink = useCallback(() => {
@@ -268,7 +301,9 @@ export const useCareerProfile = ({
   const handleSaveTalentProfile = useCallback(async () => {
     if (!user || profileSavePending) return;
 
-    const cleanedLinks = profileLinks.map((link) => link.trim()).filter(Boolean);
+    const cleanedLinks = profileLinks
+      .map((link) => link.trim())
+      .filter(Boolean);
 
     setProfileSavePending(true);
     setProfileSaveError("");
@@ -300,11 +335,14 @@ export const useCareerProfile = ({
 
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(getErrorMessage(payload, "프로필 저장에 실패했습니다."));
+        throw new Error(
+          getErrorMessage(payload, "프로필 저장에 실패했습니다.")
+        );
       }
 
       const returnedLinks =
         (payload?.profile?.resumeLinks as string[] | undefined) ?? cleanedLinks;
+      const normalizedLinks = toProfileLinks(returnedLinks);
       setSavedResumeFileName(
         payload?.profile?.resumeFileName ?? nextResumeFileName ?? null
       );
@@ -314,7 +352,8 @@ export const useCareerProfile = ({
       setSavedResumeDownloadUrl(
         payload?.profile?.resumeDownloadUrl ?? nextResumeDownloadUrl ?? null
       );
-      setProfileLinks(toProfileLinks(returnedLinks));
+      setSavedProfileLinks(normalizedLinks);
+      setProfileLinks(normalizedLinks);
       setResumeFile(null);
       setProfileSaveInfo("이력서/링크 정보를 저장했습니다.");
     } catch (error) {
@@ -340,6 +379,7 @@ export const useCareerProfile = ({
   const resetProfileState = useCallback(() => {
     setProfilePending(false);
     setProfileError("");
+    setSavedProfileLinks(["", "", ""]);
     setSavedResumeFileName(null);
     setSavedResumeStoragePath(null);
     setSavedResumeDownloadUrl(null);
@@ -356,6 +396,7 @@ export const useCareerProfile = ({
     resumeFile,
     setResumeFile,
     profileLinks,
+    savedProfileLinks,
     profilePending,
     profileError,
     savedResumeFileName,

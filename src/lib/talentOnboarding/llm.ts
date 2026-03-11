@@ -21,7 +21,7 @@ export async function runTalentAssistantCompletion(args: {
 
   try {
     const response = await xaiClient.chat.completions.create({
-      model: "grok-4-1-fast-reasoning",
+      model: "grok-4-1-fast-non-reasoning",
       messages,
       temperature,
     });

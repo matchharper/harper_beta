@@ -45,7 +45,7 @@ const CareerProgressSidebar = () => {
     "bg-hblack000 text-hblack700 hover:bg-hblack000/50";
 
   return (
-    <aside className="lg:sticky lg:top-16 lg:self-start">
+    <aside className="lg:sticky lg:top-14 lg:self-start">
       <div className="flex flex-wrap items-center gap-2 rounded-full bg-hblack100/50 p-2">
         <button
           type="button"

@@ -10,9 +10,13 @@ import { useRouter } from "next/router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import AppHeader from "@/components/common/AppHeader";
 import Footer from "@/components/landing/Footer";
-import Image from "next/image";
 import CandidateSocialProof from "@/components/talent/CandidateSocialProof";
+import FeaturedCompanyModal from "@/components/talent/FeaturedCompanyModal";
 import FakeSticky from "@/components/talent/FakeSticky";
+import {
+  FEATURED_COMPANY_BY_ID,
+  type FeaturedCompanyKey,
+} from "@/components/talent/featuredCompanies";
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 const TIME_SLOTS = [
@@ -37,35 +41,39 @@ const TIME_SLOTS = [
 
 const PROCESS_STEPS = [
   {
-    title: "편안한 대화",
+    title: "가벼운 대화로 시작",
     details: [
-      // "LinkedIn, Resume 등 회원님의 기본 정보를 알려주세요.",
-      "Harper와 대화하면서 회원님의 역량과 원하는 것들을 알려주세요.",
+      "Harper와 몇 분 정도 대화하며",
+      "지금까지의 경험과 원하는 다음 커리어를 알려주세요.",
+      "당장 이직 생각이 없는 경우에도 등록해둘 수 있습니다.",
     ],
   },
   {
-    title: "상황이 바뀔 때마다 대화",
+    title: "바뀌면 언제든 업데이트",
     details: [
-      "원하는 역할, 조건, 우선순위가 달라지면 언제든지 다시 들어와 하퍼에게 알려주세요.",
-      "입력 정보는 계속 업데이트되어 다음 매칭에 반영됩니다.",
+      "이직 생각이 생기거나 원하는 조건이 바뀌면",
+      "언제든 Harper에게 알려주세요.",
     ],
   },
   {
-    title: "요구사항이 맞는 회사와 매칭",
+    title: "적절한 기회만 전달",
     details: [
-      "하퍼를 이용하는 회사들의 조건이 회원님의 요구사항과 적합하면 매칭이 이루어집니다.",
-      "회사 소개와 JD/Role 정보를 전달드리고, “좋아요-모르겠어요-싫어요” 피드백으로 매칭이 최적화됩니다.",
+      "조건이 맞는 회사가 나타나면",
+      "JD와 역할 정보를 먼저 전달드립니다.",
+      "좋아요 / 관심없음 피드백으로 추천이 점점 정확해집니다.",
     ],
   },
   {
-    title: "하퍼가 후보자를 대신 추천",
+    title: "하퍼가 대신 추천",
     details: [
-      "좋은 기회라고 판단되면 하퍼가 회원님을 대신해 회사에 적합성을 설득합니다.",
-      "개인정보에 민감하신 경우 “좋아요”를 누른 기회에만 프로필 공개되도록 설정할 수 있습니다.",
+      "좋은 기회라고 판단되면",
+      "Harper가 회원님의 강점과 맥락을 정리해",
+      "대신 회사를 설득하고 대화를 시작합니다.",
+      "개인정보에 민감하신 경우 제한된 경우에만 프로필이 공개되도록 설정할 수 있습니다.",
     ],
   },
   {
-    title: "회사 제안 수신 및 조율",
+    title: "제안을 받은 뒤 결정하세요",
     details: [
       "회사가 Offer 혹은 제안을 보냅니다.",
       "조건이 마음에 들면 연결을 도와드리고, 궁금한 내용은 하퍼가 중간에서 조율해 드립니다.",
@@ -83,16 +91,21 @@ const BENEFITS = [
   {
     title: "2. 직접 찾지 않아도 됩니다",
     description:
-      "회원님이 직접 회사와 포지션을 계속 찾지 않아도 됩니다.<br />Harper가 조건에 맞는 기회를 선택만 하시면 되도록 전달합니다.<br /><br />일단 등록 후, 언제든지 매칭을 중지해둘 수 있습니다.",
+      "회원님이 직접 회사와 포지션을 계속 찾지 않아도 됩니다.<br />Harper가 조건에 맞는 기회를, 받은 뒤 선택만 하시면 되도록 전달할게요.<br /><br />일단 등록 후, 언제든지 매칭을 중지해둘 수 있습니다.",
   },
   {
     title: "3. 직접 지원보다 더 높은 채용 확률",
     description:
-      "단순 지원자가 아니라<br />추천 후보자로 소개되기 때문에<br /><br />더 좋은 조건에서<br />채용 프로세스를 시작할 가능성이 높습니다.",
+      "단순 지원자가 아니라<br />추천 후보자로 소개되기 때문에<br /><br />더 좋은 조건에서<br />채용 프로세스를 시작할 가능성이 높습니다.<br/><br/>원하시는 조건에 맞추기 위해 중간에서 조율까지 해드려요.",
   },
 ];
 
 const FAQ_ITEMS = [
+  {
+    question: "헤드헌팅과 어떤게 다른가요?",
+    answer:
+      "아마 헤드헌터로부터 무의미한 이직 제안, 회사에 대한 정보를 알려주지 않은 채로 커피챗 제안, 제안 수락 후 회사로부터 거절 통보 등의 경험을 해보셨을겁니다. 하퍼는 제안을 수락했지만 회사가 거절했다는 연락을 받을 일이 없습니다.",
+  },
   {
     question: "매칭은 얼마나 자주 이루어지나요?",
     answer:
@@ -171,6 +184,27 @@ const formatLocalDate = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 
+const CompanyInlineTrigger = ({
+  companyId,
+  onOpen,
+}: {
+  companyId: FeaturedCompanyKey;
+  onOpen: (companyId: FeaturedCompanyKey) => void;
+}) => {
+  const company = FEATURED_COMPANY_BY_ID[companyId];
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(companyId)}
+      className="atag inline-flex items-center bg-transparent p-0 font-medium"
+      aria-haspopup="dialog"
+    >
+      {company.triggerLabel}
+    </button>
+  );
+};
+
 const Talent = () => {
   const router = useRouter();
 
@@ -179,6 +213,8 @@ const Talent = () => {
   );
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [selectedTime, setSelectedTime] = useState(TIME_SLOTS[2]);
+  const [activeCompanyId, setActiveCompanyId] =
+    useState<FeaturedCompanyKey | null>(null);
   const [showMoreButton, setShowMoreButton] = useState(true);
   const [isMoreButtonFading, setIsMoreButtonFading] = useState(false);
   const hideMoreButtonTimerRef = useRef<number | null>(null);
@@ -231,6 +267,10 @@ const Talent = () => {
     });
   }, [selectedDate]);
 
+  const activeCompany = activeCompanyId
+    ? FEATURED_COMPANY_BY_ID[activeCompanyId]
+    : null;
+
   const handleCallBooking = () => {
     if (!selectedDate) return;
     router.push({
@@ -242,6 +282,14 @@ const Talent = () => {
     });
   };
 
+  const handleOpenCompany = (companyId: FeaturedCompanyKey) => {
+    setActiveCompanyId(companyId);
+  };
+
+  const handleCloseCompany = () => {
+    setActiveCompanyId(null);
+  };
+
   const handleShowMore = () => {
     if (isMoreButtonFading) return;
 
@@ -249,7 +297,7 @@ const Talent = () => {
 
     window.requestAnimationFrame(() => {
       window.scrollTo({
-        top: Math.round(window.innerHeight * 0.5),
+        top: Math.round(window.innerHeight * 0.9),
         behavior: "smooth",
       });
     });
@@ -320,41 +368,40 @@ const Talent = () => {
                   <br />
                   회원님을 추천/연결합니다.
                 </Head>
-                <div className="mt-8 text-base flex flex-row items-center gap-1">
+                <div className="mt-8 flex flex-wrap items-center gap-x-1 gap-y-1 text-base">
                   이미
-                  {/* <img
-                    src="https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/toss.webp"
-                    alt="daangn"
-                    className="w-5 h-5 object-contain"
-                  /> */}
-                  <span className="atag">토스</span> ,
-                  {/* <img
-                    src="https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/daangn.webp"
-                    alt="daangn"
-                    className="w-6 h-6 object-contain"
-                  /> */}
-                  <span className="atag">당근</span>,
-                  {/* <img
-                    src="https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/rebellions.webp"
-                    alt="daangn"
-                    className="w-4 h-4 object-contain"
-                  /> */}
-                  <span className="atag">리벨리온</span>,
-                  {/* <img
-                    src="https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/ycombinator.webp"
-                    alt="daangn"
-                    className="w-4 h-4 rounded-sm object-contain"
-                  /> */}
-                  <span className="atag">YC backed 스타트업</span> 등
+                  <CompanyInlineTrigger
+                    companyId="toss"
+                    onOpen={handleOpenCompany}
+                  />
+                  ,
+                  <CompanyInlineTrigger
+                    companyId="karrot"
+                    onOpen={handleOpenCompany}
+                  />
+                  ,
+                  <CompanyInlineTrigger
+                    companyId="rebellions"
+                    onOpen={handleOpenCompany}
+                  />
+                  ,
+                  <CompanyInlineTrigger
+                    companyId="wonderful"
+                    onOpen={handleOpenCompany}
+                  />
+                  ,<span className="atag">YC backed 스타트업</span> 등
                 </div>
                 <div className="mt-0.5">
-                  국내외 유망 테크 회사들이 Harper를 통해 인재를 찾고 있습니다.
+                  국내외 테크 회사들이 Harper를 통해 인재를 찾고 있습니다.
                 </div>
                 <div className={`mt-3 space-y-1 ${body}`}></div>
               </div>
 
               <div className="flex flex-col mt-4">
-                <button className="btn-ink rounded-md w-fit">
+                <button
+                  className="btn-ink rounded-md w-fit"
+                  onClick={() => router.push("/career")}
+                >
                   <span className="font-medium">대화 시작하기</span>
                   <span className="arrow">
                     <ArrowRight className="h-4 w-4" />
@@ -370,7 +417,7 @@ const Talent = () => {
             {/* Benefits (flat 2-col rows / minimal separators) */}
             <div className="py-2">
               <div className="text-lg font-medium mb-8">
-                모든 뛰어난 스포츠 선수에게는 에이전트가 있듯이, <br />
+                모든 뛰어난 스포츠 선수에게는 전담 에이전트가 있듯이, <br />
                 AI/ML 인재에게는 Harper가 있습니다.
               </div>
               <p className={kicker}>Why Harper?</p>
@@ -418,11 +465,11 @@ const Talent = () => {
               <p className={kicker}>Process</p>
               <h2 className={title}>하퍼는 이렇게 진행됩니다</h2>
 
-              <div className="mt-5 divide-y divide-hblack200/70">
+              <div className="mt-2 divide-y divide-hblack200/70">
                 {PROCESS_STEPS.map((step, idx) => (
-                  <div key={step.title} className="py-3">
+                  <div key={step.title} className="py-4">
                     <div className="flex items-start gap-4">
-                      <div className="w-4 shrink-0 text-lg font-bold text-xprimary">
+                      <div className="w-8 h-8 flex items-center justify-center shrink-0 py-1 rounded-md bg-hblack50 text-base font-bold text-xprimary">
                         {idx + 1}
                       </div>
                       <div className="min-w-0">
@@ -635,7 +682,7 @@ const Talent = () => {
             onClick={handleShowMore}
             className={[
               "pointer-events-auto inline-flex items-center justify-center rounded-full flex-row gap-2",
-              "bg-hblack50 px-5 py-2 text-sm font-medium text-hblack900 shadow-md backdrop-blur",
+              "bg-hblack50 cursor-pointer hover:bg-hblack100 px-5 py-1.5 text-sm font-medium text-hblack900 shadow-md backdrop-blur",
               "transition-all duration-300",
               isMoreButtonFading
                 ? "translate-y-2 opacity-0"
@@ -647,6 +694,11 @@ const Talent = () => {
           </button>
         </div>
       )}
+      <FeaturedCompanyModal
+        open={Boolean(activeCompany)}
+        company={activeCompany}
+        onClose={handleCloseCompany}
+      />
     </main>
   );
 };

@@ -254,7 +254,7 @@ export const ko = {
           priceUnit: "원/월",
           priceUnit2: "/월",
           buttonLabel: "문의하기",
-          features: ["월 150 Credits", "Harper Scout", "무제한 채팅"],
+          features: ["월 150 Credits", "Harper Scout", "AI 스마트 서치"],
         },
         max: {
           name: "Max",

@@ -1,9 +1,8 @@
-import { Loader2, Upload, X } from "lucide-react";
-import { FormEvent, useState } from "react";
+import { Loader2, Phone, Upload, X } from "lucide-react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { CAREER_LINK_LABELS } from "@/components/career/constants";
 import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
 import CareerMessageBubble from "./CareerMessageBubble";
-import Image from "next/image";
 
 const LOGIN_GREETING_TEXT =
   "안녕하세요. 잘해드리겠습니다.\n\n회원님의 정보를 저장하기 위해서 우선 계정으로 로그인을 해주세요.";
@@ -30,12 +29,16 @@ const VOICE_START_PROMPT = [
   "바로 시작하시겠어요?",
 ].join("\n");
 
+const VOICE_TRANSCRIPT_PREVIEW_LIMIT = 120;
+
 const CareerTimelineSection = () => {
   const {
     user,
     stage,
     messages,
     scrollRef,
+    hasOlderMessages,
+    loadingOlderMessages,
     authPending,
     authError,
     authInfo,
@@ -56,14 +59,21 @@ const CareerTimelineSection = () => {
     onRemoveProfileLink,
     onAddProfileLink,
     onProfileSubmit,
+    onLoadOlderMessages,
     showVoiceStartPrompt,
     onStartVoiceCall,
     onUseChatOnly,
+    inputMode,
+    voiceListening,
+    voiceMuted,
+    voiceTranscript,
+    assistantAudioBusy,
   } = useCareerChatPanelContext();
 
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
+  const [showLoadOlderButton, setShowLoadOlderButton] = useState(false);
 
   const handleEmailAuthSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -78,8 +88,157 @@ const CareerTimelineSection = () => {
     setAuthMode("signin");
   };
 
+  const syncLoadOlderButtonVisibility = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setShowLoadOlderButton(el.scrollTop <= 24);
+  }, [scrollRef]);
+
+  useEffect(() => {
+    syncLoadOlderButtonVisibility();
+  }, [messages.length, syncLoadOlderButtonVisibility]);
+
+  const handleTimelineScroll = useCallback(() => {
+    syncLoadOlderButtonVisibility();
+  }, [syncLoadOlderButtonVisibility]);
+
+  const handleLoadOlderMessages = useCallback(async () => {
+    const el = scrollRef.current;
+    const previousScrollHeight = el?.scrollHeight ?? null;
+    const previousScrollTop = el?.scrollTop ?? 0;
+
+    await onLoadOlderMessages();
+
+    if (!el || previousScrollHeight === null) return;
+
+    window.requestAnimationFrame(() => {
+      const scrollHeightDelta = el.scrollHeight - previousScrollHeight;
+      el.scrollTop = previousScrollTop + scrollHeightDelta;
+      syncLoadOlderButtonVisibility();
+    });
+  }, [onLoadOlderMessages, scrollRef, syncLoadOlderButtonVisibility]);
+
+  const isVoiceMode = inputMode === "voice";
+  let lastSpokenAssistantMessageIndex = -1;
+
+  if (assistantAudioBusy) {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index];
+      if (
+        message.role === "assistant" &&
+        !message.typing &&
+        Boolean(message.content.trim()) &&
+        (message.messageType ?? "chat") === "chat"
+      ) {
+        lastSpokenAssistantMessageIndex = index;
+        break;
+      }
+    }
+  }
+
+  const transcriptPreview = voiceTranscript.trim();
+  const compactTranscriptPreview =
+    transcriptPreview.length > VOICE_TRANSCRIPT_PREVIEW_LIMIT
+      ? `${transcriptPreview.slice(0, VOICE_TRANSCRIPT_PREVIEW_LIMIT - 1)}...`
+      : transcriptPreview;
+
+  if (user && isVoiceMode && stage !== "profile" && false) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col px-4 py-4 lg:px-6 lg:py-6">
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="relative flex flex-1 flex-col items-center justify-center overflow-hidden px-6 py-2 text-center">
+            <div className="relative flex h-44 w-44 items-center justify-center rounded-full bg-xprimary text-hblack000 shadow-[0_18px_60px_rgba(17,24,39,0.18)] sm:h-48 sm:w-48">
+              <p className="mt-3 font-hedvig text-2xl leading-none sm:text-3xl">
+                Harper
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-hblack000 mb-12 backdrop-blur">
+            <div
+              ref={scrollRef}
+              className="h-[200px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-hblack200 scrollbar-track-transparent bg-hblack50 px-2 rounded-md"
+            >
+              {sessionPending && (
+                <article className="rounded-xl border border-hblack200 bg-hblack000 px-4 py-4">
+                  <div className="flex items-center gap-2 text-sm text-hblack700">
+                    <Loader2 className="h-4 w-4 animate-spin text-xprimary" />
+                    저장된 대화를 불러오는 중입니다...
+                  </div>
+                </article>
+              )}
+
+              {!sessionPending && messages.length === 0 && (
+                <article className="rounded-2xl border border-hblack100 bg-hblack000/70 px-4 py-4 text-sm text-hblack600">
+                  아직 표시할 대화 기록이 없습니다.
+                </article>
+              )}
+
+              {!sessionPending && (
+                <div className="space-y-3 pb-2">
+                  {messages.map((message, index) => {
+                    const isUser = message.role === "user";
+                    return (
+                      <div
+                        key={`${message.id}-${index}`}
+                        className="flex flex-col gap-1"
+                      >
+                        <CareerMessageBubble
+                          message={message}
+                          isUser={isUser}
+                        />
+                      </div>
+                    );
+                  })}
+
+                  {chatPending && !assistantTyping && (
+                    <article className="rounded-2xl border border-hblack100 bg-hblack000/70 px-4 py-3 text-sm text-hblack700">
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin text-xprimary" />
+                        채팅을 작성중입니다...
+                      </div>
+                    </article>
+                  )}
+                </div>
+              )}
+
+              {sessionError && (
+                <article className="mt-3 rounded-xl border border-xprimary/30 bg-xprimary/10 px-4 py-3 text-sm text-xprimary">
+                  {sessionError}
+                </article>
+              )}
+
+              {chatError && (
+                <article className="mt-3 rounded-xl border border-xprimary/30 bg-xprimary/10 px-4 py-3 text-sm text-xprimary">
+                  {chatError}
+                </article>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto px-6 py-6">
+    <div
+      ref={scrollRef}
+      onScroll={handleTimelineScroll}
+      className="flex-1 space-y-4 overflow-y-auto px-6 py-6 pb-24 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent"
+    >
+      {user && showLoadOlderButton && hasOlderMessages ? (
+        <div className="sticky top-0 z-10 flex justify-center pb-2">
+          <button
+            type="button"
+            onClick={() => void handleLoadOlderMessages()}
+            disabled={loadingOlderMessages}
+            className="inline-flex h-9 items-center justify-center rounded-full border border-hblack200 bg-hblack000 px-4 text-xs text-hblack700 shadow-[0_8px_20px_rgba(17,24,39,0.08)] transition-colors hover:border-xprimary hover:text-xprimary disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loadingOlderMessages ? "불러오는 중..." : "이전 대화 더 보기"}
+          </button>
+        </div>
+      ) : null}
+
       {!user && (
         <>
           <div className="flex flex-col gap-1">
@@ -166,8 +325,17 @@ const CareerTimelineSection = () => {
 
       {user && (
         <>
+          {isVoiceMode && stage !== "profile" && (
+            <div className="inline-flex pr-6 pl-1 py-1 flex-row items-center justify-center gap-4 sticky rounded-full top-0 z-20 left-[50%] -translate-x-1/2 border-b border-xprimary/15 bg-xprimary shadow-[0_10px_24px_rgba(17,24,39,0.08)]">
+              <div className="w-8 h-8 rounded-full bg-hblack000 flex items-center justify-center">
+                <Phone className="h-4 w-4 text-xprimary" fill="currentColor" />
+              </div>
+              <div className="text-base font-medium text-hblack000">Harper</div>
+            </div>
+          )}
+
           {sessionPending && (
-            <article className="max-w-[96%] rounded-xl border border-hblack200 bg-hblack000 px-4 py-4">
+            <article className="max-w-[96%] h-[60vh] flex items-center justify-center bg-hblack000 px-4 py-4">
               <div className="flex items-center gap-2 text-sm text-hblack700">
                 <Loader2 className="h-4 w-4 animate-spin text-xprimary" />
                 저장된 대화를 불러오는 중입니다...
@@ -181,7 +349,7 @@ const CareerTimelineSection = () => {
               return (
                 <div
                   key={`${message.id}-${index}`}
-                  className="flex flex-col gap-1"
+                  className={`flex flex-col gap-1 ${isVoiceMode && index !== lastSpokenAssistantMessageIndex ? "opacity-70" : ""}`}
                 >
                   <div
                     className={[
@@ -193,7 +361,13 @@ const CareerTimelineSection = () => {
                   >
                     {isUser ? "" : ""}
                   </div>
-                  <CareerMessageBubble message={message} isUser={isUser} />
+                  <CareerMessageBubble
+                    message={message}
+                    isUser={isUser}
+                    isAssistantSpeaking={
+                      !isUser && index === lastSpokenAssistantMessageIndex
+                    }
+                  />
                 </div>
               );
             })}
@@ -204,7 +378,7 @@ const CareerTimelineSection = () => {
             !assistantTyping && (
               <div className="flex flex-col gap-1">
                 <div className="text-xs text-hblack500">Harper</div>
-                <article className="max-w-[96%] rounded-xl border border-hblack200 bg-hblack000 px-4 py-3 text-sm text-hblack700">
+                <article className="max-w-[96%] text-sm text-hblack700">
                   <div className="flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin text-xprimary" />
                     채팅을 작성중입니다...
@@ -232,8 +406,8 @@ const CareerTimelineSection = () => {
             </article>
           )}
 
-          {!sessionPending && stage === "profile" && (
-            <article className="max-w-[96%] rounded-xl border border-hblack200 bg-hblack000 px-4 py-4">
+          {!profilePending && !sessionPending && stage === "profile" && (
+            <article className="lg:max-w-[80%] max-w-[96%] rounded-xl border border-hblack200 bg-hblack000 px-4 py-4">
               <div>
                 <p className="text-sm font-medium text-hblack1000">
                   이력서 업로드
@@ -244,7 +418,7 @@ const CareerTimelineSection = () => {
                 <div className="mt-3 flex items-center gap-2">
                   <label
                     htmlFor="career-resume-upload"
-                    className="inline-flex h-10 items-center gap-2 border border-hblack300 px-3 text-sm font-medium text-hblack800 hover:border-xprimary"
+                    className="inline-flex h-10 items-center gap-2 bg-hblack50 rounded-md px-3 text-sm font-medium text-hblack800 hover:border-xprimary"
                   >
                     <Upload className="h-4 w-4" />
                     파일 선택
@@ -258,13 +432,13 @@ const CareerTimelineSection = () => {
                       onResumeFileChange(event.target.files?.[0] ?? null);
                     }}
                   />
-                  <span className="truncate text-sm text-hblack600">
+                  <span className="truncate text-sm text-hblack500">
                     {resumeFile?.name || "선택된 파일 없음"}
                   </span>
                 </div>
               </div>
 
-              <div className="mt-6">
+              <div className="mt-8">
                 <p className="text-sm font-medium text-hblack1000">
                   주요 링크 입력
                 </p>
@@ -274,7 +448,7 @@ const CareerTimelineSection = () => {
                       key={`profile-link-${index}`}
                       className="flex items-center gap-2"
                     >
-                      <div className="w-28 text-xs font-medium text-hblack600">
+                      <div className="w-28 text-sm font-medium text-hblack600">
                         {CAREER_LINK_LABELS[index] ?? "추가 링크"}
                       </div>
                       <input
@@ -289,7 +463,7 @@ const CareerTimelineSection = () => {
                         <button
                           type="button"
                           onClick={() => onRemoveProfileLink(index)}
-                          className="inline-flex h-8 w-8 items-center justify-center border border-hblack300 text-hblack600 hover:border-xprimary hover:text-xprimary"
+                          className="inline-flex h-8 w-8 items-center justify-center bg-hblack50 rounded-md text-hblack600 hover:border-xprimary hover:text-xprimary"
                         >
                           <X className="h-4 w-4" />
                         </button>
@@ -300,22 +474,27 @@ const CareerTimelineSection = () => {
                 <button
                   type="button"
                   onClick={onAddProfileLink}
-                  className="mt-3 inline-flex h-8 items-center border border-hblack300 px-3 text-xs font-medium text-hblack700 hover:border-xprimary hover:text-xprimary"
+                  className="mt-3 inline-flex h-8 items-center bg-hblack50 rounded-md px-3 text-xs font-medium text-hblack700 hover:border-xprimary hover:text-xprimary"
                 >
                   + 링크 추가
                 </button>
               </div>
 
               {profileError && (
-                <p className="mt-3 border border-xprimary/30 bg-xprimary/10 px-3 py-2 text-sm text-xprimary">
+                <p className="mt-3 border border-xprimary/30 bg-xprimary/10 px-3 py-2 text-xs rounded-sm text-xprimary">
                   {profileError}
                 </p>
               )}
+              <p className="mt-6 text-[13px] text-hblack400">
+                이력서 혹은 링크드인 중 하나만으로도 우선 시작하실 수 있습니다!
+                <br />
+                정보는 언제든지 변경가능합니다.
+              </p>
               <button
                 type="button"
                 onClick={() => void onProfileSubmit()}
                 disabled={profilePending}
-                className="mt-4 h-10 w-full border border-xprimary bg-xprimary text-sm font-medium text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-2 h-10 w-full rounded-md border border-xprimary bg-xprimary text-sm font-medium text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {profilePending ? "분석 준비 중..." : "제출하기"}
               </button>

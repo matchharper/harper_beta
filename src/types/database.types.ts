@@ -187,6 +187,7 @@ export type Database = {
           headline: string | null
           id: string
           is_duplicated_old: boolean
+          is_korean: boolean
           is_linkedin_deprecated: boolean
           is_selective: boolean
           last_updated_at: string | null
@@ -206,6 +207,7 @@ export type Database = {
           headline?: string | null
           id?: string
           is_duplicated_old?: boolean
+          is_korean?: boolean
           is_linkedin_deprecated?: boolean
           is_selective?: boolean
           last_updated_at?: string | null
@@ -225,6 +227,7 @@ export type Database = {
           headline?: string | null
           id?: string
           is_duplicated_old?: boolean
+          is_korean?: boolean
           is_linkedin_deprecated?: boolean
           is_selective?: boolean
           last_updated_at?: string | null
@@ -1440,6 +1443,7 @@ export type Database = {
           query_id: string | null
           query_text: string | null
           results: Json | null
+          search_settings: Json | null
           sql_query: string | null
           status: string | null
           user_id: string | null
@@ -1457,6 +1461,7 @@ export type Database = {
           query_id?: string | null
           query_text?: string | null
           results?: Json | null
+          search_settings?: Json | null
           sql_query?: string | null
           status?: string | null
           user_id?: string | null
@@ -1474,6 +1479,7 @@ export type Database = {
           query_id?: string | null
           query_text?: string | null
           results?: Json | null
+          search_settings?: Json | null
           sql_query?: string | null
           status?: string | null
           user_id?: string | null
@@ -1788,6 +1794,7 @@ export type Database = {
       talent_experiences: {
         Row: {
           company_location: string | null
+          company_logo: string | null
           company_name: string | null
           created_at: string
           description: string | null
@@ -1801,6 +1808,7 @@ export type Database = {
         }
         Insert: {
           company_location?: string | null
+          company_logo?: string | null
           company_name?: string | null
           created_at?: string
           description?: string | null
@@ -1814,6 +1822,7 @@ export type Database = {
         }
         Update: {
           company_location?: string | null
+          company_logo?: string | null
           company_name?: string | null
           created_at?: string
           description?: string | null
@@ -2075,6 +2084,7 @@ export type Database = {
           headline: string | null
           id: string
           is_duplicated_old: boolean
+          is_korean: boolean
           is_linkedin_deprecated: boolean
           is_selective: boolean
           last_updated_at: string | null

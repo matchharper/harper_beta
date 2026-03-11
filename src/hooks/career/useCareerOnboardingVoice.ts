@@ -30,8 +30,9 @@ type UseCareerOnboardingVoiceArgs = {
   userId: string | null;
   authLoading: boolean;
   conversationId: string | null;
+  messages: CareerMessage[];
   fetchWithAuth: FetchWithAuth;
-  isComposerLocked: boolean;
+  isVoiceInteractionLocked: boolean;
   onSendChatMessage: (args: SendChatArgs) => void | Promise<void>;
   setChatError: Dispatch<SetStateAction<string>>;
   setStage: Dispatch<SetStateAction<CareerStage>>;
@@ -43,8 +44,9 @@ export const useCareerOnboardingVoice = ({
   userId,
   authLoading,
   conversationId,
+  messages,
   fetchWithAuth,
-  isComposerLocked,
+  isVoiceInteractionLocked,
   onSendChatMessage,
   setChatError,
   setStage,
@@ -104,16 +106,25 @@ export const useCareerOnboardingVoice = ({
     inputMode,
     voiceTranscript,
     voiceListening,
+    voiceInputLevel,
     voiceMuted,
     voiceError,
+    assistantAudioBusy,
+    voicePrimaryPressed,
     startVoiceCall,
     switchToChatOnly,
     handleVoicePrimaryAction,
     toggleVoiceMute,
     switchToTextMode,
+    armAutoResumeAfterAssistant,
+    clearAutoResumeAfterAssistant,
     resetVoice,
   } = useCareerVoiceInput({
-    canInteract: !isComposerLocked && Boolean(user && conversationId),
+    canInteract:
+      !isVoiceInteractionLocked &&
+      !onboardingBeginPending &&
+      Boolean(user && conversationId),
+    messages,
     onSendMessage: onSendChatMessage,
     onUnsupported: (message) => {
       setChatError(message);
@@ -146,6 +157,7 @@ export const useCareerOnboardingVoice = ({
     const shouldBeginOnboarding = showVoiceStartPrompt;
     if (shouldBeginOnboarding) {
       setShowVoiceStartPrompt(false);
+      armAutoResumeAfterAssistant();
     }
 
     // Keep speech start inside the direct click handler to avoid
@@ -157,11 +169,14 @@ export const useCareerOnboardingVoice = ({
     void (async () => {
       const ready = await beginOnboardingConversation();
       if (!ready) {
+        clearAutoResumeAfterAssistant();
         setShowVoiceStartPrompt(true);
       }
     })();
   }, [
+    armAutoResumeAfterAssistant,
     beginOnboardingConversation,
+    clearAutoResumeAfterAssistant,
     onboardingBeginPending,
     showVoiceStartPrompt,
     startVoiceCall,
@@ -209,8 +224,11 @@ export const useCareerOnboardingVoice = ({
     inputMode,
     voiceTranscript,
     voiceListening,
+    voiceInputLevel,
     voiceMuted,
     voiceError,
+    assistantAudioBusy,
+    voicePrimaryPressed,
     handleVoicePrimaryAction,
     handleToggleVoiceMute,
     handleStartVoiceCall,

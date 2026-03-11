@@ -13,6 +13,9 @@ export const useCareerSession = ({ fetchWithAuth }: UseCareerSessionArgs) => {
   const [sessionPending, setSessionPending] = useState(false);
   const [sessionError, setSessionError] = useState("");
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [initialMessagePage, setInitialMessagePage] = useState<
+    Pick<SessionResponse, "messages" | "nextBeforeMessageId"> | null
+  >(null);
 
   const loadSession = useCallback(async () => {
     setSessionPending(true);
@@ -28,7 +31,7 @@ export const useCareerSession = ({ fetchWithAuth }: UseCareerSessionArgs) => {
         );
       }
 
-      const sessionRes = await fetchWithAuth("/api/talent/session");
+      const sessionRes = await fetchWithAuth("/api/talent/session?messageLimit=20");
       const payload = (await sessionRes
         .json()
         .catch(() => ({}))) as SessionPayload;
@@ -37,6 +40,13 @@ export const useCareerSession = ({ fetchWithAuth }: UseCareerSessionArgs) => {
       }
 
       setConversationId(payload.conversation.id);
+      setInitialMessagePage({
+        messages: Array.isArray(payload.messages) ? payload.messages : [],
+        nextBeforeMessageId:
+          typeof payload.nextBeforeMessageId === "number"
+            ? payload.nextBeforeMessageId
+            : null,
+      });
       return payload;
     } catch (error) {
       const message =
@@ -50,12 +60,14 @@ export const useCareerSession = ({ fetchWithAuth }: UseCareerSessionArgs) => {
 
   const resetSessionState = useCallback(() => {
     setConversationId(null);
+    setInitialMessagePage(null);
     setSessionPending(false);
     setSessionError("");
   }, []);
 
   return {
     conversationId,
+    initialMessagePage,
     sessionPending,
     sessionError,
     loadSession,

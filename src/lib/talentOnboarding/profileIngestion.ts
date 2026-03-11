@@ -40,6 +40,8 @@ export type TalentExperienceDraft = {
   months: number | null;
   company_name: string | null;
   company_location: string | null;
+  company_id: number | null;
+  company_logo: string | null;
   memo: string | null;
 };
 
@@ -156,6 +158,25 @@ function cleanMultilineText(value: unknown, maxLength = 8000): string | null {
     .trim();
   if (!normalized) return null;
   return normalized.slice(0, maxLength);
+}
+
+function parseCompanyId(value: unknown): number | null {
+  if (typeof value === "number") {
+    return Number.isInteger(value) && value > 0 ? value : null;
+  }
+  if (typeof value !== "string") return null;
+
+  const normalized = value.trim();
+  if (!normalized) return null;
+
+  const direct = Number(normalized);
+  if (Number.isInteger(direct) && direct > 0) return direct;
+
+  const lastDigits = normalized.match(/(\d+)(?!.*\d)/);
+  if (!lastDigits) return null;
+
+  const parsed = Number(lastDigits[1]);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
 function normalizeLink(raw: string): string {
@@ -383,6 +404,7 @@ function toTalentExperienceDraft(raw: unknown): TalentExperienceDraft | null {
     cleanText(item.company_name, 300) ?? cleanText(item.companyName, 300);
   const companyLocation =
     cleanText(item.company_location, 300) ?? cleanText(item.location, 300);
+  const companyId = parseCompanyId(item.company_id ?? item.companyId);
   const description = cleanMultilineText(item.description, 6000);
 
   if (!role && !companyName && !description) {
@@ -408,6 +430,8 @@ function toTalentExperienceDraft(raw: unknown): TalentExperienceDraft | null {
     months,
     company_name: companyName,
     company_location: companyLocation,
+    company_id: companyId,
+    company_logo: null,
     memo: cleanText(item.memo, 200),
   };
 }
@@ -463,7 +487,10 @@ function toTalentExtraDraft(raw: unknown): TalentExtraDraft | null {
 
   const parsedDate =
     parseLinkedinDate(extractDateText(item.date ?? item.issuedAt), false) ??
-    parseLinkedinDate(extractDateText(item.published_at ?? item.publishedAt), false);
+    parseLinkedinDate(
+      extractDateText(item.published_at ?? item.publishedAt),
+      false
+    );
 
   const sourceType = cleanText(item.type, 80);
 
@@ -495,6 +522,12 @@ function normalizeForKey(value: string | null | undefined): string {
     .trim();
 }
 
+function normalizeDescriptionForMatch(
+  value: string | null | undefined
+): string {
+  return normalizeForKey(value).slice(0, 160);
+}
+
 function experienceKey(item: TalentExperienceDraft): string {
   return [
     normalizeForKey(item.company_name),
@@ -521,6 +554,145 @@ function extraKey(item: TalentExtraDraft): string {
     normalizeForKey(item.date),
     normalizeForKey(item.description).slice(0, 120),
   ].join("|");
+}
+
+function recoverExperienceCompanyIds(
+  experiences: TalentExperienceDraft[],
+  linkedinExperiences: TalentExperienceDraft[]
+): TalentExperienceDraft[] {
+  const linkedinWithCompanyIds = linkedinExperiences.filter(
+    (item): item is TalentExperienceDraft & { company_id: number } =>
+      typeof item.company_id === "number" && item.company_id > 0
+  );
+
+  if (linkedinWithCompanyIds.length === 0) {
+    return experiences.map((item) => ({
+      ...item,
+      company_logo: null,
+    }));
+  }
+
+  return experiences.map((item) => {
+    if (item.company_id) {
+      return {
+        ...item,
+        company_logo: null,
+      };
+    }
+
+    const companyName = normalizeForKey(item.company_name);
+    if (!companyName) {
+      return {
+        ...item,
+        company_logo: null,
+      };
+    }
+
+    let bestScore = -1;
+    let bestCompanyIds = new Set<number>();
+
+    for (const candidate of linkedinWithCompanyIds) {
+      if (normalizeForKey(candidate.company_name) !== companyName) continue;
+
+      let score = 100;
+      if (
+        normalizeForKey(item.role) &&
+        normalizeForKey(item.role) === normalizeForKey(candidate.role)
+      ) {
+        score += 20;
+      }
+      if (
+        normalizeForKey(item.start_date) &&
+        normalizeForKey(item.start_date) ===
+          normalizeForKey(candidate.start_date)
+      ) {
+        score += 12;
+      }
+      if (
+        normalizeForKey(item.end_date) &&
+        normalizeForKey(item.end_date) === normalizeForKey(candidate.end_date)
+      ) {
+        score += 10;
+      }
+      if (
+        normalizeDescriptionForMatch(item.description) &&
+        normalizeDescriptionForMatch(item.description) ===
+          normalizeDescriptionForMatch(candidate.description)
+      ) {
+        score += 4;
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestCompanyIds = new Set<number>([candidate.company_id]);
+      } else if (score === bestScore) {
+        bestCompanyIds.add(candidate.company_id);
+      }
+    }
+
+    if (bestScore < 100 || bestCompanyIds.size !== 1) {
+      return {
+        ...item,
+        company_logo: null,
+      };
+    }
+
+    return {
+      ...item,
+      company_id: Array.from(bestCompanyIds)[0] ?? null,
+      company_logo: null,
+    };
+  });
+}
+
+async function loadCompanyLogoMap(args: {
+  admin: any;
+  experiences: TalentExperienceDraft[];
+}) {
+  const companyIds = Array.from(
+    new Set(
+      args.experiences
+        .map((item) => item.company_id)
+        .filter((item): item is number => typeof item === "number" && item > 0)
+    )
+  );
+
+  const companyLogoById = new Map<number, string | null>();
+  if (companyIds.length === 0) return companyLogoById;
+
+  const { data, error } = await (args.admin as any)
+    .from("company_db")
+    .select("id, logo")
+    .in("id", companyIds);
+
+  if (error) {
+    logger.log("[TalentIngest] company logo lookup failed", {
+      companyIds,
+      error: error.message ?? "Failed to load company_db logos",
+    });
+    return companyLogoById;
+  }
+
+  for (const row of toArray<{ id?: unknown; logo?: unknown }>(data)) {
+    const companyId = parseCompanyId(row.id);
+    if (!companyId) continue;
+    companyLogoById.set(companyId, cleanText(row.logo, 1000));
+  }
+
+  return companyLogoById;
+}
+
+function attachCompanyLogos(
+  experiences: TalentExperienceDraft[],
+  companyLogoById: Map<number, string | null>
+): TalentExperienceDraft[] {
+  return experiences.map((item) => ({
+    ...item,
+    company_logo:
+      item.company_id && companyLogoById.has(item.company_id)
+        ? (companyLogoById.get(item.company_id) ?? null)
+        : null,
+  }));
 }
 
 function buildLinkedinTalentExtras(
@@ -628,15 +800,15 @@ function normalizeLlmEnrichment(raw: LlmEnrichmentDraft): {
 
   const experiences = dedupeByKey(
     toArray(raw.talentExperiences)
-    .map((item) => toTalentExperienceDraft(item))
-    .filter((item): item is TalentExperienceDraft => item !== null),
+      .map((item) => toTalentExperienceDraft(item))
+      .filter((item): item is TalentExperienceDraft => item !== null),
     experienceKey
   );
 
   const educations = dedupeByKey(
     toArray(raw.talentEducations)
-    .map((item) => toTalentEducationDraft(item))
-    .filter((item): item is TalentEducationDraft => item !== null),
+      .map((item) => toTalentEducationDraft(item))
+      .filter((item): item is TalentEducationDraft => item !== null),
     educationKey
   );
 
@@ -708,6 +880,8 @@ async function runResumeEnrichmentLlm(args: {
           "Use the LinkedIn data and resume information to generate a full consolidated output.",
           "Do not return only delta/additional rows. Return full arrays for all sections.",
           "If resume has less information, it is valid to keep LinkedIn-derived values.",
+          "Preserve company_id from the current LinkedIn experience when the final row refers to the same company.",
+          "Never invent a company_id.",
           "talentExtras is an array for awards, projects, publications, volunteering, certifications, or other notable details.",
           "Date format must be YYYY-MM-DD or null.",
           "Output schema:",
@@ -728,6 +902,7 @@ async function runResumeEnrichmentLlm(args: {
           '      "months": number|null,',
           '      "company_name": string|null,',
           '      "company_location": string|null,',
+          '      "company_id": number|null,',
           '      "memo": string|null',
           "    }",
           "  ],",
@@ -935,6 +1110,17 @@ export async function ingestTalentProfileFromLinkedin(
     }
   }
 
+  experiences = recoverExperienceCompanyIds(
+    experiences,
+    experiencesFromLinkedin
+  );
+
+  const companyLogoById = await loadCompanyLogoMap({
+    admin,
+    experiences,
+  });
+  experiences = attachCompanyLogos(experiences, companyLogoById);
+
   const now = new Date().toISOString();
   const userPayload: Record<string, unknown> = {
     name: talentUser.name,
@@ -972,6 +1158,8 @@ export async function ingestTalentProfileFromLinkedin(
     experiences: experiences.length,
     educations: educations.length,
     extras: talentExtras.length,
+    experienceCompanyLogos: experiences.filter((item) => item.company_logo)
+      .length,
   });
 
   const db = admin as any;
@@ -1005,6 +1193,7 @@ export async function ingestTalentProfileFromLinkedin(
     months: item.months,
     company_name: item.company_name,
     company_location: item.company_location,
+    company_logo: item.company_logo,
     memo: item.memo,
   }));
   if (experienceRows.length > 0) {
@@ -1040,23 +1229,13 @@ export async function ingestTalentProfileFromLinkedin(
   }
 
   const extrasContent = {
-    source: {
-      linkedin_url: linkedinUrl,
-      scholar_links: scholarLinks,
-      input_links: links,
-    },
-    counts: {
-      experiences: experienceRows.length,
-      educations: educationRows.length,
-      extras: talentExtras.length,
-    },
-    talent_extras: talentExtras,
-    llm: {
-      used: Boolean(resumeText),
-      notes: llmNotes,
-      raw: llmRaw ? llmRaw.slice(0, 12000) : null,
-    },
     updated_at: now,
+    talent_extras: talentExtras.map((item) => ({
+      title: item.title,
+      description: item.description,
+      date: item.date,
+      memo: item.memo,
+    })),
   };
 
   const { error: extrasUpsertError } = await db.from("talent_extras").upsert(

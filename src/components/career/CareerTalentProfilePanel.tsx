@@ -3,22 +3,18 @@ import {
   AwardIcon,
   Building2,
   ChevronDown,
+  FileText,
   MapPin,
+  LinkIcon,
   SchoolIcon,
 } from "lucide-react";
 import { initials } from "@/components/NameProfile";
 import { locationEnToKo } from "@/utils/language_map";
 import { dateToFormat } from "@/utils/textprocess";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
-import type {
-  CareerTalentEducation,
-  CareerTalentExperience,
-  CareerTalentExtra,
-} from "./types";
-
-type TimelineEntry =
-  | { kind: "exp"; item: CareerTalentExperience }
-  | { kind: "edu"; item: CareerTalentEducation; index: number };
+import type { CareerTalentExtra } from "./types";
+import { Tooltips } from "../ui/tooltip";
+import LinkPills from "../information/LinkPills";
 
 const parseDate = (value: string | null | undefined) => {
   if (!value) return null;
@@ -48,34 +44,6 @@ const formatMonth = (months?: number | null) => {
   return `${years > 0 ? `${years}년 ` : ""}${remain}개월`;
 };
 
-const LinkPills = ({ links }: { links: string[] }) => {
-  if (!links.length) {
-    return <div className="text-xs text-hblack500">No links</div>;
-  }
-
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {links.map((url) => {
-        let host = url;
-        try {
-          host = new URL(url).hostname.replace("www.", "");
-        } catch {}
-        return (
-          <a
-            key={url}
-            href={url}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex max-w-full items-center rounded-lg border border-hblack200 bg-hblack000 px-2.5 py-1 text-xs text-hblack700 transition-colors hover:bg-hblack100 hover:text-hblack900"
-          >
-            <span className="truncate">{host}</span>
-          </a>
-        );
-      })}
-    </div>
-  );
-};
-
 const TimelineItem = ({
   title,
   subtitle,
@@ -97,7 +65,7 @@ const TimelineItem = ({
 }) => {
   const hasDescription = Boolean(description);
   const hasMemo = Boolean(memo);
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
 
   return (
     <div className="relative">
@@ -106,7 +74,7 @@ const TimelineItem = ({
       ) : null}
 
       <div
-        className={`relative flex items-start justify-between gap-3 pb-9 ${
+        className={`relative flex items-start justify-between gap-3 pb-12 ${
           isContinued ? "mt-[-20px] pb-12" : "mt-0"
         }`}
       >
@@ -114,7 +82,7 @@ const TimelineItem = ({
           <div
             className={`min-w-8 ${isContinued ? "opacity-0" : "opacity-100"}`}
           >
-            <div className="mt-[1px] flex h-8 w-8 items-center justify-center rounded-full border border-hblack200 bg-hblack100">
+            <div className="mt-[1px] flex h-10 w-10 items-center justify-center rounded-full border border-hblack200 bg-hblack50">
               {type === "education" ? (
                 <SchoolIcon
                   size={16}
@@ -138,12 +106,13 @@ const TimelineItem = ({
           </div>
 
           <div className="mt-[-3px] flex min-w-0 flex-col gap-[2px]">
-            <div className="truncate text-sm font-medium text-hblack900">
+            <div className="truncate text-[15px] font-medium text-hblack900">
               {title}
             </div>
-            <div className="flex flex-wrap items-center gap-2 text-xs font-normal text-hblack600">
+            <div className="flex flex-wrap items-center gap-2 text-[13px] font-normal text-hblack600">
               {subtitle ? <span>{subtitle}</span> : null}
-              {subtitle && dateLabel ? <span>·</span> : null}
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-[13px] font-normal text-hblack600">
               {dateLabel ? <span>{dateLabel}</span> : null}
             </div>
 
@@ -155,8 +124,8 @@ const TimelineItem = ({
                   </div>
                 ) : null}
                 {hasMemo ? (
-                  <div className="whitespace-pre-wrap break-words text-hblack500">
-                    메모: {memo}
+                  <div className="whitespace-pre-wrap break-words text-xprimary bg-xprimary/10">
+                    Harper 메모: {memo}
                   </div>
                 ) : null}
               </div>
@@ -168,7 +137,7 @@ const TimelineItem = ({
           <button
             type="button"
             onClick={() => setIsOpen((prev) => !prev)}
-            className="absolute right-0 top-[-4px] inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-hblack100"
+            className="absolute right-0 top-[-4px] inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-hblack50"
             aria-expanded={isOpen}
             aria-label={isOpen ? "접기" : "펼치기"}
           >
@@ -205,6 +174,7 @@ const CareerTalentProfilePanel = () => {
   const { talentProfile, profileLinks } = useCareerSidebarContext();
   const { talentUser, talentExperiences, talentEducations, talentExtras } =
     talentProfile;
+  const { onOpenSettings } = useCareerSidebarContext();
   const [bioOpen, setBioOpen] = useState(false);
 
   const links = useMemo(() => {
@@ -291,28 +261,26 @@ const CareerTalentProfilePanel = () => {
   }
 
   return (
-    <div className="mt-4 rounded-2xl border border-hblack200 bg-hblack000 p-5">
-      <div className="max-h-[calc(100vh-170px)] space-y-5 overflow-y-auto pr-1">
-        <div className="grid w-full grid-cols-6 gap-3">
-          <div className="col-span-1">
-            <div className="h-16 w-16 overflow-hidden rounded-full border border-hblack200 bg-hblack100">
-              {talentUser?.profile_picture &&
-              !talentUser.profile_picture.includes("media.licdn.com") ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={talentUser.profile_picture}
-                  alt={talentUser?.name ?? "profile"}
-                  className="h-16 w-16 object-cover"
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center bg-hblack100 text-xl font-normal text-hblack700">
-                  {initials(talentUser?.name)}
-                </div>
-              )}
-            </div>
+    <div className="mt-4 rounded-2xl border border-hblack200 bg-hblack000">
+      <div className="max-h-[calc(100vh-170px)] space-y-5 overflow-y-auto p-5 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
+        <div className="flex flex-row w-full gap-3 relative">
+          <div className="h-12 w-12 overflow-hidden rounded-full border border-hblack200 bg-hblack100">
+            {talentUser?.profile_picture &&
+            !talentUser.profile_picture.includes("media.licdn.com") ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={talentUser.profile_picture}
+                alt={talentUser?.name ?? "profile"}
+                className="h-12 w-12 object-cover"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-hblack100 text-xl font-normal text-hblack700">
+                {initials(talentUser?.name)}
+              </div>
+            )}
           </div>
 
-          <div className="col-span-5 flex min-w-0 flex-col gap-2">
+          <div className="flex min-w-0 flex-col gap-1">
             <div className="text-xl font-normal text-hblack1000">
               {talentUser?.name ?? "Unknown"}
             </div>
@@ -333,6 +301,20 @@ const CareerTalentProfilePanel = () => {
             <div className="mt-1">
               <LinkPills links={links} />
             </div>
+          </div>
+          <div className="absolute right-0 top-0">
+            <Tooltips text="이력서 / 링크 관리">
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                className="flex flex-row cursor-pointer items-center justify-center gap-1 rounded-md bg-hblack50 px-2 py-1.5 text-hblack500 hover:bg-hblack100"
+                aria-label="이력서 및 링크 관리 열기"
+              >
+                <FileText className="h-3.5 w-3.5" />
+                /
+                <LinkIcon className="h-3.5 w-3.5" />
+              </button>
+            </Tooltips>
           </div>
         </div>
 

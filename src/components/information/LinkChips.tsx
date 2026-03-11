@@ -57,7 +57,7 @@ function LinkChips({ links, size = "default" }: Props) {
         let host = raw;
         try {
           host = new URL(url).hostname.replace("www.", "");
-        } catch { }
+        } catch {}
 
         const brand = BRAND_MAP.find((b) => b.match(url));
 
@@ -78,9 +78,10 @@ function LinkChips({ links, size = "default" }: Props) {
             target="_blank"
             rel="noreferrer"
             className={`inline-flex items-center justify-center rounded-md transition-all duration-200
-              ${isSm
-                ? "bg-white/0 p-0 hover:bg-white/0"
-                : "bg-white/5 px-2.5 py-1.5 text-sm text-white hover:bg-white/20"
+              ${
+                isSm
+                  ? "bg-white/0 p-0 hover:bg-white/0"
+                  : "bg-white/5 px-2.5 py-1.5 text-sm text-white hover:bg-white/20"
               }`}
           >
             <Tooltips text={isSm ? finalBrand.label : ""}>
@@ -110,13 +111,19 @@ function LinkChips({ links, size = "default" }: Props) {
 
 export default React.memo(LinkChips);
 
-export const LinkChip = ({ raw, size = "default" }: { raw: string, size?: "default" | "sm" | "md" }) => {
+export const LinkChip = ({
+  raw,
+  size = "default",
+}: {
+  raw: string;
+  size?: "default" | "sm" | "md";
+}) => {
   const url = raw.startsWith("http") ? raw : `https://${raw}`;
 
   let host = raw;
   try {
     host = new URL(url).hostname.replace("www.", "");
-  } catch { }
+  } catch {}
 
   const brand = BRAND_MAP.find((b) => b.match(url));
 
@@ -138,9 +145,12 @@ export const LinkChip = ({ raw, size = "default" }: { raw: string, size?: "defau
       target="_blank"
       rel="noreferrer"
       className={`mt-2 inline-flex items-center justify-center rounded-md transition-all duration-200
-        ${isSm
-          ? "bg-white/0 p-0 hover:bg-white/0"
-          : isMd ? "bg-white/5 px-2 py-1 text-xs text-white hover:bg-white/10" : "bg-white/5 px-2.5 py-1.5 text-sm text-white hover:bg-white/20"
+        ${
+          isSm
+            ? "bg-white/0 p-0 hover:bg-white/0"
+            : isMd
+              ? "bg-white/5 px-2 py-1 text-xs text-white hover:bg-white/10"
+              : "bg-white/5 px-2.5 py-1.5 text-sm text-white hover:bg-white/20"
         }`}
     >
       <Tooltips text={isSm ? finalBrand.label : ""}>
@@ -149,8 +159,9 @@ export const LinkChip = ({ raw, size = "default" }: { raw: string, size?: "defau
           alt=""
           className={
             isSm
-              ? "h-4 w-4" :
-              isMd ? "h-3 w-3"
+              ? "h-4 w-4"
+              : isMd
+                ? "h-3 w-3"
                 : finalBrand.icon.includes("/svgs/chain")
                   ? "h-3.5 w-3.5"
                   : "h-4 w-4"
@@ -158,10 +169,8 @@ export const LinkChip = ({ raw, size = "default" }: { raw: string, size?: "defau
         />
       </Tooltips>
       {!isSm && (
-        <span className="ml-2 font-light text-white">
-          {finalBrand.label}
-        </span>
+        <span className="ml-2 font-light text-white">{finalBrand.label}</span>
       )}
     </a>
-  )
-}
+  );
+};

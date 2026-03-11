@@ -39,6 +39,10 @@ export type CandidateTypeWithConnection = CandidateType & {
 
 type RunPageCandidate = { id?: string; score?: number | string | null };
 
+type SearchSettingsSnapshot = {
+  is_korean: boolean;
+};
+
 function filterPositiveScoreCandidates(items: RunPageCandidate[]) {
   return items.filter((item) => {
     const score = Number(item?.score);
@@ -96,6 +100,26 @@ async function fetchSearchIds(params: { runId: string; pageIdx: number }) {
     isNewSearch: false,
   };
 }
+
+async function loadSearchSettings(
+  userId: string
+): Promise<SearchSettingsSnapshot> {
+  const { data: row, error } = await supabase
+    .from("settings")
+    .select("is_korean")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `loadSearchSettings failed (${error.code}): ${error.message}`
+    );
+  }
+
+  return {
+    is_korean: row?.is_korean ?? false,
+  };
+}
 /**
  * run 생성:
  * body: { queryId, messageId, criteria, queryText }
@@ -118,6 +142,7 @@ async function createRunFromMessage(params: {
     throw new Error("createRunFromMessage: missing criteria");
 
   const locale = getLocaleFromCookie();
+  const searchSettings = await loadSearchSettings(userId);
 
   const { data, error } = await supabase
     .from("runs")
@@ -129,6 +154,7 @@ async function createRunFromMessage(params: {
       user_id: userId,
       status: StatusEnum.QUEUED,
       locale,
+      search_settings: searchSettings,
     })
     .select("id")
     .single();
