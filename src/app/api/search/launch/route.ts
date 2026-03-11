@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser, supabaseServer } from "@/lib/supabaseServer";
+import { NextRequest, NextResponse } from "next/server";
 
 const UI_START = "<<UI>>";
 const UI_END = "<<END_UI>>";
@@ -121,6 +121,11 @@ export async function POST(req: NextRequest) {
 
   const locale = parseLocaleFromRequest(req);
   const searchSettings = await loadSearchSettings(user.id);
+
+  // 테스트 모드 확인 (환경 변수)
+  const testMode = process.env.NEXT_PUBLIC_WORKER_TEST_MODE === "true";
+  const queueStatus = testMode ? "queued_test" : "queued";
+
   const { data: runRow, error: runError } = await supabaseServer
     .from("runs")
     .insert({
@@ -129,7 +134,7 @@ export async function POST(req: NextRequest) {
       criteria: parsed.criteria,
       query_text: String(parsed.thinking ?? ""),
       user_id: user.id,
-      status: "queued", // 여기서 queued_test를 넣어서 테스트
+      status: queueStatus,
       locale,
       search_settings: searchSettings,
     })
