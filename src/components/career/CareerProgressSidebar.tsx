@@ -45,7 +45,7 @@ const CareerProgressSidebar = () => {
     "bg-hblack000 text-hblack700 hover:bg-hblack000/50";
 
   return (
-    <aside className="lg:sticky lg:top-16 lg:self-start">
+    <aside className="lg:sticky lg:top-14 lg:self-start">
       <div className="flex flex-wrap items-center gap-2 rounded-full bg-hblack100/50 p-2">
         <button
           type="button"
@@ -121,7 +121,7 @@ const CareerProgressSidebar = () => {
 
           <div className="mt-4 rounded-xl border border-hblack200 bg-hblack000 px-4 py-3">
             <p className="text-sm text-hblack700">
-              질문 응답 {answeredCount}/{targetQuestions}
+              대화 응답 {answeredCount}/{targetQuestions}
             </p>
             <p className="mt-1 text-xs text-hblack500">
               현재 상태: {stageLabel}

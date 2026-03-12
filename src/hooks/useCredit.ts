@@ -2,14 +2,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
 
-// 쿼리 키 정의
 const creditQueryKey = (userId?: string) => ["credits", userId] as const;
 
 export const useCredits = () => {
   const queryClient = useQueryClient();
   const authUserId = useAuthStore((s) => s.user?.id);
 
-  // 1. 크레딧 조회 (useQuery)
+  // 1. 현재 잔여 이용량 조회
   const { data: credits, isLoading, refetch } = useQuery({
     queryKey: creditQueryKey(authUserId),
     queryFn: async () => {
@@ -37,7 +36,7 @@ export const useCredits = () => {
     refetchOnWindowFocus: true,
   });
 
-  // 2. 크레딧 차감 (useMutation)
+  // 2. 이용량 차감
   const mutation = useMutation({
     mutationFn: async (amount: number) => {
       const { data: newBalance, error } = await supabase.rpc(
@@ -59,7 +58,7 @@ export const useCredits = () => {
     },
     onError: (error: any) => {
       if (error.message.includes("Insufficient credits")) {
-        alert("크레딧이 부족합니다.");
+        alert("이번 달 월 검색 한도를 모두 사용했습니다.");
       } else {
         console.error("Deduction error:", error);
       }
@@ -67,10 +66,10 @@ export const useCredits = () => {
   });
 
   return {
-    credits, // 현재 잔액
-    isLoading, // 로딩 상태
+    credits,
+    isLoading,
     refetch,
-    deduct: mutation.mutateAsync, // 차감 함수 (async/await 가능)
-    isDeducting: mutation.isPending, // 차감 중 상태
+    deduct: mutation.mutateAsync,
+    isDeducting: mutation.isPending,
   };
 };

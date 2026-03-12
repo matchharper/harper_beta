@@ -553,3 +553,14 @@ button {
     color: rgba(0, 0, 0, 0.6);
   }
 }
+
+.diagonal-lines {
+  background-color: #ffffff;
+  background-image: repeating-linear-gradient(
+    60deg,
+    #e9eaef55 0px,
+    #e9eaef55 1px,
+    transparent 1px,
+    transparent 10px
+  );
+}

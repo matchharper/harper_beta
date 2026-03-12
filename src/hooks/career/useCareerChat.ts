@@ -1,12 +1,14 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
 import type { User } from "@supabase/supabase-js";
 import type {
   CareerMessage,
+  CareerMessagePayload,
   CareerStage,
   SessionResponse,
 } from "@/components/career/types";
@@ -32,6 +34,41 @@ type UseCareerChatArgs = {
   conversationId: string | null;
   sessionPending: boolean;
   fetchWithAuth: FetchWithAuth;
+  persistedMessages: CareerMessage[];
+  onMessagesChanged?: (messages: CareerMessagePayload[]) => void | Promise<void>;
+};
+
+const TYPEWRITER_SCROLL_INTERVAL = 20;
+
+const mergeMessages = (
+  persistedMessages: CareerMessage[],
+  localMessages: CareerMessage[]
+) => {
+  if (localMessages.length === 0) return persistedMessages;
+
+  const merged = [...persistedMessages];
+  const persistedIndexById = new Map<string, number>();
+
+  for (let index = 0; index < persistedMessages.length; index += 1) {
+    persistedIndexById.set(String(persistedMessages[index].id), index);
+  }
+
+  for (const message of localMessages) {
+    const id = String(message.id);
+    const existingIndex = persistedIndexById.get(id);
+    if (typeof existingIndex === "number") {
+      merged[existingIndex] = {
+        ...merged[existingIndex],
+        ...message,
+      };
+      continue;
+    }
+
+    persistedIndexById.set(id, merged.length);
+    merged.push(message);
+  }
+
+  return merged;
 };
 
 export const useCareerChat = ({
@@ -39,12 +76,15 @@ export const useCareerChat = ({
   conversationId,
   sessionPending,
   fetchWithAuth,
+  persistedMessages,
+  onMessagesChanged,
 }: UseCareerChatArgs) => {
   const [stage, setStage] = useState<CareerStage>("profile");
-  const [messages, setMessages] = useState<CareerMessage[]>([]);
+  const [localMessages, setLocalMessages] = useState<CareerMessage[]>([]);
   const [chatPending, setChatPending] = useState(false);
   const [chatError, setChatError] = useState("");
   const [assistantTyping, setAssistantTyping] = useState(false);
+  const [scrollTick, setScrollTick] = useState(0);
 
   const typingQueueRef = useRef<Promise<void>>(Promise.resolve());
   const mountedRef = useRef(true);
@@ -55,13 +95,32 @@ export const useCareerChat = ({
     };
   }, []);
 
+  useEffect(() => {
+    if (persistedMessages.length === 0) return;
+
+    const persistedIds = new Set(
+      persistedMessages.map((message) => String(message.id))
+    );
+
+    setLocalMessages((prev) =>
+      prev.filter((message) => {
+        if (message.typing) return true;
+        return !persistedIds.has(String(message.id));
+      })
+    );
+  }, [persistedMessages]);
+
+  const bumpScrollTick = useCallback(() => {
+    setScrollTick((prev) => prev + 1);
+  }, []);
+
   const enqueueAssistantTypewriter = useCallback((message: CareerMessage) => {
     typingQueueRef.current = typingQueueRef.current.then(async () => {
       if (!mountedRef.current) return;
 
       setAssistantTyping(true);
       const id = String(message.id);
-      setMessages((prev) => [
+      setLocalMessages((prev) => [
         ...prev,
         {
           ...message,
@@ -69,6 +128,7 @@ export const useCareerChat = ({
           typing: true,
         },
       ]);
+      bumpScrollTick();
 
       const fullText = message.content;
       const delay = Math.max(
@@ -78,7 +138,7 @@ export const useCareerChat = ({
       for (let index = 1; index <= fullText.length; index += 1) {
         if (!mountedRef.current) return;
         await sleep(delay);
-        setMessages((prev) =>
+        setLocalMessages((prev) =>
           prev.map((item) =>
             String(item.id) === id
               ? {
@@ -88,9 +148,13 @@ export const useCareerChat = ({
               : item
           )
         );
+
+        if (index % TYPEWRITER_SCROLL_INTERVAL === 0 || index === fullText.length) {
+          bumpScrollTick();
+        }
       }
 
-      setMessages((prev) =>
+      setLocalMessages((prev) =>
         prev.map((item) =>
           String(item.id) === id
             ? {
@@ -102,19 +166,21 @@ export const useCareerChat = ({
         )
       );
       setAssistantTyping(false);
+      bumpScrollTick();
     });
 
     return typingQueueRef.current;
-  }, []);
+  }, [bumpScrollTick]);
 
   const applySessionConversation = useCallback((payload: SessionResponse) => {
     setStage(payload.conversation.stage);
-    setMessages(payload.messages.map(toUiMessage));
+    setLocalMessages([]);
   }, []);
 
   const appendMessage = useCallback((message: CareerMessage) => {
-    setMessages((prev) => [...prev, message]);
-  }, []);
+    setLocalMessages((prev) => [...prev, message]);
+    bumpScrollTick();
+  }, [bumpScrollTick]);
 
   const sendChatMessage = useCallback(
     async (args: SendChatArgs, options?: SendChatOptions) => {
@@ -140,7 +206,7 @@ export const useCareerChat = ({
 
       setChatError("");
       setChatPending(true);
-      setMessages((prev) => [
+      setLocalMessages((prev) => [
         ...prev,
         {
           id: tempId,
@@ -150,6 +216,7 @@ export const useCareerChat = ({
           createdAt: nowIso,
         },
       ]);
+      bumpScrollTick();
 
       try {
         const response = await fetchWithAuth("/api/talent/chat", {
@@ -165,11 +232,16 @@ export const useCareerChat = ({
           throw new Error(getErrorMessage(payload, "메시지 전송에 실패했습니다."));
         }
 
-        setMessages((prev) => [
+        setLocalMessages((prev) => [
           ...prev.filter((item) => item.id !== tempId),
           toUiMessage(payload.userMessage),
         ]);
+        bumpScrollTick();
         await enqueueAssistantTypewriter(toUiMessage(payload.assistantMessage));
+        await onMessagesChanged?.([
+          payload.userMessage as CareerMessagePayload,
+          payload.assistantMessage as CareerMessagePayload,
+        ]);
 
         if (payload?.progress?.completed) {
           setStage("completed");
@@ -179,7 +251,7 @@ export const useCareerChat = ({
           error instanceof Error
             ? error.message
             : "메시지 전송 중 오류가 발생했습니다.";
-        setMessages((prev) => prev.filter((item) => item.id !== tempId));
+        setLocalMessages((prev) => prev.filter((item) => item.id !== tempId));
         setChatError(message);
         args.onError?.();
       } finally {
@@ -188,6 +260,7 @@ export const useCareerChat = ({
     },
     [
       assistantTyping,
+      bumpScrollTick,
       chatPending,
       conversationId,
       enqueueAssistantTypewriter,
@@ -195,12 +268,18 @@ export const useCareerChat = ({
       sessionPending,
       stage,
       user,
+      onMessagesChanged,
     ]
+  );
+
+  const messages = useMemo(
+    () => mergeMessages(persistedMessages, localMessages),
+    [localMessages, persistedMessages]
   );
 
   const resetChatState = useCallback(() => {
     setStage("profile");
-    setMessages([]);
+    setLocalMessages([]);
     setChatPending(false);
     setChatError("");
     setAssistantTyping(false);
@@ -210,6 +289,7 @@ export const useCareerChat = ({
     stage,
     setStage,
     messages,
+    scrollTick,
     appendMessage,
     chatPending,
     chatError,

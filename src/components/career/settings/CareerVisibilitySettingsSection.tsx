@@ -88,8 +88,11 @@ const CareerVisibilitySettingsSection = () => {
             </span>
           ) : null}
         </div>
-        <p className="mt-1 text-sm text-hblack600">
-          Control how your profile is shared with companies
+        <p className="mt-2 text-sm text-hblack500">
+          어떤 경우에 프로필을 볼 수 있게할지 설정할 수 있습니다.
+          <br />
+          어떤 경우에도, 강하게 매칭되지 않은 회사에게는 정보가 공개되지
+          않습니다.
         </p>
 
         <div className="mt-4 grid grid-cols-3 gap-1 rounded-xl border border-hblack200 bg-hblack100/30 p-1">
@@ -115,14 +118,14 @@ const CareerVisibilitySettingsSection = () => {
           })}
         </div>
 
-        <p className="mt-3 text-sm text-hblack600">
+        <p className="mt-3 text-sm text-hblack500">
           {selectedVisibilityOption.description}
         </p>
       </div>
 
       <div className="mt-8">
         <h3 className="text-lg font-semibold text-hblack1000">차단 기업</h3>
-        <p className="mt-1 text-sm text-hblack600">
+        <p className="mt-1 text-sm text-hblack500">
           입력된 회사에게는 회원님의 정보가 공개되지 않습니다.
         </p>
 
@@ -146,7 +149,7 @@ const CareerVisibilitySettingsSection = () => {
           </button>
         </div>
 
-        <div className="mt-3 space-y-2">
+        <div className="mt-3 gap-2 flex flex-row">
           {blockedCompanies.length === 0 ? (
             <div className="rounded-lg border border-dashed border-hblack200 px-3 py-3 text-sm text-hblack500">
               차단된 회사가 없습니다.
@@ -155,17 +158,16 @@ const CareerVisibilitySettingsSection = () => {
             blockedCompanies.map((companyName) => (
               <div
                 key={companyName}
-                className="flex items-center justify-between rounded-lg border border-hblack200 bg-hblack000 px-3 py-2"
+                className="inline-flex items-center justify-between rounded-lg bg-hblack50 pl-4 pr-2 py-2 gap-2"
               >
                 <div className="inline-flex items-center gap-2 text-sm text-hblack800">
-                  <Building2 className="h-4 w-4 text-hblack500" />
                   {companyName}
                 </div>
                 <button
                   type="button"
                   onClick={() => onRemoveBlockedCompany(companyName)}
                   disabled={settingsLoading || settingsSaving}
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-hblack300 text-hblack600 transition-colors hover:border-xprimary hover:text-xprimary disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex h-6 w-6 items-center justify-center rounded-md text-hblack500 transition-colors hover:bg-hblack100 disabled:cursor-not-allowed disabled:opacity-60"
                   aria-label={`${companyName} 삭제`}
                 >
                   <X className="h-3.5 w-3.5" />

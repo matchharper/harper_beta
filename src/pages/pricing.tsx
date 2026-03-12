@@ -25,14 +25,14 @@ export default function PricingPage() {
       return {
         title: "Harper Pricing | 팀을 위한 요금제",
         description:
-          "Harper의 플랜과 결제/크레딧 정책을 확인하고 팀에 맞는 요금제를 선택하세요.",
+          "Harper의 플랜과 결제/이용 정책을 확인하고 팀에 맞는 요금제를 선택하세요.",
       };
     }
 
     return {
       title: "Harper Pricing | Plans for Growing Teams",
       description:
-        "Explore Harper plans and billing/credit policies to choose the best option for your team.",
+        "Explore Harper plans and billing and usage policies to choose the best option for your team.",
     };
   }, [locale]);
 

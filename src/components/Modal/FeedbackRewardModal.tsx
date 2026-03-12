@@ -4,21 +4,10 @@ import React, { useState } from "react";
 import BaseModal from "./BaseModal";
 import { supabase } from "@/lib/supabase";
 import { showToast } from "@/components/toast/toast";
-import { useCompanyUserStore } from "@/store/useCompanyUserStore";
-import { useCredits } from "@/hooks/useCredit";
-import {
-  FREE_CREDIT_AMOUNT,
-  useFreeCreditFeedback,
-} from "@/hooks/useFreeCreditFeedback";
 import { useFeedbackModalStore } from "@/store/useFeedbackModalStore";
 
 const FeedbackRewardModal = () => {
   const { isOpen, close } = useFeedbackModalStore();
-  const { companyUser } = useCompanyUserStore();
-  const { refetch: refetchCredits } = useCredits();
-  const { hasClaimedFreeCredit, isCheckingFreeCredit, markClaimed } =
-    useFreeCreditFeedback(companyUser?.user_id);
-
   const [feedbackText, setFeedbackText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -56,17 +45,13 @@ const FeedbackRewardModal = () => {
         throw new Error(data?.error ?? "피드백 제출에 실패했습니다.");
       }
 
-      markClaimed();
       closeModal();
-      void refetchCredits();
 
       showToast({
-        message: data?.granted
-          ? `피드백 감사합니다. ${FREE_CREDIT_AMOUNT} 크레딧이 충전되었습니다.`
-          : "피드백 감사합니다.",
+        message: "피드백 감사합니다.",
       });
     } catch (error) {
-      console.error("free-credit feedback submit failed:", error);
+      console.error("feedback submit failed:", error);
       alert("피드백 제출 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setIsSubmitting(false);
@@ -89,11 +74,6 @@ const FeedbackRewardModal = () => {
         <br />
         남겨주시는 모든 내용들이 큰 도움이 됩니다.
       </p>
-      {!isCheckingFreeCredit && !hasClaimedFreeCredit && (
-        <p className="mt-2 text-sm text-accenta1 font-normal leading-relaxed">
-          계정당 1회에 한해 피드백을 남기시면 5크레딧을 드립니다.
-        </p>
-      )}
       <textarea
         value={feedbackText}
         onChange={(e) => setFeedbackText(e.target.value)}
@@ -101,9 +81,6 @@ const FeedbackRewardModal = () => {
         placeholder="피드백을 입력해 주세요."
         className="w-full mt-4 text-white rounded-lg border font-light border-white/10 bg-white/5 p-4 text-[15px] focus:outline-none focus:ring-2 focus:ring-white/10 resize-none"
       />
-      {feedbackText.trim().length === 0 && (
-        <div className="mt-1 text-xs text-hgray700">내용을 입력해 주세요.</div>
-      )}
     </BaseModal>
   );
 };

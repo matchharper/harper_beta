@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import CareerChatPanel from "@/components/career/CareerChatPanel";
 import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
 import { CareerFlowProvider } from "@/components/career/CareerFlowProvider";
+import CareerOnboardingChecklist from "@/components/career/CareerOnboardingChecklist";
 import CareerProgressSidebar from "@/components/career/CareerProgressSidebar";
 import CareerSettingsModal from "@/components/career/CareerSettingsModal";
 import { Loader2, MessageCircle, Send, SettingsIcon } from "lucide-react";
@@ -9,7 +10,7 @@ import { Loader2, MessageCircle, Send, SettingsIcon } from "lucide-react";
 const MIN_CHAT_PANEL_WIDTH = 560;
 const MIN_SIDEBAR_WIDTH = 300;
 const MAX_SIDEBAR_WIDTH = 1040;
-const DEFAULT_SIDEBAR_WIDTH = 520;
+const DEFAULT_SIDEBAR_WIDTH = 620;
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
@@ -182,12 +183,21 @@ const CareerLayout = () => {
 
   if (!showAuthModal) {
     return (
-      <div className="relative mx-auto flex h-screen max-w-[1440px] flex-col px-4 py-4 lg:px-8 lg:py-6">
+      <div className="relative mx-auto flex h-screen px-2 flex-col lg:pt-12">
+        <CareerOnboardingChecklist />
         <div
           ref={layoutRef}
-          className="flex min-h-0 flex-1 flex-col gap-8 lg:flex-row lg:gap-0"
+          className="relative flex isolate min-h-0 flex-1 flex-col gap-8 lg:flex-row lg:gap-0"
         >
-          <div className="min-w-0 flex-1">
+          {/* <div className="absolute top-0 left-0 flex-1 -z-10 h-screen w-full diagonal-lines"></div> */}
+          <div
+            className={[
+              "min-w-0",
+              showRightSidebar
+                ? "flex-1"
+                : "mx-auto flex-1 w-full max-w-[760px]",
+            ].join(" ")}
+          >
             <CareerChatPanel />
           </div>
 
@@ -227,21 +237,19 @@ const CareerLayout = () => {
   }
 
   return (
-    <div className="relative mt-12 flex min-h-[calc(100vh-48px)] items-center justify-center px-4 py-8">
+    <div className="relative flex min-h-[calc(100vh-48px)] items-center justify-center px-4 py-8">
       <section className="w-full max-w-[560px] rounded-[24px] border border-hblack200 bg-hblack000 px-8 py-6 shadow-[0_4px_12px_rgba(17,24,39,0.06)]">
         <header className="text-center">
-          <h1 className="text-xl font-semibold text-hblack1000">
-            하퍼에서 기회를 발견하세요.
-          </h1>
-          <p className="mt-3 text-base text-hblack600">
+          <h1 className="text-lg font-semibold">하퍼에서 기회를 발견하세요.</h1>
+          <p className="mt-2 text-base">
             하퍼는 AI/ML/Engineering 인재를 위한 AI Recruiter입니다.
           </p>
         </header>
 
         <div className="mt-7 space-y-3">
-          <article className="rounded-2xl bg-hblack100/50 px-4 py-5">
+          <article className="rounded-2xl bg-hblack50 px-4 py-5">
             <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-hblack200">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full">
                 <MessageCircle className="h-5 w-5 text-xprimary" />
               </div>
               <div>
@@ -249,16 +257,16 @@ const CareerLayout = () => {
                   대화를 통해 더 나은 매칭
                 </p>
                 <p className="mt-1 text-sm text-hblack600">
-                  하퍼와 채팅 혹은 통화하세요. 더 많은 정보를 알려줄수록, 더
-                  좋은 기회을 얻을 수 있습니다.
+                  하퍼와 대화하세요. 더 많은 정보를 알려줄수록, 더 좋은 기회을
+                  얻을 수 있습니다.
                 </p>
               </div>
             </div>
           </article>
 
-          <article className="rounded-2xl bg-hblack100/50 px-4 py-4">
+          <article className="rounded-2xl bg-hblack50 px-4 py-4">
             <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-hblack200">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full">
                 <Send className="h-5 w-5 text-xprimary" />
               </div>
               <div>
@@ -267,19 +275,20 @@ const CareerLayout = () => {
                 </p>
                 <p className="mt-1 text-sm text-hblack600">
                   마음에 드는 회사라면, 하퍼가 바로 회사와 연결합니다.
-                  자기소개서는 필요 없고, 묻히는 일도 없습니다.
+                  <br />
+                  자기소개서는 필요 없습니다.
                 </p>
               </div>
             </div>
           </article>
         </div>
 
-        <div className="mt-7 flex flex-col items-center">
+        <div className="mt-10 flex flex-col items-center">
           <button
             type="button"
             onClick={() => void onGoogleLogin()}
             disabled={authLoading || authPending}
-            className="inline-flex h-11 min-w-[220px] items-center justify-center gap-2 rounded-xl border border-xprimary bg-xprimary px-5 text-sm font-semibold text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border border-xprimary bg-xprimary px-5 text-sm font-medium text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {authLoading || authPending ? (
               <>
@@ -290,7 +299,7 @@ const CareerLayout = () => {
               "Google 로그인"
             )}
           </button>
-          <p className="mt-3 text-sm text-hblack600">
+          <p className="mt-3 text-sm text-hblack600 mb-1">
             첫 가입시, 전체 과정은 5분도 걸리지 않습니다.
           </p>
         </div>
@@ -314,8 +323,12 @@ const Career = () => {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
   return (
-    <main className="relative min-h-screen bg-hblack000 text-hblack900 font-inter">
-      <CareerFlowProvider>
+    <main
+      className="
+      relative min-h-screen text-hblack900 font-inter bg-hblack000 w-full 
+      "
+    >
+      <CareerFlowProvider onOpenSettings={() => setIsSettingsModalOpen(true)}>
         <CareerTopBar onOpenSettings={() => setIsSettingsModalOpen(true)} />
         <CareerLayout />
         <CareerSettingsModal

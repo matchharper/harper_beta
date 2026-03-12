@@ -1,7 +1,6 @@
 // components/result/ResultBody.tsx
-import React, { useState, useEffect } from "react";
+import React from "react";
 import CandidateViews from "@/components/CandidateViews";
-import { logger } from "@/utils/logger";
 import { useMessages } from "@/i18n/useMessage";
 
 type Props = {
@@ -19,7 +18,6 @@ type Props = {
   onPrevPage: () => void;
   onNextPage: () => void;
   criterias: string[];
-  nextWillCharge: boolean;
 };
 
 export default function ResultBody(props: Props) {
@@ -39,7 +37,6 @@ export default function ResultBody(props: Props) {
     onPrevPage,
     onNextPage,
     criterias,
-    nextWillCharge,
   } = props;
 
   if (!searchEnabled) {
@@ -136,9 +133,6 @@ export default function ResultBody(props: Props) {
                     ].join(" ")}
                   >
                     {m.search.resultBody.next}
-                    {nextWillCharge
-                      ? m.search.resultBody.credit.withCredit
-                      : m.search.resultBody.credit.noCredit}
                     <span className="ml-2 text-black/60">→</span>
                   </button>
                 </div>

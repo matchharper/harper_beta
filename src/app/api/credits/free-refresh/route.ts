@@ -9,6 +9,11 @@ const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+const FREE_REFRESH_EXCLUDED_USER_IDS = new Set<string>([
+  "5219cf7f-90fa-4b71-907a-6f7ad03bb837",
+  "111fe5c4-8f66-4392-9a27-e81fb8dfa7dd",
+]);
+
 type FreePlan = {
   plan_id: string;
   credit: number | null;
@@ -46,6 +51,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Missing userId" }, { status: 400 });
   }
 
+  if (FREE_REFRESH_EXCLUDED_USER_IDS.has(userId)) {
+    return NextResponse.json({ status: "excluded_user" }, { status: 200 });
+  }
+
   const now = new Date();
   const nowIso = now.toISOString();
 
@@ -65,7 +74,10 @@ export async function POST(req: Request) {
   }
 
   if (activePayment?.id) {
-    return NextResponse.json({ status: "active_subscription" }, { status: 200 });
+    return NextResponse.json(
+      { status: "active_subscription" },
+      { status: 200 }
+    );
   }
 
   const { data: freePlan, error: freeErr } = await supabaseAdmin
@@ -75,10 +87,7 @@ export async function POST(req: Request) {
     .maybeSingle();
 
   if (freeErr || !freePlan) {
-    return NextResponse.json(
-      { error: "Free plan not found" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Free plan not found" }, { status: 500 });
   }
 
   const { data: latestPayment, error: latestErr } = await supabaseAdmin
@@ -111,7 +120,8 @@ export async function POST(req: Request) {
   }
 
   const freeCredit = Number(freePlan.credit ?? 10);
-  const lastUpdated = creditsRow?.last_updated_at ?? creditsRow?.created_at ?? null;
+  const lastUpdated =
+    creditsRow?.last_updated_at ?? creditsRow?.created_at ?? null;
   const latestEnd = latestPayment?.current_period_end ?? null;
 
   let dueAt: Date | null = null;
@@ -133,6 +143,11 @@ export async function POST(req: Request) {
     if (now >= next) {
       dueAt = next;
     }
+  }
+
+  // Seed first free-plan credits for accounts with no prior credit row or billing anchor.
+  if (!dueAt && !creditsRow?.id && !latestEnd) {
+    dueAt = now;
   }
 
   if (!dueAt) {
@@ -158,12 +173,10 @@ export async function POST(req: Request) {
       );
     }
   } else {
-    const { error: insertErr } = await supabaseAdmin
-      .from("credits")
-      .insert({
-        user_id: userId,
-        ...payload,
-      });
+    const { error: insertErr } = await supabaseAdmin.from("credits").insert({
+      user_id: userId,
+      ...payload,
+    });
     if (insertErr) {
       return NextResponse.json(
         { error: "Failed to insert credits" },

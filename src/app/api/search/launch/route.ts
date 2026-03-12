@@ -9,6 +9,10 @@ type LaunchBody = {
   messageId?: number;
 };
 
+type SearchSettingsSnapshot = {
+  is_korean: boolean;
+};
+
 function parseLocaleFromRequest(req: NextRequest): "ko" | "en" {
   const locale = req.cookies.get("NEXT_LOCALE")?.value;
   return locale === "en" ? "en" : "ko";
@@ -30,6 +34,24 @@ function extractUiJsonFromMessage(content: string): any | null {
   } catch {
     return null;
   }
+}
+
+async function loadSearchSettings(
+  userId: string
+): Promise<SearchSettingsSnapshot> {
+  const { data: row, error } = await supabaseServer
+    .from("settings")
+    .select("is_korean")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load settings");
+  }
+
+  return {
+    is_korean: row?.is_korean ?? false,
+  };
 }
 
 export async function POST(req: NextRequest) {
@@ -98,6 +120,7 @@ export async function POST(req: NextRequest) {
   }
 
   const locale = parseLocaleFromRequest(req);
+  const searchSettings = await loadSearchSettings(user.id);
 
   // 테스트 모드 확인 (환경 변수)
   const testMode = process.env.NEXT_PUBLIC_WORKER_TEST_MODE === "true";
@@ -113,6 +136,7 @@ export async function POST(req: NextRequest) {
       user_id: user.id,
       status: queueStatus,
       locale,
+      search_settings: searchSettings,
     })
     .select("id")
     .single();

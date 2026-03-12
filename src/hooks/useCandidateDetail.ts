@@ -8,7 +8,6 @@ export type GithubRepoContributionRow =
 
 export type CandidateDetail = CandidateType & {
   connection?: { user_id: string; typed: number }[];
-  unlock_profile?: any[];
   github_repo_contribution?: GithubRepoContributionRow[];
   isAutomationResult?: boolean;
 };
@@ -65,7 +64,6 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
         user_id,
         typed
       ),
-      unlock_profile(*),
       s:summary ( text )
     `
     )

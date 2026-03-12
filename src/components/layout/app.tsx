@@ -201,15 +201,17 @@ const AppLayout = ({
                 className="cursor-pointer"
                 onClick={() => logEvent("enter_billing")}
               >
-                <div className="rounded-lg p-3.5 pt-2.5 flex flex-col gap-2 border border-white/5 transition-color duration-300 ease-out hover:bg-[#FFFFFF12]">
+                <div className="rounded-lg p-3 flex flex-col gap-2 border border-white/5 transition-color duration-300 ease-out hover:bg-[#FFFFFF12]">
                   <div className="w-full flex flex-row items-center justify-between text-[15px]">
-                    <Zap fill="#fff" size={14} />
-                    <div className="w-[68%]">Credits</div>
+                    {/* <Zap fill="#fff" size={14} /> */}
+                    <div className="w-[68%] text-xs text-hgray700">
+                      이번 달 남은 검색 횟수
+                    </div>
                     <div className="w-[20%] text-right text-xs text-accenta1/80">
                       {credits?.remain_credit ?? 0}
                     </div>
                   </div>
-                  <div className="w-full flex relative rounded-full h-1 bg-white/10">
+                  {/* <div className="w-full flex relative rounded-full h-1 bg-white/10">
                     <div
                       className="absolute left-0 top-0 rounded-full h-1 bg-accenta1 transition-all duration-500 ease-out"
                       style={{
@@ -221,10 +223,23 @@ const AppLayout = ({
                         )}%`,
                       }}
                     ></div>
-                  </div>
+                  </div> */}
                 </div>
               </Link>
             </>
+          )}
+          {collapsed && (
+            <Link
+              href="/my/billing"
+              className="cursor-pointer"
+              onClick={() => logEvent("enter_billing")}
+            >
+              <div className="rounded-lg p-1 py-2 flex flex-col gap-2 transition-color duration-300 ease-out hover:bg-[#FFFFFF12]">
+                <div className="w-full text-center text-[15px] text-xs text-hgray700">
+                  {credits?.remain_credit ?? 0}
+                </div>
+              </div>
+            </Link>
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

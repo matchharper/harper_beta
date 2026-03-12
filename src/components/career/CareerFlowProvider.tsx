@@ -11,14 +11,20 @@ import {
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { useCareerChat } from "@/hooks/career/useCareerChat";
+import { useCareerMessageHistory } from "@/hooks/career/useCareerMessageHistory";
 import { useCareerOnboardingVoice } from "@/hooks/career/useCareerOnboardingVoice";
 import { useCareerProfile } from "@/hooks/career/useCareerProfile";
 import { useCareerTalentSettings } from "@/hooks/career/useCareerTalentSettings";
 import { useCareerSession } from "@/hooks/career/useCareerSession";
+import { TALENT_ONBOARDING_COMPLETION_TARGET } from "@/lib/talentOnboarding/progress";
 
-const TARGET_QUESTIONS = 5;
-
-export const CareerFlowProvider = ({ children }: { children: React.ReactNode }) => {
+export const CareerFlowProvider = ({
+  children,
+  onOpenSettings,
+}: {
+  children: React.ReactNode;
+  onOpenSettings: () => void;
+}) => {
   const {
     user,
     authLoading,
@@ -36,6 +42,7 @@ export const CareerFlowProvider = ({ children }: { children: React.ReactNode }) 
 
   const {
     conversationId,
+    initialMessagePage,
     sessionPending,
     sessionError,
     loadSession,
@@ -43,9 +50,23 @@ export const CareerFlowProvider = ({ children }: { children: React.ReactNode }) 
   } = useCareerSession({ fetchWithAuth });
 
   const {
+    messages: persistedMessages,
+    hasOlderMessages,
+    loadOlderMessages,
+    loadingOlderMessages,
+    appendLatestMessagesToCache,
+  } = useCareerMessageHistory({
+    conversationId,
+    fetchWithAuth,
+    enabled: !authLoading && Boolean(user),
+    initialSessionPage: initialMessagePage,
+  });
+
+  const {
     stage,
     setStage,
     messages,
+    scrollTick,
     appendMessage,
     chatPending,
     chatError,
@@ -60,12 +81,15 @@ export const CareerFlowProvider = ({ children }: { children: React.ReactNode }) 
     conversationId,
     sessionPending,
     fetchWithAuth,
+    persistedMessages,
+    onMessagesChanged: appendLatestMessagesToCache,
   });
 
   const {
     resumeFile,
     setResumeFile,
     profileLinks,
+    savedProfileLinks,
     profilePending,
     profileError,
     savedResumeFileName,
@@ -93,6 +117,7 @@ export const CareerFlowProvider = ({ children }: { children: React.ReactNode }) 
     appendMessage,
     enqueueAssistantTypewriter,
     setChatError,
+    onMessagesChanged: appendLatestMessagesToCache,
   });
 
   const {
@@ -111,14 +136,12 @@ export const CareerFlowProvider = ({ children }: { children: React.ReactNode }) 
     fetchWithAuth,
   });
 
-  const isComposerLocked =
+  const isVoiceInteractionLocked =
     !user ||
     !conversationId ||
     sessionPending ||
     stage === "profile" ||
-    profilePending ||
-    chatPending ||
-    assistantTyping;
+    profilePending;
 
   const sendChatMessage = useCallback(
     async (args: { text: string; link?: string; onError?: () => void }) => {
@@ -129,18 +152,28 @@ export const CareerFlowProvider = ({ children }: { children: React.ReactNode }) 
     [profilePending, sendChatMessageBase]
   );
 
+  const handleLoadOlderMessages = useCallback(async () => {
+    await loadOlderMessages();
+  }, [loadOlderMessages]);
+
   const {
     showVoiceStartPrompt,
     onboardingBeginPending,
+    onboardingPausePending,
     inputMode,
     voiceTranscript,
     voiceListening,
     voiceMuted,
     voiceError,
+    assistantAudioBusy,
+    voicePrimaryPressed,
     handleVoicePrimaryAction,
     handleToggleVoiceMute,
     handleStartVoiceCall,
     handleUseChatOnly,
+    handlePauseOnboarding,
+    handleSubmitOnboardingInterest,
+    handleContinueOnboardingConversation,
     handleSwitchToTextMode,
     applySessionPrompt,
     handleProfileSubmitSuccess,
@@ -150,12 +183,15 @@ export const CareerFlowProvider = ({ children }: { children: React.ReactNode }) 
     userId,
     authLoading,
     conversationId,
+    messages,
     fetchWithAuth,
-    isComposerLocked,
+    isVoiceInteractionLocked,
     onSendChatMessage: sendChatMessage,
+    appendMessage,
     setChatError,
     setStage,
     enqueueAssistantTypewriter,
+    onMessagesChanged: appendLatestMessagesToCache,
   });
 
   const handleProfileSubmit = useCallback(async () => {
@@ -198,26 +234,42 @@ export const CareerFlowProvider = ({ children }: { children: React.ReactNode }) 
     userId,
   ]);
 
+  const initialScrollConversationRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!conversationId || sessionPending || messages.length === 0) return;
+    if (initialScrollConversationRef.current === conversationId) return;
+
+    const el = scrollRef.current;
+    if (!el) return;
+
+    el.scrollTo({ top: el.scrollHeight });
+    initialScrollConversationRef.current = conversationId;
+  }, [conversationId, messages.length, sessionPending]);
+
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-  }, [assistantTyping, chatPending, messages, profilePending, sessionPending]);
+    el.scrollTo({ top: el.scrollHeight });
+  }, [scrollTick]);
 
-  const answeredCount = useMemo(
+  const userChatCount = useMemo(
     () =>
-      Math.min(
-        messages.filter(
-          (message) =>
-            message.role === "user" &&
-            (message.messageType ?? "chat") === "chat"
-        ).length,
-        TARGET_QUESTIONS
-      ),
+      messages.filter(
+        (message) =>
+          message.role === "user" && (message.messageType ?? "chat") === "chat"
+      ).length,
     [messages]
   );
 
-  const progressPercent = Math.round((answeredCount / TARGET_QUESTIONS) * 100);
+  const answeredCount = useMemo(
+    () => Math.min(userChatCount, TALENT_ONBOARDING_COMPLETION_TARGET),
+    [userChatCount]
+  );
+
+  const progressPercent = Math.round(
+    (answeredCount / TALENT_ONBOARDING_COMPLETION_TARGET) * 100
+  );
 
   const chatPanelContextValue: CareerChatPanelContextValue = useMemo(
     () => ({
@@ -226,6 +278,8 @@ export const CareerFlowProvider = ({ children }: { children: React.ReactNode }) 
       stage,
       messages,
       scrollRef,
+      hasOlderMessages,
+      loadingOlderMessages,
       authLoading,
       authPending,
       authError,
@@ -240,6 +294,7 @@ export const CareerFlowProvider = ({ children }: { children: React.ReactNode }) 
       assistantTyping,
       chatPending,
       onboardingBeginPending,
+      onboardingPausePending,
       onGoogleLogin: handleGoogleLogin,
       onEmailAuth: handleEmailAuth,
       onResumeFileChange: setResumeFile,
@@ -248,14 +303,20 @@ export const CareerFlowProvider = ({ children }: { children: React.ReactNode }) 
       onAddProfileLink: handleAddProfileLink,
       onProfileSubmit: handleProfileSubmit,
       onSendChatMessage: sendChatMessage,
+      onLoadOlderMessages: handleLoadOlderMessages,
       showVoiceStartPrompt,
       onStartVoiceCall: handleStartVoiceCall,
       onUseChatOnly: handleUseChatOnly,
+      onPauseOnboarding: handlePauseOnboarding,
+      onSubmitOnboardingInterest: handleSubmitOnboardingInterest,
+      onContinueOnboardingConversation: handleContinueOnboardingConversation,
       inputMode,
       voiceTranscript,
       voiceListening,
       voiceMuted,
       voiceError,
+      assistantAudioBusy,
+      voicePrimaryPressed,
       onVoicePrimaryAction: handleVoicePrimaryAction,
       onToggleVoiceMute: handleToggleVoiceMute,
       onSwitchToTextMode: handleSwitchToTextMode,
@@ -275,14 +336,21 @@ export const CareerFlowProvider = ({ children }: { children: React.ReactNode }) 
       handleProfileLinkChange,
       handleProfileSubmit,
       handleRemoveProfileLink,
+      handleLoadOlderMessages,
+      hasOlderMessages,
+      handleContinueOnboardingConversation,
+      handlePauseOnboarding,
       handleStartVoiceCall,
       handleSwitchToTextMode,
+      handleSubmitOnboardingInterest,
       handleToggleVoiceMute,
       handleUseChatOnly,
       handleVoicePrimaryAction,
       inputMode,
       messages,
+      loadingOlderMessages,
       onboardingBeginPending,
+      onboardingPausePending,
       profileError,
       profileLinks,
       profilePending,
@@ -295,8 +363,10 @@ export const CareerFlowProvider = ({ children }: { children: React.ReactNode }) 
       stage,
       user,
       voiceError,
+      assistantAudioBusy,
       voiceListening,
       voiceMuted,
+      voicePrimaryPressed,
       voiceTranscript,
     ]
   );
@@ -305,15 +375,18 @@ export const CareerFlowProvider = ({ children }: { children: React.ReactNode }) 
     () => ({
       user,
       stage,
+      userChatCount,
       answeredCount,
-      targetQuestions: TARGET_QUESTIONS,
+      targetQuestions: TALENT_ONBOARDING_COMPLETION_TARGET,
       progressPercent,
+      onOpenSettings,
       onLogout: handleLogout,
       resumeFile,
       savedResumeFileName,
       savedResumeStoragePath,
       savedResumeDownloadUrl,
       profileLinks,
+      savedProfileLinks,
       profileSavePending,
       profileSaveError,
       profileSaveInfo,
@@ -347,6 +420,7 @@ export const CareerFlowProvider = ({ children }: { children: React.ReactNode }) 
       handleProfileLinkChange,
       onProfileVisibilityChange,
       onReloadTalentSettings,
+      onOpenSettings,
       handleRemoveProfileLink,
       onRemoveBlockedCompany,
       handleSaveTalentProfile,
@@ -357,6 +431,7 @@ export const CareerFlowProvider = ({ children }: { children: React.ReactNode }) 
       profileSavePending,
       progressPercent,
       resumeFile,
+      savedProfileLinks,
       savedResumeDownloadUrl,
       savedResumeFileName,
       savedResumeStoragePath,
@@ -365,6 +440,7 @@ export const CareerFlowProvider = ({ children }: { children: React.ReactNode }) 
       settingsSaving,
       setResumeFile,
       stage,
+      userChatCount,
       talentEducations,
       talentExperiences,
       talentExtras,

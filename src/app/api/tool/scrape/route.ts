@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import axios from "axios";
 // @ts-ignore: pdf-parse-fork 타입이 불완전할 수 있어 ignore
 import pdf from "pdf-parse-fork";
 
@@ -12,275 +11,281 @@ import { ApifyClient } from "apify-client";
 export const runtime = "nodejs";
 
 function isPdfUrl(url: string) {
-    try {
-        const u = new URL(url);
-        return u.pathname.toLowerCase().endsWith(".pdf");
-    } catch {
-        // URL 파싱 실패 시 fallback
-        return url.toLowerCase().split("?")[0].endsWith(".pdf");
-    }
+  try {
+    const u = new URL(url);
+    return u.pathname.toLowerCase().endsWith(".pdf");
+  } catch {
+    // URL 파싱 실패 시 fallback
+    return url.toLowerCase().split("?")[0].endsWith(".pdf");
+  }
 }
 const isTwitterUrl = (url: string): boolean => {
-    try {
-        const u = new URL(url.startsWith("http") ? url : `https://${url}`);
-        const host = u.hostname.replace(/^www\./, "");
+  try {
+    const u = new URL(url.startsWith("http") ? url : `https://${url}`);
+    const host = u.hostname.replace(/^www\./, "");
 
-        if (host !== "twitter.com" && host !== "x.com") return false;
+    if (host !== "twitter.com" && host !== "x.com") return false;
 
-        const parts = u.pathname.split("/").filter(Boolean);
+    const parts = u.pathname.split("/").filter(Boolean);
 
-        // profile URL = exactly one path segment
-        return parts.length === 1;
-    } catch {
-        return false;
-    }
+    // profile URL = exactly one path segment
+    return parts.length === 1;
+  } catch {
+    return false;
+  }
 };
 
 const isGithubProfile = (url: string): boolean => {
-    try {
-        const u = new URL(url.startsWith("http") ? url : `https://${url}`);
-        const host = u.hostname.replace(/^www\./, "");
+  try {
+    const u = new URL(url.startsWith("http") ? url : `https://${url}`);
+    const host = u.hostname.replace(/^www\./, "");
 
-        if (host !== "github.com") return false;
+    if (host !== "github.com") return false;
 
-        const parts = u.pathname.split("/").filter(Boolean);
+    const parts = u.pathname.split("/").filter(Boolean);
 
-        // profile URL = exactly one path segment
-        return parts.length === 1;
-    } catch {
-        return false;
-    }
+    // profile URL = exactly one path segment
+    return parts.length === 1;
+  } catch {
+    return false;
+  }
 };
 
 function normalizeText(s: string) {
-    return s
-        .replace(/\r/g, "")
-        .replace(/[ \t]+\n/g, "\n")
-        .replace(/\n{3,}/g, "\n\n")
-        .trim();
+  return s
+    .replace(/\r/g, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 export async function POST(req: NextRequest) {
-    try {
-        const { url } = await req.json();
+  try {
+    const { url } = await req.json();
 
-        if (!url || typeof url !== "string") {
-            return NextResponse.json(
-                { error: "Invalid or missing url" },
-                { status: 400 }
-            );
-        }
-
-        // 0) cache
-        const cache = await supabase
-            .from("documents")
-            .select("*")
-            .eq("url", url)
-            .maybeSingle();
-
-        if (cache.data) {
-            logger.log("Cache hit for URL:", url);
-            return NextResponse.json(
-                {
-                    id: cache.data.id,
-                    url: cache.data.url,
-                    title: cache.data.title,
-                    markdown: cache.data.markdown,
-                    excerpt: cache.data.excerpt,
-                },
-                { status: 200 }
-            );
-        }
-
-        // 1) PDF 분기 (링크가 .pdf로 끝나면)
-        if (isPdfUrl(url)) {
-            logger.log("PDF detected:", url);
-
-            // PDF 다운로드 → Buffer
-            const resp = await axios.get(url, {
-                responseType: "arraybuffer",
-                // (선택) 일부 서버가 UA 없으면 차단하는 경우가 있어 추가
-                headers: { "User-Agent": "Mozilla/5.0" },
-                // (선택) 너무 큰 파일 방지
-                maxContentLength: 25 * 1024 * 1024,
-                maxBodyLength: 25 * 1024 * 1024,
-                timeout: 20_000,
-            });
-
-            const buffer = Buffer.from(resp.data);
-
-            // 첫 페이지만 파싱
-            const data = await pdf(buffer, { max: 1 });
-
-            const title = (data?.info?.Title || "PDF Document").toString().trim();
-            const text = normalizeText((data?.text || "").toString());
-
-            if (!text) {
-                return NextResponse.json(
-                    { error: "PDF has no extractable text (possibly scanned)" },
-                    { status: 422 }
-                );
-            }
-
-            const markdown = `# ${title}\n\n${text}`;
-            const excerpt = text.slice(0, 600);
-
-            const { data: ins, error: insErr } = await supabase
-                .from("documents")
-                .insert({
-                    url,
-                    title,
-                    markdown,
-                    excerpt,
-                })
-                .select("id")
-                .single();
-
-            if (insErr || !ins) {
-                return NextResponse.json(
-                    { error: insErr?.message ?? "Failed to insert document" },
-                    { status: 500 }
-                );
-            }
-
-            return NextResponse.json(
-                {
-                    id: ins.id,
-                    url,
-                    title,
-                    markdown,
-                    excerpt,
-                },
-                { status: 200 }
-            );
-        }
-
-        if (isTwitterUrl(url)) {
-            const token = process.env.APIFY_CLIENT_KEY;
-            const client = new ApifyClient({
-                token: token,
-            });
-
-
-            // Prepare Actor input
-            const input = {
-                "startUrls": [
-                    url
-                ],
-                "searchTerms": [
-                ],
-                "twitterHandles": [
-                ],
-                "maxItems": 10,
-                "sort": "Latest",
-                "tweetLanguage": "en",
-                "customMapFunction": (object: any) => { return { ...object } }
-            };
-
-            const run = await client.actor("61RPP7dywgiy0JPD0").call(input);
-
-            const { items } = await client.dataset(run.defaultDatasetId).listItems();
-            let results: any[] = [];
-            items.forEach((item) => {
-                results.push({
-                    url: item.url,
-                    text: item.text,
-                    retweetCount: item.retweetCount,
-                    replyCount: item.replyCount,
-                    likeCount: item.likeCount,
-                    createdAt: item.createdAt,
-                    quoteCount: item.quoteCount,
-                    isQuote: item.isQuote,
-                    isRetweet: item.isRetweet,
-                    author: (item.author as any).userName ?? "",
-                });
-            });
-            console.log(results);
-
-            const { data: ins, error: insErr } = await supabase
-                .from("documents")
-                .insert({
-                    url,
-                    title: url,
-                    markdown: JSON.stringify(results),
-                    excerpt: "",
-                })
-                .select("id")
-                .single();
-
-            if (insErr || !ins) {
-                return NextResponse.json(
-                    { error: insErr?.message ?? "Failed to insert document" },
-                    { status: 500 }
-                );
-            }
-
-            return NextResponse.json(
-                {
-                    id: ins.id,
-                    url,
-                    title: url,
-                    markdown: JSON.stringify(results),
-                    excerpt: "",
-                },
-                { status: 200 }
-            );
-        }
-
-        // 2) HTML (기존 ScrapingDog)
-        const apiKey = process.env.SCRAPINGDOG_API_KEY;
-        if (!apiKey) {
-            return NextResponse.json(
-                { error: "Missing SCRAPINGDOG_API_KEY" },
-                { status: 500 }
-            );
-        }
-
-        const params = {
-            api_key: apiKey,
-            url,
-            dynamic: "false",
-        };
-
-        const resp = await axios.get("https://api.scrapingdog.com/scrape", {
-            params,
-            timeout: 20_000,
-        });
-
-        const result = htmlToReadableMarkdown(resp.data, url, { maxLinks: 60 });
-
-        const { data: ins, error: insErr } = await supabase
-            .from("documents")
-            .insert({
-                url: result.url,
-                title: result.title,
-                markdown: result.markdown,
-                excerpt: result.excerpt,
-            })
-            .select("id")
-            .single();
-
-        if (insErr || !ins) {
-            return NextResponse.json(
-                { error: insErr?.message ?? "Failed to insert document" },
-                { status: 500 }
-            );
-        }
-
-        return NextResponse.json(
-            {
-                id: ins.id,
-                url: result.url,
-                title: result.title,
-                markdown: result.markdown,
-                excerpt: result.excerpt,
-            },
-            { status: 200 }
-        );
-    } catch (err: any) {
-        console.error("Scrape error:", err);
-        const status = err?.response?.status ?? 500;
-        const message = err?.response?.data ?? err?.message ?? "Unknown error";
-        return NextResponse.json({ error: message }, { status });
+    if (!url || typeof url !== "string") {
+      return NextResponse.json(
+        { error: "Invalid or missing url" },
+        { status: 400 }
+      );
     }
+
+    // 0) cache
+    const cache = await supabase
+      .from("documents")
+      .select("*")
+      .eq("url", url)
+      .maybeSingle();
+
+    if (cache.data) {
+      logger.log("Cache hit for URL:", url);
+      return NextResponse.json(
+        {
+          id: cache.data.id,
+          url: cache.data.url,
+          title: cache.data.title,
+          markdown: cache.data.markdown,
+          excerpt: cache.data.excerpt,
+        },
+        { status: 200 }
+      );
+    }
+
+    // 1) PDF 분기 (링크가 .pdf로 끝나면)
+    if (isPdfUrl(url)) {
+      logger.log("PDF detected:", url);
+
+      const resp = await fetch(url, {
+        headers: { "User-Agent": "Mozilla/5.0" },
+      });
+
+      if (!resp.ok) {
+        throw new Error(`Failed to download PDF: ${resp.status}`);
+      }
+
+      const arrayBuffer = await resp.arrayBuffer();
+
+      if (arrayBuffer.byteLength > 25 * 1024 * 1024) {
+        throw new Error("PDF too large");
+      }
+
+      const buffer = Buffer.from(arrayBuffer);
+
+      // 첫 페이지만 파싱
+      const data = await pdf(buffer, { max: 1 });
+
+      const title = (data?.info?.Title || "PDF Document").toString().trim();
+      const text = normalizeText((data?.text || "").toString());
+
+      if (!text) {
+        return NextResponse.json(
+          { error: "PDF has no extractable text (possibly scanned)" },
+          { status: 422 }
+        );
+      }
+
+      const markdown = `# ${title}\n\n${text}`;
+      const excerpt = text.slice(0, 600);
+
+      const { data: ins, error: insErr } = await supabase
+        .from("documents")
+        .insert({
+          url,
+          title,
+          markdown,
+          excerpt,
+        })
+        .select("id")
+        .single();
+
+      if (insErr || !ins) {
+        return NextResponse.json(
+          { error: insErr?.message ?? "Failed to insert document" },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json(
+        {
+          id: ins.id,
+          url,
+          title,
+          markdown,
+          excerpt,
+        },
+        { status: 200 }
+      );
+    }
+
+    if (isTwitterUrl(url)) {
+      const token = process.env.APIFY_CLIENT_KEY;
+      const client = new ApifyClient({
+        token: token,
+      });
+
+      // Prepare Actor input
+      const input = {
+        startUrls: [url],
+        searchTerms: [],
+        twitterHandles: [],
+        maxItems: 10,
+        sort: "Latest",
+        tweetLanguage: "en",
+        customMapFunction: (object: any) => {
+          return { ...object };
+        },
+      };
+
+      const run = await client.actor("61RPP7dywgiy0JPD0").call(input);
+
+      const { items } = await client.dataset(run.defaultDatasetId).listItems();
+      let results: any[] = [];
+      items.forEach((item) => {
+        results.push({
+          url: item.url,
+          text: item.text,
+          retweetCount: item.retweetCount,
+          replyCount: item.replyCount,
+          likeCount: item.likeCount,
+          createdAt: item.createdAt,
+          quoteCount: item.quoteCount,
+          isQuote: item.isQuote,
+          isRetweet: item.isRetweet,
+          author: (item.author as any).userName ?? "",
+        });
+      });
+      console.log(results);
+
+      const { data: ins, error: insErr } = await supabase
+        .from("documents")
+        .insert({
+          url,
+          title: url,
+          markdown: JSON.stringify(results),
+          excerpt: "",
+        })
+        .select("id")
+        .single();
+
+      if (insErr || !ins) {
+        return NextResponse.json(
+          { error: insErr?.message ?? "Failed to insert document" },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json(
+        {
+          id: ins.id,
+          url,
+          title: url,
+          markdown: JSON.stringify(results),
+          excerpt: "",
+        },
+        { status: 200 }
+      );
+    }
+
+    // 2) HTML (기존 ScrapingDog)
+    const apiKey = process.env.SCRAPINGDOG_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: "Missing SCRAPINGDOG_API_KEY" },
+        { status: 500 }
+      );
+    }
+
+    const params = {
+      api_key: apiKey,
+      url,
+      dynamic: "false",
+    };
+
+    const searchParams = new URLSearchParams(params);
+
+    const resp = await fetch(
+      `https://api.scrapingdog.com/scrape?${searchParams.toString()}`
+    );
+
+    if (!resp.ok) {
+      throw new Error(`ScrapingDog error: ${resp.status}`);
+    }
+
+    const html = await resp.text();
+    const result = htmlToReadableMarkdown(html, url, { maxLinks: 60 });
+
+    const { data: ins, error: insErr } = await supabase
+      .from("documents")
+      .insert({
+        url: result.url,
+        title: result.title,
+        markdown: result.markdown,
+        excerpt: result.excerpt,
+      })
+      .select("id")
+      .single();
+
+    if (insErr || !ins) {
+      return NextResponse.json(
+        { error: insErr?.message ?? "Failed to insert document" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json(
+      {
+        id: ins.id,
+        url: result.url,
+        title: result.title,
+        markdown: result.markdown,
+        excerpt: result.excerpt,
+      },
+      { status: 200 }
+    );
+  } catch (err: any) {
+    console.error("Scrape error:", err);
+    const status = err?.response?.status ?? 500;
+    const message = err?.response?.data ?? err?.message ?? "Unknown error";
+    return NextResponse.json({ error: message }, { status });
+  }
 }

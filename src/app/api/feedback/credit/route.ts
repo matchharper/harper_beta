@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser, supabaseServer } from "@/lib/supabaseServer";
 import { notifySlack } from "../../hello/utils";
 
-const CREDIT_FEEDBACK_SOURCE = "credit";
+const CREDIT_FEEDBACK_SOURCE = "plan-inquiry";
 
 type CreditFeedbackBody = {
   content?: string;
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
       : billingRaw === "monthly"
         ? "월간"
         : "알 수 없음";
-  const contentWithContext = `[구독 문의]\n플랜: ${planName}\n결제 주기: ${billingLabel}\n\n${content}`;
+  const contentWithContext = `[플랜 문의]\n플랜: ${planName}\n결제 주기: ${billingLabel}\n\n${content}`;
 
   const { data, error } = await supabaseServer
     .from("feedback")
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    await notifySlack(`💳 *Credit Subscription Inquiry*
+    await notifySlack(`💳 *Plan Inquiry*
 
 • *User ID*: ${user.id}
 • *Email*: ${user.email ?? "정보 없음"}

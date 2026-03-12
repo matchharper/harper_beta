@@ -16,6 +16,7 @@ import {
 import {
   ArrowDown,
   ArrowLeft,
+  Check,
   Loader2,
   ScreenShareIcon,
   Settings,
@@ -528,12 +529,24 @@ ${criteriaText}
           <div>{title === "" ? <Skeleton className="w-20 h-5" /> : title}</div>
         </div>
         <div className="flex flex-row justify-center items-center gap-2 text-hgray700">
-          <div
-            className="p-1 cursor-pointer"
-            onClick={() => setIsSettingsOpen(true)}
-          ></div>
           {!systemPromptOverride && (
             <>
+              {isQueryScope && (
+                <button
+                  type="button"
+                  className="relative p-1 cursor-pointer"
+                  onClick={() => setIsSettingsOpen(true)}
+                  aria-label="검색 기본 설정 열기"
+                >
+                  <Settings className="w-3.5 h-3.5" strokeWidth={1.4} />
+                  {settings.is_korean && (
+                    <Check
+                      className="absolute -right-1 -top-1 h-3.5 w-3.5 text-accenta1"
+                      strokeWidth={2.2}
+                    />
+                  )}
+                </button>
+              )}
               {isChatFull ? (
                 <div
                   className="p-1 cursor-pointer"

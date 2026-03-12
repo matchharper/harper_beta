@@ -21,6 +21,7 @@ export type CareerTalentExperience = {
   months: number | null;
   company_name: string | null;
   company_location: string | null;
+  company_logo: string | null;
   memo: string | null;
 };
 
@@ -59,6 +60,14 @@ export type CareerMessage = {
   typing?: boolean;
 };
 
+export type CareerMessagePayload = {
+  id: number;
+  role: MessageRole;
+  content: string;
+  messageType: string;
+  createdAt: string;
+};
+
 export type SessionResponse = {
   conversation: {
     id: string;
@@ -71,11 +80,6 @@ export type SessionResponse = {
     reliefNudgeSent: boolean;
   };
   talentProfile?: CareerTalentProfile;
-  messages: Array<{
-    id: number;
-    role: MessageRole;
-    content: string;
-    messageType: string;
-    createdAt: string;
-  }>;
+  messages: CareerMessagePayload[];
+  nextBeforeMessageId: number | null;
 };

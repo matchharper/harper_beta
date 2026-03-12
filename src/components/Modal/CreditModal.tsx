@@ -62,14 +62,16 @@ const CreditModal: React.FC<CreditModalProps> = ({
 
       {/* Modal */}
       <div className={modalClass}>
-        <div className={titleClass}>크레딧이 모두 소진되었습니다.</div>
+        <div className={titleClass}>
+          이번 달 월 검색 한도를 모두 사용했습니다.
+        </div>
 
         <p
           className={descClass}
           dangerouslySetInnerHTML={{
-            __html: `Harper 활용법을 완벽히 익히신 것 같네요.<br />
-Credit 추가 구매 혹은 Pro로 업그레이드하고<br />
-제한 없이 이용해 보세요.`,
+            __html: `현재 플랜의 월 검색 한도를 모두 사용했습니다.<br />
+다음 이용 기간이 시작될 때까지 기다리거나 플랜을 변경해<br />
+더 많은 검색을 이어서 진행해 보세요.`,
           }}
         />
 
