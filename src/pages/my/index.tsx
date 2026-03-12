@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { NextPage } from "next";
-import { ArrowUp, Loader2, MessageSquareIcon, Sparkles } from "lucide-react";
+import { ArrowUp, Loader2, MessageSquareIcon } from "lucide-react";
 import AppLayout from "@/components/layout/app";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { useRouter } from "next/router";
@@ -14,7 +14,6 @@ import { ensureGroupBy } from "@/utils/textprocess";
 import { firstSqlPrompt } from "@/lib/prompt";
 import ConfirmModal from "@/components/Modal/ConfirmModal";
 import { useFeedbackModalStore } from "@/store/useFeedbackModalStore";
-import { useFreeCreditFeedback } from "@/hooks/useFreeCreditFeedback";
 
 const PLACEHOLDER_SWITCH_MS = 4500;
 const PLACEHOLDER_SLIDE_MS = 500;
@@ -34,9 +33,6 @@ const Home: NextPage = () => {
   const { companyUser } = useCompanyUserStore();
   const { credits } = useCredits();
   const { open: openFeedbackModal } = useFeedbackModalStore();
-  const { hasClaimedFreeCredit, isCheckingFreeCredit } = useFreeCreditFeedback(
-    companyUser?.user_id
-  );
   const router = useRouter();
   const isQueryEmpty = query.trim().length === 0;
   const canSend = query.trim().length > 0 && Boolean(credits) && !isLoading;
@@ -200,8 +196,8 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
         open={isNoCreditModalOpen}
         onClose={() => setIsNoCreditModalOpen(false)}
         onConfirm={() => setIsNoCreditModalOpen(false)}
-        title="크레딧이 모두 소진되었습니다."
-        description="크레딧 충전 후 다시 시도해주세요."
+        title="이번 달 월 검색 한도를 모두 사용했습니다."
+        description="다음 이용 기간이 시작된 뒤 다시 시도하거나, 플랜 변경으로 월 검색 한도를 늘려보세요."
         confirmLabel="확인"
       />
       <main className="flex-1 flex relative font-sans items-center justify-center px-6 w-full pt-[25vh]">
@@ -218,9 +214,6 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
           >
             <MessageSquareIcon size={12} />
             피드백
-            {!isCheckingFreeCredit && !hasClaimedFreeCredit && (
-              <span className="text-accenta1 font-medium">무료 크레딧</span>
-            )}
           </button>
         </div>
         <div className="w-full flex flex-col items-center">

@@ -3,7 +3,7 @@ import type { User } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 
 export const TALENT_FIRST_VISIT_TEXT = [
-  `하퍼에 처음 방문해주셔서 감사합니다.
+  `안녕하세요. 하퍼에 처음 방문해주셔서 감사합니다.
 
 <<하퍼는 숨겨진 글로벌/딥테크 기회를 먼저 찾아 제안하고,
 후보자 관점에서 커리어 기회와 조건 협상까지 함께 돕는 AI 헤드헌터입니다.>>

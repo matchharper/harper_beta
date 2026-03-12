@@ -6,6 +6,7 @@ import type { CareerProfileVisibility } from "@/hooks/career/useCareerTalentSett
 export type CareerSidebarContextValue = {
   user: User | null;
   stage: CareerStage;
+  userChatCount: number;
   answeredCount: number;
   targetQuestions: number;
   progressPercent: number;

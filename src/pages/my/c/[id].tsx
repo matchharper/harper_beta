@@ -244,11 +244,6 @@ export default function ResultPage() {
     shouldChargeForPage,
   ]);
 
-  const nextWillCharge =
-    canNext &&
-    pageIdx + 1 > Math.max(seenPage, seenPageRef.current) &&
-    (nextPageKnownCount == null || nextPageKnownCount >= 10);
-
   const prevPage = () => {
     if (!canPrev) return;
     setPageInUrl(pageIdx - 1, "push");
@@ -488,7 +483,6 @@ export default function ResultPage() {
                 onPrevPage={prevPage}
                 onNextPage={nextPage}
                 criterias={currentRunCriterias}
-                nextWillCharge={nextWillCharge}
               />
             )}
           </div>

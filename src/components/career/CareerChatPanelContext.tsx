@@ -1,6 +1,7 @@
 import type { User } from "@supabase/supabase-js";
 import React, { createContext, useContext } from "react";
 import type { CareerInputMode, CareerMessage, CareerStage } from "./types";
+import type { TalentOnboardingInterestOptionId } from "@/lib/talentOnboarding/onboarding";
 
 export type CareerChatPanelContextValue = {
   user: User | null;
@@ -28,6 +29,7 @@ export type CareerChatPanelContextValue = {
   assistantTyping: boolean;
   chatPending: boolean;
   onboardingBeginPending: boolean;
+  onboardingPausePending: boolean;
 
   onGoogleLogin: () => void | Promise<void>;
   onEmailAuth: (args: {
@@ -50,12 +52,16 @@ export type CareerChatPanelContextValue = {
   onLoadOlderMessages: () => void | Promise<void>;
 
   showVoiceStartPrompt: boolean;
-  onStartVoiceCall: () => void;
+  onStartVoiceCall: (durationMinutes?: 5 | 10) => void;
   onUseChatOnly: () => void;
+  onPauseOnboarding: () => void | Promise<void>;
+  onSubmitOnboardingInterest: (
+    selectedOptions: TalentOnboardingInterestOptionId[]
+  ) => boolean | Promise<boolean>;
+  onContinueOnboardingConversation: () => void | Promise<void>;
   inputMode: CareerInputMode;
   voiceTranscript: string;
   voiceListening: boolean;
-  voiceInputLevel: number;
   voiceMuted: boolean;
   voiceError: string;
   assistantAudioBusy: boolean;

@@ -12,6 +12,7 @@ import {
   fetchTalentUserProfile,
   getTalentSupabaseAdmin,
 } from "@/lib/talentOnboarding/server";
+import { TALENT_ONBOARDING_COMPLETION_TARGET } from "@/lib/talentOnboarding/progress";
 
 type Body = {
   conversationId?: string;
@@ -238,11 +239,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const isCompleted = userTurnCount >= TALENT_ONBOARDING_COMPLETION_TARGET;
     const now = new Date().toISOString();
     const { error: conversationUpdateError } = await admin
       .from("talent_conversations")
       .update({
-        stage: "chat",
+        stage: isCompleted ? "completed" : "chat",
         relief_nudge_sent: shouldSendReliefNudge
           ? true
           : Boolean((conversation as TalentConversationRow).relief_nudge_sent),
@@ -277,9 +279,12 @@ export async function POST(req: NextRequest) {
         insertedAssistantMessage as TalentMessageRow
       ),
       progress: {
-        answeredCount: Math.min(userTurnCount, 5),
-        targetCount: 5,
-        completed: userTurnCount >= 5,
+        answeredCount: Math.min(
+          userTurnCount,
+          TALENT_ONBOARDING_COMPLETION_TARGET
+        ),
+        targetCount: TALENT_ONBOARDING_COMPLETION_TARGET,
+        completed: isCompleted,
       },
     });
   } catch (error) {

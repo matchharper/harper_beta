@@ -9,9 +9,11 @@ import type { User } from "@supabase/supabase-js";
 import { useCareerVoiceInput } from "@/components/career/useCareerVoiceInput";
 import type {
   CareerMessage,
+  CareerMessagePayload,
   CareerStage,
   SessionResponse,
 } from "@/components/career/types";
+import type { TalentOnboardingInterestOptionId } from "@/lib/talentOnboarding/onboarding";
 import {
   getErrorMessage,
   shouldShowVoiceStartPrompt,
@@ -34,9 +36,13 @@ type UseCareerOnboardingVoiceArgs = {
   fetchWithAuth: FetchWithAuth;
   isVoiceInteractionLocked: boolean;
   onSendChatMessage: (args: SendChatArgs) => void | Promise<void>;
+  appendMessage: (message: CareerMessage) => void;
   setChatError: Dispatch<SetStateAction<string>>;
   setStage: Dispatch<SetStateAction<CareerStage>>;
   enqueueAssistantTypewriter: (message: CareerMessage) => Promise<void>;
+  onMessagesChanged?: (
+    messages: CareerMessagePayload[]
+  ) => void | Promise<void>;
 };
 
 export const useCareerOnboardingVoice = ({
@@ -48,12 +54,15 @@ export const useCareerOnboardingVoice = ({
   fetchWithAuth,
   isVoiceInteractionLocked,
   onSendChatMessage,
+  appendMessage,
   setChatError,
   setStage,
   enqueueAssistantTypewriter,
+  onMessagesChanged,
 }: UseCareerOnboardingVoiceArgs) => {
   const [showVoiceStartPrompt, setShowVoiceStartPrompt] = useState(false);
   const [onboardingBeginPending, setOnboardingBeginPending] = useState(false);
+  const [onboardingPausePending, setOnboardingPausePending] = useState(false);
 
   const beginOnboardingConversation = useCallback(async () => {
     if (!user || !conversationId) return false;
@@ -77,6 +86,9 @@ export const useCareerOnboardingVoice = ({
 
       if (payload?.assistantMessage) {
         await enqueueAssistantTypewriter(toUiMessage(payload.assistantMessage));
+        await onMessagesChanged?.([
+          payload.assistantMessage as CareerMessagePayload,
+        ]);
       }
       if (payload?.conversation?.stage) {
         setStage(payload.conversation.stage as CareerStage);
@@ -97,6 +109,7 @@ export const useCareerOnboardingVoice = ({
     enqueueAssistantTypewriter,
     fetchWithAuth,
     onboardingBeginPending,
+    onMessagesChanged,
     setChatError,
     setStage,
     user,
@@ -106,7 +119,6 @@ export const useCareerOnboardingVoice = ({
     inputMode,
     voiceTranscript,
     voiceListening,
-    voiceInputLevel,
     voiceMuted,
     voiceError,
     assistantAudioBusy,
@@ -148,10 +160,11 @@ export const useCareerOnboardingVoice = ({
   const handleProfileSubmitSuccess = useCallback(() => {
     setShowVoiceStartPrompt(true);
     setOnboardingBeginPending(false);
+    setOnboardingPausePending(false);
     switchToChatOnly();
   }, [switchToChatOnly]);
 
-  const handleStartVoiceCall = useCallback(() => {
+  const handleStartVoiceCall = useCallback((_: 5 | 10 = 5) => {
     if (onboardingBeginPending) return;
 
     const shouldBeginOnboarding = showVoiceStartPrompt;
@@ -205,6 +218,134 @@ export const useCareerOnboardingVoice = ({
     switchToChatOnly,
   ]);
 
+  const handlePauseOnboarding = useCallback(() => {
+    if (!user || !conversationId || onboardingPausePending) return;
+
+    setOnboardingPausePending(true);
+    setChatError("");
+    setShowVoiceStartPrompt(false);
+    switchToChatOnly();
+
+    void (async () => {
+      try {
+        const response = await fetchWithAuth("/api/talent/onboarding/defer", {
+          method: "POST",
+          body: JSON.stringify({
+            conversationId,
+            action: "prompt",
+          }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(
+            getErrorMessage(payload, "나중에 이어하기 준비에 실패했습니다.")
+          );
+        }
+
+        if (payload?.assistantMessage) {
+          await enqueueAssistantTypewriter(toUiMessage(payload.assistantMessage));
+          await onMessagesChanged?.([
+            payload.assistantMessage as CareerMessagePayload,
+          ]);
+        }
+        if (payload?.conversation?.stage) {
+          setStage(payload.conversation.stage as CareerStage);
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "나중에 이어하기 준비 중 오류가 발생했습니다.";
+        setChatError(message);
+        setShowVoiceStartPrompt(true);
+      } finally {
+        setOnboardingPausePending(false);
+      }
+    })();
+  }, [
+    conversationId,
+    enqueueAssistantTypewriter,
+    fetchWithAuth,
+    onboardingPausePending,
+    onMessagesChanged,
+    setChatError,
+    setStage,
+    switchToChatOnly,
+    user,
+  ]);
+
+  const handleSubmitOnboardingInterest = useCallback(
+    async (selectedOptions: TalentOnboardingInterestOptionId[]) => {
+      if (!user || !conversationId || onboardingPausePending) return false;
+
+      setOnboardingPausePending(true);
+      setChatError("");
+
+      try {
+        const response = await fetchWithAuth("/api/talent/onboarding/defer", {
+          method: "POST",
+          body: JSON.stringify({
+            conversationId,
+            action: "submit",
+            selectedOptions,
+          }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(
+            getErrorMessage(payload, "선택 저장에 실패했습니다.")
+          );
+        }
+
+        if (payload?.userMessage) {
+          appendMessage(toUiMessage(payload.userMessage));
+        }
+        if (payload?.assistantMessage) {
+          await enqueueAssistantTypewriter(toUiMessage(payload.assistantMessage));
+        }
+        if (payload?.conversation?.stage) {
+          setStage(payload.conversation.stage as CareerStage);
+        }
+        await onMessagesChanged?.(
+          [payload.userMessage, payload.assistantMessage].filter(
+            Boolean
+          ) as CareerMessagePayload[]
+        );
+        return true;
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "선택 저장 중 오류가 발생했습니다.";
+        setChatError(message);
+        return false;
+      } finally {
+        setOnboardingPausePending(false);
+      }
+    },
+    [
+      appendMessage,
+      conversationId,
+      enqueueAssistantTypewriter,
+      fetchWithAuth,
+      onboardingPausePending,
+      onMessagesChanged,
+      setChatError,
+      setStage,
+      user,
+    ]
+  );
+
+  const handleContinueOnboardingConversation = useCallback(() => {
+    if (onboardingBeginPending || onboardingPausePending) return;
+
+    switchToChatOnly();
+    void beginOnboardingConversation();
+  }, [
+    beginOnboardingConversation,
+    onboardingBeginPending,
+    onboardingPausePending,
+    switchToChatOnly,
+  ]);
+
   const handleSwitchToTextMode = useCallback(() => {
     switchToTextMode();
   }, [switchToTextMode]);
@@ -216,15 +357,16 @@ export const useCareerOnboardingVoice = ({
   const resetOnboardingState = useCallback(() => {
     setShowVoiceStartPrompt(false);
     setOnboardingBeginPending(false);
+    setOnboardingPausePending(false);
   }, []);
 
   return {
     showVoiceStartPrompt,
     onboardingBeginPending,
+    onboardingPausePending,
     inputMode,
     voiceTranscript,
     voiceListening,
-    voiceInputLevel,
     voiceMuted,
     voiceError,
     assistantAudioBusy,
@@ -233,6 +375,9 @@ export const useCareerOnboardingVoice = ({
     handleToggleVoiceMute,
     handleStartVoiceCall,
     handleUseChatOnly,
+    handlePauseOnboarding,
+    handleSubmitOnboardingInterest,
+    handleContinueOnboardingConversation,
     handleSwitchToTextMode,
     applySessionPrompt,
     handleProfileSubmitSuccess,

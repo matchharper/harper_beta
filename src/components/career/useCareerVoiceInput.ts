@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CareerInputMode, CareerMessage } from "./types";
+import { useCareerVoiceInputStore } from "@/store/useCareerVoiceInputStore";
 
 type SpeechRecognitionLike = {
   lang: string;
@@ -58,7 +59,6 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   const [inputMode, setInputMode] = useState<CareerInputMode>("text");
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [voiceListening, setVoiceListening] = useState(false);
-  const [voiceInputLevel, setVoiceInputLevel] = useState(0);
   const [voiceMuted, setVoiceMuted] = useState(false);
   const [voiceError, setVoiceError] = useState("");
   const [isSpeechSupported, setIsSpeechSupported] = useState(false);
@@ -178,7 +178,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     voiceLevelFloorRef.current = 0.008;
     voiceLevelPeakRef.current = 0.08;
     voiceLevelSmoothedRef.current = 0;
-    setVoiceInputLevel(0);
+    useCareerVoiceInputStore.getState().resetVoiceInputLevel();
   }, []);
 
   const stopVoiceLevelMonitor = useCallback(
@@ -303,7 +303,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
           (gated - voiceLevelSmoothedRef.current) * lerpFactor;
 
         voiceLevelSmoothedRef.current = smoothed;
-        setVoiceInputLevel(smoothed);
+        useCareerVoiceInputStore.getState().setVoiceInputLevel(smoothed);
         voiceLevelAnimationFrameRef.current =
           window.requestAnimationFrame(tick);
       };
@@ -983,7 +983,6 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     inputMode,
     voiceTranscript,
     voiceListening,
-    voiceInputLevel,
     voiceMuted,
     voiceError,
     assistantAudioBusy,

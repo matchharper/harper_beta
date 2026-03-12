@@ -245,7 +245,7 @@ export const en = {
           priceUnit2: "/ month",
           buttonLabel: "Contact us",
           features: [
-            "150 credits / month<br />(1 credit per 10 candidates searched)",
+            "150 searches / month",
             "Talent research & analysis<br />(deep research per candidate)",
             "AI smart search",
             "Unlimited chat",
@@ -259,7 +259,7 @@ export const en = {
           buttonLabel: "Contact us",
           features: [
             "Includes all Pro features:",
-            "350 credits / month",
+            "350 searches / month",
             "Parallel search",
             "AI sourcing agent",
           ],
@@ -273,7 +273,7 @@ export const en = {
           buttonLabel: "Contact us",
           features: [
             "Includes all Max features:",
-            "Unlimited credits",
+            "Unlimited searches",
             "Onboarding & training support",
             "Team collaboration & management sheets",
             "Dedicated customer support",
@@ -282,22 +282,22 @@ export const en = {
       },
     },
     pricingFaq: {
-      title: "Billing & Credits FAQ",
+      title: "Billing & Usage FAQ",
       items: [
         {
-          question: "How are credits consumed?",
+          question: "How are searches counted?",
           answer:
-            "Credits are deducted when you run candidate searches. Each plan includes a monthly credit allowance, and your usage accumulates in Billing.",
+            "Searches are counted when you run candidate searches. Each plan includes a monthly search allowance, and your usage appears in the usage dashboard.",
         },
         {
-          question: "When do credits refresh?",
+          question: "How is the monthly search limit calculated?",
           answer:
-            "Monthly plans refresh credits every billing cycle. Annual plans also refresh credits monthly based on your subscription start date.",
+            "It is calculated in one-month periods from the payment date, which is also the new plan start date. Monthly plans apply a new search limit on each billing date, and annual plans apply a new monthly limit on the same day each month based on the subscription start date.",
         },
         {
-          question: "Can I buy more credits or change my plan?",
+          question: "Can I change my plan or request more search volume?",
           answer:
-            "Yes. You can request additional credits or upgrade your plan anytime. We will guide you to the best option for your hiring volume.",
+            "Yes. You can request a different plan anytime, and we will guide you to the best option for your hiring volume.",
         },
         {
           question: "Do you provide receipts or invoice support?",
@@ -341,20 +341,20 @@ export const en = {
     close: "close",
     hello: "Hello",
     intro: "Who are you looking for?",
-    credits: "Billing",
-    credit_history: "Credits Request history",
-    no_credit_request: "No credit request history.",
+    credits: "Usage",
+    credit_history: "Plan inquiry history",
+    no_credit_request: "No plan inquiry history.",
     processing: "Processing...",
     done: "Done",
     pending: "Pending",
-    credit_request: "Request More Credits",
+    credit_request: "Plan inquiry",
     close_sidebar: "close sidebar",
     open_sidebar: "open sidebar",
     search: "Search",
     submit_request: "Submit Request",
-    credit_request_submitted: "Your request has been submitted.",
+    credit_request_submitted: "Your inquiry has been submitted.",
     credit_request_submitted_description:
-      "Thank you for requesting! Your credit increase is being reviewed, and a decision will be made soon. If opted in, you’ll receive updates on the status via email.",
+      "Thank you for reaching out. We are reviewing the plan and monthly search volume you need, and we will follow up soon. If opted in, you’ll receive updates by email.",
   },
   home: {
     queryPlaceholder:
@@ -395,14 +395,14 @@ export const en = {
       "Evaluate whether this person is a good fit for our team, with reasons.",
       "What’s a good topic to start the first conversation with?",
     ],
-    unlockProfileCta: "Unlock the profile to start the conversation",
+    unlockProfileCta: "Start the conversation",
     loadingHistory: "Loading conversation history...",
   },
   scout: {
     title: "Harper Scout",
     addAgent: "Add Agent",
     intro:
-      "Harper acts as your agent to find and recommend candidates daily based on the role, skills, and team culture.\nEach agent recommends 1–2 candidates per day, and 1 credit is used per candidate.",
+      "Harper acts as your agent to find and recommend candidates daily based on the role, skills, and team culture.\nScout usage counts toward your plan's monthly searches.",
     emptyTag: "Get started with Harper Scout",
     emptyTitle: "Welcome to Harper Scout.",
     emptySubtitle: "No agents have been created yet",
@@ -415,7 +415,7 @@ export const en = {
     feedbackSuffix: "feedback on candidates to keep improving results.",
     createAgent: "Create Agent",
     perAgentNote:
-      "Each agent recommends 1–2 candidates per day, 1 credit per candidate.",
+      "Each agent recommends 1–2 candidates per day, and usage counts toward your plan's monthly searches.",
     statusRunning: "Running",
     statusStopped: "Paused",
     createdAt: "Created:",
@@ -455,8 +455,8 @@ export const en = {
       previous: "Previous",
       next: "Search next 10 more",
       credit: {
-        withCredit: " (1 credit)",
-        noCredit: " (no credit)",
+        withCredit: "",
+        noCredit: "",
       },
     },
     timeline: {

@@ -121,7 +121,7 @@ const CareerProgressSidebar = () => {
 
           <div className="mt-4 rounded-xl border border-hblack200 bg-hblack000 px-4 py-3">
             <p className="text-sm text-hblack700">
-              질문 응답 {answeredCount}/{targetQuestions}
+              대화 응답 {answeredCount}/{targetQuestions}
             </p>
             <p className="mt-1 text-xs text-hblack500">
               현재 상태: {stageLabel}

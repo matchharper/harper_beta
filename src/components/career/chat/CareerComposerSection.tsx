@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { KeyboardEvent, useState } from "react";
 import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
+import { isOnboardingPaused } from "@/hooks/career/careerHelpers";
+import CareerVoiceInputLevelFill from "./CareerVoiceInputLevelFill";
 
 const CareerComposerSection = () => {
   const {
@@ -23,11 +25,11 @@ const CareerComposerSection = () => {
     chatPending,
     assistantTyping,
     onboardingBeginPending,
+    onboardingPausePending,
     showVoiceStartPrompt,
     inputMode,
     voiceTranscript,
     voiceListening,
-    voiceInputLevel,
     voiceMuted,
     voicePrimaryPressed,
     onStartVoiceCall,
@@ -40,6 +42,7 @@ const CareerComposerSection = () => {
   const [draft, setDraft] = useState("");
   const [chatLinkDraft, setChatLinkDraft] = useState("");
   const [showLinkInput, setShowLinkInput] = useState(false);
+  const onboardingPaused = isOnboardingPaused(messages);
 
   const isComposerLocked =
     !user ||
@@ -49,6 +52,7 @@ const CareerComposerSection = () => {
     showVoiceStartPrompt ||
     profilePending ||
     onboardingBeginPending ||
+    onboardingPausePending ||
     chatPending ||
     assistantTyping;
 
@@ -56,8 +60,10 @@ const CareerComposerSection = () => {
     ? "로그인 후 대화를 시작할 수 있습니다."
     : stage === "profile"
       ? "기본 정보 제출 후 대화가 시작됩니다."
-      : showVoiceStartPrompt
+    : showVoiceStartPrompt
         ? "아래 시작 버튼으로 대화를 시작해 주세요."
+        : onboardingPaused
+          ? "바로 입력하면 대화가 이어집니다."
         : profilePending
           ? "이력서/링크를 분석 중입니다."
           : "Harper에게 답변을 입력하세요.";
@@ -70,8 +76,6 @@ const CareerComposerSection = () => {
     !showVoiceStartPrompt;
 
   const isVoiceMode = inputMode === "voice";
-  const normalizedVoiceInputLevel = Math.max(0, Math.min(1, voiceInputLevel));
-  const voiceTranscriptFillWidth = `${Math.round(normalizedVoiceInputLevel * 100)}%`;
 
   const handleSend = async () => {
     const text = draft.trim();
@@ -104,7 +108,7 @@ const CareerComposerSection = () => {
       {showCallQuickAction ? (
         <button
           type="button"
-          onClick={onStartVoiceCall}
+          onClick={() => onStartVoiceCall()}
           disabled={isComposerLocked || onboardingBeginPending}
           className="right-4 absolute top-[-40px] mb-3 inline-flex gap-2 h-9 items-center justify-center rounded-full border border-xprimary bg-xprimary px-3 text-sm font-medium text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
@@ -201,14 +205,7 @@ const CareerComposerSection = () => {
       <div className={isVoiceMode ? "relative" : "relative"}>
         <div className="relative z-10 flex items-end overflow-hidden rounded-2xl border border-hblack200 bg-hblack000 px-2 py-2 shadow-[0_4px_12px_rgba(17,24,39,0.06)]">
           {isVoiceMode ? (
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-y-0 left-0 bg-gradient-to-r from-hblack200 via-hblack200 to-transparent transition-[width,opacity] duration-200"
-              style={{
-                width: voiceTranscriptFillWidth,
-                opacity: voiceListening ? 1 : 0.35,
-              }}
-            />
+            <CareerVoiceInputLevelFill voiceListening={voiceListening} />
           ) : null}
           <textarea
             value={isVoiceMode ? voiceTranscript : draft}

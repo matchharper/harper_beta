@@ -2,6 +2,15 @@ import { Loader2, Phone, Upload, X } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { CAREER_LINK_LABELS } from "@/components/career/constants";
 import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
+import {
+  TALENT_MESSAGE_TYPE_ONBOARDING_PAUSE_CLOSE,
+  TALENT_ONBOARDING_INTEREST_OPTIONS,
+  type TalentOnboardingInterestOptionId,
+} from "@/lib/talentOnboarding/onboarding";
+import {
+  shouldShowContinueConversationAction,
+  shouldShowOnboardingInterestSelector,
+} from "@/hooks/career/careerHelpers";
 import CareerMessageBubble from "./CareerMessageBubble";
 
 const LOGIN_GREETING_TEXT =
@@ -18,16 +27,6 @@ const LOADING_EXAMPLES = [
   "글로벌 SaaS 팀 ML Engineer (비자 스폰서 가능)",
   "국내 딥테크 스타트업 Applied AI Engineer",
 ];
-
-const VOICE_START_PROMPT = [
-  "<< 제출해주신 이력서에서 강한 전문성이 확인됐어요. >>",
-  "",
-  "이제 회원님의 커리어 목표를 주제로, 좋은 기회를 드리기 위해 약 5~10분 정도의 대화가 시작될 예정이에요.",
-  "",
-  "중간에 얼마든지 진행 상황을 저장하고 종료하실 수 있습니다.",
-  "",
-  "바로 시작하시겠어요?",
-].join("\n");
 
 const VOICE_TRANSCRIPT_PREVIEW_LIMIT = 120;
 
@@ -52,6 +51,7 @@ const CareerTimelineSection = () => {
     assistantTyping,
     chatPending,
     onboardingBeginPending,
+    onboardingPausePending,
     onGoogleLogin,
     onEmailAuth,
     onResumeFileChange,
@@ -63,6 +63,9 @@ const CareerTimelineSection = () => {
     showVoiceStartPrompt,
     onStartVoiceCall,
     onUseChatOnly,
+    onPauseOnboarding,
+    onSubmitOnboardingInterest,
+    onContinueOnboardingConversation,
     inputMode,
     voiceListening,
     voiceMuted,
@@ -74,6 +77,9 @@ const CareerTimelineSection = () => {
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [showLoadOlderButton, setShowLoadOlderButton] = useState(false);
+  const [selectedInterestOptions, setSelectedInterestOptions] = useState<
+    TalentOnboardingInterestOptionId[]
+  >([]);
 
   const handleEmailAuthSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -141,6 +147,37 @@ const CareerTimelineSection = () => {
     transcriptPreview.length > VOICE_TRANSCRIPT_PREVIEW_LIMIT
       ? `${transcriptPreview.slice(0, VOICE_TRANSCRIPT_PREVIEW_LIMIT - 1)}...`
       : transcriptPreview;
+  const pauseCloseTyping = messages.some(
+    (message) =>
+      message.messageType === TALENT_MESSAGE_TYPE_ONBOARDING_PAUSE_CLOSE &&
+      Boolean(message.typing)
+  );
+  const showInterestSelector = shouldShowOnboardingInterestSelector(messages);
+  const showContinueConversation =
+    shouldShowContinueConversationAction(messages) && !pauseCloseTyping;
+
+  useEffect(() => {
+    if (!showInterestSelector) {
+      setSelectedInterestOptions([]);
+    }
+  }, [showInterestSelector]);
+
+  const handleToggleInterestOption = useCallback(
+    (optionId: TalentOnboardingInterestOptionId) => {
+      setSelectedInterestOptions((prev) =>
+        prev.includes(optionId)
+          ? prev.filter((item) => item !== optionId)
+          : [...prev, optionId]
+      );
+    },
+    []
+  );
+
+  const handleSubmitInterestOptions = useCallback(async () => {
+    const saved = await onSubmitOnboardingInterest(selectedInterestOptions);
+    if (!saved) return;
+    setSelectedInterestOptions([]);
+  }, [onSubmitOnboardingInterest, selectedInterestOptions]);
 
   if (user && isVoiceMode && stage !== "profile" && false) {
     return (
@@ -517,28 +554,99 @@ const CareerTimelineSection = () => {
             <article className="max-w-[96%] rounded-xl border border-hblack200 bg-hblack000 px-4 py-4">
               <div className="text-xs text-hblack500">Harper</div>
               <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-hblack700">
-                {VOICE_START_PROMPT}
+                지금 짧게 대화가 가능하신가요?
               </p>
-              <div className="mt-4 flex flex-wrap items-center gap-2">
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
                 <button
                   type="button"
-                  onClick={onStartVoiceCall}
+                  onClick={() => onStartVoiceCall(5)}
                   disabled={onboardingBeginPending}
-                  className="h-10 border border-xprimary bg-xprimary px-4 text-sm font-medium text-hblack000 transition-opacity hover:opacity-90"
+                  className="h-10 rounded-md border border-xprimary bg-xprimary px-4 text-sm font-medium text-hblack000 transition-opacity hover:opacity-90"
                 >
-                  {onboardingBeginPending ? "준비 중..." : "Call 시작하기"}
+                  {onboardingBeginPending ? "준비 중..." : "5분 통화 시작"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onStartVoiceCall(10)}
+                  disabled={onboardingBeginPending}
+                  className="h-10 rounded-md border border-hblack300 bg-hblack000 px-4 text-sm text-hblack700 transition-colors hover:border-xprimary hover:text-xprimary"
+                >
+                  {onboardingBeginPending ? "준비 중..." : "10분 통화 시작"}
                 </button>
                 <button
                   type="button"
                   onClick={onUseChatOnly}
                   disabled={onboardingBeginPending}
-                  className="h-10 border border-hblack300 bg-hblack000 px-4 text-sm text-hblack700 transition-colors hover:border-xprimary hover:text-xprimary"
+                  className="h-10 rounded-md border border-hblack300 bg-hblack000 px-4 text-sm text-hblack700 transition-colors hover:border-xprimary hover:text-xprimary"
                 >
-                  {onboardingBeginPending
+                  {onboardingBeginPending ? "준비 중..." : "텍스트로 시작"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void onPauseOnboarding()}
+                  disabled={onboardingPausePending}
+                  className="h-10 rounded-md border border-hblack300 bg-hblack000 px-4 text-sm text-hblack700 transition-colors hover:border-xprimary hover:text-xprimary"
+                >
+                  {onboardingPausePending
                     ? "준비 중..."
-                    : "현재 채팅으로만 가능해요"}
+                    : "우선 등록을 완료하고 나중에 할게요."}
                 </button>
               </div>
+            </article>
+          )}
+
+          {showInterestSelector && (
+            <article className="max-w-[96%] rounded-xl border border-hblack200 bg-hblack000 px-4 py-4">
+              <p className="text-sm font-medium text-hblack1000">
+                현재 어떤 기회를 찾고 있는지
+              </p>
+              <p className="mt-1 text-xs text-hblack500">복수 선택 가능</p>
+
+              <div className="mt-4 space-y-2">
+                {TALENT_ONBOARDING_INTEREST_OPTIONS.map((option, index) => {
+                  const selected = selectedInterestOptions.includes(option.id);
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => handleToggleInterestOption(option.id)}
+                      disabled={onboardingPausePending}
+                      className={[
+                        "flex w-full rounded-lg border px-3 py-3 text-left text-sm transition-colors",
+                        selected
+                          ? "border-xprimary bg-xprimary/10 text-xprimary"
+                          : "border-hblack200 bg-hblack000 text-hblack700 hover:border-hblack400",
+                      ].join(" ")}
+                    >
+                      {index + 1}) {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => void handleSubmitInterestOptions()}
+                disabled={
+                  onboardingPausePending || selectedInterestOptions.length === 0
+                }
+                className="mt-4 h-10 w-full rounded-md border border-xprimary bg-xprimary px-4 text-sm font-medium text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {onboardingPausePending ? "저장 중..." : "선택 저장하기"}
+              </button>
+            </article>
+          )}
+
+          {showContinueConversation && (
+            <article className="max-w-[96%] rounded-xl border border-hblack200 bg-hblack000 px-4 py-4">
+              <button
+                type="button"
+                onClick={() => void onContinueOnboardingConversation()}
+                disabled={onboardingBeginPending}
+                className="h-10 rounded-md border border-hblack300 bg-hblack000 px-4 text-sm text-hblack700 transition-colors hover:border-xprimary hover:text-xprimary"
+              >
+                {onboardingBeginPending ? "준비 중..." : "계속 더 대화하기"}
+              </button>
             </article>
           )}
         </>

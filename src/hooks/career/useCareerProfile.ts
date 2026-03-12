@@ -170,7 +170,10 @@ export const useCareerProfile = ({
       const cleanedLinks = profileLinks
         .filter((link) => link.trim().includes("linkedin.com"))
         .filter(Boolean);
-      if (!resumeFile || cleanedLinks.length === 0) {
+      const hasSavedResume = Boolean(
+        savedResumeFileName || savedResumeStoragePath
+      );
+      if (!resumeFile && !hasSavedResume && cleanedLinks.length === 0) {
         setProfileError("이력서 혹은 링크드인 링크를 업로드해 주세요.");
         return;
       }
@@ -182,15 +185,23 @@ export const useCareerProfile = ({
       setChatError("");
 
       try {
-        const uploadResult = await uploadResumeFile(resumeFile);
-        const resumeText = await readResumeText(resumeFile);
+        let nextResumeFileName = savedResumeFileName ?? undefined;
+        let nextResumeStoragePath = savedResumeStoragePath ?? undefined;
+        let resumeText: string | undefined;
+
+        if (resumeFile) {
+          const uploadResult = await uploadResumeFile(resumeFile);
+          nextResumeFileName = uploadResult.resumeFileName;
+          nextResumeStoragePath = uploadResult.resumeStoragePath;
+          resumeText = await readResumeText(resumeFile);
+        }
 
         const response = await fetchWithAuth("/api/talent/onboarding/start", {
           method: "POST",
           body: JSON.stringify({
             conversationId,
-            resumeFileName: uploadResult.resumeFileName,
-            resumeStoragePath: uploadResult.resumeStoragePath,
+            resumeFileName: nextResumeFileName,
+            resumeStoragePath: nextResumeStoragePath,
             resumeText,
             links: cleanedLinks,
           }),
@@ -271,6 +282,8 @@ export const useCareerProfile = ({
       profilePending,
       readResumeText,
       resumeFile,
+      savedResumeFileName,
+      savedResumeStoragePath,
       setChatError,
       setStage,
       uploadResumeFile,

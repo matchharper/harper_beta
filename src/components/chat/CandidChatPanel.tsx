@@ -9,18 +9,10 @@ import React, {
 import ChatMessageList from "@/components/chat/ChatMessageList";
 import ChatComposer from "@/components/chat/ChatComposer";
 import { useChatSessionDB } from "@/hooks/chat/useChatSession";
-import { ArrowDown, ArrowLeft, Loader2, Lock, Settings } from "lucide-react";
-import { logger } from "@/utils/logger";
+import { ArrowDown, ArrowLeft, Loader2 } from "lucide-react";
 import { useRouter } from "next/router";
-import { CandidateDetail, candidateKey } from "@/hooks/useCandidateDetail";
+import { CandidateDetail } from "@/hooks/useCandidateDetail";
 import { Skeleton } from "../ui/skeleton";
-import ConfirmModal from "../Modal/ConfirmModal";
-import BaseModal from "../Modal/BaseModal";
-import { supabase } from "@/lib/supabase";
-import { useCredits } from "@/hooks/useCredit";
-import { useQueryClient } from "@tanstack/react-query";
-import { CANDID_SYSTEM_PROMPT } from "@/app/api/chat/chat_prompt";
-import CreditModal from "../Modal/CreditModal";
 import { useMessages } from "@/i18n/useMessage";
 
 export type ChatScope =
@@ -52,33 +44,13 @@ export default function CandidChatPanel({
   const [stickToBottom, setStickToBottom] = useState(true);
   const [showJumpToBottom, setShowJumpToBottom] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const queryClient = useQueryClient();
-  const { deduct, credits } = useCredits();
-  const [isUnlockConfirmOpen, setIsUnlockConfirmOpen] = useState(false);
-  const [isUnlocking, setIsUnlocking] = useState(false);
-  const [isNoCreditModalOpen, setIsNoCreditModalOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [systemPromptOverride, setSystemPromptOverride] = useState<
-    string | null
-  >(null);
-  const [promptDraft, setPromptDraft] = useState(CANDID_SYSTEM_PROMPT);
 
   const chat = useChatSessionDB({
     model: "grok-4-fast-reasoning",
     scope,
     userId,
     candidDoc,
-    systemPromptOverride: systemPromptOverride ?? undefined,
   }); // ✅ 바뀐 부분
-
-  const candidId = useMemo(() => {
-    if (scope?.type === "candid") return scope.candidId;
-    return candidDoc?.id;
-  }, [scope, candidDoc?.id]);
-  const isUnlockProfile =
-    candidDoc?.unlock_profile && candidDoc?.unlock_profile?.length > 0
-      ? true
-      : false;
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
     const el = scrollRef.current;
@@ -160,10 +132,6 @@ export default function CandidChatPanel({
   // ✅ 예시 질문 클릭 → 바로 대화 시작
   const onClickCandidSuggestion = useCallback(
     async (text: string) => {
-      if (!isUnlockProfile) {
-        setIsUnlockConfirmOpen(true);
-        return;
-      }
       chat.setMessages([
         {
           role: "user",
@@ -176,86 +144,8 @@ export default function CandidChatPanel({
 
       requestAnimationFrame(() => scrollToBottom("smooth"));
     },
-    [chat, scrollToBottom, isUnlockProfile]
+    [chat, scrollToBottom]
   );
-
-  const onClickUnlockProfile = useCallback(async () => {
-    if (isUnlockProfile) return;
-    if (credits && credits.remain_credit <= 0) {
-      setIsNoCreditModalOpen(true);
-      return;
-    }
-    setIsUnlockConfirmOpen(true);
-  }, [isUnlockProfile, credits]);
-
-  const onConfirmUnlockProfile = useCallback(async () => {
-    if (!userId || !candidId) return;
-    if (isUnlocking) return;
-    if (credits && credits.remain_credit <= 0) {
-      setIsNoCreditModalOpen(true);
-      return;
-    }
-
-    setIsUnlocking(true);
-    let insertedRow: any | null = null;
-
-    try {
-      const { data, error } = await supabase
-        .from("unlock_profile")
-        .insert({
-          company_user_id: userId,
-          candid_id: candidId,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      insertedRow = data;
-
-      try {
-        await deduct(1);
-      } catch (deductError: any) {
-        const isInsufficient = String(deductError?.message ?? "").includes(
-          "Insufficient credits"
-        );
-        if (insertedRow?.id) {
-          await supabase
-            .from("unlock_profile")
-            .delete()
-            .eq("id", insertedRow.id);
-        }
-        if (isInsufficient) {
-          setIsNoCreditModalOpen(true);
-          return;
-        }
-        throw deductError;
-      }
-
-      queryClient.setQueryData(candidateKey(candidId, userId), (prev: any) => {
-        if (!prev) return prev;
-        const current = Array.isArray(prev.unlock_profile)
-          ? prev.unlock_profile
-          : [];
-        if (current.some((u: any) => u?.id === insertedRow?.id)) return prev;
-        return {
-          ...prev,
-          unlock_profile: [...current, insertedRow],
-        };
-      });
-
-      setIsUnlockConfirmOpen(false);
-    } catch (error) {
-      console.error("Unlock profile failed:", error);
-      alert("Unlock에 실패했습니다. 잠시 후 다시 시도해주세요.");
-    } finally {
-      setIsUnlocking(false);
-    }
-  }, [userId, candidId, isUnlocking, deduct, queryClient, credits]);
-
-  useEffect(() => {
-    if (!isSettingsOpen) return;
-    setPromptDraft(systemPromptOverride ?? CANDID_SYSTEM_PROMPT);
-  }, [isSettingsOpen, systemPromptOverride]);
 
   return (
     <div className="w-full flex flex-col min-h-0 h-screen">
@@ -287,21 +177,6 @@ export default function CandidChatPanel({
           ref={scrollRef}
           className="h-full overflow-y-auto px-4 pt-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent hover:scrollbar-thumb-white/20"
         >
-          <ConfirmModal
-            open={isUnlockConfirmOpen}
-            onClose={() => setIsUnlockConfirmOpen(false)}
-            onConfirm={() => void onConfirmUnlockProfile()}
-            title="프로필 잠금 해제"
-            description="프로필 잠금을 해제하고 제한없이 대화를 시작할 수 있습니다. 1 크레딧이 차감됩니다."
-            confirmLabel="확인"
-            cancelLabel="취소"
-            isLoading={isUnlocking}
-          />
-          <CreditModal
-            open={isNoCreditModalOpen}
-            onClose={() => setIsNoCreditModalOpen(false)}
-            isLoading={isUnlocking}
-          />
           {chat.isLoadingHistory && (
             <div className="text-xs text-hgray600 flex items-center gap-2 py-2">
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -309,29 +184,13 @@ export default function CandidChatPanel({
             </div>
           )}
 
-          {!isUnlockProfile && (
-            <div className="flex items-center h-[70%] w-full justify-center">
-              <div
-                onClick={() => void onClickUnlockProfile()}
-                className="flex flex-row justify-center items-center gap-2 bg-white/10 rounded-md px-3 py-2 cursor-pointer hover:bg-white/15 transition-all duration-200"
-              >
-                <Lock className="w-4 h-4 text-hgray600" />
-                <span className="text-xs text-hgray900">
-                  {m.chat.unlockProfileCta}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {isUnlockProfile && (
-            <ChatMessageList
-              messages={chat.messages}
-              isStreaming={chat.isStreaming}
-              error={chat.error}
-              onConfirmCriteriaCard={undefined} // ✅ query scope에서만
-              onChangeCriteriaCard={() => {}}
-            />
-          )}
+          <ChatMessageList
+            messages={chat.messages}
+            isStreaming={chat.isStreaming}
+            error={chat.error}
+            onConfirmCriteriaCard={undefined}
+            onChangeCriteriaCard={() => {}}
+          />
           <br />
         </div>
 
@@ -371,13 +230,7 @@ export default function CandidChatPanel({
         value={chat.input}
         onChange={chat.setInput}
         onSend={() => {
-          if (isUnlockProfile) {
-            void chat.send();
-            return;
-          } else {
-            setIsUnlockConfirmOpen(true);
-          }
-          // void chat.send()
+          void chat.send();
         }}
         onStop={chat.stop}
         onRetry={() => void chat.reload()}

@@ -16,8 +16,7 @@ import { useCareerOnboardingVoice } from "@/hooks/career/useCareerOnboardingVoic
 import { useCareerProfile } from "@/hooks/career/useCareerProfile";
 import { useCareerTalentSettings } from "@/hooks/career/useCareerTalentSettings";
 import { useCareerSession } from "@/hooks/career/useCareerSession";
-
-const TARGET_QUESTIONS = 5;
+import { TALENT_ONBOARDING_COMPLETION_TARGET } from "@/lib/talentOnboarding/progress";
 
 export const CareerFlowProvider = ({
   children,
@@ -160,10 +159,10 @@ export const CareerFlowProvider = ({
   const {
     showVoiceStartPrompt,
     onboardingBeginPending,
+    onboardingPausePending,
     inputMode,
     voiceTranscript,
     voiceListening,
-    voiceInputLevel,
     voiceMuted,
     voiceError,
     assistantAudioBusy,
@@ -172,6 +171,9 @@ export const CareerFlowProvider = ({
     handleToggleVoiceMute,
     handleStartVoiceCall,
     handleUseChatOnly,
+    handlePauseOnboarding,
+    handleSubmitOnboardingInterest,
+    handleContinueOnboardingConversation,
     handleSwitchToTextMode,
     applySessionPrompt,
     handleProfileSubmitSuccess,
@@ -185,9 +187,11 @@ export const CareerFlowProvider = ({
     fetchWithAuth,
     isVoiceInteractionLocked,
     onSendChatMessage: sendChatMessage,
+    appendMessage,
     setChatError,
     setStage,
     enqueueAssistantTypewriter,
+    onMessagesChanged: appendLatestMessagesToCache,
   });
 
   const handleProfileSubmit = useCallback(async () => {
@@ -249,20 +253,23 @@ export const CareerFlowProvider = ({
     el.scrollTo({ top: el.scrollHeight });
   }, [scrollTick]);
 
-  const answeredCount = useMemo(
+  const userChatCount = useMemo(
     () =>
-      Math.min(
-        messages.filter(
-          (message) =>
-            message.role === "user" &&
-            (message.messageType ?? "chat") === "chat"
-        ).length,
-        TARGET_QUESTIONS
-      ),
+      messages.filter(
+        (message) =>
+          message.role === "user" && (message.messageType ?? "chat") === "chat"
+      ).length,
     [messages]
   );
 
-  const progressPercent = Math.round((answeredCount / TARGET_QUESTIONS) * 100);
+  const answeredCount = useMemo(
+    () => Math.min(userChatCount, TALENT_ONBOARDING_COMPLETION_TARGET),
+    [userChatCount]
+  );
+
+  const progressPercent = Math.round(
+    (answeredCount / TALENT_ONBOARDING_COMPLETION_TARGET) * 100
+  );
 
   const chatPanelContextValue: CareerChatPanelContextValue = useMemo(
     () => ({
@@ -287,6 +294,7 @@ export const CareerFlowProvider = ({
       assistantTyping,
       chatPending,
       onboardingBeginPending,
+      onboardingPausePending,
       onGoogleLogin: handleGoogleLogin,
       onEmailAuth: handleEmailAuth,
       onResumeFileChange: setResumeFile,
@@ -299,10 +307,12 @@ export const CareerFlowProvider = ({
       showVoiceStartPrompt,
       onStartVoiceCall: handleStartVoiceCall,
       onUseChatOnly: handleUseChatOnly,
+      onPauseOnboarding: handlePauseOnboarding,
+      onSubmitOnboardingInterest: handleSubmitOnboardingInterest,
+      onContinueOnboardingConversation: handleContinueOnboardingConversation,
       inputMode,
       voiceTranscript,
       voiceListening,
-      voiceInputLevel,
       voiceMuted,
       voiceError,
       assistantAudioBusy,
@@ -328,8 +338,11 @@ export const CareerFlowProvider = ({
       handleRemoveProfileLink,
       handleLoadOlderMessages,
       hasOlderMessages,
+      handleContinueOnboardingConversation,
+      handlePauseOnboarding,
       handleStartVoiceCall,
       handleSwitchToTextMode,
+      handleSubmitOnboardingInterest,
       handleToggleVoiceMute,
       handleUseChatOnly,
       handleVoicePrimaryAction,
@@ -337,6 +350,7 @@ export const CareerFlowProvider = ({
       messages,
       loadingOlderMessages,
       onboardingBeginPending,
+      onboardingPausePending,
       profileError,
       profileLinks,
       profilePending,
@@ -351,7 +365,6 @@ export const CareerFlowProvider = ({
       voiceError,
       assistantAudioBusy,
       voiceListening,
-      voiceInputLevel,
       voiceMuted,
       voicePrimaryPressed,
       voiceTranscript,
@@ -362,8 +375,9 @@ export const CareerFlowProvider = ({
     () => ({
       user,
       stage,
+      userChatCount,
       answeredCount,
-      targetQuestions: TARGET_QUESTIONS,
+      targetQuestions: TALENT_ONBOARDING_COMPLETION_TARGET,
       progressPercent,
       onOpenSettings,
       onLogout: handleLogout,
@@ -426,6 +440,7 @@ export const CareerFlowProvider = ({
       settingsSaving,
       setResumeFile,
       stage,
+      userChatCount,
       talentEducations,
       talentExperiences,
       talentExtras,

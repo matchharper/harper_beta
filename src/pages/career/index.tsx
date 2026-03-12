@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import CareerChatPanel from "@/components/career/CareerChatPanel";
 import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
 import { CareerFlowProvider } from "@/components/career/CareerFlowProvider";
+import CareerOnboardingChecklist from "@/components/career/CareerOnboardingChecklist";
 import CareerProgressSidebar from "@/components/career/CareerProgressSidebar";
 import CareerSettingsModal from "@/components/career/CareerSettingsModal";
 import { Loader2, MessageCircle, Send, SettingsIcon } from "lucide-react";
@@ -182,11 +183,13 @@ const CareerLayout = () => {
 
   if (!showAuthModal) {
     return (
-      <div className="relative mx-auto flex h-screen px-2 flex-col py-4 lg:py-6 lg:pt-12">
+      <div className="relative mx-auto flex h-screen px-2 flex-col lg:pt-12">
+        <CareerOnboardingChecklist />
         <div
           ref={layoutRef}
-          className="flex min-h-0 flex-1 flex-col gap-8 lg:flex-row lg:gap-0"
+          className="relative flex isolate min-h-0 flex-1 flex-col gap-8 lg:flex-row lg:gap-0"
         >
+          {/* <div className="absolute top-0 left-0 flex-1 -z-10 h-screen w-full diagonal-lines"></div> */}
           <div
             className={[
               "min-w-0",
@@ -321,9 +324,9 @@ const Career = () => {
 
   return (
     <main
-      className="relative min-h-screen text-hblack900 font-inter bg-hblack000 w-full 
-            bg-[linear-gradient(60deg,#f3f4f6_1px,transparent_1px)] 
-            bg-[size:40px_40px] bg-red-200"
+      className="
+      relative min-h-screen text-hblack900 font-inter bg-hblack000 w-full 
+      "
     >
       <CareerFlowProvider onOpenSettings={() => setIsSettingsModalOpen(true)}>
         <CareerTopBar onOpenSettings={() => setIsSettingsModalOpen(true)} />

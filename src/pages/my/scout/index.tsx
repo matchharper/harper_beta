@@ -168,7 +168,7 @@ export default function AutomationIndexPage() {
       if (!automationId || !userId) return;
       if (credits && credits.remain_credit <= 3) {
         showToast({
-          message: "진행에 필요한 최소 크레딧이 부족합니다.",
+          message: "이번 달 남은 월 검색 한도가 부족합니다.",
           variant: "white",
         });
         return;
@@ -361,7 +361,7 @@ export default function AutomationIndexPage() {
       <ConfirmModal
         open={pendingAction?.type === "pause"}
         title="진행을 정지할까요?"
-        description="진행 정지 시 후보자 추천이 진행되지 않으며 크레딧이 소모되지 않습니다."
+        description="진행 정지 시 후보자 추천이 멈추며 이용량이 추가로 반영되지 않습니다."
         confirmLabel="진행 정지"
         cancelLabel="취소"
         onClose={() => setPendingAction(null)}
@@ -377,7 +377,7 @@ export default function AutomationIndexPage() {
       <ConfirmModal
         open={pendingAction?.type === "resume"}
         title="진행을 재개할까요?"
-        description="진행 시 하루에 1~2명의 후보자가 추천되며 1명당 1크레딧이 소모됩니다."
+        description="진행 시 추천 결과가 현재 플랜의 월 검색 한도에 반영됩니다."
         confirmLabel="진행"
         cancelLabel="취소"
         onClose={() => setPendingAction(null)}

@@ -23,6 +23,14 @@ type Body = {
   links?: string[];
 };
 
+type TalentProfileUpdatePayload = {
+  resume_links: string[];
+  updated_at: string;
+  resume_text?: string;
+  resume_file_name?: string;
+  resume_storage_path?: string;
+};
+
 type LlmKickoff = {
   acknowledgement: string;
   insight: string;
@@ -87,18 +95,6 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    if (!resumeFileName) {
-      return NextResponse.json(
-        { error: "resumeFileName is required" },
-        { status: 400 }
-      );
-    }
-    if (!resumeStoragePath) {
-      return NextResponse.json(
-        { error: "resumeStoragePath is required" },
-        { status: 400 }
-      );
-    }
 
     const admin = getTalentSupabaseAdmin();
     await ensureTalentUserRecord({ admin, user });
@@ -124,15 +120,24 @@ export async function POST(req: NextRequest) {
 
     const now = new Date().toISOString();
 
+    const profileUpdatePayload: TalentProfileUpdatePayload = {
+      resume_links: links,
+      updated_at: now,
+    };
+
+    if (typeof body.resumeText === "string") {
+      profileUpdatePayload.resume_text = resumeText.slice(0, 20000);
+    }
+    if (resumeFileName) {
+      profileUpdatePayload.resume_file_name = resumeFileName;
+    }
+    if (resumeStoragePath) {
+      profileUpdatePayload.resume_storage_path = resumeStoragePath;
+    }
+
     const { error: profileUpdateError } = await admin
       .from("talent_users")
-      .update({
-        resume_file_name: resumeFileName,
-        resume_storage_path: resumeStoragePath,
-        resume_text: resumeText.slice(0, 20000),
-        resume_links: links,
-        updated_at: now,
-      })
+      .update(profileUpdatePayload)
       .eq("user_id", user.id);
 
     if (profileUpdateError) {
@@ -167,7 +172,7 @@ export async function POST(req: NextRequest) {
           role: "user",
           content: [
             `이름: ${displayName}`,
-            `이력서 파일명: ${resumeFileName}`,
+            `이력서 파일명: ${resumeFileName || "(없음)"}`,
             `링크: ${links.join(", ") || "(없음)"}`,
             `이력서 텍스트(일부): ${resumeText.slice(0, 8000) || "(없음)"}`,
           ].join("\n"),

@@ -36,6 +36,18 @@ function getTossAmountKRW(planKey: "pro" | "max", billing: BillingPeriod) {
   return Math.round(monthly * 0.8);
 }
 
+function formatDateToDots(dateStr?: string | null) {
+  if (!dateStr) return null;
+
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}.${month}.${day}`;
+}
+
 type SubscriptionInfo = {
   planKey: "pro" | "max" | "enterprise" | "free" | null;
   planId: string | null;
@@ -223,6 +235,7 @@ const Billing = () => {
   const freeStartDateLabel = subscription?.currentPeriodEnd
     ? dateToFormatLong(subscription.currentPeriodEnd)
     : "";
+  const usageResetDateLabel = formatDateToDots(subscription?.currentPeriodEnd);
   const closeTossPreview = () => {
     setTossPreview(null);
     setTossPreviewError(null);
@@ -638,8 +651,8 @@ const Billing = () => {
           <p className="mt-3 text-sm text-hgray800 font-normal leading-relaxed">
             현재 결제는 각 사용자 분들을 직접 온보딩 해드리고 있습니다.
             <br />
-            어떤 이유로, 얼마나 크레딧이 필요하신지 간략하게 적어주시면 바로
-            도와드리겠습니다!
+            어떤 플랜과 월 검색 한도가 필요하신지 간략하게 적어주시면 바로
+            도와드리겠습니다.
           </p>
           <textarea
             value={creditFeedbackText}
@@ -734,7 +747,7 @@ const Billing = () => {
                 구독 정보를 불러오는 중...
               </div>
             ) : subscription ? (
-              <div className="flex flex-row items-start justify-between">
+              <div className="flex flex-row items-end justify-between">
                 <div className="flex flex-col gap-2 text-sm w-[30%]">
                   <div className="text-sm text-hgray900 font-normal">
                     구독 상태
@@ -757,17 +770,24 @@ const Billing = () => {
                     </div>
                   ) : null}
                 </div>
-                <div className="w-[70%] flex items-end justify-end flex-col h-full">
-                  <div className="w-full flex flex-row items-start justify-start gap-2 text-hgray900 text-sm font-normal">
-                    Credit 사용량
-                    <span className="text-accenta1">
-                      {credits?.remain_credit}
-                    </span>
-                    <span className=""> / {credits?.charged_credit}</span>
+                <div className="w-[70%] flex items-end justify-end flex-row h-full mb-2">
+                  <div className="w-full flex flex-col items-start justify-start">
+                    <div className="flex flex-row items-start justify-start gap-2 text-hgray900 text-sm font-normal">
+                      이번 달 남은 검색 횟수
+                      <span className="text-accenta1">
+                        {credits?.remain_credit}
+                      </span>
+                      <span className=""> / {credits?.charged_credit}</span>
+                    </div>
+                    {usageResetDateLabel ? (
+                      <div className="mt-1 text-xs font-light text-hgray700">
+                        (초기화 : {usageResetDateLabel})
+                      </div>
+                    ) : null}
                   </div>
-                  <div className="mt-2 w-full flex relative rounded-xl h-2 bg-accenta1/20">
+                  <div className="mt-2 w-full flex relative rounded-xl h-1.5 bg-accenta1/20">
                     <div
-                      className="w-full flex absolute left-0 top-0 rounded-xl h-2 bg-accenta1 transition-all duration-500 ease-out"
+                      className="w-full flex absolute left-0 top-0 rounded-xl h-1.5 bg-accenta1 transition-all duration-500 ease-out"
                       style={{
                         width: `${Math.min(
                           ((credits?.remain_credit ?? 0) /

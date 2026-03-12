@@ -3,6 +3,11 @@ import type {
   CareerStage,
   MessageRole,
 } from "@/components/career/types";
+import {
+  TALENT_MESSAGE_TYPE_ONBOARDING_INTEREST_PROMPT,
+  TALENT_MESSAGE_TYPE_ONBOARDING_PAUSE_CLOSE,
+  TALENT_MESSAGE_TYPE_ONBOARDING_STATUS,
+} from "@/lib/talentOnboarding/onboarding";
 
 export const sleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -48,6 +53,23 @@ export const toProfileLinks = (links: string[] = []) => [
   ...links.slice(3),
 ];
 
+const findLastMessageTypeIndex = (
+  messages: CareerMessage[],
+  messageType: string
+) => {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index].messageType === messageType) {
+      return index;
+    }
+  }
+  return -1;
+};
+
+const hasChatAfterIndex = (messages: CareerMessage[], index: number) =>
+  messages
+    .slice(index + 1)
+    .some((message) => (message.messageType ?? "chat") === "chat");
+
 export const shouldShowVoiceStartPrompt = (
   stage: CareerStage,
   messages: CareerMessage[]
@@ -64,6 +86,53 @@ export const shouldShowVoiceStartPrompt = (
       message.role === "assistant" &&
       (message.messageType ?? "chat") === "chat"
   );
+  const hasDeferredFlow = messages.some((message) =>
+    [
+      TALENT_MESSAGE_TYPE_ONBOARDING_INTEREST_PROMPT,
+      TALENT_MESSAGE_TYPE_ONBOARDING_STATUS,
+      TALENT_MESSAGE_TYPE_ONBOARDING_PAUSE_CLOSE,
+    ].includes(message.messageType)
+  );
 
-  return stage !== "profile" && hasProfileSubmit && !hasUserChat && !hasAssistantQuestion;
+  return (
+    stage !== "profile" &&
+    hasProfileSubmit &&
+    !hasDeferredFlow &&
+    !hasUserChat &&
+    !hasAssistantQuestion
+  );
 };
+
+export const shouldShowOnboardingInterestSelector = (
+  messages: CareerMessage[]
+) => {
+  const promptIndex = findLastMessageTypeIndex(
+    messages,
+    TALENT_MESSAGE_TYPE_ONBOARDING_INTEREST_PROMPT
+  );
+  if (promptIndex < 0) return false;
+
+  const hasStatusAfter = messages
+    .slice(promptIndex + 1)
+    .some(
+      (message) => message.messageType === TALENT_MESSAGE_TYPE_ONBOARDING_STATUS
+    );
+
+  return !hasStatusAfter && !hasChatAfterIndex(messages, promptIndex);
+};
+
+export const shouldShowContinueConversationAction = (
+  messages: CareerMessage[]
+) => {
+  const closeIndex = findLastMessageTypeIndex(
+    messages,
+    TALENT_MESSAGE_TYPE_ONBOARDING_PAUSE_CLOSE
+  );
+  if (closeIndex < 0) return false;
+
+  return !hasChatAfterIndex(messages, closeIndex);
+};
+
+export const isOnboardingPaused = (messages: CareerMessage[]) =>
+  shouldShowOnboardingInterestSelector(messages) ||
+  shouldShowContinueConversationAction(messages);

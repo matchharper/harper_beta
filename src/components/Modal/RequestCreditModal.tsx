@@ -55,7 +55,7 @@ const RequestCreditModal = ({
       onConfirm={async () => {
         if (sentRequest) {
           setSentRequest(false);
-          showToast({ message: "Credit request submitted.", variant: "white" });
+          showToast({ message: "Plan inquiry submitted.", variant: "white" });
           onClose();
         } else {
           setIsLoading(true);
@@ -96,7 +96,7 @@ const RequestCreditModal = ({
                   ].join(" ")}
                 >
                   <div>
-                    {selectedCredit} {m.system.credits}
+                    월 검색 한도 {selectedCredit}회
                   </div>
                   <div>
                     <ChevronDown size={24} strokeWidth={1} />
@@ -112,11 +112,11 @@ const RequestCreditModal = ({
                     <DropdownMenuItem
                       key={option.value}
                       className="w-full font-light rounded-xl hover:border-none hover:outline-none hover:bg-white/10 cursor-pointer p-3 mt-1"
-                      onClick={(e) => {
+                      onClick={() => {
                         setSelectedCredit(option.value);
                       }}
                     >
-                      {option.label} {m.system.credits}
+                      월 검색 한도 {option.label}회
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuGroup>
