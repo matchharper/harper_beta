@@ -329,11 +329,9 @@ export default function ChatPanel({
     chat.messages,
   ]);
 
-  const onClickSearch = async (messageId: number) => {
-    if (!canSearch) return;
-    if (!messageId) return;
-    if (!userId) return;
-
+  const ensureSearchCanStart = useCallback(async () => {
+    if (!canSearch) return false;
+    if (!userId) return false;
     const maxParallel = planKey === "max" ? 3 : 1;
     const threeMinAgo = new Date(Date.now() - 3 * 60 * 1000).toISOString();
 
@@ -366,12 +364,82 @@ export default function ChatPanel({
             : "이미 검색이 진행중입니다. 기존 검색이 종료된 후에 다시 시도해주세요.<br />(Max 플랜의 경우 동시에 3개까지 가능합니다.)",
         variant: "white",
       });
-      return;
+      return false;
     }
     if (credits && credits.remain_credit <= MIN_CREDITS_FOR_SEARCH) {
       setIsNoCreditModalOpen(true);
-      return;
+      return false;
     }
+    return true;
+  }, [canSearch, credits, planKey, userId]);
+
+  const startSearchWithPendingUi = useCallback(
+    async (launch: () => Promise<string | null>) => {
+      const searchStartText =
+        "검색을 시작하겠습니다. 최대 1~3분이 소요될 수 있습니다.";
+      const searchStartBlock = {
+        type: "search_start",
+        text: searchStartText,
+        run_id: "",
+      };
+
+      setIsSearchSyncing(true);
+      try {
+        const pendingMsg = await chat.addAssistantMessage(
+          `${UI_START}\n${JSON.stringify(searchStartBlock)}\n${UI_END}`
+        );
+
+        const runId = await launch();
+        if (pendingMsg?.id && runId) {
+          await chat.patchAssistantUiBlock(Number(pendingMsg.id), {
+            ...searchStartBlock,
+            run_id: runId,
+          });
+        }
+
+        return runId;
+      } finally {
+        setIsSearchSyncing(false);
+      }
+    },
+    [chat]
+  );
+
+  const launchSearchFromRun = useCallback(async (sourceRunId: string) => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const accessToken = session?.access_token;
+
+    if (!accessToken) {
+      throw new Error("Unauthorized");
+    }
+
+    const response = await fetch("/api/search/launch", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ sourceRunId }),
+    });
+
+    const json = (await response.json().catch(() => ({}))) as {
+      error?: string;
+      runId?: string;
+    };
+
+    if (!response.ok || !json.runId) {
+      throw new Error(json.error ?? "Failed to relaunch search");
+    }
+
+    return json.runId;
+  }, []);
+
+  const onClickSearch = async (messageId: number) => {
+    if (!messageId) return;
+    if (!userId) return;
+    if (!(await ensureSearchCanStart())) return;
 
     try {
       const { data: messageData, error: messageError } = await supabase
@@ -415,31 +483,53 @@ ${criteriaText}
       console.error("search start slack notify error:", notifyError);
     }
 
-    const searchStartText =
-      "검색을 시작하겠습니다. 최대 1~3분이 소요될 수 있습니다.";
-    const searchStartBlock = {
-      type: "search_start",
-      text: searchStartText,
-      run_id: "",
-    };
-
-    setIsSearchSyncing(true);
     try {
-      const pendingMsg = await chat.addAssistantMessage(
-        `${UI_START}\n${JSON.stringify(searchStartBlock)}\n${UI_END}`
-      );
-
-      const runId = await onSearchFromConversation(messageId);
-      if (pendingMsg?.id && runId) {
-        await chat.patchAssistantUiBlock(Number(pendingMsg.id), {
-          ...searchStartBlock,
-          run_id: runId,
-        });
-      }
-    } finally {
-      setIsSearchSyncing(false);
+      await startSearchWithPendingUi(() => onSearchFromConversation(messageId));
+    } catch (error) {
+      console.error("search start failed:", error);
+      showToast({
+        message: "검색을 시작하지 못했습니다. 잠시 후 다시 시도해주세요.",
+        variant: "white",
+      });
     }
   };
+
+  const handleRetrySearchResultCard = useCallback(
+    async (sourceRunId: string) => {
+      if (!isQueryScope) return;
+      if (!(await ensureSearchCanStart())) return;
+
+      try {
+        const newRunId = await startSearchWithPendingUi(() =>
+          launchSearchFromRun(sourceRunId)
+        );
+
+        if (!newRunId) return;
+
+        router.replace(
+          {
+            pathname: router.pathname,
+            query: { ...router.query, run: newRunId, page: "0" },
+          },
+          undefined,
+          { shallow: true, scroll: false }
+        );
+      } catch (error) {
+        console.error("retry search failed:", error);
+        showToast({
+          message: "다시 검색을 시작하지 못했습니다. 잠시 후 다시 시도해주세요.",
+          variant: "white",
+        });
+      }
+    },
+    [
+      ensureSearchCanStart,
+      isQueryScope,
+      launchSearchFromRun,
+      router,
+      startSearchWithPendingUi,
+    ]
+  );
 
   const handleSend = useCallback(async () => {
     if (isReadingFile) return;
@@ -586,6 +676,9 @@ ${criteriaText}
             isStreaming={chat.isStreaming}
             error={chat.error}
             onConfirmCriteriaCard={isQueryScope ? onClickSearch : undefined} // ✅ query scope에서만
+            onRetrySearchResultCard={
+              isQueryScope ? handleRetrySearchResultCard : undefined
+            }
             onApplyCriteriaSuggestion={
               isQueryScope ? handleApplyCriteriaSuggestion : undefined
             }
