@@ -444,98 +444,105 @@ const CareerTimelineSection = () => {
           )}
 
           {!profilePending && !sessionPending && stage === "profile" && (
-            <article className="lg:max-w-[80%] max-w-[96%] rounded-xl border border-hblack200 bg-hblack000 px-4 py-4">
-              <div>
-                <p className="text-sm font-medium text-hblack1000">
-                  이력서 업로드
-                </p>
-                <p className="mt-1 text-xs text-hblack500">
-                  PDF, DOC, DOCX, TXT 파일을 업로드할 수 있습니다.
-                </p>
-                <div className="mt-3 flex items-center gap-2">
-                  <label
-                    htmlFor="career-resume-upload"
-                    className="inline-flex h-10 items-center gap-2 bg-hblack50 rounded-md px-3 text-sm font-medium text-hblack800 hover:border-xprimary"
-                  >
-                    <Upload className="h-4 w-4" />
-                    파일 선택
-                  </label>
-                  <input
-                    id="career-resume-upload"
-                    type="file"
-                    accept=".pdf,.doc,.docx,.txt"
-                    className="hidden"
-                    onChange={(event) => {
-                      onResumeFileChange(event.target.files?.[0] ?? null);
-                    }}
-                  />
-                  <span className="truncate text-sm text-hblack500">
-                    {resumeFile?.name || "선택된 파일 없음"}
-                  </span>
-                </div>
-              </div>
-
-              <div className="mt-8">
-                <p className="text-sm font-medium text-hblack1000">
-                  주요 링크 입력
-                </p>
-                <div className="mt-2 space-y-3">
-                  {profileLinks.map((link, index) => (
-                    <div
-                      key={`profile-link-${index}`}
-                      className="flex items-center gap-2"
+            <>
+              <article className="lg:max-w-[80%] max-w-[96%] rounded-xl border border-hblack200 bg-hblack000 px-4 py-4">
+                <div>
+                  <p className="text-sm font-medium text-hblack1000">
+                    이력서 업로드
+                  </p>
+                  <p className="mt-1 text-xs text-hblack500">
+                    PDF, DOC, DOCX, TXT 파일을 업로드할 수 있습니다.
+                  </p>
+                  <div className="mt-3 flex items-center gap-2">
+                    <label
+                      htmlFor="career-resume-upload"
+                      className="inline-flex h-10 items-center gap-2 bg-hblack50 rounded-md px-3 text-sm font-medium text-hblack800 hover:border-xprimary"
                     >
-                      <div className="w-28 text-sm font-medium text-hblack600">
-                        {CAREER_LINK_LABELS[index] ?? "추가 링크"}
-                      </div>
-                      <input
-                        value={link}
-                        onChange={(event) =>
-                          onProfileLinkChange(index, event.target.value)
-                        }
-                        placeholder="https://"
-                        className="h-9 flex-1 border-0 border-b border-hblack300 bg-transparent px-0.5 text-sm text-hblack900 outline-none transition-colors focus:border-xprimary"
-                      />
-                      {index >= 3 && (
-                        <button
-                          type="button"
-                          onClick={() => onRemoveProfileLink(index)}
-                          className="inline-flex h-8 w-8 items-center justify-center bg-hblack50 rounded-md text-hblack600 hover:border-xprimary hover:text-xprimary"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                      <Upload className="h-4 w-4" />
+                      파일 선택
+                    </label>
+                    <input
+                      id="career-resume-upload"
+                      type="file"
+                      accept=".pdf,.doc,.docx,.txt"
+                      className="hidden"
+                      onChange={(event) => {
+                        onResumeFileChange(event.target.files?.[0] ?? null);
+                      }}
+                    />
+                    <span className="truncate text-sm text-hblack500">
+                      {resumeFile?.name || "선택된 파일 없음"}
+                    </span>
+                  </div>
                 </div>
+
+                <div className="mt-8">
+                  <p className="text-sm font-medium text-hblack1000">
+                    주요 링크 입력
+                  </p>
+                  <div className="mt-2 space-y-3">
+                    {profileLinks.map((link, index) => (
+                      <div
+                        key={`profile-link-${index}`}
+                        className="flex items-center gap-2"
+                      >
+                        <div className="w-28 text-sm font-medium text-hblack600">
+                          {CAREER_LINK_LABELS[index] ?? "추가 링크"}
+                        </div>
+                        <input
+                          value={link}
+                          onChange={(event) =>
+                            onProfileLinkChange(index, event.target.value)
+                          }
+                          placeholder="https://"
+                          className="h-9 flex-1 border-0 border-b border-hblack300 bg-transparent px-0.5 text-sm text-hblack900 outline-none transition-colors focus:border-xprimary"
+                        />
+                        {index >= 3 && (
+                          <button
+                            type="button"
+                            onClick={() => onRemoveProfileLink(index)}
+                            className="inline-flex h-8 w-8 items-center justify-center bg-hblack50 rounded-md text-hblack600 hover:border-xprimary hover:text-xprimary"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onAddProfileLink}
+                    className="mt-3 inline-flex h-8 items-center bg-hblack50 rounded-md px-3 text-xs font-medium text-hblack700 hover:border-xprimary hover:text-xprimary"
+                  >
+                    + 링크 추가
+                  </button>
+                </div>
+
+                {profileError && (
+                  <p className="mt-3 border border-xprimary/30 bg-xprimary/10 px-3 py-2 text-xs rounded-sm text-xprimary">
+                    {profileError}
+                  </p>
+                )}
+                <p className="mt-6 text-[13px] text-hblack400">
+                  이력서 혹은 링크드인 중 하나만으로도 우선 시작하실 수
+                  있습니다!
+                  <br />
+                  정보는 언제든지 변경가능합니다.
+                </p>
                 <button
                   type="button"
-                  onClick={onAddProfileLink}
-                  className="mt-3 inline-flex h-8 items-center bg-hblack50 rounded-md px-3 text-xs font-medium text-hblack700 hover:border-xprimary hover:text-xprimary"
+                  onClick={() => void onProfileSubmit()}
+                  disabled={profilePending}
+                  className="mt-2 h-10 w-full rounded-md border border-xprimary bg-xprimary text-sm font-medium text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  + 링크 추가
+                  {profilePending ? "분석 준비 중..." : "제출하기"}
                 </button>
+              </article>
+              <div className="mt-[-4px] text-sm text-xprimary">
+                * 현재 올리신 정보는 설정하시기 전까지 절대 외부에 공개되지
+                않습니다.
               </div>
-
-              {profileError && (
-                <p className="mt-3 border border-xprimary/30 bg-xprimary/10 px-3 py-2 text-xs rounded-sm text-xprimary">
-                  {profileError}
-                </p>
-              )}
-              <p className="mt-6 text-[13px] text-hblack400">
-                이력서 혹은 링크드인 중 하나만으로도 우선 시작하실 수 있습니다!
-                <br />
-                정보는 언제든지 변경가능합니다.
-              </p>
-              <button
-                type="button"
-                onClick={() => void onProfileSubmit()}
-                disabled={profilePending}
-                className="mt-2 h-10 w-full rounded-md border border-xprimary bg-xprimary text-sm font-medium text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {profilePending ? "분석 준비 중..." : "제출하기"}
-              </button>
-            </article>
+            </>
           )}
 
           {sessionError && (

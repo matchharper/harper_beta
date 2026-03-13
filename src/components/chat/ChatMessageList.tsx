@@ -31,6 +31,7 @@ type Props = {
   error?: string | null;
 
   onConfirmCriteriaCard?: (messageId: number) => void;
+  onRetrySearchResultCard?: (runId: string) => Promise<void> | void;
   onChangeCriteriaCard?: (args: {
     messageId: number;
     modifiedBlock: CriteriaCardBlock;
@@ -51,6 +52,7 @@ function ChatMessageList({
   isStreaming,
   error,
   onConfirmCriteriaCard,
+  onRetrySearchResultCard,
   onChangeCriteriaCard,
   onApplyCriteriaSuggestion,
 }: Props) {
@@ -254,6 +256,7 @@ function ChatMessageList({
                       return (
                         <SearchResultCard
                           block={s.content as SearchResultBlock}
+                          onRetrySearch={onRetrySearchResultCard}
                           key={`block-${idx}-${si}`}
                         />
                       );

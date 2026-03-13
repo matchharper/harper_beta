@@ -14,9 +14,7 @@ import {
   Loader2,
   Plus,
   Paperclip,
-  Settings,
   ArrowRight,
-  Edit,
   Pencil,
 } from "lucide-react";
 import { useRouter } from "next/router";
@@ -631,9 +629,12 @@ export const SettingsCtaCard = React.memo(function SettingsCtaCard({
 
 export const SearchResultCard = React.memo(function SearchResultCard({
   block,
+  onRetrySearch,
 }: {
   block: SearchResultBlock;
+  onRetrySearch?: (runId: string) => Promise<void> | void;
 }) {
+  const [isRetrying, setIsRetrying] = useState(false);
   const router = useRouter();
   const queryId =
     typeof router.query.id === "string" ? router.query.id : undefined;
@@ -643,6 +644,7 @@ export const SearchResultCard = React.memo(function SearchResultCard({
     "criteria"
   );
   const canOpen = !!runId && !!queryId;
+  const canRetry = !!runId && !!onRetrySearch && !isRetrying;
 
   const openResults = () => {
     if (!canOpen) return;
@@ -654,6 +656,19 @@ export const SearchResultCard = React.memo(function SearchResultCard({
       undefined,
       { shallow: true, scroll: false }
     );
+  };
+
+  const retrySearch = async () => {
+    if (!canRetry) return;
+
+    setIsRetrying(true);
+    try {
+      await onRetrySearch?.(runId);
+    } catch (error) {
+      console.error("retry search failed:", error);
+    } finally {
+      setIsRetrying(false);
+    }
   };
 
   if (!hasCriteriaKey) {
@@ -689,10 +704,83 @@ export const SearchResultCard = React.memo(function SearchResultCard({
   const partialCount =
     typeof block.partial_count === "number" ? block.partial_count : null;
   const hasCriteria = criteria.length > 0;
-  const totalCount =
-    typeof block.total_count === "number" ? block.total_count : null;
   const formatCount = (count: number | null) =>
     count === null ? "-" : `${count}명`;
+
+  if (!fullCount || fullCount <= 0) {
+    return (
+      <div className="w-full mt-4">
+        <div className="w-full rounded-2xl border border-white/10 bg-white/[0.03] text-hgray900 overflow-hidden">
+          <div className="flex text-[13px] items-center gap-2 px-4 py-3">
+            <FileSpreadsheet className="w-3 h-3 text-green-500" />
+            <span className="font-medium">
+              완벽히 일치하는 후보자를 찾지 못했습니다.
+            </span>
+          </div>
+
+          <div className="text-[13px] px-4 py-1">
+            <div>
+              일부 조건을 완화하거나, 부분 일치하는 인재를 확인해 보시겠어요?
+            </div>
+            <div>
+              혹은 다시한번 검색하시면, 또 다른 결과가 나올 수도 있어요.
+            </div>
+          </div>
+
+          <div className="flex flex-col w-full items-center justify-center px-4 pb-4 gap-4">
+            <div className="w-full mt-6 border-t border-white/10 pt-4 text-[13px] space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-hgray900/70">완벽 일치</span>
+                <span className="text-hgray900 font-medium">
+                  {formatCount(fullCount)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-hgray900/70">부분 일치</span>
+                <span className="text-hgray900/70">
+                  {formatCount(partialCount)}
+                </span>
+              </div>
+            </div>
+            <div className="flex flex-row items-center justify-center gap-2 w-full">
+              <button
+                type="button"
+                onClick={retrySearch}
+                disabled={!canRetry}
+                className={`inline-flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-[13px] font-medium transition-all duration-200 ${
+                  canRetry
+                    ? "bg-accenta1 text-black hover:opacity-80"
+                    : "bg-white/10 text-hgray600 cursor-not-allowed"
+                }`}
+              >
+                {isRetrying ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    검색 중...
+                  </>
+                ) : (
+                  "다시 검색하기"
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={openResults}
+                disabled={!canOpen}
+                className={`inline-flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-[13px] font-medium transition-all duration-200 ${
+                  canOpen
+                    ? "bg-white/10 text-hgray900"
+                    : "bg-white/10 text-hgray600 cursor-not-allowed"
+                }`}
+              >
+                결과 확인
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full mt-4">

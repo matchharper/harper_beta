@@ -9,6 +9,7 @@ import React, {
   useRef,
 } from "react";
 import { useMessages } from "@/i18n/useMessage";
+import CandidateCarousel from "@/components/chat/LoadingComponent";
 
 type StepState = "done" | "active" | "pending" | "error";
 
@@ -117,11 +118,6 @@ export function deriveProgress(
     },
   ];
 
-  // Build steps list (insert error-handling ALWAYS right before ranking)
-  const rankingIdx = Math.max(
-    0,
-    base.findIndex((b) => b.key === "ranking")
-  );
   const insertedKey = isRetry ? "recovery_retry" : "recovery";
 
   const defs: StepDef[] = base.slice();
@@ -200,15 +196,6 @@ const Timeline = ({
     total: number | null;
     percent: number | null;
   }>({ current: 0, total: null, percent: null });
-
-  const isReranking = useMemo(() => {
-    const s = (statusMessage || "").toLowerCase();
-    return (
-      s.includes(StatusEnum.RERANKING) ||
-      s.includes(StatusEnum.RERANKING_STREAMING) ||
-      s.includes("scoring")
-    );
-  }, [statusMessage]);
 
   const loadRerankProgress = useCallback(async () => {
     if (!runId) return;
@@ -336,7 +323,13 @@ const Timeline = ({
   }
 
   return (
-    <div className="w-full h-full flex items-center justify-center min-h-[80vh] px-6">
+    <div className="relative w-full h-full flex items-center justify-center min-h-[80vh] px-6">
+      {!statusMessage ||
+        (!statusMessage.includes(StatusEnum.STOPPED) && (
+          <div className="absolute flex items-center justify-center w-full h-full z-0 opacity-40">
+            <CandidateCarousel />
+          </div>
+        ))}
       {statusMessage && statusMessage.includes(StatusEnum.STOPPED) ? (
         <div className="flex flex-col gap-2 items-center justify-center">
           <div className="text-sm font-light mt-4 text-hgray900 flex flex-row gap-2 items-center">
@@ -345,7 +338,7 @@ const Timeline = ({
           </div>
         </div>
       ) : (
-        <div className="w-full max-w-[520px]">
+        <div className="w-full max-w-[520px] z-10">
           {/* Header */}
           <div className="flex flex-row items-center justify-between mb-4">
             <div className="flex flex-col">

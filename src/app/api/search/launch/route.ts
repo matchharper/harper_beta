@@ -7,6 +7,7 @@ const UI_END = "<<END_UI>>";
 type LaunchBody = {
   queryId?: string;
   messageId?: number;
+  sourceRunId?: string;
 };
 
 type SearchSettingsSnapshot = {
@@ -69,52 +70,108 @@ export async function POST(req: NextRequest) {
 
   const queryId = String(body.queryId ?? "").trim();
   const messageId = Number(body.messageId);
+  const sourceRunId = String(body.sourceRunId ?? "").trim();
 
-  if (!queryId || !Number.isFinite(messageId)) {
+  const isMessageLaunch = !!queryId && Number.isFinite(messageId);
+  const isRetryLaunch = !!sourceRunId;
+
+  if (!isMessageLaunch && !isRetryLaunch) {
     return NextResponse.json(
-      { error: "Missing queryId or messageId" },
+      { error: "Missing launch source" },
       { status: 400 }
     );
   }
 
-  const { data: queryRow, error: queryError } = await supabaseServer
-    .from("queries")
-    .select("query_id")
-    .eq("query_id", queryId)
-    .eq("user_id", user.id)
-    .maybeSingle();
+  let effectiveQueryId = queryId;
+  let effectiveMessageId: number | null = null;
+  let effectiveCriteria: string[] = [];
+  let effectiveQueryText = "";
 
-  if (queryError) {
-    return NextResponse.json(
-      { error: queryError.message ?? "Failed to load query" },
-      { status: 500 }
+  if (isRetryLaunch) {
+    const { data: sourceRun, error: sourceRunError } = await supabaseServer
+      .from("runs")
+      .select("id, query_id, message_id, query_text, criteria")
+      .eq("id", sourceRunId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (sourceRunError) {
+      return NextResponse.json(
+        { error: sourceRunError.message ?? "Failed to load source run" },
+        { status: 500 }
+      );
+    }
+    if (!sourceRun?.query_id) {
+      return NextResponse.json(
+        { error: "Source run not found" },
+        { status: 404 }
+      );
+    }
+
+    effectiveQueryId = sourceRun.query_id;
+    effectiveMessageId =
+      typeof sourceRun.message_id === "number" ? sourceRun.message_id : null;
+    effectiveQueryText = String(sourceRun.query_text ?? "").trim();
+    effectiveCriteria = Array.isArray(sourceRun.criteria)
+      ? sourceRun.criteria.filter(
+          (item): item is string =>
+            typeof item === "string" && item.trim().length > 0
+        )
+      : [];
+  } else {
+    const { data: queryRow, error: queryError } = await supabaseServer
+      .from("queries")
+      .select("query_id")
+      .eq("query_id", queryId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (queryError) {
+      return NextResponse.json(
+        { error: queryError.message ?? "Failed to load query" },
+        { status: 500 }
+      );
+    }
+    if (!queryRow) {
+      return NextResponse.json({ error: "Query not found" }, { status: 404 });
+    }
+
+    const { data: messageRow, error: messageError } = await supabaseServer
+      .from("messages")
+      .select("id, content")
+      .eq("id", messageId)
+      .eq("query_id", queryId)
+      .maybeSingle();
+
+    if (messageError) {
+      return NextResponse.json(
+        { error: messageError.message ?? "Failed to load message" },
+        { status: 500 }
+      );
+    }
+    if (!messageRow?.content) {
+      return NextResponse.json({ error: "Message not found" }, { status: 404 });
+    }
+
+    const parsed = extractUiJsonFromMessage(messageRow.content);
+    if (!parsed || !Array.isArray(parsed.criteria)) {
+      return NextResponse.json(
+        { error: "No criteria parsed from message" },
+        { status: 400 }
+      );
+    }
+
+    effectiveMessageId = messageId;
+    effectiveCriteria = parsed.criteria.filter(
+      (item: unknown): item is string =>
+        typeof item === "string" && item.trim().length > 0
     );
-  }
-  if (!queryRow) {
-    return NextResponse.json({ error: "Query not found" }, { status: 404 });
+    effectiveQueryText = String(parsed.thinking ?? "").trim();
   }
 
-  const { data: messageRow, error: messageError } = await supabaseServer
-    .from("messages")
-    .select("id, content")
-    .eq("id", messageId)
-    .eq("query_id", queryId)
-    .maybeSingle();
-
-  if (messageError) {
+  if (!effectiveQueryId || effectiveCriteria.length === 0) {
     return NextResponse.json(
-      { error: messageError.message ?? "Failed to load message" },
-      { status: 500 }
-    );
-  }
-  if (!messageRow?.content) {
-    return NextResponse.json({ error: "Message not found" }, { status: 404 });
-  }
-
-  const parsed = extractUiJsonFromMessage(messageRow.content);
-  if (!parsed || !Array.isArray(parsed.criteria)) {
-    return NextResponse.json(
-      { error: "No criteria parsed from message" },
+      { error: "No criteria available for launch" },
       { status: 400 }
     );
   }
@@ -129,10 +186,10 @@ export async function POST(req: NextRequest) {
   const { data: runRow, error: runError } = await supabaseServer
     .from("runs")
     .insert({
-      query_id: queryId,
-      message_id: messageId,
-      criteria: parsed.criteria,
-      query_text: String(parsed.thinking ?? ""),
+      query_id: effectiveQueryId,
+      message_id: effectiveMessageId,
+      criteria: effectiveCriteria,
+      query_text: effectiveQueryText,
       user_id: user.id,
       status: queueStatus,
       locale,
@@ -148,5 +205,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  return NextResponse.json({ runId: runRow.id }, { status: 200 });
+  return NextResponse.json(
+    { runId: runRow.id, queryId: effectiveQueryId },
+    { status: 200 }
+  );
 }
