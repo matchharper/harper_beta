@@ -238,7 +238,7 @@ const QueryTextItem = React.memo(function QueryTextItem({
     >
       {!isEditing ? (
         <div
-          className={`text-xs whitespace-pre-wrap leading-relaxed ${
+          className={`text-[13px] whitespace-pre-wrap leading-relaxed ${
             text ? "text-hgray700" : "text-hgray600"
           }`}
         >

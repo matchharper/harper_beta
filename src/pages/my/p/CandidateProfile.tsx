@@ -28,6 +28,8 @@ import Criterias from "./components/Criterias";
 import ShortlistMemoEditor from "@/components/ui/ShortlistMemoEditor";
 import { useShortlistMemo } from "@/hooks/useShortlistMemo";
 
+const PUBLICATION_PREVIEW_COUNT = 10;
+
 export const ExperienceCal = (months: number) => {
   const years = Math.floor(months / 12);
   const remainingMonths = months % 12;
@@ -87,6 +89,7 @@ function CandidateProfileDetailPage({
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isConnectionModalOpen, setIsConnectionModalOpen] = useState(false);
   const [isIntroRequested, setIsIntroRequested] = useState(false);
+  const [showAllPublications, setShowAllPublications] = useState(false);
   const [runSynthesizedSummary, setRunSynthesizedSummary] = useState<
     SynthesizedSummaryItem[]
   >([]);
@@ -108,6 +111,10 @@ function CandidateProfileDetailPage({
       c?.connection?.some((con: { typed: number }) => con.typed === 1) ?? false
     );
   }, [c?.connection]);
+
+  useEffect(() => {
+    setShowAllPublications(false);
+  }, [candidId]);
 
   const runCriteriaList = useMemo(
     () => asStringArray((runData as any)?.criteria),
@@ -256,6 +263,24 @@ function CandidateProfileDetailPage({
       });
   }, [c]);
 
+  const publications = useMemo(
+    () => (Array.isArray(c?.publications) ? c.publications : []),
+    [c]
+  );
+
+  const visiblePublications = useMemo(
+    () =>
+      showAllPublications
+        ? publications
+        : publications.slice(0, PUBLICATION_PREVIEW_COUNT),
+    [publications, showAllPublications]
+  );
+
+  const remainingPublicationCount = Math.max(
+    0,
+    publications.length - PUBLICATION_PREVIEW_COUNT
+  );
+
   const compactLogToken = useCallback((value: unknown) => {
     return String(value ?? "")
       .replace(/\s+/g, " ")
@@ -285,7 +310,7 @@ function CandidateProfileDetailPage({
     [candidId, logEvent]
   );
 
-  const generateOneLineSummary = async () => {
+  const generateOneLineSummary = useCallback(async () => {
     setIsLoadingOneline(true);
     try {
       const res = await fetch("/api/search/criteria_summarize", {
@@ -316,7 +341,7 @@ function CandidateProfileDetailPage({
     } finally {
       setIsLoadingOneline(false);
     }
-  };
+  }, [c, candidId, qc, userId]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -330,7 +355,7 @@ function CandidateProfileDetailPage({
 
     setRequested(true);
     generateOneLineSummary().finally(() => {});
-  }, [isLoading, c, userId, candidId, requested]);
+  }, [isLoading, c, userId, candidId, requested, generateOneLineSummary]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -552,23 +577,6 @@ function CandidateProfileDetailPage({
           </Box>
         )}
 
-        {/* Publications */}
-        {c.publications && c.publications.length > 0 && (
-          <Box title={`${m.data.publications} (${c.publications.length})`}>
-            <div className="grid grid-cols-1 md:grid-cols-1 gap-3">
-              {(c.publications ?? []).map((p: any, idx: number) => (
-                <PublicationBox
-                  key={idx}
-                  title={p.title}
-                  published_at={p.published_at}
-                  link={p.link}
-                  citation_num={p.citation_num ?? -1}
-                />
-              ))}
-            </div>
-          </Box>
-        )}
-
         {Array.isArray(c.github_repo_contribution) &&
           recentGithubContributions.length > 0 && (
             <Box title={`GitHub\nMain Contributions`}>
@@ -588,6 +596,33 @@ function CandidateProfileDetailPage({
               </div>
             </Box>
           )}
+
+        {/* Publications */}
+        {publications.length > 0 && (
+          <Box title={`${m.data.publications} (${publications.length})`}>
+            <div className="grid grid-cols-1 md:grid-cols-1 gap-3">
+              {visiblePublications.map((p: any, idx: number) => (
+                <PublicationBox
+                  key={`${p.link ?? p.title ?? "publication"}-${idx}`}
+                  title={p.title}
+                  published_at={p.published_at}
+                  link={p.link}
+                  citation_num={p.citation_num ?? -1}
+                />
+              ))}
+            </div>
+
+            {!showAllPublications && remainingPublicationCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowAllPublications(true)}
+                className="mt-3 inline-flex items-center rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-hgray800 transition hover:bg-white/10"
+              >
+                + {remainingPublicationCount}개 더보기
+              </button>
+            )}
+          </Box>
+        )}
       </div>
     </div>
   );

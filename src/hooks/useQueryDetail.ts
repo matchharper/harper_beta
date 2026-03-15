@@ -41,7 +41,18 @@ async function fetchQueryDetail(id: string) {
     .maybeSingle();
 
   if (error) throw error;
-  return data as QueryTypeWithCompanyUser | null;
+
+  const query = data as QueryTypeWithCompanyUser | null;
+  if (!query?.runs?.length) return query;
+
+  return {
+    ...query,
+    runs: [...query.runs].sort((a, b) => {
+      const byCreatedAt = b.created_at.localeCompare(a.created_at);
+      if (byCreatedAt !== 0) return byCreatedAt;
+      return b.id.localeCompare(a.id);
+    }),
+  };
 }
 
 export function useQueryDetail(queryId?: string) {

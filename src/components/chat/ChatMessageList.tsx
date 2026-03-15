@@ -135,7 +135,7 @@ function ChatMessageList({
         return (
           <div className="flex flex-col gap-1" key={rowKey}>
             <div
-              className={`text-xs text-ngray600 ${
+              className={`text-[13px] text-ngray600 ${
                 isUser ? "text-right" : "text-left"
               }`}
             >
@@ -148,8 +148,8 @@ function ChatMessageList({
                     <Image
                       src="/svgs/logo.svg"
                       alt="Harper"
-                      width={9}
-                      height={9}
+                      width={10}
+                      height={10}
                       className="text-hgray600"
                     />
                   </span>

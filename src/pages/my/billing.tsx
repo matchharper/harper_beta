@@ -9,7 +9,6 @@ import { useMessages } from "@/i18n/useMessage";
 import { showToast } from "@/components/toast/toast";
 import PricingSection from "@/components/payment/PricingSection";
 import ConfirmModal from "@/components/Modal/ConfirmModal";
-import BaseModal from "@/components/Modal/BaseModal";
 import { useLogEvent } from "@/hooks/useLog";
 import QuestionAnswer from "@/components/landing/Questions";
 import { BILLING_PROVIDER } from "@/lib/polar/config";
@@ -63,11 +62,6 @@ type TossCheckoutPreview = {
   planName: string;
   billing: BillingPeriod;
   amount: number;
-};
-
-type CreditFeedbackSelection = {
-  planName: string;
-  billing: BillingPeriod;
 };
 
 function normalizePlanValue(value?: string | null) {
@@ -199,13 +193,6 @@ const Billing = () => {
   const [tossPreviewError, setTossPreviewError] = useState<string | null>(null);
   const [isBillingAgreementChecked, setIsBillingAgreementChecked] =
     useState(false);
-  const [isCreditFeedbackModalOpen, setIsCreditFeedbackModalOpen] =
-    useState(false);
-  const [creditFeedbackSelection, setCreditFeedbackSelection] =
-    useState<CreditFeedbackSelection | null>(null);
-  const [creditFeedbackText, setCreditFeedbackText] = useState("");
-  const [isCreditFeedbackSubmitting, setIsCreditFeedbackSubmitting] =
-    useState(false);
   const { m } = useMessages();
   const logEvent = useLogEvent();
   const pricing = m.companyLanding.pricing;
@@ -241,75 +228,6 @@ const Billing = () => {
     setTossPreviewError(null);
     setIsTossBillingLoading(false);
     setIsBillingAgreementChecked(false);
-  };
-
-  const closeCreditFeedbackModal = () => {
-    if (isCreditFeedbackSubmitting) return;
-    setIsCreditFeedbackModalOpen(false);
-    setCreditFeedbackSelection(null);
-    setCreditFeedbackText("");
-  };
-
-  const submitCreditFeedback = async () => {
-    const content = creditFeedbackText.trim();
-    if (!content || isCreditFeedbackSubmitting) return;
-    if (!creditFeedbackSelection) {
-      showToast({
-        message: "선택한 구독 정보를 확인할 수 없습니다.",
-        variant: "white",
-      });
-      return;
-    }
-
-    setIsCreditFeedbackSubmitting(true);
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const accessToken = session?.access_token;
-
-      if (!accessToken) {
-        showToast({
-          message: "로그인 세션이 만료되었습니다. 다시 로그인해 주세요.",
-          variant: "white",
-        });
-        return;
-      }
-
-      const response = await fetch("/api/feedback/credit", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          content,
-          planName: creditFeedbackSelection.planName,
-          billing: creditFeedbackSelection.billing,
-        }),
-      });
-      const data = await response.json().catch(() => null);
-
-      if (!response.ok || data?.error) {
-        throw new Error(data?.error ?? "피드백 제출에 실패했습니다.");
-      }
-
-      setIsCreditFeedbackModalOpen(false);
-      setCreditFeedbackSelection(null);
-      setCreditFeedbackText("");
-      showToast({
-        message: "요청이 접수되었습니다. 빠르게 연락드리겠습니다.",
-        variant: "white",
-      });
-    } catch (error) {
-      console.error("credit feedback submit failed:", error);
-      showToast({
-        message: "제출 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
-        variant: "white",
-      });
-    } finally {
-      setIsCreditFeedbackSubmitting(false);
-    }
   };
 
   const startCheckout = async (
@@ -637,32 +555,6 @@ const Billing = () => {
 
   return (
     <AppLayout initialCollapse={false}>
-      {isCreditFeedbackModalOpen ? (
-        <BaseModal
-          onClose={closeCreditFeedbackModal}
-          onConfirm={() => {
-            void submitCreditFeedback();
-          }}
-          confirmLabel="제출하기"
-          isLoading={isCreditFeedbackSubmitting}
-          size="sm"
-        >
-          <div className="text-base font-normal text-hgray900">구독 문의</div>
-          <p className="mt-3 text-sm text-hgray800 font-normal leading-relaxed">
-            현재 결제는 각 사용자 분들을 직접 온보딩 해드리고 있습니다.
-            <br />
-            어떤 플랜과 월 검색 한도가 필요하신지 간략하게 적어주시면 바로
-            도와드리겠습니다.
-          </p>
-          <textarea
-            value={creditFeedbackText}
-            onChange={(e) => setCreditFeedbackText(e.target.value)}
-            rows={4}
-            placeholder="예) Pro 구독 하겠습니다."
-            className="w-full mt-4 text-white rounded-lg border font-light border-white/10 bg-white/5 p-4 text-[15px] focus:outline-none focus:ring-2 focus:ring-white/10 resize-none"
-          />
-        </BaseModal>
-      ) : null}
       <ConfirmModal
         open={isCancelModalOpen}
         onClose={() => setIsCancelModalOpen(false)}
@@ -832,15 +724,6 @@ const Billing = () => {
 
               setPendingUpgradeChange({ planName, billing });
               setIsUpgradeConfirmOpen(true);
-              return;
-            }
-
-            const isSubscribeAction =
-              !!subscription && subscription.planKey === "free";
-            if (isSubscribeAction) {
-              setCreditFeedbackSelection({ planName, billing });
-              setCreditFeedbackText("");
-              setIsCreditFeedbackModalOpen(true);
               return;
             }
 

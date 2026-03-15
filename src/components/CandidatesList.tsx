@@ -147,7 +147,7 @@ function CandidateCard({
     <Link
       href={profileHref}
       onClick={() => logEvent("candidate_card_click: " + candidId)}
-      className="group relative w-full rounded-[28px] max-w-[980px] text-white bg-white/5 p-6 cursor-pointer hover:bg-[#FFFFFF18] transition-colors duration-200"
+      className="group relative w-full rounded-[28px] max-w-[760px] text-white bg-white/5 p-6 cursor-pointer hover:bg-[#FFFFFF18] transition-colors duration-200"
     >
       <div className="flex flex-row flex-1 items-start gap-4">
         <div className="w-[40%]">

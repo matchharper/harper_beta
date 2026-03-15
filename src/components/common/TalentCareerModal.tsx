@@ -108,7 +108,7 @@ const TalentCareerModal = ({
             type="button"
             onClick={onClose}
             className={cn(
-              "absolute right-5 top-5 z-10 inline-flex h-9 w-9 items-center justify-center rounded-md border border-hblack100 bg-hblack50 text-hblack600 transition-colors hover:border-xprimary hover:text-xprimary",
+              "absolute right-4 top-4 z-10 inline-flex h-9 w-9 items-center justify-center rounded-md bg-hblack50 text-hblack600 transition-colors hover:border-xprimary hover:text-xprimary",
               closeButtonClassName
             )}
             aria-label="모달 닫기"
@@ -116,11 +116,10 @@ const TalentCareerModal = ({
             <X className="h-4 w-4" />
           </button>
         ) : null}
-
         {eyebrow || hasTitle || hasDescription ? (
           <header
             className={cn(
-              "border-b border-hblack100/80 px-6 py-5 sm:px-7",
+              "border-b border-hblack100/80 px-4 py-5 sm:px-5",
               headerClassName
             )}
           >
@@ -147,16 +146,9 @@ const TalentCareerModal = ({
             ) : null}
           </header>
         ) : null}
-
         <div className={cn("py-0", bodyClassName)}>{children}</div>
-
         {footer ? (
-          <footer
-            className={cn(
-              "border-t border-hblack100/80 px-6 py-4 sm:px-7",
-              footerClassName
-            )}
-          >
+          <footer className={cn("px-4 py-5 sm:px-5", footerClassName)}>
             {footer}
           </footer>
         ) : null}

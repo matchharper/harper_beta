@@ -290,7 +290,7 @@ const CareerTimelineSection = () => {
               type="button"
               onClick={() => void onGoogleLogin()}
               disabled={authPending}
-              className="flex h-10 w-full items-center justify-center border border-hblack300 bg-hblack000 text-sm font-medium text-hblack900 transition-colors hover:bg-hblack100 hover:border-xprimary disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex h-10 w-full items-center justify-center border border-hblack100 bg-hblack50 text-sm font-normal text-hblack900 transition-colors hover:bg-hblack100 hover:border-xprimary disabled:cursor-not-allowed disabled:opacity-60"
             >
               {authPending ? "처리 중..." : "Google 로그인"}
             </button>
@@ -448,15 +448,15 @@ const CareerTimelineSection = () => {
               <article className="lg:max-w-[80%] max-w-[96%] rounded-xl border border-hblack200 bg-hblack000 px-4 py-4">
                 <div>
                   <p className="text-sm font-medium text-hblack1000">
-                    이력서 업로드
+                    이력서/포트폴리오 업로드
                   </p>
                   <p className="mt-1 text-xs text-hblack500">
-                    PDF, DOC, DOCX, TXT 파일을 업로드할 수 있습니다.
+                    PDF, DOC, DOCX 파일을 업로드할 수 있습니다.
                   </p>
                   <div className="mt-3 flex items-center gap-2">
                     <label
                       htmlFor="career-resume-upload"
-                      className="inline-flex h-10 items-center gap-2 bg-hblack50 rounded-md px-3 text-sm font-medium text-hblack800 hover:border-xprimary"
+                      className="inline-flex h-10 items-center gap-2 bg-hblack50 hover:bg-hblack100 cursor-pointer transition-colors rounded-md px-3 pr-4 text-sm font-medium text-hblack800 hover:border-xprimary"
                     >
                       <Upload className="h-4 w-4" />
                       파일 선택
@@ -464,15 +464,17 @@ const CareerTimelineSection = () => {
                     <input
                       id="career-resume-upload"
                       type="file"
-                      accept=".pdf,.doc,.docx,.txt"
+                      accept=".pdf,.doc,.docx"
                       className="hidden"
                       onChange={(event) => {
                         onResumeFileChange(event.target.files?.[0] ?? null);
                       }}
                     />
-                    <span className="truncate text-sm text-hblack500">
-                      {resumeFile?.name || "선택된 파일 없음"}
-                    </span>
+                    <div>
+                      <span className="truncate text-sm text-hblack500">
+                        {resumeFile?.name || "선택된 파일 없음"}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -512,7 +514,7 @@ const CareerTimelineSection = () => {
                   <button
                     type="button"
                     onClick={onAddProfileLink}
-                    className="mt-3 inline-flex h-8 items-center bg-hblack50 rounded-md px-3 text-xs font-medium text-hblack700 hover:border-xprimary hover:text-xprimary"
+                    className="mt-3 inline-flex h-8 items-center bg-hblack50 rounded-md px-3 text-xs font-medium text-hblack700 hover:bg-hblack100 transition-colors cursor-pointer"
                   >
                     + 링크 추가
                   </button>
@@ -538,10 +540,6 @@ const CareerTimelineSection = () => {
                   {profilePending ? "분석 준비 중..." : "제출하기"}
                 </button>
               </article>
-              <div className="mt-[-4px] text-sm text-xprimary">
-                * 현재 올리신 정보는 설정하시기 전까지 절대 외부에 공개되지
-                않습니다.
-              </div>
             </>
           )}
 
@@ -558,17 +556,17 @@ const CareerTimelineSection = () => {
           )}
 
           {showVoiceStartPrompt && (
-            <article className="max-w-[96%] rounded-xl border border-hblack200 bg-hblack000 px-4 py-4">
-              <div className="text-xs text-hblack500">Harper</div>
-              <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-hblack700">
-                지금 짧게 대화가 가능하신가요?
+            <article className="max-w-[96%] flex flex-col items-start justify-start">
+              <p className="whitespace-pre-line text-sm leading-relaxed text-hblack700">
+                현재 대화가 가능하신가요? <br />
+                간단한 질문 몇가지만 여쭤볼게요!
               </p>
-              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <div className="mt-4 flex flex-col gap-2 w-full max-w-[260px]">
                 <button
                   type="button"
                   onClick={() => onStartVoiceCall(5)}
                   disabled={onboardingBeginPending}
-                  className="h-10 rounded-md border border-xprimary bg-xprimary px-4 text-sm font-medium text-hblack000 transition-opacity hover:opacity-90"
+                  className="h-10 rounded-md border border-xprimary bg-xprimary px-4 text-sm font-normal text-hblack000 transition-opacity hover:opacity-90"
                 >
                   {onboardingBeginPending ? "준비 중..." : "5분 통화 시작"}
                 </button>
@@ -576,7 +574,7 @@ const CareerTimelineSection = () => {
                   type="button"
                   onClick={() => onStartVoiceCall(10)}
                   disabled={onboardingBeginPending}
-                  className="h-10 rounded-md border border-hblack300 bg-hblack000 px-4 text-sm text-hblack700 transition-colors hover:border-xprimary hover:text-xprimary"
+                  className="h-10 rounded-md border border-xprimary bg-xprimary px-4 text-sm font-normal text-hblack000 transition-opacity hover:opacity-90"
                 >
                   {onboardingBeginPending ? "준비 중..." : "10분 통화 시작"}
                 </button>
@@ -584,7 +582,7 @@ const CareerTimelineSection = () => {
                   type="button"
                   onClick={onUseChatOnly}
                   disabled={onboardingBeginPending}
-                  className="h-10 rounded-md border border-hblack300 bg-hblack000 px-4 text-sm text-hblack700 transition-colors hover:border-xprimary hover:text-xprimary"
+                  className="h-10 rounded-md border border-hblack000 bg-hblack50 px-4 text-sm text-hblack700 transition-colors hover:bg-hblack100"
                 >
                   {onboardingBeginPending ? "준비 중..." : "텍스트로 시작"}
                 </button>
@@ -592,24 +590,24 @@ const CareerTimelineSection = () => {
                   type="button"
                   onClick={() => void onPauseOnboarding()}
                   disabled={onboardingPausePending}
-                  className="h-10 rounded-md border border-hblack300 bg-hblack000 px-4 text-sm text-hblack700 transition-colors hover:border-xprimary hover:text-xprimary"
+                  className="h-10 rounded-md border border-hblack000 bg-hblack50 px-4 text-sm text-hblack700 transition-colors hover:bg-hblack100"
                 >
                   {onboardingPausePending
                     ? "준비 중..."
-                    : "우선 등록을 완료하고 나중에 할게요."}
+                    : "우선 종료하고 나중에 이어할게요."}
                 </button>
               </div>
             </article>
           )}
 
           {showInterestSelector && (
-            <article className="max-w-[96%] rounded-xl border border-hblack200 bg-hblack000 px-4 py-4">
-              <p className="text-sm font-medium text-hblack1000">
+            <article className="max-w-[80%] px-2">
+              {/* <p className="text-sm font-medium text-hblack1000">
                 현재 어떤 기회를 찾고 있는지
-              </p>
-              <p className="mt-1 text-xs text-hblack500">복수 선택 가능</p>
+              </p> */}
+              <p className="mt-0 text-xs text-hblack500">복수 선택 가능</p>
 
-              <div className="mt-4 space-y-2">
+              <div className="mt-2 space-y-2">
                 {TALENT_ONBOARDING_INTEREST_OPTIONS.map((option, index) => {
                   const selected = selectedInterestOptions.includes(option.id);
                   return (
@@ -625,7 +623,7 @@ const CareerTimelineSection = () => {
                           : "border-hblack200 bg-hblack000 text-hblack700 hover:border-hblack400",
                       ].join(" ")}
                     >
-                      {index + 1}) {option.label}
+                      {option.label}
                     </button>
                   );
                 })}
@@ -645,14 +643,17 @@ const CareerTimelineSection = () => {
           )}
 
           {showContinueConversation && (
-            <article className="max-w-[96%] rounded-xl border border-hblack200 bg-hblack000 px-4 py-4">
+            <article className="max-w-[96%] px-2">
+              <div className="text-sm text-hblack700 mb-2">
+                방문해주셔서 감사합니다.
+              </div>
               <button
                 type="button"
                 onClick={() => void onContinueOnboardingConversation()}
                 disabled={onboardingBeginPending}
-                className="h-10 rounded-md border border-hblack300 bg-hblack000 px-4 text-sm text-hblack700 transition-colors hover:border-xprimary hover:text-xprimary"
+                className="h-10 rounded-md bg-xprimary px-4 text-sm font-normal text-hblack000 transition-colors"
               >
-                {onboardingBeginPending ? "준비 중..." : "계속 더 대화하기"}
+                {onboardingBeginPending ? "준비 중..." : "지금 더 대화하기"}
               </button>
             </article>
           )}
