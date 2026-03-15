@@ -1,28 +1,26 @@
 import { ArrowRight, ArrowUpRight } from "lucide-react";
-import { useRouter } from "next/router";
 import React from "react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
-import { cn } from "@/lib/cn";
 import type { FeaturedCompanyProfile } from "./featuredCompanies";
 
 type FeaturedCompanyModalProps = {
   open: boolean;
   company: FeaturedCompanyProfile | null;
   onClose: () => void;
+  onStartConversation: () => void;
 };
 
 const FeaturedCompanyModal = ({
   open,
   company,
   onClose,
+  onStartConversation,
 }: FeaturedCompanyModalProps) => {
-  const router = useRouter();
-
   if (!company) return null;
 
   const handleStartConversation = () => {
     onClose();
-    void router.push("/career");
+    onStartConversation();
   };
 
   return (

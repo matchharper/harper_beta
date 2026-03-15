@@ -13,10 +13,12 @@ import Footer from "@/components/landing/Footer";
 import CandidateSocialProof from "@/components/talent/CandidateSocialProof";
 import FeaturedCompanyModal from "@/components/talent/FeaturedCompanyModal";
 import FakeSticky from "@/components/talent/FakeSticky";
+import TalentIdentifierModal from "@/components/talent/TalentIdentifierModal";
 import {
   FEATURED_COMPANY_BY_ID,
   type FeaturedCompanyKey,
 } from "@/components/talent/featuredCompanies";
+import { useAuthStore } from "@/store/useAuthStore";
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 const TIME_SLOTS = [
@@ -87,12 +89,16 @@ const BENEFITS = [
     description:
       "정말 좋은 채용 기회는 채용 공고로 공개되지 않습니다.<br /><br />미국 비자 지원이 가능한 글로벌 테크 회사, <br />국내 딥테크 팀, <br />높은 연봉의 Remote 팀 <br />등 일반 채용 시장에 공개되지 않은 기회를 먼저 전달합니다.",
   },
-
   {
-    title: "2. 직접 찾지 않아도 됩니다",
+    title: "2. 다양한 기회를 찾아드립니다",
     description:
-      "회원님이 직접 회사와 포지션을 계속 찾지 않아도 됩니다.<br />Harper가 조건에 맞는 기회를, 받은 뒤 선택만 하시면 되도록 전달할게요.<br /><br />일단 등록 후, 언제든지 매칭을 중지해둘 수 있습니다.",
+      "해외로의 이직을 원하신다면 도와드리고,<br />이직 생각이 없으시다면 남는 시간을 활용 가능한<br />파트타임, 커피챗, 시간당 30만원의 콜 등<br />다른 기회도 찾아드립니다.",
   },
+  // {
+  //   title: "2. 직접 찾지 않아도 됩니다",
+  //   description:
+  //     "회원님이 직접 회사와 포지션을 계속 찾지 않아도 됩니다.<br />Harper가 조건에 맞는 기회를, 받은 뒤 선택만 하시면 되도록 전달할게요.<br /><br />일단 등록 후, 언제든지 매칭을 중지해둘 수 있습니다.",
+  // },
   {
     title: "3. 직접 지원보다 더 높은 채용 확률",
     description:
@@ -104,7 +110,7 @@ const FAQ_ITEMS = [
   {
     question: "헤드헌팅과 어떤게 다른가요?",
     answer:
-      "아마 헤드헌터로부터 무의미한 이직 제안, 회사에 대한 정보를 알려주지 않은 채로 커피챗 제안, 제안 수락 후 회사로부터 거절 통보 등의 경험을 해보셨을겁니다. 하퍼는 제안을 수락했지만 회사가 거절했다는 연락을 받을 일이 없습니다.",
+      "아마 헤드헌터로부터 관심없는 이직 제안, 회사에 대한 정보를 알려주지 않은 채로 커피챗 제안, 제안 수락 후 회사로부터 거절 통보 등의 경험을 해보셨을겁니다. 하퍼는 제안을 수락했지만 회사가 거절했다는 연락을 받을 일이 없습니다.",
   },
   {
     question: "매칭은 얼마나 자주 이루어지나요?",
@@ -207,6 +213,7 @@ const CompanyInlineTrigger = ({
 
 const Talent = () => {
   const router = useRouter();
+  const { user, loading: authLoading } = useAuthStore();
 
   const [monthCursor, setMonthCursor] = useState(
     new Date(new Date().getFullYear(), new Date().getMonth(), 1)
@@ -215,6 +222,7 @@ const Talent = () => {
   const [selectedTime, setSelectedTime] = useState(TIME_SLOTS[2]);
   const [activeCompanyId, setActiveCompanyId] =
     useState<FeaturedCompanyKey | null>(null);
+  const [isIdentifierModalOpen, setIsIdentifierModalOpen] = useState(false);
   const [showMoreButton, setShowMoreButton] = useState(true);
   const [isMoreButtonFading, setIsMoreButtonFading] = useState(false);
   const hideMoreButtonTimerRef = useRef<number | null>(null);
@@ -288,6 +296,17 @@ const Talent = () => {
 
   const handleCloseCompany = () => {
     setActiveCompanyId(null);
+  };
+
+  const handleStartConversation = () => {
+    if (authLoading) return;
+
+    if (user) {
+      void router.push("/career");
+      return;
+    }
+
+    setIsIdentifierModalOpen(true);
   };
 
   const handleShowMore = () => {
@@ -400,7 +419,7 @@ const Talent = () => {
               <div className="flex flex-col mt-4">
                 <button
                   className="btn-ink rounded-md w-fit"
-                  onClick={() => router.push("/career")}
+                  onClick={handleStartConversation}
                 >
                   <span className="font-medium">대화 시작하기</span>
                   <span className="arrow">
@@ -549,10 +568,11 @@ const Talent = () => {
               <div className="rounded-lg border border-hblack100 shadow-md px-5 py-5">
                 <button
                   type="button"
-                  onClick={() => router.push("/career")}
-                  className="rounded-sm inline-flex h-12 w-full items-center justify-center gap-2 bg-xprimary text-sm font-medium text-hblack000 hover:opacity-90"
+                  onClick={handleStartConversation}
+                  className="group rounded-sm inline-flex h-12 w-full items-center justify-center gap-1 bg-xprimary text-sm font-medium text-hblack000 hover:opacity-90"
                 >
-                  지금 대화하기 <ArrowRight className="h-4 w-4" />
+                  지금 대화하기{" "}
+                  <ArrowRight className="group-hover:translate-x-1 transition-all duration-300 h-4 w-4" />
                 </button>
                 <div className={`mt-4 ${divider}`} />
                 <h3 className="mt-4 text-sm font-medium text-hblack400">
@@ -698,6 +718,11 @@ const Talent = () => {
         open={Boolean(activeCompany)}
         company={activeCompany}
         onClose={handleCloseCompany}
+        onStartConversation={handleStartConversation}
+      />
+      <TalentIdentifierModal
+        open={isIdentifierModalOpen}
+        onClose={() => setIsIdentifierModalOpen(false)}
       />
     </main>
   );

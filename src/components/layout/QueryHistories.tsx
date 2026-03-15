@@ -60,7 +60,7 @@ const QueryHistories = ({
         <button
           onClick={() => fetchNextPage()}
           disabled={isFetchingNextPage}
-          className="text-xs text-gray-500 py-2 hover:text-white transition-all duration-200"
+          className="text-[13px] text-gray-500 py-2 hover:text-white transition-all duration-200"
         >
           {isFetchingNextPage ? (
             <Loading inline={true} size="sm" className="text-gray-500" />

@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { Check, Minus, X } from "lucide-react";
 import { useMemo } from "react";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
 import {
@@ -98,7 +98,10 @@ const CareerOnboardingChecklist = () => {
 
   return (
     <div className="pointer-events-none fixed bottom-24 right-4 z-50 w-[min(320px,calc(100vw-2rem))] lg:bottom-6">
-      <section className="pointer-events-auto rounded-2xl border border-hblack200 bg-hblack000/95 px-4 py-4">
+      <section className="relative pointer-events-auto rounded-2xl border border-hblack200 bg-hblack000/95 px-4 py-4">
+        <div className="absolute right-1 top-[-6px] p-2 rounded-md bg-hblack50 hover:bg-hblack100 cursor-pointer transition-colors">
+          <Minus className="h-4 w-4" />
+        </div>
         <div className="space-y-3.5">
           {items.map((item) => {
             const textClasses = item.completed

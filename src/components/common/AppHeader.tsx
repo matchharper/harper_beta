@@ -199,13 +199,6 @@ const AppHeader = ({ topClassName = "top-0" }: AppHeaderProps) => {
           <div className="relative z-10 w-full max-w-[460px] rounded-xl border border-hblack200 bg-hblack000 p-6">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-medium text-hblack1000">로그인</h2>
-              <button
-                type="button"
-                onClick={handleCloseModal}
-                className="inline-flex h-8 items-center px-2 text-sm text-hblack600 hover:text-hblack900"
-              >
-                닫기
-              </button>
             </div>
 
             {user ? (
@@ -231,7 +224,7 @@ const AppHeader = ({ topClassName = "top-0" }: AppHeaderProps) => {
                   type="button"
                   onClick={() => void handleGoogleLogin()}
                   disabled={authPending}
-                  className="mt-4 h-10 w-full rounded-md border border-hblack300 bg-hblack000 text-sm font-medium text-hblack900 transition-colors hover:border-xprimary hover:bg-hblack100 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-4 h-11 w-full rounded-md border border-hblack100 bg-hblack50 text-sm font-normal text-hblack900 transition-colors hover:bg-hblack100"
                 >
                   Google 로그인
                 </button>

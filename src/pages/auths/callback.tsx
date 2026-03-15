@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/router";
 import { supabase } from "@/lib/supabase";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
+import { finalizePendingTalentCapture } from "@/lib/talentCapture/client";
 import { notifyToSlack } from "@/lib/slack";
 
 export default function AuthCallback() {
@@ -13,6 +14,11 @@ export default function AuthCallback() {
 
     (async () => {
       const lid = typeof router.query.lid === "string" ? router.query.lid : "";
+      const flow =
+        typeof router.query.flow === "string" ? router.query.flow : "";
+      const rawNext =
+        typeof router.query.next === "string" ? router.query.next : "";
+      const nextPath = rawNext.startsWith("/") ? rawNext : "/invitation";
       const countryLang =
         typeof router.query.cl === "string" ? router.query.cl : null;
       const abtestType =
@@ -72,6 +78,33 @@ export default function AuthCallback() {
 
       if (!accessToken) {
         router.replace("?error=no_session");
+        return;
+      }
+
+      if (flow === "talent_capture") {
+        const bootstrapRes = await fetch("/api/talent/auth/bootstrap", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        const bootstrapJson = await bootstrapRes.json().catch(() => ({}));
+        if (!bootstrapRes.ok) {
+          console.error("talent bootstrap error:", bootstrapJson);
+          router.replace("?error=talent_profile_upsert_failed");
+          return;
+        }
+
+        try {
+          await finalizePendingTalentCapture(accessToken);
+        } catch (captureError) {
+          console.error("talent capture save error:", captureError);
+          router.replace("/career?captureError=1");
+          return;
+        }
+
+        router.replace(nextPath);
         return;
       }
 
