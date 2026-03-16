@@ -149,7 +149,9 @@ const LoginModal = ({
       return;
     }
 
-    setInfo("비밀번호 재설정 메일을 보냈습니다. 메일의 링크를 열어 새 비밀번호를 설정해 주세요.");
+    setInfo(
+      "비밀번호 재설정 메일을 보냈습니다. 메일의 링크를 열어 새 비밀번호를 설정해 주세요."
+    );
   };
 
   const signUpWithEmailPassword = async (
@@ -241,7 +243,9 @@ const LoginModal = ({
                   className="w-full py-3 text-[13px] rounded-md bg-white hover:bg-accenta1 transition duration-300 flex items-center justify-center gap-3 text-hgray100"
                 >
                   <GoogleIcon />
-                  <span className="font-medium">{m.auth.continueWithGoogle}</span>
+                  <span className="font-medium">
+                    {m.auth.continueWithGoogle}
+                  </span>
                 </button>
               </div>
 
@@ -316,8 +320,12 @@ const LoginModal = ({
                   </div>
                 )}
 
-                {error && <div className="text-sm text-red-500 mt-2">{error}</div>}
-                {info && <div className="text-sm text-green-400 mt-2">{info}</div>}
+                {error && (
+                  <div className="text-sm text-red-500 mt-2">{error}</div>
+                )}
+                {info && (
+                  <div className="text-sm text-green-400 mt-2">{info}</div>
+                )}
                 <button
                   type="submit"
                   disabled={isSubmitting}
