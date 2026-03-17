@@ -22,31 +22,31 @@ export const FallingTagsMl = ({
 }) => {
   const [start, setStart] = useState(false);
   const isMobile = useIsMobile();
-
   const CANDIDATE_MOBILE_TAGS: Tag[] = [
     {
-      label: "Recently hyped open-source note-taking project, 5k+ stars",
+      label:
+        "Open-source note-taking projects with 5k+ stars and recent activity",
       x: -140,
       y: 40,
       rotate: -14,
       color: "border-emerald-400/40 text-emerald-300",
     },
     {
-      label: "First author on CVPR / NeurIPS papers in multimodal LLM datasets",
+      label: "Papers on multimodal LLM datasets from CVPR or NeurIPS",
       x: 5,
       y: 70,
       rotate: -4,
       color: "border-sky-400/40 text-sky-300",
     },
     {
-      label: "Core contributor to inference or kernel optimization repos",
+      label: "Repositories focused on inference or kernel optimization",
       x: 70,
       y: -10,
       rotate: 10,
       color: "border-violet-400/40 text-violet-300",
     },
     {
-      label: "Robotics researcher with strong publication and code footprint",
+      label: "Robotics research with both publications and open-source code",
       x: 10,
       y: -5,
       rotate: -12,
@@ -54,7 +54,7 @@ export const FallingTagsMl = ({
     },
     {
       label:
-        "Open-source engineer with 3k+ GitHub followers and active commits",
+        "Active repositories with consistent commits and growing community",
       x: 140,
       y: 30,
       rotate: 10,
