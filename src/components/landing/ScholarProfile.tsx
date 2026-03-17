@@ -1,4 +1,3 @@
-import { MailPlus, Star } from "lucide-react";
 import Image from "next/image";
 
 type Paper = {
@@ -52,27 +51,30 @@ const tags = [
 
 export default function ScholarProfileDark() {
   return (
-    <div className="mt-12 w-[1040px] rounded-[28px] border border-zinc-900 bg-[#111113] shadow-2xl p-6">
+    <div className="mt-12 w-full max-w-[1040px] rounded-[28px] border border-zinc-900 bg-[#111113] p-4 shadow-2xl md:p-6">
       {/* Header */}
-      <div className="flex justify-between items-start text-left">
-        <div className="flex gap-3">
+      <div className="flex flex-col items-start gap-4 text-left md:flex-row md:justify-between">
+        <div className="flex items-start gap-3">
           <Image
-            className="w-14 h-14 rounded-full object-cover"
+            className="h-14 w-14 shrink-0 rounded-full object-cover"
             src="/images/scholar_profile.png"
             width={32}
             height={6324}
             alt="GitHub Profile"
           />
 
-          <div>
+          <div className="min-w-0">
             <h1 className="text-lg font-normal text-white">Jonathan Hays</h1>
-            <a className="underline text-sm text-neutral-200">
+            <a className="text-sm text-neutral-200 underline">
               Queen Mary University of London
             </a>
 
-            <div className="flex flex-wrap gap-4 mt-1">
+            <div className="mt-2 flex flex-wrap gap-2 md:gap-4">
               {tags.map((tag) => (
-                <a key={tag} className="text-sm text-blue-400 hover:underline">
+                <a
+                  key={tag}
+                  className="text-xs text-blue-400 hover:underline md:text-sm"
+                >
                   {tag}
                 </a>
               ))}
@@ -83,45 +85,67 @@ export default function ScholarProfileDark() {
 
       {/* Table */}
       <div className="mt-6 text-left">
-        <div className="grid grid-cols-[1fr_80px_80px] bg-neutral-900 text-sm font-medium px-2 py-1 text-neutral-300">
+        <div className="hidden grid-cols-[minmax(0,1fr)_80px_80px] bg-neutral-900 px-3 py-2 text-sm font-medium text-neutral-300 md:grid">
           <div>제목</div>
           <div className="text-center">인용</div>
-          <div className="text-right pr-2">연도</div>
+          <div className="pr-2 text-right">연도</div>
         </div>
 
         <div className="divide-y divide-neutral-800">
           {papers.map((paper, i) => (
-            <div
-              key={i}
-              className="relative grid grid-cols-[1fr_80px_80px] gap-4 px-4 py-3"
-            >
-              <div>
-                <a className="text-blue-400 hover:underline text-sm font-light">
-                  {paper.title}
-                </a>
-                <p className="text-sm text-neutral-400 mt-0.5">
-                  {paper.authors}
-                </p>
-                <p className="text-sm text-neutral-400">{paper.journal}</p>
-              </div>
-
-              <div className="flex items-start justify-end text-sm text-neutral-400">
-                {paper.citations}
-              </div>
-              <div className="flex items-start justify-end text-sm text-neutral-400">
-                {paper.year}
-              </div>
-
-              {paper.is_featured && (
-                <div className="absolute bottom-2 right-1 rounded-full px-2 py-1 bg-blue-500 text-[10px]">
-                  Most relevant paper
+            <div key={i} className="px-0 py-4 md:px-4 md:py-3">
+              <div className="flex flex-col gap-3 md:hidden">
+                <div>
+                  <a className="text-sm font-light text-blue-400 hover:underline">
+                    {paper.title}
+                  </a>
+                  <p className="mt-1 text-sm text-neutral-400">
+                    {paper.authors}
+                  </p>
+                  <p className="text-sm text-neutral-400">{paper.journal}</p>
                 </div>
-              )}
+
+                <div className="flex items-center gap-4 text-sm text-neutral-400">
+                  <span>Citations {paper.citations}</span>
+                  <span>Year {paper.year}</span>
+                </div>
+
+                {paper.is_featured ? (
+                  <div className="w-fit rounded-full bg-blue-500 px-2 py-1 text-[10px] text-white">
+                    Most relevant paper
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="relative hidden grid-cols-[minmax(0,1fr)_80px_80px] gap-4 md:grid">
+                <div>
+                  <a className="text-sm font-light text-blue-400 hover:underline">
+                    {paper.title}
+                  </a>
+                  <p className="mt-0.5 text-sm text-neutral-400">
+                    {paper.authors}
+                  </p>
+                  <p className="text-sm text-neutral-400">{paper.journal}</p>
+                </div>
+
+                <div className="flex items-start justify-end text-sm text-neutral-400">
+                  {paper.citations}
+                </div>
+                <div className="flex items-start justify-end text-sm text-neutral-400">
+                  {paper.year}
+                </div>
+
+                {paper.is_featured && (
+                  <div className="absolute bottom-2 right-1 rounded-full bg-blue-500 px-2 py-1 text-[10px] text-white">
+                    Most relevant paper
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </div>
       </div>
-      <div className="w-full text-white/50 text-sm flex item-center justify-center">
+      <div className="flex w-full items-center justify-center pt-2 text-center text-sm text-white/50">
         + 15 more papers
       </div>
     </div>

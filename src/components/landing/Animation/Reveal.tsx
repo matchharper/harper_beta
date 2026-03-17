@@ -2,11 +2,15 @@ import React, { useEffect } from "react";
 import { motion, useAnimation } from "framer-motion";
 import { useInView } from "react-intersection-observer";
 
+type RevealDirection = "bottom" | "top" | "left" | "right" | "none";
+
 type RevealProps = {
   children: React.ReactNode;
   className?: string;
   delay?: number;
   duration?: number;
+  direction?: RevealDirection;
+  distance?: number;
   offsetX?: number;
   offsetY?: number;
   blur?: number;
@@ -14,13 +18,34 @@ type RevealProps = {
   amount?: number;
 };
 
+const getDirectionalOffset = (
+  direction: RevealDirection,
+  distance: number,
+) => {
+  switch (direction) {
+    case "top":
+      return { x: 0, y: -distance };
+    case "left":
+      return { x: -distance, y: 0 };
+    case "right":
+      return { x: distance, y: 0 };
+    case "none":
+      return { x: 0, y: 0 };
+    case "bottom":
+    default:
+      return { x: 0, y: distance };
+  }
+};
+
 const Reveal = ({
   children,
   className,
   delay = 0,
-  duration = 0.85,
-  offsetX = 0,
-  offsetY = 44,
+  duration = 1.05,
+  direction = "bottom",
+  distance = 44,
+  offsetX,
+  offsetY,
   blur = 18,
   once = true,
   amount = 0.2,
@@ -42,6 +67,10 @@ const Reveal = ({
     }
   }, [controls, inView, once]);
 
+  const directionalOffset = getDirectionalOffset(direction, distance);
+  const hiddenX = offsetX ?? directionalOffset.x;
+  const hiddenY = offsetY ?? directionalOffset.y;
+
   return (
     <motion.div
       ref={ref}
@@ -50,8 +79,8 @@ const Reveal = ({
       variants={{
         hidden: {
           opacity: 0,
-          x: offsetX,
-          y: offsetY,
+          x: hiddenX,
+          y: hiddenY,
           filter: `blur(${blur}px)`,
         },
         visible: {

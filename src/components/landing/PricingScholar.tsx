@@ -7,6 +7,7 @@ import { BaseSectionLayout } from "@/components/landing/GridSectionLayout";
 import Animate from "@/components/landing/Animate";
 import { useMessages } from "@/i18n/useMessage";
 import Head1 from "./Head1";
+import Reveal from "./Animation/Reveal";
 
 type Billing = "monthly" | "yearly";
 
@@ -85,11 +86,11 @@ export default function PricingSection({
         ],
       },
     ];
-  }, [billing, isEnglish, pricing]);
+  }, [billing, pricing]);
 
   return (
     <section id="pricing" className="w-full bg-black text-white">
-      <Animate>
+      <Reveal>
         <BaseSectionLayout>
           <div className="w-full flex flex-col items-center justify-center text-center px-4 md:px-0">
             {/* <Head1 className="text-white">Pricing</Head1> */}
@@ -98,7 +99,7 @@ export default function PricingSection({
               Perfect plan for your team.
             </div>
 
-            <div className="mt-12 md:mt-16 w-full max-w-[1200px]">
+            <div className="mt-12 w-full max-w-[1040px] md:mt-16">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-4">
                 {plans.map((p) => (
                   <PlanCard
@@ -117,7 +118,7 @@ export default function PricingSection({
             </div>
           </div>
         </BaseSectionLayout>
-      </Animate>
+      </Reveal>
     </section>
   );
 }
@@ -148,13 +149,13 @@ function PlanCard({
   return (
     <div
       className={[
-        "relative w-full rounded-xl md:rounded-xl overflow-hidden",
+        "relative h-full w-full overflow-hidden rounded-xl",
         "bg-white/[0.06] border border-white/10",
         "px-5 md:px-7 pt-4 md:pt-6 pb-4 md:pb-20",
         isPrimary ? "bg-white/[0.08]" : "",
       ].join(" ")}
     >
-      <div className="flex flex-col items-start justify-start">
+      <div className="flex h-full flex-col items-start justify-start">
         <div className="text-[24px] md:text-[28px] font-medium tracking-tight">
           {name}
         </div>
@@ -221,6 +222,8 @@ function PlanCard({
             </li>
           ))}
         </ul>
+
+        <div className="mt-6 md:mt-auto" />
       </div>
     </div>
   );

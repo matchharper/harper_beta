@@ -10,9 +10,8 @@ import { useRouter } from "next/navigation";
 
 import { supabase } from "@/lib/supabase";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
-import { useMessages } from "@/i18n/useMessage";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import { useCountryLang } from "@/hooks/useCountryLang";
+import { useCountryMessages } from "@/i18n/useCountryMessage";
 
 const isMissingDisplayName = (name?: string | null) => {
   const normalized = (name ?? "").trim();
@@ -35,15 +34,13 @@ export default function LoginSuccess() {
   const [invalidMessage, setInvalidMessage] = useState("");
   const [isShake, setIsShake] = useState(false);
   const [landingId, setLandingId] = useState("");
-  const { m } = useMessages();
+  const { m, countryLang } = useCountryMessages();
 
   const interactiveRef = useRef<HTMLDivElement>(null);
   const hasLoggedEnterRef = useRef(false);
   const hasLoggedCodeInputRef = useRef(false);
   const hasLoggedNameInputRef = useRef(false);
   const isMobile = useIsMobile();
-  const countryLang = useCountryLang();
-
   const { companyUser, load } = useCompanyUserStore();
   const isNameStep = step === "name";
 

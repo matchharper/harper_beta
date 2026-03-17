@@ -24,17 +24,12 @@ import dynamic from "next/dynamic";
 import Head from "next/head";
 import Link from "next/link";
 import router from "next/router";
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import CompareSection from "@/components/landing/Compare";
 import PricingSection from "@/components/landing/PricingScholar";
 import { FallingTagsMl } from "@/components/landing/FallingTagsML";
 import { OrbitIconsSmall } from "@/components/landing/Orbit";
+import Reveal from "@/components/landing/Animation/Reveal";
 
 const LoginModal = dynamic(() => import("@/components/Modal/LoginModal"));
 const RADAR_LOGIN_MODAL_LANGUAGE = "en" as const;
@@ -55,7 +50,12 @@ const HERO_DOT_BACKGROUND_STYLE = {
   backgroundSize: "20px 20px",
 };
 
-type RadarSection = "intro" | "signals" | "outputs" | "coverage" | "pricing";
+enum RadarSection {
+  Intro = "intro",
+  Coverage = "coverage",
+  Outputs = "outputs",
+  Pricing = "pricing",
+}
 
 type OutputItem = {
   key: string;
@@ -127,34 +127,46 @@ const coverageStats: Array<{
   icon: LucideIcon;
   value: string;
   label: string;
-  body: string;
 }> = [
   {
     icon: Github,
     value: "3M+",
     label: "Projects tracked on Github",
-    body: "",
   },
   {
     icon: GraduationCap,
     value: "7M+",
     label: "Paper / Publications",
-    body: "",
   },
   {
     icon: Search,
     value: "10M+",
     label: "Projects and Publications",
-    body: "",
   },
 ];
 
-const navItems = [
-  { label: "Intro", section: "intro" as const },
-  { label: "Coverage", section: "coverage" as const },
-  { label: "Outputs", section: "outputs" as const },
-  { label: "Pricing", section: "pricing" as const },
+const RADAR_SECTION_LABELS: Record<RadarSection, string> = {
+  [RadarSection.Intro]: "Intro",
+  [RadarSection.Coverage]: "Coverage",
+  [RadarSection.Outputs]: "Outputs",
+  [RadarSection.Pricing]: "Pricing",
+};
+
+const RADAR_NAV_SECTIONS: RadarSection[] = [
+  RadarSection.Intro,
+  RadarSection.Coverage,
+  RadarSection.Outputs,
+  RadarSection.Pricing,
 ];
+
+const navItems = RADAR_NAV_SECTIONS.map((section) => ({
+  section,
+  label: RADAR_SECTION_LABELS[section],
+}));
+
+function getRadarSectionHref(section: RadarSection) {
+  return `#${section}`;
+}
 
 function NavItem({
   label,
@@ -214,12 +226,10 @@ function CoverageCard({
   icon: Icon,
   value,
   label,
-  body,
 }: {
   icon: LucideIcon;
   value: string;
   label: string;
-  body: string;
 }) {
   return (
     <div className="w-full rounded-2xl text-center px-6 py-6">
@@ -302,12 +312,12 @@ function SearchInputPanel({
   }, [isPlaceholderAnimating, nextPlaceholderIdx]);
 
   return (
-    <form onSubmit={onSubmit} className="w-full rounded-[28px] p-4 md:p-6">
+    <form onSubmit={onSubmit} className="w-full rounded-[28px] p-3 md:p-5">
       <div className="relative w-full rounded-[24px] border border-white/10 bg-hgray200 p-1">
         <div className="relative rounded-[20px] backdrop-blur-xl">
           {isQueryEmpty && (
             <div
-              className="pointer-events-none absolute left-4 right-20 top-4 overflow-hidden text-[15px] leading-6 text-hgray600"
+              className="pointer-events-none absolute left-4 right-16 top-4 overflow-hidden text-sm leading-6 text-hgray600 md:right-20 md:text-[15px]"
               aria-hidden="true"
             >
               <div
@@ -342,19 +352,19 @@ function SearchInputPanel({
             rows={2}
             className={[
               "w-full resize-none rounded-[20px] bg-transparent",
-              "px-4 py-4 text-[15px] leading-6 text-white/95",
+              "min-h-[104px] px-4 py-4 pr-16 text-sm leading-6 text-white/95 md:min-h-[96px] md:text-[15px] md:pr-20",
               "placeholder:text-transparent outline-none",
             ].join(" ")}
           />
         </div>
 
-        <div className="absolute bottom-5 right-5 flex items-center justify-center gap-2">
+        <div className="absolute bottom-4 right-4 flex items-center justify-center gap-2 md:bottom-5 md:right-5">
           <button
             type="submit"
             disabled={!canSend}
             aria-label="Submit search"
             className={[
-              "inline-flex h-11 w-11 items-center justify-center rounded-full transition active:scale-[0.98]",
+              "inline-flex h-10 w-10 items-center justify-center rounded-full transition active:scale-[0.98] md:h-11 md:w-11",
               canSend
                 ? "bg-accenta1 text-black hover:opacity-90"
                 : "cursor-not-allowed bg-white/10 text-white/35",
@@ -374,7 +384,7 @@ function RadarHeader({ onStartClick }: { onStartClick: () => void }) {
   const navigateToSection = useCallback((section: RadarSection) => {
     if (typeof window === "undefined") return;
 
-    if (section === "intro") {
+    if (section === RadarSection.Intro) {
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
@@ -386,16 +396,16 @@ function RadarHeader({ onStartClick }: { onStartClick: () => void }) {
   }, []);
 
   return (
-    <header className="fixed left-0 top-0 z-20 flex h-14 w-full items-center justify-between px-0 text-sm text-white transition-all duration-300 md:h-20 lg:px-4">
-      <div className="flex h-full w-full items-center justify-between px-4 md:px-8">
+    <header className="fixed left-0 top-0 z-20 w-full text-sm text-white transition-all duration-300">
+      <div className="mx-auto flex h-14 w-full max-w-[1200px] items-center justify-between px-4 md:h-20 md:px-8">
         <Link
           href="/"
-          className="w-[40%] text-left font-garamond text-[26px] font-semibold md:w-[15%]"
+          className="shrink-0 text-left font-garamond text-[26px] font-semibold"
         >
           Harper
         </Link>
 
-        <nav className="hidden items-center justify-center gap-2 rounded-full bg-[#444444aa] px-4 py-2 text-xs font-normal text-white backdrop-blur md:flex sm:text-sm">
+        <nav className="hidden items-center justify-center gap-2 rounded-full bg-[#444444aa] px-4 py-2 text-sm font-normal text-white backdrop-blur md:flex">
           {navItems.map((item) => (
             <NavItem
               key={item.section}
@@ -405,7 +415,7 @@ function RadarHeader({ onStartClick }: { onStartClick: () => void }) {
           ))}
         </nav>
 
-        <div className="hidden w-[10%] items-center justify-end md:flex md:w-[15%]">
+        <div className="hidden shrink-0 items-center justify-end md:flex">
           <StartButton
             onClick={onStartClick}
             label={START_BUTTON_LABEL}
@@ -416,15 +426,10 @@ function RadarHeader({ onStartClick }: { onStartClick: () => void }) {
         <div className="block md:hidden">
           <DropdownMenu
             buttonLabel={<Menu className="h-4 w-4" />}
-            items={[
-              { label: "Intro", onClick: () => navigateToSection("intro") },
-              {
-                label: "Coverage",
-                onClick: () => navigateToSection("coverage"),
-              },
-              { label: "Outputs", onClick: () => navigateToSection("outputs") },
-              { label: "Pricing", onClick: () => navigateToSection("pricing") },
-            ]}
+            items={navItems.map((item) => ({
+              label: item.label,
+              onClick: () => navigateToSection(item.section),
+            }))}
           />
         </div>
       </div>
@@ -433,7 +438,6 @@ function RadarHeader({ onStartClick }: { onStartClick: () => void }) {
 }
 
 export default function RadarLandingPage() {
-  const interactiveRef = useRef<HTMLDivElement>(null);
   const { m } = useMessages();
 
   const [query, setQuery] = useState("");
@@ -559,7 +563,7 @@ export default function RadarLandingPage() {
         />
       </Head>
 
-      <main className="min-h-screen w-screen bg-black font-inter text-white">
+      <main className="min-h-screen w-full overflow-x-hidden bg-black font-inter text-white">
         {isOpenLoginModal && (
           <LoginModal
             open={isOpenLoginModal}
@@ -573,15 +577,16 @@ export default function RadarLandingPage() {
         <RadarHeader onStartClick={handleStart} />
 
         <nav className="sr-only" aria-label="Radar section links">
-          <a href="#intro">Intro</a>
-          <a href="#coverage">Coverage</a>
-          <a href="#outputs">Outputs</a>
-          <a href="#pricing">Pricing</a>
+          {navItems.map((item) => (
+            <a key={item.section} href={getRadarSectionHref(item.section)}>
+              {item.label}
+            </a>
+          ))}
         </nav>
 
         <section
-          id="intro"
-          className="relative flex min-h-[78vh] w-full flex-col items-center justify-center overflow-hidden bg-black px-4 pt-24 text-white md:min-h-[84vh] md:px-10"
+          id={RadarSection.Intro}
+          className="relative flex min-h-[78vh] w-full flex-col items-center justify-center overflow-hidden bg-black px-4 pt-20 text-white md:min-h-[84vh] md:px-8 md:pt-28"
         >
           <div className="absolute left-0 top-0 h-full w-full">
             <div
@@ -591,33 +596,35 @@ export default function RadarLandingPage() {
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(180,255,120,0.12),transparent_34%)]" />
           </div>
 
-          <div className="relative z-10 mx-auto flex w-full max-w-[980px] flex-col items-center text-center mt-12">
-            <h1 className="mt-6 max-w-[920px] text-4xl font-medium leading-[1.08] tracking-[-0.03em] md:text-5xl">
-              Find real engineers and researchers.
-            </h1>
+          <Reveal delay={0.08}>
+            <div className="relative z-10 mx-auto mt-10 flex w-full max-w-[980px] flex-col items-center text-center md:mt-12">
+              <h1 className="mt-6 max-w-[920px] text-3xl font-medium leading-[1.08] tracking-[-0.03em] md:text-5xl">
+                Find real engineers and researchers.
+              </h1>
 
-            <p className="mt-5 max-w-[700px] text-[15px] font-light leading-7 text-hgray700 md:text-[20px] md:leading-8">
-              Search by GitHub profiles, shipped projects, and Publications not
-              by polished profiles.
-            </p>
+              <p className="mt-5 max-w-[700px] text-[15px] font-light leading-7 text-hgray700 md:text-[20px] md:leading-8">
+                Search by GitHub profiles, shipped projects, and Publications
+                not by polished profiles.
+              </p>
 
-            <div className="mt-16 w-full max-w-[920px]">
-              <div className="overflow-hidden rounded-[30px] bg-gradpastel2 p-[1px] shadow-[0_40px_120px_rgba(0,0,0,0.38)]">
-                <div className="rounded-[29px] p-3 md:p-4">
-                  <SearchInputPanel
-                    query={query}
-                    onQueryChange={setQuery}
-                    onSubmit={handleSearchSubmit}
-                  />
+              <div className="mt-12 w-full max-w-[920px] md:mt-16">
+                <div className="overflow-hidden rounded-[30px] bg-gradpastel2 p-[1px] shadow-[0_40px_120px_rgba(0,0,0,0.38)]">
+                  <div className="rounded-[29px] p-2 md:p-4">
+                    <SearchInputPanel
+                      query={query}
+                      onQueryChange={setQuery}
+                      onSubmit={handleSearchSubmit}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="mt-6 text-sm text-white/45">
-              We don&apos;t connect or provide contact information.
+              <div className="mt-6 text-sm text-white/45">
+                We don&apos;t connect or provide contact information.
+              </div>
+              <div className="mt-6 text-white/80"></div>
             </div>
-            <div className="mt-6 text-white/80"></div>
-          </div>
+          </Reveal>
         </section>
 
         {/* <div className="h-20 md:h-28" />
@@ -629,12 +636,12 @@ export default function RadarLandingPage() {
             </div>
           </BaseSectionLayout>
         </Animate> */}
-        <div id="coverage" className="h-20 md:h-28" />
-        <Animate>
+        <div id={RadarSection.Coverage} className="h-20 md:h-28" />
+        <Reveal delay={0.08}>
           <BaseSectionLayout>
             <div className="flex w-full flex-col items-center justify-center px-4 text-left md:px-0">
               {/* <Head1 className="text-white">Coverage</Head1> */}
-              <h2 className="mt-8 text-xl font-normal text-white md:text-2xl md:leading-[1.2]">
+              <h2 className="mt-8 max-w-[720px] text-center text-xl font-normal text-white md:text-2xl md:leading-[1.2]">
                 Every day, Reading more projects and publications.
               </h2>
 
@@ -645,39 +652,51 @@ export default function RadarLandingPage() {
               </div>
             </div>
           </BaseSectionLayout>
-        </Animate>
+        </Reveal>
 
-        <div id="outputs" className="h-24 md:h-48" />
-        <Animate>
-          <BaseSectionLayout>
-            <div className="flex w-full flex-col items-center justify-center px-4 text-center md:px-0">
-              <Head1 className="text-white">
-                Who&apos;s actually Shipping?
-              </Head1>
-              <h2 className="mt-8 mb-20 text-lg font-light text-white md:text-xl md:leading-[1.2]">
-                Harper&apos;s proprietary algorithm tracks commits, repos, and
-                social activity <br />
-                to reveal the actual developers pushing insane code.
-              </h2>
+        <div id={RadarSection.Outputs} className="h-24 md:h-48" />
+        <BaseSectionLayout>
+          <div className="flex w-full flex-col items-center justify-center px-4 text-center md:px-0">
+            <Reveal delay={0.08}>
+              <div className="flex flex-col items-center justify-center">
+                <Head1 className="text-white">
+                  Who&apos;s actually Shipping?
+                </Head1>
+                <h2 className="mb-12 mt-8 max-w-[760px] text-lg font-light text-white md:mb-20 md:text-xl md:leading-[1.2]">
+                  Harper&apos;s proprietary algorithm tracks commits, repos, and
+                  social activity <br />
+                  to reveal the actual developers pushing insane code.
+                </h2>
+              </div>
+            </Reveal>
 
+            <Reveal
+              delay={0.08}
+              className="w-full flex items-center justify-center"
+            >
               <CandidateGithubCardDark />
+            </Reveal>
+            <Reveal
+              delay={0.08}
+              className="w-full flex items-center justify-center"
+            >
               <ScholarProfile />
-            </div>
-          </BaseSectionLayout>
-        </Animate>
+            </Reveal>
+          </div>
+        </BaseSectionLayout>
 
         <div className="h-24 md:h-48" />
         <CompareSection />
 
-        <div id="pricing" className="h-28 md:h-40" />
+        <div id={RadarSection.Pricing} className="h-28 md:h-40" />
         <PricingSection onClick={handleStart} />
         <div className="h-28 md:h-40" />
 
         <Animate>
           <BaseSectionLayout>
-            <div className="w-[90%] max-w-[600px]">
-              <div className="flex flex-col items-start gap-4 bg-white/20 rounded-2xl px-6 md:px-[30px] py-6 md:py-8">
-                <div className="text-[13px] md:text-base text-left md:leading-[30px] leading-[26px] font-normal text-hgray700">
+            <div className="w-full max-w-[600px] px-4 md:px-0">
+              <div className="flex flex-col items-start gap-4 rounded-2xl bg-white/20 px-5 py-6 md:px-[30px] md:py-8">
+                <div className="text-left text-[13px] font-normal leading-[26px] text-hgray700 md:text-base md:leading-[30px]">
                   Harper is not just a filter-based search engine.
                   <br />
                   It reads what people have actually built: their code and
@@ -687,8 +706,8 @@ export default function RadarLandingPage() {
                   <br />
                   and finds the talent that truly fits.
                 </div>
-                <div className="flex flex-row items-center justify-start gap-4 mt-6">
-                  <div>
+                <div className="mt-6 flex flex-row items-center justify-start gap-4">
+                  <div className="shrink-0">
                     <Image
                       src="/images/cofounder.png"
                       alt="person1"
@@ -710,12 +729,12 @@ export default function RadarLandingPage() {
 
         <div className="h-28 md:h-40" />
         <Animate duration={0.8}>
-          <section className="relative w-screen bg-black py-10">
+          <section className="relative w-full overflow-hidden bg-black py-10">
             <PixelBackground count={380} className="absolute inset-0" />
             <div className="absolute left-0 top-0 h-[50%] w-full bg-gradient-to-t from-transparent to-black" />
 
-            <div className="relative z-10 mx-auto flex w-full max-w-[1000px] flex-col items-center justify-center px-4 py-24 text-white md:py-36 md:pb-48">
-              <h2 className="mt-7 text-center text-3xl font-medium leading-[1.15] text-white/95 md:text-4xl">
+            <div className="relative z-10 mx-auto flex w-full max-w-[1000px] flex-col items-center justify-center px-4 py-20 text-white md:py-36 md:pb-48">
+              <h2 className="mt-7 text-center text-[32px] font-medium leading-[1.15] text-white/95 md:text-4xl">
                 Repos and Papers
                 <br />
                 are our talent pool.
@@ -727,7 +746,7 @@ export default function RadarLandingPage() {
               </p>
 
               <StartButton onClick={handleStart} label={START_BUTTON_LABEL} />
-              <div className="mt-32 w-full">
+              <div className="mt-32 w-full md:flex hidden">
                 <FallingTagsMl theme="dark" startDelay={800} />
               </div>
             </div>
@@ -794,8 +813,8 @@ function WhyImageSection({
   const imgReturn = () => {
     if (imageSrc === "drops") {
       return (
-        <div className="h-[300px] md:h-[380px] relative w-full flex justify-center items-center rounded-2xl bg-gradpastel2 overflow-hidden">
-          <div className="mr-8 w-full">
+        <div className="relative flex h-[280px] w-full items-center justify-center overflow-hidden rounded-2xl bg-gradpastel2 md:h-[380px]">
+          <div className="w-full md:mr-8">
             <FallingTagsMl theme="dark" startDelay={800} />
           </div>
         </div>
@@ -804,13 +823,13 @@ function WhyImageSection({
 
     if (imageSrc === "orbit") {
       return (
-        <div className="h-[300px] md:h-[380px] relative w-full flex justify-center items-center rounded-2xl bg-gradpastel2 overflow-hidden">
+        <div className="relative flex h-[280px] w-full items-center justify-center overflow-hidden rounded-2xl bg-gradpastel2 md:h-[380px]">
           <OrbitIconsSmall />
         </div>
       );
     }
     return (
-      <div className="h-[200px] md:h-[280px] relative w-full flex justify-end items-end rounded-2xl bg-gradpastel2 overflow-hidden">
+      <div className="relative flex h-[220px] w-full items-end justify-end overflow-hidden rounded-2xl bg-gradpastel2 md:h-[280px]">
         <Image
           src={imageSrc}
           alt={title}
@@ -822,7 +841,7 @@ function WhyImageSection({
     );
   };
   return (
-    <div className="flex flex-col w-full items-center justify-center md:items-start md:justify-start max-w-full gap-8 px-5 md:px-0">
+    <div className="flex max-w-full w-full flex-col items-center justify-center gap-8 px-5 md:items-start md:justify-start md:px-0">
       {imgReturn()}
       <div className="flex flex-col items-start justify-start w-full gap-4 text-left">
         <h3

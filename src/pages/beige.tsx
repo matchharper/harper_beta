@@ -1,4 +1,5 @@
 import Reveal from "@/components/landing/Animation/Reveal";
+import { ContributionGrid } from "@/components/landing/ContributionGrid";
 import FullBleedSection from "@/components/landing/FullBleedSection";
 import StaggerText from "@/components/landing/Animation/StaggerText";
 import { AnimatePresence, motion } from "framer-motion";
@@ -9,11 +10,24 @@ import {
   MoveDiagonal2,
   Play,
   Plus,
+  Quote,
   Volume2,
   X,
 } from "lucide-react";
 import Head from "next/head";
 import React, { CSSProperties, useEffect, useMemo, useState } from "react";
+
+const papers = [
+  {
+    title:
+      "Observation of a new boson at a mass of 125 GeV with the CMS experiment at the LHC",
+    authors: "S Chatrchyan ...",
+    journal: "CVPR 2024",
+    citations: 660,
+    year: 2024,
+    is_featured: true,
+  },
+];
 
 const BOOKING_URL = "https://calendly.com/chris-matchharper/30min";
 
@@ -147,11 +161,15 @@ const faqs = [
 const sectionTagClassName =
   "inline-flex items-center rounded-lg bg-beige500/80 px-4 py-2 font-geist text-[15px] font-medium tracking-[-0.03em] text-beige900/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] backdrop-blur-xl";
 
+const titleTextClassName =
+  "font-halant text-4xl sm:text-5xl lg:text-6xl leading-[0.98] tracking-[-0.08em] text-beige900";
+
 type ButtonProps = {
   label: string;
   variant?: "primary" | "secondary";
   className?: string;
   size?: "sm" | "md";
+  href?: string;
 };
 
 type PlaceholderProps = {
@@ -187,13 +205,14 @@ const CalendlyButton = ({
   variant = "primary",
   className = "",
   size = "md",
+  href = BOOKING_URL,
 }: ButtonProps) => {
   const isPrimary = variant === "primary";
   const isSmall = size === "sm";
 
   return (
     <motion.a
-      href={BOOKING_URL}
+      href={href}
       target="_blank"
       rel="noreferrer"
       whileHover={{ y: -1 }}
@@ -204,7 +223,7 @@ const CalendlyButton = ({
           : "bg-beige500/70 text-beige900 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]"
       } ${
         isSmall
-          ? "h-[34px] rounded-[12px] px-4 text-[13px]"
+          ? "h-[42px] rounded-[12px] px-4 text-[15px]"
           : "h-[58px] rounded-[14px] px-7 text-[15px]"
       } ${className}`}
     >
@@ -213,14 +232,14 @@ const CalendlyButton = ({
         <span className="flex flex-col transition-transform duration-500 ease-[cubic-bezier(.22,1,.36,1)] group-hover:-translate-y-1/2">
           <span
             className={`flex items-center leading-none ${
-              isSmall ? "h-[34px]" : "h-[58px]"
+              isSmall ? "h-[42px]" : "h-[58px]"
             }`}
           >
             {label}
           </span>
           <span
             className={`flex items-center leading-none ${
-              isSmall ? "h-[34px]" : "h-[58px]"
+              isSmall ? "h-[42px]" : "h-[58px]"
             }`}
           >
             {label}
@@ -273,13 +292,16 @@ const HeroVideoPlaceholder = () => (
 );
 
 const TestimonialPlaceholder = () => (
-  <PlaceholderShell
-    className="h-[540px] w-full max-[1199px]:h-[500px] max-[809px]:h-[420px]"
-    style={{
-      backgroundImage:
-        "radial-gradient(circle at 16% 28%, rgba(58,123,112,0.96), transparent 22%), radial-gradient(circle at 72% 36%, rgba(255,143,57,0.95), transparent 28%), radial-gradient(circle at 88% 78%, rgba(229,71,23,0.92), transparent 22%), radial-gradient(circle at 42% 54%, rgba(255,232,204,0.24), transparent 20%), linear-gradient(135deg, rgba(23,88,89,1) 0%, rgba(189,128,66,1) 45%, rgba(192,58,29,1) 100%)",
-    }}
-  />
+  <div
+    className={`relative overflow-hidden rounded-[32px] border border-white/40 bg-beige500/50 shadow-[0_30px_80px_rgba(89,57,24,0.12)] h-[500px] w-full max-[1199px]:h-[460px] max-[809px]:h-[420px]"`}
+  >
+    <img
+      src="/images/orangesky2.jpg"
+      alt="Testimonial"
+      className="w-full h-full object-cover"
+    />
+    <div className="absolute inset-0 bg-black/20" />
+  </div>
 );
 
 const SuccessPortraitPlaceholder = () => (
@@ -298,13 +320,15 @@ const SuccessPortraitPlaceholder = () => (
 );
 
 const ResultsPanel = () => (
-  <PlaceholderShell
-    className="w-full p-14 max-[1199px]:p-10 max-[809px]:p-6"
-    style={{
-      backgroundImage:
-        "radial-gradient(circle at 14% 18%, rgba(255,169,89,0.92), transparent 16%), radial-gradient(circle at 78% 18%, rgba(120,246,255,0.42), transparent 18%), linear-gradient(135deg, rgba(22,166,168,1) 0%, rgba(31,132,153,1) 52%, rgba(11,73,98,1) 100%)",
-    }}
+  <div
+    className={`relative overflow-hidden rounded-[32px] border border-white/40 bg-beige500/50 shadow-[0_30px_80px_rgba(89,57,24,0.12)] w-full px-10 py-12 md:px-16 md:py-24`}
   >
+    <img
+      src="/images/underwater.png"
+      alt="Results"
+      className="w-full h-full object-cover absolute inset-0"
+    />
+    <div className="absolute inset-0 bg-black/30" />
     <div className="grid grid-cols-2 gap-4 max-[809px]:grid-cols-1">
       {[
         {
@@ -318,7 +342,7 @@ const ResultsPanel = () => (
       ].map((item) => (
         <div
           key={item.title}
-          className="rounded-[28px] border border-white/30 bg-white/20 px-8 py-9 text-white backdrop-blur-xl"
+          className="rounded-[28px] bg-white/20 px-8 py-9 text-white backdrop-blur-md"
         >
           <div className="font-halant text-[36px] sm:text-[40px] md:text-[46px] lg:text-[52px] leading-[0.95] tracking-[-0.06em]">
             {item.title}
@@ -329,7 +353,7 @@ const ResultsPanel = () => (
         </div>
       ))}
     </div>
-  </PlaceholderShell>
+  </div>
 );
 
 const ComparisonCard = ({
@@ -346,23 +370,23 @@ const ComparisonCard = ({
   isPositive?: boolean;
 }) => (
   <PlaceholderShell
-    className={`relative h-[320px] p-10 max-[1199px]:h-[240px] max-[809px]:min-h-0 max-[809px]:p-7 ${className || ""}`}
+    className={`relative h-[340px] p-10 max-[1199px]:h-[260px] max-[809px]:min-h-0 max-[809px]:p-7 ${className || ""}`}
     style={style}
   >
-    <div className="absolute z-0 top-0 left-0 inset-0 w-full h-full object-cover opacity-70">
+    <div className="absolute z-0 top-0 left-0 inset-0 w-full h-full object-cover opacity-90">
       <img
-        src="/images/sky1.jpg"
+        src={isPositive ? "/images/street1.jpg" : "/images/street2.jpg"}
         alt="Check"
         className="w-full h-full object-cover"
       />
     </div>
-    <div className="relative z-10 flex h-full flex-col justify-between text-white/80">
+    <div className="relative z-10 flex h-full flex-col justify-between">
       <h3
-        className={`${!isPositive ? "font-geist" : "font-halant "} text-3xl sm:text-3xl md:text-3xl lg:text-4xl leading-[0.96] tracking-[-0.06em]`}
+        className={`${!isPositive ? "font-geist" : "font-halant "} text-white text-3xl sm:text-3xl md:text-3xl lg:text-4xl leading-[0.96] tracking-[-0.06em]`}
       >
         {title}
       </h3>
-      <div className="space-y-4 text-lg leading-[1.42] tracking-[-0.00em] max-[809px]:text-[16px]">
+      <div className="space-y-4 text-lg leading-[1.42] tracking-[-0.00em] max-[809px]:text-[16px] text-white/90">
         {items.map((item) => (
           <p key={item} className="flex flex-row items-center gap-2">
             {isPositive ? <Check size={16} /> : <X size={16} />}
@@ -377,7 +401,7 @@ const ComparisonCard = ({
 const Beige = () => {
   const [activeProcessIndex, setActiveProcessIndex] = useState(0);
   const [openFaqIndex, setOpenFaqIndex] = useState(0);
-  const [showPreloader, setShowPreloader] = useState(true);
+  const [showPreloader, setShowPreloader] = useState(false);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -412,7 +436,7 @@ const Beige = () => {
                 }}
                 className="fixed inset-0 z-[120] flex items-center justify-center bg-beige500"
               >
-                <div className="font-halant text-[56px] sm:text-[68px] md:text-[80px] lg:text-[96px] tracking-[-0.08em] text-beige900">
+                <div className="font-halant text-7xl tracking-[-0.08em] text-beige900">
                   <StaggerText text="Harper" by="char" delay={0.08} />
                 </div>
               </motion.div>
@@ -420,8 +444,7 @@ const Beige = () => {
           </AnimatePresence>
 
           <nav className="fixed inset-x-0 top-0 z-50 bg-beige200/80 backdrop-blur-lg">
-            <div className="mx-auto grid h-[78px] max-w-[1160px] grid-cols-[1fr_auto_1fr] items-center px-4 max-[809px]:h-auto max-[809px]:grid-cols-1 max-[809px]:justify-items-center max-[809px]:gap-3 max-[809px]:py-4">
-              <div className="max-[809px]:hidden" />
+            <div className="h-[78px] flex flex-row items-center justify-between px-6 md:px-28">
               <a
                 href="#top"
                 className="font-halant text-[26px] tracking-[-0.06em] text-beige900"
@@ -431,9 +454,10 @@ const Beige = () => {
               <div className="justify-self-end">
                 <div className="flex items-center gap-3 max-[809px]:flex-wrap max-[809px]:justify-center">
                   <CalendlyButton
-                    label="For Candidates"
+                    label="Use Search"
                     variant="secondary"
                     size="sm"
+                    href="/radar"
                   />
                   <CalendlyButton label="Schedule Demo" size="sm" />
                 </div>
@@ -443,7 +467,7 @@ const Beige = () => {
 
           <main
             id="top"
-            className="mx-auto flex max-w-[1160px] flex-col px-4 pb-24 pt-[132px] max-[1199px]:gap-24 max-[809px]:gap-20 max-[809px]:pt-[156px]"
+            className="mx-auto flex max-w-[1160px] flex-col px-4 pb-24 pt-[132px] max-[809px]:pt-[156px]"
           >
             <section className="flex flex-col items-center text-center bg-beige200">
               <Reveal once className="mt-2">
@@ -506,13 +530,15 @@ const Beige = () => {
                   </div>
                 </div>
               </Reveal>
+              <br />
+              <br />
             </section>
 
             <FullBleedSection
               backgroundClassName="bg-beige100"
               contentClassName="grid grid-cols-[1.06fr_0.94fr] gap-16 max-[1199px]:grid-cols-1 max-[1199px]:gap-12 py-24"
             >
-              <Reveal once className="pr-4 max-[1199px]:pr-0">
+              <Reveal once direction="left" className="pr-4 max-[1199px]:pr-0">
                 <SectionTag>How we work</SectionTag>
                 <h2 className="mt-7 max-w-[520px] font-halant text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.95] tracking-[-0.08em] text-beige900">
                   AI speed, recommender
@@ -535,14 +561,19 @@ const Beige = () => {
 
               <div className="space-y-8 pt-[54px] max-[1199px]:pt-0">
                 {valueCards.map((item, index) => (
-                  <Reveal key={item.number} once delay={index * 0.08}>
+                  <Reveal
+                    key={item.number}
+                    once
+                    direction="right"
+                    delay={index * 0.08}
+                  >
                     <div className="grid grid-cols-[42px_1fr] gap-8">
-                      <div className="pt-1 font-geist text-2xl font-medium leading-none tracking-[-0.08em] text-beige900/60">
+                      <div className="pt-1 font-geist text-2xl font-medium leading-none tracking-[-0.08em] text-beige900/60 max-[809px]:pt-2">
                         {item.number}
                       </div>
                       <div>
-                        <div className="flex items-start gap-3 max-[809px]:flex-col max-[809px]:gap-2">
-                          <h3 className="text-xl font-medium leading-[1.12] tracking-[-0.05em] text-beige900">
+                        <div className="flex items-start gap-3 max-[809px]:flex-col-reverse max-[809px]:gap-2">
+                          <h3 className="text-xl font-medium leading-[1.12] tracking-[-0.05em] text-beige900 max-[809px]:mt-2">
                             {item.title}
                           </h3>
                           <span className="rounded-md bg-beige500/80 px-3 py-1 text-sm font-medium tracking-[-0.02em] text-beige900/80">
@@ -563,22 +594,20 @@ const Beige = () => {
               backgroundClassName="bg-beige100"
               contentClassName="py-24"
             >
-              <Reveal once>
+              <Reveal once direction="left">
                 <div className="relative">
                   <TestimonialPlaceholder />
-                  <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-14 text-beige100 max-[1199px]:p-10 max-[809px]:p-6">
-                    <div className="text-[64px] sm:text-[76px] md:text-[88px] lg:text-[98px] leading-none">
-                      “
-                    </div>
+                  <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-16 text-beige100 max-[1199px]:p-12 max-[809px]:p-8">
+                    <Quote fill="currentColor" size={64} />
                     <div>
                       <h2 className="max-w-[920px] font-halant text-[36px] sm:text-[42px] md:text-[50px] lg:text-[58px] leading-[1.04] tracking-[-0.07em]">
                         We moved off Paraform and canceled our Juicebox
                         subscription because of the velocity we saw from Harper
                       </h2>
                       <div className="mt-10 text-[18px] leading-[1.4] tracking-[-0.03em] text-beige100/90 max-[809px]:text-[15px]">
-                        Caleb Burns
+                        SJ Lee
                         <br />
-                        Founding Team at Series A stealth startup
+                        Co-founder at YC backed startup
                       </div>
                     </div>
                   </div>
@@ -590,7 +619,7 @@ const Beige = () => {
               backgroundClassName="bg-beige100"
               contentClassName="grid grid-cols-[0.96fr_0.84fr] gap-14 max-[1199px]:grid-cols-1 max-[1199px]:gap-12 py-24"
             >
-              <Reveal once>
+              <Reveal once direction="left">
                 <SectionTag>Success stories</SectionTag>
                 <h2 className="mt-7 max-w-[540px] font-halant text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.97] tracking-[-0.08em] text-beige900">
                   2x interview pass
@@ -641,7 +670,7 @@ const Beige = () => {
                 </div>
               </Reveal>
 
-              <Reveal once delay={0.08}>
+              <Reveal once direction="right" delay={0.08}>
                 <div className="relative h-full">
                   <SuccessPortraitPlaceholder />
                   <div className="absolute bottom-8 left-8 text-[19px] leading-[1.35] tracking-[-0.03em] text-white/90">
@@ -659,7 +688,9 @@ const Beige = () => {
             >
               <Reveal once className="text-center">
                 <SectionTag>Our Process</SectionTag>
-                <h2 className="mx-auto mt-7 max-w-[860px] font-halant text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.96] tracking-[-0.08em] text-beige900">
+                <h2
+                  className={`mx-auto mt-7 max-w-[860px] ${titleTextClassName}`}
+                >
                   A <span className="text-beige900/40">thousand</span>{" "}
                   recruiters, in your palm
                 </h2>
@@ -705,7 +736,7 @@ const Beige = () => {
                   })}
                 </div>
 
-                <Reveal once delay={0.08}>
+                <Reveal once direction="right" delay={0.08}>
                   <div className="relative min-h-[33rem] max-[1199px]:min-h-0">
                     <AnimatePresence mode="wait">
                       <motion.div
@@ -743,7 +774,7 @@ const Beige = () => {
             <section className="py-24">
               <Reveal once className="text-center">
                 <SectionTag>Our Results</SectionTag>
-                <h2 className="mt-7 font-halant text-[40px] sm:text-[48px] md:text-[56px] lg:text-[66px] leading-[0.96] tracking-[-0.08em] text-beige900">
+                <h2 className={`mt-7 ${titleTextClassName}`}>
                   Faster, Cheaper, Better
                 </h2>
                 <p className="mx-auto mt-6 max-w-[720px] text-[20px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
@@ -759,7 +790,7 @@ const Beige = () => {
             <section className="py-24">
               <Reveal once className="text-center">
                 <SectionTag>Why choose us</SectionTag>
-                <h2 className="mt-7 font-halant text-[40px] sm:text-[48px] md:text-[56px] lg:text-[66px] leading-[0.96] tracking-[-0.08em] text-beige900">
+                <h2 className={`mt-7 ${titleTextClassName}`}>
                   Recruiting in the{" "}
                   <span className="text-beige900/40">AI age</span>
                 </h2>
@@ -799,11 +830,13 @@ const Beige = () => {
               backgroundClassName="bg-black"
               contentClassName="grid grid-cols-[0.98fr_0.82fr] gap-16 py-24 text-beige100 max-[1199px]:grid-cols-1 max-[1199px]:gap-12 max-[809px]:py-20"
             >
-              <Reveal once className="max-w-[620px]">
+              <Reveal direction="left" className="max-w-[620px]">
                 <div className="inline-flex items-center rounded-full border border-white/10 bg-white/10 px-4 py-2 font-geist text-[13px] font-medium tracking-[-0.03em] text-white/70">
                   Search
                 </div>
-                <h2 className="mt-7 font-halant text-[40px] sm:text-[46px] md:text-[54px] lg:text-[64px] leading-[0.96] tracking-[-0.08em] text-beige100">
+                <h2
+                  className={`mt-7 text-beige100 font-halant text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.96] tracking-[-0.08em]`}
+                >
                   Perfect tool for finding AI/ML talents
                 </h2>
                 <p className="mt-7 max-w-[560px] font-geist text-[20px] leading-[1.58] tracking-[-0.03em] text-white/70 max-[809px]:text-[18px]">
@@ -815,15 +848,12 @@ const Beige = () => {
                 </div>
               </Reveal>
 
-              <Reveal once delay={0.08}>
+              <Reveal direction="right" delay={0.08}>
                 <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(196,168,255,0.18),transparent_24%),radial-gradient(circle_at_72%_22%,rgba(255,222,173,0.16),transparent_18%),linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] p-7 shadow-[0_26px_80px_rgba(0,0,0,0.28)]">
                   <div className="absolute inset-0 bg-[linear-gradient(135deg,transparent_0%,rgba(255,255,255,0.04)_100%)]" />
                   <div className="relative">
-                    <div className="rounded-[22px] border border-white/10 bg-black/40 p-5 backdrop-blur-xl">
-                      <div className="font-geist text-[12px] uppercase tracking-[0.24em] text-white/40">
-                        Search
-                      </div>
-                      <div className="mt-4 max-w-[28rem] font-geist text-lg leading-[1.55] tracking-[-0.03em] text-white/90">
+                    <div className="rounded-[22px]">
+                      <div className="max-w-[28rem] font-geist text-lg leading-[1.55] tracking-[-0.03em] text-white/90">
                         Find multimodal ML engineers who shipped production
                         systems and also published or contributed meaningful
                         research work.
@@ -850,11 +880,59 @@ const Beige = () => {
                       ))}
                     </div>
 
+                    <ContributionGrid
+                      className="mt-4"
+                      monthsToShow={6}
+                      minCellSize={10}
+                      labelColumnWidth={36}
+                      showWeekLabels={false}
+                      rowsToShow={5}
+                    />
+                    {/* Table */}
+                    <div className="mt-6 text-left">
+                      <div className="grid grid-cols-[1fr_30px_30px] bg-neutral-900 text-xs font-medium px-2 py-1 text-neutral-300">
+                        <div>제목</div>
+                        <div className="text-left">인용</div>
+                        <div className="text-right pr-2">연도</div>
+                      </div>
+                      <div className="divide-y divide-neutral-800">
+                        {papers.map((paper, i) => (
+                          <div
+                            key={i}
+                            className="relative grid grid-cols-[1fr_30px_30px] gap-4 px-2 py-2"
+                          >
+                            <div>
+                              <p className="text-blue-400 hover:underline text-sm font-light leading-4">
+                                {paper.title}
+                              </p>
+                              <p className="text-sm text-neutral-400 mt-0.5">
+                                {paper.authors}
+                              </p>
+                              <p className="text-sm text-neutral-400">
+                                {paper.journal}
+                              </p>
+                            </div>
+
+                            <div className="flex items-start justify-end text-right text-xs text-neutral-400">
+                              {paper.citations}
+                            </div>
+                            <div className="flex items-start justify-end text-right text-xs text-neutral-400">
+                              {paper.year}
+                            </div>
+
+                            {paper.is_featured && (
+                              <div className="absolute bottom-2 right-1 rounded-full px-2 py-1 bg-blue-500 text-[10px]">
+                                Most relevant paper
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                     <div className="mt-4 space-y-3">
                       {[
                         "GitHub contribution evidence",
                         "Research publication footprint",
-                        "Technical project & systems history",
                       ].map((item, index) => (
                         <motion.div
                           key={item}
@@ -881,10 +959,13 @@ const Beige = () => {
               </Reveal>
             </FullBleedSection>
 
-            <section className="mx-auto w-full max-w-[860px] text-center">
+            <FullBleedSection
+              backgroundClassName="bg-beige100"
+              contentClassName="mx-auto w-full max-w-[860px] text-center py-24"
+            >
               <Reveal once>
                 <SectionTag>FAQ</SectionTag>
-                <h2 className="mt-7 font-halant text-[40px] sm:text-[46px] md:text-[54px] lg:text-[64px] leading-[0.98] tracking-[-0.08em] text-beige900">
+                <h2 className={`mt-7 ${titleTextClassName}`}>
                   We put <span className="text-beige900/40">transparency</span>{" "}
                   first
                 </h2>
@@ -908,7 +989,7 @@ const Beige = () => {
                           <div className="text-[20px] font-medium leading-[1.24] tracking-[-0.04em] text-beige900 max-[809px]:text-[20px]">
                             {faq.question}
                           </div>
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-beige900/10 bg-beige100/70">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
                             {isOpen ? (
                               <Minus className="h-5 w-5 text-beige900/60" />
                             ) : (
@@ -943,20 +1024,23 @@ const Beige = () => {
                   );
                 })}
               </div>
-            </section>
+            </FullBleedSection>
           </main>
 
-          <footer className="bg-beige500/30">
-            <div className="mx-auto flex max-w-[1160px] flex-col items-center px-4 pb-16 pt-24 text-center max-[809px]:pt-20">
+          <footer className="bg-beige500/350">
+            <div className="mx-auto flex max-w-[1160px] flex-col items-center px-4 pb-16 pt-24 text-center max-[809px]:pt-16">
               <Reveal>
-                <h2 className="font-halant text-[40px] sm:text-[48px] md:text-[58px] lg:text-[68px] leading-[0.97] tracking-[-0.08em] text-beige900">
+                <h2 className="font-halant text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.97] tracking-[-0.08em] text-beige900">
                   Harper
                 </h2>
                 <p className="mt-4 text-[22px] leading-[1.45] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
                   Fill roles in days, not months
                 </p>
                 <div className="mt-10">
-                  <CalendlyButton label="Get Started Now" />
+                  <CalendlyButton
+                    label="Get Started Now"
+                    className="text-lg font-medium"
+                  />
                 </div>
               </Reveal>
               <div className="mt-20 h-px w-full max-w-[740px] bg-beige900/10" />

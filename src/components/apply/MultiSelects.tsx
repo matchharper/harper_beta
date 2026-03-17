@@ -8,19 +8,29 @@ const MultiSelects = ({
   setIsDirty,
   options,
   showOptionNumbers = false,
+  otherOptionLabel = "기타",
+  otherPlaceholder = "직접 입력해 주세요",
 }: {
   selects: string[];
   setSelects: (selects: string[]) => void;
   setIsDirty: (isDirty: boolean) => void;
   options: string[];
   showOptionNumbers?: boolean;
+  otherOptionLabel?: string;
+  otherPlaceholder?: string;
 }) => {
   const handleSelect = (option: string) => {
     if (selects.includes(option)) {
-      const newSelects = selects.filter((select) => select !== option);
+      const newSelects =
+        option === otherOptionLabel
+          ? selects.filter((_, index) => {
+              const otherIndex = selects.indexOf(otherOptionLabel);
+              return index !== otherIndex && index !== otherIndex + 1;
+            })
+          : selects.filter((select) => select !== option);
       setSelects(newSelects);
     } else {
-      if (option === "기타") {
+      if (option === otherOptionLabel) {
         setSelects([...selects, option, ""]);
       } else {
         setSelects([option, ...selects]);
@@ -60,13 +70,13 @@ const MultiSelects = ({
         </div>
       ))}
 
-      {selects.includes("기타") && (
+      {selects.includes(otherOptionLabel) && (
         <input
           type="text"
           value={selects[selects.length - 1]}
           onChange={handleOtherChange}
           onClick={(e) => e.stopPropagation()} // 클릭해도 카드 토글 안 되게
-          placeholder="직접 입력해 주세요"
+          placeholder={otherPlaceholder}
           className="transition-colors duration-200 mt-2 focus:border-b focus:border-brightnavy w-full px-0.5 py-2 border-b border-xgray400 text-base font-normal leading-5 focus:outline-none outline-none"
         />
       )}

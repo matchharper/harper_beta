@@ -27,7 +27,7 @@ const Footer = ({
   };
 
   return (
-    <div className="w-full flex flex-col md:flex-row items-start md:items-stretch justify-between border-t border-white/20 py-10 md:py-8 md:px-8 mx-auto px-4 gap-6 md:gap-0 bg-black text-hblack000">
+    <div className="mx-auto flex w-full flex-col items-start justify-between gap-8 border-t border-white/20 bg-black px-4 py-10 text-hblack000 md:flex-row md:items-stretch md:gap-0 md:px-8 md:py-8">
       <div className="flex flex-1 flex-col items-start justify-start gap-4 md:gap-6">
         <div className="text-left text-3xl font-semibold font-garamond">
           Harper
@@ -35,7 +35,7 @@ const Footer = ({
         <div className="text-[13px] text-hgray700">
           Harper <span className="ml-1">© 2026</span>
         </div>
-        <div className="text-[13px] text-hgray700 flex flex-row items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 text-[13px] text-hgray700">
           <div>Are you looking for talent?</div>
           <div
             onClick={() =>
@@ -48,7 +48,7 @@ const Footer = ({
             Start Now
           </div>
         </div>
-        <div className="text-[13px] text-hgray700 flex flex-row items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1 text-[13px] text-hgray700">
           <Link
             href="/terms"
             className="cursor-pointer hover:text-white/90 text-white/80"
@@ -76,11 +76,11 @@ const Footer = ({
           </div>
         </div>
       </div>
-      <div className="flex flex-1 flex-row items-end justify-end gap-8 w-full mt-12 md:mt-0">
-        <div className="flex flex-1 flex-col items-end justify-between gap-4 self-stretch">
-          <div className="flex flex-row md:flex-col text-xs md:text-sm items-start md:items-end justify-between md:justify-start gap-2 w-full">
+      <div className="mt-4 flex w-full flex-1 flex-row items-start justify-start gap-8 md:mt-0 md:items-end md:justify-end">
+        <div className="flex flex-1 flex-col items-start justify-between gap-4 self-stretch md:items-end">
+          <div className="flex w-full flex-col items-start justify-start gap-3 text-xs md:items-end md:text-sm">
             <div className="text-white mb-2">About us</div>
-            <div className="flex flex-col items-end justify-start gap-2">
+            <div className="flex flex-col items-start justify-start gap-2 md:items-end">
               <div
                 onClick={handleContactUs}
                 className="cursor-pointer hover:text-white/90 text-white/80"
