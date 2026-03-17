@@ -576,6 +576,7 @@ const CandidatePage = () => {
             onClose={handleCloseLoginModal}
             onGoogle={login}
             onConfirm={customLogin}
+            language={locale}
           />
         )}
         <LandingHeader

@@ -6,6 +6,7 @@ import CandidateGithubCardDark from "@/components/landing/Rad";
 import ScholarProfile from "@/components/landing/ScholarProfile";
 import { DropdownMenu } from "@/components/ui/menu";
 import { useMessages } from "@/i18n/useMessage";
+import { en } from "@/lang/en";
 import { supabase } from "@/lib/supabase";
 import {
   ArrowUp,
@@ -32,8 +33,15 @@ import React, {
 } from "react";
 import CompareSection from "@/components/landing/Compare";
 import PricingSection from "@/components/landing/PricingScholar";
+import { FallingTagsMl } from "@/components/landing/FallingTagsML";
+import { OrbitIconsSmall } from "@/components/landing/Orbit";
 
 const LoginModal = dynamic(() => import("@/components/Modal/LoginModal"));
+const RADAR_LOGIN_MODAL_LANGUAGE = "en" as const;
+const RADAR_LOGIN_MODAL_COPY = {
+  sessionExpired: "Your login session has expired. Please sign in again.",
+  bootstrapFailed: "Failed to initialize your account. Please try again.",
+};
 
 const START_BUTTON_LABEL = "Try for Free";
 const PLACEHOLDER_SWITCH_MS = 2800;
@@ -47,7 +55,7 @@ const HERO_DOT_BACKGROUND_STYLE = {
   backgroundSize: "20px 20px",
 };
 
-type RadarSection = "intro" | "signals" | "outputs" | "coverage";
+type RadarSection = "intro" | "signals" | "outputs" | "coverage" | "pricing";
 
 type OutputItem = {
   key: string;
@@ -115,28 +123,6 @@ const outputItems: OutputItem[] = [
 
 const heroPlaceholderTexts = outputItems.map((item) => item.queryPlaceholder);
 
-const readingSignals: Array<{
-  icon: LucideIcon;
-  title: string;
-  body: string;
-}> = [
-  {
-    icon: Github,
-    title: "GitHub",
-    body: "PRs, repos, languages, release cadence, and real contribution depth.",
-  },
-  {
-    icon: FolderOpen,
-    title: "Shipped work",
-    body: "Projects, infra, datasets, tools, and signs of ownership.",
-  },
-  {
-    icon: BookOpen,
-    title: "Scholar",
-    body: "Papers, venues, citations, co-authors, and research direction.",
-  },
-];
-
 const coverageStats: Array<{
   icon: LucideIcon;
   value: string;
@@ -165,9 +151,9 @@ const coverageStats: Array<{
 
 const navItems = [
   { label: "Intro", section: "intro" as const },
-  { label: "Signals", section: "signals" as const },
-  { label: "Outputs", section: "outputs" as const },
   { label: "Coverage", section: "coverage" as const },
+  { label: "Outputs", section: "outputs" as const },
+  { label: "Pricing", section: "pricing" as const },
 ];
 
 function NavItem({
@@ -224,38 +210,6 @@ const StartButton = React.memo(function StartButton({
   );
 });
 
-function SectionEyebrow({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70">
-      {children}
-    </div>
-  );
-}
-
-function ReadingCard({
-  icon: Icon,
-  title,
-  body,
-}: {
-  icon: LucideIcon;
-  title: string;
-  body: string;
-}) {
-  return (
-    <div className="w-full rounded-2xl border border-white/10 bg-white/5 px-6 py-6 text-left md:px-7 md:py-7">
-      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/5">
-        <Icon className="h-5 w-5 text-white/80" />
-      </div>
-      <div className="mt-5 text-[18px] font-medium text-white/90 md:text-[20px]">
-        {title}
-      </div>
-      <div className="mt-3 text-[14px] leading-6 text-hgray700 md:text-[15px]">
-        {body}
-      </div>
-    </div>
-  );
-}
-
 function CoverageCard({
   icon: Icon,
   value,
@@ -305,11 +259,6 @@ function SearchInputPanel({
     placeholderOptions[placeholderIdx % placeholderOptions.length] ??
     placeholderOptions[0] ??
     "";
-
-  const incomingPlaceholder =
-    placeholderOptions[
-      (nextPlaceholderIdx ?? placeholderIdx + 1) % placeholderOptions.length
-    ] ?? activePlaceholder;
 
   useEffect(() => {
     if (placeholderOptions.length === 0) return;
@@ -469,12 +418,12 @@ function RadarHeader({ onStartClick }: { onStartClick: () => void }) {
             buttonLabel={<Menu className="h-4 w-4" />}
             items={[
               { label: "Intro", onClick: () => navigateToSection("intro") },
-              { label: "Signals", onClick: () => navigateToSection("signals") },
-              { label: "Outputs", onClick: () => navigateToSection("outputs") },
               {
                 label: "Coverage",
                 onClick: () => navigateToSection("coverage"),
               },
+              { label: "Outputs", onClick: () => navigateToSection("outputs") },
+              { label: "Pricing", onClick: () => navigateToSection("pricing") },
             ]}
           />
         </div>
@@ -537,72 +486,68 @@ export default function RadarLandingPage() {
     return data;
   }, []);
 
-  const customLogin = useCallback(
-    async (email: string, password: string) => {
-      try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password,
-        });
+  const customLogin = useCallback(async (email: string, password: string) => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
 
-        if (error) {
-          return { message: error.message };
-        }
-
-        const user = data.user;
-        if (!user) {
-          return { message: m.auth.invalidAccount };
-        }
-
-        const isEmailConfirmed = Boolean(
-          user.email_confirmed_at || user.user_metadata?.email_verified
-        );
-
-        if (!isEmailConfirmed) {
-          return { message: m.auth.emailConfirmationSent };
-        }
-
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        const accessToken = session?.access_token;
-
-        if (!accessToken) {
-          return {
-            message: "로그인 세션이 만료되었습니다. 다시 로그인해 주세요.",
-          };
-        }
-
-        const bootstrapRes = await fetch("/api/auth/bootstrap", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-        });
-
-        if (!bootstrapRes.ok) {
-          const bootstrapJson = await bootstrapRes.json().catch(() => ({}));
-          return {
-            message:
-              bootstrapJson?.error ??
-              "계정 초기화에 실패했습니다. 다시 시도해 주세요.",
-          };
-        }
-
-        setIsOpenLoginModal(false);
-        router.push("/invitation");
-        return null;
-      } catch (error) {
-        if (error instanceof Error && error.message) {
-          return { message: error.message };
-        }
-        return { message: m.auth.invalidAccount };
+      if (error) {
+        return { message: error.message };
       }
-    },
-    [m.auth.emailConfirmationSent, m.auth.invalidAccount]
-  );
+
+      const user = data.user;
+      if (!user) {
+        return { message: en.auth.invalidAccount };
+      }
+
+      const isEmailConfirmed = Boolean(
+        user.email_confirmed_at || user.user_metadata?.email_verified
+      );
+
+      if (!isEmailConfirmed) {
+        return { message: en.auth.emailConfirmationSent };
+      }
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const accessToken = session?.access_token;
+
+      if (!accessToken) {
+        return {
+          message: RADAR_LOGIN_MODAL_COPY.sessionExpired,
+        };
+      }
+
+      const bootstrapRes = await fetch("/api/auth/bootstrap", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!bootstrapRes.ok) {
+        const bootstrapJson = await bootstrapRes.json().catch(() => ({}));
+        return {
+          message:
+            bootstrapJson?.error ?? RADAR_LOGIN_MODAL_COPY.bootstrapFailed,
+        };
+      }
+
+      setIsOpenLoginModal(false);
+      router.push("/invitation");
+      return null;
+    } catch (error) {
+      if (error instanceof Error && error.message) {
+        return { message: error.message };
+      }
+      return { message: en.auth.invalidAccount };
+    }
+  }, []);
 
   return (
     <>
@@ -621,6 +566,7 @@ export default function RadarLandingPage() {
             onClose={handleCloseLoginModal}
             onGoogle={login}
             onConfirm={customLogin}
+            language={RADAR_LOGIN_MODAL_LANGUAGE}
           />
         )}
 
@@ -628,9 +574,9 @@ export default function RadarLandingPage() {
 
         <nav className="sr-only" aria-label="Radar section links">
           <a href="#intro">Intro</a>
-          <a href="#signals">Signals</a>
-          <a href="#outputs">Outputs</a>
           <a href="#coverage">Coverage</a>
+          <a href="#outputs">Outputs</a>
+          <a href="#pricing">Pricing</a>
         </nav>
 
         <section
@@ -674,6 +620,15 @@ export default function RadarLandingPage() {
           </div>
         </section>
 
+        {/* <div className="h-20 md:h-28" />
+        <Animate>
+          <BaseSectionLayout>
+            <div className="flex flex-col md:flex-row mt-12 gap-8 w-full">
+              <WhyImageSection title="" desc="" imageSrc="drops" />
+              <WhyImageSection title="" desc="" imageSrc="orbit" />
+            </div>
+          </BaseSectionLayout>
+        </Animate> */}
         <div id="coverage" className="h-20 md:h-28" />
         <Animate>
           <BaseSectionLayout>
@@ -714,7 +669,7 @@ export default function RadarLandingPage() {
         <div className="h-24 md:h-48" />
         <CompareSection />
 
-        <div className="h-28 md:h-40" />
+        <div id="pricing" className="h-28 md:h-40" />
         <PricingSection onClick={handleStart} />
         <div className="h-28 md:h-40" />
 
@@ -759,7 +714,7 @@ export default function RadarLandingPage() {
             <PixelBackground count={380} className="absolute inset-0" />
             <div className="absolute left-0 top-0 h-[50%] w-full bg-gradient-to-t from-transparent to-black" />
 
-            <div className="relative z-10 mx-auto flex w-full max-w-[1000px] flex-col items-center justify-center px-4 py-24 text-white md:py-36">
+            <div className="relative z-10 mx-auto flex w-full max-w-[1000px] flex-col items-center justify-center px-4 py-24 text-white md:py-36 md:pb-48">
               <h2 className="mt-7 text-center text-3xl font-medium leading-[1.15] text-white/95 md:text-4xl">
                 Repos and Papers
                 <br />
@@ -772,6 +727,9 @@ export default function RadarLandingPage() {
               </p>
 
               <StartButton onClick={handleStart} label={START_BUTTON_LABEL} />
+              <div className="mt-32 w-full">
+                <FallingTagsMl theme="dark" startDelay={800} />
+              </div>
             </div>
           </section>
         </Animate>
@@ -820,6 +778,62 @@ function PixelBackground({
           }}
         />
       ))}
+    </div>
+  );
+}
+
+function WhyImageSection({
+  title,
+  desc,
+  imageSrc,
+}: {
+  title: string;
+  desc: string;
+  imageSrc: string;
+}) {
+  const imgReturn = () => {
+    if (imageSrc === "drops") {
+      return (
+        <div className="h-[300px] md:h-[380px] relative w-full flex justify-center items-center rounded-2xl bg-gradpastel2 overflow-hidden">
+          <div className="mr-8 w-full">
+            <FallingTagsMl theme="dark" startDelay={800} />
+          </div>
+        </div>
+      );
+    }
+
+    if (imageSrc === "orbit") {
+      return (
+        <div className="h-[300px] md:h-[380px] relative w-full flex justify-center items-center rounded-2xl bg-gradpastel2 overflow-hidden">
+          <OrbitIconsSmall />
+        </div>
+      );
+    }
+    return (
+      <div className="h-[200px] md:h-[280px] relative w-full flex justify-end items-end rounded-2xl bg-gradpastel2 overflow-hidden">
+        <Image
+          src={imageSrc}
+          alt={title}
+          width={400}
+          height={320}
+          className="max-w-[90%]"
+        />
+      </div>
+    );
+  };
+  return (
+    <div className="flex flex-col w-full items-center justify-center md:items-start md:justify-start max-w-full gap-8 px-5 md:px-0">
+      {imgReturn()}
+      <div className="flex flex-col items-start justify-start w-full gap-4 text-left">
+        <h3
+          className="text-[26px] md:text-3xl font-normal leading-[2.2rem] md:leading-[2.5rem]"
+          dangerouslySetInnerHTML={{ __html: title }}
+        />
+        <div
+          className="text-sm md:text-base leading-6 font-light text-hgray700"
+          dangerouslySetInnerHTML={{ __html: desc }}
+        />
+      </div>
     </div>
   );
 }

@@ -1,5 +1,7 @@
 import React, { useState } from "react";
-import { useMessages } from "@/i18n/useMessage";
+import type { Locale } from "@/i18n/useMessage";
+import { en } from "@/lang/en";
+import { ko } from "@/lang/ko";
 import { supabase } from "@/lib/supabase";
 
 type LoginResult = { message?: string } | null;
@@ -8,12 +10,68 @@ interface LoginModalProps {
   open: boolean;
   onClose: () => void;
   onConfirm: (email: string, password: string) => Promise<LoginResult>;
+  language?: Locale;
 
-  // (optional) 소셜 로그인 핸들러가 있으면 넘겨서 사용
   onGoogle?: () => void;
   onForgotPassword?: (email?: string) => void;
   onSignUp?: () => void;
 }
+
+const LOGIN_MODAL_MESSAGES = {
+  ko,
+  en,
+} as const;
+
+const LOGIN_MODAL_COPY: Record<
+  Locale,
+  {
+    closeAria: string;
+    divider: string;
+    emailLabel: string;
+    passwordLabel: string;
+    forgotPassword: string;
+    emailRequired: string;
+    passwordRequired: string;
+    passwordMismatch: string;
+    resetPasswordNeedsEmail: string;
+    resetPasswordSent: string;
+    noAccount: string;
+    hasAccount: string;
+  }
+> = {
+  ko: {
+    closeAria: "닫기",
+    divider: "또는",
+    emailLabel: "이메일",
+    passwordLabel: "비밀번호",
+    forgotPassword: "비밀번호 재설정",
+    emailRequired: "이메일을 입력해주세요.",
+    passwordRequired: "비밀번호를 입력해주세요.",
+    passwordMismatch: "비밀번호가 일치하지 않습니다.",
+    resetPasswordNeedsEmail:
+      "비밀번호 재설정을 위해 이메일을 먼저 입력해 주세요.",
+    resetPasswordSent:
+      "비밀번호 재설정 메일을 보냈습니다. 메일의 링크를 열어 새 비밀번호를 설정해 주세요.",
+    noAccount: "계정이 없으신가요?",
+    hasAccount: "이미 계정이 있으신가요?",
+  },
+  en: {
+    closeAria: "Close",
+    divider: "OR",
+    emailLabel: "Email",
+    passwordLabel: "Password",
+    forgotPassword: "Reset password",
+    emailRequired: "Please enter your email.",
+    passwordRequired: "Please enter your password.",
+    passwordMismatch: "Passwords do not match.",
+    resetPasswordNeedsEmail:
+      "Enter your email first to reset your password.",
+    resetPasswordSent:
+      "We've sent a password reset email. Open the link in the email to set a new password.",
+    noAccount: "Don't have an account?",
+    hasAccount: "Already have an account?",
+  },
+};
 
 const GoogleIcon = () => (
   <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
@@ -41,8 +99,10 @@ const LoginModal = ({
   onClose,
   onConfirm,
   onGoogle,
+  language = "ko",
 }: LoginModalProps) => {
-  const { m } = useMessages();
+  const messages = LOGIN_MODAL_MESSAGES[language];
+  const copy = LOGIN_MODAL_COPY[language];
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -79,15 +139,15 @@ const LoginModal = ({
 
     const normalizedEmail = email.trim();
     if (!normalizedEmail) {
-      setError("이메일을 입력해주세요.");
+      setError(copy.emailRequired);
       return;
     }
     if (!password) {
-      setError("비밀번호를 입력해주세요.");
+      setError(copy.passwordRequired);
       return;
     }
     if (isSignUp && password !== confirmPassword) {
-      setError("비밀번호가 일치하지 않습니다.");
+      setError(copy.passwordMismatch);
       return;
     }
 
@@ -123,7 +183,7 @@ const LoginModal = ({
   const handleForgotPassword = async () => {
     const normalizedEmail = email.trim();
     if (!normalizedEmail) {
-      setError("비밀번호 재설정을 위해 이메일을 먼저 입력해 주세요.");
+      setError(copy.resetPasswordNeedsEmail);
       return;
     }
 
@@ -149,9 +209,7 @@ const LoginModal = ({
       return;
     }
 
-    setInfo(
-      "비밀번호 재설정 메일을 보냈습니다. 메일의 링크를 열어 새 비밀번호를 설정해 주세요."
-    );
+    setInfo(copy.resetPasswordSent);
   };
 
   const signUpWithEmailPassword = async (
@@ -206,7 +264,7 @@ const LoginModal = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 w-full">
       <button
         type="button"
-        aria-label="Close"
+        aria-label={copy.closeAria}
         className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
         onClick={onClose}
       />
@@ -216,20 +274,20 @@ const LoginModal = ({
           <div className="flex flex-col items-start justify-start mb-6">
             <img src="/svgs/logo.svg" alt="logo" className="w-10 h-10 mb-6" />
             <div className="text-3xl font-bold tracking-tight text-hgray700">
-              {isSignUp ? m.auth.signup : m.auth.login}
+              {isSignUp ? messages.auth.signup : messages.auth.login}
             </div>
           </div>
 
           {needsEmailConfirmation ? (
             <div className="flex flex-col items-start justify-center">
               <div className="text-base text-hgray900 my-4">
-                {m.auth.emailConfirmationSent}
+                {messages.auth.emailConfirmationSent}
               </div>
               <div
                 className="cursor-pointer text-base text-hgray600 hover:text-hgray700 hover:underline transition w-full text-left mb-6"
                 onClick={onClose}
               >
-                {m.system.close}
+                {messages.system.close}
               </div>
             </div>
           ) : (
@@ -244,7 +302,7 @@ const LoginModal = ({
                 >
                   <GoogleIcon />
                   <span className="font-medium">
-                    {m.auth.continueWithGoogle}
+                    {messages.auth.continueWithGoogle}
                   </span>
                 </button>
               </div>
@@ -252,7 +310,7 @@ const LoginModal = ({
               <div className="mt-6 mb-2 flex items-center gap-4">
                 <div className="h-px flex-1 bg-hgray500" />
                 <div className="text-xs font-normal tracking-widest text-hgray500">
-                  OR
+                  {copy.divider}
                 </div>
                 <div className="h-px flex-1 bg-hgray500" />
               </div>
@@ -261,7 +319,7 @@ const LoginModal = ({
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-white">
-                    이메일
+                    {copy.emailLabel}
                   </label>
                   <input
                     value={email}
@@ -277,7 +335,7 @@ const LoginModal = ({
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
                     <label className="text-sm font-medium text-white">
-                      비밀번호
+                      {copy.passwordLabel}
                     </label>
                     {!isSignUp && (
                       <button
@@ -286,7 +344,7 @@ const LoginModal = ({
                         disabled={isSubmitting}
                         className="text-xs text-hgray700 underline underline-offset-2 hover:text-white disabled:opacity-60"
                       >
-                        비밀번호 재설정
+                        {copy.forgotPassword}
                       </button>
                     )}
                   </div>
@@ -305,7 +363,7 @@ const LoginModal = ({
                 {isSignUp && (
                   <div className="space-y-1">
                     <label className="text-sm font-medium text-white">
-                      {m.auth.confirmPassword}
+                      {messages.auth.confirmPassword}
                     </label>
 
                     <input
@@ -331,33 +389,33 @@ const LoginModal = ({
                   disabled={isSubmitting}
                   className="w-full py-2.5 text-sm rounded-md bg-accenta1 text-black font-medium hover:bg-accenta2 transition duration-300 mt-6 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {isSignUp ? "Sign up" : "Login"}
+                  {isSignUp ? messages.auth.signup : messages.auth.login}
                 </button>
               </form>
 
               {isSignUp ? (
                 <>
                   <div className="pt-1 text-center text-sm font-light text-hgray700 mt-2">
-                    Already have an account?{" "}
+                    {copy.hasAccount}{" "}
                     <button
                       type="button"
                       onClick={switchToLogin}
                       className="transition underline underline-offset-4 font-normal hover:text-white"
                     >
-                      Login
+                      {messages.auth.login}
                     </button>
                   </div>
                 </>
               ) : (
                 <>
                   <div className="pt-1 text-center text-sm font-light text-hgray700 mt-2">
-                    계정이 없으신가요?{" "}
+                    {copy.noAccount}{" "}
                     <button
                       type="button"
                       onClick={switchToSignUp}
                       className="transition underline underline-offset-4 font-normal hover:text-white"
                     >
-                      Sign up
+                      {messages.auth.signup}
                     </button>
                   </div>
                 </>
@@ -370,4 +428,4 @@ const LoginModal = ({
   );
 };
 
-export default LoginModal;
+export default React.memo(LoginModal);
