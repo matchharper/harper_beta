@@ -69,7 +69,12 @@ const Onboard: React.FC = () => {
   const rolesOptions = Array.from(m.join.roles.options);
   const sizeOptions = Array.from(m.join.sizes);
   const isRecruiter = useMemo(
-    () => roles.some((role) => recruiterRoleAliases.includes(role)),
+    () =>
+      roles.some((role) =>
+        recruiterRoleAliases.includes(
+          role as "전문 Recruiter" | "Professional Recruiter"
+        )
+      ),
     [recruiterRoleAliases, roles]
   );
 
