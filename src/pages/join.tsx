@@ -180,7 +180,7 @@ const Onboard: React.FC = () => {
 
       return true;
     },
-    [currentStep?.key, name, email, company, companyLink, size, toast, m]
+    [currentStep?.key, name, email, company, size, toast, m]
   );
 
   const saveIfDirty = useCallback(async () => {
@@ -215,6 +215,7 @@ const Onboard: React.FC = () => {
     size,
     needs,
     additional,
+    isMobile,
   ]);
 
   const goNext = useCallback(
@@ -274,7 +275,22 @@ const Onboard: React.FC = () => {
 
       setStep((prev) => Math.min(prev + 1, visibleSteps.length));
     },
-    [saveIfDirty, step, validateStep, visibleSteps.length]
+    [
+      additional,
+      company,
+      companyLink,
+      email,
+      isMobile,
+      isRecruiter,
+      name,
+      needs,
+      roles,
+      saveIfDirty,
+      size,
+      step,
+      validateStep,
+      visibleSteps.length,
+    ]
   );
 
   const goPrev = useCallback(() => {

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { LoaderCircle } from "lucide-react";
 import GradientBackground from "@/components/landing/GradientBackground";
@@ -44,15 +44,18 @@ export default function LoginSuccess() {
   const { companyUser, load } = useCompanyUserStore();
   const isNameStep = step === "name";
 
-  const addLog = async (type: string) => {
-    const body = {
-      local_id: landingId,
-      type: type,
-      is_mobile: isMobile,
-      country_lang: countryLang,
-    };
-    await supabase.from("landing_logs").insert(body);
-  };
+  const addLog = useCallback(
+    async (type: string) => {
+      const body = {
+        local_id: landingId,
+        type,
+        is_mobile: isMobile,
+        country_lang: countryLang,
+      };
+      await supabase.from("landing_logs").insert(body);
+    },
+    [countryLang, isMobile, landingId]
+  );
 
   useEffect(() => {
     const localId = localStorage.getItem("harper_landing_id_0209");
@@ -66,7 +69,7 @@ export default function LoginSuccess() {
     hasLoggedEnterRef.current = true;
     const emailSuffix = companyUser?.email ? `:${companyUser.email}` : "";
     addLog(`invitation_enter_${emailSuffix}`);
-  }, [landingId]);
+  }, [addLog, companyUser?.email, landingId]);
 
   // useEffect(() => {
   //   const excludedEmails = new Set([
@@ -100,7 +103,13 @@ export default function LoginSuccess() {
       addLog(`enter_my_page_${emailSuffix}`);
       router.push("/my");
     }
-  }, [landingId, companyUser]);
+  }, [
+    addLog,
+    companyUser?.email,
+    companyUser?.is_authenticated,
+    landingId,
+    router,
+  ]);
 
   useEffect(() => {
     if (isShake) {

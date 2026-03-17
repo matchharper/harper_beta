@@ -90,7 +90,7 @@ export default function CompareSection() {
               </div>
 
               <div className="mt-6 overflow-hidden rounded-2xl border border-[#B4FF78]/15 bg-[#0B0E0A]">
-                <div className="border-b border-[#B4FF78]/10 px-4 py-3">
+                <div className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <div className="h-2 w-2 rounded-full bg-[#B4FF78]" />
                     <div className="text-xs text-white/60">Recent activity</div>

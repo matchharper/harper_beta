@@ -596,26 +596,26 @@ export default function RadarLandingPage() {
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(180,255,120,0.12),transparent_34%)]" />
           </div>
 
-          <Reveal delay={0.08}>
-            <div className="relative z-10 mx-auto mt-10 flex w-full max-w-[980px] flex-col items-center text-center md:mt-12">
-              <h1 className="mt-6 max-w-[920px] text-3xl font-medium leading-[1.08] tracking-[-0.03em] md:text-5xl">
-                Find real engineers and researchers.
+          <Reveal delay={0.08} className="w-full max-w-[980px]">
+            <div className="relative z-10 mx-auto mt-10 flex w-full flex-col items-center text-center md:mt-12">
+              <h1 className="mt-6 max-w-[920px] text-3xl font-medium leading-relaxed tracking-[-0.03em] md:text-5xl">
+                <span className="block">Find who actually</span>
+                <span className="block mt-3.5">builds and publishes.</span>
               </h1>
 
-              <p className="mt-5 max-w-[700px] text-[15px] font-light leading-7 text-hgray700 md:text-[20px] md:leading-8">
-                Search by GitHub profiles, shipped projects, and Publications
+              <p className="mt-6 max-w-[700px] text-[15px] font-light leading-7 text-hgray700 md:text-[20px] md:leading-8">
+                Search by GitHub, shipped projects, and Publications
+                <br />
                 not by polished profiles.
               </p>
 
-              <div className="mt-12 w-full max-w-[920px] md:mt-16">
-                <div className="overflow-hidden rounded-[30px] bg-gradpastel2 p-[1px] shadow-[0_40px_120px_rgba(0,0,0,0.38)]">
-                  <div className="rounded-[29px] p-2 md:p-4">
-                    <SearchInputPanel
-                      query={query}
-                      onQueryChange={setQuery}
-                      onSubmit={handleSearchSubmit}
-                    />
-                  </div>
+              <div className="mt-12 w-full max-w-[820px] md:mt-16">
+                <div className="w-full overflow-hidden rounded-[30px] bg-gradpastel2 p-4 shadow-[0_40px_120px_rgba(0,0,0,0.38)]">
+                  <SearchInputPanel
+                    query={query}
+                    onQueryChange={setQuery}
+                    onSubmit={handleSearchSubmit}
+                  />
                 </div>
               </div>
 

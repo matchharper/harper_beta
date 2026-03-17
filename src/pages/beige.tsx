@@ -342,12 +342,12 @@ const ResultsPanel = () => (
       ].map((item) => (
         <div
           key={item.title}
-          className="rounded-[28px] bg-white/20 px-8 py-9 text-white backdrop-blur-md"
+          className="rounded-[28px] bg-white/20 px-9 py-9 text-white backdrop-blur-md"
         >
-          <div className="font-halant text-[36px] sm:text-[40px] md:text-[46px] lg:text-[52px] leading-[0.95] tracking-[-0.06em]">
+          <div className="font-halant text-4xl sm:text-5xl md:text-6xl leading-[0.95] tracking-[-0.06em]">
             {item.title}
           </div>
-          <p className="mt-6 max-w-[18rem] text-[18px] leading-[1.44] tracking-[-0.03em] text-white/90 max-[809px]:text-[16px]">
+          <p className="w-full mt-4 text-base md:text-lg leading-[1.44] tracking-[-0.03em] text-white/90">
             {item.copy}
           </p>
         </div>
@@ -511,8 +511,8 @@ const Beige = () => {
               <Reveal once delay={0.32} className="mt-14 w-full">
                 <div className="grid grid-cols-[160px_1fr] items-center gap-12 max-[1199px]:grid-cols-1 max-[1199px]:gap-8">
                   <p className="max-w-[132px] text-left font-geist text-[14px] leading-[1.55] tracking-[-0.02em] text-beige900/40">
-                    Trusted by top Companies like Corgi, Giga, Llamaindex,
-                    Mintlify, Porter and many others.
+                    Trusted by AI Companies like OptimizerAI, Pickle, Wonderful
+                    and many others.
                   </p>
                   <div className="flex items-center justify-between gap-8 max-[1199px]:flex-wrap max-[1199px]:justify-start">
                     {trustedCompanies.map((company, index) => (
@@ -745,7 +745,7 @@ const Beige = () => {
                         animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
                         exit={{ opacity: 0, y: -18, filter: "blur(10px)" }}
                         transition={{
-                          duration: 0.38,
+                          duration: 0.2,
                           ease: [0.22, 1, 0.36, 1],
                         }}
                         className="space-y-8"
@@ -772,15 +772,19 @@ const Beige = () => {
             </FullBleedSection>
 
             <section className="py-24">
-              <Reveal once className="text-center">
+              <Reveal once className="text-left">
                 <SectionTag>Our Results</SectionTag>
-                <h2 className={`mt-7 ${titleTextClassName}`}>
-                  Faster, Cheaper, Better
-                </h2>
-                <p className="mx-auto mt-6 max-w-[720px] text-[20px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
-                  Our recruiting system is built by ML scientists and prominent
-                  recruiting leaders.
-                </p>
+                <div className="mt-6 flex flex-row items-center justify-between w-full">
+                  <h2 className={`${titleTextClassName} text-left`}>
+                    Faster, Cheaper,{" "}
+                    <span className="text-beige900/50">Better</span>
+                  </h2>
+                  <p className="text-right text-[20px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
+                    Our recruiting system is built ML Scientists from
+                    <br />
+                    TikTok and Meta and prominent recruiting leaders.
+                  </p>
+                </div>
               </Reveal>
               <Reveal once delay={0.08} className="mt-12">
                 <ResultsPanel />
@@ -791,11 +795,12 @@ const Beige = () => {
               <Reveal once className="text-center">
                 <SectionTag>Why choose us</SectionTag>
                 <h2 className={`mt-7 ${titleTextClassName}`}>
-                  Recruiting in the{" "}
-                  <span className="text-beige900/40">AI age</span>
+                  Recruiting in the <span className="text-beige900/40">AI</span>{" "}
+                  age
                 </h2>
                 <p className="mx-auto mt-6 max-w-[640px] text-[20px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
                   We&apos;re your longterm recruiting partner with infinite
+                  <br />
                   memory and context.
                 </p>
               </Reveal>
@@ -908,7 +913,7 @@ const Beige = () => {
                               <p className="text-sm text-neutral-400 mt-0.5">
                                 {paper.authors}
                               </p>
-                              <p className="text-sm text-neutral-400">
+                              <p className="text-xs text-neutral-400">
                                 {paper.journal}
                               </p>
                             </div>
