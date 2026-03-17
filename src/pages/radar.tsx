@@ -668,7 +668,7 @@ export default function RadarLandingPage() {
             </div>
 
             <div className="mt-6 text-sm text-white/45">
-              We don{"'"}t connect or provide contact information.
+              We don&apos;t connect or provide contact information.
             </div>
             <div className="mt-6 text-white/80"></div>
           </div>
@@ -696,10 +696,12 @@ export default function RadarLandingPage() {
         <Animate>
           <BaseSectionLayout>
             <div className="flex w-full flex-col items-center justify-center px-4 text-center md:px-0">
-              <Head1 className="text-white">Who's actually Shipping?</Head1>
+              <Head1 className="text-white">
+                Who&apos;s actually Shipping?
+              </Head1>
               <h2 className="mt-8 mb-20 text-lg font-light text-white md:text-xl md:leading-[1.2]">
-                Harper's proprietary algorithm tracks commits, repos, and social
-                activity <br />
+                Harper&apos;s proprietary algorithm tracks commits, repos, and
+                social activity <br />
                 to reveal the actual developers pushing insane code.
               </h2>
 
