@@ -28,10 +28,10 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import CompareSection from "@/components/landing/Compare";
 import PricingSection from "@/components/landing/PricingScholar";
 import { FallingTagsMl } from "@/components/landing/FallingTagsML";
+import { OrbitIconsSmall } from "@/components/landing/Orbit";
 import Reveal from "@/components/landing/Animation/Reveal";
 
 const LoginModal = dynamic(() => import("@/components/Modal/LoginModal"));
-
 const RADAR_LOGIN_MODAL_LANGUAGE = "en" as const;
 const RADAR_LOGIN_MODAL_COPY = {
   sessionExpired: "Your login session has expired. Please sign in again.",
@@ -64,6 +64,7 @@ type OutputItem = {
   desc: string;
   stats: Array<{ label: string; value: string }>;
   queryPlaceholder: string;
+  avatars: string[];
   ctaLabel: string;
 };
 
@@ -71,41 +72,52 @@ const outputItems: OutputItem[] = [
   {
     key: "repo_signals",
     icon: <Github className="h-5 w-5 text-white/80" />,
-    title: "Repository analysis",
-    desc: "Explore commit history, maintenance patterns, ownership signals, and long-term project activity.",
+    title: "GitHub signals",
+    desc: "Find engineers through merged PRs, maintained repos, and real contribution history.",
     stats: [
-      { label: "Reads", value: "commits / repos / maintenance" },
-      { label: "Best for", value: "implementation history" },
+      { label: "Reads", value: "PRs / repos / ownership" },
+      { label: "Best for", value: "hidden builders" },
     ],
     queryPlaceholder:
-      "Open-source projects related to payment infrastructure, transaction workflows, and backend service reliability.",
-    ctaLabel: "Search repository activity ->",
+      "Backend engineer who has maintained production services and contributed meaningful PRs to well-known open-source repositories.",
+    avatars: ["/images/profiles/avatar7.png", "/images/profiles/avatar8.png"],
+    ctaLabel: "Search GitHub evidence ->",
   },
   {
     key: "project_signals",
     icon: <FolderOpen className="h-5 w-5 text-white/80" />,
-    title: "Project discovery",
-    desc: "Search for real systems, pipelines, datasets, tools, and technical work using natural language.",
+    title: "Shipped projects",
+    desc: "Search by what people actually built: pipelines, infra, datasets, tools, and systems.",
     stats: [
-      { label: "Reads", value: "systems / pipelines / datasets" },
-      { label: "Best for", value: "real-world implementations" },
+      { label: "Reads", value: "systems / datasets / delivery" },
+      { label: "Best for", value: "0→1 operators" },
     ],
     queryPlaceholder:
-      "Projects involving multimodal LLM dataset construction, filtering, deduplication, and evaluation tooling.",
-    ctaLabel: "Search real projects ->",
+      "Research engineer who built a large-scale multimodal dataset pipeline with data quality filtering, deduplication, and evaluation tooling.",
+    avatars: [
+      "/images/profiles/avatar11.png",
+      "/images/profiles/avatar5.png",
+      "/images/profiles/avatar6.png",
+    ],
+    ctaLabel: "Search shipped work ->",
   },
   {
     key: "publication_signals",
     icon: <BookOpen className="h-5 w-5 text-white/80" />,
-    title: "Papers and publications",
-    desc: "Explore papers, citations, venues, and research themes across fast-moving technical fields.",
+    title: "Scholar & papers",
+    desc: "Find researchers through paper history, venue quality, and technical focus before the market notices.",
     stats: [
-      { label: "Reads", value: "papers / citations / venues" },
-      { label: "Best for", value: "research exploration" },
+      { label: "Reads", value: "papers / venues / Scholar" },
+      { label: "Best for", value: "real research depth" },
     ],
     queryPlaceholder:
-      "Research papers on multimodal representation learning, dataset construction, and scalable training pipelines.",
-    ctaLabel: "Search publications ->",
+      "Vision or multimodal AI researcher with strong publication history in top venues and hands-on experience in representation learning.",
+    avatars: [
+      "/images/profiles/avatar1.png",
+      "/images/profiles/avatar2.png",
+      "/images/profiles/avatar3.png",
+    ],
+    ctaLabel: "Search research signals ->",
   },
 ];
 
@@ -119,17 +131,17 @@ const coverageStats: Array<{
   {
     icon: Github,
     value: "3M+",
-    label: "Open-source projects indexed",
+    label: "Projects tracked on Github",
   },
   {
     icon: GraduationCap,
     value: "7M+",
-    label: "Papers and publications",
+    label: "Paper / Publications",
   },
   {
     icon: Search,
     value: "10M+",
-    label: "Technical artifacts searchable",
+    label: "Projects and Publications",
   },
 ];
 
@@ -220,14 +232,14 @@ function CoverageCard({
   label: string;
 }) {
   return (
-    <div className="w-full rounded-2xl px-6 py-6 text-center">
-      <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-white/5">
+    <div className="w-full rounded-2xl text-center px-6 py-6">
+      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/5 mx-auto">
         <Icon className="h-5 w-5 text-white/80" />
       </div>
-      <div className="mt-6 text-5xl font-medium text-white md:text-6xl">
+      <div className="mt-6 text-5xl md:text-6xl font-medium text-white">
         {value}
       </div>
-      <div className="mt-6 text-lg font-light text-white/85 md:text-xl">
+      <div className="mt-6 text-lg md:text-xl font-light text-white/85">
         {label}
       </div>
     </div>
@@ -336,11 +348,12 @@ function SearchInputPanel({
               }
             }}
             placeholder=""
-            aria-label="Search repositories and papers"
+            aria-label="Search talent"
             rows={2}
             className={[
-              "min-h-[104px] w-full resize-none rounded-[20px] bg-transparent px-4 py-4 pr-16 text-sm leading-6 text-white/95 outline-none md:min-h-[96px] md:pr-20 md:text-[15px]",
-              "placeholder:text-transparent",
+              "w-full resize-none rounded-[20px] bg-transparent",
+              "min-h-[104px] px-4 py-4 pr-16 text-sm leading-6 text-white/95 md:min-h-[96px] md:text-[15px] md:pr-20",
+              "placeholder:text-transparent outline-none",
             ].join(" ")}
           />
         </div>
@@ -361,6 +374,8 @@ function SearchInputPanel({
           </button>
         </div>
       </div>
+
+      <div className="mt-4 text-left text-sm text-hgray700"></div>
     </form>
   );
 }
@@ -541,10 +556,10 @@ export default function RadarLandingPage() {
   return (
     <>
       <Head>
-        <title>Harper | Search Code and Research</title>
+        <title>Harper | Find Real Engineers and Researchers</title>
         <meta
           name="description"
-          content="Search repositories, projects, and papers with natural language. Explore technical work across GitHub and academic publications."
+          content="Find under-the-radar engineers and researchers through GitHub, shipped projects, papers, and Scholar signals."
         />
       </Head>
 
@@ -583,19 +598,15 @@ export default function RadarLandingPage() {
 
           <Reveal delay={0.08} className="w-full max-w-[980px]">
             <div className="relative z-10 mx-auto mt-10 flex w-full flex-col items-center text-center md:mt-12">
-              <h1 className="mt-6 max-w-[920px] text-3xl font-medium tracking-[-0.03em] md:text-5xl">
-                <span className="block leading-[1.15]">
-                  Search how things are
-                </span>
-                <span className="mt-3.5 block leading-[1.15]">
-                  built and published.
-                </span>
+              <h1 className="mt-6 max-w-[920px] text-3xl font-medium leading-relaxed tracking-[-0.03em] md:text-5xl">
+                <span className="block">Find who actually</span>
+                <span className="block mt-3.5">builds and publishes.</span>
               </h1>
 
-              <p className="mt-6 max-w-[760px] text-[15px] font-light leading-7 text-hgray700 md:text-[20px] md:leading-8">
-                Describe a technical problem in plain language
+              <p className="mt-6 max-w-[700px] text-[15px] font-light leading-7 text-hgray700 md:text-[20px] md:leading-8">
+                Search by GitHub, shipped projects, and Publications
                 <br />
-                and explore real repositories, projects, and papers.
+                not by polished profiles.
               </p>
 
               <div className="mt-12 w-full max-w-[820px] md:mt-16">
@@ -609,19 +620,29 @@ export default function RadarLandingPage() {
               </div>
 
               <div className="mt-6 text-sm text-white/45">
-                No contact information. No messaging. No outreach tools.
+                We don&apos;t connect or provide contact information.
               </div>
+              <div className="mt-6 text-white/80"></div>
             </div>
           </Reveal>
         </section>
 
+        {/* <div className="h-20 md:h-28" />
+        <Animate>
+          <BaseSectionLayout>
+            <div className="flex flex-col md:flex-row mt-12 gap-8 w-full">
+              <WhyImageSection title="" desc="" imageSrc="drops" />
+              <WhyImageSection title="" desc="" imageSrc="orbit" />
+            </div>
+          </BaseSectionLayout>
+        </Animate> */}
         <div id={RadarSection.Coverage} className="h-20 md:h-28" />
         <Reveal delay={0.08}>
           <BaseSectionLayout>
             <div className="flex w-full flex-col items-center justify-center px-4 text-left md:px-0">
+              {/* <Head1 className="text-white">Coverage</Head1> */}
               <h2 className="mt-8 max-w-[720px] text-center text-xl font-normal text-white md:text-2xl md:leading-[1.2]">
-                A growing index of technical work across open-source and
-                academic ecosystems.
+                Every day, Reading more projects and publications.
               </h2>
 
               <div className="mt-10 grid w-full grid-cols-1 gap-6 md:grid-cols-3 md:gap-7">
@@ -639,29 +660,25 @@ export default function RadarLandingPage() {
             <Reveal delay={0.08}>
               <div className="flex flex-col items-center justify-center">
                 <Head1 className="text-white">
-                  Work first, contributors in context
+                  Who&apos;s actually Shipping?
                 </Head1>
-                <h2 className="mb-12 mt-8 max-w-[820px] text-lg font-light text-white md:mb-20 md:text-xl md:leading-[1.35]">
-                  Harper reads repositories, commit history, projects, and
-                  publications to help you explore how technical work is
-                  actually done.
-                  <br />
-                  Contributors can appear as part of that context, but the
-                  product is centered on the work itself.
+                <h2 className="mb-12 mt-8 max-w-[760px] text-lg font-light text-white md:mb-20 md:text-xl md:leading-[1.2]">
+                  Harper&apos;s proprietary algorithm tracks commits, repos, and
+                  social activity <br />
+                  to reveal the actual developers pushing insane code.
                 </h2>
               </div>
             </Reveal>
 
             <Reveal
               delay={0.08}
-              className="flex w-full items-center justify-center"
+              className="w-full flex items-center justify-center"
             >
               <CandidateGithubCardDark />
             </Reveal>
-
             <Reveal
               delay={0.08}
-              className="flex w-full items-center justify-center"
+              className="w-full flex items-center justify-center"
             >
               <ScholarProfile />
             </Reveal>
@@ -677,31 +694,30 @@ export default function RadarLandingPage() {
 
         <Animate>
           <BaseSectionLayout>
-            <div className="w-full max-w-[640px] px-4 md:px-0">
+            <div className="w-full max-w-[600px] px-4 md:px-0">
               <div className="flex flex-col items-start gap-4 rounded-2xl bg-white/20 px-5 py-6 md:px-[30px] md:py-8">
                 <div className="text-left text-[13px] font-normal leading-[26px] text-hgray700 md:text-base md:leading-[30px]">
-                  Harper is not a profile search engine.
+                  Harper is not just a filter-based search engine.
                   <br />
-                  It reads the public work itself: repositories, commits,
-                  projects, and papers.
+                  It reads what people have actually built: their code and
+                  papers.
                   <br />
-                  That makes it easier to explore technical domains through real
-                  implementations and published research.
+                  It infers ability from real work,
+                  <br />
+                  and finds the talent that truly fits.
                 </div>
-
                 <div className="mt-6 flex flex-row items-center justify-start gap-4">
                   <div className="shrink-0">
                     <Image
                       src="/images/cofounder.png"
-                      alt="Chris and Daniel"
+                      alt="person1"
                       width={60}
                       height={60}
                     />
                   </div>
-
                   <div className="flex flex-col items-start justify-start gap-1">
                     <div className="text-sm">Chris & Daniel</div>
-                    <div className="text-xs text-hgray700">
+                    <div className="text-hgray700 text-xs">
                       {m.companyLanding.testimonial.role}
                     </div>
                   </div>
@@ -712,7 +728,6 @@ export default function RadarLandingPage() {
         </Animate>
 
         <div className="h-28 md:h-40" />
-
         <Animate duration={0.8}>
           <section className="relative w-full overflow-hidden bg-black py-10">
             <PixelBackground count={380} className="absolute inset-0" />
@@ -720,19 +735,18 @@ export default function RadarLandingPage() {
 
             <div className="relative z-10 mx-auto flex w-full max-w-[1000px] flex-col items-center justify-center px-4 py-20 text-white md:py-36 md:pb-48">
               <h2 className="mt-7 text-center text-[32px] font-medium leading-[1.15] text-white/95 md:text-4xl">
-                Repositories and papers
+                Repos and Papers
                 <br />
-                are the starting point.
+                are our talent pool.
               </h2>
 
               <p className="mt-5 max-w-[620px] text-center text-[15px] leading-7 text-hgray700 md:text-[18px]">
-                Search public technical work with natural language and explore
-                how real systems and ideas take shape.
+                GitHub and Scholar reveal serious builders long before polished
+                profiles do.
               </p>
 
               <StartButton onClick={handleStart} label={START_BUTTON_LABEL} />
-
-              <div className="mt-32 hidden w-full md:flex">
+              <div className="mt-32 w-full md:flex hidden">
                 <FallingTagsMl theme="dark" startDelay={800} />
               </div>
             </div>
@@ -760,7 +774,7 @@ function PixelBackground({
         id: i,
         left: `${Math.random() * 100}%`,
         top: `${Math.random() * 100}%`,
-        size: Math.random() > 0.85 ? "h-1 w-1" : "h-px w-px",
+        size: Math.random() > 0.85 ? "w-1 h-1" : "w-px h-px",
         opacity:
           Math.random() > 0.7
             ? "opacity-100"
@@ -772,7 +786,7 @@ function PixelBackground({
   );
 
   return (
-    <div className={`absolute inset-0 ${className}`}>
+    <div className="absolute inset-0">
       {pixels.map((pixel) => (
         <span
           key={pixel.id}
@@ -783,6 +797,62 @@ function PixelBackground({
           }}
         />
       ))}
+    </div>
+  );
+}
+
+function WhyImageSection({
+  title,
+  desc,
+  imageSrc,
+}: {
+  title: string;
+  desc: string;
+  imageSrc: string;
+}) {
+  const imgReturn = () => {
+    if (imageSrc === "drops") {
+      return (
+        <div className="relative flex h-[280px] w-full items-center justify-center overflow-hidden rounded-2xl bg-gradpastel2 md:h-[380px]">
+          <div className="w-full md:mr-8">
+            <FallingTagsMl theme="dark" startDelay={800} />
+          </div>
+        </div>
+      );
+    }
+
+    if (imageSrc === "orbit") {
+      return (
+        <div className="relative flex h-[280px] w-full items-center justify-center overflow-hidden rounded-2xl bg-gradpastel2 md:h-[380px]">
+          <OrbitIconsSmall />
+        </div>
+      );
+    }
+    return (
+      <div className="relative flex h-[220px] w-full items-end justify-end overflow-hidden rounded-2xl bg-gradpastel2 md:h-[280px]">
+        <Image
+          src={imageSrc}
+          alt={title}
+          width={400}
+          height={320}
+          className="max-w-[90%]"
+        />
+      </div>
+    );
+  };
+  return (
+    <div className="flex max-w-full w-full flex-col items-center justify-center gap-8 px-5 md:items-start md:justify-start md:px-0">
+      {imgReturn()}
+      <div className="flex flex-col items-start justify-start w-full gap-4 text-left">
+        <h3
+          className="text-[26px] md:text-3xl font-normal leading-[2.2rem] md:leading-[2.5rem]"
+          dangerouslySetInnerHTML={{ __html: title }}
+        />
+        <div
+          className="text-sm md:text-base leading-6 font-light text-hgray700"
+          dangerouslySetInnerHTML={{ __html: desc }}
+        />
+      </div>
     </div>
   );
 }

@@ -5,16 +5,16 @@ export default function CompareSection() {
     <section className="relative w-full overflow-hidden bg-black px-4 py-24 md:px-8 md:py-32">
       <div className="mx-auto flex w-full max-w-[1040px] flex-col items-center">
         <Reveal>
-          <div className="flex w-full flex-col items-center justify-center">
+          <div className="flex flex-col items-center w-full justify-center">
             <h2 className="mt-6 text-center text-xl font-medium leading-[1.1] tracking-[-0.03em] text-white md:text-3xl">
-              Profiles summarize people.
+              The best builders are rarely visible on LinkedIn.
               <br />
-              Public work shows the work itself.
+              They are busy shipping.
             </h2>
 
-            <p className="mt-5 max-w-[760px] text-center text-sm leading-7 text-hgray700 md:text-lg">
-              A profile is a compact narrative. Repositories, projects, and
-              publications provide a much more direct view into technical work.
+            <p className="mt-5 max-w-[720px] text-center text-sm leading-7 text-hgray700 md:text-lg">
+              Polished profiles tell you how someone wants to be seen. Real work
+              shows what they can actually do.
             </p>
           </div>
         </Reveal>
@@ -24,7 +24,7 @@ export default function CompareSection() {
             <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 md:p-7">
               <div className="flex items-center justify-between">
                 <div className="text-sm font-medium text-white/90 md:text-base">
-                  Profile layer
+                  LinkedIn world
                 </div>
               </div>
 
@@ -36,10 +36,10 @@ export default function CompareSection() {
 
                 <div className="space-y-3 px-4 py-4">
                   {[
-                    ["Role", "Senior ML Engineer"],
-                    ["Organization", "Well-known startup"],
-                    ["Education", "Top university"],
-                    ["Summary", "Short professional bio"],
+                    ["Title", "Senior ML Engineer"],
+                    ["Company", "Well-known startup"],
+                    ["School", "Top university"],
+                    ["Open to work", "Maybe"],
                   ].map(([label, value]) => (
                     <div
                       key={label}
@@ -54,17 +54,15 @@ export default function CompareSection() {
                 <div className="border-t border-white/10 px-4 py-4">
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <div className="rounded-xl border border-white/5 bg-white/[0.02] px-4 py-3 text-center">
-                      <div className="text-[11px] text-white/40">
-                        Often shows
-                      </div>
+                      <div className="text-[11px] text-white/40">Signals</div>
                       <div className="mt-1 text-sm text-white/80">
-                        title, company
+                        title, brand
                       </div>
                     </div>
                     <div className="rounded-xl border border-white/5 bg-white/[0.02] px-4 py-3 text-center">
-                      <div className="text-[11px] text-white/40">Format</div>
+                      <div className="text-[11px] text-white/40">Bias risk</div>
                       <div className="mt-1 text-sm text-white/80">
-                        self-described summary
+                        polished copy
                       </div>
                     </div>
                   </div>
@@ -72,12 +70,7 @@ export default function CompareSection() {
               </div>
 
               <div className="mt-5 space-y-2">
-                {[
-                  "Profiles",
-                  "Titles",
-                  "Career summaries",
-                  "Network context",
-                ].map((item) => (
+                {["Profiles", "Titles", "Resumes", "Networking"].map((item) => (
                   <div
                     key={item}
                     className="flex items-center gap-3 text-sm text-white/55"
@@ -92,7 +85,7 @@ export default function CompareSection() {
             <div className="rounded-3xl border border-[#B4FF78]/20 bg-[#B4FF78]/[0.04] p-5 md:p-7">
               <div className="flex items-center justify-between">
                 <div className="text-sm font-medium text-white md:text-base">
-                  Public work layer
+                  Builder world
                 </div>
               </div>
 
@@ -100,9 +93,7 @@ export default function CompareSection() {
                 <div className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <div className="h-2 w-2 rounded-full bg-[#B4FF78]" />
-                    <div className="text-xs text-white/60">
-                      Public technical activity
-                    </div>
+                    <div className="text-xs text-white/60">Recent activity</div>
                   </div>
                 </div>
 
@@ -113,7 +104,6 @@ export default function CompareSection() {
                         2, 3, 6, 9, 10, 11, 14, 15, 18, 22, 23, 24, 28, 30, 31,
                         35, 39, 40, 41, 45,
                       ].includes(i);
-
                       return (
                         <div
                           key={i}
@@ -127,10 +117,10 @@ export default function CompareSection() {
 
                   <div className="mt-4 space-y-2">
                     {[
-                      "Repository maintenance history",
-                      "Implementation and system design traces",
-                      "Research papers and publication themes",
-                      "Project-level technical artifacts",
+                      "Merged PR to a well-known OSS repo",
+                      "Maintained production service for 2+ years",
+                      "Top-tier publications",
+                      "MCP projects",
                     ].map((item) => (
                       <div
                         key={item}
@@ -145,15 +135,15 @@ export default function CompareSection() {
                 <div className="border-t border-[#B4FF78]/10 px-4 py-4">
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <div className="rounded-xl border border-[#B4FF78]/10 bg-[#B4FF78]/[0.03] px-4 py-3 text-center">
-                      <div className="text-[11px] text-white/40">Includes</div>
+                      <div className="text-[11px] text-white/40">Signals</div>
                       <div className="mt-1 text-sm text-white">
                         repos, commits
                       </div>
                     </div>
                     <div className="rounded-xl border border-[#B4FF78]/10 bg-[#B4FF78]/[0.03] px-4 py-3 text-center">
-                      <div className="text-[11px] text-white/40">Includes</div>
+                      <div className="text-[11px] text-white/40">Signals</div>
                       <div className="mt-1 text-sm text-white">
-                        papers, citations
+                        papers, impact
                       </div>
                     </div>
                   </div>
@@ -161,12 +151,7 @@ export default function CompareSection() {
               </div>
 
               <div className="mt-5 space-y-2">
-                {[
-                  "Repositories",
-                  "Commit history",
-                  "Projects",
-                  "Publications",
-                ].map((item) => (
+                {["Repos", "Commits", "Papers", "Shipping"].map((item) => (
                   <div
                     key={item}
                     className="flex items-center gap-3 text-sm text-white/75"
@@ -181,8 +166,7 @@ export default function CompareSection() {
         </Reveal>
 
         <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 text-center text-sm leading-7 text-white/65 md:px-6 md:text-base">
-          Profiles provide summaries. Public repositories and papers provide
-          technical context.
+          LinkedIn shows careers. GitHub and Scholar show ability.
         </div>
       </div>
     </section>
