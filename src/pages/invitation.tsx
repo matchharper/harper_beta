@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { LoaderCircle } from "lucide-react";
 import GradientBackground from "@/components/landing/GradientBackground";
@@ -10,9 +10,8 @@ import { useRouter } from "next/navigation";
 
 import { supabase } from "@/lib/supabase";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
-import { useMessages } from "@/i18n/useMessage";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import { useCountryLang } from "@/hooks/useCountryLang";
+import { useCountryMessages } from "@/i18n/useCountryMessage";
 
 const isMissingDisplayName = (name?: string | null) => {
   const normalized = (name ?? "").trim();
@@ -35,27 +34,28 @@ export default function LoginSuccess() {
   const [invalidMessage, setInvalidMessage] = useState("");
   const [isShake, setIsShake] = useState(false);
   const [landingId, setLandingId] = useState("");
-  const { m } = useMessages();
+  const { m, countryLang } = useCountryMessages();
 
   const interactiveRef = useRef<HTMLDivElement>(null);
   const hasLoggedEnterRef = useRef(false);
   const hasLoggedCodeInputRef = useRef(false);
   const hasLoggedNameInputRef = useRef(false);
   const isMobile = useIsMobile();
-  const countryLang = useCountryLang();
-
   const { companyUser, load } = useCompanyUserStore();
   const isNameStep = step === "name";
 
-  const addLog = async (type: string) => {
-    const body = {
-      local_id: landingId,
-      type: type,
-      is_mobile: isMobile,
-      country_lang: countryLang,
-    };
-    await supabase.from("landing_logs").insert(body);
-  };
+  const addLog = useCallback(
+    async (type: string) => {
+      const body = {
+        local_id: landingId,
+        type,
+        is_mobile: isMobile,
+        country_lang: countryLang,
+      };
+      await supabase.from("landing_logs").insert(body);
+    },
+    [countryLang, isMobile, landingId]
+  );
 
   useEffect(() => {
     const localId = localStorage.getItem("harper_landing_id_0209");
@@ -69,7 +69,7 @@ export default function LoginSuccess() {
     hasLoggedEnterRef.current = true;
     const emailSuffix = companyUser?.email ? `:${companyUser.email}` : "";
     addLog(`invitation_enter_${emailSuffix}`);
-  }, [landingId]);
+  }, [addLog, companyUser?.email, landingId]);
 
   // useEffect(() => {
   //   const excludedEmails = new Set([
@@ -103,7 +103,13 @@ export default function LoginSuccess() {
       addLog(`enter_my_page_${emailSuffix}`);
       router.push("/my");
     }
-  }, [landingId, companyUser]);
+  }, [
+    addLog,
+    companyUser?.email,
+    companyUser?.is_authenticated,
+    landingId,
+    router,
+  ]);
 
   useEffect(() => {
     if (isShake) {

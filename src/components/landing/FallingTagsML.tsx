@@ -4,20 +4,20 @@ import { motion } from "framer-motion";
 import React, { useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import { useMessages } from "@/i18n/useMessage";
 
 type Tag = {
   label: string;
   x: number;
   y: number;
   rotate: number;
+  color: string;
 };
 
-export const FallingTagsSmall = ({
-  theme = "transparent",
+export const FallingTagsMl = ({
+  theme = "dark",
   startDelay = 2000,
 }: {
-  theme?: string;
+  theme?: "dark" | "white" | "transparent";
   startDelay?: number;
 }) => {
   const [start, setStart] = useState(false);
@@ -25,46 +25,52 @@ export const FallingTagsSmall = ({
 
   const CANDIDATE_MOBILE_TAGS: Tag[] = [
     {
-      label: "San Francisco 기반 스타트업",
-      x: -60,
+      label: "Recently hyped open-source note-taking project, 5k+ stars",
+      x: -140,
       y: 40,
       rotate: -14,
+      color: "border-emerald-400/40 text-emerald-300",
     },
     {
-      label: "0 to 1 경험, 경력 3년차 이하 개발자",
+      label: "First author on CVPR / NeurIPS papers in multimodal LLM datasets",
       x: 5,
-      y: 50,
+      y: 70,
       rotate: -4,
+      color: "border-sky-400/40 text-sky-300",
     },
     {
-      label: "반도체 공장 후공정 업무 경험 2년 이상",
-      x: 60,
+      label: "Core contributor to inference or kernel optimization repos",
+      x: 70,
       y: -10,
       rotate: 10,
+      color: "border-violet-400/40 text-violet-300",
     },
     {
-      label: "일본 문화에 대한 이해도가 높은 한국인 SNS/Viral 마케터",
+      label: "Robotics researcher with strong publication and code footprint",
       x: 10,
       y: -5,
       rotate: -12,
+      color: "border-amber-400/40 text-amber-300",
     },
     {
-      label: "Ex-FAANG engineer open to startup",
-      x: 90,
+      label:
+        "Open-source engineer with 3k+ GitHub followers and active commits",
+      x: 140,
       y: 30,
       rotate: 10,
+      color: "border-rose-400/40 text-rose-300",
     },
   ];
 
   useEffect(() => {
     const t = setTimeout(() => setStart(true), startDelay);
     return () => clearTimeout(t);
-  }, []);
+  }, [startDelay]);
 
   const tags = CANDIDATE_MOBILE_TAGS;
 
   return (
-    <div className="md:relative absolute bottom-28 left-0 md:bottom-auto md:left-auto flex w-full justify-center overflow-visible">
+    <div className="absolute bottom-28 left-0 flex w-full justify-center overflow-visible md:relative md:bottom-auto md:left-auto">
       {tags.map((tag, index) => {
         if (isMobile && index === CANDIDATE_MOBILE_TAGS.length - 1) {
           return null;
@@ -91,7 +97,6 @@ export const FallingTagsSmall = ({
                     scale: 1,
                   }
                 : {
-                    // 시작 전 상태 그대로 유지
                     y: -220,
                     opacity: 0,
                   }
@@ -105,20 +110,21 @@ export const FallingTagsSmall = ({
             }}
           >
             <motion.div
-              className={`select-none rounded-lg pl-2 pr-4 py-2 text-[10px] md:text-xs font-medium shadow-xl \
-                flex flex-row items-center justify-start gap-1.5 cursor-grab \
-                active:cursor-grabbing border ${
-                  theme === "white"
-                    ? "bg-white border-gray-400/50 text-xgray700"
-                    : "bg-gray-500/10 border-white/10 text-white"
-                } backdrop-blur-sm`}
+              className={[
+                "select-none rounded-lg border px-2 py-2 md:px-3 md:py-2",
+                "flex cursor-grab flex-row items-center justify-start gap-1.5",
+                "text-xs font-medium shadow-xl md:text-sm",
+                "active:cursor-grabbing backdrop-blur-md",
+                theme === "white" ? "bg-white/90" : "bg-neutral-900/75",
+                tag.color,
+              ].join(" ")}
               drag
               dragElastic={0.25}
               dragMomentum
               dragSnapToOrigin
               whileDrag={{ scale: 1.05, zIndex: 50 }}
             >
-              <Search size={12} />
+              <Search size={14} className={tag.color.split(" ")[1]} />
               <span>{tag.label}</span>
             </motion.div>
           </motion.div>

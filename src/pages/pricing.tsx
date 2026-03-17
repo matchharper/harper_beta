@@ -164,6 +164,7 @@ export default function PricingPage() {
             onClose={handleCloseLoginModal}
             onGoogle={login}
             onConfirm={customLogin}
+            language={locale}
           />
         )}
 

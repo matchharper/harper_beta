@@ -12,6 +12,11 @@ module.exports = {
           "linear-gradient(180deg, #F2E7AE 0%, #F1C4A6 50%, #94B8F0 100%)",
       },
       colors: {
+        beige100: "#FDF6EE",
+        beige200: "#F7F0E8",
+        beige500: "#F2E7DC",
+        beige900: "#2E1706",
+
         gray100: "#111111",
         gray200: "#212121", // bg2
         gray300: "#2B2E35",
@@ -60,8 +65,6 @@ module.exports = {
         hblack000: "#FFFFFF",
 
         brightnavy: "#0624A8",
-        beige100: "#FAF9F6",
-        beige200: "#F6F0E4",
         accenta1: "#EFFF3F",
         accenta2: "#C0CE2B",
         xgray800: "#8A8B9D",
@@ -151,6 +154,8 @@ module.exports = {
       },
       fontFamily: {
         sans: ["PretendardVariable", "system-ui", "sans-serif"],
+        geist: ["Geist", "sans-serif"],
+        halant: ["Halant", "serif"],
         inter: ["var(--font-inter)", "sans-serif"],
         hedvig: ["Hedvig Letters Serif", "inter"],
         garamond: ["var(--font-garamond)", "serif"],

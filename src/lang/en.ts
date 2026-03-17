@@ -9,22 +9,22 @@ export const en = {
     invalidAccount: "Account not found.",
   },
   invitation: {
-    title: "Please enter your code.",
+    title: "Enter your invite code.",
     description:
-      "Harper is currently in private beta. Enter your invite code below.\nIf you need a code, join the waitlist.",
-    nameTitle: "Please enter your name.",
+      "Harper is currently in private beta. Please enter your invite code below.\nIf you don't have one yet, apply below.\nWe'll do our best to get you access as quickly as possible.",
+    nameTitle: "Tell us your name.",
     nameDescription:
-      "Invite code verified. Please enter the name you want to use.",
+      "Your invite code has been verified. Please enter the name you'd like to use.",
     namePlaceholder: "Name",
     placeholder: "Invite code",
     nameSubmit: "Save",
-    submit: "Enter",
-    divider: "OR",
-    waitlist: "Join waitlist",
+    submit: "Continue",
+    divider: "or",
+    waitlist: "Apply for access",
     contact: "Contact us",
     errors: {
       emptyCode: "Please enter the invite code.",
-      invalidCode: "Invite code doesn't match.",
+      invalidCode: "The invite code is invalid.",
       emptyName: "Please enter your name.",
       saveNameFailed: "Failed to save your name. Please try again.",
     },
@@ -32,13 +32,13 @@ export const en = {
   join: {
     roles: {
       recruiter: "Professional Recruiter",
+      other: "Other",
       options: [
         "Professional Recruiter",
-        "CEO",
-        "HR Manager",
+        "CEO / Founder",
         "Co-Founder",
+        "Hiring Manager",
         "Team Lead",
-        "Team Member",
         "Engineer",
         "VC",
         "Other",
@@ -47,19 +47,20 @@ export const en = {
     sizes: ["1-10", "11-50", "51-100", "101-200", "201-500", "501+"],
     steps: {
       contact: {
-        title: "Please share your name and email.",
-        description: "",
+        title:
+          "Please share your name and the email address where we can reach you.",
+        description: "This takes less than a minute.",
       },
       role: {
         title: "What is your role at the company?",
         description: "",
       },
       company: {
-        title: "Please share your company name and website.",
+        title: "Tell us your company name and website.",
         description: "(Website is optional.)",
       },
       companyRecruiter: {
-        title: "Please share your agency name and website.",
+        title: "Tell us your firm or agency name and website.",
         description: "(Website is optional.)",
       },
       size: {
@@ -68,18 +69,18 @@ export const en = {
       },
       needs: {
         title:
-          "Tell us the most important roles you need to hire for and the approximate headcount.",
-        description: "optional",
+          "Tell us which role(s) you need to hire for most urgently and roughly how many people you need.",
+        description: "Optional",
       },
       additional: {
         title:
-          "Share anything else you'd like Harper to know, or hiring challenges you're facing.",
-        description: "optional",
+          "If there's anything else you'd like Harper to know, or any hiring challenge you're dealing with, feel free to share it.",
+        description: "Optional",
       },
       additionalRecruiter: {
         title:
-          "Share anything else you'd like Harper to know, or the key need you want solved.",
-        description: "optional",
+          "If there's anything else you'd like Harper to know, or a key need you'd like solved, feel free to share it.",
+        description: "Optional",
       },
     },
     fields: {
@@ -91,10 +92,11 @@ export const en = {
       companyPlaceholder: "e.g. Harper",
       companyLinkLabel: "Website URL",
       companyLinkPlaceholder: "e.g. https://matchharper.com",
+      roleOtherPlaceholder: "Please type your role",
       needsPlaceholder:
         "e.g. 2 Machine Learning Engineers, 1 Deep Learning Researcher",
       additionalPlaceholder:
-        "e.g. Hiring is urgent and we need guidance on evaluating candidates.",
+        "e.g. Hiring is urgent, and we're unsure what criteria we should use to evaluate candidates.",
     },
     actions: {
       submit: "Submit",
@@ -105,10 +107,10 @@ export const en = {
       saving: "Saving...",
     },
     done: {
-      title: "You're all set.",
+      title: "Your request has been submitted.",
       description:
-        "Harper is preparing to introduce the best candidates for your team.\nWe'll reach out soon.",
-      backToCompanies: "Go back",
+        "Harper is building a better way for startups to find exceptional talent.\nWe'll be in touch soon.",
+      backToCompanies: "Back to home",
     },
     validation: {
       nameRequired: "Please enter your name.",

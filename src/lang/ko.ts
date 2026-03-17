@@ -31,6 +31,7 @@ export const ko = {
   join: {
     roles: {
       recruiter: "전문 Recruiter",
+      other: "기타",
       options: [
         "전문 Recruiter",
         "CEO / Founder",
@@ -96,6 +97,7 @@ export const ko = {
       companyPlaceholder: "예) Harper",
       companyLinkLabel: "홈페이지 URL",
       companyLinkPlaceholder: "예) https://matchharper.com",
+      roleOtherPlaceholder: "직접 입력해 주세요",
       needsPlaceholder:
         "예) Machine Learning 엔지니어 2명, Deep Learning 연구원 1명",
       additionalPlaceholder:

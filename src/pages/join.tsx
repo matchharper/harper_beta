@@ -19,7 +19,9 @@ import TextInput from "@/components/apply/TextInput";
 import { Selections } from "@/components/landing/Join";
 import { isValidEmail } from ".";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import { useMessages } from "@/i18n/useMessage";
+import { en } from "@/lang/en";
+import { ko } from "@/lang/ko";
+import { useCountryMessages } from "@/i18n/useCountryMessage";
 import { notifyToSlack } from "@/lib/slack";
 
 type StepKey =
@@ -40,7 +42,7 @@ type StepDef = {
 const Onboard: React.FC = () => {
   // ✅ step은 “visibleSteps 기준 index”
   const [step, setStep] = useState(0);
-  const { m } = useMessages();
+  const { m } = useCountryMessages();
 
   const [submitLoading, setSubmitLoading] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -59,12 +61,21 @@ const Onboard: React.FC = () => {
   const [additional, setAdditional] = useState("");
 
   // ✅ recruiter path 판정
-  const recruiterRole = m.join.roles.recruiter;
+  const recruiterRoleAliases = useMemo(
+    () => [ko.join.roles.recruiter, en.join.roles.recruiter],
+    []
+  );
+  const otherRoleLabel = m.join.roles.other;
   const rolesOptions = Array.from(m.join.roles.options);
   const sizeOptions = Array.from(m.join.sizes);
   const isRecruiter = useMemo(
-    () => roles.includes(recruiterRole),
-    [recruiterRole, roles]
+    () =>
+      roles.some((role) =>
+        recruiterRoleAliases.includes(
+          role as "전문 Recruiter" | "Professional Recruiter"
+        )
+      ),
+    [recruiterRoleAliases, roles]
   );
 
   const isMobile = useIsMobile();
@@ -169,7 +180,7 @@ const Onboard: React.FC = () => {
 
       return true;
     },
-    [currentStep?.key, name, email, company, companyLink, size, toast, m]
+    [currentStep?.key, name, email, company, size, toast, m]
   );
 
   const saveIfDirty = useCallback(async () => {
@@ -204,6 +215,7 @@ const Onboard: React.FC = () => {
     size,
     needs,
     additional,
+    isMobile,
   ]);
 
   const goNext = useCallback(
@@ -263,7 +275,22 @@ const Onboard: React.FC = () => {
 
       setStep((prev) => Math.min(prev + 1, visibleSteps.length));
     },
-    [saveIfDirty, step, validateStep, visibleSteps.length]
+    [
+      additional,
+      company,
+      companyLink,
+      email,
+      isMobile,
+      isRecruiter,
+      name,
+      needs,
+      roles,
+      saveIfDirty,
+      size,
+      step,
+      validateStep,
+      visibleSteps.length,
+    ]
   );
 
   const goPrev = useCallback(() => {
@@ -323,7 +350,7 @@ const Onboard: React.FC = () => {
           if (prev.includes(option)) {
             return prev.filter((select) => select !== option);
           }
-          if (option === "기타") {
+          if (option === otherRoleLabel) {
             return [...prev, option, ""];
           }
           return [option, ...prev];
@@ -346,7 +373,7 @@ const Onboard: React.FC = () => {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [currentStep?.key, goNext, rolesOptions, sizeOptions]);
+  }, [currentStep?.key, goNext, otherRoleLabel, rolesOptions, sizeOptions]);
 
   // Wheel step nav (원하면 제거 가능)
   useEffect(() => {
@@ -486,6 +513,8 @@ const Onboard: React.FC = () => {
                     setIsDirty={setIsDirty}
                     options={rolesOptions}
                     showOptionNumbers
+                    otherOptionLabel={otherRoleLabel}
+                    otherPlaceholder={m.join.fields.roleOtherPlaceholder}
                   />
                 )}
 
