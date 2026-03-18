@@ -4,7 +4,6 @@ import type { CandidateType, EduUserType, ExpUserType } from "@/types/type";
 import { logger } from "@/utils/logger";
 import { UI_END, UI_START } from "./chat/useChatSession";
 import type { Locale } from "@/i18n/useMessage";
-import { StatusEnum } from "@/types/type";
 
 function getCookie(name: string) {
   if (typeof document === "undefined") return null;
@@ -42,6 +41,13 @@ type RunPageCandidate = { id?: string; score?: number | string | null };
 type SearchSettingsSnapshot = {
   is_korean: boolean;
 };
+
+class SearchLaunchLimitError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SearchLaunchLimitError";
+  }
+}
 
 function filterPositiveScoreCandidates(items: RunPageCandidate[]) {
   return items.filter((item) => {
@@ -196,11 +202,21 @@ async function createRunViaLaunchApi(params: {
     body: JSON.stringify(params),
   });
 
-  if (!response.ok) return null;
-
   const json = (await response.json().catch(() => ({}))) as {
+    error?: string;
     runId?: string;
   };
+
+  if (!response.ok) {
+    if (response.status === 429) {
+      throw new SearchLaunchLimitError(
+        json.error ?? "Parallel search limit reached"
+      );
+    }
+
+    return null;
+  }
+
   return typeof json.runId === "string" ? json.runId : null;
 }
 
@@ -223,6 +239,10 @@ export const runSearch = async ({
     });
     if (launchedRunId) return launchedRunId;
   } catch (e) {
+    if (e instanceof SearchLaunchLimitError) {
+      throw e;
+    }
+
     logger.log("launch api failed, fallback to client path:", e);
   }
 

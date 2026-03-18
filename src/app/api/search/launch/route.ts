@@ -1,4 +1,10 @@
 import { getRequestUser, supabaseServer } from "@/lib/supabaseServer";
+import {
+  ACTIVE_PARALLEL_SEARCH_STATUSES,
+  getMaxParallelSearchCount,
+  getParallelSearchLimitMessage,
+  inferSearchPlanKey,
+} from "@/lib/searchParallelLimit";
 import { NextRequest, NextResponse } from "next/server";
 
 const UI_START = "<<UI>>";
@@ -53,6 +59,43 @@ async function loadSearchSettings(
   return {
     is_korean: row?.is_korean ?? false,
   };
+}
+
+async function loadActivePlanKey(userId: string) {
+  const nowIso = new Date().toISOString();
+
+  const { data: activePayment, error } = await supabaseServer
+    .from("payments")
+    .select(
+      `
+        plan_id,
+        plans (
+          plan_id,
+          name,
+          display_name
+        )
+      `
+    )
+    .eq("user_id", userId)
+    .gte("current_period_end", nowIso)
+    .order("current_period_end", { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load plan");
+  }
+
+  if (!activePayment) {
+    return "free";
+  }
+
+  const planName =
+    (activePayment as any)?.plans?.display_name ??
+    (activePayment as any)?.plans?.name ??
+    null;
+
+  return inferSearchPlanKey(planName, activePayment.plan_id ?? null);
 }
 
 export async function POST(req: NextRequest) {
@@ -177,6 +220,40 @@ export async function POST(req: NextRequest) {
   }
 
   const locale = parseLocaleFromRequest(req);
+  const planKey = await loadActivePlanKey(user.id);
+  const maxParallel = getMaxParallelSearchCount({
+    planKey,
+    userId: user.id,
+  });
+  const threeMinAgo = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+  const { count: runningSearchCount, error: runningSearchError } =
+    await supabaseServer
+      .from("runs")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .in("status", [...ACTIVE_PARALLEL_SEARCH_STATUSES])
+      .gte("created_at", threeMinAgo);
+
+  if (runningSearchError) {
+    return NextResponse.json(
+      {
+        error:
+          runningSearchError.message ?? "Failed to check running searches",
+      },
+      { status: 500 }
+    );
+  }
+
+  if ((runningSearchCount ?? 0) >= maxParallel) {
+    return NextResponse.json(
+      {
+        code: "parallel_limit_reached",
+        error: getParallelSearchLimitMessage({ maxParallel, locale }),
+      },
+      { status: 429 }
+    );
+  }
+
   const searchSettings = await loadSearchSettings(user.id);
 
   // 테스트 모드 확인 (환경 변수)

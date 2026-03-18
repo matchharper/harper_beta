@@ -18,10 +18,7 @@ type RevealProps = {
   amount?: number;
 };
 
-const getDirectionalOffset = (
-  direction: RevealDirection,
-  distance: number,
-) => {
+const getDirectionalOffset = (direction: RevealDirection, distance: number) => {
   switch (direction) {
     case "top":
       return { x: 0, y: -distance };
@@ -41,7 +38,7 @@ const Reveal = ({
   children,
   className,
   delay = 0,
-  duration = 1.05,
+  duration = 0.95,
   direction = "bottom",
   distance = 44,
   offsetX,

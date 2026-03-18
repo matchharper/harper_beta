@@ -25,7 +25,7 @@ import Head from "next/head";
 import Link from "next/link";
 import router from "next/router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import CompareSection from "@/components/landing/Compare";
+import CompareSection from "@/components/landing/Compareold";
 import PricingSection from "@/components/landing/PricingScholar";
 import { FallingTagsMl } from "@/components/landing/FallingTagsML";
 import Reveal from "@/components/landing/Animation/Reveal";
