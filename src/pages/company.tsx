@@ -185,7 +185,7 @@ We believe the best sales people are the hiring managers themselves. We do a qui
   {
     question: "How much does it cost?",
     answer:
-      "Typically we charge 10% based on the difficulty of the role. We aim to undercut traditional agencies by about 70%.",
+      "We reduce costs by up to 70% compared to traditional agencies. Get in touch to learn more.",
   },
   {
     question: "What are next steps?",
