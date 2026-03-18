@@ -543,14 +543,14 @@ const Beige = () => {
                   <img
                     src="/images/objects.png"
                     alt="objects"
-                    className="w-80"
+                    className="w-52 sm:w-64 md:w-80"
                   />
                 </div>
               </Reveal>
 
               <Reveal once delay={0.32} className="mt-14 w-full">
                 <div className="grid grid-cols-[160px_1fr] items-center gap-12 max-[1199px]:grid-cols-1 max-[1199px]:gap-8">
-                  <p className="max-w-[132px] text-left font-geist text-[14px] leading-[1.55] tracking-[-0.02em] text-beige900/40">
+                  <p className="w-full md:max-w-[132px] text-left font-geist text-[14px] leading-[1.55] tracking-[-0.02em] text-beige900/40">
                     Trusted by AI Companies like Pickle, Moss, Aleph lab,
                     OptimizerAI and many others.
                   </p>
@@ -710,7 +710,7 @@ const Beige = () => {
               </Reveal>
 
               <Reveal once direction="right" delay={0.08}>
-                <div className="relative h-full">
+                <div className="relative h-full hidden md:flex">
                   <SuccessPortraitPlaceholder />
                 </div>
               </Reveal>
@@ -734,8 +734,8 @@ const Beige = () => {
                 </p>
               </Reveal>
 
-              <div className="mt-14 grid grid-cols-[0.52fr_0.48fr] gap-14 max-[1199px]:grid-cols-1 max-[1199px]:gap-10">
-                <div className="space-y-5">
+              <div className="mt-14 grid grid-cols-[0.52fr_0.48fr] gap-14 max-[1199px]:grid-cols-1 max-[1199px]:gap-6">
+                <div className="space-y-3 md:space-y-5">
                   {processSteps.map((step, index) => {
                     const active = activeProcessIndex === index;
 
@@ -745,14 +745,14 @@ const Beige = () => {
                         type="button"
                         onClick={() => setActiveProcessIndex(index)}
                         whileHover={{ x: 4 }}
-                        className={`flex w-full items-start justify-between rounded-[28px] border px-8 py-6 text-left transition-all duration-300 max-[809px]:px-6 max-[809px]:py-5 ${
+                        className={`flex w-full items-start justify-between rounded-xl md:rounded-[28px] border px-4 py-3 md:px-8 md:py-6 text-left transition-all duration-300 ${
                           active
                             ? "border-transparent bg-beige500/60"
                             : "border-transparent bg-transparent text-beige900/70 hover:bg-white/30"
                         }`}
                       >
                         <span
-                          className={`font-halant text-[32px] sm:text-[38px] md:text-[44px] lg:text-[48px] leading-[0.98] tracking-[-0.07em] ${
+                          className={`font-halant text-[28px] sm:text-[36px] md:text-[40px] lg:text-[48px] leading-[0.98] tracking-[-0.07em] ${
                             active ? "text-beige900" : "text-beige900/40"
                           }`}
                         >
@@ -1043,7 +1043,7 @@ const Beige = () => {
                         className="w-full rounded-[20px] bg-beige200 px-6 py-6 shadow-[0_14px_30px_rgba(66,38,10,0.06)] max-[809px]:px-5 max-[809px]:py-5"
                       >
                         <div className="flex items-center justify-between gap-8">
-                          <div className="text-[20px] font-medium leading-[1.24] tracking-[-0.04em] text-beige900 max-[809px]:text-[20px]">
+                          <div className="text-[20px] text-left font-medium leading-[1.24] tracking-[-0.04em] text-beige900 max-[809px]:text-[16px]">
                             {faq.question}
                           </div>
                           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
