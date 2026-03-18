@@ -33,37 +33,29 @@ const trustedCompanies = [
   {
     name: "Pickle",
     render: (
-      <div className="flex items-center gap-4">
-        <img src="/images/logos/pickle.png" alt="pickle" className="h-[54px]" />
-      </div>
+      <img src="/images/logos/pickle.png" alt="pickle" className="h-[54px]" />
     ),
   },
   {
     name: "Moss",
     render: (
-      <div className="flex items-center gap-4">
-        <img src="/images/logos/moss.png" alt="moss" className="h-[54px]" />
-      </div>
+      <img src="/images/logos/moss.png" alt="moss" className="h-[54px]" />
     ),
   },
   {
     name: "aleph",
     render: (
-      <div className="flex items-center gap-4">
-        <img src="/images/logos/aleph.svg" alt="aleph" className="h-[30px]" />
-      </div>
+      <img src="/images/logos/aleph.svg" alt="aleph" className="h-[30px]" />
     ),
   },
   {
     name: "optimizerai",
     render: (
-      <div className="flex items-center gap-4">
-        <img
-          src="/images/logos/optimizerai.png"
-          alt="optimizerai"
-          className="h-[54px]"
-        />
-      </div>
+      <img
+        src="/images/logos/optimizerai.png"
+        alt="optimizerai"
+        className="h-[54px]"
+      />
     ),
   },
 ];
@@ -74,21 +66,21 @@ const valueCards = [
     title: "Deep indexing",
     meta: "Within 24 hours",
     description:
-      "We go beyond keywords to map real technical impact. By analyzing research papers and open-source contributions, we identify the top 1% who truly understand the domain.",
+      "After request, We run our AI recruiting system.<br />Harper talks to candidates and analyzes their papers and code to find real talent.",
   },
   {
     number: "02",
     title: "High-velocity, 4x faster matching",
     meta: "Weeks 2-4",
     description:
-      "Skip the months of waiting. Connect directly with proven AI/ML talent through a streamlined process built to maximize matching speed and eliminate friction.",
+      "Skip the months of waiting.<br />We leverage AI across search, communication, and matching to maximize speed and eliminate friction.",
   },
   {
     number: "03",
     title: "Harper remembers",
-    meta: "The Future",
+    meta: "Optimize",
     description:
-      "Your technical preferences are stored in persistent memory, ensuring matching quality compounds as your team grows.",
+      "Your technical preferences are stored in our memory, ensuring matching quality compounds as your team grows.",
   },
 ];
 
@@ -104,14 +96,14 @@ const processSteps = [
     title: "Finding",
     number: "02",
     description:
-      "We search across our internal and internet talent pool using our search intelligence, then onboard and evaluate candidates to identify the best fit.",
+      "We search across GitHub, papers, and our proprietary data layer, then use AI to analyze real work. We automate outreach and candidate conversations to extract useful insights beyond what’s publicly visible.",
     image: "/images/feature2.png",
   },
   {
     title: "Matching",
     number: "03",
     description:
-      "Get a curated list of candidates in your dashboard or Slack, ready to review. Give us feedback to refine the list.",
+      "AI evaluates all data and matches the best candidates by recommendation system. Get a curated list of candidates in your dashboard or Slack, ready to review.",
     image: "/images/feature3.png",
   },
   {
@@ -120,41 +112,6 @@ const processSteps = [
     description:
       "Not a fit? We refine instantly with your feedback. Like someone? We handle the interview connection for you.",
     image: "/images/feature4.png",
-  },
-];
-
-const processSteps2 = [
-  {
-    title: "Understanding",
-    number: "01",
-    description:
-      "Our intake process uses AI to store and analyze more preference info than any recruiter could, from culture fit to team chemistry and edge cases.",
-    visual:
-      "radial-gradient(circle at 48% 26%, rgba(255,236,214,0.95) 0, rgba(255,236,214,0.35) 14%, transparent 24%), radial-gradient(circle at 52% 38%, rgba(255,165,110,0.95) 0, rgba(255,165,110,0.15) 16%, transparent 30%), linear-gradient(135deg, rgba(127,143,190,1) 0%, rgba(115,93,173,1) 48%, rgba(69,61,113,1) 100%)",
-  },
-  {
-    title: "Source",
-    number: "02",
-    description:
-      "We use recommender-system thinking to find high-fit candidates across the market instead of relying on a small recruiter Rolodex.",
-    visual:
-      "radial-gradient(circle at 25% 35%, rgba(255,255,255,0.82) 0, rgba(255,255,255,0.1) 12%, transparent 24%), radial-gradient(circle at 68% 58%, rgba(255,211,161,0.88) 0, rgba(255,211,161,0.1) 15%, transparent 30%), linear-gradient(135deg, rgba(85,123,121,1) 0%, rgba(72,104,120,1) 50%, rgba(49,68,80,1) 100%)",
-  },
-  {
-    title: "Outreach",
-    number: "03",
-    description:
-      "Our AI system sends thousands of targeted outreaches overnight, compressing weeks of recruiter work into a single cycle.",
-    visual:
-      "radial-gradient(circle at 22% 26%, rgba(255,247,231,0.9) 0, rgba(255,247,231,0.08) 16%, transparent 28%), radial-gradient(circle at 72% 68%, rgba(255,147,79,0.8) 0, rgba(255,147,79,0.08) 16%, transparent 30%), linear-gradient(135deg, rgba(56,95,114,1) 0%, rgba(33,64,90,1) 55%, rgba(22,35,51,1) 100%)",
-  },
-  {
-    title: "Optimize",
-    number: "04",
-    description:
-      "Every feedback point gets stored. The model only gets sharper over time, so each new role starts with more context than the last.",
-    visual:
-      "radial-gradient(circle at 62% 20%, rgba(255,243,224,0.92) 0, rgba(255,243,224,0.08) 14%, transparent 24%), radial-gradient(circle at 34% 74%, rgba(87,207,214,0.78) 0, rgba(87,207,214,0.12) 18%, transparent 32%), linear-gradient(135deg, rgba(103,124,111,1) 0%, rgba(63,95,110,1) 48%, rgba(28,54,76,1) 100%)",
   },
 ];
 
@@ -195,7 +152,7 @@ We believe the best sales people are the hiring managers themselves. We do a qui
 ];
 
 const sectionTagClassName =
-  "inline-flex items-center rounded-lg bg-beige500/80 px-4 py-2 font-geist text-[15px] font-medium tracking-[-0.03em] text-beige900/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] backdrop-blur-xl";
+  "inline-flex items-center rounded-lg bg-beige500/80 px-4 py-2 font-geist text-[15px] md:text-[16px] font-medium tracking-[-0.03em] text-beige900/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] backdrop-blur-xl";
 
 const titleTextClassName =
   "font-halant text-4xl sm:text-4xl md:text-5xl leading-[0.98] tracking-[-0.08em] text-beige900";
@@ -298,33 +255,6 @@ const PlaceholderShell = ({
     <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.2),transparent_48%)]" />
     {children}
   </div>
-);
-
-const HeroVideoPlaceholder = () => (
-  <PlaceholderShell
-    className="mt-16 aspect-[1.82/1] w-full bg-[#6f5948]"
-    style={{
-      backgroundImage:
-        "radial-gradient(circle at 64% 32%, rgba(255,229,192,0.24), transparent 14%), radial-gradient(circle at 79% 18%, rgba(255,255,255,0.18), transparent 10%), radial-gradient(circle at 70% 72%, rgba(7,13,24,0.28), transparent 24%), linear-gradient(92deg, rgba(114,90,68,1) 0%, rgba(154,127,95,1) 48%, rgba(36,28,27,1) 100%)",
-    }}
-  >
-    <div className="absolute inset-y-0 left-0 w-[41%] bg-[linear-gradient(180deg,rgba(94,72,53,0.92),rgba(119,91,68,0.8))]" />
-    <div className="absolute left-[43%] top-[18%] h-[36%] w-[12%] rounded-full bg-black/40 blur-[26px]" />
-    <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black/40 to-transparent" />
-    <div className="absolute bottom-6 left-6 flex items-center gap-5 text-beige100/90 max-[809px]:bottom-4 max-[809px]:left-4 max-[809px]:gap-3">
-      <button
-        type="button"
-        className="flex h-10 w-10 items-center justify-center rounded-full bg-black/20 backdrop-blur-md max-[809px]:h-9 max-[809px]:w-9"
-      >
-        <Play size={16} fill="currentColor" />
-      </button>
-      <span className="text-[15px] tracking-[-0.03em] max-[809px]:text-[13px]">
-        0:00 / 1:15
-      </span>
-      <Volume2 size={18} />
-      <MoveDiagonal2 size={18} />
-    </div>
-  </PlaceholderShell>
 );
 
 const TestimonialPlaceholder = () => (
@@ -437,7 +367,7 @@ const ComparisonCard = ({
 const Beige = () => {
   const [activeProcessIndex, setActiveProcessIndex] = useState(0);
   const [openFaqIndex, setOpenFaqIndex] = useState(0);
-  const [showPreloader, setShowPreloader] = useState(true);
+  const [showPreloader, setShowPreloader] = useState(false);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -494,6 +424,7 @@ const Beige = () => {
                     variant="secondary"
                     size="sm"
                     href="/search"
+                    className="hidden md:block"
                   />
                   <CalendlyButton label="Schedule Demo" size="sm" />
                 </div>
@@ -507,7 +438,7 @@ const Beige = () => {
           >
             <section className="flex flex-col items-center text-center bg-beige200">
               <Reveal once className="mt-2">
-                <SectionTag>Built by & for AI Talents</SectionTag>
+                <SectionTag>Harper : AI native recruiting agency</SectionTag>
               </Reveal>
 
               <Reveal once delay={0.06} className="mt-10 max-w-[1040px]">
@@ -524,11 +455,10 @@ const Beige = () => {
               <Reveal
                 once
                 delay={0.12}
-                className="mt-8 max-w-[560px] text-lg font-medium leading-[1.58] tracking-[-0.03em] text-beige900/50 max-[809px]:text-base"
+                className="mt-8 max-w-[560px] text-base md:text-[19px] font-normal leading-[1.58] tracking-[-0.03em] text-beige900/50"
               >
                 Skip the months of searching. Connect with proven researchers
-                and engineers for both full-time roles and part-time projects
-                today
+                and engineers for both full-time roles and part-time for today.
               </Reveal>
 
               <Reveal once delay={0.18} className="mt-10">
@@ -554,7 +484,7 @@ const Beige = () => {
                     Trusted by AI Companies like Pickle, Moss, Aleph lab,
                     OptimizerAI and many others.
                   </p>
-                  <div className="flex items-center justify-between gap-4 max-[1199px]:flex-wrap max-[1199px]:justify-start">
+                  <div className="w-full flex items-center justify-between gap-4 max-[1199px]:flex-wrap max-[1199px]:justify-center">
                     {trustedCompanies.map((company, index) => (
                       <motion.div
                         key={company.name}
@@ -586,8 +516,9 @@ const Beige = () => {
                   engineered for depth, optimized for speed.
                 </h2>
                 <p className="mt-8 max-w-[540px] text-[20px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
-                  We&apos;ve eliminated the months of friction in technical
-                  hiring. Harper leverages deep technical indexing to replace
+                  We automate search, outreach, communication for screening, and
+                  matching.
+                  <br /> Harper leverages deep technical indexing to replace
                   manual filtering with high-precision matching for your most
                   critical AI/ML roles.
                 </p>
@@ -620,9 +551,10 @@ const Beige = () => {
                             {item.meta}
                           </span>
                         </div>
-                        <p className="mt-2 max-w-[420px] text-[19px] leading-[1.5] tracking-[-0.03em] text-beige900/50">
-                          {item.description}
-                        </p>
+                        <p
+                          className="mt-2 max-w-[420px] text-[18px] leading-[1.5] tracking-[-0.03em] text-beige900/50"
+                          dangerouslySetInnerHTML={{ __html: item.description }}
+                        />
                       </div>
                     </div>
                   </Reveal>
@@ -652,66 +584,6 @@ const Beige = () => {
                       </div>
                     </div>
                   </div>
-                </div>
-              </Reveal>
-            </FullBleedSection>
-
-            <FullBleedSection
-              backgroundClassName="bg-beige100"
-              contentClassName="grid grid-cols-[0.96fr_0.84fr] gap-14 max-[1199px]:grid-cols-1 max-[1199px]:gap-12 py-24"
-            >
-              <Reveal once direction="left">
-                <SectionTag>Proven impact</SectionTag>
-                <h2 className="mt-7 max-w-[540px] font-halant text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.97] tracking-[-0.08em] text-beige900">
-                  From 50 hours of sourcing
-                  <br />
-                  to 2 hours of interviewing.
-                </h2>
-                <div className="mt-8 max-w-[540px] space-y-6 text-[18px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[16px]">
-                  <p>
-                    For a leading tech organization known for its rigorous
-                    engineering standards, manual sourcing was a massive
-                    bottleneck.
-                  </p>
-                  <p>
-                    What previously required 50 hours of intense technical
-                    filtering was compressed into just 2 hours with Harper.
-                  </p>
-                  <p></p>
-                </div>
-                <div className="mt-10 grid max-w-[560px] grid-cols-2 gap-4 max-[809px]:grid-cols-1">
-                  {[
-                    {
-                      stat: "25x",
-                      label: "Better",
-                      sublabel: "Sourcing Efficiency",
-                    },
-                    {
-                      stat: "7 days",
-                      label: "Time to match",
-                      sublabel: "faster",
-                    },
-                  ].map((item, index) => (
-                    <Reveal key={item.stat} once delay={0.08 * index}>
-                      <div className="rounded-3xl bg-beige500/80 p-6">
-                        <div className="font-halant font-medium text-[56px] leading-[0.95] tracking-[-0.06em] text-beige900">
-                          {item.stat}
-                        </div>
-                        <div className="mt-4 text-[17px] font-medium tracking-[-0.03em] text-beige900">
-                          {item.label}
-                        </div>
-                        <div className="mt-1 text-[17px] tracking-[-0.03em] text-beige900/70">
-                          {item.sublabel}
-                        </div>
-                      </div>
-                    </Reveal>
-                  ))}
-                </div>
-              </Reveal>
-
-              <Reveal once direction="right" delay={0.08}>
-                <div className="relative h-full hidden md:flex">
-                  <SuccessPortraitPlaceholder />
                 </div>
               </Reveal>
             </FullBleedSection>
@@ -797,7 +669,7 @@ const Beige = () => {
                           <h3 className="text-[28px] sm:text-[30px] md:text-[32px] lg:text-[34px] font-semibold leading-[1.08] tracking-[-0.05em] text-beige900">
                             {activeProcess.title}
                           </h3>
-                          <p className="mt-4 max-w-[450px] text-[19px] leading-[1.56] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[17px]">
+                          <p className="mt-4 max-w-[520px] text-[19px] leading-[1.56] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[17px]">
                             {activeProcess.description}
                           </p>
                         </div>
@@ -806,6 +678,66 @@ const Beige = () => {
                   </div>
                 </Reveal>
               </div>
+            </FullBleedSection>
+
+            <FullBleedSection
+              backgroundClassName="bg-beige100"
+              contentClassName="grid grid-cols-[0.96fr_0.84fr] gap-14 max-[1199px]:grid-cols-1 max-[1199px]:gap-12 py-24"
+            >
+              <Reveal once direction="left">
+                <SectionTag>Proven impact</SectionTag>
+                <h2 className="mt-7 max-w-[540px] font-halant text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.97] tracking-[-0.08em] text-beige900">
+                  From 50 hours of sourcing
+                  <br />
+                  to 2 hours of interviewing.
+                </h2>
+                <div className="mt-8 max-w-[540px] space-y-6 text-[18px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[16px]">
+                  <p>
+                    For a leading tech organization known for its rigorous
+                    engineering standards, manual sourcing was a massive
+                    bottleneck.
+                  </p>
+                  <p>
+                    What previously required 50 hours of intense technical
+                    filtering was compressed into just 2 hours with Harper.
+                  </p>
+                  <p></p>
+                </div>
+                <div className="mt-10 grid max-w-[560px] grid-cols-2 gap-4 max-[809px]:grid-cols-1">
+                  {[
+                    {
+                      stat: "25x",
+                      label: "Better",
+                      sublabel: "Sourcing Efficiency",
+                    },
+                    {
+                      stat: "7 days",
+                      label: "Time to match",
+                      sublabel: "faster",
+                    },
+                  ].map((item, index) => (
+                    <Reveal key={item.stat} once delay={0.08 * index}>
+                      <div className="rounded-3xl bg-beige500/80 p-6">
+                        <div className="font-halant font-medium text-[56px] leading-[0.95] tracking-[-0.06em] text-beige900">
+                          {item.stat}
+                        </div>
+                        <div className="mt-4 text-[17px] font-medium tracking-[-0.03em] text-beige900">
+                          {item.label}
+                        </div>
+                        <div className="mt-1 text-[17px] tracking-[-0.03em] text-beige900/70">
+                          {item.sublabel}
+                        </div>
+                      </div>
+                    </Reveal>
+                  ))}
+                </div>
+              </Reveal>
+
+              <Reveal once direction="right" delay={0.08}>
+                <div className="relative h-full hidden md:flex">
+                  <SuccessPortraitPlaceholder />
+                </div>
+              </Reveal>
             </FullBleedSection>
 
             <section className="py-24">
@@ -817,9 +749,9 @@ const Beige = () => {
                     <span className="text-beige900/50">Better</span>
                   </h2>
                   <p className="text-right text-[20px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
-                    We optimize the full recruiting process
+                    We replace manual recruiting with
                     <br />
-                    by our AI infrastructure.
+                    AI-driven search, evaluation, and matching.
                   </p>
                 </div>
               </Reveal>
@@ -935,10 +867,10 @@ const Beige = () => {
                     />
                     {/* Table */}
                     <div className="mt-6 text-left">
-                      <div className="grid grid-cols-[1fr_30px_30px] bg-neutral-900 text-xs font-medium px-2 py-1 text-neutral-300">
-                        <div>제목</div>
-                        <div className="text-left">인용</div>
-                        <div className="text-right pr-2">연도</div>
+                      <div className="grid grid-cols-[1fr_50px_50px] bg-neutral-900 text-xs font-medium px-2 py-1 text-neutral-300">
+                        <div>Title</div>
+                        <div className="text-right">Citations</div>
+                        <div className="text-right pr-1">Year</div>
                       </div>
                       <div className="divide-y divide-neutral-800">
                         {papers.map((paper, i) => (
@@ -1048,7 +980,7 @@ const Beige = () => {
                           </div>
                           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
                             <motion.div
-                              animate={{ rotate: isOpen ? 45 : 0 }}
+                              animate={{ rotate: isOpen ? 405 : 0 }}
                               transition={{
                                 duration: 0.28,
                                 ease: [0.22, 1, 0.36, 1],
@@ -1076,7 +1008,7 @@ const Beige = () => {
                               className="overflow-hidden"
                             >
                               <p
-                                className="text-left max-w-[620px] text-base leading-[1.58] tracking-[-0.03em] text-beige900/50"
+                                className="text-left max-w-[720px] text-[17px] md:text-[18px] leading-[1.58] tracking-[-0.03em] text-beige900/50"
                                 dangerouslySetInnerHTML={{ __html: faq.answer }}
                               />
                             </motion.div>
