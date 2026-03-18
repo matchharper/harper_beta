@@ -48,7 +48,7 @@ export function inferSearchPlanKey(
 
 export function isParallelSearchOverrideUser(userId?: string | null) {
   if (!userId) return false;
-  return getOverrideUserIds().has(userId);
+  return getOverrideUserIds().includes(userId);
 }
 
 export function getMaxParallelSearchCount(args: {
