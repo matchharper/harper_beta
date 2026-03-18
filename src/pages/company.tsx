@@ -455,7 +455,7 @@ const Beige = () => {
   return (
     <>
       <Head>
-        <title>Harper Beige</title>
+        <title>Harper</title>
       </Head>
       <div className="min-h-screen overflow-x-clip bg-beige200 font-geist text-beige900 antialiased">
         <div className="w-full">
