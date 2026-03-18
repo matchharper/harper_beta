@@ -641,9 +641,9 @@ const Beige = () => {
                     <Quote fill="currentColor" size={64} />
                     <div>
                       <h2 className="max-w-[920px] font-halant text-[36px] sm:text-[42px] md:text-[50px] lg:text-[58px] leading-[1.04] tracking-[-0.07em]">
-                        Harper isn't just a tool; it's our entire hiring
-                        infrastructure for AI talent. The speed of matching is
-                        simply on another level
+                        Harper isn&apos;t just a tool; it&apos;s our entire
+                        hiring infrastructure for AI talent. The speed of
+                        matching is simply on another level
                       </h2>
                       <div className="mt-10 text-[18px] leading-[1.4] tracking-[-0.03em] text-beige100/90 max-[809px]:text-[15px]">
                         SJ Lee
