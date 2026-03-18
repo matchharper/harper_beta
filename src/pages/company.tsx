@@ -437,7 +437,7 @@ const ComparisonCard = ({
 const Beige = () => {
   const [activeProcessIndex, setActiveProcessIndex] = useState(0);
   const [openFaqIndex, setOpenFaqIndex] = useState(0);
-  const [showPreloader, setShowPreloader] = useState(false);
+  const [showPreloader, setShowPreloader] = useState(true);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
