@@ -47,7 +47,15 @@ const trustedCompanies = [
     ),
   },
   {
-    name: "LlamaIndex",
+    name: "aleph",
+    render: (
+      <div className="flex items-center gap-4">
+        <img src="/images/logos/aleph.svg" alt="aleph" className="h-[30px]" />
+      </div>
+    ),
+  },
+  {
+    name: "optimizerai",
     render: (
       <div className="flex items-center gap-4">
         <img
@@ -55,14 +63,6 @@ const trustedCompanies = [
           alt="optimizerai"
           className="h-[54px]"
         />
-      </div>
-    ),
-  },
-  {
-    name: "Porter",
-    render: (
-      <div className="flex items-center gap-4 font-geist text-xl font-medium tracking-[-0.03em] text-beige900">
-        etc
       </div>
     ),
   },
