@@ -32,9 +32,13 @@ import { useCredits } from "@/hooks/useCredit";
 import { MIN_CREDITS_FOR_SEARCH } from "@/utils/constantkeys";
 import CreditModal from "../Modal/CreditModal";
 import { supabase } from "@/lib/supabase";
+import {
+  ACTIVE_PARALLEL_SEARCH_STATUSES,
+  getMaxParallelSearchCount,
+  getParallelSearchLimitMessage,
+} from "@/lib/searchParallelLimit";
 import { showToast } from "../toast/toast";
 import { usePlanStore } from "@/store/usePlanStore";
-import { StatusEnum } from "@/types/type";
 import type { FileAttachmentPayload } from "@/types/chat";
 import { notifyUsageToSlack } from "@/lib/slack";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
@@ -332,36 +336,21 @@ export default function ChatPanel({
   const ensureSearchCanStart = useCallback(async () => {
     if (!canSearch) return false;
     if (!userId) return false;
-    const maxParallel = planKey === "max" ? 3 : 1;
+    const maxParallel = getMaxParallelSearchCount({ planKey, userId });
     const threeMinAgo = new Date(Date.now() - 3 * 60 * 1000).toISOString();
 
     const { count, error } = await supabase
       .from("runs")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
-      .in("status", [
-        StatusEnum.DONE,
-        StatusEnum.RUNNING,
-        StatusEnum.PARTIAL,
-        StatusEnum.FOUND,
-        StatusEnum.STARTING,
-        StatusEnum.QUEUED,
-        StatusEnum.RERANKING_STREAMING,
-        StatusEnum.PARSING,
-        StatusEnum.REFINE,
-        StatusEnum.EXPANDING,
-        StatusEnum.RERANKING,
-      ])
+      .in("status", [...ACTIVE_PARALLEL_SEARCH_STATUSES])
       .gte("created_at", threeMinAgo);
 
     if (error) {
       console.error("Failed to check running searches:", error);
     } else if ((count ?? 0) >= maxParallel) {
       showToast({
-        message:
-          maxParallel === 3
-            ? "동시 검색은 최대 3개까지 가능합니다."
-            : "이미 검색이 진행중입니다. 기존 검색이 종료된 후에 다시 시도해주세요.<br />(Max 플랜의 경우 동시에 3개까지 가능합니다.)",
+        message: getParallelSearchLimitMessage({ maxParallel }),
         variant: "white",
       });
       return false;

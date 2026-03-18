@@ -6,7 +6,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowUpRight,
   Check,
-  Minus,
   MoveDiagonal2,
   Play,
   Plus,
@@ -19,8 +18,7 @@ import React, { CSSProperties, useEffect, useMemo, useState } from "react";
 
 const papers = [
   {
-    title:
-      "Observation of a new boson at a mass of 125 GeV with the CMS experiment at the LHC",
+    title: "Noise Conditional Flow Model for Learning ...",
     authors: "S Chatrchyan ...",
     journal: "CVPR 2024",
     citations: 660,
@@ -33,39 +31,38 @@ const BOOKING_URL = "https://calendly.com/chris-matchharper/30min";
 
 const trustedCompanies = [
   {
-    name: "Corgi",
-    render: (
-      <div className="text-[44px] font-extrabold tracking-[-0.05em] text-[#ff6a00]">
-        Corgi
-      </div>
-    ),
-  },
-  {
-    name: "Giga",
-    render: (
-      <div className="flex h-[62px] w-[84px] items-center justify-center bg-[#6e8798] text-[28px] font-semibold tracking-[-0.05em] text-white">
-        Giga
-      </div>
-    ),
-  },
-  {
-    name: "LlamaIndex",
+    name: "Pickle",
     render: (
       <div className="flex items-center gap-4">
-        <div className="flex h-[54px] w-[54px] items-center justify-center rounded-[14px] bg-black text-[28px] text-white">
-          L
-        </div>
-        <div className="text-[52px] font-semibold tracking-[-0.06em] text-black">
-          LlamaIndex
-        </div>
+        <img src="/images/logos/pickle.png" alt="pickle" className="h-[54px]" />
       </div>
     ),
   },
   {
-    name: "Porter",
+    name: "Moss",
     render: (
       <div className="flex items-center gap-4">
-        <div className="h-[42px] w-[42px] rounded-[14px] bg-[#2ecc71]" />
+        <img src="/images/logos/moss.png" alt="moss" className="h-[54px]" />
+      </div>
+    ),
+  },
+  {
+    name: "aleph",
+    render: (
+      <div className="flex items-center gap-4">
+        <img src="/images/logos/aleph.svg" alt="aleph" className="h-[30px]" />
+      </div>
+    ),
+  },
+  {
+    name: "optimizerai",
+    render: (
+      <div className="flex items-center gap-4">
+        <img
+          src="/images/logos/optimizerai.png"
+          alt="optimizerai"
+          className="h-[54px]"
+        />
       </div>
     ),
   },
@@ -74,28 +71,59 @@ const trustedCompanies = [
 const valueCards = [
   {
     number: "01",
-    title: "Fill your interviewing schedule",
+    title: "Deep indexing",
     meta: "Within 24 hours",
     description:
-      "After intake, we kickstart our AI recruiting system. You'll get interview-ready candidates the same day.",
+      "We go beyond keywords to map real technical impact. By analyzing research papers and open-source contributions, we identify the top 1% who truly understand the domain.",
   },
   {
     number: "02",
-    title: "Fill your roles 4x faster",
+    title: "High-velocity, 4x faster matching",
     meta: "Weeks 2-4",
     description:
-      "We typically fill hard roles within 2-4 weeks. Candidates are far more likely to pass your interviews.",
+      "Skip the months of waiting. Connect directly with proven AI/ML talent through a streamlined process built to maximize matching speed and eliminate friction.",
   },
   {
     number: "03",
-    title: "Longterm recruiting partner",
+    title: "Harper remembers",
     meta: "The Future",
     description:
-      "The system stores context over time, so the matching and outreach quality compounds every role.",
+      "Your technical preferences are stored in persistent memory, ensuring matching quality compounds as your team grows.",
   },
 ];
 
 const processSteps = [
+  {
+    title: "Understanding",
+    number: "01",
+    description:
+      "Share your ideal candidate : skills, experience, team fit, and any edge cases.",
+    image: "/images/feature1.png",
+  },
+  {
+    title: "Finding",
+    number: "02",
+    description:
+      "We search across our internal and internet talent pool using our search intelligence, then onboard and evaluate candidates to identify the best fit.",
+    image: "/images/feature2.png",
+  },
+  {
+    title: "Matching",
+    number: "03",
+    description:
+      "Get a curated list of candidates in your dashboard or Slack, ready to review. Give us feedback to refine the list.",
+    image: "/images/feature3.png",
+  },
+  {
+    title: "Interview",
+    number: "04",
+    description:
+      "Not a fit? We refine instantly with your feedback. Like someone? We handle the interview connection for you.",
+    image: "/images/feature4.png",
+  },
+];
+
+const processSteps2 = [
   {
     title: "Understanding",
     number: "01",
@@ -134,22 +162,30 @@ const faqs = [
   {
     question: "How does the system work?",
     answer:
-      "We intake your role, use the system to source candidates, and continuously adjust using your feedback so the shortlist sharpens after every interaction.",
+      "Get a whole recruiting team started in just 1 hour with the founding team. We fill interviewing capacity in typically in the first day.\
+<br />\
+<br />\
+1. We intake with you for about 45 minutes to deeply understand your preferences. Our system also surfaces candidates for you to give realtime feedback on. We probe deeply on your nuanced criteria and edge cases.<br />\
+2. We kickstart our sourcing to thousands of candidates. Each candidate is screened and only the best enter your portal.<br />\
+3. You provide feedback on each candidate, which makes our system more accurate.<br />\
+4. For candidates you accept, we send them your calendar link for a first discussion.",
   },
   {
     question: "How does removing the human component produce better results?",
     answer:
-      "The system scales search and outreach faster than a recruiter-heavy workflow. Hiring teams then spend time where it matters most: evaluating the best candidates.",
+      "Traditional agencies are bottlenecked by how many people they could screen. In reality, candidates are tired of repetitive recruiter screens.<br />\
+<br />\
+We believe the best sales people are the hiring managers themselves. We do a quick handoff which maximizes our ability to reach out to the very best in the candidate pool, while allowing hiring managers to make an immediate impression.",
   },
   {
     question: "How long until you fill my role?",
     answer:
-      "The original site positions hard engineering roles at roughly 2-4 weeks depending on interview throughput and candidate responsiveness.",
+      "We typically fill hard-to-fill engineering roles in 2-4 weeks. It’s not a matter of how fast we can find candidates, it’s a matter of how fast you can interview them.",
   },
   {
     question: "How much does it cost?",
     answer:
-      "The original FAQ frames pricing as materially lower than traditional agencies. This implementation keeps the structure and interaction, not the pricing policy.",
+      "Typically we charge 10% based on the difficulty of the role. We aim to undercut traditional agencies by about 70%.",
   },
   {
     question: "What are next steps?",
@@ -162,7 +198,7 @@ const sectionTagClassName =
   "inline-flex items-center rounded-lg bg-beige500/80 px-4 py-2 font-geist text-[15px] font-medium tracking-[-0.03em] text-beige900/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] backdrop-blur-xl";
 
 const titleTextClassName =
-  "font-halant text-4xl sm:text-5xl lg:text-6xl leading-[0.98] tracking-[-0.08em] text-beige900";
+  "font-halant text-4xl sm:text-4xl md:text-5xl leading-[0.98] tracking-[-0.08em] text-beige900";
 
 type ButtonProps = {
   label: string;
@@ -190,7 +226,7 @@ const RadarButton = ({
   label?: string;
 }) => (
   <motion.a
-    href="/radar"
+    href="/search"
     whileHover={{ y: -1 }}
     whileTap={{ scale: 0.985 }}
     className={`group inline-flex h-[50px] items-center gap-2 rounded-full bg-beige100 px-6 font-geist text-[15px] font-medium tracking-[-0.03em] text-black shadow-[0_14px_30px_rgba(0,0,0,0.22)] transition-shadow duration-300 hover:shadow-[0_18px_40px_rgba(0,0,0,0.3)] ${className}`}
@@ -457,7 +493,7 @@ const Beige = () => {
                     label="Use Search"
                     variant="secondary"
                     size="sm"
-                    href="/radar"
+                    href="/search"
                   />
                   <CalendlyButton label="Schedule Demo" size="sm" />
                 </div>
@@ -471,19 +507,16 @@ const Beige = () => {
           >
             <section className="flex flex-col items-center text-center bg-beige200">
               <Reveal once className="mt-2">
-                <SectionTag>Backed by Y Combinator</SectionTag>
+                <SectionTag>Built by & for AI Talents</SectionTag>
               </Reveal>
 
               <Reveal once delay={0.06} className="mt-10 max-w-[1040px]">
                 <h1 className="font-halant text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.93] tracking-[-0.08em] text-beige900">
                   <span className="block">
-                    <StaggerText text="Fill startup roles with" />
+                    <StaggerText text="Hire the top 1% of AI/ML talent" />
                   </span>
                   <span className="block">
-                    <StaggerText
-                      text="candidates 2x better, 4x faster"
-                      delay={0.14}
-                    />
+                    <StaggerText text="in days, not months." delay={0.14} />
                   </span>
                 </h1>
               </Reveal>
@@ -493,8 +526,9 @@ const Beige = () => {
                 delay={0.12}
                 className="mt-8 max-w-[560px] text-lg font-medium leading-[1.58] tracking-[-0.03em] text-beige900/50 max-[809px]:text-base"
               >
-                Harper is the first ever AI native recruiting agency. It shrinks
-                weeks of work that a whole recruiting team would do, into days.
+                Skip the months of searching. Connect with proven researchers
+                and engineers for both full-time roles and part-time projects
+                today
               </Reveal>
 
               <Reveal once delay={0.18} className="mt-10">
@@ -505,16 +539,22 @@ const Beige = () => {
               </Reveal>
 
               <Reveal once delay={0.24} className="w-full">
-                <HeroVideoPlaceholder />
+                <div className="flex items-center justify-center w-full mt-20 mb-4">
+                  <img
+                    src="/images/objects.png"
+                    alt="objects"
+                    className="w-52 sm:w-64 md:w-80"
+                  />
+                </div>
               </Reveal>
 
               <Reveal once delay={0.32} className="mt-14 w-full">
                 <div className="grid grid-cols-[160px_1fr] items-center gap-12 max-[1199px]:grid-cols-1 max-[1199px]:gap-8">
-                  <p className="max-w-[132px] text-left font-geist text-[14px] leading-[1.55] tracking-[-0.02em] text-beige900/40">
-                    Trusted by AI Companies like OptimizerAI, Pickle, Wonderful
-                    and many others.
+                  <p className="w-full md:max-w-[132px] text-left font-geist text-[14px] leading-[1.55] tracking-[-0.02em] text-beige900/40">
+                    Trusted by AI Companies like Pickle, Moss, Aleph lab,
+                    OptimizerAI and many others.
                   </p>
-                  <div className="flex items-center justify-between gap-8 max-[1199px]:flex-wrap max-[1199px]:justify-start">
+                  <div className="flex items-center justify-between gap-4 max-[1199px]:flex-wrap max-[1199px]:justify-start">
                     {trustedCompanies.map((company, index) => (
                       <motion.div
                         key={company.name}
@@ -539,17 +579,17 @@ const Beige = () => {
               contentClassName="grid grid-cols-[1.06fr_0.94fr] gap-16 max-[1199px]:grid-cols-1 max-[1199px]:gap-12 py-24"
             >
               <Reveal once direction="left" className="pr-4 max-[1199px]:pr-0">
-                <SectionTag>How we work</SectionTag>
+                <SectionTag>Our Approach</SectionTag>
                 <h2 className="mt-7 max-w-[520px] font-halant text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.95] tracking-[-0.08em] text-beige900">
-                  AI speed, recommender
+                  Hire at the speed of AI
                   <br />
-                  system accuracy.
+                  engineered for depth, optimized for speed.
                 </h2>
                 <p className="mt-8 max-w-[540px] text-[20px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
-                  We&apos;re ML scientists who built large-scale recommender
-                  systems. We model what makes candidates succeed, then rank by
-                  how likely they are to pass your interviews and perform on the
-                  job.
+                  We&apos;ve eliminated the months of friction in technical
+                  hiring. Harper leverages deep technical indexing to replace
+                  manual filtering with high-precision matching for your most
+                  critical AI/ML roles.
                 </p>
                 <div className="mt-10">
                   <CalendlyButton
@@ -601,13 +641,14 @@ const Beige = () => {
                     <Quote fill="currentColor" size={64} />
                     <div>
                       <h2 className="max-w-[920px] font-halant text-[36px] sm:text-[42px] md:text-[50px] lg:text-[58px] leading-[1.04] tracking-[-0.07em]">
-                        We moved off Paraform and canceled our Juicebox
-                        subscription because of the velocity we saw from Harper
+                        Harper isn&apos;t just a tool; it&apos;s our entire
+                        hiring infrastructure for AI talent. The speed of
+                        matching is simply on another level
                       </h2>
                       <div className="mt-10 text-[18px] leading-[1.4] tracking-[-0.03em] text-beige100/90 max-[809px]:text-[15px]">
                         SJ Lee
                         <br />
-                        Co-founder at YC backed startup
+                        Co-Founder at Pickle (YC W25)
                       </div>
                     </div>
                   </div>
@@ -620,37 +661,35 @@ const Beige = () => {
               contentClassName="grid grid-cols-[0.96fr_0.84fr] gap-14 max-[1199px]:grid-cols-1 max-[1199px]:gap-12 py-24"
             >
               <Reveal once direction="left">
-                <SectionTag>Success stories</SectionTag>
+                <SectionTag>Proven impact</SectionTag>
                 <h2 className="mt-7 max-w-[540px] font-halant text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.97] tracking-[-0.08em] text-beige900">
-                  2x interview pass
+                  From 50 hours of sourcing
                   <br />
-                  rate for top startup
+                  to 2 hours of interviewing.
                 </h2>
                 <div className="mt-8 max-w-[540px] space-y-6 text-[18px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[16px]">
                   <p>
-                    Our client&apos;s a top stealth startup backed by top VCs
-                    urgently hiring founding engineers.
+                    For a leading tech organization known for its rigorous
+                    engineering standards, manual sourcing was a massive
+                    bottleneck.
                   </p>
                   <p>
-                    They hired the best agencies in the Bay but were provided
-                    only a few candidates a week that didn&apos;t fit the role.
+                    What previously required 50 hours of intense technical
+                    filtering was compressed into just 2 hours with Harper.
                   </p>
-                  <p>
-                    After trying Harper, they saw a 10x surge in interviewing,
-                    and fired their other agencies.
-                  </p>
+                  <p></p>
                 </div>
                 <div className="mt-10 grid max-w-[560px] grid-cols-2 gap-4 max-[809px]:grid-cols-1">
                   {[
                     {
-                      stat: "10x",
-                      label: "Interview volume",
-                      sublabel: "within the first week",
+                      stat: "25x",
+                      label: "Better",
+                      sublabel: "Sourcing Efficiency",
                     },
                     {
-                      stat: "12 weeks",
-                      label: "Faster",
-                      sublabel: "role filled",
+                      stat: "7 days",
+                      label: "Time to match",
+                      sublabel: "faster",
                     },
                   ].map((item, index) => (
                     <Reveal key={item.stat} once delay={0.08 * index}>
@@ -671,13 +710,8 @@ const Beige = () => {
               </Reveal>
 
               <Reveal once direction="right" delay={0.08}>
-                <div className="relative h-full">
+                <div className="relative h-full hidden md:flex">
                   <SuccessPortraitPlaceholder />
-                  <div className="absolute bottom-8 left-8 text-[19px] leading-[1.35] tracking-[-0.03em] text-white/90">
-                    Caleb Burns
-                    <br />
-                    Founding Team
-                  </div>
                 </div>
               </Reveal>
             </FullBleedSection>
@@ -688,20 +722,20 @@ const Beige = () => {
             >
               <Reveal once className="text-center">
                 <SectionTag>Our Process</SectionTag>
+
                 <h2
                   className={`mx-auto mt-7 max-w-[860px] ${titleTextClassName}`}
                 >
-                  A <span className="text-beige900/40">thousand</span>{" "}
-                  recruiters, in your palm
+                  Hiring, simplified
                 </h2>
                 <p className="mx-auto mt-6 max-w-[680px] text-[20px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
-                  Within an hour, enable a whole team of recruiters to fill your
-                  roles 24/7.
+                  Tell us who you need. We find, shortlist, and deliver
+                  candidates you can review and interview right away.
                 </p>
               </Reveal>
 
-              <div className="mt-14 grid grid-cols-[0.52fr_0.48fr] gap-14 max-[1199px]:grid-cols-1 max-[1199px]:gap-10">
-                <div className="space-y-5">
+              <div className="mt-14 grid grid-cols-[0.52fr_0.48fr] gap-14 max-[1199px]:grid-cols-1 max-[1199px]:gap-6">
+                <div className="space-y-3 md:space-y-5">
                   {processSteps.map((step, index) => {
                     const active = activeProcessIndex === index;
 
@@ -711,14 +745,14 @@ const Beige = () => {
                         type="button"
                         onClick={() => setActiveProcessIndex(index)}
                         whileHover={{ x: 4 }}
-                        className={`flex w-full items-start justify-between rounded-[28px] border px-8 py-6 text-left transition-all duration-300 max-[809px]:px-6 max-[809px]:py-5 ${
+                        className={`flex w-full items-start justify-between rounded-xl md:rounded-[28px] border px-4 py-3 md:px-8 md:py-6 text-left transition-all duration-300 ${
                           active
                             ? "border-transparent bg-beige500/60"
                             : "border-transparent bg-transparent text-beige900/70 hover:bg-white/30"
                         }`}
                       >
                         <span
-                          className={`font-halant text-[32px] sm:text-[38px] md:text-[44px] lg:text-[48px] leading-[0.98] tracking-[-0.07em] ${
+                          className={`font-halant text-[28px] sm:text-[36px] md:text-[40px] lg:text-[48px] leading-[0.98] tracking-[-0.07em] ${
                             active ? "text-beige900" : "text-beige900/40"
                           }`}
                         >
@@ -750,12 +784,15 @@ const Beige = () => {
                         }}
                         className="space-y-8"
                       >
-                        <PlaceholderShell
-                          className="aspect-[1.35/1] w-full"
-                          style={{ backgroundImage: activeProcess.visual }}
+                        <div
+                          className={`relative overflow-hidden rounded-[32px] border border-white/40 bg-beige500/50 shadow-[0_30px_80px_rgba(89,57,24,0.12)] aspect-[1.6/1] w-full`}
                         >
-                          <div className="absolute inset-x-10 bottom-10 h-[1px] bg-white/30" />
-                        </PlaceholderShell>
+                          <img
+                            src={activeProcess.image}
+                            alt="Process"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
                         <div>
                           <h3 className="text-[28px] sm:text-[30px] md:text-[32px] lg:text-[34px] font-semibold leading-[1.08] tracking-[-0.05em] text-beige900">
                             {activeProcess.title}
@@ -780,9 +817,9 @@ const Beige = () => {
                     <span className="text-beige900/50">Better</span>
                   </h2>
                   <p className="text-right text-[20px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
-                    Our recruiting system is built ML Scientists from
+                    We optimize the full recruiting process
                     <br />
-                    TikTok and Meta and prominent recruiting leaders.
+                    by our AI infrastructure.
                   </p>
                 </div>
               </Reveal>
@@ -793,15 +830,15 @@ const Beige = () => {
 
             <section className="py-24">
               <Reveal once className="text-center">
-                <SectionTag>Why choose us</SectionTag>
+                <SectionTag>Why Harper</SectionTag>
                 <h2 className={`mt-7 ${titleTextClassName}`}>
-                  Recruiting in the <span className="text-beige900/40">AI</span>{" "}
-                  age
+                  Hyper-focused on{" "}
+                  <span className="text-beige900/40">AI/ML</span>
                 </h2>
                 <p className="mx-auto mt-6 max-w-[640px] text-[20px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
-                  We&apos;re your longterm recruiting partner with infinite
-                  <br />
-                  memory and context.
+                  We are your{" "}
+                  <span className="text-beige900">recruiting partner</span> for
+                  the 1% of technical talent
                 </p>
               </Reveal>
 
@@ -810,9 +847,9 @@ const Beige = () => {
                   <ComparisonCard
                     title="Traditional agencies"
                     items={[
-                      "Deliver only 2-3 candidates a week.",
-                      "Lack background to understand your work.",
-                      "If your role is too hard to fill, you're deprioritized.",
+                      "Weeks of manual filtering for generic, mismatched profiles.",
+                      "Every search starts from zero : no learning, no context.",
+                      "Expensive placement fees that act as a tax on your growth.",
                     ]}
                     isPositive={false}
                   />
@@ -821,9 +858,9 @@ const Beige = () => {
                   <ComparisonCard
                     title="Harper"
                     items={[
-                      "We find you as many candidates as you tell us to.",
-                      "Our AI algorithm acts like a dedicated domain expert.",
-                      "Our workflows scale so you are never deprioritized.",
+                      "With in 7 days, research-grade matching for the top of AI Talent.",
+                      "Infinite memory that learns and evolves with your technical bar.",
+                      "White-glove search intelligence with a success model built for elite scaling.",
                     ]}
                     isPositive={true}
                   />
@@ -837,16 +874,19 @@ const Beige = () => {
             >
               <Reveal direction="left" className="max-w-[620px]">
                 <div className="inline-flex items-center rounded-full border border-white/10 bg-white/10 px-4 py-2 font-geist text-[13px] font-medium tracking-[-0.03em] text-white/70">
-                  Search
+                  The Engine
                 </div>
                 <h2
                   className={`mt-7 text-beige100 font-halant text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.96] tracking-[-0.08em]`}
                 >
-                  Perfect tool for finding AI/ML talents
+                  Autonomous Intelligence. Evidence-First.
                 </h2>
                 <p className="mt-7 max-w-[560px] font-geist text-[20px] leading-[1.58] tracking-[-0.03em] text-white/70 max-[809px]:text-[18px]">
-                  Search across real research output, open-source evidence, and
-                  technical project history in one place.
+                  {/* Search across real research output, open-source evidence, and
+                  technical project history in one place. */}
+                  The same infrastructure our specialists use to scale teams.
+                  Harper Search bypasses resumes to index technical truth :
+                  mapping research footprints and code contributions directly.
                 </p>
                 <div className="mt-10">
                   <RadarButton />
@@ -867,9 +907,9 @@ const Beige = () => {
 
                     <div className="mt-4 grid grid-cols-3 gap-3 max-[809px]:grid-cols-1">
                       {[
-                        ["7M+", "papers & publications"],
-                        ["3M+", "tracked technical projects"],
-                        ["10M+", "cross-linked signals"],
+                        ["7M+", "Scholarly Artifacts"],
+                        ["3M+", "Open-Source Repositories"],
+                        ["10M+", "Relational Data Points / Neural Signals"],
                       ].map(([value, label]) => (
                         <div
                           key={value}
@@ -953,8 +993,20 @@ const Beige = () => {
                           <span className="font-geist text-[15px] tracking-[-0.02em] text-white/70">
                             {item}
                           </span>
-                          <span className="font-geist text-[13px] tracking-[-0.02em] text-white/30">
-                            indexed
+                          <span className="flex items-center gap-2">
+                            <span className="font-geist text-[13px] tracking-[-0.02em] text-white/30">
+                              {index === 0 ? "Verified" : "Indexed"}
+                            </span>
+                            <span
+                              aria-hidden="true"
+                              className="relative flex h-2 w-2 shrink-0"
+                            >
+                              <span
+                                className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-500/70"
+                                style={{ animationDuration: "2.2s" }}
+                              />
+                              <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+                            </span>
                           </span>
                         </motion.div>
                       ))}
@@ -971,11 +1023,11 @@ const Beige = () => {
               <Reveal once>
                 <SectionTag>FAQ</SectionTag>
                 <h2 className={`mt-7 ${titleTextClassName}`}>
-                  We put <span className="text-beige900/40">transparency</span>{" "}
-                  first
+                  We are open for{" "}
+                  <span className="text-beige900/40">questions</span>
                 </h2>
                 <p className="mx-auto mt-6 max-w-[500px] text-[19px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[17px]">
-                  Or request access and we&apos;ll walk you through it.
+                  Or request access to learn more.
                 </p>
               </Reveal>
 
@@ -991,15 +1043,20 @@ const Beige = () => {
                         className="w-full rounded-[20px] bg-beige200 px-6 py-6 shadow-[0_14px_30px_rgba(66,38,10,0.06)] max-[809px]:px-5 max-[809px]:py-5"
                       >
                         <div className="flex items-center justify-between gap-8">
-                          <div className="text-[20px] font-medium leading-[1.24] tracking-[-0.04em] text-beige900 max-[809px]:text-[20px]">
+                          <div className="text-[20px] text-left font-medium leading-[1.24] tracking-[-0.04em] text-beige900 max-[809px]:text-[16px]">
                             {faq.question}
                           </div>
                           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
-                            {isOpen ? (
-                              <Minus className="h-5 w-5 text-beige900/60" />
-                            ) : (
+                            <motion.div
+                              animate={{ rotate: isOpen ? 45 : 0 }}
+                              transition={{
+                                duration: 0.28,
+                                ease: [0.22, 1, 0.36, 1],
+                              }}
+                              className="flex items-center justify-center"
+                            >
                               <Plus className="h-5 w-5 text-beige900/60" />
-                            )}
+                            </motion.div>
                           </div>
                         </div>
                         <AnimatePresence initial={false}>
@@ -1018,9 +1075,10 @@ const Beige = () => {
                               }}
                               className="overflow-hidden"
                             >
-                              <p className="text-left max-w-[620px] text-base leading-[1.58] tracking-[-0.03em] text-beige900/50">
-                                {faq.answer}
-                              </p>
+                              <p
+                                className="text-left max-w-[620px] text-base leading-[1.58] tracking-[-0.03em] text-beige900/50"
+                                dangerouslySetInnerHTML={{ __html: faq.answer }}
+                              />
                             </motion.div>
                           )}
                         </AnimatePresence>

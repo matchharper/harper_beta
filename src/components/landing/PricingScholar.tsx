@@ -34,8 +34,6 @@ export default function PricingSection({
   const { m, locale } = useMessages();
   const pricing = m.companyLanding.pricing;
 
-  const isEnglish = locale === "en";
-
   const plans = useMemo(() => {
     const proMonthlyUSD = 99;
     const maxMonthlyUSD = 199;
@@ -57,6 +55,7 @@ export default function PricingSection({
         features: [
           "150 searches / month",
           "AI analysis of paper + code quality",
+          "Harper Scout (Autonomous Discovery)<br/><i>AI-driven search that indexes technical truth, not just resumes.</i>",
         ],
       },
       {
@@ -69,7 +68,8 @@ export default function PricingSection({
         features: [
           "Includes all Pro features:",
           "350 searches / month",
-          "Parallel search",
+          "Up to 3 concurrent search requests",
+          "Active AI Sourcing Agent<br/><i>An autonomous co-pilot that proactively builds your talent pipeline.</i>",
         ],
       },
       {
@@ -81,8 +81,12 @@ export default function PricingSection({
         isPrimary: false,
         features: [
           "Includes all Max features:",
-          "Unlimited searches",
-          "Customized Support",
+          "Custom Quote",
+          "Unlimited technical discovery",
+          "Onboarding & Training support",
+          "Team collaboration & Management tools",
+          "Dedicated customer success support",
+          "Aligned Success Model<br/><i>An industry-leading partnership fee focused on your growth.</i>",
         ],
       },
     ];
