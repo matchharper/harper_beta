@@ -661,6 +661,57 @@ export type Database = {
           },
         ]
       }
+      ensemble_variants: {
+        Row: {
+          allow_fallback: boolean
+          created_at: string
+          expand_threshold: number
+          extra_info: string | null
+          fallback_only: boolean
+          fallback_threshold: number
+          id: number
+          is_active: boolean
+          name: string
+          priority: number
+          provider: string
+          temperature: number
+          updated_at: string
+          weight: number
+        }
+        Insert: {
+          allow_fallback?: boolean
+          created_at?: string
+          expand_threshold?: number
+          extra_info?: string | null
+          fallback_only?: boolean
+          fallback_threshold?: number
+          id?: number
+          is_active?: boolean
+          name: string
+          priority?: number
+          provider?: string
+          temperature?: number
+          updated_at?: string
+          weight?: number
+        }
+        Update: {
+          allow_fallback?: boolean
+          created_at?: string
+          expand_threshold?: number
+          extra_info?: string | null
+          fallback_only?: boolean
+          fallback_threshold?: number
+          id?: number
+          is_active?: boolean
+          name?: string
+          priority?: number
+          provider?: string
+          temperature?: number
+          updated_at?: string
+          weight?: number
+        }
+        Relationships: []
+      }
       experience_user: {
         Row: {
           candid_id: string | null
@@ -1138,6 +1189,51 @@ export type Database = {
           },
         ]
       }
+      papers: {
+        Row: {
+          abstract: string | null
+          canonical_key: string | null
+          cited_by_scholar_link: string | null
+          created_at: string
+          external_link: string | null
+          id: string
+          pub_year: number | null
+          published_at: string | null
+          scholar_link: string | null
+          title: string
+          total_citations: number
+          year_citations: Json
+        }
+        Insert: {
+          abstract?: string | null
+          canonical_key?: string | null
+          cited_by_scholar_link?: string | null
+          created_at?: string
+          external_link?: string | null
+          id?: string
+          pub_year?: number | null
+          published_at?: string | null
+          scholar_link?: string | null
+          title: string
+          total_citations?: number
+          year_citations?: Json
+        }
+        Update: {
+          abstract?: string | null
+          canonical_key?: string | null
+          cited_by_scholar_link?: string | null
+          created_at?: string
+          external_link?: string | null
+          id?: string
+          pub_year?: number | null
+          published_at?: string | null
+          scholar_link?: string | null
+          title?: string
+          total_citations?: number
+          year_citations?: Json
+        }
+        Relationships: []
+      }
       payments: {
         Row: {
           cancel_at_period_end: boolean | null
@@ -1307,7 +1403,7 @@ export type Database = {
           query_id: string
           query_keyword: string | null
           raw_input_text: string | null
-          retries: number
+          type: number
           user_id: string
         }
         Insert: {
@@ -1317,7 +1413,7 @@ export type Database = {
           query_id?: string
           query_keyword?: string | null
           raw_input_text?: string | null
-          retries?: number
+          type?: number
           user_id: string
         }
         Update: {
@@ -1327,7 +1423,7 @@ export type Database = {
           query_id?: string
           query_keyword?: string | null
           raw_input_text?: string | null
-          retries?: number
+          type?: number
           user_id?: string
         }
         Relationships: [
@@ -1384,6 +1480,7 @@ export type Database = {
       }
       run_variants: {
         Row: {
+          cost: number | null
           created_at: string
           error: string | null
           id: number
@@ -1396,6 +1493,7 @@ export type Database = {
           variant: string
         }
         Insert: {
+          cost?: number | null
           created_at?: string
           error?: string | null
           id?: never
@@ -1408,6 +1506,7 @@ export type Database = {
           variant: string
         }
         Update: {
+          cost?: number | null
           created_at?: string
           error?: string | null
           id?: never
@@ -1539,6 +1638,93 @@ export type Database = {
           },
         ]
       }
+      scholar_contributions: {
+        Row: {
+          author_order: number | null
+          created_at: string
+          is_first_author: boolean | null
+          paper_id: string
+          scholar_profile_id: string
+        }
+        Insert: {
+          author_order?: number | null
+          created_at?: string
+          is_first_author?: boolean | null
+          paper_id: string
+          scholar_profile_id: string
+        }
+        Update: {
+          author_order?: number | null
+          created_at?: string
+          is_first_author?: boolean | null
+          paper_id?: string
+          scholar_profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scholar_contributions_paper_id_fkey"
+            columns: ["paper_id"]
+            isOneToOne: false
+            referencedRelation: "papers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scholar_contributions_scholar_profile_id_fkey"
+            columns: ["scholar_profile_id"]
+            isOneToOne: false
+            referencedRelation: "scholar_profile"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scholar_profile: {
+        Row: {
+          affiliation: string | null
+          created_at: string
+          h_index: number
+          homepage_link: string | null
+          id: string
+          name: string
+          profile_image_url: string | null
+          scholar_url: string
+          scholar_user_id: string
+          search_text: string
+          topics: string
+          total_citations_num: number
+          year_citations: Json
+        }
+        Insert: {
+          affiliation?: string | null
+          created_at?: string
+          h_index?: number
+          homepage_link?: string | null
+          id?: string
+          name: string
+          profile_image_url?: string | null
+          scholar_url: string
+          scholar_user_id: string
+          search_text?: string
+          topics?: string
+          total_citations_num?: number
+          year_citations?: Json
+        }
+        Update: {
+          affiliation?: string | null
+          created_at?: string
+          h_index?: number
+          homepage_link?: string | null
+          id?: string
+          name?: string
+          profile_image_url?: string | null
+          scholar_url?: string
+          scholar_user_id?: string
+          search_text?: string
+          topics?: string
+          total_citations_num?: number
+          year_citations?: Json
+        }
+        Relationships: []
+      }
       scraped_additional_links: {
         Row: {
           candid_id: string
@@ -1565,6 +1751,7 @@ export type Database = {
           created_at: string
           is_exclude_shortlist: boolean | null
           is_korean: boolean | null
+          is_years_exp_enabled: boolean | null
           max_years_exp: number | null
           min_years_exp: number | null
           user_id: string
@@ -1573,6 +1760,7 @@ export type Database = {
           created_at?: string
           is_exclude_shortlist?: boolean | null
           is_korean?: boolean | null
+          is_years_exp_enabled?: boolean | null
           max_years_exp?: number | null
           min_years_exp?: number | null
           user_id: string
@@ -1581,6 +1769,7 @@ export type Database = {
           created_at?: string
           is_exclude_shortlist?: boolean | null
           is_korean?: boolean | null
+          is_years_exp_enabled?: boolean | null
           max_years_exp?: number | null
           min_years_exp?: number | null
           user_id?: string

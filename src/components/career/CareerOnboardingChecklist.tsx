@@ -114,7 +114,7 @@ const CareerOnboardingChecklist = () => {
                   className={[
                     checkboxClasses,
                     item.completed
-                      ? "border-xprimary bg-xprimary text-hblack000"
+                      ? "border-beige900 bg-beige900 text-hblack000"
                       : "border-hblack300 bg-hblack000 text-transparent",
                   ].join(" ")}
                   aria-hidden="true"
@@ -135,7 +135,7 @@ const CareerOnboardingChecklist = () => {
                     <div className="mt-2.5">
                       <div className="h-2 overflow-hidden rounded-full bg-hblack100">
                         <div
-                          className="h-full rounded-full bg-xprimary transition-[width] duration-300"
+                          className="h-full rounded-full bg-beige900 transition-[width] duration-300"
                           style={{
                             width: `${(checklistState.normalizedConversationCount / TALENT_ONBOARDING_COMPLETION_TARGET) * 100}%`,
                           }}

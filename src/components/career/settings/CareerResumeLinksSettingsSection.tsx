@@ -66,7 +66,7 @@ const CareerResumeLinksSettingsSection = () => {
                 href={savedResumeDownloadUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-2 inline-flex items-center gap-1 text-xs text-xprimary underline underline-offset-2"
+                className="mt-2 inline-flex items-center gap-1 text-xs text-beige900 underline underline-offset-2"
               >
                 <ExternalLink className="h-3.5 w-3.5" />
                 다운로드
@@ -82,7 +82,7 @@ const CareerResumeLinksSettingsSection = () => {
         <div className="mt-3 flex items-center gap-2">
           <label
             htmlFor="career-settings-resume-upload"
-            className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-hblack300 px-3 text-xs font-medium text-hblack700 hover:text-xprimary"
+            className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-hblack300 px-3 text-xs font-medium text-hblack700 hover:text-beige900"
           >
             <Upload className="h-3.5 w-3.5" />새 이력서 선택
           </label>
@@ -122,13 +122,13 @@ const CareerResumeLinksSettingsSection = () => {
                   onProfileLinkChange(index, event.target.value)
                 }
                 placeholder="https://"
-                className="h-9 flex-1 rounded-lg border border-hblack300 bg-hblack000 px-2 text-sm text-hblack900 outline-none transition-colors focus:border-xprimary"
+                className="h-9 flex-1 rounded-lg border border-hblack300 bg-hblack000 px-2 text-sm text-hblack900 outline-none transition-colors focus:border-beige900"
               />
               {index >= 3 ? (
                 <button
                   type="button"
                   onClick={() => onRemoveProfileLink(index)}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-hblack50 text-hblack600 transition-colors hover:border-xprimary hover:text-xprimary"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-hblack50 text-hblack600 transition-colors hover:border-beige900 hover:text-beige900"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -140,7 +140,7 @@ const CareerResumeLinksSettingsSection = () => {
         <button
           type="button"
           onClick={onAddProfileLink}
-          className="mt-3 inline-flex h-8 items-center gap-1 rounded-lg bg-hblack50 px-3 text-xs text-hblack700 transition-colors hover:text-xprimary"
+          className="mt-3 inline-flex h-8 items-center gap-1 rounded-lg bg-hblack50 px-3 text-xs text-hblack700 transition-colors hover:text-beige900"
         >
           <Plus className="h-3.5 w-3.5" />
           링크 추가
@@ -148,7 +148,7 @@ const CareerResumeLinksSettingsSection = () => {
       </div>
 
       {profileSaveError ? (
-        <p className="rounded-lg border border-xprimary/30 bg-xprimary/10 px-3 py-2 text-sm text-xprimary">
+        <p className="rounded-lg border border-beige900/20 bg-beige900/10 px-3 py-2 text-sm text-beige900">
           {profileSaveError}
         </p>
       ) : null}
@@ -163,7 +163,7 @@ const CareerResumeLinksSettingsSection = () => {
           type="button"
           onClick={() => void onSaveTalentProfile()}
           disabled={profileSavePending}
-          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-xprimary bg-xprimary text-sm font-normal text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-beige900 bg-beige900 text-sm font-normal text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <Save className="h-4 w-4" />
           {profileSavePending

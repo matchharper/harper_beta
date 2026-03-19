@@ -43,7 +43,7 @@ const CareerSettingsModal = ({
       overlayClassName="items-start pt-14"
       panelClassName="max-w-none h-[80vh] max-h-[860px] px-0 w-[min(1040px,90vw)]"
       bodyClassName="h-full p-0"
-      closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-hblack100 bg-hblack50 text-hblack600 transition-colors hover:border-xprimary hover:text-xprimary"
+      closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-hblack100 bg-hblack50 text-hblack600 transition-colors hover:border-beige900 hover:text-beige900"
     >
       <section className="h-full">
         <div className="grid h-full grid-cols-[260px_minmax(0,1fr)]">
@@ -105,7 +105,7 @@ const CareerSettingsModal = ({
                 <button
                   type="button"
                   onClick={() => void onLogout()}
-                  className="mt-3 inline-flex h-10 items-center gap-2 rounded-lg bg-hblack50 hover:bg-hblack100 px-4 text-sm text-hblack700 transition-colors hover:border-xprimary hover:text-xprimary"
+                  className="mt-3 inline-flex h-10 items-center gap-2 rounded-lg bg-hblack50 hover:bg-hblack100 px-4 text-sm text-hblack700 transition-colors hover:border-beige900 hover:text-beige900"
                 >
                   <LogOut className="h-4 w-4" />
                   로그아웃

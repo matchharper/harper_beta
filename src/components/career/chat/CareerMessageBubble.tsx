@@ -32,7 +32,7 @@ function renderHighlightedContent(content: string): ReactNode {
       nodes.push(
         <span
           key={`highlight-${matchIndex}`}
-          className="box-decoration-clone rounded-md bg-xprimary/10 px-1.5 py-0.5 text-xprimary"
+          className="box-decoration-clone rounded-md bg-beige900/10 px-1.5 py-0.5 text-beige900"
         >
           {highlightedText}
         </span>
@@ -60,7 +60,7 @@ const CareerMessageBubble = ({
         "max-w-[96%] rounded-lg text-sm leading-relaxed transition-colors duration-300",
         isUser ? USER_BUBBLE_CLASS : ASSISTANT_BUBBLE_CLASS,
         !isUser && isAssistantSpeaking
-          ? "bg-xprimary/10 px-2 py-2"
+          ? "bg-beige900/10 px-2 py-2"
           : "px-2 py-2",
       ].join(" ")}
     >
@@ -68,7 +68,7 @@ const CareerMessageBubble = ({
         {renderHighlightedContent(message.content)}
       </p>
       {message.typing && (
-        <span className="inline-block w-2 animate-pulse align-baseline text-xprimary">
+        <span className="inline-block w-2 animate-pulse align-baseline text-beige900">
           ▍
         </span>
       )}

@@ -110,7 +110,7 @@ const CareerComposerSection = () => {
           type="button"
           onClick={() => onStartVoiceCall()}
           disabled={isComposerLocked || onboardingBeginPending}
-          className="right-4 absolute top-[-40px] mb-3 inline-flex gap-2 h-9 items-center justify-center rounded-full border border-xprimary bg-xprimary px-3 text-sm font-medium text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          className="absolute right-4 top-[-40px] mb-3 inline-flex h-9 items-center justify-center gap-2 rounded-full border border-beige900 bg-beige900 px-3 text-sm font-medium text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <Phone className="h-3.5 w-3.5" />
           {onboardingBeginPending ? "준비 중..." : "전화로 하기"}
@@ -131,7 +131,7 @@ const CareerComposerSection = () => {
               setChatLinkDraft("");
               setShowLinkInput(false);
             }}
-            className="inline-flex h-8 w-8 items-center justify-center border border-hblack300 text-hblack600 hover:border-xprimary hover:text-xprimary"
+            className="inline-flex h-8 w-8 items-center justify-center border border-hblack300 text-hblack600 hover:border-beige900 hover:text-beige900"
           >
             <X className="h-4 w-4" />
           </button>
@@ -148,9 +148,9 @@ const CareerComposerSection = () => {
                 "group z-10 flex flex-row items-center justify-center overflow-hidden rounded-full border px-4 py-2.5 text-xs text-hblack000 transition-all duration-150",
                 voiceListening && !voiceMuted
                   ? "bg-hblack000 text-hblack1000 border border-hblack100"
-                  : "border-hblack300 bg-hblack000 text-hblack800 hover:border-xprimary hover:text-xprimary",
+                  : "border-hblack300 bg-hblack000 text-hblack800 hover:border-beige900 hover:text-beige900",
                 voicePrimaryPressed
-                  ? "scale-[0.96] border-xprimary ring-2 ring-xprimary/25"
+                  ? "scale-[0.96] border-beige900 ring-2 ring-beige900/25"
                   : "",
                 isComposerLocked ? "cursor-not-allowed opacity-50" : "",
               ].join(" ")}
@@ -174,7 +174,7 @@ const CareerComposerSection = () => {
             </button>
 
             {/* {voiceError && (
-              <p className="mt-2 border border-xprimary/30 bg-xprimary/10 px-3 py-2 text-sm text-xprimary">
+              <p className="mt-2 border border-beige900/20 bg-beige900/10 px-3 py-2 text-sm text-beige900">
                 {voiceError}
               </p>
             )} */}
@@ -239,7 +239,7 @@ const CareerComposerSection = () => {
                 type="button"
                 onClick={() => void handleSend()}
                 disabled={isComposerLocked || !draft.trim()}
-                className="rounded-full inline-flex h-7 w-7 items-center justify-center border border-xprimary bg-xprimary text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-beige900 bg-beige900 text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {chatPending || assistantTyping ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />

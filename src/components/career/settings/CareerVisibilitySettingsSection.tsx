@@ -107,7 +107,7 @@ const CareerVisibilitySettingsSection = () => {
                 className={[
                   "inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-lg px-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60",
                   isSelected
-                    ? "bg-xprimary/10 text-xprimary"
+                    ? "bg-beige900/10 text-beige900"
                     : "text-hblack700 hover:bg-hblack100",
                 ].join(" ")}
               >
@@ -136,13 +136,13 @@ const CareerVisibilitySettingsSection = () => {
             onKeyDown={handleBlockedCompanyKeyDown}
             placeholder="회사명을 입력하고 Enter"
             disabled={settingsLoading || settingsSaving}
-            className="h-10 flex-1 rounded-lg border border-hblack300 bg-hblack000 px-3 text-sm text-hblack900 outline-none transition-colors focus:border-xprimary disabled:cursor-not-allowed disabled:opacity-60"
+            className="h-10 flex-1 rounded-lg border border-hblack300 bg-hblack000 px-3 text-sm text-hblack900 outline-none transition-colors focus:border-beige900 disabled:cursor-not-allowed disabled:opacity-60"
           />
           <button
             type="button"
             onClick={handleAddBlockedCompany}
             disabled={settingsLoading || settingsSaving}
-            className="inline-flex h-10 items-center gap-1 rounded-lg border border-hblack300 px-3 text-sm text-hblack700 transition-colors hover:border-xprimary hover:text-xprimary disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-10 items-center gap-1 rounded-lg border border-hblack300 px-3 text-sm text-hblack700 transition-colors hover:border-beige900 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Plus className="h-3.5 w-3.5" />
             추가
@@ -179,7 +179,7 @@ const CareerVisibilitySettingsSection = () => {
       </div>
 
       {settingsError ? (
-        <p className="rounded-lg border border-xprimary/30 bg-xprimary/10 px-3 py-2 text-sm text-xprimary">
+        <p className="rounded-lg border border-beige900/20 bg-beige900/10 px-3 py-2 text-sm text-beige900">
           {settingsError}
         </p>
       ) : null}

@@ -17,7 +17,7 @@ import { showToast } from "@/components/toast/toast";
 import MultiSelects from "@/components/apply/MultiSelects";
 import TextInput from "@/components/apply/TextInput";
 import { Selections } from "@/components/landing/Join";
-import { isValidEmail } from ".";
+import { isValidEmail } from "./find";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { en } from "@/lang/en";
 import { ko } from "@/lang/ko";

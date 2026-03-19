@@ -124,7 +124,7 @@ const TimelineItem = ({
                   </div>
                 ) : null}
                 {hasMemo ? (
-                  <div className="whitespace-pre-wrap break-words text-xprimary bg-xprimary/10">
+                  <div className="whitespace-pre-wrap break-words bg-beige900/10 text-beige900">
                     Harper 메모: {memo}
                   </div>
                 ) : null}

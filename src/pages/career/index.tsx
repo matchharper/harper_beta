@@ -23,7 +23,7 @@ const CareerTopBar = ({ onOpenSettings }: { onOpenSettings: () => void }) => {
   return (
     <div className="fixed z-40 flex h-12 w-full items-center justify-between border-b border-hblack100 bg-hblack000">
       <div className="w-1/3" />
-      <div className="font-hedvig text-hblack700">Harper</div>
+      <div className="font-halant text-hblack700">Harper</div>
       <div className="flex w-1/3 items-center justify-end px-4">
         <button
           type="button"
@@ -205,13 +205,13 @@ const CareerLayout = () => {
                 onKeyDown={handleResizeKeyDown}
                 className={[
                   "group flex w-3 shrink-0 cursor-col-resize items-center justify-center",
-                  isResizing ? "bg-xprimary/10" : "bg-transparent",
+                  isResizing ? "bg-beige900/10" : "bg-transparent",
                 ].join(" ")}
                 role="separator"
                 aria-orientation="vertical"
                 aria-label="패널 너비 조절"
               >
-                <span className="h-20 w-[2px] rounded-full bg-hblack300 transition-colors group-hover:bg-xprimary" />
+                <span className="h-20 w-[2px] rounded-full bg-hblack300 transition-colors group-hover:bg-beige900" />
               </button>
             </div>
 
@@ -229,7 +229,7 @@ const CareerLayout = () => {
 };
 
 const CareerLoadingState = () => (
-  <main className="relative flex min-h-screen w-full items-center justify-center bg-hblack000 font-inter text-hblack900">
+  <main className="relative flex min-h-screen w-full items-center justify-center bg-hblack000 font-geist text-hblack900">
     <Loader2 className="h-5 w-5 animate-spin text-hblack400" />
     <span className="sr-only">커리어 페이지 로딩 중</span>
   </main>
@@ -252,7 +252,7 @@ const Career = () => {
   return (
     <main
       className="
-      relative min-h-screen text-hblack900 font-inter bg-hblack000 w-full 
+      relative min-h-screen text-hblack900 font-geist bg-hblack000 w-full 
       "
     >
       <CareerFlowProvider onOpenSettings={() => setIsSettingsModalOpen(true)}>

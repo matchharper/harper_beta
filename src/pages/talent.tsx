@@ -332,7 +332,7 @@ const Talent = () => {
   };
 
   // Flat dashboard tokens (minimal borders, minimal radius)
-  const kicker = "text-xs font-medium text-xprimary";
+  const kicker = "text-xs font-medium text-beige900/70";
   const title = "mt-1 text-lg font-medium text-hblack1000";
   const body = "text-base leading-relaxed text-hblack600";
   const divider = "border-t border-hblack200/70";
@@ -347,7 +347,7 @@ const Talent = () => {
   }) => {
     return (
       <div
-        className={`text-3xl/[1.2] font-semibold text-hblack1000 lg:text-4xl/[1.3] ${className ?? ""}`}
+        className={`text-3xl/[1.2] font-halant font-semibold tracking-[-0.05em] text-hblack1000 lg:text-4xl/[1.3] ${className ?? ""}`}
       >
         {children}
       </div>
@@ -355,8 +355,17 @@ const Talent = () => {
   };
 
   return (
-    <main className="min-h-screen bg-hblack000 text-hblack900 font-inter pt-12">
-      <div className="fixed z-20 top-0 left-0 w-full h-10 flex items-center justify-center text-[13px] font-normal bg-xprimary text-hblack000">
+    <main
+      className="min-h-screen bg-hblack000 text-hblack900 font-geist pt-12"
+      style={
+        {
+          "--ink": "#2E1706",
+          "--paper": "#FDF6EE",
+          "--gold": "#593918",
+        } as React.CSSProperties
+      }
+    >
+      <div className="fixed z-20 top-0 left-0 w-full h-10 flex items-center justify-center text-[13px] font-normal bg-beige500 text-beige900">
         현재 Open beta로, 선착순 50명의 분들만 받아 최적의 기회를 찾아드리고
         있습니다. ~ 3/20
       </div>
@@ -365,7 +374,7 @@ const Talent = () => {
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-12 lg:items-start">
           <section className="lg:col-span-8">
             <div className="flex flex-col gap-5">
-              <div className="mt-4 max-w-[80ch] font-hedvig">
+              <div className="mt-4 max-w-[80ch] font-halant">
                 {/* 회원님은 일에만 집중하세요. 커리어의 다음 기회는 Harper가 찾겠습니다.
 커리어에도 매니지먼트가 필요합니다.
 좋은 커리어 기회는 직접 찾지 않아도 됩니다.
@@ -418,7 +427,7 @@ const Talent = () => {
 
               <div className="flex flex-col mt-4">
                 <button
-                  className="btn-ink rounded-md w-fit"
+                  className="btn-ink rounded-md w-fit font-geist tracking-[-0.02em]"
                   onClick={handleStartConversation}
                 >
                   <span className="font-medium">대화 시작하기</span>
@@ -488,7 +497,7 @@ const Talent = () => {
                 {PROCESS_STEPS.map((step, idx) => (
                   <div key={step.title} className="py-4">
                     <div className="flex items-start gap-4">
-                      <div className="w-8 h-8 flex items-center justify-center shrink-0 py-1 rounded-md bg-hblack50 text-base font-bold text-xprimary">
+                      <div className="w-8 h-8 flex items-center justify-center shrink-0 rounded-md bg-beige500/60 py-1 text-base font-bold text-beige900">
                         {idx + 1}
                       </div>
                       <div className="min-w-0">
@@ -569,7 +578,7 @@ const Talent = () => {
                 <button
                   type="button"
                   onClick={handleStartConversation}
-                  className="group rounded-sm inline-flex h-12 w-full items-center justify-center gap-1 bg-xprimary text-sm font-medium text-hblack000 hover:opacity-90"
+                  className="group inline-flex h-12 w-full items-center justify-center gap-1 rounded-sm bg-beige900 text-sm font-medium text-hblack000 hover:opacity-90"
                 >
                   지금 대화하기{" "}
                   <ArrowRight className="group-hover:translate-x-1 transition-all duration-300 h-4 w-4" />
@@ -646,7 +655,7 @@ const Talent = () => {
                           className={[
                             "h-8 text-sm font-medium",
                             isSelected
-                              ? "bg-xprimary/10 text-xprimary"
+                              ? "bg-beige900/10 text-beige900"
                               : "bg-transparent text-hblack700 hover:bg-hblack100",
                           ].join(" ")}
                         >

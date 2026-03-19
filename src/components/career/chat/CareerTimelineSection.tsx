@@ -184,8 +184,8 @@ const CareerTimelineSection = () => {
       <div className="flex min-h-0 flex-1 flex-col px-4 py-4 lg:px-6 lg:py-6">
         <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
           <div className="relative flex flex-1 flex-col items-center justify-center overflow-hidden px-6 py-2 text-center">
-            <div className="relative flex h-44 w-44 items-center justify-center rounded-full bg-xprimary text-hblack000 shadow-[0_18px_60px_rgba(17,24,39,0.18)] sm:h-48 sm:w-48">
-              <p className="mt-3 font-hedvig text-2xl leading-none sm:text-3xl">
+            <div className="relative flex h-44 w-44 items-center justify-center rounded-full bg-beige900 text-hblack000 shadow-[0_18px_60px_rgba(17,24,39,0.18)] sm:h-48 sm:w-48">
+              <p className="mt-3 font-halant text-2xl leading-none sm:text-3xl">
                 Harper
               </p>
             </div>
@@ -199,7 +199,7 @@ const CareerTimelineSection = () => {
               {sessionPending && (
                 <article className="rounded-xl border border-hblack200 bg-hblack000 px-4 py-4">
                   <div className="flex items-center gap-2 text-sm text-hblack700">
-                    <Loader2 className="h-4 w-4 animate-spin text-xprimary" />
+                    <Loader2 className="h-4 w-4 animate-spin text-beige900" />
                     저장된 대화를 불러오는 중입니다...
                   </div>
                 </article>
@@ -231,7 +231,7 @@ const CareerTimelineSection = () => {
                   {chatPending && !assistantTyping && (
                     <article className="rounded-2xl border border-hblack100 bg-hblack000/70 px-4 py-3 text-sm text-hblack700">
                       <div className="flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin text-xprimary" />
+                        <Loader2 className="h-4 w-4 animate-spin text-beige900" />
                         채팅을 작성중입니다...
                       </div>
                     </article>
@@ -240,13 +240,13 @@ const CareerTimelineSection = () => {
               )}
 
               {sessionError && (
-                <article className="mt-3 rounded-xl border border-xprimary/30 bg-xprimary/10 px-4 py-3 text-sm text-xprimary">
+                <article className="mt-3 rounded-xl border border-beige900/20 bg-beige900/10 px-4 py-3 text-sm text-beige900">
                   {sessionError}
                 </article>
               )}
 
               {chatError && (
-                <article className="mt-3 rounded-xl border border-xprimary/30 bg-xprimary/10 px-4 py-3 text-sm text-xprimary">
+                <article className="mt-3 rounded-xl border border-beige900/20 bg-beige900/10 px-4 py-3 text-sm text-beige900">
                   {chatError}
                 </article>
               )}
@@ -269,7 +269,7 @@ const CareerTimelineSection = () => {
             type="button"
             onClick={() => void handleLoadOlderMessages()}
             disabled={loadingOlderMessages}
-            className="inline-flex h-9 items-center justify-center rounded-full border border-hblack200 bg-hblack000 px-4 text-xs text-hblack700 shadow-[0_8px_20px_rgba(17,24,39,0.08)] transition-colors hover:border-xprimary hover:text-xprimary disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-9 items-center justify-center rounded-full border border-hblack200 bg-hblack000 px-4 text-xs text-hblack700 shadow-[0_8px_20px_rgba(17,24,39,0.08)] transition-colors hover:border-beige900 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loadingOlderMessages ? "불러오는 중..." : "이전 대화 더 보기"}
           </button>
@@ -290,7 +290,7 @@ const CareerTimelineSection = () => {
               type="button"
               onClick={() => void onGoogleLogin()}
               disabled={authPending}
-              className="flex h-10 w-full items-center justify-center border border-hblack100 bg-hblack50 text-sm font-normal text-hblack900 transition-colors hover:bg-hblack100 hover:border-xprimary disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex h-10 w-full items-center justify-center border border-hblack100 bg-hblack50 text-sm font-normal text-hblack900 transition-colors hover:bg-hblack100 hover:border-beige900 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {authPending ? "처리 중..." : "Google 로그인"}
             </button>
@@ -305,7 +305,7 @@ const CareerTimelineSection = () => {
                 type="email"
                 placeholder="ID (이메일)"
                 disabled={authPending}
-                className="h-10 w-full border border-hblack300 bg-hblack000 px-3 text-sm text-hblack900 outline-none transition-colors focus:border-xprimary"
+                className="h-10 w-full border border-hblack300 bg-hblack000 px-3 text-sm text-hblack900 outline-none transition-colors focus:border-beige900"
               />
               <input
                 value={authPassword}
@@ -313,12 +313,12 @@ const CareerTimelineSection = () => {
                 type="password"
                 placeholder="PW"
                 disabled={authPending}
-                className="h-10 w-full border border-hblack300 bg-hblack000 px-3 text-sm text-hblack900 outline-none transition-colors focus:border-xprimary"
+                className="h-10 w-full border border-hblack300 bg-hblack000 px-3 text-sm text-hblack900 outline-none transition-colors focus:border-beige900"
               />
               <button
                 type="submit"
                 disabled={authPending}
-                className="h-10 w-full border border-xprimary bg-xprimary text-sm font-medium text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                className="h-10 w-full border border-beige900 bg-beige900 text-sm font-medium text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {authMode === "signup" ? "회원가입" : "로그인"}
               </button>
@@ -336,14 +336,14 @@ const CareerTimelineSection = () => {
                   )
                 }
                 disabled={authPending}
-                className="font-medium text-xprimary underline underline-offset-4"
+                className="font-medium text-beige900 underline underline-offset-4"
               >
                 {authMode === "signup" ? "로그인" : "회원가입"}
               </button>
             </p>
 
             {authError && (
-              <p className="mt-2 border border-xprimary/30 bg-xprimary/10 px-3 py-2 text-sm text-xprimary">
+              <p className="mt-2 border border-beige900/20 bg-beige900/10 px-3 py-2 text-sm text-beige900">
                 {authError}
               </p>
             )}
@@ -353,7 +353,7 @@ const CareerTimelineSection = () => {
               </p>
             )}
 
-            <p className="mt-4 border border-xprimary/25 bg-xprimary/10 px-3 py-2 text-sm text-xprimary">
+            <p className="mt-4 border border-beige900/15 bg-beige900/10 px-3 py-2 text-sm text-beige900">
               {LOGIN_NUDGE}
             </p>
           </article>
@@ -363,9 +363,9 @@ const CareerTimelineSection = () => {
       {user && (
         <>
           {isVoiceMode && stage !== "profile" && (
-            <div className="inline-flex pr-6 pl-1 py-1 flex-row items-center justify-center gap-4 sticky rounded-full top-0 z-20 left-[50%] -translate-x-1/2 border-b border-xprimary/15 bg-xprimary shadow-[0_10px_24px_rgba(17,24,39,0.08)]">
+            <div className="inline-flex pr-6 pl-1 py-1 flex-row items-center justify-center gap-4 sticky rounded-full top-0 z-20 left-[50%] -translate-x-1/2 border-b border-beige900/15 bg-beige900 shadow-[0_10px_24px_rgba(17,24,39,0.08)]">
               <div className="w-8 h-8 rounded-full bg-hblack000 flex items-center justify-center">
-                <Phone className="h-4 w-4 text-xprimary" fill="currentColor" />
+                <Phone className="h-4 w-4 text-beige900" fill="currentColor" />
               </div>
               <div className="text-base font-medium text-hblack000">Harper</div>
             </div>
@@ -374,7 +374,7 @@ const CareerTimelineSection = () => {
           {sessionPending && (
             <article className="max-w-[96%] h-[60vh] flex items-center justify-center bg-hblack000 px-4 py-4">
               <div className="flex items-center gap-2 text-sm text-hblack700">
-                <Loader2 className="h-4 w-4 animate-spin text-xprimary" />
+                <Loader2 className="h-4 w-4 animate-spin text-beige900" />
                 저장된 대화를 불러오는 중입니다...
               </div>
             </article>
@@ -393,7 +393,7 @@ const CareerTimelineSection = () => {
                       "text-xs",
                       isUser
                         ? "text-right text-hblack500"
-                        : "text-left text-xprimary",
+                        : "text-left text-beige900",
                     ].join(" ")}
                   >
                     {isUser ? "" : ""}
@@ -417,7 +417,7 @@ const CareerTimelineSection = () => {
                 <div className="text-xs text-hblack500">Harper</div>
                 <article className="max-w-[96%] text-sm text-hblack700">
                   <div className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin text-xprimary" />
+                    <Loader2 className="h-4 w-4 animate-spin text-beige900" />
                     채팅을 작성중입니다...
                   </div>
                 </article>
@@ -427,10 +427,10 @@ const CareerTimelineSection = () => {
           {profilePending && (
             <article className="max-w-[96%] rounded-xl border border-hblack200 bg-hblack000 px-4 py-4">
               <div className="flex items-center gap-2 text-sm text-hblack700">
-                <Loader2 className="h-4 w-4 animate-spin text-xprimary" />
+                <Loader2 className="h-4 w-4 animate-spin text-beige900" />
                 이력서/링크 정보를 분석 중입니다...
               </div>
-              <p className="mt-3 border border-xprimary/25 bg-xprimary/10 px-3 py-2 text-sm text-xprimary">
+              <p className="mt-3 border border-beige900/15 bg-beige900/10 px-3 py-2 text-sm text-beige900">
                 {LOADING_NUDGE}
               </p>
               <div className="mt-3 border border-hblack200 px-3 py-3">
@@ -456,7 +456,7 @@ const CareerTimelineSection = () => {
                   <div className="mt-3 flex items-center gap-2">
                     <label
                       htmlFor="career-resume-upload"
-                      className="inline-flex h-10 items-center gap-2 bg-hblack50 hover:bg-hblack100 cursor-pointer transition-colors rounded-md px-3 pr-4 text-sm font-medium text-hblack800 hover:border-xprimary"
+                      className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-md bg-hblack50 px-3 pr-4 text-sm font-medium text-hblack800 transition-colors hover:bg-hblack100 hover:border-beige900"
                     >
                       <Upload className="h-4 w-4" />
                       파일 선택
@@ -497,13 +497,13 @@ const CareerTimelineSection = () => {
                             onProfileLinkChange(index, event.target.value)
                           }
                           placeholder="https://"
-                          className="h-9 flex-1 border-0 border-b border-hblack300 bg-transparent px-0.5 text-sm text-hblack900 outline-none transition-colors focus:border-xprimary"
+                          className="h-9 flex-1 border-0 border-b border-hblack300 bg-transparent px-0.5 text-sm text-hblack900 outline-none transition-colors focus:border-beige900"
                         />
                         {index >= 3 && (
                           <button
                             type="button"
                             onClick={() => onRemoveProfileLink(index)}
-                            className="inline-flex h-8 w-8 items-center justify-center bg-hblack50 rounded-md text-hblack600 hover:border-xprimary hover:text-xprimary"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-hblack50 text-hblack600 hover:border-beige900 hover:text-beige900"
                           >
                             <X className="h-4 w-4" />
                           </button>
@@ -521,7 +521,7 @@ const CareerTimelineSection = () => {
                 </div>
 
                 {profileError && (
-                  <p className="mt-3 border border-xprimary/30 bg-xprimary/10 px-3 py-2 text-xs rounded-sm text-xprimary">
+                  <p className="mt-3 rounded-sm border border-beige900/20 bg-beige900/10 px-3 py-2 text-xs text-beige900">
                     {profileError}
                   </p>
                 )}
@@ -535,7 +535,7 @@ const CareerTimelineSection = () => {
                   type="button"
                   onClick={() => void onProfileSubmit()}
                   disabled={profilePending}
-                  className="mt-2 h-10 w-full rounded-md border border-xprimary bg-xprimary text-sm font-medium text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-2 h-10 w-full rounded-md border border-beige900 bg-beige900 text-sm font-medium text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {profilePending ? "분석 준비 중..." : "제출하기"}
                 </button>
@@ -544,13 +544,13 @@ const CareerTimelineSection = () => {
           )}
 
           {sessionError && (
-            <article className="max-w-[96%] rounded-xl border border-xprimary/30 bg-xprimary/10 px-4 py-3 text-sm text-xprimary">
+            <article className="max-w-[96%] rounded-xl border border-beige900/20 bg-beige900/10 px-4 py-3 text-sm text-beige900">
               {sessionError}
             </article>
           )}
 
           {chatError && (
-            <article className="max-w-[96%] rounded-xl border border-xprimary/30 bg-xprimary/10 px-4 py-3 text-sm text-xprimary">
+            <article className="max-w-[96%] rounded-xl border border-beige900/20 bg-beige900/10 px-4 py-3 text-sm text-beige900">
               {chatError}
             </article>
           )}
@@ -566,7 +566,7 @@ const CareerTimelineSection = () => {
                   type="button"
                   onClick={() => onStartVoiceCall(5)}
                   disabled={onboardingBeginPending}
-                  className="h-10 rounded-md border border-xprimary bg-xprimary px-4 text-sm font-normal text-hblack000 transition-opacity hover:opacity-90"
+                  className="h-10 rounded-md border border-beige900 bg-beige900 px-4 text-sm font-normal text-hblack000 transition-opacity hover:opacity-90"
                 >
                   {onboardingBeginPending ? "준비 중..." : "5분 통화 시작"}
                 </button>
@@ -574,7 +574,7 @@ const CareerTimelineSection = () => {
                   type="button"
                   onClick={() => onStartVoiceCall(10)}
                   disabled={onboardingBeginPending}
-                  className="h-10 rounded-md border border-xprimary bg-xprimary px-4 text-sm font-normal text-hblack000 transition-opacity hover:opacity-90"
+                  className="h-10 rounded-md border border-beige900 bg-beige900 px-4 text-sm font-normal text-hblack000 transition-opacity hover:opacity-90"
                 >
                   {onboardingBeginPending ? "준비 중..." : "10분 통화 시작"}
                 </button>
@@ -619,7 +619,7 @@ const CareerTimelineSection = () => {
                       className={[
                         "flex w-full rounded-lg border px-3 py-3 text-left text-sm transition-colors",
                         selected
-                          ? "border-xprimary bg-xprimary/10 text-xprimary"
+                          ? "border-beige900 bg-beige900/10 text-beige900"
                           : "border-hblack200 bg-hblack000 text-hblack700 hover:border-hblack400",
                       ].join(" ")}
                     >
@@ -635,7 +635,7 @@ const CareerTimelineSection = () => {
                 disabled={
                   onboardingPausePending || selectedInterestOptions.length === 0
                 }
-                className="mt-4 h-10 w-full rounded-md border border-xprimary bg-xprimary px-4 text-sm font-medium text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-4 h-10 w-full rounded-md border border-beige900 bg-beige900 px-4 text-sm font-medium text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {onboardingPausePending ? "저장 중..." : "선택 저장하기"}
               </button>
@@ -651,7 +651,7 @@ const CareerTimelineSection = () => {
                 type="button"
                 onClick={() => void onContinueOnboardingConversation()}
                 disabled={onboardingBeginPending}
-                className="h-10 rounded-md bg-xprimary px-4 text-sm font-normal text-hblack000 transition-colors"
+                className="h-10 rounded-md bg-beige900 px-4 text-sm font-normal text-hblack000 transition-colors"
               >
                 {onboardingBeginPending ? "준비 중..." : "지금 더 대화하기"}
               </button>

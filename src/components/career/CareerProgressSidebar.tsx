@@ -40,7 +40,7 @@ const CareerProgressSidebar = () => {
 
   const defaultTabButtonClasses =
     "inline-flex items-center gap-1.5 rounded-full min-w-12 px-4 py-2.5 text-xs transition-colors border border-hblack100";
-  const activeTabButtonClasses = "bg-xprimary text-hblack000";
+  const activeTabButtonClasses = "bg-beige900 text-hblack000";
   const inactiveTabButtonClasses =
     "bg-hblack000 text-hblack700 hover:bg-hblack000/50";
 
@@ -106,7 +106,7 @@ const CareerProgressSidebar = () => {
                   className="relative h-full flex-1 overflow-hidden rounded-md border border-hblack200 bg-hblack100"
                 >
                   <div
-                    className="absolute inset-x-0 bottom-0 bg-xprimary transition-[height] duration-400 ease-out"
+                    className="absolute inset-x-0 bottom-0 bg-beige900 transition-[height] duration-400 ease-out"
                     style={{ height: `${fillLevel * 100}%` }}
                   />
                 </div>
