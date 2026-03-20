@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser, supabaseServer } from "@/lib/supabaseServer";
+import { searchSourceToQueryType } from "@/lib/searchSource";
 
 export async function POST(req: NextRequest) {
   if (req.method !== "POST")
@@ -11,7 +12,10 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { queryText } = body as { queryText?: string };
+  const { queryText, type } = body as {
+    queryText?: string;
+    type?: string | number;
+  };
   if (!queryText?.trim())
     return NextResponse.json(
       { error: "Missing queryText" },
@@ -47,6 +51,7 @@ export async function POST(req: NextRequest) {
       user_id: user.id,
       raw_input_text: queryText.trim(),
       query_keyword: "",
+      type: searchSourceToQueryType(type),
     })
     .select("query_id")
     .single();

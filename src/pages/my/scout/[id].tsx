@@ -162,7 +162,7 @@ export default function AutomationDetailPage() {
       query_keyword: "Deep Automation",
       raw_input_text: "Deep Automation",
       query: null,
-      retries: 0,
+      type: 0,
     });
 
     setAutomationId(newId);
@@ -358,6 +358,7 @@ export default function AutomationDetailPage() {
         is_deleted: false,
         query_keyword: "Deep Automation",
         raw_input_text: "Deep Automation",
+        type: 0,
       })
       .eq("query_id", automationId);
 

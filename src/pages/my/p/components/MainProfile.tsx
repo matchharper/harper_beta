@@ -1,7 +1,7 @@
 import React from "react";
 import LinkChips from "./LinkChips";
 import { locationEnToKo } from "@/utils/language_map";
-import { MapPin } from "lucide-react";
+import { LucideIcon, MapPin } from "lucide-react";
 import { initials } from "@/components/NameProfile";
 
 const MainProfile = ({
@@ -11,15 +11,22 @@ const MainProfile = ({
   location,
   links,
   onLinkClick,
+  metaLabel,
+  metaIcon,
 }: {
   profile_picture: string;
   name: string;
   headline: string;
-  location: string;
+  location?: string;
   links: string[];
   onLinkClick?: (url: string) => void;
+  metaLabel?: string;
+  metaIcon?: LucideIcon;
 }) => {
   const hasLinks = (links?.length ?? 0) > 0;
+  const resolvedMetaLabel =
+    metaLabel?.trim() || (location ? locationEnToKo(location) : "");
+  const MetaIcon = metaIcon ?? MapPin;
 
   return (
     <div className="items-start w-[100%] grid grid-cols-7">
@@ -46,11 +53,11 @@ const MainProfile = ({
         <div className="text-base text-hgray900 font-light">{headline}</div>
 
         <div className="flex flex-wrap items-center gap-1 text-sm text-ngray600 font-normal">
-          {location && (
+          {resolvedMetaLabel && (
             <div className="flex flex-row items-center gap-1">
-              <MapPin className="w-4 h-4" />
+              <MetaIcon className="w-4 h-4" />
               <span className="inline-flex items-center gap-1">
-                {locationEnToKo(location)}
+                {resolvedMetaLabel}
               </span>
             </div>
           )}

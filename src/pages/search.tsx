@@ -30,6 +30,7 @@ import PricingSection from "@/components/landing/PricingScholar";
 import { FallingTagsMl } from "@/components/landing/FallingTagsML";
 import { OrbitIconsSmall } from "@/components/landing/Orbit";
 import Reveal from "@/components/landing/Animation/Reveal";
+import Footer from "@/components/landing/Footer";
 
 const LoginModal = dynamic(() => import("@/components/Modal/LoginModal"));
 const RADAR_LOGIN_MODAL_LANGUAGE = "en" as const;
@@ -753,7 +754,7 @@ export default function RadarLandingPage() {
           </section>
         </Animate>
 
-        <GithubFooter onClickStart={handleStart} />
+        <Footer onClickStart={handleStart} />
       </main>
     </>
   );

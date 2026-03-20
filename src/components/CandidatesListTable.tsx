@@ -1,14 +1,6 @@
 import { CandidateTypeWithConnection } from "@/hooks/useSearchChatCandidates";
 import React, { useMemo, useState } from "react";
-import {
-  companyEnToKo,
-  degreeEnToKo,
-  koreaUniversityEnToKo,
-  locationEnToKo,
-  majorEnToKo,
-} from "@/utils/language_map";
-import Bookmarkbutton from "./ui/bookmarkbutton";
-import { GraduationCap, BriefcaseBusiness } from "lucide-react";
+import { BriefcaseBusiness, FileText, GraduationCap } from "lucide-react";
 import { useRouter } from "next/router";
 import { Avatar } from "./NameProfile";
 import { Tooltips } from "./ui/tooltip";
@@ -17,6 +9,26 @@ import { useLogEvent } from "@/hooks/useLog";
 import { getSchoolLogo } from "@/utils/school_logo";
 import Link from "next/link";
 import ShortlistMemoEditor from "./ui/ShortlistMemoEditor";
+import { SearchSource, isScholarSearchSource } from "@/lib/searchSource";
+import {
+  buildEvidencePaperMeta,
+  buildEvidencePaperTooltip,
+  getEvidencePaper,
+} from "@/lib/searchEvidence";
+import {
+  buildScholarResearchTooltip,
+  formatScholarCitationCount,
+  formatScholarPaperCount,
+} from "@/lib/scholarPreview";
+import {
+  companyEnToKo,
+  degreeEnToKo,
+  koreaUniversityEnToKo,
+  locationEnToKo,
+  majorEnToKo,
+} from "@/utils/language_map";
+import Bookmarkbutton from "./ui/bookmarkbutton";
+import Image from "next/image";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
 
@@ -81,6 +93,7 @@ function CandidateRow({
   orderedColumnIds,
   gridTemplateColumns,
   rowIndex,
+  sourceType = "linkedin",
 }: {
   c: CandidateTypeWithConnection;
   userId: string;
@@ -90,6 +103,7 @@ function CandidateRow({
   orderedColumnIds: string[];
   gridTemplateColumns: string;
   rowIndex: number;
+  sourceType?: SearchSource;
 }) {
   const router = useRouter();
   const candidId = c.id;
@@ -104,6 +118,19 @@ function CandidateRow({
 
   const latestCompany = exps[0];
   const latestEdu = edus[0];
+  const scholarPreview = c.scholar_profile_preview;
+  const evidencePaper = getEvidencePaper(c.search_evidence);
+  const isScholarSource = isScholarSearchSource(sourceType);
+  const isOnlyScholar =
+    !!scholarPreview && exps.length === 0 && edus.length === 0;
+  const evidencePaperMeta = useMemo(
+    () => buildEvidencePaperMeta(c.search_evidence),
+    [c.search_evidence]
+  );
+  const evidencePaperTooltipText = useMemo(
+    () => buildEvidencePaperTooltip(c.search_evidence),
+    [c.search_evidence]
+  );
 
   const synthList = useMemo(() => {
     const rawText = c.synthesized_summary?.[0]?.text ?? "[]";
@@ -154,6 +181,10 @@ function CandidateRow({
       .join("\n\n");
   }, [edus]);
 
+  const scholarAffiliationTooltipText = useMemo(() => {
+    return buildScholarResearchTooltip(scholarPreview);
+  }, [scholarPreview]);
+
   const renderColumnCell = (columnId: string) => {
     if (columnId.startsWith("criteria:")) {
       const idx = Number(columnId.split(":")[1]);
@@ -169,6 +200,44 @@ function CandidateRow({
     }
 
     if (columnId === "company") {
+      if (isScholarSource) {
+        return (
+          <Tooltips text={scholarAffiliationTooltipText} side="bottom">
+            <div>
+              <Cell
+                key={columnId}
+                title={
+                  <div className="min-w-0 whitespace-normal break-words">
+                    {scholarPreview?.affiliation ?? "-"}
+                  </div>
+                }
+                description=""
+                multiline
+              />
+            </div>
+          </Tooltips>
+        );
+      }
+
+      if (isOnlyScholar) {
+        return (
+          <Tooltips text={scholarAffiliationTooltipText} side="bottom">
+            <div>
+              <Cell
+                key={columnId}
+                title={
+                  <div className="min-w-0 whitespace-normal break-words">
+                    {scholarPreview?.affiliation ?? "-"}
+                  </div>
+                }
+                description=""
+                multiline
+              />
+            </div>
+          </Tooltips>
+        );
+      }
+
       return (
         <Tooltips text={companyHistoryTooltipText} side="bottom">
           <div>
@@ -199,7 +268,79 @@ function CandidateRow({
       );
     }
 
+    if (columnId === "evidence") {
+      return (
+        <Tooltips
+          text={evidencePaperTooltipText || "Related paper unavailable"}
+          side="bottom"
+        >
+          <div>
+            <Cell
+              key={columnId}
+              title={
+                <div className="min-w-0 whitespace-normal break-words">
+                  {evidencePaper?.title ?? "-"}
+                </div>
+              }
+              description={evidencePaper?.title ? evidencePaperMeta : ""}
+              multiline
+            />
+          </div>
+        </Tooltips>
+      );
+    }
+
     if (columnId === "school") {
+      if (isScholarSource) {
+        return (
+          <Tooltips
+            text={buildScholarResearchTooltip(scholarPreview)}
+            side="bottom"
+          >
+            <div>
+              <Cell
+                key={columnId}
+                title={
+                  scholarPreview
+                    ? formatScholarPaperCount(scholarPreview.paperCount)
+                    : "-"
+                }
+                description={
+                  scholarPreview
+                    ? formatScholarCitationCount(scholarPreview.citationCount)
+                    : "-"
+                }
+              />
+            </div>
+          </Tooltips>
+        );
+      }
+
+      if (isOnlyScholar) {
+        return (
+          <Tooltips
+            text={buildScholarResearchTooltip(scholarPreview)}
+            side="bottom"
+          >
+            <div>
+              <Cell
+                key={columnId}
+                title={
+                  scholarPreview
+                    ? formatScholarPaperCount(scholarPreview.paperCount)
+                    : "-"
+                }
+                description={
+                  scholarPreview
+                    ? formatScholarCitationCount(scholarPreview.citationCount)
+                    : "-"
+                }
+              />
+            </div>
+          </Tooltips>
+        );
+      }
+
       return (
         <Tooltips text={schoolHistoryTooltipText} side="bottom">
           <div>
@@ -298,7 +439,21 @@ function CandidateRow({
                   {c.name}
                 </div>
                 <div className="text-xs text-hgray700 truncate">
-                  {c.location ? locationEnToKo(c.location) : "-"}
+                  {isOnlyScholar ? (
+                    <div className="inline-flex w-fit items-center justify-center gap-1 text-xs rounded text-blue-500">
+                      <Image
+                        src="/images/logos/scholar.png"
+                        alt="Scholar Profile"
+                        width={10}
+                        height={10}
+                      />
+                      <div>Scholar Profile</div>
+                    </div>
+                  ) : c.location ? (
+                    locationEnToKo(c.location)
+                  ) : (
+                    "-"
+                  )}
                 </div>
               </div>
               <div
@@ -337,18 +492,30 @@ export default React.memo(CandidateRow);
 const Cell = ({
   title,
   description,
+  multiline = false,
 }: {
   title: string | React.ReactNode;
   description: string;
+  multiline?: boolean;
 }) => {
   return (
     <div className="min-w-0 cell1">
       <div className="flex items-center min-w-0  w-full">
-        <div className="flex-1 min-w-0 text-[13px] text-hgray800 truncate">
+        <div
+          className={[
+            "flex-1 min-w-0 text-[13px] text-hgray800",
+            multiline ? "whitespace-normal break-words" : "truncate",
+          ].join(" ")}
+        >
           {title}
         </div>
       </div>
-      <div className="text-[13px] text-hgray600 truncate mt-0.5 max-w-full">
+      <div
+        className={[
+          "text-[13px] text-hgray600 mt-0.5 max-w-full",
+          multiline ? "whitespace-normal break-words" : "truncate",
+        ].join(" ")}
+      >
         {description}
       </div>
     </div>
@@ -425,6 +592,48 @@ export const SchoolBox = ({
           <div className="text-hgray600 font-normal">{degreeEnToKo(role)}</div>
         )}
       </div>
+    </div>
+  );
+};
+
+export const ScholarSignalBox = ({
+  title,
+  description,
+  tooltipText,
+  icon = "affiliation",
+  tooltipSide = "bottom",
+  hideDescriptionWhenEmpty = false,
+}: {
+  title: React.ReactNode;
+  description?: React.ReactNode;
+  tooltipText?: string;
+  icon?: "affiliation" | "research";
+  tooltipSide?: "bottom" | "top" | "left" | "right";
+  hideDescriptionWhenEmpty?: boolean;
+}) => {
+  const Icon = icon === "research" ? FileText : GraduationCap;
+  const hasDescription =
+    description !== undefined && description !== null && description !== "";
+
+  return (
+    <div className="flex flex-col items-start gap-0 text-sm col-span-4">
+      <Tooltips
+        text={tooltipText ?? (typeof title === "string" ? title : "")}
+        side={tooltipSide}
+      >
+        <div className="flex flex-row items-start justify-start gap-x-2 min-w-0 relative">
+          <Icon className="absolute left-0 top-[2px] w-4 h-4 text-hgray800" />
+          <span className="text-hgray800 font-normal break-words">
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            {title || "-"}
+          </span>
+        </div>
+      </Tooltips>
+      {hasDescription || !hideDescriptionWhenEmpty ? (
+        <div className="text-hgray600 font-normal">
+          {hasDescription ? description : "-"}
+        </div>
+      ) : null}
     </div>
   );
 };

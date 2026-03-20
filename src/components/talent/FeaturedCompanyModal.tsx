@@ -33,13 +33,13 @@ const FeaturedCompanyModal = ({
       headerClassName="border-b-0 px-5 pt-5 pb-2"
       bodyClassName="px-5 py-0"
       footerClassName="border-t-0 px-5 pt-2 pb-5"
-      closeButtonClassName="right-4 top-4 h-8 w-8 rounded-md border-0 bg-hblack50/80 text-hblack600 hover:bg-hblack100 hover:text-hblack900"
+      closeButtonClassName="right-4 top-4 h-8 w-8 rounded-md border-0 bg-hblack50/80 text-hblack600 hover:bg-hblack100 hover:text-beige900"
       footer={
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
           <button
             type="button"
             onClick={handleStartConversation}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-xprimary px-4 text-sm font-normal text-hblack000 transition-opacity hover:opacity-90"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-beige900 px-4 text-sm font-normal text-hblack000 transition-opacity hover:opacity-90"
           >
             Harper와 대화 시작
             <ArrowRight className="h-4 w-4" />

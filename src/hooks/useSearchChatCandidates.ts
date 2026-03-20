@@ -1,6 +1,14 @@
 // hooks/useSearchChatCandidates.ts
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { queryTypeToSearchSource } from "@/lib/searchSource";
+import { ScholarProfilePreview } from "@/lib/scholarPreview";
+import {
+  buildEvidenceMap,
+  filterPositiveScoreCandidates,
+  RunPageCandidate,
+  SearchEvidence,
+} from "@/lib/searchEvidence";
 import type { CandidateType, EduUserType, ExpUserType } from "@/types/type";
 import { useCallback, useEffect, useMemo } from "react";
 import { logger } from "@/utils/logger";
@@ -38,18 +46,9 @@ export type CandidateTypeWithConnection = CandidateType & {
   publications?: { title: string; published_at: string }[];
   synthesized_summary?: { text: string }[];
   s?: { text: string | null }[];
+  scholar_profile_preview?: ScholarProfilePreview | null;
+  search_evidence?: SearchEvidence | null;
 };
-
-type RunPageCandidate = { id?: string; score?: number | string | null };
-
-function filterPositiveScoreCandidates(items: RunPageCandidate[]) {
-  return items.filter((item) => {
-    const score = Number(item?.score);
-    // Keep legacy rows without score, but exclude explicit zero/negative.
-    if (Number.isNaN(score)) return true;
-    return score > 0;
-  });
-}
 
 function extractUiJsonFromMessage(content: string): any | null {
   if (!content) return null;
@@ -98,9 +97,11 @@ async function fetchSearchIds(params: { runId: string; pageIdx: number }) {
     .slice(start, end)
     .map((r) => r.id)
     .filter(Boolean) as string[];
+  const evidenceByCandidateId = buildEvidenceMap(all);
 
   return {
     ids,
+    evidenceByCandidateId,
     isNewSearch: false,
   };
 }
@@ -108,7 +109,8 @@ async function fetchSearchIds(params: { runId: string; pageIdx: number }) {
 async function fetchCandidatesByIds(
   ids: string[],
   userId: string,
-  runId: string
+  runId: string,
+  evidenceByCandidateId?: Map<string, SearchEvidence>
 ) {
   if (ids.length === 0) return [];
 
@@ -157,10 +159,94 @@ async function fetchCandidatesByIds(
 
   if (error) throw error;
 
+  const { data: scholarVariantRows, error: scholarVariantError } = await supabase
+    .from("run_variants")
+    .select("id")
+    .eq("run_id", runId)
+    .eq("source_type", 1)
+    .limit(1);
+
+  if (scholarVariantError) throw scholarVariantError;
+
+  const shouldReadScholarPreview =
+    Array.isArray(scholarVariantRows) && scholarVariantRows.length > 0;
   const dataById = new Map((data ?? []).map((item: any) => [item.id, item]));
-  const ordered = ids.map((id) => dataById.get(id)).filter(Boolean);
+  const scholarPreviewCandidateIds = shouldReadScholarPreview
+    ? ids.filter((id) => {
+        const item = dataById.get(id);
+        const experiences = Array.isArray(item?.experience_user)
+          ? item.experience_user
+          : [];
+        const educations = Array.isArray(item?.edu_user) ? item.edu_user : [];
+        return experiences.length === 0 && educations.length === 0;
+      })
+    : [];
+  const scholarPreviewByCandidateId =
+    scholarPreviewCandidateIds.length > 0
+      ? await fetchScholarPreviewByCandidateIds(scholarPreviewCandidateIds)
+      : new Map<string, ScholarProfilePreview>();
+
+  const ordered = ids
+    .map((id) => {
+      const item = dataById.get(id);
+      if (!item) return null;
+      return {
+        ...item,
+        scholar_profile_preview: scholarPreviewByCandidateId.get(id) ?? null,
+        search_evidence: evidenceByCandidateId?.get(id) ?? null,
+      };
+    })
+    .filter(Boolean);
 
   return ordered as CandidateTypeWithConnection[];
+}
+
+async function fetchScholarPreviewByCandidateIds(ids: string[]) {
+  const { data: profiles, error: profileError } = await supabase
+    .from("scholar_profile")
+    .select("id, candid_id, affiliation, topics, h_index, total_citations_num")
+    .in("candid_id", ids);
+
+  if (profileError) throw profileError;
+
+  const profileRows = Array.isArray(profiles) ? profiles : [];
+  if (profileRows.length === 0) {
+    return new Map<string, ScholarProfilePreview>();
+  }
+
+  const profileIds = profileRows.map((row) => row.id);
+  const { data: contributions, error: contributionError } = await supabase
+    .from("scholar_contributions")
+    .select("scholar_profile_id")
+    .in("scholar_profile_id", profileIds);
+
+  if (contributionError) throw contributionError;
+
+  const paperCountByProfileId = new Map<string, number>();
+  for (const row of contributions ?? []) {
+    const profileId = String((row as any)?.scholar_profile_id ?? "");
+    if (!profileId) continue;
+    paperCountByProfileId.set(
+      profileId,
+      (paperCountByProfileId.get(profileId) ?? 0) + 1
+    );
+  }
+
+  return new Map<string, ScholarProfilePreview>(
+    profileRows
+      .filter((row) => Boolean(row.candid_id))
+      .map((row) => [
+        row.candid_id as string,
+        {
+          scholarProfileId: row.id,
+          affiliation: row.affiliation,
+          topics: row.topics,
+          hIndex: row.h_index,
+          paperCount: paperCountByProfileId.get(row.id) ?? 0,
+          citationCount: row.total_citations_num ?? 0,
+        },
+      ])
+  );
 }
 
 /**
@@ -190,6 +276,19 @@ async function createRunFromMessage(params: {
   // - runs.query_id (uuid), runs.trigger_message_id (int/bigint), runs.criteria (jsonb)
   // - RLS policy allows insert when the user owns the query
   const locale = getLocaleFromCookie();
+  const { data: queryRow, error: queryError } = await supabase
+    .from("queries")
+    .select("type")
+    .eq("query_id", queryId)
+    .maybeSingle();
+
+  if (queryError) {
+    throw new Error(
+      `createRunFromMessage: query lookup failed (${queryError.code}): ${queryError.message}`
+    );
+  }
+
+  const sourceType = queryTypeToSearchSource(queryRow?.type);
 
   const { data, error } = await supabase
     .from("runs")
@@ -201,6 +300,9 @@ async function createRunFromMessage(params: {
       user_id: userId,
       status: "queued",
       locale,
+      search_settings: {
+        type: sourceType,
+      },
     })
     .select("id")
     .single();
@@ -261,14 +363,19 @@ export function useChatSearchCandidates(
     queryFn: async ({ pageParam }) => {
       const pageIdx = pageParam as number;
 
-      const { ids, isNewSearch } = await fetchSearchIds({
+      const { ids, isNewSearch, evidenceByCandidateId } = await fetchSearchIds({
         runId: runId!,
         pageIdx,
       });
 
       if (ids?.length) {
         if (isNewSearch) await deduct(1);
-        const items = await fetchCandidatesByIds(ids, userId!, runId!);
+        const items = await fetchCandidatesByIds(
+          ids,
+          userId!,
+          runId!,
+          evidenceByCandidateId
+        );
         return { pageIdx, ids, items, isNewSearch };
       }
 

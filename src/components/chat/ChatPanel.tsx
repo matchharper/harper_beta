@@ -450,15 +450,15 @@ export default function ChatPanel({
                 .join("\n")
             : "N/A";
 
-        await notifyUsageToSlack(`🔎 *Search Started (Confirm)*
+        //         await notifyUsageToSlack(`🔎 *Search Started (Confirm)*
 
-• *User*: ${companyUser?.name ?? "Unknown"} (${companyUser?.email ?? "N/A"})
-• *User ID*: ${userId}
-• *Query ID*: ${scope?.type === "query" ? scope.queryId : "N/A"}
-• *Thinking*: ${criteriaCard?.thinking || "N/A"}
-• *Criteria*:
-${criteriaText}
-• *Time(Standard Korea Time)*: ${new Date().toLocaleString("ko-KR")}`);
+        // • *User*: ${companyUser?.name ?? "Unknown"} (${companyUser?.email ?? "N/A"})
+        // • *User ID*: ${userId}
+        // • *Query ID*: ${scope?.type === "query" ? scope.queryId : "N/A"}
+        // • *Thinking*: ${criteriaCard?.thinking || "N/A"}
+        // • *Criteria*:
+        // ${criteriaText}
+        // • *Time(Standard Korea Time)*: ${new Date().toLocaleString("ko-KR")}`);
       }
     } catch (notifyError) {
       await notifyUsageToSlack(`🔎 *Search Started (Confirm)*
@@ -506,7 +506,8 @@ ${criteriaText}
       } catch (error) {
         console.error("retry search failed:", error);
         showToast({
-          message: "다시 검색을 시작하지 못했습니다. 잠시 후 다시 시도해주세요.",
+          message:
+            "다시 검색을 시작하지 못했습니다. 잠시 후 다시 시도해주세요.",
           variant: "white",
         });
       }

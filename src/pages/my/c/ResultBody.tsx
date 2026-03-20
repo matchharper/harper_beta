@@ -2,6 +2,7 @@
 import React from "react";
 import CandidateViews from "@/components/CandidateViews";
 import { useMessages } from "@/i18n/useMessage";
+import { SearchSource } from "@/lib/searchSource";
 
 type Props = {
   searchEnabled: boolean;
@@ -18,6 +19,7 @@ type Props = {
   onPrevPage: () => void;
   onNextPage: () => void;
   criterias: string[];
+  sourceType: SearchSource;
 };
 
 export default function ResultBody(props: Props) {
@@ -37,6 +39,7 @@ export default function ResultBody(props: Props) {
     onPrevPage,
     onNextPage,
     criterias,
+    sourceType,
   } = props;
 
   if (!searchEnabled) {
@@ -58,6 +61,7 @@ export default function ResultBody(props: Props) {
             userId={userId}
             criterias={criterias}
             indexStart={pageIdx * 10}
+            sourceType={sourceType}
           />
         )}
       </div>

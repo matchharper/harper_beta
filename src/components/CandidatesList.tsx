@@ -9,13 +9,25 @@ import {
 import { Avatar } from "./NameProfile";
 import Bookmarkbutton from "./ui/bookmarkbutton";
 import { Tooltips } from "./ui/tooltip";
-import { Check, Dot, X } from "lucide-react";
+import { Check, Dot, FileText, X } from "lucide-react";
 import { useRouter } from "next/router";
-import { RoleBox, SchoolBox } from "./CandidatesListTable";
+import { RoleBox, ScholarSignalBox, SchoolBox } from "./CandidatesListTable";
 import { SummaryScore } from "@/types/type";
 import { useLogEvent } from "@/hooks/useLog";
 import Link from "next/link";
 import ShortlistMemoEditor from "./ui/ShortlistMemoEditor";
+import { SearchSource, isScholarSearchSource } from "@/lib/searchSource";
+import {
+  buildEvidencePaperMeta,
+  buildEvidencePaperTooltip,
+  getEvidencePaper,
+} from "@/lib/searchEvidence";
+import {
+  buildScholarResearchTooltip,
+  formatScholarCitationCount,
+  formatScholarPaperCount,
+} from "@/lib/scholarPreview";
+import Image from "next/image";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
 
@@ -85,12 +97,14 @@ function CandidateCard({
   criterias,
   isMyList = false,
   showShortlistMemo = false,
+  sourceType = "linkedin",
 }: {
   c: CandidateTypeWithConnection;
   userId: string;
   isMyList?: boolean;
   showShortlistMemo?: boolean;
   criterias: string[];
+  sourceType?: SearchSource;
 }) {
   const router = useRouter();
   const logEvent = useLogEvent();
@@ -118,6 +132,19 @@ function CandidateCard({
 
   const latestCompany = exps[0];
   const school = useMemo(() => edus[0], [edus]);
+  const scholarPreview = c.scholar_profile_preview;
+  const evidencePaper = getEvidencePaper(c.search_evidence);
+  const isScholarSource = isScholarSearchSource(sourceType);
+  const isOnlyScholar =
+    !!scholarPreview && exps.length === 0 && edus.length === 0;
+  const evidencePaperMeta = useMemo(
+    () => buildEvidencePaperMeta(c.search_evidence),
+    [c.search_evidence]
+  );
+  const evidencePaperTooltipText = useMemo(
+    () => buildEvidencePaperTooltip(c.search_evidence),
+    [c.search_evidence]
+  );
 
   const companyHistoryTooltipText = useMemo(() => {
     if (exps.length === 0) return "경력 정보 없음";
@@ -143,6 +170,10 @@ function CandidateCard({
       .join("\n\n");
   }, [edus]);
 
+  const scholarAffiliationTooltipText = useMemo(() => {
+    return buildScholarResearchTooltip(scholarPreview);
+  }, [scholarPreview]);
+
   return (
     <Link
       href={profileHref}
@@ -161,11 +192,21 @@ function CandidateCard({
                 <div className="truncate font-medium text-lg hover:underline cursor-pointer relative">
                   {c.name ?? "None"}
                 </div>
-                {c.location && (
+                {isOnlyScholar ? (
+                  <div className="inline-flex w-fit items-center gap-1 text-xs rounded text-blue-500">
+                    <Image
+                      src="/images/logos/scholar.png"
+                      alt="Scholar Profile"
+                      width={14}
+                      height={14}
+                    />
+                    <div>Scholar Profile</div>
+                  </div>
+                ) : c.location ? (
                   <div className="text-sm text-hgray600 font-normal">
                     {locationEnToKo(c.location)}
                   </div>
-                )}
+                ) : null}
                 {/* {c.links && c.links.length > 0 && (
                   <div className="mt-3">
                     <LinkChips links={c.links} size="sm" />
@@ -177,29 +218,104 @@ function CandidateCard({
         </div>
 
         <div className="mt-0 flex flex-col gap-3 w-[60%]">
-          {latestCompany && (
-            <RoleBox
-              company={latestCompany.company_db.name ?? ""}
-              role={latestCompany.role}
-              tooltipText={companyHistoryTooltipText}
-              tooltipSide="bottom"
-            />
-          )}
-          {school && (
-            <SchoolBox
-              school={school.school}
-              role={school.degree}
-              field={school.field}
-              tooltipText={schoolHistoryTooltipText}
-              tooltipSide="bottom"
-            />
+          {isScholarSource ? (
+            <>
+              <ScholarSignalBox
+                title={scholarPreview?.affiliation ?? "-"}
+                tooltipText={scholarAffiliationTooltipText}
+                icon="affiliation"
+                tooltipSide="bottom"
+                hideDescriptionWhenEmpty={true}
+              />
+              <ScholarSignalBox
+                title={
+                  scholarPreview
+                    ? formatScholarPaperCount(scholarPreview.paperCount)
+                    : "-"
+                }
+                description={
+                  scholarPreview
+                    ? formatScholarCitationCount(scholarPreview.citationCount)
+                    : "-"
+                }
+                tooltipText={buildScholarResearchTooltip(scholarPreview)}
+                icon="research"
+                tooltipSide="bottom"
+              />
+            </>
+          ) : (
+            <>
+              {isOnlyScholar && (
+                <RoleBox
+                  company={scholarPreview?.affiliation ?? "-"}
+                  role=""
+                  tooltipText={scholarAffiliationTooltipText}
+                  tooltipSide="bottom"
+                />
+              )}
+              {isOnlyScholar && (
+                <ScholarSignalBox
+                  title={
+                    scholarPreview
+                      ? formatScholarPaperCount(scholarPreview.paperCount)
+                      : "-"
+                  }
+                  description={
+                    scholarPreview
+                      ? formatScholarCitationCount(scholarPreview.citationCount)
+                      : "-"
+                  }
+                  tooltipText={buildScholarResearchTooltip(scholarPreview)}
+                  icon="research"
+                  tooltipSide="bottom"
+                />
+              )}
+              {latestCompany && (
+                <RoleBox
+                  company={latestCompany.company_db.name ?? ""}
+                  role={latestCompany.role}
+                  tooltipText={companyHistoryTooltipText}
+                  tooltipSide="bottom"
+                />
+              )}
+              {school && (
+                <SchoolBox
+                  school={school.school}
+                  role={school.degree}
+                  field={school.field}
+                  tooltipText={schoolHistoryTooltipText}
+                  tooltipSide="bottom"
+                />
+              )}
+            </>
           )}
         </div>
       </div>
 
+      {isScholarSource && evidencePaper?.title ? (
+        <Tooltips
+          text={evidencePaperTooltipText || evidencePaper.title}
+          side="bottom"
+        >
+          <div className="mt-8 flex w-full items-start gap-3">
+            <div className="min-w-0">
+              <div className="text-xs text-hgray600">Related paper</div>
+              <div className="mt-1 line-clamp-2 text-[15px] font-normal text-white/95">
+                {evidencePaper.title}
+              </div>
+              {evidencePaperMeta ? (
+                <div className="mt-1 text-sm text-hgray700 font-normal">
+                  {evidencePaperMeta}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </Tooltips>
+      ) : null}
+
       {(synthesizedSummary.length !== 0 ||
         (isMyList && shortlistSummaryText.length > 0)) && (
-        <div className="mt-8 text-hgray700 leading-relaxed font-light">
+        <div className="mt-5 text-hgray700 leading-relaxed font-light">
           {synthesizedSummary.length !== 0 && (
             <div>
               {synthesizedSummary?.map((item: any, index: number) => (

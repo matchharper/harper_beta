@@ -207,6 +207,28 @@ USING (
 );
 ```
 
+### 6-1. `run_variants` 읽기 정책 (부모 `runs.user_id` 기반)
+
+검색 결과 화면에서 scholar mixed 여부를 판별하려면 `run_variants` 조회가 필요합니다.
+
+```sql
+GRANT SELECT ON TABLE public.run_variants TO authenticated;
+
+DROP POLICY IF EXISTS run_variants_select_own ON public.run_variants;
+CREATE POLICY run_variants_select_own
+ON public.run_variants
+FOR SELECT
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1
+    FROM public.runs r
+    WHERE r.id = run_variants.run_id
+      AND r.user_id = auth.uid()
+  )
+);
+```
+
 ### 6-2. `runs` 쓰기 정책 (채팅/검색 실행 필수)
 
 현재 프론트는 `runs`에 `INSERT`(검색 시작)와 `UPDATE`(중단/상태변경)를 수행합니다.  

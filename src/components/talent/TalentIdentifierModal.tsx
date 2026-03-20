@@ -192,7 +192,7 @@ const TalentIdentifierModal = ({
       footer={
         <div className="flex flex-col gap-2">
           {error ? (
-            <p className="rounded-md border border-xprimary/30 bg-xprimary/10 px-3 py-2 text-sm text-xprimary">
+            <p className="rounded-md border border-beige900/20 bg-beige900/10 px-3 py-2 text-sm text-beige900">
               {error}
             </p>
           ) : null}
@@ -200,7 +200,7 @@ const TalentIdentifierModal = ({
             type="button"
             onClick={() => void handleGoogleLogin()}
             disabled={!canContinue || isSubmitting}
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-xprimary px-4 text-sm font-medium text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-beige900 px-4 text-sm font-medium text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSubmitting ? (
               <>
@@ -243,7 +243,7 @@ const TalentIdentifierModal = ({
                 className={cn(
                   "inline-flex h-8 items-center justify-center gap-1.5 px-1.5 text-sm transition-colors",
                   active
-                    ? "text-xprimary"
+                    ? "text-beige900"
                     : "text-hblack500 hover:text-hblack900"
                 )}
               >
@@ -294,7 +294,7 @@ const TalentIdentifierModal = ({
                   setError("");
                 }}
                 placeholder={selectedOption?.placeholder}
-                className="h-11 w-full rounded-md border border-hblack200 bg-hblack000 px-3 text-sm text-hblack900 outline-none transition-all placeholder:text-hblack400 focus:outline-1 focus:outline-xprimary"
+                className="h-11 w-full rounded-md border border-hblack200 bg-hblack000 px-3 text-sm text-hblack900 outline-none transition-all placeholder:text-hblack400 focus:outline-1 focus:outline-beige900"
               />
             </div>
           )}

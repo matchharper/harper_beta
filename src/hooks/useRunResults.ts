@@ -1,24 +1,23 @@
 import { useEffect, useMemo } from "react";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { SearchSource } from "@/lib/searchSource";
+import { ScholarProfilePreview } from "@/lib/scholarPreview";
+import {
+  buildEvidenceMap,
+  filterPositiveScoreCandidates,
+  RunPageCandidate,
+  SearchEvidence,
+} from "@/lib/searchEvidence";
 import { CandidateTypeWithConnection } from "./useSearchChatCandidates";
 import { logger } from "@/utils/logger";
-
-type RunPageCandidate = { id?: string; score?: number | string | null };
-
-function filterPositiveScoreCandidates(items: RunPageCandidate[]) {
-  return items.filter((item) => {
-    const score = Number(item?.score);
-    // Keep legacy rows without score, but exclude explicit zero/negative.
-    if (Number.isNaN(score)) return true;
-    return score > 0;
-  });
-}
 
 async function fetchCandidatesByIds(
   ids: string[],
   userId: string,
-  runId: string
+  runId: string,
+  sourceType: SearchSource,
+  evidenceByCandidateId?: Map<string, SearchEvidence>
 ) {
   if (ids.length === 0) return [];
 
@@ -69,10 +68,104 @@ async function fetchCandidatesByIds(
   logger.log("fetchCandidatesByIds time ", performance.now() - start_time);
   if (error) throw error;
 
+  let scholarPreviewByCandidateId = new Map<string, ScholarProfilePreview>();
+  let shouldReadScholarPreview = sourceType === "scholar";
+  if (!shouldReadScholarPreview) {
+    const { data: scholarVariantRows, error: scholarVariantError } =
+      await supabase
+        .from("run_variants")
+        .select("id")
+        .eq("run_id", runId)
+        .eq("source_type", 1)
+        .limit(1);
+
+    if (scholarVariantError) throw scholarVariantError;
+    shouldReadScholarPreview =
+      Array.isArray(scholarVariantRows) && scholarVariantRows.length > 0;
+  }
   const dataById = new Map((data ?? []).map((item: any) => [item.id, item]));
-  const ordered = ids.map((id) => dataById.get(id)).filter(Boolean);
+  const scholarPreviewCandidateIds =
+    shouldReadScholarPreview
+      ? sourceType === "scholar"
+        ? ids
+        : ids.filter((id) => {
+            const item = dataById.get(id);
+            const experiences = Array.isArray(item?.experience_user)
+              ? item.experience_user
+              : [];
+            const educations = Array.isArray(item?.edu_user)
+              ? item.edu_user
+              : [];
+            return experiences.length === 0 && educations.length === 0;
+          })
+      : [];
+
+  if (scholarPreviewCandidateIds.length > 0) {
+    scholarPreviewByCandidateId = await fetchScholarPreviewByCandidateIds(
+      scholarPreviewCandidateIds
+    );
+  }
+  const ordered = ids
+    .map((id) => {
+      const item = dataById.get(id);
+      if (!item) return null;
+      return {
+        ...item,
+        scholar_profile_preview: scholarPreviewByCandidateId.get(id) ?? null,
+        search_evidence: evidenceByCandidateId?.get(id) ?? null,
+      };
+    })
+    .filter(Boolean);
 
   return ordered as CandidateTypeWithConnection[];
+}
+
+async function fetchScholarPreviewByCandidateIds(ids: string[]) {
+  const { data: profiles, error: profileError } = await supabase
+    .from("scholar_profile")
+    .select("id, candid_id, affiliation, topics, h_index, total_citations_num")
+    .in("candid_id", ids);
+
+  if (profileError) throw profileError;
+
+  const profileRows = Array.isArray(profiles) ? profiles : [];
+  if (profileRows.length === 0) {
+    return new Map<string, ScholarProfilePreview>();
+  }
+
+  const profileIds = profileRows.map((row) => row.id);
+  const { data: contributions, error: contributionError } = await supabase
+    .from("scholar_contributions")
+    .select("scholar_profile_id")
+    .in("scholar_profile_id", profileIds);
+
+  if (contributionError) throw contributionError;
+
+  const paperCountByProfileId = new Map<string, number>();
+  for (const row of contributions ?? []) {
+    const profileId = String((row as any)?.scholar_profile_id ?? "");
+    if (!profileId) continue;
+    paperCountByProfileId.set(
+      profileId,
+      (paperCountByProfileId.get(profileId) ?? 0) + 1
+    );
+  }
+
+  return new Map<string, ScholarProfilePreview>(
+    profileRows
+      .filter((row) => Boolean(row.candid_id))
+      .map((row) => [
+        row.candid_id as string,
+        {
+          scholarProfileId: row.id,
+          affiliation: row.affiliation,
+          topics: row.topics,
+          hIndex: row.h_index,
+          paperCount: paperCountByProfileId.get(row.id) ?? 0,
+          citationCount: row.total_citations_num ?? 0,
+        },
+      ])
+  );
 }
 
 async function fetchRunPage12(params: {
@@ -128,22 +221,28 @@ async function fetchRunPage(params: {
   const end = start + 10;
 
   const ids = all.slice(start, end).map((r) => r.id).filter(Boolean) as string[];
+  const evidenceByCandidateId = buildEvidenceMap(all);
 
-  return { ids, total: all.length };
+  return { ids, total: all.length, evidenceByCandidateId };
 }
 
 export function useRunPagesInfinite({
   userId,
   runId,
+  sourceType = "linkedin",
   enabled = true,
 }: {
   userId?: string;
   runId?: string;
+  sourceType?: SearchSource;
   enabled?: boolean;
 }) {
   const queryClient = useQueryClient();
 
-  const qk = useMemo(() => ["runPages", runId, userId], [runId, userId]);
+  const qk = useMemo(
+    () => ["runPages", runId, userId, sourceType],
+    [runId, sourceType, userId]
+  );
 
   // 1) runs_pages realtime 구독
   useEffect(() => {
@@ -179,7 +278,7 @@ export function useRunPagesInfinite({
     queryFn: async ({ pageParam }) => {
       const pageIdx = pageParam as number;
 
-      const { ids, total } = await fetchRunPage({
+      const { ids, total, evidenceByCandidateId } = await fetchRunPage({
         runId: runId!,
         pageIdx,
         userId: userId!,
@@ -187,7 +286,13 @@ export function useRunPagesInfinite({
 
       // ids -> 후보자 fetch
       const items = ids.length
-        ? await fetchCandidatesByIds(ids, userId!, runId!)
+        ? await fetchCandidatesByIds(
+            ids,
+            userId!,
+            runId!,
+            sourceType,
+            evidenceByCandidateId
+          )
         : [];
 
       return { pageIdx, ids, items, total };

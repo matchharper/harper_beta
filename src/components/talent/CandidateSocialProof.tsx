@@ -17,7 +17,7 @@ const RoundImage = ({ src, alt }: { src: string; alt: string }) => {
 
 const CandidateSocialProof = () => {
   return (
-    <div className="flex items-center flex-row gap-2 mt-3 font-inter">
+    <div className="mt-3 flex flex-row items-center gap-2 font-geist">
       <div className="relative items-baseline gap-1 text-hblack500 font-normal text-sm flex">
         현재 500+명이 등록했습니다.
       </div>

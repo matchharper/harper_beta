@@ -10,13 +10,7 @@ const Footer = ({
 }: {
   onClickStart?: (type: string) => void;
 }) => {
-  const { m, locale } = useMessages();
-
-  const setLocaleCookie = (next: "ko" | "en") => {
-    if (typeof document === "undefined") return;
-    document.cookie = `NEXT_LOCALE=${next}; path=/; max-age=31536000`;
-    window.location.reload();
-  };
+  const { m } = useMessages();
 
   const handleContactUs = async () => {
     await navigator.clipboard.writeText("chris@matchharper.com");
