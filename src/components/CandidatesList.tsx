@@ -193,14 +193,14 @@ function CandidateCard({
                   {c.name ?? "None"}
                 </div>
                 {isOnlyScholar ? (
-                  <div className="inline-flex w-fit items-center gap-1 text-xs rounded text-blue-500">
+                  <div className="inline-flex w-fit items-center gap-1 text-[13px] rounded text-blue-500">
                     <Image
                       src="/images/logos/scholar.png"
                       alt="Scholar Profile"
                       width={14}
                       height={14}
                     />
-                    <div>Scholar Profile</div>
+                    <div className="mt-[1px]">Scholar Profile</div>
                   </div>
                 ) : c.location ? (
                   <div className="text-sm text-hgray600 font-normal">
