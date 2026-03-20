@@ -9,7 +9,12 @@ import {
 import { ChatScope } from "@/hooks/chat/useChatSession";
 import { buildLongDoc } from "@/utils/textprocess";
 import { logger } from "@/utils/logger";
-import { CANDID_SYSTEM_PROMPT, SYSTEM_PROMPT } from "./chat_prompt";
+import { queryTypeToSearchSource } from "@/lib/searchSource";
+import {
+  CANDID_SYSTEM_PROMPT,
+  SCHOLAR_SYSTEM_PROMPT,
+  SYSTEM_PROMPT,
+} from "./chat_prompt";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -98,6 +103,22 @@ async function fetchLatestMemory(userId: string) {
 
   if (error) throw error;
   return data ?? null;
+}
+
+async function loadQueryPromptBase(queryId?: string) {
+  if (!queryId) return SYSTEM_PROMPT;
+
+  const { data, error } = await supabaseAdmin
+    .from("queries")
+    .select("type")
+    .eq("query_id", queryId)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  return queryTypeToSearchSource(data?.type) === "scholar"
+    ? SCHOLAR_SYSTEM_PROMPT
+    : SYSTEM_PROMPT;
 }
 
 function buildAutomationSystemPrompt(
@@ -483,11 +504,12 @@ ${information}
     }
 
     if (body.scope?.type === "query") {
+      const basePrompt = await loadQueryPromptBase(body.scope.queryId);
       systemPrompt =
         typeof body.systemPromptOverride === "string" &&
         body.systemPromptOverride.trim().length > 0
           ? body.systemPromptOverride
-          : SYSTEM_PROMPT;
+          : basePrompt;
     }
 
     const attachments = Array.isArray(body.attachments) ? body.attachments : [];

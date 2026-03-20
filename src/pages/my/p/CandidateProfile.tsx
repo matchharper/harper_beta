@@ -2,7 +2,7 @@ import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { CandidateDetail, candidateKey } from "@/hooks/useCandidateDetail";
 import ShareProfileModal from "@/components/Modal/ShareProfileModal";
 import ConnectionModal from "@/components/Modal/ConnectionModal";
-import { Upload } from "lucide-react";
+import { GraduationCap, Upload } from "lucide-react";
 import Bookmarkbutton from "@/components/ui/bookmarkbutton";
 import GithubRepoContributionBox from "@/components/profile/GithubRepoContributionBox";
 import ItemBox from "./components/ItemBox";
@@ -27,6 +27,10 @@ import { supabase } from "@/lib/supabase";
 import Criterias from "./components/Criterias";
 import ShortlistMemoEditor from "@/components/ui/ShortlistMemoEditor";
 import { useShortlistMemo } from "@/hooks/useShortlistMemo";
+import {
+  formatScholarCitationCount,
+  formatScholarPaperCount,
+} from "@/lib/scholarPreview";
 
 const PUBLICATION_PREVIEW_COUNT = 10;
 
@@ -42,6 +46,61 @@ type SynthesizedSummaryItem = {
   score: string;
   reason: string;
 };
+
+type ProfileInsightCardProps = {
+  label: string;
+  primary: React.ReactNode;
+  secondary?: React.ReactNode;
+};
+
+function ProfileInsightCard({
+  label,
+  primary,
+  secondary,
+}: ProfileInsightCardProps) {
+  return (
+    <div className="rounded-2xl bg-white/5 px-4 py-3">
+      <div className="text-xs text-hgray600">{label}</div>
+      <div className="mt-2 text-sm text-hgray900">{primary}</div>
+      {secondary ? (
+        <div className="mt-1 text-xs leading-5 text-hgray600">{secondary}</div>
+      ) : null}
+    </div>
+  );
+}
+
+function ResearchProfileSection({
+  scholarProfile,
+  scholarPaperCount,
+}: {
+  scholarProfile: NonNullable<CandidateDetail["scholar_profile"]>;
+  scholarPaperCount: number;
+}) {
+  return (
+    <Box title="Research Profile">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <ProfileInsightCard
+          label="연구 주제"
+          primary={scholarProfile.topics || undefined}
+          secondary=""
+        />
+        <ProfileInsightCard
+          label="작성 논문"
+          primary={formatScholarPaperCount(scholarPaperCount)}
+          secondary=""
+        />
+        <ProfileInsightCard
+          label="Impact"
+          primary={
+            "Total " +
+            formatScholarCitationCount(scholarProfile.total_citations_num ?? 0)
+          }
+          secondary={`h-index ${scholarProfile.h_index ?? 0}`}
+        />
+      </div>
+    </Box>
+  );
+}
 
 function parseSynthesizedSummaryText(
   rawText: string | null | undefined
@@ -263,10 +322,29 @@ function CandidateProfileDetailPage({
       });
   }, [c]);
 
-  const publications = useMemo(
-    () => (Array.isArray(c?.publications) ? c.publications : []),
-    [c]
-  );
+  const publications = useMemo(() => {
+    const basePublications = Array.isArray(c?.publications)
+      ? c.publications
+      : [];
+    if (basePublications.length > 0) {
+      return basePublications;
+    }
+
+    const scholarPapers = Array.isArray(c?.scholar_papers)
+      ? c.scholar_papers
+      : [];
+    return scholarPapers.map((paper: any) => ({
+      paper_id: paper.id,
+      title: paper.title,
+      published_at: paper.published_at,
+      link: paper.external_link ?? paper.scholar_link,
+      citation_num: paper.total_citations,
+    }));
+  }, [c]);
+  const scholarProfile = c?.scholar_profile ?? null;
+  const scholarPaperCount = Array.isArray(c?.scholar_papers)
+    ? c.scholar_papers.length
+    : 0;
 
   const visiblePublications = useMemo(
     () =>
@@ -432,6 +510,8 @@ function CandidateProfileDetailPage({
             name={c.name}
             headline={c.headline}
             location={c.location}
+            metaLabel={scholarProfile ? "Scholar" : undefined}
+            metaIcon={scholarProfile ? GraduationCap : undefined}
             links={links}
             onLinkClick={handleProfileLinkClick}
           />
@@ -493,66 +573,77 @@ function CandidateProfileDetailPage({
           onToggleMore={handleProfileSummaryToggle}
         />
 
-        {/* Experiences */}
-        <Box title={`${m.data.experience}`}>
-          <div className="space-y-0">
-            {mergedExperience.map((entry, idx) => {
-              if (entry.kind === "exp") {
-                const e = entry.item;
+        {scholarProfile && (
+          <ResearchProfileSection
+            scholarProfile={scholarProfile}
+            scholarPaperCount={scholarPaperCount}
+          />
+        )}
+
+        {mergedExperience.length > 0 && (
+          <Box title={`${m.data.experience}`}>
+            <div className="space-y-0">
+              {mergedExperience.map((entry, idx) => {
+                if (entry.kind === "exp") {
+                  const e = entry.item;
+                  return (
+                    <ItemBox
+                      key={`exp-${idx}`}
+                      isContinued={
+                        idx > 0 &&
+                        mergedExperience[idx - 1]?.kind === "exp" &&
+                        mergedExperience[idx - 1]?.item?.company_db?.name ===
+                          e.company_db?.name
+                      }
+                      title={e.role}
+                      company_id={e.company_id}
+                      name={companyEnToKo(e.company_db.name)}
+                      start_date={e.start_date}
+                      end_date={e.end_date}
+                      link={e.company_db.linkedin_url}
+                      description={e.description}
+                      logo_url={e.company_db.logo}
+                      months={e.months}
+                      isLast={idx === mergedExperience.length - 1}
+                      onToggleDescription={(nextOpen) => {
+                        if (!nextOpen) return;
+                        const companyName = companyEnToKo(e.company_db.name);
+                        const target = compactLogToken(
+                          companyName ||
+                            e.company_db.name ||
+                            e.role ||
+                            "unknown"
+                        );
+                        logEvent(
+                          `profile_experience_chevron_click:${candidId}:${target}`
+                        );
+                      }}
+                    />
+                  );
+                }
+
+                const ed = entry.item;
                 return (
                   <ItemBox
-                    key={`exp-${idx}`}
-                    isContinued={
-                      idx > 0 &&
-                      mergedExperience[idx - 1]?.kind === "exp" &&
-                      mergedExperience[idx - 1]?.item?.company_db?.name ===
-                        e.company_db?.name
+                    key={`edu-${idx}`}
+                    title={`${koreaUniversityEnToKo(ed.school)}`}
+                    name={
+                      ed.field
+                        ? `${majorEnToKo(ed.field)}, ${degreeEnToKo(ed.degree)}`
+                        : ed.degree
                     }
-                    title={e.role}
-                    company_id={e.company_id}
-                    name={companyEnToKo(e.company_db.name)}
-                    start_date={e.start_date}
-                    end_date={e.end_date}
-                    link={e.company_db.linkedin_url}
-                    description={e.description}
-                    logo_url={e.company_db.logo}
-                    months={e.months}
+                    start_date={ed.start_date}
+                    end_date={ed.end_date}
+                    link={ed.url}
+                    description={""}
+                    typed="edu"
                     isLast={idx === mergedExperience.length - 1}
-                    onToggleDescription={(nextOpen) => {
-                      if (!nextOpen) return;
-                      const companyName = companyEnToKo(e.company_db.name);
-                      const target = compactLogToken(
-                        companyName || e.company_db.name || e.role || "unknown"
-                      );
-                      logEvent(
-                        `profile_experience_chevron_click:${candidId}:${target}`
-                      );
-                    }}
                   />
                 );
-              }
-
-              const ed = entry.item;
-              return (
-                <ItemBox
-                  key={`edu-${idx}`}
-                  title={`${koreaUniversityEnToKo(ed.school)}`}
-                  name={
-                    ed.field
-                      ? `${majorEnToKo(ed.field)}, ${degreeEnToKo(ed.degree)}`
-                      : ed.degree
-                  }
-                  start_date={ed.start_date}
-                  end_date={ed.end_date}
-                  link={ed.url}
-                  description={""}
-                  typed="edu"
-                  isLast={idx === mergedExperience.length - 1}
-                />
-              );
-            })}
-          </div>
-        </Box>
+              })}
+            </div>
+          </Box>
+        )}
 
         {/* Awards */}
         {(c.extra_experience ?? []).length > 0 && (
@@ -608,6 +699,7 @@ function CandidateProfileDetailPage({
                   published_at={p.published_at}
                   link={p.link}
                   citation_num={p.citation_num ?? -1}
+                  paperId={p.paper_id}
                 />
               ))}
             </div>

@@ -5,6 +5,11 @@ import {
   getParallelSearchLimitMessage,
   inferSearchPlanKey,
 } from "@/lib/searchParallelLimit";
+import {
+  SearchSource,
+  normalizeSearchSource,
+  queryTypeToSearchSource,
+} from "@/lib/searchSource";
 import { NextRequest, NextResponse } from "next/server";
 
 const UI_START = "<<UI>>";
@@ -18,6 +23,7 @@ type LaunchBody = {
 
 type SearchSettingsSnapshot = {
   is_korean: boolean;
+  type: SearchSource;
 };
 
 function parseLocaleFromRequest(req: NextRequest): "ko" | "en" {
@@ -44,7 +50,8 @@ function extractUiJsonFromMessage(content: string): any | null {
 }
 
 async function loadSearchSettings(
-  userId: string
+  userId: string,
+  sourceType: SearchSource
 ): Promise<SearchSettingsSnapshot> {
   const { data: row, error } = await supabaseServer
     .from("settings")
@@ -58,6 +65,7 @@ async function loadSearchSettings(
 
   return {
     is_korean: row?.is_korean ?? false,
+    type: sourceType,
   };
 }
 
@@ -129,11 +137,12 @@ export async function POST(req: NextRequest) {
   let effectiveMessageId: number | null = null;
   let effectiveCriteria: string[] = [];
   let effectiveQueryText = "";
+  let effectiveRunSourceType: SearchSource | null = null;
 
   if (isRetryLaunch) {
     const { data: sourceRun, error: sourceRunError } = await supabaseServer
       .from("runs")
-      .select("id, query_id, message_id, query_text, criteria")
+      .select("id, query_id, message_id, query_text, criteria, search_settings")
       .eq("id", sourceRunId)
       .eq("user_id", user.id)
       .maybeSingle();
@@ -161,10 +170,13 @@ export async function POST(req: NextRequest) {
             typeof item === "string" && item.trim().length > 0
         )
       : [];
+    effectiveRunSourceType = normalizeSearchSource(
+      (sourceRun.search_settings as { type?: string } | null)?.type
+    );
   } else {
     const { data: queryRow, error: queryError } = await supabaseServer
       .from("queries")
-      .select("query_id")
+      .select("query_id, type")
       .eq("query_id", queryId)
       .eq("user_id", user.id)
       .maybeSingle();
@@ -178,6 +190,8 @@ export async function POST(req: NextRequest) {
     if (!queryRow) {
       return NextResponse.json({ error: "Query not found" }, { status: 404 });
     }
+
+    effectiveRunSourceType = queryTypeToSearchSource(queryRow.type);
 
     const { data: messageRow, error: messageError } = await supabaseServer
       .from("messages")
@@ -219,6 +233,24 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const { data: queryMeta, error: queryMetaError } = await supabaseServer
+    .from("queries")
+    .select("query_id, type")
+    .eq("query_id", effectiveQueryId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (queryMetaError) {
+    return NextResponse.json(
+      { error: queryMetaError.message ?? "Failed to load query" },
+      { status: 500 }
+    );
+  }
+
+  if (!queryMeta) {
+    return NextResponse.json({ error: "Query not found" }, { status: 404 });
+  }
+
   const locale = parseLocaleFromRequest(req);
   const planKey = await loadActivePlanKey(user.id);
   const maxParallel = getMaxParallelSearchCount({
@@ -237,8 +269,7 @@ export async function POST(req: NextRequest) {
   if (runningSearchError) {
     return NextResponse.json(
       {
-        error:
-          runningSearchError.message ?? "Failed to check running searches",
+        error: runningSearchError.message ?? "Failed to check running searches",
       },
       { status: 500 }
     );
@@ -254,7 +285,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const searchSettings = await loadSearchSettings(user.id);
+  const searchSettings = await loadSearchSettings(
+    user.id,
+    effectiveRunSourceType ?? queryTypeToSearchSource(queryMeta.type)
+  );
 
   // 테스트 모드 확인 (환경 변수)
   const testMode = process.env.NEXT_PUBLIC_WORKER_TEST_MODE === "true";

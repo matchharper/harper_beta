@@ -4,6 +4,7 @@ import type { CandidateType, EduUserType, ExpUserType } from "@/types/type";
 import { logger } from "@/utils/logger";
 import { UI_END, UI_START } from "./chat/useChatSession";
 import type { Locale } from "@/i18n/useMessage";
+import { queryTypeToSearchSource } from "@/lib/searchSource";
 
 function getCookie(name: string) {
   if (typeof document === "undefined") return null;
@@ -40,6 +41,7 @@ type RunPageCandidate = { id?: string; score?: number | string | null };
 
 type SearchSettingsSnapshot = {
   is_korean: boolean;
+  type: "linkedin" | "scholar" | "github";
 };
 
 class SearchLaunchLimitError extends Error {
@@ -108,7 +110,8 @@ async function fetchSearchIds(params: { runId: string; pageIdx: number }) {
 }
 
 async function loadSearchSettings(
-  userId: string
+  userId: string,
+  sourceType: SearchSettingsSnapshot["type"]
 ): Promise<SearchSettingsSnapshot> {
   const { data: row, error } = await supabase
     .from("settings")
@@ -124,7 +127,26 @@ async function loadSearchSettings(
 
   return {
     is_korean: row?.is_korean ?? false,
+    type: sourceType,
   };
+}
+
+async function loadQuerySourceType(
+  queryId: string
+): Promise<SearchSettingsSnapshot["type"]> {
+  const { data, error } = await supabase
+    .from("queries")
+    .select("type")
+    .eq("query_id", queryId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `loadQuerySourceType failed (${error.code}): ${error.message}`
+    );
+  }
+
+  return queryTypeToSearchSource(data?.type);
 }
 /**
  * run 생성:
@@ -148,7 +170,8 @@ async function createRunFromMessage(params: {
     throw new Error("createRunFromMessage: missing criteria");
 
   const locale = getLocaleFromCookie();
-  const searchSettings = await loadSearchSettings(userId);
+  const sourceType = await loadQuerySourceType(queryId);
+  const searchSettings = await loadSearchSettings(userId, sourceType);
 
   // 테스트 모드 확인 (환경 변수)
   const testMode =

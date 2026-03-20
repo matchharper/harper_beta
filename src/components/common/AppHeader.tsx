@@ -139,12 +139,7 @@ const AppHeader = ({ topClassName = "top-0" }: AppHeaderProps) => {
 
   return (
     <>
-      <header
-        className={[
-          "sticky z-10 bg-hblack000/95 backdrop-blur",
-          topClassName,
-        ].join(" ")}
-      >
+      <header className={["sticky z-10 backdrop-blur", topClassName].join(" ")}>
         <div className="mx-auto flex h-12 max-w-[1440px] items-center justify-between px-4 lg:px-8">
           <Link
             href="/talent"

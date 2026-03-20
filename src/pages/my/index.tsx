@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { NextPage } from "next";
+import { motion } from "framer-motion";
 import {
   ArrowUp,
   Github,
@@ -21,17 +22,22 @@ import { ensureGroupBy } from "@/utils/textprocess";
 import { firstSqlPrompt } from "@/lib/prompt";
 import ConfirmModal from "@/components/Modal/ConfirmModal";
 import { useFeedbackModalStore } from "@/store/useFeedbackModalStore";
+import {
+  SEARCH_SOURCE_VALUES,
+  SearchSource,
+  isSearchSource,
+} from "@/lib/searchSource";
+import { Tooltips } from "@/components/ui/tooltip";
 
 const PLACEHOLDER_SWITCH_MS = 4500;
 const PLACEHOLDER_SLIDE_MS = 500;
 const PLACEHOLDER_LINE_HEIGHT_PX = 24;
 const SEARCH_SOURCE_STORAGE_KEY = "harper_my_search_source";
-const SEARCH_SOURCE_VALUES = ["linkedin", "scholar", "github"] as const;
-
-type SearchSource = (typeof SEARCH_SOURCE_VALUES)[number];
 type SearchSourceConfig = {
   label: string;
+  color: string;
   prompt: string;
+  desc: string;
   placeholder: string;
   placeholders: string[];
   examples: Array<{
@@ -40,9 +46,6 @@ type SearchSourceConfig = {
   }>;
   Icon: typeof Linkedin;
 };
-
-const isSearchSource = (value: string): value is SearchSource =>
-  SEARCH_SOURCE_VALUES.includes(value as SearchSource);
 
 const Home: NextPage = () => {
   const [query, setQuery] = useState("");
@@ -80,15 +83,19 @@ const Home: NextPage = () => {
       return {
         linkedin: {
           label: "LinkedIn",
+          color: "border-hgray700/50",
           prompt: "어떤 인재를 찾고 계신가요?",
+          desc: "경력 / 학력 등을 중심으로 인재를 찾습니다.",
           placeholder: m.home.queryPlaceholder,
           placeholders: linkedinPlaceholders,
           examples: linkedinExamples,
           Icon: Linkedin,
         },
         scholar: {
-          label: "Scholar",
+          label: "Publications",
+          color: "border-blue-400/50",
           prompt: "어떤 인재를 찾고 계신가요?",
+          desc: "연구 기록 / 논문을 중심으로 연구자를 찾습니다.",
           placeholder:
             "ICML / NeurIPS에서 LLM alignment 논문을 낸 박사급 연구자",
           placeholders: [
@@ -118,8 +125,10 @@ const Home: NextPage = () => {
           Icon: GraduationCap,
         },
         github: {
-          label: "GitHub",
+          label: "Open Source",
+          color: "border-green-500/50",
           prompt: "어떤 빌더를 찾고 계신가요?",
+          desc: "Github 활동 / 오픈소스 기여 중심으로 Github profile을 찾습니다.",
           placeholder:
             "TypeScript와 React 생태계에서 오픈소스 기여가 꾸준한 프론트엔드 엔지니어",
           placeholders: [
@@ -154,16 +163,20 @@ const Home: NextPage = () => {
     return {
       linkedin: {
         label: "LinkedIn",
+        color: "border-hray700",
         prompt: "Who are you looking for through LinkedIn career history?",
+        desc: "Career history / education / etc. to find candidates.",
         placeholder: m.home.queryPlaceholder,
         placeholders: linkedinPlaceholders,
         examples: linkedinExamples,
         Icon: Linkedin,
       },
       scholar: {
-        label: "Scholar",
+        label: "Publications",
+        color: "border-blue-400",
         prompt:
           "Who are you looking for through Google Scholar research history?",
+        desc: "Research history / papers to find researchers.",
         placeholder:
           "PhD-level researcher with LLM alignment papers at ICML or NeurIPS",
         placeholders: [
@@ -193,8 +206,10 @@ const Home: NextPage = () => {
         Icon: GraduationCap,
       },
       github: {
-        label: "GitHub",
+        label: "Open Source",
+        color: "border-green-500",
         prompt: "Who are you looking for through GitHub activity?",
+        desc: "GitHub activity / open-source contributions to find developers.",
         placeholder:
           "Frontend engineer with consistent open-source contributions in the TypeScript and React ecosystem",
         placeholders: [
@@ -336,7 +351,7 @@ const Home: NextPage = () => {
     const response = await fetch("/api/search/create", {
       method: "POST",
       headers: authHeaders,
-      body: JSON.stringify({ queryText: query }),
+      body: JSON.stringify({ queryText: query, type: selectedSource }),
     });
     const data = await response.json();
 
@@ -377,7 +392,6 @@ const Home: NextPage = () => {
     const end = performance.now();
     console.log("testSqlQuery time", end - start);
   };
-
   const testLLM = async () => {
     console.log("testLLM start");
     const systemPrompt = `You are a head hunting expertand SQL Query parser. Your input is a natural-language request describing criteria for searching job candidates.`;
@@ -411,12 +425,6 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
       />
       <main className="flex-1 flex relative font-sans items-center justify-center px-6 w-full pt-[25vh]">
         <div className="absolute top-2 right-2 flex flex-row items-end gap-2">
-          {/* <div
-            onClick={() => router.push("/my/scout")}
-            className="cursor-pointer hover:bg-white/10 transition text-xs text-accenta1/90 px-3.5 py-2 rounded-full bg-white/5 font-light flex flex-row items-center gap-1"
-          >
-            <Sparkles size={12} /> 인재 추천을 받고 싶다면?
-          </div> */}
           <button
             onClick={openFeedbackModal}
             className="cursor-pointer hover:bg-white/10 transition text-sm text-hgray900 px-4 py-1.5 rounded-full bg-white/5 font-normal flex flex-row items-center gap-2"
@@ -436,7 +444,12 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
           </h1>
 
           <form className="mt-8 w-full max-w-[640px]">
-            <div className="w-full relative rounded-3xl p-1 bg-white/5 border border-white/10">
+            <div
+              className={[
+                "w-full relative rounded-3xl p-1 bg-white/5 border ",
+                selectedSourceConfig.color,
+              ].join(" ")}
+            >
               <div className="relative rounded-2xl backdrop-blur-xl">
                 {isQueryEmpty && (
                   <div
@@ -481,19 +494,6 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
                 />
               </div>
               <div className="flex flex-row items-center justify-center gap-2 absolute right-5 bottom-5">
-                {/* <Tooltips text="Search by JD file or link">
-                    <button
-                      disabled={!canSend}
-                      className={[
-                        "inline-flex items-center justify-center rounded-full cursor-pointer hover:opacity-90",
-                        "h-11 w-11 bg-white/10 text-white",
-                        "transition active:scale-[0.98]",
-                      ].join(" ")}
-                      aria-label="Send"
-                    >
-                      <Plus size={20} color="white" />
-                    </button>
-                  </Tooltips> */}
                 <button
                   onClick={onSubmit}
                   disabled={!canSend}
@@ -516,41 +516,57 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
               </div>
             </div>
           </form>
-          <fieldset
-            className="mt-4 flex w-full max-w-[640px] flex-wrap items-center justify-start gap-3"
+          {/* <fieldset
+            className="mt-4"
             aria-label={
               locale === "ko" ? "검색 소스 선택" : "Choose a search source"
             }
           >
-            {SEARCH_SOURCE_VALUES.map((source) => {
-              const option = searchSourceConfigs[source];
-              const checked = selectedSource === source;
-              const Icon = option.Icon;
+            <div
+              className="flex items-center rounded-full border border-white/5 bg-white/5 p-0.5"
+              role="radiogroup"
+              aria-label={
+                locale === "ko" ? "검색 소스 선택" : "Choose a search source"
+              }
+            >
+              {SEARCH_SOURCE_VALUES.map((source) => {
+                const option = searchSourceConfigs[source];
+                const checked = selectedSource === source;
 
-              return (
-                <label
-                  key={source}
-                  className={[
-                    "inline-flex cursor-pointer items-center gap-3 rounded-full border pl-4 pr-4 py-2 text-sm transition",
-                    checked
-                      ? "border-accenta1 bg-accenta1/10 text-white"
-                      : "border-white/10 bg-white/5 text-hgray700 hover:bg-white/10",
-                  ].join(" ")}
-                >
-                  <input
-                    type="radio"
-                    name="search-source"
-                    value={source}
-                    checked={checked}
-                    onChange={() => setSelectedSource(source)}
-                    className="sr-only"
-                  />
-                  <Icon className="h-3.5 w-3.5" />
-                  <span className="font-medium">{option.label}</span>
-                </label>
-              );
-            })}
-          </fieldset>
+                return (
+                  <Tooltips key={source} text={option.desc}>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={checked}
+                      onClick={() => setSelectedSource(source)}
+                      className="relative flex min-w-0 flex-1 items-center justify-center rounded-full px-6 py-2 transition-colors duration-200"
+                    >
+                      {checked && (
+                        <motion.span
+                          layoutId="search-source-indicator"
+                          className="absolute inset-0 rounded-full bg-white shadow-[0_10px_30px_rgba(255,255,255,0.12)]"
+                          transition={{
+                            type: "spring",
+                            stiffness: 380,
+                            damping: 34,
+                          }}
+                        />
+                      )}
+                      <span
+                        className={[
+                          "relative z-10 inline-flex items-center gap-2 whitespace-nowrap text-xs font-normal sm:text-[13px] transition-all duration-300",
+                          checked ? "text-black" : "text-hgray800",
+                        ].join(" ")}
+                      >
+                        <span>{option.label}</span>
+                      </span>
+                    </button>
+                  </Tooltips>
+                );
+              })}
+            </div>
+          </fieldset> */}
           <div className="grid grid-cols-1 md:grid-cols-3 items-start justify-between gap-4 mt-[25vh] max-w-[1080px] w-[90%] pb-20">
             {selectedSourceConfig.examples.map((example) => (
               <ExampleQuery

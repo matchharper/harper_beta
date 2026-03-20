@@ -16,6 +16,11 @@ import { runSearch } from "@/hooks/useStartSearch";
 import { Loading } from "@/components/ui/loading";
 import { supabase } from "@/lib/supabase";
 import Head from "next/head";
+import {
+  SearchSource,
+  normalizeSearchSource,
+  queryTypeToSearchSource,
+} from "@/lib/searchSource";
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -99,11 +104,22 @@ export default function ResultPage() {
   );
 
   const searchEnabled = useMemo(() => ready && !!runId, [ready, runId]);
+  const resultSourceType = useMemo<SearchSource>(() => {
+    const runSource = (runData?.search_settings as { type?: unknown } | null)
+      ?.type;
+
+    if (runSource != null) {
+      return normalizeSearchSource(runSource);
+    }
+
+    return queryTypeToSearchSource(queryItem?.type);
+  }, [queryItem?.type, runData?.search_settings]);
 
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useRunPagesInfinite({
       userId,
       runId,
+      sourceType: resultSourceType,
       enabled: ready && !!runId,
     });
 
@@ -464,6 +480,7 @@ export default function ResultPage() {
                 runId={runId}
                 status={runData?.status ?? ""}
                 feedback={runData?.feedback ?? 0}
+                sourceType={resultSourceType}
               />
             )}
 
@@ -483,6 +500,7 @@ export default function ResultPage() {
                 onPrevPage={prevPage}
                 onNextPage={nextPage}
                 criterias={currentRunCriterias}
+                sourceType={resultSourceType}
               />
             )}
           </div>

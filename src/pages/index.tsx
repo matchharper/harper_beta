@@ -1,393 +1,450 @@
-import Reveal from "@/components/landing/Animation/Reveal";
-import { ContributionGrid } from "@/components/landing/ContributionGrid";
-import FullBleedSection from "@/components/landing/FullBleedSection";
-import StaggerText from "@/components/landing/Animation/StaggerText";
-import { AnimatePresence, motion } from "framer-motion";
-import {
-  ArrowUpRight,
-  Check,
-  MoveDiagonal2,
-  Play,
-  Plus,
-  Quote,
-  Volume2,
-  X,
-} from "lucide-react";
-import Head from "next/head";
-import React, { CSSProperties, useEffect, useMemo, useState } from "react";
+"use client";
+
+import { BaseSectionLayout } from "@/components/landing/GridSectionLayout";
+import router from "next/router";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import Image from "next/image";
+import dynamic from "next/dynamic";
+import { useIsMobile } from "@/hooks/useIsMobile";
+import Head1 from "@/components/landing/Head1";
+import Animate from "@/components/landing/Animate";
+import { OrbitIconsSmall } from "@/components/landing/Orbit";
+import { FallingTagsSmall } from "@/components/landing/FallingTagsSmall";
+import QuestionAnswer from "@/components/landing/Questions";
+import { logger } from "@/utils/logger";
+import { supabase } from "@/lib/supabase";
+import RowImageSection from "@/components/landing/RowImageSection";
+import GradientBackground from "@/components/landing/GradientBackground";
 import { useMessages } from "@/i18n/useMessage";
-import {
-  LANDING_CANONICAL_URL,
-  LANDING_OG_IMAGE_URL,
-  stripHtmlTags,
-} from "./find";
+import RotatingText from "@/components/RotatingText";
+import { useCountryLang } from "@/hooks/useCountryLang";
+import { useCompanyUserStore } from "@/store/useCompanyUserStore";
+import Footer from "@/components/landing/Footer";
+import LandingHeader from "@/components/landing/LandingHeader";
+import Head from "next/head";
+import Link from "next/link";
 
-const papers = [
-  {
-    title: "Noise Conditional Flow Model for Learning ...",
-    authors: "S Chatrchyan ...",
-    journal: "CVPR 2024",
-    citations: 660,
-    year: 2024,
-    is_featured: true,
-  },
-];
+export const isValidEmail = (email: string): boolean => {
+  const trimmed = email.trim();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(trimmed);
+};
 
-const BOOKING_URL = "https://calendly.com/chris-matchharper/30min";
+type SectionKey = "why" | "examples" | "pricing" | "faq" | "last";
+type CompanyAbtestType = "company_copy_b_v1";
 
-const trustedCompanies = [
-  {
-    name: "Pickle",
-    render: (
-      <img src="/images/logos/pickle.png" alt="pickle" className="h-[54px]" />
-    ),
-  },
-  {
-    name: "Moss",
-    render: (
-      <img src="/images/logos/moss.png" alt="moss" className="h-[54px]" />
-    ),
-  },
-  {
-    name: "aleph",
-    render: (
-      <img src="/images/logos/aleph.svg" alt="aleph" className="h-[30px]" />
-    ),
-  },
-  {
-    name: "optimizerai",
-    render: (
-      <img
-        src="/images/logos/optimizerai.png"
-        alt="optimizerai"
-        className="h-[54px]"
-      />
-    ),
-  },
-];
+const SECTION_VIEW_INTERSECTION_THRESHOLD = 0.35;
+const SECTION_VIEW_LOG_COOLDOWN_MS = 15000;
+const COMPANY_ABTEST_TYPE: CompanyAbtestType = "company_copy_b_v1";
+export const LANDING_CANONICAL_URL = "https://matchharper.com/";
+export const LANDING_OG_IMAGE_URL =
+  "https://matchharper.com/images/usemain.png";
 
-const valueCards = [
-  {
-    number: "01",
-    title: "Deep indexing",
-    meta: "Within 24 hours",
-    description:
-      "After request, We run our AI recruiting system.<br />Harper talks to candidates and analyzes their papers and code to find real talent.",
-  },
-  {
-    number: "02",
-    title: "High-velocity, 4x faster matching",
-    meta: "Weeks 2-4",
-    description:
-      "Skip the months of waiting.<br />We leverage AI across search, communication, and matching to maximize speed and eliminate friction.",
-  },
-  {
-    number: "03",
-    title: "Harper remembers",
-    meta: "Optimize",
-    description:
-      "Your technical preferences are stored in our memory, ensuring matching quality compounds as your team grows.",
-  },
-];
+export const stripHtmlTags = (value: string) =>
+  value
+    .replace(/<br\s*\/?>/gi, " ")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
-const processSteps = [
-  {
-    title: "Understanding",
-    number: "01",
-    description:
-      "Share your ideal candidate : skills, experience, team fit, and any edge cases.",
-    image: "/images/feature1.png",
-  },
-  {
-    title: "Finding",
-    number: "02",
-    description:
-      "We search across GitHub, papers, and our proprietary data layer, then use AI to analyze real work. We automate outreach and candidate conversations to extract useful insights beyond what’s publicly visible.",
-    image: "/images/feature2.png",
-  },
-  {
-    title: "Matching",
-    number: "03",
-    description:
-      "AI evaluates all data and matches the best candidates by recommendation system. Get a curated list of candidates in your dashboard or Slack, ready to review.",
-    image: "/images/feature3.png",
-  },
-  {
-    title: "Interview",
-    number: "04",
-    description:
-      "Not a fit? We refine instantly with your feedback. Like someone? We handle the interview connection for you.",
-    image: "/images/feature4.png",
-  },
-];
+const LoginModal = dynamic(() => import("@/components/Modal/LoginModal"));
+const PricingSection = dynamic(() => import("@/components/landing/Pricing"));
+const Examples = dynamic(() => import("@/components/landing/Examples"));
 
-const faqs = [
-  {
-    question: "How does the system work?",
-    answer:
-      "Get a whole recruiting team started in just 1 hour with the founding team. We fill interviewing capacity in typically in the first day.\
-<br />\
-<br />\
-1. We intake with you for about 45 minutes to deeply understand your preferences. Our system also surfaces candidates for you to give realtime feedback on. We probe deeply on your nuanced criteria and edge cases.<br />\
-2. We kickstart our sourcing to thousands of candidates. Each candidate is screened and only the best enter your portal.<br />\
-3. You provide feedback on each candidate, which makes our system more accurate.<br />\
-4. For candidates you accept, we send them your calendar link for a first discussion.",
-  },
-  {
-    question: "How does removing the human component produce better results?",
-    answer:
-      "Traditional agencies are bottlenecked by how many people they could screen. In reality, candidates are tired of repetitive recruiter screens.<br />\
-<br />\
-We believe the best sales people are the hiring managers themselves. We do a quick handoff which maximizes our ability to reach out to the very best in the candidate pool, while allowing hiring managers to make an immediate impression.",
-  },
-  {
-    question: "How long until you fill my role?",
-    answer:
-      "We typically fill hard-to-fill engineering roles in 2-4 weeks. It’s not a matter of how fast we can find candidates, it’s a matter of how fast you can interview them.",
-  },
-  {
-    question: "How much does it cost?",
-    answer:
-      "We reduce costs by up to 70% compared to traditional agencies. Get in touch to learn more.",
-  },
-  {
-    question: "What are next steps?",
-    answer:
-      "Use any CTA on the page to open the Calendly link and start the conversation. All major buttons in this page point to your requested booking URL.",
-  },
-];
+export const HERO_DOT_BACKGROUND_STYLE = {
+  opacity: 0.45,
+  backgroundImage:
+    "radial-gradient(rgba(255,255,255,0.2) 0.9px, transparent 0.9px)",
+  backgroundSize: "20px 20px",
+};
 
-const sectionTagClassName =
-  "inline-flex items-center rounded-lg bg-beige500/80 px-4 py-2 font-geist text-[15px] md:text-[16px] font-medium tracking-[-0.03em] text-beige900/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] backdrop-blur-xl";
+const createLandingId = () => {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
 
-const titleTextClassName =
-  "font-halant text-4xl sm:text-4xl md:text-5xl leading-[0.98] tracking-[-0.08em] text-beige900";
-
-type ButtonProps = {
+type StartButtonProps = {
+  type: string;
   label: string;
-  variant?: "primary" | "secondary";
-  className?: string;
-  size?: "sm" | "md";
-  href?: string;
+  onClickStart: (type: string) => void;
+  size?: "md" | "sm";
 };
 
-type PlaceholderProps = {
-  children?: React.ReactNode;
-  className?: string;
-  style?: CSSProperties;
-};
-
-const SectionTag = ({ children }: { children: React.ReactNode }) => (
-  <div className={sectionTagClassName}>{children}</div>
-);
-
-const RadarButton = ({
-  className = "",
-  label = "Explore Harper Search",
-}: {
-  className?: string;
-  label?: string;
-}) => (
-  <motion.a
-    href="/search"
-    whileHover={{ y: -1 }}
-    whileTap={{ scale: 0.985 }}
-    className={`group inline-flex h-[50px] items-center gap-2 rounded-full bg-beige100 px-6 font-geist text-[15px] font-medium tracking-[-0.03em] text-black shadow-[0_14px_30px_rgba(0,0,0,0.22)] transition-shadow duration-300 hover:shadow-[0_18px_40px_rgba(0,0,0,0.3)] ${className}`}
-  >
-    <span>{label}</span>
-    <ArrowUpRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-[2px] group-hover:-translate-y-[2px]" />
-  </motion.a>
-);
-
-const CalendlyButton = ({
+const StartButton = React.memo(function StartButton({
+  type,
   label,
-  variant = "primary",
-  className = "",
+  onClickStart,
   size = "md",
-  href = BOOKING_URL,
-}: ButtonProps) => {
-  const isPrimary = variant === "primary";
-  const isSmall = size === "sm";
+}: StartButtonProps) {
+  const sizeClass =
+    size === "sm" ? "py-3 px-6 text-xs" : "py-4 px-8 mt-12 text-base";
 
   return (
-    <motion.a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      whileHover={{ y: -1 }}
-      whileTap={{ scale: 0.985 }}
-      className={`group relative inline-flex items-center justify-center overflow-hidden font-geist font-medium tracking-[-0.03em] transition-shadow duration-300 ${
-        isPrimary
-          ? "bg-beige900 text-beige100 shadow-[0_10px_20px_rgba(46,23,6,0.08)]"
-          : "bg-beige500/70 text-beige900 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]"
-      } ${
-        isSmall
-          ? "h-[42px] rounded-[12px] px-4 text-[15px]"
-          : "h-[58px] rounded-[14px] px-7 text-[15px]"
-      } ${className}`}
+    <div
+      onClick={() => onClickStart(type)}
+      className={`
+      group relative
+      font-medium
+      cursor-pointer
+      rounded-full
+      bg-accenta1 text-black
+      z-10
+
+      ring-1 ring-white/10
+      shadow-[0_12px_40px_rgba(180,255,120,0.25)]
+
+      transition-all duration-200
+      hover:shadow-[0_18px_60px_rgba(180,255,120,0.35)]
+      hover:-translate-y-[1px]
+      active:translate-y-[0px]
+      active:shadow-[0_8px_20px_rgba(180,255,120,0.2)]
+      ${sizeClass}`}
     >
-      <span className="absolute inset-0 bg-white/10 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
-      <span className="relative flex h-full items-start overflow-hidden">
-        <span className="flex flex-col transition-transform duration-500 ease-[cubic-bezier(.22,1,.36,1)] group-hover:-translate-y-1/2">
-          <span
-            className={`flex items-center leading-none ${
-              isSmall ? "h-[42px]" : "h-[58px]"
-            }`}
-          >
-            {label}
-          </span>
-          <span
-            className={`flex items-center leading-none ${
-              isSmall ? "h-[42px]" : "h-[58px]"
-            }`}
-          >
-            {label}
-          </span>
-        </span>
-      </span>
-    </motion.a>
+      {label}
+    </div>
   );
-};
+});
 
-const PlaceholderShell = ({
-  children,
-  className = "",
-  style,
-}: PlaceholderProps) => (
-  <div
-    className={`relative overflow-hidden rounded-[32px] border border-white/40 bg-beige500/50 shadow-[0_30px_80px_rgba(89,57,24,0.12)] ${className}`}
-    style={style}
-  >
-    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.2),transparent_48%)]" />
-    {children}
-  </div>
-);
+const CandidatePage = () => {
+  const abtestType = COMPANY_ABTEST_TYPE;
+  const [landingId, setLandingId] = useState("");
+  const [isOpenLoginModal, setIsOpenLoginModal] = useState(false);
+  const [isTeamEmail, setIsTeamEmail] = useState(false);
+  const [isTeamEmailChecked, setIsTeamEmailChecked] = useState(false);
+  const { m, locale } = useMessages();
+  const { companyUser } = useCompanyUserStore();
+  const countryLang = useCountryLang();
 
-const TestimonialPlaceholder = () => (
-  <div
-    className={`relative overflow-hidden rounded-[32px] border border-white/40 bg-beige500/50 shadow-[0_30px_80px_rgba(89,57,24,0.12)] h-[500px] w-full max-[1199px]:h-[460px] max-[809px]:h-[420px]"`}
-  >
-    <img
-      src="/images/orangesky2.jpg"
-      alt="Testimonial"
-      className="w-full h-full object-cover"
-    />
-    <div className="absolute inset-0 bg-black/20" />
-  </div>
-);
+  const isMobile = useIsMobile();
+  const interactiveRef = useRef<HTMLDivElement>(null);
 
-const SuccessPortraitPlaceholder = () => (
-  <PlaceholderShell
-    className="h-[520px] w-full max-[1199px]:h-[460px] max-[809px]:h-[400px]"
-    style={{
-      backgroundImage:
-        "linear-gradient(180deg, rgba(241,226,214,1), rgba(214,191,173,0.95)), linear-gradient(90deg, rgba(117,96,87,0.16) 1px, transparent 1px), linear-gradient(rgba(117,96,87,0.16) 1px, transparent 1px)",
-      backgroundSize: "100% 100%, 42px 42px, 42px 42px",
-    }}
-  >
-    <div className="absolute inset-x-[22%] bottom-0 top-[16%] rounded-[160px_160px_24px_24px] bg-[linear-gradient(180deg,#1b2230,#222a3b_60%,#0f1726)]" />
-    <div className="absolute inset-x-[33%] top-[7%] h-24 rounded-full bg-[#f4c9a6]" />
-    <div className="absolute inset-x-[14%] bottom-20 h-16 rounded-full bg-[#0c1724]/90 blur-[22px]" />
-  </PlaceholderShell>
-);
+  const whyTrackRef = useRef<HTMLDivElement>(null);
+  const lastTrackRef = useRef<HTMLDivElement>(null);
+  const pricingTrackRef = useRef<HTMLDivElement>(null);
+  const faqTrackRef = useRef<HTMLDivElement>(null);
+  const examplesTrackRef = useRef<HTMLDivElement>(null);
+  const hasLoggedFirstScrollRef = useRef(false);
+  const sectionLastLoggedAtRef = useRef<Record<SectionKey, number>>({
+    why: 0,
+    examples: 0,
+    pricing: 0,
+    faq: 0,
+    last: 0,
+  });
 
-const ResultsPanel = () => (
-  <div
-    className={`relative overflow-hidden rounded-[32px] border border-white/40 bg-beige500/50 shadow-[0_30px_80px_rgba(89,57,24,0.12)] w-full px-10 py-12 md:px-16 md:py-24`}
-  >
-    <img
-      src="/images/underwater.png"
-      alt="Results"
-      className="w-full h-full object-cover absolute inset-0"
-    />
-    <div className="absolute inset-0 bg-black/30" />
-    <div className="grid grid-cols-2 gap-4 max-[809px]:grid-cols-1">
-      {[
-        {
-          title: "2x more precise",
-          copy: "Than traditional agencies at candidate sourcing",
-        },
-        {
-          title: "4x faster",
-          copy: "At filling roles than traditional agencies",
-        },
-      ].map((item) => (
-        <div
-          key={item.title}
-          className="rounded-[28px] bg-white/20 px-9 py-9 text-white backdrop-blur-md"
-        >
-          <div className="font-halant text-4xl sm:text-5xl md:text-6xl leading-[0.95] tracking-[-0.06em]">
-            {item.title}
-          </div>
-          <p className="w-full mt-4 text-base md:text-lg leading-[1.44] tracking-[-0.03em] text-white/90">
-            {item.copy}
-          </p>
-        </div>
-      ))}
-    </div>
-  </div>
-);
-
-const ComparisonCard = ({
-  title,
-  items,
-  className,
-  style,
-  isPositive,
-}: {
-  title: string;
-  items: string[];
-  className?: string;
-  style?: CSSProperties;
-  isPositive?: boolean;
-}) => (
-  <PlaceholderShell
-    className={`relative h-[340px] p-10 max-[1199px]:h-[260px] max-[809px]:min-h-0 max-[809px]:p-7 ${className || ""}`}
-    style={style}
-  >
-    <div className="absolute z-0 top-0 left-0 inset-0 w-full h-full object-cover opacity-90">
-      <img
-        src={isPositive ? "/images/street1.jpg" : "/images/street2.jpg"}
-        alt="Check"
-        className="w-full h-full object-cover"
-      />
-    </div>
-    <div className="relative z-10 flex h-full flex-col justify-between">
-      <h3
-        className={`${!isPositive ? "font-geist" : "font-halant "} text-white text-3xl sm:text-3xl md:text-3xl lg:text-4xl leading-[0.96] tracking-[-0.06em]`}
-      >
-        {title}
-      </h3>
-      <div className="space-y-4 text-lg leading-[1.42] tracking-[-0.00em] max-[809px]:text-[16px] text-white/90">
-        {items.map((item) => (
-          <p key={item} className="flex flex-row items-center gap-2">
-            {isPositive ? <Check size={16} /> : <X size={16} />}
-            {item}
-          </p>
-        ))}
-      </div>
-    </div>
-  </PlaceholderShell>
-);
-
-const Beige = () => {
-  const [activeProcessIndex, setActiveProcessIndex] = useState(0);
-  const [openFaqIndex, setOpenFaqIndex] = useState(0);
-  const [showPreloader, setShowPreloader] = useState(true);
+  const addLog = useCallback(
+    async (type: string) => {
+      // if (!isTeamEmailChecked || isTeamEmail || !landingId) return;
+      const body = {
+        local_id: landingId,
+        type: type,
+        abtest_type: abtestType,
+        is_mobile: isMobile,
+        country_lang: countryLang,
+      };
+      await supabase.from("landing_logs").insert(body);
+    },
+    [abtestType, countryLang, isMobile, landingId]
+  );
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      setShowPreloader(false);
-    }, 1500);
+    const excludedEmails = new Set([
+      "hongbeom.heo@gmail.com",
+      // "khj605123@gmail.com",
+    ]);
 
-    return () => window.clearTimeout(timeout);
+    const updateTeamEmail = (email?: string | null) => {
+      setIsTeamEmail(email ? excludedEmails.has(email) : false);
+      setIsTeamEmailChecked(true);
+    };
+
+    supabase.auth.getUser().then(({ data }) => {
+      updateTeamEmail(data.user?.email);
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        updateTeamEmail(session?.user?.email);
+      }
+    );
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
-  const activeProcess = useMemo(
-    () => processSteps[activeProcessIndex],
-    [activeProcessIndex]
+  const initLog = useCallback(async () => {
+    const newId = createLandingId();
+    localStorage.setItem("harper_landing_id_0209", newId);
+    localStorage.setItem("harper_landing_last_visit_at", Date.now().toString());
+    setLandingId(newId);
+
+    const body = {
+      local_id: newId,
+      type: "new_visit",
+      abtest_type: abtestType,
+      is_mobile: isMobile,
+      country_lang: countryLang,
+    };
+    await supabase.from("landing_logs").insert(body);
+  }, [abtestType, countryLang, isMobile]);
+
+  useEffect(() => {
+    if (!isTeamEmailChecked) return;
+    const localId = localStorage.getItem("harper_landing_id_0209");
+    if (!localId) {
+      initLog();
+    } else {
+      logger.log("\n\n 호출 👻 localId : ", localId);
+      setLandingId(localId as string);
+    }
+  }, [initLog, isTeamEmailChecked, isTeamEmail]);
+
+  useEffect(() => {
+    if (!landingId) return;
+    const lastVisitRaw = localStorage.getItem("harper_landing_last_visit_at");
+    const now = Date.now();
+    const thirtyMinutesMs = 30 * 60 * 1000;
+    const lastVisitAt = lastVisitRaw ? Number(lastVisitRaw) : null;
+
+    if (!lastVisitAt || now - lastVisitAt >= thirtyMinutesMs) {
+      addLog("new_session");
+    }
+
+    localStorage.setItem("harper_landing_last_visit_at", now.toString());
+  }, [addLog, landingId]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentY = window.scrollY;
+
+      if (!hasLoggedFirstScrollRef.current && currentY > 0 && landingId) {
+        hasLoggedFirstScrollRef.current = true;
+        addLog("first_scroll_down");
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [addLog, landingId]);
+
+  useEffect(() => {
+    if (!landingId) return;
+
+    const sectionElements: Array<{
+      key: SectionKey;
+      element: HTMLDivElement | null;
+    }> = [
+      { key: "why", element: whyTrackRef.current },
+      { key: "examples", element: examplesTrackRef.current },
+      { key: "pricing", element: pricingTrackRef.current },
+      { key: "faq", element: faqTrackRef.current },
+      { key: "last", element: lastTrackRef.current },
+    ];
+
+    const observedSections = sectionElements.filter(
+      (
+        section
+      ): section is {
+        key: SectionKey;
+        element: HTMLDivElement;
+      } => section.element !== null
+    );
+
+    if (observedSections.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const now = Date.now();
+
+        entries.forEach((entry) => {
+          const section = (entry.target as HTMLDivElement).dataset.section as
+            | SectionKey
+            | undefined;
+          if (!section) return;
+
+          const isVisible =
+            entry.isIntersecting &&
+            entry.intersectionRatio >= SECTION_VIEW_INTERSECTION_THRESHOLD;
+
+          if (!isVisible) return;
+
+          const lastLoggedAt = sectionLastLoggedAtRef.current[section] ?? 0;
+          if (now - lastLoggedAt < SECTION_VIEW_LOG_COOLDOWN_MS) return;
+
+          sectionLastLoggedAtRef.current[section] = now;
+          addLog(`view_section_${section}`);
+        });
+      },
+      {
+        root: null,
+        threshold: [0, SECTION_VIEW_INTERSECTION_THRESHOLD, 0.7],
+        rootMargin: "0px 0px -15% 0px",
+      }
+    );
+
+    observedSections.forEach(({ element }) => observer.observe(element));
+    return () => observer.disconnect();
+  }, [addLog, landingId]);
+
+  const login = useCallback(async () => {
+    addLog("click_login_google");
+    const redirectTo =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/auths/callback?lid=${localStorage.getItem("harper_landing_id_0209") ?? ""}&cl=${encodeURIComponent(countryLang)}&ab=${encodeURIComponent(abtestType)}`
+        : undefined;
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo,
+      },
+    });
+
+    if (error) throw error;
+    if (data?.url && typeof window !== "undefined") {
+      window.location.assign(data.url);
+    }
+    return data;
+  }, [abtestType, addLog, countryLang]);
+
+  const customLogin = useCallback(
+    async (email: string, password: string) => {
+      logger.log("customLogin :", email);
+
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
+
+        if (error) {
+          const authError = error as Error & {
+            code?: string;
+            status?: number;
+          };
+          console.error("[auth] signInWithPassword failed", {
+            message: authError.message,
+            code: authError.code,
+            status: authError.status,
+            name: authError.name,
+          });
+
+          const details = [authError.message];
+          if (authError.status) details.push(`status:${authError.status}`);
+          if (authError.code) details.push(`code:${authError.code}`);
+          return { message: details.join(" | ") };
+        }
+
+        const user = data.user;
+        if (!user) {
+          return { message: m.auth.invalidAccount };
+        }
+
+        const isEmailConfirmed = Boolean(
+          user.email_confirmed_at || user.user_metadata?.email_verified
+        );
+        if (!isEmailConfirmed) {
+          return { message: m.auth.emailConfirmationSent };
+        }
+
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const accessToken = session?.access_token;
+        if (!accessToken) {
+          return {
+            message: "로그인 세션이 만료되었습니다. 다시 로그인해 주세요.",
+          };
+        }
+
+        const bootstrapRes = await fetch("/api/auth/bootstrap", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+        if (!bootstrapRes.ok) {
+          const bootstrapJson = await bootstrapRes.json().catch(() => ({}));
+          return {
+            message:
+              bootstrapJson?.error ??
+              "계정 초기화에 실패했습니다. 다시 시도해 주세요.",
+          };
+        }
+
+        setIsOpenLoginModal(false);
+        router.push("/invitation");
+        return null;
+      } catch (error) {
+        console.error("[auth] signInWithPassword unexpected error", error);
+        if (error instanceof Error && error.message) {
+          return { message: error.message };
+        }
+        return { message: m.auth.invalidAccount };
+      }
+    },
+    [m.auth.emailConfirmationSent, m.auth.invalidAccount]
   );
-  const { m, locale } = useMessages();
+
+  const copyVariant = useMemo(() => {
+    const baseCopy = {
+      startButton: m.companyLanding.startButton,
+      whySubtitle: m.companyLanding.why.sub,
+      heroSubtitle: m.companyLanding.hero.subtitle,
+      section1HeadlineLine2: m.companyLanding.section1.headlineLine2,
+      section1BodyLine2: m.companyLanding.section1.bodyLine2,
+      closingHeadlineLine2: m.companyLanding.closing.headlineLine2,
+      whyFirstCardDesc: m.companyLanding.why.cards[0].desc,
+      whyThirdCardDesc: m.companyLanding.why.cards[2].desc,
+      rotatingTexts: ["Intelligence", "Decision", "Knowledge", "Insight"],
+    };
+
+    if (locale === "ko") {
+      return {
+        ...baseCopy,
+        startButton: "무료로 시작하기",
+        whySubtitle:
+          "Harper는 링크드인 세일즈 네비게이터보다 더 많은 소스와 입력을 바탕으로<br />적합도가 높은 후보만 찾아서 보여드립니다.",
+        whyFirstCardDesc:
+          "단순한 키워드 검색을 넘어, <br />역량과 맥락을 이해하고 찾아주는 지능을 경험하세요.",
+        whyThirdCardDesc:
+          "링크드인, github, 논문, 트위터, SNS, 블로그 등<br />흩어진 정보를 하나로 모아 분석하고<br />인사이트를 추출해 알려줍니다.",
+        heroSubtitle:
+          "어떤 조건이던 AI 검색 엔진이<br />원하는 프로필을 가진 사람을 즉시 찾아드려요.",
+        section1BodyLine2: "Harper는 리크루팅의 미래를 새롭게 정의합니다.",
+        closingHeadlineLine2: "사람을 찾는 방식을 바꾸세요.",
+      };
+    }
+
+    return {
+      ...baseCopy,
+      startButton: "Try for Free",
+      whySubtitle:
+        "Harper analyzes more sources and richer signals than LinkedIn Sales Navigator<br />to surface only the most relevant, high-fit candidates.",
+      whyFirstCardDesc:
+        "Go beyond simple keyword search.<br />Experience intelligence that understands skills and real-world context.",
+      whyThirdCardDesc:
+        "LinkedIn, GitHub, papers, Twitter, blogs, and more —<br />Harper brings scattered information together,<br />analyzes it, and extracts actionable insights.",
+      heroSubtitle:
+        "No matter your criteria,<br />our AI search engine instantly finds the right profiles for you.",
+      section1BodyLine2:
+        "Not just search results — evidence-based hiring priorities you can act on.",
+      closingHeadlineLine2: "Turn hiring into a joyful discovery.",
+    };
+  }, [locale, m]);
 
   const seoMeta = useMemo(() => {
     if (locale === "ko") {
@@ -441,6 +498,38 @@ const Beige = () => {
     [m.companyLanding.faq.items, seoMeta.language]
   );
 
+  const clickStart = useCallback(
+    (type: string) => {
+      addLog(type);
+      if (companyUser && companyUser.email) {
+        if (companyUser.is_authenticated) {
+          router.push("/my");
+          return;
+        }
+        router.push("/invitation");
+        return;
+      }
+      setIsOpenLoginModal(true);
+    },
+    [addLog, companyUser]
+  );
+
+  const handleCloseLoginModal = useCallback(() => {
+    setIsOpenLoginModal(false);
+  }, []);
+
+  const handlePricingPlanClick = useCallback(
+    (plan: string, _billing: "monthly" | "yearly") => {
+      addLog("click_pricing_" + plan);
+      setIsOpenLoginModal(true);
+    },
+    [addLog]
+  );
+
+  const handleHeaderStartClick = useCallback(() => {
+    clickStart("click_nav_start");
+  }, [clickStart]);
+
   return (
     <>
       <Head>
@@ -480,667 +569,349 @@ const Beige = () => {
           }}
         />
       </Head>
-      <div className="min-h-screen overflow-x-clip bg-beige200 font-geist text-beige900 antialiased">
-        <div className="w-full">
-          <AnimatePresence>
-            {showPreloader && (
-              <motion.div
-                initial={{ opacity: 1 }}
-                exit={{
-                  y: "-100%",
-                  transition: {
-                    duration: 0.9,
-                    ease: [0.76, 0, 0.24, 1],
-                  },
-                }}
-                className="fixed inset-0 z-[120] flex items-center justify-center bg-beige500"
-              >
-                <div className="font-halant text-7xl tracking-[-0.08em] text-beige900">
-                  <StaggerText text="Harper" by="char" delay={0.08} />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
 
-          <nav className="fixed inset-x-0 top-0 z-50 bg-beige200/80 backdrop-blur-lg">
-            <div className="h-[78px] flex flex-row items-center justify-between px-6 md:px-28">
-              <a
-                href="#top"
-                className="font-halant text-[26px] tracking-[-0.06em] text-beige900"
-              >
-                Harper
-              </a>
-              <div className="justify-self-end">
-                <div className="flex items-center gap-3 max-[809px]:flex-wrap max-[809px]:justify-center">
-                  <CalendlyButton
-                    label="Use Search"
-                    variant="secondary"
-                    size="sm"
-                    href="/search"
-                    className="hidden md:block"
+      <main className={`min-h-screen font-inter text-white bg-black w-screen`}>
+        {isOpenLoginModal && (
+          <LoginModal
+            open={isOpenLoginModal}
+            onClose={handleCloseLoginModal}
+            onGoogle={login}
+            onConfirm={customLogin}
+            language={locale}
+          />
+        )}
+        <LandingHeader
+          onStartClick={handleHeaderStartClick}
+          startButtonLabel="시작하기"
+        />
+        <nav className="sr-only" aria-label="Landing section links">
+          <a href="#intro">{m.companyLanding.nav.intro}</a>
+          <a href="#how-it-works">{m.companyLanding.nav.howItWorks}</a>
+          <Link href="/pricing">{m.companyLanding.nav.pricing}</Link>
+          <a href="#faq">{m.companyLanding.nav.faq}</a>
+        </nav>
+
+        <div
+          id="intro"
+          className="flex flex-col items-center justify-center px-0 md:px-20 w-full bg-black text-white h-[86vh] md:h-[90vh]"
+        >
+          <div className="absolute top-0 left-0 w-full h-[90%]">
+            {/* <InteractiveDotGridBackground /> */}
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={HERO_DOT_BACKGROUND_STYLE}
+            />
+          </div>
+          <div className="z-10 flex flex-col items-center justify-start md:justify-center pt-32 md:pt-0 w-full h-full text-center px-4">
+            <h1 className="sr-only">
+              {`${m.companyLanding.hero.titleLine1} Data. ${m.companyLanding.hero.titleLine2Prefix} ${copyVariant.rotatingTexts[0]}.`}
+            </h1>
+            <div className="md:text-[52px] text-[32px] font-medium leading-tight mt-2 flex flex-col items-center justify-center gap-2">
+              <div>{m.companyLanding.hero.titleLine1} Data.</div>
+              <div className="flex flex-row items-center justify-center gap-4">
+                {m.companyLanding.hero.titleLine2Prefix}{" "}
+                <RotatingText
+                  texts={copyVariant.rotatingTexts}
+                  mainClassName="lg:px-3 md:px-2 px-1.5 rounded-sm font-hedvig bg-accenta1 text-black overflow-hidden py-0 sm:py-0 md:py-0 justify-center inline-block"
+                  staggerFrom={"last"}
+                  initial={{ y: "100%" }}
+                  animate={{ y: 0 }}
+                  exit={{ y: "-120%" }}
+                  staggerDuration={0.02}
+                  splitLevelClassName="overflow-hidden pb-0.5 sm:pb-1 md:pb-1"
+                  transition={{ type: "spring", damping: 30, stiffness: 400 }}
+                  rotationInterval={2800}
+                />
+              </div>
+              {/* <span className="font-hedvig text-accenta1 font-normal italic">
+              {m.companyLanding.hero.titleLine2Highlight}
+            </span> */}
+            </div>
+            <div className="text-base md:text-lg text-hgray700 font-light mt-6">
+              <span
+                dangerouslySetInnerHTML={{
+                  __html: copyVariant.heroSubtitle,
+                }}
+              />
+            </div>
+            <StartButton
+              type="click_hero_start"
+              onClickStart={clickStart}
+              label={copyVariant.startButton}
+            />
+          </div>
+        </div>
+        <div className="mb-20 mt-12 md:mt-0 flex flex-col items-center justify-center">
+          <div className="w-[90%] max-w-[960px] bg-gradpastel2 overflow-hidden md:rounded-[30px] rounded-2xl pt-8 md:pt-0 flex flex-col items-center justify-center">
+            <video
+              src="/videos/usemain.mp4"
+              poster="/images/usemain.png"
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="w-[90%] h-full object-cover  md:rounded-t-[30px] rounded-t-2xl md:translate-y-[40px] translate-y-0 shadow-lg"
+            />
+          </div>
+        </div>
+        <Animate>
+          <BaseSectionLayout>
+            <div className="gap-2 w-full flex flex-col items-center justify-center text-center py-8 md:py-10 px-0">
+              <Head1 as="h2">{m.companyLanding.section1.title}</Head1>
+              <h3 className="text-[22px] md:text-3xl text-white font-normal mt-10">
+                {m.companyLanding.section1.headlineLine1}
+                <br />
+                {copyVariant.section1HeadlineLine2}
+              </h3>
+              <p className="text-base font-hedvig font-light md:text-lg mt-6 px-2 text-hgray700">
+                {m.companyLanding.section1.bodyLine1}
+                <br />
+                {copyVariant.section1BodyLine2}
+              </p>
+            </div>
+          </BaseSectionLayout>
+          {/* <VCLogosWidth /> */}
+        </Animate>
+        <div id="how-it-works" />
+        <div className="h-48" />
+        <Animate>
+          <BaseSectionLayout>
+            <Animate>
+              <Head1 as="h2" className="text-white text-center w-full">
+                {m.companyLanding.why.title}
+              </Head1>
+              <div className="text-sm font-hedvig font-light md:text-lg mt-6 px-2 text-hgray700">
+                <span
+                  dangerouslySetInnerHTML={{
+                    __html: copyVariant.whySubtitle,
+                  }}
+                />
+              </div>
+            </Animate>
+            <Animate>
+              <div ref={whyTrackRef} data-section="why">
+                <div className="flex flex-col md:flex-row mt-12 gap-8">
+                  <WhyImageSection
+                    title={m.companyLanding.why.cards[0].title}
+                    desc={copyVariant.whyFirstCardDesc}
+                    imageSrc="/images/feat1.png"
                   />
-                  <CalendlyButton label="Schedule Demo" size="sm" />
+                  <WhyImageSection
+                    title={m.companyLanding.why.cards[1].title}
+                    desc={m.companyLanding.why.cards[1].desc}
+                    imageSrc="/images/feat4.png"
+                  />
+                  <WhyImageSection
+                    title={m.companyLanding.why.cards[2].title}
+                    desc={copyVariant.whyThirdCardDesc}
+                    imageSrc="orbit"
+                  />
+                </div>
+              </div>
+            </Animate>
+          </BaseSectionLayout>
+        </Animate>
+        <div className="h-48" />
+        <FeatureSection />
+        <div ref={examplesTrackRef} data-section="examples" />
+        <div className="h-28 md:h-48" />
+        <Examples onCtaClick={clickStart} />
+        <div className="h-28 md:h-48" />
+        <Animate>
+          <BaseSectionLayout>
+            <div className="w-[90%] max-w-[600px] flex flex-col">
+              <div className="flex flex-col items-start gap-4 bg-white/20 rounded-2xl px-6 md:px-[30px] py-6 md:py-8">
+                <div className="text-[13px] md:text-base text-left md:leading-[30px] leading-[26px] font-normal text-hgray700">
+                  <span
+                    dangerouslySetInnerHTML={{
+                      __html: m.companyLanding.testimonial.body,
+                    }}
+                  />
+                </div>
+                <div className="flex flex-row items-center justify-start gap-4 mt-6">
+                  <div>
+                    <Image
+                      src="/images/cofounder.png"
+                      alt="person1"
+                      width={60}
+                      height={60}
+                    />
+                  </div>
+                  <div className="flex flex-col items-start justify-start gap-1">
+                    <div className="text-sm">
+                      {m.companyLanding.testimonial.name}
+                    </div>
+                    <div className="text-hgray700 text-xs">
+                      {m.companyLanding.testimonial.role}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
-          </nav>
+          </BaseSectionLayout>
+        </Animate>
+        <div id="pricing" />
 
-          <main
-            id="top"
-            className="mx-auto flex max-w-[1160px] flex-col px-4 pb-24 pt-[132px] max-[809px]:pt-[156px]"
-          >
-            <section className="flex flex-col items-center text-center bg-beige200">
-              <Reveal once className="mt-2">
-                <SectionTag>Harper : AI native recruiting agency</SectionTag>
-              </Reveal>
+        <div className="h-28 md:h-40" />
+        <div ref={pricingTrackRef} data-section="pricing">
+          <PricingSection onClick={handlePricingPlanClick} />
+        </div>
 
-              <Reveal once delay={0.06} className="mt-10 max-w-[1040px]">
-                <h1 className="font-halant text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.93] tracking-[-0.08em] text-beige900">
-                  <span className="block">
-                    <StaggerText text="Hire the top 1% of AI/ML talent" />
-                  </span>
-                  <span className="block">
-                    <StaggerText text="in days, not months." delay={0.14} />
-                  </span>
-                </h1>
-              </Reveal>
-
-              <Reveal
-                once
-                delay={0.12}
-                className="mt-8 max-w-[560px] text-base md:text-[19px] font-normal leading-[1.58] tracking-[-0.03em] text-beige900/50"
-              >
-                Skip the months of searching. Connect with proven researchers
-                and engineers for both full-time roles and part-time for today.
-              </Reveal>
-
-              <Reveal once delay={0.18} className="mt-10">
-                <CalendlyButton
-                  label="Get Started Now"
-                  className="h-[58px] px-8 text-lg font-medium max-[809px]:h-[52px] max-[809px]:px-6 max-[809px]:text-[15px]"
-                />
-              </Reveal>
-
-              <Reveal once delay={0.24} className="w-full">
-                <div className="flex items-center justify-center w-full mt-20 mb-4">
-                  <img
-                    src="/images/objects.png"
-                    alt="objects"
-                    className="w-52 sm:w-64 md:w-80"
-                  />
-                </div>
-              </Reveal>
-
-              <Reveal once delay={0.32} className="mt-14 w-full">
-                <div className="grid grid-cols-[160px_1fr] items-center gap-12 max-[1199px]:grid-cols-1 max-[1199px]:gap-8">
-                  <p className="w-full md:max-w-[132px] text-left font-geist text-[14px] leading-[1.55] tracking-[-0.02em] text-beige900/40">
-                    Trusted by AI Companies like Pickle, Moss, Aleph lab,
-                    OptimizerAI and many others.
-                  </p>
-                  <div className="w-full flex items-center justify-between gap-4 max-[1199px]:flex-wrap max-[1199px]:justify-center">
-                    {trustedCompanies.map((company, index) => (
-                      <motion.div
-                        key={company.name}
-                        initial={{ opacity: 0, y: 10 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        transition={{ duration: 0.45, delay: index * 0.04 }}
-                        className="shrink-0 max-[809px]:origin-left max-[809px]:scale-[0.9]"
-                      >
-                        {company.render}
-                      </motion.div>
+        <div id="faq" />
+        <div ref={faqTrackRef} data-section="faq">
+          <div className="h-28 md:h-40" />
+          <Animate>
+            <BaseSectionLayout>
+              <div className="flex flex-col items-center justify-center w-full pt-4">
+                <div className="w-full flex flex-col items-center justify-center pb-2">
+                  <Head1 className="text-white">
+                    {m.companyLanding.faq.title}
+                  </Head1>
+                  <div className="flex flex-col items-start justify-start text-white/70 font-light w-full mt-12 px-4 md:px-0">
+                    {m.companyLanding.faq.items.map((item, index) => (
+                      <QuestionAnswer
+                        key={item.question}
+                        question={item.question}
+                        answer={item.answer}
+                        index={index}
+                        onOpen={() => addLog(`click_faq_${index}`)}
+                        length={m.companyLanding.faq.items.length}
+                      />
                     ))}
                   </div>
                 </div>
-              </Reveal>
-              <br />
-              <br />
-            </section>
-
-            <FullBleedSection
-              backgroundClassName="bg-beige100"
-              contentClassName="grid grid-cols-[1.06fr_0.94fr] gap-16 max-[1199px]:grid-cols-1 max-[1199px]:gap-12 py-24"
-            >
-              <Reveal once direction="left" className="pr-4 max-[1199px]:pr-0">
-                <SectionTag>Our Approach</SectionTag>
-                <h2 className="mt-7 max-w-[520px] font-halant text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.95] tracking-[-0.08em] text-beige900">
-                  Hire at the speed of AI
-                  <br />
-                  engineered for depth, optimized for speed.
-                </h2>
-                <p className="mt-8 max-w-[540px] text-[20px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
-                  We automate search, outreach, communication for screening, and
-                  matching.
-                  <br /> Harper leverages deep technical indexing to replace
-                  manual filtering with high-precision matching for your most
-                  critical AI/ML roles.
-                </p>
-                <div className="mt-10">
-                  <CalendlyButton
-                    label="Get Started"
-                    className="text-lg font-medium"
-                  />
-                </div>
-              </Reveal>
-
-              <div className="space-y-8 pt-[54px] max-[1199px]:pt-0">
-                {valueCards.map((item, index) => (
-                  <Reveal
-                    key={item.number}
-                    once
-                    direction="right"
-                    delay={index * 0.08}
-                  >
-                    <div className="grid grid-cols-[42px_1fr] gap-8">
-                      <div className="pt-1 font-geist text-2xl font-medium leading-none tracking-[-0.08em] text-beige900/60 max-[809px]:pt-2">
-                        {item.number}
-                      </div>
-                      <div>
-                        <div className="flex items-start gap-3 max-[809px]:flex-col-reverse max-[809px]:gap-2">
-                          <h3 className="text-xl font-medium leading-[1.12] tracking-[-0.05em] text-beige900 max-[809px]:mt-2">
-                            {item.title}
-                          </h3>
-                          <span className="rounded-md bg-beige500/80 px-3 py-1 text-sm font-medium tracking-[-0.02em] text-beige900/80">
-                            {item.meta}
-                          </span>
-                        </div>
-                        <p
-                          className="mt-2 max-w-[420px] text-[18px] leading-[1.5] tracking-[-0.03em] text-beige900/50"
-                          dangerouslySetInnerHTML={{ __html: item.description }}
-                        />
-                      </div>
-                    </div>
-                  </Reveal>
-                ))}
               </div>
-            </FullBleedSection>
-
-            <FullBleedSection
-              backgroundClassName="bg-beige100"
-              contentClassName="py-24"
-            >
-              <Reveal once direction="left">
-                <div className="relative">
-                  <TestimonialPlaceholder />
-                  <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-16 text-beige100 max-[1199px]:p-12 max-[809px]:p-8">
-                    <Quote fill="currentColor" size={64} />
-                    <div>
-                      <h2 className="max-w-[920px] font-halant text-[36px] sm:text-[42px] md:text-[50px] lg:text-[58px] leading-[1.04] tracking-[-0.07em]">
-                        Harper isn&apos;t just a tool; it&apos;s our entire
-                        hiring infrastructure for AI talent. The speed of
-                        matching is simply on another level
-                      </h2>
-                      <div className="mt-10 text-[18px] leading-[1.4] tracking-[-0.03em] text-beige100/90 max-[809px]:text-[15px]">
-                        SJ Lee
-                        <br />
-                        Co-Founder at Pickle (YC W25)
-                      </div>
-                    </div>
-                  </div>
+            </BaseSectionLayout>
+          </Animate>
+        </div>
+        <div className="h-4 md:h-40" />
+        <Animate duration={0.8}>
+          <div ref={lastTrackRef} data-section="last">
+            <div className="relative bg-black w-screen py-10">
+              <GradientBackground interactiveRef={interactiveRef} />
+              <div className="absolute top-0 left-0 w-full h-[50%] bg-gradient-to-t from-transparent to-black" />
+              <div className="flex flex-col items-center justify-center w-full lg:w-[94%] py-40 text-white z-40">
+                <Head1 as="h2" className="text-xl md:text-[32px] z-40">
+                  {m.companyLanding.closing.title}
+                </Head1>
+                <div className="text-2xl md:text-[40px] text-center font-medium text-white/90 mt-8 md:leading-normal z-40">
+                  {m.companyLanding.closing.headlineLine1}
+                  <div className="md:h-1 h-1" />
+                  {copyVariant.closingHeadlineLine2}
                 </div>
-              </Reveal>
-            </FullBleedSection>
-
-            <FullBleedSection
-              backgroundClassName="bg-beige100"
-              contentClassName="py-24"
-            >
-              <Reveal once className="text-center">
-                <SectionTag>Our Process</SectionTag>
-
-                <h2
-                  className={`mx-auto mt-7 max-w-[860px] ${titleTextClassName}`}
-                >
-                  Hiring, simplified
-                </h2>
-                <p className="mx-auto mt-6 max-w-[680px] text-[20px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
-                  Tell us who you need. We find, shortlist, and deliver
-                  candidates you can review and interview right away.
-                </p>
-              </Reveal>
-
-              <div className="mt-14 grid grid-cols-[0.52fr_0.48fr] gap-14 max-[1199px]:grid-cols-1 max-[1199px]:gap-6">
-                <div className="space-y-3 md:space-y-5">
-                  {processSteps.map((step, index) => {
-                    const active = activeProcessIndex === index;
-
-                    return (
-                      <motion.button
-                        key={step.title}
-                        type="button"
-                        onClick={() => setActiveProcessIndex(index)}
-                        whileHover={{ x: 4 }}
-                        className={`flex w-full items-start justify-between rounded-xl md:rounded-[28px] border px-4 py-3 md:px-8 md:py-6 text-left transition-all duration-300 ${
-                          active
-                            ? "border-transparent bg-beige500/60"
-                            : "border-transparent bg-transparent text-beige900/70 hover:bg-white/30"
-                        }`}
-                      >
-                        <span
-                          className={`font-halant text-[28px] sm:text-[36px] md:text-[40px] lg:text-[48px] leading-[0.98] tracking-[-0.07em] ${
-                            active ? "text-beige900" : "text-beige900/40"
-                          }`}
-                        >
-                          {step.title}
-                        </span>
-                        <span
-                          className={`mt-2 text-[20px] leading-none tracking-[-0.06em] ${
-                            active ? "text-beige900/70" : "text-beige900/40"
-                          }`}
-                        >
-                          {step.number}
-                        </span>
-                      </motion.button>
-                    );
-                  })}
-                </div>
-
-                <Reveal once direction="right" delay={0.08}>
-                  <div className="relative min-h-[33rem] max-[1199px]:min-h-0">
-                    <AnimatePresence mode="wait">
-                      <motion.div
-                        key={activeProcess.title}
-                        initial={{ opacity: 0, y: 18, filter: "blur(10px)" }}
-                        animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                        exit={{ opacity: 0, y: -18, filter: "blur(10px)" }}
-                        transition={{
-                          duration: 0.2,
-                          ease: [0.22, 1, 0.36, 1],
-                        }}
-                        className="space-y-8"
-                      >
-                        <div
-                          className={`relative overflow-hidden rounded-[32px] border border-white/40 bg-beige500/50 shadow-[0_30px_80px_rgba(89,57,24,0.12)] aspect-[1.6/1] w-full`}
-                        >
-                          <img
-                            src={activeProcess.image}
-                            alt="Process"
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <div>
-                          <h3 className="text-[28px] sm:text-[30px] md:text-[32px] lg:text-[34px] font-semibold leading-[1.08] tracking-[-0.05em] text-beige900">
-                            {activeProcess.title}
-                          </h3>
-                          <p className="mt-4 max-w-[520px] text-[19px] leading-[1.56] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[17px]">
-                            {activeProcess.description}
-                          </p>
-                        </div>
-                      </motion.div>
-                    </AnimatePresence>
-                  </div>
-                </Reveal>
-              </div>
-            </FullBleedSection>
-
-            <FullBleedSection
-              backgroundClassName="bg-beige100"
-              contentClassName="grid grid-cols-[0.96fr_0.84fr] gap-14 max-[1199px]:grid-cols-1 max-[1199px]:gap-12 py-24"
-            >
-              <Reveal once direction="left">
-                <SectionTag>Proven impact</SectionTag>
-                <h2 className="mt-7 max-w-[540px] font-halant text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.97] tracking-[-0.08em] text-beige900">
-                  From 50 hours of sourcing
-                  <br />
-                  to 2 hours of interviewing.
-                </h2>
-                <div className="mt-8 max-w-[540px] space-y-6 text-[18px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[16px]">
-                  <p>
-                    For a leading tech organization known for its rigorous
-                    engineering standards, manual sourcing was a massive
-                    bottleneck.
-                  </p>
-                  <p>
-                    What previously required 50 hours of intense technical
-                    filtering was compressed into just 2 hours with Harper.
-                  </p>
-                  <p></p>
-                </div>
-                <div className="mt-10 grid max-w-[560px] grid-cols-2 gap-4 max-[809px]:grid-cols-1">
-                  {[
-                    {
-                      stat: "25x",
-                      label: "Better",
-                      sublabel: "Sourcing Efficiency",
-                    },
-                    {
-                      stat: "7 days",
-                      label: "Time to match",
-                      sublabel: "faster",
-                    },
-                  ].map((item, index) => (
-                    <Reveal key={item.stat} once delay={0.08 * index}>
-                      <div className="rounded-3xl bg-beige500/80 p-6">
-                        <div className="font-halant font-medium text-[56px] leading-[0.95] tracking-[-0.06em] text-beige900">
-                          {item.stat}
-                        </div>
-                        <div className="mt-4 text-[17px] font-medium tracking-[-0.03em] text-beige900">
-                          {item.label}
-                        </div>
-                        <div className="mt-1 text-[17px] tracking-[-0.03em] text-beige900/70">
-                          {item.sublabel}
-                        </div>
-                      </div>
-                    </Reveal>
-                  ))}
-                </div>
-              </Reveal>
-
-              <Reveal once direction="right" delay={0.08}>
-                <div className="relative h-full hidden md:flex">
-                  <SuccessPortraitPlaceholder />
-                </div>
-              </Reveal>
-            </FullBleedSection>
-
-            <section className="py-24">
-              <Reveal once className="text-left">
-                <SectionTag>Our Results</SectionTag>
-                <div className="mt-6 flex flex-row items-center justify-between w-full">
-                  <h2 className={`${titleTextClassName} text-left`}>
-                    Faster, Cheaper,{" "}
-                    <span className="text-beige900/50">Better</span>
-                  </h2>
-                  <p className="text-right text-[20px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
-                    We replace manual recruiting with
-                    <br />
-                    AI-driven search, evaluation, and matching.
-                  </p>
-                </div>
-              </Reveal>
-              <Reveal once delay={0.08} className="mt-12">
-                <ResultsPanel />
-              </Reveal>
-            </section>
-
-            <section className="py-24">
-              <Reveal once className="text-center">
-                <SectionTag>Why Harper</SectionTag>
-                <h2 className={`mt-7 ${titleTextClassName}`}>
-                  Hyper-focused on{" "}
-                  <span className="text-beige900/40">AI/ML</span>
-                </h2>
-                <p className="mx-auto mt-6 max-w-[640px] text-[20px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
-                  We are your{" "}
-                  <span className="text-beige900">recruiting partner</span> for
-                  the 1% of technical talent
-                </p>
-              </Reveal>
-
-              <div className="mt-12 grid grid-cols-2 gap-4 max-[1199px]:grid-cols-1">
-                <Reveal once>
-                  <ComparisonCard
-                    title="Traditional agencies"
-                    items={[
-                      "Weeks of manual filtering for generic, mismatched profiles.",
-                      "Every search starts from zero : no learning, no context.",
-                      "Expensive placement fees that act as a tax on your growth.",
-                    ]}
-                    isPositive={false}
-                  />
-                </Reveal>
-                <Reveal once delay={0.06}>
-                  <ComparisonCard
-                    title="Harper"
-                    items={[
-                      "With in 7 days, research-grade matching for the top of AI Talent.",
-                      "Infinite memory that learns and evolves with your technical bar.",
-                      "White-glove search intelligence with a success model built for elite scaling.",
-                    ]}
-                    isPositive={true}
-                  />
-                </Reveal>
-              </div>
-            </section>
-
-            <FullBleedSection
-              backgroundClassName="bg-black"
-              contentClassName="grid grid-cols-[0.98fr_0.82fr] gap-16 py-24 text-beige100 max-[1199px]:grid-cols-1 max-[1199px]:gap-12 max-[809px]:py-20"
-            >
-              <Reveal direction="left" className="max-w-[620px]">
-                <div className="inline-flex items-center rounded-full border border-white/10 bg-white/10 px-4 py-2 font-geist text-[13px] font-medium tracking-[-0.03em] text-white/70">
-                  The Engine
-                </div>
-                <h2
-                  className={`mt-7 text-beige100 font-halant text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.96] tracking-[-0.08em]`}
-                >
-                  Autonomous Intelligence. Evidence-First.
-                </h2>
-                <p className="mt-7 max-w-[560px] font-geist text-[20px] leading-[1.58] tracking-[-0.03em] text-white/70 max-[809px]:text-[18px]">
-                  {/* Search across real research output, open-source evidence, and
-                  technical project history in one place. */}
-                  The same infrastructure our specialists use to scale teams.
-                  Harper Search bypasses resumes to index technical truth :
-                  mapping research footprints and code contributions directly.
-                </p>
-                <div className="mt-10">
-                  <RadarButton />
-                </div>
-              </Reveal>
-
-              <Reveal direction="right" delay={0.08}>
-                <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(196,168,255,0.18),transparent_24%),radial-gradient(circle_at_72%_22%,rgba(255,222,173,0.16),transparent_18%),linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] p-7 shadow-[0_26px_80px_rgba(0,0,0,0.28)]">
-                  <div className="absolute inset-0 bg-[linear-gradient(135deg,transparent_0%,rgba(255,255,255,0.04)_100%)]" />
-                  <div className="relative">
-                    <div className="rounded-[22px]">
-                      <div className="max-w-[28rem] font-geist text-lg leading-[1.55] tracking-[-0.03em] text-white/90">
-                        Find multimodal ML engineers who shipped production
-                        systems and also published or contributed meaningful
-                        research work.
-                      </div>
-                    </div>
-
-                    <div className="mt-4 grid grid-cols-3 gap-3 max-[809px]:grid-cols-1">
-                      {[
-                        ["7M+", "Scholarly Artifacts"],
-                        ["3M+", "Open-Source Repositories"],
-                        ["10M+", "Relational Data Points / Neural Signals"],
-                      ].map(([value, label]) => (
-                        <div
-                          key={value}
-                          className="rounded-[20px] bg-white/5 p-4"
-                        >
-                          <div className="font-halant text-[32px] leading-none tracking-[-0.06em] text-beige100">
-                            {value}
-                          </div>
-                          <div className="mt-2 font-geist text-[13px] leading-[1.45] tracking-[-0.02em] text-white/50">
-                            {label}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    <ContributionGrid
-                      className="mt-4"
-                      monthsToShow={6}
-                      minCellSize={10}
-                      labelColumnWidth={36}
-                      showWeekLabels={false}
-                      rowsToShow={5}
-                    />
-                    {/* Table */}
-                    <div className="mt-6 text-left">
-                      <div className="grid grid-cols-[1fr_50px_50px] bg-neutral-900 text-xs font-medium px-2 py-1 text-neutral-300">
-                        <div>Title</div>
-                        <div className="text-right">Citations</div>
-                        <div className="text-right pr-1">Year</div>
-                      </div>
-                      <div className="divide-y divide-neutral-800">
-                        {papers.map((paper, i) => (
-                          <div
-                            key={i}
-                            className="relative grid grid-cols-[1fr_30px_30px] gap-4 px-2 py-2"
-                          >
-                            <div>
-                              <p className="text-blue-400 hover:underline text-sm font-light leading-4">
-                                {paper.title}
-                              </p>
-                              <p className="text-sm text-neutral-400 mt-0.5">
-                                {paper.authors}
-                              </p>
-                              <p className="text-xs text-neutral-400">
-                                {paper.journal}
-                              </p>
-                            </div>
-
-                            <div className="flex items-start justify-end text-right text-xs text-neutral-400">
-                              {paper.citations}
-                            </div>
-                            <div className="flex items-start justify-end text-right text-xs text-neutral-400">
-                              {paper.year}
-                            </div>
-
-                            {paper.is_featured && (
-                              <div className="absolute bottom-2 right-1 rounded-full px-2 py-1 bg-blue-500 text-[10px]">
-                                Most relevant paper
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="mt-4 space-y-3">
-                      {[
-                        "GitHub contribution evidence",
-                        "Research publication footprint",
-                      ].map((item, index) => (
-                        <motion.div
-                          key={item}
-                          initial={{ opacity: 0, x: 18 }}
-                          whileInView={{ opacity: 1, x: 0 }}
-                          viewport={{ once: true }}
-                          transition={{
-                            duration: 0.45,
-                            delay: 0.1 + index * 0.06,
-                          }}
-                          className="flex items-center justify-between rounded-[18px] border border-white/10 bg-white/10 px-4 py-3"
-                        >
-                          <span className="font-geist text-[15px] tracking-[-0.02em] text-white/70">
-                            {item}
-                          </span>
-                          <span className="flex items-center gap-2">
-                            <span className="font-geist text-[13px] tracking-[-0.02em] text-white/30">
-                              {index === 0 ? "Verified" : "Indexed"}
-                            </span>
-                            <span
-                              aria-hidden="true"
-                              className="relative flex h-2 w-2 shrink-0"
-                            >
-                              <span
-                                className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-500/70"
-                                style={{ animationDuration: "2.2s" }}
-                              />
-                              <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
-                            </span>
-                          </span>
-                        </motion.div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </Reveal>
-            </FullBleedSection>
-
-            <FullBleedSection
-              backgroundClassName="bg-beige100"
-              contentClassName="mx-auto w-full max-w-[860px] text-center py-24"
-            >
-              <Reveal once>
-                <SectionTag>FAQ</SectionTag>
-                <h2 className={`mt-7 ${titleTextClassName}`}>
-                  We are open for{" "}
-                  <span className="text-beige900/40">questions</span>
-                </h2>
-                <p className="mx-auto mt-6 max-w-[500px] text-[19px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[17px]">
-                  Or request access to learn more.
-                </p>
-              </Reveal>
-
-              <div className="mt-12 space-y-4 text-left">
-                {faqs.map((faq, index) => {
-                  const isOpen = openFaqIndex === index;
-
-                  return (
-                    <Reveal key={faq.question} once delay={index * 0.04}>
-                      <motion.button
-                        type="button"
-                        onClick={() => setOpenFaqIndex(isOpen ? -1 : index)}
-                        className="w-full rounded-[20px] bg-beige200 px-6 py-6 shadow-[0_14px_30px_rgba(66,38,10,0.06)] max-[809px]:px-5 max-[809px]:py-5"
-                      >
-                        <div className="flex items-center justify-between gap-8">
-                          <div className="text-[20px] text-left font-medium leading-[1.24] tracking-[-0.04em] text-beige900 max-[809px]:text-[16px]">
-                            {faq.question}
-                          </div>
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
-                            <motion.div
-                              animate={{ rotate: isOpen ? 405 : 0 }}
-                              transition={{
-                                duration: 0.28,
-                                ease: [0.22, 1, 0.36, 1],
-                              }}
-                              className="flex items-center justify-center"
-                            >
-                              <Plus className="h-5 w-5 text-beige900/60" />
-                            </motion.div>
-                          </div>
-                        </div>
-                        <AnimatePresence initial={false}>
-                          {isOpen && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0, marginTop: 0 }}
-                              animate={{
-                                height: "auto",
-                                opacity: 1,
-                                marginTop: 20,
-                              }}
-                              exit={{ height: 0, opacity: 0, marginTop: 0 }}
-                              transition={{
-                                duration: 0.35,
-                                ease: [0.22, 1, 0.36, 1],
-                              }}
-                              className="overflow-hidden"
-                            >
-                              <p
-                                className="text-left max-w-[720px] text-[17px] md:text-[18px] leading-[1.58] tracking-[-0.03em] text-beige900/50"
-                                dangerouslySetInnerHTML={{ __html: faq.answer }}
-                              />
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </motion.button>
-                    </Reveal>
-                  );
-                })}
-              </div>
-            </FullBleedSection>
-          </main>
-
-          <footer className="bg-beige500/350">
-            <div className="mx-auto flex max-w-[1160px] flex-col items-center px-4 pb-16 pt-24 text-center max-[809px]:pt-16">
-              <Reveal>
-                <h2 className="font-halant text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.97] tracking-[-0.08em] text-beige900">
-                  Harper
-                </h2>
-                <p className="mt-4 text-[22px] leading-[1.45] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
-                  Fill roles in days, not months
-                </p>
-                <div className="mt-10">
-                  <CalendlyButton
-                    label="Get Started Now"
-                    className="text-lg font-medium"
-                  />
-                </div>
-              </Reveal>
-              <div className="mt-20 h-px w-full max-w-[740px] bg-beige900/10" />
-              <div className="mt-10 self-start max-w-[740px] text-sm tracking-[-0.03em] text-beige900/40">
-                © 2026 Harper. All rights reserved.
+                <StartButton
+                  type="click_footer_start"
+                  onClickStart={clickStart}
+                  label={copyVariant.startButton}
+                />
               </div>
             </div>
-          </footer>
-        </div>
-      </div>
+          </div>
+        </Animate>
+        <Footer onClickStart={clickStart} />
+      </main>
     </>
   );
 };
 
-export default Beige;
+export default CandidatePage;
+
+const FeatureSection = React.memo(function FeatureSection() {
+  const { m } = useMessages();
+
+  return (
+    <BaseSectionLayout>
+      <Animate>
+        <Head1 as="h2" className="text-white">
+          {m.companyLanding.feature.title}
+        </Head1>
+      </Animate>
+      <div className="flex flex-col w-full mt-12 gap-[30px]">
+        <Animate>
+          <RowImageSection
+            opposite={true}
+            label={m.companyLanding.feature.rows[0].label}
+            title={m.companyLanding.feature.rows[0].title}
+            desc={m.companyLanding.feature.rows[0].desc}
+            imageSrc="/videos/use1.mp4"
+          />
+        </Animate>
+        <Animate>
+          <RowImageSection
+            label={m.companyLanding.feature.rows[1].label}
+            title={m.companyLanding.feature.rows[1].title}
+            desc={m.companyLanding.feature.rows[1].desc}
+            imageSrc="/videos/use2.mp4"
+            padding
+          />
+        </Animate>
+        <Animate>
+          <RowImageSection
+            opposite={true}
+            label={m.companyLanding.feature.rows[2].label}
+            title={m.companyLanding.feature.rows[2].title}
+            desc={m.companyLanding.feature.rows[2].desc}
+            imageSrc="/videos/use3.mp4"
+            padding
+          />
+        </Animate>
+      </div>
+    </BaseSectionLayout>
+  );
+});
+
+const WhyImageSection = React.memo(function WhyImageSection({
+  title,
+  desc,
+  imageSrc,
+}: {
+  title: string;
+  desc: string;
+  imageSrc: string;
+}) {
+  const imgReturn = () => {
+    if (imageSrc === "/images/feat1.png") {
+      return (
+        <div className="h-[200px] md:h-[280px] relative w-full flex justify-center items-center rounded-2xl bg-gradpastel2 overflow-hidden">
+          <div className="mr-8 w-full">
+            <FallingTagsSmall theme="white" startDelay={800} />
+          </div>
+        </div>
+      );
+    }
+
+    if (imageSrc === "orbit") {
+      return (
+        <div className="h-[200px] md:h-[280px] relative w-full flex justify-center items-center rounded-2xl bg-gradpastel2 overflow-hidden">
+          <OrbitIconsSmall />
+        </div>
+      );
+    }
+    return (
+      <div className="h-[200px] md:h-[280px] relative w-full flex justify-end items-end rounded-2xl bg-gradpastel2 overflow-hidden">
+        <Image
+          src={imageSrc}
+          alt={title}
+          width={400}
+          height={320}
+          className="max-w-[90%]"
+        />
+      </div>
+    );
+  };
+  return (
+    <div className="flex flex-col w-full items-center justify-center md:items-start md:justify-start max-w-full gap-8 px-5 md:px-0">
+      {imgReturn()}
+      <div className="flex flex-col items-start justify-start w-full gap-4 text-left">
+        <h3
+          className="text-[26px] md:text-3xl font-normal leading-[2.2rem] md:leading-[2.5rem]"
+          dangerouslySetInnerHTML={{ __html: title }}
+        />
+        <div
+          className="text-sm md:text-base leading-6 font-light text-hgray700"
+          dangerouslySetInnerHTML={{ __html: desc }}
+        />
+      </div>
+    </div>
+  );
+});

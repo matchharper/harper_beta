@@ -265,6 +265,11 @@ export const buildLongDoc = (doc: any) => {
     .map((pub: any, idx: number) => {
       return `\n${idx + 1}. Title: ${pub.title}, Published At: ${pub.published_at}`;
     });
+  const scholarPublications = doc.scholar_papers
+    ?.slice(0, 20)
+    .map((pub: any, idx: number) => {
+      return `\n${idx + 1}. Title: ${pub.title}, Published At: ${pub.published_at}, Citations: ${pub.total_citations}`;
+    });
 
   const awards = doc.extra_experience
     ?.slice(0, 20)
@@ -289,6 +294,12 @@ export const buildLongDoc = (doc: any) => {
   if (doc.links) {
     docSummary += `\nPersonal Links: ${doc.links}`;
   }
+  if (doc.scholar_profile) {
+    docSummary += `\nScholar Affiliation: ${doc.scholar_profile.affiliation ?? ""}`;
+    docSummary += `\nScholar Topics: ${doc.scholar_profile.topics ?? ""}`;
+    docSummary += `\nScholar Citations: ${doc.scholar_profile.total_citations_num ?? 0}`;
+    docSummary += `\nScholar h-index: ${doc.scholar_profile.h_index ?? 0}`;
+  }
   if (exps) {
     docSummary += `\nExperiences: ${exps}`;
   }
@@ -297,6 +308,9 @@ export const buildLongDoc = (doc: any) => {
   }
   if (publications) {
     docSummary += `\nPublications: ${publications}`;
+  }
+  if (scholarPublications?.length) {
+    docSummary += `\nScholar Papers: ${scholarPublications}`;
   }
   if (awards) {
     docSummary += `\nAwards: ${awards}`;

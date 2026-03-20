@@ -5,10 +5,15 @@ import type { Database } from "@/types/database.types";
 
 export type GithubRepoContributionRow =
   Database["public"]["Tables"]["github_repo_contribution"]["Row"];
+export type ScholarProfileRow =
+  Database["public"]["Tables"]["scholar_profile"]["Row"];
+export type ScholarPaperRow = Database["public"]["Tables"]["papers"]["Row"];
 
 export type CandidateDetail = CandidateType & {
   connection?: { user_id: string; typed: number }[];
   github_repo_contribution?: GithubRepoContributionRow[];
+  scholar_profile?: ScholarProfileRow | null;
+  scholar_papers?: ScholarPaperRow[];
   isAutomationResult?: boolean;
 };
 
@@ -80,6 +85,48 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
   if (error) throw error;
   if (!data) return null;
 
+  let scholarProfile: ScholarProfileRow | null = null;
+  let scholarPapers: ScholarPaperRow[] = [];
+
+  const { data: scholarProfileRow, error: scholarProfileError } = await supabase
+    .from("scholar_profile")
+    .select("*")
+    .eq("candid_id", id)
+    .maybeSingle();
+
+  if (scholarProfileError) throw scholarProfileError;
+
+  scholarProfile = (scholarProfileRow as ScholarProfileRow | null) ?? null;
+
+  if (scholarProfile?.id) {
+    const { data: contributions, error: contributionsError } = await supabase
+      .from("scholar_contributions")
+      .select("paper_id")
+      .eq("scholar_profile_id", scholarProfile.id);
+
+    if (contributionsError) throw contributionsError;
+
+    const paperIds = Array.from(
+      new Set(
+        (contributions ?? [])
+          .map((row) => String((row as any)?.paper_id ?? "").trim())
+          .filter(Boolean)
+      )
+    );
+
+    if (paperIds.length > 0) {
+      const { data: papers, error: papersError } = await supabase
+        .from("papers")
+        .select("*")
+        .in("id", paperIds)
+        .order("total_citations", { ascending: false })
+        .order("pub_year", { ascending: false, nullsFirst: false });
+
+      if (papersError) throw papersError;
+      scholarPapers = (papers as ScholarPaperRow[] | null) ?? [];
+    }
+  }
+
   if (userId) {
     const { data: autoRow, error: autoError } = await supabase
       .from("automation_results")
@@ -91,11 +138,17 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
     if (autoError) throw autoError;
     return {
       ...data,
+      scholar_profile: scholarProfile,
+      scholar_papers: scholarPapers,
       isAutomationResult: autoRow?.length > 0,
     } as CandidateDetail;
   }
 
-  return data as CandidateDetail;
+  return {
+    ...(data as CandidateDetail),
+    scholar_profile: scholarProfile,
+    scholar_papers: scholarPapers,
+  };
 }
 
 export function useCandidateDetail(userId?: string, candidId?: string) {

@@ -1480,7 +1480,6 @@ export type Database = {
       }
       run_variants: {
         Row: {
-          cost: number | null
           created_at: string
           error: string | null
           id: number
@@ -1488,12 +1487,12 @@ export type Database = {
           llm_sql_latency: number | null
           result_count: number | null
           run_id: string
+          source_type: number
           sql_query: string | null
           status: string
           variant: string
         }
         Insert: {
-          cost?: number | null
           created_at?: string
           error?: string | null
           id?: never
@@ -1501,12 +1500,12 @@ export type Database = {
           llm_sql_latency?: number | null
           result_count?: number | null
           run_id: string
+          source_type?: number
           sql_query?: string | null
           status?: string
           variant: string
         }
         Update: {
-          cost?: number | null
           created_at?: string
           error?: string | null
           id?: never
@@ -1514,6 +1513,7 @@ export type Database = {
           llm_sql_latency?: number | null
           result_count?: number | null
           run_id?: string
+          source_type?: number
           sql_query?: string | null
           status?: string
           variant?: string
@@ -1541,9 +1541,7 @@ export type Database = {
           message_id: number | null
           query_id: string | null
           query_text: string | null
-          results: Json | null
           search_settings: Json | null
-          sql_query: string | null
           status: string | null
           user_id: string | null
         }
@@ -1559,9 +1557,7 @@ export type Database = {
           message_id?: number | null
           query_id?: string | null
           query_text?: string | null
-          results?: Json | null
           search_settings?: Json | null
-          sql_query?: string | null
           status?: string | null
           user_id?: string | null
         }
@@ -1577,9 +1573,7 @@ export type Database = {
           message_id?: number | null
           query_id?: string | null
           query_text?: string | null
-          results?: Json | null
           search_settings?: Json | null
-          sql_query?: string | null
           status?: string | null
           user_id?: string | null
         }
@@ -1680,6 +1674,7 @@ export type Database = {
       scholar_profile: {
         Row: {
           affiliation: string | null
+          candid_id: string | null
           created_at: string
           h_index: number
           homepage_link: string | null
@@ -1695,6 +1690,7 @@ export type Database = {
         }
         Insert: {
           affiliation?: string | null
+          candid_id?: string | null
           created_at?: string
           h_index?: number
           homepage_link?: string | null
@@ -1710,6 +1706,7 @@ export type Database = {
         }
         Update: {
           affiliation?: string | null
+          candid_id?: string | null
           created_at?: string
           h_index?: number
           homepage_link?: string | null
@@ -1723,7 +1720,15 @@ export type Database = {
           total_citations_num?: number
           year_citations?: Json
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "scholar_profile_candid_id_fkey"
+            columns: ["candid_id"]
+            isOneToOne: true
+            referencedRelation: "candid"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       scraped_additional_links: {
         Row: {

@@ -1,4 +1,5 @@
 import { CandidateTypeWithConnection } from "@/hooks/useSearchChatCandidates";
+import { SearchSource, isScholarSearchSource } from "@/lib/searchSource";
 import React, { useMemo, useRef, useState } from "react";
 import CandidateRow from "./CandidatesListTable";
 import CandidateCard from "./CandidatesList";
@@ -21,7 +22,14 @@ type TableColumnDef = {
   label: string;
   width: string;
   draggable: boolean;
-  kind: "criteria" | "company" | "school" | "summary" | "memo" | "actions";
+  kind:
+    | "criteria"
+    | "company"
+    | "evidence"
+    | "school"
+    | "summary"
+    | "memo"
+    | "actions";
   tooltip?: string;
 };
 
@@ -35,6 +43,7 @@ const CandidateViews = ({
   isMyList = false,
   showShortlistMemo = false,
   indexStart = 0,
+  sourceType = "linkedin",
 }: {
   items: any[];
   userId: string;
@@ -42,6 +51,7 @@ const CandidateViews = ({
   isMyList?: boolean;
   showShortlistMemo?: boolean;
   indexStart?: number;
+  sourceType?: SearchSource;
 }) => {
   const { viewType, setViewType, columnOrderByKey, setColumnOrder } =
     useSettingStore();
@@ -64,6 +74,7 @@ const CandidateViews = ({
     () => asArr(criterias).map((c) => String(c ?? "")),
     [criterias]
   );
+  const isScholarSource = isScholarSearchSource(sourceType);
   const canReorderColumns = isMyList;
 
   const contextKey = useMemo(
@@ -72,9 +83,10 @@ const CandidateViews = ({
         "candidate-table-order",
         isMyList ? "mylist" : "search",
         showShortlistMemo ? "memo-on" : "memo-off",
+        sourceType,
         criteriaList.join("||"),
       ].join(":"),
-    [isMyList, showShortlistMemo, criteriaList]
+    [criteriaList, isMyList, showShortlistMemo, sourceType]
   );
 
   const dynamicColumns = useMemo<TableColumnDef[]>(() => {
@@ -95,20 +107,30 @@ const CandidateViews = ({
 
     cols.push({
       id: "company",
-      label: "Company",
+      label: isScholarSource ? "Affiliation" : "Company",
       width: defaultCols,
       draggable: canReorderColumns,
       kind: "company",
     });
     cols.push({
       id: "school",
-      label: "School",
+      label: isScholarSource ? "Research" : "School",
       width: defaultCols,
       draggable: canReorderColumns,
       kind: "school",
     });
 
-    if (!isMyList && criteriaList.length > 0) {
+    if (isScholarSource) {
+      cols.push({
+        id: "evidence",
+        label: "Related paper",
+        width: "340px",
+        draggable: false,
+        kind: "evidence",
+      });
+    }
+
+    if (!isScholarSource && !isMyList && criteriaList.length > 0) {
       cols.push({
         id: "actions",
         label: "",
@@ -136,9 +158,15 @@ const CandidateViews = ({
         });
       }
     }
-
     return cols;
-  }, [criteriaList, isFolded, isMyList, showShortlistMemo, canReorderColumns]);
+  }, [
+    canReorderColumns,
+    criteriaList,
+    isFolded,
+    isMyList,
+    isScholarSource,
+    showShortlistMemo,
+  ]);
 
   const defaultColumnIds = useMemo(
     () => dynamicColumns.map((col) => col.id),
@@ -151,14 +179,19 @@ const CandidateViews = ({
   );
 
   const orderedColumnIds = useMemo(() => {
+    const moveEvidenceToEnd = (ids: string[]) => {
+      if (!ids.includes("evidence")) return ids;
+      return [...ids.filter((id) => id !== "evidence"), "evidence"];
+    };
+
     if (!canReorderColumns) {
-      return defaultColumnIds;
+      return moveEvidenceToEnd(defaultColumnIds);
     }
     const validSaved = savedColumnIds.filter((id) =>
       defaultColumnIds.includes(id)
     );
     const missing = defaultColumnIds.filter((id) => !validSaved.includes(id));
-    return [...validSaved, ...missing];
+    return moveEvidenceToEnd([...validSaved, ...missing]);
   }, [savedColumnIds, defaultColumnIds, canReorderColumns]);
 
   const columnById = useMemo(() => {
@@ -383,6 +416,7 @@ const CandidateViews = ({
                     showShortlistMemo={showShortlistMemo}
                     gridTemplateColumns={gridTemplateColumns}
                     rowIndex={indexStart + idx}
+                    sourceType={sourceType}
                   />
                 ))}
               </div>
@@ -402,6 +436,7 @@ const CandidateViews = ({
                 userId={userId}
                 criterias={criteriaList}
                 showShortlistMemo={showShortlistMemo}
+                sourceType={sourceType}
               />
             ))}
           </div>

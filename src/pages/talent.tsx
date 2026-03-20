@@ -356,7 +356,7 @@ const Talent = () => {
 
   return (
     <main
-      className="min-h-screen bg-hblack000 text-hblack900 font-geist pt-12"
+      className="min-h-screen bg-beige100 text-hblack900 font-geist pt-12"
       style={
         {
           "--ink": "#2E1706",

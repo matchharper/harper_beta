@@ -15,6 +15,7 @@ import { useEffect, useRef } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import CompanyModalRoot from "@/components/Modal/CompanyModal";
+import PaperModalRoot from "@/components/Modal/PaperModal";
 import Script from "next/script";
 import { useRouter } from "next/router";
 
@@ -141,6 +142,7 @@ export default function App({ Component, pageProps }: AppProps) {
         className={`${inter.className} ${inter.variable} ${garamond.className} ${garamond.variable} ${roboto.variable} ${averia.variable}`}
       >
         <CompanyModalRoot />
+        <PaperModalRoot />
         <Analytics />
         <Component {...pageProps} />
         <ToastProvider />

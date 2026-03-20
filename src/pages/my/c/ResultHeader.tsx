@@ -1,17 +1,27 @@
 // components/result/ResultHeader.tsx
 import React, { useCallback, useMemo } from "react";
-import { Check, Clock, Loader2, ThumbsDown, ThumbsUp } from "lucide-react";
+import {
+  Check,
+  Clock,
+  GraduationCap,
+  Loader2,
+  ThumbsDown,
+  ThumbsUp,
+} from "lucide-react";
 import { dateToFormatLong } from "@/utils/textprocess";
 import { supabase } from "@/lib/supabase";
 import Timeline from "./timeline";
 import { useMessages } from "@/i18n/useMessage";
 import { StatusEnum } from "@/types/type";
+import { SearchSource } from "@/lib/searchSource";
+import Image from "next/image";
 
 type Props = {
   queryItem: any;
   runId: string;
   status: string;
   feedback: number;
+  sourceType?: SearchSource;
 };
 
 export default function ResultHeader({
@@ -19,11 +29,19 @@ export default function ResultHeader({
   runId,
   status,
   feedback,
+  sourceType = "linkedin",
 }: Props) {
   const { m } = useMessages();
   const statusMessage = useMemo(() => {
     return status;
   }, [status]);
+  const sourceBadgeText =
+    sourceType === "scholar" ? (
+      <div className="flex flex-row items-center justify-start gap-1 text-hgray700">
+        <GraduationCap className="w-4 h-4" strokeWidth={2} />
+        <span className="text-sm">from publications</span>
+      </div>
+    ) : null;
 
   // implement like (= runs.feedback = 1)
   const like = useCallback(() => {
@@ -69,13 +87,16 @@ export default function ResultHeader({
             )}
           </div>
           {queryItem.created_at ? (
-            <div className="flex flex-row items-center justify-start gap-1 text-xs">
+            <div className="flex flex-row items-center justify-start gap-1 text-sm">
               <Clock className="w-3 h-3" />
               {dateToFormatLong(queryItem.created_at)}
             </div>
           ) : (
             ""
           )}
+          {sourceBadgeText ? (
+            <div className="text-sm text-hgray600">{sourceBadgeText}</div>
+          ) : null}
         </div>
         <div className="flex flex-row items-center justify-center gap-4 text-hgray600">
           <button
