@@ -13,7 +13,6 @@ import { supabase } from "@/lib/supabase";
 import {
   assertNotCanceled,
   deduplicateCandidates,
-  updateQuery,
   updateRunStatus,
 } from "./utils";
 import { ScoredCandidate } from "./utils";
@@ -345,7 +344,6 @@ ${sql_query}
     );
     const sqlQueryWithGroupBy2 = ensureGroupBy(fixed_query as string, "");
     await assertNotCanceled(run.id);
-    await updateQuery({ sql: sqlQueryWithGroupBy2 as string, runId: run.id });
 
     const { data: data2, error: error2 } =
       await rpc_set_timeout_and_execute_raw_sql_via_runs({
@@ -413,7 +411,6 @@ input text for searching: ${query_text}
       JOIN candid c ON c.id = i.id
       ORDER BY i.fts_rank_cd DESC`;
     await assertNotCanceled(run.id);
-    await updateQuery({ sql: final as string, runId: run.id });
 
     limit_num = limit + 50;
     review_count_num = review_count_num + 50;
