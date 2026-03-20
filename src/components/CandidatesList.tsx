@@ -27,6 +27,7 @@ import {
   formatScholarCitationCount,
   formatScholarPaperCount,
 } from "@/lib/scholarPreview";
+import Image from "next/image";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
 
@@ -192,8 +193,14 @@ function CandidateCard({
                   {c.name ?? "None"}
                 </div>
                 {isOnlyScholar ? (
-                  <div className="text-sm text-hgray600 font-normal">
-                    only scholar
+                  <div className="inline-flex w-fit items-center gap-1 text-xs rounded text-blue-500">
+                    <Image
+                      src="/images/logos/scholar.png"
+                      alt="Scholar Profile"
+                      width={14}
+                      height={14}
+                    />
+                    <div>Scholar Profile</div>
                   </div>
                 ) : c.location ? (
                   <div className="text-sm text-hgray600 font-normal">
@@ -241,8 +248,25 @@ function CandidateCard({
               {isOnlyScholar && (
                 <RoleBox
                   company={scholarPreview?.affiliation ?? "-"}
-                  role="only scholar"
+                  role=""
                   tooltipText={scholarAffiliationTooltipText}
+                  tooltipSide="bottom"
+                />
+              )}
+              {isOnlyScholar && (
+                <ScholarSignalBox
+                  title={
+                    scholarPreview
+                      ? formatScholarPaperCount(scholarPreview.paperCount)
+                      : "-"
+                  }
+                  description={
+                    scholarPreview
+                      ? formatScholarCitationCount(scholarPreview.citationCount)
+                      : "-"
+                  }
+                  tooltipText={buildScholarResearchTooltip(scholarPreview)}
+                  icon="research"
                   tooltipSide="bottom"
                 />
               )}

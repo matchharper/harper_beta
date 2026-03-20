@@ -28,6 +28,7 @@ import {
   majorEnToKo,
 } from "@/utils/language_map";
 import Bookmarkbutton from "./ui/bookmarkbutton";
+import Image from "next/image";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
 
@@ -229,7 +230,7 @@ function CandidateRow({
                     {scholarPreview?.affiliation ?? "-"}
                   </div>
                 }
-                description="only scholar"
+                description=""
                 multiline
               />
             </div>
@@ -269,7 +270,10 @@ function CandidateRow({
 
     if (columnId === "evidence") {
       return (
-        <Tooltips text={evidencePaperTooltipText || "Related paper unavailable"} side="bottom">
+        <Tooltips
+          text={evidencePaperTooltipText || "Related paper unavailable"}
+          side="bottom"
+        >
           <div>
             <Cell
               key={columnId}
@@ -288,6 +292,31 @@ function CandidateRow({
 
     if (columnId === "school") {
       if (isScholarSource) {
+        return (
+          <Tooltips
+            text={buildScholarResearchTooltip(scholarPreview)}
+            side="bottom"
+          >
+            <div>
+              <Cell
+                key={columnId}
+                title={
+                  scholarPreview
+                    ? formatScholarPaperCount(scholarPreview.paperCount)
+                    : "-"
+                }
+                description={
+                  scholarPreview
+                    ? formatScholarCitationCount(scholarPreview.citationCount)
+                    : "-"
+                }
+              />
+            </div>
+          </Tooltips>
+        );
+      }
+
+      if (isOnlyScholar) {
         return (
           <Tooltips
             text={buildScholarResearchTooltip(scholarPreview)}
@@ -410,11 +439,21 @@ function CandidateRow({
                   {c.name}
                 </div>
                 <div className="text-xs text-hgray700 truncate">
-                  {isOnlyScholar
-                    ? "only scholar"
-                    : c.location
-                    ? locationEnToKo(c.location)
-                    : "-"}
+                  {isOnlyScholar ? (
+                    <div className="inline-flex w-fit items-center justify-center gap-1 text-xs rounded text-blue-500">
+                      <Image
+                        src="/images/logos/scholar.png"
+                        alt="Scholar Profile"
+                        width={10}
+                        height={10}
+                      />
+                      <div>Scholar Profile</div>
+                    </div>
+                  ) : c.location ? (
+                    locationEnToKo(c.location)
+                  ) : (
+                    "-"
+                  )}
                 </div>
               </div>
               <div

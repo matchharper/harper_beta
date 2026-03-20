@@ -1,9 +1,21 @@
 import { logger } from "@/utils/logger";
 import { geminiInference, xaiInference } from "@/lib/llm/llm";
 import { ensureGroupBy, sqlRefine } from "@/utils/textprocess";
-import { expandingSearchPrompt, sqlExistsPrompt, firstSqlPrompt, timeoutHandlePrompt, tsvectorPrompt2, fixFtsOrOperator } from "@/lib/prompt";
+import {
+  expandingSearchPrompt,
+  sqlExistsPrompt,
+  firstSqlPrompt,
+  timeoutHandlePrompt,
+  tsvectorPrompt2,
+  fixFtsOrOperator,
+} from "@/lib/prompt";
 import { supabase } from "@/lib/supabase";
-import { assertNotCanceled, deduplicateCandidates, updateQuery, updateRunStatus } from "./utils";
+import {
+  assertNotCanceled,
+  deduplicateCandidates,
+  updateQuery,
+  updateRunStatus,
+} from "./utils";
 import { ScoredCandidate } from "./utils";
 import { mapWithConcurrency } from "./utils";
 import { generateSummary } from "./criteria_summarize/utils";
@@ -22,9 +34,7 @@ const formatTemplate = (
   template: string,
   vars: Record<string, string | number>
 ) => {
-  return template.replace(/\{(\w+)\}/g, (_, key) =>
-    String(vars[key] ?? "")
-  );
+  return template.replace(/\{(\w+)\}/g, (_, key) => String(vars[key] ?? ""));
 };
 
 export async function makeSqlQuery(
@@ -57,7 +67,9 @@ export async function makeSqlQuery(
     )) as string;
     await assertNotCanceled(runId);
     outText = sqlRefine(outText);
-    logger.log(`🎃 첫번째 쿼리 완성 [${((performance.now() - start1) / 1000).toFixed(3)}s] ${outText}\n`);
+    logger.log(
+      `🎃 첫번째 쿼리 완성 [${((performance.now() - start1) / 1000).toFixed(3)}s] ${outText}\n`
+    );
 
     const sqlQuery = `
 SELECT DISTINCT ON (T1.id)
@@ -72,7 +84,8 @@ ${outText}
     const sqlQueryWithGroupBy = ensureGroupBy(sqlQuery, "");
 
     const refinePrompt =
-      sqlExistsPrompt + `\n Input SQL Query: """${sqlQueryWithGroupBy}"""
+      sqlExistsPrompt +
+      `\n Input SQL Query: """${sqlQueryWithGroupBy}"""
 
 # Original Input from user
 Natural Language Query: ${queryText}
@@ -92,7 +105,9 @@ Criteria: ${criteria}
     await assertNotCanceled(runId);
 
     const final = sqlRefine(outText2, true);
-    logger.log(`🥬 2차로 쿼리 최종 완성 [${((performance.now() - start) / 1000).toFixed(3)}s] ${final} \n`);
+    logger.log(
+      `🥬 2차로 쿼리 최종 완성 [${((performance.now() - start) / 1000).toFixed(3)}s] ${final} \n`
+    );
 
     return final;
   } catch (e) {
@@ -101,7 +116,19 @@ Criteria: ${criteria}
   }
 }
 
-export const reranking = async ({ candidates, criteria, query_text, review_count_num, runId }: { candidates: any[], criteria: string[], query_text: string, review_count_num: number, runId: string }) => {
+export const reranking = async ({
+  candidates,
+  criteria,
+  query_text,
+  review_count_num,
+  runId,
+}: {
+  candidates: any[];
+  criteria: string[];
+  query_text: string;
+  review_count_num: number;
+  runId: string;
+}) => {
   const fullScore = criteria.length * 2;
   const start = performance.now();
 
@@ -119,7 +146,6 @@ export const reranking = async ({ candidates, criteria, query_text, review_count
     }
   }
 
-
   const flush = async (drainAll = false) => {
     // 한 번에 20개씩만 빼서 처리 (레이스 방지)
     while (buffer.length >= 20 || (drainAll && buffer.length > 0)) {
@@ -127,7 +153,9 @@ export const reranking = async ({ candidates, criteria, query_text, review_count
       const batch = buffer.splice(0, take);
 
       const forUpsert = batch
-        .filter((s) => typeof s.summary === "string" && s.summary.trim().length > 0)
+        .filter(
+          (s) => typeof s.summary === "string" && s.summary.trim().length > 0
+        )
         .map((s) => ({ candid_id: s.id, run_id: runId, text: s.summary }));
 
       if (forUpsert.length > 0) {
@@ -135,13 +163,19 @@ export const reranking = async ({ candidates, criteria, query_text, review_count
       }
 
       if (totalCandidates.length === 0) {
-        await supabase.from("runs").update({ status: StatusEnum.RERANKING_STREAMING }).eq("id", runId);
+        await supabase
+          .from("runs")
+          .update({ status: StatusEnum.RERANKING_STREAMING })
+          .eq("id", runId);
       }
 
       totalCandidates = [...totalCandidates, ...batch];
       totalCandidates.sort((a: any, b: any) => b.score - a.score);
 
-      const cands = totalCandidates.map((c: any) => ({ score: c.score, id: c.id }));
+      const cands = totalCandidates.map((c: any) => ({
+        score: c.score,
+        id: c.id,
+      }));
       const { data, error } = await supabase
         .from("runs_pages")
         .upsert({
@@ -156,7 +190,6 @@ export const reranking = async ({ candidates, criteria, query_text, review_count
       if (!error) runs_pages_id = data?.id ?? runs_pages_id;
     }
   };
-
 
   const scored: (ScoredCandidate & { summary: string })[] =
     await mapWithConcurrency(
@@ -177,7 +210,10 @@ export const reranking = async ({ candidates, criteria, query_text, review_count
           lines = [];
         }
 
-        const score = fullScore != 0 ? Math.round((sumScore(lines) / fullScore) * 100) / 100 : 1;
+        const score =
+          fullScore != 0
+            ? Math.round((sumScore(lines) / fullScore) * 100) / 100
+            : 1;
         const data = {
           id: candidate.id,
           score: score,
@@ -193,7 +229,9 @@ export const reranking = async ({ candidates, criteria, query_text, review_count
       }
     );
 
-  logger.log(`💠 전체 ${scored.length}명 스코어링 완료 [${((performance.now() - start) / 1000).toFixed(3)}s], 남은건 : ${buffer.length}`);
+  logger.log(
+    `💠 전체 ${scored.length}명 스코어링 완료 [${((performance.now() - start) / 1000).toFixed(3)}s], 남은건 : ${buffer.length}`
+  );
 
   await flushPromise;
   await flush(true);
@@ -207,7 +245,7 @@ export const reranking = async ({ candidates, criteria, query_text, review_count
     id: runs_pages_id ?? undefined,
   });
   return final;
-}
+};
 
 export type RunRow = {
   id: string;
@@ -231,7 +269,7 @@ export const searchDatabase = async ({
   limit = 50,
   offset = 0,
   review_count = 50,
-  locale = "en"
+  locale = "en",
 }: {
   query_text: string;
   criteria: string[];
@@ -250,14 +288,15 @@ export const searchDatabase = async ({
   let data: any[] | null = [];
   let error: any;
 
-  const { data: data1, error: error1 } = await rpc_set_timeout_and_execute_raw_sql_via_runs({
-    runId: run.id,
-    queryId: run.query_id,
-    sql_query,
-    page_idx: pageIdx,
-    limit_num: limit_num,
-    offset_num: offset,
-  });
+  const { data: data1, error: error1 } =
+    await rpc_set_timeout_and_execute_raw_sql_via_runs({
+      runId: run.id,
+      queryId: run.query_id,
+      sql_query,
+      page_idx: pageIdx,
+      limit_num: limit_num,
+      offset_num: offset,
+    });
 
   data = data1;
   error = error1;
@@ -267,21 +306,23 @@ export const searchDatabase = async ({
 
   // Fix query on error (timeout or syntax)
   if (error || candidates.length < 10) {
-    logger.log("First sql query error [error || candidates.length < 10] => error : ", error, ", Found candidates : ", data?.[0]?.length);
+    logger.log(
+      "First sql query error [error || candidates.length < 10] => error : ",
+      error,
+      ", Found candidates : ",
+      data?.[0]?.length
+    );
     // case 1) timeout
     // case 2) 너무 좁게 검색해서 결과가 잡히지 않음.
     let additional_prompt = "";
     if (error && String(error.message || "").includes("timeout"))
       additional_prompt = timeoutHandlePrompt;
 
-    if (candidates.length < 10)
-      additional_prompt = expandingSearchPrompt;
+    if (candidates.length < 10) additional_prompt = expandingSearchPrompt;
 
-    if (error)
-      additional_prompt += `\n\n [ERROR]\n ${error.message}\n`;
+    if (error) additional_prompt += `\n\n [ERROR]\n ${error.message}\n`;
 
-    if (error)
-      await updateRunStatus(run.id, StatusEnum.ERROR)
+    if (error) await updateRunStatus(run.id, StatusEnum.ERROR);
 
     if (!error && candidates.length < 10)
       await updateRunStatus(run.id, StatusEnum.ERROR);
@@ -306,14 +347,15 @@ ${sql_query}
     await assertNotCanceled(run.id);
     await updateQuery({ sql: sqlQueryWithGroupBy2 as string, runId: run.id });
 
-    const { data: data2, error: error2 } = await rpc_set_timeout_and_execute_raw_sql_via_runs({
-      runId: run.id,
-      queryId: run.query_id,
-      sql_query: sqlQueryWithGroupBy2 as string,
-      page_idx: pageIdx,
-      limit_num: limit_num,
-      offset_num: offset,
-    });
+    const { data: data2, error: error2 } =
+      await rpc_set_timeout_and_execute_raw_sql_via_runs({
+        runId: run.id,
+        queryId: run.query_id,
+        sql_query: sqlQueryWithGroupBy2 as string,
+        page_idx: pageIdx,
+        limit_num: limit_num,
+        offset_num: offset,
+      });
 
     await assertNotCanceled(run.id);
     data = data2;
@@ -325,32 +367,39 @@ ${sql_query}
 
   // 🍭 🍭 2차 시도 실패 시: Harper 최후의 보루 모드
   if (candidates.length < 5 || error) {
-    logger.log("🚨 [Harper Search] Falling back to Broad Keyword Mode due to low results/error.", error, data?.[0]?.length, "\n\n");
+    logger.log(
+      "🚨 [Harper Search] Falling back to Broad Keyword Mode due to low results/error.",
+      error,
+      data?.[0]?.length,
+      "\n\n"
+    );
 
     // 유저에게 상황을 친절하게 알림
     if (!error) {
       await updateRunStatus(run.id, StatusEnum.EXPANDING);
-    } else
-      await updateRunStatus(run.id, StatusEnum.EXPANDING);
+    } else await updateRunStatus(run.id, StatusEnum.EXPANDING);
 
-    let fallback_sql = '';
+    let fallback_sql = "";
 
     fallback_sql = await xaiInference(
       "grok-4-fast-reasoning",
       "You are a recruitment search expert for 'Harper'. Your goal is to maximize candidate recall using broad FTS keywords.",
-      tsvectorPrompt2 + `
+      tsvectorPrompt2 +
+        `
 [Input for search from user]
 criteria: ${criteria}
 input text for searching: ${query_text}
 `,
       0.5, // 유의어 확장을 위해 온도를 약간 올림
-      1, false, "tsvectorPrompt2"
-    )
+      1,
+      false,
+      "tsvectorPrompt2"
+    );
 
     const out = JSON.parse(fallback_sql);
     let finalQuery = sqlRefine(out.sql as string, false);
     logger.log(" 🦕 Third sql query : ", finalQuery, "\n\n");
-    finalQuery = fixFtsOrOperator(finalQuery)
+    finalQuery = fixFtsOrOperator(finalQuery);
 
     const final = `
     WITH identified_ids AS (
@@ -369,14 +418,15 @@ input text for searching: ${query_text}
     limit_num = limit + 50;
     review_count_num = review_count_num + 50;
 
-    const { data: finalData, error: finalError } = await rpc_set_timeout_and_execute_raw_sql_via_runs({
-      runId: run.id,
-      queryId: run.query_id,
-      sql_query: final,
-      page_idx: pageIdx,
-      limit_num: limit_num,
-      offset_num: offset,
-    });
+    const { data: finalData, error: finalError } =
+      await rpc_set_timeout_and_execute_raw_sql_via_runs({
+        runId: run.id,
+        queryId: run.query_id,
+        sql_query: final,
+        page_idx: pageIdx,
+        limit_num: limit_num,
+        offset_num: offset,
+      });
     await assertNotCanceled(run.id);
 
     data = finalData;
@@ -385,7 +435,9 @@ input text for searching: ${query_text}
     error = finalError;
 
     if (data && data[0]) {
-      logger.log(`✅ [Harper Search] Fallback successful. Found ${data[0].length} potential candidates.`);
+      logger.log(
+        `✅ [Harper Search] Fallback successful. Found ${data[0].length} potential candidates.`
+      );
     }
   }
 
@@ -404,7 +456,13 @@ input text for searching: ${query_text}
   await assertNotCanceled(run.id);
   await updateRunStatus(run.id, StatusEnum.RERANKING);
 
-  const scored = await reranking({ candidates, criteria, query_text, review_count_num, runId: run.id });
+  const scored = await reranking({
+    candidates,
+    criteria,
+    query_text,
+    review_count_num,
+    runId: run.id,
+  });
 
   return {
     data: scored,

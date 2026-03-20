@@ -14,7 +14,7 @@ import {
 import Footer from "@/components/landing/Footer";
 import LandingHeader from "@/components/landing/LandingHeader";
 import { LinkIcon } from "lucide-react";
-import { HERO_DOT_BACKGROUND_STYLE } from "..";
+import { HERO_DOT_BACKGROUND_STYLE } from "../find";
 import { useRouter } from "next/router";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { supabase } from "@/lib/supabase";
