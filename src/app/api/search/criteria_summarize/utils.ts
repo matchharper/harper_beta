@@ -3,7 +3,7 @@ import { logger } from "@/utils/logger";
 import { buildSummary } from "@/utils/textprocess";
 
 export const generateSummary = async (
-  doc: string,
+  doc: any,
   criteria: string[],
   raw_input_text: string
 ) => {
@@ -54,7 +54,7 @@ Output:
   return summary;
 };
 
-export const generateOneLineSummary = async (doc: string) => {
+export const generateOneLineSummary = async (doc: any) => {
   const information = buildSummary(doc);
 
   const systemPrompt = `You are a helpful assistant.`;

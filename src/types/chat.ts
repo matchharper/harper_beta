@@ -1,10 +1,12 @@
 import { UiSegment } from "@/hooks/chat/useChatSession";
+import { SearchSource } from "@/lib/searchSource";
 
 export type CriteriaCardBlock = {
   type: "criteria_card";
   thinking: string;
   criteria: string[];
-  ready: boolean;
+  ready?: boolean;
+  sources?: SearchSource[];
 };
 
 export type ToolStatusBlock = {

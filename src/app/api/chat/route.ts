@@ -9,12 +9,7 @@ import {
 import { ChatScope } from "@/hooks/chat/useChatSession";
 import { buildLongDoc } from "@/utils/textprocess";
 import { logger } from "@/utils/logger";
-import { queryTypeToSearchSource } from "@/lib/searchSource";
-import {
-  CANDID_SYSTEM_PROMPT,
-  SCHOLAR_SYSTEM_PROMPT,
-  SYSTEM_PROMPT,
-} from "./chat_prompt";
+import { CANDID_SYSTEM_PROMPT, SYSTEM_PROMPT } from "./chat_prompt";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -105,20 +100,8 @@ async function fetchLatestMemory(userId: string) {
   return data ?? null;
 }
 
-async function loadQueryPromptBase(queryId?: string) {
-  if (!queryId) return SYSTEM_PROMPT;
-
-  const { data, error } = await supabaseAdmin
-    .from("queries")
-    .select("type")
-    .eq("query_id", queryId)
-    .maybeSingle();
-
-  if (error) throw error;
-
-  return queryTypeToSearchSource(data?.type) === "scholar"
-    ? SCHOLAR_SYSTEM_PROMPT
-    : SYSTEM_PROMPT;
+async function loadQueryPromptBase(_queryId?: string) {
+  return SYSTEM_PROMPT;
 }
 
 function buildAutomationSystemPrompt(

@@ -1,5 +1,5 @@
 import { dateToFormatLong } from "@/utils/textprocess";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -7,10 +7,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Command, MoreHorizontal } from "lucide-react";
-import { QueryType } from "@/types/type";
+import { Command, MoreHorizontal, Pin } from "lucide-react";
 import { Tooltips } from "../ui/tooltip";
 import Link from "next/link";
+import { QueryHistoryItem } from "@/hooks/useSearchHistory";
 
 const HistoryItem = ({
   queryItem,
@@ -18,12 +18,17 @@ const HistoryItem = ({
   collapsed,
   isActive,
 }: {
-  queryItem: QueryType;
+  queryItem: QueryHistoryItem;
   onDelete: (queryId: string) => void;
   collapsed: boolean;
   isActive: boolean;
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
+  const isLiked = (queryItem.runs ?? []).some(
+    (run) =>
+      Number(run.feedback ?? 0) === 1 &&
+      String(run.status ?? "").toLowerCase() !== "stopped"
+  );
 
   return (
     <Link
@@ -39,16 +44,34 @@ const HistoryItem = ({
           collapsed ? "max-w-full" : "max-w-[85%]"
         }`}
       >
-        <div className="truncate text-[13px] w-full">
-          {queryItem.query_keyword !== ""
-            ? queryItem.query_keyword
-            : queryItem.raw_input_text}
+        <div className="flex w-full items-center gap-1.5">
+          <div className="truncate text-[13px] flex-1">
+            {queryItem.query_keyword !== ""
+              ? queryItem.query_keyword
+              : queryItem.raw_input_text}
+          </div>
+          {collapsed && isLiked ? (
+            <Pin
+              className="h-3 w-3 shrink-0 text-accenta1"
+              fill="currentColor"
+              strokeWidth={1.8}
+            />
+          ) : null}
         </div>
         {!collapsed && (
-          <div className="text-[12px] text-hgray600">
-            {dateToFormatLong(
-              new Date(queryItem.created_at).toLocaleDateString()
-            )}
+          <div className="flex flex-row w-full items-center justify-start gap-1 text-xs text-hgray600">
+            <span>
+              {dateToFormatLong(
+                new Date(queryItem.created_at).toLocaleDateString()
+              )}
+            </span>
+            {isLiked ? (
+              <Pin
+                className="h-2.5 w-2.5 shrink-0 text-accenta1"
+                fill="currentColor"
+                strokeWidth={1.8}
+              />
+            ) : null}
           </div>
         )}
       </div>

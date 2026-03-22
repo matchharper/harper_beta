@@ -84,6 +84,8 @@ export default function BookmarksPage() {
   const hasNext = data?.hasNext ?? false;
   const hasPrev = pageIdx > 0;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const isInitialFolderLoading =
+    mode === "folder" && selectedFolderId === -1 && isFoldersLoading;
 
   const handleConfirmDeleteFolder = async () => {
     if (!folderToDelete || !userId) return;
@@ -118,10 +120,7 @@ export default function BookmarksPage() {
     setPageByMode((prev) => ({ ...prev, folder: 0 }));
   };
 
-  if (
-    isLoading ||
-    (mode === "folder" && selectedFolderId === -1 && isFoldersLoading)
-  ) {
+  if (isInitialFolderLoading) {
     return (
       <div className="px-4">
         <Loading className="text-hgray600" />
@@ -214,13 +213,19 @@ export default function BookmarksPage() {
         </div>
       </div>
 
-      {items.length === 0 && !isFetching && (
+      {isLoading ? (
+        <div className="px-4 py-10">
+          <Loading className="text-hgray600" />
+        </div>
+      ) : null}
+
+      {!isLoading && items.length === 0 && !isFetching && (
         <ShortlistEmptyState
           mode={mode === "requested" ? "requested" : "bookmark"}
         />
       )}
 
-      {items.length > 0 && (
+      {!isLoading && items.length > 0 && (
         <>
           <div className="flex items-center justify-between gap-3 mb-0 mt-4 px-4">
             <div className="flex flex-row items-center gap-3 text-sm text-hgray900">

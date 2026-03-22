@@ -16,7 +16,13 @@ import { SummaryScore } from "@/types/type";
 import { useLogEvent } from "@/hooks/useLog";
 import Link from "next/link";
 import ShortlistMemoEditor from "./ui/ShortlistMemoEditor";
-import { SearchSource, isScholarSearchSource } from "@/lib/searchSource";
+import {
+  SearchSource,
+  extractSearchSourcesFromLinks,
+  getSearchSourceLabel,
+  getSearchSourceLogoPath,
+  isScholarSearchSource,
+} from "@/lib/searchSource";
 import {
   buildEvidencePaperMeta,
   buildEvidencePaperTooltip,
@@ -28,15 +34,19 @@ import {
   formatScholarPaperCount,
 } from "@/lib/scholarPreview";
 import Image from "next/image";
+import { logger } from "@/utils/logger";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
 
 function sanitizeSummaryReason(raw: string) {
-  return String(raw ?? "")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/?strong>/gi, "")
-    .replace(/<[^>]+>/g, "")
-    .trim();
+  return (
+    String(raw ?? "")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<strong>/gi, "<span class='font-normal text-white'>")
+      .replace(/<\/strong>/gi, "</span>")
+      // .replace(/<\/?strong>/gi, "")
+      .trim()
+  );
 }
 
 function sanitizeSummaryText(raw: string | null | undefined) {
@@ -137,6 +147,7 @@ function CandidateCard({
   const isScholarSource = isScholarSearchSource(sourceType);
   const isOnlyScholar =
     !!scholarPreview && exps.length === 0 && edus.length === 0;
+  const linkSources = useMemo(() => extractSearchSourcesFromLinks(c.links), [c.links]);
   const evidencePaperMeta = useMemo(
     () => buildEvidencePaperMeta(c.search_evidence),
     [c.search_evidence]
@@ -174,6 +185,8 @@ function CandidateCard({
     return buildScholarResearchTooltip(scholarPreview);
   }, [scholarPreview]);
 
+  logger.log("shortlistSummaryText ", shortlistSummaryText);
+
   return (
     <Link
       href={profileHref}
@@ -205,6 +218,23 @@ function CandidateCard({
                 ) : c.location ? (
                   <div className="text-sm text-hgray600 font-normal">
                     {locationEnToKo(c.location)}
+                  </div>
+                ) : null}
+                {linkSources.length > 0 ? (
+                  <div className="mt-2 flex items-center gap-1.5">
+                    {linkSources.map((source) => (
+                      <Tooltips key={source} text={getSearchSourceLabel(source)}>
+                        <span className="flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-white/5">
+                          <Image
+                            src={getSearchSourceLogoPath(source)}
+                            alt={getSearchSourceLabel(source)}
+                            width={12}
+                            height={12}
+                            className="object-contain"
+                          />
+                        </span>
+                      </Tooltips>
+                    ))}
                   </div>
                 ) : null}
                 {/* {c.links && c.links.length > 0 && (
@@ -333,9 +363,8 @@ function CandidateCard({
               className={`text-[14px] whitespace-pre-wrap break-words ${
                 synthesizedSummary.length !== 0 ? "mt-6" : ""
               }`}
-            >
-              {shortlistSummaryText}
-            </div>
+              dangerouslySetInnerHTML={{ __html: shortlistSummaryText }}
+            />
           )}
         </div>
       )}
@@ -366,7 +395,6 @@ function CandidateCard({
           isText={false}
           size="sm"
         />
-        {/* <Requestbutton c={c} isBeta={true} /> */}
       </div>
     </Link>
   );
@@ -425,7 +453,7 @@ const CriteriaBox = ({
       {/* </Tooltips> */}
       {reason && (
         <div className="mt-2 text-[14px] font-normal whitespace-pre-wrap break-words">
-          {safeReasonText}
+          <div dangerouslySetInnerHTML={{ __html: safeReasonText }} />
         </div>
       )}
     </div>

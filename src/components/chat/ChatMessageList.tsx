@@ -47,6 +47,22 @@ function sanitizeInlineChatText(raw: string) {
     .replace(/#/g, "");
 }
 
+const SOURCE_TERM_RE = /\b(linkedin|scholar|github)\b/gi;
+const SOURCE_TERM_EXACT_RE = /^(linkedin|scholar|github)$/i;
+
+function renderHighlightedChatText(text: string, keyPrefix: string) {
+  return text.split(SOURCE_TERM_RE).map((part, idx) => {
+    if (!part) return null;
+    if (!SOURCE_TERM_EXACT_RE.test(part)) return part;
+
+    return (
+      <span className="text-white" key={`${keyPrefix}-${idx}`}>
+        {part}
+      </span>
+    );
+  });
+}
+
 function ChatMessageList({
   messages,
   isStreaming,
@@ -142,17 +158,15 @@ function ChatMessageList({
               {isUser ? (
                 "me"
               ) : (
-                <div className="flex flex-row items-center justify-start gap-1.5">
-                  <span className="text-xs text-ngray600">
-                    {/* <Bolt className="w-3 h-3" /> */}
-                    <Image
-                      src="/svgs/logo.svg"
-                      alt="Harper"
-                      width={10}
-                      height={10}
-                      className="text-hgray600"
-                    />
-                  </span>
+                <div className="flex flex-row items-center justify-start gap-1.5 text-sm text-hgray900">
+                  {/* <Bolt className="w-3 h-3" /> */}
+                  <Image
+                    src="/svgs/logo.svg"
+                    alt="Harper"
+                    width={10}
+                    height={10}
+                    className="text-hgray600"
+                  />
                   <span>Harper</span>
                 </div>
               )}
@@ -170,7 +184,12 @@ function ChatMessageList({
                         key={`text-${idx}-${si}`}
                         className="whitespace-pre-wrap break-words"
                       >
-                        <span>{safeText}</span>
+                        <span>
+                          {renderHighlightedChatText(
+                            safeText,
+                            `text-${idx}-${si}`
+                          )}
+                        </span>
 
                         {!isUser &&
                           isStreaming &&

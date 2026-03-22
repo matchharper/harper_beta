@@ -1,12 +1,13 @@
 // components/result/ResultHeader.tsx
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Check,
   Clock,
   GraduationCap,
   Loader2,
+  Pin,
   ThumbsDown,
-  ThumbsUp,
 } from "lucide-react";
 import { dateToFormatLong } from "@/utils/textprocess";
 import { supabase } from "@/lib/supabase";
@@ -14,7 +15,7 @@ import Timeline from "./timeline";
 import { useMessages } from "@/i18n/useMessage";
 import { StatusEnum } from "@/types/type";
 import { SearchSource } from "@/lib/searchSource";
-import Image from "next/image";
+import { runKey } from "@/hooks/useRunDetail";
 
 type Props = {
   queryItem: any;
@@ -32,6 +33,11 @@ export default function ResultHeader({
   sourceType = "linkedin",
 }: Props) {
   const { m } = useMessages();
+  const qc = useQueryClient();
+  const [optimisticFeedback, setOptimisticFeedback] = useState(feedback);
+  const [pendingAction, setPendingAction] = useState<"like" | "dislike" | null>(
+    null
+  );
   const statusMessage = useMemo(() => {
     return status;
   }, [status]);
@@ -43,33 +49,61 @@ export default function ResultHeader({
       </div>
     ) : null;
 
-  // implement like (= runs.feedback = 1)
-  const like = useCallback(() => {
-    if (!runId) return;
-    supabase
-      .from("runs")
-      .update({ feedback: feedback === 1 ? 0 : 1 })
-      .eq("id", runId)
-      .then(({ error }) => {
-        if (error) {
-          console.error("Like feedback update failed:", error);
-        }
-      });
-  }, [feedback, runId]);
+  useEffect(() => {
+    if (pendingAction) return;
+    setOptimisticFeedback(feedback);
+  }, [feedback, pendingAction]);
 
-  // implement dislike (= runs.feedback = -1)
+  const updateFeedback = useCallback(
+    async (nextFeedback: number, action: "like" | "dislike") => {
+      if (!runId || pendingAction) return;
+
+      const prevFeedback = optimisticFeedback;
+      setPendingAction(action);
+      setOptimisticFeedback(nextFeedback);
+      qc.setQueryData(runKey(runId), (current: any) =>
+        current ? { ...current, feedback: nextFeedback } : current
+      );
+
+      const { error } = await supabase
+        .from("runs")
+        .update({ feedback: nextFeedback })
+        .eq("id", runId);
+
+      if (error) {
+        console.error(`${action} feedback update failed:`, error);
+        setOptimisticFeedback(prevFeedback);
+        qc.setQueryData(runKey(runId), (current: any) =>
+          current ? { ...current, feedback: prevFeedback } : current
+        );
+      } else {
+        qc.invalidateQueries({ queryKey: ["queriesHistory"] });
+        qc.invalidateQueries({
+          queryKey: runKey(runId),
+          exact: true,
+          type: "active",
+        });
+      }
+
+      setPendingAction(null);
+    },
+    [optimisticFeedback, pendingAction, qc, runId]
+  );
+
+  const pin = useCallback(() => {
+    const nextFeedback = optimisticFeedback === 1 ? 0 : 1;
+    void updateFeedback(nextFeedback, "like");
+  }, [optimisticFeedback, updateFeedback]);
+
   const dislike = useCallback(() => {
-    if (!runId) return;
-    supabase
-      .from("runs")
-      .update({ feedback: feedback === -1 ? 0 : -1 })
-      .eq("id", runId)
-      .then(({ error }) => {
-        if (error) {
-          console.error("Dislike feedback update failed:", error);
-        }
-      });
-  }, [feedback, runId]);
+    const nextFeedback = optimisticFeedback === -1 ? 0 : -1;
+    void updateFeedback(nextFeedback, "dislike");
+  }, [optimisticFeedback, updateFeedback]);
+
+  const isLikeActive = optimisticFeedback === 1;
+  const isDislikeActive = optimisticFeedback === -1;
+  const isLikePending = pendingAction === "like";
+  const isDislikePending = pendingAction === "dislike";
 
   if (!queryItem) return null;
 
@@ -98,26 +132,50 @@ export default function ResultHeader({
             <div className="text-sm text-hgray600">{sourceBadgeText}</div>
           ) : null}
         </div>
-        <div className="flex flex-row items-center justify-center gap-4 text-hgray600">
+        <div className="flex flex-row items-center justify-center gap-3 text-hgray600">
           <button
-            onClick={like}
-            className="p-1.5 rounded-sm hover:bg-white/10 cursor-pointer"
+            onClick={pin}
+            disabled={!runId || pendingAction !== null}
+            aria-label={
+              isLikeActive ? "Unpin search result" : "Pin search result"
+            }
+            aria-pressed={isLikeActive}
+            className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors duration-150 ${
+              isLikeActive
+                ? "bg-accenta1/14 text-accenta1"
+                : "hover:bg-white/10 hover:text-white"
+            } ${pendingAction ? "cursor-wait" : "cursor-pointer"}`}
           >
-            <ThumbsUp
-              className={`w-3.5 h-3.5`}
-              fill={feedback === 1 ? "rgba(255,255,255,0.9)" : "none"}
-              strokeWidth={1.6}
-            />
+            {isLikePending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.8} />
+            ) : (
+              <Pin
+                className="h-3.5 w-3.5"
+                fill={isLikeActive ? "currentColor" : "none"}
+                strokeWidth={1.8}
+              />
+            )}
           </button>
           <button
             onClick={dislike}
-            className="p-1.5 rounded-sm hover:bg-white/10 cursor-pointer"
+            disabled={!runId || pendingAction !== null}
+            aria-label="Dislike search result"
+            aria-pressed={isDislikeActive}
+            className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors duration-150 ${
+              isDislikeActive
+                ? "bg-sky-500/12 text-sky-300 shadow-[0_0_18px_rgba(125,211,252,0.16)]"
+                : "hover:bg-white/10 hover:text-white"
+            } ${pendingAction ? "cursor-wait" : "cursor-pointer"}`}
           >
-            <ThumbsDown
-              className={`w-3.5 h-3.5`}
-              fill={feedback === -1 ? "rgba(255,255,255,0.9)" : "none"}
-              strokeWidth={1.6}
-            />
+            {isDislikePending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.8} />
+            ) : (
+              <ThumbsDown
+                className="h-3.5 w-3.5"
+                fill={isDislikeActive ? "currentColor" : "none"}
+                strokeWidth={1.8}
+              />
+            )}
           </button>
         </div>
       </div>

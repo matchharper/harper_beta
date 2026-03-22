@@ -708,9 +708,9 @@ function CandidateProfileDetailPage({
               <button
                 type="button"
                 onClick={() => setShowAllPublications(true)}
-                className="mt-3 inline-flex items-center rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-hgray800 transition hover:bg-white/10"
+                className="mt-3 inline-flex items-center rounded-full bg-white/5 px-5 py-2.5 font-light text-sm text-hgray700 transition hover:bg-white/10"
               >
-                + {remainingPublicationCount}개 더보기
+                Show {remainingPublicationCount} more publications
               </button>
             )}
           </Box>

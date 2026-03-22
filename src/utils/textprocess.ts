@@ -1,4 +1,5 @@
 const MIN_CHUNK_LEN = 15;
+const MAX_SUMMARY_SCHOLAR_PAPERS = 10;
 
 const ABBREVIATIONS = new Set([
   "mr",
@@ -320,8 +321,6 @@ export const buildLongDoc = (doc: any) => {
 };
 
 export const buildSummary = (doc: any) => {
-  console.log("\n\ndoc", doc, "\n\n");
-
   const exps = doc.experience_user?.map((exp: any, idx: number) => {
     let expText = `\n${idx + 1}. Role: ${exp.role}, Company: ${
       exp.company_db.name
@@ -376,6 +375,13 @@ export const buildSummary = (doc: any) => {
         pub.published_at
       }`;
     });
+  const scholarPublications = doc.scholar_papers
+    ?.slice(0, MAX_SUMMARY_SCHOLAR_PAPERS)
+    .map((paper: any, idx: number) => {
+      return `${idx + 1}. Title: ${paper.title}, Published At: ${
+        paper.published_at
+      }, Citations: ${paper.total_citations}`;
+    });
 
   // const awards = doc.awards
   //   ?.slice(0, 20)
@@ -397,6 +403,12 @@ export const buildSummary = (doc: any) => {
   if (doc.headline) {
     docSummary += `\nHeadline: ${doc.headline}`;
   }
+  if (doc.scholar_profile) {
+    docSummary += `\nScholar Affiliation: ${doc.scholar_profile.affiliation ?? ""}`;
+    docSummary += `\nScholar Topics: ${doc.scholar_profile.topics ?? ""}`;
+    docSummary += `\nScholar Citations: ${doc.scholar_profile.total_citations_num ?? 0}`;
+    docSummary += `\nScholar h-index: ${doc.scholar_profile.h_index ?? 0}`;
+  }
   if (exps) {
     docSummary += `\nExperiences: ${exps}`;
   }
@@ -405,6 +417,9 @@ export const buildSummary = (doc: any) => {
   }
   if (publications) {
     docSummary += `\nPublications: ${publications}`;
+  }
+  if (scholarPublications?.length) {
+    docSummary += `\nScholar Papers: ${scholarPublications}`;
   }
 
   return docSummary;

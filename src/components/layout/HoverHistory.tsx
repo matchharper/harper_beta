@@ -36,7 +36,7 @@ const HoverHistory = ({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
-              className="w-56 border-none text-white px-1 bg-white/0 mt-[-4px]"
+              className="w-64 border-none text-white px-1 bg-white/0 mt-[-4px]"
               side="right"
               align="start"
               sideOffset={0}
@@ -73,7 +73,11 @@ const HoverHistory = ({
           <div>History</div>
           <div>
             {openHistory ? (
-              <ChevronDown className="hidden group-hover:block" size={16} strokeWidth={1.5} />
+              <ChevronDown
+                className="hidden group-hover:block"
+                size={16}
+                strokeWidth={1.5}
+              />
             ) : (
               <ChevronRight size={16} strokeWidth={1.5} />
             )}

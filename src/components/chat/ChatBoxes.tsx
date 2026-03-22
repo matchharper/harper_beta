@@ -1,5 +1,6 @@
 // components/chat/ChatMessageList.tsx
 import React, { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import type {
   CriteriaCardBlock,
   ToolStatusBlock,
@@ -10,15 +11,33 @@ import type {
 import {
   Bolt,
   Check,
+  ChevronDown,
+  ChevronUp,
   FileSpreadsheet,
   Loader2,
   Plus,
+  Pin,
   Paperclip,
   ArrowRight,
   Pencil,
 } from "lucide-react";
 import { useRouter } from "next/router";
 import { LinkChip } from "../information/LinkChips";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
+import {
+  ENABLED_SEARCH_SOURCE_VALUES,
+  EnabledSearchSource,
+  getSearchSourceLabel,
+  getSearchSourceLogoPath,
+  normalizeSearchSources,
+} from "@/lib/searchSource";
+import { useRunDetail } from "@/hooks/useRunDetail";
+
+const DEFAULT_CRITERIA_CARD_SOURCES: EnabledSearchSource[] = ["linkedin"];
 
 type CriteriaItemProps = {
   criteria: string;
@@ -283,6 +302,29 @@ const QueryTextItem = React.memo(function QueryTextItem({
   );
 });
 
+function SourceIcons({ sources }: { sources: EnabledSearchSource[] }) {
+  if (sources.length === 0) return null;
+
+  return (
+    <div className="flex items-center gap-1">
+      {sources.map((source) => (
+        <span
+          key={source}
+          className="flex items-center justify-center p-1 rounded-full bg-white"
+        >
+          <Image
+            src={getSearchSourceLogoPath(source)}
+            alt={getSearchSourceLabel(source)}
+            width={12}
+            height={1}
+            className="object-contain"
+          />
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export const CriteriaCard = React.memo(function CriteriaCard({
   block,
   onConfirm,
@@ -295,23 +337,39 @@ export const CriteriaCard = React.memo(function CriteriaCard({
   disabled?: boolean;
 }) {
   const [pendingAdd, setPendingAdd] = React.useState(false);
-  const [draft, setDraft] = React.useState<CriteriaCardBlock>(block);
+  const [sourcesMenuOpen, setSourcesMenuOpen] = React.useState(false);
+  const [draft, setDraft] = React.useState<CriteriaCardBlock>({
+    ...block,
+    sources: normalizeSearchSources(block.sources, {
+      enabledOnly: true,
+      fallback: DEFAULT_CRITERIA_CARD_SOURCES,
+    }),
+  });
 
   useEffect(() => {
-    setDraft(block);
+    setDraft({
+      ...block,
+      sources: normalizeSearchSources(block.sources, {
+        enabledOnly: true,
+        fallback: DEFAULT_CRITERIA_CARD_SOURCES,
+      }),
+    });
   }, [block]);
+
+  const updateDraft = (next: CriteriaCardBlock) => {
+    onChange?.(next);
+    setDraft(next);
+  };
 
   const updateCriteriaAt = (idx: number, value: string) => {
     const next = [...(draft.criteria ?? [])];
     next[idx] = value;
-    onChange?.({ ...draft, criteria: next });
-    setDraft({ ...draft, criteria: next });
+    updateDraft({ ...draft, criteria: next });
   };
 
   const removeCriteriaAt = (idx: number) => {
     const next = [...(draft.criteria ?? [])].filter((_, i) => i !== idx);
-    onChange?.({ ...draft, criteria: next });
-    setDraft({ ...draft, criteria: next });
+    updateDraft({ ...draft, criteria: next });
   };
 
   const commitAdd = (value: string) => {
@@ -321,8 +379,7 @@ export const CriteriaCard = React.memo(function CriteriaCard({
       return;
     }
     const next = [...(draft.criteria ?? []), v];
-    onChange?.({ ...draft, criteria: next });
-    setDraft({ ...draft, criteria: next });
+    updateDraft({ ...draft, criteria: next });
     setPendingAdd(false);
   };
 
@@ -332,8 +389,25 @@ export const CriteriaCard = React.memo(function CriteriaCard({
 
   const updateQueryText = (value: string) => {
     const next = { ...draft, thinking: value };
-    onChange?.(next);
-    setDraft(next);
+    updateDraft(next);
+  };
+
+  const selectedSources = normalizeSearchSources(draft.sources, {
+    enabledOnly: true,
+    fallback: DEFAULT_CRITERIA_CARD_SOURCES,
+  }) as EnabledSearchSource[];
+
+  const toggleSource = (source: EnabledSearchSource) => {
+    const nextSources = selectedSources.includes(source)
+      ? selectedSources.filter((item) => item !== source)
+      : [...selectedSources, source];
+
+    if (nextSources.length === 0) return;
+
+    updateDraft({
+      ...draft,
+      sources: nextSources,
+    });
   };
 
   return (
@@ -354,8 +428,10 @@ export const CriteriaCard = React.memo(function CriteriaCard({
           className={`mt-2 rounded-3xl border border-white/10 bg-white/5 px-4 py-4 transition-all duration-200
         ${disabled ? "pointer-events-none cursor-default" : ""}`}
         >
-          <div className="text-sm text-hgray900 font-semibold flex items-center gap-2">
-            검색 방법
+          <div className="flex items-start justify-between gap-3">
+            <div className="text-sm text-hgray900 font-semibold flex items-center gap-2">
+              검색 방법
+            </div>
           </div>
 
           <QueryTextItem
@@ -363,6 +439,89 @@ export const CriteriaCard = React.memo(function CriteriaCard({
             onConfirm={updateQueryText}
           />
 
+          <div className="mt-3 text-xs text-hgray600">Sources</div>
+
+          <div className="flex flex-row gap-1 items-center justify-between">
+            <div className="text-sm text-white font-light">
+              검색에 사용할 소스
+            </div>
+
+            <DropdownMenu
+              open={sourcesMenuOpen}
+              onOpenChange={setSourcesMenuOpen}
+            >
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 rounded-full pr-3 pl-2.5 py-1.5 text-sm bg-white/5 border border-white/10 text-hgray900 transition-all duration-200 hover:bg-white/10"
+                >
+                  <SourceIcons sources={selectedSources} />
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="w-[220px] rounded-2xl border-white/10 bg-ngray300/70 p-2 backdrop-blur-sm"
+              >
+                <div className="px-1 pb-2 text-[11px] text-hgray700">
+                  검색에 사용할 소스를 선택하세요.
+                </div>
+                <div className="flex flex-col gap-1">
+                  {ENABLED_SEARCH_SOURCE_VALUES.map((source) => {
+                    const checked = selectedSources.includes(source);
+                    return (
+                      <button
+                        key={source}
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          toggleSource(source);
+                        }}
+                        className={`group flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition-all duration-200 ${
+                          checked ? "bg-white/10" : "hover:bg-white/5"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 text-hgray900">
+                          <Image
+                            src={getSearchSourceLogoPath(source)}
+                            alt={getSearchSourceLabel(source)}
+                            width={14}
+                            height={14}
+                            className="object-contain"
+                          />
+                          <span>{getSearchSourceLabel(source)}</span>
+                        </div>
+                        <div className="relative h-3.5 w-3.5 shrink-0 overflow-hidden">
+                          <Check
+                            className={`absolute inset-0 h-3.5 w-3.5 text-accenta1 transition-all duration-200 ${
+                              checked
+                                ? "opacity-100 translate-y-0 group-hover:opacity-0 group-hover:-translate-y-1.5"
+                                : "pointer-events-none opacity-0 translate-y-1.5"
+                            }`}
+                          />
+                          <ChevronDown
+                            className={`absolute inset-0 h-3.5 w-3.5 text-hgray700 transition-all duration-200 ${
+                              checked
+                                ? "opacity-0 translate-y-1.5 group-hover:opacity-100 group-hover:translate-y-0"
+                                : "pointer-events-none opacity-0 translate-y-1.5"
+                            }`}
+                          />
+                          <ChevronUp
+                            className={`absolute inset-0 h-3.5 w-3.5 text-hgray700 transition-all duration-200 ${
+                              checked
+                                ? "pointer-events-none opacity-0 -translate-y-1.5"
+                                : "opacity-0 translate-y-1.5 group-hover:opacity-100 group-hover:translate-y-0"
+                            }`}
+                          />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
           <div className="mt-3 text-xs text-hgray600">Criteria</div>
 
           {Array.isArray(draft.criteria) && draft.criteria.length > 0 && (
@@ -645,6 +804,8 @@ export const SearchResultCard = React.memo(function SearchResultCard({
   );
   const canOpen = !!runId && !!queryId;
   const canRetry = !!runId && !!onRetrySearch && !isRetrying;
+  const { data: runData } = useRunDetail(runId || undefined);
+  const isPinned = Number((runData as any)?.feedback ?? 0) === 1;
 
   const openResults = () => {
     if (!canOpen) return;
@@ -686,7 +847,16 @@ export const SearchResultCard = React.memo(function SearchResultCard({
             <FileSpreadsheet className="w-4 h-4 text-green-500" />
             <span>{firstText}</span>
           </div>
-          <ArrowRight className="w-4 h-4 text-hgray900" />
+          <div className="flex items-center gap-2">
+            {isPinned ? (
+              <Pin
+                className="h-3.5 w-3.5 text-accenta1"
+                fill="currentColor"
+                strokeWidth={1.8}
+              />
+            ) : null}
+            <ArrowRight className="w-4 h-4 text-hgray900" />
+          </div>
         </div>
       </div>
     );
@@ -785,9 +955,18 @@ export const SearchResultCard = React.memo(function SearchResultCard({
   return (
     <div className="w-full mt-4">
       <div className="w-full rounded-2xl border border-white/10 bg-white/[0.03] text-hgray900 overflow-hidden">
-        <div className="flex text-[13px] items-center gap-2 border-b border-white/10 px-4 py-3">
-          <FileSpreadsheet className="w-3 h-3 text-green-500" />
-          <span className="font-medium">검색 결과</span>
+        <div className="flex text-[13px] items-center justify-between gap-2 border-b border-white/10 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <FileSpreadsheet className="w-3 h-3 text-green-500" />
+            <span className="font-medium">검색 결과</span>
+          </div>
+          {isPinned ? (
+            <Pin
+              className="h-3.5 w-3.5 text-accenta1"
+              fill="currentColor"
+              strokeWidth={1.8}
+            />
+          ) : null}
         </div>
 
         <div className="px-4 py-4">
