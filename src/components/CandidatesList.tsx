@@ -42,7 +42,7 @@ function sanitizeSummaryReason(raw: string) {
   return (
     String(raw ?? "")
       .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<strong>/gi, "<span class='font-normal text-white'>")
+      .replace(/<strong>/gi, "<span class='font-medium text-white'>")
       .replace(/<\/strong>/gi, "</span>")
       // .replace(/<\/?strong>/gi, "")
       .trim()
@@ -147,7 +147,10 @@ function CandidateCard({
   const isScholarSource = isScholarSearchSource(sourceType);
   const isOnlyScholar =
     !!scholarPreview && exps.length === 0 && edus.length === 0;
-  const linkSources = useMemo(() => extractSearchSourcesFromLinks(c.links), [c.links]);
+  const linkSources = useMemo(
+    () => extractSearchSourcesFromLinks(c.links),
+    [c.links]
+  );
   const evidencePaperMeta = useMemo(
     () => buildEvidencePaperMeta(c.search_evidence),
     [c.search_evidence]
@@ -221,15 +224,18 @@ function CandidateCard({
                   </div>
                 ) : null}
                 {linkSources.length > 0 ? (
-                  <div className="mt-2 flex items-center gap-1.5">
+                  <div className="mt-2 flex items-center gap-2">
                     {linkSources.map((source) => (
-                      <Tooltips key={source} text={getSearchSourceLabel(source)}>
-                        <span className="flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-white/5">
+                      <Tooltips
+                        key={source}
+                        text={getSearchSourceLabel(source)}
+                      >
+                        <span className="flex items-center justify-center">
                           <Image
                             src={getSearchSourceLogoPath(source)}
                             alt={getSearchSourceLabel(source)}
-                            width={12}
-                            height={12}
+                            width={14}
+                            height={14}
                             className="object-contain"
                           />
                         </span>

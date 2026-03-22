@@ -163,7 +163,7 @@ export default function ResultHeader({
             aria-pressed={isDislikeActive}
             className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors duration-150 ${
               isDislikeActive
-                ? "bg-sky-500/12 text-sky-300 shadow-[0_0_18px_rgba(125,211,252,0.16)]"
+                ? "bg-sky-500/12 text-white/90"
                 : "hover:bg-white/10 hover:text-white"
             } ${pendingAction ? "cursor-wait" : "cursor-pointer"}`}
           >
