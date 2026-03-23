@@ -35,12 +35,17 @@ const faqs = [
   {
     question: "등록해도 연락을 받는 사람은 소수인가요?",
     answer:
-      "아니요. 정말 잘 맞는 기회가 있을 때만 연락드립니다.<br />무작위 제안이나 관련 없는 포지션은 보내지 않습니다.",
+      "아니요. 특정 소수만 노출되는 구조가 아닙니다. 기업이 직접 검색하는 방식이 아니라, AI가 각 후보자의 실제 작업과 경험을 기반으로 매칭을 생성하기 때문에 다양한 후보자에게 기회가 열립니다.\
+      또한 매칭은 지속적으로 업데이트되며, 시간이 지나도 새로운 기업과 연결될 수 있습니다.",
   },
   {
     question: "기존 채용공고나 헤드헌터랑 어떻게 다른가요?",
     answer:
-      "이력서 키워드가 아니라, 실제 작업한 코드·논문·프로젝트를 기반으로 매칭합니다.<br />그래서 더 정확하고, 불필요한 제안이 거의 없습니다.",
+      "Harper는 현재 일반적으로 발견할 수 없는 좋은 기회들을 연결해줍니다. AI가 각 후보자의 실제 작업과 경험을 기반으로 매칭을 생성하기 때문에 다양한 후보자에게 기회가 열립니다.",
+  },
+  {
+    question: "기존 채용공고나 헤드헌터랑 어떻게 다른가요?",
+    answer: "3개면 좋을 것 같아서 임시로 하나 넣음",
   },
 ] as const;
 
@@ -151,10 +156,10 @@ const RequestCard = ({
     onClick={onClick}
     className="relative flex flex-col items-start justify-between gap-6 group rounded-xl p-5 cursor-pointer border border-beige900/10 hover:border-beige900/80 outline outline-[0.5px] outline-transparent hover:outline-beige900/80 transition-all duration-200"
   >
-    <div className="font-inter text-base font-medium leading-[0.96] tracking-[-0.06em] text-beige900">
+    <div className="font-inter text-[15px] md:text-base font-medium leading-[0.96] tracking-[-0.06em] text-beige900">
       {company}
     </div>
-    <div className="flex flex-row items-center justify-between w-full gap-3 text-[15px]">
+    <div className="flex flex-row items-center justify-between w-full gap-3 text-sm md:text-[15px]">
       <div className="font-medium">{role}</div>
       <div className="font-medium text-beige900/50">{compensation}</div>
     </div>
@@ -164,7 +169,7 @@ const RequestCard = ({
 
 const NetworkPage = () => {
   const [openFaqIndex, setOpenFaqIndex] = useState(0);
-  const [isOnboardingOpen, setIsOnboardingOpen] = useState(true);
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
 
   useEffect(() => {
     if (!isOnboardingOpen) return;
@@ -466,19 +471,20 @@ const vcLogos = [
 ];
 
 function VCLogos() {
-  const items = [...vcLogos]; // duplicate for seamless loop
+  const items = [...vcLogos];
 
   return (
     <div className="relative w-[90%] mx-auto overflow-hidden mt-24">
       <Reveal once delay={0.08} className="w-full text-center">
         <div className="w-full text-center text-beige900 text-lg leading-[1.55] tracking-[-0.03em] font-medium">
-          Trusted by Companies backed by{" "}
+          Trusted by Companies
+          <br className="block md:hidden" /> backed by{" "}
           <span className="text-beige900/50">Top VCs</span>
         </div>
       </Reveal>
       <Reveal once delay={0.14} className="w-full text-center">
         <div className="w-full flex-row items-center justify-center gap-16 hidden md:flex">
-          {items.map((vc, i) => (
+          {items.slice(0, 5).map((vc, i) => (
             <div
               key={`${vc.key}-${i}`}
               className="flex h-28 md:h-32 min-w-[140px] md:min-w-[140px] items-center justify-center"

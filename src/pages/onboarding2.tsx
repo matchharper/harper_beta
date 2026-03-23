@@ -130,7 +130,7 @@ const BeigeTextInput = ({
       {rows ? (
         <textarea
           placeholder={placeholder}
-          className="w-full border-b border-beige900/20 bg-transparent px-0.5 py-2 text-xl font-normal leading-8 text-beige900 transition-colors duration-200 outline-none placeholder:text-beige900/30 focus:border-beige900"
+          className="w-full border-b border-beige900/20 bg-transparent px-0.5 py-2 text-lg md:text-xl font-normal leading-8 text-beige900 transition-colors duration-200 outline-none placeholder:text-beige900/30 focus:border-beige900"
           value={value}
           onChange={onChange}
           rows={rows}
@@ -231,9 +231,6 @@ ${
       </div>
 
       <div className="text-sm font-normal text-black/80 text-center">
-        주민등록번호, 주소 등 민감한 정보는 제거해주세요. 업로드된 파일은 채용
-        검토 목적 외에는 사용되지 않습니다.
-        <br />
         권장 파일 형식은 PDF이며, 최대 용량은 10MB입니다.
       </div>
       <input
@@ -549,7 +546,7 @@ export const Onboarding2Content = () => {
                   </div>
                 ) : null}
                 {step < STEPS.length && STEPS[step].description ? (
-                  <div className="mb-4 text-xl font-normal text-beige900/55">
+                  <div className="mb-4 text-base md:text-xl font-normal text-beige900/55">
                     {STEPS[step].description}
                   </div>
                 ) : null}
