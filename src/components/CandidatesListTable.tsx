@@ -9,7 +9,13 @@ import { useLogEvent } from "@/hooks/useLog";
 import { getSchoolLogo } from "@/utils/school_logo";
 import Link from "next/link";
 import ShortlistMemoEditor from "./ui/ShortlistMemoEditor";
-import { SearchSource, isScholarSearchSource } from "@/lib/searchSource";
+import {
+  SearchSource,
+  extractSearchSourcesFromLinks,
+  getSearchSourceLabel,
+  getSearchSourceLogoPath,
+  isScholarSearchSource,
+} from "@/lib/searchSource";
 import {
   buildEvidencePaperMeta,
   buildEvidencePaperTooltip,
@@ -131,6 +137,15 @@ function CandidateRow({
     () => buildEvidencePaperTooltip(c.search_evidence),
     [c.search_evidence]
   );
+  const linkSources = useMemo(
+    () => extractSearchSourcesFromLinks(c.links),
+    [c.links]
+  );
+  const suitabilityScore = useMemo(() => {
+    const value = Number(c.search_rank?.suitabilityScore);
+    if (!Number.isFinite(value)) return null;
+    return Math.max(0, Math.min(100, Math.round(value)));
+  }, [c.search_rank?.suitabilityScore]);
 
   const synthList = useMemo(() => {
     const rawText = c.synthesized_summary?.[0]?.text ?? "[]";
@@ -427,7 +442,25 @@ function CandidateRow({
             style={{ gridTemplateColumns }}
           >
             <div className="sticky left-0 z-30 h-full px-3 flex items-center justify-center text-xs text-hgray700 bg-hgray200 group-hover:bg-[#242424] transition-colors">
-              {rowIndex + 1}
+              {linkSources.length > 0 ? (
+                <div className="flex items-center justify-center gap-1 max-w-[36px] flex-wrap">
+                  {linkSources.map((source) => (
+                    <Tooltips key={source} text={getSearchSourceLabel(source)}>
+                      <span className="flex items-center justify-center rounded-full">
+                        <Image
+                          src={getSearchSourceLogoPath(source)}
+                          alt={getSearchSourceLabel(source)}
+                          width={12}
+                          height={12}
+                          className="object-contain"
+                        />
+                      </span>
+                    </Tooltips>
+                  ))}
+                </div>
+              ) : (
+                rowIndex + 1
+              )}
             </div>
             <div className="sticky left-14 z-20 h-full px-4 py-3 flex items-center gap-3 min-w-0 bg-hgray200 border-r border-white/5 group-hover:bg-[#242424] transition-colors cursor-pointer">
               <div className="shrink-0 rounded-full border border-transparent hover:border-accenta1/80 transition-colors">
@@ -441,12 +474,12 @@ function CandidateRow({
                 <div className="text-xs text-hgray700 truncate">
                   {isOnlyScholar ? (
                     <div className="inline-flex w-fit items-center justify-center gap-1 text-xs rounded text-blue-500">
-                      <Image
+                      {/* <Image
                         src="/images/logos/scholar.png"
                         alt="Scholar Profile"
                         width={10}
                         height={10}
-                      />
+                      /> */}
                       <div>Scholar Profile</div>
                     </div>
                   ) : c.location ? (
@@ -455,6 +488,11 @@ function CandidateRow({
                     "-"
                   )}
                 </div>
+                {/* {suitabilityScore !== null ? (
+                  <div className="mt-1 inline-flex items-center rounded-full border border-accenta1/20 bg-accenta1/10 px-2 py-0.5 text-[11px] font-normal text-accenta1">
+                    적합도 {suitabilityScore}
+                  </div>
+                ) : null} */}
               </div>
               <div
                 className="px-2 absolute right-1 flex items-center justify-end"

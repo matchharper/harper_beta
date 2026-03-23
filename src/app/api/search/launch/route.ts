@@ -8,6 +8,7 @@ import {
 import {
   SearchSource,
   normalizeSearchSource,
+  normalizeSearchSources,
   queryTypeToSearchSource,
 } from "@/lib/searchSource";
 import { NextRequest, NextResponse } from "next/server";
@@ -24,11 +25,18 @@ type LaunchBody = {
 type SearchSettingsSnapshot = {
   is_korean: boolean;
   type: SearchSource;
+  sources: SearchSource[];
 };
 
 function parseLocaleFromRequest(req: NextRequest): "ko" | "en" {
   const locale = req.cookies.get("NEXT_LOCALE")?.value;
   return locale === "en" ? "en" : "ko";
+}
+
+function getDefaultEnabledSources(
+  sourceType?: SearchSource | null
+): SearchSource[] {
+  return [sourceType === "scholar" ? "scholar" : "linkedin"];
 }
 
 function extractUiJsonFromMessage(content: string): any | null {
@@ -51,7 +59,8 @@ function extractUiJsonFromMessage(content: string): any | null {
 
 async function loadSearchSettings(
   userId: string,
-  sourceType: SearchSource
+  sourceType: SearchSource,
+  selectedSources: SearchSource[]
 ): Promise<SearchSettingsSnapshot> {
   const { data: row, error } = await supabaseServer
     .from("settings")
@@ -66,6 +75,10 @@ async function loadSearchSettings(
   return {
     is_korean: row?.is_korean ?? false,
     type: sourceType,
+    sources: normalizeSearchSources(selectedSources, {
+      enabledOnly: true,
+      fallback: [sourceType],
+    }),
   };
 }
 
@@ -138,6 +151,7 @@ export async function POST(req: NextRequest) {
   let effectiveCriteria: string[] = [];
   let effectiveQueryText = "";
   let effectiveRunSourceType: SearchSource | null = null;
+  let effectiveSelectedSources: SearchSource[] = [];
 
   if (isRetryLaunch) {
     const { data: sourceRun, error: sourceRunError } = await supabaseServer
@@ -170,9 +184,18 @@ export async function POST(req: NextRequest) {
             typeof item === "string" && item.trim().length > 0
         )
       : [];
-    effectiveRunSourceType = normalizeSearchSource(
+    const persistedSourceType = normalizeSearchSource(
       (sourceRun.search_settings as { type?: string } | null)?.type
     );
+    effectiveSelectedSources = normalizeSearchSources(
+      (sourceRun.search_settings as { sources?: unknown } | null)?.sources,
+      {
+        enabledOnly: true,
+        fallback: getDefaultEnabledSources(persistedSourceType),
+      }
+    );
+    effectiveRunSourceType =
+      effectiveSelectedSources[0] ?? persistedSourceType;
   } else {
     const { data: queryRow, error: queryError } = await supabaseServer
       .from("queries")
@@ -191,7 +214,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Query not found" }, { status: 404 });
     }
 
-    effectiveRunSourceType = queryTypeToSearchSource(queryRow.type);
+    const querySourceType = queryTypeToSearchSource(queryRow.type);
+    effectiveRunSourceType = querySourceType;
 
     const { data: messageRow, error: messageError } = await supabaseServer
       .from("messages")
@@ -224,6 +248,12 @@ export async function POST(req: NextRequest) {
         typeof item === "string" && item.trim().length > 0
     );
     effectiveQueryText = String(parsed.thinking ?? "").trim();
+    effectiveSelectedSources = normalizeSearchSources(parsed.sources, {
+      enabledOnly: true,
+      fallback: getDefaultEnabledSources(querySourceType),
+    });
+    effectiveRunSourceType =
+      effectiveSelectedSources[0] ?? effectiveRunSourceType;
   }
 
   if (!effectiveQueryId || effectiveCriteria.length === 0) {
@@ -285,9 +315,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const fallbackSourceType = queryTypeToSearchSource(queryMeta.type);
+  const primarySourceType = effectiveRunSourceType ?? fallbackSourceType;
+  const selectedSources = normalizeSearchSources(effectiveSelectedSources, {
+    enabledOnly: true,
+    fallback: getDefaultEnabledSources(primarySourceType),
+  });
   const searchSettings = await loadSearchSettings(
     user.id,
-    effectiveRunSourceType ?? queryTypeToSearchSource(queryMeta.type)
+    selectedSources[0] ?? getDefaultEnabledSources(primarySourceType)[0],
+    selectedSources
   );
 
   // 테스트 모드 확인 (환경 변수)

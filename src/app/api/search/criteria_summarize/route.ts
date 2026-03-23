@@ -1,7 +1,88 @@
 import { supabaseServer } from "@/lib/supabaseServer";
+import type { Database } from "@/types/database.types";
 import { logger } from "@/utils/logger";
 import { NextRequest, NextResponse } from "next/server";
 import { generateOneLineSummary, generateSummary } from "./utils";
+
+const MAX_ONE_LINE_SUMMARY_SCHOLAR_PAPERS = 10;
+
+type ScholarProfileSummary = Pick<
+  Database["public"]["Tables"]["scholar_profile"]["Row"],
+  "id" | "affiliation" | "topics" | "total_citations_num" | "h_index"
+>;
+
+type ScholarPaperSummary = Pick<
+  Database["public"]["Tables"]["papers"]["Row"],
+  | "id"
+  | "title"
+  | "published_at"
+  | "pub_year"
+  | "total_citations"
+  | "external_link"
+  | "scholar_link"
+>;
+
+async function attachScholarSummaryContext(doc: Record<string, any>) {
+  const candidId = String(doc?.id ?? "").trim();
+  if (!candidId) return doc;
+
+  const { data: scholarProfile, error: scholarProfileError } =
+    await supabaseServer
+      .from("scholar_profile")
+      .select("id, affiliation, topics, total_citations_num, h_index")
+      .eq("candid_id", candidId)
+      .maybeSingle();
+
+  if (scholarProfileError) throw scholarProfileError;
+
+  if (!scholarProfile?.id) {
+    return {
+      ...doc,
+      scholar_profile: doc?.scholar_profile ?? null,
+      scholar_papers: Array.isArray(doc?.scholar_papers)
+        ? doc.scholar_papers.slice(0, MAX_ONE_LINE_SUMMARY_SCHOLAR_PAPERS)
+        : [],
+    };
+  }
+
+  const { data: contributions, error: contributionsError } = await supabaseServer
+    .from("scholar_contributions")
+    .select("paper_id")
+    .eq("scholar_profile_id", scholarProfile.id);
+
+  if (contributionsError) throw contributionsError;
+
+  const paperIds = Array.from(
+    new Set(
+      (contributions ?? [])
+        .map((row) => String((row as { paper_id?: string | null }).paper_id ?? "").trim())
+        .filter(Boolean)
+    )
+  );
+
+  let scholarPapers: ScholarPaperSummary[] = [];
+
+  if (paperIds.length > 0) {
+    const { data: papers, error: papersError } = await supabaseServer
+      .from("papers")
+      .select(
+        "id, title, published_at, pub_year, total_citations, external_link, scholar_link"
+      )
+      .in("id", paperIds)
+      .order("total_citations", { ascending: false })
+      .order("pub_year", { ascending: false, nullsFirst: false })
+      .limit(MAX_ONE_LINE_SUMMARY_SCHOLAR_PAPERS);
+
+    if (papersError) throw papersError;
+    scholarPapers = (papers as ScholarPaperSummary[] | null) ?? [];
+  }
+
+  return {
+    ...doc,
+    scholar_profile: scholarProfile as ScholarProfileSummary,
+    scholar_papers: scholarPapers,
+  };
+}
 
 export async function POST(req: NextRequest) {
   if (req.method !== "POST")
@@ -21,7 +102,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const summary = await generateOneLineSummary(doc);
+    const summaryDoc = await attachScholarSummaryContext(doc);
+    const summary = await generateOneLineSummary(summaryDoc);
 
     const { error: insErr } = await supabaseServer.from("summary").insert({
       candid_id: doc.id,

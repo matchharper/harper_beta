@@ -108,6 +108,15 @@ export function Avatar({
       </div>
     );
   }
+  if (url?.includes("https://scholar.google")) {
+    return (
+      <img
+        src="/images/scholar_profile.png"
+        alt={name ?? "profile"}
+        className={`${sizeClass} rounded-full object-cover ring-1 ring-black/10`}
+      />
+    );
+  }
 
   return url ? (
     // eslint-disable-next-line @next/next/no-img-element

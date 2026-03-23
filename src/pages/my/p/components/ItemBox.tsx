@@ -122,7 +122,6 @@ const ItemBox = ({
               </>
             )}
           </div>
-          {/* )} */}
 
           <div className="flex flex-col items-start justify-start gap-[2px] font-normal min-w-0 mt-[-4px]">
             <div className="text-base font-medium truncate text-hgray1000 flex flex-row items-center justify-start gap-2">
@@ -143,7 +142,7 @@ const ItemBox = ({
               >
                 {name} {isEdu || isAward ? null : <ExternalLink size={12} />}
               </span>
-              <span> · </span>
+              <span className="font-bold text-base"> · </span>
               {startDate ? (
                 <div className="flex flex-row items-center gap-1">
                   <span>{startDate}</span>
@@ -166,7 +165,7 @@ const ItemBox = ({
                   isOpen ? "max-h-[600px] opacity-100 pb-2" : "h-0 opacity-0",
                 ].join(" ")}
               >
-                <div className="mt-3 text-sm text-hgray700 font-light whitespace-pre-wrap">
+                <div className="mt-3 text-[15px] text-hgray800 font-light whitespace-pre-wrap">
                   {description}
                 </div>
               </div>

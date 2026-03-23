@@ -5,8 +5,10 @@ import { SearchSource } from "@/lib/searchSource";
 import { ScholarProfilePreview } from "@/lib/scholarPreview";
 import {
   buildEvidenceMap,
+  buildRankMap,
   filterPositiveScoreCandidates,
   RunPageCandidate,
+  SearchRank,
   SearchEvidence,
 } from "@/lib/searchEvidence";
 import { CandidateTypeWithConnection } from "./useSearchChatCandidates";
@@ -17,7 +19,8 @@ async function fetchCandidatesByIds(
   userId: string,
   runId: string,
   sourceType: SearchSource,
-  evidenceByCandidateId?: Map<string, SearchEvidence>
+  evidenceByCandidateId?: Map<string, SearchEvidence>,
+  rankByCandidateId?: Map<string, SearchRank>
 ) {
   if (ids.length === 0) return [];
 
@@ -113,6 +116,7 @@ async function fetchCandidatesByIds(
         ...item,
         scholar_profile_preview: scholarPreviewByCandidateId.get(id) ?? null,
         search_evidence: evidenceByCandidateId?.get(id) ?? null,
+        search_rank: rankByCandidateId?.get(id) ?? null,
       };
     })
     .filter(Boolean);
@@ -222,8 +226,9 @@ async function fetchRunPage(params: {
 
   const ids = all.slice(start, end).map((r) => r.id).filter(Boolean) as string[];
   const evidenceByCandidateId = buildEvidenceMap(all);
+  const rankByCandidateId = buildRankMap(all);
 
-  return { ids, total: all.length, evidenceByCandidateId };
+  return { ids, total: all.length, evidenceByCandidateId, rankByCandidateId };
 }
 
 export function useRunPagesInfinite({
@@ -278,7 +283,8 @@ export function useRunPagesInfinite({
     queryFn: async ({ pageParam }) => {
       const pageIdx = pageParam as number;
 
-      const { ids, total, evidenceByCandidateId } = await fetchRunPage({
+      const { ids, total, evidenceByCandidateId, rankByCandidateId } =
+        await fetchRunPage({
         runId: runId!,
         pageIdx,
         userId: userId!,
@@ -291,7 +297,8 @@ export function useRunPagesInfinite({
             userId!,
             runId!,
             sourceType,
-            evidenceByCandidateId
+            evidenceByCandidateId,
+            rankByCandidateId
           )
         : [];
 

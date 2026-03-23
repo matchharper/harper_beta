@@ -1,12 +1,18 @@
 // hooks/useSearchChatCandidates.ts
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { queryTypeToSearchSource } from "@/lib/searchSource";
+import {
+  SearchSource,
+  normalizeSearchSources,
+  queryTypeToSearchSource,
+} from "@/lib/searchSource";
 import { ScholarProfilePreview } from "@/lib/scholarPreview";
 import {
   buildEvidenceMap,
+  buildRankMap,
   filterPositiveScoreCandidates,
   RunPageCandidate,
+  SearchRank,
   SearchEvidence,
 } from "@/lib/searchEvidence";
 import type { CandidateType, EduUserType, ExpUserType } from "@/types/type";
@@ -26,6 +32,12 @@ function getCookie(name: string) {
 function getLocaleFromCookie(): Locale {
   const c = getCookie("NEXT_LOCALE");
   return c === "ko" || c === "en" ? c : "ko";
+}
+
+function getDefaultEnabledSources(
+  sourceType?: SearchSource | null
+): SearchSource[] {
+  return [sourceType === "scholar" ? "scholar" : "linkedin"];
 }
 
 export type ExperienceUserType = ExpUserType & {
@@ -48,6 +60,13 @@ export type CandidateTypeWithConnection = CandidateType & {
   s?: { text: string | null }[];
   scholar_profile_preview?: ScholarProfilePreview | null;
   search_evidence?: SearchEvidence | null;
+  search_rank?: SearchRank | null;
+};
+
+type SearchSettingsSnapshot = {
+  is_korean: boolean;
+  type: SearchSource;
+  sources: SearchSource[];
 };
 
 function extractUiJsonFromMessage(content: string): any | null {
@@ -98,10 +117,12 @@ async function fetchSearchIds(params: { runId: string; pageIdx: number }) {
     .map((r) => r.id)
     .filter(Boolean) as string[];
   const evidenceByCandidateId = buildEvidenceMap(all);
+  const rankByCandidateId = buildRankMap(all);
 
   return {
     ids,
     evidenceByCandidateId,
+    rankByCandidateId,
     isNewSearch: false,
   };
 }
@@ -110,7 +131,8 @@ async function fetchCandidatesByIds(
   ids: string[],
   userId: string,
   runId: string,
-  evidenceByCandidateId?: Map<string, SearchEvidence>
+  evidenceByCandidateId?: Map<string, SearchEvidence>,
+  rankByCandidateId?: Map<string, SearchRank>
 ) {
   if (ids.length === 0) return [];
 
@@ -194,6 +216,7 @@ async function fetchCandidatesByIds(
         ...item,
         scholar_profile_preview: scholarPreviewByCandidateId.get(id) ?? null,
         search_evidence: evidenceByCandidateId?.get(id) ?? null,
+        search_rank: rankByCandidateId?.get(id) ?? null,
       };
     })
     .filter(Boolean);
@@ -249,6 +272,51 @@ async function fetchScholarPreviewByCandidateIds(ids: string[]) {
   );
 }
 
+async function loadSearchSettings(
+  userId: string,
+  sourceType: SearchSource,
+  selectedSources: SearchSource[]
+): Promise<SearchSettingsSnapshot> {
+  const { data: row, error } = await supabase
+    .from("settings")
+    .select("is_korean")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `loadSearchSettings failed (${error.code}): ${error.message}`
+    );
+  }
+
+  return {
+    is_korean: row?.is_korean ?? false,
+    type: sourceType,
+    sources: normalizeSearchSources(selectedSources, {
+      enabledOnly: true,
+      fallback: getDefaultEnabledSources(sourceType),
+    }),
+  };
+}
+
+async function loadQuerySourceType(
+  queryId: string
+): Promise<SearchSettingsSnapshot["type"]> {
+  const { data, error } = await supabase
+    .from("queries")
+    .select("type")
+    .eq("query_id", queryId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `loadQuerySourceType failed (${error.code}): ${error.message}`
+    );
+  }
+
+  return queryTypeToSearchSource(data?.type);
+}
+
 /**
  * run 생성:
  * body: { queryId, messageId, criteria, queryText }
@@ -260,8 +328,9 @@ async function createRunFromMessage(params: {
   criteria: any;
   queryText: string;
   userId?: string;
+  sources?: unknown;
 }) {
-  const { queryId, messageId, criteria, queryText, userId } = params;
+  const { queryId, messageId, criteria, queryText, userId, sources } = params;
   console.log("\n createRunFromMessage: ", queryId, messageId, criteria);
 
   if (!queryId) throw new Error("createRunFromMessage: missing queryId");
@@ -276,19 +345,26 @@ async function createRunFromMessage(params: {
   // - runs.query_id (uuid), runs.trigger_message_id (int/bigint), runs.criteria (jsonb)
   // - RLS policy allows insert when the user owns the query
   const locale = getLocaleFromCookie();
-  const { data: queryRow, error: queryError } = await supabase
-    .from("queries")
-    .select("type")
-    .eq("query_id", queryId)
-    .maybeSingle();
-
-  if (queryError) {
-    throw new Error(
-      `createRunFromMessage: query lookup failed (${queryError.code}): ${queryError.message}`
-    );
-  }
-
-  const sourceType = queryTypeToSearchSource(queryRow?.type);
+  const sourceType = await loadQuerySourceType(queryId);
+  const selectedSources = normalizeSearchSources(sources, {
+    enabledOnly: true,
+    fallback: getDefaultEnabledSources(sourceType),
+  });
+  const searchSettings = userId
+    ? await loadSearchSettings(
+        userId,
+        selectedSources[0] ?? getDefaultEnabledSources(sourceType)[0],
+        selectedSources
+      )
+    : {
+        is_korean: false,
+        type: selectedSources[0] ?? getDefaultEnabledSources(sourceType)[0],
+        sources: selectedSources,
+      };
+  const testMode =
+    typeof window !== "undefined" &&
+    process.env.NEXT_PUBLIC_WORKER_TEST_MODE === "true";
+  const queueStatus = testMode ? "queued_test" : "queued";
 
   const { data, error } = await supabase
     .from("runs")
@@ -298,11 +374,9 @@ async function createRunFromMessage(params: {
       criteria,
       query_text: queryText,
       user_id: userId,
-      status: "queued",
+      status: queueStatus,
       locale,
-      search_settings: {
-        type: sourceType,
-      },
+      search_settings: searchSettings,
     })
     .select("id")
     .single();
@@ -363,7 +437,12 @@ export function useChatSearchCandidates(
     queryFn: async ({ pageParam }) => {
       const pageIdx = pageParam as number;
 
-      const { ids, isNewSearch, evidenceByCandidateId } = await fetchSearchIds({
+      const {
+        ids,
+        isNewSearch,
+        evidenceByCandidateId,
+        rankByCandidateId,
+      } = await fetchSearchIds({
         runId: runId!,
         pageIdx,
       });
@@ -374,7 +453,8 @@ export function useChatSearchCandidates(
           ids,
           userId!,
           runId!,
-          evidenceByCandidateId
+          evidenceByCandidateId,
+          rankByCandidateId
         );
         return { pageIdx, ids, items, isNewSearch };
       }
@@ -424,13 +504,14 @@ export function useChatSearchCandidates(
         criteria: inputs.criteria,
         queryText: inputs.thinking ?? "",
         userId,
+        sources: inputs.sources,
       });
 
       if (!newRunId) return null;
 
       return newRunId;
     },
-    [queryId, userId, queryClient]
+    [queryId, userId]
   );
 
   return {

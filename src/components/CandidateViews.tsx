@@ -3,16 +3,24 @@ import { SearchSource, isScholarSearchSource } from "@/lib/searchSource";
 import React, { useMemo, useRef, useState } from "react";
 import CandidateRow from "./CandidatesListTable";
 import CandidateCard from "./CandidatesList";
-import { useSettingStore } from "@/store/useSettingStore";
+import { CandidateSortMode, useSettingStore } from "@/store/useSettingStore";
 import { Tooltips } from "./ui/tooltip";
 import {
+  ArrowDownUp,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Columns2,
   GripVertical,
   Table,
 } from "lucide-react";
 import { useLogEvent } from "@/hooks/useLog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
 const INDEX_COLUMN_WIDTH = "56px";
@@ -36,6 +44,35 @@ type TableColumnDef = {
 const arrayEquals = (a: string[], b: string[]) =>
   a.length === b.length && a.every((v, i) => v === b[i]);
 
+const SORT_LABELS: Record<CandidateSortMode, string> = {
+  best_matched: "Best matched",
+  custom: "Custom",
+};
+
+const SCORE_WEIGHT: Record<string, number> = {
+  만족: 3,
+  모호: 2,
+  불만족: 1,
+};
+
+function parseCandidateScores(candidate: CandidateTypeWithConnection) {
+  const rawText = candidate.synthesized_summary?.[0]?.text;
+  if (!rawText) return [];
+
+  try {
+    const parsed = JSON.parse(rawText);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.map((item: unknown) =>
+      String(item ?? "")
+        .split(",")[0]
+        ?.trim()
+    );
+  } catch {
+    return [];
+  }
+}
+
 const CandidateViews = ({
   items,
   userId,
@@ -53,9 +90,18 @@ const CandidateViews = ({
   indexStart?: number;
   sourceType?: SearchSource;
 }) => {
-  const { viewType, setViewType, columnOrderByKey, setColumnOrder } =
-    useSettingStore();
-  const [isFolded, setIsFolded] = useState(false);
+  const {
+    viewType,
+    setViewType,
+    columnOrderByKey,
+    setColumnOrder,
+    candidateSortModeByKey,
+    setCandidateSortMode,
+    candidateSortOrderByKey,
+    setCandidateSortOrder,
+  } = useSettingStore();
+  const [isFolded, setIsFolded] = useState(true);
+  const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
   const [draggingColumnId, setDraggingColumnId] = useState<string | null>(null);
   const [dragOverColumnId, setDragOverColumnId] = useState<string | null>(null);
   const transparentDragImageRef = useRef<HTMLCanvasElement | null>(null);
@@ -88,6 +134,38 @@ const CandidateViews = ({
       ].join(":"),
     [criteriaList, isMyList, showShortlistMemo, sourceType]
   );
+  const sortContextKey = useMemo(
+    () =>
+      [
+        "candidate-sort",
+        isMyList ? "mylist" : "search",
+        sourceType,
+        criteriaList.join("||"),
+      ].join(":"),
+    [criteriaList, isMyList, sourceType]
+  );
+  const defaultSortOrder = useMemo(
+    () => criteriaList.map((_, idx) => `criteria:${idx}`),
+    [criteriaList]
+  );
+  const savedSortMode =
+    candidateSortModeByKey[sortContextKey] ?? "best_matched";
+  const savedSortOrder = useMemo(() => {
+    const stored = candidateSortOrderByKey[sortContextKey] ?? [];
+    const validStored = stored.filter((id) => defaultSortOrder.includes(id));
+    const missing = defaultSortOrder.filter((id) => !validStored.includes(id));
+    return [...validStored, ...missing];
+  }, [candidateSortOrderByKey, defaultSortOrder, sortContextKey]);
+  const [draftSortMode, setDraftSortMode] =
+    useState<CandidateSortMode>(savedSortMode);
+  const [draftSortOrder, setDraftSortOrder] =
+    useState<string[]>(savedSortOrder);
+
+  React.useEffect(() => {
+    if (isSortMenuOpen) return;
+    setDraftSortMode(savedSortMode);
+    setDraftSortOrder(savedSortOrder);
+  }, [isSortMenuOpen, savedSortMode, savedSortOrder]);
 
   const dynamicColumns = useMemo<TableColumnDef[]>(() => {
     const cols: TableColumnDef[] = [];
@@ -216,6 +294,44 @@ const CandidateViews = ({
     );
     return criteriaIds.at(-1) ?? null;
   }, [orderedColumnIds]);
+  const sortedItems = useMemo(() => {
+    if (savedSortMode !== "custom" || savedSortOrder.length === 0) {
+      return items;
+    }
+
+    return [...items].sort((left, right) => {
+      const leftScores = parseCandidateScores(left);
+      const rightScores = parseCandidateScores(right);
+
+      for (const criteriaId of savedSortOrder) {
+        const idx = Number(criteriaId.split(":")[1]);
+        const leftWeight = SCORE_WEIGHT[leftScores[idx] ?? ""] ?? 0;
+        const rightWeight = SCORE_WEIGHT[rightScores[idx] ?? ""] ?? 0;
+
+        if (leftWeight !== rightWeight) {
+          return rightWeight - leftWeight;
+        }
+      }
+
+      return 0;
+    });
+  }, [items, savedSortMode, savedSortOrder]);
+
+  const moveDraftSortCriterion = (index: number, direction: -1 | 1) => {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= draftSortOrder.length) return;
+
+    const next = [...draftSortOrder];
+    const [moved] = next.splice(index, 1);
+    next.splice(targetIndex, 0, moved);
+    setDraftSortOrder(next);
+  };
+
+  const applySortSettings = () => {
+    setCandidateSortMode(sortContextKey, draftSortMode);
+    setCandidateSortOrder(sortContextKey, draftSortOrder);
+    setIsSortMenuOpen(false);
+  };
 
   const onDragStart = (
     e: React.DragEvent<HTMLDivElement>,
@@ -281,10 +397,129 @@ const CandidateViews = ({
 
   return (
     <div className="w-full relative h-full">
-      {items.length > 0 && (
+      {sortedItems.length > 0 && (
         <div className="w-full flex flex-row items-center justify-between mt-2 px-4">
           <div></div>
           <div className="flex flex-row items-center justify-start gap-2">
+            {!isMyList && criteriaList.length > 0 && (
+              // <DropdownMenu
+              //   open={isSortMenuOpen}
+              //   onOpenChange={setIsSortMenuOpen}
+              // >
+              //   <DropdownMenuTrigger asChild>
+              //     <button
+              //       type="button"
+              //       className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-hgray900 transition-all duration-200 hover:bg-white/10"
+              //     >
+              //       <ArrowDownUp className="h-3.5 w-3.5" strokeWidth={1.6} />
+              //       <span>{SORT_LABELS[savedSortMode]}</span>
+              //       <ChevronDown className="h-3.5 w-3.5 text-hgray600" />
+              //     </button>
+              //   </DropdownMenuTrigger>
+              //   <DropdownMenuContent
+              //     align="end"
+              //     className="w-[280px] rounded-2xl border-white/10 bg-ngray300/70 p-2 backdrop-blur-sm"
+              //   >
+              //     <div className="px-2 pb-2 text-[11px] text-hgray600">
+              //       Sorting
+              //     </div>
+              //     <div className="flex flex-col gap-1">
+              //       {(["best_matched", "custom"] as CandidateSortMode[]).map(
+              //         (mode) => {
+              //           const checked = draftSortMode === mode;
+              //           return (
+              //             <button
+              //               key={mode}
+              //               type="button"
+              //               onClick={() => setDraftSortMode(mode)}
+              //               className={`flex items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition-all duration-200 ${
+              //                 checked ? "bg-white/10" : "hover:bg-white/5"
+              //               }`}
+              //             >
+              //               <span className="text-hgray900">
+              //                 {SORT_LABELS[mode]}
+              //               </span>
+              //               {checked ? (
+              //                 <span className="h-2 w-2 rounded-full bg-accenta1" />
+              //               ) : null}
+              //             </button>
+              //           );
+              //         }
+              //       )}
+              //     </div>
+
+              //     {draftSortMode === "custom" && (
+              //       <div className="mt-3">
+              //         <div className="px-2 pb-2 text-[11px] text-hgray600">
+              //           Criteria priority
+              //         </div>
+              //         <div className="flex flex-col gap-1">
+              //           {draftSortOrder.map((criterionId, idx) => {
+              //             const criterionIdx = Number(
+              //               criterionId.split(":")[1]
+              //             );
+              //             const label =
+              //               criteriaList[criterionIdx] ?? criterionId;
+
+              //             return (
+              //               <div
+              //                 key={criterionId}
+              //                 className="flex items-center justify-between gap-2 rounded-xl bg-white/5 px-3 py-2"
+              //               >
+              //                 <span className="min-w-0 flex-1 truncate text-sm text-hgray900">
+              //                   {label}
+              //                 </span>
+              //                 <div className="flex items-center gap-1">
+              //                   <button
+              //                     type="button"
+              //                     onClick={() =>
+              //                       moveDraftSortCriterion(idx, -1)
+              //                     }
+              //                     disabled={idx === 0}
+              //                     className="flex h-7 w-7 items-center justify-center rounded-full bg-white/5 text-hgray900 transition-all duration-200 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+              //                   >
+              //                     <ChevronUp className="h-3.5 w-3.5" />
+              //                   </button>
+              //                   <button
+              //                     type="button"
+              //                     onClick={() => moveDraftSortCriterion(idx, 1)}
+              //                     disabled={idx === draftSortOrder.length - 1}
+              //                     className="flex h-7 w-7 items-center justify-center rounded-full bg-white/5 text-hgray900 transition-all duration-200 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+              //                   >
+              //                     <ChevronDown className="h-3.5 w-3.5" />
+              //                   </button>
+              //                 </div>
+              //               </div>
+              //             );
+              //           })}
+              //         </div>
+              //       </div>
+              //     )}
+
+              //     <div className="mt-3 flex items-center justify-end gap-2 px-1 font-normal">
+              //       <button
+              //         type="button"
+              //         onClick={() => {
+              //           setDraftSortMode(savedSortMode);
+              //           setDraftSortOrder(savedSortOrder);
+              //           setIsSortMenuOpen(false);
+              //         }}
+              //         className="rounded-full px-3 py-1.5 text-xs text-hgray700 transition-all duration-200 hover:bg-white/5"
+              //       >
+              //         Cancel
+              //       </button>
+              //       <button
+              //         type="button"
+              //         onClick={applySortSettings}
+              //         className="rounded-full bg-accenta1 px-3 py-1.5 text-xs text-black transition-all duration-200 hover:opacity-90"
+              //       >
+              //         Apply
+              //       </button>
+              //     </div>
+              //   </DropdownMenuContent>
+              // </DropdownMenu>
+              <></>
+            )}
             <Tooltips text="Table view">
               <button
                 className={`cursor-pointer p-1.5 rounded-sm hover:bg-white/10 transition-all duration-200 ${
@@ -309,7 +544,7 @@ const CandidateViews = ({
         </div>
       )}
 
-      {viewType === "table" && items.length > 0 && (
+      {viewType === "table" && sortedItems.length > 0 && (
         <div className="w-full mt-2 h-full flex">
           <div
             className="w-full overflow-x-auto pb-26
@@ -352,7 +587,7 @@ const CandidateViews = ({
                           <span className="pointer-events-none absolute left-0 top-0 h-full w-[2px] bg-accenta1" />
                         )}
                         <Tooltips text={column.tooltip ?? column.label}>
-                          <div className="w-full pl-2 pr-7 text-left truncate border-r border-white/5">
+                          <div className="w-full pl-2 pr-4 text-left truncate border-r border-white/5">
                             {column.label}
                           </div>
                         </Tooltips>
@@ -405,7 +640,7 @@ const CandidateViews = ({
               </div>
 
               <div className="pb-48">
-                {items.map((c: any, idx: number) => (
+                {sortedItems.map((c: any, idx: number) => (
                   <CandidateRow
                     isMyList={isMyList}
                     key={c?.id}
@@ -425,10 +660,10 @@ const CandidateViews = ({
         </div>
       )}
 
-      {viewType === "card" && items.length > 0 && (
+      {viewType === "card" && sortedItems.length > 0 && (
         <div className="w-full flex flex-col space-y-2 mt-4 items-center justify-center">
           <div className="space-y-4 w-full items-center justify-center flex flex-col pb-48">
-            {items.map((c: any) => (
+            {sortedItems.map((c: any) => (
               <CandidateCard
                 isMyList={isMyList}
                 key={c?.id}

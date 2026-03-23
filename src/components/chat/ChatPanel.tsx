@@ -42,6 +42,7 @@ import { usePlanStore } from "@/store/usePlanStore";
 import type { FileAttachmentPayload } from "@/types/chat";
 import { notifyUsageToSlack } from "@/lib/slack";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
+import { SearchSource, normalizeSearchSources } from "@/lib/searchSource";
 
 export type ChatScope =
   | { type: "query"; queryId: string }
@@ -72,6 +73,7 @@ export const AUTO_SCROLL_THROTTLE_MS = 120;
 function extractCriteriaCardPayload(content: string): {
   thinking: string;
   criteria: string[];
+  sources: SearchSource[];
 } | null {
   if (!content) return null;
 
@@ -90,6 +92,10 @@ function extractCriteriaCardPayload(content: string): {
       criteria: Array.isArray(parsed.criteria)
         ? parsed.criteria.filter((item: unknown) => typeof item === "string")
         : [],
+      sources: normalizeSearchSources(parsed.sources, {
+        enabledOnly: true,
+        fallback: ["linkedin"],
+      }),
     };
   } catch {
     return null;
@@ -449,13 +455,17 @@ export default function ChatPanel({
                 .map((criteria, idx) => `${idx + 1}. ${criteria}`)
                 .join("\n")
             : "N/A";
+        const sourceText =
+          criteriaCard && criteriaCard.sources.length > 0
+            ? criteriaCard.sources.join(", ")
+            : "N/A";
 
         await notifyUsageToSlack(`🔎 *Search Started (Confirm)*
-
         • *User*: ${companyUser?.name ?? "Unknown"} (${companyUser?.email ?? "N/A"})
         • *User ID*: ${userId}
         • *Query ID*: ${scope?.type === "query" ? scope.queryId : "N/A"}
         • *Thinking*: ${criteriaCard?.thinking || "N/A"}
+        • *Sources*: ${sourceText}
         • *Criteria*:
         ${criteriaText}
         • *Time(Standard Korea Time)*: ${new Date().toLocaleString("ko-KR")}`);

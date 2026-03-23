@@ -127,14 +127,14 @@ export default function PaperModalRoot() {
           <motion.div
             role="dialog"
             aria-modal="true"
-            className="absolute inset-x-0 top-[6vh] mx-auto max-h-[88vh] w-[min(760px,92vw)] overflow-y-auto rounded-[28px] border border-white/10 bg-hgray200 px-6 pb-8 pt-6 text-hgray900 shadow-2xl md:px-8"
+            className="absolute inset-x-0 top-[6vh] mx-auto max-h-[88vh] w-[min(760px,92vw)] overflow-y-auto rounded-[28px] bg-hgray200 px-6 pb-8 text-hgray900 shadow-2xl md:px-8"
             initial={{ opacity: 0, y: 24, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.98 }}
             transition={{ type: "tween", ease: "easeOut", duration: 0.2 }}
           >
             <div className="sticky top-0 z-10 -mx-6 mb-6 flex items-start justify-between border-b border-white/5 bg-hgray200/95 px-6 pb-4 backdrop-blur md:-mx-8 md:px-8">
-              <div className="pr-4">
+              <div className="pr-4 pt-6">
                 <div className="text-xs tracking-[0.14em] text-accenta1/80">
                   {year}
                 </div>
@@ -194,7 +194,7 @@ export default function PaperModalRoot() {
                   />
                 </div>
 
-                <Section
+                {/* <Section
                   title="Abstract"
                   icon={<FileText className="h-4 w-4" />}
                 >
@@ -202,7 +202,7 @@ export default function PaperModalRoot() {
                     {paper.abstract?.trim() ||
                       "등록된 abstract가 없습니다. 위 링크에서 원문 정보를 확인할 수 있습니다."}
                   </div>
-                </Section>
+                </Section> */}
 
                 <Section
                   title={`Contributors (${contributors.length})`}
@@ -266,23 +266,21 @@ export default function PaperModalRoot() {
                                       </span>
                                     </div>
                                   ) : null}
-                                  {profile?.scholar_url ? (
+                                  {/* {profile?.scholar_url ? (
                                     <div className="inline-flex items-center gap-1">
                                       <GraduationCap className="h-3.5 w-3.5" />
                                       <span>Scholar profile</span>
                                     </div>
-                                  ) : null}
+                                  ) : null} */}
                                 </div>
                               </div>
                             </div>
-                            <div className="ml-14 mt-3 flex flex-wrap items-center gap-3 text-xs text-hgray600">
+                            <div className="ml-14 mt-3 flex flex-wrap items-center gap-3 text-sm text-hgray700">
                               <div className="inline-flex items-center gap-1">
-                                <Quote className="h-3.5 w-3.5" />
                                 <span>
                                   {profile?.total_citations_num ?? 0} citations
                                 </span>
                               </div>
-                              <div>h-index {profile?.h_index ?? 0}</div>
                             </div>
                           </>
                         );
@@ -293,7 +291,7 @@ export default function PaperModalRoot() {
                               key={`${contributor.paper_id}-${contributor.scholar_profile_id}`}
                               href={`/my/p/${profile.candid_id}`}
                               onClick={close}
-                              className="rounded-2xl bg-white/5 px-4 py-4 transition hover:bg-white/8"
+                              className="rounded-2xl bg-white/5 px-4 py-4 transition hover:bg-white/10"
                             >
                               {content}
                             </Link>
