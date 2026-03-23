@@ -140,6 +140,10 @@ function CandidateCard({
   const exps = asArr(c.experience_user ?? []);
   const edus = asArr(c.edu_user ?? []);
 
+  const isBookmarked = useMemo(() => {
+    return (c.connection ?? []).some((con) => con.typed === 0);
+  }, [c.connection]);
+
   const latestCompany = exps[0];
   const school = useMemo(() => edus[0], [edus]);
   const scholarPreview = c.scholar_profile_preview;
@@ -215,12 +219,6 @@ function CandidateCard({
                 </div>
                 {isOnlyScholar ? (
                   <div className="inline-flex w-fit items-center gap-1 text-[13px] rounded text-blue-500">
-                    <Image
-                      src="/images/logos/scholar.png"
-                      alt="Scholar Profile"
-                      width={14}
-                      height={14}
-                    />
                     <div className="mt-[1px]">Scholar Profile</div>
                   </div>
                 ) : c.location ? (
@@ -230,11 +228,6 @@ function CandidateCard({
                 ) : null}
                 {suitabilityScore !== null || linkSources.length > 0 ? (
                   <div className="mt-2 flex items-center gap-2 flex-wrap">
-                    {/* {suitabilityScore !== null ? (
-                      <div className="inline-flex items-center rounded-full border border-accenta1/20 bg-accenta1/10 px-2 py-0.5 text-[11px] font-normal text-accenta1">
-                        적합도 {suitabilityScore}
-                      </div>
-                    ) : null} */}
                     {linkSources.map((source) => (
                       <Tooltips
                         key={source}
@@ -361,7 +354,7 @@ function CandidateCard({
 
       {(synthesizedSummary.length !== 0 ||
         (isMyList && shortlistSummaryText.length > 0)) && (
-        <div className="mt-5 text-hgray700 leading-relaxed font-light">
+        <div className="mt-6 text-hgray700 leading-relaxed font-light">
           {synthesizedSummary.length !== 0 && (
             <div>
               {synthesizedSummary?.map((item: any, index: number) => (
@@ -397,7 +390,7 @@ function CandidateCard({
 
       <div
         className={`flex flex-row items-center justify-start group-hover:opacity-100  absolute top-3 right-3 ${
-          isMyList ? "opacity-100" : "opacity-0"
+          isBookmarked && !isMyList ? "opacity-100" : "opacity-0"
         }`}
         onClick={(e) => {
           e.preventDefault();

@@ -3,21 +3,17 @@ import { showToast } from "../toast/toast";
 import { Bookmark, Check, FolderPlus } from "lucide-react";
 import { useMessages } from "@/i18n/useMessage";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "./dropdown-menu";
-import {
   useAddCandidateToBookmarkFolder,
   useBookmarkFolders,
   useCandidateBookmarkFolderIds,
-  useClearCandidateBookmarks,
   useCreateBookmarkFolder,
   useRemoveCandidateFromBookmarkFolder,
 } from "@/hooks/useBookmarkFolders";
+import {
+  ActionDropdown,
+  ActionDropdownItem,
+  ActionDropdownSeparator,
+} from "./action-dropdown";
 
 const Bookmarkbutton = ({
   userId,
@@ -49,8 +45,6 @@ const Bookmarkbutton = ({
     useAddCandidateToBookmarkFolder();
   const { mutateAsync: removeFromFolder, isPending: isRemovingFromFolder } =
     useRemoveCandidateFromBookmarkFolder();
-  const { mutateAsync: clearAllBookmarks, isPending: isClearingBookmarks } =
-    useClearCandidateBookmarks();
 
   useEffect(() => {
     if (!isAddingFolder) return;
@@ -72,10 +66,7 @@ const Bookmarkbutton = ({
   }, [selectedFolderIdSet, isBookmarked]);
 
   const isMutating =
-    isCreatingFolder ||
-    isAddingToFolder ||
-    isRemovingFromFolder ||
-    isClearingBookmarks;
+    isCreatingFolder || isAddingToFolder || isRemovingFromFolder;
 
   const handleToggleFolder = async (folderId: number, nextChecked: boolean) => {
     try {
@@ -125,20 +116,8 @@ const Bookmarkbutton = ({
     }
   };
 
-  const handleClearAllBookmarks = async () => {
-    try {
-      await clearAllBookmarks({ userId, candidId });
-      showToast({ message: "북마크에서 제거되었습니다.", variant: "white" });
-    } catch (error: any) {
-      showToast({
-        message: String(error?.message ?? "북마크 제거에 실패했습니다."),
-        variant: "white",
-      });
-    }
-  };
-
   return (
-    <DropdownMenu
+    <ActionDropdown
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
@@ -147,8 +126,9 @@ const Bookmarkbutton = ({
           setNewFolderName("");
         }
       }}
-    >
-      <DropdownMenuTrigger asChild>
+      align="end"
+      contentClassName="w-[260px]"
+      trigger={
         <button
           className={`cursor-pointer text-sm rounded-xl text-white flex flex-row items-center gap-2 ${
             size === "sm"
@@ -167,127 +147,102 @@ const Bookmarkbutton = ({
             <span>{isBookmarkedInUi ? m.data.saved : m.data.save}</span>
           )}
         </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        className="w-[260px] bg-[#36363A]/90 backdrop-blur-md border-none text-white p-1 rounded-[10px]"
-      >
-        {/* <DropdownMenuLabel className="text-xs text-hgray700 font-normal">
-          북마크 폴더
-        </DropdownMenuLabel> 
-        <DropdownMenuSeparator className="bg-white/10" />*/}
+      }
+    >
+      {(isFoldersLoading || isSelectedFoldersLoading) && (
+        <div className="px-2 py-2 text-xs text-white/45">불러오는 중...</div>
+      )}
 
-        {(isFoldersLoading || isSelectedFoldersLoading) && (
-          <div className="px-2 py-2 text-xs text-hgray700">불러오는 중...</div>
-        )}
-
-        {!isFoldersLoading &&
-          !isSelectedFoldersLoading &&
-          folders.length === 0 && (
-            <div className="px-2 py-2 text-xs text-hgray700">
-              폴더가 없습니다. 새 폴더를 만들어주세요.
-            </div>
-          )}
-
-        {!isFoldersLoading &&
-          !isSelectedFoldersLoading &&
-          folders.map((folder) => {
-            const isChecked = selectedFolderIdSet.has(Number(folder.id));
-            return (
-              <DropdownMenuItem
-                key={folder.id}
-                disabled={isMutating}
-                onSelect={(e) => {
-                  e.preventDefault();
-                  void handleToggleFolder(Number(folder.id), !isChecked);
-                }}
-                className="cursor-pointer text-sm text-hgray900 py-2 rounded-[10px] mt-0.5"
-              >
-                <div className="w-full flex items-center justify-between gap-2 relative">
-                  <span className="line-clamp-2">{folder.name}</span>
-                  {isChecked && (
-                    <Check className="w-3.5 h-3.5 text-accenta1 absolute right-2" />
-                  )}
-                </div>
-              </DropdownMenuItem>
-            );
-          })}
-
-        <DropdownMenuSeparator className="bg-white/10" />
-
-        {!isAddingFolder && (
-          <DropdownMenuItem
-            onSelect={(e) => {
-              e.preventDefault();
-              setIsAddingFolder(true);
-            }}
-            className="cursor-pointer text-sm text-hgray900 py-3 px-4 rounded-[10px]"
-          >
-            <FolderPlus className="w-4 h-4 mr-1" />
-            Add folder
-          </DropdownMenuItem>
-        )}
-
-        {isAddingFolder && (
-          <div className="px-2 py-1.5">
-            <input
-              ref={inputRef}
-              value={newFolderName}
-              onChange={(e) => setNewFolderName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  void handleCreateFolder();
-                }
-                if (e.key === "Escape") {
-                  e.preventDefault();
-                  setIsAddingFolder(false);
-                  setNewFolderName("");
-                }
-              }}
-              placeholder="새 폴더 이름"
-              className="w-full h-8 rounded-md bg-white/5 border border-white/10 px-2 text-xs text-white outline-none focus:border-white/30"
-            />
-            <div className="mt-2 flex items-center justify-end gap-1">
-              <button
-                type="button"
-                className="h-7 px-2 rounded text-xs text-hgray700 hover:bg-white/5"
-                onClick={() => {
-                  setIsAddingFolder(false);
-                  setNewFolderName("");
-                }}
-              >
-                취소
-              </button>
-              <button
-                type="button"
-                className="h-7 px-2 rounded text-xs text-black bg-accenta1 disabled:opacity-70"
-                onClick={() => void handleCreateFolder()}
-                disabled={isCreatingFolder || isAddingToFolder}
-              >
-                생성 후 저장
-              </button>
-            </div>
+      {!isFoldersLoading &&
+        !isSelectedFoldersLoading &&
+        folders.length === 0 && (
+          <div className="px-2 py-2 text-xs text-white/45">
+            폴더가 없습니다. 새 폴더를 만들어주세요.
           </div>
         )}
 
-        {/* {isBookmarkedInUi && (
-          <>
-            <DropdownMenuSeparator className="bg-white/10" />
-            <DropdownMenuItem
+      {!isFoldersLoading &&
+        !isSelectedFoldersLoading &&
+        folders.map((folder) => {
+          const isChecked = selectedFolderIdSet.has(Number(folder.id));
+          return (
+            <ActionDropdownItem
+              key={folder.id}
               disabled={isMutating}
-              onSelect={(e) => {
-                e.preventDefault();
-                void handleClearAllBookmarks();
+              keepOpen
+              onSelect={() => {
+                void handleToggleFolder(Number(folder.id), !isChecked);
               }}
-              className="cursor-pointer text-sm text-red-400 focus:bg-red-400/15"
+              className="mt-0.5 py-2"
             >
-              북마크 전체 제거
-            </DropdownMenuItem>
-          </>
-        )} */}
-      </DropdownMenuContent>
-    </DropdownMenu>
+              <div className="relative flex w-full items-center justify-between gap-2">
+                <span className="line-clamp-2">{folder.name}</span>
+                {isChecked && (
+                  <Check className="absolute right-2 h-3.5 w-3.5 text-accenta1" />
+                )}
+              </div>
+            </ActionDropdownItem>
+          );
+        })}
+
+      <ActionDropdownSeparator />
+
+      {!isAddingFolder && (
+        <ActionDropdownItem
+          keepOpen
+          onSelect={() => {
+            setIsAddingFolder(true);
+          }}
+          className="px-4 py-3"
+        >
+          <FolderPlus className="mr-1 h-4 w-4" />
+          폴더 추가
+        </ActionDropdownItem>
+      )}
+
+      {isAddingFolder && (
+        <div className="px-2 py-1.5">
+          <input
+            ref={inputRef}
+            value={newFolderName}
+            onChange={(e) => setNewFolderName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void handleCreateFolder();
+              }
+              if (e.key === "Escape") {
+                e.preventDefault();
+                setIsAddingFolder(false);
+                setNewFolderName("");
+              }
+            }}
+            placeholder="새 폴더 이름"
+            className="h-8 w-full rounded-md border border-white/10 bg-white/5 px-2 text-xs text-white placeholder:text-white/35 outline-none focus:border-white/30"
+          />
+          <div className="mt-2 flex items-center justify-end gap-1">
+            <button
+              type="button"
+              className="h-7 rounded px-2 text-xs text-white/45 hover:bg-white/5 hover:text-white"
+              onClick={() => {
+                setIsAddingFolder(false);
+                setNewFolderName("");
+              }}
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              className="h-7 rounded bg-accenta1 px-2 text-xs text-black disabled:opacity-70"
+              onClick={() => void handleCreateFolder()}
+              disabled={isCreatingFolder || isAddingToFolder}
+            >
+              생성 후 저장
+            </button>
+          </div>
+        </div>
+      )}
+    </ActionDropdown>
   );
 };
 

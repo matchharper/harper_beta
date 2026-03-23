@@ -63,23 +63,6 @@ export type Education = {
   gpa: string;
 };
 
-const makeWorkExperience = (): WorkExperience => ({
-  company: "",
-  position: "",
-  startDate: "",
-  endDate: "",
-  description: "",
-});
-
-const makeEducation = (): Education => ({
-  school: "",
-  major: "",
-  startDate: "",
-  endDate: "",
-  degree: "",
-  gpa: "",
-});
-
 const BeigeProgressBar = ({
   currentStep,
   totalSteps,
@@ -497,7 +480,7 @@ export const Onboarding2Content = () => {
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-start bg-beige200 px-0 pt-4 font-geist text-beige900 md:justify-center md:pt-0">
+    <main className="flex min-h-screen flex-col items-center justify-start bg-beige100 px-0 pt-4 font-geist text-beige900 md:justify-center md:pt-0">
       <div className="fixed left-0 top-0 z-20 w-full">
         <BeigeProgressBar currentStep={step + 1} totalSteps={STEPS.length} />
       </div>

@@ -235,6 +235,7 @@ const NetworkPage = () => {
               <h2
                 className={`${titleTextClassName} text-beige900 text-4xl md:text-5xl`}
               >
+                {/* GET MATCHED TO TOP AI STARTUPS */}
                 <span className="block">
                   <StaggerText text="Top AI teams reach out" />
                 </span>
