@@ -11,9 +11,17 @@ export type SearchEvidence = {
   paper?: SearchEvidencePaper | null;
 } | null;
 
+export type SearchRank = {
+  finalScore?: number | null;
+  criteriaScore?: number | null;
+  suitabilityScore?: number | null;
+} | null;
+
 export type RunPageCandidate = {
   id?: string;
   score?: number | string | null;
+  criteria_score?: number | string | null;
+  suitability_score?: number | string | null;
   evidence?: SearchEvidence | null;
 };
 
@@ -35,6 +43,25 @@ export function buildEvidenceMap(
     const id = String(item?.id ?? "").trim();
     if (!id) continue;
     out.set(id, item?.evidence ?? null);
+  }
+  return out;
+}
+
+function toOptionalNumber(value: unknown) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+export function buildRankMap(items: RunPageCandidate[]): Map<string, SearchRank> {
+  const out = new Map<string, SearchRank>();
+  for (const item of items) {
+    const id = String(item?.id ?? "").trim();
+    if (!id) continue;
+    out.set(id, {
+      finalScore: toOptionalNumber(item?.score),
+      criteriaScore: toOptionalNumber(item?.criteria_score),
+      suitabilityScore: toOptionalNumber(item?.suitability_score),
+    });
   }
   return out;
 }

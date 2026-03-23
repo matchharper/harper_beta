@@ -415,11 +415,6 @@ export const CriteriaCard = React.memo(function CriteriaCard({
       <div className="max-w-[440px]">
         <div className="text-xs text-hgray600 font-extralight flex flex-row items-center gap-1.5">
           <span>
-            {/* <img
-              src="/svgs/logo.svg"
-              alt="Harper"
-              className="w-[9px] h-[9px] text-hgray600"
-            /> */}
             <Bolt className="w-2.5 h-2.5 text-hgray600" />
           </span>
           Search
@@ -439,7 +434,7 @@ export const CriteriaCard = React.memo(function CriteriaCard({
             onConfirm={updateQueryText}
           />
 
-          <div className="mt-3 text-xs text-hgray600">Sources</div>
+          {/* <div className="mt-3 text-xs text-hgray600">Sources</div>
 
           <div className="flex flex-row gap-1 items-center justify-between">
             <div className="text-sm text-white font-light">
@@ -521,7 +516,7 @@ export const CriteriaCard = React.memo(function CriteriaCard({
                 </div>
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
+          </div> */}
           <div className="mt-3 text-xs text-hgray600">Criteria</div>
 
           {Array.isArray(draft.criteria) && draft.criteria.length > 0 && (

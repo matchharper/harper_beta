@@ -100,7 +100,7 @@ const CandidateViews = ({
     candidateSortOrderByKey,
     setCandidateSortOrder,
   } = useSettingStore();
-  const [isFolded, setIsFolded] = useState(false);
+  const [isFolded, setIsFolded] = useState(true);
   const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
   const [draggingColumnId, setDraggingColumnId] = useState<string | null>(null);
   const [dragOverColumnId, setDragOverColumnId] = useState<string | null>(null);
@@ -402,122 +402,123 @@ const CandidateViews = ({
           <div></div>
           <div className="flex flex-row items-center justify-start gap-2">
             {!isMyList && criteriaList.length > 0 && (
-              <DropdownMenu
-                open={isSortMenuOpen}
-                onOpenChange={setIsSortMenuOpen}
-              >
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-hgray900 transition-all duration-200 hover:bg-white/10"
-                  >
-                    <ArrowDownUp className="h-3.5 w-3.5" strokeWidth={1.6} />
-                    <span>{SORT_LABELS[savedSortMode]}</span>
-                    <ChevronDown className="h-3.5 w-3.5 text-hgray600" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  className="w-[280px] rounded-2xl border-white/10 bg-ngray300/70 p-2 backdrop-blur-sm"
-                >
-                  <div className="px-2 pb-2 text-[11px] text-hgray600">
-                    Sorting
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    {(["best_matched", "custom"] as CandidateSortMode[]).map(
-                      (mode) => {
-                        const checked = draftSortMode === mode;
-                        return (
-                          <button
-                            key={mode}
-                            type="button"
-                            onClick={() => setDraftSortMode(mode)}
-                            className={`flex items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition-all duration-200 ${
-                              checked ? "bg-white/10" : "hover:bg-white/5"
-                            }`}
-                          >
-                            <span className="text-hgray900">
-                              {SORT_LABELS[mode]}
-                            </span>
-                            {checked ? (
-                              <span className="h-2 w-2 rounded-full bg-accenta1" />
-                            ) : null}
-                          </button>
-                        );
-                      }
-                    )}
-                  </div>
+              // <DropdownMenu
+              //   open={isSortMenuOpen}
+              //   onOpenChange={setIsSortMenuOpen}
+              // >
+              //   <DropdownMenuTrigger asChild>
+              //     <button
+              //       type="button"
+              //       className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-hgray900 transition-all duration-200 hover:bg-white/10"
+              //     >
+              //       <ArrowDownUp className="h-3.5 w-3.5" strokeWidth={1.6} />
+              //       <span>{SORT_LABELS[savedSortMode]}</span>
+              //       <ChevronDown className="h-3.5 w-3.5 text-hgray600" />
+              //     </button>
+              //   </DropdownMenuTrigger>
+              //   <DropdownMenuContent
+              //     align="end"
+              //     className="w-[280px] rounded-2xl border-white/10 bg-ngray300/70 p-2 backdrop-blur-sm"
+              //   >
+              //     <div className="px-2 pb-2 text-[11px] text-hgray600">
+              //       Sorting
+              //     </div>
+              //     <div className="flex flex-col gap-1">
+              //       {(["best_matched", "custom"] as CandidateSortMode[]).map(
+              //         (mode) => {
+              //           const checked = draftSortMode === mode;
+              //           return (
+              //             <button
+              //               key={mode}
+              //               type="button"
+              //               onClick={() => setDraftSortMode(mode)}
+              //               className={`flex items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition-all duration-200 ${
+              //                 checked ? "bg-white/10" : "hover:bg-white/5"
+              //               }`}
+              //             >
+              //               <span className="text-hgray900">
+              //                 {SORT_LABELS[mode]}
+              //               </span>
+              //               {checked ? (
+              //                 <span className="h-2 w-2 rounded-full bg-accenta1" />
+              //               ) : null}
+              //             </button>
+              //           );
+              //         }
+              //       )}
+              //     </div>
 
-                  {draftSortMode === "custom" && (
-                    <div className="mt-3">
-                      <div className="px-2 pb-2 text-[11px] text-hgray600">
-                        Criteria priority
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        {draftSortOrder.map((criterionId, idx) => {
-                          const criterionIdx = Number(
-                            criterionId.split(":")[1]
-                          );
-                          const label =
-                            criteriaList[criterionIdx] ?? criterionId;
+              //     {draftSortMode === "custom" && (
+              //       <div className="mt-3">
+              //         <div className="px-2 pb-2 text-[11px] text-hgray600">
+              //           Criteria priority
+              //         </div>
+              //         <div className="flex flex-col gap-1">
+              //           {draftSortOrder.map((criterionId, idx) => {
+              //             const criterionIdx = Number(
+              //               criterionId.split(":")[1]
+              //             );
+              //             const label =
+              //               criteriaList[criterionIdx] ?? criterionId;
 
-                          return (
-                            <div
-                              key={criterionId}
-                              className="flex items-center justify-between gap-2 rounded-xl bg-white/5 px-3 py-2"
-                            >
-                              <span className="min-w-0 flex-1 truncate text-sm text-hgray900">
-                                {label}
-                              </span>
-                              <div className="flex items-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    moveDraftSortCriterion(idx, -1)
-                                  }
-                                  disabled={idx === 0}
-                                  className="flex h-7 w-7 items-center justify-center rounded-full bg-white/5 text-hgray900 transition-all duration-200 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-                                >
-                                  <ChevronUp className="h-3.5 w-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => moveDraftSortCriterion(idx, 1)}
-                                  disabled={idx === draftSortOrder.length - 1}
-                                  className="flex h-7 w-7 items-center justify-center rounded-full bg-white/5 text-hgray900 transition-all duration-200 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-                                >
-                                  <ChevronDown className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+              //             return (
+              //               <div
+              //                 key={criterionId}
+              //                 className="flex items-center justify-between gap-2 rounded-xl bg-white/5 px-3 py-2"
+              //               >
+              //                 <span className="min-w-0 flex-1 truncate text-sm text-hgray900">
+              //                   {label}
+              //                 </span>
+              //                 <div className="flex items-center gap-1">
+              //                   <button
+              //                     type="button"
+              //                     onClick={() =>
+              //                       moveDraftSortCriterion(idx, -1)
+              //                     }
+              //                     disabled={idx === 0}
+              //                     className="flex h-7 w-7 items-center justify-center rounded-full bg-white/5 text-hgray900 transition-all duration-200 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+              //                   >
+              //                     <ChevronUp className="h-3.5 w-3.5" />
+              //                   </button>
+              //                   <button
+              //                     type="button"
+              //                     onClick={() => moveDraftSortCriterion(idx, 1)}
+              //                     disabled={idx === draftSortOrder.length - 1}
+              //                     className="flex h-7 w-7 items-center justify-center rounded-full bg-white/5 text-hgray900 transition-all duration-200 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+              //                   >
+              //                     <ChevronDown className="h-3.5 w-3.5" />
+              //                   </button>
+              //                 </div>
+              //               </div>
+              //             );
+              //           })}
+              //         </div>
+              //       </div>
+              //     )}
 
-                  <div className="mt-3 flex items-center justify-end gap-2 px-1 font-normal">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDraftSortMode(savedSortMode);
-                        setDraftSortOrder(savedSortOrder);
-                        setIsSortMenuOpen(false);
-                      }}
-                      className="rounded-full px-3 py-1.5 text-xs text-hgray700 transition-all duration-200 hover:bg-white/5"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={applySortSettings}
-                      className="rounded-full bg-accenta1 px-3 py-1.5 text-xs text-black transition-all duration-200 hover:opacity-90"
-                    >
-                      Apply
-                    </button>
-                  </div>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              //     <div className="mt-3 flex items-center justify-end gap-2 px-1 font-normal">
+              //       <button
+              //         type="button"
+              //         onClick={() => {
+              //           setDraftSortMode(savedSortMode);
+              //           setDraftSortOrder(savedSortOrder);
+              //           setIsSortMenuOpen(false);
+              //         }}
+              //         className="rounded-full px-3 py-1.5 text-xs text-hgray700 transition-all duration-200 hover:bg-white/5"
+              //       >
+              //         Cancel
+              //       </button>
+              //       <button
+              //         type="button"
+              //         onClick={applySortSettings}
+              //         className="rounded-full bg-accenta1 px-3 py-1.5 text-xs text-black transition-all duration-200 hover:opacity-90"
+              //       >
+              //         Apply
+              //       </button>
+              //     </div>
+              //   </DropdownMenuContent>
+              // </DropdownMenu>
+              <></>
             )}
             <Tooltips text="Table view">
               <button
@@ -586,7 +587,7 @@ const CandidateViews = ({
                           <span className="pointer-events-none absolute left-0 top-0 h-full w-[2px] bg-accenta1" />
                         )}
                         <Tooltips text={column.tooltip ?? column.label}>
-                          <div className="w-full pl-2 pr-7 text-left truncate border-r border-white/5">
+                          <div className="w-full pl-2 pr-4 text-left truncate border-r border-white/5">
                             {column.label}
                           </div>
                         </Tooltips>

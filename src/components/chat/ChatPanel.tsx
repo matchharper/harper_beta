@@ -461,7 +461,6 @@ export default function ChatPanel({
             : "N/A";
 
         await notifyUsageToSlack(`🔎 *Search Started (Confirm)*
-
         • *User*: ${companyUser?.name ?? "Unknown"} (${companyUser?.email ?? "N/A"})
         • *User ID*: ${userId}
         • *Query ID*: ${scope?.type === "query" ? scope.queryId : "N/A"}

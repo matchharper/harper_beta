@@ -19,6 +19,7 @@ import Head from "next/head";
 import {
   SearchSource,
   normalizeSearchSource,
+  normalizeSearchSources,
   queryTypeToSearchSource,
 } from "@/lib/searchSource";
 
@@ -105,8 +106,19 @@ export default function ResultPage() {
 
   const searchEnabled = useMemo(() => ready && !!runId, [ready, runId]);
   const resultSourceType = useMemo<SearchSource>(() => {
-    const runSource = (runData?.search_settings as { type?: unknown } | null)
-      ?.type;
+    const runSearchSettings = runData?.search_settings as {
+      type?: unknown;
+      sources?: unknown;
+    } | null;
+    const runSource = runSearchSettings?.type;
+    const runSources = normalizeSearchSources(runSearchSettings?.sources, {
+      enabledOnly: true,
+      fallback: runSource != null ? [normalizeSearchSource(runSource)] : [],
+    });
+
+    if (runSources.length > 1) {
+      return "linkedin";
+    }
 
     if (runSource != null) {
       return normalizeSearchSource(runSource);

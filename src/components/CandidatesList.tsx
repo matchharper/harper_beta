@@ -159,6 +159,11 @@ function CandidateCard({
     () => buildEvidencePaperTooltip(c.search_evidence),
     [c.search_evidence]
   );
+  const suitabilityScore = useMemo(() => {
+    const value = Number(c.search_rank?.suitabilityScore);
+    if (!Number.isFinite(value)) return null;
+    return Math.max(0, Math.min(100, Math.round(value)));
+  }, [c.search_rank?.suitabilityScore]);
 
   const companyHistoryTooltipText = useMemo(() => {
     if (exps.length === 0) return "경력 정보 없음";
@@ -223,8 +228,13 @@ function CandidateCard({
                     {locationEnToKo(c.location)}
                   </div>
                 ) : null}
-                {linkSources.length > 0 ? (
-                  <div className="mt-2 flex items-center gap-2">
+                {suitabilityScore !== null || linkSources.length > 0 ? (
+                  <div className="mt-2 flex items-center gap-2 flex-wrap">
+                    {/* {suitabilityScore !== null ? (
+                      <div className="inline-flex items-center rounded-full border border-accenta1/20 bg-accenta1/10 px-2 py-0.5 text-[11px] font-normal text-accenta1">
+                        적합도 {suitabilityScore}
+                      </div>
+                    ) : null} */}
                     {linkSources.map((source) => (
                       <Tooltips
                         key={source}

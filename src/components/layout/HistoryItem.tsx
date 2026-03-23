@@ -41,7 +41,7 @@ const HistoryItem = ({
     >
       <div
         className={`flex flex-col items-start w-full font-normal ${
-          collapsed ? "max-w-full" : "max-w-[85%]"
+          collapsed ? "max-w-full" : "max-w-[86%]"
         }`}
       >
         <div className="flex w-full items-center gap-1.5">

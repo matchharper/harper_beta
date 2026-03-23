@@ -137,7 +137,15 @@ function CandidateRow({
     () => buildEvidencePaperTooltip(c.search_evidence),
     [c.search_evidence]
   );
-  const linkSources = useMemo(() => extractSearchSourcesFromLinks(c.links), [c.links]);
+  const linkSources = useMemo(
+    () => extractSearchSourcesFromLinks(c.links),
+    [c.links]
+  );
+  const suitabilityScore = useMemo(() => {
+    const value = Number(c.search_rank?.suitabilityScore);
+    if (!Number.isFinite(value)) return null;
+    return Math.max(0, Math.min(100, Math.round(value)));
+  }, [c.search_rank?.suitabilityScore]);
 
   const synthList = useMemo(() => {
     const rawText = c.synthesized_summary?.[0]?.text ?? "[]";
@@ -480,6 +488,11 @@ function CandidateRow({
                     "-"
                   )}
                 </div>
+                {/* {suitabilityScore !== null ? (
+                  <div className="mt-1 inline-flex items-center rounded-full border border-accenta1/20 bg-accenta1/10 px-2 py-0.5 text-[11px] font-normal text-accenta1">
+                    적합도 {suitabilityScore}
+                  </div>
+                ) : null} */}
               </div>
               <div
                 className="px-2 absolute right-1 flex items-center justify-end"
