@@ -86,10 +86,7 @@ function prioritizeSearchSources(sources: SearchSource[]) {
   const linkedinIdx = sources.indexOf("linkedin");
   if (linkedinIdx <= 0) return sources;
 
-  return [
-    "linkedin",
-    ...sources.filter((source) => source !== "linkedin"),
-  ];
+  return ["linkedin", ...sources.filter((source) => source !== "linkedin")];
 }
 
 export function normalizeSearchSources(
@@ -119,11 +116,12 @@ export function normalizeSearchSources(
     pushSource(values);
   }
 
-  if (deduped.length > 0) return prioritizeSearchSources(deduped);
+  if (deduped.length > 0)
+    return prioritizeSearchSources(deduped) as SearchSource[];
 
   const fallback = Array.isArray(options?.fallback) ? options?.fallback : [];
   fallback.forEach(pushSource);
-  return prioritizeSearchSources(deduped);
+  return prioritizeSearchSources(deduped) as SearchSource[];
 }
 
 const SEARCH_SOURCE_MATCHERS: Record<SearchSource, (value: string) => boolean> =
