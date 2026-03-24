@@ -20,6 +20,10 @@ type SharedFolderCandidateNotesProps = {
   compact?: boolean;
   showTitle?: boolean;
   variant?: "sidecar" | "table";
+  showCreateButton?: boolean;
+  hideWhenEmpty?: boolean;
+  createRequestKey?: number;
+  onNotesChange?: (notes: SharedFolderCandidateNote[]) => void;
 };
 
 export default function SharedFolderCandidateNotes({
@@ -30,6 +34,10 @@ export default function SharedFolderCandidateNotes({
   compact = false,
   showTitle = true,
   variant = "sidecar",
+  showCreateButton = true,
+  hideWhenEmpty = false,
+  createRequestKey = 0,
+  onNotesChange,
 }: SharedFolderCandidateNotesProps) {
   const [notes, setNotes] = useState<SharedFolderCandidateNote[]>(initialNotes);
   const [draft, setDraft] = useState("");
@@ -46,6 +54,10 @@ export default function SharedFolderCandidateNotes({
     setNotes(initialNotes);
   }, [initialNotes]);
 
+  useEffect(() => {
+    onNotesChange?.(notes);
+  }, [notes, onNotesChange]);
+
   const canCompose = Boolean(viewer);
   const isSaving = isCreating || isUpdating || isDeleting;
   const sortedNotes = useMemo(() => {
@@ -58,17 +70,16 @@ export default function SharedFolderCandidateNotes({
     if (variant === "table") {
       return [
         "flex h-full flex-col border-l border-white/10 bg-black/15",
-        compact ? "min-h-[140px] px-4 py-3" : "min-h-[200px] px-4 py-4",
+        compact ? "px-4 py-3" : "min-h-[200px] px-4 py-4",
       ].join(" ");
     }
 
     return [
-      "flex h-full flex-col rounded-[26px] border border-white/10 bg-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]",
-      compact ? "min-h-[160px] p-4" : "min-h-[220px] p-4",
+      "flex h-full flex-col rounded-sm bg-black/20",
+      compact ? "min-h-[160px] p-3" : "min-h-[220px] p-3",
     ].join(" ");
   }, [compact, variant]);
-  const noteCardClassName =
-    "rounded-2xl border border-white/10 bg-white/5 px-3 py-3";
+  const noteCardClassName = "py-1 border-b border-white/5";
 
   const resetEditor = () => {
     setDraft("");
@@ -82,6 +93,13 @@ export default function SharedFolderCandidateNotes({
     setDraft("");
     setIsComposing(true);
   };
+
+  useEffect(() => {
+    if (!createRequestKey || !canCompose) return;
+    setEditingNoteId(null);
+    setDraft("");
+    setIsComposing(true);
+  }, [canCompose, createRequestKey]);
 
   const openEdit = (note: SharedFolderCandidateNote) => {
     if (!canCompose) return;
@@ -156,6 +174,10 @@ export default function SharedFolderCandidateNotes({
     }
   };
 
+  if (hideWhenEmpty && sortedNotes.length === 0 && !isComposing) {
+    return null;
+  }
+
   return (
     <div
       onMouseDown={(event) => {
@@ -167,52 +189,17 @@ export default function SharedFolderCandidateNotes({
       }}
       className={containerClassName}
     >
-      {showHeaderRow ? (
-        <div className="mb-3 flex items-start justify-between gap-3">
-          {showTitle ? (
-            <div className="min-w-0">
-              <div className="mt-1 text-sm text-hgray800">
-                {sortedNotes.length > 0 && `${sortedNotes.length}개의 메모`}
-              </div>
-            </div>
-          ) : (
-            <div />
-          )}
-          {canCompose && !isComposing ? (
-            <button
-              type="button"
-              onClick={openCreate}
-              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 text-[12px] text-hgray900 transition-colors hover:bg-white/10"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              메모 추가
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-
-      {sortedNotes.length === 0 && !isComposing ? (
-        <div className="rounded-2xl border border-white/5 bg-white/5 px-3 py-4 text-[13px] leading-6 text-hgray600">
-          {canCompose
-            ? "이 후보자에 대한 메모를 남겨보세요."
-            : "아직 남겨진 메모가 없습니다."}
-        </div>
-      ) : null}
-
       <div className="space-y-2">
         {sortedNotes.map((note) => (
           <div key={note.id} className={noteCardClassName}>
             <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
+              <div className="flex flex-row items-center justify-between w-full">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="inline-flex max-w-full items-center rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-hgray900">
+                  <span className="inline-flex max-w-full items-center text-xs text-hgray900">
                     <span className="truncate">{note.viewerName}</span>
                   </span>
-                  {note.updatedAt && note.updatedAt !== note.createdAt ? (
-                    <span className="text-[11px] text-hgray600">수정됨</span>
-                  ) : null}
                 </div>
-                <div className="mt-1 text-[11px] text-hgray600">
+                <div className="text-[11px] text-hgray600">
                   {formatSharedFolderNoteDate(note.updatedAt || note.createdAt)}
                 </div>
               </div>
@@ -243,8 +230,21 @@ export default function SharedFolderCandidateNotes({
         ))}
       </div>
 
-      {isComposing ? (
-        <div className="mt-3 rounded-[22px] border border-white/10 bg-white/5 p-3">
+      {showCreateButton && showHeaderRow && !isComposing && canCompose && (
+        <div className="flex items-start justify-between gap-3">
+          <button
+            type="button"
+            onClick={openCreate}
+            className="mb-3 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-white/10 bg-white/5 px-3 text-[12px] text-hgray900 transition-colors hover:bg-white/10"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            공유 메모 추가
+          </button>
+        </div>
+      )}
+
+      {isComposing && (
+        <div className="mt-0">
           <textarea
             rows={compact ? 3 : 4}
             value={draft}
@@ -259,13 +259,11 @@ export default function SharedFolderCandidateNotes({
                 void handleSave();
               }
             }}
-            className="w-full resize-none rounded-2xl border border-white/10 bg-black/10 px-3 py-3 text-[13px] leading-6 text-hgray900 outline-none placeholder:text-hgray600 focus:border-white/20"
-            placeholder="이 후보자에 대한 메모를 남겨보세요"
+            className="w-full resize-none rounded-md border border-white/5 bg-black/10 px-3 py-3 text-[13px] leading-6 text-hgray900 outline-none placeholder:text-hgray600 focus:border-white/20"
+            placeholder="메모를 남겨보세요"
           />
-          <div className="mt-3 flex items-center justify-between gap-3">
-            <div className="text-[11px] text-hgray600">
-              {canCompose ? "Ctrl/Cmd + Enter로 저장" : ""}
-            </div>
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <div className="text-[11px] text-hgray600"></div>
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -285,7 +283,7 @@ export default function SharedFolderCandidateNotes({
             </div>
           </div>
         </div>
-      ) : null}
+      )}
     </div>
   );
 }

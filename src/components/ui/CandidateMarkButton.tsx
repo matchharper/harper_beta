@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Check, Minus, Pause, Plus, X } from "lucide-react";
+import { Check, Minus, Pause, Plus, Square, X } from "lucide-react";
 import {
   CANDIDATE_MARK_OPTIONS,
   CandidateMarkIconKey,
@@ -31,14 +31,11 @@ function MarkIcon({
   iconKey: CandidateMarkIconKey;
   className?: string;
 }) {
-  if (iconKey === "excluded") {
-    return <X className={className} strokeWidth={2} />;
-  }
   if (iconKey === "not_fit") {
     return <Minus className={className} strokeWidth={2} />;
   }
   if (iconKey === "hold") {
-    return <Pause className={className} strokeWidth={2} />;
+    return <Square fill="currentColor" className={className} strokeWidth={2} />;
   }
   return <Check className={className} strokeWidth={2} />;
 }
@@ -61,7 +58,7 @@ export default function CandidateMarkButton({
   }, [initialStatus]);
 
   const meta = useMemo(() => getCandidateMarkMeta(status), [status]);
-  const tooltipText = meta ? `마크: ${meta.label}` : "마크 남기기";
+  const tooltipText = meta ? `태그: ${meta.label}` : "태그 남기기";
 
   const handleClickCapture = (event: React.MouseEvent<HTMLElement>) => {
     event.preventDefault();
@@ -78,7 +75,7 @@ export default function CandidateMarkButton({
     } catch (error) {
       console.error("candidate mark save error:", error);
       showToast({
-        message: "마크 저장에 실패했습니다.",
+        message: "태그 저장에 실패했습니다.",
         variant: "white",
       });
     }
@@ -91,18 +88,22 @@ export default function CandidateMarkButton({
       onClick={handleClickCapture}
       disabled={!userId || isPending}
       className={[
-        "inline-flex items-center justify-center rounded-lg border transition-colors duration-200 disabled:opacity-60",
-        compact ? "h-8 w-8" : "h-8 w-8",
+        "inline-flex flex-row gap-2 items-center justify-center rounded-md border transition-colors duration-200 disabled:opacity-60",
+        compact ? "py-1.5 px-2 text-sm" : "py-1.5 px-2 text-sm",
         meta
           ? `${meta.borderClassName} ${meta.bgClassName} ${meta.textClassName} hover:brightness-110`
           : "border-white/10 bg-black/20 text-white/75 hover:bg-white/10 hover:text-white",
       ].join(" ")}
     >
       {meta ? (
-        <MarkIcon iconKey={meta.iconKey} className="h-4 w-4" />
+        <MarkIcon
+          iconKey={meta.iconKey}
+          className={meta.shortLabel === "보류" ? "h-3 w-3" : "h-4 w-4"}
+        />
       ) : (
-        <Plus className="h-4 w-4" strokeWidth={2} />
+        <Plus className="h-4 w-4 my-0.5" strokeWidth={2} />
       )}
+      {meta?.shortLabel}
     </button>
   );
 
@@ -135,7 +136,10 @@ export default function CandidateMarkButton({
                       option.textClassName,
                     ].join(" ")}
                   >
-                    <MarkIcon iconKey={option.iconKey} className="h-3.5 w-3.5" />
+                    <MarkIcon
+                      iconKey={option.iconKey}
+                      className="h-3.5 w-3.5"
+                    />
                   </span>
                   <span>{option.label}</span>
                 </div>
@@ -156,7 +160,7 @@ export default function CandidateMarkButton({
                 }}
                 className="text-white/70"
               >
-                마크 해제
+                태그 해제
               </ActionDropdownItem>
             </>
           ) : null}

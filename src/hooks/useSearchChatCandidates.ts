@@ -23,6 +23,7 @@ import { logger } from "@/utils/logger";
 import { UI_END, UI_START } from "./chat/useChatSession";
 import type { Locale } from "@/i18n/useMessage";
 import { fetchCandidateMarkMap } from "./useCandidateMark";
+import { fetchShortlistMemoMap } from "./useShortlistMemo";
 
 function getCookie(name: string) {
   if (typeof document === "undefined") return null;
@@ -213,6 +214,7 @@ async function fetchCandidatesByIds(
       ? await fetchScholarPreviewByCandidateIds(scholarPreviewCandidateIds)
       : new Map<string, ScholarProfilePreview>();
   const candidateMarkByCandidateId = await fetchCandidateMarkMap(userId, ids);
+  const shortlistMemoByCandidateId = await fetchShortlistMemoMap(userId, ids);
 
   const ordered = ids
     .map((id) => {
@@ -224,6 +226,7 @@ async function fetchCandidatesByIds(
         search_evidence: evidenceByCandidateId?.get(id) ?? null,
         search_rank: rankByCandidateId?.get(id) ?? null,
         candidate_mark: candidateMarkByCandidateId.get(id) ?? null,
+        shortlist_memo: shortlistMemoByCandidateId.get(id) ?? "",
       };
     })
     .filter(Boolean);

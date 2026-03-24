@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import {
+  fetchCandidateMarkByCandidateIdsForUser,
+  fetchShortlistMemoByCandidateIdsForUser,
   getFolderShareState,
   getSupabaseAdmin,
   loadFolderShareByToken,
@@ -84,9 +86,27 @@ export async function GET(req: Request) {
       );
     }
 
+    const [ownerCandidateMarkByCandidateId, ownerShortlistMemoByCandidateId] =
+      await Promise.all([
+        fetchCandidateMarkByCandidateIdsForUser(
+          supabaseAdmin,
+          share!.created_by,
+          [candidId]
+        ),
+        fetchShortlistMemoByCandidateIdsForUser(
+          supabaseAdmin,
+          share!.created_by,
+          [candidId]
+        ),
+      ]);
+
     return NextResponse.json({
       folder,
-      candid,
+      candid: {
+        ...candid,
+        candidate_mark: ownerCandidateMarkByCandidateId.get(candidId) ?? null,
+        shortlist_memo: ownerShortlistMemoByCandidateId.get(candidId) ?? "",
+      },
     });
   } catch (error: any) {
     return NextResponse.json(

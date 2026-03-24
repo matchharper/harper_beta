@@ -14,6 +14,7 @@ import {
 import { CandidateTypeWithConnection } from "./useSearchChatCandidates";
 import { logger } from "@/utils/logger";
 import { fetchCandidateMarkMap } from "./useCandidateMark";
+import { fetchShortlistMemoMap } from "./useShortlistMemo";
 
 async function fetchCandidatesByIds(
   ids: string[],
@@ -110,6 +111,7 @@ async function fetchCandidatesByIds(
     );
   }
   const candidateMarkByCandidateId = await fetchCandidateMarkMap(userId, ids);
+  const shortlistMemoByCandidateId = await fetchShortlistMemoMap(userId, ids);
   const ordered = ids
     .map((id) => {
       const item = dataById.get(id);
@@ -120,6 +122,7 @@ async function fetchCandidatesByIds(
         search_evidence: evidenceByCandidateId?.get(id) ?? null,
         search_rank: rankByCandidateId?.get(id) ?? null,
         candidate_mark: candidateMarkByCandidateId.get(id) ?? null,
+        shortlist_memo: shortlistMemoByCandidateId.get(id) ?? "",
       };
     })
     .filter(Boolean);

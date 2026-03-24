@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import {
+  fetchCandidateMarkByCandidateIdsForUser,
   fetchScholarPreviewByCandidateIds,
+  fetchShortlistMemoByCandidateIdsForUser,
   getFolderShareState,
   getSupabaseAdmin,
   loadFolderShareByToken,
@@ -131,6 +133,18 @@ export async function GET(req: Request) {
       supabaseAdmin,
       ids
     );
+    const ownerCandidateMarkByCandidateId =
+      await fetchCandidateMarkByCandidateIdsForUser(
+        supabaseAdmin,
+        share!.created_by,
+        ids
+      );
+    const ownerShortlistMemoByCandidateId =
+      await fetchShortlistMemoByCandidateIdsForUser(
+        supabaseAdmin,
+        share!.created_by,
+        ids
+      );
     const { data: noteRows, error: noteError } = await (
       supabaseAdmin.from("bookmark_folder_share_note" as any) as any
     )
@@ -175,7 +189,9 @@ export async function GET(req: Request) {
         return {
           ...candidate,
           connection: [],
+          candidate_mark: ownerCandidateMarkByCandidateId.get(id) ?? null,
           scholar_profile_preview: scholarPreviewByCandidateId.get(id) ?? null,
+          shortlist_memo: ownerShortlistMemoByCandidateId.get(id) ?? "",
           shared_folder_notes: notesByCandidateId.get(id) ?? [],
         };
       })

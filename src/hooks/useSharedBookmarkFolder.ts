@@ -305,6 +305,8 @@ export function useSharedBookmarkFolderPage(
 }
 
 export function useCreateSharedFolderNote() {
+  const qc = useQueryClient();
+
   return useMutation({
     mutationFn: async ({
       token,
@@ -334,10 +336,17 @@ export function useCreateSharedFolderNote() {
 
       return mapSharedFolderNote(json?.note);
     },
+    onSuccess: (_note, vars) => {
+      qc.invalidateQueries({
+        queryKey: ["sharedBookmarkFolder", vars.token],
+      });
+    },
   });
 }
 
 export function useUpdateSharedFolderNote() {
+  const qc = useQueryClient();
+
   return useMutation({
     mutationFn: async ({
       token,
@@ -367,10 +376,17 @@ export function useUpdateSharedFolderNote() {
 
       return mapSharedFolderNote(json?.note);
     },
+    onSuccess: (_note, vars) => {
+      qc.invalidateQueries({
+        queryKey: ["sharedBookmarkFolder", vars.token],
+      });
+    },
   });
 }
 
 export function useDeleteSharedFolderNote() {
+  const qc = useQueryClient();
+
   return useMutation({
     mutationFn: async ({
       token,
@@ -397,6 +413,11 @@ export function useDeleteSharedFolderNote() {
       return {
         noteId: Number(json?.noteId ?? noteId),
       };
+    },
+    onSuccess: (_note, vars) => {
+      qc.invalidateQueries({
+        queryKey: ["sharedBookmarkFolder", vars.token],
+      });
     },
   });
 }

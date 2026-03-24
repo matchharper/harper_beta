@@ -91,6 +91,9 @@ export function useSetCandidateMark() {
       qc.invalidateQueries({ queryKey: ["connections", vars.userId] });
       qc.invalidateQueries({ queryKey: ["searchCandidatesByRun"] });
       qc.invalidateQueries({ queryKey: ["runPages"] });
+      qc.invalidateQueries({
+        queryKey: ["candidate", vars.candidId, vars.userId],
+      });
     },
   });
 }

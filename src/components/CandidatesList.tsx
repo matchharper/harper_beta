@@ -15,7 +15,6 @@ import { RoleBox, ScholarSignalBox, SchoolBox } from "./CandidatesListTable";
 import { SummaryScore } from "@/types/type";
 import { useLogEvent } from "@/hooks/useLog";
 import Link from "next/link";
-import ShortlistMemoEditor from "./ui/ShortlistMemoEditor";
 import CandidateMarkButton from "./ui/CandidateMarkButton";
 import SharedFolderCandidateNotes from "./shared/SharedFolderCandidateNotes";
 import {
@@ -38,6 +37,7 @@ import {
 import Image from "next/image";
 import { logger } from "@/utils/logger";
 import { SharedFolderViewerIdentity } from "@/lib/sharedFolder";
+import CandidateMemoDock from "./ui/CandidateMemoDock";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
 
@@ -109,7 +109,7 @@ function CandidateCard({
   userId,
   criterias,
   isMyList = false,
-  showShortlistMemo = false,
+  showShortlistMemo = true,
   sourceType = "linkedin",
   buildProfileHref,
   showBookmarkAction = true,
@@ -215,14 +215,21 @@ function CandidateCard({
     return buildScholarResearchTooltip(scholarPreview);
   }, [scholarPreview]);
   const hasSharedFolderNotes = Boolean(sharedFolderContext?.token);
-
-  logger.log("shortlistSummaryText ", shortlistSummaryText);
+  const hasOwnerAnnotation = Boolean(
+    String(shortlistMemo ?? "").trim().length > 0 || candidateMarkStatus
+  );
+  const shouldShowInlineMemo = Boolean(
+    showShortlistMemo && (userId || hasOwnerAnnotation)
+  );
+  const shouldShowCornerMark = Boolean(
+    showMarkAction && userId && !shouldShowInlineMemo
+  );
 
   return (
     <div
       className={
         hasSharedFolderNotes
-          ? "mx-auto flex w-full max-w-[1180px] flex-col gap-4 xl:flex-row"
+          ? "mx-auto flex w-full max-w-[1260px] px-4 flex-col gap-4 xl:flex-row"
           : "mx-auto w-full max-w-[760px]"
       }
     >
@@ -230,7 +237,7 @@ function CandidateCard({
         href={profileHref}
         onClick={() => logEvent("candidate_card_click: " + candidId)}
         className={`group relative block w-full cursor-pointer rounded-[28px] bg-white/5 text-white transition-colors duration-200 hover:bg-white/10 ${
-          hasSharedFolderNotes ? "min-w-0 flex-1 px-5 py-5" : "p-6"
+          hasSharedFolderNotes ? "h-fit min-w-0 px-5 py-5" : "p-6"
         }`}
       >
         <div className="flex items-start gap-5">
@@ -407,20 +414,25 @@ function CandidateCard({
                 ) : null}
               </div>
             )}
-            {isMyList && showShortlistMemo && userId ? (
+            {shouldShowInlineMemo ? (
               <div className="mt-6 border-t border-white/10 pt-4">
-                <ShortlistMemoEditor
+                <CandidateMemoDock
                   userId={userId}
                   candidId={c.id}
                   initialMemo={shortlistMemo}
+                  initialMarkStatus={candidateMarkStatus}
+                  showMarkButton={
+                    showMarkAction && Boolean(userId || candidateMarkStatus)
+                  }
                   rows={4}
+                  editorClassName="w-full"
                 />
               </div>
             ) : null}
           </div>
         </div>
 
-        {(showMarkAction && userId) || (showBookmarkAction && userId) ? (
+        {shouldShowCornerMark || (showBookmarkAction && userId) ? (
           <div
             className="absolute right-3 top-3 flex items-center justify-start gap-2"
             onClick={(e) => {
@@ -428,7 +440,7 @@ function CandidateCard({
               e.stopPropagation();
             }}
           >
-            {showMarkAction && userId ? (
+            {shouldShowCornerMark ? (
               <CandidateMarkButton
                 userId={userId}
                 candidId={c.id}
@@ -455,7 +467,7 @@ function CandidateCard({
       </Link>
 
       {sharedFolderContext?.token ? (
-        <div className="w-full shrink-0 xl:w-[324px]">
+        <div className="w-full shrink-0 xl:w-[420px]">
           <SharedFolderCandidateNotes
             token={sharedFolderContext.token}
             candidId={c.id}

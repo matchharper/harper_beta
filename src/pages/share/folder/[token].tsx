@@ -84,41 +84,35 @@ export default function SharedFolderPage() {
             >
               From <span className="text-accenta1">Harper</span>
             </Link>
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-hgray800">
+            <div className="hidden sm:inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs text-hgray800">
               <Lock className="h-3.5 w-3.5" />
               외부 공유용 폴더
             </div>
           </div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-accenta1/20 bg-accenta1/10 px-3 py-1 text-xs text-accenta1">
-            <Share2 className="h-3.5 w-3.5" />
+          <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs text-black">
             {folderName}
           </div>
         </div>
       </div>
 
-      <div className="mx-auto max-w-[1320px] px-4 py-8">
+      <div className="flex items-center justify-center h-full w-full sm:hidden font-normal min-h-[calc(100vh-64px)] text-base">
+        <div>데스크탑 환경에서 확인가능합니다.</div>
+      </div>
+
+      <div className="mx-auto max-w-[1320px] px-4 py-8 hidden sm:block">
         <div className="rounded-[32px] border border-white/10 bg-white/5 p-6 md:p-7">
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-            <div className="max-w-[760px]">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-hgray800">
-                <Lock className="h-3 w-3" />
-                외부 공유된 폴더
-              </div>
-              <div className="mt-4 text-[28px] font-normal leading-tight text-white">
-                {folderName}
-              </div>
-              <div className="mt-3 text-sm leading-6 text-hgray700"></div>
+          <div className="flex gap-6 flex-row items-start justify-between">
+            <div className="text-[28px] font-normal leading-tight text-white">
+              {folderName}
             </div>
 
-            <div className="grid gap-3 md:grid-cols-3 xl:min-w-[520px]">
-              <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
-                <div className="mt-2 text-xl font-medium text-white">
-                  {total}
-                </div>
+            <div className="grid grid-cols-2 gap-3 min-w-[520px]">
+              <div className="rounded-2xl bg-black/15 px-4 py-3">
+                <div className="text-xl font-medium text-white">{total}</div>
                 <div className="mt-1 text-xs text-hgray700">공유된 후보 수</div>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
-                <div className="mt-2 truncate text-base font-medium text-white">
+              <div className="rounded-2xl bg-black/15 px-4 py-3">
+                <div className="truncate text-base font-medium text-white">
                   {viewer?.viewerName ?? "게스트"}
                 </div>
                 <div className="mt-1 text-xs text-hgray700">
@@ -165,11 +159,12 @@ export default function SharedFolderPage() {
             <CandidateViews
               items={items}
               criterias={[]}
+              showShortlistMemo={true}
               indexStart={pageIdx * PAGE_SIZE}
               sourceType="linkedin"
               buildProfileHref={buildProfileHref}
               showBookmarkAction={false}
-              showMarkAction={false}
+              showMarkAction={true}
               sharedFolderContext={{
                 token,
                 viewer,

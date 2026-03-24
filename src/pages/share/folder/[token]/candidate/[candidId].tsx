@@ -13,6 +13,7 @@ import ProfileBio from "@/pages/my/p/components/ProfileBio";
 import ItemBox from "@/pages/my/p/components/ItemBox";
 import PublicationBox from "@/pages/my/p/components/PublicationBox";
 import { Box } from "@/pages/my/p/CandidateProfile";
+import CandidateMemoDock from "@/components/ui/CandidateMemoDock";
 import {
   companyEnToKo,
   degreeEnToKo,
@@ -112,6 +113,8 @@ export default function SharedFolderCandidatePage() {
   const candid = data?.candid;
   const folder = data?.folder;
   const links = useMemo(() => normalizeLinks(candid?.links), [candid?.links]);
+  const ownerShortlistMemo = String(candid?.shortlist_memo ?? "").trim();
+  const ownerCandidateMarkStatus = candid?.candidate_mark?.status ?? null;
 
   if (loading) {
     return <Loading className="min-h-screen justify-center text-hgray700" />;
@@ -135,30 +138,17 @@ export default function SharedFolderCandidatePage() {
               <ChevronLeft className="h-4 w-4" />
               {folder?.name ?? "Shared folder"}
             </Link>
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-hgray800">
-              <Lock className="h-3.5 w-3.5" />
-              공유된 폴더 프로필
-            </div>
-          </div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-accenta1/20 bg-accenta1/10 px-3 py-1 text-xs text-accenta1">
-            <Share2 className="h-3.5 w-3.5" />
-            외부 공유 보기
           </div>
         </div>
       </div>
 
       <div className="mx-auto max-w-[980px] space-y-10 px-4 py-10">
-        <div className="rounded-[28px] border border-white/10 bg-white/5 p-6">
+        <div className="">
           <div className="mb-5 flex flex-wrap items-center gap-2 text-xs text-hgray700">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/15 px-3 py-1">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/15 px-3 py-1.5">
               <Lock className="h-3.5 w-3.5" />
               공유 폴더에서 열람 중
             </span>
-            {folder?.name ? (
-              <span className="inline-flex items-center rounded-full border border-white/10 bg-black/15 px-3 py-1">
-                {folder.name}
-              </span>
-            ) : null}
           </div>
           <div className="flex items-start justify-between gap-6">
             <MainProfile
@@ -193,25 +183,41 @@ export default function SharedFolderCandidatePage() {
               isLoadingOneline={false}
             />
           </div>
+
+          {ownerShortlistMemo || ownerCandidateMarkStatus ? (
+            <div className="mt-8">
+              <Box title="폴더 소유자 메모" color="accenta1">
+                <CandidateMemoDock
+                  candidId={candid.id}
+                  initialMemo={ownerShortlistMemo}
+                  initialMarkStatus={ownerCandidateMarkStatus}
+                  showMarkButton={Boolean(ownerCandidateMarkStatus)}
+                  editorClassName="w-full min-h-[88px]"
+                />
+              </Box>
+            </div>
+          ) : null}
         </div>
 
         {(candid.experience_user ?? []).length > 0 ? (
           <Box title="경력">
             <div className="space-y-3">
-              {(candid.experience_user ?? []).map((item: any, index: number) => (
-                <ItemBox
-                  key={index}
-                  title={item.role}
-                  company_id={item.company_id}
-                  name={companyEnToKo(item?.company_db?.name)}
-                  start_date={item.start_date}
-                  end_date={item.end_date}
-                  link={item?.company_db?.linkedin_url}
-                  description={item.description}
-                  logo_url={item?.company_db?.logo}
-                  months={item.months}
-                />
-              ))}
+              {(candid.experience_user ?? []).map(
+                (item: any, index: number) => (
+                  <ItemBox
+                    key={index}
+                    title={item.role}
+                    company_id={item.company_id}
+                    name={companyEnToKo(item?.company_db?.name)}
+                    start_date={item.start_date}
+                    end_date={item.end_date}
+                    link={item?.company_db?.linkedin_url}
+                    description={item.description}
+                    logo_url={item?.company_db?.logo}
+                    months={item.months}
+                  />
+                )
+              )}
             </div>
           </Box>
         ) : null}
@@ -242,18 +248,20 @@ export default function SharedFolderCandidatePage() {
         {(candid.extra_experience ?? []).length > 0 ? (
           <Box title="수상 기록">
             <div className="space-y-3">
-              {(candid.extra_experience ?? []).map((item: any, index: number) => (
-                <ItemBox
-                  key={index}
-                  title={item.title}
-                  name={item.issued_by}
-                  start_date={item.issued_at}
-                  end_date=""
-                  link=""
-                  description={item.description}
-                  typed="award"
-                />
-              ))}
+              {(candid.extra_experience ?? []).map(
+                (item: any, index: number) => (
+                  <ItemBox
+                    key={index}
+                    title={item.title}
+                    name={item.issued_by}
+                    start_date={item.issued_at}
+                    end_date=""
+                    link=""
+                    description={item.description}
+                    typed="award"
+                  />
+                )
+              )}
             </div>
           </Box>
         ) : null}

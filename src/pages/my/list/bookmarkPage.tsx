@@ -14,6 +14,7 @@ import {
   useRevokeBookmarkFolderShare,
   useSharedBookmarkFolderPage,
 } from "@/hooks/useSharedBookmarkFolder";
+import { createSharedFolderOwnerIdentity } from "@/lib/sharedFolder";
 import {
   BookmarkFolder,
   useBookmarkFolders,
@@ -27,7 +28,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Forward,
+  Copy,
   MoreHorizontal,
   Pencil,
   Trash2,
@@ -36,7 +37,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import ShortlistEmptyState from "./components/EmptyState";
 import { useSettingStore } from "@/store/useSettingStore";
-import Image from "next/image";
+import ForwardIcon from "@/assets/icons/forward.svg";
 
 const PAGE_SIZE_OPTIONS = [10, 20, 30] as const;
 
@@ -213,6 +214,14 @@ export default function BookmarksPage() {
     mode === "folder" && currentFolderId != null
       ? (activeShareByFolderId.get(Number(currentFolderId)) ?? null)
       : null;
+  const ownerSharedFolderViewer = useMemo(() => {
+    if (!currentFolderShare?.token || !userId) return null;
+
+    return createSharedFolderOwnerIdentity(
+      userId,
+      companyUser?.name ?? companyUser?.email ?? null
+    );
+  }, [companyUser?.email, companyUser?.name, currentFolderShare?.token, userId]);
 
   const { data, isLoading, error, isFetching } = useCandidatesByConnectionTyped(
     userId,
@@ -224,7 +233,8 @@ export default function BookmarksPage() {
   const { data: sharedFolderPageData } = useSharedBookmarkFolderPage(
     currentFolderShare?.token,
     pageIdx,
-    pageSize
+    pageSize,
+    ownerSharedFolderViewer?.viewerKey
   );
 
   const items = useMemo(() => data?.items ?? [], [data?.items]);
@@ -506,15 +516,6 @@ export default function BookmarksPage() {
                 >
                   <Bookmark className="h-3.5 w-3.5" fill="currentColor" />
                   <span>{defaultFolder.name}</span>
-                  {activeShareByFolderId.has(Number(defaultFolder.id)) ? (
-                    <Image
-                      src="/images/svgs/forward.svg"
-                      alt="Forward"
-                      width={12}
-                      height={12}
-                      className="text-white"
-                    />
-                  ) : null}
                   {mode === "folder" &&
                     selectedFolderId === Number(defaultFolder.id) && (
                       <span className="absolute inset-x-0 bottom-[-1px] h-0.5 rounded-full bg-white" />
@@ -569,11 +570,11 @@ export default function BookmarksPage() {
                 type="button"
                 className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm transition-colors ${
                   currentFolderShare
-                    ? "border-accenta1/35 bg-accenta1/10 text-accenta1 hover:bg-accenta1/15"
+                    ? "border-white/35 bg-white text-black hover:bg-white/90"
                     : "border-white/10 bg-white/5 text-white hover:bg-white/10"
                 }`}
               >
-                <Forward className="h-4 w-4 text-white" />
+                <ForwardIcon className="h-5 w-5" />
                 <span>{currentFolderShare ? "공유 중" : "공유"}</span>
               </button>
             }
@@ -585,7 +586,12 @@ export default function BookmarksPage() {
               }}
               className="flex items-center gap-2"
             >
-              <Upload className="h-4 w-4" />
+              {currentFolderShare ? (
+                <Copy className="h-4 w-4" />
+              ) : (
+                <Upload className="h-4 w-4" />
+              )}
+
               <span>
                 {currentFolderShare ? "링크 다시 복사" : "공유 링크 만들기"}
               </span>
@@ -634,7 +640,7 @@ export default function BookmarksPage() {
               currentFolderShare?.token
                 ? {
                     token: currentFolderShare.token,
-                    viewer: null,
+                    viewer: ownerSharedFolderViewer,
                   }
                 : null
             }

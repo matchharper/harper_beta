@@ -60,6 +60,7 @@ export default function ResultBody(props: Props) {
             items={items}
             userId={userId}
             criterias={criterias}
+            showShortlistMemo={true}
             indexStart={pageIdx * 10}
             sourceType={sourceType}
           />

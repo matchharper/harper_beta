@@ -31,3 +31,15 @@ export function formatSharedFolderNoteDate(value?: string | null) {
 export function createDefaultSharedFolderViewerName(viewerKey: string) {
   return `게스트 ${viewerKey.slice(0, 4).toUpperCase()}`;
 }
+
+export function createSharedFolderOwnerIdentity(
+  userId: string,
+  viewerName?: string | null
+): SharedFolderViewerIdentity {
+  const normalizedName = String(viewerName ?? "").trim();
+
+  return {
+    viewerKey: `owner:${userId}`,
+    viewerName: normalizedName || "폴더 소유자",
+  };
+}

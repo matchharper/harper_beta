@@ -120,3 +120,64 @@ export async function fetchScholarPreviewByCandidateIds(
       ])
   );
 }
+
+export async function fetchCandidateMarkByCandidateIdsForUser(
+  supabaseAdmin: ReturnType<typeof getSupabaseAdmin>,
+  userId: string,
+  ids: string[]
+) {
+  if (!userId || ids.length === 0) {
+    return new Map<string, any>();
+  }
+
+  const { data, error } = await ((supabaseAdmin.from(
+    "candidate_mark" as any
+  ) as any)
+    .select("candid_id, status, created_at, updated_at")
+    .eq("user_id", userId)
+    .in("candid_id", ids));
+
+  if (error) throw error;
+
+  const marksByCandidateId = new Map<string, any>();
+  for (const row of data ?? []) {
+    const candidId = String(row?.candid_id ?? "").trim();
+    if (!candidId) continue;
+    marksByCandidateId.set(candidId, {
+      candidId,
+      status: String(row?.status ?? ""),
+      createdAt: row?.created_at ?? null,
+      updatedAt: row?.updated_at ?? row?.created_at ?? null,
+    });
+  }
+
+  return marksByCandidateId;
+}
+
+export async function fetchShortlistMemoByCandidateIdsForUser(
+  supabaseAdmin: ReturnType<typeof getSupabaseAdmin>,
+  userId: string,
+  ids: string[]
+) {
+  if (!userId || ids.length === 0) {
+    return new Map<string, string>();
+  }
+
+  const { data, error } = await ((supabaseAdmin.from(
+    "shortlist_memo" as any
+  ) as any)
+    .select("candid_id, memo")
+    .eq("user_id", userId)
+    .in("candid_id", ids));
+
+  if (error) throw error;
+
+  const memoByCandidateId = new Map<string, string>();
+  for (const row of data ?? []) {
+    const candidId = String(row?.candid_id ?? "").trim();
+    if (!candidId) continue;
+    memoByCandidateId.set(candidId, String(row?.memo ?? ""));
+  }
+
+  return memoByCandidateId;
+}

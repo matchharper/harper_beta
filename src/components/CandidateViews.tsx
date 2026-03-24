@@ -4,6 +4,19 @@ import { SharedFolderViewerIdentity } from "@/lib/sharedFolder";
 import React, { useMemo, useRef, useState } from "react";
 import CandidateRow from "./CandidatesListTable";
 import CandidateCard from "./CandidatesList";
+import {
+  buildCandidateTableGridTemplateColumns,
+  CandidateTableColumnDef,
+  CandidateTableDetachedColumnLayout,
+  CandidateTableColumnId,
+  CandidateTableStaticColumnId,
+  createCandidateTableColumnMap,
+  createCandidateTableColumns,
+  getCandidateTableDetachedColumnLayout,
+  getCandidateTableProfileWidth,
+  getOrderedCandidateTableColumnIds,
+  isCriteriaColumnId,
+} from "./candidateTableColumns";
 import { useSettingStore } from "@/store/useSettingStore";
 import { Tooltips } from "./ui/tooltip";
 import {
@@ -16,25 +29,6 @@ import {
 import { useLogEvent } from "@/hooks/useLog";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
-const INDEX_COLUMN_WIDTH = "56px";
-
-type TableColumnDef = {
-  id: string;
-  label: string;
-  width: string;
-  draggable: boolean;
-  kind:
-    | "criteria"
-    | "company"
-    | "evidence"
-    | "school"
-    | "summary"
-    | "memo"
-    | "mark"
-    | "shared_notes"
-    | "actions";
-  tooltip?: string;
-};
 
 const arrayEquals = (a: string[], b: string[]) =>
   a.length === b.length && a.every((v, i) => v === b[i]);
@@ -100,8 +94,10 @@ const CandidateViews = ({
     candidateSortOrderByKey,
   } = useSettingStore();
   const [isFolded, setIsFolded] = useState(true);
-  const [draggingColumnId, setDraggingColumnId] = useState<string | null>(null);
-  const [dragOverColumnId, setDragOverColumnId] = useState<string | null>(null);
+  const [draggingColumnId, setDraggingColumnId] =
+    useState<CandidateTableColumnId | null>(null);
+  const [dragOverColumnId, setDragOverColumnId] =
+    useState<CandidateTableColumnId | null>(null);
   const transparentDragImageRef = useRef<HTMLCanvasElement | null>(null);
   const logEvent = useLogEvent();
 
@@ -169,87 +165,17 @@ const CandidateViews = ({
     return [...validStored, ...missing];
   }, [candidateSortOrderByKey, defaultSortOrder, sortContextKey]);
 
-  const dynamicColumns = useMemo<TableColumnDef[]>(() => {
-    const cols: TableColumnDef[] = [];
-    const defaultCols = isMyList ? "280px" : "240px";
-    const criteriaWidth = isFolded ? "60px" : "140px";
-
-    criteriaList.forEach((criteria, idx) => {
-      cols.push({
-        id: `criteria:${idx}`,
-        label: criteria,
-        tooltip: criteria,
-        width: criteriaWidth,
-        draggable: canReorderColumns,
-        kind: "criteria",
-      });
+  const dynamicColumns = useMemo<CandidateTableColumnDef[]>(() => {
+    return createCandidateTableColumns({
+      criteriaList,
+      canReorderColumns,
+      hasSharedFolderNotes,
+      isFolded,
+      isMyList,
+      isScholarSource,
+      shouldShowMarkAction,
+      showShortlistMemo,
     });
-
-    cols.push({
-      id: "company",
-      label: isScholarSource ? "Affiliation" : "Company",
-      width: defaultCols,
-      draggable: canReorderColumns,
-      kind: "company",
-    });
-    cols.push({
-      id: "school",
-      label: isScholarSource ? "Research" : "School",
-      width: defaultCols,
-      draggable: canReorderColumns,
-      kind: "school",
-    });
-
-    if (isScholarSource) {
-      cols.push({
-        id: "evidence",
-        label: "Related paper",
-        width: "340px",
-        draggable: false,
-        kind: "evidence",
-      });
-    }
-
-    if (isMyList) {
-      cols.push({
-        id: "summary",
-        label: "Summary",
-        width: "520px",
-        draggable: canReorderColumns,
-        kind: "summary",
-      });
-      if (showShortlistMemo) {
-        cols.push({
-          id: "memo",
-          label: "Memo",
-          width: "420px",
-          draggable: canReorderColumns,
-          kind: "memo",
-        });
-      }
-    }
-
-    if (shouldShowMarkAction) {
-      cols.push({
-        id: "mark",
-        label: "",
-        width: "72px",
-        draggable: false,
-        kind: "mark",
-      });
-    }
-
-    if (hasSharedFolderNotes) {
-      cols.push({
-        id: "shared_notes",
-        label: "공유 메모",
-        width: "360px",
-        draggable: false,
-        kind: "shared_notes",
-      });
-    }
-
-    return cols;
   }, [
     canReorderColumns,
     criteriaList,
@@ -261,55 +187,48 @@ const CandidateViews = ({
     showShortlistMemo,
   ]);
 
-  const defaultColumnIds = useMemo(
-    () => dynamicColumns.map((col) => col.id),
-    [dynamicColumns]
-  );
-
   const savedColumnIds = useMemo(
     () => columnOrderByKey[contextKey] ?? [],
     [columnOrderByKey, contextKey]
   );
 
   const orderedColumnIds = useMemo(() => {
-    const moveFixedTailColumnsToEnd = (ids: string[]) => {
-      const fixedTail = ["mark", "shared_notes"].filter((id) =>
-        ids.includes(id)
-      );
-      if (fixedTail.length === 0) return ids;
-      return [...ids.filter((id) => !fixedTail.includes(id)), ...fixedTail];
-    };
-
-    if (!canReorderColumns) {
-      return moveFixedTailColumnsToEnd(defaultColumnIds);
-    }
-    const validSaved = savedColumnIds.filter((id) =>
-      defaultColumnIds.includes(id)
+    return getOrderedCandidateTableColumnIds(
+      dynamicColumns,
+      savedColumnIds,
+      canReorderColumns
     );
-    const missing = defaultColumnIds.filter((id) => !validSaved.includes(id));
-    return moveFixedTailColumnsToEnd([...validSaved, ...missing]);
-  }, [savedColumnIds, defaultColumnIds, canReorderColumns]);
+  }, [canReorderColumns, dynamicColumns, savedColumnIds]);
 
-  const columnById = useMemo(() => {
-    const map = new Map<string, TableColumnDef>();
-    for (const column of dynamicColumns) {
-      map.set(column.id, column);
-    }
-    return map;
-  }, [dynamicColumns]);
+  const columnById = useMemo(
+    () => createCandidateTableColumnMap(dynamicColumns),
+    [dynamicColumns]
+  );
 
-  const profileWidth = isMyList ? "320px" : "280px";
+  const profileWidth = getCandidateTableProfileWidth(isMyList);
   const gridTemplateColumns = useMemo(() => {
-    const dynamicWidths = orderedColumnIds.map(
-      (id) => columnById.get(id)?.width ?? "180px"
+    return buildCandidateTableGridTemplateColumns(
+      orderedColumnIds,
+      columnById,
+      profileWidth
     );
-    return [INDEX_COLUMN_WIDTH, profileWidth, ...dynamicWidths].join(" ");
   }, [orderedColumnIds, columnById, profileWidth]);
+  const sharedNotesLayout = useMemo<CandidateTableDetachedColumnLayout | null>(
+    () => {
+      if (!hasSharedFolderNotes) return null;
+
+      return getCandidateTableDetachedColumnLayout(
+        CandidateTableStaticColumnId.SharedNotes,
+        orderedColumnIds,
+        columnById,
+        profileWidth
+      );
+    },
+    [columnById, hasSharedFolderNotes, orderedColumnIds, profileWidth]
+  );
 
   const lastCriteriaColumnId = useMemo(() => {
-    const criteriaIds = orderedColumnIds.filter((id) =>
-      id.startsWith("criteria:")
-    );
+    const criteriaIds = orderedColumnIds.filter((id) => isCriteriaColumnId(id));
     return criteriaIds.at(-1) ?? null;
   }, [orderedColumnIds]);
   const sortedItems = useMemo(() => {
@@ -337,7 +256,7 @@ const CandidateViews = ({
 
   const onDragStart = (
     e: React.DragEvent<HTMLDivElement>,
-    columnId: string
+    columnId: CandidateTableColumnId
   ) => {
     const column = columnById.get(columnId);
     if (!column || !column.draggable) return;
@@ -355,7 +274,7 @@ const CandidateViews = ({
 
   const onDragOver = (
     e: React.DragEvent<HTMLDivElement>,
-    targetColumnId: string
+    targetColumnId: CandidateTableColumnId
   ) => {
     const target = columnById.get(targetColumnId);
     if (!draggingColumnId || !target?.draggable) return;
@@ -366,7 +285,7 @@ const CandidateViews = ({
 
   const onDrop = (
     e: React.DragEvent<HTMLDivElement>,
-    targetColumnId: string
+    targetColumnId: CandidateTableColumnId
   ) => {
     e.preventDefault();
     const target = columnById.get(targetColumnId);
@@ -528,6 +447,8 @@ const CandidateViews = ({
                     </div>
                   );
                 })}
+
+                <div aria-hidden="true" className="h-full" />
               </div>
 
               <div className="pb-48">
@@ -539,13 +460,13 @@ const CandidateViews = ({
                     userId={userId}
                     criterias={criteriaList}
                     orderedColumnIds={orderedColumnIds}
-                    showShortlistMemo={showShortlistMemo}
                     gridTemplateColumns={gridTemplateColumns}
                     rowIndex={indexStart + idx}
                     sourceType={sourceType}
                     buildProfileHref={buildProfileHref}
                     showBookmarkAction={shouldShowBookmarkAction}
                     showMarkAction={shouldShowMarkAction}
+                    sharedNotesLayout={sharedNotesLayout}
                     sharedFolderContext={sharedFolderContext ?? null}
                   />
                 ))}

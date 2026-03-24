@@ -135,7 +135,7 @@ const Bookmarkbutton = ({
               ? "h-7 px-1.5 text-xs bg-hgray500/20 hover:bg-hgray500/30"
               : size === "lg"
                 ? "h-12 px-6 text-lg bg-white/10 hover:bg-white/5"
-                : "h-8 px-3 text-sm bg-white/0 hover:bg-white/5"
+                : "h-8 px-2 text-sm bg-white/0 hover:bg-white/5"
           }`}
         >
           {isBookmarkedInUi ? (
