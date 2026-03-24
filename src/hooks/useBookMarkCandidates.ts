@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ScholarProfilePreview } from "@/lib/scholarPreview";
 import { supabase } from "@/lib/supabase";
 import { CandidateTypeWithConnection } from "./useSearchChatCandidates";
+import { fetchCandidateMarkMap } from "./useCandidateMark";
 
 export type ConnectionTyped = 0 | 1 | 2 | 3;
 
@@ -174,6 +175,10 @@ export function useCandidatesByConnectionTyped(
 
       const scholarPreviewByCandidateId =
         await fetchScholarPreviewByCandidateIds(ids);
+      const candidateMarkByCandidateId = await fetchCandidateMarkMap(
+        userId,
+        ids
+      );
 
       const memoByCandidId = new Map<string, string>();
       const { data: memoRows, error: e3 } = await (
@@ -199,6 +204,7 @@ export function useCandidatesByConnectionTyped(
           if (!cand) return null;
           return {
             ...cand,
+            candidate_mark: candidateMarkByCandidateId.get(id) ?? null,
             scholar_profile_preview:
               scholarPreviewByCandidateId.get(id) ?? null,
             shortlist_memo: memoByCandidId.get(id) ?? "",

@@ -1,5 +1,6 @@
 import { CandidateTypeWithConnection } from "@/hooks/useSearchChatCandidates";
 import { SearchSource, isScholarSearchSource } from "@/lib/searchSource";
+import { SharedFolderViewerIdentity } from "@/lib/sharedFolder";
 import React, { useMemo, useRef, useState } from "react";
 import CandidateRow from "./CandidatesListTable";
 import CandidateCard from "./CandidatesList";
@@ -29,6 +30,8 @@ type TableColumnDef = {
     | "school"
     | "summary"
     | "memo"
+    | "mark"
+    | "shared_notes"
     | "actions";
   tooltip?: string;
 };
@@ -68,14 +71,25 @@ const CandidateViews = ({
   showShortlistMemo = false,
   indexStart = 0,
   sourceType = "linkedin",
+  buildProfileHref,
+  showBookmarkAction,
+  showMarkAction,
+  sharedFolderContext,
 }: {
   items: any[];
-  userId: string;
+  userId?: string;
   criterias: string[];
   isMyList?: boolean;
   showShortlistMemo?: boolean;
   indexStart?: number;
   sourceType?: SearchSource;
+  buildProfileHref?: (candidate: CandidateTypeWithConnection) => string;
+  showBookmarkAction?: boolean;
+  showMarkAction?: boolean;
+  sharedFolderContext?: {
+    token: string;
+    viewer: SharedFolderViewerIdentity | null;
+  } | null;
 }) => {
   const {
     viewType,
@@ -105,6 +119,11 @@ const CandidateViews = ({
     [criterias]
   );
   const isScholarSource = isScholarSearchSource(sourceType);
+  const hasSharedFolderNotes = Boolean(sharedFolderContext?.token);
+  const shouldShowBookmarkAction =
+    showBookmarkAction ?? (Boolean(userId) && !hasSharedFolderNotes);
+  const shouldShowMarkAction =
+    showMarkAction ?? (Boolean(userId) && !hasSharedFolderNotes);
   const canReorderColumns = isMyList;
 
   const contextKey = useMemo(
@@ -113,10 +132,19 @@ const CandidateViews = ({
         "candidate-table-order",
         isMyList ? "mylist" : "search",
         showShortlistMemo ? "memo-on" : "memo-off",
+        shouldShowMarkAction ? "mark-on" : "mark-off",
+        hasSharedFolderNotes ? "shared-notes-on" : "shared-notes-off",
         sourceType,
         criteriaList.join("||"),
       ].join(":"),
-    [criteriaList, isMyList, showShortlistMemo, sourceType]
+    [
+      criteriaList,
+      hasSharedFolderNotes,
+      isMyList,
+      shouldShowMarkAction,
+      showShortlistMemo,
+      sourceType,
+    ]
   );
   const sortContextKey = useMemo(
     () =>
@@ -182,16 +210,6 @@ const CandidateViews = ({
       });
     }
 
-    if (!isScholarSource && !isMyList && criteriaList.length > 0) {
-      cols.push({
-        id: "actions",
-        label: "",
-        width: "80px",
-        draggable: false,
-        kind: "actions",
-      });
-    }
-
     if (isMyList) {
       cols.push({
         id: "summary",
@@ -210,13 +228,36 @@ const CandidateViews = ({
         });
       }
     }
+
+    if (shouldShowMarkAction) {
+      cols.push({
+        id: "mark",
+        label: "",
+        width: "72px",
+        draggable: false,
+        kind: "mark",
+      });
+    }
+
+    if (hasSharedFolderNotes) {
+      cols.push({
+        id: "shared_notes",
+        label: "공유 메모",
+        width: "360px",
+        draggable: false,
+        kind: "shared_notes",
+      });
+    }
+
     return cols;
   }, [
     canReorderColumns,
     criteriaList,
+    hasSharedFolderNotes,
     isFolded,
     isMyList,
     isScholarSource,
+    shouldShowMarkAction,
     showShortlistMemo,
   ]);
 
@@ -231,19 +272,22 @@ const CandidateViews = ({
   );
 
   const orderedColumnIds = useMemo(() => {
-    const moveEvidenceToEnd = (ids: string[]) => {
-      if (!ids.includes("evidence")) return ids;
-      return [...ids.filter((id) => id !== "evidence"), "evidence"];
+    const moveFixedTailColumnsToEnd = (ids: string[]) => {
+      const fixedTail = ["mark", "shared_notes"].filter((id) =>
+        ids.includes(id)
+      );
+      if (fixedTail.length === 0) return ids;
+      return [...ids.filter((id) => !fixedTail.includes(id)), ...fixedTail];
     };
 
     if (!canReorderColumns) {
-      return moveEvidenceToEnd(defaultColumnIds);
+      return moveFixedTailColumnsToEnd(defaultColumnIds);
     }
     const validSaved = savedColumnIds.filter((id) =>
       defaultColumnIds.includes(id)
     );
     const missing = defaultColumnIds.filter((id) => !validSaved.includes(id));
-    return moveEvidenceToEnd([...validSaved, ...missing]);
+    return moveFixedTailColumnsToEnd([...validSaved, ...missing]);
   }, [savedColumnIds, defaultColumnIds, canReorderColumns]);
 
   const columnById = useMemo(() => {
@@ -499,6 +543,10 @@ const CandidateViews = ({
                     gridTemplateColumns={gridTemplateColumns}
                     rowIndex={indexStart + idx}
                     sourceType={sourceType}
+                    buildProfileHref={buildProfileHref}
+                    showBookmarkAction={shouldShowBookmarkAction}
+                    showMarkAction={shouldShowMarkAction}
+                    sharedFolderContext={sharedFolderContext ?? null}
                   />
                 ))}
               </div>
@@ -519,6 +567,10 @@ const CandidateViews = ({
                 criterias={criteriaList}
                 showShortlistMemo={showShortlistMemo}
                 sourceType={sourceType}
+                buildProfileHref={buildProfileHref}
+                showBookmarkAction={shouldShowBookmarkAction}
+                showMarkAction={shouldShowMarkAction}
+                sharedFolderContext={sharedFolderContext ?? null}
               />
             ))}
           </div>

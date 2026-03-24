@@ -7,6 +7,13 @@ import {
 import { Loading } from "@/components/ui/loading";
 import { showToast } from "@/components/toast/toast";
 import { useCandidatesByConnectionTyped } from "@/hooks/useBookMarkCandidates";
+import { CandidateTypeWithConnection } from "@/hooks/useSearchChatCandidates";
+import {
+  useActiveBookmarkFolderShareMap,
+  useCreateBookmarkFolderShare,
+  useRevokeBookmarkFolderShare,
+  useSharedBookmarkFolderPage,
+} from "@/hooks/useSharedBookmarkFolder";
 import {
   BookmarkFolder,
   useBookmarkFolders,
@@ -20,28 +27,49 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Forward,
   MoreHorizontal,
   Pencil,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import ShortlistEmptyState from "./components/EmptyState";
 import { useSettingStore } from "@/store/useSettingStore";
+import Image from "next/image";
 
 const PAGE_SIZE_OPTIONS = [10, 20, 30] as const;
 
 type ShortlistMode = "folder" | "requested";
 type PageSizeOption = (typeof PAGE_SIZE_OPTIONS)[number];
 
+async function copyToClipboard(text: string) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  document.body.removeChild(textarea);
+}
+
 function BookmarkFolderTab({
   folder,
   isActive,
+  isShared,
   onSelect,
   onRename,
   onDelete,
 }: {
   folder: BookmarkFolder;
   isActive: boolean;
+  isShared: boolean;
   onSelect: () => void;
   onRename: (folder: BookmarkFolder) => void;
   onDelete: (folder: BookmarkFolder) => void;
@@ -58,6 +86,7 @@ function BookmarkFolderTab({
       <button type="button" className="cursor-pointer">
         {folder.name}
       </button>
+      {/* {isShared ? <Share2 className="h-3 w-3 text-accenta1" /> : null} */}
       {isActive && (
         <span className="absolute inset-x-0 bottom-[-1px] h-0.5 rounded-full bg-white" />
       )}
@@ -126,6 +155,11 @@ export default function BookmarksPage() {
 
   const { data: folders = [], isLoading: isFoldersLoading } =
     useBookmarkFolders(userId, true);
+  const activeShareByFolderId = useActiveBookmarkFolderShareMap(userId);
+  const { mutateAsync: createFolderShare, isPending: isCreatingFolderShare } =
+    useCreateBookmarkFolderShare();
+  const { mutateAsync: revokeFolderShare, isPending: isRevokingFolderShare } =
+    useRevokeBookmarkFolderShare();
   const { mutateAsync: deleteFolder, isPending: isDeletingFolder } =
     useDeleteBookmarkFolder();
   const { mutateAsync: updateFolder, isPending: isUpdatingFolder } =
@@ -175,6 +209,10 @@ export default function BookmarksPage() {
   const currentTyped = mode === "requested" ? 1 : 0;
   const currentFolderId = mode === "folder" ? selectedFolderId : null;
   const pageIdx = pageByMode[mode] ?? 0;
+  const currentFolderShare =
+    mode === "folder" && currentFolderId != null
+      ? (activeShareByFolderId.get(Number(currentFolderId)) ?? null)
+      : null;
 
   const { data, isLoading, error, isFetching } = useCandidatesByConnectionTyped(
     userId,
@@ -183,14 +221,42 @@ export default function BookmarksPage() {
     pageSize,
     currentFolderId
   );
+  const { data: sharedFolderPageData } = useSharedBookmarkFolderPage(
+    currentFolderShare?.token,
+    pageIdx,
+    pageSize
+  );
 
-  const items = data?.items ?? [];
+  const items = useMemo(() => data?.items ?? [], [data?.items]);
   const total = data?.total ?? 0;
   const hasNext = data?.hasNext ?? false;
   const hasPrev = pageIdx > 0;
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const isInitialFolderLoading =
     mode === "folder" && selectedFolderId === -1 && isFoldersLoading;
+  const itemsWithSharedNotes = useMemo(() => {
+    if (!currentFolderShare?.token) return items;
+
+    const notesByCandidateId = new Map<
+      string,
+      CandidateTypeWithConnection["shared_folder_notes"]
+    >();
+    for (const candidate of sharedFolderPageData?.items ?? []) {
+      const candidateId = String(candidate?.id ?? "").trim();
+      if (!candidateId) continue;
+      notesByCandidateId.set(
+        candidateId,
+        Array.isArray(candidate?.shared_folder_notes)
+          ? candidate.shared_folder_notes
+          : []
+      );
+    }
+
+    return items.map((item) => ({
+      ...item,
+      shared_folder_notes: notesByCandidateId.get(String(item.id ?? "")) ?? [],
+    }));
+  }, [currentFolderShare?.token, items, sharedFolderPageData?.items]);
 
   const handleConfirmDeleteFolder = async () => {
     if (!folderToDelete || !userId) return;
@@ -270,6 +336,65 @@ export default function BookmarksPage() {
     if (nextPageSize === pageSize) return;
     setPageSize(nextPageSize);
     setPageByMode({ folder: 0, requested: 0 });
+  };
+
+  const handleCreateFolderShare = async () => {
+    if (
+      !userId ||
+      mode !== "folder" ||
+      currentFolderId == null ||
+      currentFolderId < 0
+    ) {
+      return;
+    }
+
+    try {
+      const result = await createFolderShare({
+        userId,
+        folderId: Number(currentFolderId),
+      });
+      await copyToClipboard(result.url);
+      showToast({
+        message: currentFolderShare
+          ? "공유 링크를 다시 복사했습니다."
+          : "폴더 공유 링크를 만들고 복사했습니다.",
+        variant: "white",
+      });
+    } catch (error: any) {
+      showToast({
+        message: String(
+          error?.message ?? "폴더 공유 링크 생성에 실패했습니다."
+        ),
+        variant: "white",
+      });
+    }
+  };
+
+  const handleRevokeFolderShare = async () => {
+    if (
+      !userId ||
+      mode !== "folder" ||
+      currentFolderId == null ||
+      currentFolderId < 0
+    ) {
+      return;
+    }
+
+    try {
+      await revokeFolderShare({
+        userId,
+        folderId: Number(currentFolderId),
+      });
+      showToast({
+        message: "폴더 공유를 중단했습니다.",
+        variant: "white",
+      });
+    } catch (error: any) {
+      showToast({
+        message: String(error?.message ?? "폴더 공유 중단에 실패했습니다."),
+        variant: "white",
+      });
+    }
   };
 
   if (isInitialFolderLoading) {
@@ -365,61 +490,121 @@ export default function BookmarksPage() {
   return (
     <div className="w-full">
       <div className="mb-4 px-4">
-        <div className="overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-          <div className="flex min-w-max items-end gap-2 border-b border-white/10">
-            {defaultFolder && (
+        <div className="flex items-end justify-between gap-4">
+          <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex min-w-max items-end gap-2 border-b border-white/10">
+              {defaultFolder && (
+                <button
+                  type="button"
+                  onClick={() => selectFolderTab(Number(defaultFolder.id))}
+                  className={`relative inline-flex items-center gap-1.5 pb-3 pl-1 pr-3 pt-2 text-sm transition-colors ${
+                    mode === "folder" &&
+                    selectedFolderId === Number(defaultFolder.id)
+                      ? "text-white"
+                      : "text-white/65 hover:text-white/90"
+                  }`}
+                >
+                  <Bookmark className="h-3.5 w-3.5" fill="currentColor" />
+                  <span>{defaultFolder.name}</span>
+                  {activeShareByFolderId.has(Number(defaultFolder.id)) ? (
+                    <Image
+                      src="/images/svgs/forward.svg"
+                      alt="Forward"
+                      width={12}
+                      height={12}
+                      className="text-white"
+                    />
+                  ) : null}
+                  {mode === "folder" &&
+                    selectedFolderId === Number(defaultFolder.id) && (
+                      <span className="absolute inset-x-0 bottom-[-1px] h-0.5 rounded-full bg-white" />
+                    )}
+                </button>
+              )}
+
               <button
                 type="button"
-                onClick={() => selectFolderTab(Number(defaultFolder.id))}
-                className={`relative inline-flex items-center gap-1.5 pb-3 pl-1 pr-3 pt-2 text-sm transition-colors ${
-                  mode === "folder" &&
-                  selectedFolderId === Number(defaultFolder.id)
+                onClick={() => {
+                  setMode("requested");
+                  setPageByMode((prev) => ({ ...prev, requested: 0 }));
+                }}
+                className={`relative inline-flex items-center gap-1 pb-3 px-3 pt-2 text-sm transition-colors ${
+                  mode === "requested"
                     ? "text-white"
                     : "text-white/65 hover:text-white/90"
                 }`}
               >
-                <Bookmark className="h-3.5 w-3.5" fill="currentColor" />
-                <span>{defaultFolder.name}</span>
-                {mode === "folder" &&
-                  selectedFolderId === Number(defaultFolder.id) && (
-                    <span className="absolute inset-x-0 bottom-[-1px] h-0.5 rounded-full bg-white" />
-                  )}
+                Intro 요청됨
+                {mode === "requested" && (
+                  <span className="absolute inset-x-0 bottom-[-1px] h-0.5 rounded-full bg-white" />
+                )}
               </button>
-            )}
 
-            <button
-              type="button"
-              onClick={() => {
-                setMode("requested");
-                setPageByMode((prev) => ({ ...prev, requested: 0 }));
-              }}
-              className={`relative inline-flex items-center gap-1 pb-3 px-3 pt-2 text-sm transition-colors ${
-                mode === "requested"
-                  ? "text-white"
-                  : "text-white/65 hover:text-white/90"
-              }`}
-            >
-              Intro 요청됨
-              {mode === "requested" && (
-                <span className="absolute inset-x-0 bottom-[-1px] h-0.5 rounded-full bg-white" />
-              )}
-            </button>
-
-            {otherFolders.map((folder) => {
-              const fid = Number(folder.id);
-              return (
-                <BookmarkFolderTab
-                  key={folder.id}
-                  folder={folder}
-                  isActive={mode === "folder" && selectedFolderId === fid}
-                  onSelect={() => selectFolderTab(fid)}
-                  onRename={setFolderToRename}
-                  onDelete={setFolderToDelete}
-                />
-              );
-            })}
+              {otherFolders.map((folder) => {
+                const fid = Number(folder.id);
+                return (
+                  <BookmarkFolderTab
+                    key={folder.id}
+                    folder={folder}
+                    isActive={mode === "folder" && selectedFolderId === fid}
+                    isShared={activeShareByFolderId.has(fid)}
+                    onSelect={() => selectFolderTab(fid)}
+                    onRename={setFolderToRename}
+                    onDelete={setFolderToDelete}
+                  />
+                );
+              })}
+            </div>
           </div>
         </div>
+      </div>
+
+      <div className="flex mt-2 px-4 w-full items-center justify-end">
+        {mode === "folder" && selectedFolderId !== -1 ? (
+          <ActionDropdown
+            align="end"
+            contentClassName="min-w-[180px]"
+            trigger={
+              <button
+                type="button"
+                className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm transition-colors ${
+                  currentFolderShare
+                    ? "border-accenta1/35 bg-accenta1/10 text-accenta1 hover:bg-accenta1/15"
+                    : "border-white/10 bg-white/5 text-white hover:bg-white/10"
+                }`}
+              >
+                <Forward className="h-4 w-4 text-white" />
+                <span>{currentFolderShare ? "공유 중" : "공유"}</span>
+              </button>
+            }
+          >
+            <ActionDropdownItem
+              disabled={isCreatingFolderShare || isRevokingFolderShare}
+              onSelect={() => {
+                void handleCreateFolderShare();
+              }}
+              className="flex items-center gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              <span>
+                {currentFolderShare ? "링크 다시 복사" : "공유 링크 만들기"}
+              </span>
+            </ActionDropdownItem>
+            {currentFolderShare ? (
+              <ActionDropdownItem
+                tone="danger"
+                disabled={isRevokingFolderShare}
+                onSelect={() => {
+                  void handleRevokeFolderShare();
+                }}
+                className="flex items-center gap-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span>공유 중단</span>
+              </ActionDropdownItem>
+            ) : null}
+          </ActionDropdown>
+        ) : null}
       </div>
 
       {isLoading ? (
@@ -433,17 +618,26 @@ export default function BookmarksPage() {
           mode={mode === "requested" ? "requested" : "bookmark"}
         />
       )}
-
       {!isLoading && items.length > 0 && (
         <div className="relative mt-8">
           <Pagination />
 
           <CandidateViews
-            items={items}
+            items={itemsWithSharedNotes}
             userId={userId}
             isMyList={true}
             showShortlistMemo={true}
             criterias={[]}
+            showBookmarkAction={true}
+            showMarkAction={true}
+            sharedFolderContext={
+              currentFolderShare?.token
+                ? {
+                    token: currentFolderShare.token,
+                    viewer: null,
+                  }
+                : null
+            }
           />
 
           {viewType === "card" && (

@@ -1,5 +1,5 @@
 import { CandidateTypeWithConnection } from "@/hooks/useSearchChatCandidates";
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import { BriefcaseBusiness, FileText, GraduationCap } from "lucide-react";
 import { useRouter } from "next/router";
 import { Avatar } from "./NameProfile";
@@ -9,6 +9,8 @@ import { useLogEvent } from "@/hooks/useLog";
 import { getSchoolLogo } from "@/utils/school_logo";
 import Link from "next/link";
 import ShortlistMemoEditor from "./ui/ShortlistMemoEditor";
+import CandidateMarkButton from "./ui/CandidateMarkButton";
+import SharedFolderCandidateNotes from "./shared/SharedFolderCandidateNotes";
 import {
   SearchSource,
   extractSearchSourcesFromLinks,
@@ -35,6 +37,7 @@ import {
 } from "@/utils/language_map";
 import Bookmarkbutton from "./ui/bookmarkbutton";
 import Image from "next/image";
+import { SharedFolderViewerIdentity } from "@/lib/sharedFolder";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
 
@@ -100,9 +103,13 @@ function CandidateRow({
   gridTemplateColumns,
   rowIndex,
   sourceType = "linkedin",
+  buildProfileHref,
+  showBookmarkAction = true,
+  showMarkAction = true,
+  sharedFolderContext = null,
 }: {
   c: CandidateTypeWithConnection;
-  userId: string;
+  userId?: string;
   isMyList?: boolean;
   showShortlistMemo?: boolean;
   criterias: string[];
@@ -110,6 +117,13 @@ function CandidateRow({
   gridTemplateColumns: string;
   rowIndex: number;
   sourceType?: SearchSource;
+  buildProfileHref?: (candidate: CandidateTypeWithConnection) => string;
+  showBookmarkAction?: boolean;
+  showMarkAction?: boolean;
+  sharedFolderContext?: {
+    token: string;
+    viewer: SharedFolderViewerIdentity | null;
+  } | null;
 }) {
   const router = useRouter();
   const candidId = c.id;
@@ -118,13 +132,17 @@ function CandidateRow({
   const edus = asArr(c.edu_user ?? []);
   const sourceRunId =
     typeof router.query.run === "string" ? router.query.run : "";
-  const profileHref = sourceRunId
-    ? `/my/p/${candidId}?run=${encodeURIComponent(sourceRunId)}`
-    : `/my/p/${candidId}`;
+  const profileHref = buildProfileHref
+    ? buildProfileHref(c)
+    : sourceRunId
+      ? `/my/p/${candidId}?run=${encodeURIComponent(sourceRunId)}`
+      : `/my/p/${candidId}`;
 
   const latestCompany = exps[0];
   const latestEdu = edus[0];
   const scholarPreview = c.scholar_profile_preview;
+  const candidateMarkStatus = c.candidate_mark?.status ?? null;
+  const sharedFolderNotes = c.shared_folder_notes ?? [];
   const evidencePaper = getEvidencePaper(c.search_evidence);
   const isScholarSource = isScholarSearchSource(sourceType);
   const isOnlyScholar =
@@ -141,12 +159,6 @@ function CandidateRow({
     () => extractSearchSourcesFromLinks(c.links),
     [c.links]
   );
-  const suitabilityScore = useMemo(() => {
-    const value = Number(c.search_rank?.suitabilityScore);
-    if (!Number.isFinite(value)) return null;
-    return Math.max(0, Math.min(100, Math.round(value)));
-  }, [c.search_rank?.suitabilityScore]);
-
   const synthList = useMemo(() => {
     const rawText = c.synthesized_summary?.[0]?.text ?? "[]";
     return parseSynthesizedSummary(rawText);
@@ -405,19 +417,55 @@ function CandidateRow({
       );
     }
 
+    if (columnId === "mark") {
+      return (
+        <div
+          key={columnId}
+          className="px-2 py-3 min-w-0 h-full flex items-center justify-center"
+        >
+          {showMarkAction && userId ? (
+            <CandidateMarkButton
+              userId={userId}
+              candidId={c.id}
+              initialStatus={candidateMarkStatus}
+              compact
+            />
+          ) : null}
+        </div>
+      );
+    }
+
+    if (columnId === "shared_notes" && sharedFolderContext?.token) {
+      return (
+        <div key={columnId} className="min-w-0 h-full">
+          <SharedFolderCandidateNotes
+            token={sharedFolderContext.token}
+            candidId={c.id}
+            initialNotes={sharedFolderNotes}
+            viewer={sharedFolderContext.viewer}
+            compact
+            showTitle={false}
+            variant="table"
+          />
+        </div>
+      );
+    }
+
     if (columnId === "memo") {
       return (
         <div
           key={columnId}
           className="px-4 py-2 min-w-0 h-full flex items-center"
         >
-          <ShortlistMemoEditor
-            userId={userId}
-            candidId={c.id}
-            initialMemo={shortlistMemo}
-            rows={2}
-            className="w-full"
-          />
+          {userId ? (
+            <ShortlistMemoEditor
+              userId={userId}
+              candidId={c.id}
+              initialMemo={shortlistMemo}
+              rows={2}
+              className="w-full"
+            />
+          ) : null}
         </div>
       );
     }
@@ -436,7 +484,7 @@ function CandidateRow({
         role="row"
         onClick={() => logEvent("candidate_card_click: " + candidId)}
       >
-        <div className="group relative w-full border-b border-white/5 hover:bg-[#242424] transition-colors cursor-pointer pr-60">
+        <div className="group relative w-full cursor-pointer border-b border-white/5 transition-colors hover:bg-[#242424]">
           <div
             className="inline-grid items-center"
             style={{ gridTemplateColumns }}
@@ -501,19 +549,21 @@ function CandidateRow({
                   e.stopPropagation();
                 }}
               >
-                <div
-                  className={`${
-                    isBookmarked && !isMyList ? "opacity-100" : "opacity-0"
-                  } group-hover:opacity-100`}
-                >
-                  <Bookmarkbutton
-                    userId={userId}
-                    candidId={c.id}
-                    connection={c.connection}
-                    isText={false}
-                    size="sm"
-                  />
-                </div>
+                {showBookmarkAction && userId ? (
+                  <div
+                    className={`${
+                      isBookmarked && !isMyList ? "opacity-100" : "opacity-0"
+                    } group-hover:opacity-100`}
+                  >
+                    <Bookmarkbutton
+                      userId={userId}
+                      candidId={c.id}
+                      connection={c.connection}
+                      isText={false}
+                      size="sm"
+                    />
+                  </div>
+                ) : null}
               </div>
             </div>
 

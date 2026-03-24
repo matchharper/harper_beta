@@ -13,6 +13,7 @@ import {
 } from "@/lib/searchEvidence";
 import { CandidateTypeWithConnection } from "./useSearchChatCandidates";
 import { logger } from "@/utils/logger";
+import { fetchCandidateMarkMap } from "./useCandidateMark";
 
 async function fetchCandidatesByIds(
   ids: string[],
@@ -108,6 +109,7 @@ async function fetchCandidatesByIds(
       scholarPreviewCandidateIds
     );
   }
+  const candidateMarkByCandidateId = await fetchCandidateMarkMap(userId, ids);
   const ordered = ids
     .map((id) => {
       const item = dataById.get(id);
@@ -117,6 +119,7 @@ async function fetchCandidatesByIds(
         scholar_profile_preview: scholarPreviewByCandidateId.get(id) ?? null,
         search_evidence: evidenceByCandidateId?.get(id) ?? null,
         search_rank: rankByCandidateId?.get(id) ?? null,
+        candidate_mark: candidateMarkByCandidateId.get(id) ?? null,
       };
     })
     .filter(Boolean);

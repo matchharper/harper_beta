@@ -9,13 +9,15 @@ import {
 import { Avatar } from "./NameProfile";
 import Bookmarkbutton from "./ui/bookmarkbutton";
 import { Tooltips } from "./ui/tooltip";
-import { Check, Dot, FileText, X } from "lucide-react";
+import { Check, Dot, X } from "lucide-react";
 import { useRouter } from "next/router";
 import { RoleBox, ScholarSignalBox, SchoolBox } from "./CandidatesListTable";
 import { SummaryScore } from "@/types/type";
 import { useLogEvent } from "@/hooks/useLog";
 import Link from "next/link";
 import ShortlistMemoEditor from "./ui/ShortlistMemoEditor";
+import CandidateMarkButton from "./ui/CandidateMarkButton";
+import SharedFolderCandidateNotes from "./shared/SharedFolderCandidateNotes";
 import {
   SearchSource,
   extractSearchSourcesFromLinks,
@@ -35,6 +37,7 @@ import {
 } from "@/lib/scholarPreview";
 import Image from "next/image";
 import { logger } from "@/utils/logger";
+import { SharedFolderViewerIdentity } from "@/lib/sharedFolder";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
 
@@ -108,13 +111,24 @@ function CandidateCard({
   isMyList = false,
   showShortlistMemo = false,
   sourceType = "linkedin",
+  buildProfileHref,
+  showBookmarkAction = true,
+  showMarkAction = true,
+  sharedFolderContext = null,
 }: {
   c: CandidateTypeWithConnection;
-  userId: string;
+  userId?: string;
   isMyList?: boolean;
   showShortlistMemo?: boolean;
   criterias: string[];
   sourceType?: SearchSource;
+  buildProfileHref?: (candidate: CandidateTypeWithConnection) => string;
+  showBookmarkAction?: boolean;
+  showMarkAction?: boolean;
+  sharedFolderContext?: {
+    token: string;
+    viewer: SharedFolderViewerIdentity | null;
+  } | null;
 }) {
   const router = useRouter();
   const logEvent = useLogEvent();
@@ -122,9 +136,11 @@ function CandidateCard({
   const candidId = c.id;
   const sourceRunId =
     typeof router.query.run === "string" ? router.query.run : "";
-  const profileHref = sourceRunId
-    ? `/my/p/${candidId}?run=${encodeURIComponent(sourceRunId)}`
-    : `/my/p/${candidId}`;
+  const profileHref = buildProfileHref
+    ? buildProfileHref(c)
+    : sourceRunId
+      ? `/my/p/${candidId}?run=${encodeURIComponent(sourceRunId)}`
+      : `/my/p/${candidId}`;
 
   const synthesizedSummary = useMemo(
     () => parseSynthesizedSummary(c.synthesized_summary?.[0]?.text),
@@ -147,6 +163,8 @@ function CandidateCard({
   const latestCompany = exps[0];
   const school = useMemo(() => edus[0], [edus]);
   const scholarPreview = c.scholar_profile_preview;
+  const candidateMarkStatus = c.candidate_mark?.status ?? null;
+  const sharedFolderNotes = c.shared_folder_notes ?? [];
   const evidencePaper = getEvidencePaper(c.search_evidence);
   const isScholarSource = isScholarSearchSource(sourceType);
   const isOnlyScholar =
@@ -196,216 +214,258 @@ function CandidateCard({
   const scholarAffiliationTooltipText = useMemo(() => {
     return buildScholarResearchTooltip(scholarPreview);
   }, [scholarPreview]);
+  const hasSharedFolderNotes = Boolean(sharedFolderContext?.token);
 
   logger.log("shortlistSummaryText ", shortlistSummaryText);
 
   return (
-    <Link
-      href={profileHref}
-      onClick={() => logEvent("candidate_card_click: " + candidId)}
-      className="group relative w-full rounded-[28px] max-w-[760px] text-white bg-white/5 p-6 cursor-pointer hover:bg-[#FFFFFF18] transition-colors duration-200"
+    <div
+      className={
+        hasSharedFolderNotes
+          ? "mx-auto flex w-full max-w-[1180px] flex-col gap-4 xl:flex-row"
+          : "mx-auto w-full max-w-[760px]"
+      }
     >
-      <div className="flex flex-row flex-1 items-start gap-4">
-        <div className="w-[40%]">
-          <div className="flex flex-row flex-1 items-start gap-4">
-            <div className="cursor-pointer rounded-full hover:border-accenta1/80 border border-transparent transition-colors duration-100">
-              <Avatar url={c.profile_picture} name={c.name} size="lg" />
+      <Link
+        href={profileHref}
+        onClick={() => logEvent("candidate_card_click: " + candidId)}
+        className={`group relative block w-full cursor-pointer rounded-[28px] bg-white/5 text-white transition-colors duration-200 hover:bg-white/10 ${
+          hasSharedFolderNotes ? "min-w-0 flex-1 px-5 py-5" : "p-6"
+        }`}
+      >
+        <div className="flex items-start gap-5">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-row flex-1 items-start gap-4">
+              <div className="w-[40%]">
+                <div className="flex flex-row flex-1 items-start gap-4">
+                  <div className="cursor-pointer rounded-full border border-transparent transition-colors duration-100 hover:border-accenta1/80">
+                    <Avatar url={c.profile_picture} name={c.name} size="lg" />
+                  </div>
+
+                  <div className="flex flex-col items-start justify-between">
+                    <div className="flex flex-col gap-0">
+                      <div className="relative truncate text-lg font-medium hover:underline">
+                        {c.name ?? "None"}
+                      </div>
+                      {isOnlyScholar ? (
+                        <div className="inline-flex w-fit items-center gap-1 rounded text-[13px] text-blue-500">
+                          <div className="mt-[1px]">Scholar Profile</div>
+                        </div>
+                      ) : c.location ? (
+                        <div className="text-sm font-normal text-hgray600">
+                          {locationEnToKo(c.location)}
+                        </div>
+                      ) : null}
+                      {suitabilityScore !== null || linkSources.length > 0 ? (
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          {linkSources.map((source) => (
+                            <Tooltips
+                              key={source}
+                              text={getSearchSourceLabel(source)}
+                            >
+                              <span className="flex items-center justify-center">
+                                <Image
+                                  src={getSearchSourceLogoPath(source)}
+                                  alt={getSearchSourceLabel(source)}
+                                  width={14}
+                                  height={14}
+                                  className="object-contain"
+                                />
+                              </span>
+                            </Tooltips>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-0 flex w-[60%] flex-col gap-3">
+                {isScholarSource ? (
+                  <>
+                    <ScholarSignalBox
+                      title={scholarPreview?.affiliation ?? "-"}
+                      tooltipText={scholarAffiliationTooltipText}
+                      icon="affiliation"
+                      tooltipSide="bottom"
+                      hideDescriptionWhenEmpty={true}
+                    />
+                    <ScholarSignalBox
+                      title={
+                        scholarPreview
+                          ? formatScholarPaperCount(scholarPreview.paperCount)
+                          : "-"
+                      }
+                      description={
+                        scholarPreview
+                          ? formatScholarCitationCount(
+                              scholarPreview.citationCount
+                            )
+                          : "-"
+                      }
+                      tooltipText={buildScholarResearchTooltip(scholarPreview)}
+                      icon="research"
+                      tooltipSide="bottom"
+                    />
+                  </>
+                ) : (
+                  <>
+                    {isOnlyScholar ? (
+                      <RoleBox
+                        company={scholarPreview?.affiliation ?? "-"}
+                        role=""
+                        tooltipText={scholarAffiliationTooltipText}
+                        tooltipSide="bottom"
+                      />
+                    ) : null}
+                    {isOnlyScholar ? (
+                      <ScholarSignalBox
+                        title={
+                          scholarPreview
+                            ? formatScholarPaperCount(scholarPreview.paperCount)
+                            : "-"
+                        }
+                        description={
+                          scholarPreview
+                            ? formatScholarCitationCount(
+                                scholarPreview.citationCount
+                              )
+                            : "-"
+                        }
+                        tooltipText={buildScholarResearchTooltip(
+                          scholarPreview
+                        )}
+                        icon="research"
+                        tooltipSide="bottom"
+                      />
+                    ) : null}
+                    {latestCompany ? (
+                      <RoleBox
+                        company={latestCompany.company_db.name ?? ""}
+                        role={latestCompany.role}
+                        tooltipText={companyHistoryTooltipText}
+                        tooltipSide="bottom"
+                      />
+                    ) : null}
+                    {school ? (
+                      <SchoolBox
+                        school={school.school}
+                        role={school.degree}
+                        field={school.field}
+                        tooltipText={schoolHistoryTooltipText}
+                        tooltipSide="bottom"
+                      />
+                    ) : null}
+                  </>
+                )}
+              </div>
             </div>
 
-            <div className="flex flex-col items-start justify-between">
-              <div className="flex flex-col gap-0">
-                <div className="truncate font-medium text-lg hover:underline cursor-pointer relative">
-                  {c.name ?? "None"}
+            {isScholarSource && evidencePaper?.title ? (
+              <Tooltips
+                text={evidencePaperTooltipText || evidencePaper.title}
+                side="bottom"
+              >
+                <div className="mt-8 flex w-full items-start gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs text-hgray600">Related paper</div>
+                    <div className="mt-1 line-clamp-2 text-[15px] font-normal text-white/95">
+                      {evidencePaper.title}
+                    </div>
+                    {evidencePaperMeta ? (
+                      <div className="mt-1 text-sm font-normal text-hgray700">
+                        {evidencePaperMeta}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
-                {isOnlyScholar ? (
-                  <div className="inline-flex w-fit items-center gap-1 text-[13px] rounded text-blue-500">
-                    <div className="mt-[1px]">Scholar Profile</div>
-                  </div>
-                ) : c.location ? (
-                  <div className="text-sm text-hgray600 font-normal">
-                    {locationEnToKo(c.location)}
-                  </div>
-                ) : null}
-                {suitabilityScore !== null || linkSources.length > 0 ? (
-                  <div className="mt-2 flex items-center gap-2 flex-wrap">
-                    {linkSources.map((source) => (
-                      <Tooltips
-                        key={source}
-                        text={getSearchSourceLabel(source)}
-                      >
-                        <span className="flex items-center justify-center">
-                          <Image
-                            src={getSearchSourceLogoPath(source)}
-                            alt={getSearchSourceLabel(source)}
-                            width={14}
-                            height={14}
-                            className="object-contain"
-                          />
-                        </span>
-                      </Tooltips>
+              </Tooltips>
+            ) : null}
+
+            {(synthesizedSummary.length !== 0 ||
+              (isMyList && shortlistSummaryText.length > 0)) && (
+              <div className="mt-6 font-light leading-relaxed text-hgray700">
+                {synthesizedSummary.length !== 0 ? (
+                  <div>
+                    {synthesizedSummary?.map((item: any, index: number) => (
+                      <MemoizedSummaryBox
+                        key={index}
+                        reason={item.reason}
+                        criteria={criterias[index] ?? ""}
+                        score={item.score}
+                      />
                     ))}
                   </div>
                 ) : null}
-                {/* {c.links && c.links.length > 0 && (
-                  <div className="mt-3">
-                    <LinkChips links={c.links} size="sm" />
-                  </div>
-                )} */}
+                {isMyList && shortlistSummaryText.length > 0 ? (
+                  <div
+                    className={`whitespace-pre-wrap break-words text-[14px] ${
+                      synthesizedSummary.length !== 0 ? "mt-6" : ""
+                    }`}
+                    dangerouslySetInnerHTML={{ __html: shortlistSummaryText }}
+                  />
+                ) : null}
               </div>
-            </div>
+            )}
+            {isMyList && showShortlistMemo && userId ? (
+              <div className="mt-6 border-t border-white/10 pt-4">
+                <ShortlistMemoEditor
+                  userId={userId}
+                  candidId={c.id}
+                  initialMemo={shortlistMemo}
+                  rows={4}
+                />
+              </div>
+            ) : null}
           </div>
         </div>
 
-        <div className="mt-0 flex flex-col gap-3 w-[60%]">
-          {isScholarSource ? (
-            <>
-              <ScholarSignalBox
-                title={scholarPreview?.affiliation ?? "-"}
-                tooltipText={scholarAffiliationTooltipText}
-                icon="affiliation"
-                tooltipSide="bottom"
-                hideDescriptionWhenEmpty={true}
+        {(showMarkAction && userId) || (showBookmarkAction && userId) ? (
+          <div
+            className="absolute right-3 top-3 flex items-center justify-start gap-2"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+          >
+            {showMarkAction && userId ? (
+              <CandidateMarkButton
+                userId={userId}
+                candidId={c.id}
+                initialStatus={candidateMarkStatus}
               />
-              <ScholarSignalBox
-                title={
-                  scholarPreview
-                    ? formatScholarPaperCount(scholarPreview.paperCount)
-                    : "-"
-                }
-                description={
-                  scholarPreview
-                    ? formatScholarCitationCount(scholarPreview.citationCount)
-                    : "-"
-                }
-                tooltipText={buildScholarResearchTooltip(scholarPreview)}
-                icon="research"
-                tooltipSide="bottom"
-              />
-            </>
-          ) : (
-            <>
-              {isOnlyScholar && (
-                <RoleBox
-                  company={scholarPreview?.affiliation ?? "-"}
-                  role=""
-                  tooltipText={scholarAffiliationTooltipText}
-                  tooltipSide="bottom"
+            ) : null}
+            {showBookmarkAction && userId ? (
+              <div
+                className={`${
+                  isBookmarked && !isMyList ? "opacity-100" : "opacity-0"
+                } group-hover:opacity-100`}
+              >
+                <Bookmarkbutton
+                  userId={userId}
+                  candidId={c.id}
+                  connection={c.connection}
+                  isText={false}
+                  size="md"
                 />
-              )}
-              {isOnlyScholar && (
-                <ScholarSignalBox
-                  title={
-                    scholarPreview
-                      ? formatScholarPaperCount(scholarPreview.paperCount)
-                      : "-"
-                  }
-                  description={
-                    scholarPreview
-                      ? formatScholarCitationCount(scholarPreview.citationCount)
-                      : "-"
-                  }
-                  tooltipText={buildScholarResearchTooltip(scholarPreview)}
-                  icon="research"
-                  tooltipSide="bottom"
-                />
-              )}
-              {latestCompany && (
-                <RoleBox
-                  company={latestCompany.company_db.name ?? ""}
-                  role={latestCompany.role}
-                  tooltipText={companyHistoryTooltipText}
-                  tooltipSide="bottom"
-                />
-              )}
-              {school && (
-                <SchoolBox
-                  school={school.school}
-                  role={school.degree}
-                  field={school.field}
-                  tooltipText={schoolHistoryTooltipText}
-                  tooltipSide="bottom"
-                />
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      {isScholarSource && evidencePaper?.title ? (
-        <Tooltips
-          text={evidencePaperTooltipText || evidencePaper.title}
-          side="bottom"
-        >
-          <div className="mt-8 flex w-full items-start gap-3">
-            <div className="min-w-0">
-              <div className="text-xs text-hgray600">Related paper</div>
-              <div className="mt-1 line-clamp-2 text-[15px] font-normal text-white/95">
-                {evidencePaper.title}
               </div>
-              {evidencePaperMeta ? (
-                <div className="mt-1 text-sm text-hgray700 font-normal">
-                  {evidencePaperMeta}
-                </div>
-              ) : null}
-            </div>
+            ) : null}
           </div>
-        </Tooltips>
-      ) : null}
+        ) : null}
+      </Link>
 
-      {(synthesizedSummary.length !== 0 ||
-        (isMyList && shortlistSummaryText.length > 0)) && (
-        <div className="mt-6 text-hgray700 leading-relaxed font-light">
-          {synthesizedSummary.length !== 0 && (
-            <div>
-              {synthesizedSummary?.map((item: any, index: number) => (
-                <MemoizedSummaryBox
-                  key={index}
-                  reason={item.reason}
-                  criteria={criterias[index] ?? ""}
-                  score={item.score}
-                />
-              ))}
-            </div>
-          )}
-          {isMyList && shortlistSummaryText.length > 0 && (
-            <div
-              className={`text-[14px] whitespace-pre-wrap break-words ${
-                synthesizedSummary.length !== 0 ? "mt-6" : ""
-              }`}
-              dangerouslySetInnerHTML={{ __html: shortlistSummaryText }}
-            />
-          )}
-        </div>
-      )}
-      {isMyList && showShortlistMemo && (
-        <div className="mt-6 border-t border-white/10 pt-4">
-          <ShortlistMemoEditor
-            userId={userId}
+      {sharedFolderContext?.token ? (
+        <div className="w-full shrink-0 xl:w-[324px]">
+          <SharedFolderCandidateNotes
+            token={sharedFolderContext.token}
             candidId={c.id}
-            initialMemo={shortlistMemo}
-            rows={4}
+            initialNotes={sharedFolderNotes}
+            viewer={sharedFolderContext.viewer}
+            variant="sidecar"
           />
         </div>
-      )}
-
-      <div
-        className={`flex flex-row items-center justify-start group-hover:opacity-100  absolute top-3 right-3 ${
-          isBookmarked && !isMyList ? "opacity-100" : "opacity-0"
-        }`}
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-      >
-        <Bookmarkbutton
-          userId={userId}
-          candidId={c.id}
-          connection={c.connection}
-          isText={false}
-          size="sm"
-        />
-      </div>
-    </Link>
+      ) : null}
+    </div>
   );
 }
 export default React.memo(CandidateCard);
