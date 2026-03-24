@@ -139,7 +139,8 @@ const companyRequests: CompanyRequest[] = [
       "Harper is sourcing for a select group of <i>teams building intelligent systems in the physical world from</i> robotics to AI-integrated hardware.",
     about:
       "You will work at the intersection of AI and the real world, building systems that perceive, decide, and act. This includes integrating models with sensors, control systems, and hardware to create real-world intelligence.",
-    engagement: "Flexible",
+    engagement:
+      "Highly Flexible.<br />Full-time OR Fractional/Part-time (4~12 hours/week) available.<br />현업을 유지하며 임팩트 있는 프로젝트에만 참여하는 것도 가능합니다.",
     compensation: "Top 1% Industry Compensation",
     whoThisIsFor: [
       "Engineers who want to move beyond screens and build real-world systems",
@@ -389,17 +390,16 @@ const RequestDetailModal = ({
                 <h3 className="text-[13px] font-medium tracking-[-0.01em] text-beige900/45">
                   Who this is for
                 </h3>
-                <ul className="space-y-2">
+                <div className="space-y-2">
                   {request.whoThisIsFor.map((item) => (
                     <div
                       key={item}
                       className="flex items-start gap-3 text-[15px] leading-[1.75] tracking-[-0.02em] text-beige900/80"
                     >
-                      <span className="mt-[10px] h-1.5 w-1.5 shrink-0 rounded-full bg-beige900/32" />
-                      <span>{item}</span>
+                      <span>- {item}</span>
                     </div>
                   ))}
-                </ul>
+                </div>
               </section>
             )}
 
