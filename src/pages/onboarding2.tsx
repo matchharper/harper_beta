@@ -1,6 +1,7 @@
 "use client";
 import {
   ArrowRight,
+  ArrowUpRight,
   CornerDownLeft,
   FileText,
   LoaderCircle,
@@ -9,16 +10,23 @@ import {
 import React, { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { showToast } from "@/components/toast/toast";
+import { useCountryLang } from "@/hooks/useCountryLang";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import {
+  TALENT_NETWORK_LOCAL_ID_KEY,
+  TALENT_NETWORK_LOG_ABTEST_TYPE,
+  createTalentNetworkLocalId,
+} from "@/lib/talentNetwork";
+import { notifyToSlack } from "@/lib/slack";
 import { supabase } from "@/lib/supabase";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { logger } from "@/utils/logger";
 import Image from "next/image";
+import { useRouter } from "next/router";
 
-type ProfileInputType = "cv" | "linkedin" | "scholar" | "website";
-const ONBOARDING_LOCAL_ID_KEY = "harper_talent_network_local_id";
 const TALENT_NETWORK_CV_BUCKET = "talent-network-cv";
 const HARPER_WAITLIST_TYPE_ONBOARDING2 = 2;
+type ProfileInputType = "cv" | "github" | "scholar";
 
 const sanitizeFileName = (fileName: string) =>
   fileName
@@ -26,25 +34,47 @@ const sanitizeFileName = (fileName: string) =>
     .replace(/_+/g, "_")
     .slice(0, 120);
 
-const STEPS = [
+const QUESTION_STEP_COUNT = 5;
+const TOTAL_STEPS = QUESTION_STEP_COUNT + 2;
+
+const ENGAGEMENT_OPTIONS = [
   {
-    id: 1,
-    title: "3개의 질문만 대답해주세요.",
-    description: "이름과 연락처를 알려주세요.",
+    id: "full_time",
+    label: "Full-time Role",
+    description: "현재 지원한 포지션 포함",
   },
   {
-    id: 2,
-    title: "이력서 혹은 본인 정보",
-    description:
-      "아래 정보들 중 편하신 것들을 알려주세요. 혹은 짧게 대화로 알려주셔도 괜찮습니다.",
+    id: "fractional",
+    label: "Fractional / Part-time",
+    description: "현업 유지하며 핵심 프로젝트만 참여",
   },
   {
-    id: 3,
-    title: "현재 상황",
-    description:
-      "선호하시는게 있으시다면 무엇이 되었든 자세히 알려주세요. 특정 회사던 혹은 파트타임이던 저희가 최대한 연결되실 수 있게 노력해보겠습니다.",
+    id: "advisor",
+    label: "Technical Advisor",
+    description: "전략적/기술적 자문 중심",
   },
 ] as const;
+
+const LOCATION_OPTIONS = [
+  {
+    id: "korea_based",
+    label: "Korea-based Teams",
+    description: "한국 진출 글로벌 팀 또는 국내 유니콘",
+  },
+  {
+    id: "global_remote",
+    label: "US/Global Remote",
+    description: "한국에 머물며 해외 팀과 원격 근무",
+  },
+  {
+    id: "relocation",
+    label: "Relocation to US/Global",
+    description: "비자 스폰서십 및 relocation 지원 시",
+  },
+] as const;
+
+type EngagementOptionId = (typeof ENGAGEMENT_OPTIONS)[number]["id"];
+type LocationOptionId = (typeof LOCATION_OPTIONS)[number]["id"];
 
 export type WorkExperience = {
   company: string;
@@ -70,8 +100,7 @@ const BeigeProgressBar = ({
   currentStep: number;
   totalSteps: number;
 }) => {
-  const normalizedStep = currentStep < 1 ? currentStep + 1 : currentStep;
-  const progress = Math.min(normalizedStep / totalSteps, 1);
+  const progress = totalSteps === 0 ? 0 : Math.min(currentStep / totalSteps, 1);
 
   return (
     <div className="flex h-1 w-full flex-row items-center justify-start overflow-hidden bg-beige500/70">
@@ -138,15 +167,21 @@ const BeigeLinkInput = ({
   value,
   onChange,
   placeholder,
+  isLineClamp = false,
 }: {
   label: string | React.ReactNode;
   value: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   placeholder: string;
+  isLineClamp?: boolean;
 }) => {
   return (
-    <div className="flex w-full flex-row items-center justify-between">
-      <div className="w-1/4 text-[15px] font-medium text-beige900/60">
+    <div
+      className={`flex w-full flex-col gap-2 md:justify-between ${isLineClamp ? "md:flex-col md:items-start" : "md:flex-row md:items-center"}`}
+    >
+      <div
+        className={`w-full text-[15px] font-medium text-beige900/60 ${isLineClamp ? "md:w-1/2" : "md:w-1/4"}`}
+      >
         {label}
       </div>
       <input
@@ -159,7 +194,7 @@ const BeigeLinkInput = ({
   );
 };
 
-const ProfileOptionButton = ({
+const ProfileInputToggleButton = ({
   label,
   active,
   onClick,
@@ -178,6 +213,37 @@ const ProfileOptionButton = ({
     }`}
   >
     {label}
+  </button>
+);
+
+const SelectionCardButton = ({
+  label,
+  description,
+  active,
+  onClick,
+}: {
+  label: string;
+  description?: string;
+  active: boolean;
+  onClick: () => void;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`flex min-h-[74px] hover:bg-beige900/20 hover:border-beige900/60 active:border-beige900/80 w-full flex-col items-start justify-center rounded-md px-3 py-2.5 text-left tracking-[-0.02em] border-2 transition duration-300 ${
+      active
+        ? "border-beige900/80 bg-beige500 text-black"
+        : "border-beige900/10 bg-beige100 text-black hover:bg-beige500/50"
+    }`}
+  >
+    <span className="text-base font-normal">{label}</span>
+    {description && (
+      <span
+        className={`mt-1 text-sm leading-5 text-beige900/60 ${active ? "font-medium" : "font-normal"}`}
+      >
+        {description}
+      </span>
+    )}
   </button>
 );
 
@@ -210,90 +276,152 @@ ${
       </div>
 
       <div className="text-base font-medium mt-1">
-        {fileName ? fileName : "Click to upload Resume (PDF, DOC, DOCS)"}
+        {fileName
+          ? fileName
+          : "Upload Resume/CV in PDF (Optional if LinkedIn is fully updated)"}
       </div>
 
       <div className="text-sm font-normal text-black/80 text-center">
-        권장 파일 형식은 PDF이며, 최대 용량은 10MB입니다.
+        PDF only. 최대 용량은 10MB입니다.
       </div>
-      <input
-        type="file"
-        accept=".pdf,.doc,.docx,.rtf"
-        className="hidden"
-        onChange={onChange}
-      />
+      <input type="file" accept=".pdf" className="hidden" onChange={onChange} />
     </label>
   );
 };
 
-export const Onboarding2Content = () => {
+export const Onboarding2Content = ({
+  selectedRole,
+  onDone,
+}: {
+  selectedRole?: string;
+  onDone?: () => void;
+}) => {
+  const router = useRouter();
   const isMobile = useIsMobile();
+  const countryLang = useCountryLang();
+  const queryRole =
+    typeof router.query.role === "string" ? router.query.role : "";
+  const selectedRoleLabel = selectedRole || queryRole || "Your Target Role";
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+  const [linkedin, setLinkedin] = useState("");
   const [selectedProfileInputs, setSelectedProfileInputs] = useState<
     ProfileInputType[]
   >([]);
-  const [linkedin, setLinkedin] = useState("");
+  const [github, setGithub] = useState("");
   const [scholar, setScholar] = useState("");
-  const [website, setWebsite] = useState("");
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [cvFileName, setCvFileName] = useState("");
-  const [currentSituation, setCurrentSituation] = useState("");
+  const [impactSummary, setImpactSummary] = useState("");
+  const [selectedEngagements, setSelectedEngagements] = useState<
+    EngagementOptionId[]
+  >([]);
+  const [selectedLocations, setSelectedLocations] = useState<
+    LocationOptionId[]
+  >([]);
+  const [dreamTeams, setDreamTeams] = useState("");
   const [submissionPending, setSubmissionPending] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
   const [landingId, setLandingId] = useState("");
   const [isDirty, setIsDirty] = useState(false);
 
   const onSave = useCallback(() => {
     if (!isDirty) return;
     logger.log("onboard draft updated", {
+      selectedRole: selectedRoleLabel,
       name,
       email,
-      phone,
-      selectedProfileInputs,
       profileValues: {
         cv: cvFileName || null,
         linkedin: linkedin || null,
+        github: github || null,
         scholar: scholar || null,
-        website: website || null,
       },
-      currentSituation,
+      selectedProfileInputs,
+      impactSummary,
+      selectedEngagements,
+      selectedLocations,
+      dreamTeams,
     });
     setIsDirty(false);
   }, [
     cvFileName,
-    currentSituation,
+    dreamTeams,
     email,
+    github,
+    impactSummary,
     isDirty,
     linkedin,
     name,
-    phone,
     scholar,
     selectedProfileInputs,
-    website,
+    selectedEngagements,
+    selectedLocations,
+    selectedRoleLabel,
   ]);
 
-  const { step, submitLoading, handleNext, handlePrev, isNextRef, setStep } =
-    useOnboarding({
-      save: onSave,
-      totalSteps: STEPS.length,
-    });
+  const validateStep = useCallback(
+    (currentStep: number) => {
+      if (currentStep !== 1) {
+        return true;
+      }
+
+      if (!name.trim()) {
+        showToast({ message: "이름을 입력해주세요.", variant: "white" });
+        return false;
+      }
+
+      if (!email.trim()) {
+        showToast({ message: "이메일을 입력해주세요.", variant: "white" });
+        return false;
+      }
+
+      if (!linkedin.trim()) {
+        showToast({
+          message: "LinkedIn Profile URL을 입력해주세요.",
+          variant: "white",
+        });
+        return false;
+      }
+
+      return true;
+    },
+    [email, linkedin, name]
+  );
+
+  const addLandingLog = useCallback(
+    async (type: string, localIdOverride?: string) => {
+      const resolvedLocalId = localIdOverride || landingId;
+      if (!resolvedLocalId) return;
+
+      try {
+        await supabase.from("landing_logs").insert({
+          local_id: resolvedLocalId,
+          type,
+          abtest_type: TALENT_NETWORK_LOG_ABTEST_TYPE,
+          is_mobile: isMobile,
+          country_lang: countryLang,
+        });
+      } catch (error) {
+        console.error("talent network landing log error:", error);
+      }
+    },
+    [countryLang, isMobile, landingId]
+  );
 
   useEffect(() => {
-    const savedId = localStorage.getItem(ONBOARDING_LOCAL_ID_KEY);
+    const savedId = localStorage.getItem(TALENT_NETWORK_LOCAL_ID_KEY);
     if (savedId) {
       setLandingId(savedId);
       return;
     }
 
-    const nextId =
-      window.crypto?.randomUUID?.() ??
-      `network_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-    localStorage.setItem(ONBOARDING_LOCAL_ID_KEY, nextId);
+    const nextId = createTalentNetworkLocalId();
+    localStorage.setItem(TALENT_NETWORK_LOCAL_ID_KEY, nextId);
     setLandingId(nextId);
   }, []);
 
-  const handleProfileOptionChange = (option: ProfileInputType) => {
+  const handleProfileInputChange = (option: ProfileInputType) => {
     setIsDirty(true);
     setSelectedProfileInputs((prev) =>
       prev.includes(option)
@@ -302,64 +430,45 @@ export const Onboarding2Content = () => {
     );
   };
 
-  const handleSubmitOnboarding = useCallback(async () => {
+  const handleMultiSelectChange = <T extends string>(
+    option: T,
+    setter: React.Dispatch<React.SetStateAction<T[]>>
+  ) => {
+    setIsDirty(true);
+    setter((prev) =>
+      prev.includes(option)
+        ? prev.filter((item) => item !== option)
+        : [...prev, option]
+    );
+  };
+
+  async function handleSubmitOnboarding() {
     if (submissionPending) return;
 
+    const hasGithub = selectedProfileInputs.includes("github");
+    const hasScholar = selectedProfileInputs.includes("scholar");
+    const hasCv = selectedProfileInputs.includes("cv");
     const trimmedName = name.trim();
-    const trimmedContact = email.trim();
-    const trimmedSituation = currentSituation.trim();
+    const trimmedEmail = email.trim();
     const trimmedLinkedin = linkedin.trim();
+    const trimmedGithub = github.trim();
     const trimmedScholar = scholar.trim();
-    const trimmedWebsite = website.trim();
+    const trimmedImpactSummary = impactSummary.trim();
+    const trimmedDreamTeams = dreamTeams.trim();
+    const resolvedLandingId =
+      landingId ||
+      localStorage.getItem(TALENT_NETWORK_LOCAL_ID_KEY) ||
+      createTalentNetworkLocalId();
+    const selectedEngagementLabels = ENGAGEMENT_OPTIONS.filter((option) =>
+      selectedEngagements.includes(option.id)
+    ).map((option) => option.label);
+    const selectedLocationLabels = LOCATION_OPTIONS.filter((option) =>
+      selectedLocations.includes(option.id)
+    ).map((option) => option.label);
 
-    if (!trimmedName) {
-      showToast({ message: "이름을 입력해주세요.", variant: "white" });
-      return;
-    }
-
-    if (!trimmedContact) {
-      showToast({
-        message: "이메일 혹은 전화번호를 입력해주세요.",
-        variant: "white",
-      });
-      return;
-    }
-
-    if (selectedProfileInputs.length === 0) {
-      showToast({
-        message: "하나 이상의 정보를 선택해주세요.",
-        variant: "white",
-      });
-      return;
-    }
-
-    if (selectedProfileInputs.includes("cv") && !cvFile) {
-      showToast({ message: "CV 파일을 업로드해주세요.", variant: "white" });
-      return;
-    }
-
-    if (selectedProfileInputs.includes("linkedin") && !trimmedLinkedin) {
-      showToast({
-        message: "LinkedIn 링크를 입력해주세요.",
-        variant: "white",
-      });
-      return;
-    }
-
-    if (selectedProfileInputs.includes("scholar") && !trimmedScholar) {
-      showToast({
-        message: "Scholar 링크를 입력해주세요.",
-        variant: "white",
-      });
-      return;
-    }
-
-    if (selectedProfileInputs.includes("website") && !trimmedWebsite) {
-      showToast({
-        message: "개인 웹사이트 링크를 입력해주세요.",
-        variant: "white",
-      });
-      return;
+    localStorage.setItem(TALENT_NETWORK_LOCAL_ID_KEY, resolvedLandingId);
+    if (!landingId) {
+      setLandingId(resolvedLandingId);
     }
 
     setSubmissionPending(true);
@@ -367,13 +476,9 @@ export const Onboarding2Content = () => {
     try {
       let uploadedStoragePath: string | null = null;
 
-      if (selectedProfileInputs.includes("cv") && cvFile) {
+      if (hasCv && cvFile) {
         const safeName = sanitizeFileName(cvFile.name || "resume");
-        const nextLandingId =
-          landingId ||
-          window.crypto?.randomUUID?.() ||
-          `network_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-        const storagePath = `${nextLandingId}/${Date.now()}_${safeName}`;
+        const storagePath = `${resolvedLandingId}/${Date.now()}_${safeName}`;
 
         const { error: uploadError } = await supabase.storage
           .from(TALENT_NETWORK_CV_BUCKET)
@@ -394,16 +499,20 @@ export const Onboarding2Content = () => {
 
       const detailPayload = {
         source: "onboarding2",
+        selected_role: selectedRoleLabel,
         profile_input_types: selectedProfileInputs,
-        linkedin: trimmedLinkedin || null,
-        scholar: trimmedScholar || null,
-        website: trimmedWebsite || null,
-        cv_file_name: cvFileName || cvFile?.name || null,
+        linkedin_profile_url: trimmedLinkedin || null,
+        github_profile_url: hasGithub ? trimmedGithub || null : null,
+        scholar_profile_url: hasScholar ? trimmedScholar || null : null,
+        cv_file_name: hasCv ? cvFileName || cvFile?.name || null : null,
         cv_storage_bucket: uploadedStoragePath
           ? TALENT_NETWORK_CV_BUCKET
           : null,
         cv_storage_path: uploadedStoragePath,
-        current_situation: trimmedSituation || null,
+        impact_summary: trimmedImpactSummary || null,
+        engagement_types: selectedEngagements,
+        preferred_locations: selectedLocations,
+        dream_teams: trimmedDreamTeams || null,
         submitted_at: new Date().toISOString(),
       };
 
@@ -411,15 +520,15 @@ export const Onboarding2Content = () => {
         .from("harper_waitlist")
         .insert({
           name: trimmedName,
-          email: trimmedContact,
-          local_id: landingId || null,
+          email: trimmedEmail,
+          local_id: resolvedLandingId,
           type: HARPER_WAITLIST_TYPE_ONBOARDING2,
           is_mobile: isMobile,
           url:
-            uploadedStoragePath ||
             trimmedLinkedin ||
-            trimmedScholar ||
-            trimmedWebsite ||
+            (hasGithub ? trimmedGithub : "") ||
+            (hasScholar ? trimmedScholar : "") ||
+            uploadedStoragePath ||
             null,
           text: JSON.stringify(detailPayload),
         });
@@ -428,9 +537,47 @@ export const Onboarding2Content = () => {
         throw new Error(insertError.message || "제출에 실패했습니다.");
       }
 
+      await addLandingLog("talent_network_submit_completed", resolvedLandingId);
+
+      try {
+        await notifyToSlack(`📝 *Talent Network Match Initiated*
+
+• *Role*: ${selectedRoleLabel || "N/A"}
+• *Name*: ${trimmedName || "N/A"}
+• *Email*: ${trimmedEmail || "N/A"}
+• *LinkedIn*: ${trimmedLinkedin || "N/A"}
+• *GitHub / Hugging Face*: ${
+          hasGithub ? trimmedGithub || "N/A" : "Not provided"
+        }
+• *Google Scholar*: ${
+          hasScholar ? trimmedScholar || "N/A" : "Not provided"
+        }
+• *CV*: ${
+          hasCv
+            ? cvFileName || cvFile?.name || uploadedStoragePath || "N/A"
+            : "Not provided"
+        }
+• *Impact*: ${trimmedImpactSummary || "N/A"}
+• *Engagement Types*: ${
+          selectedEngagementLabels.length > 0
+            ? selectedEngagementLabels.join(", ")
+            : "N/A"
+        }
+• *Preferred Locations*: ${
+          selectedLocationLabels.length > 0
+            ? selectedLocationLabels.join(", ")
+            : "N/A"
+        }
+• *Dream Teams*: ${trimmedDreamTeams || "N/A"}
+• *Landing ID*: ${resolvedLandingId}
+• *Time(Standard Korea Time)*: ${new Date().toLocaleString("ko-KR")}`);
+      } catch (notifyError) {
+        console.error("talent network slack notify error:", notifyError);
+      }
+
       setIsDirty(false);
+      setIsSubmitted(true);
       showToast({ message: "제출이 완료되었습니다.", variant: "white" });
-      setStep(STEPS.length);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "제출 중 오류가 발생했습니다.";
@@ -439,30 +586,25 @@ export const Onboarding2Content = () => {
     } finally {
       setSubmissionPending(false);
     }
-  }, [
-    cvFile,
-    cvFileName,
-    currentSituation,
-    email,
-    isMobile,
-    landingId,
-    linkedin,
-    name,
-    scholar,
-    selectedProfileInputs,
-    setStep,
-    submissionPending,
-    website,
-  ]);
+  }
+
+  const { step, submitLoading, handleNext, handlePrev, isNextRef } =
+    useOnboarding({
+      save: onSave,
+      totalSteps: TOTAL_STEPS,
+      beforeNext: validateStep,
+      onComplete: () => void handleSubmitOnboarding(),
+      enableWheelNavigation: false,
+    });
 
   const handlePrimaryAction = useCallback(() => {
-    if (step === STEPS.length - 1) {
-      void handleSubmitOnboarding();
-      return;
-    }
-
     handleNext();
-  }, [handleNext, handleSubmitOnboarding, step]);
+  }, [handleNext]);
+
+  const questionProgressStep =
+    step === 0 ? 0 : Math.min(step, QUESTION_STEP_COUNT);
+  const stepIndicatorLabel =
+    step === 0 ? "Start" : `${questionProgressStep}/${QUESTION_STEP_COUNT}`;
 
   const slideVariants = {
     enter: (isNext: boolean) => ({
@@ -480,34 +622,53 @@ export const Onboarding2Content = () => {
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-start bg-beige100 px-0 pt-4 font-geist text-beige900 md:justify-center md:pt-0">
+    <main className="flex min-h-[100dvh] pt-4 w-full flex-col items-center justify-start overflow-y-auto scrollbar-none bg-beige100 px-0 font-geist text-beige900">
       <div className="fixed left-0 top-0 z-20 w-full">
-        <BeigeProgressBar currentStep={step + 1} totalSteps={STEPS.length} />
+        <BeigeProgressBar
+          currentStep={questionProgressStep}
+          totalSteps={QUESTION_STEP_COUNT}
+        />
       </div>
 
-      {step === STEPS.length ? (
-        <div className="flex h-full w-full flex-col items-center justify-center gap-4 px-4 text-center">
-          <div className="text-2xl font-normal">
-            Harper에 오신걸 환영합니다.
-          </div>
+      {isSubmitted ? (
+        <div className="flex h-full w-full max-w-[800px] flex-col items-center justify-center gap-4 px-4 text-center md:pt-[24vh]">
+          <div className="text-2xl font-semibold">Match Initiated.</div>
           <div className="text-lg font-normal text-beige900/55">
-            저희는 모든 분들을 최대한 직접 관리하고,
+            Your technical footprint is now securely in the Harper Matching
+            Engine. We are actively scanning our private network of AI unicorns
+            and stealth startups for your best fit.
             <br />
-            선호하시는 기회에 연결되실 수 있게 노력하고 있습니다.
+            <br />
+            매칭 프로세스가 시작되었습니다. 최적의 포지션과 연결이 확정되면,
+            영업일 기준 48시간 이내에 기재해주신 이메일로 프라이빗하게
+            연락드리겠습니다. 모든 정보는 철저히 기밀로 유지됩니다.
           </div>
-          <button className="mt-8 h-11 rounded-[10px] bg-beige900 px-4 text-lg font-medium text-beige100 hover:opacity-90">
-            돌아가기
+          <button
+            type="button"
+            onClick={() => {
+              if (onDone) {
+                onDone();
+                return;
+              }
+
+              void router.push("/network");
+            }}
+            className="mt-8 h-11 rounded-[10px] bg-beige900 px-4 text-lg font-medium text-beige100 hover:opacity-90"
+          >
+            Done
           </button>
         </div>
       ) : (
-        <div className="flex h-full w-full flex-col items-start justify-center px-4 pb-20 pt-4 md:flex-row md:pt-8 md:pb-28">
-          <div className="hidden h-full min-w-16 items-start justify-center pt-1 md:flex">
+        <div
+          className={`flex h-full w-full max-w-[800px] flex-col items-start justify-start px-4 pb-20 pt-4 md:flex-row ${step === 1 ? "md:pt-[8vh]" : "md:pt-[16vh]"} md:pb-28`}
+        >
+          <div className="hidden h-full min-w-16 items-start justify-center pt-1 mr-1 md:flex">
             <div className="flex flex-row items-center gap-1 font-light text-beige900/55">
-              {step + 1}/3 <ArrowRight size={16} strokeWidth={2} />
+              {stepIndicatorLabel} <ArrowRight size={16} strokeWidth={2} />
             </div>
           </div>
           <div className="mb-4 flex h-6 w-6 items-center justify-center rounded-md text-sm text-beige900 md:hidden">
-            {step + 1}/3
+            {stepIndicatorLabel}
           </div>
 
           <div className="flex w-full max-w-[800px] flex-col gap-4">
@@ -522,105 +683,218 @@ export const Onboarding2Content = () => {
                 transition={{ duration: 0.35, ease: "easeInOut" }}
                 className="flex flex-col gap-4"
               >
-                {step < STEPS.length && STEPS[step].title ? (
-                  <div className="flex text-xl font-normal md:text-2xl">
-                    {step === 1 && name && `${name}님, 반갑습니다.`}
-                    {STEPS[step].title}
+                {step === 0 && (
+                  <div className="flex text-xl font-medium md:text-2xl">
+                    Global Top-Tier Matching
                   </div>
-                ) : null}
-                {step < STEPS.length && STEPS[step].description ? (
+                )}
+                {step === 0 && (
                   <div className="mb-4 text-base md:text-xl font-normal text-beige900/55">
-                    {STEPS[step].description}
+                    Your profile will be securely parsed and matched with
+                    confidential roles at Series B+ Unicorns and Stealth
+                    Startups. Current employers will never be notified.
+                    <br />
+                    (입력하신 정보는 매칭 전까지 철저히 익명으로 보호되며, 현재
+                    재직 중인 회사에는 절대 노출되지 않습니다.)
                   </div>
-                ) : null}
+                )}
+
+                {step === 1 && (
+                  <div className="flex text-xl font-normal md:text-2xl">
+                    Initiating Match for: {selectedRoleLabel}
+                  </div>
+                )}
+
+                {step === 2 && (
+                  <div className="flex text-xl font-normal md:text-2xl">
+                    Highlight your biggest technical or business impact.
+                  </div>
+                )}
+
+                {step === 2 && (
+                  <div className="mb-4 text-base md:text-xl font-normal text-beige900/55">
+                    (선택하신 포지션과 관련하여, 가장 자신 있는 성과나 다룰 수
+                    있는 핵심 기술을 1~2줄로 짧게 적어주세요.)
+                  </div>
+                )}
+
+                {step === 3 && (
+                  <div className="flex text-xl font-normal md:text-2xl">
+                    Harper Profile Setup: Engagement Types
+                  </div>
+                )}
+
+                {step === 3 && (
+                  <div className="mb-4 text-base md:text-xl font-normal text-beige900/55">
+                    (Harper 네트워크에는 정규직 외에도 특정 병목 해결을 위한 주
+                    4~12시간의 유연한 프로젝트 의뢰가 자주 들어옵니다. 향후
+                    오픈되어 있는 업무 형태를 모두 체크해 주세요.)
+                  </div>
+                )}
+
+                {step === 4 && (
+                  <div className="flex text-xl font-normal md:text-2xl">
+                    Where do you want to make an impact?
+                  </div>
+                )}
+
+                {step === 4 && (
+                  <div className="mb-4 text-base md:text-xl font-normal text-beige900/55">
+                    (선호하는 근무 환경을 모두 선택해 주세요.)
+                  </div>
+                )}
+
+                {step === 5 && (
+                  <div className="flex text-xl font-normal md:text-2xl">
+                    Beyond this role, any other Dream Teams in mind?
+                  </div>
+                )}
+
+                {step === 5 && (
+                  <div className="mb-4 text-base md:text-xl font-normal text-beige900/55">
+                    방금 지원하신 포지션 외에, 평소 눈여겨보던 타겟 기업이
+                    있다면 자유롭게 적어주세요. Harper의 파트너 네트워크를 통해
+                    프라이빗한 연결을 적극적으로 탐색해 드립니다.
+                    <br />
+                    혹은 회사가 아니더라도 어떤 기회를 찾거나 선호하시는지
+                    자유롭게 적어주세요.
+                  </div>
+                )}
+
+                {step === 6 && (
+                  <div className="flex text-xl font-normal md:text-2xl">
+                    Ready to match?
+                  </div>
+                )}
+
+                {step === 6 && (
+                  <div className="mb-4 text-base md:text-xl font-normal text-beige900/55">
+                    Harper will now initiate a private scan across its network
+                    of AI unicorns and stealth startups.
+                  </div>
+                )}
 
                 {step === 0 && (
-                  <>
+                  <div className="text-base leading-7 text-beige900/60"></div>
+                )}
+
+                {step === 1 && (
+                  <div className="flex flex-col gap-4 mb-8">
                     <BeigeTextInput
                       autoFocus
-                      label="이름"
-                      placeholder="이름"
+                      label="Name *"
+                      placeholder="Your full name"
                       value={name}
                       onChange={(e) => {
                         setName(e.target.value);
                         setIsDirty(true);
                       }}
                     />
+
                     <BeigeTextInput
-                      label="이메일 혹은 전화번호"
-                      placeholder="example@gmail.com / 010-0000-0000"
+                      label="Email *"
+                      placeholder="example@example.com"
                       value={email}
                       onChange={(e) => {
                         setEmail(e.target.value);
                         setIsDirty(true);
                       }}
                     />
-                  </>
-                )}
-
-                {step === 1 && (
-                  <div className="flex flex-col gap-4 mb-8">
-                    <div className="flex flex-wrap gap-2 mb-2">
-                      <ProfileOptionButton
-                        label="CV/Resume"
-                        active={selectedProfileInputs.includes("cv")}
-                        onClick={() => handleProfileOptionChange("cv")}
-                      />
-                      <ProfileOptionButton
-                        label="Linkedin"
-                        active={selectedProfileInputs.includes("linkedin")}
-                        onClick={() => handleProfileOptionChange("linkedin")}
-                      />
-                      <ProfileOptionButton
-                        label="Scholar"
-                        active={selectedProfileInputs.includes("scholar")}
-                        onClick={() => handleProfileOptionChange("scholar")}
-                      />
-                      <ProfileOptionButton
-                        label="개인 웹사이트"
-                        active={selectedProfileInputs.includes("website")}
-                        onClick={() => handleProfileOptionChange("website")}
-                      />
+                    <div className="h-1" />
+                    <div className="mb-1">
+                      <div className="text-lg font-medium tracking-[-0.03em] text-beige900">
+                        Drop your links. Let your work speak for itself.
+                      </div>
+                      <div className="mt-1 text-sm leading-6 text-beige900/55">
+                        (당신의 전문성을 가장 잘 보여줄 수 있는 링크를
+                        남겨주세요.)
+                      </div>
                     </div>
 
-                    {selectedProfileInputs.includes("cv") && (
-                      <BeigeFileUploadInput
-                        fileName={cvFileName}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          setCvFile(file ?? null);
-                          setCvFileName(file?.name || "");
-                          setIsDirty(true);
-                        }}
-                      />
-                    )}
+                    <BeigeLinkInput
+                      label={
+                        <div className="flex flex-row items-center gap-1.5 w-full">
+                          <Image
+                            src="/images/logos/linkedin.svg"
+                            alt="LinkedIn"
+                            width={20}
+                            height={20}
+                          />
+                          <div>LinkedIn Profile *</div>
+                          <div
+                            className="ml-1 hover:font-medium flex flex-row items-center gap-1 text-sm font-normal text-beige900/70 cursor-pointer"
+                            onClick={() =>
+                              window.open(
+                                "https://www.linkedin.com/in/",
+                                "_blank"
+                              )
+                            }
+                          >
+                            (내 링크드인 열기){" "}
+                            <ArrowUpRight className="w-3 h-3" />
+                          </div>
+                        </div>
+                      }
+                      value={linkedin}
+                      isLineClamp={true}
+                      onChange={(e) => {
+                        setLinkedin(e.target.value);
+                        setIsDirty(true);
+                      }}
+                      placeholder="https://linkedin.com/in/username"
+                    />
+                    <div className="h-1" />
 
-                    {selectedProfileInputs.includes("linkedin") && (
+                    <div>
+                      <div className="text-sm font-normal text-beige900">
+                        (optional but recommended)
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 pt-2">
+                        <ProfileInputToggleButton
+                          label="GitHub"
+                          active={selectedProfileInputs.includes("github")}
+                          onClick={() => handleProfileInputChange("github")}
+                        />
+                        <ProfileInputToggleButton
+                          label="Google Scholar"
+                          active={selectedProfileInputs.includes("scholar")}
+                          onClick={() => handleProfileInputChange("scholar")}
+                        />
+                        <ProfileInputToggleButton
+                          label="Resume / CV"
+                          active={selectedProfileInputs.includes("cv")}
+                          onClick={() => handleProfileInputChange("cv")}
+                        />
+                      </div>
+                    </div>
+
+                    {selectedProfileInputs.includes("github") && (
                       <BeigeLinkInput
                         label={
-                          <div className="flex flex-row items-center gap-1">
+                          <div className="flex flex-row items-center gap-1.5">
                             <Image
-                              src="/images/logos/linkedin.svg"
-                              alt="LinkedIn"
+                              src="/images/logos/github.svg"
+                              alt="Github"
                               width={20}
                               height={20}
                             />
-                            <div>Linkedin</div>
+                            <div>Github </div>
                           </div>
                         }
-                        value={linkedin}
+                        value={github}
                         onChange={(e) => {
-                          setLinkedin(e.target.value);
+                          setGithub(e.target.value);
                           setIsDirty(true);
                         }}
-                        placeholder="https://linkedin.com/in/username"
+                        placeholder="https://github.com/"
                       />
                     )}
 
                     {selectedProfileInputs.includes("scholar") && (
                       <BeigeLinkInput
                         label={
-                          <div className="flex flex-row items-center gap-1">
+                          <div className="flex flex-row items-center gap-1.5">
                             <Image
                               src="/images/logos/scholar.png"
                               alt="Google Scholar"
@@ -639,32 +913,90 @@ export const Onboarding2Content = () => {
                       />
                     )}
 
-                    {selectedProfileInputs.includes("website") && (
-                      <BeigeLinkInput
-                        label="개인 웹사이트"
-                        value={website}
+                    {selectedProfileInputs.includes("cv") && (
+                      <BeigeFileUploadInput
+                        fileName={cvFileName}
                         onChange={(e) => {
-                          setWebsite(e.target.value);
+                          const file = e.target.files?.[0];
+                          setCvFile(file ?? null);
+                          setCvFileName(file?.name || "");
                           setIsDirty(true);
                         }}
-                        placeholder="https://"
                       />
                     )}
                   </div>
                 )}
 
                 {step === 2 && (
-                  <BeigeTextInput
-                    autoFocus
-                    label="자세히 알려주세요"
-                    placeholder="예: 특정 회사, 리모트, 파트타임, 연봉, 산업, 비자, 근무 형태 등 어떤 것이든 괜찮습니다."
-                    value={currentSituation}
-                    onChange={(e) => {
-                      setCurrentSituation(e.target.value);
-                      setIsDirty(true);
-                    }}
-                    rows={6}
-                  />
+                  <div className="flex flex-col gap-4 mb-8">
+                    <BeigeTextInput
+                      autoFocus
+                      placeholder="Example: Built and scaled an LLM infra stack serving millions of requests/day, led 0→1 hiring, or shipped production-grade agent systems."
+                      value={impactSummary}
+                      onChange={(e) => {
+                        setImpactSummary(e.target.value);
+                        setIsDirty(true);
+                      }}
+                      rows={4}
+                    />
+                  </div>
+                )}
+
+                {step === 3 && (
+                  <div className="flex flex-col gap-6">
+                    <div className="flex md:flex-row flex-col gap-2">
+                      {ENGAGEMENT_OPTIONS.map((option) => (
+                        <SelectionCardButton
+                          key={option.id}
+                          label={option.label}
+                          description={option.description}
+                          active={selectedEngagements.includes(option.id)}
+                          onClick={() =>
+                            handleMultiSelectChange(
+                              option.id,
+                              setSelectedEngagements
+                            )
+                          }
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {step === 4 && (
+                  <div className="flex flex-col gap-6">
+                    <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                      {LOCATION_OPTIONS.map((option) => (
+                        <SelectionCardButton
+                          key={option.id}
+                          label={option.label}
+                          description={option.description}
+                          active={selectedLocations.includes(option.id)}
+                          onClick={() =>
+                            handleMultiSelectChange(
+                              option.id,
+                              setSelectedLocations
+                            )
+                          }
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {step === 5 && (
+                  <div className="flex flex-col gap-6">
+                    <BeigeTextInput
+                      autoFocus
+                      placeholder="e.g., OpenAI, Anthropic, specific stealth startups, or top Korean unicorns"
+                      value={dreamTeams}
+                      onChange={(e) => {
+                        setDreamTeams(e.target.value);
+                        setIsDirty(true);
+                      }}
+                      rows={3}
+                    />
+                  </div>
                 )}
 
                 <div className="mt-4 flex flex-row items-center gap-3">
@@ -676,8 +1008,8 @@ export const Onboarding2Content = () => {
                       <span className="animate-spin">
                         <LoaderCircle className="h-6 w-6 animate-spin text-beige100" />
                       </span>
-                    ) : step === STEPS.length - 1 ? (
-                      "Submit"
+                    ) : step === TOTAL_STEPS - 1 ? (
+                      "Initiate Match"
                     ) : (
                       "Next"
                     )}
@@ -689,24 +1021,6 @@ export const Onboarding2Content = () => {
                     <CornerDownLeft size={14} strokeWidth={2} />
                   </span>
                 </div>
-
-                {step === 1 && (
-                  <div className="mt-2 text-beige900/60">
-                    현재 Harper에서는{" "}
-                    <span className="text-beige900">
-                      미국 유니콘 AI 스타트업
-                    </span>
-                    ,{" "}
-                    <span className="text-beige900">
-                      국내 유니콘 테크 스타트업
-                    </span>
-                    ,{" "}
-                    <span className="text-beige900">
-                      실리콘 밸리 탑 VC-backed 스타트업
-                    </span>{" "}
-                    <br />외 여러 회사가 인재를 찾고 있습니다.
-                  </div>
-                )}
               </motion.div>
             </AnimatePresence>
           </div>
@@ -724,7 +1038,7 @@ export const Onboarding2Content = () => {
               className="underline hover:text-beige900"
               onClick={handlePrimaryAction}
             >
-              Next
+              {step === TOTAL_STEPS - 1 ? "Initiate Match" : "Next"}
             </button>
           </div>
         </div>
@@ -734,13 +1048,6 @@ export const Onboarding2Content = () => {
 };
 
 const Onboarding2Page = () => {
-  useEffect(() => {
-    document.documentElement.classList.add("noneoverscroll");
-    return () => {
-      document.documentElement.classList.remove("noneoverscroll");
-    };
-  }, []);
-
   return <Onboarding2Content />;
 };
 

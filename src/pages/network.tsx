@@ -1,51 +1,164 @@
 import Reveal from "@/components/landing/Animation/Reveal";
 import StaggerText from "@/components/landing/Animation/StaggerText";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowRight, ArrowUpRight, Plus, ShieldCheck, X } from "lucide-react";
+import { ArrowUpRight, ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
 import Head from "next/head";
 import Image from "next/image";
 import Link from "next/link";
 import React, { useEffect, useState } from "react";
 import { Onboarding2Content } from "./onboarding2";
 
-const companyRequests = [
+type CompanyRequest = {
+  id: string;
+  title: string;
+  role: string;
+  company: string;
+  summary: string;
+  intro: string;
+  about: string;
+  requirements?: string;
+  engagement?: string;
+  compensation: string;
+  whoThisIsFor?: string[];
+};
+
+const companyRequests: CompanyRequest[] = [
   {
-    company: "글로벌 유니콘 AI 스타트업 (Agent / LLM infra)",
+    id: "cto",
+    title: "Chief Technology Officer",
+    role: "Chief Technology Officer",
+    company: "Global AI Unicorn (Series B)",
+    summary: "Full-Time",
+    intro:
+      "Harper is exclusively partnered with a <i>Global AI Unicorn (Series B)</i> expanding into Korea.",
+    about:
+      "We are looking for an entrepreneurial engineering leader to build and scale the Korean technical team from 0 to 1. You will define the technical roadmap, set a high-performance culture, and work directly with global headquarters to localize AI solutions.",
+    requirements:
+      "Deep expertise in AI/ML stacks, large-scale systems, and proven leadership in high-growth environments.",
+    engagement: "Full-time",
+    compensation: "Worldwide competitive salary + Equity",
+  },
+  {
+    id: "fde",
+    title: "Forward Deployed Engineer (FDE)",
     role: "Forward Deployed Engineer",
-    compensation: "KRW 1.5억 - 2.5억 / year",
+    company: "Global AI Unicorn (Series B)",
+    summary: "Full-Time",
+    intro: "Harper is partnered with a <i>Global AI Unicorn (Series B)</i>.",
+    about:
+      "As an FDE, you are the bridge between cutting-edge AI models and real-world business problems. You will work directly with enterprise clients to architect, deploy, and optimize AI agents and solutions on the front lines.",
+    requirements:
+      "Strong coding skills in Python, experience with LLM integration, and a knack for solving complex client-facing technical challenges.",
+    engagement: "Full-time",
+    compensation: "Worldwide competitive salary + Equity",
   },
   {
-    company: "딥 테크 회사 (기업가치 2조+)",
-    role: "Firmware / Silicon Engineer",
-    compensation: "",
+    id: "deployment-strategist",
+    title: "Deployment Strategist",
+    role: "Deployment Strategist",
+    company: "Confidential AI Unicorn (Series B)",
+    summary: "Full-Time",
+    intro:
+      "Harper is partnered with a <i>Confidential Global AI Unicorn (Series B)</i>.",
+    about:
+      "You will own the business impact of AI deployments. Working alongside FDEs, you will design the rollout strategy, manage enterprise stakeholders, and ensure our AI solutions deliver measurable ROI for clients.",
+    requirements:
+      "Exceptional strategic thinking, background in tech consulting, PM, or operational leadership, and strong business acumen.",
+    engagement: "Full-time",
+    compensation: "Worldwide competitive salary + Equity",
   },
   {
-    company: "글로벌 B2C 스타트업",
-    role: "ML / Agent Engineer (model training / inference)",
-    compensation: "",
+    id: "aiml-engineer-researcher",
+    title: "AI/ML Engineer & Researcher",
+    role: "AI/ML Engineer (Model Training/Inference & Agents)",
+    company: "Multiple Elite Teams (Stealth to Unicorns)",
+    summary: "Flexible",
+    intro:
+      "Harper is sourcing for multiple <i>Elite AI/ML Teams (from stealth startups to unicorns)</i>.",
+    about:
+      "We have immediate matching opportunities for engineers building the next generation of autonomous agents, machine learning pipeline and foundation models.",
+    requirements:
+      "Hands-on experience with model training, inference optimization, or building agentic workflows.",
+    engagement:
+      "Highly Flexible.<br />Full-time OR Fractional/Part-time (4~12 hours/week) available.<br />현업을 유지하며 임팩트 있는 프로젝트에만 참여하는 것도 가능합니다.",
+    compensation: "Top 1% Industry Compensation",
   },
   {
-    company: "Silicon valley top vc-backed startup",
-    role: "Part time Engineer (주 4-12시간)",
-    compensation: "5-10만원 / hour",
+    id: "ethernet-firmware-engineer",
+    title: "Ethernet Firmware Engineer",
+    role: "Ethernet Firmware Engineer",
+    company: "Confidential AI Semiconductor Unicorn",
+    summary: "Full-Time",
+    intro:
+      "Harper is exclusively partnered with Korea's <i>#1 AI Semiconductor Unicorn</i>.",
+    about:
+      "You will own the evaluation and development of the Ethernet control subsystem firmware for next-generation NPUs. Your work in optimizing RoCE (RDMA) functionality and Layer 2/3 protocols will directly dictate the interconnect performance of our AI accelerators.",
+    requirements:
+      "Minimum 5 years in next-generation Ethernet firmware development.<br />Deep expertise in L2/L3 protocols, TCP/IP, and silicon validation.",
+    engagement: "Full-time",
+    compensation: "Top 1% Industry Compensation + Equity",
   },
-] as const;
+  {
+    id: "communication-library-engineer",
+    title: "Communication Library Engineer",
+    role: "Collective Communication Library Engineer",
+    company: "Confidential AI Semiconductor Unicorn",
+    summary: "Full-Time",
+    intro:
+      "Harper is exclusively partnered with Korea's <i>#1 AI Semiconductor Unicorn</i>.",
+    about:
+      "You will design and implement the core components of a completely new collective communication library tailored for unique NPU architectures. Your mission is to push the physical limits of hardware by optimizing algorithms (All-Reduce, All-Gather) across complex Network-on-Chip (NoC) topologies.",
+    requirements:
+      "Master's or Ph.D. in CS/HPC.<br />5+ years in high-performance systems software (C/C++).<br />Deep understanding of parallel runtimes (NCCL, MPI) and RDMA/RoCE.",
+    engagement: "Full-time",
+    compensation: "Top 1% Industry Compensation + Equity",
+  },
+  {
+    id: "selected-engineer-ai-native",
+    title: "Selected Engineer (AI-native)",
+    role: "Selected Engineer (AI-native)",
+    company: "10+ Elite Teams",
+    summary: "Flexible",
+    intro:
+      "Harper is sourcing for 10+ <i>Elite AI Teams (from stealth to unicorn startups)</i>.",
+    about:
+      "We are looking for engineers who deeply leverage AI tools to build faster and smarter. This includes designing AI-native workflows, integrating LLMs into products, and automating complex tasks using modern AI stacks.",
+    requirements:
+      "Strong experience using LLMs / AI tools in real workflows (e.g., coding, automation, product features), plus strong engineering fundamentals with a builder mindset.",
+    engagement:
+      "Highly Flexible.<br />Full-time OR Fractional/Part-time (4~12 hours/week) available.<br />현업을 유지하며 임팩트 있는 프로젝트에만 참여하는 것도 가능합니다.",
+    compensation: "Top 1% Industry Compensation",
+  },
+  {
+    id: "robotics-hw-engineer",
+    title: "Robotics & H/W Engineer",
+    role: "Robotics & H/W Engineer",
+    company: "Multiple Global Teams",
+    summary: "Flexible",
+    intro:
+      "Harper is sourcing for a select group of <i>teams building intelligent systems in the physical world from</i> robotics to AI-integrated hardware.",
+    about:
+      "You will work at the intersection of AI and the real world, building systems that perceive, decide, and act. This includes integrating models with sensors, control systems, and hardware to create real-world intelligence.",
+    engagement: "Flexible",
+    compensation: "Top 1% Industry Compensation",
+    whoThisIsFor: [
+      "Engineers who want to move beyond screens and build real-world systems",
+      "People interested in autonomy, robotics, or embodied AI",
+      "Builders who enjoy working across software and hardware boundaries",
+    ],
+  },
+];
 
 const faqs = [
   {
-    question: "등록해도 연락을 받는 사람은 소수인가요?",
+    question: "등록해도 연락을 받는건 소수인가요?",
     answer:
-      "아니요. 특정 소수만 노출되는 구조가 아닙니다. 기업이 직접 검색하는 방식이 아니라, AI가 각 후보자의 실제 작업과 경험을 기반으로 매칭을 생성하기 때문에 다양한 후보자에게 기회가 열립니다.\
-      또한 매칭은 지속적으로 업데이트되며, 시간이 지나도 새로운 기업과 연결될 수 있습니다.",
+      "Harper는 인재 분들을 위한 AI native 헤드헌터입니다. 만약 선호하거나 원하시는 기회가 있으시다면 알려주세요. 그럼 Harper가 최대한 선호하실만한 기회를 적극적으로 찾고, 회사와 연결된 뒤 기회를 얻으실 수 있게 도와드립니다.",
   },
   {
-    question: "기존 채용공고나 헤드헌터랑 어떻게 다른가요?",
+    question: "일반적인 채용공고나 헤드헌터와 어떻게 다른가요?",
     answer:
-      "Harper는 현재 일반적으로 발견할 수 없는 좋은 기회들을 연결해줍니다. AI가 각 후보자의 실제 작업과 경험을 기반으로 매칭을 생성하기 때문에 다양한 후보자에게 기회가 열립니다.",
-  },
-  {
-    question: "기존 채용공고나 헤드헌터랑 어떻게 다른가요?",
-    answer: "3개면 좋을 것 같아서 임시로 하나 넣음",
+      "Harper는 현재 AI/ML 인재 분들이 원하시는 회사들에 집중해서 기회를 만들고 있습니다. 따라서 일반적으로 발견할 수 없는 좋은 글로벌 기회들을 연결해줍니다. 또한 공개되지 않은 포지션이나, 창업자/핵심 팀과 직접 연결되는 기회만 선별해 전달합니다",
   },
 ] as const;
 
@@ -142,37 +255,210 @@ const NetworkButton = ({
 };
 
 const RequestCard = ({
-  company,
-  role,
-  compensation,
+  request,
   onClick,
 }: {
-  company: string;
-  role: string;
-  compensation: string;
+  request: CompanyRequest;
   onClick: () => void;
-}) => (
-  <div
-    onClick={onClick}
-    className="relative flex flex-col items-start justify-between gap-6 group rounded-xl p-5 cursor-pointer border border-beige900/10 hover:border-beige900/80 outline outline-[0.5px] outline-transparent hover:outline-beige900/80 transition-all duration-200"
-  >
-    <div className="font-inter text-[15px] md:text-base font-medium leading-[0.96] tracking-[-0.06em] text-beige900">
-      {company}
-    </div>
-    <div className="flex flex-row items-center justify-between w-full gap-3 text-sm md:text-[15px]">
-      <div className="font-medium">{role}</div>
-      <div className="font-medium text-beige900/50">{compensation}</div>
-    </div>
-    <ArrowUpRight className="absolute right-4 top-4 w-0 h-4 group-hover:w-4 group-hover:translate-x-[2px] transition-all duration-300" />
-  </div>
-);
+}) => {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group relative flex h-full min-h-[140px] md:min-h-[148px] w-full flex-col justify-between rounded-md border border-beige900/10 bg-beige100/80 p-5 text-left transition-all duration-200 outline outline-1 outline-beige900/0 hover:outline-beige900/90 hover:border-beige900/90"
+    >
+      <div className="flex flex-col w-full">
+        <div className="font-inter text-base font-medium leading-[0.96] tracking-[-0.04em] text-black">
+          {request.title}
+        </div>
+        <div className="inline-flex w-fit mt-3 text-base font-medium leading-[1.45] tracking-[-0.03em] text-beige900/80">
+          <span>{request.company}</span>
+        </div>
+        <div className="absolute right-2 top-2 text-sm inline-flex font-normal items-center gap-1 tracking-[-0.03em] text-black/50 group-hover:text-beige900 transition-colors duration-200">
+          <div className="">Apply</div>
+          <ArrowUpRight className="h-4 w-4 transition-all duration-300 group-hover:translate-x-[2px] group-hover:translate-y-[-2px]" />
+        </div>
+      </div>
+
+      <div className="mt-0 text-sm flex flex-row items-center justify-between w-full">
+        <div className="flex flex-row items-center justify-between w-full font-medium leading-[1.45] tracking-[-0.03em] text-black/70 gap-1">
+          <div className="text-black/50">{request.summary}</div>
+          <div>{request.compensation}</div>
+        </div>
+      </div>
+    </button>
+  );
+};
+const RequestDetailModal = ({
+  request,
+  onClose,
+  onGetMatched,
+}: {
+  request: CompanyRequest | null;
+  onClose: () => void;
+  onGetMatched: () => void;
+}) => {
+  if (!request) return null;
+
+  const Section = ({
+    label,
+    children,
+  }: {
+    label: string;
+    children: React.ReactNode;
+  }) => (
+    <section className="space-y-2">
+      <span className="py-1 px-2 rounded-lg bg-beige500 text-sm font-medium tracking-[-0.01em] text-beige900/90 ml-[-2px]">
+        {label}
+      </span>
+      <div className="text-[15px] leading-[1.75] tracking-[-0.02em] text-beige900/82">
+        {children}
+      </div>
+    </section>
+  );
+
+  function convertITagToSpan(input: string): string {
+    return input
+      .replace(/<i>/g, '<span class="text-beige900/50">')
+      .replace(/<\/i>/g, "</span>");
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[130] flex items-center justify-center p-4 md:p-6"
+    >
+      <motion.button
+        type="button"
+        aria-label="Close request details"
+        onClick={onClose}
+        className="absolute inset-0 bg-black/10 backdrop-blur-[2px]"
+      />
+
+      <motion.div
+        initial={{ opacity: 0, y: 16, scale: 0.985 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 12, scale: 0.985 }}
+        transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+        className="relative z-10 flex max-h-[calc(100vh-32px)] w-full max-w-[640px] flex-col overflow-hidden rounded-2xl border border-beige900/8 bg-beige100 shadow-[0_20px_60px_rgba(37,20,6,0.14)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="overflow-y-auto px-6 py-6 md:px-7 md:py-7 relative">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h2 className="text-lg font-medium leading-[1.05] tracking-[-0.04em] text-beige900 md:text-xl">
+                {request.title}
+              </h2>
+            </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="absolute right-3 top-3 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-beige900/55 transition hover:border-beige900/18 hover:bg-beige900/[0.03] hover:text-beige900/80"
+              aria-label="Close request details"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <p
+            className="mt-4 text-base md:text-lg font-medium leading-[1.75] tracking-[-0.02em] text-beige900/90"
+            dangerouslySetInnerHTML={{
+              __html: convertITagToSpan(request.intro),
+            }}
+          />
+
+          <div className="mt-8 space-y-5">
+            {/* <Section label="Role">{request.role}</Section> */}
+            <Section label="About the role">{request.about}</Section>
+
+            {request.requirements && (
+              <Section label="Key requirements">
+                <div
+                  dangerouslySetInnerHTML={{ __html: request.requirements }}
+                />
+              </Section>
+            )}
+
+            {request.whoThisIsFor && request.whoThisIsFor.length > 0 && (
+              <section className="space-y-2.5">
+                <h3 className="text-[13px] font-medium tracking-[-0.01em] text-beige900/45">
+                  Who this is for
+                </h3>
+                <ul className="space-y-2">
+                  {request.whoThisIsFor.map((item) => (
+                    <div
+                      key={item}
+                      className="flex items-start gap-3 text-[15px] leading-[1.75] tracking-[-0.02em] text-beige900/80"
+                    >
+                      <span className="mt-[10px] h-1.5 w-1.5 shrink-0 rounded-full bg-beige900/32" />
+                      <span>{item}</span>
+                    </div>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {request.engagement && (
+              <Section label="Engagement">
+                <div
+                  dangerouslySetInnerHTML={{
+                    __html: convertITagToSpan(request.engagement),
+                  }}
+                />
+              </Section>
+            )}
+
+            <Section label="Compensation">{request.compensation}</Section>
+          </div>
+
+          <div className="mt-8">
+            <NetworkButton
+              label="Get matched"
+              showArrow={false}
+              onClick={onGetMatched}
+              className="h-11 w-full rounded-xl sm:w-auto"
+            />
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
 
 const NetworkPage = () => {
+  const MOBILE_POSITION_PAGE_SIZE = 4;
   const [openFaqIndex, setOpenFaqIndex] = useState(0);
+  const [showPreloader, setShowPreloader] = useState(true);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
+  const [selectedOnboardingRole, setSelectedOnboardingRole] = useState<
+    string | undefined
+  >(undefined);
+  const [mobilePositionPage, setMobilePositionPage] = useState(0);
+  const [selectedRequest, setSelectedRequest] = useState<CompanyRequest | null>(
+    null
+  );
+  const totalMobilePositionPages = Math.ceil(
+    companyRequests.length / MOBILE_POSITION_PAGE_SIZE
+  );
+  const mobileVisibleRequests = companyRequests.slice(
+    mobilePositionPage * MOBILE_POSITION_PAGE_SIZE,
+    (mobilePositionPage + 1) * MOBILE_POSITION_PAGE_SIZE
+  );
 
   useEffect(() => {
-    if (!isOnboardingOpen) return;
+    const timeout = window.setTimeout(() => {
+      setShowPreloader(false);
+    }, 1500);
+
+    return () => window.clearTimeout(timeout);
+  }, []);
+
+  useEffect(() => {
+    const isOverlayOpen = isOnboardingOpen || selectedRequest !== null;
+
+    if (!isOverlayOpen) return;
 
     const previousBodyOverflow = document.body.style.overflow;
     const previousHtmlOverflow = document.documentElement.style.overflow;
@@ -181,10 +467,16 @@ const NetworkPage = () => {
     document.documentElement.style.overflow = "hidden";
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
+      if (event.key !== "Escape") return;
+
+      event.preventDefault();
+
+      if (isOnboardingOpen) {
         setIsOnboardingOpen(false);
+        return;
       }
+
+      setSelectedRequest(null);
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -194,7 +486,15 @@ const NetworkPage = () => {
       document.documentElement.style.overflow = previousHtmlOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOnboardingOpen]);
+  }, [isOnboardingOpen, selectedRequest]);
+
+  const Pill = ({ label }: { label: string }) => {
+    return (
+      <div className="inline-flex items-center gap-1 rounded-md bg-beige500 px-3 py-1 text-[13px] md:text-sm font-medium tracking-[-0.03em] text-beige900/90 transition-colors duration-200">
+        {label}
+      </div>
+    );
+  };
 
   return (
     <>
@@ -206,8 +506,25 @@ const NetworkPage = () => {
         />
       </Head>
 
-      <div className="min-h-screen overflow-x-clip bg-beige200 font-geist text-beige900 antialiased">
-        <nav className="fixed inset-x-0 top-0 z-50 bg-beige200/80 backdrop-blur-lg">
+      <div className="min-h-screen overflow-x-clip bg-beige100 font-geist text-beige900 antialiased">
+        <AnimatePresence>
+          {showPreloader && (
+            <motion.div
+              initial={{ opacity: 1 }}
+              exit={{
+                y: "-100%",
+                transition: { duration: 0.9, ease: [0.76, 0, 0.24, 1] },
+              }}
+              className="fixed inset-0 z-[160] flex items-center justify-center bg-beige500"
+            >
+              <div className="font-halant text-7xl tracking-[-0.08em] text-beige900">
+                <StaggerText text="Harper" by="char" delay={0.08} />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <nav className="fixed inset-x-0 top-0 z-50 bg-beige200 backdrop-blur-lg">
           <div className="mx-auto flex h-[78px] max-w-[1160px] items-center justify-between px-4">
             <a
               href="#top"
@@ -220,7 +537,10 @@ const NetworkPage = () => {
               size="sm"
               variant="secondary"
               showArrow={false}
-              onClick={() => setIsOnboardingOpen(true)}
+              onClick={() => {
+                setSelectedOnboardingRole(undefined);
+                setIsOnboardingOpen(true);
+              }}
               className="inline-flex"
             />
           </div>
@@ -237,10 +557,10 @@ const NetworkPage = () => {
               >
                 {/* GET MATCHED TO TOP AI STARTUPS */}
                 <span className="block">
-                  <StaggerText text="Top AI teams reach out" />
+                  <StaggerText text="Access the World's" />
                 </span>
-                <span className="block">
-                  <StaggerText text="to you privately." delay={0.14} />
+                <span className="block mt-3">
+                  <StaggerText text="Most Elite AI Positions." delay={0.14} />
                 </span>
               </h2>
             </Reveal>
@@ -248,21 +568,26 @@ const NetworkPage = () => {
             <Reveal once delay={0.18} className="mt-8">
               <div className="flex flex-col justify-center items-center text-lg tracking-[-0.03em] text-beige900/70">
                 <div>
-                  Find global top-tier opportunities for your expertise.
+                  Direct backdoor to confidential AI unicorns backed by top-tier
+                  Global VCs.
                 </div>
-                <div>Available only on Harper.</div>
+                <div>Skip the HR screen and match directly with founders.</div>
               </div>
 
-              <div className="mt-4 flex flex-col items-center gap-0 text-base tracking-[-0.03em] text-beige900/50">
-                <div>From Junior to C-level</div>
-                <div>From Part-time to Full-time</div>
+              <div className="mt-8 flex flex-row items-center justify-center gap-2 text-base tracking-[-0.03em] text-beige900/50 flex-wrap">
+                <Pill label="Fractional (4~12 hrs/wk)" />
+                <Pill label="Founding Member / CTO" />
+                <Pill label="Technical Advisory" />
               </div>
             </Reveal>
 
             <Reveal once delay={0.24} className="mt-12">
               <NetworkButton
-                label="Join talent network"
-                onClick={() => setIsOnboardingOpen(true)}
+                label="Initiate Match"
+                onClick={() => {
+                  setSelectedOnboardingRole(undefined);
+                  setIsOnboardingOpen(true);
+                }}
               />
             </Reveal>
 
@@ -278,24 +603,25 @@ const NetworkPage = () => {
 
           <Reveal
             once
+            delay={0.08}
             className="text-center justify-center items-center mt-2 mb-12"
           >
             <div className="flex flex-row items-center justify-center gap-2">
               <div className="relative items-baseline gap-1 font-normal flex">
-                <div>300+ in the network From </div>
+                <div>300+ engineers and researchers From </div>
               </div>
               <div className="flex -space-x-2">
                 {schoolLogos.map((school) => (
                   <div
                     key={school.name}
-                    className="h-9 w-9 rounded-full bg-beige500 border border-beige900/20"
+                    className="h-10 w-10 rounded-full bg-beige500 border border-beige900/20"
                   >
                     <Image
                       src={school.src}
                       alt={school.name}
                       className="rounded-full"
-                      width={36}
-                      height={36}
+                      width={42}
+                      height={42}
                     />
                   </div>
                 ))}
@@ -308,28 +634,70 @@ const NetworkPage = () => {
 
           <VCLogos />
 
-          <Reveal once className="text-center mt-32">
-            <div className={`w-full font-medium text-left text-beige900`}>
-              최근 포지션
+          <Reveal once className="mt-32">
+            <div className="flex w-full items-center justify-between gap-4 text-beige900">
+              <div className="font-medium text-left">
+                Opportunities in our network
+              </div>
+              <div className="flex items-center gap-2 md:hidden">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMobilePositionPage((prev) => Math.max(prev - 1, 0))
+                  }
+                  disabled={mobilePositionPage === 0}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-sm bg-black/10 text-sm text-beige900 transition disabled:cursor-not-allowed disabled:opacity-35"
+                  aria-label="Show previous positions"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMobilePositionPage((prev) =>
+                      Math.min(prev + 1, totalMobilePositionPages - 1)
+                    )
+                  }
+                  disabled={mobilePositionPage >= totalMobilePositionPages - 1}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-sm bg-black/10 text-sm text-beige900 transition disabled:cursor-not-allowed disabled:opacity-35"
+                  aria-label="Show next positions"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </Reveal>
 
-          <div className="w-full mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-            {companyRequests.map((request, index) => (
+          <div className="mt-4 grid w-full grid-cols-1 gap-4 md:hidden">
+            {mobileVisibleRequests.map((request, index) => (
               <Reveal
-                key={`${request.company}-${request.role}`}
+                key={`${request.id}-${mobilePositionPage}`}
                 once
                 delay={0.05 * index}
+                className="h-full"
               >
                 <RequestCard
-                  {...request}
-                  onClick={() => setIsOnboardingOpen(true)}
+                  request={request}
+                  onClick={() => setSelectedRequest(request)}
                 />
               </Reveal>
             ))}
-            <div className="w-full text-left text-beige900/50 mt-2">
-              and more
-            </div>
+          </div>
+
+          <div className="mt-4 hidden w-full grid-cols-2 gap-4 md:grid lg:grid-cols-2">
+            {companyRequests.map((request, index) => (
+              <Reveal
+                key={request.id}
+                once
+                delay={0.05 * index}
+                className="h-full"
+              >
+                <RequestCard
+                  request={request}
+                  onClick={() => setSelectedRequest(request)}
+                />
+              </Reveal>
+            ))}
           </div>
 
           <section id="faq" className="py-24">
@@ -400,9 +768,11 @@ const NetworkPage = () => {
         <br />
         <Reveal once delay={0.24} className="w-full">
           <div className="flex items-center justify-center w-full mt-20 mb-4">
-            <img
+            <Image
               src="/images/objects.png"
               alt="objects"
+              width={256}
+              height={256}
               className="w-44 sm:w-52 md:w-64"
             />
           </div>
@@ -437,12 +807,26 @@ const NetworkPage = () => {
         </footer>
 
         <AnimatePresence>
+          {selectedRequest && (
+            <RequestDetailModal
+              request={selectedRequest}
+              onClose={() => setSelectedRequest(null)}
+              onGetMatched={() => {
+                setSelectedRequest(null);
+                setSelectedOnboardingRole(selectedRequest.role);
+                setIsOnboardingOpen(true);
+              }}
+            />
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
           {isOnboardingOpen && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[140] bg-beige200"
+              className="fixed inset-0 z-[140] overflow-y-auto bg-beige200"
             >
               <button
                 type="button"
@@ -452,7 +836,10 @@ const NetworkPage = () => {
               >
                 <X className="h-5 w-5" />
               </button>
-              <Onboarding2Content />
+              <Onboarding2Content
+                selectedRole={selectedOnboardingRole}
+                onDone={() => setIsOnboardingOpen(false)}
+              />
             </motion.div>
           )}
         </AnimatePresence>
@@ -465,10 +852,10 @@ export default NetworkPage;
 
 const vcLogos = [
   { key: "a16z2", src: "/svgs/a16z2.svg", width: 100 },
-  { key: "yc2", src: "/svgs/yc2.svg", width: 152 },
-  { key: "sequoia2", src: "/svgs/sequoia2.svg", width: 146 },
-  { key: "index2", src: "/svgs/index2.svg", width: 136 },
-  { key: "besemmer2", src: "/svgs/bessemer2.svg", width: 118 },
+  { key: "yc2", src: "/svgs/yc.svg", width: 152 },
+  { key: "sequoia2", src: "/svgs/sequoia.svg", width: 146 },
+  { key: "index2", src: "/svgs/index.svg", width: 136 },
+  { key: "besemmer2", src: "/svgs/bessemer.svg", width: 118 },
 ];
 
 function VCLogos() {
@@ -478,9 +865,9 @@ function VCLogos() {
     <div className="relative w-[90%] mx-auto overflow-hidden mt-24">
       <Reveal once delay={0.08} className="w-full text-center">
         <div className="w-full text-center text-beige900 text-lg leading-[1.55] tracking-[-0.03em] font-medium">
-          Trusted by Companies
-          <br className="block md:hidden" /> backed by{" "}
-          <span className="text-beige900/50">Top VCs</span>
+          Partnering with{" "}
+          <span className="text-beige900/50">Worldwide AI companies</span>
+          <br className="block md:hidden" /> funded by the world&apos;s elite.
         </div>
       </Reveal>
       <Reveal once delay={0.14} className="w-full text-center">
