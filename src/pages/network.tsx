@@ -157,8 +157,11 @@ const faqs = [
   },
   {
     question: "일반적인 채용공고나 헤드헌터와 어떻게 다른가요?",
-    answer:
-      "Harper는 현재 AI/ML 인재 분들이 원하시는 회사들에 집중해서 기회를 만들고 있습니다. 따라서 일반적으로 발견할 수 없는 좋은 글로벌 기회들을 연결해줍니다. 또한 공개되지 않은 포지션이나, 창업자/핵심 팀과 직접 연결되는 기회만 선별해 전달합니다",
+    answer: `<div><span class='font-semibold'>Focused Expertise:</span> 저희는 오직 AI/ML 분야에만 집중합니다. 모델 트레이닝, LLM 인프라, NPU 설계 등 기술적 난도가 높은 직무의 맥락을 정확히 이해하고, 그에 걸맞은 팀을 선별합니다.</div>
+<div class="mt-2"><span class='font-semibold'>Exclusive Partnership:</span> 모든 회사의 공고를 나열하지 않습니다. 실리콘밸리 Tier 1 VC의 투자를 받았거나 기술적 파괴력이 입증된 소수의 팀들과만 긴밀하게 협업하며, 시장에 공개되지 않은 핵심 포지션(Stealth Roles)을 우선적으로 매칭합니다.</div>
+<div class="mt-2"><span class='font-semibold'>Streamlined Process:</span> 불필요한 단계를 생략합니다. Harper의 추천은 파트너사의 창업자 또는 기술 리드에게 직접 전달되어, 가장 효율적이고 전문적인 논의가 이루어질 수 있도록 지원합니다.</div>
+<div class="mt-2"><span class='font-semibold'>Engagement Flexibility:</span> 정규직 합류뿐만 아니라, 현업을 유지하며 주당 4~12시간 내외로 핵심 프로젝트에 기여하는 'Fractional(파트타임)' 형태의 협업 기회도 Harper 네트워크 안에서 활발하게 연결됩니다.</div>
+`,
   },
 ] as const;
 
@@ -275,7 +278,7 @@ const RequestCard = ({
           <span>{request.company}</span>
         </div>
         <div className="absolute right-2 top-2 text-sm inline-flex font-normal items-center gap-1 tracking-[-0.03em] text-black/50 group-hover:text-beige900 transition-colors duration-200">
-          <div className="">Apply</div>
+          {/* <div className="">Apply</div> */}
           <ArrowUpRight className="h-4 w-4 transition-all duration-300 group-hover:translate-x-[2px] group-hover:translate-y-[-2px]" />
         </div>
       </div>
@@ -525,7 +528,7 @@ const NetworkPage = () => {
         </AnimatePresence>
 
         <nav className="fixed inset-x-0 top-0 z-50 bg-beige200 backdrop-blur-lg">
-          <div className="mx-auto flex h-[78px] max-w-[1160px] items-center justify-between px-4">
+          <div className="mx-auto flex h-[64px] max-w-[1160px] items-center justify-between px-4">
             <a
               href="#top"
               className="font-halant text-[28px] tracking-[-0.06em] text-beige900"
@@ -749,7 +752,7 @@ const NetworkPage = () => {
                             className="overflow-hidden"
                           >
                             <p
-                              className="max-w-[720px] text-left text-sm md:text-[15px] leading-[1.6] tracking-[-0.03em] text-beige900/55"
+                              className="max-w-[720px] text-left text-sm md:text-[15px] leading-[1.6] tracking-[-0.01em] text-beige900/70"
                               dangerouslySetInnerHTML={{ __html: faq.answer }}
                             />
                           </motion.div>

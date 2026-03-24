@@ -434,7 +434,7 @@ export const CriteriaCard = React.memo(function CriteriaCard({
             onConfirm={updateQueryText}
           />
 
-          <div className="mt-3 text-xs text-hgray600">Sources</div>
+          {/* <div className="mt-3 text-xs text-hgray600">Sources</div>
 
           <div className="flex flex-row gap-1 items-center justify-between">
             <div className="text-sm text-white font-light">
@@ -516,7 +516,7 @@ export const CriteriaCard = React.memo(function CriteriaCard({
                 </div>
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
+          </div> */}
           <div className="mt-3 text-xs text-hgray600">Criteria</div>
 
           {Array.isArray(draft.criteria) && draft.criteria.length > 0 && (
