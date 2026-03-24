@@ -866,7 +866,7 @@ function VCLogos() {
       <Reveal once delay={0.08} className="w-full text-center">
         <div className="w-full text-center text-beige900 text-lg leading-[1.55] tracking-[-0.03em] font-medium">
           Partnering with{" "}
-          <span className="text-beige900/50">Worldwide AI companies</span>
+          <span className="text-beige900/50">Global AI companies</span>
           <br className="block md:hidden" /> funded by the world&apos;s elite.
         </div>
       </Reveal>
