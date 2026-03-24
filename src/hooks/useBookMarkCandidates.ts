@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
+import { ScholarProfilePreview } from "@/lib/scholarPreview";
 import { supabase } from "@/lib/supabase";
 import { CandidateTypeWithConnection } from "./useSearchChatCandidates";
+import { fetchCandidateMarkMap } from "./useCandidateMark";
 
 export type ConnectionTyped = 0 | 1 | 2 | 3;
 
@@ -11,6 +13,54 @@ export const connectionsKey = (
   pageSize: number = 10,
   folderId: number | null = null
 ) => ["connections", userId, typed, pageIdx, pageSize, folderId] as const;
+
+async function fetchScholarPreviewByCandidateIds(ids: string[]) {
+  const { data: profiles, error: profileError } = await supabase
+    .from("scholar_profile")
+    .select("id, candid_id, affiliation, topics, h_index, total_citations_num")
+    .in("candid_id", ids);
+
+  if (profileError) throw profileError;
+
+  const profileRows = Array.isArray(profiles) ? profiles : [];
+  if (profileRows.length === 0) {
+    return new Map<string, ScholarProfilePreview>();
+  }
+
+  const profileIds = profileRows.map((row) => row.id);
+  const { data: contributions, error: contributionError } = await supabase
+    .from("scholar_contributions")
+    .select("scholar_profile_id")
+    .in("scholar_profile_id", profileIds);
+
+  if (contributionError) throw contributionError;
+
+  const paperCountByProfileId = new Map<string, number>();
+  for (const row of contributions ?? []) {
+    const profileId = String((row as any)?.scholar_profile_id ?? "");
+    if (!profileId) continue;
+    paperCountByProfileId.set(
+      profileId,
+      (paperCountByProfileId.get(profileId) ?? 0) + 1
+    );
+  }
+
+  return new Map<string, ScholarProfilePreview>(
+    profileRows
+      .filter((row) => Boolean(row.candid_id))
+      .map((row) => [
+        row.candid_id as string,
+        {
+          scholarProfileId: row.id,
+          affiliation: row.affiliation,
+          topics: row.topics,
+          hIndex: row.h_index,
+          paperCount: paperCountByProfileId.get(row.id) ?? 0,
+          citationCount: row.total_citations_num ?? 0,
+        },
+      ])
+  );
+}
 
 export function useCandidatesByConnectionTyped(
   userId?: string,
@@ -85,6 +135,7 @@ export function useCandidatesByConnectionTyped(
         headline,
         bio,
         linkedin_url,
+        links,
         location,
         name,
         profile_picture,
@@ -93,7 +144,8 @@ export function useCandidatesByConnectionTyped(
           degree,
           field,
           start_date,
-          end_date
+          end_date,
+          url
         ),
         experience_user (
           role,
@@ -121,6 +173,13 @@ export function useCandidatesByConnectionTyped(
 
       if (e2) throw e2;
 
+      const scholarPreviewByCandidateId =
+        await fetchScholarPreviewByCandidateIds(ids);
+      const candidateMarkByCandidateId = await fetchCandidateMarkMap(
+        userId,
+        ids
+      );
+
       const memoByCandidId = new Map<string, string>();
       const { data: memoRows, error: e3 } = await (
         supabase.from("shortlist_memo" as any) as any
@@ -145,6 +204,9 @@ export function useCandidatesByConnectionTyped(
           if (!cand) return null;
           return {
             ...cand,
+            candidate_mark: candidateMarkByCandidateId.get(id) ?? null,
+            scholar_profile_preview:
+              scholarPreviewByCandidateId.get(id) ?? null,
             shortlist_memo: memoByCandidId.get(id) ?? "",
           };
         })

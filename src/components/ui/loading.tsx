@@ -33,7 +33,7 @@ function Loading({
     <Component
       className={cn(
         inline ? "inline-flex" : "flex",
-        "items-center gap-2 text-xgray800",
+        "items-center gap-2 text-xgray800 font-inter",
         textClasses[size],
         className,
         isFullScreen ? "w-full h-full flex items-center justify-center" : ""

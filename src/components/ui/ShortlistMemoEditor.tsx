@@ -29,16 +29,21 @@ export default function ShortlistMemoEditor({
 
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const isEditingRef = useRef(false);
   const { mutateAsync: upsertMemo, isPending } = useUpsertShortlistMemo();
 
   useEffect(() => {
-    const next = initialMemo ?? "";
-    setMemo(next);
-    if (!isEditing) {
+    isEditingRef.current = isEditing;
+  }, [isEditing]);
+
+  useEffect(() => {
+    if (!isEditingRef.current) {
+      const next = initialMemo ?? "";
+      setMemo(next);
       setDraft(next);
       setIsChanged(false);
     }
-  }, [initialMemo, isEditing]);
+  }, [initialMemo]);
 
   useEffect(() => {
     if (!isEditing) return;
@@ -106,22 +111,22 @@ export default function ShortlistMemoEditor({
         e.stopPropagation();
         if (!isEditing) setIsEditing(true);
       }}
-      className={`relative h-full rounded-md px-2 pt-1.5 transition-all duration-200 cursor-pointer ${
+      className={`relative h-full cursor-pointer rounded-md px-2 pt-1.5 transition-all duration-200 ${className} ${
         isEditing
           ? "border border-white/0 bg-white/5 pb-1.5"
           : "border border-white/0 pb-1.5"
-      } ${isSmall ? "hover:text-white" : `${className} hover:bg-white/5`} ${
+      } ${isSmall ? "hover:text-white" : "hover:bg-white/5"} ${
         memo ? "text-hgray900" : "text-hgray600"
       }`}
     >
       {!isEditing ? (
         <div
-          className={`flex items-start justify-between gap-2 text-[13px] leading-relaxed whitespace-pre-wrap break-words`}
+          className={`group flex items-center justify-between gap-2 text-[13px] leading-relaxed whitespace-pre-wrap break-words`}
         >
           <span>{memo || placeholder}</span>
           {!isSmall && (
             <Pencil
-              className="w-3 h-3 mt-0.5 text-hgray700/70 shrink-0"
+              className="w-3 h-3 text-hgray700/70 shrink-0 group-hover:text-white"
               strokeWidth={1.6}
             />
           )}

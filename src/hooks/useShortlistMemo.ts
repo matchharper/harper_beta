@@ -10,6 +10,31 @@ type UpsertShortlistMemoArgs = {
 export const shortlistMemoKey = (userId?: string, candidId?: string) =>
   ["shortlistMemo", userId, candidId] as const;
 
+export async function fetchShortlistMemoMap(
+  userId: string | undefined,
+  ids: string[]
+) {
+  if (!userId || ids.length === 0) {
+    return new Map<string, string>();
+  }
+
+  const memoByCandidId = new Map<string, string>();
+  const { data, error } = await ((supabase.from("shortlist_memo" as any) as any)
+    .select("candid_id, memo")
+    .eq("user_id", userId)
+    .in("candid_id", ids));
+
+  if (error) throw error;
+
+  for (const row of data ?? []) {
+    const candidId = String(row?.candid_id ?? "").trim();
+    if (!candidId) continue;
+    memoByCandidId.set(candidId, String(row?.memo ?? ""));
+  }
+
+  return memoByCandidId;
+}
+
 export function useShortlistMemo(userId?: string, candidId?: string) {
   return useQuery({
     queryKey: shortlistMemoKey(userId, candidId),
@@ -62,6 +87,11 @@ export function useUpsertShortlistMemo() {
     },
     onSuccess: (_res, vars) => {
       qc.invalidateQueries({ queryKey: ["connections", vars.userId] });
+      qc.invalidateQueries({ queryKey: ["searchCandidatesByRun"] });
+      qc.invalidateQueries({ queryKey: ["runPages"] });
+      qc.invalidateQueries({
+        queryKey: ["candidate", vars.candidId, vars.userId],
+      });
       qc.invalidateQueries({
         queryKey: shortlistMemoKey(vars.userId, vars.candidId),
       });

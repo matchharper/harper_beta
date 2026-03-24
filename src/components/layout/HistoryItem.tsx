@@ -1,16 +1,10 @@
 import { dateToFormatLong } from "@/utils/textprocess";
 import React, { useState } from "react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Command, MoreHorizontal, Pin } from "lucide-react";
+import { Command, MoreHorizontal, Pin, Trash2 } from "lucide-react";
 import { Tooltips } from "../ui/tooltip";
 import Link from "next/link";
 import { QueryHistoryItem } from "@/hooks/useSearchHistory";
+import { ActionDropdown, ActionDropdownItem } from "../ui/action-dropdown";
 
 const HistoryItem = ({
   queryItem,
@@ -75,49 +69,44 @@ const HistoryItem = ({
           </div>
         )}
       </div>
-      {!collapsed && (
-        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-          <DropdownMenuTrigger asChild>
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-              className={[
-                "rounded-sm h-7 w-7 flex items-center justify-center",
-                "hover:bg-bgDark500 focus:outline-white/5 focus:ring-white/10",
-                "transition-opacity",
-                menuOpen
-                  ? "opacity-100 ring-2 ring-white/60"
-                  : "opacity-0 group-hover:opacity-100 ring-0",
-              ].join(" ")}
-            >
-              <MoreHorizontal size={16} />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            className="w-40 bg-bgDark400/80 backdrop-blur-md border-none"
-            align="start"
+      <ActionDropdown
+        open={menuOpen}
+        onOpenChange={setMenuOpen}
+        align="start"
+        contentClassName="w-40"
+        trigger={
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            className={[
+              "rounded-sm h-7 w-7 flex items-center justify-center",
+              "hover:bg-bgDark500 focus:outline-white/5 focus:ring-white/10",
+              "transition-opacity",
+              menuOpen
+                ? "opacity-100 ring-2 ring-white/60"
+                : "opacity-0 group-hover:opacity-100 ring-0",
+              collapsed
+                ? "absolute right-1.5 top-1/2 -translate-y-1/2"
+                : "opacity-0",
+            ].join(" ")}
           >
-            {/* <DropdownMenuGroup>
-          <DropdownMenuItem>
-          Profile
-          <DropdownMenuShortcut>⇧⌘P</DropdownMenuShortcut>
-          </DropdownMenuItem> */}
-            <DropdownMenuGroup>
-              <DropdownMenuItem
-                className="text-red-500 cursor-pointer p-2"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete(queryItem.query_id);
-                }}
-              >
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
+            <MoreHorizontal size={16} />
+          </button>
+        }
+      >
+        <ActionDropdownItem
+          tone="danger"
+          className="p-2"
+          onSelect={() => {
+            onDelete(queryItem.query_id);
+          }}
+        >
+          <Trash2 size={14} />
+          <span>삭제</span>
+        </ActionDropdownItem>
+      </ActionDropdown>
     </Link>
   );
 };

@@ -25,7 +25,7 @@ import FeedbackBanner from "./components/FeedbackBanner";
 import { useRunDetail } from "@/hooks/useRunDetail";
 import { supabase } from "@/lib/supabase";
 import Criterias from "./components/Criterias";
-import ShortlistMemoEditor from "@/components/ui/ShortlistMemoEditor";
+import CandidateMemoDock from "@/components/ui/CandidateMemoDock";
 import { useShortlistMemo } from "@/hooks/useShortlistMemo";
 import {
   formatScholarCitationCount,
@@ -345,6 +345,7 @@ function CandidateProfileDetailPage({
   const scholarPaperCount = Array.isArray(c?.scholar_papers)
     ? c.scholar_papers.length
     : 0;
+  const candidateMarkStatus = c?.candidate_mark?.status ?? null;
 
   const visiblePublications = useMemo(
     () =>
@@ -554,13 +555,14 @@ function CandidateProfileDetailPage({
         )}
 
         <Box title={shortlistMemo ? "내부 메모" : ""} color="accenta1">
-          <ShortlistMemoEditor
+          <CandidateMemoDock
             userId={userId}
             candidId={candidId}
             initialMemo={shortlistMemo}
+            initialMarkStatus={candidateMarkStatus}
             rows={4}
-            className={"w-full min-h-[88px]"}
-            isSmall={true}
+            editorClassName="w-full min-h-[88px]"
+            editorIsSmall={true}
           />
         </Box>
 

@@ -7,6 +7,8 @@ import {
   queryTypeToSearchSource,
 } from "@/lib/searchSource";
 import { ScholarProfilePreview } from "@/lib/scholarPreview";
+import { CandidateMarkRecord } from "@/lib/candidateMark";
+import { SharedFolderCandidateNote } from "@/lib/sharedFolder";
 import {
   buildEvidenceMap,
   buildRankMap,
@@ -20,6 +22,8 @@ import { useCallback, useEffect, useMemo } from "react";
 import { logger } from "@/utils/logger";
 import { UI_END, UI_START } from "./chat/useChatSession";
 import type { Locale } from "@/i18n/useMessage";
+import { fetchCandidateMarkMap } from "./useCandidateMark";
+import { fetchShortlistMemoMap } from "./useShortlistMemo";
 
 function getCookie(name: string) {
   if (typeof document === "undefined") return null;
@@ -61,6 +65,8 @@ export type CandidateTypeWithConnection = CandidateType & {
   scholar_profile_preview?: ScholarProfilePreview | null;
   search_evidence?: SearchEvidence | null;
   search_rank?: SearchRank | null;
+  candidate_mark?: CandidateMarkRecord | null;
+  shared_folder_notes?: SharedFolderCandidateNote[];
 };
 
 type SearchSettingsSnapshot = {
@@ -207,6 +213,8 @@ async function fetchCandidatesByIds(
     scholarPreviewCandidateIds.length > 0
       ? await fetchScholarPreviewByCandidateIds(scholarPreviewCandidateIds)
       : new Map<string, ScholarProfilePreview>();
+  const candidateMarkByCandidateId = await fetchCandidateMarkMap(userId, ids);
+  const shortlistMemoByCandidateId = await fetchShortlistMemoMap(userId, ids);
 
   const ordered = ids
     .map((id) => {
@@ -217,6 +225,8 @@ async function fetchCandidatesByIds(
         scholar_profile_preview: scholarPreviewByCandidateId.get(id) ?? null,
         search_evidence: evidenceByCandidateId?.get(id) ?? null,
         search_rank: rankByCandidateId?.get(id) ?? null,
+        candidate_mark: candidateMarkByCandidateId.get(id) ?? null,
+        shortlist_memo: shortlistMemoByCandidateId.get(id) ?? "",
       };
     })
     .filter(Boolean);

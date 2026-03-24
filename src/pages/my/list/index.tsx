@@ -19,7 +19,6 @@ export default function MyPage() {
   const [currentPage, setCurrentPage] = useState<PageKey>("bookmark");
   const { companyUser } = useCompanyUserStore();
   const userId = useMemo(() => companyUser?.user_id, [companyUser]);
-  const { data } = useConnectionCounts(userId);
 
   const title = useMemo(() => {
     return TABS.find((t) => t.key === currentPage)?.label ?? "마이페이지";
