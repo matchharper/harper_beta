@@ -36,12 +36,12 @@ export async function GET(req: Request) {
     }
 
     const supabaseAdmin = getSupabaseAdmin();
-    const { data: folder, error: folderError } = await ((supabaseAdmin.from(
-      "bookmark_folder" as any
-    ) as any)
+    const { data: folder, error: folderError } = await (
+      supabaseAdmin.from("bookmark_folder" as any) as any
+    )
       .select("id, name")
       .eq("id", share!.folder_id)
-      .maybeSingle());
+      .maybeSingle();
 
     if (folderError) {
       return NextResponse.json({ error: folderError.message }, { status: 500 });
@@ -52,9 +52,11 @@ export async function GET(req: Request) {
 
     const from = pageIdx * pageSize;
     const to = from + pageSize - 1;
-    const { data: folderItems, count, error: folderItemsError } = await (
-      (supabaseAdmin.from("bookmark_folder_item" as any) as any)
-    )
+    const {
+      data: folderItems,
+      count,
+      error: folderItemsError,
+    } = await (supabaseAdmin.from("bookmark_folder_item" as any) as any)
       .select("candid_id", { count: "exact" })
       .eq("folder_id", folder.id)
       .order("created_at", { ascending: false })
@@ -81,9 +83,9 @@ export async function GET(req: Request) {
       });
     }
 
-    const { data: candidates, error: candidateError } = await ((supabaseAdmin.from(
-      "candid" as any
-    ) as any)
+    const { data: candidates, error: candidateError } = await (
+      supabaseAdmin.from("candid" as any) as any
+    )
       .select(
         `
           id,
@@ -116,7 +118,7 @@ export async function GET(req: Request) {
           )
         `
       )
-      .in("id", ids));
+      .in("id", ids);
 
     if (candidateError) {
       return NextResponse.json(
@@ -129,13 +131,15 @@ export async function GET(req: Request) {
       supabaseAdmin,
       ids
     );
-    const { data: noteRows, error: noteError } = await ((supabaseAdmin.from(
-      "bookmark_folder_share_note" as any
-    ) as any)
-      .select("id, candid_id, memo, viewer_name, viewer_key, created_at, updated_at")
+    const { data: noteRows, error: noteError } = await (
+      supabaseAdmin.from("bookmark_folder_share_note" as any) as any
+    )
+      .select(
+        "id, candid_id, memo, viewer_name, viewer_key, created_at, updated_at"
+      )
       .eq("folder_id", folder.id)
       .in("candid_id", ids)
-      .order("created_at", { ascending: true }));
+      .order("created_at", { ascending: true });
 
     if (noteError) {
       return NextResponse.json({ error: noteError.message }, { status: 500 });
@@ -152,7 +156,9 @@ export async function GET(req: Request) {
         viewerName: String(row?.viewer_name ?? "게스트"),
         createdAt: String(row?.created_at ?? ""),
         updatedAt: String(row?.updated_at ?? row?.created_at ?? ""),
-        canEdit: viewerKey ? String(row?.viewer_key ?? "") === viewerKey : false,
+        canEdit: viewerKey
+          ? String(row?.viewer_key ?? "") === viewerKey
+          : false,
       };
       const existing = notesByCandidateId.get(candidId) ?? [];
       existing.push(note);
@@ -163,7 +169,7 @@ export async function GET(req: Request) {
       (candidates ?? []).map((candidate: any) => [candidate.id, candidate])
     );
     const items = ids
-      .map((id) => {
+      .map((id: any) => {
         const candidate = candidateById.get(id);
         if (!candidate) return null;
         return {
