@@ -19,13 +19,6 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useCredits } from "@/hooks/useCredit";
 import { NavItem } from "./HistoryItem";
 import { Tooltips } from "../ui/tooltip";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "../ui/dropdown-menu";
 import { useMessages } from "@/i18n/useMessage";
 import HoverHistory from "./HoverHistory";
 import { useLogEvent } from "@/hooks/useLog";
@@ -33,6 +26,7 @@ import FeedbackRewardModal from "@/components/Modal/FeedbackRewardModal";
 import { useFeedbackModalStore } from "@/store/useFeedbackModalStore";
 import Link from "next/link";
 import Script from "next/script";
+import { ActionDropdown, ActionDropdownItem } from "../ui/action-dropdown";
 
 const AppLayout = ({
   children,
@@ -241,8 +235,10 @@ const AppLayout = ({
               </div>
             </Link>
           )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+          <ActionDropdown
+            align="start"
+            contentClassName="w-52"
+            trigger={
               <button
                 className={[
                   "w-full flex text-base font-extralight items-center gap-3 rounded-[6px] px-2.5 py-2",
@@ -267,69 +263,54 @@ const AppLayout = ({
                     {companyUser?.name ?? "Settings"}
                   </div>
                 )}
-
-                {/* <NavItem
-                  collapsed={collapsed}
-                  label={companyUser?.name ?? "Settings"}
-                  icon={<Settings size={18} />}
-                  onClick={() => {}}
-                /> */}
               </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              className="w-52 bg-white/5 backdrop-blur-md border-none text-white p-2"
-              align="start"
+            }
+          >
+            <ActionDropdownItem
+              className="flex flex-row gap-1"
+              onSelect={(e) => {
+                e.preventDefault();
+                logEvent("enter_feedback");
+                openFeedbackModal();
+              }}
             >
-              <DropdownMenuGroup>
-                <DropdownMenuItem
-                  className="flex flex-row gap-1 cursor-pointer"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    logEvent("enter_feedback");
-                    openFeedbackModal();
-                  }}
-                >
-                  <MessageSquareMore size={18} />
-                  <div>피드백 남기기</div>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild className="cursor-pointer mt-1 p-0">
-                  <Link
-                    href="/my/help"
-                    className="w-full flex flex-row gap-1 px-2 py-1.5"
-                    onClick={() => logEvent("enter_help")}
-                  >
-                    <HelpCircle size={18} />
-                    <div>도움말</div>
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild className="cursor-pointer mt-1 p-0">
-                  <Link
-                    href="/my/account"
-                    className="w-full flex flex-row gap-1 px-2 py-1.5"
-                    onClick={() => logEvent("enter_account")}
-                  >
-                    <User size={18} />
-                    <div>{m.system.account}</div>
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="flex flex-row gap-1 mt-1 cursor-pointer"
-                  onClick={async (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    logEvent("logout");
-                    await signOut();
-                    clear();
-                    router.push("/");
-                  }}
-                >
-                  <LogOut size={18} />
-                  <div>{m.system.logout}</div>
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              <MessageSquareMore size={18} />
+              <div>피드백 남기기</div>
+            </ActionDropdownItem>
+            <ActionDropdownItem asChild className="mt-1 p-0">
+              <Link
+                href="/my/help"
+                className="w-full flex flex-row gap-1 px-3 py-2"
+                onClick={() => logEvent("enter_help")}
+              >
+                <HelpCircle size={18} />
+                <div>도움말</div>
+              </Link>
+            </ActionDropdownItem>
+            <ActionDropdownItem asChild className="mt-1 p-0">
+              <Link
+                href="/my/account"
+                className="w-full flex flex-row gap-1 px-3 py-2"
+                onClick={() => logEvent("enter_account")}
+              >
+                <User size={18} />
+                <div>{m.system.account}</div>
+              </Link>
+            </ActionDropdownItem>
+            <ActionDropdownItem
+              className="mt-1 flex flex-row gap-1"
+              onSelect={async (e) => {
+                e.preventDefault();
+                logEvent("logout");
+                await signOut();
+                clear();
+                router.push("/");
+              }}
+            >
+              <LogOut size={18} />
+              <div>{m.system.logout}</div>
+            </ActionDropdownItem>
+          </ActionDropdown>
         </div>
       </aside>
 

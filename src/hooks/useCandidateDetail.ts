@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { CandidateType } from "@/types/type";
 import type { Database } from "@/types/database.types";
+import type { CandidateMarkRecord } from "@/lib/candidateMark";
+import { fetchCandidateMarkMap } from "./useCandidateMark";
 
 export type GithubRepoContributionRow =
   Database["public"]["Tables"]["github_repo_contribution"]["Row"];
@@ -11,6 +13,7 @@ export type ScholarPaperRow = Database["public"]["Tables"]["papers"]["Row"];
 
 export type CandidateDetail = CandidateType & {
   connection?: { user_id: string; typed: number }[];
+  candidate_mark?: CandidateMarkRecord | null;
   github_repo_contribution?: GithubRepoContributionRow[];
   scholar_profile?: ScholarProfileRow | null;
   scholar_papers?: ScholarPaperRow[];
@@ -128,6 +131,7 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
   }
 
   if (userId) {
+    const candidateMarkById = await fetchCandidateMarkMap(userId, [id]);
     const { data: autoRow, error: autoError } = await supabase
       .from("automation_results")
       .select("id")
@@ -138,6 +142,7 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
     if (autoError) throw autoError;
     return {
       ...data,
+      candidate_mark: candidateMarkById.get(id) ?? null,
       scholar_profile: scholarProfile,
       scholar_papers: scholarPapers,
       isAutomationResult: autoRow?.length > 0,

@@ -1,53 +1,37 @@
 import { CandidateTypeWithConnection } from "@/hooks/useSearchChatCandidates";
 import { SearchSource, isScholarSearchSource } from "@/lib/searchSource";
+import { SharedFolderViewerIdentity } from "@/lib/sharedFolder";
 import React, { useMemo, useRef, useState } from "react";
 import CandidateRow from "./CandidatesListTable";
 import CandidateCard from "./CandidatesList";
-import { CandidateSortMode, useSettingStore } from "@/store/useSettingStore";
+import {
+  buildCandidateTableGridTemplateColumns,
+  CandidateTableColumnDef,
+  CandidateTableDetachedColumnLayout,
+  CandidateTableColumnId,
+  CandidateTableStaticColumnId,
+  createCandidateTableColumnMap,
+  createCandidateTableColumns,
+  getCandidateTableDetachedColumnLayout,
+  getCandidateTableProfileWidth,
+  getOrderedCandidateTableColumnIds,
+  isCriteriaColumnId,
+} from "./candidateTableColumns";
+import { useSettingStore } from "@/store/useSettingStore";
 import { Tooltips } from "./ui/tooltip";
 import {
-  ArrowDownUp,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  ChevronUp,
   Columns2,
   GripVertical,
   Table,
 } from "lucide-react";
 import { useLogEvent } from "@/hooks/useLog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "./ui/dropdown-menu";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
-const INDEX_COLUMN_WIDTH = "56px";
-
-type TableColumnDef = {
-  id: string;
-  label: string;
-  width: string;
-  draggable: boolean;
-  kind:
-    | "criteria"
-    | "company"
-    | "evidence"
-    | "school"
-    | "summary"
-    | "memo"
-    | "actions";
-  tooltip?: string;
-};
 
 const arrayEquals = (a: string[], b: string[]) =>
   a.length === b.length && a.every((v, i) => v === b[i]);
-
-const SORT_LABELS: Record<CandidateSortMode, string> = {
-  best_matched: "Best matched",
-  custom: "Custom",
-};
 
 const SCORE_WEIGHT: Record<string, number> = {
   만족: 3,
@@ -81,14 +65,25 @@ const CandidateViews = ({
   showShortlistMemo = false,
   indexStart = 0,
   sourceType = "linkedin",
+  buildProfileHref,
+  showBookmarkAction,
+  showMarkAction,
+  sharedFolderContext,
 }: {
   items: any[];
-  userId: string;
+  userId?: string;
   criterias: string[];
   isMyList?: boolean;
   showShortlistMemo?: boolean;
   indexStart?: number;
   sourceType?: SearchSource;
+  buildProfileHref?: (candidate: CandidateTypeWithConnection) => string;
+  showBookmarkAction?: boolean;
+  showMarkAction?: boolean;
+  sharedFolderContext?: {
+    token: string;
+    viewer: SharedFolderViewerIdentity | null;
+  } | null;
 }) => {
   const {
     viewType,
@@ -96,14 +91,13 @@ const CandidateViews = ({
     columnOrderByKey,
     setColumnOrder,
     candidateSortModeByKey,
-    setCandidateSortMode,
     candidateSortOrderByKey,
-    setCandidateSortOrder,
   } = useSettingStore();
   const [isFolded, setIsFolded] = useState(true);
-  const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
-  const [draggingColumnId, setDraggingColumnId] = useState<string | null>(null);
-  const [dragOverColumnId, setDragOverColumnId] = useState<string | null>(null);
+  const [draggingColumnId, setDraggingColumnId] =
+    useState<CandidateTableColumnId | null>(null);
+  const [dragOverColumnId, setDragOverColumnId] =
+    useState<CandidateTableColumnId | null>(null);
   const transparentDragImageRef = useRef<HTMLCanvasElement | null>(null);
   const logEvent = useLogEvent();
 
@@ -121,6 +115,11 @@ const CandidateViews = ({
     [criterias]
   );
   const isScholarSource = isScholarSearchSource(sourceType);
+  const hasSharedFolderNotes = Boolean(sharedFolderContext?.token);
+  const shouldShowBookmarkAction =
+    showBookmarkAction ?? (Boolean(userId) && !hasSharedFolderNotes);
+  const shouldShowMarkAction =
+    showMarkAction ?? (Boolean(userId) && !hasSharedFolderNotes);
   const canReorderColumns = isMyList;
 
   const contextKey = useMemo(
@@ -129,10 +128,19 @@ const CandidateViews = ({
         "candidate-table-order",
         isMyList ? "mylist" : "search",
         showShortlistMemo ? "memo-on" : "memo-off",
+        shouldShowMarkAction ? "mark-on" : "mark-off",
+        hasSharedFolderNotes ? "shared-notes-on" : "shared-notes-off",
         sourceType,
         criteriaList.join("||"),
       ].join(":"),
-    [criteriaList, isMyList, showShortlistMemo, sourceType]
+    [
+      criteriaList,
+      hasSharedFolderNotes,
+      isMyList,
+      shouldShowMarkAction,
+      showShortlistMemo,
+      sourceType,
+    ]
   );
   const sortContextKey = useMemo(
     () =>
@@ -156,100 +164,28 @@ const CandidateViews = ({
     const missing = defaultSortOrder.filter((id) => !validStored.includes(id));
     return [...validStored, ...missing];
   }, [candidateSortOrderByKey, defaultSortOrder, sortContextKey]);
-  const [draftSortMode, setDraftSortMode] =
-    useState<CandidateSortMode>(savedSortMode);
-  const [draftSortOrder, setDraftSortOrder] =
-    useState<string[]>(savedSortOrder);
 
-  React.useEffect(() => {
-    if (isSortMenuOpen) return;
-    setDraftSortMode(savedSortMode);
-    setDraftSortOrder(savedSortOrder);
-  }, [isSortMenuOpen, savedSortMode, savedSortOrder]);
-
-  const dynamicColumns = useMemo<TableColumnDef[]>(() => {
-    const cols: TableColumnDef[] = [];
-    const defaultCols = isMyList ? "280px" : "240px";
-    const criteriaWidth = isFolded ? "60px" : "140px";
-
-    criteriaList.forEach((criteria, idx) => {
-      cols.push({
-        id: `criteria:${idx}`,
-        label: criteria,
-        tooltip: criteria,
-        width: criteriaWidth,
-        draggable: canReorderColumns,
-        kind: "criteria",
-      });
+  const dynamicColumns = useMemo<CandidateTableColumnDef[]>(() => {
+    return createCandidateTableColumns({
+      criteriaList,
+      canReorderColumns,
+      hasSharedFolderNotes,
+      isFolded,
+      isMyList,
+      isScholarSource,
+      shouldShowMarkAction,
+      showShortlistMemo,
     });
-
-    cols.push({
-      id: "company",
-      label: isScholarSource ? "Affiliation" : "Company",
-      width: defaultCols,
-      draggable: canReorderColumns,
-      kind: "company",
-    });
-    cols.push({
-      id: "school",
-      label: isScholarSource ? "Research" : "School",
-      width: defaultCols,
-      draggable: canReorderColumns,
-      kind: "school",
-    });
-
-    if (isScholarSource) {
-      cols.push({
-        id: "evidence",
-        label: "Related paper",
-        width: "340px",
-        draggable: false,
-        kind: "evidence",
-      });
-    }
-
-    if (!isScholarSource && !isMyList && criteriaList.length > 0) {
-      cols.push({
-        id: "actions",
-        label: "",
-        width: "80px",
-        draggable: false,
-        kind: "actions",
-      });
-    }
-
-    if (isMyList) {
-      cols.push({
-        id: "summary",
-        label: "Summary",
-        width: "520px",
-        draggable: canReorderColumns,
-        kind: "summary",
-      });
-      if (showShortlistMemo) {
-        cols.push({
-          id: "memo",
-          label: "Memo",
-          width: "420px",
-          draggable: canReorderColumns,
-          kind: "memo",
-        });
-      }
-    }
-    return cols;
   }, [
     canReorderColumns,
     criteriaList,
+    hasSharedFolderNotes,
     isFolded,
     isMyList,
     isScholarSource,
+    shouldShowMarkAction,
     showShortlistMemo,
   ]);
-
-  const defaultColumnIds = useMemo(
-    () => dynamicColumns.map((col) => col.id),
-    [dynamicColumns]
-  );
 
   const savedColumnIds = useMemo(
     () => columnOrderByKey[contextKey] ?? [],
@@ -257,41 +193,42 @@ const CandidateViews = ({
   );
 
   const orderedColumnIds = useMemo(() => {
-    const moveEvidenceToEnd = (ids: string[]) => {
-      if (!ids.includes("evidence")) return ids;
-      return [...ids.filter((id) => id !== "evidence"), "evidence"];
-    };
-
-    if (!canReorderColumns) {
-      return moveEvidenceToEnd(defaultColumnIds);
-    }
-    const validSaved = savedColumnIds.filter((id) =>
-      defaultColumnIds.includes(id)
+    return getOrderedCandidateTableColumnIds(
+      dynamicColumns,
+      savedColumnIds,
+      canReorderColumns
     );
-    const missing = defaultColumnIds.filter((id) => !validSaved.includes(id));
-    return moveEvidenceToEnd([...validSaved, ...missing]);
-  }, [savedColumnIds, defaultColumnIds, canReorderColumns]);
+  }, [canReorderColumns, dynamicColumns, savedColumnIds]);
 
-  const columnById = useMemo(() => {
-    const map = new Map<string, TableColumnDef>();
-    for (const column of dynamicColumns) {
-      map.set(column.id, column);
-    }
-    return map;
-  }, [dynamicColumns]);
+  const columnById = useMemo(
+    () => createCandidateTableColumnMap(dynamicColumns),
+    [dynamicColumns]
+  );
 
-  const profileWidth = isMyList ? "320px" : "280px";
+  const profileWidth = getCandidateTableProfileWidth(isMyList);
   const gridTemplateColumns = useMemo(() => {
-    const dynamicWidths = orderedColumnIds.map(
-      (id) => columnById.get(id)?.width ?? "180px"
+    return buildCandidateTableGridTemplateColumns(
+      orderedColumnIds,
+      columnById,
+      profileWidth
     );
-    return [INDEX_COLUMN_WIDTH, profileWidth, ...dynamicWidths].join(" ");
   }, [orderedColumnIds, columnById, profileWidth]);
+  const sharedNotesLayout = useMemo<CandidateTableDetachedColumnLayout | null>(
+    () => {
+      if (!hasSharedFolderNotes) return null;
+
+      return getCandidateTableDetachedColumnLayout(
+        CandidateTableStaticColumnId.SharedNotes,
+        orderedColumnIds,
+        columnById,
+        profileWidth
+      );
+    },
+    [columnById, hasSharedFolderNotes, orderedColumnIds, profileWidth]
+  );
 
   const lastCriteriaColumnId = useMemo(() => {
-    const criteriaIds = orderedColumnIds.filter((id) =>
-      id.startsWith("criteria:")
-    );
+    const criteriaIds = orderedColumnIds.filter((id) => isCriteriaColumnId(id));
     return criteriaIds.at(-1) ?? null;
   }, [orderedColumnIds]);
   const sortedItems = useMemo(() => {
@@ -317,25 +254,9 @@ const CandidateViews = ({
     });
   }, [items, savedSortMode, savedSortOrder]);
 
-  const moveDraftSortCriterion = (index: number, direction: -1 | 1) => {
-    const targetIndex = index + direction;
-    if (targetIndex < 0 || targetIndex >= draftSortOrder.length) return;
-
-    const next = [...draftSortOrder];
-    const [moved] = next.splice(index, 1);
-    next.splice(targetIndex, 0, moved);
-    setDraftSortOrder(next);
-  };
-
-  const applySortSettings = () => {
-    setCandidateSortMode(sortContextKey, draftSortMode);
-    setCandidateSortOrder(sortContextKey, draftSortOrder);
-    setIsSortMenuOpen(false);
-  };
-
   const onDragStart = (
     e: React.DragEvent<HTMLDivElement>,
-    columnId: string
+    columnId: CandidateTableColumnId
   ) => {
     const column = columnById.get(columnId);
     if (!column || !column.draggable) return;
@@ -353,7 +274,7 @@ const CandidateViews = ({
 
   const onDragOver = (
     e: React.DragEvent<HTMLDivElement>,
-    targetColumnId: string
+    targetColumnId: CandidateTableColumnId
   ) => {
     const target = columnById.get(targetColumnId);
     if (!draggingColumnId || !target?.draggable) return;
@@ -364,7 +285,7 @@ const CandidateViews = ({
 
   const onDrop = (
     e: React.DragEvent<HTMLDivElement>,
-    targetColumnId: string
+    targetColumnId: CandidateTableColumnId
   ) => {
     e.preventDefault();
     const target = columnById.get(targetColumnId);
@@ -401,145 +322,34 @@ const CandidateViews = ({
         <div className="w-full flex flex-row items-center justify-between mt-2 px-4">
           <div></div>
           <div className="flex flex-row items-center justify-start gap-2">
-            {!isMyList && criteriaList.length > 0 && (
-              // <DropdownMenu
-              //   open={isSortMenuOpen}
-              //   onOpenChange={setIsSortMenuOpen}
-              // >
-              //   <DropdownMenuTrigger asChild>
-              //     <button
-              //       type="button"
-              //       className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-hgray900 transition-all duration-200 hover:bg-white/10"
-              //     >
-              //       <ArrowDownUp className="h-3.5 w-3.5" strokeWidth={1.6} />
-              //       <span>{SORT_LABELS[savedSortMode]}</span>
-              //       <ChevronDown className="h-3.5 w-3.5 text-hgray600" />
-              //     </button>
-              //   </DropdownMenuTrigger>
-              //   <DropdownMenuContent
-              //     align="end"
-              //     className="w-[280px] rounded-2xl border-white/10 bg-ngray300/70 p-2 backdrop-blur-sm"
-              //   >
-              //     <div className="px-2 pb-2 text-[11px] text-hgray600">
-              //       Sorting
-              //     </div>
-              //     <div className="flex flex-col gap-1">
-              //       {(["best_matched", "custom"] as CandidateSortMode[]).map(
-              //         (mode) => {
-              //           const checked = draftSortMode === mode;
-              //           return (
-              //             <button
-              //               key={mode}
-              //               type="button"
-              //               onClick={() => setDraftSortMode(mode)}
-              //               className={`flex items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition-all duration-200 ${
-              //                 checked ? "bg-white/10" : "hover:bg-white/5"
-              //               }`}
-              //             >
-              //               <span className="text-hgray900">
-              //                 {SORT_LABELS[mode]}
-              //               </span>
-              //               {checked ? (
-              //                 <span className="h-2 w-2 rounded-full bg-accenta1" />
-              //               ) : null}
-              //             </button>
-              //           );
-              //         }
-              //       )}
-              //     </div>
-
-              //     {draftSortMode === "custom" && (
-              //       <div className="mt-3">
-              //         <div className="px-2 pb-2 text-[11px] text-hgray600">
-              //           Criteria priority
-              //         </div>
-              //         <div className="flex flex-col gap-1">
-              //           {draftSortOrder.map((criterionId, idx) => {
-              //             const criterionIdx = Number(
-              //               criterionId.split(":")[1]
-              //             );
-              //             const label =
-              //               criteriaList[criterionIdx] ?? criterionId;
-
-              //             return (
-              //               <div
-              //                 key={criterionId}
-              //                 className="flex items-center justify-between gap-2 rounded-xl bg-white/5 px-3 py-2"
-              //               >
-              //                 <span className="min-w-0 flex-1 truncate text-sm text-hgray900">
-              //                   {label}
-              //                 </span>
-              //                 <div className="flex items-center gap-1">
-              //                   <button
-              //                     type="button"
-              //                     onClick={() =>
-              //                       moveDraftSortCriterion(idx, -1)
-              //                     }
-              //                     disabled={idx === 0}
-              //                     className="flex h-7 w-7 items-center justify-center rounded-full bg-white/5 text-hgray900 transition-all duration-200 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-              //                   >
-              //                     <ChevronUp className="h-3.5 w-3.5" />
-              //                   </button>
-              //                   <button
-              //                     type="button"
-              //                     onClick={() => moveDraftSortCriterion(idx, 1)}
-              //                     disabled={idx === draftSortOrder.length - 1}
-              //                     className="flex h-7 w-7 items-center justify-center rounded-full bg-white/5 text-hgray900 transition-all duration-200 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-              //                   >
-              //                     <ChevronDown className="h-3.5 w-3.5" />
-              //                   </button>
-              //                 </div>
-              //               </div>
-              //             );
-              //           })}
-              //         </div>
-              //       </div>
-              //     )}
-
-              //     <div className="mt-3 flex items-center justify-end gap-2 px-1 font-normal">
-              //       <button
-              //         type="button"
-              //         onClick={() => {
-              //           setDraftSortMode(savedSortMode);
-              //           setDraftSortOrder(savedSortOrder);
-              //           setIsSortMenuOpen(false);
-              //         }}
-              //         className="rounded-full px-3 py-1.5 text-xs text-hgray700 transition-all duration-200 hover:bg-white/5"
-              //       >
-              //         Cancel
-              //       </button>
-              //       <button
-              //         type="button"
-              //         onClick={applySortSettings}
-              //         className="rounded-full bg-accenta1 px-3 py-1.5 text-xs text-black transition-all duration-200 hover:opacity-90"
-              //       >
-              //         Apply
-              //       </button>
-              //     </div>
-              //   </DropdownMenuContent>
-              // </DropdownMenu>
-              <></>
-            )}
-            <Tooltips text="Table view">
-              <button
-                className={`cursor-pointer p-1.5 rounded-sm hover:bg-white/10 transition-all duration-200 ${
-                  viewType === "table" ? "bg-white/10" : ""
-                }`}
-                onClick={() => changeViewType("table")}
-              >
-                <Table className="w-4 h-4" strokeWidth={1.6} />
-              </button>
-            </Tooltips>
-            <Tooltips text="Card view">
-              <button
-                className={`cursor-pointer p-1.5 rounded-sm hover:bg-white/10 transition-all duration-200 ${
-                  viewType === "card" ? "bg-white/10" : ""
-                }`}
-                onClick={() => changeViewType("card")}
-              >
-                <Columns2 className="w-4 h-4" strokeWidth={1.6} />
-              </button>
-            </Tooltips>
+            <div className="relative inline-flex rounded-lg bg-black/10 border border-white/5">
+              <span
+                aria-hidden="true"
+                className="absolute left-0.5 top-0.5 h-7 w-8 rounded-md bg-white/20 transition-transform duration-300 ease-out"
+                style={{
+                  transform:
+                    viewType === "table" ? "translateX(0)" : "translateX(36px)",
+                }}
+              />
+              <Tooltips text="Table view">
+                <button
+                  type="button"
+                  className="relative z-10 flex h-8 w-9 items-center justify-center rounded-lg text-white/80 transition-colors duration-200 hover:text-white"
+                  onClick={() => changeViewType("table")}
+                >
+                  <Table className="h-4 w-4" strokeWidth={1.6} />
+                </button>
+              </Tooltips>
+              <Tooltips text="Card view">
+                <button
+                  type="button"
+                  className="relative z-10 flex h-8 w-9 items-center justify-center rounded-lg text-white/80 transition-colors duration-200 hover:text-white"
+                  onClick={() => changeViewType("card")}
+                >
+                  <Columns2 className="h-4 w-4" strokeWidth={1.6} />
+                </button>
+              </Tooltips>
+            </div>
           </div>
         </div>
       )}
@@ -637,6 +447,8 @@ const CandidateViews = ({
                     </div>
                   );
                 })}
+
+                <div aria-hidden="true" className="h-full" />
               </div>
 
               <div className="pb-48">
@@ -648,10 +460,14 @@ const CandidateViews = ({
                     userId={userId}
                     criterias={criteriaList}
                     orderedColumnIds={orderedColumnIds}
-                    showShortlistMemo={showShortlistMemo}
                     gridTemplateColumns={gridTemplateColumns}
                     rowIndex={indexStart + idx}
                     sourceType={sourceType}
+                    buildProfileHref={buildProfileHref}
+                    showBookmarkAction={shouldShowBookmarkAction}
+                    showMarkAction={shouldShowMarkAction}
+                    sharedNotesLayout={sharedNotesLayout}
+                    sharedFolderContext={sharedFolderContext ?? null}
                   />
                 ))}
               </div>
@@ -672,6 +488,10 @@ const CandidateViews = ({
                 criterias={criteriaList}
                 showShortlistMemo={showShortlistMemo}
                 sourceType={sourceType}
+                buildProfileHref={buildProfileHref}
+                showBookmarkAction={shouldShowBookmarkAction}
+                showMarkAction={shouldShowMarkAction}
+                sharedFolderContext={sharedFolderContext ?? null}
               />
             ))}
           </div>

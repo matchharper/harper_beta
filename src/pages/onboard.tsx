@@ -191,7 +191,9 @@ const Onboard: React.FC = () => {
 
       {step === STEPS.length ? (
         <div className="flex flex-col gap-4 items-center justify-center h-full w-full text-center px-4">
-          <div className="text-2xl font-normal">Thank you for your submission!</div>
+          <div className="text-2xl font-normal">
+            Thank you for your submission!
+          </div>
           <div className="text-lg font-normal text-xgray700">
             We will get in touch with you on the next step within the next 24
             hours. Please seat back and relax
@@ -313,13 +315,20 @@ const Onboard: React.FC = () => {
 
                     <div className="flex flex-col gap-4">
                       {workExperiences.map((exp, index) => (
-                        <div key={`work-${index}`} className="flex flex-col gap-3">
+                        <div
+                          key={`work-${index}`}
+                          className="flex flex-col gap-3"
+                        >
                           <TextInput
                             label={`경력 ${index + 1} 회사`}
                             placeholder="회사명"
                             value={exp.company}
                             onChange={(e) =>
-                              updateWorkExperience(index, "company", e.target.value)
+                              updateWorkExperience(
+                                index,
+                                "company",
+                                e.target.value
+                              )
                             }
                           />
                           <TextInput
@@ -327,7 +336,11 @@ const Onboard: React.FC = () => {
                             placeholder="직무"
                             value={exp.position}
                             onChange={(e) =>
-                              updateWorkExperience(index, "position", e.target.value)
+                              updateWorkExperience(
+                                index,
+                                "position",
+                                e.target.value
+                              )
                             }
                           />
                         </div>
@@ -337,7 +350,10 @@ const Onboard: React.FC = () => {
                         className="text-sm px-3 py-1.5 text-brightnavy rounded-[5px] hover:bg-xlightgray w-fit"
                         onClick={() => {
                           setIsDirty(true);
-                          setWorkExperiences((prev) => [...prev, makeWorkExperience()]);
+                          setWorkExperiences((prev) => [
+                            ...prev,
+                            makeWorkExperience(),
+                          ]);
                         }}
                       >
                         + 경력 추가
@@ -346,7 +362,10 @@ const Onboard: React.FC = () => {
 
                     <div className="flex flex-col gap-4">
                       {educations.map((edu, index) => (
-                        <div key={`edu-${index}`} className="flex flex-col gap-3">
+                        <div
+                          key={`edu-${index}`}
+                          className="flex flex-col gap-3"
+                        >
                           <TextInput
                             label={`학력 ${index + 1} 학교`}
                             placeholder="학교명"

@@ -8,6 +8,7 @@ import React, {
 import { supabase } from "@/lib/supabase";
 import { showToast } from "@/components/toast/toast";
 import { Loading } from "@/components/ui/loading";
+import { ADMIN_PAGE_PASSWORD } from "@/lib/admin";
 import {
   BLOG_CONVERSION_EVENT_PREFIX,
   BLOG_VIEW_EVENT_PREFIX,
@@ -61,11 +62,44 @@ type BlogMetricRow = {
   conversionCount: number;
 };
 
-type AdminTab = "landingLogs" | "waitlistCompany" | "blogMetrics";
+type AdminBookmarkUser = {
+  userId: string;
+  name: string | null;
+  email: string | null;
+  company: string | null;
+  folderCount: number;
+  bookmarkCount: number;
+};
+
+type AdminBookmarkFolder = {
+  id: number;
+  name: string;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+  itemCount: number;
+};
+
+type AdminBookmarkFolderItem = {
+  folderItemId: number;
+  candidId: string;
+  name: string | null;
+  headline: string | null;
+  memo: string;
+  memoUpdatedAt: string | null;
+  linkedinUrl: string | null;
+  profileHref: string;
+  createdAt: string | null;
+};
+
+type AdminTab =
+  | "landingLogs"
+  | "waitlistCompany"
+  | "blogMetrics"
+  | "bookmarkFolders";
 
 const PAGE_SIZE = 50;
 const BLOG_METRIC_FETCH_BATCH_SIZE = 1000;
-const PASSWORD = "39773977";
 
 const ENTRY_TYPES = new Set(["new_visit", "new_session"]);
 const EXCLUDED_TYPE_KEYWORD = "index";
@@ -129,12 +163,40 @@ const AdminPage = () => {
   const [blogMetricsLoading, setBlogMetricsLoading] = useState(false);
   const [blogMetricsLoaded, setBlogMetricsLoaded] = useState(false);
   const [blogMetricsError, setBlogMetricsError] = useState<string | null>(null);
+  const [bookmarkSearch, setBookmarkSearch] = useState("");
+  const [bookmarkUsers, setBookmarkUsers] = useState<AdminBookmarkUser[]>([]);
+  const [bookmarkUsersLoading, setBookmarkUsersLoading] = useState(false);
+  const [bookmarkUsersError, setBookmarkUsersError] = useState<string | null>(
+    null
+  );
+  const [selectedBookmarkUser, setSelectedBookmarkUser] =
+    useState<AdminBookmarkUser | null>(null);
+  const [bookmarkFolders, setBookmarkFolders] = useState<AdminBookmarkFolder[]>(
+    []
+  );
+  const [bookmarkFoldersLoading, setBookmarkFoldersLoading] = useState(false);
+  const [bookmarkFoldersError, setBookmarkFoldersError] = useState<
+    string | null
+  >(null);
+  const [selectedBookmarkFolderId, setSelectedBookmarkFolderId] = useState<
+    number | null
+  >(null);
+  const [bookmarkFolderItems, setBookmarkFolderItems] = useState<
+    AdminBookmarkFolderItem[]
+  >([]);
+  const [bookmarkFolderItemsLoading, setBookmarkFolderItemsLoading] =
+    useState(false);
+  const [bookmarkFolderItemsError, setBookmarkFolderItemsError] = useState<
+    string | null
+  >(null);
+  const [bookmarkFolderTotal, setBookmarkFolderTotal] = useState(0);
+  const [bookmarkFolderLimit, setBookmarkFolderLimit] = useState(200);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const savedPassword = localStorage.getItem("admin_password");
-    if (savedPassword === PASSWORD) {
+    if (savedPassword === ADMIN_PAGE_PASSWORD) {
       setIsPassed(true);
     }
   }, []);
@@ -322,6 +384,129 @@ const AdminPage = () => {
     }
   }, [fetchEventTypesByPrefix]);
 
+  const fetchBookmarkUsers = useCallback(async (query: string) => {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      setBookmarkUsers([]);
+      setBookmarkUsersError(null);
+      setSelectedBookmarkUser(null);
+      setBookmarkFolders([]);
+      setBookmarkFoldersError(null);
+      setSelectedBookmarkFolderId(null);
+      setBookmarkFolderItems([]);
+      setBookmarkFolderItemsError(null);
+      setBookmarkFolderTotal(0);
+      return;
+    }
+
+    setBookmarkUsersLoading(true);
+    setBookmarkUsersError(null);
+    setBookmarkFoldersError(null);
+    setBookmarkFolderItemsError(null);
+
+    try {
+      const params = new URLSearchParams({ query: trimmed });
+      const res = await fetch(`/api/admin/bookmark-folders?${params}`, {
+        headers: {
+          "x-admin-password": ADMIN_PAGE_PASSWORD,
+        },
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json?.error ?? "Failed to load users");
+      }
+
+      setBookmarkUsers(
+        Array.isArray(json?.users) ? (json.users as AdminBookmarkUser[]) : []
+      );
+      setSelectedBookmarkUser(null);
+      setBookmarkFolders([]);
+      setSelectedBookmarkFolderId(null);
+      setBookmarkFolderItems([]);
+      setBookmarkFolderTotal(0);
+    } catch (e: any) {
+      setBookmarkUsersError(e?.message ?? "Failed to load users");
+    } finally {
+      setBookmarkUsersLoading(false);
+    }
+  }, []);
+
+  const fetchBookmarkFolders = useCallback(async (user: AdminBookmarkUser) => {
+    setBookmarkFoldersLoading(true);
+    setBookmarkFoldersError(null);
+    setBookmarkFolderItemsError(null);
+    setSelectedBookmarkUser(user);
+    setSelectedBookmarkFolderId(null);
+    setBookmarkFolderItems([]);
+    setBookmarkFolderTotal(0);
+
+    try {
+      const params = new URLSearchParams({ userId: user.userId });
+      const res = await fetch(`/api/admin/bookmark-folders?${params}`, {
+        headers: {
+          "x-admin-password": ADMIN_PAGE_PASSWORD,
+        },
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json?.error ?? "Failed to load folders");
+      }
+
+      if (json?.user) {
+        setSelectedBookmarkUser(json.user as AdminBookmarkUser);
+      }
+      setBookmarkFolders(
+        Array.isArray(json?.folders)
+          ? (json.folders as AdminBookmarkFolder[])
+          : []
+      );
+    } catch (e: any) {
+      setBookmarkFoldersError(e?.message ?? "Failed to load folders");
+      setBookmarkFolders([]);
+    } finally {
+      setBookmarkFoldersLoading(false);
+    }
+  }, []);
+
+  const fetchBookmarkFolderItems = useCallback(
+    async (userId: string, folderId: number) => {
+      setBookmarkFolderItemsLoading(true);
+      setBookmarkFolderItemsError(null);
+      setSelectedBookmarkFolderId(folderId);
+
+      try {
+        const params = new URLSearchParams({
+          userId,
+          folderId: String(folderId),
+        });
+        const res = await fetch(`/api/admin/bookmark-folders?${params}`, {
+          headers: {
+            "x-admin-password": ADMIN_PAGE_PASSWORD,
+          },
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          throw new Error(json?.error ?? "Failed to load folder items");
+        }
+
+        setBookmarkFolderItems(
+          Array.isArray(json?.items)
+            ? (json.items as AdminBookmarkFolderItem[])
+            : []
+        );
+        setBookmarkFolderTotal(Number(json?.total ?? 0));
+        setBookmarkFolderLimit(Number(json?.limit ?? 200));
+      } catch (e: any) {
+        setBookmarkFolderItemsError(e?.message ?? "Failed to load folder items");
+        setBookmarkFolderItems([]);
+        setBookmarkFolderTotal(0);
+      } finally {
+        setBookmarkFolderItemsLoading(false);
+      }
+    },
+    []
+  );
+
   useEffect(() => {
     if (activeTab !== "waitlistCompany") return;
     if (waitlistLoaded || waitlistLoading || waitlistError) return;
@@ -373,12 +558,27 @@ const AdminPage = () => {
       await fetchWaitlistCompanies();
       return;
     }
+    if (activeTab === "blogMetrics") {
+      await fetchBlogMetrics();
+      return;
+    }
+    if (selectedBookmarkUser && selectedBookmarkFolderId) {
+      await fetchBookmarkFolderItems(
+        selectedBookmarkUser.userId,
+        selectedBookmarkFolderId
+      );
+      return;
+    }
+    if (selectedBookmarkUser) {
+      await fetchBookmarkFolders(selectedBookmarkUser);
+      return;
+    }
 
-    await fetchBlogMetrics();
+    await fetchBookmarkUsers(bookmarkSearch);
   };
 
   const onSubmit = async () => {
-    if (password === PASSWORD) {
+    if (password === ADMIN_PAGE_PASSWORD) {
       setIsPassed(true);
       localStorage.setItem("admin_password", password);
     } else {
@@ -518,31 +718,48 @@ const AdminPage = () => {
       totalConversions,
     };
   }, [blogMetricRows]);
+  const selectedBookmarkFolder = useMemo(
+    () =>
+      bookmarkFolders.find((folder) => folder.id === selectedBookmarkFolderId) ??
+      null,
+    [bookmarkFolders, selectedBookmarkFolderId]
+  );
 
   const isLandingTab = activeTab === "landingLogs";
   const isWaitlistTab = activeTab === "waitlistCompany";
   const isBlogMetricsTab = activeTab === "blogMetrics";
+  const isBookmarkFoldersTab = activeTab === "bookmarkFolders";
 
   const pageTitle = isLandingTab
     ? "Landing Logs Admin"
     : isWaitlistTab
       ? "Waitlist Company Admin"
-      : "Blog Metrics Admin";
+      : isBlogMetricsTab
+        ? "Blog Metrics Admin"
+        : "Bookmark Folder Admin";
   const pageSubTitle = isLandingTab
     ? "local_id 기준 · 액션 타임라인"
     : isWaitlistTab
       ? "harper_waitlist_company 목록"
-      : "blog slug 기준 조회/전환 집계";
+      : isBlogMetricsTab
+        ? "blog slug 기준 조회/전환 집계"
+        : "유저별 북마크 폴더와 저장 후보 조회";
   const isLoading = isLandingTab
     ? loading || loadingMore
     : isWaitlistTab
       ? waitlistLoading
-      : blogMetricsLoading;
+      : isBlogMetricsTab
+        ? blogMetricsLoading
+        : bookmarkUsersLoading ||
+          bookmarkFoldersLoading ||
+          bookmarkFolderItemsLoading;
   const pageError = isLandingTab
     ? error
     : isWaitlistTab
       ? waitlistError
-      : blogMetricsError;
+      : isBlogMetricsTab
+        ? blogMetricsError
+        : null;
 
   if (!isPassed) {
     return (
@@ -610,6 +827,17 @@ const AdminPage = () => {
                 style={{ borderRadius: 0 }}
               >
                 Blog Metrics
+              </button>
+              <button
+                onClick={() => setActiveTab("bookmarkFolders")}
+                className={`h-8 px-3 text-[12px] border ${
+                  isBookmarkFoldersTab
+                    ? "border-black bg-black text-white"
+                    : "border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
+                }`}
+                style={{ borderRadius: 0 }}
+              >
+                Bookmark Folders
               </button>
             </div>
           </div>
@@ -929,6 +1157,291 @@ const AdminPage = () => {
                   </div>
                 ))
               )}
+            </div>
+          </>
+        ) : isBookmarkFoldersTab ? (
+          <>
+            <div className="mb-4 rounded-[20px] border border-[#d8c7aa] bg-[#fbf4e8] p-4 text-[#4d3a24]">
+              <div className="text-[14px] font-semibold">User lookup</div>
+              <div className="mt-1 text-[12px] leading-5 text-[#7a664b]">
+                이름이나 이메일로 유저를 찾고, 해당 유저의 북마크 폴더와 저장된 후보를 확인합니다.
+              </div>
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                <input
+                  value={bookmarkSearch}
+                  onChange={(event) => setBookmarkSearch(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      void fetchBookmarkUsers(bookmarkSearch);
+                    }
+                  }}
+                  placeholder="이름 또는 이메일"
+                  className="h-11 flex-1 rounded-[14px] border border-[#d8c7aa] bg-[#fffaf1] px-4 text-[14px] text-[#3f301f] outline-none placeholder:text-[#9e8b6d]"
+                />
+                <button
+                  onClick={() => {
+                    void fetchBookmarkUsers(bookmarkSearch);
+                  }}
+                  className="h-11 rounded-[14px] border border-[#5d4931] bg-[#5d4931] px-4 text-[13px] text-[#fff8ef] transition-colors hover:bg-[#4f3e29]"
+                >
+                  Search
+                </button>
+              </div>
+              {bookmarkUsersError ? (
+                <div className="mt-3 text-[12px] text-[#8d3a24]">
+                  {bookmarkUsersError}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-[280px_280px_minmax(0,1fr)]">
+              <div className="rounded-[20px] border border-[#d8c7aa] bg-[#fbf4e8] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-[13px] font-semibold text-[#4d3a24]">
+                      Users
+                    </div>
+                    <div className="mt-1 text-[12px] text-[#7a664b]">
+                      {bookmarkUsers.length}명
+                    </div>
+                  </div>
+                  {bookmarkUsersLoading ? (
+                    <Loading
+                      size="sm"
+                      inline={true}
+                      className="text-[12px] text-[#7a664b]"
+                    />
+                  ) : null}
+                </div>
+
+                <div className="mt-4 space-y-2">
+                  {bookmarkUsers.length === 0 ? (
+                    <div className="rounded-[16px] border border-dashed border-[#d8c7aa] bg-[#fffaf1] px-4 py-6 text-center text-[12px] leading-5 text-[#8d7a5d]">
+                      {bookmarkSearch.trim()
+                        ? "일치하는 유저가 없습니다."
+                        : "이름이나 이메일을 입력해 유저를 찾아보세요."}
+                    </div>
+                  ) : (
+                    bookmarkUsers.map((user) => {
+                      const isSelected =
+                        selectedBookmarkUser?.userId === user.userId;
+
+                      return (
+                        <button
+                          key={user.userId}
+                          type="button"
+                          onClick={() => {
+                            void fetchBookmarkFolders(user);
+                          }}
+                          className={`w-full rounded-[16px] border px-4 py-3 text-left transition-colors ${
+                            isSelected
+                              ? "border-[#8e7554] bg-[#efe1c8]"
+                              : "border-[#dcccad] bg-[#fffaf1] hover:bg-[#f4eadb]"
+                          }`}
+                        >
+                          <div className="text-[13px] font-semibold text-[#3f301f]">
+                            {user.name || "(이름 없음)"}
+                          </div>
+                          <div className="mt-1 break-all text-[12px] text-[#7a664b]">
+                            {user.email || "-"}
+                          </div>
+                          <div className="mt-2 text-[11px] text-[#8d7a5d]">
+                            폴더 {user.folderCount} · 북마크 {user.bookmarkCount}
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-[20px] border border-[#d8c7aa] bg-[#fbf4e8] p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-[13px] font-semibold text-[#4d3a24]">
+                      Folders
+                    </div>
+                    <div className="mt-1 text-[12px] text-[#7a664b]">
+                      {selectedBookmarkUser
+                        ? `${selectedBookmarkUser.name || selectedBookmarkUser.email || "선택된 유저"}`
+                        : "유저를 먼저 선택하세요"}
+                    </div>
+                  </div>
+                  {bookmarkFoldersLoading ? (
+                    <Loading
+                      size="sm"
+                      inline={true}
+                      className="text-[12px] text-[#7a664b]"
+                    />
+                  ) : null}
+                </div>
+
+                {selectedBookmarkUser ? (
+                  <div className="mt-3 rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-3 py-3 text-[12px] leading-5 text-[#6a563c]">
+                    <div>{selectedBookmarkUser.email || "-"}</div>
+                    <div>{selectedBookmarkUser.company || "회사 정보 없음"}</div>
+                  </div>
+                ) : null}
+
+                {bookmarkFoldersError ? (
+                  <div className="mt-3 text-[12px] text-[#8d3a24]">
+                    {bookmarkFoldersError}
+                  </div>
+                ) : null}
+
+                <div className="mt-4 space-y-2">
+                  {!selectedBookmarkUser ? (
+                    <div className="rounded-[16px] border border-dashed border-[#d8c7aa] bg-[#fffaf1] px-4 py-6 text-center text-[12px] leading-5 text-[#8d7a5d]">
+                      왼쪽에서 유저를 선택하면 폴더가 표시됩니다.
+                    </div>
+                  ) : bookmarkFolders.length === 0 && !bookmarkFoldersLoading ? (
+                    <div className="rounded-[16px] border border-dashed border-[#d8c7aa] bg-[#fffaf1] px-4 py-6 text-center text-[12px] leading-5 text-[#8d7a5d]">
+                      북마크 폴더가 없습니다.
+                    </div>
+                  ) : (
+                    bookmarkFolders.map((folder) => {
+                      const isSelected = selectedBookmarkFolderId === folder.id;
+
+                      return (
+                        <button
+                          key={folder.id}
+                          type="button"
+                          onClick={() => {
+                            if (!selectedBookmarkUser) return;
+                            void fetchBookmarkFolderItems(
+                              selectedBookmarkUser.userId,
+                              folder.id
+                            );
+                          }}
+                          className={`w-full rounded-[16px] border px-4 py-3 text-left transition-colors ${
+                            isSelected
+                              ? "border-[#8e7554] bg-[#efe1c8]"
+                              : "border-[#dcccad] bg-[#fffaf1] hover:bg-[#f4eadb]"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="truncate text-[13px] font-semibold text-[#3f301f]">
+                                {folder.name}
+                              </div>
+                              <div className="mt-1 text-[11px] text-[#8d7a5d]">
+                                {folder.isDefault ? "기본 폴더" : "커스텀 폴더"}
+                              </div>
+                            </div>
+                            <div className="shrink-0 text-[11px] text-[#6a563c]">
+                              {folder.itemCount}명
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-[20px] border border-[#d8c7aa] bg-[#fbf4e8] p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-[13px] font-semibold text-[#4d3a24]">
+                      Candidates
+                    </div>
+                    <div className="mt-1 text-[12px] text-[#7a664b]">
+                      {selectedBookmarkFolder
+                        ? `${selectedBookmarkFolder.name} · ${bookmarkFolderTotal}명`
+                        : "폴더를 선택하면 후보 목록이 표시됩니다."}
+                    </div>
+                  </div>
+                  {bookmarkFolderItemsLoading ? (
+                    <Loading
+                      size="sm"
+                      inline={true}
+                      className="text-[12px] text-[#7a664b]"
+                    />
+                  ) : null}
+                </div>
+
+                {selectedBookmarkFolder &&
+                bookmarkFolderTotal > bookmarkFolderLimit ? (
+                  <div className="mt-3 rounded-[14px] border border-[#dcccad] bg-[#fffaf1] px-3 py-2 text-[11px] text-[#7a664b]">
+                    최근 {bookmarkFolderLimit}개만 표시합니다. 전체 저장 수는{" "}
+                    {bookmarkFolderTotal}개입니다.
+                  </div>
+                ) : null}
+
+                {bookmarkFolderItemsError ? (
+                  <div className="mt-3 text-[12px] text-[#8d3a24]">
+                    {bookmarkFolderItemsError}
+                  </div>
+                ) : null}
+
+                <div className="mt-4 space-y-3">
+                  {!selectedBookmarkFolder ? (
+                    <div className="rounded-[16px] border border-dashed border-[#d8c7aa] bg-[#fffaf1] px-4 py-8 text-center text-[12px] leading-5 text-[#8d7a5d]">
+                      가운데에서 폴더를 선택하세요.
+                    </div>
+                  ) : bookmarkFolderItems.length === 0 &&
+                    !bookmarkFolderItemsLoading ? (
+                    <div className="rounded-[16px] border border-dashed border-[#d8c7aa] bg-[#fffaf1] px-4 py-8 text-center text-[12px] leading-5 text-[#8d7a5d]">
+                      저장된 후보가 없습니다.
+                    </div>
+                  ) : (
+                    bookmarkFolderItems.map((item) => (
+                      <div
+                        key={`${item.folderItemId}-${item.candidId}`}
+                        className="rounded-[18px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4"
+                      >
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="text-[15px] font-semibold text-[#3f301f]">
+                              {item.name || "(이름 없음)"}
+                            </div>
+                            <div className="mt-1 text-[13px] leading-6 text-[#6a563c]">
+                              {item.headline || "headline 없음"}
+                            </div>
+                            <div className="mt-2 text-[11px] text-[#8d7a5d]">
+                              저장일 {formatKST(item.createdAt ?? undefined)}
+                              {item.memoUpdatedAt
+                                ? ` · 메모 수정 ${formatKST(item.memoUpdatedAt)}`
+                                : ""}
+                            </div>
+                          </div>
+
+                          <div className="flex shrink-0 items-center gap-2">
+                            <a
+                              href={item.profileHref}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex h-9 items-center rounded-[12px] border border-[#cfbb9a] bg-[#f4eadb] px-3 text-[12px] text-[#4d3a24] transition-colors hover:bg-[#eadcc7]"
+                            >
+                              Harper profile
+                            </a>
+                            {item.linkedinUrl ? (
+                              <a
+                                href={item.linkedinUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex h-9 items-center rounded-[12px] border border-[#e0d0b6] bg-transparent px-3 text-[12px] text-[#6a563c] transition-colors hover:bg-[#f4eadb]"
+                              >
+                                LinkedIn
+                              </a>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div className="mt-4 rounded-[14px] border border-[#eadcc7] bg-[#f7efe2] px-3 py-3 text-[13px] leading-6 text-[#5b4932]">
+                          <div className="mb-1 text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
+                            Memo
+                          </div>
+                          <div className="whitespace-pre-wrap break-words">
+                            {item.memo || "유저가 남긴 메모 없음"}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
           </>
         ) : (

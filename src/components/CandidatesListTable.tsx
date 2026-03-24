@@ -1,6 +1,6 @@
 import { CandidateTypeWithConnection } from "@/hooks/useSearchChatCandidates";
-import React, { useMemo, useState } from "react";
-import { BriefcaseBusiness, FileText, GraduationCap } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { BriefcaseBusiness, FileText, GraduationCap, Plus } from "lucide-react";
 import { useRouter } from "next/router";
 import { Avatar } from "./NameProfile";
 import { Tooltips } from "./ui/tooltip";
@@ -9,6 +9,8 @@ import { useLogEvent } from "@/hooks/useLog";
 import { getSchoolLogo } from "@/utils/school_logo";
 import Link from "next/link";
 import ShortlistMemoEditor from "./ui/ShortlistMemoEditor";
+import CandidateMarkButton from "./ui/CandidateMarkButton";
+import SharedFolderCandidateNotes from "./shared/SharedFolderCandidateNotes";
 import {
   SearchSource,
   extractSearchSourcesFromLinks,
@@ -40,6 +42,13 @@ import {
 } from "@/utils/language_map";
 import Bookmarkbutton from "./ui/bookmarkbutton";
 import Image from "next/image";
+import { SharedFolderViewerIdentity } from "@/lib/sharedFolder";
+import {
+  CandidateTableDetachedColumnLayout,
+  CandidateTableStaticColumnId,
+  isCriteriaColumnId,
+  type CandidateTableColumnId,
+} from "./candidateTableColumns";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
 
@@ -99,22 +108,33 @@ function CandidateRow({
   c,
   userId,
   isMyList = false,
-  showShortlistMemo = false,
   criterias,
   orderedColumnIds,
   gridTemplateColumns,
+  sharedNotesLayout,
   rowIndex,
   sourceType = "linkedin",
+  buildProfileHref,
+  showBookmarkAction = true,
+  showMarkAction = true,
+  sharedFolderContext = null,
 }: {
   c: CandidateTypeWithConnection;
-  userId: string;
+  userId?: string;
   isMyList?: boolean;
-  showShortlistMemo?: boolean;
   criterias: string[];
-  orderedColumnIds: string[];
+  orderedColumnIds: CandidateTableColumnId[];
   gridTemplateColumns: string;
+  sharedNotesLayout?: CandidateTableDetachedColumnLayout | null;
   rowIndex: number;
   sourceType?: SearchSource;
+  buildProfileHref?: (candidate: CandidateTypeWithConnection) => string;
+  showBookmarkAction?: boolean;
+  showMarkAction?: boolean;
+  sharedFolderContext?: {
+    token: string;
+    viewer: SharedFolderViewerIdentity | null;
+  } | null;
 }) {
   const router = useRouter();
   const candidId = c.id;
@@ -123,14 +143,21 @@ function CandidateRow({
   const edus = asArr(c.edu_user ?? []);
   const sourceRunId =
     typeof router.query.run === "string" ? router.query.run : "";
-  const profileHref = sourceRunId
-    ? `/my/p/${candidId}?run=${encodeURIComponent(sourceRunId)}`
-    : `/my/p/${candidId}`;
+  const profileHref = buildProfileHref
+    ? buildProfileHref(c)
+    : sourceRunId
+      ? `/my/p/${candidId}?run=${encodeURIComponent(sourceRunId)}`
+      : `/my/p/${candidId}`;
 
   const latestCompany = exps[0];
   const latestEdu = edus[0];
   const scholarPreview = c.scholar_profile_preview;
   const githubPreview = c.github_profile_preview;
+  const candidateMarkStatus = c.candidate_mark?.status ?? null;
+  const sharedFolderNotes = useMemo(
+    () => c.shared_folder_notes ?? [],
+    [c.shared_folder_notes]
+  );
   const evidencePaper = getEvidencePaper(c.search_evidence);
   const isScholarSource = isScholarSearchSource(sourceType);
   const isGithubSource = sourceType === "github";
@@ -150,12 +177,6 @@ function CandidateRow({
     () => extractSearchSourcesFromLinks(c.links),
     [c.links]
   );
-  const suitabilityScore = useMemo(() => {
-    const value = Number(c.search_rank?.suitabilityScore);
-    if (!Number.isFinite(value)) return null;
-    return Math.max(0, Math.min(100, Math.round(value)));
-  }, [c.search_rank?.suitabilityScore]);
-
   const synthList = useMemo(() => {
     const rawText = c.synthesized_summary?.[0]?.text ?? "[]";
     return parseSynthesizedSummary(rawText);
@@ -166,6 +187,14 @@ function CandidateRow({
   const shortlistMemo = useMemo(() => {
     return String(c.shortlist_memo ?? "");
   }, [c.shortlist_memo]);
+  const [sharedNoteCreateRequestKey, setSharedNoteCreateRequestKey] =
+    useState(0);
+  const [sharedNotesState, setSharedNotesState] = useState(sharedFolderNotes);
+
+  useEffect(() => {
+    setSharedNotesState(sharedFolderNotes);
+  }, [sharedFolderNotes]);
+
   const isBookmarked = useMemo(() => {
     return (c.connection ?? []).some((con) => con.typed === 0);
   }, [c.connection]);
@@ -213,8 +242,8 @@ function CandidateRow({
     return buildGithubDeveloperTooltip(githubPreview);
   }, [githubPreview]);
 
-  const renderColumnCell = (columnId: string) => {
-    if (columnId.startsWith("criteria:")) {
+  const renderColumnCell = (columnId: CandidateTableColumnId) => {
+    if (isCriteriaColumnId(columnId)) {
       const idx = Number(columnId.split(":")[1]);
       const criteria = criterias[idx] ?? "";
       return (
@@ -227,7 +256,7 @@ function CandidateRow({
       );
     }
 
-    if (columnId === "company") {
+    if (columnId === CandidateTableStaticColumnId.Company) {
       if (isGithubSource) {
         return (
           <Tooltips text={githubDeveloperTooltipText} side="bottom">
@@ -334,7 +363,7 @@ function CandidateRow({
       );
     }
 
-    if (columnId === "evidence") {
+    if (columnId === CandidateTableStaticColumnId.Evidence) {
       return (
         <Tooltips
           text={evidencePaperTooltipText || "Related paper unavailable"}
@@ -356,7 +385,7 @@ function CandidateRow({
       );
     }
 
-    if (columnId === "school") {
+    if (columnId === CandidateTableStaticColumnId.School) {
       if (isGithubSource) {
         return (
           <Tooltips
@@ -493,7 +522,7 @@ function CandidateRow({
       );
     }
 
-    if (columnId === "summary") {
+    if (columnId === CandidateTableStaticColumnId.Summary) {
       return (
         <div
           key={columnId}
@@ -506,25 +535,78 @@ function CandidateRow({
       );
     }
 
-    if (columnId === "memo") {
+    if (columnId === CandidateTableStaticColumnId.Mark) {
       return (
         <div
           key={columnId}
-          className="px-4 py-2 min-w-0 h-full flex items-center"
+          className="px-2 py-3 min-w-0 h-full flex items-center justify-start"
         >
-          <ShortlistMemoEditor
-            userId={userId}
-            candidId={c.id}
-            initialMemo={shortlistMemo}
-            rows={2}
-            className="w-full"
-          />
+          {showMarkAction && (userId || candidateMarkStatus) ? (
+            <CandidateMarkButton
+              userId={userId}
+              candidId={c.id}
+              initialStatus={candidateMarkStatus}
+              compact
+            />
+          ) : null}
         </div>
       );
     }
 
-    if (columnId === "actions") {
-      return <div key={columnId} className="px-2 py-3 min-w-0 h-full" />;
+    if (
+      columnId === CandidateTableStaticColumnId.SharedNotes &&
+      sharedFolderContext?.token
+    ) {
+      return (
+        <div
+          key={columnId}
+          className="flex h-full min-w-0 items-center border-l border-white/5 px-4 py-3"
+        >
+          <div className="flex w-full items-center justify-between gap-3">
+            {sharedFolderContext.viewer ? (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setSharedNoteCreateRequestKey((current) => current + 1);
+                }}
+                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-white/10 bg-white/5 px-3 text-[12px] text-hgray900 transition-colors hover:bg-white/10"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                공유 메모 추가
+              </button>
+            ) : null}
+          </div>
+        </div>
+      );
+    }
+
+    if (columnId === CandidateTableStaticColumnId.Memo) {
+      return (
+        <div
+          key={columnId}
+          className="px-0 py-0 min-w-0 h-full flex items-center"
+        >
+          {userId ? (
+            <ShortlistMemoEditor
+              userId={userId}
+              candidId={c.id}
+              initialMemo={shortlistMemo}
+              rows={2}
+              className="w-full"
+            />
+          ) : shortlistMemo ? (
+            <div className="w-full whitespace-pre-wrap break-words px-2 py-2 text-[13px] leading-5 text-hgray900">
+              {shortlistMemo}
+            </div>
+          ) : null}
+        </div>
+      );
+    }
+
+    if (columnId === CandidateTableStaticColumnId.Empty) {
+      return <div key={columnId} className="w-[360px] h-full" />;
     }
 
     return null;
@@ -537,9 +619,9 @@ function CandidateRow({
         role="row"
         onClick={() => logEvent("candidate_card_click: " + candidId)}
       >
-        <div className="group relative w-full border-b border-white/5 hover:bg-[#242424] transition-colors cursor-pointer pr-60">
+        <div className="group relative w-full cursor-pointer border-b border-white/5 transition-colors hover:bg-[#242424]">
           <div
-            className="inline-grid items-center"
+            className="inline-grid items-center border-b border-white/5"
             style={{ gridTemplateColumns }}
           >
             <div className="sticky left-0 z-30 h-full px-3 flex items-center justify-center text-xs text-hgray700 bg-hgray200 group-hover:bg-[#242424] transition-colors">
@@ -602,24 +684,51 @@ function CandidateRow({
                   e.stopPropagation();
                 }}
               >
-                <div
-                  className={`${
-                    isBookmarked && !isMyList ? "opacity-100" : "opacity-0"
-                  } group-hover:opacity-100`}
-                >
-                  <Bookmarkbutton
-                    userId={userId}
-                    candidId={c.id}
-                    connection={c.connection}
-                    isText={false}
-                    size="sm"
-                  />
-                </div>
+                {showBookmarkAction && userId ? (
+                  <div
+                    className={`${
+                      isBookmarked && !isMyList ? "opacity-100" : "opacity-0"
+                    } group-hover:opacity-100`}
+                  >
+                    <Bookmarkbutton
+                      userId={userId}
+                      candidId={c.id}
+                      connection={c.connection}
+                      isText={false}
+                      size="sm"
+                    />
+                  </div>
+                ) : null}
               </div>
             </div>
 
             {orderedColumnIds.map((columnId) => renderColumnCell(columnId))}
+
+            <div aria-hidden="true" className="h-full" />
           </div>
+          {sharedFolderContext?.token && sharedNotesLayout ? (
+            <div
+              className=""
+              style={{
+                marginLeft: `${sharedNotesLayout.offsetPx}px`,
+                width: `${sharedNotesLayout.widthPx}px`,
+              }}
+            >
+              <SharedFolderCandidateNotes
+                token={sharedFolderContext.token}
+                candidId={c.id}
+                initialNotes={sharedFolderNotes}
+                viewer={sharedFolderContext.viewer}
+                compact
+                showTitle={false}
+                variant="table"
+                showCreateButton={false}
+                hideWhenEmpty
+                createRequestKey={sharedNoteCreateRequestKey}
+                onNotesChange={setSharedNotesState}
+              />
+            </div>
+          ) : null}
         </div>
       </Link>
     </div>
