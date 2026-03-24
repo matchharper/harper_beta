@@ -2,7 +2,7 @@ export const SEARCH_SOURCE_VALUES = ["linkedin", "scholar", "github"] as const;
 export const ENABLED_SEARCH_SOURCE_VALUES = [
   "linkedin",
   "scholar",
-  // "github",
+  "github",
 ] as const;
 
 export type SearchSource = (typeof SEARCH_SOURCE_VALUES)[number];
@@ -68,7 +68,7 @@ export function getSearchSourceLabel(source: SearchSource): string {
 
 export function getSearchSourceLogoPath(source: SearchSource): string {
   if (source === "scholar") return "/images/logos/scholar.png";
-  if (source === "github") return "/images/logos/github_white.svg";
+  if (source === "github") return "/images/logos/github.svg";
   return "/images/logos/linkedin2.svg";
 }
 

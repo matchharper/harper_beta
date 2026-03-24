@@ -27,6 +27,11 @@ import {
   formatScholarPaperCount,
 } from "@/lib/scholarPreview";
 import {
+  buildGithubDeveloperTooltip,
+  formatGithubFollowerCount,
+  formatGithubRepoCount,
+} from "@/lib/githubPreview";
+import {
   companyEnToKo,
   degreeEnToKo,
   koreaUniversityEnToKo,
@@ -125,10 +130,14 @@ function CandidateRow({
   const latestCompany = exps[0];
   const latestEdu = edus[0];
   const scholarPreview = c.scholar_profile_preview;
+  const githubPreview = c.github_profile_preview;
   const evidencePaper = getEvidencePaper(c.search_evidence);
   const isScholarSource = isScholarSearchSource(sourceType);
+  const isGithubSource = sourceType === "github";
   const isOnlyScholar =
     !!scholarPreview && exps.length === 0 && edus.length === 0;
+  const isOnlyGithub =
+    !!githubPreview && exps.length === 0 && edus.length === 0;
   const evidencePaperMeta = useMemo(
     () => buildEvidencePaperMeta(c.search_evidence),
     [c.search_evidence]
@@ -200,6 +209,10 @@ function CandidateRow({
     return buildScholarResearchTooltip(scholarPreview);
   }, [scholarPreview]);
 
+  const githubDeveloperTooltipText = useMemo(() => {
+    return buildGithubDeveloperTooltip(githubPreview);
+  }, [githubPreview]);
+
   const renderColumnCell = (columnId: string) => {
     if (columnId.startsWith("criteria:")) {
       const idx = Number(columnId.split(":")[1]);
@@ -215,6 +228,44 @@ function CandidateRow({
     }
 
     if (columnId === "company") {
+      if (isGithubSource) {
+        return (
+          <Tooltips text={githubDeveloperTooltipText} side="bottom">
+            <div>
+              <Cell
+                key={columnId}
+                title={
+                  <div className="min-w-0 whitespace-normal break-words">
+                    {githubPreview?.company ?? githubPreview?.location ?? "-"}
+                  </div>
+                }
+                description=""
+                multiline
+              />
+            </div>
+          </Tooltips>
+        );
+      }
+
+      if (isOnlyGithub) {
+        return (
+          <Tooltips text={githubDeveloperTooltipText} side="bottom">
+            <div>
+              <Cell
+                key={columnId}
+                title={
+                  <div className="min-w-0 whitespace-normal break-words">
+                    {githubPreview?.company ?? githubPreview?.location ?? "-"}
+                  </div>
+                }
+                description=""
+                multiline
+              />
+            </div>
+          </Tooltips>
+        );
+      }
+
       if (isScholarSource) {
         return (
           <Tooltips text={scholarAffiliationTooltipText} side="bottom">
@@ -306,6 +357,56 @@ function CandidateRow({
     }
 
     if (columnId === "school") {
+      if (isGithubSource) {
+        return (
+          <Tooltips
+            text={buildGithubDeveloperTooltip(githubPreview)}
+            side="bottom"
+          >
+            <div>
+              <Cell
+                key={columnId}
+                title={
+                  githubPreview
+                    ? formatGithubRepoCount(githubPreview.publicRepos)
+                    : "-"
+                }
+                description={
+                  githubPreview
+                    ? formatGithubFollowerCount(githubPreview.followers)
+                    : "-"
+                }
+              />
+            </div>
+          </Tooltips>
+        );
+      }
+
+      if (isOnlyGithub) {
+        return (
+          <Tooltips
+            text={buildGithubDeveloperTooltip(githubPreview)}
+            side="bottom"
+          >
+            <div>
+              <Cell
+                key={columnId}
+                title={
+                  githubPreview
+                    ? formatGithubRepoCount(githubPreview.publicRepos)
+                    : "-"
+                }
+                description={
+                  githubPreview
+                    ? formatGithubFollowerCount(githubPreview.followers)
+                    : "-"
+                }
+              />
+            </div>
+          </Tooltips>
+        );
+      }
+
       if (isScholarSource) {
         return (
           <Tooltips
