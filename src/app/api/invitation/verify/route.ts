@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser, supabaseServer } from "@/lib/supabaseServer";
+import { doesEmailMatchInvitationDomain } from "@/lib/invitation";
 
 const isMissingDisplayName = (name?: string | null) => {
   const normalized = (name ?? "").trim();
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
 
   const { data: inviteCode, error: inviteCodeError } = await supabaseServer
     .from("company_code")
-    .select("id, count, limit, credit")
+    .select("id, count, limit, credit, domain")
     .eq("code", code)
     .maybeSingle();
 
@@ -57,6 +58,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: "Invite code exhausted", code: "invite_code_exhausted" },
       { status: 409 }
+    );
+  }
+
+  if (!doesEmailMatchInvitationDomain(user.email, inviteCode.domain)) {
+    return NextResponse.json(
+      {
+        error: "Invite code domain mismatch",
+        code: "invite_domain_mismatch",
+      },
+      { status: 403 }
     );
   }
 

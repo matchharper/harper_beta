@@ -517,6 +517,7 @@ export const CriteriaCard = React.memo(function CriteriaCard({
               </DropdownMenuContent>
             </DropdownMenu>
           </div> */}
+
           <div className="mt-3 text-xs text-hgray600">Criteria</div>
 
           {Array.isArray(draft.criteria) && draft.criteria.length > 0 && (

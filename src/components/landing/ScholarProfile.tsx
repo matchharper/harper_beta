@@ -12,9 +12,8 @@ type Paper = {
 const papers: Paper[] = [
   {
     title:
-      "Observation of a new boson at a mass of 125 GeV with the CMS experiment at the LHC",
-    authors:
-      "S Chatrchyan, V Khachatryan, AM Sirunyan, A Tumasyan, W Adam, ...",
+      "Noise Conditional Flow Model for Learning the Super Resolution Space",
+    authors: "Jonghwan Park, Jaehun Jung, Yongseok Jo, Jongmin Kim",
     journal: "CVPR 2024",
     citations: 660,
     year: 2024,
@@ -22,9 +21,9 @@ const papers: Paper[] = [
   },
   {
     title:
-      "Muon reconstruction performance of the ATLAS detector in proton–proton colli",
-    authors: "Atlas Collaboration",
-    journal: "The European Physical Journal C 76",
+      "Beyond human data: Scaling self-training for problem-solving with language models",
+    authors: "Park Jonghwan, Hojin Kim",
+    journal: "NeurIPS 2022",
     citations: 129,
     year: 2025,
     is_featured: false,
@@ -34,7 +33,7 @@ const papers: Paper[] = [
       "Jet energy measurement and its systematic uncertainty in proton–proton collisio",
     authors:
       "Atlas Collaboration atlas. publications@ cern. ch, G Aad, T Abajyan, ...",
-    journal: "NeurIPS 2022",
+    journal: "The European Physical Journal C 76",
     citations: 68,
     year: 2022,
     is_featured: false,
@@ -42,11 +41,9 @@ const papers: Paper[] = [
 ];
 
 const tags = [
-  "Particle Physics",
-  "Higgs bosons",
-  "Machine learning",
-  "Big data",
-  "Proteomics",
+  "Generative AI",
+  "Artificial Intelligence",
+  "Reinforcement Learning",
 ];
 
 export default function ScholarProfileDark() {
@@ -64,9 +61,9 @@ export default function ScholarProfileDark() {
           />
 
           <div className="min-w-0">
-            <h1 className="text-lg font-normal text-white">Jonathan Hays</h1>
+            <h1 className="text-lg font-normal text-white">Jonghwan Park</h1>
             <a className="text-sm text-neutral-200 underline">
-              Queen Mary University of London
+              Korea Advanced Institute of Science and Technology
             </a>
 
             <div className="mt-2 flex flex-wrap gap-2 md:gap-4">

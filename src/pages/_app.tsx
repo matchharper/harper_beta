@@ -94,6 +94,7 @@ export default function App({ Component, pageProps }: AppProps) {
   useEffect(() => {
     if (!companyUser?.user_id) return;
     if (companyUserLoading) return;
+    if (!companyUser.is_authenticated) return;
     if (lastFreeRefreshUserId.current === companyUser.user_id) return;
 
     lastFreeRefreshUserId.current = companyUser.user_id;
@@ -110,7 +111,7 @@ export default function App({ Component, pageProps }: AppProps) {
     ]).catch((err) => {
       console.error("Failed to refresh credits:", err);
     });
-  }, [companyUser?.user_id, companyUserLoading]);
+  }, [companyUser?.user_id, companyUser?.is_authenticated, companyUserLoading]);
 
   return (
     <ReactQueryProvider>

@@ -7,9 +7,9 @@ export default function CompareSection() {
         <Reveal>
           <div className="flex w-full flex-col items-center justify-center">
             <h2 className="mt-6 text-center text-xl font-medium leading-[1.1] tracking-[-0.03em] text-white md:text-3xl">
-              Profiles summarize people.
+              The best builders are rarely visible on LinkedIn.
               <br />
-              Public work shows the work itself.
+              They are busy shipping.
             </h2>
 
             <p className="mt-5 max-w-[760px] text-center text-sm leading-7 text-hgray700 md:text-lg">

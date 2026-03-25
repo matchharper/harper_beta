@@ -89,21 +89,18 @@ async function fetchCandidatesByIds(
       Array.isArray(scholarVariantRows) && scholarVariantRows.length > 0;
   }
   const dataById = new Map((data ?? []).map((item: any) => [item.id, item]));
-  const scholarPreviewCandidateIds =
-    shouldReadScholarPreview
-      ? sourceType === "scholar"
-        ? ids
-        : ids.filter((id) => {
-            const item = dataById.get(id);
-            const experiences = Array.isArray(item?.experience_user)
-              ? item.experience_user
-              : [];
-            const educations = Array.isArray(item?.edu_user)
-              ? item.edu_user
-              : [];
-            return experiences.length === 0 && educations.length === 0;
-          })
-      : [];
+  const scholarPreviewCandidateIds = shouldReadScholarPreview
+    ? sourceType === "scholar"
+      ? ids
+      : ids.filter((id) => {
+          const item = dataById.get(id);
+          const experiences = Array.isArray(item?.experience_user)
+            ? item.experience_user
+            : [];
+          const educations = Array.isArray(item?.edu_user) ? item.edu_user : [];
+          return experiences.length === 0 && educations.length === 0;
+        })
+    : [];
 
   if (scholarPreviewCandidateIds.length > 0) {
     scholarPreviewByCandidateId = await fetchScholarPreviewByCandidateIds(
@@ -112,6 +109,7 @@ async function fetchCandidatesByIds(
   }
   const candidateMarkByCandidateId = await fetchCandidateMarkMap(userId, ids);
   const shortlistMemoByCandidateId = await fetchShortlistMemoMap(userId, ids);
+
   const ordered = ids
     .map((id) => {
       const item = dataById.get(id);
@@ -198,7 +196,10 @@ async function fetchRunPage12(params: {
   const all = filterPositiveScoreCandidates(
     (row?.candidate_ids ?? []) as RunPageCandidate[]
   );
-  const ids = all.slice(0, 10).map((r) => r.id).filter(Boolean) as string[];
+  const ids = all
+    .slice(0, 10)
+    .map((r) => r.id)
+    .filter(Boolean) as string[];
 
   return {
     ids,
@@ -230,7 +231,10 @@ async function fetchRunPage(params: {
   const start = pageIdx * 10;
   const end = start + 10;
 
-  const ids = all.slice(start, end).map((r) => r.id).filter(Boolean) as string[];
+  const ids = all
+    .slice(start, end)
+    .map((r) => r.id)
+    .filter(Boolean) as string[];
   const evidenceByCandidateId = buildEvidenceMap(all);
   const rankByCandidateId = buildRankMap(all);
 
@@ -291,10 +295,10 @@ export function useRunPagesInfinite({
 
       const { ids, total, evidenceByCandidateId, rankByCandidateId } =
         await fetchRunPage({
-        runId: runId!,
-        pageIdx,
-        userId: userId!,
-      });
+          runId: runId!,
+          pageIdx,
+          userId: userId!,
+        });
 
       // ids -> 후보자 fetch
       const items = ids.length

@@ -25,6 +25,8 @@ export const en = {
     errors: {
       emptyCode: "Please enter the invite code.",
       invalidCode: "The invite code is invalid.",
+      domainMismatch:
+        "The domain of your signup email must match the company domain assigned to this invite code.",
       emptyName: "Please enter your name.",
       saveNameFailed: "Failed to save your name. Please try again.",
     },
@@ -203,11 +205,6 @@ export const en = {
             "Can I sign up and use it right now? (How do I get an invite code?)",
           answer:
             "Harper is currently running a private beta with a small set of tech companies to optimize data quality and AI resources. Our public launch is planned for Q2 this year. Join the waitlist and we'll send invite codes during onboarding.",
-        },
-        {
-          question: "Can I trust AI-generated analysis?",
-          answer:
-            "Yes. Harper's AI doesn't guess; it verifies. We only analyze verifiable data from real web sources like LinkedIn, Google Scholar, GitHub, and blogs. Every insight includes source links so you can fact-check.",
         },
         {
           question:

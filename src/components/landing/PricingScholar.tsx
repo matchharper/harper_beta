@@ -93,7 +93,7 @@ export default function PricingSection({
               Perfect plan for your team.
             </div>
 
-            <div className="mt-12 w-full max-w-[1040px] md:mt-16">
+            <div className="mt-12 w-full md:mt-16">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-4">
                 {plans.map((p) => (
                   <PlanCard
