@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser, supabaseServer } from "@/lib/supabaseServer";
+import { doesEmailMatchInvitationDomain } from "@/lib/invitation";
 
 const isMissingDisplayName = (name?: string | null) => {
   const normalized = (name ?? "").trim();
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
 
   const { data: inviteCode, error: inviteCodeError } = await supabaseServer
     .from("company_code")
-    .select("id, count, limit, credit")
+    .select("id, count, limit, credit, domain")
     .eq("code", code)
     .maybeSingle();
 
@@ -63,6 +64,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: "Invite code exhausted", code: "invite_code_exhausted" },
       { status: 409 }
+    );
+  }
+
+  if (!doesEmailMatchInvitationDomain(user.email, inviteCode.domain)) {
+    return NextResponse.json(
+      {
+        error: "Invite code domain mismatch",
+        code: "invite_domain_mismatch",
+      },
+      { status: 403 }
     );
   }
 
@@ -117,7 +128,10 @@ export async function POST(req: NextRequest) {
 
   if (companyUserError || !companyUser) {
     return NextResponse.json(
-      { error: companyUserError?.message ?? "Not found", code: "company_user_missing" },
+      {
+        error: companyUserError?.message ?? "Not found",
+        code: "company_user_missing",
+      },
       { status: 500 }
     );
   }
@@ -229,6 +243,26 @@ export async function POST(req: NextRequest) {
         },
         { status: 500 }
       );
+    }
+
+    if (initialCredit !== 0) {
+      const { error: creditsHistoryInsertError } = await supabaseServer
+        .from("credits_history")
+        .insert({
+          user_id: user.id,
+          charged_credits: initialCredit,
+          event_type: "invitation_code",
+        });
+
+      if (creditsHistoryInsertError) {
+        return NextResponse.json(
+          {
+            error: creditsHistoryInsertError.message,
+            code: "credits_history_insert_failed",
+          },
+          { status: 500 }
+        );
+      }
     }
   }
 

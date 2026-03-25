@@ -16,15 +16,22 @@ import { runSearch } from "@/hooks/useStartSearch";
 import { Loading } from "@/components/ui/loading";
 import { supabase } from "@/lib/supabase";
 import Head from "next/head";
+import CreditModal from "@/components/Modal/CreditModal";
 import {
   SearchSource,
   normalizeSearchSource,
   normalizeSearchSources,
   queryTypeToSearchSource,
 } from "@/lib/searchSource";
+import { MIN_CREDITS_FOR_SEARCH } from "@/utils/constantkeys";
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
+}
+
+function hasInsufficientCreditError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return message.includes("Insufficient credits");
 }
 
 const MAX_PREFETCH_PAGES = 20;
@@ -47,6 +54,7 @@ export default function ResultPage() {
   const [finishedTick, setFinishedTick] = useState(0);
   const [chatPanelWidth, setChatPanelWidth] = useState(460);
   const [isResizing, setIsResizing] = useState(false);
+  const [isNoCreditModalOpen, setIsNoCreditModalOpen] = useState(false);
   const splitRef = useRef<HTMLDivElement>(null);
 
   const router = useRouter();
@@ -156,7 +164,7 @@ export default function ResultPage() {
   const items = current?.items ?? [];
   const totalCandidates =
     pages.find((p) => typeof (p as any)?.total === "number")?.total ?? null;
-  const { credits, deduct, isDeducting } = useCredits();
+  const { credits, deductWithHistory, isDeducting } = useCredits();
 
   const canPrev = pageIdx > 0;
   const nextPageKnownCount =
@@ -172,6 +180,7 @@ export default function ResultPage() {
     seen_page: number;
   } | null>(null);
   const seenPageRef = useRef(-1);
+  const failedChargePageRef = useRef<number | null>(null);
   const updatingSeenRef = useRef(false);
   const isRunPagesMetaLoadingRef = useRef(false);
 
@@ -204,27 +213,55 @@ export default function ResultPage() {
   useEffect(() => {
     setRunPagesMeta(null);
     seenPageRef.current = -1;
+    failedChargePageRef.current = null;
     updatingSeenRef.current = false;
     isRunPagesMetaLoadingRef.current = false;
     if (runId) loadRunPagesMeta();
   }, [runId, loadRunPagesMeta]);
 
   useEffect(() => {
+    if ((credits?.remain_credit ?? 0) >= MIN_CREDITS_FOR_SEARCH) {
+      failedChargePageRef.current = null;
+    }
+  }, [credits?.remain_credit]);
+
+  useEffect(() => {
     if (!runPagesMeta && pages.length > 0) loadRunPagesMeta();
   }, [runPagesMeta, pages.length, loadRunPagesMeta]);
 
   const seenPage = runPagesMeta?.seen_page ?? -1;
+  const maxReachablePage =
+    runPagesMeta != null ? clamp(seenPage + 1, 0, MAX_PREFETCH_PAGES) : null;
+  const shouldClampPageBySeen =
+    maxReachablePage != null && pageIdxRaw > maxReachablePage;
   const isPageLoaded = pageIdx < pages.length && !isLoading;
   const shouldChargeForPage = items.length >= 10;
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    if (!runId) return;
+    if (maxReachablePage == null) return;
+    if (!shouldClampPageBySeen) return;
+
+    setPageInUrl(maxReachablePage, "replace");
+  }, [
+    router.isReady,
+    runId,
+    maxReachablePage,
+    setPageInUrl,
+    shouldClampPageBySeen,
+  ]);
 
   useEffect(() => {
     if (!ready || !runId || !userId) return;
     if (!isPageLoaded) return;
     if (!runPagesMeta) return;
+    if (shouldClampPageBySeen) return;
 
     const targetSeen = pageIdx;
     const effectiveSeen = Math.max(seenPage, seenPageRef.current);
     if (targetSeen <= effectiveSeen) return;
+    if (failedChargePageRef.current === targetSeen) return;
     if (updatingSeenRef.current) return;
     if (shouldChargeForPage && isDeducting) return;
 
@@ -232,8 +269,15 @@ export default function ResultPage() {
     (async () => {
       try {
         if (shouldChargeForPage) {
-          await deduct(1);
+          await deductWithHistory(
+            1,
+            pageIdx === 0
+              ? "search_results_initial_page"
+              : "search_results_next_10_more",
+            { suppressInsufficientToast: true }
+          );
         }
+        failedChargePageRef.current = null;
         seenPageRef.current = targetSeen;
 
         const { error } = await supabase
@@ -254,6 +298,13 @@ export default function ResultPage() {
           );
         }
       } catch (e) {
+        failedChargePageRef.current = targetSeen;
+        if (hasInsufficientCreditError(e)) {
+          setIsNoCreditModalOpen(true);
+        }
+        if (effectiveSeen >= 0 && targetSeen > effectiveSeen) {
+          setPageInUrl(effectiveSeen, "replace");
+        }
         logger.log("deduct or seen_page update failed:", e);
       } finally {
         updatingSeenRef.current = false;
@@ -265,10 +316,12 @@ export default function ResultPage() {
     userId,
     isPageLoaded,
     runPagesMeta,
+    shouldClampPageBySeen,
     pageIdx,
     seenPage,
-    deduct,
+    deductWithHistory,
     isDeducting,
+    setPageInUrl,
     shouldChargeForPage,
   ]);
 
@@ -278,15 +331,30 @@ export default function ResultPage() {
   };
 
   const nextPage = async () => {
-    if (pageIdx + 1 < pages.length) {
-      setPageInUrl(pageIdx + 1, "push");
+    const nextIdx = pageIdx + 1;
+    const effectiveSeen = Math.max(seenPage, seenPageRef.current);
+    const requiresCharge = nextIdx > effectiveSeen;
+
+    if (
+      requiresCharge &&
+      credits != null &&
+      credits.remain_credit < MIN_CREDITS_FOR_SEARCH
+    ) {
+      setIsNoCreditModalOpen(true);
+      return;
+    }
+
+    failedChargePageRef.current = null;
+
+    if (nextIdx < pages.length) {
+      setPageInUrl(nextIdx, "push");
       return;
     }
     if (!hasNextPage || isFetchingNextPage) return;
 
     const res = await fetchNextPage();
     const newCount = res.data?.pages?.length ?? pages.length;
-    if (newCount > pages.length) setPageInUrl(pageIdx + 1, "push");
+    if (newCount > pages.length) setPageInUrl(nextIdx, "push");
   };
 
   // Ensure target page loaded by sequentially fetching until we have it (or can't)
@@ -309,13 +377,15 @@ export default function ResultPage() {
         len = nextLen;
       }
     },
-    [data?.pages?.length, fetchNextPage, hasNextPage]
+    [data?.pages?.length, fetchNextPage, hasNextPage, isFetchingNextPage]
   );
 
   useEffect(() => {
     if (!ready) return;
     if (!searchEnabled) return;
     if (!runId) return;
+    if (!runPagesMeta) return;
+    if (shouldClampPageBySeen) return;
     if (pageIdx <= 0) return;
     if (ensuringRef.current) return;
 
@@ -323,7 +393,15 @@ export default function ResultPage() {
     ensurePageLoaded(pageIdx).finally(() => {
       ensuringRef.current = false;
     });
-  }, [ready, searchEnabled, runId, pageIdx, ensurePageLoaded]);
+  }, [
+    ready,
+    searchEnabled,
+    runId,
+    runPagesMeta,
+    shouldClampPageBySeen,
+    pageIdx,
+    ensurePageLoaded,
+  ]);
 
   useEffect(() => {
     scrollResultToTop();
@@ -358,7 +436,7 @@ export default function ResultPage() {
         return null;
       }
     },
-    [queryId, userId, router, credits]
+    [queryId, userId, router]
   );
 
   const currentRunCriterias = useMemo(() => {
@@ -366,7 +444,7 @@ export default function ResultPage() {
       return [];
 
     return runData.criteria;
-  }, [runData, runId, isRunDetailLoading]);
+  }, [runData]);
 
   const scope = useMemo(
     () => ({ type: "query", queryId: queryId ?? "" }) as ChatScope,
@@ -441,6 +519,10 @@ export default function ResultPage() {
 
   return (
     <AppLayout initialCollapse={true}>
+      <CreditModal
+        open={isNoCreditModalOpen}
+        onClose={() => setIsNoCreditModalOpen(false)}
+      />
       <Head>
         <title>Harper: 검색</title>
       </Head>
@@ -494,6 +576,12 @@ export default function ResultPage() {
                 feedback={runData?.feedback ?? 0}
                 sourceType={resultSourceType}
               />
+            )}
+
+            {isLoading && (
+              <div className="w-full h-full min-h-[60vh] flex items-center justify-center">
+                <Loading className="p-6 text-xgray800" />
+              </div>
             )}
 
             {runId && (

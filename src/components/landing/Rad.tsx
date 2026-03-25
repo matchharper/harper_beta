@@ -2,6 +2,7 @@ import React from "react";
 import { MapPin, Star } from "lucide-react";
 import Image from "next/image";
 import { ContributionGrid } from "@/components/landing/ContributionGrid";
+import { useMessages } from "@/i18n/useMessage";
 
 type Project = {
   title: string;
@@ -85,6 +86,7 @@ function ProjectCard({ project }: { project: Project }) {
 }
 
 export default function CandidateGithubCardDark() {
+  const { locale } = useMessages();
   return (
     <div className="w-full max-w-[1040px] overflow-hidden rounded-[28px] border border-zinc-900 bg-[#111113] shadow-2xl">
       <div className="px-6 py-6 pb-2 md:px-8">
@@ -100,7 +102,11 @@ export default function CandidateGithubCardDark() {
               <div className="text-base font-light text-sky-400">@thxxx</div>
               <div className="mt-1 inline-flex flex-wrap items-center gap-1 text-left text-sm text-zinc-400">
                 <MapPin className="h-4 w-4" />
-                <span>New York City, New York, United States</span>
+                {locale === "ko" ? (
+                  <span>Seoul, South Korea</span>
+                ) : (
+                  <span>San Francisco</span>
+                )}
               </div>
             </div>
           </div>
@@ -108,7 +114,7 @@ export default function CandidateGithubCardDark() {
       </div>
 
       <div className="border-b border-zinc-800 px-6 py-4 md:px-8">
-        <h2 className="mb-2 text-sm text-left w-full font-normal tracking-[-0.03em] text-zinc-100">
+        <h2 className="mb-2 text-sm text-left w-full font-normal text-zinc-100">
           2894 contributions this year
         </h2>
         <ContributionGrid />

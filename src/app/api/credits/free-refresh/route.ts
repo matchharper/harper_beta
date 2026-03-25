@@ -55,6 +55,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ status: "excluded_user" }, { status: 200 });
   }
 
+  const { data: companyUser, error: companyUserErr } = await supabaseAdmin
+    .from("company_users")
+    .select("is_authenticated")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (companyUserErr) {
+    return NextResponse.json(
+      { error: "Failed to load company user" },
+      { status: 500 }
+    );
+  }
+
+  if (!companyUser?.is_authenticated) {
+    return NextResponse.json({ status: "not_authenticated" }, { status: 200 });
+  }
+
   const now = new Date();
   const nowIso = now.toISOString();
 

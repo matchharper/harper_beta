@@ -23,6 +23,10 @@ type VerifyInviteResponse = {
   requiresName: boolean;
 };
 
+const getErrorCode = (error: unknown) => {
+  return error instanceof Error ? error.message.toLowerCase() : "";
+};
+
 export default function LoginSuccess() {
   const router = useRouter();
   const [code, setCode] = useState("");
@@ -43,6 +47,25 @@ export default function LoginSuccess() {
   const isMobile = useIsMobile();
   const { companyUser, load } = useCompanyUserStore();
   const isNameStep = step === "name";
+
+  const getInvitationErrorMessage = useCallback(
+    (error: unknown, fallbackMessage: string) => {
+      const errorCode = getErrorCode(error);
+
+      switch (errorCode) {
+        case "invite_domain_mismatch":
+          return m.invitation.errors.domainMismatch;
+        case "invalid_invite_code":
+        case "invite_code_exhausted":
+          return m.invitation.errors.invalidCode;
+        case "missing_name":
+          return m.invitation.errors.emptyName;
+        default:
+          return fallbackMessage;
+      }
+    },
+    [m.invitation.errors]
+  );
 
   const addLog = useCallback(
     async (type: string) => {
@@ -241,7 +264,9 @@ export default function LoginSuccess() {
     } catch (error) {
       console.error("save company user name error:", error);
       setIsShake(true);
-      setInvalidMessage(m.invitation.errors.saveNameFailed);
+      setInvalidMessage(
+        getInvitationErrorMessage(error, m.invitation.errors.saveNameFailed)
+      );
     } finally {
       setIsLoading(false);
     }
@@ -279,7 +304,9 @@ export default function LoginSuccess() {
     } catch (error) {
       console.error("invite code check error:", error);
       setIsShake(true);
-      setInvalidMessage(m.invitation.errors.invalidCode);
+      setInvalidMessage(
+        getInvitationErrorMessage(error, m.invitation.errors.invalidCode)
+      );
     } finally {
       setIsLoading(false);
     }

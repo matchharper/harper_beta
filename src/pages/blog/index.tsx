@@ -10,7 +10,8 @@ import {
   toIsoDate,
 } from "@/lib/blog";
 import Footer from "@/components/landing/Footer";
-import LandingHeader from "@/components/landing/LandingHeader";
+import SearchHeader from "@/components/landing/SearchHeader";
+import router from "next/router";
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://matchharper.com")
   .trim()
@@ -138,7 +139,11 @@ export default function BlogListPage({ posts, categories }: BlogListPageProps) {
       </Head>
 
       <main className="relative min-h-screen overflow-hidden bg-black text-hgray1000 font-sans">
-        <LandingHeader />
+        <SearchHeader
+          onStartClick={() => {
+            router.push("/search");
+          }}
+        />
         <div className="relative z-10 mx-auto w-full max-w-[1280px] px-4 pb-20 pt-24 md:px-16 md:pb-28 md:pt-28">
           {/* header */}
           <header className="relative overflow-hidden mb-12 md:mb-14 bg-black text-center flex flex-col items-center justify-center py-12">
