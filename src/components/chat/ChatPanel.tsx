@@ -43,6 +43,7 @@ import type { FileAttachmentPayload } from "@/types/chat";
 import { notifyUsageToSlack } from "@/lib/slack";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { SearchSource, normalizeSearchSources } from "@/lib/searchSource";
+import type { SearchStartBlock } from "@/types/chat";
 
 export type ChatScope =
   | { type: "query"; queryId: string }
@@ -372,10 +373,11 @@ export default function ChatPanel({
     async (launch: () => Promise<string | null>) => {
       const searchStartText =
         "검색을 시작하겠습니다. 최대 1~3분이 소요될 수 있습니다.";
-      const searchStartBlock = {
+      const searchStartBlock: SearchStartBlock = {
         type: "search_start",
         text: searchStartText,
         run_id: "",
+        status: "pending",
       };
 
       setIsSearchSyncing(true);
@@ -384,15 +386,37 @@ export default function ChatPanel({
           `${UI_START}\n${JSON.stringify(searchStartBlock)}\n${UI_END}`
         );
 
-        const runId = await launch();
-        if (pendingMsg?.id && runId) {
+        const patchPendingBlock = async (
+          nextBlock: Partial<SearchStartBlock>
+        ) => {
+          if (!pendingMsg?.id) return;
           await chat.patchAssistantUiBlock(Number(pendingMsg.id), {
             ...searchStartBlock,
-            run_id: runId,
+            ...nextBlock,
           });
-        }
+        };
 
-        return runId;
+        try {
+          const runId = await launch();
+
+          if (runId) {
+            await patchPendingBlock({
+              run_id: runId,
+              status: "running",
+            });
+          } else {
+            await patchPendingBlock({
+              status: "failed",
+            });
+          }
+
+          return runId;
+        } catch (error) {
+          await patchPendingBlock({
+            status: "failed",
+          });
+          throw error;
+        }
       } finally {
         setIsSearchSyncing(false);
       }
