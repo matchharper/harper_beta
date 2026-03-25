@@ -273,7 +273,7 @@ export default function ResultPage() {
             1,
             pageIdx === 0
               ? "search_results_initial_page"
-              : "search_results_next_10_more",
+              : `search_results_next_10_more:${targetSeen}`,
             { suppressInsufficientToast: true }
           );
         }
@@ -367,7 +367,6 @@ export default function ResultPage() {
       if (isFetchingNextPage) return;
 
       while (len <= targetIdx) {
-        logger.log("ensurePageLoaded: ", len, targetIdx);
         if (!hasNextPage) break;
         if (isFetchingNextPage) return;
 

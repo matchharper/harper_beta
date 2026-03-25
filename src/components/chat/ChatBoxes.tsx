@@ -7,6 +7,8 @@ import type {
   FileContextBlock,
   SettingsCtaBlock,
   SearchResultBlock,
+  SearchStartBlock,
+  SearchStartStatus,
 } from "@/types/chat";
 import {
   Bolt,
@@ -20,6 +22,7 @@ import {
   Paperclip,
   ArrowRight,
   Pencil,
+  X,
 } from "lucide-react";
 import { useRouter } from "next/router";
 import { LinkChip } from "../information/LinkChips";
@@ -1025,17 +1028,73 @@ export const SearchResultCard = React.memo(function SearchResultCard({
   );
 });
 
+function resolveSearchStartStatus(args: {
+  block: SearchStartBlock;
+  runStatus?: string;
+  legacyIsDone?: boolean;
+}): SearchStartStatus {
+  const { block, runStatus, legacyIsDone } = args;
+  const normalizedRunStatus = String(runStatus ?? "").trim().toLowerCase();
+
+  if (normalizedRunStatus === "finished" || normalizedRunStatus === "done") {
+    return "done";
+  }
+  if (normalizedRunStatus === "stopped") {
+    return "stopped";
+  }
+  if (normalizedRunStatus === "error") {
+    return "failed";
+  }
+  if (normalizedRunStatus) {
+    return "running";
+  }
+
+  if (block.status === "pending") {
+    return block.run_id ? "running" : "pending";
+  }
+  if (
+    block.status === "running" ||
+    block.status === "done" ||
+    block.status === "failed" ||
+    block.status === "stopped"
+  ) {
+    return block.status;
+  }
+  if (legacyIsDone) {
+    return "done";
+  }
+  if (!block.run_id) {
+    return "failed";
+  }
+
+  return "running";
+}
+
 export const SearchStartCard = React.memo(function SearchStartCard({
-  text,
-  runId,
-  isDone = false,
+  block,
+  legacyIsDone = false,
 }: {
-  text: string;
-  runId?: string;
-  isDone?: boolean;
+  block: SearchStartBlock;
+  legacyIsDone?: boolean;
 }) {
   const router = useRouter();
-  const canOpen = !!runId && !isDone;
+  const runId = block.run_id?.trim() || "";
+  const { data: runData } = useRunDetail(runId || undefined);
+  const status = resolveSearchStartStatus({
+    block,
+    runStatus: (runData as any)?.status,
+    legacyIsDone,
+  });
+  const canOpen =
+    !!runId && status !== "done" && status !== "failed";
+  const label =
+    status === "done"
+      ? "검색 완료"
+      : status === "stopped"
+        ? "검색이 중단되었습니다."
+        : status === "failed"
+          ? "검색을 시작하지 못했습니다."
+          : block.text;
 
   return (
     <div
@@ -1055,16 +1114,18 @@ export const SearchStartCard = React.memo(function SearchStartCard({
       }`}
     >
       <div className="text-[13px] text-hgray900 font-normal flex flex-row items-center gap-2">
-        {isDone ? (
+        {status === "done" ? (
           <Check className="w-4 h-4 text-green-500" />
+        ) : status === "failed" || status === "stopped" ? (
+          <X className="w-4 h-4 text-hgray600" />
         ) : (
           <Loader2 className="w-4 h-4 animate-spin text-hgray600" />
         )}
-        <span>{isDone ? "검색 완료" : text}</span>
+        <span>{label}</span>
       </div>
       {canOpen && (
         <div className="text-xs text-hgray600 mt-1">
-          클릭하면 검색 진행 화면으로 이동합니다.
+          클릭하면 검색 화면으로 이동합니다.
         </div>
       )}
     </div>

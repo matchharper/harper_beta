@@ -8,6 +8,7 @@ import type {
   FileContextBlock,
   SettingsCtaBlock,
   SearchResultBlock,
+  SearchStartBlock,
 } from "@/types/chat";
 import { Loader2 } from "lucide-react";
 import { logger } from "@/utils/logger";
@@ -281,15 +282,16 @@ function ChatMessageList({
                       );
                     }
                     if (s.content.type === "search_start") {
-                      const runId = s.content.run_id as string | undefined;
-                      const isDone =
-                        m.id != null && doneBySearchStartMessageId.has(m.id);
+                      const block = s.content as SearchStartBlock;
+                      const legacyIsDone =
+                        block.status == null &&
+                        m.id != null &&
+                        doneBySearchStartMessageId.has(m.id);
 
                       return (
                         <SearchStartCard
-                          text={s.content.text}
-                          runId={runId}
-                          isDone={isDone}
+                          block={block}
+                          legacyIsDone={legacyIsDone}
                           key={`block-${idx}-${si}`}
                         />
                       );
