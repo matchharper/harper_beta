@@ -11,6 +11,7 @@ import Link from "next/link";
 import ShortlistMemoEditor from "./ui/ShortlistMemoEditor";
 import CandidateMarkButton from "./ui/CandidateMarkButton";
 import SharedFolderCandidateNotes from "./shared/SharedFolderCandidateNotes";
+import type { CandidateMarkStatus } from "@/lib/candidateMark";
 import {
   SearchSource,
   extractSearchSourcesFromLinks,
@@ -117,6 +118,7 @@ function CandidateRow({
   buildProfileHref,
   showBookmarkAction = true,
   showMarkAction = true,
+  onMarkChange,
   sharedFolderContext = null,
 }: {
   c: CandidateTypeWithConnection;
@@ -131,6 +133,7 @@ function CandidateRow({
   buildProfileHref?: (candidate: CandidateTypeWithConnection) => string;
   showBookmarkAction?: boolean;
   showMarkAction?: boolean;
+  onMarkChange?: (status: CandidateMarkStatus | null) => void;
   sharedFolderContext?: {
     token: string;
     viewer: SharedFolderViewerIdentity | null;
@@ -547,6 +550,7 @@ function CandidateRow({
               candidId={c.id}
               initialStatus={candidateMarkStatus}
               compact
+              onChange={onMarkChange}
             />
           ) : null}
         </div>

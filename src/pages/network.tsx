@@ -116,20 +116,20 @@ const companyRequests: CompanyRequest[] = [
     compensation: "Top 1% Industry Compensation + Equity",
   },
   {
-    id: "selected-engineer-ai-native",
-    title: "Selected Engineer (AI-native)",
-    role: "Selected Engineer (AI-native)",
+    id: "engineer-ai-native",
+    title: "Engineer (AI-native)",
+    role: "Engineer (AI-native)",
     company: "10+ Elite Teams",
-    summary: "Flexible",
+    summary: "Full-time or Part-time",
     intro:
-      "Harper is sourcing for 10+ <i>Elite AI Teams (from stealth to unicorn startups)</i>.",
+      "Harper is partnered with 10+ <i>Elite Startups (from stealth to unicorn startups)</i>.",
     about:
-      "We are looking for engineers who deeply leverage AI tools to build faster and smarter. This includes designing AI-native workflows, integrating LLMs into products, and automating complex tasks using modern AI stacks.",
+      "We are looking for engineers who deeply leverage AI tools to build faster.<br/>If you want to join a tech startup where your technical skills can truly be put to use, regardless of your main tech stack, apply here.",
     requirements:
-      "Strong experience using LLMs / AI tools in real workflows (e.g., coding, automation, product features), plus strong engineering fundamentals with a builder mindset.",
+      "Hands-on experience using LLMs or AI tools in real workflows (coding, automation, product features), along with strong engineering fundamentals and a strong builder mindset.",
     engagement:
       "Highly Flexible.<br />Full-time OR Fractional/Part-time (4~12 hours/week) available.<br />현업을 유지하며 임팩트 있는 프로젝트에만 참여하는 것도 가능합니다.",
-    compensation: "Top 1% Industry Compensation",
+    compensation: "Top 1% Industry Compensation + Equity",
   },
   {
     id: "robotics-hw-engineer",
@@ -168,7 +168,7 @@ const faqs = [
 `,
   },
   {
-    question: "당장 이직 생각이 없어도 등록해두면 좋을까요?",
+    question: "당장 이직 생각이 없어도 등록해둘 수 있을까요?",
     answer: `네. 하퍼는 정규직 채용 외에도 <span class='font-semibold text-beige900 font-inter'>파트타임, 프리랜싱, 자문</span> 등 지원자님에게 도움이 될 수 있는 다양한 형태의 기회를 함께 연결합니다.<br />
 또한 <span class='font-semibold text-beige900 font-inter'>Passive</span>한 상태임을 알려주시면 모호한 기회들은 건너뛰고, 알려주신 내용들을 바탕으로 명확하게 선호하실만한 기회의 경우에만 연락드립니다.<br /><br />
 하퍼는 <span class='font-semibold text-beige900 font-inter'>해외의 유니콘 스타트업</span>부터 <span class='font-semibold text-beige900 font-inter'>국내의 소수 정예 스타트업</span>까지 다양한 회사들과 협업하며, 특히 시장에 공개되지 않은 특별한 포지션들을 제공하고 있습니다.
@@ -423,7 +423,9 @@ const RequestDetailModal = ({
 
           <div className="mt-8 space-y-5">
             {/* <Section label="Role">{request.role}</Section> */}
-            <Section label="About the role">{request.about}</Section>
+            <Section label="About the role">
+              <div dangerouslySetInnerHTML={{ __html: request.about }} />
+            </Section>
 
             {request.requirements && (
               <Section label="Key requirements">
@@ -608,8 +610,10 @@ const NetworkPage = () => {
     const timeout = window.setTimeout(() => {
       const mobileCard =
         requestCardRefs.current[`mobile-${pendingScrollRequestId}`];
+
       const desktopCard =
         requestCardRefs.current[`desktop-${pendingScrollRequestId}`];
+
       const targetCard =
         [mobileCard, desktopCard].find(
           (card) => card && card.offsetParent !== null

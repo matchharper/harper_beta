@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { supabase } from "@/lib/supabase";
+import { getActiveSubscriptionOrFilter } from "@/lib/billing/common";
 
 type BillingPeriod = "monthly" | "yearly";
 type PlanKey = "pro" | "max" | "enterprise" | "free" | null;
@@ -67,7 +68,7 @@ export const usePlanStore = create<PlanState>((set) => ({
         `
       )
       .eq("user_id", userId)
-      .gte("current_period_end", nowIso)
+      .or(getActiveSubscriptionOrFilter(nowIso))
       .order("current_period_end", { ascending: false, nullsFirst: false })
       .limit(1)
       .maybeSingle();

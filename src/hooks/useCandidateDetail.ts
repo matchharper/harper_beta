@@ -89,31 +89,9 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
 
   let scholarProfile: ScholarProfileRow | null = null;
   let scholarPapers: ScholarPaperRow[] = [];
-  let githubRepos: GithubRepoContributionRow[] = [];
+  let githubRepoContributions: GithubRepoContributionRow[] = [];
 
-  // GitHub profile and contributions (scholar 패턴과 동일)
-  const { data: githubProfileRow, error: githubProfileError } = await supabase
-    .from("github_profile")
-    .select("id")
-    .eq("candid_id", id)
-    .maybeSingle();
-
-  if (githubProfileError) throw githubProfileError;
-
-  if (githubProfileRow?.id) {
-    const { data: repos, error: reposError } = await supabase
-      .from("github_repo_contribution")
-      .select(`
-        *,
-        github_repo (*)
-      `)
-      .eq("github_profile_id", githubProfileRow.id);
-
-    if (reposError) throw reposError;
-    githubRepos = (repos as GithubRepoContributionRow[] | null) ?? [];
-  }
-
-  // Scholar profile and papers
+  // GitHub profile and contributions
   const { data: scholarProfileRow, error: scholarProfileError } = await supabase
     .from("scholar_profile")
     .select("*")
@@ -153,6 +131,33 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
     }
   }
 
+  const { data: githubProfiles, error: githubProfileError } = await supabase
+    .from("github_profile")
+    .select("id")
+    .eq("candid_id", id);
+
+  if (githubProfileError) throw githubProfileError;
+
+  const githubProfileIds = Array.from(
+    new Set(
+      (githubProfiles ?? [])
+        .map((row) => String((row as any)?.id ?? "").trim())
+        .filter(Boolean)
+    )
+  );
+
+  if (githubProfileIds.length > 0) {
+    const { data: githubRepoRows, error: githubRepoError } = await supabase
+      .from("github_repo_contribution")
+      .select("*")
+      .in("github_profile_id", githubProfileIds);
+
+    if (githubRepoError) throw githubRepoError;
+
+    githubRepoContributions =
+      (githubRepoRows as GithubRepoContributionRow[] | null) ?? [];
+  }
+
   if (userId) {
     const candidateMarkById = await fetchCandidateMarkMap(userId, [id]);
     const { data: autoRow, error: autoError } = await supabase
@@ -166,7 +171,7 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
     return {
       ...data,
       candidate_mark: candidateMarkById.get(id) ?? null,
-      github_repo_contribution: githubRepos,
+      github_repo_contribution: githubRepoContributions,
       scholar_profile: scholarProfile,
       scholar_papers: scholarPapers,
       isAutomationResult: autoRow?.length > 0,
@@ -175,7 +180,7 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
 
   return {
     ...(data as CandidateDetail),
-    github_repo_contribution: githubRepos,
+    github_repo_contribution: githubRepoContributions,
     scholar_profile: scholarProfile,
     scholar_papers: scholarPapers,
   };
