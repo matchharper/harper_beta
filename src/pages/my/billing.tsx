@@ -1498,7 +1498,7 @@ const Billing = () => {
                   <div className="text-sm text-hgray900">
                     {tossPreview.reason === "recover"
                       ? "카드 정보를 다시 등록해주세요"
-                      : "결제 정보를 확인해주세요"}
+                      : "Billing Details"}
                   </div>
                   <div className="mt-1 text-white text-lg font-medium">
                     {tossPreview.planName} ·{" "}
@@ -1520,13 +1520,13 @@ const Billing = () => {
                 </div>
               ) : null}
 
-              <div className="mt-5 border border-hgray900/30 bg-hgray900/10 px-4 py-4">
-                <div className="text-xs text-hgray700">
+              <div className="mt-5 bg-hgray900/10 px-4 py-4 rounded-md">
+                <div className="text-[15px] text-hgray700">
                   {tossPreview.reason === "recover"
                     ? "미납 결제 금액"
                     : "결제 예정 금액"}
                 </div>
-                <div className="mt-1 text-3xl font-semibold tracking-tight text-accenta1">
+                <div className="mt-1 text-xl font-medium tracking-tight text-accenta1">
                   {tossPreview.amount.toLocaleString("ko-KR")}원
                 </div>
               </div>

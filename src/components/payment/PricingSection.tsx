@@ -274,8 +274,8 @@ function PlanCard({
   return (
     <div
       className={[
-        "relative w-full rounded-xl md:rounded-xl overflow-hidden",
-        "bg-white/[0.06] border border-white/10",
+        "relative w-full rounded-xl md:rounded-3xl overflow-hidden shadow-md",
+        "bg-white/[0.06] border border-white/5",
         "px-5 md:px-7 pt-4 md:pt-6 pb-4 md:pb-20",
         isPrimary ? "bg-white/[0.08]" : "",
       ].join(" ")}
