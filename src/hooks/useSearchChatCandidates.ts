@@ -189,12 +189,13 @@ async function fetchCandidatesByIds(
 
   if (error) throw error;
 
-  const { data: scholarVariantRows, error: scholarVariantError } = await supabase
-    .from("run_variants")
-    .select("id")
-    .eq("run_id", runId)
-    .eq("source_type", 1)
-    .limit(1);
+  const { data: scholarVariantRows, error: scholarVariantError } =
+    await supabase
+      .from("run_variants")
+      .select("id")
+      .eq("run_id", runId)
+      .eq("source_type", 1)
+      .limit(1);
 
   if (scholarVariantError) throw scholarVariantError;
 
@@ -271,7 +272,14 @@ async function fetchScholarPreviewByCandidateIds(ids: string[]) {
 
   if (profileError) throw profileError;
 
-  const profileRows = Array.isArray(profiles) ? profiles : [];
+  const profileRows = ((Array.isArray(profiles) ? profiles : []) as unknown) as Array<{
+    id: string;
+    candid_id: string | null;
+    affiliation: string | null;
+    topics: string[] | null;
+    h_index: number | null;
+    total_citations_num: number | null;
+  }>;
   if (profileRows.length === 0) {
     return new Map<string, ScholarProfilePreview>();
   }
@@ -302,7 +310,7 @@ async function fetchScholarPreviewByCandidateIds(ids: string[]) {
         {
           scholarProfileId: row.id,
           affiliation: row.affiliation,
-          topics: row.topics,
+          topics: Array.isArray(row.topics) ? row.topics.join(", ") : null,
           hIndex: row.h_index,
           paperCount: paperCountByProfileId.get(row.id) ?? 0,
           citationCount: row.total_citations_num ?? 0,
@@ -314,12 +322,24 @@ async function fetchScholarPreviewByCandidateIds(ids: string[]) {
 async function fetchGithubPreviewByCandidateIds(ids: string[]) {
   const { data: profiles, error: profileError } = await supabase
     .from("github_profile")
-    .select("id, candid_id, github_username, name, bio, company, location, followers, public_repos")
+    .select(
+      "id, candid_id, github_username, name, bio, company, location, followers, public_repos"
+    )
     .in("candid_id", ids);
 
   if (profileError) throw profileError;
 
-  const profileRows = Array.isArray(profiles) ? profiles : [];
+  const profileRows = ((Array.isArray(profiles) ? profiles : []) as unknown) as Array<{
+    id: string;
+    candid_id: string | null;
+    github_username: string | null;
+    name: string | null;
+    bio: string | null;
+    company: string | null;
+    location: string | null;
+    followers: number | null;
+    public_repos: number | null;
+  }>;
   if (profileRows.length === 0) {
     return new Map<string, GithubProfilePreview>();
   }
@@ -327,23 +347,30 @@ async function fetchGithubPreviewByCandidateIds(ids: string[]) {
   const profileIds = profileRows.map((row) => row.id);
   const { data: contributions, error: contributionError } = await supabase
     .from("github_repo_contribution")
-    .select("github_profile_id, repo_id, commits, additions, deletions, merged_prs")
+    .select(
+      "github_profile_id, repo_id, commits, additions, deletions, merged_prs"
+    )
     .in("github_profile_id", profileIds);
 
   if (contributionError) throw contributionError;
 
   const { data: repos, error: repoError } = await supabase
     .from("github_repo")
-    .select("id, repo_full_name, description, stars, forks, language, languages, topics")
+    .select(
+      "id, repo_full_name, description, stars, forks, language, languages, topics"
+    )
     .in("id", (contributions ?? []).map((c: any) => c.repo_id).filter(Boolean));
 
   if (repoError) throw repoError;
 
   // Aggregate by profile
-  const profileData = new Map<string, {
-    topLanguages: Set<string>;
-    topRepoStars: number;
-  }>();
+  const profileData = new Map<
+    string,
+    {
+      topLanguages: Set<string>;
+      topRepoStars: number;
+    }
+  >();
 
   const repoMap = new Map((repos ?? []).map((r: any) => [r.id, r]));
 
@@ -555,15 +582,11 @@ export function useChatSearchCandidates(
     queryFn: async ({ pageParam }) => {
       const pageIdx = pageParam as number;
 
-      const {
-        ids,
-        isNewSearch,
-        evidenceByCandidateId,
-        rankByCandidateId,
-      } = await fetchSearchIds({
-        runId: runId!,
-        pageIdx,
-      });
+      const { ids, isNewSearch, evidenceByCandidateId, rankByCandidateId } =
+        await fetchSearchIds({
+          runId: runId!,
+          pageIdx,
+        });
 
       if (ids?.length) {
         if (isNewSearch) await deduct(1);

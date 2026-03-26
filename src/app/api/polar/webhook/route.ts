@@ -7,6 +7,7 @@ import {
   validateEvent,
 } from "@polar-sh/sdk/webhooks";
 import { POLAR_SERVER } from "@/lib/polar/config";
+import { getActiveSubscriptionOrFilter } from "@/lib/billing/common";
 
 export const runtime = "nodejs";
 
@@ -166,7 +167,7 @@ async function getActiveSubscriptionsForUser(
     .eq("user_id", userId)
     .not("ls_subscription_id", "is", null)
     .neq("ls_subscription_id", excludeId)
-    .gte("current_period_end", nowIso)
+    .or(getActiveSubscriptionOrFilter(nowIso))
     .order("current_period_end", { ascending: false, nullsFirst: false });
   if (error) throw error;
   return (data ?? []) as Array<{
@@ -221,6 +222,7 @@ async function upsertPayment(args: {
   const payload = {
     user_id: args.userId,
     plan_id: args.planId,
+    provider: "polar",
     ls_subscription_id: args.subscriptionId,
     ls_customer_id: args.customerId,
     current_period_start: args.currentPeriodStart,

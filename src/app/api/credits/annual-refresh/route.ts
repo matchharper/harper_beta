@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { getActiveSubscriptionOrFilter } from "@/lib/billing/common";
 
 export const runtime = "nodejs";
 
@@ -58,7 +59,7 @@ export async function POST(req: Request) {
       `
     )
     .eq("user_id", userId)
-    .gte("current_period_end", nowIso)
+    .or(getActiveSubscriptionOrFilter(nowIso))
     .order("current_period_end", { ascending: false, nullsFirst: false })
     .limit(1)
     .maybeSingle();

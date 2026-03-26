@@ -58,6 +58,38 @@ export async function fetchCandidateMarkMap(
   return records;
 }
 
+export async function fetchCandidateIdsByMarkStatuses(
+  userId: string | undefined,
+  statuses: CandidateMarkStatus[]
+) {
+  if (!userId || statuses.length === 0) {
+    return new Set<string>();
+  }
+
+  const { data, error } = await ((supabase.from("candidate_mark" as any) as any)
+    .select("candid_id, status")
+    .eq("user_id", userId)
+    .in("status", statuses));
+
+  if (error) {
+    if (isMissingRelationError(error, "candidate_mark")) {
+      return new Set<string>();
+    }
+    throw error;
+  }
+
+  const ids = new Set<string>();
+  for (const row of data ?? []) {
+    const candidId = String(row?.candid_id ?? "").trim();
+    const status = row?.status;
+    if (!candidId || !isCandidateMarkStatus(status)) continue;
+    if (!statuses.includes(status)) continue;
+    ids.add(candidId);
+  }
+
+  return ids;
+}
+
 export function useSetCandidateMark() {
   const qc = useQueryClient();
 

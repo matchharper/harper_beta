@@ -160,8 +160,8 @@ const GithubRepoContributionBox = ({
     );
   }
 
-  const repoLabel = normalizeRepoLabel(contribution.repo);
-  const repoUrl = normalizeRepoUrl(contribution.repo);
+  const repoLabel = normalizeRepoLabel(contribution.repo ?? "");
+  const repoUrl = normalizeRepoUrl(contribution.repo ?? "");
   const roleText = pickRoleText(contribution);
 
   // ✅ languages can be {Python:90.1, Rust:9.9}
@@ -169,7 +169,10 @@ const GithubRepoContributionBox = ({
 
   return (
     <div
-      onClick={() => window.open(repoUrl, "_blank")}
+      onClick={() => {
+        if (!repoUrl) return;
+        window.open(repoUrl, "_blank");
+      }}
       className="bg-white/[0.02] px-4 py-3 rounded-md hover:bg-white/5 cursor-pointer transition-colors"
     >
       {/* Top row */}

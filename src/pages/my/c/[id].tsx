@@ -7,6 +7,11 @@ import ChatPanel, { ChatScope } from "@/components/chat/ChatPanel";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
+import {
+  SEARCH_CANDIDATE_MARK_FILTER_KEY,
+  normalizeCandidateMarkFilter,
+  useSettingStore,
+} from "@/store/useSettingStore";
 import { useQueryDetail } from "@/hooks/useQueryDetail";
 import { logger } from "@/utils/logger";
 import { useCredits } from "@/hooks/useCredit";
@@ -60,6 +65,12 @@ export default function ResultPage() {
   const router = useRouter();
   const { id, page, run } = router.query;
   const resultScrollRef = useRef<HTMLDivElement>(null);
+  const resultScrollTopRef = useRef(0);
+  const restoredResultScrollKeyRef = useRef<string | null>(null);
+  const pendingResultScrollRestoreRef = useRef<{
+    key: string;
+    top: number;
+  } | null>(null);
 
   const queryId = typeof id === "string" ? id : undefined;
   const runId = typeof run === "string" ? run : undefined; // ✅ runs.id (uuid)
@@ -67,6 +78,13 @@ export default function ResultPage() {
 
   const { companyUser } = useCompanyUserStore();
   const userId = companyUser?.user_id;
+  const persistedExcludedMarkStatuses = useSettingStore(
+    (state) => state.candidateMarkFilterByKey[SEARCH_CANDIDATE_MARK_FILTER_KEY]
+  );
+  const excludedMarkStatuses = useMemo(
+    () => normalizeCandidateMarkFilter(persistedExcludedMarkStatuses ?? []),
+    [persistedExcludedMarkStatuses]
+  );
 
   const { data: queryItem } = useQueryDetail(queryId);
 
@@ -89,16 +107,14 @@ export default function ResultPage() {
     return clamp(normalized, 0, MAX_PREFETCH_PAGES);
   }, [pageIdxRaw]);
 
-  const scrollResultToTop = useCallback((behavior: ScrollBehavior = "auto") => {
-    const el = resultScrollRef.current;
-    if (!el) return;
-    el.scrollTo({ top: 0, left: 0, behavior });
-  }, []);
+  const resultScrollStorageKey = useMemo(() => {
+    if (!queryId || !runId) return null;
+    return `result-scroll:${queryId}:${runId}`;
+  }, [queryId, runId]);
 
   const setPageInUrl = useCallback(
     (nextIdx: number, mode: "push" | "replace" = "push") => {
       const method = mode === "push" ? router.push : router.replace;
-      scrollResultToTop();
 
       method(
         {
@@ -109,7 +125,7 @@ export default function ResultPage() {
         { shallow: true, scroll: false }
       );
     },
-    [router, scrollResultToTop]
+    [router]
   );
 
   const searchEnabled = useMemo(() => ready && !!runId, [ready, runId]);
@@ -140,6 +156,7 @@ export default function ResultPage() {
       userId,
       runId,
       sourceType: resultSourceType,
+      excludedMarkStatuses,
       enabled: ready && !!runId,
     });
 
@@ -232,31 +249,44 @@ export default function ResultPage() {
   const seenPage = runPagesMeta?.seen_page ?? -1;
   const maxReachablePage =
     runPagesMeta != null ? clamp(seenPage + 1, 0, MAX_PREFETCH_PAGES) : null;
-  const shouldClampPageBySeen =
-    maxReachablePage != null && pageIdxRaw > maxReachablePage;
+  const maxPageByVisibleTotal = useMemo(() => {
+    if (totalCandidates == null) return null;
+    return clamp(
+      Math.max(0, Math.ceil(totalCandidates / 10) - 1),
+      0,
+      MAX_PREFETCH_PAGES
+    );
+  }, [totalCandidates]);
+  const maxAllowedPage = useMemo(() => {
+    if (maxReachablePage == null) return maxPageByVisibleTotal;
+    if (maxPageByVisibleTotal == null) return maxReachablePage;
+    return Math.min(maxReachablePage, maxPageByVisibleTotal);
+  }, [maxPageByVisibleTotal, maxReachablePage]);
+  const shouldClampPage =
+    maxAllowedPage != null && pageIdxRaw > maxAllowedPage;
   const isPageLoaded = pageIdx < pages.length && !isLoading;
   const shouldChargeForPage = items.length >= 10;
 
   useEffect(() => {
     if (!router.isReady) return;
     if (!runId) return;
-    if (maxReachablePage == null) return;
-    if (!shouldClampPageBySeen) return;
+    if (maxAllowedPage == null) return;
+    if (!shouldClampPage) return;
 
-    setPageInUrl(maxReachablePage, "replace");
+    setPageInUrl(maxAllowedPage, "replace");
   }, [
     router.isReady,
     runId,
-    maxReachablePage,
+    maxAllowedPage,
     setPageInUrl,
-    shouldClampPageBySeen,
+    shouldClampPage,
   ]);
 
   useEffect(() => {
     if (!ready || !runId || !userId) return;
     if (!isPageLoaded) return;
     if (!runPagesMeta) return;
-    if (shouldClampPageBySeen) return;
+    if (shouldClampPage) return;
 
     const targetSeen = pageIdx;
     const effectiveSeen = Math.max(seenPage, seenPageRef.current);
@@ -316,7 +346,7 @@ export default function ResultPage() {
     userId,
     isPageLoaded,
     runPagesMeta,
-    shouldClampPageBySeen,
+    shouldClampPage,
     pageIdx,
     seenPage,
     deductWithHistory,
@@ -384,7 +414,7 @@ export default function ResultPage() {
     if (!searchEnabled) return;
     if (!runId) return;
     if (!runPagesMeta) return;
-    if (shouldClampPageBySeen) return;
+    if (shouldClampPage) return;
     if (pageIdx <= 0) return;
     if (ensuringRef.current) return;
 
@@ -397,14 +427,88 @@ export default function ResultPage() {
     searchEnabled,
     runId,
     runPagesMeta,
-    shouldClampPageBySeen,
+    shouldClampPage,
     pageIdx,
     ensurePageLoaded,
   ]);
 
   useEffect(() => {
-    scrollResultToTop();
-  }, [pageIdx, scrollResultToTop]);
+    if (!resultScrollStorageKey) {
+      pendingResultScrollRestoreRef.current = null;
+      restoredResultScrollKeyRef.current = null;
+      resultScrollTopRef.current = 0;
+      return;
+    }
+
+    let savedTop = 0;
+    try {
+      const raw = window.sessionStorage.getItem(resultScrollStorageKey);
+      const parsed = raw == null ? 0 : Number(raw);
+      savedTop = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+    } catch {
+      savedTop = 0;
+    }
+
+    pendingResultScrollRestoreRef.current = {
+      key: resultScrollStorageKey,
+      top: savedTop,
+    };
+    restoredResultScrollKeyRef.current = null;
+  }, [resultScrollStorageKey]);
+
+  useEffect(() => {
+    const el = resultScrollRef.current;
+    if (!el) return;
+
+    const handleScroll = () => {
+      resultScrollTopRef.current = el.scrollTop;
+    };
+
+    resultScrollTopRef.current = el.scrollTop;
+    el.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      el.removeEventListener("scroll", handleScroll);
+    };
+  }, [resultScrollStorageKey]);
+
+  useEffect(() => {
+    if (!resultScrollStorageKey) return;
+
+    const persistScroll = () => {
+      try {
+        window.sessionStorage.setItem(
+          resultScrollStorageKey,
+          String(resultScrollTopRef.current)
+        );
+      } catch {}
+    };
+
+    window.addEventListener("pagehide", persistScroll);
+
+    return () => {
+      persistScroll();
+      window.removeEventListener("pagehide", persistScroll);
+    };
+  }, [resultScrollStorageKey]);
+
+  useEffect(() => {
+    const restoreTarget = pendingResultScrollRestoreRef.current;
+    const el = resultScrollRef.current;
+    if (!restoreTarget || !el) return;
+    if (restoreTarget.key !== resultScrollStorageKey) return;
+    if (restoredResultScrollKeyRef.current === resultScrollStorageKey) return;
+
+    const maxScrollTop = Math.max(0, el.scrollHeight - el.clientHeight);
+    const nextTop = Math.min(restoreTarget.top, maxScrollTop);
+
+    el.scrollTo({ top: nextTop, left: 0, behavior: "auto" });
+    resultScrollTopRef.current = nextTop;
+
+    if (!isLoading || maxScrollTop >= restoreTarget.top) {
+      restoredResultScrollKeyRef.current = resultScrollStorageKey;
+    }
+  }, [resultScrollStorageKey, isLoading, items.length, pageIdx]);
 
   const onSearchFromConversation = useCallback(
     async (messageId: number): Promise<string | null> => {

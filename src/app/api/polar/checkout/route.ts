@@ -7,6 +7,7 @@ import {
   POLAR_SUCCESS_URL,
   getPolarProductId,
 } from "@/lib/polar/config";
+import { getActiveSubscriptionOrFilter } from "@/lib/billing/common";
 
 export const runtime = "nodejs";
 
@@ -80,7 +81,7 @@ export async function POST(req: Request) {
     .from("payments")
     .select("ls_subscription_id")
     .eq("user_id", userId)
-    .gte("current_period_end", nowIso)
+    .or(getActiveSubscriptionOrFilter(nowIso))
     .not("ls_subscription_id", "is", null)
     .limit(1)
     .maybeSingle();

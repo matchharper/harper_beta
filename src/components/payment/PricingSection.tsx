@@ -34,12 +34,17 @@ export default function PricingSection({
   currentBilling,
   currentLabel,
   changeLabel,
+  prices,
 }: {
   onClick: (plan: string, billing: Billing) => void;
   currentPlanKey?: PlanKey | null;
   currentBilling?: Billing | null;
   currentLabel?: string;
   changeLabel?: string;
+  prices?: {
+    pro: { monthly: number | null; yearly: number | null };
+    max: { monthly: number | null; yearly: number | null };
+  } | null;
 }) {
   const [billing, setBilling] = useState<Billing>("monthly");
   const { m, locale } = useMessages();
@@ -50,8 +55,16 @@ export default function PricingSection({
   const isEnglish = locale === "en";
 
   const plans = useMemo(() => {
-    const proMonthlyKRW = 149000;
-    const maxMonthlyKRW = 279000;
+    const proMonthlyKRW = prices?.pro.monthly ?? 149000;
+    const maxMonthlyKRW = prices?.max.monthly ?? 279000;
+    const proYearlyKRW =
+      prices?.pro.yearly != null
+        ? Math.round(prices.pro.yearly / 12)
+        : calcDiscountedMonthly(proMonthlyKRW, DISCOUNT);
+    const maxYearlyKRW =
+      prices?.max.yearly != null
+        ? Math.round(prices.max.yearly / 12)
+        : calcDiscountedMonthly(maxMonthlyKRW, DISCOUNT);
     const proMonthlyUSD = 100;
     const maxMonthlyUSD = 180;
     const proYearlyUSD = 80;
@@ -64,7 +77,7 @@ export default function PricingSection({
           : proMonthlyKRW
         : isEnglish
           ? proYearlyUSD
-          : calcDiscountedMonthly(proMonthlyKRW, DISCOUNT);
+          : proYearlyKRW;
 
     const maxShown =
       billing === "monthly"
@@ -73,7 +86,7 @@ export default function PricingSection({
           : maxMonthlyKRW
         : isEnglish
           ? maxYearlyUSD
-          : calcDiscountedMonthly(maxMonthlyKRW, DISCOUNT);
+          : maxYearlyKRW;
 
     return [
       {
@@ -110,7 +123,7 @@ export default function PricingSection({
         features: pricing.plans.enterprise.features,
       },
     ];
-  }, [billing, isEnglish, pricing]);
+  }, [billing, isEnglish, pricing, prices]);
 
   const hasCurrent = Boolean(currentPlanKey && currentBilling);
   const currentButtonLabel =
@@ -261,8 +274,8 @@ function PlanCard({
   return (
     <div
       className={[
-        "relative w-full rounded-xl md:rounded-xl overflow-hidden",
-        "bg-white/[0.06] border border-white/10",
+        "relative w-full rounded-xl md:rounded-3xl overflow-hidden shadow-md",
+        "bg-white/[0.06] border border-white/5",
         "px-5 md:px-7 pt-4 md:pt-6 pb-4 md:pb-20",
         isPrimary ? "bg-white/[0.08]" : "",
       ].join(" ")}

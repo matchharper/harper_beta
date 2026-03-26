@@ -62,9 +62,6 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
         published_at,
         citation_num
       ),
-      github_repo_contribution (
-        *
-      ),
       extra_experience(
         *
       ),
@@ -90,6 +87,7 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
 
   let scholarProfile: ScholarProfileRow | null = null;
   let scholarPapers: ScholarPaperRow[] = [];
+  let githubRepoContributions: GithubRepoContributionRow[] = [];
 
   const { data: scholarProfileRow, error: scholarProfileError } = await supabase
     .from("scholar_profile")
@@ -130,6 +128,33 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
     }
   }
 
+  const { data: githubProfiles, error: githubProfileError } = await supabase
+    .from("github_profile")
+    .select("id")
+    .eq("candid_id", id);
+
+  if (githubProfileError) throw githubProfileError;
+
+  const githubProfileIds = Array.from(
+    new Set(
+      (githubProfiles ?? [])
+        .map((row) => String((row as any)?.id ?? "").trim())
+        .filter(Boolean)
+    )
+  );
+
+  if (githubProfileIds.length > 0) {
+    const { data: githubRepoRows, error: githubRepoError } = await supabase
+      .from("github_repo_contribution")
+      .select("*")
+      .in("github_profile_id", githubProfileIds);
+
+    if (githubRepoError) throw githubRepoError;
+
+    githubRepoContributions =
+      (githubRepoRows as GithubRepoContributionRow[] | null) ?? [];
+  }
+
   if (userId) {
     const candidateMarkById = await fetchCandidateMarkMap(userId, [id]);
     const { data: autoRow, error: autoError } = await supabase
@@ -143,6 +168,7 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
     return {
       ...data,
       candidate_mark: candidateMarkById.get(id) ?? null,
+      github_repo_contribution: githubRepoContributions,
       scholar_profile: scholarProfile,
       scholar_papers: scholarPapers,
       isAutomationResult: autoRow?.length > 0,
@@ -151,6 +177,7 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
 
   return {
     ...(data as CandidateDetail),
+    github_repo_contribution: githubRepoContributions,
     scholar_profile: scholarProfile,
     scholar_papers: scholarPapers,
   };
