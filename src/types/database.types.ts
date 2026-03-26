@@ -1488,7 +1488,12 @@ export type Database = {
       }
       harper_waitlist_company: {
         Row: {
+          access_granted_at: string | null
           additional: string | null
+          approval_email_sent_at: string | null
+          approval_token: string | null
+          approved_at: string | null
+          approved_by: string | null
           company: string | null
           company_link: string | null
           created_at: string
@@ -1501,9 +1506,16 @@ export type Database = {
           needs: string[] | null
           role: string | null
           size: string | null
+          status: string
+          user_id: string | null
         }
         Insert: {
+          access_granted_at?: string | null
           additional?: string | null
+          approval_email_sent_at?: string | null
+          approval_token?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
           company?: string | null
           company_link?: string | null
           created_at?: string
@@ -1516,9 +1528,16 @@ export type Database = {
           needs?: string[] | null
           role?: string | null
           size?: string | null
+          status?: string
+          user_id?: string | null
         }
         Update: {
+          access_granted_at?: string | null
           additional?: string | null
+          approval_email_sent_at?: string | null
+          approval_token?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
           company?: string | null
           company_link?: string | null
           created_at?: string
@@ -1531,8 +1550,18 @@ export type Database = {
           needs?: string[] | null
           role?: string | null
           size?: string | null
+          status?: string
+          user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "harper_waitlist_company_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       homepage: {
         Row: {

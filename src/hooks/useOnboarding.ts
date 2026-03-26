@@ -8,12 +8,14 @@ export const useOnboarding = ({
   beforeNext,
   onComplete,
   enableWheelNavigation = true,
+  allowTextareaEnterSubmit = false,
 }: {
   save: () => void;
   totalSteps: number;
   beforeNext?: (step: number) => boolean;
   onComplete?: () => void;
   enableWheelNavigation?: boolean;
+  allowTextareaEnterSubmit?: boolean;
 }) => {
   const [step, setStep] = useState(0);
   const [submitLoading, setSubmitLoading] = useState(false);
@@ -53,11 +55,14 @@ export const useOnboarding = ({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.isComposing) return;
       if (e.key !== "Enter") return;
       if (lock.current) return;
 
       const target = e.target as HTMLElement;
-      if (target.tagName === "TEXTAREA") return;
+      if (target.tagName === "TEXTAREA") {
+        if (!allowTextareaEnterSubmit || e.shiftKey) return;
+      }
 
       e.preventDefault();
 
@@ -71,7 +76,7 @@ export const useOnboarding = ({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleNext]);
+  }, [allowTextareaEnterSubmit, handleNext]);
 
   useEffect(() => {
     if (!enableWheelNavigation) return;

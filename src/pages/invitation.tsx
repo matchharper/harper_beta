@@ -7,11 +7,15 @@ import GradientBackground from "@/components/landing/GradientBackground";
 import Header from "@/components/landing/Header";
 import { handleContactUs } from "@/utils/info";
 import { useRouter } from "next/navigation";
+import { showToast } from "@/components/toast/toast";
 
 import { supabase } from "@/lib/supabase";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useCountryMessages } from "@/i18n/useCountryMessage";
+import RequestAccessModal, {
+  type RequestAccessValues,
+} from "@/components/Modal/RequestAccessModal";
 
 const isMissingDisplayName = (name?: string | null) => {
   const normalized = (name ?? "").trim();
@@ -38,6 +42,7 @@ export default function LoginSuccess() {
   const [invalidMessage, setInvalidMessage] = useState("");
   const [isShake, setIsShake] = useState(false);
   const [landingId, setLandingId] = useState("");
+  const [isRequestAccessOpen, setIsRequestAccessOpen] = useState(false);
   const { m, countryLang } = useCountryMessages();
 
   const interactiveRef = useRef<HTMLDivElement>(null);
@@ -272,6 +277,64 @@ export default function LoginSuccess() {
     }
   };
 
+  const submitRequestAccess = async (values: RequestAccessValues) => {
+    const normalizedValues = {
+      name: values.name.trim(),
+      company: values.company.trim(),
+      role: values.role.trim(),
+      hiringNeed: values.hiringNeed.trim(),
+    };
+
+    if (
+      !normalizedValues.name ||
+      !normalizedValues.company ||
+      !normalizedValues.role ||
+      !normalizedValues.hiringNeed
+    ) {
+      showToast({
+        message: m.invitation.requestAccess.errors.invalidForm,
+        variant: "white",
+      });
+      return;
+    }
+
+    const accessToken = await getAccessToken();
+    if (!accessToken) {
+      showToast({
+        message: m.invitation.requestAccess.errors.missingSession,
+        variant: "white",
+      });
+      return;
+    }
+
+    const response = await fetch("/api/request-access/submit", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        ...normalizedValues,
+        isMobile,
+      }),
+    });
+
+    if (!response.ok) {
+      showToast({
+        message: m.invitation.requestAccess.errors.submitFailed,
+        variant: "white",
+      });
+      return;
+    }
+
+    addLog("submit_request_access");
+    setIsRequestAccessOpen(false);
+    showToast({
+      message: m.invitation.requestAccess.submitted,
+      variant: "white",
+    });
+  };
+
   const checkCode = async () => {
     const normalizedCode = code.trim();
 
@@ -316,6 +379,18 @@ export default function LoginSuccess() {
     <div className="relative min-h-screen bg-black font-inter text-white flex items-center justify-center px-4 w-full h-full">
       <Header page="company" />
       <GradientBackground interactiveRef={interactiveRef} />
+      <RequestAccessModal
+        open={isRequestAccessOpen}
+        onClose={() => setIsRequestAccessOpen(false)}
+        onSubmit={submitRequestAccess}
+        initialValues={{
+          name:
+            isMissingDisplayName(companyUser?.name) ? "" : companyUser?.name ?? "",
+          company: companyUser?.company ?? "",
+          role: companyUser?.role ?? "",
+        }}
+        copy={m.invitation.requestAccess}
+      />
       <div className="z-20 flex flex-col items-center text-center max-w-xl w-full space-y-10">
         <div className="w-9 h-9 rounded-full">
           <Image
@@ -447,7 +522,7 @@ export default function LoginSuccess() {
             <button
               onClick={() => {
                 addLog("click_invitation_waitlist");
-                router.push("/join");
+                setIsRequestAccessOpen(true);
               }}
               className="w-full rounded-full bg-neutral-50 text-black py-3.5 text-sm md:text-base font-medium hover:bg-neutral-200 active:scale-95 transition-all duration-200"
             >

@@ -19,8 +19,30 @@ export const ko = {
     nameSubmit: "저장하기",
     submit: "입력하기",
     divider: "또는",
-    waitlist: "신청하기",
+    waitlist: "Request access",
     contact: "문의하기",
+    requestAccess: {
+      title: "Request access",
+      description:
+        "간단히 알려주시면 검토 후 접근 링크를 이메일로 보내드리겠습니다.",
+      submit: "요청 보내기",
+      submitted: "요청이 접수되었습니다. 승인되면 이메일로 링크를 보내드리겠습니다.",
+      nameLabel: "이름",
+      namePlaceholder: "이름을 입력해주세요",
+      companyLabel: "회사명",
+      companyPlaceholder: "회사명을 입력해주세요",
+      roleLabel: "역할",
+      rolePlaceholder: "예: Founder, Hiring Manager",
+      hiringNeedLabel:
+        "가장 중요하게 채용이 필요한 포지션(직무)과 대략적인 인원수",
+      hiringNeedPlaceholder:
+        "예: Backend Engineer 2명, Founding Recruiter 1명",
+      errors: {
+        missingSession: "로그인 상태를 확인할 수 없습니다. 다시 로그인해주세요.",
+        invalidForm: "모든 항목을 입력해주세요.",
+        submitFailed: "요청 접수에 실패했습니다. 다시 시도해주세요.",
+      },
+    },
     errors: {
       emptyCode: "초대 코드를 입력해주세요.",
       invalidCode: "초대 코드가 일치하지 않습니다.",
