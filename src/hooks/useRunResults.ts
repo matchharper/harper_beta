@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import type { CandidateMarkStatus } from "@/lib/candidateMark";
 import { SearchSource } from "@/lib/searchSource";
 import { ScholarProfilePreview } from "@/lib/scholarPreview";
 import {
@@ -13,8 +14,13 @@ import {
 } from "@/lib/searchEvidence";
 import { CandidateTypeWithConnection } from "./useSearchChatCandidates";
 import { logger } from "@/utils/logger";
-import { fetchCandidateMarkMap } from "./useCandidateMark";
+import {
+  fetchCandidateIdsByMarkStatuses,
+  fetchCandidateMarkMap,
+} from "./useCandidateMark";
 import { fetchShortlistMemoMap } from "./useShortlistMemo";
+
+const RUN_RESULTS_PAGE_SIZE = 10;
 
 async function fetchCandidatesByIds(
   ids: string[],
@@ -210,8 +216,14 @@ async function fetchRunPage(params: {
   runId: string;
   pageIdx: number; // this is now the "virtual page" inside a single row
   userId: string;
+  excludedMarkStatuses?: CandidateMarkStatus[];
 }) {
-  const { runId, pageIdx } = params;
+  const {
+    runId,
+    pageIdx,
+    userId,
+    excludedMarkStatuses = [],
+  } = params;
 
   // NOTE: always read the latest single row for this runId
   const { data, error } = await supabase
@@ -227,36 +239,55 @@ async function fetchRunPage(params: {
   const all = filterPositiveScoreCandidates(
     (row?.candidate_ids ?? []) as RunPageCandidate[]
   );
+  const excludedCandidateIds =
+    excludedMarkStatuses.length > 0
+      ? await fetchCandidateIdsByMarkStatuses(userId, excludedMarkStatuses)
+      : new Set<string>();
+  const visibleCandidates =
+    excludedCandidateIds.size > 0
+      ? all.filter((candidate) => !excludedCandidateIds.has(String(candidate.id)))
+      : all;
 
-  const start = pageIdx * 10;
-  const end = start + 10;
+  const start = pageIdx * RUN_RESULTS_PAGE_SIZE;
+  const end = start + RUN_RESULTS_PAGE_SIZE;
 
-  const ids = all
+  const ids = visibleCandidates
     .slice(start, end)
     .map((r) => r.id)
     .filter(Boolean) as string[];
-  const evidenceByCandidateId = buildEvidenceMap(all);
-  const rankByCandidateId = buildRankMap(all);
+  const evidenceByCandidateId = buildEvidenceMap(visibleCandidates);
+  const rankByCandidateId = buildRankMap(visibleCandidates);
 
-  return { ids, total: all.length, evidenceByCandidateId, rankByCandidateId };
+  return {
+    ids,
+    total: visibleCandidates.length,
+    evidenceByCandidateId,
+    rankByCandidateId,
+  };
 }
 
 export function useRunPagesInfinite({
   userId,
   runId,
   sourceType = "linkedin",
+  excludedMarkStatuses = [],
   enabled = true,
 }: {
   userId?: string;
   runId?: string;
   sourceType?: SearchSource;
+  excludedMarkStatuses?: CandidateMarkStatus[];
   enabled?: boolean;
 }) {
   const queryClient = useQueryClient();
+  const excludedMarkStatusesKey = useMemo(
+    () => (excludedMarkStatuses.length > 0 ? excludedMarkStatuses.join("|") : "all"),
+    [excludedMarkStatuses]
+  );
 
   const qk = useMemo(
-    () => ["runPages", runId, userId, sourceType],
-    [runId, sourceType, userId]
+    () => ["runPages", runId, userId, sourceType, excludedMarkStatusesKey],
+    [excludedMarkStatusesKey, runId, sourceType, userId]
   );
 
   // 1) runs_pages realtime 구독
@@ -298,6 +329,7 @@ export function useRunPagesInfinite({
           runId: runId!,
           pageIdx,
           userId: userId!,
+          excludedMarkStatuses,
         });
 
       // ids -> 후보자 fetch
@@ -316,6 +348,10 @@ export function useRunPagesInfinite({
     },
     getNextPageParam: (lastPage) => {
       if (!lastPage?.ids?.length) return undefined;
+      const nextStart = (lastPage.pageIdx + 1) * RUN_RESULTS_PAGE_SIZE;
+      if (typeof lastPage.total === "number" && nextStart >= lastPage.total) {
+        return undefined;
+      }
       return lastPage.pageIdx + 1;
     },
     refetchOnMount: false,

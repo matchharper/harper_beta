@@ -9,6 +9,7 @@ type CandidateMemoDockProps = {
   initialMemo?: string | null;
   initialMarkStatus?: CandidateMarkStatus | null;
   showMarkButton?: boolean;
+  onMarkChange?: (status: CandidateMarkStatus | null) => void;
   rows?: number;
   className?: string;
   editorClassName?: string;
@@ -22,6 +23,7 @@ export default function CandidateMemoDock({
   initialMemo,
   initialMarkStatus = null,
   showMarkButton = true,
+  onMarkChange,
   rows = 3,
   className = "",
   editorClassName = "",
@@ -39,6 +41,7 @@ export default function CandidateMemoDock({
             candidId={candidId}
             initialStatus={initialMarkStatus}
             align="start"
+            onChange={onMarkChange}
           />
         </div>
       ) : null}

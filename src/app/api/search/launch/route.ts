@@ -1,4 +1,5 @@
 import { getRequestUser, supabaseServer } from "@/lib/supabaseServer";
+import { getActiveSubscriptionOrFilter } from "@/lib/billing/common";
 import {
   ACTIVE_PARALLEL_SEARCH_STATUSES,
   getMaxParallelSearchCount,
@@ -98,7 +99,7 @@ async function loadActivePlanKey(userId: string) {
       `
     )
     .eq("user_id", userId)
-    .gte("current_period_end", nowIso)
+    .or(getActiveSubscriptionOrFilter(nowIso))
     .order("current_period_end", { ascending: false, nullsFirst: false })
     .limit(1)
     .maybeSingle();

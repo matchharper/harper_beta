@@ -1,9 +1,30 @@
 // stores/useSettingStore.ts
+import {
+  CANDIDATE_MARK_STATUS_VALUES,
+  type CandidateMarkStatus,
+} from "@/lib/candidateMark";
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 
 export type ViewType = "card" | "table";
 export type CandidateSortMode = "best_matched" | "custom";
+export type CandidateMarkFilter = CandidateMarkStatus[];
+export const SEARCH_CANDIDATE_MARK_FILTER_KEY = "candidate-mark-filter:search";
+export const MYLIST_CANDIDATE_MARK_FILTER_KEY = "candidate-mark-filter:mylist";
+
+export function getCandidateMarkFilterStorageKey(isMyList: boolean) {
+  return isMyList
+    ? MYLIST_CANDIDATE_MARK_FILTER_KEY
+    : SEARCH_CANDIDATE_MARK_FILTER_KEY;
+}
+
+export function normalizeCandidateMarkFilter(
+  statuses: CandidateMarkFilter = []
+): CandidateMarkFilter {
+  return CANDIDATE_MARK_STATUS_VALUES.filter((status) =>
+    statuses.includes(status)
+  );
+}
 
 type SettingState = {
   viewType: ViewType;
@@ -14,11 +35,13 @@ type SettingState = {
   setCandidateSortMode: (key: string, mode: CandidateSortMode) => void;
   candidateSortOrderByKey: Record<string, string[]>;
   setCandidateSortOrder: (key: string, order: string[]) => void;
+  candidateMarkFilterByKey: Record<string, CandidateMarkFilter>;
+  setCandidateMarkFilter: (key: string, statuses: CandidateMarkFilter) => void;
 };
 
 export const useSettingStore = create<SettingState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       viewType: "card",
       setViewType: (v) => set({ viewType: v }),
       columnOrderByKey: {},
@@ -45,6 +68,14 @@ export const useSettingStore = create<SettingState>()(
             [key]: order,
           },
         })),
+      candidateMarkFilterByKey: {},
+      setCandidateMarkFilter: (key, statuses) =>
+        set((state) => ({
+          candidateMarkFilterByKey: {
+            ...state.candidateMarkFilterByKey,
+            [key]: normalizeCandidateMarkFilter(statuses),
+          },
+        })),
     }),
     {
       name: "settings",
@@ -54,6 +85,7 @@ export const useSettingStore = create<SettingState>()(
         columnOrderByKey: s.columnOrderByKey,
         candidateSortModeByKey: s.candidateSortModeByKey,
         candidateSortOrderByKey: s.candidateSortOrderByKey,
+        candidateMarkFilterByKey: s.candidateMarkFilterByKey,
       }),
     }
   )

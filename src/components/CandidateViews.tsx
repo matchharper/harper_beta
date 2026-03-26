@@ -1,7 +1,12 @@
 import { CandidateTypeWithConnection } from "@/hooks/useSearchChatCandidates";
+import {
+  CANDIDATE_MARK_OPTIONS,
+  type CandidateMarkStatus,
+  isCandidateMarkStatus,
+} from "@/lib/candidateMark";
 import { SearchSource, isScholarSearchSource } from "@/lib/searchSource";
 import { SharedFolderViewerIdentity } from "@/lib/sharedFolder";
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import CandidateRow from "./CandidatesListTable";
 import CandidateCard from "./CandidatesList";
 import {
@@ -17,12 +22,23 @@ import {
   getOrderedCandidateTableColumnIds,
   isCriteriaColumnId,
 } from "./candidateTableColumns";
-import { useSettingStore } from "@/store/useSettingStore";
+import {
+  getCandidateMarkFilterStorageKey,
+  normalizeCandidateMarkFilter,
+  useSettingStore,
+} from "@/store/useSettingStore";
+import {
+  ActionDropdown,
+  ActionDropdownItem,
+  ActionDropdownSeparator,
+} from "./ui/action-dropdown";
+import { DropdownMenuCheckboxItem } from "./ui/dropdown-menu";
 import { Tooltips } from "./ui/tooltip";
 import {
   ChevronLeft,
   ChevronRight,
   Columns2,
+  Filter,
   GripVertical,
   Table,
 } from "lucide-react";
@@ -38,6 +54,24 @@ const SCORE_WEIGHT: Record<string, number> = {
   모호: 2,
   불만족: 1,
 };
+
+const FILTER_LABEL_BY_STATUS = {
+  not_fit: "부적합 제외",
+  hold: "보류 제외",
+  fit: "적합 제외",
+} satisfies Record<CandidateMarkStatus, string>;
+
+function getBaseCandidateMarkStatus(
+  candidate: CandidateTypeWithConnection
+): CandidateMarkStatus | null {
+  const status = candidate?.candidate_mark?.status;
+  return isCandidateMarkStatus(status) ? status : null;
+}
+
+function formatExcludedMarkFilterSummary(statuses: CandidateMarkStatus[]) {
+  if (statuses.length === 0) return "전체보기";
+  return statuses.map((status) => FILTER_LABEL_BY_STATUS[status]).join(", ");
+}
 
 function parseCandidateScores(candidate: CandidateTypeWithConnection) {
   const rawText = candidate.synthesized_summary?.[0]?.text;
@@ -68,6 +102,7 @@ const CandidateViews = ({
   buildProfileHref,
   showBookmarkAction,
   showMarkAction,
+  showMarkFilter = false,
   sharedFolderContext,
 }: {
   items: any[];
@@ -80,6 +115,7 @@ const CandidateViews = ({
   buildProfileHref?: (candidate: CandidateTypeWithConnection) => string;
   showBookmarkAction?: boolean;
   showMarkAction?: boolean;
+  showMarkFilter?: boolean;
   sharedFolderContext?: {
     token: string;
     viewer: SharedFolderViewerIdentity | null;
@@ -92,12 +128,22 @@ const CandidateViews = ({
     setColumnOrder,
     candidateSortModeByKey,
     candidateSortOrderByKey,
+    candidateMarkFilterByKey,
+    setCandidateMarkFilter,
   } = useSettingStore();
   const [isFolded, setIsFolded] = useState(true);
   const [draggingColumnId, setDraggingColumnId] =
     useState<CandidateTableColumnId | null>(null);
   const [dragOverColumnId, setDragOverColumnId] =
     useState<CandidateTableColumnId | null>(null);
+  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
+  const [draftExcludedStatuses, setDraftExcludedStatuses] = useState<
+    CandidateMarkStatus[]
+  >([]);
+  const [
+    markStatusOverridesByCandidateId,
+    setMarkStatusOverridesByCandidateId,
+  ] = useState<Record<string, CandidateMarkStatus | null>>({});
   const transparentDragImageRef = useRef<HTMLCanvasElement | null>(null);
   const logEvent = useLogEvent();
 
@@ -120,6 +166,7 @@ const CandidateViews = ({
     showBookmarkAction ?? (Boolean(userId) && !hasSharedFolderNotes);
   const shouldShowMarkAction =
     showMarkAction ?? (Boolean(userId) && !hasSharedFolderNotes);
+  const canUseMarkFilter = showMarkFilter && !hasSharedFolderNotes && !isMyList;
   const canReorderColumns = isMyList;
 
   const contextKey = useMemo(
@@ -152,6 +199,10 @@ const CandidateViews = ({
       ].join(":"),
     [criteriaList, isMyList, sourceType]
   );
+  const filterContextKey = useMemo(
+    () => getCandidateMarkFilterStorageKey(isMyList),
+    [isMyList]
+  );
   const defaultSortOrder = useMemo(
     () => criteriaList.map((_, idx) => `criteria:${idx}`),
     [criteriaList]
@@ -164,6 +215,26 @@ const CandidateViews = ({
     const missing = defaultSortOrder.filter((id) => !validStored.includes(id));
     return [...validStored, ...missing];
   }, [candidateSortOrderByKey, defaultSortOrder, sortContextKey]);
+  const appliedExcludedStatuses = useMemo(
+    () =>
+      normalizeCandidateMarkFilter(
+        candidateMarkFilterByKey[filterContextKey] ?? []
+      ),
+    [candidateMarkFilterByKey, filterContextKey]
+  );
+  const appliedFilterSummary = useMemo(
+    () => formatExcludedMarkFilterSummary(appliedExcludedStatuses),
+    [appliedExcludedStatuses]
+  );
+  const hasPendingFilterChanges = useMemo(
+    () => !arrayEquals(draftExcludedStatuses, appliedExcludedStatuses),
+    [appliedExcludedStatuses, draftExcludedStatuses]
+  );
+
+  useEffect(() => {
+    if (!isFilterMenuOpen) return;
+    setDraftExcludedStatuses(appliedExcludedStatuses);
+  }, [appliedExcludedStatuses, isFilterMenuOpen]);
 
   const dynamicColumns = useMemo<CandidateTableColumnDef[]>(() => {
     return createCandidateTableColumns({
@@ -213,8 +284,8 @@ const CandidateViews = ({
       profileWidth
     );
   }, [orderedColumnIds, columnById, profileWidth]);
-  const sharedNotesLayout = useMemo<CandidateTableDetachedColumnLayout | null>(
-    () => {
+  const sharedNotesLayout =
+    useMemo<CandidateTableDetachedColumnLayout | null>(() => {
       if (!hasSharedFolderNotes) return null;
 
       return getCandidateTableDetachedColumnLayout(
@@ -223,14 +294,25 @@ const CandidateViews = ({
         columnById,
         profileWidth
       );
-    },
-    [columnById, hasSharedFolderNotes, orderedColumnIds, profileWidth]
-  );
+    }, [columnById, hasSharedFolderNotes, orderedColumnIds, profileWidth]);
 
   const lastCriteriaColumnId = useMemo(() => {
     const criteriaIds = orderedColumnIds.filter((id) => isCriteriaColumnId(id));
     return criteriaIds.at(-1) ?? null;
   }, [orderedColumnIds]);
+  const candidateBaseMarkStatusById = useMemo(() => {
+    return items.reduce<Record<string, CandidateMarkStatus | null>>(
+      (acc, item) => {
+        const candidateId = String(item?.id ?? "");
+        if (!candidateId) return acc;
+        acc[candidateId] = getBaseCandidateMarkStatus(
+          item as CandidateTypeWithConnection
+        );
+        return acc;
+      },
+      {}
+    );
+  }, [items]);
   const sortedItems = useMemo(() => {
     if (savedSortMode !== "custom" || savedSortOrder.length === 0) {
       return items;
@@ -253,6 +335,78 @@ const CandidateViews = ({
       return 0;
     });
   }, [items, savedSortMode, savedSortOrder]);
+  const filteredItems = useMemo(() => {
+    if (!canUseMarkFilter || appliedExcludedStatuses.length === 0) {
+      return sortedItems;
+    }
+
+    return sortedItems.filter((candidate) => {
+      const candidateId = String(candidate?.id ?? "");
+      const overrideStatus = markStatusOverridesByCandidateId[candidateId];
+      const effectiveStatus =
+        overrideStatus === undefined
+          ? getBaseCandidateMarkStatus(candidate as CandidateTypeWithConnection)
+          : overrideStatus;
+
+      return (
+        effectiveStatus == null ||
+        !appliedExcludedStatuses.includes(effectiveStatus)
+      );
+    });
+  }, [
+    appliedExcludedStatuses,
+    canUseMarkFilter,
+    markStatusOverridesByCandidateId,
+    sortedItems,
+  ]);
+
+  const handleFilterMenuOpenChange = (open: boolean) => {
+    if (open) {
+      setDraftExcludedStatuses(appliedExcludedStatuses);
+    }
+    setIsFilterMenuOpen(open);
+  };
+
+  const toggleDraftExcludedStatus = (status: CandidateMarkStatus) => {
+    setDraftExcludedStatuses((current) => {
+      if (current.includes(status)) {
+        return current.filter((value) => value !== status);
+      }
+      return normalizeCandidateMarkFilter([...current, status]);
+    });
+  };
+
+  const applyExcludedMarkFilter = () => {
+    setCandidateMarkFilter(filterContextKey, draftExcludedStatuses);
+    setIsFilterMenuOpen(false);
+  };
+
+  const resetExcludedMarkFilter = () => {
+    setCandidateMarkFilter(filterContextKey, []);
+    setDraftExcludedStatuses([]);
+    setIsFilterMenuOpen(false);
+  };
+
+  const handleCandidateMarkChange = (
+    candidateId: string,
+    status: CandidateMarkStatus | null
+  ) => {
+    const baseStatus = candidateBaseMarkStatusById[candidateId] ?? null;
+
+    setMarkStatusOverridesByCandidateId((current) => {
+      if (status === baseStatus) {
+        if (!(candidateId in current)) return current;
+        const next = { ...current };
+        delete next[candidateId];
+        return next;
+      }
+
+      return {
+        ...current,
+        [candidateId]: status,
+      };
+    });
+  };
 
   const onDragStart = (
     e: React.DragEvent<HTMLDivElement>,
@@ -322,6 +476,83 @@ const CandidateViews = ({
         <div className="w-full flex flex-row items-center justify-between mt-2 px-4">
           <div></div>
           <div className="flex flex-row items-center justify-start gap-2">
+            {canUseMarkFilter ? (
+              <ActionDropdown
+                open={isFilterMenuOpen}
+                onOpenChange={handleFilterMenuOpenChange}
+                align="end"
+                sideOffset={10}
+                contentClassName="w-[240px] border-white/10 bg-[#101217] text-white shadow-2xl"
+                modal={false}
+                trigger={
+                  <button
+                    type="button"
+                    className="inline-flex h-8 items-center gap-2 rounded-lg px-3 text-sm text-white/80 transition-colors duration-200 hover:border-white/15 hover:bg-white/5 hover:text-white"
+                  >
+                    <Filter className="h-3.5 w-3.5" strokeWidth={1.8} />
+                    <span className="font-medium">Filter:</span>
+                    <span className="max-w-[180px] truncate text-white/55">
+                      {appliedFilterSummary}
+                    </span>
+                  </button>
+                }
+              >
+                <div className="px-2 py-2 text-xs font-medium text-white/50">
+                  선택한 태그가 있는 후보를 결과에서 제외합니다.
+                </div>
+                <ActionDropdownItem
+                  keepOpen
+                  onSelect={() => {
+                    setDraftExcludedStatuses([]);
+                  }}
+                  className="text-white/85"
+                >
+                  <span>전체보기</span>
+                  {draftExcludedStatuses.length === 0 ? (
+                    <span className="ml-auto text-[11px] text-accenta1">
+                      선택됨
+                    </span>
+                  ) : null}
+                </ActionDropdownItem>
+                <ActionDropdownSeparator />
+                {CANDIDATE_MARK_OPTIONS.map((option) => (
+                  <DropdownMenuCheckboxItem
+                    key={option.value}
+                    checked={draftExcludedStatuses.includes(option.value)}
+                    onSelect={(event) => {
+                      event.preventDefault();
+                    }}
+                    onCheckedChange={() => {
+                      toggleDraftExcludedStatus(option.value);
+                    }}
+                    className="cursor-pointer rounded-[10px] py-2 text-white/85 focus:bg-white/10 focus:text-white"
+                  >
+                    {FILTER_LABEL_BY_STATUS[option.value]}
+                  </DropdownMenuCheckboxItem>
+                ))}
+                <ActionDropdownSeparator />
+                <div className="flex items-center justify-end gap-2 px-1 py-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDraftExcludedStatuses(appliedExcludedStatuses);
+                      setIsFilterMenuOpen(false);
+                    }}
+                    className="inline-flex h-8 items-center justify-center rounded-md px-3 text-xs text-white/60 transition-colors duration-200 hover:bg-white/5 hover:text-white"
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    onClick={applyExcludedMarkFilter}
+                    disabled={!hasPendingFilterChanges}
+                    className="inline-flex h-8 items-center justify-center rounded-md bg-accenta1 px-3 text-xs font-medium text-black transition duration-200 hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    적용
+                  </button>
+                </div>
+              </ActionDropdown>
+            ) : null}
             <div className="relative inline-flex rounded-lg bg-black/10 border border-white/5">
               <span
                 aria-hidden="true"
@@ -354,7 +585,24 @@ const CandidateViews = ({
         </div>
       )}
 
-      {viewType === "table" && sortedItems.length > 0 && (
+      {sortedItems.length > 0 && filteredItems.length === 0 && (
+        <div className="mx-auto mt-8 flex w-full max-w-[720px] flex-col items-center justify-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-6 py-10 text-center">
+          <div className="text-sm text-white/75">
+            현재 필터 조건에 맞는 후보가 없습니다.
+          </div>
+          {canUseMarkFilter && appliedExcludedStatuses.length > 0 ? (
+            <button
+              type="button"
+              onClick={resetExcludedMarkFilter}
+              className="inline-flex h-9 items-center justify-center rounded-lg border border-white/10 bg-white/5 px-4 text-sm text-white/80 transition-colors duration-200 hover:bg-white/10 hover:text-white"
+            >
+              전체보기로 되돌리기
+            </button>
+          ) : null}
+        </div>
+      )}
+
+      {viewType === "table" && filteredItems.length > 0 && (
         <div className="w-full mt-2 h-full flex">
           <div
             className="w-full overflow-x-auto pb-26
@@ -452,7 +700,7 @@ const CandidateViews = ({
               </div>
 
               <div className="pb-48">
-                {sortedItems.map((c: any, idx: number) => (
+                {filteredItems.map((c: any, idx: number) => (
                   <CandidateRow
                     isMyList={isMyList}
                     key={c?.id}
@@ -466,6 +714,9 @@ const CandidateViews = ({
                     buildProfileHref={buildProfileHref}
                     showBookmarkAction={shouldShowBookmarkAction}
                     showMarkAction={shouldShowMarkAction}
+                    onMarkChange={(status) => {
+                      handleCandidateMarkChange(String(c?.id ?? ""), status);
+                    }}
                     sharedNotesLayout={sharedNotesLayout}
                     sharedFolderContext={sharedFolderContext ?? null}
                   />
@@ -476,10 +727,10 @@ const CandidateViews = ({
         </div>
       )}
 
-      {viewType === "card" && sortedItems.length > 0 && (
+      {viewType === "card" && filteredItems.length > 0 && (
         <div className="w-full flex flex-col space-y-2 mt-4 items-center justify-center">
           <div className="space-y-4 w-full items-center justify-center flex flex-col pb-48">
-            {sortedItems.map((c: any) => (
+            {filteredItems.map((c: any) => (
               <CandidateCard
                 isMyList={isMyList}
                 key={c?.id}
@@ -491,6 +742,9 @@ const CandidateViews = ({
                 buildProfileHref={buildProfileHref}
                 showBookmarkAction={shouldShowBookmarkAction}
                 showMarkAction={shouldShowMarkAction}
+                onMarkChange={(status) => {
+                  handleCandidateMarkChange(String(c?.id ?? ""), status);
+                }}
                 sharedFolderContext={sharedFolderContext ?? null}
               />
             ))}

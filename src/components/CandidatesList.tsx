@@ -17,6 +17,7 @@ import { useLogEvent } from "@/hooks/useLog";
 import Link from "next/link";
 import CandidateMarkButton from "./ui/CandidateMarkButton";
 import SharedFolderCandidateNotes from "./shared/SharedFolderCandidateNotes";
+import type { CandidateMarkStatus } from "@/lib/candidateMark";
 import {
   SearchSource,
   extractSearchSourcesFromLinks,
@@ -114,6 +115,7 @@ function CandidateCard({
   buildProfileHref,
   showBookmarkAction = true,
   showMarkAction = true,
+  onMarkChange,
   sharedFolderContext = null,
 }: {
   c: CandidateTypeWithConnection;
@@ -125,6 +127,7 @@ function CandidateCard({
   buildProfileHref?: (candidate: CandidateTypeWithConnection) => string;
   showBookmarkAction?: boolean;
   showMarkAction?: boolean;
+  onMarkChange?: (status: CandidateMarkStatus | null) => void;
   sharedFolderContext?: {
     token: string;
     viewer: SharedFolderViewerIdentity | null;
@@ -274,13 +277,19 @@ function CandidateCard({
                                 <Image
                                   src={getSearchSourceLogoPath(source)}
                                   alt={getSearchSourceLabel(source)}
-                                  width={14}
-                                  height={14}
+                                  width={source === "github" ? 16 : 15}
+                                  height={source === "github" ? 16 : 15}
                                   className="object-contain"
                                 />
                               </span>
                             </Tooltips>
                           ))}
+                          {c.links &&
+                            c.links?.length - linkSources.length > 0 && (
+                              <span className="text-[13px] text-hgray700">
+                                +{c.links?.length - linkSources.length}
+                              </span>
+                            )}
                         </div>
                       ) : null}
                     </div>
@@ -421,6 +430,7 @@ function CandidateCard({
                   candidId={c.id}
                   initialMemo={shortlistMemo}
                   initialMarkStatus={candidateMarkStatus}
+                  onMarkChange={onMarkChange}
                   showMarkButton={
                     showMarkAction && Boolean(userId || candidateMarkStatus)
                   }
@@ -445,6 +455,7 @@ function CandidateCard({
                 userId={userId}
                 candidId={c.id}
                 initialStatus={candidateMarkStatus}
+                onChange={onMarkChange}
               />
             ) : null}
             {showBookmarkAction && userId ? (

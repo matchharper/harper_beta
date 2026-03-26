@@ -99,7 +99,9 @@ function ScholarProfileSection({
   onShowAllPublications: () => void;
 }) {
   return (
-    <Box title={`Scholar Profile${publications.length > 0 ? ` (${publications.length})` : ""}`}>
+    <Box
+      title={`Scholar Profile${publications.length > 0 ? ` (${publications.length})` : ""}`}
+    >
       <div className="space-y-4">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
           <ProfileInsightCard
@@ -118,7 +120,9 @@ function ScholarProfileSection({
             label="Impact"
             primary={
               "Total " +
-              formatScholarCitationCount(scholarProfile.total_citations_num ?? 0)
+              formatScholarCitationCount(
+                scholarProfile.total_citations_num ?? 0
+              )
             }
             secondary={`h-index ${scholarProfile.h_index ?? 0}`}
           />
@@ -364,8 +368,8 @@ function CandidateProfileDetailPage({
   }, [c]);
 
   const recentGithubContributions = useMemo(() => {
-    const repos = Array.isArray(c?.github_repo_contribution)
-      ? c.github_repo_contribution
+    const repos = Array.isArray(c?.github_repo_contribution_backup_20260325)
+      ? c.github_repo_contribution_backup_20260325
       : [];
 
     const cutoffDate = new Date();
@@ -744,7 +748,7 @@ function CandidateProfileDetailPage({
           </Box>
         )}
 
-        {Array.isArray(c.github_repo_contribution) &&
+        {Array.isArray(c.github_repo_contribution_backup_20260325) &&
           recentGithubContributions.length > 0 && (
             <Box title={`GitHub\nMain Contributions`}>
               <div className="grid grid-cols-2 gap-3">
@@ -775,7 +779,9 @@ function CandidateProfileDetailPage({
             onShowAllPublications={() => setShowAllPublications(true)}
           />
         ) : displayedPublications.length > 0 ? (
-          <Box title={`${m.data.publications} (${displayedPublications.length})`}>
+          <Box
+            title={`${m.data.publications} (${displayedPublications.length})`}
+          >
             <div className="grid grid-cols-1 md:grid-cols-1 gap-3">
               {visiblePublications.map((p: any, idx: number) => (
                 <PublicationBox

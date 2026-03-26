@@ -608,8 +608,10 @@ const NetworkPage = () => {
     const timeout = window.setTimeout(() => {
       const mobileCard =
         requestCardRefs.current[`mobile-${pendingScrollRequestId}`];
+
       const desktopCard =
         requestCardRefs.current[`desktop-${pendingScrollRequestId}`];
+
       const targetCard =
         [mobileCard, desktopCard].find(
           (card) => card && card.offsetParent !== null

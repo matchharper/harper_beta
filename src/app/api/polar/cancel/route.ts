@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { Polar } from "@polar-sh/sdk";
 import { POLAR_SERVER } from "@/lib/polar/config";
+import { getActiveSubscriptionOrFilter } from "@/lib/billing/common";
 
 export const runtime = "nodejs";
 
@@ -55,7 +56,7 @@ export async function POST(req: Request) {
     .from("payments")
     .select("ls_subscription_id, current_period_end")
     .eq("user_id", userId)
-    .gte("current_period_end", nowIso)
+    .or(getActiveSubscriptionOrFilter(nowIso))
     .not("ls_subscription_id", "is", null)
     .order("current_period_end", { ascending: false, nullsFirst: false })
     .limit(1)
