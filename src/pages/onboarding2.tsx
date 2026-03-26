@@ -76,6 +76,34 @@ const LOCATION_OPTIONS = [
 type EngagementOptionId = (typeof ENGAGEMENT_OPTIONS)[number]["id"];
 type LocationOptionId = (typeof LOCATION_OPTIONS)[number]["id"];
 
+const getDreamTeamsLeadCopy = (selectedLocations: LocationOptionId[]) => {
+  const hasKoreaBased = selectedLocations.includes("korea_based");
+  const hasGlobalRemote = selectedLocations.includes("global_remote");
+  const hasRelocation = selectedLocations.includes("relocation");
+
+  if (!selectedLocations.length) {
+    return "방금 지원하신 포지션 외에, 평소 눈여겨보던 타겟 기업이 있다면 자유롭게 적어주세요.";
+  }
+
+  if (hasKoreaBased && !hasGlobalRemote && !hasRelocation) {
+    return "한국에서 환경을 선호하시는군요, 평소 눈여겨보던 타겟 기업이 있다면 자유롭게 적어주세요.";
+  }
+
+  if (!hasKoreaBased && hasGlobalRemote && !hasRelocation) {
+    return "한국에 머물며 원격으로 함께해보고 싶은 미국/글로벌 팀이 있다면 자유롭게 적어주세요.";
+  }
+
+  if (!hasKoreaBased && !hasGlobalRemote && hasRelocation) {
+    return "미국/글로벌 relocation까지 고려해서, 눈여겨보던 타겟 기업이 있다면 자유롭게 적어주세요.";
+  }
+
+  if (hasKoreaBased && (hasGlobalRemote || hasRelocation)) {
+    return "한국 기반 팀부터 미국/글로벌 팀까지, 평소 눈여겨보던 타겟 기업이 있다면 자유롭게 적어주세요.";
+  }
+
+  return "미국/글로벌 팀 중 원격 또는 relocation으로 고려 중인 타겟 기업이 있다면 자유롭게 적어주세요.";
+};
+
 export type WorkExperience = {
   company: string;
   position: string;
@@ -301,7 +329,7 @@ export const Onboarding2Content = ({
   const countryLang = useCountryLang();
   const queryRole =
     typeof router.query.role === "string" ? router.query.role : "";
-  const selectedRoleLabel = selectedRole || queryRole || "Your Target Role";
+  const selectedRoleLabel = selectedRole || queryRole || "Talent Network";
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [linkedin, setLinkedin] = useState("");
@@ -549,9 +577,7 @@ export const Onboarding2Content = ({
 • *GitHub / Hugging Face*: ${
           hasGithub ? trimmedGithub || "N/A" : "Not provided"
         }
-• *Google Scholar*: ${
-          hasScholar ? trimmedScholar || "N/A" : "Not provided"
-        }
+• *Google Scholar*: ${hasScholar ? trimmedScholar || "N/A" : "Not provided"}
 • *CV*: ${
           hasCv
             ? cvFileName || cvFile?.name || uploadedStoragePath || "N/A"
@@ -605,6 +631,7 @@ export const Onboarding2Content = ({
     step === 0 ? 0 : Math.min(step, QUESTION_STEP_COUNT);
   const stepIndicatorLabel =
     step === 0 ? "Start" : `${questionProgressStep}/${QUESTION_STEP_COUNT}`;
+  const dreamTeamsLeadCopy = getDreamTeamsLeadCopy(selectedLocations);
 
   const slideVariants = {
     enter: (isNext: boolean) => ({
@@ -692,10 +719,10 @@ export const Onboarding2Content = ({
                   <div className="mb-4 text-base md:text-xl font-normal text-beige900/55">
                     Your profile will be securely parsed and matched with
                     confidential roles at Series B+ Unicorns and Stealth
-                    Startups. Current employers will never be notified.
+                    Startups.
                     <br />
-                    (입력하신 정보는 매칭 전까지 철저히 익명으로 보호되며, 현재
-                    재직 중인 회사에는 절대 노출되지 않습니다.)
+                    입력하신 정보는 매칭 전까지 철저히 익명으로 보호되며, 현재
+                    재직 중인 회사에는 절대 노출되지 않습니다.
                   </div>
                 )}
 
@@ -713,8 +740,8 @@ export const Onboarding2Content = ({
 
                 {step === 2 && (
                   <div className="mb-4 text-base md:text-xl font-normal text-beige900/55">
-                    (선택하신 포지션과 관련하여, 가장 자신 있는 성과나 다룰 수
-                    있는 핵심 기술을 1~2줄로 짧게 적어주세요.)
+                    (Optional) 선택하신 포지션과 관련하여, 가장 자신 있는 성과나
+                    다룰 수 있는 핵심 기술을 1~2줄로 짧게 적어주세요.
                   </div>
                 )}
 
@@ -726,9 +753,9 @@ export const Onboarding2Content = ({
 
                 {step === 3 && (
                   <div className="mb-4 text-base md:text-xl font-normal text-beige900/55">
-                    (Harper 네트워크에는 정규직 외에도 특정 병목 해결을 위한 주
+                    Harper 네트워크에는 정규직 외에도 특정 병목 해결을 위한 주
                     4~12시간의 유연한 프로젝트 의뢰가 자주 들어옵니다. 향후
-                    오픈되어 있는 업무 형태를 모두 체크해 주세요.)
+                    오픈되어 있는 업무 형태를 모두 체크해 주세요.
                   </div>
                 )}
 
@@ -740,7 +767,7 @@ export const Onboarding2Content = ({
 
                 {step === 4 && (
                   <div className="mb-4 text-base md:text-xl font-normal text-beige900/55">
-                    (선호하는 근무 환경을 모두 선택해 주세요.)
+                    선호하는 근무 환경을 모두 선택해 주세요.
                   </div>
                 )}
 
@@ -752,12 +779,13 @@ export const Onboarding2Content = ({
 
                 {step === 5 && (
                   <div className="mb-4 text-base md:text-xl font-normal text-beige900/55">
-                    방금 지원하신 포지션 외에, 평소 눈여겨보던 타겟 기업이
-                    있다면 자유롭게 적어주세요. Harper의 파트너 네트워크를 통해
+                    {dreamTeamsLeadCopy} Harper의 파트너 네트워크를 통해
                     프라이빗한 연결을 적극적으로 탐색해 드립니다.
                     <br />
-                    혹은 회사가 아니더라도 어떤 기회를 찾거나 선호하시는지
-                    자유롭게 적어주세요.
+                    <div className="mt-2">
+                      혹은 특정 회사와 무관하게 어떤 기회를 찾거나 선호하시는지
+                      편하게 전부 알려주세요.
+                    </div>
                   </div>
                 )}
 
@@ -822,7 +850,7 @@ export const Onboarding2Content = ({
                           />
                           <div>LinkedIn Profile *</div>
                           <div
-                            className="ml-1 hover:font-medium flex flex-row items-center gap-1 text-sm font-normal text-beige900/70 cursor-pointer"
+                            className="ml-1 hover:font-medium flex flex-row items-center gap-1 text-sm font-normal text-beige900/70 cursor-pointer transition-all duration-200 hover:text-beige900"
                             onClick={() =>
                               window.open(
                                 "https://www.linkedin.com/in/",
@@ -988,7 +1016,7 @@ export const Onboarding2Content = ({
                   <div className="flex flex-col gap-6">
                     <BeigeTextInput
                       autoFocus
-                      placeholder="e.g., OpenAI, Anthropic, specific stealth startups, or top Korean unicorns"
+                      placeholder="e.g., OpenAI, Anthropic, specific stealth startups, or top Korean unicorns. Early stage startups, or top Korean unicorns."
                       value={dreamTeams}
                       onChange={(e) => {
                         setDreamTeams(e.target.value);
