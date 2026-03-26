@@ -73,8 +73,25 @@ const LOCATION_OPTIONS = [
   },
 ] as const;
 
+const CAREER_MOVE_INTENT_OPTIONS = [
+  {
+    id: "ready_to_move",
+    label: "좋은 기회라면 바로 이직 의향 있음",
+  },
+  {
+    id: "open_to_explore",
+    label: "아직 이직 생각은 없지만, 기회를 받아보고 결정하고 싶음",
+  },
+  {
+    id: "advisor_or_part_time_only",
+    label: "이직 생각 없고, 파트타임이나 advisor만 할 의향 있음",
+  },
+] as const;
+
 type EngagementOptionId = (typeof ENGAGEMENT_OPTIONS)[number]["id"];
 type LocationOptionId = (typeof LOCATION_OPTIONS)[number]["id"];
+type CareerMoveIntentOptionId =
+  (typeof CAREER_MOVE_INTENT_OPTIONS)[number]["id"];
 
 const getDreamTeamsLeadCopy = (selectedLocations: LocationOptionId[]) => {
   const hasKoreaBased = selectedLocations.includes("korea_based");
@@ -245,11 +262,13 @@ const ProfileInputToggleButton = ({
 );
 
 const SelectionCardButton = ({
+  optionNumber,
   label,
   description,
   active,
   onClick,
 }: {
+  optionNumber?: number;
   label: string;
   description?: string;
   active: boolean;
@@ -258,20 +277,35 @@ const SelectionCardButton = ({
   <button
     type="button"
     onClick={onClick}
-    className={`flex min-h-[74px] hover:bg-beige900/20 hover:border-beige900/60 active:border-beige900/80 w-full flex-col items-start justify-center rounded-md px-3 py-2.5 text-left tracking-[-0.02em] border-2 transition duration-300 ${
+    className={`flex min-h-[74px] hover:bg-beige900/20 hover:border-beige900/60 active:border-beige900/80 w-full flex-col items-start justify-start rounded-md px-3 py-2.5 text-left tracking-[-0.02em] border-2 transition duration-300 ${
       active
         ? "border-beige900/80 bg-beige500 text-black"
         : "border-beige900/10 bg-beige100 text-black hover:bg-beige500/50"
     }`}
   >
-    <span className="text-base font-normal">{label}</span>
-    {description && (
-      <span
-        className={`mt-1 text-sm leading-5 text-beige900/60 ${active ? "font-medium" : "font-normal"}`}
-      >
-        {description}
-      </span>
-    )}
+    <div className="flex w-full items-start gap-3">
+      {typeof optionNumber === "number" && (
+        <span
+          className={`mt-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-[4px] border text-xs font-medium ${
+            active
+              ? "border-beige900 bg-beige900 text-beige100"
+              : "border-black/10 bg-white text-beige900"
+          }`}
+        >
+          {optionNumber}
+        </span>
+      )}
+      <div className="flex min-w-0 flex-col">
+        <span className="text-base font-normal">{label}</span>
+        {description && (
+          <span
+            className={`mt-1 text-sm leading-5 text-beige900/60 ${active ? "font-medium" : "font-normal"}`}
+          >
+            {description}
+          </span>
+        )}
+      </div>
+    </div>
   </button>
 );
 
@@ -347,6 +381,9 @@ export const Onboarding2Content = ({
   const [selectedLocations, setSelectedLocations] = useState<
     LocationOptionId[]
   >([]);
+  const [selectedCareerMoveIntent, setSelectedCareerMoveIntent] = useState<
+    CareerMoveIntentOptionId | ""
+  >("");
   const [dreamTeams, setDreamTeams] = useState("");
   const [submissionPending, setSubmissionPending] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -369,6 +406,7 @@ export const Onboarding2Content = ({
       impactSummary,
       selectedEngagements,
       selectedLocations,
+      selectedCareerMoveIntent,
       dreamTeams,
     });
     setIsDirty(false);
@@ -385,28 +423,35 @@ export const Onboarding2Content = ({
     selectedProfileInputs,
     selectedEngagements,
     selectedLocations,
+    selectedCareerMoveIntent,
     selectedRoleLabel,
   ]);
 
   const validateStep = useCallback(
     (currentStep: number) => {
-      if (currentStep !== 1) {
-        return true;
+      if (currentStep === 1) {
+        if (!name.trim()) {
+          showToast({ message: "이름을 입력해주세요.", variant: "white" });
+          return false;
+        }
+
+        if (!email.trim()) {
+          showToast({ message: "이메일을 입력해주세요.", variant: "white" });
+          return false;
+        }
+
+        if (!linkedin.trim()) {
+          showToast({
+            message: "LinkedIn Profile URL을 입력해주세요.",
+            variant: "white",
+          });
+          return false;
+        }
       }
 
-      if (!name.trim()) {
-        showToast({ message: "이름을 입력해주세요.", variant: "white" });
-        return false;
-      }
-
-      if (!email.trim()) {
-        showToast({ message: "이메일을 입력해주세요.", variant: "white" });
-        return false;
-      }
-
-      if (!linkedin.trim()) {
+      if (currentStep === 3 && !selectedCareerMoveIntent) {
         showToast({
-          message: "LinkedIn Profile URL을 입력해주세요.",
+          message: "현재 이직 의사를 선택해주세요.",
           variant: "white",
         });
         return false;
@@ -414,7 +459,7 @@ export const Onboarding2Content = ({
 
       return true;
     },
-    [email, linkedin, name]
+    [email, linkedin, name, selectedCareerMoveIntent]
   );
 
   const addLandingLog = useCallback(
@@ -458,17 +503,31 @@ export const Onboarding2Content = ({
     );
   };
 
-  const handleMultiSelectChange = <T extends string>(
-    option: T,
-    setter: React.Dispatch<React.SetStateAction<T[]>>
-  ) => {
+  const handleEngagementToggle = useCallback((option: EngagementOptionId) => {
     setIsDirty(true);
-    setter((prev) =>
+    setSelectedEngagements((prev) =>
       prev.includes(option)
         ? prev.filter((item) => item !== option)
         : [...prev, option]
     );
-  };
+  }, []);
+
+  const handleLocationToggle = useCallback((option: LocationOptionId) => {
+    setIsDirty(true);
+    setSelectedLocations((prev) =>
+      prev.includes(option)
+        ? prev.filter((item) => item !== option)
+        : [...prev, option]
+    );
+  }, []);
+
+  const handleCareerMoveIntentSelect = useCallback(
+    (option: CareerMoveIntentOptionId) => {
+      setIsDirty(true);
+      setSelectedCareerMoveIntent(option);
+    },
+    []
+  );
 
   async function handleSubmitOnboarding() {
     if (submissionPending) return;
@@ -493,6 +552,10 @@ export const Onboarding2Content = ({
     const selectedLocationLabels = LOCATION_OPTIONS.filter((option) =>
       selectedLocations.includes(option.id)
     ).map((option) => option.label);
+    const selectedCareerMoveIntentLabel =
+      CAREER_MOVE_INTENT_OPTIONS.find(
+        (option) => option.id === selectedCareerMoveIntent
+      )?.label || null;
 
     localStorage.setItem(TALENT_NETWORK_LOCAL_ID_KEY, resolvedLandingId);
     if (!landingId) {
@@ -540,6 +603,8 @@ export const Onboarding2Content = ({
         impact_summary: trimmedImpactSummary || null,
         engagement_types: selectedEngagements,
         preferred_locations: selectedLocations,
+        career_move_intent: selectedCareerMoveIntent || null,
+        career_move_intent_label: selectedCareerMoveIntentLabel,
         dream_teams: trimmedDreamTeams || null,
         submitted_at: new Date().toISOString(),
       };
@@ -594,6 +659,7 @@ export const Onboarding2Content = ({
             ? selectedLocationLabels.join(", ")
             : "N/A"
         }
+• *Career Move Intent*: ${selectedCareerMoveIntentLabel || "N/A"}
 • *Dream Teams*: ${trimmedDreamTeams || "N/A"}
 • *Landing ID*: ${resolvedLandingId}
 • *Time(Standard Korea Time)*: ${new Date().toLocaleString("ko-KR")}`);
@@ -621,6 +687,7 @@ export const Onboarding2Content = ({
       beforeNext: validateStep,
       onComplete: () => void handleSubmitOnboarding(),
       enableWheelNavigation: false,
+      allowTextareaEnterSubmit: true,
     });
 
   const handlePrimaryAction = useCallback(() => {
@@ -632,6 +699,62 @@ export const Onboarding2Content = ({
   const stepIndicatorLabel =
     step === 0 ? "Start" : `${questionProgressStep}/${QUESTION_STEP_COUNT}`;
   const dreamTeamsLeadCopy = getDreamTeamsLeadCopy(selectedLocations);
+  const isTextareaStep = step === 2 || step === 5;
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.isComposing || e.metaKey || e.ctrlKey || e.altKey) return;
+
+      const target = e.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT")
+      ) {
+        return;
+      }
+
+      if (!/^[1-9]$/.test(e.key)) return;
+
+      const optionIndex = Number(e.key) - 1;
+
+      if (step === 3) {
+        const option = ENGAGEMENT_OPTIONS[optionIndex];
+        if (option) {
+          e.preventDefault();
+          handleEngagementToggle(option.id);
+          return;
+        }
+
+        const careerMoveOption =
+          CAREER_MOVE_INTENT_OPTIONS[optionIndex - ENGAGEMENT_OPTIONS.length];
+        if (!careerMoveOption) return;
+
+        e.preventDefault();
+        handleCareerMoveIntentSelect(careerMoveOption.id);
+        return;
+      }
+
+      if (step === 4) {
+        const option = LOCATION_OPTIONS[optionIndex];
+        if (!option) return;
+
+        e.preventDefault();
+        handleLocationToggle(option.id);
+        return;
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [
+    handleCareerMoveIntentSelect,
+    handleEngagementToggle,
+    handleLocationToggle,
+    step,
+  ]);
 
   const slideVariants = {
     enter: (isNext: boolean) => ({
@@ -687,7 +810,7 @@ export const Onboarding2Content = ({
         </div>
       ) : (
         <div
-          className={`flex h-full w-full max-w-[800px] flex-col items-start justify-start px-4 pb-20 pt-4 md:flex-row ${step === 1 ? "md:pt-[8vh]" : "md:pt-[16vh]"} md:pb-28`}
+          className={`flex h-full w-full max-w-[920px] flex-col items-start justify-start px-4 pb-20 pt-4 md:flex-row ${step === 1 ? "md:pt-[8vh]" : "md:pt-[16vh]"} md:pb-28`}
         >
           <div className="hidden h-full min-w-16 items-start justify-center pt-1 mr-1 md:flex">
             <div className="flex flex-row items-center gap-1 font-light text-beige900/55">
@@ -698,7 +821,7 @@ export const Onboarding2Content = ({
             {stepIndicatorLabel}
           </div>
 
-          <div className="flex w-full max-w-[800px] flex-col gap-4">
+          <div className="flex w-full flex-col gap-4">
             <AnimatePresence mode="wait" custom={isNextRef.current}>
               <motion.div
                 key={step}
@@ -708,7 +831,7 @@ export const Onboarding2Content = ({
                 variants={slideVariants}
                 custom={isNextRef.current}
                 transition={{ duration: 0.35, ease: "easeInOut" }}
-                className="flex flex-col gap-4"
+                className="flex flex-col gap-4 w-full"
               >
                 {step === 0 && (
                   <div className="flex text-xl font-medium md:text-2xl">
@@ -773,7 +896,7 @@ export const Onboarding2Content = ({
 
                 {step === 5 && (
                   <div className="flex text-xl font-normal md:text-2xl">
-                    Beyond this role, any other Dream Teams in mind?
+                    What kind of opportunities are you looking for?
                   </div>
                 )}
 
@@ -973,18 +1096,35 @@ export const Onboarding2Content = ({
                 {step === 3 && (
                   <div className="flex flex-col gap-6">
                     <div className="flex md:flex-row flex-col gap-2">
-                      {ENGAGEMENT_OPTIONS.map((option) => (
+                      {ENGAGEMENT_OPTIONS.map((option, index) => (
                         <SelectionCardButton
                           key={option.id}
                           label={option.label}
                           description={option.description}
+                          optionNumber={index + 1}
                           active={selectedEngagements.includes(option.id)}
-                          onClick={() =>
-                            handleMultiSelectChange(
-                              option.id,
-                              setSelectedEngagements
-                            )
-                          }
+                          onClick={() => handleEngagementToggle(option.id)}
+                        />
+                      ))}
+                    </div>
+
+                    <div className="pt-4">
+                      <div className="text-lg font-normal tracking-[-0.03em] text-beige900 md:text-xl">
+                        How open are you to a move right now?
+                      </div>
+                      <div className="mt-1 text-sm leading-6 text-beige900/55 md:text-base">
+                        현재 상태에 가장 가까운 선택지를 골라 주세요.
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      {CAREER_MOVE_INTENT_OPTIONS.map((option, index) => (
+                        <SelectionCardButton
+                          key={option.id}
+                          label={option.label}
+                          optionNumber={ENGAGEMENT_OPTIONS.length + index + 1}
+                          active={selectedCareerMoveIntent === option.id}
+                          onClick={() => handleCareerMoveIntentSelect(option.id)}
                         />
                       ))}
                     </div>
@@ -992,20 +1132,16 @@ export const Onboarding2Content = ({
                 )}
 
                 {step === 4 && (
-                  <div className="flex flex-col gap-6">
-                    <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-                      {LOCATION_OPTIONS.map((option) => (
+                  <div className="flex flex-col gap-6 w-full">
+                    <div className="w-full grid grid-cols-1 gap-2 md:grid-cols-3">
+                      {LOCATION_OPTIONS.map((option, index) => (
                         <SelectionCardButton
                           key={option.id}
                           label={option.label}
                           description={option.description}
+                          optionNumber={index + 1}
                           active={selectedLocations.includes(option.id)}
-                          onClick={() =>
-                            handleMultiSelectChange(
-                              option.id,
-                              setSelectedLocations
-                            )
-                          }
+                          onClick={() => handleLocationToggle(option.id)}
                         />
                       ))}
                     </div>
@@ -1047,6 +1183,11 @@ export const Onboarding2Content = ({
                     <span className="text-beige900/45">press</span>
                     <span className="font-medium text-beige900">Enter</span>
                     <CornerDownLeft size={14} strokeWidth={2} />
+                    {isTextareaStep ? (
+                      <span className="text-beige900/45">
+                        Shift+Enter for newline
+                      </span>
+                    ) : null}
                   </span>
                 </div>
               </motion.div>

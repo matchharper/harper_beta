@@ -20,8 +20,31 @@ export const en = {
     nameSubmit: "Save",
     submit: "Continue",
     divider: "or",
-    waitlist: "Apply for access",
+    waitlist: "Request access",
     contact: "Contact us",
+    requestAccess: {
+      title: "Request access",
+      description:
+        "Tell us a bit about your team. If approved, we'll email you an activation link.",
+      submit: "Send request",
+      submitted:
+        "Your request has been submitted. We'll email you a link once access is approved.",
+      nameLabel: "Name",
+      namePlaceholder: "Your name",
+      companyLabel: "Company",
+      companyPlaceholder: "Company name",
+      roleLabel: "Role",
+      rolePlaceholder: "For example: Founder, Hiring Manager",
+      hiringNeedLabel:
+        "Most important role(s) you need to hire for and rough headcount",
+      hiringNeedPlaceholder:
+        "For example: Backend Engineer x2, Founding Recruiter x1",
+      errors: {
+        missingSession: "We couldn't verify your session. Please sign in again.",
+        invalidForm: "Please fill in every field.",
+        submitFailed: "Failed to submit your request. Please try again.",
+      },
+    },
     errors: {
       emptyCode: "Please enter the invite code.",
       invalidCode: "The invite code is invalid.",
