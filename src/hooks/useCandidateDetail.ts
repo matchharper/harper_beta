@@ -7,6 +7,8 @@ import { fetchCandidateMarkMap } from "./useCandidateMark";
 
 export type GithubRepoContributionRow =
   Database["public"]["Tables"]["github_repo_contribution"]["Row"];
+export type GithubProfileRow =
+  Database["public"]["Tables"]["github_profile"]["Row"];
 export type ScholarProfileRow =
   Database["public"]["Tables"]["scholar_profile"]["Row"];
 export type ScholarPaperRow = Database["public"]["Tables"]["papers"]["Row"];
@@ -89,6 +91,7 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
   let scholarPapers: ScholarPaperRow[] = [];
   let githubRepoContributions: GithubRepoContributionRow[] = [];
 
+  // GitHub profile and contributions
   const { data: scholarProfileRow, error: scholarProfileError } = await supabase
     .from("scholar_profile")
     .select("*")
