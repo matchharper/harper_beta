@@ -45,42 +45,44 @@ function verifySlackSignature(args: {
 }
 
 export async function POST(req: NextRequest) {
-  const rawBody = await req.text();
-  const signature =
-    req.headers.get("x-slack-signature") ??
-    req.headers.get("X-Slack-Signature") ??
-    "";
-  const timestamp =
-    req.headers.get("x-slack-request-timestamp") ??
-    req.headers.get("X-Slack-Request-Timestamp") ??
-    "";
-
-  if (!verifySlackSignature({ rawBody, signature, timestamp })) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const payloadText = new URLSearchParams(rawBody).get("payload");
-  if (!payloadText) {
-    return NextResponse.json({ error: "Missing payload" }, { status: 400 });
-  }
-
-  const payload = JSON.parse(payloadText) as {
-    user?: { id?: string };
-    actions?: Array<{ action_id?: string; value?: string }>;
-  };
-  const action = payload.actions?.[0];
-
-  if (action?.action_id !== REQUEST_ACCESS_APPROVE_ACTION_ID) {
-    return NextResponse.json(
-      {
-        response_type: "ephemeral",
-        text: "Unsupported action",
-      },
-      { status: 200 }
-    );
-  }
-
   try {
+    const rawBody = await req.text();
+    const signature =
+      req.headers.get("x-slack-signature") ??
+      req.headers.get("X-Slack-Signature") ??
+      "";
+    const timestamp =
+      req.headers.get("x-slack-request-timestamp") ??
+      req.headers.get("X-Slack-Request-Timestamp") ??
+      "";
+
+    if (!verifySlackSignature({ rawBody, signature, timestamp })) {
+      console.warn("[slack-interactivity] invalid signature");
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const payloadText = new URLSearchParams(rawBody).get("payload");
+    if (!payloadText) {
+      console.warn("[slack-interactivity] missing payload");
+      return NextResponse.json({ error: "Missing payload" }, { status: 400 });
+    }
+
+    const payload = JSON.parse(payloadText) as {
+      user?: { id?: string };
+      actions?: Array<{ action_id?: string; value?: string }>;
+    };
+    const action = payload.actions?.[0];
+
+    if (action?.action_id !== REQUEST_ACCESS_APPROVE_ACTION_ID) {
+      return NextResponse.json(
+        {
+          response_type: "ephemeral",
+          text: "Unsupported action",
+        },
+        { status: 200 }
+      );
+    }
+
     const actionValue = JSON.parse(String(action.value ?? "{}")) as {
       email?: string;
     };
@@ -108,6 +110,7 @@ export async function POST(req: NextRequest) {
       { status: 200 }
     );
   } catch (error) {
+    console.error("[slack-interactivity] fatal", error);
     return NextResponse.json(
       {
         response_type: "ephemeral",

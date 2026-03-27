@@ -61,7 +61,7 @@ export default function ResultBody(props: Props) {
             userId={userId}
             criterias={criterias}
             showShortlistMemo={true}
-            // showMarkFilter={true}
+            showMarkFilter={true}
             indexStart={pageIdx * 10}
             sourceType={sourceType}
           />
