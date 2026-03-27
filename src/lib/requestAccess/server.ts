@@ -89,10 +89,12 @@ async function getFreePlan(supabaseAdmin: SupabaseAdminClient) {
   return data;
 }
 
-function buildSlackBlocks(row: Pick<
-  RequestAccessRow,
-  "email" | "name" | "company" | "role" | "needs" | "user_id"
->) {
+function buildSlackBlocks(
+  row: Pick<
+    RequestAccessRow,
+    "email" | "name" | "company" | "role" | "needs" | "user_id"
+  >
+) {
   const hiringNeed = Array.isArray(row.needs) ? row.needs[0] : null;
 
   return [
@@ -145,6 +147,32 @@ async function sendSlackRequestAccessMessage(
   });
 }
 
+async function sendSlackApprovalEmailNotification(args: {
+  email: string;
+  name?: string | null;
+  approvedBy: string;
+}) {
+  const webhook = getSlackWebhook();
+  await webhook.send({
+    text: `Approval email sent: ${args.email}`,
+    blocks: [
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: [
+            "*Request Access Approved*",
+            `• *Name*: ${args.name || "N/A"}`,
+            `• *Email*: ${args.email}`,
+            `• *Approved By*: ${args.approvedBy || "unknown"}`,
+            `• *Status*: Approval email sent`,
+          ].join("\n"),
+        },
+      },
+    ],
+  });
+}
+
 function getMailerConfig() {
   const apiKey = process.env.RESEND_API_KEY?.trim();
   const from =
@@ -174,6 +202,7 @@ async function sendRequestAccessApprovedEmail(args: {
   const html = `
     <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111;">
       <p>Hi ${recipientName},</p>
+      <p>Welcome to Harper!</p>
       <p>Your Harper request access has been approved.</p>
       <p>Click the link below to activate your access and go straight into Harper.</p>
       <p><a href="${args.activationUrl}" style="color: #0f172a;">Activate Harper Access</a></p>
@@ -387,6 +416,16 @@ export async function approveRequestAccess(args: {
     name: row.name,
     activationUrl,
   });
+
+  try {
+    await sendSlackApprovalEmailNotification({
+      email: row.email,
+      name: row.name,
+      approvedBy: args.approvedBy,
+    });
+  } catch (error) {
+    console.error("[request-access] approval slack notify failed", error);
+  }
 
   return {
     status: "approved" as const,

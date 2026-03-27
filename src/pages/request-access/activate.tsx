@@ -87,7 +87,7 @@ export default function RequestAccessActivatePage() {
   }, [router, router.isReady, token]);
 
   return (
-    <div className="relative min-h-screen bg-black px-4 text-white">
+    <div className="relative min-h-screen bg-black px-4 text-white font-inter">
       <Header page="company" />
       <GradientBackground interactiveRef={interactiveRef} />
       <div className="relative z-10 flex min-h-screen items-center justify-center">
