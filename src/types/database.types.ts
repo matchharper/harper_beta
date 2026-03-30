@@ -1046,7 +1046,6 @@ export type Database = {
       }
       github_profile: {
         Row: {
-          account_type: string | null
           avatar_url: string | null
           bio: string | null
           blog: string | null
@@ -1071,11 +1070,9 @@ export type Database = {
           public_repos: number | null
           readme_markdown: string | null
           search_text: string | null
-          twitter_username: string | null
           updated_at: string | null
         }
         Insert: {
-          account_type?: string | null
           avatar_url?: string | null
           bio?: string | null
           blog?: string | null
@@ -1100,11 +1097,9 @@ export type Database = {
           public_repos?: number | null
           readme_markdown?: string | null
           search_text?: string | null
-          twitter_username?: string | null
           updated_at?: string | null
         }
         Update: {
-          account_type?: string | null
           avatar_url?: string | null
           bio?: string | null
           blog?: string | null
@@ -1129,7 +1124,6 @@ export type Database = {
           public_repos?: number | null
           readme_markdown?: string | null
           search_text?: string | null
-          twitter_username?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -1320,6 +1314,7 @@ export type Database = {
         Row: {
           commits: number
           created_at: string
+          description: string | null
           github_profile_id: string | null
           id: number
           last_contrib_at: string | null
@@ -1331,6 +1326,7 @@ export type Database = {
         Insert: {
           commits?: number
           created_at?: string
+          description?: string | null
           github_profile_id?: string | null
           id?: number
           last_contrib_at?: string | null
@@ -1342,6 +1338,7 @@ export type Database = {
         Update: {
           commits?: number
           created_at?: string
+          description?: string | null
           github_profile_id?: string | null
           id?: number
           last_contrib_at?: string | null
@@ -2768,9 +2765,9 @@ export type Database = {
           from_email: string | null
           id: number
           subject: string | null
-          talent_id: string | null
+          talent_id: string
           to_email: string | null
-          type: "conversation" | "mail" | "memo"
+          type: string
           waitlist_id: number
         }
         Insert: {
@@ -2780,9 +2777,9 @@ export type Database = {
           from_email?: string | null
           id?: number
           subject?: string | null
-          talent_id?: string | null
+          talent_id: string
           to_email?: string | null
-          type: "conversation" | "mail" | "memo"
+          type: string
           waitlist_id: number
         }
         Update: {
@@ -2792,12 +2789,19 @@ export type Database = {
           from_email?: string | null
           id?: number
           subject?: string | null
-          talent_id?: string | null
+          talent_id?: string
           to_email?: string | null
-          type?: "conversation" | "mail" | "memo"
+          type?: string
           waitlist_id?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "talent_internal_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
           {
             foreignKeyName: "talent_internal_waitlist_id_fkey"
             columns: ["waitlist_id"]
@@ -3091,6 +3095,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_access_candidate_profile: {
+        Args: { target_candid_id: string }
+        Returns: boolean
+      }
       candid_ids_scholar_and_pattern: {
         Args: { pattern: string }
         Returns: string[]
@@ -3150,6 +3158,13 @@ export type Database = {
       get_scholar_candidate_ids: { Args: never; Returns: string[] }
       is_admin: { Args: never; Returns: boolean }
       reset_org_db_seq: { Args: never; Returns: undefined }
+      reveal_candidate_profile: {
+        Args: { target_candid_id: string }
+        Returns: {
+          already_revealed: boolean
+          new_balance: number
+        }[]
+      }
       set_timeout_and_execute_raw_sql: {
         Args: {
           limit_num: number
