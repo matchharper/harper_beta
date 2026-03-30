@@ -1318,6 +1318,7 @@ export type Database = {
           id: number
           commits: number
           merged_prs: number
+          description: string | null
           role: string | null
           last_contrib_at: string | null
           created_at: string
@@ -1329,6 +1330,7 @@ export type Database = {
           id?: number
           commits?: number
           merged_prs?: number
+          description?: string | null
           role?: string | null
           last_contrib_at?: string | null
           created_at?: string
@@ -1340,6 +1342,7 @@ export type Database = {
           id?: number
           commits?: number
           merged_prs?: number
+          description?: string | null
           role?: string | null
           last_contrib_at?: string | null
           created_at?: string
