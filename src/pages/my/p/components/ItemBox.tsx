@@ -11,6 +11,7 @@ import {
 import React, { useMemo, useState } from "react";
 import { getSchoolLogo } from "@/utils/school_logo";
 import { ExperienceCal } from "../CandidateProfile";
+import { getRevealLogoColor } from "@/lib/profileReveal";
 
 const ItemBox = ({
   title,
@@ -26,6 +27,7 @@ const ItemBox = ({
   company_id,
   isLast,
   onToggleDescription,
+  disableEntityClick = false,
 }: {
   title: string;
   name: string;
@@ -40,6 +42,7 @@ const ItemBox = ({
   company_id?: string;
   isLast?: boolean;
   onToggleDescription?: (nextOpen: boolean) => void;
+  disableEntityClick?: boolean;
 }) => {
   const startDate = useMemo(() => dateToFormat(start_date), [start_date]);
   const endDate = useMemo(() => dateToFormat(end_date), [end_date]);
@@ -54,7 +57,7 @@ const ItemBox = ({
       return "";
     }
     return logo_url;
-  }, [link, isEdu]);
+  }, [link, isEdu, logo_url]);
 
   const hasDescription = Boolean(description && description.trim().length > 0);
   const [isOpen, setIsOpen] = useState(false);
@@ -63,6 +66,7 @@ const ItemBox = ({
   const qc = useQueryClient();
 
   const onButtonClick = () => {
+    if (disableEntityClick) return;
     handleOpenCompany({
       companyId: company_id ?? "",
       queryClient: qc,
@@ -110,12 +114,13 @@ const ItemBox = ({
               <img
                 src={logoUrl}
                 alt={name}
-                className={`transition-all duration-200 ${logoSize} mt-[1px] rounded-full object-cover border border-hgray1000/0 bg-hgray1000/90 cursor-pointer hover:border-accenta1`}
+              className={`transition-all duration-200 ${logoSize} mt-[1px] rounded-full object-cover border border-hgray1000/0 bg-hgray1000/90 ${disableEntityClick ? "" : "cursor-pointer hover:border-accenta1"}`}
               />
             ) : (
               <>
                 <div
-                  className={`${logoSize} mt-[1px] rounded-full flex items-center justify-center text-lg bg-hgray500`}
+                  className={`${logoSize} mt-[1px] rounded-full flex items-center justify-center text-lg`}
+                  style={{ backgroundColor: getRevealLogoColor(String(name ?? title ?? "item")) }}
                 >
                   {logoIcon}
                 </div>
@@ -134,13 +139,16 @@ const ItemBox = ({
             </div>
 
             <div
-              className={`${isEdu ? "" : "cursor-pointer"} text-hgray700 flex flex-row gap-2 items-center font-light text-sm`}
+              className={`${isEdu || disableEntityClick ? "" : "cursor-pointer"} text-hgray700 flex flex-row gap-2 items-center font-light text-sm`}
               onClick={() => onButtonClick()}
             >
               <span
-                className={`flex flex-row items-center gap-1 truncate ${isEdu ? "" : "hover:underline"}`}
+                className={`flex flex-row items-center gap-1 truncate ${isEdu || disableEntityClick ? "" : "hover:underline"}`}
               >
-                {name} {isEdu || isAward ? null : <ExternalLink size={12} />}
+                {name}{" "}
+                {isEdu || isAward || disableEntityClick ? null : (
+                  <ExternalLink size={12} />
+                )}
               </span>
               <span className="font-bold text-base"> · </span>
               {startDate ? (

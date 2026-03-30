@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { INTERNAL_EMAIL_DOMAIN, isInternalEmail } from "@/lib/internalAccess";
 import {
   getRequestAccessBaseUrl,
   parseRequestAccessReviewToken,
   prepareRequestAccessApprovalDraft,
   sendRequestAccessApprovalEmail,
 } from "@/lib/requestAccess/server";
+import { getRequestUser } from "@/lib/supabaseServer";
 
 export const runtime = "nodejs";
 
@@ -28,7 +30,22 @@ function getErrorStatus(error: unknown) {
   return 500;
 }
 
+function forbidden() {
+  return NextResponse.json(
+    { error: `Forbidden: ${INTERNAL_EMAIL_DOMAIN} email required` },
+    { status: 403 }
+  );
+}
+
 export async function GET(req: NextRequest) {
+  const user = await getRequestUser(req);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!isInternalEmail(user.email)) {
+    return forbidden();
+  }
+
   const request = String(req.nextUrl.searchParams.get("request") ?? "").trim();
   if (!request) {
     return NextResponse.json({ error: "Missing request" }, { status: 400 });
@@ -55,6 +72,14 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const user = await getRequestUser(req);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!isInternalEmail(user.email)) {
+    return forbidden();
+  }
+
   let body: ReviewRequestBody;
   try {
     body = (await req.json()) as ReviewRequestBody;

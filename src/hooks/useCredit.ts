@@ -71,7 +71,7 @@ export const useCredits = () => {
       if (error.message.includes("Insufficient credits")) {
         showToast({
           id: "insufficient-credits",
-          message: "이번 달 월 검색 한도를 모두 사용했습니다.",
+          message: "이번 달 열람 횟수를 모두 사용했습니다.",
           variant: "white",
         });
       } else {
@@ -127,7 +127,7 @@ export const useCredits = () => {
         if (variables?.suppressInsufficientToast) return;
         showToast({
           id: "insufficient-credits",
-          message: "이번 달 월 검색 한도를 모두 사용했습니다.",
+          message: "이번 달 열람 횟수를 모두 사용했습니다.",
           variant: "white",
         });
       } else {

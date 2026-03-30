@@ -157,6 +157,7 @@ export default function SharedFolderCandidatePage() {
               headline={candid.headline}
               location={candid.location}
               links={links}
+              profileRevealed={candid.profile_revealed !== false}
             />
 
             <div className="hidden md:flex flex-col items-end gap-3">
@@ -181,6 +182,7 @@ export default function SharedFolderCandidatePage() {
               name={candid.name ?? ""}
               oneline={candid.oneline ?? ""}
               isLoadingOneline={false}
+              profileRevealed={candid.profile_revealed !== false}
             />
           </div>
 
@@ -215,6 +217,7 @@ export default function SharedFolderCandidatePage() {
                     description={item.description}
                     logo_url={item?.company_db?.logo}
                     months={item.months}
+                    disableEntityClick={candid.profile_revealed === false}
                   />
                 )
               )}
@@ -239,6 +242,7 @@ export default function SharedFolderCandidatePage() {
                   link={item.url}
                   description=""
                   typed="edu"
+                  disableEntityClick={candid.profile_revealed === false}
                 />
               ))}
             </div>
@@ -276,6 +280,7 @@ export default function SharedFolderCandidatePage() {
                   published_at={item.published_at}
                   link={item.link}
                   citation_num={item.citation_num ?? -1}
+                  disabled={candid.profile_revealed === false}
                 />
               ))}
             </div>

@@ -31,6 +31,8 @@ import {
   formatScholarCitationCount,
   formatScholarPaperCount,
 } from "@/lib/scholarPreview";
+import RevealProfileButton from "@/components/ui/RevealProfileButton";
+import { MarkdownView } from "@/components/chat/MarkDownView";
 
 const PUBLICATION_PREVIEW_COUNT = 10;
 
@@ -77,6 +79,7 @@ function ScholarProfileSection({
   remainingPublicationCount,
   showAllPublications,
   onShowAllPublications,
+  profileRevealed,
 }: {
   scholarProfile: NonNullable<CandidateDetail["scholar_profile"]>;
   scholarPaperCount: number;
@@ -97,6 +100,7 @@ function ScholarProfileSection({
   remainingPublicationCount: number;
   showAllPublications: boolean;
   onShowAllPublications: () => void;
+  profileRevealed: boolean;
 }) {
   return (
     <Box
@@ -128,29 +132,6 @@ function ScholarProfileSection({
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          {scholarProfile.scholar_url ? (
-            <a
-              href={scholarProfile.scholar_url}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center rounded-full bg-white/5 px-4 py-2 text-hgray700 transition hover:bg-white/10"
-            >
-              Open Scholar Profile
-            </a>
-          ) : null}
-          {scholarProfile.homepage_link ? (
-            <a
-              href={scholarProfile.homepage_link}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center rounded-full bg-white/5 px-4 py-2 text-hgray700 transition hover:bg-white/10"
-            >
-              Open Homepage
-            </a>
-          ) : null}
-        </div>
-
         {publications.length > 0 ? (
           <>
             <div className="grid grid-cols-1 md:grid-cols-1 gap-3">
@@ -162,6 +143,7 @@ function ScholarProfileSection({
                   link={p.link}
                   citation_num={p.citation_num ?? -1}
                   paperId={p.paper_id}
+                  disabled={!profileRevealed}
                 />
               ))}
             </div>
@@ -181,6 +163,64 @@ function ScholarProfileSection({
             연결된 Scholar Profile은 있지만 아직 표시할 논문 데이터가 없습니다.
           </div>
         )}
+      </div>
+    </Box>
+  );
+}
+
+function GithubProfileSection({
+  githubProfile,
+  profileRevealed,
+}: {
+  githubProfile: NonNullable<CandidateDetail["github_profile"]>;
+  profileRevealed: boolean;
+}) {
+  const hasReadme =
+    typeof githubProfile.readme_markdown === "string" &&
+    githubProfile.readme_markdown.trim().length > 0;
+
+  return (
+    <Box title="GitHub Profile">
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <ProfileInsightCard
+            label="Username"
+            primary={
+              githubProfile.github_username
+                ? `@${githubProfile.github_username}`
+                : "정보 없음"
+            }
+          />
+          <ProfileInsightCard
+            label="Company"
+            primary={githubProfile.company || "정보 없음"}
+          />
+          <ProfileInsightCard
+            label="Followers"
+            primary={Number(githubProfile.followers ?? 0).toLocaleString(
+              "en-US"
+            )}
+          />
+          <ProfileInsightCard
+            label="Public Repos"
+            primary={Number(githubProfile.public_repos ?? 0).toLocaleString(
+              "en-US"
+            )}
+          />
+        </div>
+
+        {hasReadme ? (
+          <div className="rounded-2xl bg-white/5 px-5 py-5">
+            <div className="mb-3 text-sm text-hgray700">Profile README</div>
+            <div className="[&_.prose]:max-w-none [&_.prose]:text-hgray800 [&_.prose_a]:text-blue-500 [&_.prose_code]:text-hgray900 [&_.prose_headings]:text-hgray1000">
+              <MarkdownView markdown={githubProfile.readme_markdown ?? ""} />
+            </div>
+          </div>
+        ) : !profileRevealed ? (
+          <div className="rounded-2xl bg-white/5 px-5 py-5 text-sm text-hgray700">
+            열람 후 GitHub 프로필을 확인할 수 있습니다.
+          </div>
+        ) : null}
       </div>
     </Box>
   );
@@ -246,8 +286,9 @@ function CandidateProfileDetailPage({
   const { data: shortlistMemo = "" } = useShortlistMemo(userId, candidId);
 
   const c: any = data;
+  const isProfileRevealed = c?.profile_revealed !== false;
   const showAutomationFeedback =
-    data?.isAutomationResult && companyUser.is_custom;
+    data?.isAutomationResult && companyUser?.is_custom;
 
   useEffect(() => {
     setIsIntroRequested(
@@ -408,6 +449,7 @@ function CandidateProfileDetailPage({
   }, [c]);
 
   const scholarProfile = c?.scholar_profile ?? null;
+  const githubProfile = c?.github_profile ?? null;
   const publications = useMemo(
     () => (Array.isArray(c?.publications) ? c.publications : []),
     [c]
@@ -432,6 +474,7 @@ function CandidateProfileDetailPage({
     ? c.scholar_papers.length
     : 0;
   const candidateMarkStatus = c?.candidate_mark?.status ?? null;
+  const visibleShortlistMemo = isProfileRevealed ? shortlistMemo : "";
 
   const visiblePublications = useMemo(
     () =>
@@ -476,6 +519,7 @@ function CandidateProfileDetailPage({
   );
 
   const generateOneLineSummary = useCallback(async () => {
+    if (!isProfileRevealed) return;
     setIsLoadingOneline(true);
     try {
       const res = await fetch("/api/search/criteria_summarize", {
@@ -506,11 +550,12 @@ function CandidateProfileDetailPage({
     } finally {
       setIsLoadingOneline(false);
     }
-  }, [c, candidId, qc, userId]);
+  }, [c, candidId, isProfileRevealed, qc, userId]);
 
   useEffect(() => {
     if (isLoading) return;
     if (!c || !userId || !candidId) return;
+    if (!isProfileRevealed) return;
 
     const hasSummary = Array.isArray(c.s) && c.s.length > 0;
     if (hasSummary) return;
@@ -520,12 +565,20 @@ function CandidateProfileDetailPage({
 
     setRequested(true);
     generateOneLineSummary().finally(() => {});
-  }, [isLoading, c, userId, candidId, requested, generateOneLineSummary]);
+  }, [
+    isLoading,
+    c,
+    userId,
+    candidId,
+    requested,
+    generateOneLineSummary,
+    isProfileRevealed,
+  ]);
 
   useEffect(() => {
     let isCancelled = false;
 
-    if (!runId || !candidId) {
+    if (!runId || !candidId || !isProfileRevealed) {
       setRunSynthesizedSummary([]);
       return;
     }
@@ -555,7 +608,7 @@ function CandidateProfileDetailPage({
     return () => {
       isCancelled = true;
     };
-  }, [candidId, runId]);
+  }, [candidId, isProfileRevealed, runId]);
 
   if (!candidId || !userId || isLoading || error || !data)
     return <Loading className="text-xgray800" />;
@@ -601,29 +654,36 @@ function CandidateProfileDetailPage({
             metaIcon={scholarProfile ? GraduationCap : undefined}
             links={links}
             onLinkClick={handleProfileLinkClick}
+            profileRevealed={isProfileRevealed}
           />
           <div className="absolute top-2 right-2 font-normal flex flex-col gap-1 ">
             <div className="flex flex-row items-end justify-end gap-2">
-              <button
-                onClick={() => {
-                  logEvent("open share: " + candidId);
-                  setIsShareOpen(true);
-                }}
-                className="inline-flex items-center gap-2 rounded-xl px-2 py-2 text-sm hover:bg-hgray900/5"
-              >
-                <Upload className="w-4 h-4" />
-              </button>
+              {isProfileRevealed ? (
+                <button
+                  onClick={() => {
+                    logEvent("open share: " + candidId);
+                    setIsShareOpen(true);
+                  }}
+                  className="inline-flex items-center gap-2 rounded-xl px-2 py-2 text-sm hover:bg-hgray900/5"
+                >
+                  <Upload className="w-4 h-4" />
+                </button>
+              ) : (
+                <RevealProfileButton candidId={candidId} />
+              )}
               <Bookmarkbutton
                 userId={userId}
                 candidId={c.id}
                 connection={c.connection}
               />
-              <button
-                onClick={() => setIsConnectionModalOpen(true)}
-                className="inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-sm text-accenta1 hover:bg-accenta1/10"
-              >
-                {isIntroRequested ? "Intro 요청됨" : "Intro 요청"}
-              </button>
+              {isProfileRevealed ? (
+                <button
+                  onClick={() => setIsConnectionModalOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-sm text-accenta1 hover:bg-accenta1/10"
+                >
+                  {isIntroRequested ? "Intro 요청됨" : "Intro 요청"}
+                </button>
+              ) : null}
             </div>
           </div>
 
@@ -640,11 +700,11 @@ function CandidateProfileDetailPage({
           </Box>
         )}
 
-        <Box title={shortlistMemo ? "내부 메모" : ""} color="accenta1">
+        <Box title={visibleShortlistMemo ? "내부 메모" : ""} color="accenta1">
           <CandidateMemoDock
             userId={userId}
             candidId={candidId}
-            initialMemo={shortlistMemo}
+            initialMemo={visibleShortlistMemo}
             initialMarkStatus={candidateMarkStatus}
             rows={4}
             editorClassName="w-full min-h-[88px]"
@@ -659,75 +719,103 @@ function CandidateProfileDetailPage({
           oneline={oneline ?? ""}
           isLoadingOneline={isLoadingOneline ?? false}
           onToggleMore={handleProfileSummaryToggle}
+          profileRevealed={isProfileRevealed}
         />
 
         {mergedExperience.length > 0 && (
           <Box title={`${m.data.experience}`}>
-            <div className="space-y-0">
-              {mergedExperience.map((entry, idx) => {
-                if (entry.kind === "exp") {
-                  const e = entry.item;
+            {isProfileRevealed ? (
+              <div className="space-y-0">
+                {mergedExperience.map((entry, idx) => {
+                  if (entry.kind === "exp") {
+                    const e = entry.item;
+                    return (
+                      <ItemBox
+                        key={`exp-${idx}`}
+                        isContinued={
+                          idx > 0 &&
+                          mergedExperience[idx - 1]?.kind === "exp" &&
+                          mergedExperience[idx - 1]?.item?.company_db?.name ===
+                            e.company_db?.name
+                        }
+                        title={e.role}
+                        company_id={e.company_id}
+                        name={companyEnToKo(e.company_db.name)}
+                        start_date={e.start_date}
+                        end_date={e.end_date}
+                        link={e.company_db.linkedin_url}
+                        description={e.description}
+                        logo_url={e.company_db.logo}
+                        months={e.months}
+                        isLast={idx === mergedExperience.length - 1}
+                        onToggleDescription={(nextOpen) => {
+                          if (!nextOpen) return;
+                          const companyName = companyEnToKo(e.company_db.name);
+                          const target = compactLogToken(
+                            companyName ||
+                              e.company_db.name ||
+                              e.role ||
+                              "unknown"
+                          );
+                          logEvent(
+                            `profile_experience_chevron_click:${candidId}:${target}`
+                          );
+                        }}
+                      />
+                    );
+                  }
+
+                  const ed = entry.item;
                   return (
                     <ItemBox
-                      key={`exp-${idx}`}
-                      isContinued={
-                        idx > 0 &&
-                        mergedExperience[idx - 1]?.kind === "exp" &&
-                        mergedExperience[idx - 1]?.item?.company_db?.name ===
-                          e.company_db?.name
+                      key={`edu-${idx}`}
+                      title={`${koreaUniversityEnToKo(ed.school)}`}
+                      name={
+                        ed.field
+                          ? `${majorEnToKo(ed.field)}, ${degreeEnToKo(ed.degree)}`
+                          : ed.degree
                       }
-                      title={e.role}
-                      company_id={e.company_id}
-                      name={companyEnToKo(e.company_db.name)}
-                      start_date={e.start_date}
-                      end_date={e.end_date}
-                      link={e.company_db.linkedin_url}
-                      description={e.description}
-                      logo_url={e.company_db.logo}
-                      months={e.months}
+                      start_date={ed.start_date}
+                      end_date={ed.end_date}
+                      link={ed.url}
+                      description={""}
+                      typed="edu"
                       isLast={idx === mergedExperience.length - 1}
-                      onToggleDescription={(nextOpen) => {
-                        if (!nextOpen) return;
-                        const companyName = companyEnToKo(e.company_db.name);
-                        const target = compactLogToken(
-                          companyName ||
-                            e.company_db.name ||
-                            e.role ||
-                            "unknown"
-                        );
-                        logEvent(
-                          `profile_experience_chevron_click:${candidId}:${target}`
-                        );
-                      }}
                     />
                   );
-                }
-
-                const ed = entry.item;
-                return (
+                })}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {Array.isArray(c.experience_user) && c.experience_user[0] ? (
                   <ItemBox
-                    key={`edu-${idx}`}
-                    title={`${koreaUniversityEnToKo(ed.school)}`}
-                    name={
-                      ed.field
-                        ? `${majorEnToKo(ed.field)}, ${degreeEnToKo(ed.degree)}`
-                        : ed.degree
-                    }
-                    start_date={ed.start_date}
-                    end_date={ed.end_date}
-                    link={ed.url}
-                    description={""}
-                    typed="edu"
-                    isLast={idx === mergedExperience.length - 1}
+                    title={c.experience_user[0]?.role ?? "****"}
+                    name={c.experience_user[0]?.company_db?.name ?? "****"}
+                    start_date={c.experience_user[0]?.start_date ?? ""}
+                    end_date={c.experience_user[0]?.end_date ?? ""}
+                    link=""
+                    description=""
+                    logo_url={c.experience_user[0]?.company_db?.logo}
+                    isLast={true}
+                    disableEntityClick={true}
                   />
-                );
-              })}
-            </div>
+                ) : (
+                  <div className="text-sm text-hgray700">
+                    열람 후 경력 정보를 확인할 수 있습니다.
+                  </div>
+                )}
+                {(c.masked_experience_count ?? 0) > 0 ? (
+                  <div className="rounded-2xl bg-white/5 px-4 py-3 text-sm text-hgray700">
+                    + {c.masked_experience_count}개 경력
+                  </div>
+                ) : null}
+              </div>
+            )}
           </Box>
         )}
 
         {/* Awards */}
-        {(c.extra_experience ?? []).length > 0 && (
+        {isProfileRevealed && (c.extra_experience ?? []).length > 0 && (
           <Box title={`수상 기록`}>
             <div className="space-y-0">
               {(c.extra_experience ?? []).map((extra: any, idx: number) => (
@@ -749,24 +837,31 @@ function CandidateProfileDetailPage({
           </Box>
         )}
 
-        {recentGithubContributions.length > 0 && (
+        {isProfileRevealed && githubProfile ? (
+          <GithubProfileSection
+            githubProfile={githubProfile}
+            profileRevealed={isProfileRevealed}
+          />
+        ) : null}
+
+        {isProfileRevealed && recentGithubContributions.length > 0 && (
           <Box title={`GitHub\nMain Contributions`}>
-              <div className="grid grid-cols-2 gap-3">
-                {recentGithubContributions.length > 0 ? (
-                  recentGithubContributions.map((repo: any) => (
-                    <GithubRepoContributionBox
-                      key={`${repo.id}-${repo.repo}`}
-                      contribution={repo}
-                    />
-                  ))
-                ) : (
-                  <div className="text-sm text-hgray700 font-light">
-                    최근 5년 내 GitHub 기여 기록이 없습니다.
-                  </div>
-                )}
-              </div>
-            </Box>
-          )}
+            <div className="grid grid-cols-2 gap-3">
+              {recentGithubContributions.length > 0 ? (
+                recentGithubContributions.map((repo: any) => (
+                  <GithubRepoContributionBox
+                    key={`${repo.id}-${repo.repo}`}
+                    contribution={repo}
+                  />
+                ))
+              ) : (
+                <div className="text-sm text-hgray700 font-light">
+                  최근 5년 내 GitHub 기여 기록이 없습니다.
+                </div>
+              )}
+            </div>
+          </Box>
+        )}
 
         {scholarProfile ? (
           <ScholarProfileSection
@@ -777,6 +872,7 @@ function CandidateProfileDetailPage({
             remainingPublicationCount={remainingPublicationCount}
             showAllPublications={showAllPublications}
             onShowAllPublications={() => setShowAllPublications(true)}
+            profileRevealed={isProfileRevealed}
           />
         ) : displayedPublications.length > 0 ? (
           <Box
@@ -791,6 +887,7 @@ function CandidateProfileDetailPage({
                   link={p.link}
                   citation_num={p.citation_num ?? -1}
                   paperId={p.paper_id}
+                  disabled={!isProfileRevealed}
                 />
               ))}
             </div>

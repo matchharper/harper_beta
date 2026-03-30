@@ -2,10 +2,15 @@ import crypto from "crypto";
 import { createClient } from "@supabase/supabase-js";
 import { IncomingWebhook } from "@slack/webhook";
 import { resetCreditsForPlan } from "@/lib/billing/server";
+import type {
+  RequestAccessReviewQueueItem,
+  RequestAccessReviewQueueResponse,
+  RequestAccessReviewStatus,
+} from "@/lib/requestAccess/types";
 import type { Database } from "@/types/database.types";
 
 export const REQUEST_ACCESS_APPROVE_ACTION_ID = "request_access_approve";
-export const REQUEST_ACCESS_REVIEW_PAGE_PATH = "/request-access/review";
+export const REQUEST_ACCESS_REVIEW_PAGE_PATH = "/ops/request-access/review";
 
 const REQUEST_ACCESS_STATUS_PENDING = "pending";
 const REQUEST_ACCESS_STATUS_APPROVED = "approved";
@@ -36,6 +41,21 @@ type RequestAccessApprovalRow = Pick<
   | "approval_token"
 >;
 
+type RequestAccessQueueRow = Pick<
+  RequestAccessRow,
+  | "access_granted_at"
+  | "approval_email_sent_at"
+  | "approved_at"
+  | "company"
+  | "created_at"
+  | "email"
+  | "name"
+  | "needs"
+  | "role"
+  | "status"
+  | "user_id"
+>;
+
 export type RequestAccessApprovalDraft = {
   status: "pending" | "approved" | "already_granted";
   email: string;
@@ -50,6 +70,16 @@ export type RequestAccessApprovalDraft = {
   html: string;
   text: string;
 };
+
+function toRequestAccessReviewStatus(
+  row: Pick<RequestAccessRow, "access_granted_at" | "status">
+): RequestAccessReviewStatus {
+  if (row.access_granted_at) {
+    return "already_granted";
+  }
+
+  return row.status === REQUEST_ACCESS_STATUS_APPROVED ? "approved" : "pending";
+}
 
 function createSupabaseAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -487,8 +517,8 @@ export async function submitRequestAccess(
   const role = normalizeText(args.role);
   const hiringNeed = normalizeText(args.hiringNeed);
 
-  if (!email || !name || !company || !role || !hiringNeed) {
-    throw new Error("All request access fields are required");
+  if (!email || !name || !company) {
+    throw new Error("Name and company are required");
   }
 
   const payload: Database["public"]["Tables"]["harper_waitlist_company"]["Insert"] =
@@ -497,8 +527,8 @@ export async function submitRequestAccess(
       email,
       name,
       company,
-      role,
-      needs: [hiringNeed],
+      role: role || null,
+      needs: hiringNeed ? [hiringNeed] : null,
       is_mobile: args.isMobile ?? null,
       is_submit: true,
       status: REQUEST_ACCESS_STATUS_PENDING,
@@ -523,8 +553,8 @@ export async function submitRequestAccess(
     email,
     name,
     company,
-    role,
-    needs: [hiringNeed],
+    role: role || null,
+    needs: hiringNeed ? [hiringNeed] : null,
     user_id: args.userId,
     ...(data ?? {}),
   };
@@ -641,11 +671,7 @@ export async function prepareRequestAccessApprovalDraft(args: {
     email,
     baseUrl: args.baseUrl,
   });
-  const status = context.row.access_granted_at
-    ? "already_granted"
-    : context.row.status === REQUEST_ACCESS_STATUS_APPROVED
-      ? "approved"
-      : "pending";
+  const status = toRequestAccessReviewStatus(context.row);
 
   return {
     status,
@@ -661,6 +687,88 @@ export async function prepareRequestAccessApprovalDraft(args: {
     html: context.defaultEmail.html,
     text: context.defaultEmail.text,
   } satisfies RequestAccessApprovalDraft;
+}
+
+export async function listRequestAccessReviewQueue(args: {
+  baseUrl: string;
+}): Promise<RequestAccessReviewQueueResponse> {
+  const supabaseAdmin = createSupabaseAdminClient();
+  const { data, error } = await supabaseAdmin
+    .from("harper_waitlist_company")
+    .select(
+      "access_granted_at, approval_email_sent_at, approved_at, company, created_at, email, name, needs, role, status, user_id"
+    )
+    .eq("is_submit", true)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  const statusWeight: Record<RequestAccessReviewStatus, number> = {
+    pending: 0,
+    approved: 1,
+    already_granted: 2,
+  };
+
+  const items = ((data ?? []) as RequestAccessQueueRow[])
+    .map((row) => {
+      const status = toRequestAccessReviewStatus(row);
+
+      return {
+        accessGrantedAt: row.access_granted_at,
+        approvalEmailSentAt: row.approval_email_sent_at,
+        approvedAt: row.approved_at,
+        company: row.company,
+        createdAt: row.created_at,
+        email: row.email,
+        hiringNeed: Array.isArray(row.needs) ? (row.needs[0] ?? null) : null,
+        name: row.name,
+        requestToken: buildRequestAccessReviewToken(row.email),
+        reviewUrl: buildRequestAccessReviewUrl({
+          email: row.email,
+          baseUrl: args.baseUrl,
+        }),
+        role: row.role,
+        status,
+        userId: row.user_id,
+      } satisfies RequestAccessReviewQueueItem;
+    })
+    .sort((left, right) => {
+      const statusDelta = statusWeight[left.status] - statusWeight[right.status];
+      if (statusDelta !== 0) {
+        return statusDelta;
+      }
+
+      return right.createdAt.localeCompare(left.createdAt);
+    });
+
+  const counts = items.reduce(
+    (acc, item) => {
+      acc.total += 1;
+
+      if (item.status === "pending") {
+        acc.pending += 1;
+      } else if (item.status === "approved") {
+        acc.approved += 1;
+      } else {
+        acc.alreadyGranted += 1;
+      }
+
+      return acc;
+    },
+    {
+      alreadyGranted: 0,
+      approved: 0,
+      pending: 0,
+      total: 0,
+    }
+  );
+
+  return {
+    counts,
+    items,
+  };
 }
 
 export async function sendRequestAccessApprovalEmail(args: {

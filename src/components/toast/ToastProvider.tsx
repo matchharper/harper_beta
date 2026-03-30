@@ -87,7 +87,7 @@ function Toast({ item, onClose }: { item: Item; onClose: () => void }) {
         item.variant === "success"
           ? "border-green-400/20 bg-green-400/10 text-green-100"
           : item.variant === "error"
-            ? "border-rose-400/20 bg-rose-400/10 text-rose-100"
+            ? "border-red-400/50 bg-red-500/50 text-black"
             : item.variant === "white"
               ? "border-white/100 bg-white/80 text-black"
               : "border-xopp/15 bg-xopp/10 text-white/90",

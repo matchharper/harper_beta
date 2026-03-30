@@ -391,7 +391,7 @@ export async function fetchTalentStructuredProfile(args: {
       admin
         .from("talent_experiences")
         .select(
-          "id, talent_id, role, description, start_date, end_date, months, company_name, company_location, company_logo, memo, created_at"
+          "id, talent_id, role, description, start_date, end_date, months, company_id, company_link, company_name, company_location, company_logo, memo, created_at"
         )
         .eq("talent_id", userId)
         .order("start_date", { ascending: false, nullsFirst: false })
@@ -399,7 +399,7 @@ export async function fetchTalentStructuredProfile(args: {
       admin
         .from("talent_educations")
         .select(
-          "id, talent_id, school, degree, field, start_date, end_date, url, memo, created_at"
+          "id, talent_id, school, degree, description, field, start_date, end_date, url, memo, created_at"
         )
         .eq("talent_id", userId)
         .order("start_date", { ascending: false, nullsFirst: false })

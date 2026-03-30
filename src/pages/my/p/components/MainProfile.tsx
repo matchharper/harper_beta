@@ -13,6 +13,7 @@ const MainProfile = ({
   onLinkClick,
   metaLabel,
   metaIcon,
+  profileRevealed = true,
 }: {
   profile_picture: string;
   name: string;
@@ -22,6 +23,7 @@ const MainProfile = ({
   onLinkClick?: (url: string) => void;
   metaLabel?: string;
   metaIcon?: LucideIcon;
+  profileRevealed?: boolean;
 }) => {
   const hasLinks = (links?.length ?? 0) > 0;
   const resolvedMetaLabel =
@@ -38,7 +40,7 @@ const MainProfile = ({
               alt={name ?? "profile"}
               width={92}
               height={92}
-              className="w-24 h-24 object-cover"
+              className={`w-24 h-24 object-cover ${profileRevealed ? "" : "scale-110 blur-2xl"}`}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-hgray1000 bg-gradblack font-normal text-2xl">
@@ -68,7 +70,12 @@ const MainProfile = ({
           {!hasLinks ? (
             <div className="text-sm text-xgray600">No links</div>
           ) : (
-            <LinkChips links={links} onLinkClick={onLinkClick} />
+            <LinkChips
+              links={links}
+              onLinkClick={onLinkClick}
+              masked={!profileRevealed}
+              disableLinks={!profileRevealed}
+            />
           )}
         </div>
       </div>

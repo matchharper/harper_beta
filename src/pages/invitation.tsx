@@ -290,9 +290,7 @@ export default function LoginSuccess() {
 
     if (
       !normalizedValues.name ||
-      !normalizedValues.company ||
-      !normalizedValues.role ||
-      !normalizedValues.hiringNeed
+      !normalizedValues.company
     ) {
       showToast({
         message: m.invitation.requestAccess.errors.invalidForm,

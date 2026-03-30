@@ -6,6 +6,10 @@ import {
   getSupabaseAdmin,
   loadFolderShareByToken,
 } from "../_shared";
+import {
+  applyDetailRevealState,
+  fetchRevealMapForUser,
+} from "@/lib/server/candidateAccess";
 
 export const runtime = "nodejs";
 
@@ -99,14 +103,28 @@ export async function GET(req: Request) {
           [candidId]
         ),
       ]);
+    const revealMap = await fetchRevealMapForUser(
+      supabaseAdmin as any,
+      share!.created_by,
+      [candidId]
+    );
+
+    const isRevealed = revealMap.get(candidId) === true;
 
     return NextResponse.json({
       folder,
-      candid: {
-        ...candid,
-        candidate_mark: ownerCandidateMarkByCandidateId.get(candidId) ?? null,
-        shortlist_memo: ownerShortlistMemoByCandidateId.get(candidId) ?? "",
-      },
+      candid: applyDetailRevealState(
+        {
+          ...candid,
+          candidate_mark: isRevealed
+            ? ownerCandidateMarkByCandidateId.get(candidId) ?? null
+            : null,
+          shortlist_memo: isRevealed
+            ? ownerShortlistMemoByCandidateId.get(candidId) ?? ""
+            : "",
+        },
+        isRevealed
+      ),
     });
   } catch (error: any) {
     return NextResponse.json(
