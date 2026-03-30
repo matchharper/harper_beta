@@ -286,7 +286,7 @@ const SelectionCardButton = ({
     <div className="flex w-full items-start gap-3">
       {typeof optionNumber === "number" && (
         <span
-          className={`mt-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-[4px] border text-xs font-medium ${
+          className={`mt-1 hidden md:inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-[4px] border text-xs font-medium ${
             active
               ? "border-beige900 bg-beige900 text-beige100"
               : "border-black/10 bg-white text-beige900"
@@ -1117,14 +1117,16 @@ export const Onboarding2Content = ({
                       </div>
                     </div>
 
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col md:flex-row gap-2">
                       {CAREER_MOVE_INTENT_OPTIONS.map((option, index) => (
                         <SelectionCardButton
                           key={option.id}
                           label={option.label}
                           optionNumber={ENGAGEMENT_OPTIONS.length + index + 1}
                           active={selectedCareerMoveIntent === option.id}
-                          onClick={() => handleCareerMoveIntentSelect(option.id)}
+                          onClick={() =>
+                            handleCareerMoveIntentSelect(option.id)
+                          }
                         />
                       ))}
                     </div>
@@ -1166,7 +1168,7 @@ export const Onboarding2Content = ({
                 <div className="mt-4 flex flex-row items-center gap-3">
                   <button
                     onClick={handlePrimaryAction}
-                    className="h-11 cursor-pointer rounded-lg bg-beige900 px-4 text-lg font-medium text-beige100 shadow-lg transition-all duration-200 hover:opacity-90"
+                    className="h-12 md:h-11 mb-8 md:mb-0 cursor-pointer rounded-lg bg-beige900 w-full md:px-4 text-lg font-medium text-beige100 shadow-lg transition-all duration-200 hover:opacity-90"
                   >
                     {submitLoading || submissionPending ? (
                       <span className="animate-spin">
@@ -1179,7 +1181,7 @@ export const Onboarding2Content = ({
                     )}
                   </button>
 
-                  <span className="flex flex-row items-center gap-1 text-[14px] font-light">
+                  <span className="hidden md:flex flex-row items-center gap-1 text-[14px] font-light">
                     <span className="text-beige900/45">press</span>
                     <span className="font-medium text-beige900">Enter</span>
                     <CornerDownLeft size={14} strokeWidth={2} />

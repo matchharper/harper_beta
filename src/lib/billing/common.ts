@@ -1,6 +1,6 @@
 export type BillingPeriod = "monthly" | "yearly";
 export type BillingPlanKey = "pro" | "max";
-export type BillingProvider = "toss" | "polar" | "lemonsqueezy";
+export type BillingProvider = "toss";
 export type BillingProviderStatus =
   | "active"
   | "past_due"
@@ -84,10 +84,4 @@ export function buildOrderId(prefix: string, seed: string) {
   const safeSeed = seed.replace(/[^A-Za-z0-9_-]/g, "");
   const body = `${safePrefix}_${safeSeed}`;
   return body.slice(0, 64);
-}
-
-export function isLegacyProvider(
-  provider?: BillingProvider | null
-): provider is "polar" | "lemonsqueezy" {
-  return provider === "polar" || provider === "lemonsqueezy";
 }

@@ -40,7 +40,8 @@ export const en = {
       hiringNeedPlaceholder:
         "For example: Backend Engineer x2, Founding Recruiter x1",
       errors: {
-        missingSession: "We couldn't verify your session. Please sign in again.",
+        missingSession:
+          "We couldn't verify your session. Please sign in again.",
         invalidForm: "Please fill in every field.",
         submitFailed: "Failed to submit your request. Please try again.",
       },
@@ -167,7 +168,7 @@ export const en = {
       titleLine2Prefix: "Pay for",
       titleLine2Highlight: "Intelligence",
       subtitle:
-        "Go beyond simple search and experience intelligence that understands talent.",
+        "No matter your criteria,<br />our AI search engine instantly finds the right profiles for you.",
     },
     section1: {
       title: "Recruiting Agent, Harper",
@@ -268,9 +269,8 @@ export const en = {
           buttonLabel: "Contact us",
           features: [
             "150 searches / month",
-            "Talent research & analysis<br />(deep research per candidate)",
-            "AI smart search",
-            "Unlimited chat",
+            "AI analysis of paper + code quality",
+            "Harper Scout (Autonomous Discovery)<br/><i>AI-driven search that indexes technical truth, not just resumes.</i>",
           ],
         },
         max: {

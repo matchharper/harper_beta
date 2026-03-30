@@ -1,13 +1,22 @@
 import Reveal from "@/components/landing/Animation/Reveal";
 import StaggerText from "@/components/landing/Animation/StaggerText";
 import { showToast } from "@/components/toast/toast";
+import { useCountryLang } from "@/hooks/useCountryLang";
+import { useIsMobile } from "@/hooks/useIsMobile";
+import {
+  TALENT_NETWORK_LAST_VISIT_AT_KEY,
+  TALENT_NETWORK_LOCAL_ID_KEY,
+  TALENT_NETWORK_LOG_ABTEST_TYPE,
+  createTalentNetworkLocalId,
+} from "@/lib/talentNetwork";
+import { supabase } from "@/lib/supabase";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowUpRight, ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
 import Head from "next/head";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Onboarding2Content } from "./onboarding2";
 
 type CompanyRequest = {
@@ -184,6 +193,16 @@ const titleTextClassName =
 
 const MOBILE_POSITION_PAGE_SIZE = 4;
 const SHARE_REQUEST_QUERY_KEY = "recommended";
+const SECTION_VIEW_INTERSECTION_THRESHOLD = 0.35;
+const SECTION_VIEW_LOG_COOLDOWN_MS = 15000;
+const SESSION_RESET_WINDOW_MS = 30 * 60 * 1000;
+
+type NetworkSectionKey =
+  | "hero"
+  | "social_proof"
+  | "opportunities"
+  | "faq"
+  | "footer";
 
 async function copyToClipboard(text: string) {
   if (navigator.clipboard?.writeText) {
@@ -487,8 +506,53 @@ const RequestDetailModal = ({
   );
 };
 
+const valueCards1 = [
+  {
+    number: "01",
+    title: "Apply Once",
+    description:
+      "서류 지원과 인터뷰를 회사마다 반복할 필요가 없습니다. 한번만 등록하세요. 매칭되는 회사가 어떤 회사인지, 조건이 어떻게 되는지도 저희가 설명해드립니다.",
+  },
+  {
+    number: "02",
+    title: "Private by Default",
+    description:
+      "당신의 정보는 기본적으로 공개되지 않습니다.<br/>매칭을 확인하고, 원할 때만 특정 회사에 공유됩니다.",
+  },
+  {
+    number: "03",
+    title: "Access Hidden Roles",
+    description:
+      "일반 채용시장에 공개되지 않은 포지션까지 연결됩니다.<br/>Stealth 스타트업부터 글로벌 유니콘까지, 직접 접근하기 어려운 기회들을 만날 수 있습니다.",
+  },
+];
+
+const valueCards = [
+  {
+    number: "01",
+    title: "Apply Once",
+    description:
+      "No need to repeat applications and interviews for every company.<br/>Sign up once, and we'll match you with the right opportunities—while clearly explaining each company and role.",
+  },
+  {
+    number: "02",
+    title: "Private by Default",
+    description:
+      "Your information is never shared by default.<br/>Only the opportunities you choose will see your profile.",
+  },
+  {
+    number: "03",
+    title: "Access Hidden Roles",
+    description:
+      "Get access to roles that aren't publicly listed.<br/>From stealth startups to global unicorns, discover opportunities you wouldn't find on your own.",
+  },
+];
+
 const NetworkPage = () => {
   const router = useRouter();
+  const isMobile = useIsMobile();
+  const countryLang = useCountryLang();
+  const [landingId, setLandingId] = useState("");
   const [openFaqIndex, setOpenFaqIndex] = useState(0);
   const [showPreloader, setShowPreloader] = useState(true);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
@@ -506,14 +570,79 @@ const NetworkPage = () => {
     string | null
   >(null);
   const [copiedRequestId, setCopiedRequestId] = useState<string | null>(null);
+  const heroSectionRef = useRef<HTMLElement | null>(null);
+  const socialProofSectionRef = useRef<HTMLElement | null>(null);
   const opportunitiesSectionRef = useRef<HTMLElement | null>(null);
+  const faqSectionRef = useRef<HTMLElement | null>(null);
+  const footerSectionRef = useRef<HTMLElement | null>(null);
   const requestCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const hasLoggedFirstScrollRef = useRef(false);
+  const sectionLastLoggedAtRef = useRef<Record<NetworkSectionKey, number>>({
+    hero: 0,
+    social_proof: 0,
+    opportunities: 0,
+    faq: 0,
+    footer: 0,
+  });
   const totalMobilePositionPages = Math.ceil(
     companyRequests.length / MOBILE_POSITION_PAGE_SIZE
   );
   const mobileVisibleRequests = companyRequests.slice(
     mobilePositionPage * MOBILE_POSITION_PAGE_SIZE,
     (mobilePositionPage + 1) * MOBILE_POSITION_PAGE_SIZE
+  );
+
+  const insertLandingLog = useCallback(
+    async (type: string, localId: string) => {
+      try {
+        await supabase.from("landing_logs").insert({
+          local_id: localId,
+          type,
+          abtest_type: TALENT_NETWORK_LOG_ABTEST_TYPE,
+          is_mobile: isMobile,
+          country_lang: countryLang,
+        });
+      } catch (error) {
+        console.error("talent network page log error:", error);
+      }
+    },
+    [countryLang, isMobile]
+  );
+
+  const addLandingLog = useCallback(
+    async (type: string) => {
+      if (!landingId) return;
+      await insertLandingLog(type, landingId);
+    },
+    [insertLandingLog, landingId]
+  );
+
+  const openOnboarding = useCallback(
+    (type: string, role?: string) => {
+      void addLandingLog(type);
+      setSelectedOnboardingRole(role);
+      setIsOnboardingOpen(true);
+    },
+    [addLandingLog]
+  );
+
+  const handleOpenRequest = useCallback(
+    (request: CompanyRequest) => {
+      void addLandingLog(`view_network_request_${request.id}`);
+      setSelectedRequest(request);
+    },
+    [addLandingLog]
+  );
+
+  const handleFaqToggle = useCallback(
+    (index: number, isOpen: boolean) => {
+      if (!isOpen) {
+        void addLandingLog(`click_network_faq_${index + 1}`);
+      }
+
+      setOpenFaqIndex(isOpen ? -1 : index);
+    },
+    [addLandingLog]
   );
 
   useEffect(() => {
@@ -523,6 +652,108 @@ const NetworkPage = () => {
 
     return () => window.clearTimeout(timeout);
   }, []);
+
+  useEffect(() => {
+    const savedId = localStorage.getItem(TALENT_NETWORK_LOCAL_ID_KEY);
+    if (savedId) {
+      setLandingId(savedId);
+      return;
+    }
+
+    const nextId = createTalentNetworkLocalId();
+    const now = Date.now().toString();
+    localStorage.setItem(TALENT_NETWORK_LOCAL_ID_KEY, nextId);
+    localStorage.setItem(TALENT_NETWORK_LAST_VISIT_AT_KEY, now);
+    setLandingId(nextId);
+    void insertLandingLog("new_visit", nextId);
+  }, [insertLandingLog]);
+
+  useEffect(() => {
+    if (!landingId) return;
+
+    const now = Date.now();
+    const lastVisitRaw = localStorage.getItem(TALENT_NETWORK_LAST_VISIT_AT_KEY);
+    const lastVisitAt = lastVisitRaw ? Number(lastVisitRaw) : null;
+
+    if (!lastVisitAt || now - lastVisitAt >= SESSION_RESET_WINDOW_MS) {
+      void addLandingLog("new_session");
+    }
+
+    localStorage.setItem(TALENT_NETWORK_LAST_VISIT_AT_KEY, now.toString());
+  }, [addLandingLog, landingId]);
+
+  useEffect(() => {
+    if (!landingId) return;
+
+    const handleScroll = () => {
+      if (hasLoggedFirstScrollRef.current || window.scrollY <= 0) return;
+
+      hasLoggedFirstScrollRef.current = true;
+      void addLandingLog("first_scroll_down");
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [addLandingLog, landingId]);
+
+  useEffect(() => {
+    if (!landingId || showPreloader) return;
+
+    const sectionElements: Array<{
+      key: NetworkSectionKey;
+      element: HTMLElement | null;
+    }> = [
+      { key: "hero", element: heroSectionRef.current },
+      { key: "social_proof", element: socialProofSectionRef.current },
+      { key: "opportunities", element: opportunitiesSectionRef.current },
+      { key: "faq", element: faqSectionRef.current },
+      { key: "footer", element: footerSectionRef.current },
+    ];
+
+    const observedSections = sectionElements.filter(
+      (
+        section
+      ): section is {
+        key: NetworkSectionKey;
+        element: HTMLElement;
+      } => section.element !== null
+    );
+
+    if (observedSections.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const now = Date.now();
+
+        entries.forEach((entry) => {
+          const section = (entry.target as HTMLElement).dataset.section as
+            | NetworkSectionKey
+            | undefined;
+          if (!section) return;
+
+          const isVisible =
+            entry.isIntersecting &&
+            entry.intersectionRatio >= SECTION_VIEW_INTERSECTION_THRESHOLD;
+
+          if (!isVisible) return;
+
+          const lastLoggedAt = sectionLastLoggedAtRef.current[section] ?? 0;
+          if (now - lastLoggedAt < SECTION_VIEW_LOG_COOLDOWN_MS) return;
+
+          sectionLastLoggedAtRef.current[section] = now;
+          void addLandingLog(`view_section_network_${section}`);
+        });
+      },
+      {
+        root: null,
+        threshold: [0, SECTION_VIEW_INTERSECTION_THRESHOLD, 0.7],
+        rootMargin: "0px 0px -15% 0px",
+      }
+    );
+
+    observedSections.forEach(({ element }) => observer.observe(element));
+    return () => observer.disconnect();
+  }, [addLandingLog, landingId, showPreloader]);
 
   useEffect(() => {
     const isOverlayOpen = isOnboardingOpen || selectedRequest !== null;
@@ -639,6 +870,8 @@ const NetworkPage = () => {
   }, [mobilePositionPage, pendingScrollRequestId, showPreloader]);
 
   const handleShareRequest = async (request: CompanyRequest) => {
+    void addLandingLog(`click_network_share_request_${request.id}`);
+
     try {
       const shareUrl = new URL(
         window.location.pathname,
@@ -710,10 +943,7 @@ const NetworkPage = () => {
               size="sm"
               variant="secondary"
               showArrow={false}
-              onClick={() => {
-                setSelectedOnboardingRole(undefined);
-                setIsOnboardingOpen(true);
-              }}
+              onClick={() => openOnboarding("click_network_join_nav")}
               className="inline-flex"
             />
           </div>
@@ -723,7 +953,11 @@ const NetworkPage = () => {
           id="top"
           className="mx-auto flex max-w-[1160px] flex-col px-4 pb-24 pt-[72px] md:pt-[96px] "
         >
-          <section className="py-10 text-center">
+          <section
+            ref={heroSectionRef}
+            data-section="hero"
+            className="py-10 text-center"
+          >
             <Reveal once delay={0.06} className="mx-auto mt-6 max-w-[900px]">
               <h2
                 className={`${titleTextClassName} text-beige900 text-4xl md:text-5xl`}
@@ -757,10 +991,9 @@ const NetworkPage = () => {
             <Reveal once delay={0.24} className="mt-12">
               <NetworkButton
                 label="Initiate Match"
-                onClick={() => {
-                  setSelectedOnboardingRole(undefined);
-                  setIsOnboardingOpen(true);
-                }}
+                onClick={() =>
+                  openOnboarding("click_network_initiate_match_hero")
+                }
               />
             </Reveal>
 
@@ -774,42 +1007,49 @@ const NetworkPage = () => {
             </Reveal> */}
           </section>
 
-          <Reveal
-            once
-            delay={0.08}
-            className="text-center justify-center items-center mt-2 mb-12"
+          <section
+            ref={socialProofSectionRef}
+            data-section="social_proof"
+            className="mt-2"
           >
-            <div className="flex flex-row items-center justify-center gap-2">
-              <div className="relative items-baseline gap-1 font-normal flex">
-                <div>300+ engineers and researchers From </div>
+            <Reveal
+              once
+              delay={0.08}
+              className="text-center justify-center items-center mb-12"
+            >
+              <div className="flex flex-row items-center justify-center gap-2">
+                <div className="relative items-baseline gap-1 font-normal flex">
+                  <div>300+ engineers and researchers From </div>
+                </div>
+                <div className="flex -space-x-2">
+                  {schoolLogos.map((school) => (
+                    <div
+                      key={school.name}
+                      className="h-10 w-10 rounded-full bg-beige500 border border-beige900/20"
+                    >
+                      <Image
+                        src={school.src}
+                        alt={school.name}
+                        className="rounded-full"
+                        width={42}
+                        height={42}
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="flex -space-x-2">
-                {schoolLogos.map((school) => (
-                  <div
-                    key={school.name}
-                    className="h-10 w-10 rounded-full bg-beige500 border border-beige900/20"
-                  >
-                    <Image
-                      src={school.src}
-                      alt={school.name}
-                      className="rounded-full"
-                      width={42}
-                      height={42}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-            {/* <p className="mt-3 text-[17px] leading-[1.55] tracking-[-0.03em] text-beige900/55">
-              매칭을 위해 Active pool을 500명 이하로 관리 예정입니다.
-            </p> */}
-          </Reveal>
+              {/* <p className="mt-3 text-[17px] leading-[1.55] tracking-[-0.03em] text-beige900/55">
+                매칭을 위해 Active pool을 500명 이하로 관리 예정입니다.
+              </p> */}
+            </Reveal>
 
-          <VCLogos />
+            <VCLogos />
+          </section>
 
           <section
             id="opportunities"
             ref={opportunitiesSectionRef}
+            data-section="opportunities"
             className="mt-32 scroll-mt-24"
           >
             <Reveal once>
@@ -820,9 +1060,10 @@ const NetworkPage = () => {
                 <div className="flex items-center gap-2 md:hidden">
                   <button
                     type="button"
-                    onClick={() =>
-                      setMobilePositionPage((prev) => Math.max(prev - 1, 0))
-                    }
+                    onClick={() => {
+                      void addLandingLog("click_network_positions_prev_page");
+                      setMobilePositionPage((prev) => Math.max(prev - 1, 0));
+                    }}
                     disabled={mobilePositionPage === 0}
                     className="inline-flex h-7 w-7 items-center justify-center rounded-sm bg-black/10 text-sm text-beige900 transition disabled:cursor-not-allowed disabled:opacity-35"
                     aria-label="Show previous positions"
@@ -831,11 +1072,12 @@ const NetworkPage = () => {
                   </button>
                   <button
                     type="button"
-                    onClick={() =>
+                    onClick={() => {
+                      void addLandingLog("click_network_positions_next_page");
                       setMobilePositionPage((prev) =>
                         Math.min(prev + 1, totalMobilePositionPages - 1)
-                      )
-                    }
+                      );
+                    }}
                     disabled={
                       mobilePositionPage >= totalMobilePositionPages - 1
                     }
@@ -862,7 +1104,7 @@ const NetworkPage = () => {
                     containerRef={(node) => {
                       requestCardRefs.current[`mobile-${request.id}`] = node;
                     }}
-                    onClick={() => setSelectedRequest(request)}
+                    onClick={() => handleOpenRequest(request)}
                   />
                 </Reveal>
               ))}
@@ -882,14 +1124,62 @@ const NetworkPage = () => {
                     containerRef={(node) => {
                       requestCardRefs.current[`desktop-${request.id}`] = node;
                     }}
-                    onClick={() => setSelectedRequest(request)}
+                    onClick={() => handleOpenRequest(request)}
                   />
                 </Reveal>
               ))}
             </div>
           </section>
 
-          <section id="faq" className="py-24">
+          <Reveal once className="text-center mt-24 md:mt-32">
+            <SectionTag>Our value</SectionTag>
+
+            <h2
+              className={`mx-auto mt-8 max-w-[860px] font-halant text-3xl md:text-4xl leading-[0.98] tracking-[-0.08em] text-beige900`}
+            >
+              Highly Curated
+            </h2>
+            {/* <p className="mx-auto mt-6 max-w-[680px] text-[20px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
+              Tell us who you need. We find, shortlist, and deliver candidates
+              you can review and interview right away.
+            </p> */}
+
+            <div className="mt-8 md:mt-16 flex flex-col md:flex-row gap-6 items-start justify-between">
+              {valueCards.map((item, index) => (
+                <Reveal
+                  key={item.number}
+                  once
+                  direction="right"
+                  delay={index * 0.08}
+                  className="w-full"
+                >
+                  <div className="grid grid-cols-[42px_1fr] gap-4 text-left">
+                    <div className="pt-1 font-geist text-2xl font-medium leading-none tracking-[-0.08em] text-beige900/60 max-[809px]:pt-2">
+                      {item.number}
+                    </div>
+                    <div>
+                      <div className="flex items-start gap-3 max-[809px]:flex-col-reverse max-[809px]:gap-2">
+                        <h3 className="text-xl font-medium leading-[1.12] tracking-[-0.05em] text-beige900 max-[809px]:mt-2">
+                          {item.title}
+                        </h3>
+                      </div>
+                      <p
+                        className="mt-2 text-base md:text-[18px] leading-[1.5] tracking-[-0.03em] text-beige900/50"
+                        dangerouslySetInnerHTML={{ __html: item.description }}
+                      />
+                    </div>
+                  </div>
+                </Reveal>
+              ))}
+            </div>
+          </Reveal>
+
+          <section
+            id="faq"
+            ref={faqSectionRef}
+            data-section="faq"
+            className="py-24 mt-0 md:mt-8"
+          >
             <Reveal once className="text-center">
               <SectionTag>FAQ</SectionTag>
             </Reveal>
@@ -902,7 +1192,7 @@ const NetworkPage = () => {
                   <Reveal key={faq.question} once delay={index * 0.04}>
                     <motion.button
                       type="button"
-                      onClick={() => setOpenFaqIndex(isOpen ? -1 : index)}
+                      onClick={() => handleFaqToggle(index, isOpen)}
                       aria-expanded={isOpen}
                       className="w-full rounded-[24px] bg-beige100 px-6 py-6 shadow-[0_14px_30px_rgba(66,38,10,0.06)]"
                     >
@@ -938,7 +1228,7 @@ const NetworkPage = () => {
                             className="overflow-hidden"
                           >
                             <p
-                              className="max-w-[720px] text-left text-sm md:text-[15px] leading-[1.6] tracking-[-0.01em] text-beige900/70"
+                              className="w-full text-left text-sm md:text-[15px] leading-[1.6] tracking-[-0.01em] text-beige900/70"
                               dangerouslySetInnerHTML={{ __html: faq.answer }}
                             />
                           </motion.div>
@@ -951,49 +1241,51 @@ const NetworkPage = () => {
             </div>
           </section>
         </main>
-        <br />
-        <br />
-        <br />
-        <br />
-        <Reveal once delay={0.24} className="w-full">
-          <div className="flex items-center justify-center w-full mt-20 mb-4">
-            <Image
-              src="/images/objects.png"
-              alt="objects"
-              width={256}
-              height={256}
-              className="w-44 sm:w-52 md:w-64"
-            />
-          </div>
-        </Reveal>
+        <div ref={footerSectionRef as any} data-section="footer">
+          <br />
+          <br />
+          <br />
+          <br />
+          <Reveal once delay={0.24} className="w-full">
+            <div className="flex items-center justify-center w-full mt-20 mb-4">
+              <Image
+                src="/images/objects.png"
+                alt="objects"
+                width={256}
+                height={256}
+                className="w-44 sm:w-52 md:w-64"
+              />
+            </div>
+          </Reveal>
 
-        <footer className="border-t border-beige900/10 py-8">
-          <div className="mx-auto flex max-w-[1160px] flex-col items-center justify-between gap-4 px-4 tracking-[-0.03em] text-beige900/60 md:flex-row">
-            <div className="font-halant text-[28px] tracking-[-0.06em] text-beige900">
-              Harper
+          <footer className="border-t border-beige900/10 py-8">
+            <div className="mx-auto flex max-w-[1160px] flex-col items-center justify-between gap-4 px-4 tracking-[-0.03em] text-beige900/60 md:flex-row">
+              <div className="font-halant text-[28px] tracking-[-0.06em] text-beige900">
+                Harper
+              </div>
+              <div className="flex items-center gap-4 text-base">
+                <Link
+                  href="/terms"
+                  className="cursor-pointer transition hover:text-beige900"
+                >
+                  Terms
+                </Link>
+                <Link
+                  href="/privacy"
+                  className="cursor-pointer transition hover:text-beige900"
+                >
+                  Privacy
+                </Link>
+                <Link
+                  href="https://www.linkedin.com/company/matchharper/"
+                  className="cursor-pointer transition hover:text-beige900"
+                >
+                  LinkedIn
+                </Link>
+              </div>
             </div>
-            <div className="flex items-center gap-4 text-base">
-              <Link
-                href="/terms"
-                className="cursor-pointer transition hover:text-beige900"
-              >
-                Terms
-              </Link>
-              <Link
-                href="/privacy"
-                className="cursor-pointer transition hover:text-beige900"
-              >
-                Privacy
-              </Link>
-              <Link
-                href="https://www.linkedin.com/company/matchharper/"
-                className="cursor-pointer transition hover:text-beige900"
-              >
-                LinkedIn
-              </Link>
-            </div>
-          </div>
-        </footer>
+          </footer>
+        </div>
 
         <AnimatePresence>
           {selectedRequest && (
@@ -1008,8 +1300,10 @@ const NetworkPage = () => {
               }
               onGetMatched={() => {
                 setSelectedRequest(null);
-                setSelectedOnboardingRole(selectedRequest.role);
-                setIsOnboardingOpen(true);
+                openOnboarding(
+                  `click_network_get_matched_${selectedRequest.id}`,
+                  selectedRequest.role
+                );
               }}
             />
           )}
@@ -1060,8 +1354,7 @@ function VCLogos() {
     <div className="relative w-[90%] mx-auto overflow-hidden mt-24">
       <Reveal once delay={0.08} className="w-full text-center">
         <div className="w-full text-center text-beige900 text-lg leading-[1.55] tracking-[-0.03em] font-medium">
-          Partnering with{" "}
-          <span className="text-beige900/50">Global AI companies</span>
+          Partnering with <span className="text-beige900/50">AI companies</span>
           <br className="block md:hidden" /> funded by the world&apos;s elite.
         </div>
       </Reveal>

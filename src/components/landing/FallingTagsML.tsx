@@ -29,28 +29,28 @@ export const FallingTagsMl = ({
       x: -140,
       y: 40,
       rotate: -14,
-      color: "border-emerald-400/40 text-emerald-300",
+      color: "bg-emerald-400/80",
     },
     {
       label: "Papers on multimodal LLM datasets from CVPR or NeurIPS",
       x: 5,
       y: 70,
       rotate: -4,
-      color: "border-sky-400/40 text-sky-300",
+      color: "bg-sky-400/80",
     },
     {
       label: "Repositories focused on inference or kernel optimization",
       x: 70,
       y: -10,
       rotate: 10,
-      color: "border-violet-400/40 text-violet-300",
+      color: "bg-violet-400/80",
     },
     {
       label: "Robotics research with both publications and open-source code",
       x: 10,
       y: -5,
       rotate: -12,
-      color: "border-amber-400/40 text-amber-300",
+      color: "bg-amber-400/80",
     },
     {
       label:
@@ -58,7 +58,7 @@ export const FallingTagsMl = ({
       x: 140,
       y: 30,
       rotate: 10,
-      color: "border-rose-400/40 text-rose-300",
+      color: "bg-rose-400/80",
     },
   ];
 
@@ -111,10 +111,10 @@ export const FallingTagsMl = ({
           >
             <motion.div
               className={[
-                "select-none rounded-lg border px-2 py-2 md:px-3 md:py-2",
+                "select-none rounded-lg px-2 py-2 md:px-3 md:py-2",
                 "flex cursor-grab flex-row items-center justify-start gap-1.5",
                 "text-xs font-medium shadow-xl md:text-sm",
-                "active:cursor-grabbing backdrop-blur-md",
+                "active:cursor-grabbing backdrop-blur-md text-white",
                 theme === "white" ? "bg-white/90" : "bg-neutral-900/75",
                 tag.color,
               ].join(" ")}

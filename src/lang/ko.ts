@@ -26,7 +26,8 @@ export const ko = {
       description:
         "간단히 알려주시면 검토 후 접근 링크를 이메일로 보내드리겠습니다.",
       submit: "요청 보내기",
-      submitted: "요청이 접수되었습니다. 승인되면 이메일로 링크를 보내드리겠습니다.",
+      submitted:
+        "요청이 접수되었습니다. 승인되면 이메일로 링크를 보내드리겠습니다.",
       nameLabel: "이름",
       namePlaceholder: "이름을 입력해주세요",
       companyLabel: "회사명",
@@ -35,10 +36,10 @@ export const ko = {
       rolePlaceholder: "예: Founder, Hiring Manager",
       hiringNeedLabel:
         "가장 중요하게 채용이 필요한 포지션(직무)과 대략적인 인원수",
-      hiringNeedPlaceholder:
-        "예: Backend Engineer 2명, Founding Recruiter 1명",
+      hiringNeedPlaceholder: "예: Backend Engineer 2명, Founding Recruiter 1명",
       errors: {
-        missingSession: "로그인 상태를 확인할 수 없습니다. 다시 로그인해주세요.",
+        missingSession:
+          "로그인 상태를 확인할 수 없습니다. 다시 로그인해주세요.",
         invalidForm: "모든 항목을 입력해주세요.",
         submitFailed: "요청 접수에 실패했습니다. 다시 시도해주세요.",
       },
@@ -171,7 +172,7 @@ export const ko = {
       titleLine2Prefix: "Pay for",
       titleLine2Highlight: "Intelligence",
       subtitle:
-        "단순한 검색을 넘어, 인재를 이해하는 지능을 경험하세요.<br />하퍼는 매일, 후보자를 추천해주고 끊임없이 개선됩니다.",
+        "어떤 조건이던 AI 검색 엔진이<br />GitHub, 논문 등 모든 정보를 바탕으로<br />원하는 프로필을 가진 사람을 즉시 찾아드려요.",
     },
     section1: {
       title: "Faster, Cheaper, Better",
@@ -188,7 +189,7 @@ export const ko = {
       cards: [
         {
           title: "Beyond Keywords",
-          desc: "단순한 키워드 검색을 넘어, <br />역량과 맥락을 이해하고 찾아주는 지능을 경험하세요.",
+          desc: "단순한 키워드 검색을 넘어, <br />기술적 역량과 맥락을 이해하고 찾아주는 지능을 경험하세요.",
         },
         {
           title: "Focus on Value",
@@ -275,7 +276,11 @@ export const ko = {
           priceUnit: "원/월",
           priceUnit2: "/월",
           buttonLabel: "문의하기",
-          features: ["월 최대 150회 검색", "Harper Scout"],
+          features: [
+            "월 최대 150회 검색",
+            "논문 및 코드 품질 분석",
+            "Harper Scout (자동화된 추천)<br/><i>AI-driven search that indexes technical truth.</i>",
+          ],
         },
         max: {
           name: "Max",
@@ -286,7 +291,7 @@ export const ko = {
           features: [
             "Pro의 모든 기능 포함, 및:",
             "월 최대 350회 검색",
-            "동시에 최대 3개 검색 요청 가능",
+            "동시에 최대 3개의 검색 가능",
             "AI 소싱 에이전트",
           ],
         },
