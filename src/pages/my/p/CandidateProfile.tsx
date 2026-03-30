@@ -368,8 +368,8 @@ function CandidateProfileDetailPage({
   }, [c]);
 
   const recentGithubContributions = useMemo(() => {
-    const repos = Array.isArray(c?.github_repo_contribution_backup_20260325)
-      ? c.github_repo_contribution_backup_20260325
+    const repos = Array.isArray(c?.github_repo_contribution)
+      ? c.github_repo_contribution
       : [];
 
     const cutoffDate = new Date();
@@ -383,6 +383,7 @@ function CandidateProfileDetailPage({
 
     const resolveActivityDate = (repo: any) =>
       parseDate(repo?.last_contrib_at) ??
+      parseDate(repo?.github_repo?.pushed_at) ??
       parseDate(repo?.last_updated_at) ??
       parseDate(repo?.updated_at) ??
       parseDate(repo?.created_at);
@@ -748,9 +749,8 @@ function CandidateProfileDetailPage({
           </Box>
         )}
 
-        {Array.isArray(c.github_repo_contribution_backup_20260325) &&
-          recentGithubContributions.length > 0 && (
-            <Box title={`GitHub\nMain Contributions`}>
+        {recentGithubContributions.length > 0 && (
+          <Box title={`GitHub\nMain Contributions`}>
               <div className="grid grid-cols-2 gap-3">
                 {recentGithubContributions.length > 0 ? (
                   recentGithubContributions.map((repo: any) => (

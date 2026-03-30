@@ -9,14 +9,20 @@ export type GithubRepoContributionRow =
   Database["public"]["Tables"]["github_repo_contribution"]["Row"];
 export type GithubProfileRow =
   Database["public"]["Tables"]["github_profile"]["Row"];
+export type GithubRepoRow =
+  Database["public"]["Tables"]["github_repo"]["Row"];
 export type ScholarProfileRow =
   Database["public"]["Tables"]["scholar_profile"]["Row"];
 export type ScholarPaperRow = Database["public"]["Tables"]["papers"]["Row"];
 
+export type GithubContributionWithRepo = GithubRepoContributionRow & {
+  github_repo: GithubRepoRow | null;
+};
+
 export type CandidateDetail = CandidateType & {
   connection?: { user_id: string; typed: number }[];
   candidate_mark?: CandidateMarkRecord | null;
-  github_repo_contribution?: GithubRepoContributionRow[];
+  github_repo_contribution?: GithubContributionWithRepo[];
   scholar_profile?: ScholarProfileRow | null;
   scholar_papers?: ScholarPaperRow[];
   isAutomationResult?: boolean;
@@ -89,7 +95,7 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
 
   let scholarProfile: ScholarProfileRow | null = null;
   let scholarPapers: ScholarPaperRow[] = [];
-  let githubRepoContributions: GithubRepoContributionRow[] = [];
+  let githubRepoContributions: GithubContributionWithRepo[] = [];
 
   // GitHub profile and contributions
   const { data: scholarProfileRow, error: scholarProfileError } = await supabase
@@ -154,8 +160,35 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
 
     if (githubRepoError) throw githubRepoError;
 
-    githubRepoContributions =
+    const rawContributions =
       (githubRepoRows as GithubRepoContributionRow[] | null) ?? [];
+
+    // Join with github_repo for repo details
+    const repoIds = Array.from(
+      new Set(
+        rawContributions
+          .map((row) => String(row.repo_id ?? "").trim())
+          .filter(Boolean)
+      )
+    );
+
+    let repoById = new Map<string, GithubRepoRow>();
+    if (repoIds.length > 0) {
+      const { data: repoRows, error: repoError } = await supabase
+        .from("github_repo")
+        .select("*")
+        .in("id", repoIds);
+
+      if (repoError) throw repoError;
+      repoById = new Map(
+        (repoRows as GithubRepoRow[] | null ?? []).map((r) => [r.id, r] as const)
+      );
+    }
+
+    githubRepoContributions = rawContributions.map((c) => ({
+      ...c,
+      github_repo: repoById.get(c.repo_id ?? "") ?? null,
+    }));
   }
 
   if (userId) {
