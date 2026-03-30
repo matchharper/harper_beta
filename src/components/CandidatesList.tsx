@@ -1,23 +1,21 @@
-import { CandidateTypeWithConnection } from "@/hooks/useSearchChatCandidates";
-import React, { useMemo } from "react";
-import {
-  companyEnToKo,
-  degreeEnToKo,
-  koreaUniversityEnToKo,
-  locationEnToKo,
-} from "@/utils/language_map";
-import { Avatar } from "./NameProfile";
-import Bookmarkbutton from "./ui/bookmarkbutton";
-import { Tooltips } from "./ui/tooltip";
-import { Check, Dot, X } from "lucide-react";
-import { useRouter } from "next/router";
-import { RoleBox, ScholarSignalBox, SchoolBox, GithubSignalBox } from "./CandidatesListTable";
-import { SummaryScore } from "@/types/type";
 import { useLogEvent } from "@/hooks/useLog";
-import Link from "next/link";
-import CandidateMarkButton from "./ui/CandidateMarkButton";
-import SharedFolderCandidateNotes from "./shared/SharedFolderCandidateNotes";
+import { CandidateTypeWithConnection } from "@/hooks/useSearchChatCandidates";
 import type { CandidateMarkStatus } from "@/lib/candidateMark";
+import {
+  buildGithubDeveloperTooltip,
+  formatGithubFollowerCount,
+  formatGithubRepoCount,
+} from "@/lib/githubPreview";
+import {
+  buildScholarResearchTooltip,
+  formatScholarCitationCount,
+  formatScholarPaperCount,
+} from "@/lib/scholarPreview";
+import {
+  buildEvidencePaperMeta,
+  buildEvidencePaperTooltip,
+  getEvidencePaper,
+} from "@/lib/searchEvidence";
 import {
   SearchSource,
   extractSearchSourcesFromLinks,
@@ -25,25 +23,31 @@ import {
   getSearchSourceLogoPath,
   isScholarSearchSource,
 } from "@/lib/searchSource";
-import {
-  buildEvidencePaperMeta,
-  buildEvidencePaperTooltip,
-  getEvidencePaper,
-} from "@/lib/searchEvidence";
-import {
-  buildScholarResearchTooltip,
-  formatScholarCitationCount,
-  formatScholarPaperCount,
-} from "@/lib/scholarPreview";
-import {
-  buildGithubDeveloperTooltip,
-  formatGithubFollowerCount,
-  formatGithubRepoCount,
-} from "@/lib/githubPreview";
-import Image from "next/image";
-import { logger } from "@/utils/logger";
 import { SharedFolderViewerIdentity } from "@/lib/sharedFolder";
+import { SummaryScore } from "@/types/type";
+import {
+  companyEnToKo,
+  degreeEnToKo,
+  koreaUniversityEnToKo,
+  locationEnToKo,
+} from "@/utils/language_map";
+import { Check, Dot, X } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/router";
+import React, { useMemo } from "react";
+import {
+  GithubSignalBox,
+  RoleBox,
+  ScholarSignalBox,
+  SchoolBox,
+} from "./CandidatesListTable";
+import { Avatar } from "./NameProfile";
+import SharedFolderCandidateNotes from "./shared/SharedFolderCandidateNotes";
+import Bookmarkbutton from "./ui/bookmarkbutton";
+import CandidateMarkButton from "./ui/CandidateMarkButton";
 import CandidateMemoDock from "./ui/CandidateMemoDock";
+import { Tooltips } from "./ui/tooltip";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
 
@@ -375,7 +379,9 @@ function CandidateCard({
                       <>
                         <GithubSignalBox
                           title={
-                            githubPreview?.company ?? githubPreview?.location ?? "-"
+                            githubPreview?.company ??
+                            githubPreview?.location ??
+                            "-"
                           }
                           tooltipText={githubDeveloperTooltipText}
                           icon="company"
@@ -389,7 +395,9 @@ function CandidateCard({
                           }
                           description={
                             githubPreview
-                              ? formatGithubFollowerCount(githubPreview.followers)
+                              ? formatGithubFollowerCount(
+                                  githubPreview.followers
+                                )
                               : "-"
                           }
                           tooltipText={githubDeveloperTooltipText}

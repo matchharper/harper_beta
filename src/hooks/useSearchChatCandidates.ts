@@ -323,7 +323,7 @@ async function fetchGithubPreviewByCandidateIds(ids: string[]) {
   const { data: profiles, error: profileError } = await supabase
     .from("github_profile")
     .select(
-      "id, candid_id, github_username, name, bio, company, location, followers, public_repos"
+      "id, candid_id, name, company, location, followers, public_repos"
     )
     .in("candid_id", ids);
 
@@ -332,9 +332,7 @@ async function fetchGithubPreviewByCandidateIds(ids: string[]) {
   const profileRows = ((Array.isArray(profiles) ? profiles : []) as unknown) as Array<{
     id: string;
     candid_id: string | null;
-    github_username: string | null;
     name: string | null;
-    bio: string | null;
     company: string | null;
     location: string | null;
     followers: number | null;
@@ -401,10 +399,7 @@ async function fetchGithubPreviewByCandidateIds(ids: string[]) {
         return [
           row.candid_id as string,
           {
-            githubProfileId: row.id,
-            githubUsername: row.github_username,
             name: row.name,
-            bio: row.bio,
             company: row.company,
             location: row.location,
             followers: row.followers ?? 0,

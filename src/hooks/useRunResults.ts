@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import type { CandidateMarkStatus } from "@/lib/candidateMark";
 import { SearchSource } from "@/lib/searchSource";
 import { ScholarProfilePreview } from "@/lib/scholarPreview";
+import { GithubProfilePreview } from "@/lib/githubPreview";
 import {
   buildEvidenceMap,
   buildRankMap,
@@ -113,6 +114,42 @@ async function fetchCandidatesByIds(
       scholarPreviewCandidateIds
     );
   }
+
+  // --- GitHub preview ---
+  let shouldReadGithubPreview = sourceType === "github";
+  if (!shouldReadGithubPreview) {
+    const { data: githubVariantRows, error: githubVariantError } = await supabase
+      .from("run_variants")
+      .select("id")
+      .eq("run_id", runId)
+      .eq("source_type", 2)
+      .limit(1);
+
+    if (githubVariantError) throw githubVariantError;
+    shouldReadGithubPreview =
+      Array.isArray(githubVariantRows) && githubVariantRows.length > 0;
+  }
+
+  const githubPreviewCandidateIds = shouldReadGithubPreview
+    ? sourceType === "github"
+      ? ids
+      : ids.filter((id) => {
+          const item = dataById.get(id);
+          const experiences = Array.isArray(item?.experience_user)
+            ? item.experience_user
+            : [];
+          const educations = Array.isArray(item?.edu_user) ? item.edu_user : [];
+          return experiences.length === 0 && educations.length === 0;
+        })
+    : [];
+
+  let githubPreviewByCandidateId = new Map<string, GithubProfilePreview>();
+  if (githubPreviewCandidateIds.length > 0) {
+    githubPreviewByCandidateId = await fetchGithubPreviewByCandidateIds(
+      githubPreviewCandidateIds
+    );
+  }
+
   const candidateMarkByCandidateId = await fetchCandidateMarkMap(userId, ids);
   const shortlistMemoByCandidateId = await fetchShortlistMemoMap(userId, ids);
 
@@ -123,6 +160,7 @@ async function fetchCandidatesByIds(
       return {
         ...item,
         scholar_profile_preview: scholarPreviewByCandidateId.get(id) ?? null,
+        github_profile_preview: githubPreviewByCandidateId.get(id) ?? null,
         search_evidence: evidenceByCandidateId?.get(id) ?? null,
         search_rank: rankByCandidateId?.get(id) ?? null,
         candidate_mark: candidateMarkByCandidateId.get(id) ?? null,
@@ -179,6 +217,89 @@ async function fetchScholarPreviewByCandidateIds(ids: string[]) {
           citationCount: row.total_citations_num ?? 0,
         },
       ])
+  );
+}
+
+async function fetchGithubPreviewByCandidateIds(ids: string[]) {
+  const { data: profiles, error: profileError } = await supabase
+    .from("github_profile")
+    .select("id, candid_id, name, company, location, followers, public_repos")
+    .in("candid_id", ids);
+
+  if (profileError) throw profileError;
+
+  const profileRows = ((Array.isArray(profiles) ? profiles : []) as unknown) as Array<{
+    id: string;
+    candid_id: string | null;
+    name: string | null;
+    company: string | null;
+    location: string | null;
+    followers: number | null;
+    public_repos: number | null;
+  }>;
+  if (profileRows.length === 0) {
+    return new Map<string, GithubProfilePreview>();
+  }
+
+  const profileIds = profileRows.map((row) => row.id);
+  const { data: contributions, error: contributionError } = await supabase
+    .from("github_repo_contribution")
+    .select("github_profile_id, repo_id")
+    .in("github_profile_id", profileIds);
+
+  if (contributionError) throw contributionError;
+
+  const { data: repos, error: repoError } = await supabase
+    .from("github_repo")
+    .select("id, language, stars")
+    .in("id", (contributions ?? []).map((c: any) => c.repo_id).filter(Boolean));
+
+  if (repoError) throw repoError;
+
+  const profileData = new Map<
+    string,
+    { topLanguages: Set<string>; topRepoStars: number }
+  >();
+
+  const repoMap = new Map((repos ?? []).map((r: any) => [r.id, r]));
+
+  for (const contrib of contributions ?? []) {
+    const profileId = (contrib as any)?.github_profile_id;
+    const repoId = (contrib as any)?.repo_id;
+    if (!profileId || !repoId) continue;
+
+    const repo = repoMap.get(repoId);
+    if (!repo) continue;
+
+    if (!profileData.has(profileId)) {
+      profileData.set(profileId, { topLanguages: new Set(), topRepoStars: 0 });
+    }
+
+    const data = profileData.get(profileId)!;
+    if ((repo as any).language) {
+      data.topLanguages.add((repo as any).language);
+    }
+    data.topRepoStars = Math.max(data.topRepoStars, (repo as any).stars ?? 0);
+  }
+
+  return new Map<string, GithubProfilePreview>(
+    profileRows
+      .filter((row) => Boolean(row.candid_id))
+      .map((row) => {
+        const data = profileData.get(row.id);
+        return [
+          row.candid_id as string,
+          {
+            name: row.name,
+            company: row.company,
+            location: row.location,
+            followers: row.followers ?? 0,
+            publicRepos: row.public_repos ?? 0,
+            topLanguages: data ? Array.from(data.topLanguages).slice(0, 5) : [],
+            topRepoStars: data?.topRepoStars ?? 0,
+          },
+        ];
+      })
   );
 }
 
