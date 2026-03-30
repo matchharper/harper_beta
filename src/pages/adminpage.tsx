@@ -118,6 +118,10 @@ type AdminUserAnalyticsSummary = {
   profileViewCount: number;
   linkClickCount: number;
   uniqueProfilesViewed: number;
+  chatMessageCount: number;
+  markedCandidateCount: number;
+  bookmarkedCandidateCount: number;
+  memoCount: number;
   pageViewsPerSearch: number;
   profileViewsPerSearch: number;
 };
@@ -268,6 +272,8 @@ const AdminPage = () => {
   const [userAnalyticsProfiles, setUserAnalyticsProfiles] = useState<
     AdminUserAnalyticsProfile[]
   >([]);
+  const [userAnalyticsStartDate, setUserAnalyticsStartDate] = useState("");
+  const [userAnalyticsEndDate, setUserAnalyticsEndDate] = useState("");
   const [userAnalyticsDetailLoading, setUserAnalyticsDetailLoading] =
     useState(false);
   const [userAnalyticsDetailError, setUserAnalyticsDetailError] = useState<
@@ -633,7 +639,13 @@ const AdminPage = () => {
   }, []);
 
   const fetchUserAnalyticsDetail = useCallback(
-    async (user: AdminUserAnalyticsUser) => {
+    async (
+      user: AdminUserAnalyticsUser,
+      overrides?: {
+        startDate?: string;
+        endDate?: string;
+      }
+    ) => {
       setSelectedAnalyticsUser(user);
       setUserAnalyticsDetailLoading(true);
       setUserAnalyticsDetailError(null);
@@ -641,7 +653,15 @@ const AdminPage = () => {
       setUserAnalyticsProfiles([]);
 
       try {
+        const effectiveStartDate = overrides?.startDate ?? userAnalyticsStartDate;
+        const effectiveEndDate = overrides?.endDate ?? userAnalyticsEndDate;
         const params = new URLSearchParams({ userId: user.userId });
+        if (effectiveStartDate) {
+          params.set("startDate", effectiveStartDate);
+        }
+        if (effectiveEndDate) {
+          params.set("endDate", effectiveEndDate);
+        }
         const res = await fetch(`/api/admin/user-analytics?${params}`, {
           headers: {
             "x-admin-password": ADMIN_PAGE_PASSWORD,
@@ -683,8 +703,24 @@ const AdminPage = () => {
         setUserAnalyticsDetailLoading(false);
       }
     },
-    []
+    [userAnalyticsEndDate, userAnalyticsStartDate]
   );
+
+  const applyUserAnalyticsDateRange = useCallback(() => {
+    if (!selectedAnalyticsUser) return;
+    void fetchUserAnalyticsDetail(selectedAnalyticsUser);
+  }, [fetchUserAnalyticsDetail, selectedAnalyticsUser]);
+
+  const resetUserAnalyticsDateRange = useCallback(() => {
+    setUserAnalyticsStartDate("");
+    setUserAnalyticsEndDate("");
+
+    if (!selectedAnalyticsUser) return;
+    void fetchUserAnalyticsDetail(selectedAnalyticsUser, {
+      startDate: "",
+      endDate: "",
+    });
+  }, [fetchUserAnalyticsDetail, selectedAnalyticsUser]);
 
   useEffect(() => {
     if (activeTab !== "waitlistCompany") return;
@@ -1889,6 +1925,49 @@ const AdminPage = () => {
                     </div>
                   ) : null}
 
+                  {selectedAnalyticsUser ? (
+                    <div className="mt-3 rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-3 py-3">
+                      <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
+                        Date Range (KST)
+                      </div>
+                      <div className="mt-3 flex flex-col gap-2 lg:flex-row lg:items-center">
+                        <input
+                          type="date"
+                          value={userAnalyticsStartDate}
+                          onChange={(event) =>
+                            setUserAnalyticsStartDate(event.target.value)
+                          }
+                          className="h-10 rounded-[12px] border border-[#d8c7aa] bg-[#fffaf1] px-3 text-[13px] text-[#3f301f] outline-none"
+                        />
+                        <div className="px-1 text-[12px] text-[#8d7a5d]">
+                          ~
+                        </div>
+                        <input
+                          type="date"
+                          value={userAnalyticsEndDate}
+                          onChange={(event) =>
+                            setUserAnalyticsEndDate(event.target.value)
+                          }
+                          className="h-10 rounded-[12px] border border-[#d8c7aa] bg-[#fffaf1] px-3 text-[13px] text-[#3f301f] outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={applyUserAnalyticsDateRange}
+                          className="h-10 rounded-[12px] border border-[#5d4931] bg-[#5d4931] px-4 text-[12px] text-[#fff8ef] transition-colors hover:bg-[#4f3e29]"
+                        >
+                          적용
+                        </button>
+                        <button
+                          type="button"
+                          onClick={resetUserAnalyticsDateRange}
+                          className="h-10 rounded-[12px] border border-[#dcccad] bg-transparent px-4 text-[12px] text-[#6a563c] transition-colors hover:bg-[#f4eadb]"
+                        >
+                          전체
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
                   {userAnalyticsDetailError ? (
                     <div className="mt-3 text-[12px] text-[#8d3a24]">
                       {userAnalyticsDetailError}
@@ -1901,77 +1980,130 @@ const AdminPage = () => {
                     </div>
                   ) : userAnalyticsSummary ? (
                     <>
-                      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                        <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
-                          <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
-                            채팅세션
-                          </div>
-                          <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
-                            {userAnalyticsSummary.searchCount.toLocaleString(
-                              "ko-KR"
-                            )}
-                          </div>
+                      <div className="mt-4">
+                        <div className="text-[12px] font-semibold text-[#6a563c]">
+                          기간별 지표
                         </div>
-                        <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
-                          <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
-                            Page Views
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
+                              채팅세션 수
+                            </div>
+                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
+                              {userAnalyticsSummary.searchCount.toLocaleString(
+                                "ko-KR"
+                              )}
+                            </div>
                           </div>
-                          <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
-                            {userAnalyticsSummary.pageViewCount.toLocaleString(
-                              "ko-KR"
-                            )}
+                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
+                              검색 횟수
+                            </div>
+                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
+                              {userAnalyticsSummary.runCount.toLocaleString(
+                                "ko-KR"
+                              )}
+                            </div>
                           </div>
-                        </div>
-                        <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
-                          <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
-                            프로필 본 후보 수
+                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
+                              채팅 자체의 수
+                            </div>
+                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
+                              {userAnalyticsSummary.chatMessageCount.toLocaleString(
+                                "ko-KR"
+                              )}
+                            </div>
                           </div>
-                          <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
-                            {userAnalyticsSummary.uniqueProfilesViewed.toLocaleString(
-                              "ko-KR"
-                            )}
+                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
+                              페이지 조회수
+                            </div>
+                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
+                              {userAnalyticsSummary.pageViewCount.toLocaleString(
+                                "ko-KR"
+                              )}
+                            </div>
                           </div>
-                        </div>
-                        <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
-                          <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
-                            Link Clicks
+                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
+                              프로필 본 후보자 수
+                            </div>
+                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
+                              {userAnalyticsSummary.uniqueProfilesViewed.toLocaleString(
+                                "ko-KR"
+                              )}
+                            </div>
                           </div>
-                          <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
-                            {userAnalyticsSummary.linkClickCount.toLocaleString(
-                              "ko-KR"
-                            )}
+                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
+                              링크 클릭 수
+                            </div>
+                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
+                              {userAnalyticsSummary.linkClickCount.toLocaleString(
+                                "ko-KR"
+                              )}
+                            </div>
                           </div>
-                        </div>
-                        <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
-                          <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
-                            페이지 / 세션
+                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
+                              페이지 / 세션
+                            </div>
+                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
+                              {formatDecimal(
+                                userAnalyticsSummary.pageViewsPerSearch
+                              )}
+                            </div>
                           </div>
-                          <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
-                            {formatDecimal(
-                              userAnalyticsSummary.pageViewsPerSearch
-                            )}
-                          </div>
-                        </div>
-                        <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
-                          <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
-                            후보 수 / 세션
-                          </div>
-                          <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
-                            {formatDecimal(
-                              userAnalyticsSummary.searchCount > 0
-                                ? userAnalyticsSummary.uniqueProfilesViewed /
-                                    userAnalyticsSummary.searchCount
-                                : 0
-                            )}
+                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
+                              후보자 수 / 세션
+                            </div>
+                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
+                              {formatDecimal(
+                                userAnalyticsSummary.profileViewsPerSearch
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
 
-                      <div className="mt-4 rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-3 text-[12px] leading-6 text-[#6a563c]">
-                        검색 횟수{" "}
-                        {userAnalyticsSummary.runCount.toLocaleString(
-                          "ko-KR"
-                        )}
+                      <div className="mt-4">
+                        <div className="text-[12px] font-semibold text-[#6a563c]">
+                          누적 지표
+                        </div>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
+                              마크 준 사람 수
+                            </div>
+                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
+                              {userAnalyticsSummary.markedCandidateCount.toLocaleString(
+                                "ko-KR"
+                              )}
+                            </div>
+                          </div>
+                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
+                              폴더에 넣은 사람 수
+                            </div>
+                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
+                              {userAnalyticsSummary.bookmarkedCandidateCount.toLocaleString(
+                                "ko-KR"
+                              )}
+                            </div>
+                          </div>
+                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
+                              메모 남긴 수
+                            </div>
+                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
+                              {userAnalyticsSummary.memoCount.toLocaleString(
+                                "ko-KR"
+                              )}
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </>
                   ) : null}

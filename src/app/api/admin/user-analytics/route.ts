@@ -20,6 +20,58 @@ function getAdminPassword(req: NextRequest) {
   );
 }
 
+function parseDateInput(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+
+  const [year, month, day] = value.split("-").map(Number);
+  if (
+    !Number.isFinite(year) ||
+    !Number.isFinite(month) ||
+    !Number.isFinite(day)
+  ) {
+    return null;
+  }
+
+  return { year, month, day };
+}
+
+function toKstStartUtcIso(value: string) {
+  const parsed = parseDateInput(value);
+  if (!parsed) return null;
+
+  const utcMs =
+    Date.UTC(parsed.year, parsed.month - 1, parsed.day, 0, 0, 0, 0) -
+    9 * 60 * 60 * 1000;
+  return new Date(utcMs).toISOString();
+}
+
+function toKstEndExclusiveUtcIso(value: string) {
+  const parsed = parseDateInput(value);
+  if (!parsed) return null;
+
+  const utcMs =
+    Date.UTC(parsed.year, parsed.month - 1, parsed.day + 1, 0, 0, 0, 0) -
+    9 * 60 * 60 * 1000;
+  return new Date(utcMs).toISOString();
+}
+
+function applyCreatedAtDateRange<T>(query: T, startDate: string, endDate: string) {
+  let nextQuery: any = query;
+
+  const startUtcIso = startDate ? toKstStartUtcIso(startDate) : null;
+  const endUtcIso = endDate ? toKstEndExclusiveUtcIso(endDate) : null;
+
+  if (startUtcIso) {
+    nextQuery = nextQuery.gte("created_at", startUtcIso);
+  }
+
+  if (endUtcIso) {
+    nextQuery = nextQuery.lt("created_at", endUtcIso);
+  }
+
+  return nextQuery as T;
+}
+
 function mapUser(row: any) {
   return {
     userId: String(row?.user_id ?? ""),
@@ -174,6 +226,8 @@ export async function GET(req: NextRequest) {
     const searchParams = req.nextUrl.searchParams;
     const query = sanitizeSearchQuery(String(searchParams.get("query") ?? ""));
     const userId = String(searchParams.get("userId") ?? "").trim();
+    const startDate = String(searchParams.get("startDate") ?? "").trim();
+    const endDate = String(searchParams.get("endDate") ?? "").trim();
 
     if (userId) {
       const { data: user, error: userError } = await supabaseServer
@@ -193,26 +247,78 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: "User not found" }, { status: 404 });
       }
 
-      const [
-        { data: queries, error: queryError },
-        { data: profileViewLogs, error: profileViewError },
-        { data: linkClickLogs, error: linkClickError },
-      ] = await Promise.all([
+      const queriesQuery = applyCreatedAtDateRange(
         supabaseServer
           .from("queries")
           .select("query_id")
           .eq("user_id", userId)
           .eq("is_deleted", false),
+        startDate,
+        endDate
+      );
+
+      const profileViewLogsQuery = applyCreatedAtDateRange(
         supabaseServer
           .from("logs")
           .select("type, created_at")
           .eq("user_id", userId)
           .like("type", "candidate_card_click:%"),
+        startDate,
+        endDate
+      );
+
+      const linkClickLogsQuery = applyCreatedAtDateRange(
         supabaseServer
           .from("logs")
           .select("type, created_at")
           .eq("user_id", userId)
           .like("type", "profile_link_click:%"),
+        startDate,
+        endDate
+      );
+
+      const messagesCountQuery = applyCreatedAtDateRange(
+        supabaseServer
+          .from("messages")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId),
+        startDate,
+        endDate
+      );
+
+      const runsQuery = applyCreatedAtDateRange(
+        supabaseServer.from("runs").select("id").eq("user_id", userId),
+        startDate,
+        endDate
+      );
+
+      const [
+        { data: queries, error: queryError },
+        { data: profileViewLogs, error: profileViewError },
+        { data: linkClickLogs, error: linkClickError },
+        { count: chatMessageCountRaw, error: messagesCountError },
+        { data: runs, error: runsError },
+        { count: markedCandidateCountRaw, error: markedCandidateCountError },
+        { data: bookmarkFolderItems, error: bookmarkFolderItemsError },
+        { data: shortlistMemos, error: shortlistMemosError },
+      ] = await Promise.all([
+        queriesQuery,
+        profileViewLogsQuery,
+        linkClickLogsQuery,
+        messagesCountQuery,
+        runsQuery,
+        supabaseServer
+          .from("candidate_mark")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId),
+        supabaseServer
+          .from("bookmark_folder_item")
+          .select("candid_id")
+          .eq("user_id", userId),
+        supabaseServer
+          .from("shortlist_memo")
+          .select("candid_id, memo")
+          .eq("user_id", userId),
       ]);
 
       if (queryError) {
@@ -236,18 +342,12 @@ export async function GET(req: NextRequest) {
         );
       }
 
-      const queryIds = (queries ?? [])
-        .map((row) => String(row?.query_id ?? "").trim())
-        .filter(Boolean);
-
-      const { data: runs, error: runsError } =
-        queryIds.length > 0
-          ? await supabaseServer
-              .from("runs")
-              .select("id")
-              .eq("user_id", userId)
-              .in("query_id", queryIds)
-          : { data: [], error: null };
+      if (messagesCountError) {
+        return NextResponse.json(
+          { error: messagesCountError.message },
+          { status: 500 }
+        );
+      }
 
       if (runsError) {
         return NextResponse.json(
@@ -255,6 +355,31 @@ export async function GET(req: NextRequest) {
           { status: 500 }
         );
       }
+
+      if (markedCandidateCountError) {
+        return NextResponse.json(
+          { error: markedCandidateCountError.message },
+          { status: 500 }
+        );
+      }
+
+      if (bookmarkFolderItemsError) {
+        return NextResponse.json(
+          { error: bookmarkFolderItemsError.message },
+          { status: 500 }
+        );
+      }
+
+      if (shortlistMemosError) {
+        return NextResponse.json(
+          { error: shortlistMemosError.message },
+          { status: 500 }
+        );
+      }
+
+      const queryIds = (queries ?? [])
+        .map((row) => String(row?.query_id ?? "").trim())
+        .filter(Boolean);
 
       const runIds = (runs ?? [])
         .map((row) => String(row?.id ?? "").trim())
@@ -353,6 +478,18 @@ export async function GET(req: NextRequest) {
       const linkClickCount = Array.from(linkClickCountByCandidateId.values())
         .reduce((sum, count) => sum + count, 0);
       const searchCount = queryIds.length;
+      const uniqueProfilesViewed = profileViewCountByCandidateId.size;
+      const bookmarkedCandidateCount = new Set(
+        (bookmarkFolderItems ?? [])
+          .map((row) => String(row?.candid_id ?? "").trim())
+          .filter(Boolean)
+      ).size;
+      const memoCount = new Set(
+        (shortlistMemos ?? [])
+          .filter((row) => String(row?.memo ?? "").trim().length > 0)
+          .map((row) => String(row?.candid_id ?? "").trim())
+          .filter(Boolean)
+      ).size;
 
       const profiles = candidateIds
         .map((candidId) => {
@@ -395,11 +532,15 @@ export async function GET(req: NextRequest) {
           pageViewCount,
           profileViewCount,
           linkClickCount,
-          uniqueProfilesViewed: profileViewCountByCandidateId.size,
+          uniqueProfilesViewed,
+          chatMessageCount: Number(chatMessageCountRaw ?? 0),
+          markedCandidateCount: Number(markedCandidateCountRaw ?? 0),
+          bookmarkedCandidateCount,
+          memoCount,
           pageViewsPerSearch:
             searchCount > 0 ? pageViewCount / searchCount : 0,
           profileViewsPerSearch:
-            searchCount > 0 ? profileViewCount / searchCount : 0,
+            searchCount > 0 ? uniqueProfilesViewed / searchCount : 0,
         },
         profiles,
       });
