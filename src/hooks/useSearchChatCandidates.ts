@@ -1,12 +1,21 @@
 // hooks/useSearchChatCandidates.ts
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { queryTypeToSearchSource } from "@/lib/searchSource";
+import {
+  SearchSource,
+  normalizeSearchSources,
+  queryTypeToSearchSource,
+} from "@/lib/searchSource";
 import { ScholarProfilePreview } from "@/lib/scholarPreview";
+import { GithubProfilePreview } from "@/lib/githubPreview";
+import { CandidateMarkRecord } from "@/lib/candidateMark";
+import { SharedFolderCandidateNote } from "@/lib/sharedFolder";
 import {
   buildEvidenceMap,
+  buildRankMap,
   filterPositiveScoreCandidates,
   RunPageCandidate,
+  SearchRank,
   SearchEvidence,
 } from "@/lib/searchEvidence";
 import type { CandidateType, EduUserType, ExpUserType } from "@/types/type";
@@ -14,6 +23,8 @@ import { useCallback, useEffect, useMemo } from "react";
 import { logger } from "@/utils/logger";
 import { UI_END, UI_START } from "./chat/useChatSession";
 import type { Locale } from "@/i18n/useMessage";
+import { fetchCandidateMarkMap } from "./useCandidateMark";
+import { fetchShortlistMemoMap } from "./useShortlistMemo";
 
 function getCookie(name: string) {
   if (typeof document === "undefined") return null;
@@ -26,6 +37,12 @@ function getCookie(name: string) {
 function getLocaleFromCookie(): Locale {
   const c = getCookie("NEXT_LOCALE");
   return c === "ko" || c === "en" ? c : "ko";
+}
+
+function getDefaultEnabledSources(
+  sourceType?: SearchSource | null
+): SearchSource[] {
+  return [sourceType === "scholar" ? "scholar" : "linkedin"];
 }
 
 export type ExperienceUserType = ExpUserType & {
@@ -47,7 +64,17 @@ export type CandidateTypeWithConnection = CandidateType & {
   synthesized_summary?: { text: string }[];
   s?: { text: string | null }[];
   scholar_profile_preview?: ScholarProfilePreview | null;
+  github_profile_preview?: GithubProfilePreview | null;
   search_evidence?: SearchEvidence | null;
+  search_rank?: SearchRank | null;
+  candidate_mark?: CandidateMarkRecord | null;
+  shared_folder_notes?: SharedFolderCandidateNote[];
+};
+
+type SearchSettingsSnapshot = {
+  is_korean: boolean;
+  type: SearchSource;
+  sources: SearchSource[];
 };
 
 function extractUiJsonFromMessage(content: string): any | null {
@@ -98,10 +125,12 @@ async function fetchSearchIds(params: { runId: string; pageIdx: number }) {
     .map((r) => r.id)
     .filter(Boolean) as string[];
   const evidenceByCandidateId = buildEvidenceMap(all);
+  const rankByCandidateId = buildRankMap(all);
 
   return {
     ids,
     evidenceByCandidateId,
+    rankByCandidateId,
     isNewSearch: false,
   };
 }
@@ -110,7 +139,8 @@ async function fetchCandidatesByIds(
   ids: string[],
   userId: string,
   runId: string,
-  evidenceByCandidateId?: Map<string, SearchEvidence>
+  evidenceByCandidateId?: Map<string, SearchEvidence>,
+  rankByCandidateId?: Map<string, SearchRank>
 ) {
   if (ids.length === 0) return [];
 
@@ -159,19 +189,41 @@ async function fetchCandidatesByIds(
 
   if (error) throw error;
 
-  const { data: scholarVariantRows, error: scholarVariantError } = await supabase
-    .from("run_variants")
-    .select("id")
-    .eq("run_id", runId)
-    .eq("source_type", 1)
-    .limit(1);
+  const { data: scholarVariantRows, error: scholarVariantError } =
+    await supabase
+      .from("run_variants")
+      .select("id")
+      .eq("run_id", runId)
+      .eq("source_type", 1)
+      .limit(1);
 
   if (scholarVariantError) throw scholarVariantError;
 
+  const { data: githubVariantRows, error: githubVariantError } = await supabase
+    .from("run_variants")
+    .select("id")
+    .eq("run_id", runId)
+    .eq("source_type", 2)
+    .limit(1);
+
+  if (githubVariantError) throw githubVariantError;
+
   const shouldReadScholarPreview =
     Array.isArray(scholarVariantRows) && scholarVariantRows.length > 0;
+  const shouldReadGithubPreview =
+    Array.isArray(githubVariantRows) && githubVariantRows.length > 0;
   const dataById = new Map((data ?? []).map((item: any) => [item.id, item]));
   const scholarPreviewCandidateIds = shouldReadScholarPreview
+    ? ids.filter((id) => {
+        const item = dataById.get(id);
+        const experiences = Array.isArray(item?.experience_user)
+          ? item.experience_user
+          : [];
+        const educations = Array.isArray(item?.edu_user) ? item.edu_user : [];
+        return experiences.length === 0 && educations.length === 0;
+      })
+    : [];
+  const githubPreviewCandidateIds = shouldReadGithubPreview
     ? ids.filter((id) => {
         const item = dataById.get(id);
         const experiences = Array.isArray(item?.experience_user)
@@ -185,6 +237,13 @@ async function fetchCandidatesByIds(
     scholarPreviewCandidateIds.length > 0
       ? await fetchScholarPreviewByCandidateIds(scholarPreviewCandidateIds)
       : new Map<string, ScholarProfilePreview>();
+  const candidateMarkByCandidateId = await fetchCandidateMarkMap(userId, ids);
+  const shortlistMemoByCandidateId = await fetchShortlistMemoMap(userId, ids);
+
+  const githubPreviewByCandidateId =
+    githubPreviewCandidateIds.length > 0
+      ? await fetchGithubPreviewByCandidateIds(githubPreviewCandidateIds)
+      : new Map<string, GithubProfilePreview>();
 
   const ordered = ids
     .map((id) => {
@@ -193,7 +252,11 @@ async function fetchCandidatesByIds(
       return {
         ...item,
         scholar_profile_preview: scholarPreviewByCandidateId.get(id) ?? null,
+        github_profile_preview: githubPreviewByCandidateId.get(id) ?? null,
         search_evidence: evidenceByCandidateId?.get(id) ?? null,
+        search_rank: rankByCandidateId?.get(id) ?? null,
+        candidate_mark: candidateMarkByCandidateId.get(id) ?? null,
+        shortlist_memo: shortlistMemoByCandidateId.get(id) ?? "",
       };
     })
     .filter(Boolean);
@@ -209,7 +272,14 @@ async function fetchScholarPreviewByCandidateIds(ids: string[]) {
 
   if (profileError) throw profileError;
 
-  const profileRows = Array.isArray(profiles) ? profiles : [];
+  const profileRows = ((Array.isArray(profiles) ? profiles : []) as unknown) as Array<{
+    id: string;
+    candid_id: string | null;
+    affiliation: string | null;
+    topics: string[] | null;
+    h_index: number | null;
+    total_citations_num: number | null;
+  }>;
   if (profileRows.length === 0) {
     return new Map<string, ScholarProfilePreview>();
   }
@@ -240,13 +310,151 @@ async function fetchScholarPreviewByCandidateIds(ids: string[]) {
         {
           scholarProfileId: row.id,
           affiliation: row.affiliation,
-          topics: row.topics,
+          topics: Array.isArray(row.topics) ? row.topics.join(", ") : null,
           hIndex: row.h_index,
           paperCount: paperCountByProfileId.get(row.id) ?? 0,
           citationCount: row.total_citations_num ?? 0,
         },
       ])
   );
+}
+
+async function fetchGithubPreviewByCandidateIds(ids: string[]) {
+  const { data: profiles, error: profileError } = await supabase
+    .from("github_profile")
+    .select(
+      "id, candid_id, name, company, location, followers, public_repos"
+    )
+    .in("candid_id", ids);
+
+  if (profileError) throw profileError;
+
+  const profileRows = ((Array.isArray(profiles) ? profiles : []) as unknown) as Array<{
+    id: string;
+    candid_id: string | null;
+    name: string | null;
+    company: string | null;
+    location: string | null;
+    followers: number | null;
+    public_repos: number | null;
+  }>;
+  if (profileRows.length === 0) {
+    return new Map<string, GithubProfilePreview>();
+  }
+
+  const profileIds = profileRows.map((row) => row.id);
+  const { data: contributions, error: contributionError } = await supabase
+    .from("github_repo_contribution")
+    .select(
+      "github_profile_id, repo_id, commits, additions, deletions, merged_prs"
+    )
+    .in("github_profile_id", profileIds);
+
+  if (contributionError) throw contributionError;
+
+  const { data: repos, error: repoError } = await supabase
+    .from("github_repo")
+    .select(
+      "id, repo_full_name, description, stars, forks, language, languages, topics"
+    )
+    .in("id", (contributions ?? []).map((c: any) => c.repo_id).filter(Boolean));
+
+  if (repoError) throw repoError;
+
+  // Aggregate by profile
+  const profileData = new Map<
+    string,
+    {
+      topLanguages: Set<string>;
+      topRepoStars: number;
+    }
+  >();
+
+  const repoMap = new Map((repos ?? []).map((r: any) => [r.id, r]));
+
+  for (const contrib of contributions ?? []) {
+    const profileId = (contrib as any)?.github_profile_id;
+    const repoId = (contrib as any)?.repo_id;
+    if (!profileId || !repoId) continue;
+
+    const repo = repoMap.get(repoId);
+    if (!repo) continue;
+
+    if (!profileData.has(profileId)) {
+      profileData.set(profileId, { topLanguages: new Set(), topRepoStars: 0 });
+    }
+
+    const data = profileData.get(profileId)!;
+    if ((repo as any).language) {
+      data.topLanguages.add((repo as any).language);
+    }
+    data.topRepoStars = Math.max(data.topRepoStars, (repo as any).stars ?? 0);
+  }
+
+  return new Map<string, GithubProfilePreview>(
+    profileRows
+      .filter((row) => Boolean(row.candid_id))
+      .map((row) => {
+        const data = profileData.get(row.id);
+        return [
+          row.candid_id as string,
+          {
+            name: row.name,
+            company: row.company,
+            location: row.location,
+            followers: row.followers ?? 0,
+            publicRepos: row.public_repos ?? 0,
+            topLanguages: data ? Array.from(data.topLanguages).slice(0, 5) : [],
+            topRepoStars: data?.topRepoStars ?? 0,
+          },
+        ];
+      })
+  );
+}
+
+async function loadSearchSettings(
+  userId: string,
+  sourceType: SearchSource,
+  selectedSources: SearchSource[]
+): Promise<SearchSettingsSnapshot> {
+  const { data: row, error } = await supabase
+    .from("settings")
+    .select("is_korean")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `loadSearchSettings failed (${error.code}): ${error.message}`
+    );
+  }
+
+  return {
+    is_korean: row?.is_korean ?? false,
+    type: sourceType,
+    sources: normalizeSearchSources(selectedSources, {
+      enabledOnly: true,
+      fallback: getDefaultEnabledSources(sourceType),
+    }),
+  };
+}
+
+async function loadQuerySourceType(
+  queryId: string
+): Promise<SearchSettingsSnapshot["type"]> {
+  const { data, error } = await supabase
+    .from("queries")
+    .select("type")
+    .eq("query_id", queryId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `loadQuerySourceType failed (${error.code}): ${error.message}`
+    );
+  }
+
+  return queryTypeToSearchSource(data?.type);
 }
 
 /**
@@ -260,8 +468,9 @@ async function createRunFromMessage(params: {
   criteria: any;
   queryText: string;
   userId?: string;
+  sources?: unknown;
 }) {
-  const { queryId, messageId, criteria, queryText, userId } = params;
+  const { queryId, messageId, criteria, queryText, userId, sources } = params;
   console.log("\n createRunFromMessage: ", queryId, messageId, criteria);
 
   if (!queryId) throw new Error("createRunFromMessage: missing queryId");
@@ -276,19 +485,26 @@ async function createRunFromMessage(params: {
   // - runs.query_id (uuid), runs.trigger_message_id (int/bigint), runs.criteria (jsonb)
   // - RLS policy allows insert when the user owns the query
   const locale = getLocaleFromCookie();
-  const { data: queryRow, error: queryError } = await supabase
-    .from("queries")
-    .select("type")
-    .eq("query_id", queryId)
-    .maybeSingle();
-
-  if (queryError) {
-    throw new Error(
-      `createRunFromMessage: query lookup failed (${queryError.code}): ${queryError.message}`
-    );
-  }
-
-  const sourceType = queryTypeToSearchSource(queryRow?.type);
+  const sourceType = await loadQuerySourceType(queryId);
+  const selectedSources = normalizeSearchSources(sources, {
+    enabledOnly: true,
+    fallback: getDefaultEnabledSources(sourceType),
+  });
+  const searchSettings = userId
+    ? await loadSearchSettings(
+        userId,
+        selectedSources[0] ?? getDefaultEnabledSources(sourceType)[0],
+        selectedSources
+      )
+    : {
+        is_korean: false,
+        type: selectedSources[0] ?? getDefaultEnabledSources(sourceType)[0],
+        sources: selectedSources,
+      };
+  const testMode =
+    typeof window !== "undefined" &&
+    process.env.NEXT_PUBLIC_WORKER_TEST_MODE === "true";
+  const queueStatus = testMode ? "queued_test" : "queued";
 
   const { data, error } = await supabase
     .from("runs")
@@ -298,11 +514,9 @@ async function createRunFromMessage(params: {
       criteria,
       query_text: queryText,
       user_id: userId,
-      status: "queued",
+      status: queueStatus,
       locale,
-      search_settings: {
-        type: sourceType,
-      },
+      search_settings: searchSettings,
     })
     .select("id")
     .single();
@@ -363,10 +577,11 @@ export function useChatSearchCandidates(
     queryFn: async ({ pageParam }) => {
       const pageIdx = pageParam as number;
 
-      const { ids, isNewSearch, evidenceByCandidateId } = await fetchSearchIds({
-        runId: runId!,
-        pageIdx,
-      });
+      const { ids, isNewSearch, evidenceByCandidateId, rankByCandidateId } =
+        await fetchSearchIds({
+          runId: runId!,
+          pageIdx,
+        });
 
       if (ids?.length) {
         if (isNewSearch) await deduct(1);
@@ -374,7 +589,8 @@ export function useChatSearchCandidates(
           ids,
           userId!,
           runId!,
-          evidenceByCandidateId
+          evidenceByCandidateId,
+          rankByCandidateId
         );
         return { pageIdx, ids, items, isNewSearch };
       }
@@ -424,13 +640,14 @@ export function useChatSearchCandidates(
         criteria: inputs.criteria,
         queryText: inputs.thinking ?? "",
         userId,
+        sources: inputs.sources,
       });
 
       if (!newRunId) return null;
 
       return newRunId;
     },
-    [queryId, userId, queryClient]
+    [queryId, userId]
   );
 
   return {

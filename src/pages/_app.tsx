@@ -16,6 +16,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import CompanyModalRoot from "@/components/Modal/CompanyModal";
 import PaperModalRoot from "@/components/Modal/PaperModal";
+import RepoModalRoot from "@/components/Modal/RepoModal";
 import Script from "next/script";
 import { useRouter } from "next/router";
 
@@ -94,6 +95,7 @@ export default function App({ Component, pageProps }: AppProps) {
   useEffect(() => {
     if (!companyUser?.user_id) return;
     if (companyUserLoading) return;
+    if (!companyUser.is_authenticated) return;
     if (lastFreeRefreshUserId.current === companyUser.user_id) return;
 
     lastFreeRefreshUserId.current = companyUser.user_id;
@@ -110,7 +112,7 @@ export default function App({ Component, pageProps }: AppProps) {
     ]).catch((err) => {
       console.error("Failed to refresh credits:", err);
     });
-  }, [companyUser?.user_id, companyUserLoading]);
+  }, [companyUser?.user_id, companyUser?.is_authenticated, companyUserLoading]);
 
   return (
     <ReactQueryProvider>
@@ -143,6 +145,7 @@ export default function App({ Component, pageProps }: AppProps) {
       >
         <CompanyModalRoot />
         <PaperModalRoot />
+        <RepoModalRoot />
         <Analytics />
         <Component {...pageProps} />
         <ToastProvider />

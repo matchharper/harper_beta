@@ -20,7 +20,7 @@ const CreditModal: React.FC<CreditModalProps> = ({
 
   const onConfirm = useCallback(async () => {
     if (isLoading) return;
-    await router.push("/pricing");
+    await router.push("/my/billing");
   }, [router, isLoading]);
 
   useEffect(() => {
@@ -44,8 +44,7 @@ const CreditModal: React.FC<CreditModalProps> = ({
   // ====== 디자인 갈아엎기 편하게 여기만 보면 됨 ======
   const overlayClass =
     "fixed inset-0 z-50 flex items-center justify-center px-4 w-full";
-  const backdropClass =
-    "absolute inset-0 bg-black/40 backdrop-blur-[2px]";
+  const backdropClass = "absolute inset-0 bg-black/40 backdrop-blur-[2px]";
   const modalClass =
     "relative z-50 w-full max-w-[440px] rounded-[28px] bg-hgray100 p-6 shadow-sm border border-white/5";
   const titleClass = "text-base font-normal text-hgray900";
@@ -81,7 +80,11 @@ const CreditModal: React.FC<CreditModalProps> = ({
             onClick={onConfirm}
             disabled={isLoading}
           >
-            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "플랜 업그레이드"}
+            {isLoading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              "플랜 업그레이드"
+            )}
           </button>
         </div>
       </div>

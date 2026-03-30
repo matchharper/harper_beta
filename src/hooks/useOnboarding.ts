@@ -2,14 +2,20 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-const STEP_KEY = "harper-onboard-step";
-
 export const useOnboarding = ({
   save,
   totalSteps,
+  beforeNext,
+  onComplete,
+  enableWheelNavigation = true,
+  allowTextareaEnterSubmit = false,
 }: {
   save: () => void;
   totalSteps: number;
+  beforeNext?: (step: number) => boolean;
+  onComplete?: () => void;
+  enableWheelNavigation?: boolean;
+  allowTextareaEnterSubmit?: boolean;
 }) => {
   const [step, setStep] = useState(0);
   const [submitLoading, setSubmitLoading] = useState(false);
@@ -17,16 +23,25 @@ export const useOnboarding = ({
   const lock = useRef(false);
   const isNextRef = useRef(true);
 
-  const isLastStep = useMemo(() => step === totalSteps - 1, [step]);
+  const isLastStep = useMemo(() => step === totalSteps - 1, [step, totalSteps]);
 
   const handleNext = useCallback(() => {
     isNextRef.current = true;
+
+    if (beforeNext && !beforeNext(step)) {
+      return;
+    }
 
     if (save) {
       save();
     }
 
     if (isLastStep) {
+      if (onComplete) {
+        onComplete();
+        return;
+      }
+
       setSubmitLoading(true);
       setTimeout(() => {
         setSubmitLoading(false);
@@ -36,15 +51,18 @@ export const useOnboarding = ({
     }
 
     setStep((prev) => Math.min(prev + 1, totalSteps - 1));
-  }, [step, save, isLastStep]);
+  }, [beforeNext, isLastStep, onComplete, save, step, totalSteps]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.isComposing) return;
       if (e.key !== "Enter") return;
       if (lock.current) return;
 
       const target = e.target as HTMLElement;
-      if (target.tagName === "TEXTAREA") return;
+      if (target.tagName === "TEXTAREA") {
+        if (!allowTextareaEnterSubmit || e.shiftKey) return;
+      }
 
       e.preventDefault();
 
@@ -58,9 +76,11 @@ export const useOnboarding = ({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleNext]);
+  }, [allowTextareaEnterSubmit, handleNext]);
 
   useEffect(() => {
+    if (!enableWheelNavigation) return;
+
     const handleWheel = (e: WheelEvent) => {
       if (lock.current) return;
       if (window.scrollY !== 0) {
@@ -81,8 +101,7 @@ export const useOnboarding = ({
         }, 500);
       } else if (e.deltaY > 75) {
         lock.current = true;
-        isNextRef.current = true;
-        setStep((prev) => Math.min(prev + 1, totalSteps - 1));
+        handleNext();
 
         setTimeout(() => {
           lock.current = false;
@@ -92,18 +111,7 @@ export const useOnboarding = ({
 
     window.addEventListener("wheel", handleWheel);
     return () => window.removeEventListener("wheel", handleWheel);
-  }, []);
-
-  useEffect(() => {
-    const savedStep = localStorage.getItem(STEP_KEY);
-    if (savedStep) {
-      setStep(parseInt(savedStep));
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(STEP_KEY, step.toString());
-  }, [step]);
+  }, [enableWheelNavigation, handleNext, totalSteps]);
 
   const handlePrev = useCallback(() => {
     isNextRef.current = false;

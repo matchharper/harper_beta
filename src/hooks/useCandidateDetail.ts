@@ -2,16 +2,27 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { CandidateType } from "@/types/type";
 import type { Database } from "@/types/database.types";
+import type { CandidateMarkRecord } from "@/lib/candidateMark";
+import { fetchCandidateMarkMap } from "./useCandidateMark";
 
 export type GithubRepoContributionRow =
   Database["public"]["Tables"]["github_repo_contribution"]["Row"];
+export type GithubProfileRow =
+  Database["public"]["Tables"]["github_profile"]["Row"];
+export type GithubRepoRow =
+  Database["public"]["Tables"]["github_repo"]["Row"];
 export type ScholarProfileRow =
   Database["public"]["Tables"]["scholar_profile"]["Row"];
 export type ScholarPaperRow = Database["public"]["Tables"]["papers"]["Row"];
 
+export type GithubContributionWithRepo = GithubRepoContributionRow & {
+  github_repo: GithubRepoRow | null;
+};
+
 export type CandidateDetail = CandidateType & {
   connection?: { user_id: string; typed: number }[];
-  github_repo_contribution?: GithubRepoContributionRow[];
+  candidate_mark?: CandidateMarkRecord | null;
+  github_repo_contribution?: GithubContributionWithRepo[];
   scholar_profile?: ScholarProfileRow | null;
   scholar_papers?: ScholarPaperRow[];
   isAutomationResult?: boolean;
@@ -59,9 +70,6 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
         published_at,
         citation_num
       ),
-      github_repo_contribution (
-        *
-      ),
       extra_experience(
         *
       ),
@@ -87,7 +95,9 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
 
   let scholarProfile: ScholarProfileRow | null = null;
   let scholarPapers: ScholarPaperRow[] = [];
+  let githubRepoContributions: GithubContributionWithRepo[] = [];
 
+  // GitHub profile and contributions
   const { data: scholarProfileRow, error: scholarProfileError } = await supabase
     .from("scholar_profile")
     .select("*")
@@ -127,7 +137,62 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
     }
   }
 
+  const { data: githubProfiles, error: githubProfileError } = await supabase
+    .from("github_profile")
+    .select("id")
+    .eq("candid_id", id);
+
+  if (githubProfileError) throw githubProfileError;
+
+  const githubProfileIds = Array.from(
+    new Set(
+      (githubProfiles ?? [])
+        .map((row) => String((row as any)?.id ?? "").trim())
+        .filter(Boolean)
+    )
+  );
+
+  if (githubProfileIds.length > 0) {
+    const { data: githubRepoRows, error: githubRepoError } = await supabase
+      .from("github_repo_contribution")
+      .select("*")
+      .in("github_profile_id", githubProfileIds);
+
+    if (githubRepoError) throw githubRepoError;
+
+    const rawContributions =
+      (githubRepoRows as GithubRepoContributionRow[] | null) ?? [];
+
+    // Join with github_repo for repo details
+    const repoIds = Array.from(
+      new Set(
+        rawContributions
+          .map((row) => String(row.repo_id ?? "").trim())
+          .filter(Boolean)
+      )
+    );
+
+    let repoById = new Map<string, GithubRepoRow>();
+    if (repoIds.length > 0) {
+      const { data: repoRows, error: repoError } = await supabase
+        .from("github_repo")
+        .select("*")
+        .in("id", repoIds);
+
+      if (repoError) throw repoError;
+      repoById = new Map(
+        (repoRows as GithubRepoRow[] | null ?? []).map((r) => [r.id, r] as const)
+      );
+    }
+
+    githubRepoContributions = rawContributions.map((c) => ({
+      ...c,
+      github_repo: repoById.get(c.repo_id ?? "") ?? null,
+    }));
+  }
+
   if (userId) {
+    const candidateMarkById = await fetchCandidateMarkMap(userId, [id]);
     const { data: autoRow, error: autoError } = await supabase
       .from("automation_results")
       .select("id")
@@ -138,6 +203,8 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
     if (autoError) throw autoError;
     return {
       ...data,
+      candidate_mark: candidateMarkById.get(id) ?? null,
+      github_repo_contribution: githubRepoContributions,
       scholar_profile: scholarProfile,
       scholar_papers: scholarPapers,
       isAutomationResult: autoRow?.length > 0,
@@ -146,6 +213,7 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
 
   return {
     ...(data as CandidateDetail),
+    github_repo_contribution: githubRepoContributions,
     scholar_profile: scholarProfile,
     scholar_papers: scholarPapers,
   };

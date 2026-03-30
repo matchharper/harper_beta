@@ -1,16 +1,10 @@
 import { dateToFormatLong } from "@/utils/textprocess";
-import React, { useEffect, useState } from "react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Command, MoreHorizontal } from "lucide-react";
-import { QueryType } from "@/types/type";
+import React, { useState } from "react";
+import { Command, MoreHorizontal, Pin, Trash2 } from "lucide-react";
 import { Tooltips } from "../ui/tooltip";
 import Link from "next/link";
+import { QueryHistoryItem } from "@/hooks/useSearchHistory";
+import { ActionDropdown, ActionDropdownItem } from "../ui/action-dropdown";
 
 const HistoryItem = ({
   queryItem,
@@ -18,12 +12,17 @@ const HistoryItem = ({
   collapsed,
   isActive,
 }: {
-  queryItem: QueryType;
+  queryItem: QueryHistoryItem;
   onDelete: (queryId: string) => void;
   collapsed: boolean;
   isActive: boolean;
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
+  const isLiked = (queryItem.runs ?? []).some(
+    (run) =>
+      Number(run.feedback ?? 0) === 1 &&
+      String(run.status ?? "").toLowerCase() !== "stopped"
+  );
 
   return (
     <Link
@@ -36,65 +35,78 @@ const HistoryItem = ({
     >
       <div
         className={`flex flex-col items-start w-full font-normal ${
-          collapsed ? "max-w-full" : "max-w-[85%]"
+          collapsed ? "max-w-full" : "max-w-[86%]"
         }`}
       >
-        <div className="truncate text-[13px] w-full">
-          {queryItem.query_keyword !== ""
-            ? queryItem.query_keyword
-            : queryItem.raw_input_text}
+        <div className="flex w-full items-center gap-1.5">
+          <div className="truncate text-[13px] flex-1">
+            {queryItem.query_keyword !== ""
+              ? queryItem.query_keyword
+              : queryItem.raw_input_text}
+          </div>
+          {collapsed && isLiked ? (
+            <Pin
+              className="h-3 w-3 shrink-0 text-accenta1"
+              fill="currentColor"
+              strokeWidth={1.8}
+            />
+          ) : null}
         </div>
         {!collapsed && (
-          <div className="text-[12px] text-hgray600">
-            {dateToFormatLong(
-              new Date(queryItem.created_at).toLocaleDateString()
-            )}
+          <div className="flex flex-row w-full items-center justify-start gap-1 text-xs text-hgray600">
+            <span>
+              {dateToFormatLong(
+                new Date(queryItem.created_at).toLocaleDateString()
+              )}
+            </span>
+            {isLiked ? (
+              <Pin
+                className="h-2.5 w-2.5 shrink-0 text-accenta1"
+                fill="currentColor"
+                strokeWidth={1.8}
+              />
+            ) : null}
           </div>
         )}
       </div>
-      {!collapsed && (
-        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-          <DropdownMenuTrigger asChild>
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-              className={[
-                "rounded-sm h-7 w-7 flex items-center justify-center",
-                "hover:bg-bgDark500 focus:outline-white/5 focus:ring-white/10",
-                "transition-opacity",
-                menuOpen
-                  ? "opacity-100 ring-2 ring-white/60"
-                  : "opacity-0 group-hover:opacity-100 ring-0",
-              ].join(" ")}
-            >
-              <MoreHorizontal size={16} />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            className="w-40 bg-bgDark400/80 backdrop-blur-md border-none"
-            align="start"
+      <ActionDropdown
+        open={menuOpen}
+        onOpenChange={setMenuOpen}
+        align="start"
+        contentClassName="w-40"
+        trigger={
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            className={[
+              "rounded-sm h-7 w-7 flex items-center justify-center",
+              "hover:bg-bgDark500 focus:outline-white/5 focus:ring-white/10",
+              "transition-opacity",
+              menuOpen
+                ? "opacity-100 ring-2 ring-white/60"
+                : "opacity-0 group-hover:opacity-100 ring-0",
+              collapsed
+                ? "absolute right-1.5 top-1/2 -translate-y-1/2"
+                : "opacity-0",
+            ].join(" ")}
           >
-            {/* <DropdownMenuGroup>
-          <DropdownMenuItem>
-          Profile
-          <DropdownMenuShortcut>⇧⌘P</DropdownMenuShortcut>
-          </DropdownMenuItem> */}
-            <DropdownMenuGroup>
-              <DropdownMenuItem
-                className="text-red-500 cursor-pointer p-2"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete(queryItem.query_id);
-                }}
-              >
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
+            <MoreHorizontal size={16} />
+          </button>
+        }
+      >
+        <ActionDropdownItem
+          tone="danger"
+          className="p-2"
+          onSelect={() => {
+            onDelete(queryItem.query_id);
+          }}
+        >
+          <Trash2 size={14} />
+          <span>삭제</span>
+        </ActionDropdownItem>
+      </ActionDropdown>
     </Link>
   );
 };

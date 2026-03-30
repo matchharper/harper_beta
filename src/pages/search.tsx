@@ -1,45 +1,49 @@
 import Animate from "@/components/landing/Animate";
-import GithubFooter from "@/components/landing/GithubFooter";
 import { BaseSectionLayout } from "@/components/landing/GridSectionLayout";
 import Head1 from "@/components/landing/Head1";
 import CandidateGithubCardDark from "@/components/landing/Rad";
 import ScholarProfile from "@/components/landing/ScholarProfile";
-import { DropdownMenu } from "@/components/ui/menu";
 import { useMessages } from "@/i18n/useMessage";
 import { en } from "@/lang/en";
 import { supabase } from "@/lib/supabase";
 import {
   ArrowUp,
-  ArrowUpRight,
   BookOpen,
   FolderOpen,
   Github,
   GraduationCap,
-  Menu,
   Search,
   type LucideIcon,
 } from "lucide-react";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import Head from "next/head";
-import Link from "next/link";
 import router from "next/router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import CompareSection from "@/components/landing/Compare";
-import PricingSection from "@/components/landing/PricingScholar";
+import PricingSection from "@/components/landing/Pricing";
 import { FallingTagsMl } from "@/components/landing/FallingTagsML";
 import { OrbitIconsSmall } from "@/components/landing/Orbit";
 import Reveal from "@/components/landing/Animation/Reveal";
 import Footer from "@/components/landing/Footer";
+import SearchHeader, {
+  getRadarSectionHref,
+  navItems,
+  RadarSection,
+} from "@/components/landing/SearchHeader";
+import QuestionAnswer from "@/components/landing/Questions";
+import StaggerText from "@/components/landing/Animation/StaggerText";
+import WhySection from "@/components/landing/WhySection";
+import FounderNote from "@/components/landing/FounderNote";
+import LinkedinHarperCompare from "@/components/landing/LinkedinHarperCompare";
 
 const LoginModal = dynamic(() => import("@/components/Modal/LoginModal"));
-const RADAR_LOGIN_MODAL_LANGUAGE = "en" as const;
+const RADAR_LOGIN_MODAL_LANGUAGE = "ko" as const;
 const RADAR_LOGIN_MODAL_COPY = {
   sessionExpired: "Your login session has expired. Please sign in again.",
   bootstrapFailed: "Failed to initialize your account. Please try again.",
 };
 
-const START_BUTTON_LABEL = "Try for Free";
+export const START_BUTTON_LABEL = "Try for Free";
 const PLACEHOLDER_SWITCH_MS = 2800;
 const PLACEHOLDER_SLIDE_MS = 450;
 const PLACEHOLDER_LINE_HEIGHT_PX = 24;
@@ -50,13 +54,6 @@ const HERO_DOT_BACKGROUND_STYLE = {
     "radial-gradient(rgba(255,255,255,0.16) 0.9px, transparent 0.9px)",
   backgroundSize: "20px 20px",
 };
-
-enum RadarSection {
-  Intro = "intro",
-  Coverage = "coverage",
-  Outputs = "outputs",
-  Pricing = "pricing",
-}
 
 type OutputItem = {
   key: string;
@@ -146,53 +143,7 @@ const coverageStats: Array<{
   },
 ];
 
-const RADAR_SECTION_LABELS: Record<RadarSection, string> = {
-  [RadarSection.Intro]: "Intro",
-  [RadarSection.Coverage]: "Coverage",
-  [RadarSection.Outputs]: "Outputs",
-  [RadarSection.Pricing]: "Pricing",
-};
-
-const RADAR_NAV_SECTIONS: RadarSection[] = [
-  RadarSection.Intro,
-  RadarSection.Coverage,
-  RadarSection.Outputs,
-  RadarSection.Pricing,
-];
-
-const navItems = RADAR_NAV_SECTIONS.map((section) => ({
-  section,
-  label: RADAR_SECTION_LABELS[section],
-}));
-
-function getRadarSectionHref(section: RadarSection) {
-  return `#${section}`;
-}
-
-function NavItem({
-  label,
-  onClick,
-  isArrowRight = false,
-}: {
-  label: string;
-  onClick: () => void;
-  isArrowRight?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex cursor-pointer items-center justify-between gap-2 rounded-full py-2 transition-colors duration-200 hover:bg-white/5 hover:opacity-95 ${
-        isArrowRight ? "pl-5 pr-3" : "px-5"
-      }`}
-    >
-      <span>{label}</span>
-      {isArrowRight && <ArrowUpRight className="h-3 w-3" />}
-    </button>
-  );
-}
-
-const StartButton = React.memo(function StartButton({
+export const StartButton = React.memo(function StartButton({
   onClick,
   label,
   size = "md",
@@ -202,7 +153,9 @@ const StartButton = React.memo(function StartButton({
   size?: "md" | "sm";
 }) {
   const sizeClass =
-    size === "sm" ? "px-6 py-3 text-xs" : "mt-10 px-8 py-4 text-base";
+    size === "sm"
+      ? "px-6 py-3 text-xs"
+      : "mt-10 px-8 py-4 text-sm md:text-base";
 
   return (
     <button
@@ -234,7 +187,7 @@ function CoverageCard({
 }) {
   return (
     <div className="w-full rounded-2xl text-center px-6 py-6">
-      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/5 mx-auto">
+      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 mx-auto">
         <Icon className="h-5 w-5 text-white/80" />
       </div>
       <div className="mt-6 text-5xl md:text-6xl font-medium text-white">
@@ -313,7 +266,7 @@ function SearchInputPanel({
   }, [isPlaceholderAnimating, nextPlaceholderIdx]);
 
   return (
-    <form onSubmit={onSubmit} className="w-full rounded-[28px] p-3 md:p-5">
+    <form onSubmit={onSubmit} className="w-full rounded-[28px] p-2 md:p-5">
       <div className="relative w-full rounded-[24px] border border-white/10 bg-hgray200 p-1">
         <div className="relative rounded-[20px] backdrop-blur-xl">
           {isQueryEmpty && (
@@ -359,16 +312,13 @@ function SearchInputPanel({
           />
         </div>
 
-        <div className="absolute bottom-4 right-4 flex items-center justify-center gap-2 md:bottom-5 md:right-5">
+        <div className="absolute bottom-2 right-2 flex items-center justify-center gap-2 md:bottom-3 md:right-3">
           <button
             type="submit"
             disabled={!canSend}
             aria-label="Submit search"
             className={[
-              "inline-flex h-10 w-10 items-center justify-center rounded-full transition active:scale-[0.98] md:h-11 md:w-11",
-              canSend
-                ? "bg-accenta1 text-black hover:opacity-90"
-                : "cursor-not-allowed bg-white/10 text-white/35",
+              "inline-flex h-10 w-10 items-center justify-center rounded-full transition active:scale-[0.98] md:h-11 md:w-11 bg-accenta1 text-black hover:opacity-90",
             ].join(" ")}
           >
             <ArrowUp size={20} />
@@ -381,65 +331,8 @@ function SearchInputPanel({
   );
 }
 
-function RadarHeader({ onStartClick }: { onStartClick: () => void }) {
-  const navigateToSection = useCallback((section: RadarSection) => {
-    if (typeof window === "undefined") return;
-
-    if (section === RadarSection.Intro) {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      return;
-    }
-
-    const target = document.getElementById(section);
-    if (target) {
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, []);
-
-  return (
-    <header className="fixed left-0 top-0 z-20 w-full text-sm text-white transition-all duration-300">
-      <div className="mx-auto flex h-14 w-full max-w-[1200px] items-center justify-between px-4 md:h-20 md:px-8">
-        <Link
-          href="/"
-          className="shrink-0 text-left font-garamond text-[26px] font-semibold"
-        >
-          Harper
-        </Link>
-
-        <nav className="hidden items-center justify-center gap-2 rounded-full bg-[#444444aa] px-4 py-2 text-sm font-normal text-white backdrop-blur md:flex">
-          {navItems.map((item) => (
-            <NavItem
-              key={item.section}
-              label={item.label}
-              onClick={() => navigateToSection(item.section)}
-            />
-          ))}
-        </nav>
-
-        <div className="hidden shrink-0 items-center justify-end md:flex">
-          <StartButton
-            onClick={onStartClick}
-            label={START_BUTTON_LABEL}
-            size="sm"
-          />
-        </div>
-
-        <div className="block md:hidden">
-          <DropdownMenu
-            buttonLabel={<Menu className="h-4 w-4" />}
-            items={navItems.map((item) => ({
-              label: item.label,
-              onClick: () => navigateToSection(item.section),
-            }))}
-          />
-        </div>
-      </div>
-    </header>
-  );
-}
-
 export default function RadarLandingPage() {
-  const { m } = useMessages();
+  const { m, locale } = useMessages();
 
   const [query, setQuery] = useState("");
   const [isOpenLoginModal, setIsOpenLoginModal] = useState(false);
@@ -575,7 +468,7 @@ export default function RadarLandingPage() {
           />
         )}
 
-        <RadarHeader onStartClick={handleStart} />
+        <SearchHeader onStartClick={handleStart} />
 
         <nav className="sr-only" aria-label="Radar section links">
           {navItems.map((item) => (
@@ -598,20 +491,21 @@ export default function RadarLandingPage() {
           </div>
 
           <Reveal delay={0.08} className="w-full max-w-[980px]">
-            <div className="relative z-10 mx-auto mt-10 flex w-full flex-col items-center text-center md:mt-12">
+            <div className="relative z-10 mx-auto mt-10 flex w-full flex-col items-center text-center md:mt-16 min-h-[64vh] md:min-h-[80vh]">
               <h1 className="mt-6 max-w-[920px] text-3xl font-medium leading-relaxed tracking-[-0.03em] md:text-5xl">
-                <span className="block">Find who actually</span>
-                <span className="block mt-3.5">builds and publishes.</span>
+                <StaggerText text="Find who actually" />
+                <div className="mt-0 md:mt-3.5" />
+                <StaggerText text="builds and publishes." delay={0.14} />
               </h1>
 
-              <p className="mt-6 max-w-[700px] text-[15px] font-light leading-7 text-hgray700 md:text-[20px] md:leading-8">
-                Search by GitHub, shipped projects, and Publications
-                <br />
-                not by polished profiles.
-              </p>
-
-              <div className="mt-12 w-full max-w-[820px] md:mt-16">
-                <div className="w-full overflow-hidden rounded-[30px] bg-gradpastel2 p-4 shadow-[0_40px_120px_rgba(0,0,0,0.38)]">
+              <p
+                className="mt-6 md:mt-8 max-w-[700px] text-base font-light leading-7 text-hgray700 md:text-lg md:leading-8"
+                dangerouslySetInnerHTML={{
+                  __html: m.companyLanding.hero.subtitle,
+                }}
+              />
+              <div className="hidden md:flex mt-12 w-full max-w-[820px] md:mt-16">
+                <div className="w-full overflow-hidden rounded-[30px] bg-gradpastel2 p-1">
                   <SearchInputPanel
                     query={query}
                     onQueryChange={setQuery}
@@ -619,32 +513,44 @@ export default function RadarLandingPage() {
                   />
                 </div>
               </div>
-
-              <div className="mt-6 text-sm text-white/45">
-                We don&apos;t connect or provide contact information.
+              <div className="mt-4 flex md:hidden">
+                <StartButton onClick={handleStart} label={"무료로 시작하기"} />
               </div>
-              <div className="mt-6 text-white/80"></div>
             </div>
+
+            {locale === "ko" && (
+              <Reveal delay={0.08} duration={1.2}>
+                <div className="w-full mb-20 mt-12 md:mt-8 flex flex-col items-center justify-center">
+                  <div className="max-w-[1280px] bg-gradpastel2 overflow-hidden md:rounded-[30px] rounded-2xl pt-8 md:pt-0 flex flex-col items-center justify-center">
+                    <video
+                      src="/videos/usemain.mp4"
+                      poster="/images/usemain.png"
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      className="w-[90%] h-full object-cover  md:rounded-t-[30px] rounded-t-2xl md:translate-y-[40px] translate-y-0 shadow-lg"
+                    />
+                  </div>
+                </div>
+              </Reveal>
+            )}
+            <div className="mt-6 text-white/80"></div>
           </Reveal>
         </section>
 
-        {/* <div className="h-20 md:h-28" />
-        <Animate>
-          <BaseSectionLayout>
-            <div className="flex flex-col md:flex-row mt-12 gap-8 w-full">
-              <WhyImageSection title="" desc="" imageSrc="drops" />
-              <WhyImageSection title="" desc="" imageSrc="orbit" />
-            </div>
-          </BaseSectionLayout>
-        </Animate> */}
-        <div id={RadarSection.Coverage} className="h-20 md:h-28" />
-        <Reveal delay={0.08}>
+        <div className="h-20 md:h-40" />
+        <WhySection />
+        <div className="h-20 md:h-40" />
+        <Reveal delay={0.08} duration={1.2}>
           <BaseSectionLayout>
             <div className="flex w-full flex-col items-center justify-center px-4 text-left md:px-0">
-              {/* <Head1 className="text-white">Coverage</Head1> */}
-              <h2 className="mt-8 max-w-[720px] text-center text-xl font-normal text-white md:text-2xl md:leading-[1.2]">
-                Every day, Reading more projects and publications.
-              </h2>
+              {/* <h2 className="mt-8 max-w-[720px] text-center text-xl font-normal text-white md:text-2xl md:leading-[1.2]">
+              </h2> */}
+
+              <div className="text-[22px] md:text-3xl text-white font-normal mt-8">
+                데이터는 지금도 계속 확장되고 있습니다.
+              </div>
 
               <div className="mt-10 grid w-full grid-cols-1 gap-6 md:grid-cols-3 md:gap-7">
                 {coverageStats.map((stat) => (
@@ -655,18 +561,19 @@ export default function RadarLandingPage() {
           </BaseSectionLayout>
         </Reveal>
 
-        <div id={RadarSection.Outputs} className="h-24 md:h-48" />
+        <div id={RadarSection.Outputs} className="h-20 md:h-40" />
         <BaseSectionLayout>
           <div className="flex w-full flex-col items-center justify-center px-4 text-center md:px-0">
-            <Reveal delay={0.08}>
+            <Reveal delay={0.08} duration={1.2}>
               <div className="flex flex-col items-center justify-center">
                 <Head1 className="text-white">
-                  Who&apos;s actually Shipping?
+                  Who&apos;s Not on LinkedIn?
                 </Head1>
-                <h2 className="mb-12 mt-8 max-w-[760px] text-lg font-light text-white md:mb-20 md:text-xl md:leading-[1.2]">
-                  Harper&apos;s proprietary algorithm tracks commits, repos, and
-                  social activity <br />
-                  to reveal the actual developers pushing insane code.
+                <h2 className="mb-12 mt-8 max-w-[760px] text-sm font-light text-hgray700 md:mb-20 md:text-lg">
+                  Harper는 링크드인 뿐만 아니라 코드, 논문 등 다양한 출처를
+                  분석해
+                  <br />
+                  링크드인 계정이 없는 인재도 발견합니다.
                 </h2>
               </div>
             </Reveal>
@@ -687,46 +594,40 @@ export default function RadarLandingPage() {
         </BaseSectionLayout>
 
         <div className="h-24 md:h-48" />
-        <CompareSection />
+        <LinkedinHarperCompare />
+        {/* <div className="h-28 md:h-40" /> */}
+        {/* <CompareSection /> */}
 
         <div id={RadarSection.Pricing} className="h-28 md:h-40" />
         <PricingSection onClick={handleStart} />
-        <div className="h-28 md:h-40" />
 
-        <Animate>
+        <div className="h-28 md:h-40" />
+        <FounderNote />
+
+        <div className="h-28 md:h-40" />
+        <Reveal delay={0.08}>
           <BaseSectionLayout>
-            <div className="w-full max-w-[600px] px-4 md:px-0">
-              <div className="flex flex-col items-start gap-4 rounded-2xl bg-white/20 px-5 py-6 md:px-[30px] md:py-8">
-                <div className="text-left text-[13px] font-normal leading-[26px] text-hgray700 md:text-base md:leading-[30px]">
-                  Harper is not just a filter-based search engine.
-                  <br />
-                  It reads what people have actually built: their code and
-                  papers.
-                  <br />
-                  It infers ability from real work,
-                  <br />
-                  and finds the talent that truly fits.
-                </div>
-                <div className="mt-6 flex flex-row items-center justify-start gap-4">
-                  <div className="shrink-0">
-                    <Image
-                      src="/images/cofounder.png"
-                      alt="person1"
-                      width={60}
-                      height={60}
+            <div className="flex flex-col items-center justify-center w-full pt-4">
+              <div className="w-full flex flex-col items-center justify-center pb-2">
+                <Head1 className="text-white">
+                  {m.companyLanding.faq.title}
+                </Head1>
+                <div className="flex flex-col items-start justify-start text-white/70 font-light w-full mt-12 px-4 md:px-0">
+                  {m.companyLanding.faq.items.map((item, index) => (
+                    <QuestionAnswer
+                      key={item.question}
+                      question={item.question}
+                      answer={item.answer}
+                      index={index}
+                      onOpen={() => {}}
+                      length={m.companyLanding.faq.items.length}
                     />
-                  </div>
-                  <div className="flex flex-col items-start justify-start gap-1">
-                    <div className="text-sm">Chris & Daniel</div>
-                    <div className="text-hgray700 text-xs">
-                      {m.companyLanding.testimonial.role}
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
             </div>
           </BaseSectionLayout>
-        </Animate>
+        </Reveal>
 
         <div className="h-28 md:h-40" />
         <Animate duration={0.8}>
@@ -735,18 +636,17 @@ export default function RadarLandingPage() {
             <div className="absolute left-0 top-0 h-[50%] w-full bg-gradient-to-t from-transparent to-black" />
 
             <div className="relative z-10 mx-auto flex w-full max-w-[1000px] flex-col items-center justify-center px-4 py-20 text-white md:py-36 md:pb-48">
-              <h2 className="mt-7 text-center text-[32px] font-medium leading-[1.15] text-white/95 md:text-4xl">
+              <h2 className="mt-7 text-center text-3xl font-medium leading-[1.15] text-white/95 md:text-4xl">
                 Repos and Papers
                 <br />
                 are our talent pool.
               </h2>
 
               <p className="mt-5 max-w-[620px] text-center text-[15px] leading-7 text-hgray700 md:text-[18px]">
-                GitHub and Scholar reveal serious builders long before polished
-                profiles do.
+                하퍼와 함께 진짜 인재를 찾아보세요.
               </p>
 
-              <StartButton onClick={handleStart} label={START_BUTTON_LABEL} />
+              <StartButton onClick={handleStart} label={"무료로 시작하기"} />
               <div className="mt-32 w-full md:flex hidden">
                 <FallingTagsMl theme="dark" startDelay={800} />
               </div>
@@ -798,62 +698,6 @@ function PixelBackground({
           }}
         />
       ))}
-    </div>
-  );
-}
-
-function WhyImageSection({
-  title,
-  desc,
-  imageSrc,
-}: {
-  title: string;
-  desc: string;
-  imageSrc: string;
-}) {
-  const imgReturn = () => {
-    if (imageSrc === "drops") {
-      return (
-        <div className="relative flex h-[280px] w-full items-center justify-center overflow-hidden rounded-2xl bg-gradpastel2 md:h-[380px]">
-          <div className="w-full md:mr-8">
-            <FallingTagsMl theme="dark" startDelay={800} />
-          </div>
-        </div>
-      );
-    }
-
-    if (imageSrc === "orbit") {
-      return (
-        <div className="relative flex h-[280px] w-full items-center justify-center overflow-hidden rounded-2xl bg-gradpastel2 md:h-[380px]">
-          <OrbitIconsSmall />
-        </div>
-      );
-    }
-    return (
-      <div className="relative flex h-[220px] w-full items-end justify-end overflow-hidden rounded-2xl bg-gradpastel2 md:h-[280px]">
-        <Image
-          src={imageSrc}
-          alt={title}
-          width={400}
-          height={320}
-          className="max-w-[90%]"
-        />
-      </div>
-    );
-  };
-  return (
-    <div className="flex max-w-full w-full flex-col items-center justify-center gap-8 px-5 md:items-start md:justify-start md:px-0">
-      {imgReturn()}
-      <div className="flex flex-col items-start justify-start w-full gap-4 text-left">
-        <h3
-          className="text-[26px] md:text-3xl font-normal leading-[2.2rem] md:leading-[2.5rem]"
-          dangerouslySetInnerHTML={{ __html: title }}
-        />
-        <div
-          className="text-sm md:text-base leading-6 font-light text-hgray700"
-          dangerouslySetInnerHTML={{ __html: desc }}
-        />
-      </div>
     </div>
   );
 }

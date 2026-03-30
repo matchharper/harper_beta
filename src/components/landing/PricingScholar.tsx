@@ -14,16 +14,6 @@ type Billing = "monthly" | "yearly";
 function formatKRW(n: number) {
   return n.toLocaleString("ko-KR");
 }
-const formatPrice = (isEnglish: boolean, value: number) => {
-  if (isEnglish) {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      maximumFractionDigits: 0,
-    }).format(value);
-  }
-  return formatKRW(value);
-};
 
 export default function PricingSection({
   onClick,
@@ -35,10 +25,10 @@ export default function PricingSection({
   const pricing = m.companyLanding.pricing;
 
   const plans = useMemo(() => {
-    const proMonthlyUSD = 99;
-    const maxMonthlyUSD = 199;
-    const proYearlyUSD = 79;
-    const maxYearlyUSD = 159;
+    const proMonthlyUSD = 149000;
+    const maxMonthlyUSD = 279000;
+    const proYearlyUSD = 119200;
+    const maxYearlyUSD = 223200;
 
     const proShown = billing === "monthly" ? proMonthlyUSD : proYearlyUSD;
 
@@ -103,7 +93,7 @@ export default function PricingSection({
               Perfect plan for your team.
             </div>
 
-            <div className="mt-12 w-full max-w-[1040px] md:mt-16">
+            <div className="mt-12 w-full md:mt-16">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-4">
                 {plans.map((p) => (
                   <PlanCard
@@ -177,10 +167,10 @@ function PlanCard({
           ) : (
             <div className="flex items-end gap-2">
               <div className="text-[20px] md:text-[28px] font-medium tracking-tight leading-none">
-                {formatPrice(isEnglish, price)}
+                {formatKRW(price)}
               </div>
               <div className="flex justify-end items-end text-base md:text-lg text-white/60 pb-0">
-                $/ month
+                KRW/ month
               </div>
             </div>
           )}

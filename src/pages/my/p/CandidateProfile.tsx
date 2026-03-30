@@ -25,7 +25,7 @@ import FeedbackBanner from "./components/FeedbackBanner";
 import { useRunDetail } from "@/hooks/useRunDetail";
 import { supabase } from "@/lib/supabase";
 import Criterias from "./components/Criterias";
-import ShortlistMemoEditor from "@/components/ui/ShortlistMemoEditor";
+import CandidateMemoDock from "@/components/ui/CandidateMemoDock";
 import { useShortlistMemo } from "@/hooks/useShortlistMemo";
 import {
   formatScholarCitationCount,
@@ -69,34 +69,118 @@ function ProfileInsightCard({
   );
 }
 
-function ResearchProfileSection({
+function ScholarProfileSection({
   scholarProfile,
   scholarPaperCount,
+  publications,
+  visiblePublications,
+  remainingPublicationCount,
+  showAllPublications,
+  onShowAllPublications,
 }: {
   scholarProfile: NonNullable<CandidateDetail["scholar_profile"]>;
   scholarPaperCount: number;
+  publications: Array<{
+    paper_id?: string | null;
+    title: string;
+    published_at?: string | null;
+    link?: string | null;
+    citation_num: number;
+  }>;
+  visiblePublications: Array<{
+    paper_id?: string | null;
+    title: string;
+    published_at?: string | null;
+    link?: string | null;
+    citation_num: number;
+  }>;
+  remainingPublicationCount: number;
+  showAllPublications: boolean;
+  onShowAllPublications: () => void;
 }) {
   return (
-    <Box title="Research Profile">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <ProfileInsightCard
-          label="연구 주제"
-          primary={scholarProfile.topics || undefined}
-          secondary=""
-        />
-        <ProfileInsightCard
-          label="작성 논문"
-          primary={formatScholarPaperCount(scholarPaperCount)}
-          secondary=""
-        />
-        <ProfileInsightCard
-          label="Impact"
-          primary={
-            "Total " +
-            formatScholarCitationCount(scholarProfile.total_citations_num ?? 0)
-          }
-          secondary={`h-index ${scholarProfile.h_index ?? 0}`}
-        />
+    <Box
+      title={`Scholar Profile${publications.length > 0 ? ` (${publications.length})` : ""}`}
+    >
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <ProfileInsightCard
+            label="소속"
+            primary={scholarProfile.affiliation || "정보 없음"}
+          />
+          <ProfileInsightCard
+            label="연구 주제"
+            primary={scholarProfile.topics || "정보 없음"}
+          />
+          <ProfileInsightCard
+            label="작성 논문"
+            primary={formatScholarPaperCount(scholarPaperCount)}
+          />
+          <ProfileInsightCard
+            label="Impact"
+            primary={
+              "Total " +
+              formatScholarCitationCount(
+                scholarProfile.total_citations_num ?? 0
+              )
+            }
+            secondary={`h-index ${scholarProfile.h_index ?? 0}`}
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          {scholarProfile.scholar_url ? (
+            <a
+              href={scholarProfile.scholar_url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center rounded-full bg-white/5 px-4 py-2 text-hgray700 transition hover:bg-white/10"
+            >
+              Open Scholar Profile
+            </a>
+          ) : null}
+          {scholarProfile.homepage_link ? (
+            <a
+              href={scholarProfile.homepage_link}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center rounded-full bg-white/5 px-4 py-2 text-hgray700 transition hover:bg-white/10"
+            >
+              Open Homepage
+            </a>
+          ) : null}
+        </div>
+
+        {publications.length > 0 ? (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-1 gap-3">
+              {visiblePublications.map((p, idx) => (
+                <PublicationBox
+                  key={`${p.paper_id ?? p.link ?? p.title}-${idx}`}
+                  title={p.title}
+                  published_at={p.published_at}
+                  link={p.link}
+                  citation_num={p.citation_num ?? -1}
+                  paperId={p.paper_id}
+                />
+              ))}
+            </div>
+
+            {!showAllPublications && remainingPublicationCount > 0 && (
+              <button
+                type="button"
+                onClick={onShowAllPublications}
+                className="inline-flex items-center rounded-full bg-white/5 px-5 py-2.5 font-light text-sm text-hgray700 transition hover:bg-white/10"
+              >
+                Show {remainingPublicationCount} more papers
+              </button>
+            )}
+          </>
+        ) : (
+          <div className="rounded-2xl bg-white/5 px-4 py-4 text-sm text-hgray700">
+            연결된 Scholar Profile은 있지만 아직 표시할 논문 데이터가 없습니다.
+          </div>
+        )}
       </div>
     </Box>
   );
@@ -299,6 +383,7 @@ function CandidateProfileDetailPage({
 
     const resolveActivityDate = (repo: any) =>
       parseDate(repo?.last_contrib_at) ??
+      parseDate(repo?.github_repo?.pushed_at) ??
       parseDate(repo?.last_updated_at) ??
       parseDate(repo?.updated_at) ??
       parseDate(repo?.created_at);
@@ -322,14 +407,12 @@ function CandidateProfileDetailPage({
       });
   }, [c]);
 
-  const publications = useMemo(() => {
-    const basePublications = Array.isArray(c?.publications)
-      ? c.publications
-      : [];
-    if (basePublications.length > 0) {
-      return basePublications;
-    }
-
+  const scholarProfile = c?.scholar_profile ?? null;
+  const publications = useMemo(
+    () => (Array.isArray(c?.publications) ? c.publications : []),
+    [c]
+  );
+  const scholarPublications = useMemo(() => {
     const scholarPapers = Array.isArray(c?.scholar_papers)
       ? c.scholar_papers
       : [];
@@ -341,22 +424,26 @@ function CandidateProfileDetailPage({
       citation_num: paper.total_citations,
     }));
   }, [c]);
-  const scholarProfile = c?.scholar_profile ?? null;
+  const displayedPublications = useMemo(
+    () => (scholarProfile ? scholarPublications : publications),
+    [publications, scholarProfile, scholarPublications]
+  );
   const scholarPaperCount = Array.isArray(c?.scholar_papers)
     ? c.scholar_papers.length
     : 0;
+  const candidateMarkStatus = c?.candidate_mark?.status ?? null;
 
   const visiblePublications = useMemo(
     () =>
       showAllPublications
-        ? publications
-        : publications.slice(0, PUBLICATION_PREVIEW_COUNT),
-    [publications, showAllPublications]
+        ? displayedPublications
+        : displayedPublications.slice(0, PUBLICATION_PREVIEW_COUNT),
+    [displayedPublications, showAllPublications]
   );
 
   const remainingPublicationCount = Math.max(
     0,
-    publications.length - PUBLICATION_PREVIEW_COUNT
+    displayedPublications.length - PUBLICATION_PREVIEW_COUNT
   );
 
   const compactLogToken = useCallback((value: unknown) => {
@@ -554,13 +641,14 @@ function CandidateProfileDetailPage({
         )}
 
         <Box title={shortlistMemo ? "내부 메모" : ""} color="accenta1">
-          <ShortlistMemoEditor
+          <CandidateMemoDock
             userId={userId}
             candidId={candidId}
             initialMemo={shortlistMemo}
+            initialMarkStatus={candidateMarkStatus}
             rows={4}
-            className={"w-full min-h-[88px]"}
-            isSmall={true}
+            editorClassName="w-full min-h-[88px]"
+            editorIsSmall={true}
           />
         </Box>
 
@@ -572,13 +660,6 @@ function CandidateProfileDetailPage({
           isLoadingOneline={isLoadingOneline ?? false}
           onToggleMore={handleProfileSummaryToggle}
         />
-
-        {scholarProfile && (
-          <ResearchProfileSection
-            scholarProfile={scholarProfile}
-            scholarPaperCount={scholarPaperCount}
-          />
-        )}
 
         {mergedExperience.length > 0 && (
           <Box title={`${m.data.experience}`}>
@@ -668,9 +749,8 @@ function CandidateProfileDetailPage({
           </Box>
         )}
 
-        {Array.isArray(c.github_repo_contribution) &&
-          recentGithubContributions.length > 0 && (
-            <Box title={`GitHub\nMain Contributions`}>
+        {recentGithubContributions.length > 0 && (
+          <Box title={`GitHub\nMain Contributions`}>
               <div className="grid grid-cols-2 gap-3">
                 {recentGithubContributions.length > 0 ? (
                   recentGithubContributions.map((repo: any) => (
@@ -688,9 +768,20 @@ function CandidateProfileDetailPage({
             </Box>
           )}
 
-        {/* Publications */}
-        {publications.length > 0 && (
-          <Box title={`${m.data.publications} (${publications.length})`}>
+        {scholarProfile ? (
+          <ScholarProfileSection
+            scholarProfile={scholarProfile}
+            scholarPaperCount={scholarPaperCount}
+            publications={displayedPublications}
+            visiblePublications={visiblePublications}
+            remainingPublicationCount={remainingPublicationCount}
+            showAllPublications={showAllPublications}
+            onShowAllPublications={() => setShowAllPublications(true)}
+          />
+        ) : displayedPublications.length > 0 ? (
+          <Box
+            title={`${m.data.publications} (${displayedPublications.length})`}
+          >
             <div className="grid grid-cols-1 md:grid-cols-1 gap-3">
               {visiblePublications.map((p: any, idx: number) => (
                 <PublicationBox
@@ -708,13 +799,13 @@ function CandidateProfileDetailPage({
               <button
                 type="button"
                 onClick={() => setShowAllPublications(true)}
-                className="mt-3 inline-flex items-center rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-hgray800 transition hover:bg-white/10"
+                className="mt-3 inline-flex items-center rounded-full bg-white/5 px-5 py-2.5 font-light text-sm text-hgray700 transition hover:bg-white/10"
               >
-                + {remainingPublicationCount}개 더보기
+                Show {remainingPublicationCount} more publications
               </button>
             )}
           </Box>
-        )}
+        ) : null}
       </div>
     </div>
   );

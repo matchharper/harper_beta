@@ -19,11 +19,36 @@ export const ko = {
     nameSubmit: "저장하기",
     submit: "입력하기",
     divider: "또는",
-    waitlist: "신청하기",
+    waitlist: "Request access",
     contact: "문의하기",
+    requestAccess: {
+      title: "Request access",
+      description:
+        "간단히 알려주시면 검토 후 접근 링크를 이메일로 보내드리겠습니다.",
+      submit: "요청 보내기",
+      submitted:
+        "요청이 접수되었습니다. 승인되면 이메일로 링크를 보내드리겠습니다.",
+      nameLabel: "이름",
+      namePlaceholder: "이름을 입력해주세요",
+      companyLabel: "회사명",
+      companyPlaceholder: "회사명을 입력해주세요",
+      roleLabel: "역할",
+      rolePlaceholder: "예: Founder, Hiring Manager",
+      hiringNeedLabel:
+        "가장 중요하게 채용이 필요한 포지션(직무)과 대략적인 인원수",
+      hiringNeedPlaceholder: "예: Backend Engineer 2명, Founding Recruiter 1명",
+      errors: {
+        missingSession:
+          "로그인 상태를 확인할 수 없습니다. 다시 로그인해주세요.",
+        invalidForm: "모든 항목을 입력해주세요.",
+        submitFailed: "요청 접수에 실패했습니다. 다시 시도해주세요.",
+      },
+    },
     errors: {
       emptyCode: "초대 코드를 입력해주세요.",
       invalidCode: "초대 코드가 일치하지 않습니다.",
+      domainMismatch:
+        "가입한 이메일의 도메인이 초대 코드에 지정된 회사 도메인과 일치하지 않습니다.",
       emptyName: "이름을 입력해주세요.",
       saveNameFailed: "이름 저장에 실패했습니다. 다시 시도해주세요.",
     },
@@ -147,7 +172,7 @@ export const ko = {
       titleLine2Prefix: "Pay for",
       titleLine2Highlight: "Intelligence",
       subtitle:
-        "단순한 검색을 넘어, 인재를 이해하는 지능을 경험하세요.<br />하퍼는 매일, 후보자를 추천해주고 끊임없이 개선됩니다.",
+        "어떤 조건이던 AI 검색 엔진이<br />GitHub, 논문 등 모든 정보를 바탕으로<br />원하는 프로필을 가진 사람을 즉시 찾아드려요.",
     },
     section1: {
       title: "Faster, Cheaper, Better",
@@ -164,7 +189,7 @@ export const ko = {
       cards: [
         {
           title: "Beyond Keywords",
-          desc: "단순한 키워드 검색을 넘어, <br />역량과 맥락을 이해하고 찾아주는 지능을 경험하세요.",
+          desc: "단순한 키워드 검색을 넘어, <br />기술적 역량과 맥락을 이해하고 찾아주는 지능을 경험하세요.",
         },
         {
           title: "Focus on Value",
@@ -211,11 +236,6 @@ export const ko = {
             "현재 Harper는 데이터 품질과 최적의 경험을 위해 베타 버전으로 운영 중입니다. 로그인 후 신청해주시면 최대한 빨리 사용해보실 수 있게 도와드리겠습니다.",
         },
         {
-          question: "AI가 분석한 데이터를 신뢰할 수 있나요?",
-          answer:
-            "네, 신뢰할 수 있습니다. Harper의 AI는 추측하지 않고 증명합니다. 도출한 모든 인사이트에는 원본 출처가 함께 제공되므로 직접 체크가 가능합니다.",
-        },
-        {
           question: "'키워드 검색'과 Harper의 'AI 검색'은 무엇이 다른가요?",
           answer:
             "'Python 개발자'를 검색하는 것과, '대규모 트래픽 처리를 경험해 본 Python 백엔드 리드'를 찾는 것은 다릅니다. Harper는 단순 키워드 매칭이 아니라, 채용 담당자가 말하는 맥락과 의도를 이해하여 기술적 난제를 해결할 수 있는 최적의 후보자를 찾아냅니다.",
@@ -223,7 +243,7 @@ export const ko = {
         {
           question: "어떤 직군의 인재를 찾을 수 있나요?",
           answer:
-            "Harper의 AI 엔진은 AI 리서처(AI Researcher)와 머신러닝 엔지니어(ML Engineer) 같은 고난이도 테크 인재 발굴에 가장 특화되어 있습니다.\n하지만 이에 국한되지 않고, 현재 PM 및 PD, 마케터 등 테크 조직 내 핵심 직군에 대해서도 검색이 가능합니다. 다양한 직군을 포함해 총 20만+개의 프로필을 가지고 있으며, 여기 포함된 직군은 찾을 수 있습니다. 매달 기본 검색 횟수가 제공되니 편하게 사용하고 테스트해보세요.",
+            "Harper의 엔진은 링크드인 뿐만 아니라 여러 technical source를 검색에 활용하기 때문에 리서처와 머신러닝 엔지니어 같은 고난이도 테크 인재 발굴에 가장 특화되어 있습니다.\n하지만 이에 국한되지 않고, 현재 PM 및 PD, 마케터 등 테크 조직 내 핵심 직군에 대해서도 검색이 가능합니다. 다양한 직군을 포함해 총 40만+개의 프로필을 가지고 있으며, 여기 포함된 직군은 찾을 수 있습니다. 매달 기본 검색 횟수가 제공되니 편하게 사용하고 테스트해보세요.",
         },
         {
           question: "어떤 정보를 제공하나요?",
@@ -256,7 +276,11 @@ export const ko = {
           priceUnit: "원/월",
           priceUnit2: "/월",
           buttonLabel: "문의하기",
-          features: ["월 최대 150회 검색", "Harper Scout"],
+          features: [
+            "월 최대 150회 검색",
+            "논문 및 코드 품질 분석",
+            "Harper Scout (자동화된 추천)<br/><i>AI-driven search that indexes technical truth.</i>",
+          ],
         },
         max: {
           name: "Max",
@@ -267,7 +291,7 @@ export const ko = {
           features: [
             "Pro의 모든 기능 포함, 및:",
             "월 최대 350회 검색",
-            "동시에 최대 3개 검색 요청 가능",
+            "동시에 최대 3개의 검색 가능",
             "AI 소싱 에이전트",
           ],
         },

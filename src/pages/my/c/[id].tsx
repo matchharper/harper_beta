@@ -7,6 +7,11 @@ import ChatPanel, { ChatScope } from "@/components/chat/ChatPanel";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
+import {
+  SEARCH_CANDIDATE_MARK_FILTER_KEY,
+  normalizeCandidateMarkFilter,
+  useSettingStore,
+} from "@/store/useSettingStore";
 import { useQueryDetail } from "@/hooks/useQueryDetail";
 import { logger } from "@/utils/logger";
 import { useCredits } from "@/hooks/useCredit";
@@ -16,14 +21,22 @@ import { runSearch } from "@/hooks/useStartSearch";
 import { Loading } from "@/components/ui/loading";
 import { supabase } from "@/lib/supabase";
 import Head from "next/head";
+import CreditModal from "@/components/Modal/CreditModal";
 import {
   SearchSource,
   normalizeSearchSource,
+  normalizeSearchSources,
   queryTypeToSearchSource,
 } from "@/lib/searchSource";
+import { MIN_CREDITS_FOR_SEARCH } from "@/utils/constantkeys";
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
+}
+
+function hasInsufficientCreditError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return message.includes("Insufficient credits");
 }
 
 const MAX_PREFETCH_PAGES = 20;
@@ -46,11 +59,18 @@ export default function ResultPage() {
   const [finishedTick, setFinishedTick] = useState(0);
   const [chatPanelWidth, setChatPanelWidth] = useState(460);
   const [isResizing, setIsResizing] = useState(false);
+  const [isNoCreditModalOpen, setIsNoCreditModalOpen] = useState(false);
   const splitRef = useRef<HTMLDivElement>(null);
 
   const router = useRouter();
   const { id, page, run } = router.query;
   const resultScrollRef = useRef<HTMLDivElement>(null);
+  const resultScrollTopRef = useRef(0);
+  const restoredResultScrollKeyRef = useRef<string | null>(null);
+  const pendingResultScrollRestoreRef = useRef<{
+    key: string;
+    top: number;
+  } | null>(null);
 
   const queryId = typeof id === "string" ? id : undefined;
   const runId = typeof run === "string" ? run : undefined; // ✅ runs.id (uuid)
@@ -58,6 +78,13 @@ export default function ResultPage() {
 
   const { companyUser } = useCompanyUserStore();
   const userId = companyUser?.user_id;
+  const persistedExcludedMarkStatuses = useSettingStore(
+    (state) => state.candidateMarkFilterByKey[SEARCH_CANDIDATE_MARK_FILTER_KEY]
+  );
+  const excludedMarkStatuses = useMemo(
+    () => normalizeCandidateMarkFilter(persistedExcludedMarkStatuses ?? []),
+    [persistedExcludedMarkStatuses]
+  );
 
   const { data: queryItem } = useQueryDetail(queryId);
 
@@ -80,16 +107,14 @@ export default function ResultPage() {
     return clamp(normalized, 0, MAX_PREFETCH_PAGES);
   }, [pageIdxRaw]);
 
-  const scrollResultToTop = useCallback((behavior: ScrollBehavior = "auto") => {
-    const el = resultScrollRef.current;
-    if (!el) return;
-    el.scrollTo({ top: 0, left: 0, behavior });
-  }, []);
+  const resultScrollStorageKey = useMemo(() => {
+    if (!queryId || !runId) return null;
+    return `result-scroll:${queryId}:${runId}`;
+  }, [queryId, runId]);
 
   const setPageInUrl = useCallback(
     (nextIdx: number, mode: "push" | "replace" = "push") => {
       const method = mode === "push" ? router.push : router.replace;
-      scrollResultToTop();
 
       method(
         {
@@ -100,13 +125,24 @@ export default function ResultPage() {
         { shallow: true, scroll: false }
       );
     },
-    [router, scrollResultToTop]
+    [router]
   );
 
   const searchEnabled = useMemo(() => ready && !!runId, [ready, runId]);
   const resultSourceType = useMemo<SearchSource>(() => {
-    const runSource = (runData?.search_settings as { type?: unknown } | null)
-      ?.type;
+    const runSearchSettings = runData?.search_settings as {
+      type?: unknown;
+      sources?: unknown;
+    } | null;
+    const runSource = runSearchSettings?.type;
+    const runSources = normalizeSearchSources(runSearchSettings?.sources, {
+      enabledOnly: true,
+      fallback: runSource != null ? [normalizeSearchSource(runSource)] : [],
+    });
+
+    if (runSources.length > 1) {
+      return "linkedin";
+    }
 
     if (runSource != null) {
       return normalizeSearchSource(runSource);
@@ -120,6 +156,7 @@ export default function ResultPage() {
       userId,
       runId,
       sourceType: resultSourceType,
+      excludedMarkStatuses,
       enabled: ready && !!runId,
     });
 
@@ -144,7 +181,7 @@ export default function ResultPage() {
   const items = current?.items ?? [];
   const totalCandidates =
     pages.find((p) => typeof (p as any)?.total === "number")?.total ?? null;
-  const { credits, deduct, isDeducting } = useCredits();
+  const { credits, deductWithHistory, isDeducting } = useCredits();
 
   const canPrev = pageIdx > 0;
   const nextPageKnownCount =
@@ -160,6 +197,7 @@ export default function ResultPage() {
     seen_page: number;
   } | null>(null);
   const seenPageRef = useRef(-1);
+  const failedChargePageRef = useRef<number | null>(null);
   const updatingSeenRef = useRef(false);
   const isRunPagesMetaLoadingRef = useRef(false);
 
@@ -192,27 +230,68 @@ export default function ResultPage() {
   useEffect(() => {
     setRunPagesMeta(null);
     seenPageRef.current = -1;
+    failedChargePageRef.current = null;
     updatingSeenRef.current = false;
     isRunPagesMetaLoadingRef.current = false;
     if (runId) loadRunPagesMeta();
   }, [runId, loadRunPagesMeta]);
 
   useEffect(() => {
+    if ((credits?.remain_credit ?? 0) >= MIN_CREDITS_FOR_SEARCH) {
+      failedChargePageRef.current = null;
+    }
+  }, [credits?.remain_credit]);
+
+  useEffect(() => {
     if (!runPagesMeta && pages.length > 0) loadRunPagesMeta();
   }, [runPagesMeta, pages.length, loadRunPagesMeta]);
 
   const seenPage = runPagesMeta?.seen_page ?? -1;
+  const maxReachablePage =
+    runPagesMeta != null ? clamp(seenPage + 1, 0, MAX_PREFETCH_PAGES) : null;
+  const maxPageByVisibleTotal = useMemo(() => {
+    if (totalCandidates == null) return null;
+    return clamp(
+      Math.max(0, Math.ceil(totalCandidates / 10) - 1),
+      0,
+      MAX_PREFETCH_PAGES
+    );
+  }, [totalCandidates]);
+  const maxAllowedPage = useMemo(() => {
+    if (maxReachablePage == null) return maxPageByVisibleTotal;
+    if (maxPageByVisibleTotal == null) return maxReachablePage;
+    return Math.min(maxReachablePage, maxPageByVisibleTotal);
+  }, [maxPageByVisibleTotal, maxReachablePage]);
+  const shouldClampPage =
+    maxAllowedPage != null && pageIdxRaw > maxAllowedPage;
   const isPageLoaded = pageIdx < pages.length && !isLoading;
   const shouldChargeForPage = items.length >= 10;
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    if (!runId) return;
+    if (maxAllowedPage == null) return;
+    if (!shouldClampPage) return;
+
+    setPageInUrl(maxAllowedPage, "replace");
+  }, [
+    router.isReady,
+    runId,
+    maxAllowedPage,
+    setPageInUrl,
+    shouldClampPage,
+  ]);
 
   useEffect(() => {
     if (!ready || !runId || !userId) return;
     if (!isPageLoaded) return;
     if (!runPagesMeta) return;
+    if (shouldClampPage) return;
 
     const targetSeen = pageIdx;
     const effectiveSeen = Math.max(seenPage, seenPageRef.current);
     if (targetSeen <= effectiveSeen) return;
+    if (failedChargePageRef.current === targetSeen) return;
     if (updatingSeenRef.current) return;
     if (shouldChargeForPage && isDeducting) return;
 
@@ -220,8 +299,15 @@ export default function ResultPage() {
     (async () => {
       try {
         if (shouldChargeForPage) {
-          await deduct(1);
+          await deductWithHistory(
+            1,
+            pageIdx === 0
+              ? "search_results_initial_page"
+              : `search_results_next_10_more:${targetSeen}`,
+            { suppressInsufficientToast: true }
+          );
         }
+        failedChargePageRef.current = null;
         seenPageRef.current = targetSeen;
 
         const { error } = await supabase
@@ -242,6 +328,13 @@ export default function ResultPage() {
           );
         }
       } catch (e) {
+        failedChargePageRef.current = targetSeen;
+        if (hasInsufficientCreditError(e)) {
+          setIsNoCreditModalOpen(true);
+        }
+        if (effectiveSeen >= 0 && targetSeen > effectiveSeen) {
+          setPageInUrl(effectiveSeen, "replace");
+        }
         logger.log("deduct or seen_page update failed:", e);
       } finally {
         updatingSeenRef.current = false;
@@ -253,10 +346,12 @@ export default function ResultPage() {
     userId,
     isPageLoaded,
     runPagesMeta,
+    shouldClampPage,
     pageIdx,
     seenPage,
-    deduct,
+    deductWithHistory,
     isDeducting,
+    setPageInUrl,
     shouldChargeForPage,
   ]);
 
@@ -266,15 +361,30 @@ export default function ResultPage() {
   };
 
   const nextPage = async () => {
-    if (pageIdx + 1 < pages.length) {
-      setPageInUrl(pageIdx + 1, "push");
+    const nextIdx = pageIdx + 1;
+    const effectiveSeen = Math.max(seenPage, seenPageRef.current);
+    const requiresCharge = nextIdx > effectiveSeen;
+
+    if (
+      requiresCharge &&
+      credits != null &&
+      credits.remain_credit < MIN_CREDITS_FOR_SEARCH
+    ) {
+      setIsNoCreditModalOpen(true);
+      return;
+    }
+
+    failedChargePageRef.current = null;
+
+    if (nextIdx < pages.length) {
+      setPageInUrl(nextIdx, "push");
       return;
     }
     if (!hasNextPage || isFetchingNextPage) return;
 
     const res = await fetchNextPage();
     const newCount = res.data?.pages?.length ?? pages.length;
-    if (newCount > pages.length) setPageInUrl(pageIdx + 1, "push");
+    if (newCount > pages.length) setPageInUrl(nextIdx, "push");
   };
 
   // Ensure target page loaded by sequentially fetching until we have it (or can't)
@@ -287,7 +397,6 @@ export default function ResultPage() {
       if (isFetchingNextPage) return;
 
       while (len <= targetIdx) {
-        logger.log("ensurePageLoaded: ", len, targetIdx);
         if (!hasNextPage) break;
         if (isFetchingNextPage) return;
 
@@ -297,13 +406,15 @@ export default function ResultPage() {
         len = nextLen;
       }
     },
-    [data?.pages?.length, fetchNextPage, hasNextPage]
+    [data?.pages?.length, fetchNextPage, hasNextPage, isFetchingNextPage]
   );
 
   useEffect(() => {
     if (!ready) return;
     if (!searchEnabled) return;
     if (!runId) return;
+    if (!runPagesMeta) return;
+    if (shouldClampPage) return;
     if (pageIdx <= 0) return;
     if (ensuringRef.current) return;
 
@@ -311,11 +422,93 @@ export default function ResultPage() {
     ensurePageLoaded(pageIdx).finally(() => {
       ensuringRef.current = false;
     });
-  }, [ready, searchEnabled, runId, pageIdx, ensurePageLoaded]);
+  }, [
+    ready,
+    searchEnabled,
+    runId,
+    runPagesMeta,
+    shouldClampPage,
+    pageIdx,
+    ensurePageLoaded,
+  ]);
 
   useEffect(() => {
-    scrollResultToTop();
-  }, [pageIdx, scrollResultToTop]);
+    if (!resultScrollStorageKey) {
+      pendingResultScrollRestoreRef.current = null;
+      restoredResultScrollKeyRef.current = null;
+      resultScrollTopRef.current = 0;
+      return;
+    }
+
+    let savedTop = 0;
+    try {
+      const raw = window.sessionStorage.getItem(resultScrollStorageKey);
+      const parsed = raw == null ? 0 : Number(raw);
+      savedTop = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+    } catch {
+      savedTop = 0;
+    }
+
+    pendingResultScrollRestoreRef.current = {
+      key: resultScrollStorageKey,
+      top: savedTop,
+    };
+    restoredResultScrollKeyRef.current = null;
+  }, [resultScrollStorageKey]);
+
+  useEffect(() => {
+    const el = resultScrollRef.current;
+    if (!el) return;
+
+    const handleScroll = () => {
+      resultScrollTopRef.current = el.scrollTop;
+    };
+
+    resultScrollTopRef.current = el.scrollTop;
+    el.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      el.removeEventListener("scroll", handleScroll);
+    };
+  }, [resultScrollStorageKey]);
+
+  useEffect(() => {
+    if (!resultScrollStorageKey) return;
+
+    const persistScroll = () => {
+      try {
+        window.sessionStorage.setItem(
+          resultScrollStorageKey,
+          String(resultScrollTopRef.current)
+        );
+      } catch {}
+    };
+
+    window.addEventListener("pagehide", persistScroll);
+
+    return () => {
+      persistScroll();
+      window.removeEventListener("pagehide", persistScroll);
+    };
+  }, [resultScrollStorageKey]);
+
+  useEffect(() => {
+    const restoreTarget = pendingResultScrollRestoreRef.current;
+    const el = resultScrollRef.current;
+    if (!restoreTarget || !el) return;
+    if (restoreTarget.key !== resultScrollStorageKey) return;
+    if (restoredResultScrollKeyRef.current === resultScrollStorageKey) return;
+
+    const maxScrollTop = Math.max(0, el.scrollHeight - el.clientHeight);
+    const nextTop = Math.min(restoreTarget.top, maxScrollTop);
+
+    el.scrollTo({ top: nextTop, left: 0, behavior: "auto" });
+    resultScrollTopRef.current = nextTop;
+
+    if (!isLoading || maxScrollTop >= restoreTarget.top) {
+      restoredResultScrollKeyRef.current = resultScrollStorageKey;
+    }
+  }, [resultScrollStorageKey, isLoading, items.length, pageIdx]);
 
   const onSearchFromConversation = useCallback(
     async (messageId: number): Promise<string | null> => {
@@ -346,7 +539,7 @@ export default function ResultPage() {
         return null;
       }
     },
-    [queryId, userId, router, credits]
+    [queryId, userId, router]
   );
 
   const currentRunCriterias = useMemo(() => {
@@ -354,7 +547,7 @@ export default function ResultPage() {
       return [];
 
     return runData.criteria;
-  }, [runData, runId, isRunDetailLoading]);
+  }, [runData]);
 
   const scope = useMemo(
     () => ({ type: "query", queryId: queryId ?? "" }) as ChatScope,
@@ -429,6 +622,10 @@ export default function ResultPage() {
 
   return (
     <AppLayout initialCollapse={true}>
+      <CreditModal
+        open={isNoCreditModalOpen}
+        onClose={() => setIsNoCreditModalOpen(false)}
+      />
       <Head>
         <title>Harper: 검색</title>
       </Head>
@@ -482,6 +679,12 @@ export default function ResultPage() {
                 feedback={runData?.feedback ?? 0}
                 sourceType={resultSourceType}
               />
+            )}
+
+            {isLoading && (
+              <div className="w-full h-full min-h-[60vh] flex items-center justify-center">
+                <Loading className="p-6 text-xgray800" />
+              </div>
             )}
 
             {runId && (

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { getActiveSubscriptionOrFilter } from "@/lib/billing/common";
 
 export const runtime = "nodejs";
 
@@ -55,6 +56,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ status: "excluded_user" }, { status: 200 });
   }
 
+  const { data: companyUser, error: companyUserErr } = await supabaseAdmin
+    .from("company_users")
+    .select("is_authenticated")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (companyUserErr) {
+    return NextResponse.json(
+      { error: "Failed to load company user" },
+      { status: 500 }
+    );
+  }
+
+  if (!companyUser?.is_authenticated) {
+    return NextResponse.json({ status: "not_authenticated" }, { status: 200 });
+  }
+
   const now = new Date();
   const nowIso = now.toISOString();
 
@@ -62,7 +80,7 @@ export async function POST(req: Request) {
     .from("payments")
     .select("id")
     .eq("user_id", userId)
-    .gte("current_period_end", nowIso)
+    .or(getActiveSubscriptionOrFilter(nowIso))
     .limit(1)
     .maybeSingle();
 

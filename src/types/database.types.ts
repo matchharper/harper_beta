@@ -104,6 +104,76 @@ export type Database = {
           },
         ]
       }
+      billing_sessions: {
+        Row: {
+          amount_krw: number
+          billing: string
+          created_at: string
+          expires_at: string
+          id: number
+          payment_id: number | null
+          plan_id: string
+          plan_key: string
+          reason: string
+          session_token: string
+          status: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          amount_krw: number
+          billing: string
+          created_at?: string
+          expires_at: string
+          id?: number
+          payment_id?: number | null
+          plan_id: string
+          plan_key: string
+          reason: string
+          session_token: string
+          status?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          amount_krw?: number
+          billing?: string
+          created_at?: string
+          expires_at?: string
+          id?: number
+          payment_id?: number | null
+          plan_id?: string
+          plan_key?: string
+          reason?: string
+          session_token?: string
+          status?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_sessions_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_sessions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["plan_id"]
+          },
+          {
+            foreignKeyName: "billing_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       bookmark_folder: {
         Row: {
           created_at: string
@@ -175,6 +245,102 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "company_users"
             referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      bookmark_folder_share: {
+        Row: {
+          created_at: string
+          created_by: string
+          expires_at: string | null
+          folder_id: number
+          id: string
+          revoked_at: string | null
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          expires_at?: string | null
+          folder_id: number
+          id?: string
+          revoked_at?: string | null
+          token: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          expires_at?: string | null
+          folder_id?: number
+          id?: string
+          revoked_at?: string | null
+          token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookmark_folder_share_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "bookmark_folder_share_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "bookmark_folder"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bookmark_folder_share_note: {
+        Row: {
+          candid_id: string
+          created_at: string
+          folder_id: number
+          id: number
+          memo: string
+          updated_at: string
+          viewer_key: string
+          viewer_name: string
+        }
+        Insert: {
+          candid_id: string
+          created_at?: string
+          folder_id: number
+          id?: number
+          memo: string
+          updated_at?: string
+          viewer_key: string
+          viewer_name?: string
+        }
+        Update: {
+          candid_id?: string
+          created_at?: string
+          folder_id?: number
+          id?: number
+          memo?: string
+          updated_at?: string
+          viewer_key?: string
+          viewer_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookmark_folder_share_note_candid_id_fkey"
+            columns: ["candid_id"]
+            isOneToOne: false
+            referencedRelation: "candid"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookmark_folder_share_note_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "bookmark_folder"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -305,6 +471,48 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "candid"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      candidate_mark: {
+        Row: {
+          candid_id: string
+          created_at: string
+          id: number
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          candid_id: string
+          created_at?: string
+          id?: number
+          status: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          candid_id?: string
+          created_at?: string
+          id?: number
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candidate_mark_candid_id_fkey"
+            columns: ["candid_id"]
+            isOneToOne: false
+            referencedRelation: "candid"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidate_mark_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -836,72 +1044,347 @@ export type Database = {
           },
         ]
       }
+      github_profile: {
+        Row: {
+          account_type: string | null
+          avatar_url: string | null
+          bio: string | null
+          blog: string | null
+          candid_id: string | null
+          company: string | null
+          created_at: string | null
+          email: string | null
+          followers: number | null
+          following: number | null
+          github_id: number | null
+          github_url: string | null
+          github_username: string
+          id: string
+          inserted_at: string | null
+          is_hireable: boolean | null
+          is_site_admin: boolean | null
+          last_fetched_at: string | null
+          location: string | null
+          name: string | null
+          node_id: string | null
+          public_gists: number | null
+          public_repos: number | null
+          search_text: string | null
+          twitter_username: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          account_type?: string | null
+          avatar_url?: string | null
+          bio?: string | null
+          blog?: string | null
+          candid_id?: string | null
+          company?: string | null
+          created_at?: string | null
+          email?: string | null
+          followers?: number | null
+          following?: number | null
+          github_id?: number | null
+          github_url?: string | null
+          github_username: string
+          id?: string
+          inserted_at?: string | null
+          is_hireable?: boolean | null
+          is_site_admin?: boolean | null
+          last_fetched_at?: string | null
+          location?: string | null
+          name?: string | null
+          node_id?: string | null
+          public_gists?: number | null
+          public_repos?: number | null
+          search_text?: string | null
+          twitter_username?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          account_type?: string | null
+          avatar_url?: string | null
+          bio?: string | null
+          blog?: string | null
+          candid_id?: string | null
+          company?: string | null
+          created_at?: string | null
+          email?: string | null
+          followers?: number | null
+          following?: number | null
+          github_id?: number | null
+          github_url?: string | null
+          github_username?: string
+          id?: string
+          inserted_at?: string | null
+          is_hireable?: boolean | null
+          is_site_admin?: boolean | null
+          last_fetched_at?: string | null
+          location?: string | null
+          name?: string | null
+          node_id?: string | null
+          public_gists?: number | null
+          public_repos?: number | null
+          search_text?: string | null
+          twitter_username?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "github_profile_candid_id_fkey"
+            columns: ["candid_id"]
+            isOneToOne: false
+            referencedRelation: "candid"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      github_profile_backup_20260325: {
+        Row: {
+          account_type: string | null
+          avatar_url: string | null
+          bio: string | null
+          blog: string | null
+          candid_id: string | null
+          company: string | null
+          created_at: string | null
+          email: string | null
+          followers: number | null
+          following: number | null
+          github_id: number | null
+          github_url: string | null
+          github_username: string | null
+          id: string | null
+          inserted_at: string | null
+          is_hireable: boolean | null
+          is_site_admin: boolean | null
+          last_fetched_at: string | null
+          location: string | null
+          name: string | null
+          node_id: string | null
+          public_gists: number | null
+          public_repos: number | null
+          search_text: string | null
+          twitter_username: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          account_type?: string | null
+          avatar_url?: string | null
+          bio?: string | null
+          blog?: string | null
+          candid_id?: string | null
+          company?: string | null
+          created_at?: string | null
+          email?: string | null
+          followers?: number | null
+          following?: number | null
+          github_id?: number | null
+          github_url?: string | null
+          github_username?: string | null
+          id?: string | null
+          inserted_at?: string | null
+          is_hireable?: boolean | null
+          is_site_admin?: boolean | null
+          last_fetched_at?: string | null
+          location?: string | null
+          name?: string | null
+          node_id?: string | null
+          public_gists?: number | null
+          public_repos?: number | null
+          search_text?: string | null
+          twitter_username?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          account_type?: string | null
+          avatar_url?: string | null
+          bio?: string | null
+          blog?: string | null
+          candid_id?: string | null
+          company?: string | null
+          created_at?: string | null
+          email?: string | null
+          followers?: number | null
+          following?: number | null
+          github_id?: number | null
+          github_url?: string | null
+          github_username?: string | null
+          id?: string | null
+          inserted_at?: string | null
+          is_hireable?: boolean | null
+          is_site_admin?: boolean | null
+          last_fetched_at?: string | null
+          location?: string | null
+          name?: string | null
+          node_id?: string | null
+          public_gists?: number | null
+          public_repos?: number | null
+          search_text?: string | null
+          twitter_username?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      github_repo: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          forks: number | null
+          github_id: number | null
+          homepage: string | null
+          id: string
+          inserted_at: string | null
+          is_archived: boolean | null
+          is_disabled: boolean | null
+          is_fork: boolean | null
+          language: string | null
+          languages: Json | null
+          last_fetched_at: string | null
+          license: string | null
+          node_id: string | null
+          open_issues: number | null
+          owner: string
+          pushed_at: string | null
+          readme_excerpt: string | null
+          repo_full_name: string
+          repo_name: string
+          search_text: string | null
+          stars: number | null
+          topics: string[] | null
+          updated_at: string | null
+          watchers: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          forks?: number | null
+          github_id?: number | null
+          homepage?: string | null
+          id?: string
+          inserted_at?: string | null
+          is_archived?: boolean | null
+          is_disabled?: boolean | null
+          is_fork?: boolean | null
+          language?: string | null
+          languages?: Json | null
+          last_fetched_at?: string | null
+          license?: string | null
+          node_id?: string | null
+          open_issues?: number | null
+          owner: string
+          pushed_at?: string | null
+          readme_excerpt?: string | null
+          repo_full_name: string
+          repo_name: string
+          search_text?: string | null
+          stars?: number | null
+          topics?: string[] | null
+          updated_at?: string | null
+          watchers?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          forks?: number | null
+          github_id?: number | null
+          homepage?: string | null
+          id?: string
+          inserted_at?: string | null
+          is_archived?: boolean | null
+          is_disabled?: boolean | null
+          is_fork?: boolean | null
+          language?: string | null
+          languages?: Json | null
+          last_fetched_at?: string | null
+          license?: string | null
+          node_id?: string | null
+          open_issues?: number | null
+          owner?: string
+          pushed_at?: string | null
+          readme_excerpt?: string | null
+          repo_full_name?: string
+          repo_name?: string
+          search_text?: string | null
+          stars?: number | null
+          topics?: string[] | null
+          updated_at?: string | null
+          watchers?: number | null
+        }
+        Relationships: []
+      }
       github_repo_contribution: {
         Row: {
-          candid_id: string
-          commits: number
-          contributors: number
-          created_at: string
-          default_rank_score: number
+          candid_id: string | null
+          commits: number | null
+          contributors: number | null
+          created_at: string | null
+          default_rank_score: number | null
           description: string | null
-          forks: number
-          id: number
+          forks: number | null
+          github_profile_id: string | null
+          id: number | null
           languages: Json | null
           last_contrib_at: string | null
           last_updated_at: string | null
-          merged_prs: number
+          merged_prs: number | null
           readme_excerpt: string | null
-          repo: string
+          repo: string | null
+          repo_id: string | null
           role: string | null
-          search_text: string
+          search_text: string | null
           search_text_fts: unknown
-          stars: number
+          stars: number | null
           topics: string | null
-          updated_at: string
+          updated_at: string | null
         }
         Insert: {
-          candid_id: string
-          commits?: number
-          contributors?: number
-          created_at?: string
-          default_rank_score?: number
+          candid_id?: string | null
+          commits?: number | null
+          contributors?: number | null
+          created_at?: string | null
+          default_rank_score?: number | null
           description?: string | null
-          forks?: number
-          id?: number
+          forks?: number | null
+          github_profile_id?: string | null
+          id?: number | null
           languages?: Json | null
           last_contrib_at?: string | null
           last_updated_at?: string | null
-          merged_prs?: number
+          merged_prs?: number | null
           readme_excerpt?: string | null
-          repo: string
+          repo?: string | null
+          repo_id?: string | null
           role?: string | null
-          search_text?: string
+          search_text?: string | null
           search_text_fts?: unknown
-          stars?: number
+          stars?: number | null
           topics?: string | null
-          updated_at?: string
+          updated_at?: string | null
         }
         Update: {
-          candid_id?: string
-          commits?: number
-          contributors?: number
-          created_at?: string
-          default_rank_score?: number
+          candid_id?: string | null
+          commits?: number | null
+          contributors?: number | null
+          created_at?: string | null
+          default_rank_score?: number | null
           description?: string | null
-          forks?: number
-          id?: number
+          forks?: number | null
+          github_profile_id?: string | null
+          id?: number | null
           languages?: Json | null
           last_contrib_at?: string | null
           last_updated_at?: string | null
-          merged_prs?: number
+          merged_prs?: number | null
           readme_excerpt?: string | null
-          repo?: string
+          repo?: string | null
+          repo_id?: string | null
           role?: string | null
-          search_text?: string
+          search_text?: string | null
           search_text_fts?: unknown
-          stars?: number
+          stars?: number | null
           topics?: string | null
-          updated_at?: string
+          updated_at?: string | null
         }
         Relationships: [
           {
@@ -909,6 +1392,57 @@ export type Database = {
             columns: ["candid_id"]
             isOneToOne: false
             referencedRelation: "candid"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      github_repo_contribution_new_20260326: {
+        Row: {
+          commits: number
+          created_at: string
+          github_profile_id: string | null
+          id: number
+          last_contrib_at: string | null
+          merged_prs: number
+          repo_id: string | null
+          role: string | null
+          updated_at: string
+        }
+        Insert: {
+          commits?: number
+          created_at?: string
+          github_profile_id?: string | null
+          id?: number
+          last_contrib_at?: string | null
+          merged_prs?: number
+          repo_id?: string | null
+          role?: string | null
+          updated_at?: string
+        }
+        Update: {
+          commits?: number
+          created_at?: string
+          github_profile_id?: string | null
+          id?: number
+          last_contrib_at?: string | null
+          merged_prs?: number
+          repo_id?: string | null
+          role?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "github_repo_contribution_github_profile_id_fkey"
+            columns: ["github_profile_id"]
+            isOneToOne: false
+            referencedRelation: "github_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "github_repo_contribution_repo_id_fkey"
+            columns: ["repo_id"]
+            isOneToOne: false
+            referencedRelation: "github_repo"
             referencedColumns: ["id"]
           },
         ]
@@ -954,7 +1488,12 @@ export type Database = {
       }
       harper_waitlist_company: {
         Row: {
+          access_granted_at: string | null
           additional: string | null
+          approval_email_sent_at: string | null
+          approval_token: string | null
+          approved_at: string | null
+          approved_by: string | null
           company: string | null
           company_link: string | null
           created_at: string
@@ -967,9 +1506,16 @@ export type Database = {
           needs: string[] | null
           role: string | null
           size: string | null
+          status: string
+          user_id: string | null
         }
         Insert: {
+          access_granted_at?: string | null
           additional?: string | null
+          approval_email_sent_at?: string | null
+          approval_token?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
           company?: string | null
           company_link?: string | null
           created_at?: string
@@ -982,9 +1528,16 @@ export type Database = {
           needs?: string[] | null
           role?: string | null
           size?: string | null
+          status?: string
+          user_id?: string | null
         }
         Update: {
+          access_granted_at?: string | null
           additional?: string | null
+          approval_email_sent_at?: string | null
+          approval_token?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
           company?: string | null
           company_link?: string | null
           created_at?: string
@@ -997,8 +1550,18 @@ export type Database = {
           needs?: string[] | null
           role?: string | null
           size?: string | null
+          status?: string
+          user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "harper_waitlist_company_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       homepage: {
         Row: {
@@ -1234,40 +1797,164 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_attempts: {
+        Row: {
+          amount_krw: number
+          approved_at: string | null
+          attempt_key: string
+          created_at: string
+          failure_code: string | null
+          failure_message: string | null
+          id: number
+          order_id: string
+          payment_id: number | null
+          payment_key: string | null
+          plan_id: string | null
+          provider: string
+          raw_response: Json | null
+          reason: string
+          receipt_url: string | null
+          status: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          amount_krw: number
+          approved_at?: string | null
+          attempt_key: string
+          created_at?: string
+          failure_code?: string | null
+          failure_message?: string | null
+          id?: number
+          order_id: string
+          payment_id?: number | null
+          payment_key?: string | null
+          plan_id?: string | null
+          provider: string
+          raw_response?: Json | null
+          reason: string
+          receipt_url?: string | null
+          status: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          amount_krw?: number
+          approved_at?: string | null
+          attempt_key?: string
+          created_at?: string
+          failure_code?: string | null
+          failure_message?: string | null
+          id?: number
+          order_id?: string
+          payment_id?: number | null
+          payment_key?: string | null
+          plan_id?: string | null
+          provider?: string
+          raw_response?: Json | null
+          reason?: string
+          receipt_url?: string | null
+          status?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_attempts_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_attempts_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["plan_id"]
+          },
+          {
+            foreignKeyName: "payment_attempts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "company_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       payments: {
         Row: {
           cancel_at_period_end: boolean | null
+          cancelled_at: string | null
+          card_company: string | null
+          card_number_masked: string | null
           created_at: string
           current_period_end: string | null
           current_period_start: string | null
+          grace_ends_at: string | null
           id: number
           ls_customer_id: string | null
           ls_subscription_id: string | null
+          next_charge_at: string | null
           plan_id: string | null
+          provider: string | null
+          provider_status: string | null
+          retry_count: number | null
+          retry_next_at: string | null
+          toss_billing_key: string | null
+          toss_customer_key: string | null
+          toss_last_order_id: string | null
+          toss_last_payment_key: string | null
           updated_at: string | null
           user_id: string | null
         }
         Insert: {
           cancel_at_period_end?: boolean | null
+          cancelled_at?: string | null
+          card_company?: string | null
+          card_number_masked?: string | null
           created_at?: string
           current_period_end?: string | null
           current_period_start?: string | null
+          grace_ends_at?: string | null
           id?: number
           ls_customer_id?: string | null
           ls_subscription_id?: string | null
+          next_charge_at?: string | null
           plan_id?: string | null
+          provider?: string | null
+          provider_status?: string | null
+          retry_count?: number | null
+          retry_next_at?: string | null
+          toss_billing_key?: string | null
+          toss_customer_key?: string | null
+          toss_last_order_id?: string | null
+          toss_last_payment_key?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
         Update: {
           cancel_at_period_end?: boolean | null
+          cancelled_at?: string | null
+          card_company?: string | null
+          card_number_masked?: string | null
           created_at?: string
           current_period_end?: string | null
           current_period_start?: string | null
+          grace_ends_at?: string | null
           id?: number
           ls_customer_id?: string | null
           ls_subscription_id?: string | null
+          next_charge_at?: string | null
           plan_id?: string | null
+          provider?: string | null
+          provider_status?: string | null
+          retry_count?: number | null
+          retry_next_at?: string | null
+          toss_billing_key?: string | null
+          toss_customer_key?: string | null
+          toss_last_order_id?: string | null
+          toss_last_payment_key?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
@@ -2099,6 +2786,54 @@ export type Database = {
           },
         ]
       }
+      talent_network_onboarding: {
+        Row: {
+          contact: string | null
+          created_at: string
+          current_situation: string | null
+          cv_file_name: string | null
+          cv_storage_bucket: string | null
+          cv_storage_path: string | null
+          id: number
+          is_mobile: boolean | null
+          local_id: string | null
+          name: string | null
+          profile_input_type: string
+          profile_url: string | null
+          raw_payload: Json
+        }
+        Insert: {
+          contact?: string | null
+          created_at?: string
+          current_situation?: string | null
+          cv_file_name?: string | null
+          cv_storage_bucket?: string | null
+          cv_storage_path?: string | null
+          id?: never
+          is_mobile?: boolean | null
+          local_id?: string | null
+          name?: string | null
+          profile_input_type: string
+          profile_url?: string | null
+          raw_payload?: Json
+        }
+        Update: {
+          contact?: string | null
+          created_at?: string
+          current_situation?: string | null
+          cv_file_name?: string | null
+          cv_storage_bucket?: string | null
+          cv_storage_path?: string | null
+          id?: never
+          is_mobile?: boolean | null
+          local_id?: string | null
+          name?: string | null
+          profile_input_type?: string
+          profile_url?: string | null
+          raw_payload?: Json
+        }
+        Relationships: []
+      }
       talent_publications: {
         Row: {
           abstract: string | null
@@ -2259,6 +2994,39 @@ export type Database = {
           },
         ]
       }
+      worker_runtime_settings: {
+        Row: {
+          created_at: string
+          found_threshold: number
+          name: string
+          rerank_batch_size: number
+          review_candidate_limit: number
+          summary_concurrency: number
+          updated_at: string
+          variant_candidate_limit: number
+        }
+        Insert: {
+          created_at?: string
+          found_threshold: number
+          name: string
+          rerank_batch_size: number
+          review_candidate_limit: number
+          summary_concurrency: number
+          updated_at?: string
+          variant_candidate_limit: number
+        }
+        Update: {
+          created_at?: string
+          found_threshold?: number
+          name?: string
+          rerank_batch_size?: number
+          review_candidate_limit?: number
+          summary_concurrency?: number
+          updated_at?: string
+          variant_candidate_limit?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -2335,6 +3103,7 @@ export type Database = {
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       stop_run_worker: { Args: { target_run_id: string }; Returns: undefined }
+      update_repo_ids: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never

@@ -11,18 +11,8 @@
 // import ConfirmModal from "@/components/Modal/ConfirmModal";
 // import { useLogEvent } from "@/hooks/useLog";
 // import QuestionAnswer from "@/components/landing/Questions";
-// import { BILLING_PROVIDER } from "@/lib/polar/config";
 // import { useRouter } from "next/router";
 // import Animate from "@/components/landing/Animate";
-
-// const PRO_MONTHLY_CHECKOUT_URL =
-//   "https://matchharper.lemonsqueezy.com/checkout/buy/ea41e57e-6dc1-4ddd-8b7f-f5636bc35ec5";
-// const PRO_YEARLY_CHECKOUT_URL =
-//   "https://matchharper.lemonsqueezy.com/checkout/buy/c2397869-0c46-477d-9315-7cbb03c2d464";
-// const MAX_MONTHLY_CHECKOUT_URL =
-//   "https://matchharper.lemonsqueezy.com/checkout/buy/0526b657-757f-45bb-bc9f-4466a6ec360f";
-// const MAX_YEARLY_CHECKOUT_URL =
-//   "https://matchharper.lemonsqueezy.com/checkout/buy/5f88e60e-f43f-4699-b4a1-3a71fe90b13d";
 
 // type BillingPeriod = "monthly" | "yearly";
 
@@ -234,9 +224,9 @@
 //       return;
 //     }
 
-//     if (BILLING_PROVIDER === "polar" && planKey) {
+//     if (planKey) {
 //       try {
-//         const res = await fetch("/api/polar/checkout", {
+//         const res = await fetch("/api/toss/subscriptions/prepare", {
 //           method: "POST",
 //           headers: { "Content-Type": "application/json" },
 //           body: JSON.stringify({
@@ -331,10 +321,7 @@
 
 //     setIsCanceling(true);
 //     try {
-//       const cancelEndpoint =
-//         BILLING_PROVIDER === "polar"
-//           ? "/api/polar/cancel"
-//           : "/api/lemonsqueezy/cancel";
+//       const cancelEndpoint = "/api/toss/subscriptions/cancel";
 //       const res = await fetch(cancelEndpoint, {
 //         method: "POST",
 //         headers: { "Content-Type": "application/json" },

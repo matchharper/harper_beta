@@ -7,11 +7,15 @@ import GradientBackground from "@/components/landing/GradientBackground";
 import Header from "@/components/landing/Header";
 import { handleContactUs } from "@/utils/info";
 import { useRouter } from "next/navigation";
+import { showToast } from "@/components/toast/toast";
 
 import { supabase } from "@/lib/supabase";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useCountryMessages } from "@/i18n/useCountryMessage";
+import RequestAccessModal, {
+  type RequestAccessValues,
+} from "@/components/Modal/RequestAccessModal";
 
 const isMissingDisplayName = (name?: string | null) => {
   const normalized = (name ?? "").trim();
@@ -21,6 +25,10 @@ const isMissingDisplayName = (name?: string | null) => {
 type VerifyInviteResponse = {
   ok: boolean;
   requiresName: boolean;
+};
+
+const getErrorCode = (error: unknown) => {
+  return error instanceof Error ? error.message.toLowerCase() : "";
 };
 
 export default function LoginSuccess() {
@@ -34,6 +42,7 @@ export default function LoginSuccess() {
   const [invalidMessage, setInvalidMessage] = useState("");
   const [isShake, setIsShake] = useState(false);
   const [landingId, setLandingId] = useState("");
+  const [isRequestAccessOpen, setIsRequestAccessOpen] = useState(false);
   const { m, countryLang } = useCountryMessages();
 
   const interactiveRef = useRef<HTMLDivElement>(null);
@@ -43,6 +52,25 @@ export default function LoginSuccess() {
   const isMobile = useIsMobile();
   const { companyUser, load } = useCompanyUserStore();
   const isNameStep = step === "name";
+
+  const getInvitationErrorMessage = useCallback(
+    (error: unknown, fallbackMessage: string) => {
+      const errorCode = getErrorCode(error);
+
+      switch (errorCode) {
+        case "invite_domain_mismatch":
+          return m.invitation.errors.domainMismatch;
+        case "invalid_invite_code":
+        case "invite_code_exhausted":
+          return m.invitation.errors.invalidCode;
+        case "missing_name":
+          return m.invitation.errors.emptyName;
+        default:
+          return fallbackMessage;
+      }
+    },
+    [m.invitation.errors]
+  );
 
   const addLog = useCallback(
     async (type: string) => {
@@ -98,11 +126,14 @@ export default function LoginSuccess() {
   // }, []);
 
   useEffect(() => {
-    if (companyUser?.is_authenticated && landingId) {
+    if (!companyUser?.is_authenticated) return;
+
+    if (landingId) {
       const emailSuffix = companyUser?.email ? `${companyUser.email}` : "";
-      addLog(`enter_my_page_${emailSuffix}`);
-      router.push("/my");
+      void addLog(`enter_my_page_${emailSuffix}`);
     }
+
+    router.push("/my");
   }, [
     addLog,
     companyUser?.email,
@@ -241,10 +272,70 @@ export default function LoginSuccess() {
     } catch (error) {
       console.error("save company user name error:", error);
       setIsShake(true);
-      setInvalidMessage(m.invitation.errors.saveNameFailed);
+      setInvalidMessage(
+        getInvitationErrorMessage(error, m.invitation.errors.saveNameFailed)
+      );
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const submitRequestAccess = async (values: RequestAccessValues) => {
+    const normalizedValues = {
+      name: values.name.trim(),
+      company: values.company.trim(),
+      role: values.role.trim(),
+      hiringNeed: values.hiringNeed.trim(),
+    };
+
+    if (
+      !normalizedValues.name ||
+      !normalizedValues.company ||
+      !normalizedValues.role ||
+      !normalizedValues.hiringNeed
+    ) {
+      showToast({
+        message: m.invitation.requestAccess.errors.invalidForm,
+        variant: "white",
+      });
+      return;
+    }
+
+    const accessToken = await getAccessToken();
+    if (!accessToken) {
+      showToast({
+        message: m.invitation.requestAccess.errors.missingSession,
+        variant: "white",
+      });
+      return;
+    }
+
+    const response = await fetch("/api/request-access/submit", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        ...normalizedValues,
+        isMobile,
+      }),
+    });
+
+    if (!response.ok) {
+      showToast({
+        message: m.invitation.requestAccess.errors.submitFailed,
+        variant: "white",
+      });
+      return;
+    }
+
+    addLog("submit_request_access");
+    setIsRequestAccessOpen(false);
+    showToast({
+      message: m.invitation.requestAccess.submitted,
+      variant: "white",
+    });
   };
 
   const checkCode = async () => {
@@ -279,7 +370,9 @@ export default function LoginSuccess() {
     } catch (error) {
       console.error("invite code check error:", error);
       setIsShake(true);
-      setInvalidMessage(m.invitation.errors.invalidCode);
+      setInvalidMessage(
+        getInvitationErrorMessage(error, m.invitation.errors.invalidCode)
+      );
     } finally {
       setIsLoading(false);
     }
@@ -289,6 +382,19 @@ export default function LoginSuccess() {
     <div className="relative min-h-screen bg-black font-inter text-white flex items-center justify-center px-4 w-full h-full">
       <Header page="company" />
       <GradientBackground interactiveRef={interactiveRef} />
+      <RequestAccessModal
+        open={isRequestAccessOpen}
+        onClose={() => setIsRequestAccessOpen(false)}
+        onSubmit={submitRequestAccess}
+        initialValues={{
+          name: isMissingDisplayName(companyUser?.name)
+            ? ""
+            : (companyUser?.name ?? ""),
+          company: companyUser?.company ?? "",
+          role: companyUser?.role ?? "",
+        }}
+        copy={m.invitation.requestAccess}
+      />
       <div className="z-20 flex flex-col items-center text-center max-w-xl w-full space-y-10">
         <div className="w-9 h-9 rounded-full">
           <Image
@@ -420,7 +526,7 @@ export default function LoginSuccess() {
             <button
               onClick={() => {
                 addLog("click_invitation_waitlist");
-                router.push("/join");
+                setIsRequestAccessOpen(true);
               }}
               className="w-full rounded-full bg-neutral-50 text-black py-3.5 text-sm md:text-base font-medium hover:bg-neutral-200 active:scale-95 transition-all duration-200"
             >

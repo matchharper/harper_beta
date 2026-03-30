@@ -1,41 +1,65 @@
-import { CandidateTypeWithConnection } from "@/hooks/useSearchChatCandidates";
-import React, { useMemo } from "react";
-import {
-  companyEnToKo,
-  degreeEnToKo,
-  koreaUniversityEnToKo,
-  locationEnToKo,
-} from "@/utils/language_map";
-import { Avatar } from "./NameProfile";
-import Bookmarkbutton from "./ui/bookmarkbutton";
-import { Tooltips } from "./ui/tooltip";
-import { Check, Dot, FileText, X } from "lucide-react";
-import { useRouter } from "next/router";
-import { RoleBox, ScholarSignalBox, SchoolBox } from "./CandidatesListTable";
-import { SummaryScore } from "@/types/type";
 import { useLogEvent } from "@/hooks/useLog";
-import Link from "next/link";
-import ShortlistMemoEditor from "./ui/ShortlistMemoEditor";
-import { SearchSource, isScholarSearchSource } from "@/lib/searchSource";
+import { CandidateTypeWithConnection } from "@/hooks/useSearchChatCandidates";
+import type { CandidateMarkStatus } from "@/lib/candidateMark";
+import {
+  buildGithubDeveloperTooltip,
+  formatGithubFollowerCount,
+  formatGithubRepoCount,
+} from "@/lib/githubPreview";
+import {
+  buildScholarResearchTooltip,
+  formatScholarCitationCount,
+  formatScholarPaperCount,
+} from "@/lib/scholarPreview";
 import {
   buildEvidencePaperMeta,
   buildEvidencePaperTooltip,
   getEvidencePaper,
 } from "@/lib/searchEvidence";
 import {
-  buildScholarResearchTooltip,
-  formatScholarCitationCount,
-  formatScholarPaperCount,
-} from "@/lib/scholarPreview";
+  SearchSource,
+  extractSearchSourcesFromLinks,
+  getSearchSourceLabel,
+  getSearchSourceLogoPath,
+  isScholarSearchSource,
+} from "@/lib/searchSource";
+import { SharedFolderViewerIdentity } from "@/lib/sharedFolder";
+import { SummaryScore } from "@/types/type";
+import {
+  companyEnToKo,
+  degreeEnToKo,
+  koreaUniversityEnToKo,
+  locationEnToKo,
+} from "@/utils/language_map";
+import { Check, Dot, X } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/router";
+import React, { useMemo } from "react";
+import {
+  GithubSignalBox,
+  RoleBox,
+  ScholarSignalBox,
+  SchoolBox,
+} from "./CandidatesListTable";
+import { Avatar } from "./NameProfile";
+import SharedFolderCandidateNotes from "./shared/SharedFolderCandidateNotes";
+import Bookmarkbutton from "./ui/bookmarkbutton";
+import CandidateMarkButton from "./ui/CandidateMarkButton";
+import CandidateMemoDock from "./ui/CandidateMemoDock";
+import { Tooltips } from "./ui/tooltip";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
 
 function sanitizeSummaryReason(raw: string) {
-  return String(raw ?? "")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/?strong>/gi, "")
-    .replace(/<[^>]+>/g, "")
-    .trim();
+  return (
+    String(raw ?? "")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<strong>/gi, "<span class='font-medium text-white'>")
+      .replace(/<\/strong>/gi, "</span>")
+      // .replace(/<\/?strong>/gi, "")
+      .trim()
+  );
 }
 
 function sanitizeSummaryText(raw: string | null | undefined) {
@@ -95,15 +119,28 @@ function CandidateCard({
   userId,
   criterias,
   isMyList = false,
-  showShortlistMemo = false,
+  showShortlistMemo = true,
   sourceType = "linkedin",
+  buildProfileHref,
+  showBookmarkAction = true,
+  showMarkAction = true,
+  onMarkChange,
+  sharedFolderContext = null,
 }: {
   c: CandidateTypeWithConnection;
-  userId: string;
+  userId?: string;
   isMyList?: boolean;
   showShortlistMemo?: boolean;
   criterias: string[];
   sourceType?: SearchSource;
+  buildProfileHref?: (candidate: CandidateTypeWithConnection) => string;
+  showBookmarkAction?: boolean;
+  showMarkAction?: boolean;
+  onMarkChange?: (status: CandidateMarkStatus | null) => void;
+  sharedFolderContext?: {
+    token: string;
+    viewer: SharedFolderViewerIdentity | null;
+  } | null;
 }) {
   const router = useRouter();
   const logEvent = useLogEvent();
@@ -111,9 +148,11 @@ function CandidateCard({
   const candidId = c.id;
   const sourceRunId =
     typeof router.query.run === "string" ? router.query.run : "";
-  const profileHref = sourceRunId
-    ? `/my/p/${candidId}?run=${encodeURIComponent(sourceRunId)}`
-    : `/my/p/${candidId}`;
+  const profileHref = buildProfileHref
+    ? buildProfileHref(c)
+    : sourceRunId
+      ? `/my/p/${candidId}?run=${encodeURIComponent(sourceRunId)}`
+      : `/my/p/${candidId}`;
 
   const synthesizedSummary = useMemo(
     () => parseSynthesizedSummary(c.synthesized_summary?.[0]?.text),
@@ -129,13 +168,27 @@ function CandidateCard({
   const exps = asArr(c.experience_user ?? []);
   const edus = asArr(c.edu_user ?? []);
 
+  const isBookmarked = useMemo(() => {
+    return (c.connection ?? []).some((con) => con.typed === 0);
+  }, [c.connection]);
+
   const latestCompany = exps[0];
   const school = useMemo(() => edus[0], [edus]);
   const scholarPreview = c.scholar_profile_preview;
+  const githubPreview = c.github_profile_preview;
+  const candidateMarkStatus = c.candidate_mark?.status ?? null;
+  const sharedFolderNotes = c.shared_folder_notes ?? [];
   const evidencePaper = getEvidencePaper(c.search_evidence);
   const isScholarSource = isScholarSearchSource(sourceType);
+  const isGithubSource = sourceType === "github";
   const isOnlyScholar =
     !!scholarPreview && exps.length === 0 && edus.length === 0;
+  const isOnlyGithub =
+    !!githubPreview && exps.length === 0 && edus.length === 0;
+  const linkSources = useMemo(
+    () => extractSearchSourcesFromLinks(c.links),
+    [c.links]
+  );
   const evidencePaperMeta = useMemo(
     () => buildEvidencePaperMeta(c.search_evidence),
     [c.search_evidence]
@@ -144,6 +197,11 @@ function CandidateCard({
     () => buildEvidencePaperTooltip(c.search_evidence),
     [c.search_evidence]
   );
+  const suitabilityScore = useMemo(() => {
+    const value = Number(c.search_rank?.suitabilityScore);
+    if (!Number.isFinite(value)) return null;
+    return Math.max(0, Math.min(100, Math.round(value)));
+  }, [c.search_rank?.suitabilityScore]);
 
   const companyHistoryTooltipText = useMemo(() => {
     if (exps.length === 0) return "경력 정보 없음";
@@ -172,179 +230,316 @@ function CandidateCard({
   const scholarAffiliationTooltipText = useMemo(() => {
     return buildScholarResearchTooltip(scholarPreview);
   }, [scholarPreview]);
+  const githubDeveloperTooltipText = useMemo(() => {
+    return buildGithubDeveloperTooltip(githubPreview);
+  }, [githubPreview]);
+  const hasSharedFolderNotes = Boolean(sharedFolderContext?.token);
+  const hasOwnerAnnotation = Boolean(
+    String(shortlistMemo ?? "").trim().length > 0 || candidateMarkStatus
+  );
+  const shouldShowInlineMemo = Boolean(
+    showShortlistMemo && (userId || hasOwnerAnnotation)
+  );
+  const shouldShowCornerMark = Boolean(
+    showMarkAction && userId && !shouldShowInlineMemo
+  );
 
   return (
-    <Link
-      href={profileHref}
-      onClick={() => logEvent("candidate_card_click: " + candidId)}
-      className="group relative w-full rounded-[28px] max-w-[760px] text-white bg-white/5 p-6 cursor-pointer hover:bg-[#FFFFFF18] transition-colors duration-200"
+    <div
+      className={
+        hasSharedFolderNotes
+          ? "mx-auto flex w-full max-w-[1260px] px-4 flex-col gap-4 xl:flex-row"
+          : "mx-auto w-full max-w-[760px]"
+      }
     >
-      <div className="flex flex-row flex-1 items-start gap-4">
-        <div className="w-[40%]">
-          <div className="flex flex-row flex-1 items-start gap-4">
-            <div className="cursor-pointer rounded-full hover:border-accenta1/80 border border-transparent transition-colors duration-100">
-              <Avatar url={c.profile_picture} name={c.name} size="lg" />
+      <Link
+        href={profileHref}
+        onClick={() => logEvent("candidate_card_click: " + candidId)}
+        className={`group relative block w-full cursor-pointer rounded-[28px] bg-white/5 text-white transition-colors duration-200 hover:bg-white/10 ${
+          hasSharedFolderNotes ? "h-fit min-w-0 px-5 py-5" : "p-6"
+        }`}
+      >
+        <div className="flex items-start gap-5">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-row flex-1 items-start gap-4">
+              <div className="w-[40%]">
+                <div className="flex flex-row flex-1 items-start gap-4">
+                  <div className="cursor-pointer rounded-full border border-transparent transition-colors duration-100 hover:border-accenta1/80">
+                    <Avatar url={c.profile_picture} name={c.name} size="lg" />
+                  </div>
+
+                  <div className="flex flex-col items-start justify-between">
+                    <div className="flex flex-col gap-0">
+                      <div className="relative truncate text-lg font-medium hover:underline">
+                        {c.name ?? "None"}
+                      </div>
+                      {isOnlyScholar ? (
+                        <div className="inline-flex w-fit items-center gap-1 rounded text-[13px] text-blue-500">
+                          <div className="mt-[1px]">Scholar Profile</div>
+                        </div>
+                      ) : isOnlyGithub ? (
+                        <div className="inline-flex w-fit items-center gap-1 rounded text-[13px] text-blue-500">
+                          <div className="mt-[1px]">GitHub Profile</div>
+                        </div>
+                      ) : c.location ? (
+                        <div className="text-sm font-normal text-hgray600">
+                          {locationEnToKo(c.location)}
+                        </div>
+                      ) : null}
+                      {suitabilityScore !== null || linkSources.length > 0 ? (
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          {linkSources.map((source) => (
+                            <Tooltips
+                              key={source}
+                              text={getSearchSourceLabel(source)}
+                            >
+                              <span className="flex items-center justify-center">
+                                <Image
+                                  src={getSearchSourceLogoPath(source)}
+                                  alt={getSearchSourceLabel(source)}
+                                  width={source === "github" ? 16 : 15}
+                                  height={source === "github" ? 16 : 15}
+                                  className="object-contain"
+                                />
+                              </span>
+                            </Tooltips>
+                          ))}
+                          {c.links &&
+                            c.links?.length - linkSources.length > 0 && (
+                              <span className="text-[13px] text-hgray700">
+                                +{c.links?.length - linkSources.length}
+                              </span>
+                            )}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-0 flex w-[60%] flex-col gap-3">
+                {isScholarSource ? (
+                  <>
+                    <ScholarSignalBox
+                      title={scholarPreview?.affiliation ?? "-"}
+                      tooltipText={scholarAffiliationTooltipText}
+                      icon="affiliation"
+                      tooltipSide="bottom"
+                      hideDescriptionWhenEmpty={true}
+                    />
+                    <ScholarSignalBox
+                      title={
+                        scholarPreview
+                          ? formatScholarPaperCount(scholarPreview.paperCount)
+                          : "-"
+                      }
+                      description={
+                        scholarPreview
+                          ? formatScholarCitationCount(
+                              scholarPreview.citationCount
+                            )
+                          : "-"
+                      }
+                      tooltipText={buildScholarResearchTooltip(scholarPreview)}
+                      icon="research"
+                      tooltipSide="bottom"
+                    />
+                  </>
+                ) : (
+                  <>
+                    {isOnlyScholar ? (
+                      <RoleBox
+                        company={scholarPreview?.affiliation ?? "-"}
+                        role=""
+                        tooltipText={scholarAffiliationTooltipText}
+                        tooltipSide="bottom"
+                      />
+                    ) : null}
+                    {isOnlyScholar ? (
+                      <ScholarSignalBox
+                        title={
+                          scholarPreview
+                            ? formatScholarPaperCount(scholarPreview.paperCount)
+                            : "-"
+                        }
+                        description={
+                          scholarPreview
+                            ? formatScholarCitationCount(
+                                scholarPreview.citationCount
+                              )
+                            : "-"
+                        }
+                        tooltipText={buildScholarResearchTooltip(
+                          scholarPreview
+                        )}
+                        icon="research"
+                        tooltipSide="bottom"
+                      />
+                    ) : null}
+                    {isOnlyGithub ? (
+                      <>
+                        <GithubSignalBox
+                          title={
+                            githubPreview?.company ??
+                            githubPreview?.location ??
+                            "-"
+                          }
+                          tooltipText={githubDeveloperTooltipText}
+                          icon="company"
+                          tooltipSide="bottom"
+                        />
+                        <GithubSignalBox
+                          title={
+                            githubPreview
+                              ? formatGithubRepoCount(githubPreview.publicRepos)
+                              : "-"
+                          }
+                          description={
+                            githubPreview
+                              ? formatGithubFollowerCount(
+                                  githubPreview.followers
+                                )
+                              : "-"
+                          }
+                          tooltipText={githubDeveloperTooltipText}
+                          icon="repos"
+                          tooltipSide="bottom"
+                        />
+                      </>
+                    ) : null}
+                    {latestCompany ? (
+                      <RoleBox
+                        company={latestCompany.company_db.name ?? ""}
+                        role={latestCompany.role}
+                        tooltipText={companyHistoryTooltipText}
+                        tooltipSide="bottom"
+                      />
+                    ) : null}
+                    {school ? (
+                      <SchoolBox
+                        school={school.school}
+                        role={school.degree}
+                        field={school.field}
+                        tooltipText={schoolHistoryTooltipText}
+                        tooltipSide="bottom"
+                      />
+                    ) : null}
+                  </>
+                )}
+              </div>
             </div>
 
-            <div className="flex flex-col items-start justify-between">
-              <div className="flex flex-col gap-0">
-                <div className="truncate font-medium text-lg hover:underline cursor-pointer relative">
-                  {c.name ?? "None"}
-                </div>
-                {isOnlyScholar ? (
-                  <div className="text-sm text-hgray600 font-normal">
-                    only scholar
+            {isScholarSource && evidencePaper?.title ? (
+              <Tooltips
+                text={evidencePaperTooltipText || evidencePaper.title}
+                side="bottom"
+              >
+                <div className="mt-8 flex w-full items-start gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs text-hgray600">Related paper</div>
+                    <div className="mt-1 line-clamp-2 text-[15px] font-normal text-white/95">
+                      {evidencePaper.title}
+                    </div>
+                    {evidencePaperMeta ? (
+                      <div className="mt-1 text-sm font-normal text-hgray700">
+                        {evidencePaperMeta}
+                      </div>
+                    ) : null}
                   </div>
-                ) : c.location ? (
-                  <div className="text-sm text-hgray600 font-normal">
-                    {locationEnToKo(c.location)}
+                </div>
+              </Tooltips>
+            ) : null}
+
+            {(synthesizedSummary.length !== 0 ||
+              (isMyList && shortlistSummaryText.length > 0)) && (
+              <div className="mt-6 font-light leading-relaxed text-hgray700">
+                {synthesizedSummary.length !== 0 ? (
+                  <div>
+                    {synthesizedSummary?.map((item: any, index: number) => (
+                      <MemoizedSummaryBox
+                        key={index}
+                        reason={item.reason}
+                        criteria={criterias[index] ?? ""}
+                        score={item.score}
+                      />
+                    ))}
                   </div>
                 ) : null}
-                {/* {c.links && c.links.length > 0 && (
-                  <div className="mt-3">
-                    <LinkChips links={c.links} size="sm" />
-                  </div>
-                )} */}
+                {isMyList && shortlistSummaryText.length > 0 ? (
+                  <div
+                    className={`whitespace-pre-wrap break-words text-[14px] ${
+                      synthesizedSummary.length !== 0 ? "mt-6" : ""
+                    }`}
+                    dangerouslySetInnerHTML={{ __html: shortlistSummaryText }}
+                  />
+                ) : null}
               </div>
-            </div>
+            )}
+            {shouldShowInlineMemo ? (
+              <div className="mt-6 border-t border-white/10 pt-4">
+                <CandidateMemoDock
+                  userId={userId}
+                  candidId={c.id}
+                  initialMemo={shortlistMemo}
+                  initialMarkStatus={candidateMarkStatus}
+                  onMarkChange={onMarkChange}
+                  showMarkButton={
+                    showMarkAction && Boolean(userId || candidateMarkStatus)
+                  }
+                  rows={4}
+                  editorClassName="w-full"
+                />
+              </div>
+            ) : null}
           </div>
         </div>
 
-        <div className="mt-0 flex flex-col gap-3 w-[60%]">
-          {isScholarSource ? (
-            <>
-              <ScholarSignalBox
-                title={scholarPreview?.affiliation ?? "-"}
-                tooltipText={scholarAffiliationTooltipText}
-                icon="affiliation"
-                tooltipSide="bottom"
-                hideDescriptionWhenEmpty={true}
+        {shouldShowCornerMark || (showBookmarkAction && userId) ? (
+          <div
+            className="absolute right-3 top-3 flex items-center justify-start gap-2"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+          >
+            {shouldShowCornerMark ? (
+              <CandidateMarkButton
+                userId={userId}
+                candidId={c.id}
+                initialStatus={candidateMarkStatus}
+                onChange={onMarkChange}
               />
-              <ScholarSignalBox
-                title={
-                  scholarPreview
-                    ? formatScholarPaperCount(scholarPreview.paperCount)
-                    : "-"
-                }
-                description={
-                  scholarPreview
-                    ? formatScholarCitationCount(scholarPreview.citationCount)
-                    : "-"
-                }
-                tooltipText={buildScholarResearchTooltip(scholarPreview)}
-                icon="research"
-                tooltipSide="bottom"
-              />
-            </>
-          ) : (
-            <>
-              {isOnlyScholar && (
-                <RoleBox
-                  company={scholarPreview?.affiliation ?? "-"}
-                  role="only scholar"
-                  tooltipText={scholarAffiliationTooltipText}
-                  tooltipSide="bottom"
+            ) : null}
+            {showBookmarkAction && userId ? (
+              <div
+                className={`${
+                  isBookmarked && !isMyList ? "opacity-100" : "opacity-0"
+                } group-hover:opacity-100`}
+              >
+                <Bookmarkbutton
+                  userId={userId}
+                  candidId={c.id}
+                  connection={c.connection}
+                  isText={false}
+                  size="md"
                 />
-              )}
-              {latestCompany && (
-                <RoleBox
-                  company={latestCompany.company_db.name ?? ""}
-                  role={latestCompany.role}
-                  tooltipText={companyHistoryTooltipText}
-                  tooltipSide="bottom"
-                />
-              )}
-              {school && (
-                <SchoolBox
-                  school={school.school}
-                  role={school.degree}
-                  field={school.field}
-                  tooltipText={schoolHistoryTooltipText}
-                  tooltipSide="bottom"
-                />
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      {isScholarSource && evidencePaper?.title ? (
-        <Tooltips
-          text={evidencePaperTooltipText || evidencePaper.title}
-          side="bottom"
-        >
-          <div className="mt-8 flex w-full items-start gap-3">
-            <div className="min-w-0">
-              <div className="text-xs text-hgray600">Related paper</div>
-              <div className="mt-1 line-clamp-2 text-[15px] font-normal text-white/95">
-                {evidencePaper.title}
               </div>
-              {evidencePaperMeta ? (
-                <div className="mt-1 text-sm text-hgray700 font-normal">
-                  {evidencePaperMeta}
-                </div>
-              ) : null}
-            </div>
+            ) : null}
           </div>
-        </Tooltips>
-      ) : null}
+        ) : null}
+      </Link>
 
-      {(synthesizedSummary.length !== 0 ||
-        (isMyList && shortlistSummaryText.length > 0)) && (
-        <div className="mt-5 text-hgray700 leading-relaxed font-light">
-          {synthesizedSummary.length !== 0 && (
-            <div>
-              {synthesizedSummary?.map((item: any, index: number) => (
-                <MemoizedSummaryBox
-                  key={index}
-                  reason={item.reason}
-                  criteria={criterias[index] ?? ""}
-                  score={item.score}
-                />
-              ))}
-            </div>
-          )}
-          {isMyList && shortlistSummaryText.length > 0 && (
-            <div
-              className={`text-[14px] whitespace-pre-wrap break-words ${
-                synthesizedSummary.length !== 0 ? "mt-6" : ""
-              }`}
-            >
-              {shortlistSummaryText}
-            </div>
-          )}
-        </div>
-      )}
-      {isMyList && showShortlistMemo && (
-        <div className="mt-6 border-t border-white/10 pt-4">
-          <ShortlistMemoEditor
-            userId={userId}
+      {sharedFolderContext?.token ? (
+        <div className="w-full shrink-0 xl:w-[420px]">
+          <SharedFolderCandidateNotes
+            token={sharedFolderContext.token}
             candidId={c.id}
-            initialMemo={shortlistMemo}
-            rows={4}
+            initialNotes={sharedFolderNotes}
+            viewer={sharedFolderContext.viewer}
+            variant="sidecar"
           />
         </div>
-      )}
-
-      <div
-        className={`flex flex-row items-center justify-start group-hover:opacity-100  absolute top-3 right-3 ${
-          isMyList ? "opacity-100" : "opacity-0"
-        }`}
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-      >
-        <Bookmarkbutton
-          userId={userId}
-          candidId={c.id}
-          connection={c.connection}
-          isText={false}
-          size="sm"
-        />
-        {/* <Requestbutton c={c} isBeta={true} /> */}
-      </div>
-    </Link>
+      ) : null}
+    </div>
   );
 }
 export default React.memo(CandidateCard);
@@ -401,7 +596,7 @@ const CriteriaBox = ({
       {/* </Tooltips> */}
       {reason && (
         <div className="mt-2 text-[14px] font-normal whitespace-pre-wrap break-words">
-          {safeReasonText}
+          <div dangerouslySetInnerHTML={{ __html: safeReasonText }} />
         </div>
       )}
     </div>

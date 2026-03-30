@@ -111,7 +111,7 @@ export default function PricingSection({
           <div className="w-full flex flex-col items-center justify-center text-center px-4 md:px-0">
             {/* <Head1 className="text-white">Pricing</Head1> */}
             <Head1 className="mt-4 md:mt-6 text-white">{pricing.title}</Head1>
-            <div className="mt-3 text-sm md:text-base text-white/60 font-light">
+            <div className="mt-3 text-sm md:text-base text-hgray700 font-light">
               {pricing.subtitle}
             </div>
 

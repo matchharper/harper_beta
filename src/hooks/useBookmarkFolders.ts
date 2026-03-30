@@ -24,6 +24,12 @@ type CreateFolderArgs = {
   name: string;
 };
 
+type UpdateFolderArgs = {
+  userId: string;
+  folderId: number;
+  name: string;
+};
+
 type DeleteFolderArgs = {
   userId: string;
   folderId: number;
@@ -123,6 +129,36 @@ export function useCreateBookmarkFolder() {
         .single());
 
       if (error) throw error;
+      return data as BookmarkFolder;
+    },
+    onSuccess: (_res, vars) => {
+      qc.invalidateQueries({ queryKey: bookmarkFoldersKey(vars.userId) });
+    },
+  });
+}
+
+export function useUpdateBookmarkFolder() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ userId, folderId, name }: UpdateFolderArgs) => {
+      const trimmed = String(name ?? "").trim();
+      if (!trimmed) {
+        throw new Error("폴더 이름을 입력해주세요.");
+      }
+
+      const { data, error } = await ((supabase.from("bookmark_folder" as any) as any)
+        .update({
+          name: trimmed,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", folderId)
+        .eq("user_id", userId)
+        .select("id, user_id, name, is_default, created_at, updated_at")
+        .maybeSingle());
+
+      if (error) throw error;
+      if (!data) throw new Error("폴더를 찾을 수 없습니다.");
       return data as BookmarkFolder;
     },
     onSuccess: (_res, vars) => {

@@ -4,7 +4,11 @@ import type { CandidateType, EduUserType, ExpUserType } from "@/types/type";
 import { logger } from "@/utils/logger";
 import { UI_END, UI_START } from "./chat/useChatSession";
 import type { Locale } from "@/i18n/useMessage";
-import { queryTypeToSearchSource } from "@/lib/searchSource";
+import {
+  SearchSource,
+  normalizeSearchSources,
+  queryTypeToSearchSource,
+} from "@/lib/searchSource";
 
 function getCookie(name: string) {
   if (typeof document === "undefined") return null;
@@ -17,6 +21,12 @@ function getCookie(name: string) {
 function getLocaleFromCookie(): Locale {
   const c = getCookie("NEXT_LOCALE");
   return c === "ko" || c === "en" ? c : "ko";
+}
+
+function getDefaultEnabledSources(
+  sourceType?: SearchSource | null
+): SearchSource[] {
+  return [sourceType === "scholar" ? "scholar" : "linkedin"];
 }
 
 export type ExperienceUserType = ExpUserType & {
@@ -41,7 +51,8 @@ type RunPageCandidate = { id?: string; score?: number | string | null };
 
 type SearchSettingsSnapshot = {
   is_korean: boolean;
-  type: "linkedin" | "scholar" | "github";
+  type: SearchSource;
+  sources: SearchSource[];
 };
 
 class SearchLaunchLimitError extends Error {
@@ -111,7 +122,8 @@ async function fetchSearchIds(params: { runId: string; pageIdx: number }) {
 
 async function loadSearchSettings(
   userId: string,
-  sourceType: SearchSettingsSnapshot["type"]
+  sourceType: SearchSettingsSnapshot["type"],
+  selectedSources: SearchSource[]
 ): Promise<SearchSettingsSnapshot> {
   const { data: row, error } = await supabase
     .from("settings")
@@ -128,6 +140,10 @@ async function loadSearchSettings(
   return {
     is_korean: row?.is_korean ?? false,
     type: sourceType,
+    sources: normalizeSearchSources(selectedSources, {
+      enabledOnly: true,
+      fallback: getDefaultEnabledSources(sourceType),
+    }),
   };
 }
 
@@ -159,8 +175,9 @@ async function createRunFromMessage(params: {
   criteria: any;
   queryText: string;
   userId: string;
+  sources?: unknown;
 }) {
-  const { queryId, messageId, criteria, queryText, userId } = params;
+  const { queryId, messageId, criteria, queryText, userId, sources } = params;
   console.log("\n createRunFromMessage: ", queryId, messageId, criteria);
 
   if (!queryId) throw new Error("createRunFromMessage: missing queryId");
@@ -171,7 +188,15 @@ async function createRunFromMessage(params: {
 
   const locale = getLocaleFromCookie();
   const sourceType = await loadQuerySourceType(queryId);
-  const searchSettings = await loadSearchSettings(userId, sourceType);
+  const selectedSources = normalizeSearchSources(sources, {
+    enabledOnly: true,
+    fallback: getDefaultEnabledSources(sourceType),
+  });
+  const searchSettings = await loadSearchSettings(
+    userId,
+    selectedSources[0] ?? getDefaultEnabledSources(sourceType)[0],
+    selectedSources
+  );
 
   // 테스트 모드 확인 (환경 변수)
   const testMode =
@@ -296,6 +321,7 @@ export const runSearch = async ({
     criteria: inputs.criteria,
     queryText: inputs.thinking ?? "",
     userId: userId,
+    sources: inputs.sources,
   });
 
   if (!newRunId) return null;

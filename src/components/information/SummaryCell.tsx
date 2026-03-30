@@ -5,11 +5,15 @@ import { SummaryScore } from "@/types/type";
 export type SynthItem = { score: string; reason: string };
 
 function sanitizeReasonText(raw: string) {
-  return raw
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/?strong>/gi, "")
-    .replace(/<[^>]+>/g, "")
-    .trim();
+  return (
+    raw
+      .replace(/<br\s*\/?>/gi, "\n")
+      // .replace(/<\/?strong>/gi, "")
+      // .replace(/<[^>]+>/g, "")
+      .replace(/<strong>/gi, "<span class='font-medium text-white'>")
+      .replace(/<\/strong>/gi, "</span>")
+      .trim()
+  );
 }
 
 function scoreIcon(score: string) {
@@ -100,9 +104,10 @@ const HoverPopover = ({
       <div className="mt-3 h-px bg-white/10" />
 
       <div className="mt-3">
-        <div className="text-[14px] leading-relaxed text-hgray800 whitespace-pre-wrap break-words">
-          {reasonText || "No details"}
-        </div>
+        <div
+          className="text-[14px] leading-relaxed text-hgray800 whitespace-pre-wrap break-words"
+          dangerouslySetInnerHTML={{ __html: reasonText || "No details" }}
+        />
       </div>
 
       {title && (

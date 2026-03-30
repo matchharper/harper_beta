@@ -23,9 +23,8 @@ import { firstSqlPrompt } from "@/lib/prompt";
 import ConfirmModal from "@/components/Modal/ConfirmModal";
 import { useFeedbackModalStore } from "@/store/useFeedbackModalStore";
 import {
-  SEARCH_SOURCE_VALUES,
   SearchSource,
-  isSearchSource,
+  isEnabledSearchSource,
 } from "@/lib/searchSource";
 import { Tooltips } from "@/components/ui/tooltip";
 
@@ -35,7 +34,6 @@ const PLACEHOLDER_LINE_HEIGHT_PX = 24;
 const SEARCH_SOURCE_STORAGE_KEY = "harper_my_search_source";
 type SearchSourceConfig = {
   label: string;
-  color: string;
   prompt: string;
   desc: string;
   placeholder: string;
@@ -83,7 +81,6 @@ const Home: NextPage = () => {
       return {
         linkedin: {
           label: "LinkedIn",
-          color: "border-hgray700/50",
           prompt: "어떤 인재를 찾고 계신가요?",
           desc: "경력 / 학력 등을 중심으로 인재를 찾습니다.",
           placeholder: m.home.queryPlaceholder,
@@ -93,7 +90,6 @@ const Home: NextPage = () => {
         },
         scholar: {
           label: "Publications",
-          color: "border-blue-400/50",
           prompt: "어떤 인재를 찾고 계신가요?",
           desc: "연구 기록 / 논문을 중심으로 연구자를 찾습니다.",
           placeholder:
@@ -126,7 +122,6 @@ const Home: NextPage = () => {
         },
         github: {
           label: "Open Source",
-          color: "border-green-500/50",
           prompt: "어떤 빌더를 찾고 계신가요?",
           desc: "Github 활동 / 오픈소스 기여 중심으로 Github profile을 찾습니다.",
           placeholder:
@@ -163,7 +158,6 @@ const Home: NextPage = () => {
     return {
       linkedin: {
         label: "LinkedIn",
-        color: "border-hray700",
         prompt: "Who are you looking for through LinkedIn career history?",
         desc: "Career history / education / etc. to find candidates.",
         placeholder: m.home.queryPlaceholder,
@@ -173,7 +167,6 @@ const Home: NextPage = () => {
       },
       scholar: {
         label: "Publications",
-        color: "border-blue-400",
         prompt:
           "Who are you looking for through Google Scholar research history?",
         desc: "Research history / papers to find researchers.",
@@ -207,7 +200,6 @@ const Home: NextPage = () => {
       },
       github: {
         label: "Open Source",
-        color: "border-green-500",
         prompt: "Who are you looking for through GitHub activity?",
         desc: "GitHub activity / open-source contributions to find developers.",
         placeholder:
@@ -265,11 +257,17 @@ const Home: NextPage = () => {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const savedSource = window.localStorage.getItem(SEARCH_SOURCE_STORAGE_KEY);
-    if (savedSource && isSearchSource(savedSource)) {
+    if (savedSource && isEnabledSearchSource(savedSource)) {
       setSelectedSource(savedSource);
     }
     setHasHydratedSourcePreference(true);
   }, []);
+
+  useEffect(() => {
+    if (!isEnabledSearchSource(selectedSource)) {
+      setSelectedSource("linkedin");
+    }
+  }, [selectedSource]);
 
   useEffect(() => {
     if (!hasHydratedSourcePreference || typeof window === "undefined") return;
@@ -446,8 +444,7 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
           <form className="mt-8 w-full max-w-[640px]">
             <div
               className={[
-                "w-full relative rounded-3xl p-1 bg-white/5 border ",
-                selectedSourceConfig.color,
+                "w-full relative rounded-3xl p-1 bg-white/5 border border-white/10",
               ].join(" ")}
             >
               <div className="relative rounded-2xl backdrop-blur-xl">
@@ -479,6 +476,12 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
                 <textarea
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      void onSubmit();
+                    }
+                  }}
                   placeholder=""
                   aria-label={selectedSourceConfig.prompt}
                   rows={4}
@@ -493,13 +496,13 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
                   ].join(" ")}
                 />
               </div>
-              <div className="flex flex-row items-center justify-center gap-2 absolute right-5 bottom-5">
+              <div className="flex flex-row items-center justify-center gap-2 absolute right-3 bottom-3">
                 <button
                   onClick={onSubmit}
                   disabled={!canSend}
                   className={[
                     "inline-flex items-center justify-center rounded-full cursor-pointer hover:opacity-90",
-                    "h-11 w-11",
+                    "h-9 w-9",
                     canSend
                       ? "bg-accenta1 text-black cursor-not-allowed"
                       : "bg-accenta1/50 text-black",
@@ -510,7 +513,7 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
                   {isLoading ? (
                     <Loader2 size={20} className="animate-spin" />
                   ) : (
-                    <ArrowUp size={20} />
+                    <ArrowUp size={18} strokeWidth={2} />
                   )}
                 </button>
               </div>

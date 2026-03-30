@@ -20,11 +20,37 @@ export const en = {
     nameSubmit: "Save",
     submit: "Continue",
     divider: "or",
-    waitlist: "Apply for access",
+    waitlist: "Request access",
     contact: "Contact us",
+    requestAccess: {
+      title: "Request access",
+      description:
+        "Tell us a bit about your team. If approved, we'll email you an activation link.",
+      submit: "Send request",
+      submitted:
+        "Your request has been submitted. We'll email you a link once access is approved.",
+      nameLabel: "Name",
+      namePlaceholder: "Your name",
+      companyLabel: "Company",
+      companyPlaceholder: "Company name",
+      roleLabel: "Role",
+      rolePlaceholder: "For example: Founder, Hiring Manager",
+      hiringNeedLabel:
+        "Most important role(s) you need to hire for and rough headcount",
+      hiringNeedPlaceholder:
+        "For example: Backend Engineer x2, Founding Recruiter x1",
+      errors: {
+        missingSession:
+          "We couldn't verify your session. Please sign in again.",
+        invalidForm: "Please fill in every field.",
+        submitFailed: "Failed to submit your request. Please try again.",
+      },
+    },
     errors: {
       emptyCode: "Please enter the invite code.",
       invalidCode: "The invite code is invalid.",
+      domainMismatch:
+        "The domain of your signup email must match the company domain assigned to this invite code.",
       emptyName: "Please enter your name.",
       saveNameFailed: "Failed to save your name. Please try again.",
     },
@@ -142,7 +168,7 @@ export const en = {
       titleLine2Prefix: "Pay for",
       titleLine2Highlight: "Intelligence",
       subtitle:
-        "Go beyond simple search and experience intelligence that understands talent.",
+        "No matter your criteria,<br />our AI search engine instantly finds the right profiles for you.",
     },
     section1: {
       title: "Recruiting Agent, Harper",
@@ -205,11 +231,6 @@ export const en = {
             "Harper is currently running a private beta with a small set of tech companies to optimize data quality and AI resources. Our public launch is planned for Q2 this year. Join the waitlist and we'll send invite codes during onboarding.",
         },
         {
-          question: "Can I trust AI-generated analysis?",
-          answer:
-            "Yes. Harper's AI doesn't guess; it verifies. We only analyze verifiable data from real web sources like LinkedIn, Google Scholar, GitHub, and blogs. Every insight includes source links so you can fact-check.",
-        },
-        {
           question:
             "What's the difference between 'keyword search' and Harper's 'semantic search'?",
           answer:
@@ -248,9 +269,8 @@ export const en = {
           buttonLabel: "Contact us",
           features: [
             "150 searches / month",
-            "Talent research & analysis<br />(deep research per candidate)",
-            "AI smart search",
-            "Unlimited chat",
+            "AI analysis of paper + code quality",
+            "Harper Scout (Autonomous Discovery)<br/><i>AI-driven search that indexes technical truth, not just resumes.</i>",
           ],
         },
         max: {

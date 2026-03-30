@@ -1,10 +1,12 @@
 import { UiSegment } from "@/hooks/chat/useChatSession";
+import { SearchSource } from "@/lib/searchSource";
 
 export type CriteriaCardBlock = {
   type: "criteria_card";
   thinking: string;
   criteria: string[];
-  ready: boolean;
+  ready?: boolean;
+  sources?: SearchSource[];
 };
 
 export type ToolStatusBlock = {
@@ -50,6 +52,20 @@ export type SearchResultBlock = {
   total_count?: number;
 };
 
+export type SearchStartStatus =
+  | "pending"
+  | "running"
+  | "done"
+  | "failed"
+  | "stopped";
+
+export type SearchStartBlock = {
+  type: "search_start";
+  text: string;
+  run_id?: string;
+  status?: SearchStartStatus;
+};
+
 export type FileAttachmentPayload = {
   name: string;
   text: string;
@@ -65,7 +81,8 @@ export type ChatBlock =
   | ToolResultBlock
   | FileContextBlock
   | SettingsCtaBlock
-  | SearchResultBlock;
+  | SearchResultBlock
+  | SearchStartBlock;
 
 export type ChatMessage = {
   id?: string | number;

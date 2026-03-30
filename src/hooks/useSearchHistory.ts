@@ -3,6 +3,18 @@ import {
   type QueryClient,
 } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import type { QueryType } from "@/types/type";
+
+export type QueryHistoryRun = {
+  id: string;
+  created_at: string;
+  feedback: number | null;
+  status: string | null;
+};
+
+export type QueryHistoryItem = QueryType & {
+  runs?: QueryHistoryRun[];
+};
 
 export const queriesHistoryKey = (userId?: string) =>
   ["queriesHistory", userId] as const;
@@ -19,7 +31,17 @@ export async function fetchQueriesHistory({
 }) {
   let query = supabase
     .from("queries")
-    .select("*")
+    .select(
+      `
+      *,
+      runs (
+        id,
+        created_at,
+        feedback,
+        status
+      )
+      `
+    )
     .eq("user_id", userId)
     .eq("is_deleted", false)
     .not("query_keyword", "eq", "Deep Automation")
@@ -34,7 +56,15 @@ export async function fetchQueriesHistory({
 
   const { data, error } = await query;
   if (error) throw error;
-  return data ?? [];
+  const items = (data ?? []) as QueryHistoryItem[];
+  return items.map((item) => ({
+    ...item,
+    runs: [...(item.runs ?? [])].sort((a, b) => {
+      const byCreatedAt = b.created_at.localeCompare(a.created_at);
+      if (byCreatedAt !== 0) return byCreatedAt;
+      return b.id.localeCompare(a.id);
+    }),
+  }));
 }
 
 export function useQueriesHistory(userId?: string, limit = 8) {
