@@ -1315,83 +1315,51 @@ export type Database = {
       }
       github_repo_contribution: {
         Row: {
-          candid_id: string | null
-          commits: number | null
-          contributors: number | null
-          created_at: string | null
-          default_rank_score: number | null
-          description: string | null
-          forks: number | null
-          github_profile_id: string | null
-          id: number | null
-          languages: Json | null
-          last_contrib_at: string | null
-          last_updated_at: string | null
-          merged_prs: number | null
-          readme_excerpt: string | null
-          repo: string | null
-          repo_id: string | null
+          id: number
+          commits: number
+          merged_prs: number
           role: string | null
-          search_text: string | null
-          search_text_fts: unknown
-          stars: number | null
-          topics: string | null
-          updated_at: string | null
+          last_contrib_at: string | null
+          created_at: string
+          updated_at: string
+          github_profile_id: string | null
+          repo_id: string | null
         }
         Insert: {
-          candid_id?: string | null
-          commits?: number | null
-          contributors?: number | null
-          created_at?: string | null
-          default_rank_score?: number | null
-          description?: string | null
-          forks?: number | null
-          github_profile_id?: string | null
-          id?: number | null
-          languages?: Json | null
-          last_contrib_at?: string | null
-          last_updated_at?: string | null
-          merged_prs?: number | null
-          readme_excerpt?: string | null
-          repo?: string | null
-          repo_id?: string | null
+          id?: number
+          commits?: number
+          merged_prs?: number
           role?: string | null
-          search_text?: string | null
-          search_text_fts?: unknown
-          stars?: number | null
-          topics?: string | null
-          updated_at?: string | null
+          last_contrib_at?: string | null
+          created_at?: string
+          updated_at?: string
+          github_profile_id?: string | null
+          repo_id?: string | null
         }
         Update: {
-          candid_id?: string | null
-          commits?: number | null
-          contributors?: number | null
-          created_at?: string | null
-          default_rank_score?: number | null
-          description?: string | null
-          forks?: number | null
-          github_profile_id?: string | null
-          id?: number | null
-          languages?: Json | null
-          last_contrib_at?: string | null
-          last_updated_at?: string | null
-          merged_prs?: number | null
-          readme_excerpt?: string | null
-          repo?: string | null
-          repo_id?: string | null
+          id?: number
+          commits?: number
+          merged_prs?: number
           role?: string | null
-          search_text?: string | null
-          search_text_fts?: unknown
-          stars?: number | null
-          topics?: string | null
-          updated_at?: string | null
+          last_contrib_at?: string | null
+          created_at?: string
+          updated_at?: string
+          github_profile_id?: string | null
+          repo_id?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "github_repo_contribution_candid_id_fkey"
-            columns: ["candid_id"]
+            foreignKeyName: "github_repo_contribution_github_profile_id_fkey"
+            columns: ["github_profile_id"]
             isOneToOne: false
-            referencedRelation: "candid"
+            referencedRelation: "github_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "github_repo_contribution_repo_id_fkey"
+            columns: ["repo_id"]
+            isOneToOne: false
+            referencedRelation: "github_repo"
             referencedColumns: ["id"]
           },
         ]
