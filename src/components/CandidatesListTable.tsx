@@ -1,6 +1,6 @@
 import { CandidateTypeWithConnection } from "@/hooks/useSearchChatCandidates";
 import React, { useEffect, useMemo, useState } from "react";
-import { BriefcaseBusiness, FileText, GraduationCap, Plus } from "lucide-react";
+import { BriefcaseBusiness, FileText, Github, GraduationCap, Plus } from "lucide-react";
 import { useRouter } from "next/router";
 import { Avatar } from "./NameProfile";
 import { Tooltips } from "./ui/tooltip";
@@ -661,13 +661,11 @@ function CandidateRow({
                 <div className="text-xs text-hgray700 truncate">
                   {isOnlyScholar ? (
                     <div className="inline-flex w-fit items-center justify-center gap-1 text-xs rounded text-blue-500">
-                      {/* <Image
-                        src="/images/logos/scholar.png"
-                        alt="Scholar Profile"
-                        width={10}
-                        height={10}
-                      /> */}
                       <div>Scholar Profile</div>
+                    </div>
+                  ) : isOnlyGithub ? (
+                    <div className="inline-flex w-fit items-center justify-center gap-1 text-xs rounded text-blue-500">
+                      <div>GitHub Profile</div>
                     </div>
                   ) : c.location ? (
                     locationEnToKo(c.location)
@@ -885,6 +883,44 @@ export const ScholarSignalBox = ({
         <div className="text-hgray600 font-normal">
           {hasDescription ? description : "-"}
         </div>
+      ) : null}
+    </div>
+  );
+};
+
+export const GithubSignalBox = ({
+  title,
+  description,
+  tooltipText,
+  icon = "company",
+  tooltipSide = "bottom",
+}: {
+  title: React.ReactNode;
+  description?: React.ReactNode;
+  tooltipText?: string;
+  icon?: "company" | "repos";
+  tooltipSide?: "bottom" | "top" | "left" | "right";
+}) => {
+  const Icon = icon === "repos" ? FileText : Github;
+  const hasDescription =
+    description !== undefined && description !== null && description !== "";
+
+  return (
+    <div className="flex flex-col items-start gap-0 text-sm col-span-4">
+      <Tooltips
+        text={tooltipText ?? (typeof title === "string" ? title : "")}
+        side={tooltipSide}
+      >
+        <div className="flex flex-row items-start justify-start gap-x-2 min-w-0 relative">
+          <Icon className="absolute left-0 top-[2px] w-4 h-4 text-hgray800" />
+          <span className="text-hgray800 font-normal break-words">
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            {title || "-"}
+          </span>
+        </div>
+      </Tooltips>
+      {hasDescription ? (
+        <div className="text-hgray600 font-normal">{description}</div>
       ) : null}
     </div>
   );

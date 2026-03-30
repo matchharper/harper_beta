@@ -11,7 +11,7 @@ import Bookmarkbutton from "./ui/bookmarkbutton";
 import { Tooltips } from "./ui/tooltip";
 import { Check, Dot, X } from "lucide-react";
 import { useRouter } from "next/router";
-import { RoleBox, ScholarSignalBox, SchoolBox } from "./CandidatesListTable";
+import { RoleBox, ScholarSignalBox, SchoolBox, GithubSignalBox } from "./CandidatesListTable";
 import { SummaryScore } from "@/types/type";
 import { useLogEvent } from "@/hooks/useLog";
 import Link from "next/link";
@@ -35,6 +35,11 @@ import {
   formatScholarCitationCount,
   formatScholarPaperCount,
 } from "@/lib/scholarPreview";
+import {
+  buildGithubDeveloperTooltip,
+  formatGithubFollowerCount,
+  formatGithubRepoCount,
+} from "@/lib/githubPreview";
 import Image from "next/image";
 import { logger } from "@/utils/logger";
 import { SharedFolderViewerIdentity } from "@/lib/sharedFolder";
@@ -166,12 +171,16 @@ function CandidateCard({
   const latestCompany = exps[0];
   const school = useMemo(() => edus[0], [edus]);
   const scholarPreview = c.scholar_profile_preview;
+  const githubPreview = c.github_profile_preview;
   const candidateMarkStatus = c.candidate_mark?.status ?? null;
   const sharedFolderNotes = c.shared_folder_notes ?? [];
   const evidencePaper = getEvidencePaper(c.search_evidence);
   const isScholarSource = isScholarSearchSource(sourceType);
+  const isGithubSource = sourceType === "github";
   const isOnlyScholar =
     !!scholarPreview && exps.length === 0 && edus.length === 0;
+  const isOnlyGithub =
+    !!githubPreview && exps.length === 0 && edus.length === 0;
   const linkSources = useMemo(
     () => extractSearchSourcesFromLinks(c.links),
     [c.links]
@@ -217,6 +226,9 @@ function CandidateCard({
   const scholarAffiliationTooltipText = useMemo(() => {
     return buildScholarResearchTooltip(scholarPreview);
   }, [scholarPreview]);
+  const githubDeveloperTooltipText = useMemo(() => {
+    return buildGithubDeveloperTooltip(githubPreview);
+  }, [githubPreview]);
   const hasSharedFolderNotes = Boolean(sharedFolderContext?.token);
   const hasOwnerAnnotation = Boolean(
     String(shortlistMemo ?? "").trim().length > 0 || candidateMarkStatus
@@ -260,6 +272,10 @@ function CandidateCard({
                       {isOnlyScholar ? (
                         <div className="inline-flex w-fit items-center gap-1 rounded text-[13px] text-blue-500">
                           <div className="mt-[1px]">Scholar Profile</div>
+                        </div>
+                      ) : isOnlyGithub ? (
+                        <div className="inline-flex w-fit items-center gap-1 rounded text-[13px] text-blue-500">
+                          <div className="mt-[1px]">GitHub Profile</div>
                         </div>
                       ) : c.location ? (
                         <div className="text-sm font-normal text-hgray600">
@@ -354,6 +370,33 @@ function CandidateCard({
                         icon="research"
                         tooltipSide="bottom"
                       />
+                    ) : null}
+                    {isOnlyGithub ? (
+                      <>
+                        <GithubSignalBox
+                          title={
+                            githubPreview?.company ?? githubPreview?.location ?? "-"
+                          }
+                          tooltipText={githubDeveloperTooltipText}
+                          icon="company"
+                          tooltipSide="bottom"
+                        />
+                        <GithubSignalBox
+                          title={
+                            githubPreview
+                              ? formatGithubRepoCount(githubPreview.publicRepos)
+                              : "-"
+                          }
+                          description={
+                            githubPreview
+                              ? formatGithubFollowerCount(githubPreview.followers)
+                              : "-"
+                          }
+                          tooltipText={githubDeveloperTooltipText}
+                          icon="repos"
+                          tooltipSide="bottom"
+                        />
+                      </>
                     ) : null}
                     {latestCompany ? (
                       <RoleBox
