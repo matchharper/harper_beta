@@ -63,7 +63,7 @@ function ProfileInsightCard({
   return (
     <div className="rounded-2xl bg-white/5 px-4 py-3">
       <div className="text-xs text-hgray600">{label}</div>
-      <div className="mt-2 text-sm text-hgray900">{primary}</div>
+      <div className="mt-2 truncate text-sm text-hgray900">{primary}</div>
       {secondary ? (
         <div className="mt-1 text-xs leading-5 text-hgray600">{secondary}</div>
       ) : null}
