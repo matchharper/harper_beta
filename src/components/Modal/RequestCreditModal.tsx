@@ -96,7 +96,7 @@ const RequestCreditModal = ({
                   ].join(" ")}
                 >
                   <div>
-                    월 검색 한도 {selectedCredit}회
+                    열람 횟수 {selectedCredit}회
                   </div>
                   <div>
                     <ChevronDown size={24} strokeWidth={1} />
@@ -116,7 +116,7 @@ const RequestCreditModal = ({
                         setSelectedCredit(option.value);
                       }}
                     >
-                      월 검색 한도 {option.label}회
+                      열람 횟수 {option.label}회
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuGroup>

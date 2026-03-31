@@ -2,7 +2,7 @@ import Reveal from "./Animation/Reveal";
 
 export default function CompareSection() {
   return (
-    <section className="relative w-full overflow-hidden bg-black px-4 py-24 md:px-8 md:py-32">
+    <section className="relative w-full overflow-hidden bg-black px-4 md:px-8">
       <div className="mx-auto flex w-full max-w-[1040px] flex-col items-center">
         <Reveal>
           <div className="flex w-full flex-col items-center justify-center">
@@ -180,7 +180,7 @@ export default function CompareSection() {
           </div>
         </Reveal>
 
-        <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 text-center text-sm leading-7 text-white/65 md:px-6 md:text-base">
+        <div className="mt-8 rounded-2xl bg-white/5 px-5 py-4 text-center text-sm leading-7 text-white/65 md:px-6 md:text-base">
           Profiles provide summaries. Public repositories and papers provide
           technical context.
         </div>

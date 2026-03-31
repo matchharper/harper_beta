@@ -42,11 +42,7 @@ export default function PricingSection({
         price: proShown,
         buttonLabel: "Start",
         isPrimary: false,
-        features: [
-          "150 searches / month",
-          "AI analysis of paper + code quality",
-          "Harper Scout (Autonomous Discovery)<br/><i>AI-driven search that indexes technical truth, not just resumes.</i>",
-        ],
+        features: pricing.plans.pro.features,
       },
       {
         key: "max",
@@ -55,12 +51,7 @@ export default function PricingSection({
         price: maxShown,
         buttonLabel: "Start",
         isPrimary: true,
-        features: [
-          "Includes all Pro features:",
-          "350 searches / month",
-          "Up to 3 concurrent search requests",
-          "Active AI Sourcing Agent<br/><i>An autonomous co-pilot that proactively builds your talent pipeline.</i>",
-        ],
+        features: pricing.plans.max.features,
       },
       {
         key: "enterprise",
@@ -69,15 +60,7 @@ export default function PricingSection({
         price: null as number | null,
         buttonLabel: "Start",
         isPrimary: false,
-        features: [
-          "Includes all Max features:",
-          "Custom Quote",
-          "Unlimited technical discovery",
-          "Onboarding & Training support",
-          "Team collaboration & Management tools",
-          "Dedicated customer success support",
-          "Aligned Success Model<br/><i>An industry-leading partnership fee focused on your growth.</i>",
-        ],
+        features: pricing.plans.enterprise.features,
       },
     ];
   }, [billing, pricing]);
@@ -90,7 +73,7 @@ export default function PricingSection({
             {/* <Head1 className="text-white">Pricing</Head1> */}
             <Head1 className="mt-4 md:mt-6 text-white">{pricing.title}</Head1>
             <div className="mt-3 text-sm md:text-base text-white/60 font-light">
-              Perfect plan for your team.
+              {pricing.subtitle}
             </div>
 
             <div className="mt-12 w-full md:mt-16">

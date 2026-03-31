@@ -1,20 +1,6 @@
 import Reveal from "@/components/landing/Animation/Reveal";
 import StaggerText from "@/components/landing/Animation/StaggerText";
 import { showToast } from "@/components/toast/toast";
-import { AnimatePresence, motion } from "framer-motion";
-import {
-  ArrowUpRight,
-  ChevronLeft,
-  ChevronRight,
-  LoaderCircle,
-  Plus,
-  X,
-} from "lucide-react";
-import Head from "next/head";
-import Image from "next/image";
-import Link from "next/link";
-import { useRouter } from "next/router";
-import React, { useEffect, useRef, useState } from "react";
 import { useCountryLang } from "@/hooks/useCountryLang";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { supabase } from "@/lib/supabase";
@@ -29,6 +15,20 @@ import {
   isTalentNetworkAbtestType,
   type TalentNetworkAbtestType,
 } from "@/lib/talentNetwork";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  ArrowUpRight,
+  ChevronLeft,
+  ChevronRight,
+  LoaderCircle,
+  Plus,
+  X,
+} from "lucide-react";
+import Head from "next/head";
+import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Onboarding2Content } from "./onboarding2";
 
 type CompanyRequest = {
@@ -246,6 +246,15 @@ const MOBILE_POSITION_PAGE_SIZE = 4;
 const SHARE_REQUEST_QUERY_KEY = "recommended";
 const TALENT_NETWORK_SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 const MOBILE_HEADER_SCROLL_DELTA_THRESHOLD = 8;
+const SECTION_VIEW_INTERSECTION_THRESHOLD = 0.35;
+const SECTION_VIEW_LOG_COOLDOWN_MS = 15000;
+
+type NetworkSectionKey =
+  | "hero"
+  | "social_proof"
+  | "opportunities"
+  | "faq"
+  | "footer";
 
 async function copyToClipboard(text: string) {
   if (navigator.clipboard?.writeText) {
@@ -699,8 +708,20 @@ const NetworkPage = () => {
   const [abtestType, setAbtestType] = useState<TalentNetworkAbtestType | null>(
     null
   );
+  const heroSectionRef = useRef<HTMLElement | null>(null);
+  const socialProofSectionRef = useRef<HTMLElement | null>(null);
   const opportunitiesSectionRef = useRef<HTMLElement | null>(null);
+  const faqSectionRef = useRef<HTMLElement | null>(null);
+  const footerSectionRef = useRef<HTMLDivElement | null>(null);
   const requestCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const hasLoggedFirstScrollRef = useRef(false);
+  const sectionLastLoggedAtRef = useRef<Record<NetworkSectionKey, number>>({
+    hero: 0,
+    social_proof: 0,
+    opportunities: 0,
+    faq: 0,
+    footer: 0,
+  });
   const lastScrollYRef = useRef(0);
   const totalMobilePositionPages = Math.ceil(
     companyRequests.length / MOBILE_POSITION_PAGE_SIZE
@@ -710,7 +731,7 @@ const NetworkPage = () => {
     (mobilePositionPage + 1) * MOBILE_POSITION_PAGE_SIZE
   );
 
-  const addLandingLog = React.useCallback(
+  const addLandingLog = useCallback(
     async (
       type: string,
       overrides?: {
@@ -735,6 +756,34 @@ const NetworkPage = () => {
       }
     },
     [abtestType, countryLang, isMobile, landingId]
+  );
+
+  const openOnboarding = useCallback(
+    (eventType: string, role?: string) => {
+      void addLandingLog(eventType);
+      setSelectedOnboardingRole(role);
+      setIsOnboardingOpen(true);
+    },
+    [addLandingLog]
+  );
+
+  const handleOpenRequest = useCallback(
+    (request: CompanyRequest) => {
+      void addLandingLog(`talent_network_click_request_card:${request.id}`);
+      setSelectedRequest(request);
+    },
+    [addLandingLog]
+  );
+
+  const handleFaqToggle = useCallback(
+    (index: number, isOpen: boolean) => {
+      if (!isOpen) {
+        void addLandingLog(`talent_network_click_faq:${index + 1}`);
+      }
+
+      setOpenFaqIndex(isOpen ? -1 : index);
+    },
+    [addLandingLog]
   );
 
   useEffect(() => {
@@ -793,6 +842,79 @@ const NetworkPage = () => {
     localStorage.setItem(TALENT_NETWORK_LAST_VISIT_AT_KEY, String(now));
   }, [abtestType, addLandingLog, landingId]);
 
+  useEffect(() => {
+    if (!landingId || !abtestType) return;
+
+    const handleScroll = () => {
+      if (hasLoggedFirstScrollRef.current || window.scrollY <= 0) return;
+
+      hasLoggedFirstScrollRef.current = true;
+      void addLandingLog("first_scroll_down");
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [abtestType, addLandingLog, landingId]);
+
+  useEffect(() => {
+    if (!landingId || !abtestType || showPreloader) return;
+
+    const sectionElements: Array<{
+      key: NetworkSectionKey;
+      element: HTMLElement | null;
+    }> = [
+      { key: "hero", element: heroSectionRef.current },
+      { key: "social_proof", element: socialProofSectionRef.current },
+      { key: "opportunities", element: opportunitiesSectionRef.current },
+      { key: "faq", element: faqSectionRef.current },
+      { key: "footer", element: footerSectionRef.current },
+    ];
+
+    const observedSections = sectionElements.filter(
+      (
+        section
+      ): section is {
+        key: NetworkSectionKey;
+        element: HTMLElement;
+      } => section.element !== null
+    );
+
+    if (observedSections.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const now = Date.now();
+
+        entries.forEach((entry) => {
+          const section = (entry.target as HTMLElement).dataset.section as
+            | NetworkSectionKey
+            | undefined;
+          if (!section) return;
+
+          const isVisible =
+            entry.isIntersecting &&
+            entry.intersectionRatio >= SECTION_VIEW_INTERSECTION_THRESHOLD;
+
+          if (!isVisible) return;
+
+          const lastLoggedAt = sectionLastLoggedAtRef.current[section] ?? 0;
+          if (now - lastLoggedAt < SECTION_VIEW_LOG_COOLDOWN_MS) return;
+
+          sectionLastLoggedAtRef.current[section] = now;
+          void addLandingLog(`view_section_network_${section}`);
+        });
+      },
+      {
+        root: null,
+        threshold: [0, SECTION_VIEW_INTERSECTION_THRESHOLD, 0.7],
+        rootMargin: "0px 0px -15% 0px",
+      }
+    );
+
+    observedSections.forEach(({ element }) => observer.observe(element));
+    return () => observer.disconnect();
+  }, [abtestType, addLandingLog, landingId, showPreloader]);
+
   const resetInquiryForm = React.useCallback(() => {
     setInquiryEmail("");
     setInquiryContent("");
@@ -803,23 +925,6 @@ const NetworkPage = () => {
     setIsInquiryOpen(false);
     resetInquiryForm();
   }, [isInquirySubmitting, resetInquiryForm]);
-
-  const handleVariantOverride = React.useCallback(
-    (nextVariant: TalentNetworkAbtestType) => {
-      setAbtestType(nextVariant);
-      localStorage.setItem(TALENT_NETWORK_ABTEST_TYPE_KEY, nextVariant);
-    },
-    []
-  );
-
-  const openOnboarding = React.useCallback(
-    (eventType: string, role?: string) => {
-      void addLandingLog(eventType);
-      setSelectedOnboardingRole(role);
-      setIsOnboardingOpen(true);
-    },
-    [addLandingLog]
-  );
 
   useEffect(() => {
     const isOverlayOpen =
@@ -1181,7 +1286,11 @@ const NetworkPage = () => {
           id="top"
           className="mx-auto flex max-w-[1160px] flex-col px-4 pb-24 pt-[72px] md:pt-[96px] "
         >
-          <section className="pt-10 text-center">
+          <section
+            ref={heroSectionRef}
+            data-section="hero"
+            className="pt-10 text-center"
+          >
             <Reveal once delay={0.06} className="mx-auto mt-6 max-w-[900px]">
               <h2
                 className={`${titleTextClassName} text-beige900 text-4xl md:text-5xl`}
@@ -1231,42 +1340,49 @@ const NetworkPage = () => {
             </Reveal> */}
           </section>
 
-          <Reveal
-            once
-            delay={0.08}
-            className="text-center justify-center items-center mt-8 mb-12"
+          <section
+            ref={socialProofSectionRef}
+            data-section="social_proof"
+            className="mt-2"
           >
-            <div className="flex flex-row items-center justify-center gap-2">
-              <div className="relative items-baseline gap-1 font-normal flex text-[15px] md:text-base">
-                <div>100+ engineers and researchers From </div>
+            <Reveal
+              once
+              delay={0.08}
+              className="text-center justify-center items-center mt-8 mb-12"
+            >
+              <div className="flex flex-row items-center justify-center gap-2">
+                <div className="relative items-baseline gap-1 font-normal flex text-[15px] md:text-base">
+                  <div>100+ engineers and researchers From </div>
+                </div>
+                <div className="flex -space-x-2">
+                  {schoolLogos.map((school) => (
+                    <div
+                      key={school.name}
+                      className="h-8 w-8 md:h-10 md:w-10 rounded-full bg-beige500 border border-beige900/20"
+                    >
+                      <Image
+                        src={school.src}
+                        alt={school.name}
+                        className="rounded-full"
+                        width={42}
+                        height={42}
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="flex -space-x-2">
-                {schoolLogos.map((school) => (
-                  <div
-                    key={school.name}
-                    className="h-8 w-8 md:h-10 md:w-10 rounded-full bg-beige500 border border-beige900/20"
-                  >
-                    <Image
-                      src={school.src}
-                      alt={school.name}
-                      className="rounded-full"
-                      width={42}
-                      height={42}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-            {/* <p className="mt-3 text-[17px] leading-[1.55] tracking-[-0.03em] text-beige900/55">
-              매칭을 위해 Active pool을 500명 이하로 관리 예정입니다.
-            </p> */}
-          </Reveal>
+              {/* <p className="mt-3 text-[17px] leading-[1.55] tracking-[-0.03em] text-beige900/55">
+                매칭을 위해 Active pool을 500명 이하로 관리 예정입니다.
+              </p> */}
+            </Reveal>
 
-          <VCLogos abtestType={abtestType ?? "A"} />
+            <VCLogos abtestType={abtestType ?? TALENT_NETWORK_ABTEST_TYPE_A} />
+          </section>
 
           <section
             id="opportunities"
             ref={opportunitiesSectionRef}
+            data-section="opportunities"
             className="mt-32 scroll-mt-24"
           >
             <Reveal once>
@@ -1325,12 +1441,7 @@ const NetworkPage = () => {
                     containerRef={(node) => {
                       requestCardRefs.current[`mobile-${request.id}`] = node;
                     }}
-                    onClick={() => {
-                      void addLandingLog(
-                        `talent_network_click_request_card:${request.id}`
-                      );
-                      setSelectedRequest(request);
-                    }}
+                    onClick={() => handleOpenRequest(request)}
                   />
                 </Reveal>
               ))}
@@ -1350,12 +1461,7 @@ const NetworkPage = () => {
                     containerRef={(node) => {
                       requestCardRefs.current[`desktop-${request.id}`] = node;
                     }}
-                    onClick={() => {
-                      void addLandingLog(
-                        `talent_network_click_request_card:${request.id}`
-                      );
-                      setSelectedRequest(request);
-                    }}
+                    onClick={() => handleOpenRequest(request)}
                   />
                 </Reveal>
               ))}
@@ -1407,7 +1513,12 @@ const NetworkPage = () => {
             </Reveal>
           )}
 
-          <section id="faq" className="py-24">
+          <section
+            id="faq"
+            ref={faqSectionRef}
+            data-section="faq"
+            className="py-24 mt-0 md:mt-8"
+          >
             <Reveal once className="text-center">
               <SectionTag>FAQ</SectionTag>
             </Reveal>
@@ -1427,12 +1538,7 @@ const NetworkPage = () => {
                   <Reveal key={faq.question} once delay={index * 0.04}>
                     <motion.button
                       type="button"
-                      onClick={() => {
-                        void addLandingLog(
-                          `talent_network_click_faq:${index + 1}`
-                        );
-                        setOpenFaqIndex(isOpen ? -1 : index);
-                      }}
+                      onClick={() => handleFaqToggle(index, isOpen)}
                       aria-expanded={isOpen}
                       className="w-full rounded-[24px] bg-beige100 px-6 py-6 shadow-[0_14px_30px_rgba(66,38,10,0.06)]"
                     >
@@ -1468,7 +1574,7 @@ const NetworkPage = () => {
                             className="overflow-hidden"
                           >
                             <p
-                              className="max-w-[720px] text-left text-sm md:text-[15px] leading-[1.6] tracking-[-0.01em] text-beige900/70"
+                              className="w-full text-left text-sm md:text-[15px] leading-[1.6] tracking-[-0.01em] text-beige900/70"
                               dangerouslySetInnerHTML={{ __html: faq.answer }}
                             />
                           </motion.div>
@@ -1494,49 +1600,51 @@ const NetworkPage = () => {
             </Reveal>
           </section>
         </main>
-        <br />
-        <br />
-        <br />
-        <br />
-        <Reveal once delay={0.24} className="w-full">
-          <div className="flex items-center justify-center w-full mt-20 mb-4">
-            <Image
-              src="/images/objects.png"
-              alt="objects"
-              width={256}
-              height={256}
-              className="w-44 sm:w-52 md:w-64"
-            />
-          </div>
-        </Reveal>
+        <div ref={footerSectionRef} data-section="footer">
+          <br />
+          <br />
+          <br />
+          <br />
+          <Reveal once delay={0.24} className="w-full">
+            <div className="flex items-center justify-center w-full mt-20 mb-4">
+              <Image
+                src="/images/objects.png"
+                alt="objects"
+                width={256}
+                height={256}
+                className="w-44 sm:w-52 md:w-64"
+              />
+            </div>
+          </Reveal>
 
-        <footer className="border-t border-beige900/10 py-8">
-          <div className="mx-auto flex max-w-[1160px] flex-col items-center justify-between gap-4 px-4 tracking-[-0.03em] text-beige900/60 md:flex-row">
-            <div className="font-halant text-[28px] tracking-[-0.06em] text-beige900">
-              Harper
+          <footer className="border-t border-beige900/10 py-8">
+            <div className="mx-auto flex max-w-[1160px] flex-col items-center justify-between gap-4 px-4 tracking-[-0.03em] text-beige900/60 md:flex-row">
+              <div className="font-halant text-[28px] tracking-[-0.06em] text-beige900">
+                Harper
+              </div>
+              <div className="flex items-center gap-4 text-base">
+                <Link
+                  href="/terms"
+                  className="cursor-pointer transition hover:text-beige900"
+                >
+                  Terms
+                </Link>
+                <Link
+                  href="/privacy"
+                  className="cursor-pointer transition hover:text-beige900"
+                >
+                  Privacy
+                </Link>
+                <Link
+                  href="https://www.linkedin.com/company/matchharper/"
+                  className="cursor-pointer transition hover:text-beige900"
+                >
+                  LinkedIn
+                </Link>
+              </div>
             </div>
-            <div className="flex items-center gap-4 text-base">
-              <Link
-                href="/terms"
-                className="cursor-pointer transition hover:text-beige900"
-              >
-                Terms
-              </Link>
-              <Link
-                href="/privacy"
-                className="cursor-pointer transition hover:text-beige900"
-              >
-                Privacy
-              </Link>
-              <Link
-                href="https://www.linkedin.com/company/matchharper/"
-                className="cursor-pointer transition hover:text-beige900"
-              >
-                LinkedIn
-              </Link>
-            </div>
-          </div>
-        </footer>
+          </footer>
+        </div>
 
         <AnimatePresence>
           {selectedRequest && (
@@ -1625,8 +1733,7 @@ function VCLogos({ abtestType }: { abtestType: string }) {
     <div className="relative w-[90%] mx-auto overflow-hidden mt-16">
       <Reveal once delay={0.08} className="w-full text-center">
         <div className="w-full text-center text-beige900 text-lg leading-[1.55] tracking-[-0.03em] font-medium">
-          Partnering with{" "}
-          <span className="text-beige900/50">Global AI companies</span>
+          Partnering with <span className="text-beige900/50">AI companies</span>
           <br className="block md:hidden" /> funded by the world&apos;s elite.
         </div>
         {abtestType === TALENT_NETWORK_ABTEST_TYPE_B && (

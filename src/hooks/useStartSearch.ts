@@ -26,7 +26,9 @@ function getLocaleFromCookie(): Locale {
 function getDefaultEnabledSources(
   sourceType?: SearchSource | null
 ): SearchSource[] {
-  return [sourceType === "scholar" ? "scholar" : "linkedin"];
+  if (sourceType === "github") return ["github"];
+  if (sourceType === "scholar") return ["scholar"];
+  return ["linkedin"];
 }
 
 export type ExperienceUserType = ExpUserType & {
@@ -116,7 +118,6 @@ async function fetchSearchIds(params: { runId: string; pageIdx: number }) {
 
   return {
     ids,
-    isNewSearch: false,
   };
 }
 

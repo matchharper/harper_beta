@@ -2,9 +2,15 @@ import crypto from "crypto";
 import { createClient } from "@supabase/supabase-js";
 import { IncomingWebhook } from "@slack/webhook";
 import { resetCreditsForPlan } from "@/lib/billing/server";
+import type {
+  RequestAccessReviewQueueItem,
+  RequestAccessReviewQueueResponse,
+  RequestAccessReviewStatus,
+} from "@/lib/requestAccess/types";
 import type { Database } from "@/types/database.types";
 
 export const REQUEST_ACCESS_APPROVE_ACTION_ID = "request_access_approve";
+export const REQUEST_ACCESS_REVIEW_PAGE_PATH = "/ops/request-access/review";
 
 const REQUEST_ACCESS_STATUS_PENDING = "pending";
 const REQUEST_ACCESS_STATUS_APPROVED = "approved";
@@ -23,6 +29,57 @@ type RequestAccessRow =
   Database["public"]["Tables"]["harper_waitlist_company"]["Row"];
 
 type SupabaseAdminClient = ReturnType<typeof createSupabaseAdminClient>;
+type RequestAccessApprovalRow = Pick<
+  RequestAccessRow,
+  | "email"
+  | "name"
+  | "company"
+  | "role"
+  | "needs"
+  | "status"
+  | "access_granted_at"
+  | "approval_token"
+>;
+
+type RequestAccessQueueRow = Pick<
+  RequestAccessRow,
+  | "access_granted_at"
+  | "approval_email_sent_at"
+  | "approved_at"
+  | "company"
+  | "created_at"
+  | "email"
+  | "name"
+  | "needs"
+  | "role"
+  | "status"
+  | "user_id"
+>;
+
+export type RequestAccessApprovalDraft = {
+  status: "pending" | "approved" | "already_granted";
+  email: string;
+  name: string | null;
+  company: string | null;
+  role: string | null;
+  hiringNeed: string | null;
+  accessGrantedAt: string | null;
+  activationUrl: string;
+  from: string;
+  subject: string;
+  html: string;
+  text: string;
+};
+
+function toRequestAccessReviewStatus(
+  row: Pick<RequestAccessRow, "access_granted_at" | "status">
+): RequestAccessReviewStatus {
+  if (row.access_granted_at) {
+    return "already_granted";
+  }
+
+  return row.status === REQUEST_ACCESS_STATUS_APPROVED ? "approved" : "pending";
+}
 
 function createSupabaseAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -52,6 +109,32 @@ function makeApprovalToken() {
   return crypto.randomBytes(24).toString("base64url");
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function htmlToText(html: string) {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<\s*br\s*\/?>/gi, "\n")
+    .replace(/<\/\s*(p|div|li|tr|h[1-6])\s*>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function getSlackWebhook() {
   const webhookUrl = process.env.SLACK_TOKEN?.trim();
   if (!webhookUrl) {
@@ -75,6 +158,84 @@ function getSiteUrlFromRequest(req: Request) {
   return `${proto}://${host}`.replace(/\/+$/, "");
 }
 
+function getRequestAccessReviewSecret() {
+  const secret =
+    process.env.REQUEST_ACCESS_REVIEW_SECRET?.trim() ??
+    process.env.SLACK_SIGNING_SECRET?.trim() ??
+    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+
+  if (!secret) {
+    throw new Error(
+      "REQUEST_ACCESS_REVIEW_SECRET, SLACK_SIGNING_SECRET, or SUPABASE_SERVICE_ROLE_KEY is required"
+    );
+  }
+
+  return secret;
+}
+
+function signRequestAccessReviewPayload(payload: string) {
+  return crypto
+    .createHmac("sha256", getRequestAccessReviewSecret())
+    .update(payload)
+    .digest("base64url");
+}
+
+export function buildRequestAccessReviewToken(email: string) {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) {
+    throw new Error("Request access review email is required");
+  }
+
+  const payload = Buffer.from(
+    JSON.stringify({ email: normalizedEmail }),
+    "utf8"
+  ).toString("base64url");
+
+  return `${payload}.${signRequestAccessReviewPayload(payload)}`;
+}
+
+export function parseRequestAccessReviewToken(token: string) {
+  const normalizedToken = normalizeText(token);
+  const dotIndex = normalizedToken.lastIndexOf(".");
+
+  if (dotIndex <= 0 || dotIndex >= normalizedToken.length - 1) {
+    throw new Error("Invalid request access review token");
+  }
+
+  const payload = normalizedToken.slice(0, dotIndex);
+  const signature = normalizedToken.slice(dotIndex + 1);
+  const expectedSignature = signRequestAccessReviewPayload(payload);
+
+  try {
+    if (
+      !crypto.timingSafeEqual(
+        Buffer.from(signature),
+        Buffer.from(expectedSignature)
+      )
+    ) {
+      throw new Error("Invalid request access review token");
+    }
+  } catch {
+    throw new Error("Invalid request access review token");
+  }
+
+  let parsed: { email?: string };
+  try {
+    parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as {
+      email?: string;
+    };
+  } catch {
+    throw new Error("Invalid request access review token");
+  }
+
+  const email = normalizeEmail(parsed.email);
+  if (!email) {
+    throw new Error("Invalid request access review token");
+  }
+
+  return email;
+}
+
 async function getFreePlan(supabaseAdmin: SupabaseAdminClient) {
   const { data, error } = await supabaseAdmin
     .from("plans")
@@ -93,7 +254,8 @@ function buildSlackBlocks(
   row: Pick<
     RequestAccessRow,
     "email" | "name" | "company" | "role" | "needs" | "user_id"
-  >
+  >,
+  reviewUrl: string
 ) {
   const hiringNeed = Array.isArray(row.needs) ? row.needs[0] : null;
 
@@ -129,6 +291,24 @@ function buildSlackBlocks(
             email: row.email,
           }),
         },
+        {
+          type: "button",
+          text: {
+            type: "plain_text",
+            text: "Customize Email",
+            emoji: true,
+          },
+          url: reviewUrl,
+        },
+      ],
+    },
+    {
+      type: "context",
+      elements: [
+        {
+          type: "mrkdwn",
+          text: `Custom email draft: <${reviewUrl}|${reviewUrl.replace(/^https?:\/\//, "")}>`,
+        },
       ],
     },
   ];
@@ -138,12 +318,17 @@ async function sendSlackRequestAccessMessage(
   row: Pick<
     RequestAccessRow,
     "email" | "name" | "company" | "role" | "needs" | "user_id"
-  >
+  >,
+  baseUrl: string
 ) {
   const webhook = getSlackWebhook();
+  const reviewUrl = buildRequestAccessReviewUrl({
+    email: row.email ?? "",
+    baseUrl,
+  });
   await webhook.send({
     text: `Request access submitted: ${row.email || "unknown email"}`,
-    blocks: buildSlackBlocks(row),
+    blocks: buildSlackBlocks(row, reviewUrl),
   });
 }
 
@@ -151,8 +336,13 @@ async function sendSlackApprovalEmailNotification(args: {
   email: string;
   name?: string | null;
   approvedBy: string;
+  mode?: "default" | "custom";
 }) {
   const webhook = getSlackWebhook();
+  const statusLabel =
+    args.mode === "custom"
+      ? "Approval email sent (customized)"
+      : "Approval email sent";
   await webhook.send({
     text: `Approval email sent: ${args.email}`,
     blocks: [
@@ -165,7 +355,7 @@ async function sendSlackApprovalEmailNotification(args: {
             `• *Name*: ${args.name || "N/A"}`,
             `• *Email*: ${args.email}`,
             `• *Approved By*: ${args.approvedBy || "unknown"}`,
-            `• *Status*: Approval email sent`,
+            `• *Status*: ${statusLabel}`,
           ].join("\n"),
         },
       },
@@ -175,7 +365,7 @@ async function sendSlackApprovalEmailNotification(args: {
 
 function getMailerConfig() {
   const apiKey = process.env.RESEND_API_KEY?.trim();
-  const from =
+  const defaultFrom =
     process.env.REQUEST_ACCESS_FROM_EMAIL?.trim() ??
     process.env.RESEND_FROM_EMAIL?.trim();
 
@@ -183,31 +373,32 @@ function getMailerConfig() {
     throw new Error("RESEND_API_KEY is not configured");
   }
 
-  if (!from) {
+  if (!defaultFrom) {
     throw new Error(
       "REQUEST_ACCESS_FROM_EMAIL or RESEND_FROM_EMAIL is not configured"
     );
   }
 
-  return { apiKey, from };
+  return { apiKey, defaultFrom };
 }
 
-async function sendRequestAccessApprovedEmail(args: {
-  to: string;
+function buildDefaultRequestAccessApprovedEmail(args: {
   name?: string | null;
   activationUrl: string;
 }) {
-  const { apiKey, from } = getMailerConfig();
   const recipientName = normalizeText(args.name) || "there";
+  const safeRecipientName = escapeHtml(recipientName);
+  const safeActivationUrl = escapeHtml(args.activationUrl);
+  const subject = "Your Harper access is ready";
   const html = `
     <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111;">
-      <p>Hi ${recipientName},</p>
+      <p>Hi ${safeRecipientName},</p>
       <p>Welcome to Harper!</p>
       <p>Your Harper request access has been approved.</p>
       <p>Click the link below to activate your access and go straight into Harper.</p>
-      <p><a href="${args.activationUrl}" style="color: #0f172a;">Activate Harper Access</a></p>
+      <p><a href="${safeActivationUrl}" style="color: #0f172a;">Activate Harper Access</a></p>
       <p>If the link does not open, paste this URL into your browser:</p>
-      <p>${args.activationUrl}</p>
+      <p>${safeActivationUrl}</p>
     </div>
   `;
   const text = [
@@ -218,6 +409,23 @@ async function sendRequestAccessApprovedEmail(args: {
     args.activationUrl,
   ].join("\n");
 
+  return {
+    subject,
+    html,
+    text,
+  };
+}
+
+async function sendRequestAccessApprovedEmail(args: {
+  to: string;
+  from?: string | null;
+  subject: string;
+  html: string;
+  text?: string;
+}) {
+  const { apiKey, defaultFrom } = getMailerConfig();
+  const from = normalizeText(args.from) || defaultFrom;
+
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -227,9 +435,9 @@ async function sendRequestAccessApprovedEmail(args: {
     body: JSON.stringify({
       from,
       to: [args.to],
-      subject: "Your Harper access is ready",
-      html,
-      text,
+      subject: args.subject,
+      html: args.html,
+      text: args.text,
     }),
   });
 
@@ -289,6 +497,16 @@ async function upsertCompanyUserFromRequest(args: {
   };
 }
 
+export function buildRequestAccessReviewUrl(args: {
+  email: string;
+  baseUrl: string;
+}) {
+  const token = buildRequestAccessReviewToken(args.email);
+  return `${args.baseUrl}${REQUEST_ACCESS_REVIEW_PAGE_PATH}?request=${encodeURIComponent(
+    token
+  )}`;
+}
+
 export async function submitRequestAccess(
   args: RequestAccessSubmitInput & { req: Request }
 ) {
@@ -299,8 +517,8 @@ export async function submitRequestAccess(
   const role = normalizeText(args.role);
   const hiringNeed = normalizeText(args.hiringNeed);
 
-  if (!email || !name || !company || !role || !hiringNeed) {
-    throw new Error("All request access fields are required");
+  if (!email || !name || !company) {
+    throw new Error("Name and company are required");
   }
 
   const payload: Database["public"]["Tables"]["harper_waitlist_company"]["Insert"] =
@@ -309,8 +527,8 @@ export async function submitRequestAccess(
       email,
       name,
       company,
-      role,
-      needs: [hiringNeed],
+      role: role || null,
+      needs: hiringNeed ? [hiringNeed] : null,
       is_mobile: args.isMobile ?? null,
       is_submit: true,
       status: REQUEST_ACCESS_STATUS_PENDING,
@@ -335,13 +553,16 @@ export async function submitRequestAccess(
     email,
     name,
     company,
-    role,
-    needs: [hiringNeed],
+    role: role || null,
+    needs: hiringNeed ? [hiringNeed] : null,
     user_id: args.userId,
     ...(data ?? {}),
   };
 
-  await sendSlackRequestAccessMessage(slackRow);
+  await sendSlackRequestAccessMessage(
+    slackRow,
+    getRequestAccessBaseUrl(args.req)
+  );
   return slackRow;
 }
 
@@ -358,43 +579,225 @@ export function buildRequestAccessActivationUrl(args: {
   )}`;
 }
 
-export async function approveRequestAccess(args: {
+async function getRequestAccessApprovalRow(args: {
+  supabaseAdmin: SupabaseAdminClient;
   email: string;
-  approvedBy: string;
-  baseUrl: string;
 }) {
-  const supabaseAdmin = createSupabaseAdminClient();
-  const email = normalizeEmail(args.email);
-
-  const { data: row, error: readError } = await supabaseAdmin
+  const { data: row, error } = await args.supabaseAdmin
     .from("harper_waitlist_company")
     .select(
-      "user_id, email, name, company, role, needs, status, access_granted_at"
+      "email, name, company, role, needs, status, access_granted_at, approval_token"
     )
-    .eq("email", email)
+    .eq("email", args.email)
     .maybeSingle();
 
-  if (readError) {
-    throw readError;
+  if (error) {
+    throw error;
   }
 
   if (!row?.email) {
     throw new Error("Request access row not found");
   }
 
-  if (row.access_granted_at) {
+  return row as RequestAccessApprovalRow;
+}
+
+async function ensureRequestAccessApprovalToken(args: {
+  supabaseAdmin: SupabaseAdminClient;
+  email: string;
+  currentToken?: string | null;
+}) {
+  const existingToken = normalizeText(args.currentToken);
+  if (existingToken) {
+    return existingToken;
+  }
+
+  const approvalToken = makeApprovalToken();
+  const { error } = await args.supabaseAdmin
+    .from("harper_waitlist_company")
+    .update({
+      approval_token: approvalToken,
+    })
+    .eq("email", args.email);
+
+  if (error) {
+    throw error;
+  }
+
+  return approvalToken;
+}
+
+async function resolveRequestAccessApprovalContext(args: {
+  supabaseAdmin: SupabaseAdminClient;
+  email: string;
+  baseUrl: string;
+}) {
+  const row = await getRequestAccessApprovalRow({
+    supabaseAdmin: args.supabaseAdmin,
+    email: args.email,
+  });
+  const approvalToken = await ensureRequestAccessApprovalToken({
+    supabaseAdmin: args.supabaseAdmin,
+    email: row.email,
+    currentToken: row.approval_token,
+  });
+  const activationUrl = buildRequestAccessActivationUrl({
+    token: approvalToken,
+    baseUrl: args.baseUrl,
+  });
+  const defaultEmail = buildDefaultRequestAccessApprovedEmail({
+    name: row.name,
+    activationUrl,
+  });
+
+  return {
+    row,
+    approvalToken,
+    activationUrl,
+    defaultEmail,
+    hiringNeed: Array.isArray(row.needs) ? (row.needs[0] ?? null) : null,
+  };
+}
+
+export async function prepareRequestAccessApprovalDraft(args: {
+  request: string;
+  baseUrl: string;
+}) {
+  const supabaseAdmin = createSupabaseAdminClient();
+  const { defaultFrom } = getMailerConfig();
+  const email = parseRequestAccessReviewToken(args.request);
+  const context = await resolveRequestAccessApprovalContext({
+    supabaseAdmin,
+    email,
+    baseUrl: args.baseUrl,
+  });
+  const status = toRequestAccessReviewStatus(context.row);
+
+  return {
+    status,
+    email: context.row.email,
+    name: context.row.name,
+    company: context.row.company,
+    role: context.row.role,
+    hiringNeed: context.hiringNeed,
+    accessGrantedAt: context.row.access_granted_at,
+    activationUrl: context.activationUrl,
+    from: defaultFrom,
+    subject: context.defaultEmail.subject,
+    html: context.defaultEmail.html,
+    text: context.defaultEmail.text,
+  } satisfies RequestAccessApprovalDraft;
+}
+
+export async function listRequestAccessReviewQueue(args: {
+  baseUrl: string;
+}): Promise<RequestAccessReviewQueueResponse> {
+  const supabaseAdmin = createSupabaseAdminClient();
+  const { data, error } = await supabaseAdmin
+    .from("harper_waitlist_company")
+    .select(
+      "access_granted_at, approval_email_sent_at, approved_at, company, created_at, email, name, needs, role, status, user_id"
+    )
+    .eq("is_submit", true)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  const statusWeight: Record<RequestAccessReviewStatus, number> = {
+    pending: 0,
+    approved: 1,
+    already_granted: 2,
+  };
+
+  const items = ((data ?? []) as RequestAccessQueueRow[])
+    .map((row) => {
+      const status = toRequestAccessReviewStatus(row);
+
+      return {
+        accessGrantedAt: row.access_granted_at,
+        approvalEmailSentAt: row.approval_email_sent_at,
+        approvedAt: row.approved_at,
+        company: row.company,
+        createdAt: row.created_at,
+        email: row.email,
+        hiringNeed: Array.isArray(row.needs) ? (row.needs[0] ?? null) : null,
+        name: row.name,
+        requestToken: buildRequestAccessReviewToken(row.email),
+        reviewUrl: buildRequestAccessReviewUrl({
+          email: row.email,
+          baseUrl: args.baseUrl,
+        }),
+        role: row.role,
+        status,
+        userId: row.user_id,
+      } satisfies RequestAccessReviewQueueItem;
+    })
+    .sort((left, right) => {
+      const statusDelta = statusWeight[left.status] - statusWeight[right.status];
+      if (statusDelta !== 0) {
+        return statusDelta;
+      }
+
+      return right.createdAt.localeCompare(left.createdAt);
+    });
+
+  const counts = items.reduce(
+    (acc, item) => {
+      acc.total += 1;
+
+      if (item.status === "pending") {
+        acc.pending += 1;
+      } else if (item.status === "approved") {
+        acc.approved += 1;
+      } else {
+        acc.alreadyGranted += 1;
+      }
+
+      return acc;
+    },
+    {
+      alreadyGranted: 0,
+      approved: 0,
+      pending: 0,
+      total: 0,
+    }
+  );
+
+  return {
+    counts,
+    items,
+  };
+}
+
+export async function sendRequestAccessApprovalEmail(args: {
+  email: string;
+  approvedBy: string;
+  baseUrl: string;
+  from?: string | null;
+  subject?: string | null;
+  html?: string | null;
+}) {
+  const supabaseAdmin = createSupabaseAdminClient();
+  const email = normalizeEmail(args.email);
+  const context = await resolveRequestAccessApprovalContext({
+    supabaseAdmin,
+    email,
+    baseUrl: args.baseUrl,
+  });
+
+  if (context.row.access_granted_at) {
     return {
       status: "already_granted" as const,
-      email: row.email,
+      email: context.row.email,
     };
   }
 
-  const token = makeApprovalToken();
+  const subject = normalizeText(args.subject) || context.defaultEmail.subject;
+  const html = normalizeText(args.html) || context.defaultEmail.html;
+  const text = htmlToText(html) || context.defaultEmail.text;
   const nowIso = new Date().toISOString();
-  const activationUrl = buildRequestAccessActivationUrl({
-    token,
-    baseUrl: args.baseUrl,
-  });
 
   const { error: updateError } = await supabaseAdmin
     .from("harper_waitlist_company")
@@ -402,26 +805,33 @@ export async function approveRequestAccess(args: {
       status: REQUEST_ACCESS_STATUS_APPROVED,
       approved_at: nowIso,
       approved_by: args.approvedBy,
-      approval_token: token,
+      approval_token: context.approvalToken,
       approval_email_sent_at: nowIso,
     })
-    .eq("email", row.email);
+    .eq("email", context.row.email);
 
   if (updateError) {
     throw updateError;
   }
 
   await sendRequestAccessApprovedEmail({
-    to: row.email,
-    name: row.name,
-    activationUrl,
+    to: context.row.email,
+    from: args.from,
+    subject,
+    html,
+    text,
   });
 
   try {
     await sendSlackApprovalEmailNotification({
-      email: row.email,
-      name: row.name,
+      email: context.row.email,
+      name: context.row.name,
       approvedBy: args.approvedBy,
+      mode:
+        subject !== context.defaultEmail.subject ||
+        html !== context.defaultEmail.html
+          ? "custom"
+          : "default",
     });
   } catch (error) {
     console.error("[request-access] approval slack notify failed", error);
@@ -429,8 +839,16 @@ export async function approveRequestAccess(args: {
 
   return {
     status: "approved" as const,
-    email: row.email,
+    email: context.row.email,
   };
+}
+
+export async function approveRequestAccess(args: {
+  email: string;
+  approvedBy: string;
+  baseUrl: string;
+}) {
+  return sendRequestAccessApprovalEmail(args);
 }
 
 export async function activateRequestAccess(args: {

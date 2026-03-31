@@ -28,9 +28,6 @@ import { CandidateDetail } from "@/hooks/useCandidateDetail";
 import { Skeleton } from "../ui/skeleton";
 import ChatSettingsModal from "../Modal/ChatSettingsModal";
 import { useSettings } from "@/hooks/useSettings";
-import { useCredits } from "@/hooks/useCredit";
-import { MIN_CREDITS_FOR_SEARCH } from "@/utils/constantkeys";
-import CreditModal from "../Modal/CreditModal";
 import { supabase } from "@/lib/supabase";
 import {
   ACTIVE_PARALLEL_SEARCH_STATUSES,
@@ -123,12 +120,10 @@ export default function ChatPanel({
   const [stickToBottom, setStickToBottom] = useState(true);
   const [showJumpToBottom, setShowJumpToBottom] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isNoCreditModalOpen, setIsNoCreditModalOpen] = useState(false);
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [isReadingFile, setIsReadingFile] = useState(false);
   const { companyUser } = useCompanyUserStore();
 
-  const { credits } = useCredits();
   const { planKey, load: loadPlan } = usePlanStore();
 
   const router = useRouter();
@@ -362,12 +357,8 @@ export default function ChatPanel({
       });
       return false;
     }
-    if (credits && credits.remain_credit <= MIN_CREDITS_FOR_SEARCH) {
-      setIsNoCreditModalOpen(true);
-      return false;
-    }
     return true;
-  }, [canSearch, credits, planKey, userId]);
+  }, [canSearch, planKey, userId]);
 
   const startSearchWithPendingUi = useCallback(
     async (launch: () => Promise<string | null>) => {
@@ -623,10 +614,6 @@ export default function ChatPanel({
 
   return (
     <div className="w-full flex flex-col min-h-0 h-screen">
-      <CreditModal
-        open={isNoCreditModalOpen}
-        onClose={() => setIsNoCreditModalOpen(false)}
-      />
       {/* Header (fixed) */}
       <div className="flex items-center justify-between flex-none h-14 px-4 text-hgray900">
         <div

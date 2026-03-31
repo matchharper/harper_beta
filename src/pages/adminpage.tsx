@@ -87,7 +87,6 @@ type TalentNetworkVariantFunnelSummary = TalentNetworkFunnelSummary & {
   abtestType: string;
   label: string;
 };
-
 type WaitlistCompany = {
   additional: string | null;
   company: string | null;
@@ -222,7 +221,6 @@ function formatTalentNetworkEventName(type: string) {
     .replace(/:/g, " / ")
     .replace(/_/g, " ");
 }
-
 function formatPercent(numerator: number, denominator: number) {
   if (denominator === 0) return "0.0%";
   return `${((numerator / denominator) * 100).toFixed(1)}%`;
@@ -279,7 +277,9 @@ function buildTalentNetworkFunnelSummary(
     totalUsers: groups.length,
     onboardingStartUsers: steps[0]?.userCount ?? 0,
     submittedUsers: groups.filter((group) =>
-      group.logs.some((log) => log.type === TALENT_NETWORK_SUBMIT_COMPLETED_EVENT)
+      group.logs.some(
+        (log) => log.type === TALENT_NETWORK_SUBMIT_COMPLETED_EVENT
+      )
     ).length,
     steps,
   };
@@ -560,15 +560,17 @@ const AdminPage = () => {
 
         if (error) throw error;
 
-        const rows = ((data ?? []) as Array<{
-          id: number | string | null;
-          local_id: string | null;
-          type: string | null;
-          abtest_type: string | null;
-          created_at: string;
-          is_mobile: boolean | null;
-          country_lang: string | null;
-        }>).flatMap((row) => {
+        const rows = (
+          (data ?? []) as Array<{
+            id: number | string | null;
+            local_id: string | null;
+            type: string | null;
+            abtest_type: string | null;
+            created_at: string;
+            is_mobile: boolean | null;
+            country_lang: string | null;
+          }>
+        ).flatMap((row) => {
           if (
             row.id === null ||
             typeof row.local_id !== "string" ||
@@ -601,7 +603,9 @@ const AdminPage = () => {
       setNetworkAnalyticsLogs(allLogs);
       setNetworkAnalyticsLoaded(true);
     } catch (e: any) {
-      setNetworkAnalyticsError(e?.message ?? "Failed to load network analytics");
+      setNetworkAnalyticsError(
+        e?.message ?? "Failed to load network analytics"
+      );
     } finally {
       setNetworkAnalyticsLoading(false);
     }
@@ -992,14 +996,15 @@ const AdminPage = () => {
 
     io.observe(el);
     return () => io.disconnect();
-  }, [
-    activeTab,
-    fetchPage,
-  ]);
+  }, [activeTab, fetchPage]);
 
   useEffect(() => {
     if (activeTab !== "networkAnalytics") return;
-    if (networkAnalyticsLoaded || networkAnalyticsLoading || networkAnalyticsError)
+    if (
+      networkAnalyticsLoaded ||
+      networkAnalyticsLoading ||
+      networkAnalyticsError
+    )
       return;
     void fetchNetworkAnalyticsLogs();
   }, [
@@ -1226,18 +1231,18 @@ const AdminPage = () => {
     );
 
     return uniqueVariants.map((abtestType) => {
-      const summary =
-        buildTalentNetworkFunnelSummary(networkGroupsByVariant.get(abtestType) ?? []) ??
-        {
-          totalUsers: 0,
-          onboardingStartUsers: 0,
-          submittedUsers: 0,
-          steps: TALENT_NETWORK_ONBOARDING_STEPS.map((item) => ({
-            step: item.step,
-            label: item.label,
-            userCount: 0,
-          })),
-        };
+      const summary = buildTalentNetworkFunnelSummary(
+        networkGroupsByVariant.get(abtestType) ?? []
+      ) ?? {
+        totalUsers: 0,
+        onboardingStartUsers: 0,
+        submittedUsers: 0,
+        steps: TALENT_NETWORK_ONBOARDING_STEPS.map((item) => ({
+          step: item.step,
+          label: item.label,
+          userCount: 0,
+        })),
+      };
 
       return {
         ...summary,
@@ -1247,79 +1252,78 @@ const AdminPage = () => {
     });
   }, [networkGroupsByVariant]);
 
-  const talentNetworkButtonSummary = useMemo<TalentNetworkButtonSummary[]>(
-    () => {
-      if (networkGrouped.length === 0) return [];
+  const talentNetworkButtonSummary = useMemo<
+    TalentNetworkButtonSummary[]
+  >(() => {
+    if (networkGrouped.length === 0) return [];
 
-      const counter = new Map<
-        string,
-        {
-          totalClicks: number;
-          users: Set<string>;
-          byVariant: Map<
-            string,
-            {
-              totalClicks: number;
-              users: Set<string>;
-            }
-          >;
-        }
-      >();
-
-      for (const group of networkGrouped) {
-        const variantKey = group.abtest_type || "unknown";
-
-        for (const log of group.logs) {
-          if (!log.type.startsWith(TALENT_NETWORK_CLICK_EVENT_PREFIX)) continue;
-
-          const current = counter.get(log.type) ?? {
-            totalClicks: 0,
-            users: new Set<string>(),
-            byVariant: new Map(),
-          };
-          current.totalClicks += 1;
-          current.users.add(group.local_id);
-
-          const currentVariant = current.byVariant.get(variantKey) ?? {
-            totalClicks: 0,
-            users: new Set<string>(),
-          };
-          currentVariant.totalClicks += 1;
-          currentVariant.users.add(group.local_id);
-          current.byVariant.set(variantKey, currentVariant);
-
-          counter.set(log.type, current);
-        }
+    const counter = new Map<
+      string,
+      {
+        totalClicks: number;
+        users: Set<string>;
+        byVariant: Map<
+          string,
+          {
+            totalClicks: number;
+            users: Set<string>;
+          }
+        >;
       }
+    >();
 
-      return Array.from(counter.entries())
-        .map(([eventType, summary]) => ({
-          eventType,
-          totalClicks: summary.totalClicks,
-          uniqueUsers: summary.users.size,
-          variantBreakdown: Array.from(summary.byVariant.entries())
-            .map(([abtestType, variant]) => ({
-              abtestType,
-              label: getTalentNetworkVariantLabel(abtestType),
-              totalClicks: variant.totalClicks,
-              uniqueUsers: variant.users.size,
-            }))
-            .sort((a, b) =>
-              compareTalentNetworkVariantType(a.abtestType, b.abtestType)
-            ),
-        }))
-        .sort((a, b) => {
-          if (b.uniqueUsers !== a.uniqueUsers) {
-            return b.uniqueUsers - a.uniqueUsers;
-          }
-          if (b.totalClicks !== a.totalClicks) {
-            return b.totalClicks - a.totalClicks;
-          }
-          return a.eventType.localeCompare(b.eventType);
-        });
-    },
-    [networkGrouped]
-  );
+    for (const group of networkGrouped) {
+      const variantKey = group.abtest_type || "unknown";
+
+      for (const log of group.logs) {
+        if (!log.type.startsWith(TALENT_NETWORK_CLICK_EVENT_PREFIX)) continue;
+
+        const current = counter.get(log.type) ?? {
+          totalClicks: 0,
+          users: new Set<string>(),
+          byVariant: new Map(),
+        };
+        current.totalClicks += 1;
+        current.users.add(group.local_id);
+
+        const currentVariant = current.byVariant.get(variantKey) ?? {
+          totalClicks: 0,
+          users: new Set<string>(),
+        };
+        currentVariant.totalClicks += 1;
+        currentVariant.users.add(group.local_id);
+        current.byVariant.set(variantKey, currentVariant);
+
+        counter.set(log.type, current);
+      }
+    }
+
+    return Array.from(counter.entries())
+      .map(([eventType, summary]) => ({
+        eventType,
+        totalClicks: summary.totalClicks,
+        uniqueUsers: summary.users.size,
+        variantBreakdown: Array.from(summary.byVariant.entries())
+          .map(([abtestType, variant]) => ({
+            abtestType,
+            label: getTalentNetworkVariantLabel(abtestType),
+            totalClicks: variant.totalClicks,
+            uniqueUsers: variant.users.size,
+          }))
+          .sort((a, b) =>
+            compareTalentNetworkVariantType(a.abtestType, b.abtestType)
+          ),
+      }))
+      .sort((a, b) => {
+        if (b.uniqueUsers !== a.uniqueUsers) {
+          return b.uniqueUsers - a.uniqueUsers;
+        }
+        if (b.totalClicks !== a.totalClicks) {
+          return b.totalClicks - a.totalClicks;
+        }
+        return a.eventType.localeCompare(b.eventType);
+      });
+  }, [networkGrouped]);
 
   const blogMetricsSummary = useMemo(() => {
     const totalPosts = blogMetricRows.length;
@@ -1366,47 +1370,47 @@ const AdminPage = () => {
     : isNetworkAnalyticsTab
       ? "Network Analytics Admin"
       : isWaitlistTab
-      ? "Waitlist Company Admin"
-      : isBlogMetricsTab
-        ? "Blog Metrics Admin"
-        : isBookmarkFoldersTab
-          ? "Bookmark Folder Admin"
-          : "User Analytics Admin";
+        ? "Waitlist Company Admin"
+        : isBlogMetricsTab
+          ? "Blog Metrics Admin"
+          : isBookmarkFoldersTab
+            ? "Bookmark Folder Admin"
+            : "User Analytics Admin";
   const pageSubTitle = isLandingTab
     ? "local_id 기준 · 액션 타임라인"
     : isNetworkAnalyticsTab
       ? "Talent Network A/B test · funnel · button clicks"
       : isWaitlistTab
-      ? "harper_waitlist_company 목록"
-      : isBlogMetricsTab
-        ? "blog slug 기준 조회/전환 집계"
-        : isBookmarkFoldersTab
-          ? "유저별 북마크 폴더와 저장 후보 조회"
-          : "company_users 기준 검색/프로필/링크 클릭 지표 조회";
+        ? "harper_waitlist_company 목록"
+        : isBlogMetricsTab
+          ? "blog slug 기준 조회/전환 집계"
+          : isBookmarkFoldersTab
+            ? "유저별 북마크 폴더와 저장 후보 조회"
+            : "company_users 기준 검색/프로필/링크 클릭 지표 조회";
   const isLoading = isLandingTab
     ? loading || loadingMore
     : isNetworkAnalyticsTab
       ? networkAnalyticsLoading
       : isWaitlistTab
-      ? waitlistLoading
-      : isBlogMetricsTab
-        ? blogMetricsLoading
-        : isBookmarkFoldersTab
-          ? bookmarkUsersLoading ||
-            bookmarkFoldersLoading ||
-            bookmarkFolderItemsLoading
-          : userAnalyticsUsersLoading || userAnalyticsDetailLoading;
+        ? waitlistLoading
+        : isBlogMetricsTab
+          ? blogMetricsLoading
+          : isBookmarkFoldersTab
+            ? bookmarkUsersLoading ||
+              bookmarkFoldersLoading ||
+              bookmarkFolderItemsLoading
+            : userAnalyticsUsersLoading || userAnalyticsDetailLoading;
   const pageError = isLandingTab
     ? error
     : isNetworkAnalyticsTab
       ? networkAnalyticsError
       : isWaitlistTab
-      ? waitlistError
-      : isBlogMetricsTab
-        ? blogMetricsError
-        : isBookmarkFoldersTab
-          ? null
-          : null;
+        ? waitlistError
+        : isBlogMetricsTab
+          ? blogMetricsError
+          : isBookmarkFoldersTab
+            ? null
+            : null;
 
   if (!isPassed) {
     return (
@@ -1764,7 +1768,9 @@ const AdminPage = () => {
             <div className="mb-4 flex items-center justify-between w-full">
               <div className="text-[12px] text-black/55">
                 Loaded logs:{" "}
-                <span className="text-black">{networkAnalyticsLogs.length}</span>{" "}
+                <span className="text-black">
+                  {networkAnalyticsLogs.length}
+                </span>{" "}
                 · Users:{" "}
                 <span className="text-black">{networkGrouped.length}</span>
               </div>
@@ -1950,10 +1956,11 @@ const AdminPage = () => {
                               {step.label}
                             </td>
                             {talentNetworkVariantColumns.map((variant) => {
-                              const summary = talentNetworkVariantSummaries.find(
-                                (item) =>
-                                  item.abtestType === variant.abtestType
-                              );
+                              const summary =
+                                talentNetworkVariantSummaries.find(
+                                  (item) =>
+                                    item.abtestType === variant.abtestType
+                                );
                               const stepSummary = summary?.steps.find(
                                 (item) => item.step === step.step
                               );

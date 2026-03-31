@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import {
+    applyDetailRevealState,
+    fetchRevealMapForUser,
+} from "@/lib/server/candidateAccess";
 
 export const runtime = "nodejs";
 
@@ -52,8 +56,15 @@ export async function GET(req: Request) {
         if (candidErr) return NextResponse.json({ error: candidErr.message }, { status: 500 });
         if (!candid) return NextResponse.json({ error: "Candidate not found" }, { status: 404 });
 
+        const revealMap = await fetchRevealMapForUser(
+            supabaseAdmin as any,
+            String(share.created_by ?? ""),
+            [String(share.candid_id ?? "")]
+        );
+        const isRevealed = revealMap.get(String(share.candid_id ?? "")) === true;
+
         let messages: any[] = [];
-        if (share.include_chat) {
+        if (share.include_chat && isRevealed) {
             // ⚠️ 너 테이블 스키마에 맞게 수정 필요
             const { data: msgs, error: msgErr } = await supabaseAdmin
                 .from("messages")
@@ -66,7 +77,11 @@ export async function GET(req: Request) {
             messages = msgs ?? [];
         }
 
-        return NextResponse.json({ candid, include_chat: share.include_chat, messages });
+        return NextResponse.json({
+            candid: applyDetailRevealState(candid, isRevealed),
+            include_chat: share.include_chat,
+            messages,
+        });
     } catch (e: any) {
         return NextResponse.json(
             { error: e?.message ?? "Unknown error" },

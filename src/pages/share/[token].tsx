@@ -147,6 +147,7 @@ export default function ShareTokenPage() {
                 headline={candid.headline}
                 location={candid.location}
                 links={links}
+                profileRevealed={candid.profile_revealed !== false}
               />
 
               {/* 오른쪽 정보/액션 (공유 전용) */}
@@ -173,6 +174,7 @@ export default function ShareTokenPage() {
                 name={candid.name ?? ""}
                 oneline={candid.oneline ?? ""} // 없으면 빈값
                 isLoadingOneline={false}
+                profileRevealed={candid.profile_revealed !== false}
               />
             </div>
           </div>
@@ -193,6 +195,7 @@ export default function ShareTokenPage() {
                     description={e.description}
                     logo_url={e?.company_db?.logo}
                     months={e.months}
+                    disableEntityClick={candid.profile_revealed === false}
                   />
                 ))}
               </div>
@@ -217,6 +220,7 @@ export default function ShareTokenPage() {
                     link={ed.url}
                     description={""}
                     typed="edu"
+                    disableEntityClick={candid.profile_revealed === false}
                   />
                 ))}
               </div>
@@ -256,6 +260,7 @@ export default function ShareTokenPage() {
                     published_at={p.published_at}
                     link={p.link}
                     citation_num={p.citation_num ?? -1}
+                    disabled={candid.profile_revealed === false}
                   />
                 ))}
               </div>

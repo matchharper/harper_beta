@@ -37,6 +37,8 @@ type SettingState = {
   setCandidateSortOrder: (key: string, order: string[]) => void;
   candidateMarkFilterByKey: Record<string, CandidateMarkFilter>;
   setCandidateMarkFilter: (key: string, statuses: CandidateMarkFilter) => void;
+  candidateExcludeUnopenedByKey: Record<string, boolean>;
+  setCandidateExcludeUnopened: (key: string, exclude: boolean) => void;
 };
 
 export const useSettingStore = create<SettingState>()(
@@ -76,6 +78,14 @@ export const useSettingStore = create<SettingState>()(
             [key]: normalizeCandidateMarkFilter(statuses),
           },
         })),
+      candidateExcludeUnopenedByKey: {},
+      setCandidateExcludeUnopened: (key, exclude) =>
+        set((state) => ({
+          candidateExcludeUnopenedByKey: {
+            ...state.candidateExcludeUnopenedByKey,
+            [key]: exclude === true,
+          },
+        })),
     }),
     {
       name: "settings",
@@ -86,6 +96,7 @@ export const useSettingStore = create<SettingState>()(
         candidateSortModeByKey: s.candidateSortModeByKey,
         candidateSortOrderByKey: s.candidateSortOrderByKey,
         candidateMarkFilterByKey: s.candidateMarkFilterByKey,
+        candidateExcludeUnopenedByKey: s.candidateExcludeUnopenedByKey,
       }),
     }
   )

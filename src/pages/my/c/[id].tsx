@@ -14,29 +14,20 @@ import {
 } from "@/store/useSettingStore";
 import { useQueryDetail } from "@/hooks/useQueryDetail";
 import { logger } from "@/utils/logger";
-import { useCredits } from "@/hooks/useCredit";
 import { useRunDetail } from "@/hooks/useRunDetail";
 import { useRunPagesInfinite } from "@/hooks/useRunResults";
 import { runSearch } from "@/hooks/useStartSearch";
 import { Loading } from "@/components/ui/loading";
-import { supabase } from "@/lib/supabase";
 import Head from "next/head";
-import CreditModal from "@/components/Modal/CreditModal";
 import {
   SearchSource,
   normalizeSearchSource,
   normalizeSearchSources,
   queryTypeToSearchSource,
 } from "@/lib/searchSource";
-import { MIN_CREDITS_FOR_SEARCH } from "@/utils/constantkeys";
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
-}
-
-function hasInsufficientCreditError(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error ?? "");
-  return message.includes("Insufficient credits");
 }
 
 const MAX_PREFETCH_PAGES = 20;
@@ -59,7 +50,6 @@ export default function ResultPage() {
   const [finishedTick, setFinishedTick] = useState(0);
   const [chatPanelWidth, setChatPanelWidth] = useState(460);
   const [isResizing, setIsResizing] = useState(false);
-  const [isNoCreditModalOpen, setIsNoCreditModalOpen] = useState(false);
   const splitRef = useRef<HTMLDivElement>(null);
 
   const router = useRouter();
@@ -80,6 +70,11 @@ export default function ResultPage() {
   const userId = companyUser?.user_id;
   const persistedExcludedMarkStatuses = useSettingStore(
     (state) => state.candidateMarkFilterByKey[SEARCH_CANDIDATE_MARK_FILTER_KEY]
+  );
+  const persistedExcludeUnopenedProfiles = useSettingStore(
+    (state) =>
+      state.candidateExcludeUnopenedByKey[SEARCH_CANDIDATE_MARK_FILTER_KEY] ===
+      true
   );
   const excludedMarkStatuses = useMemo(
     () => normalizeCandidateMarkFilter(persistedExcludedMarkStatuses ?? []),
@@ -157,6 +152,7 @@ export default function ResultPage() {
       runId,
       sourceType: resultSourceType,
       excludedMarkStatuses,
+      excludeUnopenedProfiles: persistedExcludeUnopenedProfiles,
       enabled: ready && !!runId,
     });
 
@@ -181,7 +177,6 @@ export default function ResultPage() {
   const items = current?.items ?? [];
   const totalCandidates =
     pages.find((p) => typeof (p as any)?.total === "number")?.total ?? null;
-  const { credits, deductWithHistory, isDeducting } = useCredits();
 
   const canPrev = pageIdx > 0;
   const nextPageKnownCount =
@@ -191,64 +186,6 @@ export default function ResultPage() {
   const canNextBase = pageIdx + 1 < pages.length || !!hasNextPage;
   const canNext =
     totalCandidates != null ? (nextPageKnownCount ?? 0) > 0 : canNextBase;
-
-  const [runPagesMeta, setRunPagesMeta] = useState<{
-    id: number;
-    seen_page: number;
-  } | null>(null);
-  const seenPageRef = useRef(-1);
-  const failedChargePageRef = useRef<number | null>(null);
-  const updatingSeenRef = useRef(false);
-  const isRunPagesMetaLoadingRef = useRef(false);
-
-  const loadRunPagesMeta = useCallback(async () => {
-    if (!runId || isRunPagesMetaLoadingRef.current) return;
-    isRunPagesMetaLoadingRef.current = true;
-    const { data, error } = await supabase
-      .from("runs_pages")
-      .select("id, seen_page, created_at")
-      .eq("run_id", runId)
-      .order("created_at", { ascending: false })
-      .limit(1);
-
-    if (error) {
-      logger.log("runs_pages meta load error:", error);
-      isRunPagesMetaLoadingRef.current = false;
-      return;
-    }
-
-    const row = data?.[0];
-    if (row) {
-      setRunPagesMeta({
-        id: row.id,
-        seen_page: Number.isFinite(row.seen_page) ? row.seen_page : -1,
-      });
-    }
-    isRunPagesMetaLoadingRef.current = false;
-  }, [runId]);
-
-  useEffect(() => {
-    setRunPagesMeta(null);
-    seenPageRef.current = -1;
-    failedChargePageRef.current = null;
-    updatingSeenRef.current = false;
-    isRunPagesMetaLoadingRef.current = false;
-    if (runId) loadRunPagesMeta();
-  }, [runId, loadRunPagesMeta]);
-
-  useEffect(() => {
-    if ((credits?.remain_credit ?? 0) >= MIN_CREDITS_FOR_SEARCH) {
-      failedChargePageRef.current = null;
-    }
-  }, [credits?.remain_credit]);
-
-  useEffect(() => {
-    if (!runPagesMeta && pages.length > 0) loadRunPagesMeta();
-  }, [runPagesMeta, pages.length, loadRunPagesMeta]);
-
-  const seenPage = runPagesMeta?.seen_page ?? -1;
-  const maxReachablePage =
-    runPagesMeta != null ? clamp(seenPage + 1, 0, MAX_PREFETCH_PAGES) : null;
   const maxPageByVisibleTotal = useMemo(() => {
     if (totalCandidates == null) return null;
     return clamp(
@@ -257,102 +194,22 @@ export default function ResultPage() {
       MAX_PREFETCH_PAGES
     );
   }, [totalCandidates]);
-  const maxAllowedPage = useMemo(() => {
-    if (maxReachablePage == null) return maxPageByVisibleTotal;
-    if (maxPageByVisibleTotal == null) return maxReachablePage;
-    return Math.min(maxReachablePage, maxPageByVisibleTotal);
-  }, [maxPageByVisibleTotal, maxReachablePage]);
   const shouldClampPage =
-    maxAllowedPage != null && pageIdxRaw > maxAllowedPage;
-  const isPageLoaded = pageIdx < pages.length && !isLoading;
-  const shouldChargeForPage = items.length >= 10;
+    maxPageByVisibleTotal != null && pageIdxRaw > maxPageByVisibleTotal;
 
   useEffect(() => {
     if (!router.isReady) return;
     if (!runId) return;
-    if (maxAllowedPage == null) return;
+    if (maxPageByVisibleTotal == null) return;
     if (!shouldClampPage) return;
 
-    setPageInUrl(maxAllowedPage, "replace");
+    setPageInUrl(maxPageByVisibleTotal, "replace");
   }, [
     router.isReady,
     runId,
-    maxAllowedPage,
+    maxPageByVisibleTotal,
     setPageInUrl,
     shouldClampPage,
-  ]);
-
-  useEffect(() => {
-    if (!ready || !runId || !userId) return;
-    if (!isPageLoaded) return;
-    if (!runPagesMeta) return;
-    if (shouldClampPage) return;
-
-    const targetSeen = pageIdx;
-    const effectiveSeen = Math.max(seenPage, seenPageRef.current);
-    if (targetSeen <= effectiveSeen) return;
-    if (failedChargePageRef.current === targetSeen) return;
-    if (updatingSeenRef.current) return;
-    if (shouldChargeForPage && isDeducting) return;
-
-    updatingSeenRef.current = true;
-    (async () => {
-      try {
-        if (shouldChargeForPage) {
-          await deductWithHistory(
-            1,
-            pageIdx === 0
-              ? "search_results_initial_page"
-              : `search_results_next_10_more:${targetSeen}`,
-            { suppressInsufficientToast: true }
-          );
-        }
-        failedChargePageRef.current = null;
-        seenPageRef.current = targetSeen;
-
-        const { error } = await supabase
-          .from("runs_pages")
-          .update({ seen_page: targetSeen })
-          .eq("id", runPagesMeta.id);
-
-        if (error) {
-          logger.log("runs_pages seen_page update error:", error);
-        } else {
-          setRunPagesMeta((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  seen_page: Math.max(prev.seen_page ?? -1, targetSeen),
-                }
-              : prev
-          );
-        }
-      } catch (e) {
-        failedChargePageRef.current = targetSeen;
-        if (hasInsufficientCreditError(e)) {
-          setIsNoCreditModalOpen(true);
-        }
-        if (effectiveSeen >= 0 && targetSeen > effectiveSeen) {
-          setPageInUrl(effectiveSeen, "replace");
-        }
-        logger.log("deduct or seen_page update failed:", e);
-      } finally {
-        updatingSeenRef.current = false;
-      }
-    })();
-  }, [
-    ready,
-    runId,
-    userId,
-    isPageLoaded,
-    runPagesMeta,
-    shouldClampPage,
-    pageIdx,
-    seenPage,
-    deductWithHistory,
-    isDeducting,
-    setPageInUrl,
-    shouldChargeForPage,
   ]);
 
   const prevPage = () => {
@@ -362,20 +219,6 @@ export default function ResultPage() {
 
   const nextPage = async () => {
     const nextIdx = pageIdx + 1;
-    const effectiveSeen = Math.max(seenPage, seenPageRef.current);
-    const requiresCharge = nextIdx > effectiveSeen;
-
-    if (
-      requiresCharge &&
-      credits != null &&
-      credits.remain_credit < MIN_CREDITS_FOR_SEARCH
-    ) {
-      setIsNoCreditModalOpen(true);
-      return;
-    }
-
-    failedChargePageRef.current = null;
-
     if (nextIdx < pages.length) {
       setPageInUrl(nextIdx, "push");
       return;
@@ -413,7 +256,6 @@ export default function ResultPage() {
     if (!ready) return;
     if (!searchEnabled) return;
     if (!runId) return;
-    if (!runPagesMeta) return;
     if (shouldClampPage) return;
     if (pageIdx <= 0) return;
     if (ensuringRef.current) return;
@@ -422,15 +264,7 @@ export default function ResultPage() {
     ensurePageLoaded(pageIdx).finally(() => {
       ensuringRef.current = false;
     });
-  }, [
-    ready,
-    searchEnabled,
-    runId,
-    runPagesMeta,
-    shouldClampPage,
-    pageIdx,
-    ensurePageLoaded,
-  ]);
+  }, [ready, searchEnabled, runId, shouldClampPage, pageIdx, ensurePageLoaded]);
 
   useEffect(() => {
     if (!resultScrollStorageKey) {
@@ -622,10 +456,6 @@ export default function ResultPage() {
 
   return (
     <AppLayout initialCollapse={true}>
-      <CreditModal
-        open={isNoCreditModalOpen}
-        onClose={() => setIsNoCreditModalOpen(false)}
-      />
       <Head>
         <title>Harper: 검색</title>
       </Head>

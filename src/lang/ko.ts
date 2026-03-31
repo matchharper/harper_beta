@@ -26,7 +26,8 @@ export const ko = {
       description:
         "간단히 알려주시면 검토 후 접근 링크를 이메일로 보내드리겠습니다.",
       submit: "요청 보내기",
-      submitted: "요청이 접수되었습니다. 승인되면 이메일로 링크를 보내드리겠습니다.",
+      submitted:
+        "요청이 접수되었습니다. 승인되면 이메일로 링크를 보내드리겠습니다.",
       nameLabel: "이름",
       namePlaceholder: "이름을 입력해주세요",
       companyLabel: "회사명",
@@ -35,10 +36,10 @@ export const ko = {
       rolePlaceholder: "예: Founder, Hiring Manager",
       hiringNeedLabel:
         "가장 중요하게 채용이 필요한 포지션(직무)과 대략적인 인원수",
-      hiringNeedPlaceholder:
-        "예: Backend Engineer 2명, Founding Recruiter 1명",
+      hiringNeedPlaceholder: "예: Backend Engineer 2명, Founding Recruiter 1명",
       errors: {
-        missingSession: "로그인 상태를 확인할 수 없습니다. 다시 로그인해주세요.",
+        missingSession:
+          "로그인 상태를 확인할 수 없습니다. 다시 로그인해주세요.",
         invalidForm: "모든 항목을 입력해주세요.",
         submitFailed: "요청 접수에 실패했습니다. 다시 시도해주세요.",
       },
@@ -171,7 +172,7 @@ export const ko = {
       titleLine2Prefix: "Pay for",
       titleLine2Highlight: "Intelligence",
       subtitle:
-        "단순한 검색을 넘어, 인재를 이해하는 지능을 경험하세요.<br />하퍼는 매일, 후보자를 추천해주고 끊임없이 개선됩니다.",
+        "어떤 조건이던 AI 검색 엔진이<br />GitHub, 논문 등 모든 정보를 바탕으로<br />원하는 프로필을 가진 사람을 즉시 찾아드려요.",
     },
     section1: {
       title: "Faster, Cheaper, Better",
@@ -188,7 +189,7 @@ export const ko = {
       cards: [
         {
           title: "Beyond Keywords",
-          desc: "단순한 키워드 검색을 넘어, <br />역량과 맥락을 이해하고 찾아주는 지능을 경험하세요.",
+          desc: "단순한 키워드 검색을 넘어, <br />기술적 역량과 맥락을 이해하고 찾아주는 지능을 경험하세요.",
         },
         {
           title: "Focus on Value",
@@ -242,7 +243,7 @@ export const ko = {
         {
           question: "어떤 직군의 인재를 찾을 수 있나요?",
           answer:
-            "Harper의 엔진은 링크드인 뿐만 아니라 여러 technical source를 검색에 활용하기 때문에 리서처와 머신러닝 엔지니어 같은 고난이도 테크 인재 발굴에 가장 특화되어 있습니다.\n하지만 이에 국한되지 않고, 현재 PM 및 PD, 마케터 등 테크 조직 내 핵심 직군에 대해서도 검색이 가능합니다. 다양한 직군을 포함해 총 40만+개의 프로필을 가지고 있으며, 여기 포함된 직군은 찾을 수 있습니다. 매달 기본 검색 횟수가 제공되니 편하게 사용하고 테스트해보세요.",
+            "Harper의 엔진은 링크드인 뿐만 아니라 여러 technical source를 검색에 활용하기 때문에 리서처와 머신러닝 엔지니어 같은 고난이도 테크 인재 발굴에 가장 특화되어 있습니다.\n하지만 이에 국한되지 않고, 현재 PM 및 PD, 마케터 등 테크 조직 내 핵심 직군에 대해서도 검색이 가능합니다. 다양한 직군을 포함해 총 40만+개의 프로필을 가지고 있으며, 여기 포함된 직군은 찾을 수 있습니다. 매달 기본 열람 횟수가 제공되니 편하게 사용하고 테스트해보세요.",
         },
         {
           question: "어떤 정보를 제공하나요?",
@@ -275,7 +276,12 @@ export const ko = {
           priceUnit: "원/월",
           priceUnit2: "/월",
           buttonLabel: "문의하기",
-          features: ["월 최대 150회 검색", "Harper Scout"],
+          features: [
+            "무제한 AI 검색 및 랭킹",
+            "월 50회 프로필 열람",
+            "논문 및 코드 품질 분석",
+            "Harper Scout (자동화된 추천)<br/><i>AI-driven search that indexes technical truth.</i>",
+          ],
         },
         max: {
           name: "Max",
@@ -285,9 +291,9 @@ export const ko = {
           buttonLabel: "문의하기",
           features: [
             "Pro의 모든 기능 포함, 및:",
-            "월 최대 350회 검색",
-            "동시에 최대 3개 검색 요청 가능",
-            "AI 소싱 에이전트",
+            "월 120회 프로필 열람",
+            "동시에 최대 3개의 검색 실행",
+            "AI 소싱 에이전트<br /><i>An autonomous co-pilot that proactively</i>",
           ],
         },
         enterprise: {
@@ -298,7 +304,7 @@ export const ko = {
           buttonLabel: "문의하기",
           features: [
             "Max의 모든 기능 포함, 및:",
-            "무제한 검색",
+            "맞춤형 열람 횟수 설계",
             "온보딩 및 교육 지원",
             "팀 협업 및 관리 시트",
             "전담 고객 지원",
@@ -312,15 +318,20 @@ export const ko = {
         {
           question: "무료로도 사용이 가능한가요?",
           answer:
-            "네. 무료로도 Free 플랜을 사용가능합니다. 매달 10회까지 검색하실 수 있습니다.",
+            "네. 무료로도 Free 플랜을 사용할 수 있습니다. Free는 매달 5회까지 프로필을 열람할 수 있습니다.",
         },
         {
           question: "언제든지 구독을 취소할 수 있나요?",
           answer:
-            "네. 원하시면 언제든지 구독을 취소할 수 있습니다. 구독 취소 후에도 현재 결제 주기 종료 전까지는 기존 플랜의 월 검색 한도를 그대로 이용할 수 있으며, 이후에는 Free 플랜 기준으로 전환됩니다.",
+            "네. 원하시면 언제든지 구독을 취소할 수 있습니다. 구독 취소 후에도 현재 결제 주기 종료 전까지는 기존 플랜의 남은 열람 횟수를 그대로 이용할 수 있으며, 이후에는 Free 플랜 기준으로 전환됩니다.",
         },
         {
-          question: "월 검색 제한의 기준이 어떻게 되나요?",
+          question: "열람 횟수는 언제 차감되나요?",
+          answer:
+            "검색과 페이지 이동은 모두 무료입니다. 후보자 프로필을 실제로 열람할 때만 열람 횟수가 1회 차감되며, 한 번 열람한 프로필은 이후 계속 확인할 수 있습니다.",
+        },
+        {
+          question: "월 열람 횟수는 어떻게 계산되나요?",
           answer:
             "결제 시점, 즉 새로운 플랜이 시작되는 시점을 기준으로 1개월 단위로 계산됩니다.",
         },
@@ -387,7 +398,7 @@ export const ko = {
     submit_request: "제출하기",
     credit_request_submitted: "문의가 성공적으로 접수되었습니다.",
     credit_request_submitted_description:
-      "문의해 주셔서 감사합니다. 현재 필요한 플랜과 월 검색 한도를 검토 중이며, 곧 안내드릴 예정입니다. 알림 수신에 동의하신 경우 진행 상황을 이메일로 받아보실 수 있습니다.",
+      "문의해 주셔서 감사합니다. 현재 필요한 플랜과 열람 횟수 규모를 검토 중이며, 곧 안내드릴 예정입니다. 알림 수신에 동의하신 경우 진행 상황을 이메일로 받아보실 수 있습니다.",
   },
   home: {
     queryPlaceholder: "국내 대학을 졸업하고 미국 M7에서 AI/ML 경험 있는 사람",
@@ -437,7 +448,7 @@ export const ko = {
     title: "Harper Scout",
     addAgent: "에이전트 추가",
     intro:
-      "Harper가 Agent로서 필요한 인재 역량, 팀 문화 등을 바탕으로 매일 후보자를 찾아 추천합니다.\nScout 이용량은 현재 플랜의 월 검색 한도에 반영됩니다.",
+      "Harper가 Agent로서 필요한 인재 역량, 팀 문화 등을 바탕으로 매일 후보자를 찾아 추천합니다.\n추천된 후보자 프로필은 열람 전까지 가려진 상태로 제공되며, 열람할 때만 열람 횟수가 1회 차감됩니다.",
     emptyTag: "Harper Scout 시작하기",
     emptyTitle: "Harper Scout에 오신걸 환영합니다.",
     emptySubtitle: "아직 등록된 Agent가 없습니다",
@@ -450,7 +461,7 @@ export const ko = {
     feedbackSuffix: "피드백을 통해 결과가 점점 더 개선됩니다.",
     createAgent: "Agent 만들기",
     perAgentNote:
-      "각 Agent당 추천은 하루 1~2명이며, 이용량은 현재 플랜의 월 검색 한도에 반영됩니다.",
+      "각 Agent당 추천은 하루 1~2명이며, 프로필을 열람할 때만 열람 횟수가 1회 차감됩니다.",
     statusRunning: "진행 중",
     statusStopped: "진행 정지",
     createdAt: "생성:",

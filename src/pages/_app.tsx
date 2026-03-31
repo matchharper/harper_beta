@@ -16,6 +16,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import CompanyModalRoot from "@/components/Modal/CompanyModal";
 import PaperModalRoot from "@/components/Modal/PaperModal";
+import RepoModalRoot from "@/components/Modal/RepoModal";
 import Script from "next/script";
 import { useRouter } from "next/router";
 
@@ -144,6 +145,7 @@ export default function App({ Component, pageProps }: AppProps) {
       >
         <CompanyModalRoot />
         <PaperModalRoot />
+        <RepoModalRoot />
         <Analytics />
         <Component {...pageProps} />
         <ToastProvider />

@@ -37,7 +37,9 @@ function parseLocaleFromRequest(req: NextRequest): "ko" | "en" {
 function getDefaultEnabledSources(
   sourceType?: SearchSource | null
 ): SearchSource[] {
-  return [sourceType === "scholar" ? "scholar" : "linkedin"];
+  if (sourceType === "github") return ["github"];
+  if (sourceType === "scholar") return ["scholar"];
+  return ["linkedin"];
 }
 
 function extractUiJsonFromMessage(content: string): any | null {

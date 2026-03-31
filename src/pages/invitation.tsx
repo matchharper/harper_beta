@@ -126,11 +126,14 @@ export default function LoginSuccess() {
   // }, []);
 
   useEffect(() => {
-    if (companyUser?.is_authenticated && landingId) {
+    if (!companyUser?.is_authenticated) return;
+
+    if (landingId) {
       const emailSuffix = companyUser?.email ? `${companyUser.email}` : "";
-      addLog(`enter_my_page_${emailSuffix}`);
-      router.push("/my");
+      void addLog(`enter_my_page_${emailSuffix}`);
     }
+
+    router.push("/my");
   }, [
     addLog,
     companyUser?.email,
@@ -287,9 +290,7 @@ export default function LoginSuccess() {
 
     if (
       !normalizedValues.name ||
-      !normalizedValues.company ||
-      !normalizedValues.role ||
-      !normalizedValues.hiringNeed
+      !normalizedValues.company
     ) {
       showToast({
         message: m.invitation.requestAccess.errors.invalidForm,
@@ -384,8 +385,9 @@ export default function LoginSuccess() {
         onClose={() => setIsRequestAccessOpen(false)}
         onSubmit={submitRequestAccess}
         initialValues={{
-          name:
-            isMissingDisplayName(companyUser?.name) ? "" : companyUser?.name ?? "",
+          name: isMissingDisplayName(companyUser?.name)
+            ? ""
+            : (companyUser?.name ?? ""),
           company: companyUser?.company ?? "",
           role: companyUser?.role ?? "",
         }}

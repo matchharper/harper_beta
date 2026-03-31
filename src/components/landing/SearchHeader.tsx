@@ -11,10 +11,10 @@ export enum RadarSection {
   Blog = "blog",
 }
 const RADAR_SECTION_LABELS: Record<RadarSection, string> = {
-  [RadarSection.Intro]: "Home",
-  [RadarSection.Outputs]: "Outputs",
-  [RadarSection.Pricing]: "Pricing",
-  [RadarSection.Blog]: "Blog",
+  [RadarSection.Intro]: "소개",
+  [RadarSection.Outputs]: "작동 방식",
+  [RadarSection.Pricing]: "가격 정책",
+  [RadarSection.Blog]: "블로그",
 };
 
 const RADAR_NAV_SECTIONS: RadarSection[] = [

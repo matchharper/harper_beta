@@ -1,6 +1,12 @@
 import { CandidateTypeWithConnection } from "@/hooks/useSearchChatCandidates";
 import React, { useEffect, useMemo, useState } from "react";
-import { BriefcaseBusiness, FileText, GraduationCap, Plus } from "lucide-react";
+import {
+  BriefcaseBusiness,
+  FileText,
+  Github,
+  GraduationCap,
+  Plus,
+} from "lucide-react";
 import { useRouter } from "next/router";
 import { Avatar } from "./NameProfile";
 import { Tooltips } from "./ui/tooltip";
@@ -50,6 +56,8 @@ import {
   isCriteriaColumnId,
   type CandidateTableColumnId,
 } from "./candidateTableColumns";
+import RevealProfileButton from "./ui/RevealProfileButton";
+import { showToast } from "./toast/toast";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
 
@@ -100,9 +108,40 @@ function formatYearMonth(dateStr?: string | null) {
 }
 
 function formatPeriod(startDate?: string | null, endDate?: string | null) {
-  const start = formatYearMonth(startDate) || "시작 미상";
-  const end = endDate ? formatYearMonth(endDate) || endDate : "현재";
-  return `${start} ~ ${end}`;
+  const start = formatYearMonth(startDate);
+  const end = endDate ? formatYearMonth(endDate) || endDate : "";
+
+  if (start && end) return `${start} ~ ${end}`;
+  if (start) return `${start} ~ 현재`;
+  if (end) return `~ ${end}`;
+  return "";
+}
+
+function normalizeCompanyLogoUrl(url?: string | null) {
+  return String(url ?? "").trim();
+}
+
+function CompanyLogoBadge({
+  src,
+  alt,
+  masked = false,
+  className = "",
+}: {
+  src: string;
+  alt: string;
+  masked?: boolean;
+  className?: string;
+}) {
+  return (
+    <span
+      className={`${className} relative inline-flex h-4 w-4 shrink-0 overflow-hidden rounded-full`}
+    >
+      <img src={src} alt={alt} className="h-full w-full object-cover" />
+      {masked ? (
+        <span className="absolute inset-0 rounded-full bg-white/5 backdrop-blur-md" />
+      ) : null}
+    </span>
+  );
 }
 
 function CandidateRow({
@@ -164,6 +203,7 @@ function CandidateRow({
   const evidencePaper = getEvidencePaper(c.search_evidence);
   const isScholarSource = isScholarSearchSource(sourceType);
   const isGithubSource = sourceType === "github";
+  const isProfileRevealed = c.profile_revealed !== false;
   const isOnlyScholar =
     !!scholarPreview && exps.length === 0 && edus.length === 0;
   const isOnlyGithub =
@@ -203,10 +243,7 @@ function CandidateRow({
   }, [c.connection]);
 
   const companyLogo = useMemo(() => {
-    if (latestCompany?.company_db?.logo?.includes("media.licdn.com")) {
-      return "";
-    }
-    return latestCompany?.company_db?.logo;
+    return normalizeCompanyLogoUrl(latestCompany?.company_db?.logo);
   }, [latestCompany]);
 
   const schoolLogo = useMemo(() => {
@@ -218,7 +255,8 @@ function CandidateRow({
     return exps
       .map((exp: any) => {
         const companyName = companyEnToKo(exp?.company_db?.name ?? "-");
-        return `${companyName} (${formatPeriod(exp?.start_date, exp?.end_date)})`;
+        const period = formatPeriod(exp?.start_date, exp?.end_date);
+        return period ? `${companyName} (${period})` : companyName;
       })
       .join("\n");
   }, [exps]);
@@ -229,10 +267,9 @@ function CandidateRow({
       .map((edu: any) => {
         const schoolName = koreaUniversityEnToKo(edu?.school ?? "-");
         const degreeName = degreeEnToKo(edu?.degree ?? "-");
-        return `${schoolName} - ${degreeName}\n${formatPeriod(
-          edu?.start_date,
-          edu?.end_date
-        )}`;
+        const period = formatPeriod(edu?.start_date, edu?.end_date);
+        const title = degreeName ? `${schoolName} - ${degreeName}` : schoolName;
+        return period ? `${title}\n${period}` : title;
       })
       .join("\n\n");
   }, [edus]);
@@ -344,13 +381,12 @@ function CandidateRow({
               title={
                 latestCompany?.company_db?.name ? (
                   <div className="flex flex-row items-center justify-start gap-x-2 min-w-0 relative">
-                    {companyLogo && (
-                      <img
+                    {companyLogo ? (
+                      <CompanyLogoBadge
                         src={companyLogo}
                         alt={latestCompany.company_db.name}
-                        className="w-4 h-4 rounded-full object-cover"
                       />
-                    )}
+                    ) : null}
                     <span className="text-hgray800 font-normal break-words">
                       {companyEnToKo(latestCompany.company_db.name)}
                     </span>
@@ -590,7 +626,7 @@ function CandidateRow({
       return (
         <div
           key={columnId}
-          className="px-0 py-0 min-w-0 h-full flex items-center"
+          className="px-2 py-0 min-w-0 h-full flex items-center"
         >
           {userId ? (
             <ShortlistMemoEditor
@@ -598,7 +634,6 @@ function CandidateRow({
               candidId={c.id}
               initialMemo={shortlistMemo}
               rows={2}
-              className="w-full"
             />
           ) : shortlistMemo ? (
             <div className="w-full whitespace-pre-wrap break-words px-2 py-2 text-[13px] leading-5 text-hgray900">
@@ -621,9 +656,25 @@ function CandidateRow({
       <Link
         href={profileHref}
         role="row"
-        onClick={() => logEvent("candidate_card_click: " + candidId)}
+        onClick={(event) => {
+          if (!isProfileRevealed) {
+            event.preventDefault();
+            showToast({
+              message: "열람 후 프로필을 열 수 있습니다.",
+              variant: "white",
+            });
+            return;
+          }
+          logEvent("candidate_card_click: " + candidId);
+        }}
       >
-        <div className="group relative w-full cursor-pointer border-b border-white/5 transition-colors hover:bg-[#242424]">
+        <div
+          className={`group relative w-full border-b border-white/5 transition-colors ${
+            isProfileRevealed
+              ? "cursor-pointer hover:bg-[#242424]"
+              : "cursor-default"
+          }`}
+        >
           <div
             className="inline-grid items-center border-b border-white/5"
             style={{ gridTemplateColumns }}
@@ -637,9 +688,9 @@ function CandidateRow({
                         <Image
                           src={getSearchSourceLogoPath(source)}
                           alt={getSearchSourceLabel(source)}
-                          width={12}
-                          height={12}
-                          className="object-contain"
+                          width={source === "github" ? 13 : 12}
+                          height={source === "github" ? 13 : 12}
+                          className="object-contain rounded-[2px]"
                         />
                       </span>
                     </Tooltips>
@@ -649,25 +700,36 @@ function CandidateRow({
                 rowIndex + 1
               )}
             </div>
-            <div className="sticky left-14 z-20 h-full px-4 py-3 flex items-center gap-3 min-w-0 bg-hgray200 border-r border-white/5 group-hover:bg-[#242424] transition-colors cursor-pointer">
+            <div className="sticky left-14 z-20 h-full px-4 py-3 flex items-center gap-3 min-w-0 bg-hgray200 border-r border-white/5 group-hover:bg-[#242424] transition-colors">
+              {!isProfileRevealed && !sharedFolderContext?.token ? (
+                <RevealProfileButton
+                  candidId={candidId}
+                  overlay
+                  overlayClassName="z-[80] group-hover:border-accenta1/40 group-hover:bg-black/15 justify-end pr-4"
+                  className="px-4 py-1.5 text-xs font-medium shadow-[0_8px_24px_rgba(0,0,0,0.32)]"
+                />
+              ) : null}
               <div className="shrink-0 rounded-full border border-transparent hover:border-accenta1/80 transition-colors">
-                <Avatar url={c.profile_picture} name={c.name} size="md" />
+                <Avatar
+                  url={c.profile_picture}
+                  name={c.name}
+                  size="md"
+                  isProfileRevealed={isProfileRevealed}
+                />
               </div>
 
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1 self-center">
                 <div className="text-[14px] text-white font-normal truncate">
                   {c.name}
                 </div>
                 <div className="text-xs text-hgray700 truncate">
                   {isOnlyScholar ? (
                     <div className="inline-flex w-fit items-center justify-center gap-1 text-xs rounded text-blue-500">
-                      {/* <Image
-                        src="/images/logos/scholar.png"
-                        alt="Scholar Profile"
-                        width={10}
-                        height={10}
-                      /> */}
                       <div>Scholar Profile</div>
+                    </div>
+                  ) : isOnlyGithub ? (
+                    <div className="inline-flex w-fit items-center justify-center gap-1 text-xs rounded text-blue-500">
+                      <div>GitHub Profile</div>
                     </div>
                   ) : c.location ? (
                     locationEnToKo(c.location)
@@ -675,11 +737,6 @@ function CandidateRow({
                     "-"
                   )}
                 </div>
-                {/* {suitabilityScore !== null ? (
-                  <div className="mt-1 inline-flex items-center rounded-full border border-accenta1/20 bg-accenta1/10 px-2 py-0.5 text-[11px] font-normal text-accenta1">
-                    적합도 {suitabilityScore}
-                  </div>
-                ) : null} */}
               </div>
               <div
                 className="px-2 absolute right-1 flex items-center justify-end"
@@ -777,6 +834,8 @@ const Cell = ({
 export const RoleBox = ({
   company,
   role,
+  logoUrl,
+  maskLogo = false,
   startDate,
   endDate,
   tooltipText,
@@ -784,6 +843,8 @@ export const RoleBox = ({
 }: {
   company: string;
   role: string;
+  logoUrl?: string;
+  maskLogo?: boolean;
   startDate?: string;
   endDate?: string;
   tooltipText?: string;
@@ -792,18 +853,25 @@ export const RoleBox = ({
   const defaultTooltipText = `${startDate ? startDate : ""} ${
     startDate ? " - " : ""
   } ${endDate && endDate} ${!endDate && startDate && "현재"}`.trim();
+  const normalizedLogoUrl = normalizeCompanyLogoUrl(logoUrl);
 
   return (
     <div className="flex flex-col items-start gap-0 text-sm col-span-4">
       <Tooltips text={tooltipText ?? defaultTooltipText} side={tooltipSide}>
-        <div className="flex flex-row items-start justify-between w-full pr-8">
-          <div className="flex flex-row items-start justify-start gap-x-2 min-w-0 relative">
-            <BriefcaseBusiness className="absolute left-0 top-[2px] w-4 h-4 text-hgray800" />
-            <span className="text-hgray800 font-normal break-words">
-              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-              {company && companyEnToKo(company)}
-            </span>
-          </div>
+        <div className="flex flex-row items-center justify-start gap-x-2 w-full pr-8">
+          {normalizedLogoUrl ? (
+            <CompanyLogoBadge
+              src={normalizedLogoUrl}
+              alt={company || "company"}
+              masked={maskLogo}
+              className=""
+            />
+          ) : (
+            <BriefcaseBusiness className="w-4 h-4 text-hgray800" />
+          )}
+          <span className="text-hgray800 font-normal break-words">
+            {company && companyEnToKo(company)}
+          </span>
         </div>
       </Tooltips>
       <div className="text-hgray600 font-normal">{role}</div>
@@ -815,22 +883,33 @@ export const SchoolBox = ({
   school,
   role,
   field,
+  schoolUrl,
   tooltipText,
   tooltipSide = "bottom",
 }: {
   school: string;
   role: string;
   field: string;
+  schoolUrl?: string;
   tooltipText?: string;
   tooltipSide?: "bottom" | "top" | "left" | "right";
 }) => {
+  const schoolLogoUrl = getSchoolLogo(schoolUrl);
+
   return (
     <div className="flex flex-col items-start gap-0 text-sm col-span-4">
       <Tooltips text={tooltipText ?? "가장 최근 학력"} side={tooltipSide}>
-        <div className="flex flex-row items-start justify-start gap-x-2 min-w-0 relative">
-          <GraduationCap className="absolute left-0 top-[2px] w-4 h-4 text-hgray800" />
+        <div className="flex flex-row items-center justify-start gap-x-2 min-w-0 relative">
+          {schoolLogoUrl ? (
+            <img
+              src={schoolLogoUrl}
+              alt={school || "school"}
+              className="w-4 h-4 rounded-full object-cover"
+            />
+          ) : (
+            <GraduationCap className="w-4 h-4 text-hgray800" />
+          )}
           <span className="text-hgray800 font-normal break-words">
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             {school && koreaUniversityEnToKo(school)}
           </span>
         </div>
@@ -885,6 +964,44 @@ export const ScholarSignalBox = ({
         <div className="text-hgray600 font-normal">
           {hasDescription ? description : "-"}
         </div>
+      ) : null}
+    </div>
+  );
+};
+
+export const GithubSignalBox = ({
+  title,
+  description,
+  tooltipText,
+  icon = "company",
+  tooltipSide = "bottom",
+}: {
+  title: React.ReactNode;
+  description?: React.ReactNode;
+  tooltipText?: string;
+  icon?: "company" | "repos";
+  tooltipSide?: "bottom" | "top" | "left" | "right";
+}) => {
+  const Icon = icon === "repos" ? FileText : Github;
+  const hasDescription =
+    description !== undefined && description !== null && description !== "";
+
+  return (
+    <div className="flex flex-col items-start gap-0 text-sm col-span-4">
+      <Tooltips
+        text={tooltipText ?? (typeof title === "string" ? title : "")}
+        side={tooltipSide}
+      >
+        <div className="flex flex-row items-start justify-start gap-x-2 min-w-0 relative">
+          <Icon className="absolute left-0 top-[2px] w-4 h-4 text-hgray800" />
+          <span className="text-hgray800 font-normal break-words">
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            {title || "-"}
+          </span>
+        </div>
+      </Tooltips>
+      {hasDescription ? (
+        <div className="text-hgray600 font-normal">{description}</div>
       ) : null}
     </div>
   );

@@ -20,8 +20,7 @@ import dynamic from "next/dynamic";
 import Head from "next/head";
 import router from "next/router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import CompareSection from "@/components/landing/Compare";
-import PricingSection from "@/components/landing/PricingScholar";
+import PricingSection from "@/components/landing/Pricing";
 import { FallingTagsMl } from "@/components/landing/FallingTagsML";
 import { OrbitIconsSmall } from "@/components/landing/Orbit";
 import Reveal from "@/components/landing/Animation/Reveal";
@@ -33,9 +32,12 @@ import SearchHeader, {
 } from "@/components/landing/SearchHeader";
 import QuestionAnswer from "@/components/landing/Questions";
 import StaggerText from "@/components/landing/Animation/StaggerText";
+import WhySection from "@/components/landing/WhySection";
+import FounderNote from "@/components/landing/FounderNote";
+import LinkedinHarperCompare from "@/components/landing/LinkedinHarperCompare";
 
 const LoginModal = dynamic(() => import("@/components/Modal/LoginModal"));
-const RADAR_LOGIN_MODAL_LANGUAGE = "en" as const;
+const RADAR_LOGIN_MODAL_LANGUAGE = "ko" as const;
 const RADAR_LOGIN_MODAL_COPY = {
   sessionExpired: "Your login session has expired. Please sign in again.",
   bootstrapFailed: "Failed to initialize your account. Please try again.",
@@ -151,7 +153,9 @@ export const StartButton = React.memo(function StartButton({
   size?: "md" | "sm";
 }) {
   const sizeClass =
-    size === "sm" ? "px-6 py-3 text-xs" : "mt-10 px-8 py-4 text-base";
+    size === "sm"
+      ? "px-6 py-3 text-xs"
+      : "mt-10 px-8 py-4 text-sm md:text-base";
 
   return (
     <button
@@ -183,7 +187,7 @@ function CoverageCard({
 }) {
   return (
     <div className="w-full rounded-2xl text-center px-6 py-6">
-      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/5 mx-auto">
+      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 mx-auto">
         <Icon className="h-5 w-5 text-white/80" />
       </div>
       <div className="mt-6 text-5xl md:text-6xl font-medium text-white">
@@ -487,19 +491,20 @@ export default function RadarLandingPage() {
           </div>
 
           <Reveal delay={0.08} className="w-full max-w-[980px]">
-            <div className="relative z-10 mx-auto mt-10 flex w-full flex-col items-center text-center md:mt-16 min-h-[70vh]">
+            <div className="relative z-10 mx-auto mt-10 flex w-full flex-col items-center text-center md:mt-16 min-h-[64vh] md:min-h-[80vh]">
               <h1 className="mt-6 max-w-[920px] text-3xl font-medium leading-relaxed tracking-[-0.03em] md:text-5xl">
                 <StaggerText text="Find who actually" />
                 <div className="mt-0 md:mt-3.5" />
                 <StaggerText text="builds and publishes." delay={0.14} />
               </h1>
 
-              <p className="mt-6 max-w-[700px] text-[15px] font-light leading-7 text-hgray700 md:text-[20px] md:leading-8">
-                Search by GitHub, shipped projects, and Publications
-                <br />
-                not by polished profiles.
-              </p>
-              <div className="mt-12 w-full max-w-[820px] md:mt-16">
+              <p
+                className="mt-6 md:mt-8 max-w-[700px] text-base font-light leading-7 text-hgray700 md:text-lg md:leading-8"
+                dangerouslySetInnerHTML={{
+                  __html: m.companyLanding.hero.subtitle,
+                }}
+              />
+              <div className="hidden md:flex mt-12 w-full max-w-[820px] md:mt-16">
                 <div className="w-full overflow-hidden rounded-[30px] bg-gradpastel2 p-1">
                   <SearchInputPanel
                     query={query}
@@ -508,44 +513,44 @@ export default function RadarLandingPage() {
                   />
                 </div>
               </div>
+              <div className="mt-4 flex md:hidden">
+                <StartButton onClick={handleStart} label={"무료로 시작하기"} />
+              </div>
             </div>
 
             {locale === "ko" && (
-              <div className="w-full mb-20 mt-12 md:mt-0 flex flex-col items-center justify-center">
-                <div className="max-w-[1280px] bg-gradpastel2 overflow-hidden md:rounded-[30px] rounded-2xl pt-8 md:pt-0 flex flex-col items-center justify-center">
-                  <video
-                    src="/videos/usemain.mp4"
-                    poster="/images/usemain.png"
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
-                    className="w-[90%] h-full object-cover  md:rounded-t-[30px] rounded-t-2xl md:translate-y-[40px] translate-y-0 shadow-lg"
-                  />
+              <Reveal delay={0.08} duration={1.2}>
+                <div className="w-full mb-20 mt-12 md:mt-8 flex flex-col items-center justify-center">
+                  <div className="max-w-[1280px] bg-gradpastel2 overflow-hidden md:rounded-[30px] rounded-2xl pt-8 md:pt-0 flex flex-col items-center justify-center">
+                    <video
+                      src="/videos/usemain.mp4"
+                      poster="/images/usemain.png"
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      className="w-[90%] h-full object-cover  md:rounded-t-[30px] rounded-t-2xl md:translate-y-[40px] translate-y-0 shadow-lg"
+                    />
+                  </div>
                 </div>
-              </div>
+              </Reveal>
             )}
             <div className="mt-6 text-white/80"></div>
           </Reveal>
         </section>
 
-        {/* <div className="h-20 md:h-28" />
-        <Animate>
-          <BaseSectionLayout>
-            <div className="flex flex-col md:flex-row mt-12 gap-8 w-full">
-              <WhyImageSection title="" desc="" imageSrc="drops" />
-              <WhyImageSection title="" desc="" imageSrc="orbit" />
-            </div>
-          </BaseSectionLayout>
-        </Animate> */}
-        <div className="h-20 md:h-28" />
+        <div className="h-20 md:h-40" />
+        <WhySection />
+        <div className="h-20 md:h-40" />
         <Reveal delay={0.08} duration={1.2}>
           <BaseSectionLayout>
             <div className="flex w-full flex-col items-center justify-center px-4 text-left md:px-0">
-              {/* <Head1 className="text-white">Coverage</Head1> */}
-              <h2 className="mt-8 max-w-[720px] text-center text-xl font-normal text-white md:text-2xl md:leading-[1.2]">
-                Every day, Reading more projects and publications.
-              </h2>
+              {/* <h2 className="mt-8 max-w-[720px] text-center text-xl font-normal text-white md:text-2xl md:leading-[1.2]">
+              </h2> */}
+
+              <div className="text-[22px] md:text-3xl text-white font-normal mt-8">
+                데이터는 지금도 계속 확장되고 있습니다.
+              </div>
 
               <div className="mt-10 grid w-full grid-cols-1 gap-6 md:grid-cols-3 md:gap-7">
                 {coverageStats.map((stat) => (
@@ -556,18 +561,19 @@ export default function RadarLandingPage() {
           </BaseSectionLayout>
         </Reveal>
 
-        <div id={RadarSection.Outputs} className="h-24 md:h-48" />
+        <div id={RadarSection.Outputs} className="h-20 md:h-40" />
         <BaseSectionLayout>
           <div className="flex w-full flex-col items-center justify-center px-4 text-center md:px-0">
             <Reveal delay={0.08} duration={1.2}>
               <div className="flex flex-col items-center justify-center">
                 <Head1 className="text-white">
-                  Who&apos;s actually Shipping?
+                  Who&apos;s Not on LinkedIn?
                 </Head1>
-                <h2 className="mb-12 mt-8 max-w-[760px] text-lg font-light text-white md:mb-20 md:text-xl md:leading-[1.2]">
-                  Harper&apos;s proprietary algorithm tracks commits, repos, and
-                  social activity <br />
-                  to reveal the actual developers pushing insane code.
+                <h2 className="mb-12 mt-8 max-w-[760px] text-sm font-light text-hgray700 md:mb-20 md:text-lg">
+                  Harper는 링크드인 뿐만 아니라 코드, 논문 등 다양한 출처를
+                  분석해
+                  <br />
+                  링크드인 계정이 없는 인재도 발견합니다.
                 </h2>
               </div>
             </Reveal>
@@ -588,49 +594,18 @@ export default function RadarLandingPage() {
         </BaseSectionLayout>
 
         <div className="h-24 md:h-48" />
-        <CompareSection />
+        <LinkedinHarperCompare />
+        {/* <div className="h-28 md:h-40" /> */}
+        {/* <CompareSection /> */}
 
         <div id={RadarSection.Pricing} className="h-28 md:h-40" />
         <PricingSection onClick={handleStart} />
-        <div className="h-28 md:h-40" />
-
-        <Animate>
-          <BaseSectionLayout>
-            <div className="w-full max-w-[600px] px-4 md:px-0">
-              <div className="flex flex-col items-start gap-4 rounded-2xl bg-white/20 px-5 py-6 md:px-[30px] md:py-8">
-                <div className="text-left text-[13px] font-normal leading-[26px] text-hgray700 md:text-base md:leading-[30px]">
-                  Harper is not just a filter-based search engine.
-                  <br />
-                  It reads what people have actually built: their code and
-                  papers.
-                  <br />
-                  It infers ability from real work,
-                  <br />
-                  and finds the talent that truly fits.
-                </div>
-                <div className="mt-6 flex flex-row items-center justify-start gap-4">
-                  <div className="shrink-0">
-                    <Image
-                      src="/images/cofounder.png"
-                      alt="person1"
-                      width={60}
-                      height={60}
-                    />
-                  </div>
-                  <div className="flex flex-col items-start justify-start gap-1">
-                    <div className="text-sm">Chris & Daniel</div>
-                    <div className="text-hgray700 text-xs">
-                      {m.companyLanding.testimonial.role}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </BaseSectionLayout>
-        </Animate>
 
         <div className="h-28 md:h-40" />
-        <Animate>
+        <FounderNote />
+
+        <div className="h-28 md:h-40" />
+        <Reveal delay={0.08}>
           <BaseSectionLayout>
             <div className="flex flex-col items-center justify-center w-full pt-4">
               <div className="w-full flex flex-col items-center justify-center pb-2">
@@ -652,7 +627,7 @@ export default function RadarLandingPage() {
               </div>
             </div>
           </BaseSectionLayout>
-        </Animate>
+        </Reveal>
 
         <div className="h-28 md:h-40" />
         <Animate duration={0.8}>
@@ -668,10 +643,10 @@ export default function RadarLandingPage() {
               </h2>
 
               <p className="mt-5 max-w-[620px] text-center text-[15px] leading-7 text-hgray700 md:text-[18px]">
-                Let&apos;s find cracked engineers with Harper.
+                하퍼와 함께 진짜 인재를 찾아보세요.
               </p>
 
-              <StartButton onClick={handleStart} label={START_BUTTON_LABEL} />
+              <StartButton onClick={handleStart} label={"무료로 시작하기"} />
               <div className="mt-32 w-full md:flex hidden">
                 <FallingTagsMl theme="dark" startDelay={800} />
               </div>
@@ -723,62 +698,6 @@ function PixelBackground({
           }}
         />
       ))}
-    </div>
-  );
-}
-
-function WhyImageSection({
-  title,
-  desc,
-  imageSrc,
-}: {
-  title: string;
-  desc: string;
-  imageSrc: string;
-}) {
-  const imgReturn = () => {
-    if (imageSrc === "drops") {
-      return (
-        <div className="relative flex h-[280px] w-full items-center justify-center overflow-hidden rounded-2xl bg-gradpastel2 md:h-[380px]">
-          <div className="w-full md:mr-8">
-            <FallingTagsMl theme="dark" startDelay={800} />
-          </div>
-        </div>
-      );
-    }
-
-    if (imageSrc === "orbit") {
-      return (
-        <div className="relative flex h-[280px] w-full items-center justify-center overflow-hidden rounded-2xl bg-gradpastel2 md:h-[380px]">
-          <OrbitIconsSmall />
-        </div>
-      );
-    }
-    return (
-      <div className="relative flex h-[220px] w-full items-end justify-end overflow-hidden rounded-2xl bg-gradpastel2 md:h-[280px]">
-        <Image
-          src={imageSrc}
-          alt={title}
-          width={400}
-          height={320}
-          className="max-w-[90%]"
-        />
-      </div>
-    );
-  };
-  return (
-    <div className="flex max-w-full w-full flex-col items-center justify-center gap-8 px-5 md:items-start md:justify-start md:px-0">
-      {imgReturn()}
-      <div className="flex flex-col items-start justify-start w-full gap-4 text-left">
-        <h3
-          className="text-[26px] md:text-3xl font-normal leading-[2.2rem] md:leading-[2.5rem]"
-          dangerouslySetInnerHTML={{ __html: title }}
-        />
-        <div
-          className="text-sm md:text-base leading-6 font-light text-hgray700"
-          dangerouslySetInnerHTML={{ __html: desc }}
-        />
-      </div>
     </div>
   );
 }

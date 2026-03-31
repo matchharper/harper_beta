@@ -1,23 +1,21 @@
-import { CandidateTypeWithConnection } from "@/hooks/useSearchChatCandidates";
-import React, { useMemo } from "react";
-import {
-  companyEnToKo,
-  degreeEnToKo,
-  koreaUniversityEnToKo,
-  locationEnToKo,
-} from "@/utils/language_map";
-import { Avatar } from "./NameProfile";
-import Bookmarkbutton from "./ui/bookmarkbutton";
-import { Tooltips } from "./ui/tooltip";
-import { Check, Dot, X } from "lucide-react";
-import { useRouter } from "next/router";
-import { RoleBox, ScholarSignalBox, SchoolBox } from "./CandidatesListTable";
-import { SummaryScore } from "@/types/type";
 import { useLogEvent } from "@/hooks/useLog";
-import Link from "next/link";
-import CandidateMarkButton from "./ui/CandidateMarkButton";
-import SharedFolderCandidateNotes from "./shared/SharedFolderCandidateNotes";
+import { CandidateTypeWithConnection } from "@/hooks/useSearchChatCandidates";
 import type { CandidateMarkStatus } from "@/lib/candidateMark";
+import {
+  buildGithubDeveloperTooltip,
+  formatGithubFollowerCount,
+  formatGithubRepoCount,
+} from "@/lib/githubPreview";
+import {
+  buildScholarResearchTooltip,
+  formatScholarCitationCount,
+  formatScholarPaperCount,
+} from "@/lib/scholarPreview";
+import {
+  buildEvidencePaperMeta,
+  buildEvidencePaperTooltip,
+  getEvidencePaper,
+} from "@/lib/searchEvidence";
 import {
   SearchSource,
   extractSearchSourcesFromLinks,
@@ -25,20 +23,33 @@ import {
   getSearchSourceLogoPath,
   isScholarSearchSource,
 } from "@/lib/searchSource";
-import {
-  buildEvidencePaperMeta,
-  buildEvidencePaperTooltip,
-  getEvidencePaper,
-} from "@/lib/searchEvidence";
-import {
-  buildScholarResearchTooltip,
-  formatScholarCitationCount,
-  formatScholarPaperCount,
-} from "@/lib/scholarPreview";
-import Image from "next/image";
-import { logger } from "@/utils/logger";
 import { SharedFolderViewerIdentity } from "@/lib/sharedFolder";
+import { SummaryScore } from "@/types/type";
+import {
+  companyEnToKo,
+  degreeEnToKo,
+  koreaUniversityEnToKo,
+  locationEnToKo,
+} from "@/utils/language_map";
+import { Check, Dot, X } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/router";
+import React, { useMemo } from "react";
+import {
+  GithubSignalBox,
+  RoleBox,
+  ScholarSignalBox,
+  SchoolBox,
+} from "./CandidatesListTable";
+import { Avatar } from "./NameProfile";
+import SharedFolderCandidateNotes from "./shared/SharedFolderCandidateNotes";
+import Bookmarkbutton from "./ui/bookmarkbutton";
+import CandidateMarkButton from "./ui/CandidateMarkButton";
 import CandidateMemoDock from "./ui/CandidateMemoDock";
+import { Tooltips } from "./ui/tooltip";
+import RevealProfileButton from "./ui/RevealProfileButton";
+import { showToast } from "./toast/toast";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
 
@@ -100,9 +111,13 @@ function formatYearMonth(dateStr?: string | null) {
 }
 
 function formatPeriod(startDate?: string | null, endDate?: string | null) {
-  const start = formatYearMonth(startDate) || "시작 미상";
-  const end = endDate ? formatYearMonth(endDate) || endDate : "현재";
-  return `${start} ~ ${end}`;
+  const start = formatYearMonth(startDate);
+  const end = endDate ? formatYearMonth(endDate) || endDate : "";
+
+  if (start && end) return `${start} ~ ${end}`;
+  if (start) return `${start} ~ 현재`;
+  if (end) return `~ ${end}`;
+  return "";
 }
 
 function CandidateCard({
@@ -166,12 +181,16 @@ function CandidateCard({
   const latestCompany = exps[0];
   const school = useMemo(() => edus[0], [edus]);
   const scholarPreview = c.scholar_profile_preview;
+  const githubPreview = c.github_profile_preview;
   const candidateMarkStatus = c.candidate_mark?.status ?? null;
   const sharedFolderNotes = c.shared_folder_notes ?? [];
   const evidencePaper = getEvidencePaper(c.search_evidence);
   const isScholarSource = isScholarSearchSource(sourceType);
+  const isGithubSource = sourceType === "github";
   const isOnlyScholar =
     !!scholarPreview && exps.length === 0 && edus.length === 0;
+  const isOnlyGithub =
+    !!githubPreview && exps.length === 0 && edus.length === 0;
   const linkSources = useMemo(
     () => extractSearchSourcesFromLinks(c.links),
     [c.links]
@@ -195,7 +214,8 @@ function CandidateCard({
     return exps
       .map((exp: any) => {
         const companyName = companyEnToKo(exp?.company_db?.name ?? "-");
-        return `${companyName} (${formatPeriod(exp?.start_date, exp?.end_date)})`;
+        const period = formatPeriod(exp?.start_date, exp?.end_date);
+        return period ? `${companyName} (${period})` : companyName;
       })
       .join("\n");
   }, [exps]);
@@ -206,10 +226,9 @@ function CandidateCard({
       .map((edu: any) => {
         const schoolName = koreaUniversityEnToKo(edu?.school ?? "-");
         const degreeName = degreeEnToKo(edu?.degree ?? "-");
-        return `${schoolName} - ${degreeName}\n${formatPeriod(
-          edu?.start_date,
-          edu?.end_date
-        )}`;
+        const period = formatPeriod(edu?.start_date, edu?.end_date);
+        const title = degreeName ? `${schoolName} - ${degreeName}` : schoolName;
+        return period ? `${title}\n${period}` : title;
       })
       .join("\n\n");
   }, [edus]);
@@ -217,7 +236,11 @@ function CandidateCard({
   const scholarAffiliationTooltipText = useMemo(() => {
     return buildScholarResearchTooltip(scholarPreview);
   }, [scholarPreview]);
+  const githubDeveloperTooltipText = useMemo(() => {
+    return buildGithubDeveloperTooltip(githubPreview);
+  }, [githubPreview]);
   const hasSharedFolderNotes = Boolean(sharedFolderContext?.token);
+  const isProfileRevealed = c.profile_revealed !== false;
   const hasOwnerAnnotation = Boolean(
     String(shortlistMemo ?? "").trim().length > 0 || candidateMarkStatus
   );
@@ -238,28 +261,58 @@ function CandidateCard({
     >
       <Link
         href={profileHref}
-        onClick={() => logEvent("candidate_card_click: " + candidId)}
-        className={`group relative block w-full cursor-pointer rounded-[28px] bg-white/5 text-white transition-colors duration-200 hover:bg-white/10 ${
-          hasSharedFolderNotes ? "h-fit min-w-0 px-5 py-5" : "p-6"
-        }`}
+        onClick={(event) => {
+          if (!isProfileRevealed) {
+            event.preventDefault();
+            showToast({
+              message: "열람 후 프로필을 열 수 있습니다.",
+              variant: "white",
+            });
+            return;
+          }
+          logEvent("candidate_card_click: " + candidId);
+        }}
+        className={`group relative block w-full rounded-[28px] bg-white/5 text-white transition-colors duration-200 ${
+          isProfileRevealed
+            ? "cursor-pointer hover:bg-white/10"
+            : "cursor-default"
+        } ${hasSharedFolderNotes ? "h-fit min-w-0" : ""}`}
       >
-        <div className="flex items-start gap-5">
-          <div className="min-w-0 flex-1">
+        <div className="flex flex-col items-start">
+          <div
+            className={`group/content min-w-0 flex-1 relative ${hasSharedFolderNotes ? "px-5 pt-5" : "p-6"}`}
+          >
+            {!isProfileRevealed && !hasSharedFolderNotes && (
+              <RevealProfileButton
+                candidId={candidId}
+                overlay
+                overlayClassName="rounded-t-[28px] group-hover/content:border-accenta1/50 group-hover/content:bg-black/15"
+              />
+            )}
             <div className="flex flex-row flex-1 items-start gap-4">
               <div className="w-[40%]">
                 <div className="flex flex-row flex-1 items-start gap-4">
                   <div className="cursor-pointer rounded-full border border-transparent transition-colors duration-100 hover:border-accenta1/80">
-                    <Avatar url={c.profile_picture} name={c.name} size="lg" />
+                    <Avatar
+                      url={c.profile_picture}
+                      name={c.name}
+                      size="lg"
+                      isProfileRevealed={isProfileRevealed}
+                    />
                   </div>
 
-                  <div className="flex flex-col items-start justify-between">
+                  <div className="flex min-w-0 flex-col items-start justify-between">
                     <div className="flex flex-col gap-0">
-                      <div className="relative truncate text-lg font-medium hover:underline">
+                      <div className="truncate text-lg font-medium">
                         {c.name ?? "None"}
                       </div>
                       {isOnlyScholar ? (
                         <div className="inline-flex w-fit items-center gap-1 rounded text-[13px] text-blue-500">
                           <div className="mt-[1px]">Scholar Profile</div>
+                        </div>
+                      ) : isOnlyGithub ? (
+                        <div className="inline-flex w-fit items-center gap-1 rounded text-[13px] text-blue-500">
+                          <div className="mt-[1px]">GitHub Profile</div>
                         </div>
                       ) : c.location ? (
                         <div className="text-sm font-normal text-hgray600">
@@ -277,9 +330,9 @@ function CandidateCard({
                                 <Image
                                   src={getSearchSourceLogoPath(source)}
                                   alt={getSearchSourceLabel(source)}
-                                  width={source === "github" ? 16 : 15}
-                                  height={source === "github" ? 16 : 15}
-                                  className="object-contain"
+                                  width={source === "github" ? 17 : 15}
+                                  height={source === "github" ? 17 : 15}
+                                  className="object-contain rounded-[2px]"
                                 />
                               </span>
                             </Tooltips>
@@ -355,10 +408,42 @@ function CandidateCard({
                         tooltipSide="bottom"
                       />
                     ) : null}
+                    {isOnlyGithub ? (
+                      <>
+                        <GithubSignalBox
+                          title={
+                            githubPreview?.company ??
+                            githubPreview?.location ??
+                            "-"
+                          }
+                          tooltipText={githubDeveloperTooltipText}
+                          icon="company"
+                          tooltipSide="bottom"
+                        />
+                        <GithubSignalBox
+                          title={
+                            githubPreview
+                              ? formatGithubRepoCount(githubPreview.publicRepos)
+                              : "-"
+                          }
+                          description={
+                            githubPreview
+                              ? formatGithubFollowerCount(
+                                  githubPreview.followers
+                                )
+                              : "-"
+                          }
+                          tooltipText={githubDeveloperTooltipText}
+                          icon="repos"
+                          tooltipSide="bottom"
+                        />
+                      </>
+                    ) : null}
                     {latestCompany ? (
                       <RoleBox
                         company={latestCompany.company_db.name ?? ""}
                         role={latestCompany.role}
+                        logoUrl={latestCompany.company_db.logo ?? ""}
                         tooltipText={companyHistoryTooltipText}
                         tooltipSide="bottom"
                       />
@@ -368,6 +453,7 @@ function CandidateCard({
                         school={school.school}
                         role={school.degree}
                         field={school.field}
+                        schoolUrl={school.url}
                         tooltipText={schoolHistoryTooltipText}
                         tooltipSide="bottom"
                       />
@@ -423,23 +509,24 @@ function CandidateCard({
                 ) : null}
               </div>
             )}
-            {shouldShowInlineMemo ? (
-              <div className="mt-6 border-t border-white/10 pt-4">
-                <CandidateMemoDock
-                  userId={userId}
-                  candidId={c.id}
-                  initialMemo={shortlistMemo}
-                  initialMarkStatus={candidateMarkStatus}
-                  onMarkChange={onMarkChange}
-                  showMarkButton={
-                    showMarkAction && Boolean(userId || candidateMarkStatus)
-                  }
-                  rows={4}
-                  editorClassName="w-full"
-                />
-              </div>
-            ) : null}
           </div>
+          {shouldShowInlineMemo ? (
+            <div
+              className={`w-full border-t border-white/10 pt-4 ${hasSharedFolderNotes ? "px-5 pb-5" : "px-6 pb-6"}`}
+            >
+              <CandidateMemoDock
+                userId={userId}
+                candidId={c.id}
+                initialMemo={shortlistMemo}
+                initialMarkStatus={candidateMarkStatus}
+                onMarkChange={onMarkChange}
+                showMarkButton={
+                  showMarkAction && Boolean(userId || candidateMarkStatus)
+                }
+                rows={4}
+              />
+            </div>
+          ) : null}
         </div>
 
         {shouldShowCornerMark || (showBookmarkAction && userId) ? (
@@ -450,14 +537,6 @@ function CandidateCard({
               e.stopPropagation();
             }}
           >
-            {shouldShowCornerMark ? (
-              <CandidateMarkButton
-                userId={userId}
-                candidId={c.id}
-                initialStatus={candidateMarkStatus}
-                onChange={onMarkChange}
-              />
-            ) : null}
             {showBookmarkAction && userId ? (
               <div
                 className={`${
@@ -477,7 +556,7 @@ function CandidateCard({
         ) : null}
       </Link>
 
-      {sharedFolderContext?.token ? (
+      {sharedFolderContext?.token && (
         <div className="w-full shrink-0 xl:w-[420px]">
           <SharedFolderCandidateNotes
             token={sharedFolderContext.token}
@@ -487,7 +566,7 @@ function CandidateCard({
             variant="sidecar"
           />
         </div>
-      ) : null}
+      )}
     </div>
   );
 }

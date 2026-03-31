@@ -30,10 +30,11 @@ export default function CandidateMemoDock({
   editorIsSmall = false,
   readOnlyPlaceholder = "메모 없음",
 }: CandidateMemoDockProps) {
-  const shouldShowMarkButton = showMarkButton && Boolean(userId || initialMarkStatus);
+  const shouldShowMarkButton =
+    showMarkButton && Boolean(userId || initialMarkStatus);
 
   return (
-    <div className={`flex flex-row items-start gap-2 ${className}`.trim()}>
+    <div className={`flex flex-row items-center gap-2 ${className}`.trim()}>
       {shouldShowMarkButton ? (
         <div className="shrink-0">
           <CandidateMarkButton
@@ -53,7 +54,6 @@ export default function CandidateMemoDock({
             candidId={candidId}
             initialMemo={initialMemo}
             rows={rows}
-            className={editorClassName}
             isSmall={editorIsSmall}
           />
         ) : (

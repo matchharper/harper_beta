@@ -1034,7 +1034,9 @@ function resolveSearchStartStatus(args: {
   legacyIsDone?: boolean;
 }): SearchStartStatus {
   const { block, runStatus, legacyIsDone } = args;
-  const normalizedRunStatus = String(runStatus ?? "").trim().toLowerCase();
+  const normalizedRunStatus = String(runStatus ?? "")
+    .trim()
+    .toLowerCase();
 
   if (normalizedRunStatus === "finished" || normalizedRunStatus === "done") {
     return "done";
@@ -1085,8 +1087,7 @@ export const SearchStartCard = React.memo(function SearchStartCard({
     runStatus: (runData as any)?.status,
     legacyIsDone,
   });
-  const canOpen =
-    !!runId && status !== "done" && status !== "failed";
+  const canOpen = !!runId && status !== "done" && status !== "failed";
   const label =
     status === "done"
       ? "검색 완료"
