@@ -13,6 +13,16 @@ import {
   BLOG_CONVERSION_EVENT_PREFIX,
   BLOG_VIEW_EVENT_PREFIX,
 } from "@/lib/blogMetrics";
+import {
+  TALENT_NETWORK_ABTEST_TYPE_A,
+  TALENT_NETWORK_ABTEST_TYPE_B,
+  TALENT_NETWORK_ANALYTICS_ABTEST_TYPES,
+  TALENT_NETWORK_CLICK_EVENT_PREFIX,
+  TALENT_NETWORK_LEGACY_ABTEST_TYPE,
+  TALENT_NETWORK_ONBOARDING_STEPS,
+  TALENT_NETWORK_SUBMIT_COMPLETED_EVENT,
+  getTalentNetworkVariantLabel,
+} from "@/lib/talentNetwork";
 
 type LandingLog = {
   id: string;
@@ -50,6 +60,33 @@ type SectionProgressSummary = {
   }>;
 };
 
+type TalentNetworkFunnelSummary = {
+  totalUsers: number;
+  onboardingStartUsers: number;
+  submittedUsers: number;
+  steps: Array<{
+    step: number;
+    label: string;
+    userCount: number;
+  }>;
+};
+
+type TalentNetworkButtonSummary = {
+  eventType: string;
+  totalClicks: number;
+  uniqueUsers: number;
+  variantBreakdown: Array<{
+    abtestType: string;
+    label: string;
+    totalClicks: number;
+    uniqueUsers: number;
+  }>;
+};
+
+type TalentNetworkVariantFunnelSummary = TalentNetworkFunnelSummary & {
+  abtestType: string;
+  label: string;
+};
 type WaitlistCompany = {
   additional: string | null;
   company: string | null;
@@ -142,6 +179,7 @@ type AdminUserAnalyticsProfile = {
 
 type AdminTab =
   | "landingLogs"
+  | "networkAnalytics"
   | "waitlistCompany"
   | "blogMetrics"
   | "bookmarkFolders"
@@ -177,6 +215,12 @@ function formatSectionName(sectionName: string) {
   return sectionName.replace(/_/g, " ");
 }
 
+function formatTalentNetworkEventName(type: string) {
+  return type
+    .replace(/^talent_network_/, "")
+    .replace(/:/g, " / ")
+    .replace(/_/g, " ");
+}
 function formatPercent(numerator: number, denominator: number) {
   if (denominator === 0) return "0.0%";
   return `${((numerator / denominator) * 100).toFixed(1)}%`;
@@ -201,10 +245,114 @@ function formatKST(iso?: string) {
   });
 }
 
+const TALENT_NETWORK_VARIANT_SORT_ORDER: Record<string, number> = {
+  [TALENT_NETWORK_ABTEST_TYPE_A]: 0,
+  [TALENT_NETWORK_ABTEST_TYPE_B]: 1,
+  [TALENT_NETWORK_LEGACY_ABTEST_TYPE]: 2,
+  unknown: 3,
+};
+
+function compareTalentNetworkVariantType(a: string, b: string) {
+  const aOrder = TALENT_NETWORK_VARIANT_SORT_ORDER[a] ?? 99;
+  const bOrder = TALENT_NETWORK_VARIANT_SORT_ORDER[b] ?? 99;
+
+  if (aOrder !== bOrder) return aOrder - bOrder;
+  return a.localeCompare(b);
+}
+
+function buildTalentNetworkFunnelSummary(
+  groups: GroupedLogs[]
+): TalentNetworkFunnelSummary | null {
+  if (groups.length === 0) return null;
+
+  const steps = TALENT_NETWORK_ONBOARDING_STEPS.map((item) => ({
+    step: item.step,
+    label: item.label,
+    userCount: groups.filter((group) =>
+      group.logs.some((log) => log.type === item.eventType)
+    ).length,
+  }));
+
+  return {
+    totalUsers: groups.length,
+    onboardingStartUsers: steps[0]?.userCount ?? 0,
+    submittedUsers: groups.filter((group) =>
+      group.logs.some(
+        (log) => log.type === TALENT_NETWORK_SUBMIT_COMPLETED_EVENT
+      )
+    ).length,
+    steps,
+  };
+}
+
+function getTalentNetworkVariantDescription(abtestType: string) {
+  if (abtestType === TALENT_NETWORK_ABTEST_TYPE_A) {
+    return "Our value hidden";
+  }
+  if (abtestType === TALENT_NETWORK_ABTEST_TYPE_B) {
+    return "Our value shown";
+  }
+  if (abtestType === TALENT_NETWORK_LEGACY_ABTEST_TYPE) {
+    return "Before A/B test";
+  }
+  return "";
+}
+
 function extractSlugFromEventType(type: string, prefix: string) {
   if (!type.startsWith(prefix)) return null;
   const slug = type.slice(prefix.length).trim();
   return slug.length > 0 ? slug : null;
+}
+
+function groupLandingLogsByUser(logItems: LandingLog[]) {
+  if (logItems.length === 0) return [] as GroupedLogs[];
+
+  const byUser = new Map<string, LandingLog[]>();
+  for (const item of logItems) {
+    if (isExcludedLandingLogType(item.type)) continue;
+    const list = byUser.get(item.local_id) ?? [];
+    list.push(item);
+    byUser.set(item.local_id, list);
+  }
+
+  const groups: GroupedLogs[] = [];
+  for (const [local_id, list] of Array.from(byUser.entries())) {
+    const entryCandidates = list.filter((l) => ENTRY_TYPES.has(l.type));
+    const entryTimeSource =
+      entryCandidates.length > 0
+        ? entryCandidates
+            .slice()
+            .sort((a: LandingLog, b: LandingLog) =>
+              b.created_at.localeCompare(a.created_at)
+            )[0]
+        : list
+            .slice()
+            .sort((a: LandingLog, b: LandingLog) =>
+              b.created_at.localeCompare(a.created_at)
+            )[0];
+
+    const entryTime = entryTimeSource?.created_at ?? "";
+    const abtestType =
+      entryTimeSource?.abtest_type ??
+      list.find((log) => !!log.abtest_type)?.abtest_type ??
+      "unknown";
+
+    const orderedLogs = list
+      .slice()
+      .sort((a: LandingLog, b: LandingLog) =>
+        a.created_at.localeCompare(b.created_at)
+      );
+
+    groups.push({
+      local_id,
+      entryTime,
+      abtest_type: abtestType,
+      logs: orderedLogs,
+      country_lang: list[0]?.country_lang ?? "",
+    });
+  }
+
+  return groups.sort((a, b) => b.entryTime.localeCompare(a.entryTime));
 }
 
 const AdminPage = () => {
@@ -224,6 +372,14 @@ const AdminPage = () => {
   const [waitlistLoading, setWaitlistLoading] = useState(false);
   const [waitlistLoaded, setWaitlistLoaded] = useState(false);
   const [waitlistError, setWaitlistError] = useState<string | null>(null);
+  const [networkAnalyticsLogs, setNetworkAnalyticsLogs] = useState<
+    LandingLog[]
+  >([]);
+  const [networkAnalyticsLoading, setNetworkAnalyticsLoading] = useState(false);
+  const [networkAnalyticsLoaded, setNetworkAnalyticsLoaded] = useState(false);
+  const [networkAnalyticsError, setNetworkAnalyticsError] = useState<
+    string | null
+  >(null);
   const [blogMetricRows, setBlogMetricRows] = useState<BlogMetricRow[]>([]);
   const [blogMetricsLoading, setBlogMetricsLoading] = useState(false);
   const [blogMetricsLoaded, setBlogMetricsLoaded] = useState(false);
@@ -378,6 +534,80 @@ const AdminPage = () => {
       setWaitlistError(e?.message ?? "Failed to load");
     } finally {
       setWaitlistLoading(false);
+    }
+  }, []);
+
+  const fetchNetworkAnalyticsLogs = useCallback(async () => {
+    setNetworkAnalyticsLoading(true);
+    setNetworkAnalyticsError(null);
+
+    try {
+      let from = 0;
+      const allLogs: LandingLog[] = [];
+
+      while (true) {
+        const to = from + BLOG_METRIC_FETCH_BATCH_SIZE - 1;
+
+        const { data, error } = await supabase
+          .from("landing_logs")
+          .select(
+            "id,local_id,type,abtest_type,created_at,is_mobile,country_lang"
+          )
+          .in("abtest_type", [...TALENT_NETWORK_ANALYTICS_ABTEST_TYPES])
+          .not("country_lang", "ilike", `%US_en%`)
+          .order("id", { ascending: true })
+          .range(from, to);
+
+        if (error) throw error;
+
+        const rows = (
+          (data ?? []) as Array<{
+            id: number | string | null;
+            local_id: string | null;
+            type: string | null;
+            abtest_type: string | null;
+            created_at: string;
+            is_mobile: boolean | null;
+            country_lang: string | null;
+          }>
+        ).flatMap((row) => {
+          if (
+            row.id === null ||
+            typeof row.local_id !== "string" ||
+            typeof row.type !== "string"
+          ) {
+            return [];
+          }
+
+          return [
+            {
+              id: String(row.id),
+              local_id: row.local_id,
+              type: row.type,
+              abtest_type: row.abtest_type,
+              created_at: row.created_at,
+              is_mobile: row.is_mobile,
+              country_lang: row.country_lang,
+            } satisfies LandingLog,
+          ];
+        });
+        allLogs.push(...rows);
+
+        if (rows.length < BLOG_METRIC_FETCH_BATCH_SIZE) {
+          break;
+        }
+
+        from += BLOG_METRIC_FETCH_BATCH_SIZE;
+      }
+
+      setNetworkAnalyticsLogs(allLogs);
+      setNetworkAnalyticsLoaded(true);
+    } catch (e: any) {
+      setNetworkAnalyticsError(
+        e?.message ?? "Failed to load network analytics"
+      );
+    } finally {
+      setNetworkAnalyticsLoading(false);
     }
   }, []);
 
@@ -585,7 +815,9 @@ const AdminPage = () => {
         setBookmarkFolderTotal(Number(json?.total ?? 0));
         setBookmarkFolderLimit(Number(json?.limit ?? 200));
       } catch (e: any) {
-        setBookmarkFolderItemsError(e?.message ?? "Failed to load folder items");
+        setBookmarkFolderItemsError(
+          e?.message ?? "Failed to load folder items"
+        );
         setBookmarkFolderItems([]);
         setBookmarkFolderTotal(0);
       } finally {
@@ -653,7 +885,8 @@ const AdminPage = () => {
       setUserAnalyticsProfiles([]);
 
       try {
-        const effectiveStartDate = overrides?.startDate ?? userAnalyticsStartDate;
+        const effectiveStartDate =
+          overrides?.startDate ?? userAnalyticsStartDate;
         const effectiveEndDate = overrides?.endDate ?? userAnalyticsEndDate;
         const params = new URLSearchParams({ userId: user.userId });
         if (effectiveStartDate) {
@@ -673,7 +906,9 @@ const AdminPage = () => {
         }
 
         if (json?.user) {
-          const summary = json?.summary as AdminUserAnalyticsSummary | undefined;
+          const summary = json?.summary as
+            | AdminUserAnalyticsSummary
+            | undefined;
           setSelectedAnalyticsUser({
             ...user,
             ...(json.user as Partial<AdminUserAnalyticsUser>),
@@ -748,7 +983,6 @@ const AdminPage = () => {
 
   useEffect(() => {
     if (activeTab !== "landingLogs") return;
-
     const el = sentinelRef.current;
     if (!el) return;
 
@@ -764,9 +998,30 @@ const AdminPage = () => {
     return () => io.disconnect();
   }, [activeTab, fetchPage]);
 
+  useEffect(() => {
+    if (activeTab !== "networkAnalytics") return;
+    if (
+      networkAnalyticsLoaded ||
+      networkAnalyticsLoading ||
+      networkAnalyticsError
+    )
+      return;
+    void fetchNetworkAnalyticsLogs();
+  }, [
+    activeTab,
+    fetchNetworkAnalyticsLogs,
+    networkAnalyticsError,
+    networkAnalyticsLoaded,
+    networkAnalyticsLoading,
+  ]);
+
   const onRefresh = async () => {
     if (activeTab === "landingLogs") {
       await fetchPage({ reset: true });
+      return;
+    }
+    if (activeTab === "networkAnalytics") {
+      await fetchNetworkAnalyticsLogs();
       return;
     }
     if (activeTab === "waitlistCompany") {
@@ -813,56 +1068,26 @@ const AdminPage = () => {
     }
   };
 
-  const grouped = useMemo<GroupedLogs[]>(() => {
-    if (logs.length === 0) return [];
+  const grouped = useMemo<GroupedLogs[]>(
+    () => groupLandingLogsByUser(logs),
+    [logs]
+  );
+  const networkGrouped = useMemo<GroupedLogs[]>(
+    () => groupLandingLogsByUser(networkAnalyticsLogs),
+    [networkAnalyticsLogs]
+  );
+  const networkGroupsByVariant = useMemo(() => {
+    const byVariant = new Map<string, GroupedLogs[]>();
 
-    const byUser = new Map<string, LandingLog[]>();
-    for (const item of logs) {
-      if (isExcludedLandingLogType(item.type)) continue;
-      const list = byUser.get(item.local_id) ?? [];
-      list.push(item);
-      byUser.set(item.local_id, list);
+    for (const group of networkGrouped) {
+      const key = group.abtest_type || "unknown";
+      const list = byVariant.get(key) ?? [];
+      list.push(group);
+      byVariant.set(key, list);
     }
 
-    const groups: GroupedLogs[] = [];
-    for (const [local_id, list] of Array.from(byUser.entries())) {
-      const entryCandidates = list.filter((l) => ENTRY_TYPES.has(l.type));
-      const entryTimeSource =
-        entryCandidates.length > 0
-          ? entryCandidates
-              .slice()
-              .sort((a: LandingLog, b: LandingLog) =>
-                b.created_at.localeCompare(a.created_at)
-              )[0]
-          : list
-              .slice()
-              .sort((a: LandingLog, b: LandingLog) =>
-                b.created_at.localeCompare(a.created_at)
-              )[0];
-
-      const entryTime = entryTimeSource?.created_at ?? "";
-      const abtestType =
-        entryTimeSource?.abtest_type ??
-        list.find((log) => !!log.abtest_type)?.abtest_type ??
-        "unknown";
-
-      const orderedLogs = list
-        .slice()
-        .sort((a: LandingLog, b: LandingLog) =>
-          a.created_at.localeCompare(b.created_at)
-        );
-
-      groups.push({
-        local_id,
-        entryTime,
-        abtest_type: abtestType,
-        logs: orderedLogs,
-        country_lang: list[0]?.country_lang ?? "",
-      });
-    }
-
-    return groups.sort((a, b) => b.entryTime.localeCompare(a.entryTime));
-  }, [logs]);
+    return byVariant;
+  }, [networkGrouped]);
 
   const landingSummary = useMemo(() => {
     const totalUsers = grouped.length;
@@ -983,6 +1208,122 @@ const AdminPage = () => {
       .sort((a, b) => b.totalUsers - a.totalUsers);
   }, [grouped]);
 
+  const talentNetworkFunnelSummary = useMemo<TalentNetworkFunnelSummary | null>(
+    () => buildTalentNetworkFunnelSummary(networkGrouped),
+    [networkGrouped]
+  );
+
+  const talentNetworkVariantSummaries = useMemo<
+    TalentNetworkVariantFunnelSummary[]
+  >(() => {
+    const variantsToShow = [
+      TALENT_NETWORK_ABTEST_TYPE_A,
+      TALENT_NETWORK_ABTEST_TYPE_B,
+      ...Array.from(networkGroupsByVariant.keys()).filter(
+        (key) =>
+          key !== TALENT_NETWORK_ABTEST_TYPE_A &&
+          key !== TALENT_NETWORK_ABTEST_TYPE_B
+      ),
+    ];
+
+    const uniqueVariants = Array.from(new Set(variantsToShow)).sort(
+      compareTalentNetworkVariantType
+    );
+
+    return uniqueVariants.map((abtestType) => {
+      const summary = buildTalentNetworkFunnelSummary(
+        networkGroupsByVariant.get(abtestType) ?? []
+      ) ?? {
+        totalUsers: 0,
+        onboardingStartUsers: 0,
+        submittedUsers: 0,
+        steps: TALENT_NETWORK_ONBOARDING_STEPS.map((item) => ({
+          step: item.step,
+          label: item.label,
+          userCount: 0,
+        })),
+      };
+
+      return {
+        ...summary,
+        abtestType,
+        label: getTalentNetworkVariantLabel(abtestType),
+      };
+    });
+  }, [networkGroupsByVariant]);
+
+  const talentNetworkButtonSummary = useMemo<
+    TalentNetworkButtonSummary[]
+  >(() => {
+    if (networkGrouped.length === 0) return [];
+
+    const counter = new Map<
+      string,
+      {
+        totalClicks: number;
+        users: Set<string>;
+        byVariant: Map<
+          string,
+          {
+            totalClicks: number;
+            users: Set<string>;
+          }
+        >;
+      }
+    >();
+
+    for (const group of networkGrouped) {
+      const variantKey = group.abtest_type || "unknown";
+
+      for (const log of group.logs) {
+        if (!log.type.startsWith(TALENT_NETWORK_CLICK_EVENT_PREFIX)) continue;
+
+        const current = counter.get(log.type) ?? {
+          totalClicks: 0,
+          users: new Set<string>(),
+          byVariant: new Map(),
+        };
+        current.totalClicks += 1;
+        current.users.add(group.local_id);
+
+        const currentVariant = current.byVariant.get(variantKey) ?? {
+          totalClicks: 0,
+          users: new Set<string>(),
+        };
+        currentVariant.totalClicks += 1;
+        currentVariant.users.add(group.local_id);
+        current.byVariant.set(variantKey, currentVariant);
+
+        counter.set(log.type, current);
+      }
+    }
+
+    return Array.from(counter.entries())
+      .map(([eventType, summary]) => ({
+        eventType,
+        totalClicks: summary.totalClicks,
+        uniqueUsers: summary.users.size,
+        variantBreakdown: Array.from(summary.byVariant.entries())
+          .map(([abtestType, variant]) => ({
+            abtestType,
+            label: getTalentNetworkVariantLabel(abtestType),
+            totalClicks: variant.totalClicks,
+            uniqueUsers: variant.users.size,
+          }))
+          .sort((a, b) =>
+            compareTalentNetworkVariantType(a.abtestType, b.abtestType)
+          ),
+      }))
+      .sort((a, b) => {
+        if (b.uniqueUsers !== a.uniqueUsers) {
+          return b.uniqueUsers - a.uniqueUsers;
+        }
+        if (b.totalClicks !== a.totalClicks) {
+          return b.totalClicks - a.totalClicks;
+        }
+        return a.eventType.localeCompare(b.eventType);
+      });
+  }, [networkGrouped]);
   const blogMetricsSummary = useMemo(() => {
     const totalPosts = blogMetricRows.length;
     const totalViews = blogMetricRows.reduce(
@@ -1000,14 +1341,24 @@ const AdminPage = () => {
       totalConversions,
     };
   }, [blogMetricRows]);
+  const talentNetworkVariantColumns = useMemo(
+    () =>
+      talentNetworkVariantSummaries.map((item) => ({
+        abtestType: item.abtestType,
+        label: item.label,
+      })),
+    [talentNetworkVariantSummaries]
+  );
   const selectedBookmarkFolder = useMemo(
     () =>
-      bookmarkFolders.find((folder) => folder.id === selectedBookmarkFolderId) ??
-      null,
+      bookmarkFolders.find(
+        (folder) => folder.id === selectedBookmarkFolderId
+      ) ?? null,
     [bookmarkFolders, selectedBookmarkFolderId]
   );
 
   const isLandingTab = activeTab === "landingLogs";
+  const isNetworkAnalyticsTab = activeTab === "networkAnalytics";
   const isWaitlistTab = activeTab === "waitlistCompany";
   const isBlogMetricsTab = activeTab === "blogMetrics";
   const isBookmarkFoldersTab = activeTab === "bookmarkFolders";
@@ -1015,42 +1366,50 @@ const AdminPage = () => {
 
   const pageTitle = isLandingTab
     ? "Landing Logs Admin"
-    : isWaitlistTab
-      ? "Waitlist Company Admin"
-      : isBlogMetricsTab
-        ? "Blog Metrics Admin"
-        : isBookmarkFoldersTab
-          ? "Bookmark Folder Admin"
-          : "User Analytics Admin";
+    : isNetworkAnalyticsTab
+      ? "Network Analytics Admin"
+      : isWaitlistTab
+        ? "Waitlist Company Admin"
+        : isBlogMetricsTab
+          ? "Blog Metrics Admin"
+          : isBookmarkFoldersTab
+            ? "Bookmark Folder Admin"
+            : "User Analytics Admin";
   const pageSubTitle = isLandingTab
     ? "local_id 기준 · 액션 타임라인"
-    : isWaitlistTab
-      ? "harper_waitlist_company 목록"
-      : isBlogMetricsTab
-        ? "blog slug 기준 조회/전환 집계"
-        : isBookmarkFoldersTab
-          ? "유저별 북마크 폴더와 저장 후보 조회"
-          : "company_users 기준 검색/프로필/링크 클릭 지표 조회";
+    : isNetworkAnalyticsTab
+      ? "Talent Network A/B test · funnel · button clicks"
+      : isWaitlistTab
+        ? "harper_waitlist_company 목록"
+        : isBlogMetricsTab
+          ? "blog slug 기준 조회/전환 집계"
+          : isBookmarkFoldersTab
+            ? "유저별 북마크 폴더와 저장 후보 조회"
+            : "company_users 기준 검색/프로필/링크 클릭 지표 조회";
   const isLoading = isLandingTab
     ? loading || loadingMore
-    : isWaitlistTab
-      ? waitlistLoading
-      : isBlogMetricsTab
-        ? blogMetricsLoading
-        : isBookmarkFoldersTab
-          ? bookmarkUsersLoading ||
-            bookmarkFoldersLoading ||
-            bookmarkFolderItemsLoading
-          : userAnalyticsUsersLoading || userAnalyticsDetailLoading;
+    : isNetworkAnalyticsTab
+      ? networkAnalyticsLoading
+      : isWaitlistTab
+        ? waitlistLoading
+        : isBlogMetricsTab
+          ? blogMetricsLoading
+          : isBookmarkFoldersTab
+            ? bookmarkUsersLoading ||
+              bookmarkFoldersLoading ||
+              bookmarkFolderItemsLoading
+            : userAnalyticsUsersLoading || userAnalyticsDetailLoading;
   const pageError = isLandingTab
     ? error
-    : isWaitlistTab
-      ? waitlistError
-      : isBlogMetricsTab
-        ? blogMetricsError
-        : isBookmarkFoldersTab
-          ? null
-          : null;
+    : isNetworkAnalyticsTab
+      ? networkAnalyticsError
+      : isWaitlistTab
+        ? waitlistError
+        : isBlogMetricsTab
+          ? blogMetricsError
+          : isBookmarkFoldersTab
+            ? null
+            : null;
 
   if (!isPassed) {
     return (
@@ -1096,6 +1455,17 @@ const AdminPage = () => {
                 style={{ borderRadius: 0 }}
               >
                 Landing Logs
+              </button>
+              <button
+                onClick={() => setActiveTab("networkAnalytics")}
+                className={`h-8 px-3 text-[12px] border ${
+                  isNetworkAnalyticsTab
+                    ? "border-black bg-black text-white"
+                    : "border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
+                }`}
+                style={{ borderRadius: 0 }}
+              >
+                Network
               </button>
               <button
                 onClick={() => setActiveTab("waitlistCompany")}
@@ -1288,11 +1658,7 @@ const AdminPage = () => {
                               {formatSectionName(section.sectionName)}
                             </span>{" "}
                             · {section.userCount} (
-                            {formatPercent(
-                              section.userCount,
-                              item.totalUsers
-                            )}
-                            )
+                            {formatPercent(section.userCount, item.totalUsers)})
                           </div>
                         ))}
                       </div>
@@ -1395,6 +1761,311 @@ const AdminPage = () => {
             <div className="mt-4 text-[12px] text-black/45">
               {hasMore ? "Scroll to load more…" : "No more rows."}
             </div>
+          </>
+        ) : isNetworkAnalyticsTab ? (
+          <>
+            <div className="mb-4 flex items-center justify-between w-full">
+              <div className="text-[12px] text-black/55">
+                Loaded logs:{" "}
+                <span className="text-black">
+                  {networkAnalyticsLogs.length}
+                </span>{" "}
+                · Users:{" "}
+                <span className="text-black">{networkGrouped.length}</span>
+              </div>
+
+              {networkAnalyticsLoading && (
+                <Loading
+                  size="sm"
+                  label="Loading…"
+                  className="text-[12px] text-black/55"
+                  inline={true}
+                />
+              )}
+            </div>
+
+            {pageError ? (
+              <div
+                className="mb-4 border border-black/15 bg-black/[0.02] p-4 text-[13px] flex items-start justify-between gap-4"
+                style={{ borderRadius: 0 }}
+              >
+                <div>
+                  <div className="font-semibold">Error</div>
+                  <div className="text-black/70 mt-1">{pageError}</div>
+                </div>
+                <button
+                  onClick={onRefresh}
+                  className="h-9 px-3 text-[13px] border border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
+                  style={{ borderRadius: 0 }}
+                >
+                  Retry
+                </button>
+              </div>
+            ) : !talentNetworkFunnelSummary ? (
+              <div
+                className="border border-black/10 p-8 text-center text-[13px] text-black/55"
+                style={{ borderRadius: 0 }}
+              >
+                No Talent Network data.
+              </div>
+            ) : (
+              <>
+                <div
+                  className="mb-4 border border-black/10 p-4 text-[12px] text-black/80"
+                  style={{ borderRadius: 0 }}
+                >
+                  <div className="font-semibold text-black mb-2">
+                    Talent Network overview
+                  </div>
+                  <div className="leading-6">
+                    유입 유저:{" "}
+                    <span className="font-medium text-black">
+                      {talentNetworkFunnelSummary.totalUsers}
+                    </span>{" "}
+                    · 시작 화면 도달:{" "}
+                    <span className="font-medium text-black">
+                      {talentNetworkFunnelSummary.onboardingStartUsers}
+                    </span>{" "}
+                    (
+                    {formatPercent(
+                      talentNetworkFunnelSummary.onboardingStartUsers,
+                      talentNetworkFunnelSummary.totalUsers
+                    )}
+                    ) · 제출 완료:{" "}
+                    <span className="font-medium text-black">
+                      {talentNetworkFunnelSummary.submittedUsers}
+                    </span>{" "}
+                    (
+                    {formatPercent(
+                      talentNetworkFunnelSummary.submittedUsers,
+                      talentNetworkFunnelSummary.totalUsers
+                    )}
+                    )
+                  </div>
+                </div>
+
+                <div
+                  className="mb-4 border border-black/10 p-4 text-[12px] text-black/80"
+                  style={{ borderRadius: 0 }}
+                >
+                  <div className="font-semibold text-black mb-2">
+                    A/B variant comparison
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[760px] text-left">
+                      <thead>
+                        <tr className="border-b border-black/10 text-black">
+                          <th className="py-2 pr-3 font-semibold">Variant</th>
+                          <th className="py-2 pr-3 font-semibold">UI</th>
+                          <th className="py-2 pr-3 text-right font-semibold">
+                            Users
+                          </th>
+                          <th className="py-2 pr-3 text-right font-semibold">
+                            Start
+                          </th>
+                          <th className="py-2 pr-3 text-right font-semibold">
+                            Submit
+                          </th>
+                          <th className="py-2 text-right font-semibold">
+                            Submit / Start
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {talentNetworkVariantSummaries.map((item) => (
+                          <tr
+                            key={item.abtestType}
+                            className="border-b border-black/5 align-top last:border-b-0"
+                          >
+                            <td className="py-2 pr-3 font-medium text-black">
+                              {item.label}
+                              <div className="text-[11px] font-normal text-black/45">
+                                {item.abtestType}
+                              </div>
+                            </td>
+                            <td className="py-2 pr-3 text-black/65">
+                              {getTalentNetworkVariantDescription(
+                                item.abtestType
+                              ) || "-"}
+                            </td>
+                            <td className="py-2 pr-3 text-right">
+                              {item.totalUsers}
+                            </td>
+                            <td className="py-2 pr-3 text-right">
+                              {item.onboardingStartUsers} (
+                              {formatPercent(
+                                item.onboardingStartUsers,
+                                item.totalUsers
+                              )}
+                              )
+                            </td>
+                            <td className="py-2 pr-3 text-right">
+                              {item.submittedUsers} (
+                              {formatPercent(
+                                item.submittedUsers,
+                                item.totalUsers
+                              )}
+                              )
+                            </td>
+                            <td className="py-2 text-right">
+                              {formatPercent(
+                                item.submittedUsers,
+                                item.onboardingStartUsers
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div
+                  className="mb-4 border border-black/10 p-4 text-[12px] text-black/80"
+                  style={{ borderRadius: 0 }}
+                >
+                  <div className="font-semibold text-black mb-2">
+                    Onboarding step comparison
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[820px] text-left">
+                      <thead>
+                        <tr className="border-b border-black/10 text-black">
+                          <th className="py-2 pr-3 font-semibold">Step</th>
+                          {talentNetworkVariantColumns.map((variant) => (
+                            <th
+                              key={variant.abtestType}
+                              className="py-2 pr-3 text-right font-semibold"
+                            >
+                              {variant.label}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {TALENT_NETWORK_ONBOARDING_STEPS.map((step) => (
+                          <tr
+                            key={step.step}
+                            className="border-b border-black/5 last:border-b-0"
+                          >
+                            <td className="py-2 pr-3">
+                              <span className="font-medium text-black">
+                                Step {step.step}
+                              </span>{" "}
+                              {step.label}
+                            </td>
+                            {talentNetworkVariantColumns.map((variant) => {
+                              const summary =
+                                talentNetworkVariantSummaries.find(
+                                  (item) =>
+                                    item.abtestType === variant.abtestType
+                                );
+                              const stepSummary = summary?.steps.find(
+                                (item) => item.step === step.step
+                              );
+
+                              return (
+                                <td
+                                  key={`${step.step}-${variant.abtestType}`}
+                                  className="py-2 pr-3 text-right"
+                                >
+                                  {stepSummary?.userCount ?? 0} (
+                                  {formatPercent(
+                                    stepSummary?.userCount ?? 0,
+                                    summary?.totalUsers ?? 0
+                                  )}
+                                  )
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div
+                  className="mb-4 border border-black/10 p-4 text-[12px] text-black/80"
+                  style={{ borderRadius: 0 }}
+                >
+                  <div className="font-semibold text-black mb-2">
+                    Button clicks by variant
+                  </div>
+                  {talentNetworkButtonSummary.length === 0 ? (
+                    <div className="text-black/55">No button click data.</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[980px] text-left">
+                        <thead>
+                          <tr className="border-b border-black/10 text-black">
+                            <th className="py-2 pr-3 font-semibold">Event</th>
+                            <th className="py-2 pr-3 text-right font-semibold">
+                              Total Users
+                            </th>
+                            <th className="py-2 pr-3 text-right font-semibold">
+                              Total Clicks
+                            </th>
+                            {talentNetworkVariantColumns.map((variant) => (
+                              <th
+                                key={variant.abtestType}
+                                className="py-2 pr-3 text-right font-semibold"
+                              >
+                                {variant.label}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {talentNetworkButtonSummary.map((item) => (
+                            <tr
+                              key={item.eventType}
+                              className="border-b border-black/5 align-top last:border-b-0"
+                            >
+                              <td className="py-2 pr-3">
+                                <div className="break-all">
+                                  <div className="text-black">
+                                    {formatTalentNetworkEventName(
+                                      item.eventType
+                                    )}
+                                  </div>
+                                  <div className="text-[11px] text-black/45">
+                                    {item.eventType}
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="py-2 pr-3 text-right">
+                                {item.uniqueUsers}
+                              </td>
+                              <td className="py-2 pr-3 text-right">
+                                {item.totalClicks}
+                              </td>
+                              {talentNetworkVariantColumns.map((variant) => {
+                                const breakdown = item.variantBreakdown.find(
+                                  (entry) =>
+                                    entry.abtestType === variant.abtestType
+                                );
+
+                                return (
+                                  <td
+                                    key={`${item.eventType}-${variant.abtestType}`}
+                                    className="py-2 pr-3 text-right"
+                                  >
+                                    {breakdown
+                                      ? `${breakdown.uniqueUsers} / ${breakdown.totalClicks}`
+                                      : "0 / 0"}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </>
         ) : isWaitlistTab ? (
           <>
@@ -1512,7 +2183,8 @@ const AdminPage = () => {
             <div className="mb-4 rounded-[20px] border border-[#d8c7aa] bg-[#fbf4e8] p-4 text-[#4d3a24]">
               <div className="text-[14px] font-semibold">User lookup</div>
               <div className="mt-1 text-[12px] leading-5 text-[#7a664b]">
-                이름이나 이메일로 유저를 찾고, 해당 유저의 북마크 폴더와 저장된 후보를 확인합니다.
+                이름이나 이메일로 유저를 찾고, 해당 유저의 북마크 폴더와 저장된
+                후보를 확인합니다.
               </div>
               <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                 <input
@@ -1595,7 +2267,8 @@ const AdminPage = () => {
                             {user.email || "-"}
                           </div>
                           <div className="mt-2 text-[11px] text-[#8d7a5d]">
-                            폴더 {user.folderCount} · 북마크 {user.bookmarkCount}
+                            폴더 {user.folderCount} · 북마크{" "}
+                            {user.bookmarkCount}
                           </div>
                         </button>
                       );
@@ -1628,7 +2301,9 @@ const AdminPage = () => {
                 {selectedBookmarkUser ? (
                   <div className="mt-3 rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-3 py-3 text-[12px] leading-5 text-[#6a563c]">
                     <div>{selectedBookmarkUser.email || "-"}</div>
-                    <div>{selectedBookmarkUser.company || "회사 정보 없음"}</div>
+                    <div>
+                      {selectedBookmarkUser.company || "회사 정보 없음"}
+                    </div>
                   </div>
                 ) : null}
 
@@ -1643,7 +2318,8 @@ const AdminPage = () => {
                     <div className="rounded-[16px] border border-dashed border-[#d8c7aa] bg-[#fffaf1] px-4 py-6 text-center text-[12px] leading-5 text-[#8d7a5d]">
                       왼쪽에서 유저를 선택하면 폴더가 표시됩니다.
                     </div>
-                  ) : bookmarkFolders.length === 0 && !bookmarkFoldersLoading ? (
+                  ) : bookmarkFolders.length === 0 &&
+                    !bookmarkFoldersLoading ? (
                     <div className="rounded-[16px] border border-dashed border-[#d8c7aa] bg-[#fffaf1] px-4 py-6 text-center text-[12px] leading-5 text-[#8d7a5d]">
                       북마크 폴더가 없습니다.
                     </div>
@@ -1884,8 +2560,8 @@ const AdminPage = () => {
                           </div>
                           <div className="mt-2 text-[11px] text-[#8d7a5d]">
                             세션 {user.searchCount.toLocaleString("ko-KR")} ·
-                            후보 {user.profileViewCount.toLocaleString("ko-KR")} ·
-                            링크 {user.linkClickCount.toLocaleString("ko-KR")}
+                            후보 {user.profileViewCount.toLocaleString("ko-KR")}{" "}
+                            · 링크 {user.linkClickCount.toLocaleString("ko-KR")}
                           </div>
                         </button>
                       );
@@ -1939,9 +2615,7 @@ const AdminPage = () => {
                           }
                           className="h-10 rounded-[12px] border border-[#d8c7aa] bg-[#fffaf1] px-3 text-[13px] text-[#3f301f] outline-none"
                         />
-                        <div className="px-1 text-[12px] text-[#8d7a5d]">
-                          ~
-                        </div>
+                        <div className="px-1 text-[12px] text-[#8d7a5d]">~</div>
                         <input
                           type="date"
                           value={userAnalyticsEndDate}

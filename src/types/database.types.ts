@@ -1034,18 +1034,11 @@ export type Database = {
           id?: number
           user_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "feedback_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "company_users"
-            referencedColumns: ["user_id"]
-          },
-        ]
+        Relationships: []
       }
       github_profile: {
         Row: {
+          activity_summary: Json | null
           avatar_url: string | null
           bio: string | null
           blog: string | null
@@ -1055,11 +1048,11 @@ export type Database = {
           email: string | null
           followers: number | null
           following: number | null
+          github_created_at: string | null
           github_id: number | null
           github_url: string | null
           github_username: string
           id: string
-          inserted_at: string | null
           is_hireable: boolean | null
           is_site_admin: boolean | null
           last_fetched_at: string | null
@@ -1073,6 +1066,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          activity_summary?: Json | null
           avatar_url?: string | null
           bio?: string | null
           blog?: string | null
@@ -1082,11 +1076,11 @@ export type Database = {
           email?: string | null
           followers?: number | null
           following?: number | null
+          github_created_at?: string | null
           github_id?: number | null
           github_url?: string | null
           github_username: string
           id?: string
-          inserted_at?: string | null
           is_hireable?: boolean | null
           is_site_admin?: boolean | null
           last_fetched_at?: string | null
@@ -1100,6 +1094,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          activity_summary?: Json | null
           avatar_url?: string | null
           bio?: string | null
           blog?: string | null
@@ -1109,11 +1104,11 @@ export type Database = {
           email?: string | null
           followers?: number | null
           following?: number | null
+          github_created_at?: string | null
           github_id?: number | null
           github_url?: string | null
           github_username?: string
           id?: string
-          inserted_at?: string | null
           is_hireable?: boolean | null
           is_site_admin?: boolean | null
           last_fetched_at?: string | null
@@ -1231,7 +1226,6 @@ export type Database = {
           github_id: number | null
           homepage: string | null
           id: string
-          inserted_at: string | null
           is_archived: boolean | null
           is_disabled: boolean | null
           is_fork: boolean | null
@@ -1244,6 +1238,7 @@ export type Database = {
           owner: string
           pushed_at: string | null
           readme_excerpt: string | null
+          repo_created_at: string | null
           repo_full_name: string
           repo_name: string
           search_text: string | null
@@ -1259,7 +1254,6 @@ export type Database = {
           github_id?: number | null
           homepage?: string | null
           id?: string
-          inserted_at?: string | null
           is_archived?: boolean | null
           is_disabled?: boolean | null
           is_fork?: boolean | null
@@ -1272,6 +1266,7 @@ export type Database = {
           owner: string
           pushed_at?: string | null
           readme_excerpt?: string | null
+          repo_created_at?: string | null
           repo_full_name: string
           repo_name: string
           search_text?: string | null
@@ -1287,7 +1282,6 @@ export type Database = {
           github_id?: number | null
           homepage?: string | null
           id?: string
-          inserted_at?: string | null
           is_archived?: boolean | null
           is_disabled?: boolean | null
           is_fork?: boolean | null
@@ -1300,6 +1294,7 @@ export type Database = {
           owner?: string
           pushed_at?: string | null
           readme_excerpt?: string | null
+          repo_created_at?: string | null
           repo_full_name?: string
           repo_name?: string
           search_text?: string | null
@@ -2765,7 +2760,7 @@ export type Database = {
           from_email: string | null
           id: number
           subject: string | null
-          talent_id: string
+          talent_id: string | null
           to_email: string | null
           type: string
           waitlist_id: number
@@ -2777,7 +2772,7 @@ export type Database = {
           from_email?: string | null
           id?: number
           subject?: string | null
-          talent_id: string
+          talent_id?: string | null
           to_email?: string | null
           type: string
           waitlist_id: number
@@ -2789,7 +2784,7 @@ export type Database = {
           from_email?: string | null
           id?: number
           subject?: string | null
-          talent_id?: string
+          talent_id?: string | null
           to_email?: string | null
           type?: string
           waitlist_id?: number

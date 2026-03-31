@@ -16,7 +16,8 @@ const normalizeRepoLabel = (repoFullName: string) => {
 
 const normalizeRepoUrl = (repoFullName: string) => {
   if (!repoFullName) return "";
-  if (repoFullName.startsWith("http://") || repoFullName.startsWith("https://")) return repoFullName;
+  if (repoFullName.startsWith("http://") || repoFullName.startsWith("https://"))
+    return repoFullName;
   if (repoFullName.startsWith("github.com/")) return `https://${repoFullName}`;
   return `https://github.com/${repoFullName.replace(/^\/+/, "")}`;
 };
