@@ -437,6 +437,7 @@ export async function insertTalentInternalEntry(args: {
 }) {
   const lead = await fetchNetworkLeadById(args.leadId);
   const admin = getTalentSupabaseAdmin();
+  const talentId = await upsertWaitlistLeadTalentUser(lead);
 
   const payload: TalentInternalInsert = {
     content: args.content,
@@ -444,7 +445,7 @@ export async function insertTalentInternalEntry(args: {
     created_by: args.createdBy,
     from_email: args.fromEmail ?? null,
     subject: args.subject ?? null,
-    talent_id: null,
+    talent_id: talentId,
     to_email: args.toEmail ?? lead.email ?? null,
     type: args.type,
     waitlist_id: lead.id,
