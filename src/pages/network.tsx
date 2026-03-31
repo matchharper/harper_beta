@@ -1,15 +1,6 @@
 import Reveal from "@/components/landing/Animation/Reveal";
 import StaggerText from "@/components/landing/Animation/StaggerText";
 import { showToast } from "@/components/toast/toast";
-import { useCountryLang } from "@/hooks/useCountryLang";
-import { useIsMobile } from "@/hooks/useIsMobile";
-import {
-  TALENT_NETWORK_LAST_VISIT_AT_KEY,
-  TALENT_NETWORK_LOCAL_ID_KEY,
-  TALENT_NETWORK_LOG_ABTEST_TYPE,
-  createTalentNetworkLocalId,
-} from "@/lib/talentNetwork";
-import { supabase } from "@/lib/supabase";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowUpRight,
