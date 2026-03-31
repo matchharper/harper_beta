@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Pencil } from "lucide-react";
+import { Pencil, PencilLine } from "lucide-react";
 import { useUpsertShortlistMemo } from "@/hooks/useShortlistMemo";
+import { cn } from "@/lib/cn";
 import { showToast } from "../toast/toast";
 
 type ShortlistMemoEditorProps = {
@@ -25,12 +26,13 @@ export default function ShortlistMemoEditor({
   const [memo, setMemo] = useState(initialMemo ?? "");
   const [draft, setDraft] = useState(initialMemo ?? "");
   const [isEditing, setIsEditing] = useState(false);
-  const [isChanged, setIsChanged] = useState(false);
 
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const isEditingRef = useRef(false);
   const { mutateAsync: upsertMemo, isPending } = useUpsertShortlistMemo();
+  const hasMemo = memo.trim().length > 0;
+  const isChanged = draft.trim() !== memo.trim();
 
   useEffect(() => {
     isEditingRef.current = isEditing;
@@ -41,27 +43,27 @@ export default function ShortlistMemoEditor({
       const next = initialMemo ?? "";
       setMemo(next);
       setDraft(next);
-      setIsChanged(false);
     }
   }, [initialMemo]);
 
   useEffect(() => {
     if (!isEditing) return;
-    const t = setTimeout(() => {
-      inputRef.current?.focus();
-      const v = inputRef.current?.value ?? "";
-      inputRef.current?.setSelectionRange(v.length, v.length);
-    }, 0);
-    return () => clearTimeout(t);
+    const frame = window.requestAnimationFrame(() => {
+      const input = inputRef.current;
+      if (!input) return;
+      input.focus();
+      const valueLength = input.value.length;
+      input.setSelectionRange(valueLength, valueLength);
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [isEditing]);
 
   const cancel = useCallback(() => {
     setDraft(memo);
-    setIsChanged(false);
     setIsEditing(false);
   }, [memo]);
 
-  const commit = async () => {
+  const commit = useCallback(async () => {
     const next = draft.trim();
     const current = memo.trim();
 
@@ -72,12 +74,12 @@ export default function ShortlistMemoEditor({
 
     try {
       const result = await upsertMemo({ userId, candidId, memo: next });
-      setMemo(result.memo);
-      setDraft(result.memo);
-      setIsChanged(false);
+      const savedMemo = result.memo ?? "";
+      setMemo(savedMemo);
+      setDraft(savedMemo);
       setIsEditing(false);
       showToast({
-        message: result.memo
+        message: savedMemo
           ? "메모가 저장되었습니다."
           : "메모가 삭제되었습니다.",
         variant: "white",
@@ -86,7 +88,7 @@ export default function ShortlistMemoEditor({
       console.error("shortlist memo save error:", error);
       showToast({ message: "메모 저장에 실패했습니다.", variant: "white" });
     }
-  };
+  }, [candidId, draft, memo, upsertMemo, userId]);
 
   useEffect(() => {
     if (!isEditing) return;
@@ -111,26 +113,46 @@ export default function ShortlistMemoEditor({
         e.stopPropagation();
         if (!isEditing) setIsEditing(true);
       }}
-      className={`relative h-full cursor-pointer rounded-md px-2 pt-1.5 transition-all duration-200 ${className} ${
+      className={cn(
+        "relative ml-[2px] w-full cursor-pointer rounded-md border border-transparent px-2 pb-1.5 pl-3 pt-1.5 text-[13px] leading-relaxed transition-all duration-200",
         isEditing
-          ? "border border-white/0 bg-white/5 pb-1.5"
-          : "border border-white/0 pb-1.5"
-      } ${isSmall ? "hover:text-white" : "hover:bg-white/5"} ${
-        memo ? "text-hgray900" : "text-hgray600"
-      }`}
+          ? "bg-white/5"
+          : isSmall
+            ? "hover:text-white"
+            : "hover:bg-white/5",
+        hasMemo ? "text-hgray900" : "text-hgray600",
+        !isEditing && hasMemo && "border-white/0 bg-white/5 py-2",
+        !isEditing &&
+          !hasMemo &&
+          "w-fit pl-3 pr-4 rounded-md border-white/10 bg-white/5 h-8 flex items-center justify-start hover:bg-white/10",
+        className
+      )}
     >
+      {!isEditing && hasMemo && (
+        <div className="absolute top-0 left-[-1px] h-full bg-accenta1 w-0.5 rounded-[1px]"></div>
+      )}
       {!isEditing ? (
-        <div
-          className={`group flex items-center justify-between gap-2 text-[13px] leading-relaxed whitespace-pre-wrap break-words`}
-        >
-          <span>{memo || placeholder}</span>
-          {!isSmall && (
-            <Pencil
-              className="w-3 h-3 text-hgray700/70 shrink-0 group-hover:text-white"
-              strokeWidth={1.6}
-            />
+        <>
+          {hasMemo ? (
+            <div className="group flex items-center justify-between gap-2 whitespace-pre-wrap break-words">
+              <span>{memo}</span>
+              {!isSmall && (
+                <PencilLine
+                  className="w-3 h-3 text-hgray700/70 shrink-0 group-hover:text-white"
+                  strokeWidth={1.6}
+                />
+              )}
+            </div>
+          ) : (
+            <div className="group flex items-center justify-start gap-2.5 whitespace-pre-wrap break-words text-hgray900">
+              <PencilLine
+                className="w-2.5 h-2.5 shrink-0 text-hgray900 group-hover:text-white"
+                strokeWidth={1.6}
+              />
+              <span>메모 추가</span>
+            </div>
           )}
-        </div>
+        </>
       ) : (
         <>
           <textarea
@@ -139,7 +161,6 @@ export default function ShortlistMemoEditor({
             rows={rows}
             onChange={(e) => {
               setDraft(e.target.value);
-              setIsChanged(e.target.value.trim() !== memo.trim());
             }}
             onClick={(e) => {
               e.preventDefault();
@@ -153,7 +174,7 @@ export default function ShortlistMemoEditor({
                 void commit();
               }
             }}
-            className="w-full resize-none bg-transparent outline-none text-[13px] text-hgray900 leading-relaxed pr-14"
+            className="w-full resize-none bg-transparent pr-14 text-hgray900 outline-none"
             placeholder={placeholder}
           />
           <button
@@ -164,9 +185,10 @@ export default function ShortlistMemoEditor({
               void commit();
             }}
             disabled={isPending}
-            className={`absolute bottom-[-1px] right-0.5 text-xs transition-all duration-200 ${
+            className={cn(
+              "absolute bottom-[-1px] right-0.5 text-xs transition-all duration-200 disabled:opacity-60",
               isChanged ? "text-accenta1" : "text-hgray600"
-            } disabled:opacity-60`}
+            )}
           >
             Confirm
           </button>

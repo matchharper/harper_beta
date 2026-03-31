@@ -25,13 +25,13 @@ function QuestionAnswer({
     large: {
       wrapper: "px-1 md:px-[30px] py-6 md:py-[32px]",
       question: "text-sm md:text-base",
-      answer: "mt-3 pb-2 pr-10 text-sm leading-6",
+      answer: "mt-3 pb-2 pr-10 text-sm md:text-[15px] leading-6",
       icon: "ml-6 h-6 w-6",
     },
     small: {
       wrapper: "py-4 md:py-6",
       question: "text-sm",
-      answer: "mt-2 pb-1 pr-6 text-sm leading-5",
+      answer: "mt-2 pb-1 pr-6 text-sm md:text-[15px] leading-5",
       icon: "ml-3 h-5 w-5",
     },
   }[variant];

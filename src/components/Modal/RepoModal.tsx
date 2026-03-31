@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Book,
@@ -11,6 +11,7 @@ import Link from "next/link";
 import { initials } from "@/components/NameProfile";
 import { useRepoModalStore } from "@/store/useRepoModalStore";
 import { useRepoDetail } from "@/hooks/useRepoDetail";
+import { MarkdownView } from "@/components/chat/MarkDownView";
 
 const numberFormatter = new Intl.NumberFormat("en-US");
 
@@ -103,6 +104,52 @@ function Section({
         <span>{title}</span>
       </div>
       {children}
+    </div>
+  );
+}
+
+const COLLAPSE_PREVIEW_CHARS = 300;
+
+function CollapsibleMarkdownSection({
+  markdown,
+  className,
+}: {
+  markdown: string;
+  className?: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  const isLong = markdown.length > COLLAPSE_PREVIEW_CHARS;
+  const displayMarkdown = expanded || !isLong ? markdown : markdown.slice(0, COLLAPSE_PREVIEW_CHARS);
+
+  return (
+    <div className={className}>
+      <div className="[&_.prose]:max-w-none [&_.prose]:text-hgray800 [&_.prose_a]:text-blue-500 [&_.prose_code]:text-hgray900 [&_.prose_headings]:text-hgray1000 [&_.prose_p]:!my-2">
+        <MarkdownView markdown={displayMarkdown} />
+      </div>
+      {isLong && (
+        <button
+          type="button"
+          onClick={() => setExpanded((prev) => !prev)}
+          className="mt-2 flex items-center gap-1 text-sm text-blue-500 transition hover:underline"
+        >
+          {expanded ? (
+            <>
+              <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+              </svg>
+              접기
+            </>
+          ) : (
+            <>
+              <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+              더 보기
+            </>
+          )}
+        </button>
+      )}
     </div>
   );
 }
@@ -291,10 +338,11 @@ export default function RepoModalRoot() {
                 )}
 
                 {readmeExcerpt && (
-                  <Section title="Repo Text" icon={<Book className="h-4 w-4" />}>
-                    <div className="rounded-2xl bg-white/5 px-4 py-4 text-sm leading-7 text-hgray800">
-                      {readmeExcerpt}
-                    </div>
+                  <Section title="Repo README" icon={<Book className="h-4 w-4" />}>
+                    <CollapsibleMarkdownSection
+                      markdown={readmeExcerpt}
+                      className="rounded-2xl bg-white/5 px-4 py-4"
+                    />
                   </Section>
                 )}
 

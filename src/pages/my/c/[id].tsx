@@ -71,6 +71,11 @@ export default function ResultPage() {
   const persistedExcludedMarkStatuses = useSettingStore(
     (state) => state.candidateMarkFilterByKey[SEARCH_CANDIDATE_MARK_FILTER_KEY]
   );
+  const persistedExcludeUnopenedProfiles = useSettingStore(
+    (state) =>
+      state.candidateExcludeUnopenedByKey[SEARCH_CANDIDATE_MARK_FILTER_KEY] ===
+      true
+  );
   const excludedMarkStatuses = useMemo(
     () => normalizeCandidateMarkFilter(persistedExcludedMarkStatuses ?? []),
     [persistedExcludedMarkStatuses]
@@ -147,6 +152,7 @@ export default function ResultPage() {
       runId,
       sourceType: resultSourceType,
       excludedMarkStatuses,
+      excludeUnopenedProfiles: persistedExcludeUnopenedProfiles,
       enabled: ready && !!runId,
     });
 
@@ -258,14 +264,7 @@ export default function ResultPage() {
     ensurePageLoaded(pageIdx).finally(() => {
       ensuringRef.current = false;
     });
-  }, [
-    ready,
-    searchEnabled,
-    runId,
-    shouldClampPage,
-    pageIdx,
-    ensurePageLoaded,
-  ]);
+  }, [ready, searchEnabled, runId, shouldClampPage, pageIdx, ensurePageLoaded]);
 
   useEffect(() => {
     if (!resultScrollStorageKey) {

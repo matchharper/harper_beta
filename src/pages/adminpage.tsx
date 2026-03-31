@@ -1324,6 +1324,7 @@ const AdminPage = () => {
         return a.eventType.localeCompare(b.eventType);
       });
   }, [networkGrouped]);
+
   const blogMetricsSummary = useMemo(() => {
     const totalPosts = blogMetricRows.length;
     const totalViews = blogMetricRows.reduce(

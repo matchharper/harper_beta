@@ -114,13 +114,13 @@ const ItemBox = ({
               <img
                 src={logoUrl}
                 alt={name}
-              className={`transition-all duration-200 ${logoSize} mt-[1px] rounded-full object-cover border border-hgray1000/0 bg-hgray1000/90 ${disableEntityClick ? "" : "cursor-pointer hover:border-accenta1"}`}
+                className={`transition-all duration-200 ${logoSize} mt-[1px] rounded-full object-cover border border-hgray1000/0 bg-hgray1000/90 ${disableEntityClick ? "" : "cursor-pointer hover:border-accenta1"}`}
               />
             ) : (
               <>
                 <div
-                  className={`${logoSize} mt-[1px] rounded-full flex items-center justify-center text-lg`}
-                  style={{ backgroundColor: getRevealLogoColor(String(name ?? title ?? "item")) }}
+                  className={`${logoSize} mt-[1px] rounded-full flex items-center justify-center text-lg bg-hgray500`}
+                  // style={{ backgroundColor: getRevealLogoColor(String(name ?? title ?? "item")) }}
                 >
                   {logoIcon}
                 </div>

@@ -262,7 +262,7 @@ export const ko = {
     },
     pricing: {
       title: "Pricing",
-      subtitle: "검색은 무료, 프로필 열람에만 열람 횟수가 차감되는 플랜",
+      subtitle: "팀의 성장에 맞는 합리적인 플랜",
       contactLabel: "별도 문의",
       billing: {
         monthly: "월간 결제",
@@ -277,6 +277,7 @@ export const ko = {
           priceUnit2: "/월",
           buttonLabel: "문의하기",
           features: [
+            "무제한 AI 검색 및 랭킹",
             "월 50회 프로필 열람",
             "논문 및 코드 품질 분석",
             "Harper Scout (자동화된 추천)<br/><i>AI-driven search that indexes technical truth.</i>",
@@ -292,7 +293,7 @@ export const ko = {
             "Pro의 모든 기능 포함, 및:",
             "월 120회 프로필 열람",
             "동시에 최대 3개의 검색 실행",
-            "AI 소싱 에이전트",
+            "AI 소싱 에이전트<br /><i>An autonomous co-pilot that proactively</i>",
           ],
         },
         enterprise: {
@@ -317,7 +318,7 @@ export const ko = {
         {
           question: "무료로도 사용이 가능한가요?",
           answer:
-            "네. 무료로도 Free 플랜을 사용할 수 있습니다. Free는 매달 10회, Pro는 50회, Max는 120회까지 프로필을 열람할 수 있습니다.",
+            "네. 무료로도 Free 플랜을 사용할 수 있습니다. Free는 매달 5회까지 프로필을 열람할 수 있습니다.",
         },
         {
           question: "언제든지 구독을 취소할 수 있나요?",

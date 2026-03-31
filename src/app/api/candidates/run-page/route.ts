@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
     const excludedMarkStatuses = Array.isArray(body?.excludedMarkStatuses)
       ? (body.excludedMarkStatuses as CandidateMarkStatus[])
       : [];
+    const excludeUnopenedProfiles = body?.excludeUnopenedProfiles === true;
 
     if (!runId) {
       return NextResponse.json({ error: "runId required" }, { status: 400 });
@@ -38,6 +39,7 @@ export async function POST(req: NextRequest) {
         pageIdx,
         userId: user.id,
         excludedMarkStatuses,
+        excludeUnopenedProfiles,
       });
 
     if (ids.length === 0) {
@@ -65,7 +67,9 @@ export async function POST(req: NextRequest) {
       fetchGithubPreviewByCandidateIds(supabaseAdmin, ids),
     ]);
 
-    const byId = new Map(candidates.map((candidate: any) => [candidate.id, candidate]));
+    const byId = new Map(
+      candidates.map((candidate: any) => [candidate.id, candidate])
+    );
     const items = ids
       .map((id) => {
         const candidate = byId.get(id);
@@ -79,7 +83,7 @@ export async function POST(req: NextRequest) {
           search_evidence: evidenceByCandidateId.get(id) ?? null,
           search_rank: rankByCandidateId.get(id) ?? null,
           candidate_mark: candidateMarkMap.get(id) ?? null,
-          shortlist_memo: isRevealed ? shortlistMemoMap.get(id) ?? "" : "",
+          shortlist_memo: isRevealed ? (shortlistMemoMap.get(id) ?? "") : "",
         };
 
         return applyListRevealState(payload, isRevealed);

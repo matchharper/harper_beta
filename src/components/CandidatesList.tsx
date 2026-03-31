@@ -276,17 +276,19 @@ function CandidateCard({
           isProfileRevealed
             ? "cursor-pointer hover:bg-white/10"
             : "cursor-default"
-        } ${hasSharedFolderNotes ? "h-fit min-w-0 px-5 py-5" : "p-6"}`}
+        } ${hasSharedFolderNotes ? "h-fit min-w-0" : ""}`}
       >
-        {!isProfileRevealed && !hasSharedFolderNotes ? (
-          <RevealProfileButton
-            candidId={candidId}
-            overlay
-            overlayClassName="rounded-[28px] group-hover:border-accenta1/50 group-hover:bg-black/15"
-          />
-        ) : null}
-        <div className="flex items-start gap-5">
-          <div className="min-w-0 flex-1">
+        <div className="flex flex-col items-start">
+          <div
+            className={`group/content min-w-0 flex-1 relative ${hasSharedFolderNotes ? "px-5 pt-5" : "p-6"}`}
+          >
+            {!isProfileRevealed && !hasSharedFolderNotes && (
+              <RevealProfileButton
+                candidId={candidId}
+                overlay
+                overlayClassName="rounded-t-[28px] group-hover/content:border-accenta1/50 group-hover/content:bg-black/15"
+              />
+            )}
             <div className="flex flex-row flex-1 items-start gap-4">
               <div className="w-[40%]">
                 <div className="flex flex-row flex-1 items-start gap-4">
@@ -328,9 +330,9 @@ function CandidateCard({
                                 <Image
                                   src={getSearchSourceLogoPath(source)}
                                   alt={getSearchSourceLabel(source)}
-                                  width={source === "github" ? 16 : 15}
-                                  height={source === "github" ? 16 : 15}
-                                  className="object-contain"
+                                  width={source === "github" ? 17 : 15}
+                                  height={source === "github" ? 17 : 15}
+                                  className="object-contain rounded-[2px]"
                                 />
                               </span>
                             </Tooltips>
@@ -442,7 +444,6 @@ function CandidateCard({
                         company={latestCompany.company_db.name ?? ""}
                         role={latestCompany.role}
                         logoUrl={latestCompany.company_db.logo ?? ""}
-                        maskLogo={!isProfileRevealed}
                         tooltipText={companyHistoryTooltipText}
                         tooltipSide="bottom"
                       />
@@ -452,6 +453,7 @@ function CandidateCard({
                         school={school.school}
                         role={school.degree}
                         field={school.field}
+                        schoolUrl={school.url}
                         tooltipText={schoolHistoryTooltipText}
                         tooltipSide="bottom"
                       />
@@ -507,23 +509,24 @@ function CandidateCard({
                 ) : null}
               </div>
             )}
-            {shouldShowInlineMemo ? (
-              <div className="mt-6 border-t border-white/10 pt-4">
-                <CandidateMemoDock
-                  userId={userId}
-                  candidId={c.id}
-                  initialMemo={shortlistMemo}
-                  initialMarkStatus={candidateMarkStatus}
-                  onMarkChange={onMarkChange}
-                  showMarkButton={
-                    showMarkAction && Boolean(userId || candidateMarkStatus)
-                  }
-                  rows={4}
-                  editorClassName="w-full"
-                />
-              </div>
-            ) : null}
           </div>
+          {shouldShowInlineMemo ? (
+            <div
+              className={`w-full border-t border-white/10 pt-4 ${hasSharedFolderNotes ? "px-5 pb-5" : "px-6 pb-6"}`}
+            >
+              <CandidateMemoDock
+                userId={userId}
+                candidId={c.id}
+                initialMemo={shortlistMemo}
+                initialMarkStatus={candidateMarkStatus}
+                onMarkChange={onMarkChange}
+                showMarkButton={
+                  showMarkAction && Boolean(userId || candidateMarkStatus)
+                }
+                rows={4}
+              />
+            </div>
+          ) : null}
         </div>
 
         {shouldShowCornerMark || (showBookmarkAction && userId) ? (
@@ -534,14 +537,6 @@ function CandidateCard({
               e.stopPropagation();
             }}
           >
-            {shouldShowCornerMark ? (
-              <CandidateMarkButton
-                userId={userId}
-                candidId={c.id}
-                initialStatus={candidateMarkStatus}
-                onChange={onMarkChange}
-              />
-            ) : null}
             {showBookmarkAction && userId ? (
               <div
                 className={`${
@@ -561,7 +556,7 @@ function CandidateCard({
         ) : null}
       </Link>
 
-      {sharedFolderContext?.token ? (
+      {sharedFolderContext?.token && (
         <div className="w-full shrink-0 xl:w-[420px]">
           <SharedFolderCandidateNotes
             token={sharedFolderContext.token}
@@ -571,7 +566,7 @@ function CandidateCard({
             variant="sidecar"
           />
         </div>
-      ) : null}
+      )}
     </div>
   );
 }

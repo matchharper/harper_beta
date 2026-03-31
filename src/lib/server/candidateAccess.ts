@@ -33,7 +33,9 @@ export function getSupabaseAdmin() {
   });
 }
 
-export async function requireAuthenticatedUser(req: NextRequest): Promise<User> {
+export async function requireAuthenticatedUser(
+  req: NextRequest
+): Promise<User> {
   const user = await getRequestUser(req);
   if (!user) {
     throw new Error("Unauthorized");
@@ -52,12 +54,12 @@ export async function fetchRevealMapForUser(
     return revealMap;
   }
 
-  const { data, error } = await ((supabaseAdmin.from(
-    "unlock_profile" as any
-  ) as any)
+  const { data, error } = await (
+    supabaseAdmin.from("unlock_profile" as any) as any
+  )
     .select("candid_id")
     .eq("company_user_id", userId)
-    .in("candid_id", ids));
+    .in("candid_id", ids);
 
   if (error) throw error;
 
@@ -81,12 +83,12 @@ export async function fetchCandidateMarkMapForUser(
     return markMap;
   }
 
-  const { data, error } = await ((supabaseAdmin.from(
-    "candidate_mark" as any
-  ) as any)
+  const { data, error } = await (
+    supabaseAdmin.from("candidate_mark" as any) as any
+  )
     .select("candid_id, status, created_at, updated_at")
     .eq("user_id", userId)
-    .in("candid_id", ids));
+    .in("candid_id", ids);
 
   if (error) throw error;
 
@@ -116,12 +118,12 @@ export async function fetchShortlistMemoMapForUser(
     return memoMap;
   }
 
-  const { data, error } = await ((supabaseAdmin.from(
-    "shortlist_memo" as any
-  ) as any)
+  const { data, error } = await (
+    supabaseAdmin.from("shortlist_memo" as any) as any
+  )
     .select("candid_id, memo")
     .eq("user_id", userId)
-    .in("candid_id", ids));
+    .in("candid_id", ids);
 
   if (error) throw error;
 
@@ -145,12 +147,12 @@ export async function fetchCandidateIdsByMarkStatusesForUser(
     return ids;
   }
 
-  const { data, error } = await ((supabaseAdmin.from(
-    "candidate_mark" as any
-  ) as any)
+  const { data, error } = await (
+    supabaseAdmin.from("candidate_mark" as any) as any
+  )
     .select("candid_id, status")
     .eq("user_id", userId)
-    .in("status", statuses));
+    .in("status", statuses);
 
   if (error) throw error;
 
@@ -173,11 +175,11 @@ export async function fetchScholarPreviewByCandidateIds(
     return previewByCandidateId;
   }
 
-  const { data: profiles, error: profileError } = await ((supabaseAdmin.from(
-    "scholar_profile" as any
-  ) as any)
+  const { data: profiles, error: profileError } = await (
+    supabaseAdmin.from("scholar_profile" as any) as any
+  )
     .select("id, candid_id, affiliation, topics, h_index, total_citations_num")
-    .in("candid_id", ids));
+    .in("candid_id", ids);
 
   if (profileError) throw profileError;
 
@@ -188,7 +190,7 @@ export async function fetchScholarPreviewByCandidateIds(
 
   const profileIds = profileRows.map((row) => row.id);
   const { data: contributions, error: contributionError } = await (
-    (supabaseAdmin.from("scholar_contributions" as any) as any)
+    supabaseAdmin.from("scholar_contributions" as any) as any
   )
     .select("scholar_profile_id")
     .in("scholar_profile_id", profileIds);
@@ -230,11 +232,11 @@ export async function fetchGithubPreviewByCandidateIds(
     return previewByCandidateId;
   }
 
-  const { data: profiles, error: profileError } = await ((supabaseAdmin.from(
-    "github_profile" as any
-  ) as any)
+  const { data: profiles, error: profileError } = await (
+    supabaseAdmin.from("github_profile" as any) as any
+  )
     .select("id, candid_id, name, company, location, followers, public_repos")
-    .in("candid_id", ids));
+    .in("candid_id", ids);
 
   if (profileError) throw profileError;
 
@@ -245,7 +247,7 @@ export async function fetchGithubPreviewByCandidateIds(
 
   const profileIds = profileRows.map((row) => row.id);
   const { data: contributions, error: contributionError } = await (
-    (supabaseAdmin.from("github_repo_contribution" as any) as any)
+    supabaseAdmin.from("github_repo_contribution" as any) as any
   )
     .select("github_profile_id, repo_id")
     .in("github_profile_id", profileIds);
@@ -256,11 +258,11 @@ export async function fetchGithubPreviewByCandidateIds(
     .map((row: any) => String(row?.repo_id ?? "").trim())
     .filter(Boolean);
 
-  const { data: repos, error: repoError } = await ((supabaseAdmin.from(
-    "github_repo" as any
-  ) as any)
+  const { data: repos, error: repoError } = await (
+    supabaseAdmin.from("github_repo" as any) as any
+  )
     .select("id, language, stars")
-    .in("id", repoIds));
+    .in("id", repoIds);
 
   if (repoError) throw repoError;
 
@@ -405,6 +407,7 @@ export async function loadRunPageCandidateWindow(params: {
   pageIdx: number;
   userId: string;
   excludedMarkStatuses?: CandidateMarkStatus[];
+  excludeUnopenedProfiles?: boolean;
 }) {
   const {
     supabaseAdmin,
@@ -412,6 +415,7 @@ export async function loadRunPageCandidateWindow(params: {
     pageIdx,
     userId,
     excludedMarkStatuses = [],
+    excludeUnopenedProfiles = false,
   } = params;
 
   const { data, error } = await (supabaseAdmin.from("runs_pages" as any) as any)
@@ -434,10 +438,27 @@ export async function loadRunPageCandidateWindow(params: {
           excludedMarkStatuses
         )
       : new Set<string>();
-  const visibleCandidates =
+  let visibleCandidates =
     excludedCandidateIds.size > 0
-      ? all.filter((candidate) => !excludedCandidateIds.has(String(candidate.id)))
+      ? all.filter(
+          (candidate) => !excludedCandidateIds.has(String(candidate.id))
+        )
       : all;
+
+  if (excludeUnopenedProfiles) {
+    const candidateIds = visibleCandidates
+      .map((candidate) => String(candidate.id ?? "").trim())
+      .filter(Boolean);
+    const revealMap = await fetchRevealMapForUser(
+      supabaseAdmin,
+      userId,
+      candidateIds
+    );
+
+    visibleCandidates = visibleCandidates.filter(
+      (candidate) => revealMap.get(String(candidate.id ?? "").trim()) === true
+    );
+  }
 
   const start = pageIdx * 10;
   const end = start + 10;
@@ -458,7 +479,9 @@ function maskExperienceEntry(entry: any, options?: { keepRole?: boolean }) {
   return {
     ...entry,
     company_id: null,
-    role: options?.keepRole ? entry?.role ?? "" : maskWithFirstCharacter(entry?.role),
+    role: options?.keepRole
+      ? (entry?.role ?? "")
+      : maskWithFirstCharacter(entry?.role),
     description: "",
     months: null,
     start_date: "",
@@ -467,7 +490,7 @@ function maskExperienceEntry(entry: any, options?: { keepRole?: boolean }) {
       ? {
           ...entry.company_db,
           name: maskWithFirstCharacter(entry.company_db?.name),
-          logo: null,
+          logo: entry.company_db?.logo ?? null,
           linkedin_url: "",
           short_description: "",
           location: "",
@@ -485,7 +508,7 @@ function maskEducationEntry(entry: any) {
     field_of_study: maskWithFirstCharacter(entry?.field_of_study),
     start_date: "",
     end_date: "",
-    url: "",
+    url: entry?.url ?? "",
   };
 }
 
@@ -504,7 +527,7 @@ function maskGithubPreview(preview: any) {
     ...preview,
     name: maskWithFirstCharacter(preview.name),
     company: maskWithFirstCharacter(preview.company),
-    location: maskWithFirstCharacter(preview.location),
+    location: preview.location ?? "",
   };
 }
 
@@ -533,7 +556,9 @@ export function applyListRevealState(candidate: any, isRevealed: boolean) {
   const experiences = Array.isArray(candidate?.experience_user)
     ? candidate.experience_user
     : [];
-  const educations = Array.isArray(candidate?.edu_user) ? candidate.edu_user : [];
+  const educations = Array.isArray(candidate?.edu_user)
+    ? candidate.edu_user
+    : [];
 
   return {
     ...candidate,
@@ -542,13 +567,17 @@ export function applyListRevealState(candidate: any, isRevealed: boolean) {
     headline: maskWithFirstCharacter(candidate?.headline),
     bio: "",
     linkedin_url: "",
-    location: "",
+    location: candidate?.location ?? "",
     links: buildMaskedSourceLinks(candidate?.links),
     experience_user:
       experiences.length > 0 ? [maskExperienceEntry(experiences[0])] : [],
     edu_user: educations.length > 0 ? [maskEducationEntry(educations[0])] : [],
-    scholar_profile_preview: maskScholarPreview(candidate?.scholar_profile_preview),
-    github_profile_preview: maskGithubPreview(candidate?.github_profile_preview),
+    scholar_profile_preview: maskScholarPreview(
+      candidate?.scholar_profile_preview
+    ),
+    github_profile_preview: maskGithubPreview(
+      candidate?.github_profile_preview
+    ),
     search_evidence: maskSearchEvidence(candidate?.search_evidence),
   };
 }
@@ -583,7 +612,7 @@ export function applyDetailRevealState(candidate: any, isRevealed: boolean) {
     headline: maskWithFirstCharacter(candidate?.headline),
     email: Array.isArray(candidate?.email) ? [] : "[]",
     linkedin_url: "",
-    location: "",
+    location: candidate?.location ?? "",
     bio: "",
     summary: Array.isArray(candidate?.summary) ? [] : "",
     links: buildMaskedSourceLinks(candidate?.links),

@@ -126,14 +126,14 @@ export default function ResultBody(props: Props) {
                   <button
                     type="button"
                     onClick={onNextPage}
-                    disabled={!canNext || isFetchingNextPage || isStreaming}
+                    disabled={!canNext || isFetchingNextPage}
                     className={[
                       "inline-flex items-center justify-center",
                       "h-11 px-4 md:px-5 rounded-xl",
                       "bg-accenta1 text-black",
                       "font-medium",
                       "transition",
-                      canNext && !isFetchingNextPage && !isStreaming
+                      canNext && !isFetchingNextPage
                         ? "hover:brightness-95 active:scale-[0.99]"
                         : "opacity-40 cursor-not-allowed",
                     ].join(" ")}

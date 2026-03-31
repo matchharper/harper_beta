@@ -119,12 +119,13 @@ async function fetchCandidatesByIds(
   // --- GitHub preview ---
   let shouldReadGithubPreview = sourceType === "github";
   if (!shouldReadGithubPreview) {
-    const { data: githubVariantRows, error: githubVariantError } = await supabase
-      .from("run_variants")
-      .select("id")
-      .eq("run_id", runId)
-      .eq("source_type", 2)
-      .limit(1);
+    const { data: githubVariantRows, error: githubVariantError } =
+      await supabase
+        .from("run_variants")
+        .select("id")
+        .eq("run_id", runId)
+        .eq("source_type", 2)
+        .limit(1);
 
     if (githubVariantError) throw githubVariantError;
     shouldReadGithubPreview =
@@ -229,7 +230,9 @@ async function fetchGithubPreviewByCandidateIds(ids: string[]) {
 
   if (profileError) throw profileError;
 
-  const profileRows = ((Array.isArray(profiles) ? profiles : []) as unknown) as Array<{
+  const profileRows = (Array.isArray(profiles)
+    ? profiles
+    : []) as unknown as Array<{
     id: string;
     candid_id: string | null;
     name: string | null;
@@ -340,12 +343,7 @@ async function fetchRunPage(params: {
   userId: string;
   excludedMarkStatuses?: CandidateMarkStatus[];
 }) {
-  const {
-    runId,
-    pageIdx,
-    userId,
-    excludedMarkStatuses = [],
-  } = params;
+  const { runId, pageIdx, userId, excludedMarkStatuses = [] } = params;
 
   // NOTE: always read the latest single row for this runId
   const { data, error } = await supabase
@@ -367,7 +365,9 @@ async function fetchRunPage(params: {
       : new Set<string>();
   const visibleCandidates =
     excludedCandidateIds.size > 0
-      ? all.filter((candidate) => !excludedCandidateIds.has(String(candidate.id)))
+      ? all.filter(
+          (candidate) => !excludedCandidateIds.has(String(candidate.id))
+        )
       : all;
 
   const start = pageIdx * RUN_RESULTS_PAGE_SIZE;
@@ -393,23 +393,42 @@ export function useRunPagesInfinite({
   runId,
   sourceType = "linkedin",
   excludedMarkStatuses = [],
+  excludeUnopenedProfiles = false,
   enabled = true,
 }: {
   userId?: string;
   runId?: string;
   sourceType?: SearchSource;
   excludedMarkStatuses?: CandidateMarkStatus[];
+  excludeUnopenedProfiles?: boolean;
   enabled?: boolean;
 }) {
   const queryClient = useQueryClient();
   const excludedMarkStatusesKey = useMemo(
-    () => (excludedMarkStatuses.length > 0 ? excludedMarkStatuses.join("|") : "all"),
+    () =>
+      excludedMarkStatuses.length > 0 ? excludedMarkStatuses.join("|") : "all",
     [excludedMarkStatuses]
   );
+  const excludeUnopenedProfilesKey = excludeUnopenedProfiles
+    ? "exclude-unopened"
+    : "include-unopened";
 
   const qk = useMemo(
-    () => ["runPages", runId, userId, sourceType, excludedMarkStatusesKey],
-    [excludedMarkStatusesKey, runId, sourceType, userId]
+    () => [
+      "runPages",
+      runId,
+      userId,
+      sourceType,
+      excludedMarkStatusesKey,
+      excludeUnopenedProfilesKey,
+    ],
+    [
+      excludedMarkStatusesKey,
+      excludeUnopenedProfilesKey,
+      runId,
+      sourceType,
+      userId,
+    ]
   );
 
   // 1) runs_pages realtime 구독
@@ -460,6 +479,7 @@ export function useRunPagesInfinite({
           pageIdx,
           sourceType,
           excludedMarkStatuses,
+          excludeUnopenedProfiles,
         }),
       });
     },

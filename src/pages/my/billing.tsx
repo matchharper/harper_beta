@@ -1205,33 +1205,35 @@ const Billing = () => {
                     ) : null}
                   </div>
                   <div className="w-[70%] flex flex-col items-end justify-between h-full mb-2 gap-8">
-                    <div className="w-full flex flex-row items-start justify-end">
-                      {isRevealCardNumber && subscription.cardNumberMasked ? (
-                        <div className="text-sm text-hgray700">
-                          <Tooltips
-                            text={`원본 전체 카드 정보는 저장하지 않고 있습니다.`}
-                          >
-                            <>
-                              결제시 사용한 카드 번호:{" "}
-                              {subscription.cardCompany
-                                ? `${subscription.cardCompany} · `
-                                : ""}
-                              {subscription.cardNumberMasked}
-                            </>
-                          </Tooltips>
-                        </div>
-                      ) : (
-                        <div className="relative px-4 py-1">
-                          ****-****-****-****
-                          <div
-                            className="absolute left-0 top-0 text-center bg-white/20 backdrop-blur-sm w-full py-1 rounded-sm text-[15px] text-hgray900 cursor-pointer"
-                            onClick={() => setIsRevealCardNumber(true)}
-                          >
-                            결제 카드 정보 보기
+                    {subscription.planKey !== "free" && (
+                      <div className="w-full flex flex-row items-start justify-end">
+                        {isRevealCardNumber && subscription.cardNumberMasked ? (
+                          <div className="text-sm text-hgray700">
+                            <Tooltips
+                              text={`원본 전체 카드 정보는 저장하지 않고 있습니다.`}
+                            >
+                              <>
+                                결제시 사용한 카드 번호:{" "}
+                                {subscription.cardCompany
+                                  ? `${subscription.cardCompany} · `
+                                  : ""}
+                                {subscription.cardNumberMasked}
+                              </>
+                            </Tooltips>
                           </div>
-                        </div>
-                      )}
-                    </div>
+                        ) : (
+                          <div className="relative px-4 py-1">
+                            ****-****-****-****
+                            <div
+                              className="absolute left-0 top-0 text-center bg-white/20 backdrop-blur-sm w-full py-1 rounded-sm text-[15px] text-hgray900 cursor-pointer"
+                              onClick={() => setIsRevealCardNumber(true)}
+                            >
+                              결제 카드 정보 보기
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <div className="w-full flex flex-row items-center justify-end h-full mb-2">
                       <div className="w-[30%] flex flex-col items-start justify-end">
                         <div className="flex flex-row items-start justify-start gap-2 text-hgray900 text-sm font-normal">

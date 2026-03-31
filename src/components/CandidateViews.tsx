@@ -71,9 +71,17 @@ function getBaseCandidateMarkStatus(
   return isCandidateMarkStatus(status) ? status : null;
 }
 
-function formatExcludedMarkFilterSummary(statuses: CandidateMarkStatus[]) {
-  if (statuses.length === 0) return "전체보기";
-  return statuses.map((status) => FILTER_LABEL_BY_STATUS[status]).join(", ");
+function formatAppliedFilterSummary(
+  statuses: CandidateMarkStatus[],
+  excludeUnopenedProfiles: boolean
+) {
+  const labels = [...statuses.map((status) => FILTER_LABEL_BY_STATUS[status])];
+
+  if (excludeUnopenedProfiles) {
+    labels.push("열람하지 않은 프로필 제외");
+  }
+
+  return labels.length > 0 ? labels.join(", ") : "전체보기";
 }
 
 function parseCandidateScores(candidate: CandidateTypeWithConnection) {
@@ -133,6 +141,8 @@ const CandidateViews = ({
     candidateSortOrderByKey,
     candidateMarkFilterByKey,
     setCandidateMarkFilter,
+    candidateExcludeUnopenedByKey,
+    setCandidateExcludeUnopened,
   } = useSettingStore();
   const [isFolded, setIsFolded] = useState(true);
   const [draggingColumnId, setDraggingColumnId] =
@@ -143,6 +153,8 @@ const CandidateViews = ({
   const [draftExcludedStatuses, setDraftExcludedStatuses] = useState<
     CandidateMarkStatus[]
   >([]);
+  const [draftExcludeUnopenedProfiles, setDraftExcludeUnopenedProfiles] =
+    useState(false);
   const [
     markStatusOverridesByCandidateId,
     setMarkStatusOverridesByCandidateId,
@@ -226,19 +238,39 @@ const CandidateViews = ({
       ),
     [candidateMarkFilterByKey, filterContextKey]
   );
+  const appliedExcludeUnopenedProfiles = useMemo(
+    () => candidateExcludeUnopenedByKey[filterContextKey] === true,
+    [candidateExcludeUnopenedByKey, filterContextKey]
+  );
   const appliedFilterSummary = useMemo(
-    () => formatExcludedMarkFilterSummary(appliedExcludedStatuses),
-    [appliedExcludedStatuses]
+    () =>
+      formatAppliedFilterSummary(
+        appliedExcludedStatuses,
+        appliedExcludeUnopenedProfiles
+      ),
+    [appliedExcludeUnopenedProfiles, appliedExcludedStatuses]
   );
   const hasPendingFilterChanges = useMemo(
-    () => !arrayEquals(draftExcludedStatuses, appliedExcludedStatuses),
-    [appliedExcludedStatuses, draftExcludedStatuses]
+    () =>
+      !arrayEquals(draftExcludedStatuses, appliedExcludedStatuses) ||
+      draftExcludeUnopenedProfiles !== appliedExcludeUnopenedProfiles,
+    [
+      appliedExcludeUnopenedProfiles,
+      appliedExcludedStatuses,
+      draftExcludeUnopenedProfiles,
+      draftExcludedStatuses,
+    ]
   );
 
   useEffect(() => {
     if (!isFilterMenuOpen) return;
     setDraftExcludedStatuses(appliedExcludedStatuses);
-  }, [appliedExcludedStatuses, isFilterMenuOpen]);
+    setDraftExcludeUnopenedProfiles(appliedExcludeUnopenedProfiles);
+  }, [
+    appliedExcludeUnopenedProfiles,
+    appliedExcludedStatuses,
+    isFilterMenuOpen,
+  ]);
 
   const dynamicColumns = useMemo<CandidateTableColumnDef[]>(() => {
     return createCandidateTableColumns({
@@ -340,11 +372,21 @@ const CandidateViews = ({
     });
   }, [items, savedSortMode, savedSortOrder]);
   const filteredItems = useMemo(() => {
-    if (!canUseMarkFilter || appliedExcludedStatuses.length === 0) {
+    if (
+      !canUseMarkFilter ||
+      (appliedExcludedStatuses.length === 0 && !appliedExcludeUnopenedProfiles)
+    ) {
       return sortedItems;
     }
 
     return sortedItems.filter((candidate) => {
+      if (
+        appliedExcludeUnopenedProfiles &&
+        candidate?.profile_revealed === false
+      ) {
+        return false;
+      }
+
       const candidateId = String(candidate?.id ?? "");
       const overrideStatus = markStatusOverridesByCandidateId[candidateId];
       const effectiveStatus =
@@ -359,6 +401,7 @@ const CandidateViews = ({
     });
   }, [
     appliedExcludedStatuses,
+    appliedExcludeUnopenedProfiles,
     canUseMarkFilter,
     markStatusOverridesByCandidateId,
     sortedItems,
@@ -379,6 +422,7 @@ const CandidateViews = ({
   const handleFilterMenuOpenChange = (open: boolean) => {
     if (open) {
       setDraftExcludedStatuses(appliedExcludedStatuses);
+      setDraftExcludeUnopenedProfiles(appliedExcludeUnopenedProfiles);
     }
     setIsFilterMenuOpen(open);
   };
@@ -394,12 +438,15 @@ const CandidateViews = ({
 
   const applyExcludedMarkFilter = () => {
     setCandidateMarkFilter(filterContextKey, draftExcludedStatuses);
+    setCandidateExcludeUnopened(filterContextKey, draftExcludeUnopenedProfiles);
     setIsFilterMenuOpen(false);
   };
 
   const resetExcludedMarkFilter = () => {
     setCandidateMarkFilter(filterContextKey, []);
+    setCandidateExcludeUnopened(filterContextKey, false);
     setDraftExcludedStatuses([]);
+    setDraftExcludeUnopenedProfiles(false);
     setIsFilterMenuOpen(false);
   };
 
@@ -562,23 +609,38 @@ const CandidateViews = ({
                 }
               >
                 <div className="px-2 py-2 text-xs font-medium text-white/50">
-                  선택한 태그가 있는 후보를 결과에서 제외합니다.
+                  선택한 조건에 해당하는 후보를 결과에서 제외합니다.
                 </div>
                 <ActionDropdownItem
                   keepOpen
                   onSelect={() => {
                     setDraftExcludedStatuses([]);
+                    setDraftExcludeUnopenedProfiles(false);
                   }}
                   className="text-white/85"
                 >
                   <span>전체보기</span>
-                  {draftExcludedStatuses.length === 0 ? (
+                  {draftExcludedStatuses.length === 0 &&
+                  !draftExcludeUnopenedProfiles ? (
                     <span className="ml-auto text-[11px] text-accenta1">
                       선택됨
                     </span>
                   ) : null}
                 </ActionDropdownItem>
                 <ActionDropdownSeparator />
+                <DropdownMenuCheckboxItem
+                  checked={draftExcludeUnopenedProfiles}
+                  onSelect={(event) => {
+                    event.preventDefault();
+                  }}
+                  onCheckedChange={() => {
+                    setDraftExcludeUnopenedProfiles((current) => !current);
+                  }}
+                  className="cursor-pointer rounded-[10px] py-2 text-white/85 focus:bg-white/10 focus:text-white"
+                >
+                  열람하지 않은 프로필 제외
+                </DropdownMenuCheckboxItem>
+                {/* <ActionDropdownSeparator /> */}
                 {CANDIDATE_MARK_OPTIONS.map((option) => (
                   <DropdownMenuCheckboxItem
                     key={option.value}
@@ -600,6 +662,9 @@ const CandidateViews = ({
                     type="button"
                     onClick={() => {
                       setDraftExcludedStatuses(appliedExcludedStatuses);
+                      setDraftExcludeUnopenedProfiles(
+                        appliedExcludeUnopenedProfiles
+                      );
                       setIsFilterMenuOpen(false);
                     }}
                     className="inline-flex h-8 items-center justify-center rounded-md px-3 text-xs text-white/60 transition-colors duration-200 hover:bg-white/5 hover:text-white"
@@ -654,7 +719,9 @@ const CandidateViews = ({
           <div className="text-sm text-white/75">
             현재 필터 조건에 맞는 후보가 없습니다.
           </div>
-          {canUseMarkFilter && appliedExcludedStatuses.length > 0 ? (
+          {canUseMarkFilter &&
+          (appliedExcludedStatuses.length > 0 ||
+            appliedExcludeUnopenedProfiles) ? (
             <button
               type="button"
               onClick={resetExcludedMarkFilter}
