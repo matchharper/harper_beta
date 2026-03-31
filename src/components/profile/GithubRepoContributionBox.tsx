@@ -1,8 +1,9 @@
 import type { GithubContributionWithRepo } from "@/hooks/useCandidateDetail";
-import React from "react";
-import { Book, Star, GitFork } from "lucide-react";
+import React, { useState } from "react";
+import { Book, Star, GitFork, ChevronDown, ChevronUp } from "lucide-react";
 import { Tooltips } from "../ui/tooltip";
 import { useRepoModalStore } from "@/store/useRepoModalStore";
+import { MarkdownView } from "@/components/chat/MarkDownView";
 
 const numberFormatter = new Intl.NumberFormat("en-US");
 
@@ -139,6 +140,53 @@ const LanguagePill = ({ name, pct }: { name: string; pct: number }) => {
   );
 };
 
+const COLLAPSE_PREVIEW_CHARS = 200;
+
+const CollapsibleReadmeSection = ({
+  markdown,
+  onExpand,
+}: {
+  markdown: string;
+  onExpand?: () => void;
+}) => {
+  const [expanded, setExpanded] = useState(false);
+
+  const isLong = markdown.length > COLLAPSE_PREVIEW_CHARS;
+  const displayMarkdown = expanded || !isLong ? markdown : markdown.slice(0, COLLAPSE_PREVIEW_CHARS);
+
+  const handleToggle = () => {
+    if (!expanded && onExpand) onExpand();
+    setExpanded((prev) => !prev);
+  };
+
+  return (
+    <div className="mt-2">
+      <div className="[&_.prose]:max-w-none [&_.prose]:text-hgray800 [&_.prose_a]:text-blue-500 [&_.prose_code]:text-hgray900 [&_.prose_headings]:text-hgray1000 [&_.prose_p]:!my-1 [&_.prose]:text-sm">
+        <MarkdownView markdown={displayMarkdown} />
+      </div>
+      {isLong && (
+        <button
+          type="button"
+          onClick={handleToggle}
+          className="mt-1 flex items-center gap-1 text-xs text-blue-500 transition hover:underline"
+        >
+          {expanded ? (
+            <>
+              <ChevronUp size={12} />
+              접기
+            </>
+          ) : (
+            <>
+              <ChevronDown size={12} />
+              더 보기
+            </>
+          )}
+        </button>
+      )}
+    </div>
+  );
+};
+
 const GithubRepoContributionBox = ({
   contribution,
 }: {
@@ -164,7 +212,11 @@ const GithubRepoContributionBox = ({
   const topLangs = getTopLanguages(repo?.languages, 3);
   const stars = repo?.stars ?? null;
   const forks = repo?.forks ?? null;
-  const description = repo?.description ?? repo?.readme_excerpt ?? "";
+  const description = repo?.description ?? "";
+  const readmeExcerpt =
+    typeof repo?.readme_excerpt === "string" && repo.readme_excerpt.trim().length > 0
+      ? repo.readme_excerpt.trim()
+      : null;
 
   const handleClick = () => {
     if (contribution.repo_id) {
@@ -206,9 +258,17 @@ const GithubRepoContributionBox = ({
         </div>
       </div>
 
-      <div className="mt-1 text-sm text-hgray700 line-clamp-1">
-        {description || "[No description]"}
-      </div>
+      {readmeExcerpt ? (
+        <CollapsibleReadmeSection markdown={readmeExcerpt} />
+      ) : description ? (
+        <div className="mt-1 text-sm text-hgray700 line-clamp-1">
+          {description}
+        </div>
+      ) : (
+        <div className="mt-1 text-sm text-hgray700 line-clamp-1 italic">
+          [No description]
+        </div>
+      )}
 
       {/* Topics */}
       {contribution.github_repo?.topics && contribution.github_repo.topics.length > 0 && (
