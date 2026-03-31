@@ -116,7 +116,6 @@ async function fetchSearchIds(params: { runId: string; pageIdx: number }) {
 
   return {
     ids,
-    isNewSearch: false,
   };
 }
 

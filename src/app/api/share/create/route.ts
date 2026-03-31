@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { createClient } from "@supabase/supabase-js";
 import { getRequestUser } from "@/lib/supabaseServer";
+import { fetchRevealMapForUser } from "@/lib/server/candidateAccess";
 
 export const runtime = "nodejs";
 
@@ -51,6 +52,13 @@ export async function POST(req: NextRequest) {
         }
 
         const createdBy = user.id;
+        const revealMap = await fetchRevealMapForUser(supabaseAdmin as any, createdBy, [candidId]);
+        if (revealMap.get(candidId) !== true) {
+            return NextResponse.json(
+                { error: "이 후보자 프로필을 먼저 열람해 주세요." },
+                { status: 400 }
+            );
+        }
 
         const baseUrl = getBaseUrl(req);
         const nowIso = new Date().toISOString();

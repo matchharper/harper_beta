@@ -253,7 +253,7 @@ export const en = {
     },
     pricing: {
       title: "A plan that scales with your team",
-      subtitle: "All the features you need to grow your business.",
+      subtitle: "Search is free. Credits are spent only when you reveal a profile.",
       contactLabel: "Contact us",
       billing: {
         monthly: "Monthly billing",
@@ -268,7 +268,7 @@ export const en = {
           priceUnit2: "/ month",
           buttonLabel: "Contact us",
           features: [
-            "150 searches / month",
+            "50 profile reveals / month",
             "AI analysis of paper + code quality",
             "Harper Scout (Autonomous Discovery)<br/><i>AI-driven search that indexes technical truth, not just resumes.</i>",
           ],
@@ -281,8 +281,8 @@ export const en = {
           buttonLabel: "Contact us",
           features: [
             "Includes all Pro features:",
-            "350 searches / month",
-            "Parallel search",
+            "120 profile reveals / month",
+            "Up to 3 concurrent searches",
             "AI sourcing agent",
           ],
         },
@@ -295,7 +295,7 @@ export const en = {
           buttonLabel: "Contact us",
           features: [
             "Includes all Max features:",
-            "Unlimited searches",
+            "Custom reveal credit volume",
             "Onboarding & training support",
             "Team collaboration & management sheets",
             "Dedicated customer support",
@@ -307,17 +307,17 @@ export const en = {
       title: "Billing & Usage FAQ",
       items: [
         {
-          question: "How are searches counted?",
+          question: "How are reveal credits counted?",
           answer:
-            "Searches are counted when you run candidate searches. Each plan includes a monthly search allowance, and your usage appears in the usage dashboard.",
+            "Searches and pagination are free. Credits are only spent when you reveal a candidate profile. Free includes 10 monthly reveal credits, Pro includes 50, and Max includes 120.",
         },
         {
-          question: "How is the monthly search limit calculated?",
+          question: "How is the monthly reveal credit calculated?",
           answer:
-            "It is calculated in one-month periods from the payment date, which is also the new plan start date. Monthly plans apply a new search limit on each billing date, and annual plans apply a new monthly limit on the same day each month based on the subscription start date.",
+            "It is calculated in one-month periods from the payment date, which is also the new plan start date. Monthly plans refresh reveal credits on each billing date, and annual plans refresh monthly reveal credits on the same day each month based on the subscription start date.",
         },
         {
-          question: "Can I change my plan or request more search volume?",
+          question: "Can I change my plan or request more reveal credits?",
           answer:
             "Yes. You can request a different plan anytime, and we will guide you to the best option for your hiring volume.",
         },
@@ -376,7 +376,7 @@ export const en = {
     submit_request: "Submit Request",
     credit_request_submitted: "Your inquiry has been submitted.",
     credit_request_submitted_description:
-      "Thank you for reaching out. We are reviewing the plan and monthly search volume you need, and we will follow up soon. If opted in, you’ll receive updates by email.",
+      "Thank you for reaching out. We are reviewing the plan and reveal credit volume you need, and we will follow up soon. If opted in, you’ll receive updates by email.",
   },
   home: {
     queryPlaceholder:
@@ -424,7 +424,7 @@ export const en = {
     title: "Harper Scout",
     addAgent: "Add Agent",
     intro:
-      "Harper acts as your agent to find and recommend candidates daily based on the role, skills, and team culture.\nScout usage counts toward your plan's monthly searches.",
+      "Harper acts as your agent to find and recommend candidates daily based on the role, skills, and team culture.\nRecommended profiles stay masked until you reveal them, and credits are spent only on reveal.",
     emptyTag: "Get started with Harper Scout",
     emptyTitle: "Welcome to Harper Scout.",
     emptySubtitle: "No agents have been created yet",
@@ -437,7 +437,7 @@ export const en = {
     feedbackSuffix: "feedback on candidates to keep improving results.",
     createAgent: "Create Agent",
     perAgentNote:
-      "Each agent recommends 1–2 candidates per day, and usage counts toward your plan's monthly searches.",
+      "Each agent recommends 1–2 candidates per day, and credits are spent only when you reveal a profile.",
     statusRunning: "Running",
     statusStopped: "Paused",
     createdAt: "Created:",

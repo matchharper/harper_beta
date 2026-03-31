@@ -41,8 +41,11 @@ import {
   Filter,
   GripVertical,
   Table,
+  Unlock,
 } from "lucide-react";
 import { useLogEvent } from "@/hooks/useLog";
+import { useRevealCandidateProfiles } from "@/hooks/useRevealCandidateProfile";
+import { showToast } from "./toast/toast";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
 
@@ -146,6 +149,7 @@ const CandidateViews = ({
   ] = useState<Record<string, CandidateMarkStatus | null>>({});
   const transparentDragImageRef = useRef<HTMLCanvasElement | null>(null);
   const logEvent = useLogEvent();
+  const bulkRevealMutation = useRevealCandidateProfiles();
 
   const toggleFold = () => {
     setIsFolded(!isFolded);
@@ -359,6 +363,18 @@ const CandidateViews = ({
     markStatusOverridesByCandidateId,
     sortedItems,
   ]);
+  const unopenedCandidateIds = useMemo(
+    () =>
+      filteredItems
+        .map((candidate) =>
+          candidate?.profile_revealed === false
+            ? String(candidate?.id ?? "").trim()
+            : ""
+        )
+        .filter(Boolean),
+    [filteredItems]
+  );
+  const unopenedCandidateCount = unopenedCandidateIds.length;
 
   const handleFilterMenuOpenChange = (open: boolean) => {
     if (open) {
@@ -406,6 +422,33 @@ const CandidateViews = ({
         [candidateId]: status,
       };
     });
+  };
+
+  const handleBulkOpenProfiles = async () => {
+    if (unopenedCandidateIds.length === 0) return;
+
+    try {
+      const result = await bulkRevealMutation.mutateAsync(unopenedCandidateIds);
+      const message =
+        result.revealedCount > 0 && result.alreadyRevealedCount > 0
+          ? `현재 페이지의 프로필 ${result.revealedCount}개를 열람했고, ${result.alreadyRevealedCount}개는 이미 열람 상태였습니다.`
+          : result.revealedCount > 0
+            ? `현재 페이지의 프로필 ${result.revealedCount}개를 열람했습니다.`
+            : "현재 페이지의 프로필은 모두 이미 열람 상태입니다.";
+
+      showToast({
+        message,
+        variant: "white",
+      });
+    } catch (error) {
+      showToast({
+        message:
+          error instanceof Error
+            ? error.message
+            : "현재 페이지의 프로필 열람에 실패했습니다.",
+        variant: "white",
+      });
+    }
   };
 
   const onDragStart = (
@@ -474,8 +517,29 @@ const CandidateViews = ({
     <div className="w-full relative h-full">
       {sortedItems.length > 0 && (
         <div className="w-full flex flex-row items-center justify-between mt-2 px-4">
-          <div></div>
+          <div className="flex min-w-0 items-center gap-3"></div>
           <div className="flex flex-row items-center justify-start gap-2">
+            {!hasSharedFolderNotes && userId ? (
+              <>
+                {unopenedCandidateCount > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleBulkOpenProfiles();
+                    }}
+                    disabled={bulkRevealMutation.isPending}
+                    className="inline-flex flex-row gap-2 border border-white/80 bg-gradient-to-br from-white/85 via-white/75 to-white/70 text-black items-center justify-center rounded-lg px-2.5 py-1.5 text-xs font-normal transition duration-200 hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <Unlock className="w-3.5 h-3.5" />
+                    <span>
+                      {bulkRevealMutation.isPending
+                        ? "열람 중..."
+                        : `${unopenedCandidateCount}개 열람하기`}
+                    </span>
+                  </button>
+                ) : null}
+              </>
+            ) : null}
             {canUseMarkFilter ? (
               <ActionDropdown
                 open={isFilterMenuOpen}
@@ -487,10 +551,10 @@ const CandidateViews = ({
                 trigger={
                   <button
                     type="button"
-                    className="inline-flex h-8 items-center gap-2 rounded-lg px-3 text-sm text-white/80 transition-colors duration-200 hover:border-white/15 hover:bg-white/5 hover:text-white"
+                    className="inline-flex h-8 items-center gap-2 rounded-lg px-3 text-sm bg-black/10 border border-white/5 text-white/80 transition-colors duration-200 hover:border-white/15 hover:bg-black/5 hover:text-white"
                   >
                     <Filter className="h-3.5 w-3.5" strokeWidth={1.8} />
-                    <span className="font-medium">Filter:</span>
+                    <span className="font-normal">Filter:</span>
                     <span className="max-w-[180px] truncate text-white/55">
                       {appliedFilterSummary}
                     </span>

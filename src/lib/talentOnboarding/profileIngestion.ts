@@ -41,6 +41,7 @@ export type TalentExperienceDraft = {
   company_name: string | null;
   company_location: string | null;
   company_id: number | null;
+  company_link: string | null;
   company_logo: string | null;
   memo: string | null;
 };
@@ -48,6 +49,7 @@ export type TalentExperienceDraft = {
 export type TalentEducationDraft = {
   school: string | null;
   degree: string | null;
+  description: string | null;
   field: string | null;
   start_date: string | null;
   end_date: string | null;
@@ -350,6 +352,22 @@ function extractDateText(rawDate: unknown): string {
   return typeof text === "string" ? text : "";
 }
 
+function extractLinkValue(raw: unknown): string | null {
+  if (typeof raw === "string") {
+    return cleanText(normalizeLink(raw), 1000);
+  }
+  if (!raw || typeof raw !== "object") return null;
+
+  const record = raw as Record<string, unknown>;
+  return (
+    cleanText(record.url, 1000) ??
+    cleanText(record.link, 1000) ??
+    cleanText(record.href, 1000) ??
+    cleanText(record.linkedinUrl, 1000) ??
+    cleanText(record.companyUrl, 1000)
+  );
+}
+
 function buildTalentUserDraft(
   linkedinProfile: Record<string, any>
 ): TalentUserDraft {
@@ -405,6 +423,15 @@ function toTalentExperienceDraft(raw: unknown): TalentExperienceDraft | null {
   const companyLocation =
     cleanText(item.company_location, 300) ?? cleanText(item.location, 300);
   const companyId = parseCompanyId(item.company_id ?? item.companyId);
+  const companyLink =
+    extractLinkValue(
+      item.company_link ??
+        item.companyLink ??
+        item.company_url ??
+        item.companyUrl ??
+        item.companyLinkedinUrl ??
+        item.companyProfileUrl
+    ) ?? null;
   const description = cleanMultilineText(item.description, 6000);
 
   if (!role && !companyName && !description) {
@@ -431,6 +458,7 @@ function toTalentExperienceDraft(raw: unknown): TalentExperienceDraft | null {
     company_name: companyName,
     company_location: companyLocation,
     company_id: companyId,
+    company_link: companyLink,
     company_logo: null,
     memo: cleanText(item.memo, 200),
   };
@@ -442,6 +470,14 @@ function toTalentEducationDraft(raw: unknown): TalentEducationDraft | null {
 
   const school = cleanText(item.school, 300) ?? cleanText(item.schoolName, 300);
   const degree = cleanText(item.degree, 220);
+  const description =
+    cleanMultilineText(
+      item.description ??
+        item.activitiesAndSocieties ??
+        item.activities ??
+        item.summary,
+      6000
+    ) ?? null;
   const field = cleanText(item.field, 220) ?? cleanText(item.fieldOfStudy, 220);
   const startDate = parseLinkedinDate(
     extractDateText(item.start_date ?? item.startDate),
@@ -459,6 +495,7 @@ function toTalentEducationDraft(raw: unknown): TalentEducationDraft | null {
   return {
     school,
     degree,
+    description,
     field,
     start_date: startDate,
     end_date: endDate,
@@ -576,6 +613,7 @@ function recoverExperienceCompanyIds(
     if (item.company_id) {
       return {
         ...item,
+        company_link: item.company_link ?? null,
         company_logo: null,
       };
     }
@@ -584,6 +622,7 @@ function recoverExperienceCompanyIds(
     if (!companyName) {
       return {
         ...item,
+        company_link: item.company_link ?? null,
         company_logo: null,
       };
     }
@@ -633,13 +672,22 @@ function recoverExperienceCompanyIds(
     if (bestScore < 100 || bestCompanyIds.size !== 1) {
       return {
         ...item,
+        company_link: item.company_link ?? null,
         company_logo: null,
       };
     }
 
+    const resolvedCompanyId = Array.from(bestCompanyIds)[0] ?? null;
+
     return {
       ...item,
-      company_id: Array.from(bestCompanyIds)[0] ?? null,
+      company_id: resolvedCompanyId,
+      company_link:
+        item.company_link ??
+        linkedinWithCompanyIds.find(
+          (candidate) => candidate.company_id === resolvedCompanyId
+        )?.company_link ??
+        null,
       company_logo: null,
     };
   });
@@ -881,6 +929,7 @@ async function runResumeEnrichmentLlm(args: {
           "Do not return only delta/additional rows. Return full arrays for all sections.",
           "If resume has less information, it is valid to keep LinkedIn-derived values.",
           "Preserve company_id from the current LinkedIn experience when the final row refers to the same company.",
+          "Preserve company_link from the current LinkedIn experience when the final row refers to the same company.",
           "Never invent a company_id.",
           "talentExtras is an array for awards, projects, publications, volunteering, certifications, or other notable details.",
           "Date format must be YYYY-MM-DD or null.",
@@ -903,6 +952,7 @@ async function runResumeEnrichmentLlm(args: {
           '      "company_name": string|null,',
           '      "company_location": string|null,',
           '      "company_id": number|null,',
+          '      "company_link": string|null,',
           '      "memo": string|null',
           "    }",
           "  ],",
@@ -910,6 +960,7 @@ async function runResumeEnrichmentLlm(args: {
           "    {",
           '      "school": string|null,',
           '      "degree": string|null,',
+          '      "description": string|null,',
           '      "field": string|null,',
           '      "start_date": "YYYY-MM-DD"|null,',
           '      "end_date": "YYYY-MM-DD"|null,',
@@ -1191,6 +1242,11 @@ export async function ingestTalentProfileFromLinkedin(
     start_date: item.start_date,
     end_date: item.end_date,
     months: item.months,
+    company_id:
+      typeof item.company_id === "number" && item.company_id > 0
+        ? String(item.company_id)
+        : null,
+    company_link: item.company_link,
     company_name: item.company_name,
     company_location: item.company_location,
     company_logo: item.company_logo,
@@ -1211,6 +1267,7 @@ export async function ingestTalentProfileFromLinkedin(
     talent_id: userId,
     school: item.school,
     degree: item.degree,
+    description: item.description,
     field: item.field,
     start_date: item.start_date,
     end_date: item.end_date,

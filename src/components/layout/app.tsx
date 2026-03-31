@@ -199,7 +199,7 @@ const AppLayout = ({
                   <div className="w-full flex flex-row items-center justify-between text-[15px]">
                     {/* <Zap fill="#fff" size={14} /> */}
                     <div className="w-[68%] text-xs text-hgray700">
-                      이번 달 남은 검색 횟수
+                      이번 달 남은 열람 횟수
                     </div>
                     <div className="w-[20%] text-right text-xs text-accenta1/80">
                       {credits?.remain_credit ?? 0}
@@ -267,7 +267,6 @@ const AppLayout = ({
             }
           >
             <ActionDropdownItem
-              className="flex flex-row gap-1"
               onSelect={(e) => {
                 e.preventDefault();
                 logEvent("enter_feedback");

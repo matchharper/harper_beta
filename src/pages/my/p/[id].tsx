@@ -27,6 +27,7 @@ export default function ProfileDetailPage() {
     [candidId]
   );
   const { data, isLoading, error } = useCandidateDetail(userId, candidId);
+  const isProfileRevealed = data?.profile_revealed !== false;
 
   return (
     <AppLayout>
@@ -39,7 +40,7 @@ export default function ProfileDetailPage() {
             onConfirm={() => {}}
           />
         )}
-        {candidId && data && (
+        {candidId && data && isProfileRevealed && (
           <div
             className={`flex-shrink-0 border-r w-[30%] min-w-[390px] border-white/10`}
           >

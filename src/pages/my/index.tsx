@@ -14,13 +14,10 @@ import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { useRouter } from "next/router";
 import { useQueryClient } from "@tanstack/react-query";
 import { refreshQueriesHistory } from "@/hooks/useSearchHistory";
-import { useCredits } from "@/hooks/useCredit";
-import { MIN_CREDITS_FOR_SEARCH } from "@/utils/constantkeys";
 import { supabase } from "@/lib/supabase";
 import { useMessages } from "@/i18n/useMessage";
 import { ensureGroupBy } from "@/utils/textprocess";
 import { firstSqlPrompt } from "@/lib/prompt";
-import ConfirmModal from "@/components/Modal/ConfirmModal";
 import { useFeedbackModalStore } from "@/store/useFeedbackModalStore";
 import {
   SearchSource,
@@ -58,14 +55,12 @@ const Home: NextPage = () => {
   const [hasHydratedSourcePreference, setHasHydratedSourcePreference] =
     useState(false);
   const { locale, m } = useMessages();
-  const [isNoCreditModalOpen, setIsNoCreditModalOpen] = useState(false);
 
   const { companyUser } = useCompanyUserStore();
-  const { credits } = useCredits();
   const { open: openFeedbackModal } = useFeedbackModalStore();
   const router = useRouter();
   const isQueryEmpty = query.trim().length === 0;
-  const canSend = query.trim().length > 0 && Boolean(credits) && !isLoading;
+  const canSend = query.trim().length > 0 && !isLoading;
   const searchSourceConfigs = useMemo<
     Record<SearchSource, SearchSourceConfig>
   >(() => {
@@ -321,15 +316,6 @@ const Home: NextPage = () => {
       setIsLoading(false);
       return;
     }
-    if (
-      credits?.remain_credit &&
-      credits.remain_credit <= MIN_CREDITS_FOR_SEARCH
-    ) {
-      setIsNoCreditModalOpen(true);
-      setIsLoading(false);
-      return;
-    }
-
     const {
       data: { session },
     } = await supabase.auth.getSession();
@@ -413,14 +399,6 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
 
   return (
     <AppLayout initialCollapse={false}>
-      <ConfirmModal
-        open={isNoCreditModalOpen}
-        onClose={() => setIsNoCreditModalOpen(false)}
-        onConfirm={() => setIsNoCreditModalOpen(false)}
-        title="이번 달 월 검색 한도를 모두 사용했습니다."
-        description="다음 이용 기간이 시작된 뒤 다시 시도하거나, 플랜 변경으로 월 검색 한도를 늘려보세요."
-        confirmLabel="확인"
-      />
       <main className="flex-1 flex relative font-sans items-center justify-center px-6 w-full pt-[25vh]">
         <div className="absolute top-2 right-2 flex flex-row items-end gap-2">
           <button

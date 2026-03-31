@@ -48,6 +48,8 @@ import Bookmarkbutton from "./ui/bookmarkbutton";
 import CandidateMarkButton from "./ui/CandidateMarkButton";
 import CandidateMemoDock from "./ui/CandidateMemoDock";
 import { Tooltips } from "./ui/tooltip";
+import RevealProfileButton from "./ui/RevealProfileButton";
+import { showToast } from "./toast/toast";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
 
@@ -109,9 +111,13 @@ function formatYearMonth(dateStr?: string | null) {
 }
 
 function formatPeriod(startDate?: string | null, endDate?: string | null) {
-  const start = formatYearMonth(startDate) || "시작 미상";
-  const end = endDate ? formatYearMonth(endDate) || endDate : "현재";
-  return `${start} ~ ${end}`;
+  const start = formatYearMonth(startDate);
+  const end = endDate ? formatYearMonth(endDate) || endDate : "";
+
+  if (start && end) return `${start} ~ ${end}`;
+  if (start) return `${start} ~ 현재`;
+  if (end) return `~ ${end}`;
+  return "";
 }
 
 function CandidateCard({
@@ -208,7 +214,8 @@ function CandidateCard({
     return exps
       .map((exp: any) => {
         const companyName = companyEnToKo(exp?.company_db?.name ?? "-");
-        return `${companyName} (${formatPeriod(exp?.start_date, exp?.end_date)})`;
+        const period = formatPeriod(exp?.start_date, exp?.end_date);
+        return period ? `${companyName} (${period})` : companyName;
       })
       .join("\n");
   }, [exps]);
@@ -219,10 +226,9 @@ function CandidateCard({
       .map((edu: any) => {
         const schoolName = koreaUniversityEnToKo(edu?.school ?? "-");
         const degreeName = degreeEnToKo(edu?.degree ?? "-");
-        return `${schoolName} - ${degreeName}\n${formatPeriod(
-          edu?.start_date,
-          edu?.end_date
-        )}`;
+        const period = formatPeriod(edu?.start_date, edu?.end_date);
+        const title = degreeName ? `${schoolName} - ${degreeName}` : schoolName;
+        return period ? `${title}\n${period}` : title;
       })
       .join("\n\n");
   }, [edus]);
@@ -234,6 +240,7 @@ function CandidateCard({
     return buildGithubDeveloperTooltip(githubPreview);
   }, [githubPreview]);
   const hasSharedFolderNotes = Boolean(sharedFolderContext?.token);
+  const isProfileRevealed = c.profile_revealed !== false;
   const hasOwnerAnnotation = Boolean(
     String(shortlistMemo ?? "").trim().length > 0 || candidateMarkStatus
   );
@@ -254,23 +261,47 @@ function CandidateCard({
     >
       <Link
         href={profileHref}
-        onClick={() => logEvent("candidate_card_click: " + candidId)}
-        className={`group relative block w-full cursor-pointer rounded-[28px] bg-white/5 text-white transition-colors duration-200 hover:bg-white/10 ${
-          hasSharedFolderNotes ? "h-fit min-w-0 px-5 py-5" : "p-6"
-        }`}
+        onClick={(event) => {
+          if (!isProfileRevealed) {
+            event.preventDefault();
+            showToast({
+              message: "열람 후 프로필을 열 수 있습니다.",
+              variant: "white",
+            });
+            return;
+          }
+          logEvent("candidate_card_click: " + candidId);
+        }}
+        className={`group relative block w-full rounded-[28px] bg-white/5 text-white transition-colors duration-200 ${
+          isProfileRevealed
+            ? "cursor-pointer hover:bg-white/10"
+            : "cursor-default"
+        } ${hasSharedFolderNotes ? "h-fit min-w-0 px-5 py-5" : "p-6"}`}
       >
+        {!isProfileRevealed && !hasSharedFolderNotes ? (
+          <RevealProfileButton
+            candidId={candidId}
+            overlay
+            overlayClassName="rounded-[28px] group-hover:border-accenta1/50 group-hover:bg-black/15"
+          />
+        ) : null}
         <div className="flex items-start gap-5">
           <div className="min-w-0 flex-1">
             <div className="flex flex-row flex-1 items-start gap-4">
               <div className="w-[40%]">
                 <div className="flex flex-row flex-1 items-start gap-4">
                   <div className="cursor-pointer rounded-full border border-transparent transition-colors duration-100 hover:border-accenta1/80">
-                    <Avatar url={c.profile_picture} name={c.name} size="lg" />
+                    <Avatar
+                      url={c.profile_picture}
+                      name={c.name}
+                      size="lg"
+                      isProfileRevealed={isProfileRevealed}
+                    />
                   </div>
 
-                  <div className="flex flex-col items-start justify-between">
+                  <div className="flex min-w-0 flex-col items-start justify-between">
                     <div className="flex flex-col gap-0">
-                      <div className="relative truncate text-lg font-medium hover:underline">
+                      <div className="truncate text-lg font-medium">
                         {c.name ?? "None"}
                       </div>
                       {isOnlyScholar ? (
@@ -410,6 +441,8 @@ function CandidateCard({
                       <RoleBox
                         company={latestCompany.company_db.name ?? ""}
                         role={latestCompany.role}
+                        logoUrl={latestCompany.company_db.logo ?? ""}
+                        maskLogo={!isProfileRevealed}
                         tooltipText={companyHistoryTooltipText}
                         tooltipSide="bottom"
                       />

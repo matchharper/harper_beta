@@ -3,7 +3,6 @@ import ConfirmModal from "@/components/Modal/ConfirmModal";
 import { supabase } from "@/lib/supabase";
 import { notifyToSlack } from "@/lib/slack";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
-import { useCredits } from "@/hooks/useCredit";
 import type { Database } from "@/types/database.types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/router";
@@ -57,7 +56,6 @@ export default function AutomationIndexPage() {
   const router = useRouter();
   const qc = useQueryClient();
   const { companyUser } = useCompanyUserStore();
-  const { credits } = useCredits();
   const userId = companyUser?.user_id;
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<{
@@ -166,13 +164,6 @@ export default function AutomationIndexPage() {
   const handleResume = useCallback(
     async (automationId: string) => {
       if (!automationId || !userId) return;
-      if (credits && credits.remain_credit <= 3) {
-        showToast({
-          message: "이번 달 남은 월 검색 한도가 부족합니다.",
-          variant: "white",
-        });
-        return;
-      }
       try {
         const activeCount = await fetchActiveAutomationCount(userId);
         if (activeCount >= MAX_ACTIVE_AUTOMATIONS) {
@@ -208,7 +199,7 @@ export default function AutomationIndexPage() {
         setIsSaving(false);
       }
     },
-    [credits, m.scout.checkAutomationFail, m.scout.limitMessage, qc, userId]
+    [m.scout.checkAutomationFail, m.scout.limitMessage, qc, userId]
   );
 
   const handleDelete = useCallback(
@@ -377,7 +368,7 @@ export default function AutomationIndexPage() {
       <ConfirmModal
         open={pendingAction?.type === "resume"}
         title="진행을 재개할까요?"
-        description="진행 시 추천 결과가 현재 플랜의 월 검색 한도에 반영됩니다."
+        description="진행 시 후보자 추천이 다시 시작됩니다."
         confirmLabel="진행"
         cancelLabel="취소"
         onClose={() => setPendingAction(null)}

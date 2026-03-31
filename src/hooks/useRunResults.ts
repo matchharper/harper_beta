@@ -20,6 +20,7 @@ import {
   fetchCandidateMarkMap,
 } from "./useCandidateMark";
 import { fetchShortlistMemoMap } from "./useShortlistMemo";
+import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 
 const RUN_RESULTS_PAGE_SIZE = 10;
 
@@ -444,28 +445,23 @@ export function useRunPagesInfinite({
     initialPageParam: 0,
     queryFn: async ({ pageParam }) => {
       const pageIdx = pageParam as number;
-
-      const { ids, total, evidenceByCandidateId, rankByCandidateId } =
-        await fetchRunPage({
-          runId: runId!,
+      return fetchWithInternalAuth<{
+        pageIdx: number;
+        ids: string[];
+        items: CandidateTypeWithConnection[];
+        total: number;
+      }>("/api/candidates/run-page", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          runId,
           pageIdx,
-          userId: userId!,
+          sourceType,
           excludedMarkStatuses,
-        });
-
-      // ids -> 후보자 fetch
-      const items = ids.length
-        ? await fetchCandidatesByIds(
-            ids,
-            userId!,
-            runId!,
-            sourceType,
-            evidenceByCandidateId,
-            rankByCandidateId
-          )
-        : [];
-
-      return { pageIdx, ids, items, total };
+        }),
+      });
     },
     getNextPageParam: (lastPage) => {
       if (!lastPage?.ids?.length) return undefined;

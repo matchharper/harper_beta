@@ -116,8 +116,9 @@ function ChatMessageList({
   return (
     <div className="flex-1 pr-2 space-y-8">
       {messages.length === 0 && (
-        <div className="text-sm text-hgray600">
-          검색 요청을 입력하면 대화가 시작됩니다.
+        <div className="text-[13px] text-hgray700">
+          이 후보자에 대해 궁금하신게 있다면 질문해주세요. <br />
+          링크 속 정보, 회사 정보 등 더 자세한 정보를 바탕으로 대답해드려요.
         </div>
       )}
 

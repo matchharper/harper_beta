@@ -1235,7 +1235,7 @@ const Billing = () => {
                     <div className="w-full flex flex-row items-center justify-end h-full mb-2">
                       <div className="w-[30%] flex flex-col items-start justify-end">
                         <div className="flex flex-row items-start justify-start gap-2 text-hgray900 text-sm font-normal">
-                          이번 달 남은 검색 횟수
+                          이번 달 남은 열람 횟수
                           <span className="text-accenta1">
                             {credits?.remain_credit}
                           </span>

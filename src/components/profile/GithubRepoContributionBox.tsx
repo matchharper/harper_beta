@@ -1,6 +1,6 @@
 import type { GithubContributionWithRepo } from "@/hooks/useCandidateDetail";
 import React from "react";
-import { Book, Users, Star, GitFork } from "lucide-react";
+import { Book, Star, GitFork } from "lucide-react";
 import { Tooltips } from "../ui/tooltip";
 import { useRepoModalStore } from "@/store/useRepoModalStore";
 
@@ -164,7 +164,7 @@ const GithubRepoContributionBox = ({
   const topLangs = getTopLanguages(repo?.languages, 3);
   const stars = repo?.stars ?? null;
   const forks = repo?.forks ?? null;
-  const description = repo?.description ?? "";
+  const description = repo?.description ?? repo?.readme_excerpt ?? "";
 
   const handleClick = () => {
     if (contribution.repo_id) {

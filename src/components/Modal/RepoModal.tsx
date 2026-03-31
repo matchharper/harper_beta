@@ -138,6 +138,11 @@ export default function RepoModalRoot() {
     () => getTopLanguages(repo?.languages),
     [repo?.languages]
   );
+  const topics = Array.isArray(repo?.topics)
+    ? repo.topics.filter((topic): topic is string => typeof topic === "string" && topic.trim().length > 0)
+    : [];
+  const readmeExcerpt =
+    typeof repo?.readme_excerpt === "string" ? repo.readme_excerpt.trim() : "";
 
   const repoUrl = repo
     ? `https://github.com/${repo.repo_full_name}`
@@ -224,9 +229,9 @@ export default function RepoModalRoot() {
             ) : (
               <div className="flex flex-col gap-8">
                 {/* Description */}
-                {repo.description && (
+                {(repo.description || readmeExcerpt) && (
                   <div className="text-sm leading-7 text-hgray800">
-                    {repo.description}
+                    {repo.description || readmeExcerpt}
                   </div>
                 )}
 
@@ -270,14 +275,13 @@ export default function RepoModalRoot() {
                   </Section>
                 )}
 
-                {/* Topics */}
-                {repo.topics && repo.topics.length > 0 && (
+                {topics.length > 0 && (
                   <Section title="Topics">
                     <div className="flex flex-wrap items-center gap-2">
-                      {(repo.topics as string[]).map((topic: string) => (
+                      {topics.map((topic) => (
                         <span
                           key={topic}
-                          className="inline-flex items-center rounded-full bg-accenta1/10 px-3 py-1 text-xs text-accenta1"
+                          className="inline-flex items-center rounded-full bg-white/5 px-3 py-1.5 text-sm text-hgray800"
                         >
                           {topic}
                         </span>
@@ -286,11 +290,10 @@ export default function RepoModalRoot() {
                   </Section>
                 )}
 
-                {/* README Excerpt */}
-                {repo.readme_excerpt && (
-                  <Section title="About">
-                    <div className="rounded-2xl bg-white/5 px-4 py-3 text-sm leading-6 text-hgray800 whitespace-pre-wrap">
-                      {repo.readme_excerpt}
+                {readmeExcerpt && (
+                  <Section title="Repo Text" icon={<Book className="h-4 w-4" />}>
+                    <div className="rounded-2xl bg-white/5 px-4 py-4 text-sm leading-7 text-hgray800">
+                      {readmeExcerpt}
                     </div>
                   </Section>
                 )}

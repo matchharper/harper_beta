@@ -9,17 +9,19 @@ const PublicationBox = ({
   link,
   citation_num,
   paperId,
+  disabled = false,
 }: {
   title: string;
   published_at?: string | null;
   link?: string | null;
   citation_num: number;
   paperId?: string | null;
+  disabled?: boolean;
 }) => {
   const mapped = normalizeVenue(published_at ?? "");
   const { venue, year } = parsePublishedAt(published_at ?? "");
   const { handleOpenPaper } = usePaperModalStore();
-  const isInteractive = !!paperId || !!link;
+  const isInteractive = !disabled && (!!paperId || !!link);
 
   const handleClick = () => {
     if (paperId) {
