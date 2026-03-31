@@ -467,7 +467,7 @@ function maskExperienceEntry(entry: any, options?: { keepRole?: boolean }) {
       ? {
           ...entry.company_db,
           name: maskWithFirstCharacter(entry.company_db?.name),
-          logo: null,
+          logo: entry.company_db?.logo ?? null,
           linkedin_url: "",
           short_description: "",
           location: "",
@@ -485,7 +485,7 @@ function maskEducationEntry(entry: any) {
     field_of_study: maskWithFirstCharacter(entry?.field_of_study),
     start_date: "",
     end_date: "",
-    url: "",
+    url: entry?.url ?? "",
   };
 }
 
@@ -504,7 +504,7 @@ function maskGithubPreview(preview: any) {
     ...preview,
     name: maskWithFirstCharacter(preview.name),
     company: maskWithFirstCharacter(preview.company),
-    location: maskWithFirstCharacter(preview.location),
+    location: preview.location ?? "",
   };
 }
 
@@ -542,7 +542,7 @@ export function applyListRevealState(candidate: any, isRevealed: boolean) {
     headline: maskWithFirstCharacter(candidate?.headline),
     bio: "",
     linkedin_url: "",
-    location: "",
+    location: candidate?.location ?? "",
     links: buildMaskedSourceLinks(candidate?.links),
     experience_user:
       experiences.length > 0 ? [maskExperienceEntry(experiences[0])] : [],
@@ -583,7 +583,7 @@ export function applyDetailRevealState(candidate: any, isRevealed: boolean) {
     headline: maskWithFirstCharacter(candidate?.headline),
     email: Array.isArray(candidate?.email) ? [] : "[]",
     linkedin_url: "",
-    location: "",
+    location: candidate?.location ?? "",
     bio: "",
     summary: Array.isArray(candidate?.summary) ? [] : "",
     links: buildMaskedSourceLinks(candidate?.links),

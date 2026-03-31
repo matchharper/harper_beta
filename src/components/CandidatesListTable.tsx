@@ -385,7 +385,6 @@ function CandidateRow({
                       <CompanyLogoBadge
                         src={companyLogo}
                         alt={latestCompany.company_db.name}
-                        masked={!isProfileRevealed}
                       />
                     ) : null}
                     <span className="text-hgray800 font-normal break-words">
@@ -884,20 +883,32 @@ export const SchoolBox = ({
   school,
   role,
   field,
+  schoolUrl,
   tooltipText,
   tooltipSide = "bottom",
 }: {
   school: string;
   role: string;
   field: string;
+  schoolUrl?: string;
   tooltipText?: string;
   tooltipSide?: "bottom" | "top" | "left" | "right";
 }) => {
+  const schoolLogoUrl = getSchoolLogo(schoolUrl);
+
   return (
     <div className="flex flex-col items-start gap-0 text-sm col-span-4">
       <Tooltips text={tooltipText ?? "가장 최근 학력"} side={tooltipSide}>
         <div className="flex flex-row items-center justify-start gap-x-2 min-w-0 relative">
-          <GraduationCap className="w-4 h-4 text-hgray800" />
+          {schoolLogoUrl ? (
+            <img
+              src={schoolLogoUrl}
+              alt={school || "school"}
+              className="w-4 h-4 rounded-full object-cover"
+            />
+          ) : (
+            <GraduationCap className="w-4 h-4 text-hgray800" />
+          )}
           <span className="text-hgray800 font-normal break-words">
             {school && koreaUniversityEnToKo(school)}
           </span>
