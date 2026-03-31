@@ -13,9 +13,14 @@ import { showToast } from "@/components/toast/toast";
 import { useCountryLang } from "@/hooks/useCountryLang";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import {
+  TALENT_NETWORK_ABTEST_TYPE_KEY,
   TALENT_NETWORK_LOCAL_ID_KEY,
-  TALENT_NETWORK_LOG_ABTEST_TYPE,
+  TALENT_NETWORK_SUBMIT_COMPLETED_EVENT,
   createTalentNetworkLocalId,
+  getRandomTalentNetworkAbtestType,
+  getTalentNetworkOnboardingStepEventType,
+  isTalentNetworkAbtestType,
+  type TalentNetworkAbtestType,
 } from "@/lib/talentNetwork";
 import { notifyToSlack } from "@/lib/slack";
 import { supabase } from "@/lib/supabase";
@@ -26,7 +31,7 @@ import { useRouter } from "next/router";
 
 const TALENT_NETWORK_CV_BUCKET = "talent-network-cv";
 const HARPER_WAITLIST_TYPE_ONBOARDING2 = 2;
-type ProfileInputType = "cv" | "github" | "scholar";
+type ProfileInputType = "linkedin" | "github" | "scholar" | "website" | "cv";
 
 const sanitizeFileName = (fileName: string) =>
   fileName
@@ -286,7 +291,7 @@ const SelectionCardButton = ({
     <div className="flex w-full items-start gap-3">
       {typeof optionNumber === "number" && (
         <span
-          className={`mt-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-[4px] border text-xs font-medium ${
+          className={`mt-1 hidden md:inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-[4px] border text-xs font-medium ${
             active
               ? "border-beige900 bg-beige900 text-beige100"
               : "border-black/10 bg-white text-beige900"
@@ -338,9 +343,7 @@ ${
       </div>
 
       <div className="text-base font-medium mt-1">
-        {fileName
-          ? fileName
-          : "Upload Resume/CV in PDF (Optional if LinkedIn is fully updated)"}
+        {fileName ? fileName : "Upload Resume/CV in PDF (Optional)"}
       </div>
 
       <div className="text-sm font-normal text-black/80 text-center">
@@ -367,9 +370,10 @@ export const Onboarding2Content = ({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [linkedin, setLinkedin] = useState("");
+  const [website, setWebsite] = useState("");
   const [selectedProfileInputs, setSelectedProfileInputs] = useState<
     ProfileInputType[]
-  >([]);
+  >(["linkedin"]);
   const [github, setGithub] = useState("");
   const [scholar, setScholar] = useState("");
   const [cvFile, setCvFile] = useState<File | null>(null);
@@ -388,6 +392,9 @@ export const Onboarding2Content = ({
   const [submissionPending, setSubmissionPending] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [landingId, setLandingId] = useState("");
+  const [abtestType, setAbtestType] = useState<TalentNetworkAbtestType | null>(
+    null
+  );
   const [isDirty, setIsDirty] = useState(false);
 
   const onSave = useCallback(() => {
@@ -399,6 +406,7 @@ export const Onboarding2Content = ({
       profileValues: {
         cv: cvFileName || null,
         linkedin: linkedin || null,
+        website: website || null,
         github: github || null,
         scholar: scholar || null,
       },
@@ -420,6 +428,7 @@ export const Onboarding2Content = ({
     linkedin,
     name,
     scholar,
+    website,
     selectedProfileInputs,
     selectedEngagements,
     selectedLocations,
@@ -439,14 +448,6 @@ export const Onboarding2Content = ({
           showToast({ message: "이메일을 입력해주세요.", variant: "white" });
           return false;
         }
-
-        if (!linkedin.trim()) {
-          showToast({
-            message: "LinkedIn Profile URL을 입력해주세요.",
-            variant: "white",
-          });
-          return false;
-        }
       }
 
       if (currentStep === 3 && !selectedCareerMoveIntent) {
@@ -459,19 +460,26 @@ export const Onboarding2Content = ({
 
       return true;
     },
-    [email, linkedin, name, selectedCareerMoveIntent]
+    [email, name, selectedCareerMoveIntent]
   );
 
   const addLandingLog = useCallback(
-    async (type: string, localIdOverride?: string) => {
-      const resolvedLocalId = localIdOverride || landingId;
-      if (!resolvedLocalId) return;
+    async (
+      type: string,
+      overrides?: {
+        localId?: string;
+        abtestType?: string | null;
+      }
+    ) => {
+      const resolvedLocalId = overrides?.localId || landingId;
+      const resolvedAbtestType = overrides?.abtestType || abtestType;
+      if (!resolvedLocalId || !resolvedAbtestType) return;
 
       try {
         await supabase.from("landing_logs").insert({
           local_id: resolvedLocalId,
           type,
-          abtest_type: TALENT_NETWORK_LOG_ABTEST_TYPE,
+          abtest_type: resolvedAbtestType,
           is_mobile: isMobile,
           country_lang: countryLang,
         });
@@ -479,19 +487,31 @@ export const Onboarding2Content = ({
         console.error("talent network landing log error:", error);
       }
     },
-    [countryLang, isMobile, landingId]
+    [abtestType, countryLang, isMobile, landingId]
   );
 
   useEffect(() => {
     const savedId = localStorage.getItem(TALENT_NETWORK_LOCAL_ID_KEY);
     if (savedId) {
       setLandingId(savedId);
-      return;
+    } else {
+      const nextId = createTalentNetworkLocalId();
+      localStorage.setItem(TALENT_NETWORK_LOCAL_ID_KEY, nextId);
+      setLandingId(nextId);
     }
 
-    const nextId = createTalentNetworkLocalId();
-    localStorage.setItem(TALENT_NETWORK_LOCAL_ID_KEY, nextId);
-    setLandingId(nextId);
+    const savedAbtestType = localStorage.getItem(
+      TALENT_NETWORK_ABTEST_TYPE_KEY
+    );
+    const resolvedAbtestType = isTalentNetworkAbtestType(savedAbtestType)
+      ? savedAbtestType
+      : getRandomTalentNetworkAbtestType();
+
+    if (!isTalentNetworkAbtestType(savedAbtestType)) {
+      localStorage.setItem(TALENT_NETWORK_ABTEST_TYPE_KEY, resolvedAbtestType);
+    }
+
+    setAbtestType(resolvedAbtestType);
   }, []);
 
   const handleProfileInputChange = (option: ProfileInputType) => {
@@ -532,12 +552,15 @@ export const Onboarding2Content = ({
   async function handleSubmitOnboarding() {
     if (submissionPending) return;
 
+    const hasLinkedin = selectedProfileInputs.includes("linkedin");
     const hasGithub = selectedProfileInputs.includes("github");
     const hasScholar = selectedProfileInputs.includes("scholar");
+    const hasWebsite = selectedProfileInputs.includes("website");
     const hasCv = selectedProfileInputs.includes("cv");
     const trimmedName = name.trim();
     const trimmedEmail = email.trim();
     const trimmedLinkedin = linkedin.trim();
+    const trimmedWebsite = website.trim();
     const trimmedGithub = github.trim();
     const trimmedScholar = scholar.trim();
     const trimmedImpactSummary = impactSummary.trim();
@@ -546,6 +569,12 @@ export const Onboarding2Content = ({
       landingId ||
       localStorage.getItem(TALENT_NETWORK_LOCAL_ID_KEY) ||
       createTalentNetworkLocalId();
+    const savedAbtestType = localStorage.getItem(
+      TALENT_NETWORK_ABTEST_TYPE_KEY
+    );
+    const resolvedAbtestType = isTalentNetworkAbtestType(savedAbtestType)
+      ? savedAbtestType
+      : abtestType || getRandomTalentNetworkAbtestType();
     const selectedEngagementLabels = ENGAGEMENT_OPTIONS.filter((option) =>
       selectedEngagements.includes(option.id)
     ).map((option) => option.label);
@@ -558,8 +587,12 @@ export const Onboarding2Content = ({
       )?.label || null;
 
     localStorage.setItem(TALENT_NETWORK_LOCAL_ID_KEY, resolvedLandingId);
+    localStorage.setItem(TALENT_NETWORK_ABTEST_TYPE_KEY, resolvedAbtestType);
     if (!landingId) {
       setLandingId(resolvedLandingId);
+    }
+    if (!abtestType) {
+      setAbtestType(resolvedAbtestType);
     }
 
     setSubmissionPending(true);
@@ -592,7 +625,8 @@ export const Onboarding2Content = ({
         source: "onboarding2",
         selected_role: selectedRoleLabel,
         profile_input_types: selectedProfileInputs,
-        linkedin_profile_url: trimmedLinkedin || null,
+        linkedin_profile_url: hasLinkedin ? trimmedLinkedin || null : null,
+        personal_website_url: hasWebsite ? trimmedWebsite || null : null,
         github_profile_url: hasGithub ? trimmedGithub || null : null,
         scholar_profile_url: hasScholar ? trimmedScholar || null : null,
         cv_file_name: hasCv ? cvFileName || cvFile?.name || null : null,
@@ -618,7 +652,8 @@ export const Onboarding2Content = ({
           type: HARPER_WAITLIST_TYPE_ONBOARDING2,
           is_mobile: isMobile,
           url:
-            trimmedLinkedin ||
+            (hasLinkedin ? trimmedLinkedin : "") ||
+            (hasWebsite ? trimmedWebsite : "") ||
             (hasGithub ? trimmedGithub : "") ||
             (hasScholar ? trimmedScholar : "") ||
             uploadedStoragePath ||
@@ -630,7 +665,10 @@ export const Onboarding2Content = ({
         throw new Error(insertError.message || "제출에 실패했습니다.");
       }
 
-      await addLandingLog("talent_network_submit_completed", resolvedLandingId);
+      await addLandingLog(TALENT_NETWORK_SUBMIT_COMPLETED_EVENT, {
+        localId: resolvedLandingId,
+        abtestType: resolvedAbtestType,
+      });
 
       try {
         await notifyToSlack(`📝 *Talent Network Match Initiated*
@@ -638,7 +676,8 @@ export const Onboarding2Content = ({
 • *Role*: ${selectedRoleLabel || "N/A"}
 • *Name*: ${trimmedName || "N/A"}
 • *Email*: ${trimmedEmail || "N/A"}
-• *LinkedIn*: ${trimmedLinkedin || "N/A"}
+• *LinkedIn*: ${hasLinkedin ? trimmedLinkedin || "N/A" : "Not provided"}
+• *Personal Website*: ${hasWebsite ? trimmedWebsite || "N/A" : "Not provided"}
 • *GitHub / Hugging Face*: ${
           hasGithub ? trimmedGithub || "N/A" : "Not provided"
         }
@@ -700,6 +739,15 @@ export const Onboarding2Content = ({
     step === 0 ? "Start" : `${questionProgressStep}/${QUESTION_STEP_COUNT}`;
   const dreamTeamsLeadCopy = getDreamTeamsLeadCopy(selectedLocations);
   const isTextareaStep = step === 2 || step === 5;
+
+  useEffect(() => {
+    if (!landingId || !abtestType) return;
+
+    const eventType = getTalentNetworkOnboardingStepEventType(step);
+    if (!eventType) return;
+
+    void addLandingLog(eventType);
+  }, [abtestType, addLandingLog, landingId, step]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -961,47 +1009,52 @@ export const Onboarding2Content = ({
                         남겨주세요.)
                       </div>
                     </div>
-
-                    <BeigeLinkInput
-                      label={
-                        <div className="flex flex-row items-center gap-1.5 w-full">
-                          <Image
-                            src="/images/logos/linkedin.svg"
-                            alt="LinkedIn"
-                            width={20}
-                            height={20}
-                          />
-                          <div>LinkedIn Profile *</div>
-                          <div
-                            className="ml-1 hover:font-medium flex flex-row items-center gap-1 text-sm font-normal text-beige900/70 cursor-pointer transition-all duration-200 hover:text-beige900"
-                            onClick={() =>
-                              window.open(
-                                "https://www.linkedin.com/in/",
-                                "_blank"
-                              )
-                            }
-                          >
-                            (내 링크드인 열기){" "}
-                            <ArrowUpRight className="w-3 h-3" />
+                    {selectedProfileInputs.includes("linkedin") && (
+                      <BeigeLinkInput
+                        label={
+                          <div className="flex flex-row items-center gap-1.5 w-full mb-0">
+                            <Image
+                              src="/images/logos/linkedin.svg"
+                              alt="LinkedIn"
+                              width={20}
+                              height={20}
+                            />
+                            <div>LinkedIn Profile</div>
+                            <div
+                              className="ml-1 hover:font-medium flex flex-row items-center gap-1 text-sm font-normal text-beige900/70 cursor-pointer transition-all duration-200 hover:text-beige900"
+                              onClick={() =>
+                                window.open(
+                                  "https://www.linkedin.com/in/",
+                                  "_blank"
+                                )
+                              }
+                            >
+                              (내 링크드인 열기){" "}
+                              <ArrowUpRight className="w-3 h-3" />
+                            </div>
                           </div>
-                        </div>
-                      }
-                      value={linkedin}
-                      isLineClamp={true}
-                      onChange={(e) => {
-                        setLinkedin(e.target.value);
-                        setIsDirty(true);
-                      }}
-                      placeholder="https://linkedin.com/in/username"
-                    />
-                    <div className="h-1" />
+                        }
+                        value={linkedin}
+                        isLineClamp={true}
+                        onChange={(e) => {
+                          setLinkedin(e.target.value);
+                          setIsDirty(true);
+                        }}
+                        placeholder="https://linkedin.com/in/username"
+                      />
+                    )}
 
                     <div>
-                      <div className="text-sm font-normal text-beige900">
-                        (optional but recommended)
+                      <div className="mt-2 text-sm font-normal text-beige900">
+                        Select the profile links you want to share.
                       </div>
 
                       <div className="flex flex-wrap gap-2 pt-2">
+                        <ProfileInputToggleButton
+                          label="LinkedIn"
+                          active={selectedProfileInputs.includes("linkedin")}
+                          onClick={() => handleProfileInputChange("linkedin")}
+                        />
                         <ProfileInputToggleButton
                           label="GitHub"
                           active={selectedProfileInputs.includes("github")}
@@ -1011,6 +1064,11 @@ export const Onboarding2Content = ({
                           label="Google Scholar"
                           active={selectedProfileInputs.includes("scholar")}
                           onClick={() => handleProfileInputChange("scholar")}
+                        />
+                        <ProfileInputToggleButton
+                          label="Personal Homepage"
+                          active={selectedProfileInputs.includes("website")}
+                          onClick={() => handleProfileInputChange("website")}
                         />
                         <ProfileInputToggleButton
                           label="Resume / CV"
@@ -1061,6 +1119,18 @@ export const Onboarding2Content = ({
                           setIsDirty(true);
                         }}
                         placeholder="https://scholar.google.com/citations?user="
+                      />
+                    )}
+
+                    {selectedProfileInputs.includes("website") && (
+                      <BeigeLinkInput
+                        label={<div>Personal Homepage</div>}
+                        value={website}
+                        onChange={(e) => {
+                          setWebsite(e.target.value);
+                          setIsDirty(true);
+                        }}
+                        placeholder="https://yourname.com"
                       />
                     )}
 
@@ -1117,14 +1187,16 @@ export const Onboarding2Content = ({
                       </div>
                     </div>
 
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col md:flex-row gap-2">
                       {CAREER_MOVE_INTENT_OPTIONS.map((option, index) => (
                         <SelectionCardButton
                           key={option.id}
                           label={option.label}
                           optionNumber={ENGAGEMENT_OPTIONS.length + index + 1}
                           active={selectedCareerMoveIntent === option.id}
-                          onClick={() => handleCareerMoveIntentSelect(option.id)}
+                          onClick={() =>
+                            handleCareerMoveIntentSelect(option.id)
+                          }
                         />
                       ))}
                     </div>
@@ -1166,7 +1238,7 @@ export const Onboarding2Content = ({
                 <div className="mt-4 flex flex-row items-center gap-3">
                   <button
                     onClick={handlePrimaryAction}
-                    className="h-11 cursor-pointer rounded-lg bg-beige900 px-4 text-lg font-medium text-beige100 shadow-lg transition-all duration-200 hover:opacity-90"
+                    className="h-12 md:h-11 mb-8 md:mb-0 cursor-pointer rounded-lg bg-beige900 w-full px-6 md:w-fit text-lg font-medium text-beige100 shadow-lg transition-all duration-200 hover:opacity-90"
                   >
                     {submitLoading || submissionPending ? (
                       <span className="animate-spin">
@@ -1179,7 +1251,7 @@ export const Onboarding2Content = ({
                     )}
                   </button>
 
-                  <span className="flex flex-row items-center gap-1 text-[14px] font-light">
+                  <span className="hidden md:flex flex-row items-center gap-1 text-[14px] font-light">
                     <span className="text-beige900/45">press</span>
                     <span className="font-medium text-beige900">Enter</span>
                     <CornerDownLeft size={14} strokeWidth={2} />

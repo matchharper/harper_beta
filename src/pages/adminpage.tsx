@@ -13,6 +13,16 @@ import {
   BLOG_CONVERSION_EVENT_PREFIX,
   BLOG_VIEW_EVENT_PREFIX,
 } from "@/lib/blogMetrics";
+import {
+  TALENT_NETWORK_ABTEST_TYPE_A,
+  TALENT_NETWORK_ABTEST_TYPE_B,
+  TALENT_NETWORK_ANALYTICS_ABTEST_TYPES,
+  TALENT_NETWORK_CLICK_EVENT_PREFIX,
+  TALENT_NETWORK_LEGACY_ABTEST_TYPE,
+  TALENT_NETWORK_ONBOARDING_STEPS,
+  TALENT_NETWORK_SUBMIT_COMPLETED_EVENT,
+  getTalentNetworkVariantLabel,
+} from "@/lib/talentNetwork";
 
 type LandingLog = {
   id: string;
@@ -39,6 +49,43 @@ type AbtestSummary = {
   startClickedUsers: number;
   pricingClickedUsers: number;
   loggedInUsers: number;
+};
+
+type SectionProgressSummary = {
+  abtestType: string;
+  totalUsers: number;
+  sections: Array<{
+    sectionName: string;
+    userCount: number;
+  }>;
+};
+
+type TalentNetworkFunnelSummary = {
+  totalUsers: number;
+  onboardingStartUsers: number;
+  submittedUsers: number;
+  steps: Array<{
+    step: number;
+    label: string;
+    userCount: number;
+  }>;
+};
+
+type TalentNetworkButtonSummary = {
+  eventType: string;
+  totalClicks: number;
+  uniqueUsers: number;
+  variantBreakdown: Array<{
+    abtestType: string;
+    label: string;
+    totalClicks: number;
+    uniqueUsers: number;
+  }>;
+};
+
+type TalentNetworkVariantFunnelSummary = TalentNetworkFunnelSummary & {
+  abtestType: string;
+  label: string;
 };
 
 type WaitlistCompany = {
@@ -92,17 +139,59 @@ type AdminBookmarkFolderItem = {
   createdAt: string | null;
 };
 
+type AdminUserAnalyticsUser = {
+  userId: string;
+  name: string | null;
+  email: string | null;
+  company: string | null;
+  searchCount: number;
+  profileViewCount: number;
+  linkClickCount: number;
+};
+
+type AdminUserAnalyticsSummary = {
+  searchCount: number;
+  runCount: number;
+  pageViewCount: number;
+  profileViewCount: number;
+  linkClickCount: number;
+  uniqueProfilesViewed: number;
+  chatMessageCount: number;
+  markedCandidateCount: number;
+  bookmarkedCandidateCount: number;
+  memoCount: number;
+  pageViewsPerSearch: number;
+  profileViewsPerSearch: number;
+};
+
+type AdminUserAnalyticsProfile = {
+  candidId: string;
+  name: string | null;
+  headline: string | null;
+  linkedinUrl: string | null;
+  profileHref: string;
+  profileViewCount: number;
+  totalLinkClickCount: number;
+  linkClicks: Array<{
+    host: string;
+    count: number;
+  }>;
+};
+
 type AdminTab =
   | "landingLogs"
+  | "networkAnalytics"
   | "waitlistCompany"
   | "blogMetrics"
-  | "bookmarkFolders";
+  | "bookmarkFolders"
+  | "userAnalytics";
 
 const PAGE_SIZE = 50;
 const BLOG_METRIC_FETCH_BATCH_SIZE = 1000;
 
 const ENTRY_TYPES = new Set(["new_visit", "new_session"]);
 const EXCLUDED_TYPE_KEYWORD = "index";
+const SECTION_VIEW_EVENT_PREFIX = "view_section_";
 
 function isStartClickLogType(type: string) {
   if (type === "click_start") return true;
@@ -117,9 +206,31 @@ function isExcludedLandingLogType(type: string) {
   return type.toLowerCase().includes(EXCLUDED_TYPE_KEYWORD);
 }
 
+function extractSectionNameFromType(type: string) {
+  if (!type.startsWith(SECTION_VIEW_EVENT_PREFIX)) return null;
+  const sectionName = type.slice(SECTION_VIEW_EVENT_PREFIX.length).trim();
+  return sectionName.length > 0 ? sectionName : null;
+}
+
+function formatSectionName(sectionName: string) {
+  return sectionName.replace(/_/g, " ");
+}
+
+function formatTalentNetworkEventName(type: string) {
+  return type
+    .replace(/^talent_network_/, "")
+    .replace(/:/g, " / ")
+    .replace(/_/g, " ");
+}
+
 function formatPercent(numerator: number, denominator: number) {
   if (denominator === 0) return "0.0%";
   return `${((numerator / denominator) * 100).toFixed(1)}%`;
+}
+
+function formatDecimal(value: number) {
+  if (!Number.isFinite(value)) return "0.00";
+  return value.toFixed(2);
 }
 
 function formatKST(iso?: string) {
@@ -136,10 +247,112 @@ function formatKST(iso?: string) {
   });
 }
 
+const TALENT_NETWORK_VARIANT_SORT_ORDER: Record<string, number> = {
+  [TALENT_NETWORK_ABTEST_TYPE_A]: 0,
+  [TALENT_NETWORK_ABTEST_TYPE_B]: 1,
+  [TALENT_NETWORK_LEGACY_ABTEST_TYPE]: 2,
+  unknown: 3,
+};
+
+function compareTalentNetworkVariantType(a: string, b: string) {
+  const aOrder = TALENT_NETWORK_VARIANT_SORT_ORDER[a] ?? 99;
+  const bOrder = TALENT_NETWORK_VARIANT_SORT_ORDER[b] ?? 99;
+
+  if (aOrder !== bOrder) return aOrder - bOrder;
+  return a.localeCompare(b);
+}
+
+function buildTalentNetworkFunnelSummary(
+  groups: GroupedLogs[]
+): TalentNetworkFunnelSummary | null {
+  if (groups.length === 0) return null;
+
+  const steps = TALENT_NETWORK_ONBOARDING_STEPS.map((item) => ({
+    step: item.step,
+    label: item.label,
+    userCount: groups.filter((group) =>
+      group.logs.some((log) => log.type === item.eventType)
+    ).length,
+  }));
+
+  return {
+    totalUsers: groups.length,
+    onboardingStartUsers: steps[0]?.userCount ?? 0,
+    submittedUsers: groups.filter((group) =>
+      group.logs.some((log) => log.type === TALENT_NETWORK_SUBMIT_COMPLETED_EVENT)
+    ).length,
+    steps,
+  };
+}
+
+function getTalentNetworkVariantDescription(abtestType: string) {
+  if (abtestType === TALENT_NETWORK_ABTEST_TYPE_A) {
+    return "Our value hidden";
+  }
+  if (abtestType === TALENT_NETWORK_ABTEST_TYPE_B) {
+    return "Our value shown";
+  }
+  if (abtestType === TALENT_NETWORK_LEGACY_ABTEST_TYPE) {
+    return "Before A/B test";
+  }
+  return "";
+}
+
 function extractSlugFromEventType(type: string, prefix: string) {
   if (!type.startsWith(prefix)) return null;
   const slug = type.slice(prefix.length).trim();
   return slug.length > 0 ? slug : null;
+}
+
+function groupLandingLogsByUser(logItems: LandingLog[]) {
+  if (logItems.length === 0) return [] as GroupedLogs[];
+
+  const byUser = new Map<string, LandingLog[]>();
+  for (const item of logItems) {
+    if (isExcludedLandingLogType(item.type)) continue;
+    const list = byUser.get(item.local_id) ?? [];
+    list.push(item);
+    byUser.set(item.local_id, list);
+  }
+
+  const groups: GroupedLogs[] = [];
+  for (const [local_id, list] of Array.from(byUser.entries())) {
+    const entryCandidates = list.filter((l) => ENTRY_TYPES.has(l.type));
+    const entryTimeSource =
+      entryCandidates.length > 0
+        ? entryCandidates
+            .slice()
+            .sort((a: LandingLog, b: LandingLog) =>
+              b.created_at.localeCompare(a.created_at)
+            )[0]
+        : list
+            .slice()
+            .sort((a: LandingLog, b: LandingLog) =>
+              b.created_at.localeCompare(a.created_at)
+            )[0];
+
+    const entryTime = entryTimeSource?.created_at ?? "";
+    const abtestType =
+      entryTimeSource?.abtest_type ??
+      list.find((log) => !!log.abtest_type)?.abtest_type ??
+      "unknown";
+
+    const orderedLogs = list
+      .slice()
+      .sort((a: LandingLog, b: LandingLog) =>
+        a.created_at.localeCompare(b.created_at)
+      );
+
+    groups.push({
+      local_id,
+      entryTime,
+      abtest_type: abtestType,
+      logs: orderedLogs,
+      country_lang: list[0]?.country_lang ?? "",
+    });
+  }
+
+  return groups.sort((a, b) => b.entryTime.localeCompare(a.entryTime));
 }
 
 const AdminPage = () => {
@@ -159,6 +372,14 @@ const AdminPage = () => {
   const [waitlistLoading, setWaitlistLoading] = useState(false);
   const [waitlistLoaded, setWaitlistLoaded] = useState(false);
   const [waitlistError, setWaitlistError] = useState<string | null>(null);
+  const [networkAnalyticsLogs, setNetworkAnalyticsLogs] = useState<
+    LandingLog[]
+  >([]);
+  const [networkAnalyticsLoading, setNetworkAnalyticsLoading] = useState(false);
+  const [networkAnalyticsLoaded, setNetworkAnalyticsLoaded] = useState(false);
+  const [networkAnalyticsError, setNetworkAnalyticsError] = useState<
+    string | null
+  >(null);
   const [blogMetricRows, setBlogMetricRows] = useState<BlogMetricRow[]>([]);
   const [blogMetricsLoading, setBlogMetricsLoading] = useState(false);
   const [blogMetricsLoaded, setBlogMetricsLoaded] = useState(false);
@@ -191,6 +412,29 @@ const AdminPage = () => {
   >(null);
   const [bookmarkFolderTotal, setBookmarkFolderTotal] = useState(0);
   const [bookmarkFolderLimit, setBookmarkFolderLimit] = useState(200);
+  const [userAnalyticsSearch, setUserAnalyticsSearch] = useState("");
+  const [userAnalyticsUsers, setUserAnalyticsUsers] = useState<
+    AdminUserAnalyticsUser[]
+  >([]);
+  const [userAnalyticsUsersLoading, setUserAnalyticsUsersLoading] =
+    useState(false);
+  const [userAnalyticsUsersError, setUserAnalyticsUsersError] = useState<
+    string | null
+  >(null);
+  const [selectedAnalyticsUser, setSelectedAnalyticsUser] =
+    useState<AdminUserAnalyticsUser | null>(null);
+  const [userAnalyticsSummary, setUserAnalyticsSummary] =
+    useState<AdminUserAnalyticsSummary | null>(null);
+  const [userAnalyticsProfiles, setUserAnalyticsProfiles] = useState<
+    AdminUserAnalyticsProfile[]
+  >([]);
+  const [userAnalyticsStartDate, setUserAnalyticsStartDate] = useState("");
+  const [userAnalyticsEndDate, setUserAnalyticsEndDate] = useState("");
+  const [userAnalyticsDetailLoading, setUserAnalyticsDetailLoading] =
+    useState(false);
+  const [userAnalyticsDetailError, setUserAnalyticsDetailError] = useState<
+    string | null
+  >(null);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -290,6 +534,76 @@ const AdminPage = () => {
       setWaitlistError(e?.message ?? "Failed to load");
     } finally {
       setWaitlistLoading(false);
+    }
+  }, []);
+
+  const fetchNetworkAnalyticsLogs = useCallback(async () => {
+    setNetworkAnalyticsLoading(true);
+    setNetworkAnalyticsError(null);
+
+    try {
+      let from = 0;
+      const allLogs: LandingLog[] = [];
+
+      while (true) {
+        const to = from + BLOG_METRIC_FETCH_BATCH_SIZE - 1;
+
+        const { data, error } = await supabase
+          .from("landing_logs")
+          .select(
+            "id,local_id,type,abtest_type,created_at,is_mobile,country_lang"
+          )
+          .in("abtest_type", [...TALENT_NETWORK_ANALYTICS_ABTEST_TYPES])
+          .not("country_lang", "ilike", `%US_en%`)
+          .order("id", { ascending: true })
+          .range(from, to);
+
+        if (error) throw error;
+
+        const rows = ((data ?? []) as Array<{
+          id: number | string | null;
+          local_id: string | null;
+          type: string | null;
+          abtest_type: string | null;
+          created_at: string;
+          is_mobile: boolean | null;
+          country_lang: string | null;
+        }>).flatMap((row) => {
+          if (
+            row.id === null ||
+            typeof row.local_id !== "string" ||
+            typeof row.type !== "string"
+          ) {
+            return [];
+          }
+
+          return [
+            {
+              id: String(row.id),
+              local_id: row.local_id,
+              type: row.type,
+              abtest_type: row.abtest_type,
+              created_at: row.created_at,
+              is_mobile: row.is_mobile,
+              country_lang: row.country_lang,
+            } satisfies LandingLog,
+          ];
+        });
+        allLogs.push(...rows);
+
+        if (rows.length < BLOG_METRIC_FETCH_BATCH_SIZE) {
+          break;
+        }
+
+        from += BLOG_METRIC_FETCH_BATCH_SIZE;
+      }
+
+      setNetworkAnalyticsLogs(allLogs);
+      setNetworkAnalyticsLoaded(true);
+    } catch (e: any) {
+      setNetworkAnalyticsError(e?.message ?? "Failed to load network analytics");
+    } finally {
+      setNetworkAnalyticsLoading(false);
     }
   }, []);
 
@@ -497,7 +811,9 @@ const AdminPage = () => {
         setBookmarkFolderTotal(Number(json?.total ?? 0));
         setBookmarkFolderLimit(Number(json?.limit ?? 200));
       } catch (e: any) {
-        setBookmarkFolderItemsError(e?.message ?? "Failed to load folder items");
+        setBookmarkFolderItemsError(
+          e?.message ?? "Failed to load folder items"
+        );
         setBookmarkFolderItems([]);
         setBookmarkFolderTotal(0);
       } finally {
@@ -506,6 +822,136 @@ const AdminPage = () => {
     },
     []
   );
+
+  const fetchUserAnalyticsUsers = useCallback(async (query: string) => {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      setUserAnalyticsUsers([]);
+      setUserAnalyticsUsersError(null);
+      setSelectedAnalyticsUser(null);
+      setUserAnalyticsSummary(null);
+      setUserAnalyticsProfiles([]);
+      setUserAnalyticsDetailError(null);
+      return;
+    }
+
+    setUserAnalyticsUsersLoading(true);
+    setUserAnalyticsUsersError(null);
+    setUserAnalyticsDetailError(null);
+    setSelectedAnalyticsUser(null);
+    setUserAnalyticsSummary(null);
+    setUserAnalyticsProfiles([]);
+
+    try {
+      const params = new URLSearchParams({ query: trimmed });
+      const res = await fetch(`/api/admin/user-analytics?${params}`, {
+        headers: {
+          "x-admin-password": ADMIN_PAGE_PASSWORD,
+        },
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json?.error ?? "Failed to load users");
+      }
+
+      setUserAnalyticsUsers(
+        Array.isArray(json?.users)
+          ? (json.users as AdminUserAnalyticsUser[])
+          : []
+      );
+    } catch (e: any) {
+      setUserAnalyticsUsersError(e?.message ?? "Failed to load users");
+    } finally {
+      setUserAnalyticsUsersLoading(false);
+    }
+  }, []);
+
+  const fetchUserAnalyticsDetail = useCallback(
+    async (
+      user: AdminUserAnalyticsUser,
+      overrides?: {
+        startDate?: string;
+        endDate?: string;
+      }
+    ) => {
+      setSelectedAnalyticsUser(user);
+      setUserAnalyticsDetailLoading(true);
+      setUserAnalyticsDetailError(null);
+      setUserAnalyticsSummary(null);
+      setUserAnalyticsProfiles([]);
+
+      try {
+        const effectiveStartDate =
+          overrides?.startDate ?? userAnalyticsStartDate;
+        const effectiveEndDate = overrides?.endDate ?? userAnalyticsEndDate;
+        const params = new URLSearchParams({ userId: user.userId });
+        if (effectiveStartDate) {
+          params.set("startDate", effectiveStartDate);
+        }
+        if (effectiveEndDate) {
+          params.set("endDate", effectiveEndDate);
+        }
+        const res = await fetch(`/api/admin/user-analytics?${params}`, {
+          headers: {
+            "x-admin-password": ADMIN_PAGE_PASSWORD,
+          },
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          throw new Error(json?.error ?? "Failed to load analytics");
+        }
+
+        if (json?.user) {
+          const summary = json?.summary as
+            | AdminUserAnalyticsSummary
+            | undefined;
+          setSelectedAnalyticsUser({
+            ...user,
+            ...(json.user as Partial<AdminUserAnalyticsUser>),
+            userId: String(
+              (json.user as { userId?: string })?.userId ?? user.userId
+            ),
+            searchCount: summary?.searchCount ?? user.searchCount ?? 0,
+            profileViewCount:
+              summary?.profileViewCount ?? user.profileViewCount ?? 0,
+            linkClickCount: summary?.linkClickCount ?? user.linkClickCount ?? 0,
+          });
+        }
+
+        setUserAnalyticsSummary(
+          json?.summary ? (json.summary as AdminUserAnalyticsSummary) : null
+        );
+        setUserAnalyticsProfiles(
+          Array.isArray(json?.profiles)
+            ? (json.profiles as AdminUserAnalyticsProfile[])
+            : []
+        );
+      } catch (e: any) {
+        setUserAnalyticsDetailError(e?.message ?? "Failed to load analytics");
+        setUserAnalyticsSummary(null);
+        setUserAnalyticsProfiles([]);
+      } finally {
+        setUserAnalyticsDetailLoading(false);
+      }
+    },
+    [userAnalyticsEndDate, userAnalyticsStartDate]
+  );
+
+  const applyUserAnalyticsDateRange = useCallback(() => {
+    if (!selectedAnalyticsUser) return;
+    void fetchUserAnalyticsDetail(selectedAnalyticsUser);
+  }, [fetchUserAnalyticsDetail, selectedAnalyticsUser]);
+
+  const resetUserAnalyticsDateRange = useCallback(() => {
+    setUserAnalyticsStartDate("");
+    setUserAnalyticsEndDate("");
+
+    if (!selectedAnalyticsUser) return;
+    void fetchUserAnalyticsDetail(selectedAnalyticsUser, {
+      startDate: "",
+      endDate: "",
+    });
+  }, [fetchUserAnalyticsDetail, selectedAnalyticsUser]);
 
   useEffect(() => {
     if (activeTab !== "waitlistCompany") return;
@@ -533,7 +979,6 @@ const AdminPage = () => {
 
   useEffect(() => {
     if (activeTab !== "landingLogs") return;
-
     const el = sentinelRef.current;
     if (!el) return;
 
@@ -547,11 +992,31 @@ const AdminPage = () => {
 
     io.observe(el);
     return () => io.disconnect();
-  }, [activeTab, fetchPage]);
+  }, [
+    activeTab,
+    fetchPage,
+  ]);
+
+  useEffect(() => {
+    if (activeTab !== "networkAnalytics") return;
+    if (networkAnalyticsLoaded || networkAnalyticsLoading || networkAnalyticsError)
+      return;
+    void fetchNetworkAnalyticsLogs();
+  }, [
+    activeTab,
+    fetchNetworkAnalyticsLogs,
+    networkAnalyticsError,
+    networkAnalyticsLoaded,
+    networkAnalyticsLoading,
+  ]);
 
   const onRefresh = async () => {
     if (activeTab === "landingLogs") {
       await fetchPage({ reset: true });
+      return;
+    }
+    if (activeTab === "networkAnalytics") {
+      await fetchNetworkAnalyticsLogs();
       return;
     }
     if (activeTab === "waitlistCompany") {
@@ -560,6 +1025,15 @@ const AdminPage = () => {
     }
     if (activeTab === "blogMetrics") {
       await fetchBlogMetrics();
+      return;
+    }
+    if (activeTab === "userAnalytics") {
+      if (selectedAnalyticsUser) {
+        await fetchUserAnalyticsDetail(selectedAnalyticsUser);
+        return;
+      }
+
+      await fetchUserAnalyticsUsers(userAnalyticsSearch);
       return;
     }
     if (selectedBookmarkUser && selectedBookmarkFolderId) {
@@ -589,56 +1063,26 @@ const AdminPage = () => {
     }
   };
 
-  const grouped = useMemo<GroupedLogs[]>(() => {
-    if (logs.length === 0) return [];
+  const grouped = useMemo<GroupedLogs[]>(
+    () => groupLandingLogsByUser(logs),
+    [logs]
+  );
+  const networkGrouped = useMemo<GroupedLogs[]>(
+    () => groupLandingLogsByUser(networkAnalyticsLogs),
+    [networkAnalyticsLogs]
+  );
+  const networkGroupsByVariant = useMemo(() => {
+    const byVariant = new Map<string, GroupedLogs[]>();
 
-    const byUser = new Map<string, LandingLog[]>();
-    for (const item of logs) {
-      if (isExcludedLandingLogType(item.type)) continue;
-      const list = byUser.get(item.local_id) ?? [];
-      list.push(item);
-      byUser.set(item.local_id, list);
+    for (const group of networkGrouped) {
+      const key = group.abtest_type || "unknown";
+      const list = byVariant.get(key) ?? [];
+      list.push(group);
+      byVariant.set(key, list);
     }
 
-    const groups: GroupedLogs[] = [];
-    for (const [local_id, list] of Array.from(byUser.entries())) {
-      const entryCandidates = list.filter((l) => ENTRY_TYPES.has(l.type));
-      const entryTimeSource =
-        entryCandidates.length > 0
-          ? entryCandidates
-              .slice()
-              .sort((a: LandingLog, b: LandingLog) =>
-                b.created_at.localeCompare(a.created_at)
-              )[0]
-          : list
-              .slice()
-              .sort((a: LandingLog, b: LandingLog) =>
-                b.created_at.localeCompare(a.created_at)
-              )[0];
-
-      const entryTime = entryTimeSource?.created_at ?? "";
-      const abtestType =
-        entryTimeSource?.abtest_type ??
-        list.find((log) => !!log.abtest_type)?.abtest_type ??
-        "unknown";
-
-      const orderedLogs = list
-        .slice()
-        .sort((a: LandingLog, b: LandingLog) =>
-          a.created_at.localeCompare(b.created_at)
-        );
-
-      groups.push({
-        local_id,
-        entryTime,
-        abtest_type: abtestType,
-        logs: orderedLogs,
-        country_lang: list[0]?.country_lang ?? "",
-      });
-    }
-
-    return groups.sort((a, b) => b.entryTime.localeCompare(a.entryTime));
-  }, [logs]);
+    return byVariant;
+  }, [networkGrouped]);
 
   const landingSummary = useMemo(() => {
     const totalUsers = grouped.length;
@@ -701,6 +1145,182 @@ const AdminPage = () => {
     return summary.sort((a, b) => b.totalUsers - a.totalUsers);
   }, [grouped]);
 
+  const sectionProgressSummary = useMemo<SectionProgressSummary[]>(() => {
+    if (grouped.length === 0) return [];
+
+    const byAbtest = new Map<
+      string,
+      {
+        totalUsers: number;
+        sectionCounts: Map<string, number>;
+      }
+    >();
+
+    for (const group of grouped) {
+      const key = group.abtest_type || "unknown";
+      const summary = byAbtest.get(key) ?? {
+        totalUsers: 0,
+        sectionCounts: new Map<string, number>(),
+      };
+
+      summary.totalUsers += 1;
+
+      const seenSections = new Set<string>();
+      for (const log of group.logs) {
+        const sectionName = extractSectionNameFromType(log.type);
+        if (sectionName) {
+          seenSections.add(sectionName);
+        }
+      }
+
+      for (const sectionName of Array.from(seenSections)) {
+        summary.sectionCounts.set(
+          sectionName,
+          (summary.sectionCounts.get(sectionName) ?? 0) + 1
+        );
+      }
+
+      byAbtest.set(key, summary);
+    }
+
+    return Array.from(byAbtest.entries())
+      .map(([abtestType, summary]) => ({
+        abtestType,
+        totalUsers: summary.totalUsers,
+        sections: Array.from(summary.sectionCounts.entries())
+          .map(([sectionName, userCount]) => ({
+            sectionName,
+            userCount,
+          }))
+          .sort((a, b) => {
+            if (b.userCount !== a.userCount) {
+              return b.userCount - a.userCount;
+            }
+            return a.sectionName.localeCompare(b.sectionName);
+          }),
+      }))
+      .filter((item) => item.sections.length > 0)
+      .sort((a, b) => b.totalUsers - a.totalUsers);
+  }, [grouped]);
+
+  const talentNetworkFunnelSummary = useMemo<TalentNetworkFunnelSummary | null>(
+    () => buildTalentNetworkFunnelSummary(networkGrouped),
+    [networkGrouped]
+  );
+
+  const talentNetworkVariantSummaries = useMemo<
+    TalentNetworkVariantFunnelSummary[]
+  >(() => {
+    const variantsToShow = [
+      TALENT_NETWORK_ABTEST_TYPE_A,
+      TALENT_NETWORK_ABTEST_TYPE_B,
+      ...Array.from(networkGroupsByVariant.keys()).filter(
+        (key) =>
+          key !== TALENT_NETWORK_ABTEST_TYPE_A &&
+          key !== TALENT_NETWORK_ABTEST_TYPE_B
+      ),
+    ];
+
+    const uniqueVariants = Array.from(new Set(variantsToShow)).sort(
+      compareTalentNetworkVariantType
+    );
+
+    return uniqueVariants.map((abtestType) => {
+      const summary =
+        buildTalentNetworkFunnelSummary(networkGroupsByVariant.get(abtestType) ?? []) ??
+        {
+          totalUsers: 0,
+          onboardingStartUsers: 0,
+          submittedUsers: 0,
+          steps: TALENT_NETWORK_ONBOARDING_STEPS.map((item) => ({
+            step: item.step,
+            label: item.label,
+            userCount: 0,
+          })),
+        };
+
+      return {
+        ...summary,
+        abtestType,
+        label: getTalentNetworkVariantLabel(abtestType),
+      };
+    });
+  }, [networkGroupsByVariant]);
+
+  const talentNetworkButtonSummary = useMemo<TalentNetworkButtonSummary[]>(
+    () => {
+      if (networkGrouped.length === 0) return [];
+
+      const counter = new Map<
+        string,
+        {
+          totalClicks: number;
+          users: Set<string>;
+          byVariant: Map<
+            string,
+            {
+              totalClicks: number;
+              users: Set<string>;
+            }
+          >;
+        }
+      >();
+
+      for (const group of networkGrouped) {
+        const variantKey = group.abtest_type || "unknown";
+
+        for (const log of group.logs) {
+          if (!log.type.startsWith(TALENT_NETWORK_CLICK_EVENT_PREFIX)) continue;
+
+          const current = counter.get(log.type) ?? {
+            totalClicks: 0,
+            users: new Set<string>(),
+            byVariant: new Map(),
+          };
+          current.totalClicks += 1;
+          current.users.add(group.local_id);
+
+          const currentVariant = current.byVariant.get(variantKey) ?? {
+            totalClicks: 0,
+            users: new Set<string>(),
+          };
+          currentVariant.totalClicks += 1;
+          currentVariant.users.add(group.local_id);
+          current.byVariant.set(variantKey, currentVariant);
+
+          counter.set(log.type, current);
+        }
+      }
+
+      return Array.from(counter.entries())
+        .map(([eventType, summary]) => ({
+          eventType,
+          totalClicks: summary.totalClicks,
+          uniqueUsers: summary.users.size,
+          variantBreakdown: Array.from(summary.byVariant.entries())
+            .map(([abtestType, variant]) => ({
+              abtestType,
+              label: getTalentNetworkVariantLabel(abtestType),
+              totalClicks: variant.totalClicks,
+              uniqueUsers: variant.users.size,
+            }))
+            .sort((a, b) =>
+              compareTalentNetworkVariantType(a.abtestType, b.abtestType)
+            ),
+        }))
+        .sort((a, b) => {
+          if (b.uniqueUsers !== a.uniqueUsers) {
+            return b.uniqueUsers - a.uniqueUsers;
+          }
+          if (b.totalClicks !== a.totalClicks) {
+            return b.totalClicks - a.totalClicks;
+          }
+          return a.eventType.localeCompare(b.eventType);
+        });
+    },
+    [networkGrouped]
+  );
+
   const blogMetricsSummary = useMemo(() => {
     const totalPosts = blogMetricRows.length;
     const totalViews = blogMetricRows.reduce(
@@ -718,48 +1338,75 @@ const AdminPage = () => {
       totalConversions,
     };
   }, [blogMetricRows]);
+  const talentNetworkVariantColumns = useMemo(
+    () =>
+      talentNetworkVariantSummaries.map((item) => ({
+        abtestType: item.abtestType,
+        label: item.label,
+      })),
+    [talentNetworkVariantSummaries]
+  );
   const selectedBookmarkFolder = useMemo(
     () =>
-      bookmarkFolders.find((folder) => folder.id === selectedBookmarkFolderId) ??
-      null,
+      bookmarkFolders.find(
+        (folder) => folder.id === selectedBookmarkFolderId
+      ) ?? null,
     [bookmarkFolders, selectedBookmarkFolderId]
   );
 
   const isLandingTab = activeTab === "landingLogs";
+  const isNetworkAnalyticsTab = activeTab === "networkAnalytics";
   const isWaitlistTab = activeTab === "waitlistCompany";
   const isBlogMetricsTab = activeTab === "blogMetrics";
   const isBookmarkFoldersTab = activeTab === "bookmarkFolders";
+  const isUserAnalyticsTab = activeTab === "userAnalytics";
 
   const pageTitle = isLandingTab
     ? "Landing Logs Admin"
-    : isWaitlistTab
+    : isNetworkAnalyticsTab
+      ? "Network Analytics Admin"
+      : isWaitlistTab
       ? "Waitlist Company Admin"
       : isBlogMetricsTab
         ? "Blog Metrics Admin"
-        : "Bookmark Folder Admin";
+        : isBookmarkFoldersTab
+          ? "Bookmark Folder Admin"
+          : "User Analytics Admin";
   const pageSubTitle = isLandingTab
     ? "local_id 기준 · 액션 타임라인"
-    : isWaitlistTab
+    : isNetworkAnalyticsTab
+      ? "Talent Network A/B test · funnel · button clicks"
+      : isWaitlistTab
       ? "harper_waitlist_company 목록"
       : isBlogMetricsTab
         ? "blog slug 기준 조회/전환 집계"
-        : "유저별 북마크 폴더와 저장 후보 조회";
+        : isBookmarkFoldersTab
+          ? "유저별 북마크 폴더와 저장 후보 조회"
+          : "company_users 기준 검색/프로필/링크 클릭 지표 조회";
   const isLoading = isLandingTab
     ? loading || loadingMore
-    : isWaitlistTab
+    : isNetworkAnalyticsTab
+      ? networkAnalyticsLoading
+      : isWaitlistTab
       ? waitlistLoading
       : isBlogMetricsTab
         ? blogMetricsLoading
-        : bookmarkUsersLoading ||
-          bookmarkFoldersLoading ||
-          bookmarkFolderItemsLoading;
+        : isBookmarkFoldersTab
+          ? bookmarkUsersLoading ||
+            bookmarkFoldersLoading ||
+            bookmarkFolderItemsLoading
+          : userAnalyticsUsersLoading || userAnalyticsDetailLoading;
   const pageError = isLandingTab
     ? error
-    : isWaitlistTab
+    : isNetworkAnalyticsTab
+      ? networkAnalyticsError
+      : isWaitlistTab
       ? waitlistError
       : isBlogMetricsTab
         ? blogMetricsError
-        : null;
+        : isBookmarkFoldersTab
+          ? null
+          : null;
 
   if (!isPassed) {
     return (
@@ -807,6 +1454,17 @@ const AdminPage = () => {
                 Landing Logs
               </button>
               <button
+                onClick={() => setActiveTab("networkAnalytics")}
+                className={`h-8 px-3 text-[12px] border ${
+                  isNetworkAnalyticsTab
+                    ? "border-black bg-black text-white"
+                    : "border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
+                }`}
+                style={{ borderRadius: 0 }}
+              >
+                Network
+              </button>
+              <button
                 onClick={() => setActiveTab("waitlistCompany")}
                 className={`h-8 px-3 text-[12px] border ${
                   isWaitlistTab
@@ -838,6 +1496,17 @@ const AdminPage = () => {
                 style={{ borderRadius: 0 }}
               >
                 Bookmark Folders
+              </button>
+              <button
+                onClick={() => setActiveTab("userAnalytics")}
+                className={`h-8 px-3 text-[12px] border ${
+                  isUserAnalyticsTab
+                    ? "border-black bg-black text-white"
+                    : "border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
+                }`}
+                style={{ borderRadius: 0 }}
+              >
+                User Analytics
               </button>
             </div>
           </div>
@@ -954,6 +1623,48 @@ const AdminPage = () => {
               )}
             </div>
 
+            <div
+              className="mb-4 border border-black/10 p-4 text-[12px] text-black/80"
+              style={{ borderRadius: 0 }}
+            >
+              <div className="font-semibold text-black mb-2">
+                Section reach summary (abtest_type)
+              </div>
+              {sectionProgressSummary.length === 0 ? (
+                <div className="text-black/55">No section view data.</div>
+              ) : (
+                <div className="space-y-3">
+                  {sectionProgressSummary.map((item) => (
+                    <div
+                      key={item.abtestType}
+                      className="border-t border-black/10 pt-3 first:border-t-0 first:pt-0"
+                    >
+                      <div className="font-semibold text-black">
+                        {item.abtestType}
+                      </div>
+                      <div className="mt-1 text-black/55">
+                        Users: {item.totalUsers}
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {item.sections.map((section) => (
+                          <div
+                            key={`${item.abtestType}-${section.sectionName}`}
+                            className="border border-black/10 px-2 py-1"
+                          >
+                            <span className="font-medium text-black">
+                              {formatSectionName(section.sectionName)}
+                            </span>{" "}
+                            · {section.userCount} (
+                            {formatPercent(section.userCount, item.totalUsers)})
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="mb-4 flex items-center justify-between w-full">
               <div className="text-[12px] text-black/55">
                 Loaded logs: <span className="text-black">{logs.length}</span> ·
@@ -1047,6 +1758,308 @@ const AdminPage = () => {
             <div className="mt-4 text-[12px] text-black/45">
               {hasMore ? "Scroll to load more…" : "No more rows."}
             </div>
+          </>
+        ) : isNetworkAnalyticsTab ? (
+          <>
+            <div className="mb-4 flex items-center justify-between w-full">
+              <div className="text-[12px] text-black/55">
+                Loaded logs:{" "}
+                <span className="text-black">{networkAnalyticsLogs.length}</span>{" "}
+                · Users:{" "}
+                <span className="text-black">{networkGrouped.length}</span>
+              </div>
+
+              {networkAnalyticsLoading && (
+                <Loading
+                  size="sm"
+                  label="Loading…"
+                  className="text-[12px] text-black/55"
+                  inline={true}
+                />
+              )}
+            </div>
+
+            {pageError ? (
+              <div
+                className="mb-4 border border-black/15 bg-black/[0.02] p-4 text-[13px] flex items-start justify-between gap-4"
+                style={{ borderRadius: 0 }}
+              >
+                <div>
+                  <div className="font-semibold">Error</div>
+                  <div className="text-black/70 mt-1">{pageError}</div>
+                </div>
+                <button
+                  onClick={onRefresh}
+                  className="h-9 px-3 text-[13px] border border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
+                  style={{ borderRadius: 0 }}
+                >
+                  Retry
+                </button>
+              </div>
+            ) : !talentNetworkFunnelSummary ? (
+              <div
+                className="border border-black/10 p-8 text-center text-[13px] text-black/55"
+                style={{ borderRadius: 0 }}
+              >
+                No Talent Network data.
+              </div>
+            ) : (
+              <>
+                <div
+                  className="mb-4 border border-black/10 p-4 text-[12px] text-black/80"
+                  style={{ borderRadius: 0 }}
+                >
+                  <div className="font-semibold text-black mb-2">
+                    Talent Network overview
+                  </div>
+                  <div className="leading-6">
+                    유입 유저:{" "}
+                    <span className="font-medium text-black">
+                      {talentNetworkFunnelSummary.totalUsers}
+                    </span>{" "}
+                    · 시작 화면 도달:{" "}
+                    <span className="font-medium text-black">
+                      {talentNetworkFunnelSummary.onboardingStartUsers}
+                    </span>{" "}
+                    (
+                    {formatPercent(
+                      talentNetworkFunnelSummary.onboardingStartUsers,
+                      talentNetworkFunnelSummary.totalUsers
+                    )}
+                    ) · 제출 완료:{" "}
+                    <span className="font-medium text-black">
+                      {talentNetworkFunnelSummary.submittedUsers}
+                    </span>{" "}
+                    (
+                    {formatPercent(
+                      talentNetworkFunnelSummary.submittedUsers,
+                      talentNetworkFunnelSummary.totalUsers
+                    )}
+                    )
+                  </div>
+                </div>
+
+                <div
+                  className="mb-4 border border-black/10 p-4 text-[12px] text-black/80"
+                  style={{ borderRadius: 0 }}
+                >
+                  <div className="font-semibold text-black mb-2">
+                    A/B variant comparison
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[760px] text-left">
+                      <thead>
+                        <tr className="border-b border-black/10 text-black">
+                          <th className="py-2 pr-3 font-semibold">Variant</th>
+                          <th className="py-2 pr-3 font-semibold">UI</th>
+                          <th className="py-2 pr-3 text-right font-semibold">
+                            Users
+                          </th>
+                          <th className="py-2 pr-3 text-right font-semibold">
+                            Start
+                          </th>
+                          <th className="py-2 pr-3 text-right font-semibold">
+                            Submit
+                          </th>
+                          <th className="py-2 text-right font-semibold">
+                            Submit / Start
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {talentNetworkVariantSummaries.map((item) => (
+                          <tr
+                            key={item.abtestType}
+                            className="border-b border-black/5 align-top last:border-b-0"
+                          >
+                            <td className="py-2 pr-3 font-medium text-black">
+                              {item.label}
+                              <div className="text-[11px] font-normal text-black/45">
+                                {item.abtestType}
+                              </div>
+                            </td>
+                            <td className="py-2 pr-3 text-black/65">
+                              {getTalentNetworkVariantDescription(
+                                item.abtestType
+                              ) || "-"}
+                            </td>
+                            <td className="py-2 pr-3 text-right">
+                              {item.totalUsers}
+                            </td>
+                            <td className="py-2 pr-3 text-right">
+                              {item.onboardingStartUsers} (
+                              {formatPercent(
+                                item.onboardingStartUsers,
+                                item.totalUsers
+                              )}
+                              )
+                            </td>
+                            <td className="py-2 pr-3 text-right">
+                              {item.submittedUsers} (
+                              {formatPercent(
+                                item.submittedUsers,
+                                item.totalUsers
+                              )}
+                              )
+                            </td>
+                            <td className="py-2 text-right">
+                              {formatPercent(
+                                item.submittedUsers,
+                                item.onboardingStartUsers
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div
+                  className="mb-4 border border-black/10 p-4 text-[12px] text-black/80"
+                  style={{ borderRadius: 0 }}
+                >
+                  <div className="font-semibold text-black mb-2">
+                    Onboarding step comparison
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[820px] text-left">
+                      <thead>
+                        <tr className="border-b border-black/10 text-black">
+                          <th className="py-2 pr-3 font-semibold">Step</th>
+                          {talentNetworkVariantColumns.map((variant) => (
+                            <th
+                              key={variant.abtestType}
+                              className="py-2 pr-3 text-right font-semibold"
+                            >
+                              {variant.label}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {TALENT_NETWORK_ONBOARDING_STEPS.map((step) => (
+                          <tr
+                            key={step.step}
+                            className="border-b border-black/5 last:border-b-0"
+                          >
+                            <td className="py-2 pr-3">
+                              <span className="font-medium text-black">
+                                Step {step.step}
+                              </span>{" "}
+                              {step.label}
+                            </td>
+                            {talentNetworkVariantColumns.map((variant) => {
+                              const summary = talentNetworkVariantSummaries.find(
+                                (item) =>
+                                  item.abtestType === variant.abtestType
+                              );
+                              const stepSummary = summary?.steps.find(
+                                (item) => item.step === step.step
+                              );
+
+                              return (
+                                <td
+                                  key={`${step.step}-${variant.abtestType}`}
+                                  className="py-2 pr-3 text-right"
+                                >
+                                  {stepSummary?.userCount ?? 0} (
+                                  {formatPercent(
+                                    stepSummary?.userCount ?? 0,
+                                    summary?.totalUsers ?? 0
+                                  )}
+                                  )
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div
+                  className="mb-4 border border-black/10 p-4 text-[12px] text-black/80"
+                  style={{ borderRadius: 0 }}
+                >
+                  <div className="font-semibold text-black mb-2">
+                    Button clicks by variant
+                  </div>
+                  {talentNetworkButtonSummary.length === 0 ? (
+                    <div className="text-black/55">No button click data.</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[980px] text-left">
+                        <thead>
+                          <tr className="border-b border-black/10 text-black">
+                            <th className="py-2 pr-3 font-semibold">Event</th>
+                            <th className="py-2 pr-3 text-right font-semibold">
+                              Total Users
+                            </th>
+                            <th className="py-2 pr-3 text-right font-semibold">
+                              Total Clicks
+                            </th>
+                            {talentNetworkVariantColumns.map((variant) => (
+                              <th
+                                key={variant.abtestType}
+                                className="py-2 pr-3 text-right font-semibold"
+                              >
+                                {variant.label}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {talentNetworkButtonSummary.map((item) => (
+                            <tr
+                              key={item.eventType}
+                              className="border-b border-black/5 align-top last:border-b-0"
+                            >
+                              <td className="py-2 pr-3">
+                                <div className="break-all">
+                                  <div className="text-black">
+                                    {formatTalentNetworkEventName(
+                                      item.eventType
+                                    )}
+                                  </div>
+                                  <div className="text-[11px] text-black/45">
+                                    {item.eventType}
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="py-2 pr-3 text-right">
+                                {item.uniqueUsers}
+                              </td>
+                              <td className="py-2 pr-3 text-right">
+                                {item.totalClicks}
+                              </td>
+                              {talentNetworkVariantColumns.map((variant) => {
+                                const breakdown = item.variantBreakdown.find(
+                                  (entry) =>
+                                    entry.abtestType === variant.abtestType
+                                );
+
+                                return (
+                                  <td
+                                    key={`${item.eventType}-${variant.abtestType}`}
+                                    className="py-2 pr-3 text-right"
+                                  >
+                                    {breakdown
+                                      ? `${breakdown.uniqueUsers} / ${breakdown.totalClicks}`
+                                      : "0 / 0"}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </>
         ) : isWaitlistTab ? (
           <>
@@ -1164,7 +2177,8 @@ const AdminPage = () => {
             <div className="mb-4 rounded-[20px] border border-[#d8c7aa] bg-[#fbf4e8] p-4 text-[#4d3a24]">
               <div className="text-[14px] font-semibold">User lookup</div>
               <div className="mt-1 text-[12px] leading-5 text-[#7a664b]">
-                이름이나 이메일로 유저를 찾고, 해당 유저의 북마크 폴더와 저장된 후보를 확인합니다.
+                이름이나 이메일로 유저를 찾고, 해당 유저의 북마크 폴더와 저장된
+                후보를 확인합니다.
               </div>
               <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                 <input
@@ -1247,7 +2261,8 @@ const AdminPage = () => {
                             {user.email || "-"}
                           </div>
                           <div className="mt-2 text-[11px] text-[#8d7a5d]">
-                            폴더 {user.folderCount} · 북마크 {user.bookmarkCount}
+                            폴더 {user.folderCount} · 북마크{" "}
+                            {user.bookmarkCount}
                           </div>
                         </button>
                       );
@@ -1280,7 +2295,9 @@ const AdminPage = () => {
                 {selectedBookmarkUser ? (
                   <div className="mt-3 rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-3 py-3 text-[12px] leading-5 text-[#6a563c]">
                     <div>{selectedBookmarkUser.email || "-"}</div>
-                    <div>{selectedBookmarkUser.company || "회사 정보 없음"}</div>
+                    <div>
+                      {selectedBookmarkUser.company || "회사 정보 없음"}
+                    </div>
                   </div>
                 ) : null}
 
@@ -1295,7 +2312,8 @@ const AdminPage = () => {
                     <div className="rounded-[16px] border border-dashed border-[#d8c7aa] bg-[#fffaf1] px-4 py-6 text-center text-[12px] leading-5 text-[#8d7a5d]">
                       왼쪽에서 유저를 선택하면 폴더가 표시됩니다.
                     </div>
-                  ) : bookmarkFolders.length === 0 && !bookmarkFoldersLoading ? (
+                  ) : bookmarkFolders.length === 0 &&
+                    !bookmarkFoldersLoading ? (
                     <div className="rounded-[16px] border border-dashed border-[#d8c7aa] bg-[#fffaf1] px-4 py-6 text-center text-[12px] leading-5 text-[#8d7a5d]">
                       북마크 폴더가 없습니다.
                     </div>
@@ -1440,6 +2458,455 @@ const AdminPage = () => {
                       </div>
                     ))
                   )}
+                </div>
+              </div>
+            </div>
+          </>
+        ) : isUserAnalyticsTab ? (
+          <>
+            <div className="mb-4 rounded-[20px] border border-[#d8c7aa] bg-[#fbf4e8] p-4 text-[#4d3a24]">
+              <div className="text-[14px] font-semibold">User lookup</div>
+              <div className="mt-1 text-[12px] leading-5 text-[#7a664b]">
+                이름, 이메일, 회사명으로 유저를 찾고 채팅세션 수, 프로필 view,
+                프로필 링크 클릭 지표를 확인합니다.
+              </div>
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                <input
+                  value={userAnalyticsSearch}
+                  onChange={(event) =>
+                    setUserAnalyticsSearch(event.target.value)
+                  }
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      void fetchUserAnalyticsUsers(userAnalyticsSearch);
+                    }
+                  }}
+                  placeholder="이름, 이메일 또는 회사명"
+                  className="h-11 flex-1 rounded-[14px] border border-[#d8c7aa] bg-[#fffaf1] px-4 text-[14px] text-[#3f301f] outline-none placeholder:text-[#9e8b6d]"
+                />
+                <button
+                  onClick={() => {
+                    void fetchUserAnalyticsUsers(userAnalyticsSearch);
+                  }}
+                  className="h-11 rounded-[14px] border border-[#5d4931] bg-[#5d4931] px-4 text-[13px] text-[#fff8ef] transition-colors hover:bg-[#4f3e29]"
+                >
+                  Search
+                </button>
+              </div>
+              {userAnalyticsUsersError ? (
+                <div className="mt-3 text-[12px] text-[#8d3a24]">
+                  {userAnalyticsUsersError}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
+              <div className="rounded-[20px] border border-[#d8c7aa] bg-[#fbf4e8] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-[13px] font-semibold text-[#4d3a24]">
+                      Users
+                    </div>
+                    <div className="mt-1 text-[12px] text-[#7a664b]">
+                      {userAnalyticsUsers.length}명
+                    </div>
+                  </div>
+                  {userAnalyticsUsersLoading ? (
+                    <Loading
+                      size="sm"
+                      inline={true}
+                      className="text-[12px] text-[#7a664b]"
+                    />
+                  ) : null}
+                </div>
+
+                <div className="mt-4 space-y-2">
+                  {userAnalyticsUsers.length === 0 ? (
+                    <div className="rounded-[16px] border border-dashed border-[#d8c7aa] bg-[#fffaf1] px-4 py-6 text-center text-[12px] leading-5 text-[#8d7a5d]">
+                      {userAnalyticsSearch.trim()
+                        ? "일치하는 유저가 없습니다."
+                        : "이름, 이메일 또는 회사명을 입력해 유저를 찾아보세요."}
+                    </div>
+                  ) : (
+                    userAnalyticsUsers.map((user) => {
+                      const isSelected =
+                        selectedAnalyticsUser?.userId === user.userId;
+
+                      return (
+                        <button
+                          key={user.userId}
+                          type="button"
+                          onClick={() => {
+                            void fetchUserAnalyticsDetail(user);
+                          }}
+                          className={`w-full rounded-[16px] border px-4 py-3 text-left transition-colors ${
+                            isSelected
+                              ? "border-[#8e7554] bg-[#efe1c8]"
+                              : "border-[#dcccad] bg-[#fffaf1] hover:bg-[#f4eadb]"
+                          }`}
+                        >
+                          <div className="text-[13px] font-semibold text-[#3f301f]">
+                            {user.name || "(이름 없음)"}
+                          </div>
+                          <div className="mt-1 break-all text-[12px] text-[#7a664b]">
+                            {user.email || "-"}
+                          </div>
+                          <div className="mt-2 text-[11px] text-[#8d7a5d]">
+                            세션 {user.searchCount.toLocaleString("ko-KR")} ·
+                            후보 {user.profileViewCount.toLocaleString("ko-KR")}{" "}
+                            · 링크 {user.linkClickCount.toLocaleString("ko-KR")}
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="rounded-[20px] border border-[#d8c7aa] bg-[#fbf4e8] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-[13px] font-semibold text-[#4d3a24]">
+                        Summary
+                      </div>
+                      <div className="mt-1 text-[12px] text-[#7a664b]">
+                        {selectedAnalyticsUser
+                          ? `${selectedAnalyticsUser.name || selectedAnalyticsUser.email || "선택된 유저"}`
+                          : "유저를 먼저 선택하세요"}
+                      </div>
+                    </div>
+                    {userAnalyticsDetailLoading ? (
+                      <Loading
+                        size="sm"
+                        inline={true}
+                        className="text-[12px] text-[#7a664b]"
+                      />
+                    ) : null}
+                  </div>
+
+                  {selectedAnalyticsUser ? (
+                    <div className="mt-3 rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-3 py-3 text-[12px] leading-5 text-[#6a563c]">
+                      <div>{selectedAnalyticsUser.email || "-"}</div>
+                      <div>
+                        {selectedAnalyticsUser.company || "회사 정보 없음"}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {selectedAnalyticsUser ? (
+                    <div className="mt-3 rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-3 py-3">
+                      <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
+                        Date Range (KST)
+                      </div>
+                      <div className="mt-3 flex flex-col gap-2 lg:flex-row lg:items-center">
+                        <input
+                          type="date"
+                          value={userAnalyticsStartDate}
+                          onChange={(event) =>
+                            setUserAnalyticsStartDate(event.target.value)
+                          }
+                          className="h-10 rounded-[12px] border border-[#d8c7aa] bg-[#fffaf1] px-3 text-[13px] text-[#3f301f] outline-none"
+                        />
+                        <div className="px-1 text-[12px] text-[#8d7a5d]">~</div>
+                        <input
+                          type="date"
+                          value={userAnalyticsEndDate}
+                          onChange={(event) =>
+                            setUserAnalyticsEndDate(event.target.value)
+                          }
+                          className="h-10 rounded-[12px] border border-[#d8c7aa] bg-[#fffaf1] px-3 text-[13px] text-[#3f301f] outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={applyUserAnalyticsDateRange}
+                          className="h-10 rounded-[12px] border border-[#5d4931] bg-[#5d4931] px-4 text-[12px] text-[#fff8ef] transition-colors hover:bg-[#4f3e29]"
+                        >
+                          적용
+                        </button>
+                        <button
+                          type="button"
+                          onClick={resetUserAnalyticsDateRange}
+                          className="h-10 rounded-[12px] border border-[#dcccad] bg-transparent px-4 text-[12px] text-[#6a563c] transition-colors hover:bg-[#f4eadb]"
+                        >
+                          전체
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {userAnalyticsDetailError ? (
+                    <div className="mt-3 text-[12px] text-[#8d3a24]">
+                      {userAnalyticsDetailError}
+                    </div>
+                  ) : null}
+
+                  {!selectedAnalyticsUser ? (
+                    <div className="mt-4 rounded-[16px] border border-dashed border-[#d8c7aa] bg-[#fffaf1] px-4 py-10 text-center text-[12px] leading-5 text-[#8d7a5d]">
+                      왼쪽에서 유저를 선택하면 검색/프로필 지표가 표시됩니다.
+                    </div>
+                  ) : userAnalyticsSummary ? (
+                    <>
+                      <div className="mt-4">
+                        <div className="text-[12px] font-semibold text-[#6a563c]">
+                          기간별 지표
+                        </div>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
+                              채팅세션 수
+                            </div>
+                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
+                              {userAnalyticsSummary.searchCount.toLocaleString(
+                                "ko-KR"
+                              )}
+                            </div>
+                          </div>
+                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
+                              검색 횟수
+                            </div>
+                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
+                              {userAnalyticsSummary.runCount.toLocaleString(
+                                "ko-KR"
+                              )}
+                            </div>
+                          </div>
+                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
+                              채팅 자체의 수
+                            </div>
+                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
+                              {userAnalyticsSummary.chatMessageCount.toLocaleString(
+                                "ko-KR"
+                              )}
+                            </div>
+                          </div>
+                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
+                              페이지 조회수
+                            </div>
+                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
+                              {userAnalyticsSummary.pageViewCount.toLocaleString(
+                                "ko-KR"
+                              )}
+                            </div>
+                          </div>
+                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
+                              프로필 본 후보자 수
+                            </div>
+                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
+                              {userAnalyticsSummary.uniqueProfilesViewed.toLocaleString(
+                                "ko-KR"
+                              )}
+                            </div>
+                          </div>
+                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
+                              링크 클릭 수
+                            </div>
+                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
+                              {userAnalyticsSummary.linkClickCount.toLocaleString(
+                                "ko-KR"
+                              )}
+                            </div>
+                          </div>
+                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
+                              페이지 / 세션
+                            </div>
+                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
+                              {formatDecimal(
+                                userAnalyticsSummary.pageViewsPerSearch
+                              )}
+                            </div>
+                          </div>
+                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
+                              후보자 수 / 세션
+                            </div>
+                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
+                              {formatDecimal(
+                                userAnalyticsSummary.profileViewsPerSearch
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4">
+                        <div className="text-[12px] font-semibold text-[#6a563c]">
+                          누적 지표
+                        </div>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
+                              마크 준 사람 수
+                            </div>
+                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
+                              {userAnalyticsSummary.markedCandidateCount.toLocaleString(
+                                "ko-KR"
+                              )}
+                            </div>
+                          </div>
+                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
+                              폴더에 넣은 사람 수
+                            </div>
+                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
+                              {userAnalyticsSummary.bookmarkedCandidateCount.toLocaleString(
+                                "ko-KR"
+                              )}
+                            </div>
+                          </div>
+                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
+                              메모 남긴 수
+                            </div>
+                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
+                              {userAnalyticsSummary.memoCount.toLocaleString(
+                                "ko-KR"
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+
+                <div className="rounded-[20px] border border-[#d8c7aa] bg-[#fbf4e8] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-[13px] font-semibold text-[#4d3a24]">
+                        Profiles
+                      </div>
+                      <div className="mt-1 text-[12px] text-[#7a664b]">
+                        {selectedAnalyticsUser
+                          ? `프로필 view 또는 링크 클릭이 있었던 후보 ${userAnalyticsProfiles.length}명`
+                          : "유저를 선택하면 프로필별 상세가 표시됩니다."}
+                      </div>
+                    </div>
+                    {userAnalyticsDetailLoading ? (
+                      <Loading
+                        size="sm"
+                        inline={true}
+                        className="text-[12px] text-[#7a664b]"
+                      />
+                    ) : null}
+                  </div>
+
+                  <div className="mt-4 space-y-3">
+                    {!selectedAnalyticsUser ? (
+                      <div className="rounded-[16px] border border-dashed border-[#d8c7aa] bg-[#fffaf1] px-4 py-8 text-center text-[12px] leading-5 text-[#8d7a5d]">
+                        왼쪽에서 유저를 선택하세요.
+                      </div>
+                    ) : userAnalyticsProfiles.length === 0 &&
+                      !userAnalyticsDetailLoading ? (
+                      <div className="rounded-[16px] border border-dashed border-[#d8c7aa] bg-[#fffaf1] px-4 py-8 text-center text-[12px] leading-5 text-[#8d7a5d]">
+                        프로필 view 또는 링크 클릭 데이터가 없습니다.
+                      </div>
+                    ) : (
+                      userAnalyticsProfiles.map((profile) => (
+                        <div
+                          key={profile.candidId}
+                          className="rounded-[18px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4"
+                        >
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0">
+                              <div className="text-[15px] font-semibold text-[#3f301f]">
+                                {profile.name || "(이름 없음)"}
+                              </div>
+                              <div className="mt-1 text-[13px] leading-6 text-[#6a563c]">
+                                {profile.headline || profile.candidId}
+                              </div>
+                            </div>
+
+                            <div className="flex shrink-0 items-center gap-2">
+                              <a
+                                href={profile.profileHref}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex h-9 items-center rounded-[12px] border border-[#cfbb9a] bg-[#f4eadb] px-3 text-[12px] text-[#4d3a24] transition-colors hover:bg-[#eadcc7]"
+                              >
+                                Harper profile
+                              </a>
+                              {profile.linkedinUrl ? (
+                                <a
+                                  href={profile.linkedinUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex h-9 items-center rounded-[12px] border border-[#e0d0b6] bg-transparent px-3 text-[12px] text-[#6a563c] transition-colors hover:bg-[#f4eadb]"
+                                >
+                                  LinkedIn
+                                </a>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                            <div className="rounded-[14px] border border-[#eadcc7] bg-[#f7efe2] px-3 py-3">
+                              <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
+                                Profile Views
+                              </div>
+                              <div className="mt-2 text-[20px] font-semibold text-[#3f301f]">
+                                {profile.profileViewCount.toLocaleString(
+                                  "ko-KR"
+                                )}
+                              </div>
+                            </div>
+                            <div className="rounded-[14px] border border-[#eadcc7] bg-[#f7efe2] px-3 py-3">
+                              <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
+                                Link Clicks
+                              </div>
+                              <div className="mt-2 text-[20px] font-semibold text-[#3f301f]">
+                                {profile.totalLinkClickCount.toLocaleString(
+                                  "ko-KR"
+                                )}
+                              </div>
+                            </div>
+                            <div className="rounded-[14px] border border-[#eadcc7] bg-[#f7efe2] px-3 py-3">
+                              <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
+                                Link Hosts
+                              </div>
+                              <div className="mt-2 text-[20px] font-semibold text-[#3f301f]">
+                                {profile.linkClicks.length.toLocaleString(
+                                  "ko-KR"
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 rounded-[14px] border border-[#eadcc7] bg-[#f7efe2] px-3 py-3 text-[13px] leading-6 text-[#5b4932]">
+                            <div className="mb-2 text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
+                              Link Click Breakdown
+                            </div>
+                            {profile.linkClicks.length === 0 ? (
+                              <div className="text-[#8d7a5d]">
+                                링크 클릭 데이터가 없습니다.
+                              </div>
+                            ) : (
+                              <div className="flex flex-wrap gap-2">
+                                {profile.linkClicks.map((item) => (
+                                  <div
+                                    key={`${profile.candidId}-${item.host}`}
+                                    className="inline-flex items-center gap-2 rounded-full border border-[#dcccad] bg-[#fffaf1] px-3 py-1 text-[12px] text-[#6a563c]"
+                                  >
+                                    <span>{item.host}</span>
+                                    <span className="font-semibold text-[#3f301f]">
+                                      {item.count.toLocaleString("ko-KR")}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
