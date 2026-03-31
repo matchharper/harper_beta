@@ -1168,7 +1168,7 @@ export const Onboarding2Content = ({
                 <div className="mt-4 flex flex-row items-center gap-3">
                   <button
                     onClick={handlePrimaryAction}
-                    className="h-12 md:h-11 mb-8 md:mb-0 cursor-pointer rounded-lg bg-beige900 w-full md:px-4 text-lg font-medium text-beige100 shadow-lg transition-all duration-200 hover:opacity-90"
+                    className="h-12 md:h-11 mb-8 md:mb-0 cursor-pointer rounded-lg bg-beige900 w-full px-6 md:w-fit text-lg font-medium text-beige100 shadow-lg transition-all duration-200 hover:opacity-90"
                   >
                     {submitLoading || submissionPending ? (
                       <span className="animate-spin">

@@ -532,7 +532,7 @@ const valueCards = [
     number: "01",
     title: "Apply Once",
     description:
-      "No need to repeat applications and interviews for every company.<br/>Sign up once, and we'll match you with the right opportunities—while clearly explaining each company and role.",
+      "No need to repeat applications and interviews for every company.<br/>Sign up once, and we'll match you with the right opportunities.<br />No mass emails.",
   },
   {
     number: "02",
@@ -982,9 +982,9 @@ const NetworkPage = () => {
               </div>
 
               <div className="mt-8 flex flex-row items-center justify-center gap-2 text-base tracking-[-0.03em] text-beige900/50 flex-wrap">
-                <Pill label="Fractional (4~12 hrs/wk)" />
+                <Pill label="Part-time (4~12 hrs/wk)" />
                 <Pill label="Founding Member / CTO" />
-                <Pill label="Technical Advisory" />
+                <Pill label="Intern" />
               </div>
             </Reveal>
 
@@ -1019,7 +1019,7 @@ const NetworkPage = () => {
             >
               <div className="flex flex-row items-center justify-center gap-2">
                 <div className="relative items-baseline gap-1 font-normal flex">
-                  <div>300+ engineers and researchers From </div>
+                  <div>100+ engineers and researchers From </div>
                 </div>
                 <div className="flex -space-x-2">
                   {schoolLogos.map((school) => (
