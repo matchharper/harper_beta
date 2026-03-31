@@ -221,7 +221,12 @@ export default function BookmarksPage() {
       userId,
       companyUser?.name ?? companyUser?.email ?? null
     );
-  }, [companyUser?.email, companyUser?.name, currentFolderShare?.token, userId]);
+  }, [
+    companyUser?.email,
+    companyUser?.name,
+    currentFolderShare?.token,
+    userId,
+  ]);
 
   const { data, isLoading, error, isFetching } = useCandidatesByConnectionTyped(
     userId,
@@ -420,7 +425,7 @@ export default function BookmarksPage() {
   const Pagination = ({ isAbsolute = true }: { isAbsolute?: boolean }) => {
     return (
       <div
-        className={`flex items-center justify-start gap-3 px-4 ${isAbsolute ? "absolute left-0 top-[-4px]" : ""}`}
+        className={`flex items-center justify-start gap-3 px-4 ${isAbsolute ? "absolute left-0 top-[-4px] z-10" : ""}`}
       >
         <div className="flex flex-row items-center gap-3 text-sm text-hgray900">
           <button
