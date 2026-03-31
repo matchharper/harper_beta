@@ -1034,19 +1034,11 @@ export type Database = {
           id?: number
           user_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "feedback_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "company_users"
-            referencedColumns: ["user_id"]
-          },
-        ]
+        Relationships: []
       }
       github_profile: {
         Row: {
-          account_type: string | null
+          activity_summary: Json | null
           avatar_url: string | null
           bio: string | null
           blog: string | null
@@ -1069,12 +1061,12 @@ export type Database = {
           node_id: string | null
           public_gists: number | null
           public_repos: number | null
+          readme_markdown: string | null
           search_text: string | null
-          twitter_username: string | null
           updated_at: string | null
         }
         Insert: {
-          account_type?: string | null
+          activity_summary?: Json | null
           avatar_url?: string | null
           bio?: string | null
           blog?: string | null
@@ -1097,12 +1089,12 @@ export type Database = {
           node_id?: string | null
           public_gists?: number | null
           public_repos?: number | null
+          readme_markdown?: string | null
           search_text?: string | null
-          twitter_username?: string | null
           updated_at?: string | null
         }
         Update: {
-          account_type?: string | null
+          activity_summary?: Json | null
           avatar_url?: string | null
           bio?: string | null
           blog?: string | null
@@ -1125,8 +1117,8 @@ export type Database = {
           node_id?: string | null
           public_gists?: number | null
           public_repos?: number | null
+          readme_markdown?: string | null
           search_text?: string | null
-          twitter_username?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -1315,6 +1307,60 @@ export type Database = {
       }
       github_repo_contribution: {
         Row: {
+          commits: number
+          created_at: string
+          description: string | null
+          github_profile_id: string | null
+          id: number
+          last_contrib_at: string | null
+          merged_prs: number
+          repo_id: string | null
+          role: string | null
+          updated_at: string
+        }
+        Insert: {
+          commits?: number
+          created_at?: string
+          description?: string | null
+          github_profile_id?: string | null
+          id?: number
+          last_contrib_at?: string | null
+          merged_prs?: number
+          repo_id?: string | null
+          role?: string | null
+          updated_at?: string
+        }
+        Update: {
+          commits?: number
+          created_at?: string
+          description?: string | null
+          github_profile_id?: string | null
+          id?: number
+          last_contrib_at?: string | null
+          merged_prs?: number
+          repo_id?: string | null
+          role?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "github_repo_contribution_github_profile_id_fkey"
+            columns: ["github_profile_id"]
+            isOneToOne: false
+            referencedRelation: "github_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "github_repo_contribution_repo_id_fkey"
+            columns: ["repo_id"]
+            isOneToOne: false
+            referencedRelation: "github_repo"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      github_repo_contribution_old_20260326: {
+        Row: {
           candid_id: string | null
           commits: number | null
           contributors: number | null
@@ -1392,57 +1438,6 @@ export type Database = {
             columns: ["candid_id"]
             isOneToOne: false
             referencedRelation: "candid"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      github_repo_contribution_new_20260326: {
-        Row: {
-          commits: number
-          created_at: string
-          github_profile_id: string | null
-          id: number
-          last_contrib_at: string | null
-          merged_prs: number
-          repo_id: string | null
-          role: string | null
-          updated_at: string
-        }
-        Insert: {
-          commits?: number
-          created_at?: string
-          github_profile_id?: string | null
-          id?: number
-          last_contrib_at?: string | null
-          merged_prs?: number
-          repo_id?: string | null
-          role?: string | null
-          updated_at?: string
-        }
-        Update: {
-          commits?: number
-          created_at?: string
-          github_profile_id?: string | null
-          id?: number
-          last_contrib_at?: string | null
-          merged_prs?: number
-          repo_id?: string | null
-          role?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "github_repo_contribution_github_profile_id_fkey"
-            columns: ["github_profile_id"]
-            isOneToOne: false
-            referencedRelation: "github_profile"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "github_repo_contribution_repo_id_fkey"
-            columns: ["repo_id"]
-            isOneToOne: false
-            referencedRelation: "github_repo"
             referencedColumns: ["id"]
           },
         ]
@@ -2629,6 +2624,7 @@ export type Database = {
         Row: {
           created_at: string
           degree: string | null
+          description: string | null
           end_date: string | null
           field: string | null
           id: number
@@ -2641,6 +2637,7 @@ export type Database = {
         Insert: {
           created_at?: string
           degree?: string | null
+          description?: string | null
           end_date?: string | null
           field?: string | null
           id?: number
@@ -2653,6 +2650,7 @@ export type Database = {
         Update: {
           created_at?: string
           degree?: string | null
+          description?: string | null
           end_date?: string | null
           field?: string | null
           id?: number
@@ -2674,6 +2672,8 @@ export type Database = {
       }
       talent_experiences: {
         Row: {
+          company_id: string | null
+          company_link: string | null
           company_location: string | null
           company_logo: string | null
           company_name: string | null
@@ -2688,6 +2688,8 @@ export type Database = {
           talent_id: string
         }
         Insert: {
+          company_id?: string | null
+          company_link?: string | null
           company_location?: string | null
           company_logo?: string | null
           company_name?: string | null
@@ -2702,6 +2704,8 @@ export type Database = {
           talent_id: string
         }
         Update: {
+          company_id?: string | null
+          company_link?: string | null
           company_location?: string | null
           company_logo?: string | null
           company_name?: string | null
@@ -2745,6 +2749,60 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "talent_users"
             referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      talent_internal: {
+        Row: {
+          content: string
+          created_at: string
+          created_by: string
+          from_email: string | null
+          id: number
+          subject: string | null
+          talent_id: string
+          to_email: string | null
+          type: string
+          waitlist_id: number
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          created_by: string
+          from_email?: string | null
+          id?: number
+          subject?: string | null
+          talent_id: string
+          to_email?: string | null
+          type: string
+          waitlist_id: number
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          created_by?: string
+          from_email?: string | null
+          id?: number
+          subject?: string | null
+          talent_id?: string
+          to_email?: string | null
+          type?: string
+          waitlist_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_internal_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "talent_internal_waitlist_id_fkey"
+            columns: ["waitlist_id"]
+            isOneToOne: false
+            referencedRelation: "harper_waitlist"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -3032,6 +3090,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_access_candidate_profile: {
+        Args: { target_candid_id: string }
+        Returns: boolean
+      }
       candid_ids_scholar_and_pattern: {
         Args: { pattern: string }
         Returns: string[]
@@ -3091,6 +3153,13 @@ export type Database = {
       get_scholar_candidate_ids: { Args: never; Returns: string[] }
       is_admin: { Args: never; Returns: boolean }
       reset_org_db_seq: { Args: never; Returns: undefined }
+      reveal_candidate_profile: {
+        Args: { target_candid_id: string }
+        Returns: {
+          already_revealed: boolean
+          new_balance: number
+        }[]
+      }
       set_timeout_and_execute_raw_sql: {
         Args: {
           limit_num: number
