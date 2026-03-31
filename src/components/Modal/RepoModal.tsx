@@ -270,6 +270,31 @@ export default function RepoModalRoot() {
                   </Section>
                 )}
 
+                {/* Topics */}
+                {repo.topics && repo.topics.length > 0 && (
+                  <Section title="Topics">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {(repo.topics as string[]).map((topic: string) => (
+                        <span
+                          key={topic}
+                          className="inline-flex items-center rounded-full bg-accenta1/10 px-3 py-1 text-xs text-accenta1"
+                        >
+                          {topic}
+                        </span>
+                      ))}
+                    </div>
+                  </Section>
+                )}
+
+                {/* README Excerpt */}
+                {repo.readme_excerpt && (
+                  <Section title="About">
+                    <div className="rounded-2xl bg-white/5 px-4 py-3 text-sm leading-6 text-hgray800 whitespace-pre-wrap">
+                      {repo.readme_excerpt}
+                    </div>
+                  </Section>
+                )}
+
                 {/* Contributors */}
                 <Section
                   title={`Contributors (${contributors.length})`}

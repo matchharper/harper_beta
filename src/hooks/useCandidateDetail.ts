@@ -23,6 +23,7 @@ export type CandidateDetail = CandidateType & {
   connection?: { user_id: string; typed: number }[];
   candidate_mark?: CandidateMarkRecord | null;
   github_repo_contribution?: GithubContributionWithRepo[];
+  github_profile?: GithubProfileRow | null;
   scholar_profile?: ScholarProfileRow | null;
   scholar_papers?: ScholarPaperRow[];
   isAutomationResult?: boolean;
@@ -139,7 +140,7 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
 
   const { data: githubProfiles, error: githubProfileError } = await supabase
     .from("github_profile")
-    .select("id")
+    .select("*")
     .eq("candid_id", id);
 
   if (githubProfileError) throw githubProfileError;
@@ -205,6 +206,7 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
       ...data,
       candidate_mark: candidateMarkById.get(id) ?? null,
       github_repo_contribution: githubRepoContributions,
+      github_profile: (githubProfiles as GithubProfileRow[] | null)?.[0] ?? null,
       scholar_profile: scholarProfile,
       scholar_papers: scholarPapers,
       isAutomationResult: autoRow?.length > 0,
@@ -214,6 +216,7 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
   return {
     ...(data as CandidateDetail),
     github_repo_contribution: githubRepoContributions,
+    github_profile: (githubProfiles as GithubProfileRow[] | null)?.[0] ?? null,
     scholar_profile: scholarProfile,
     scholar_papers: scholarPapers,
   };

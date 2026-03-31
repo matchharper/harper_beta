@@ -1,3 +1,4 @@
+import { MarkdownView } from "@/components/chat/MarkDownView";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { CandidateDetail, candidateKey } from "@/hooks/useCandidateDetail";
 import ShareProfileModal from "@/components/Modal/ShareProfileModal";
@@ -745,6 +746,80 @@ function CandidateProfileDetailPage({
                   }
                 />
               ))}
+            </div>
+          </Box>
+        )}
+
+        {/* GitHub Profile README */}
+        {c?.github_profile?.readme_markdown && (
+          <Box title="GitHub Profile README">
+            <div className="max-h-96 overflow-y-auto rounded-2xl">
+              <MarkdownView markdown={c.github_profile.readme_markdown} />
+            </div>
+          </Box>
+        )}
+
+        {c?.github_profile?.blog && (
+          <div className="text-sm text-hgray700">
+            <span className="text-hgray600">Blog: </span>
+            <a
+              href={c.github_profile.blog}
+              target="_blank"
+              rel="noreferrer"
+              className="text-blue-500 hover:underline"
+            >
+              {c.github_profile.blog}
+            </a>
+          </div>
+        )}
+
+        {c?.github_profile?.activity_summary && (
+          <Box title="GitHub Activity">
+            <div className="flex flex-wrap gap-4">
+              {(() => {
+                const act = c.github_profile!.activity_summary as Record<string, unknown>;
+                const years = act?.years as number ?? 0;
+                const commits = act?.total_commits as number ?? 0;
+                const prs = act?.total_prs as number ?? 0;
+                const reviews = act?.total_pr_reviews as number ?? 0;
+                const issues = act?.total_issues as number ?? 0;
+                const hasData = years > 0 || commits > 0 || prs > 0 || reviews > 0 || issues > 0;
+                if (!hasData) return null;
+                return (
+                  <>
+                    {years > 0 && (
+                      <div className="text-sm text-hgray800">
+                        <span className="text-hgray600">활동 기간:</span>{" "}
+                        <span className="font-medium">{years}년</span>
+                      </div>
+                    )}
+                    {commits > 0 && (
+                      <div className="text-sm text-hgray800">
+                        <span className="text-hgray600">Commits:</span>{" "}
+                        <span className="font-medium">{commits.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {prs > 0 && (
+                      <div className="text-sm text-hgray800">
+                        <span className="text-hgray600">Merged PRs:</span>{" "}
+                        <span className="font-medium">{prs.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {reviews > 0 && (
+                      <div className="text-sm text-hgray800">
+                        <span className="text-hgray600">PR Reviews:</span>{" "}
+                        <span className="font-medium">{reviews.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {issues > 0 && (
+                      <div className="text-sm text-hgray800">
+                        <span className="text-hgray600">Issues:</span>{" "}
+                        <span className="font-medium">{issues.toLocaleString()}</span>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </Box>
         )}

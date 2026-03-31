@@ -1046,7 +1046,7 @@ export type Database = {
       }
       github_profile: {
         Row: {
-          account_type: string | null
+          activity_summary: Json | null
           avatar_url: string | null
           bio: string | null
           blog: string | null
@@ -1069,12 +1069,12 @@ export type Database = {
           node_id: string | null
           public_gists: number | null
           public_repos: number | null
+          readme_markdown: string | null
           search_text: string | null
-          twitter_username: string | null
           updated_at: string | null
         }
         Insert: {
-          account_type?: string | null
+          activity_summary?: Json | null
           avatar_url?: string | null
           bio?: string | null
           blog?: string | null
@@ -1097,12 +1097,12 @@ export type Database = {
           node_id?: string | null
           public_gists?: number | null
           public_repos?: number | null
+          readme_markdown?: string | null
           search_text?: string | null
-          twitter_username?: string | null
           updated_at?: string | null
         }
         Update: {
-          account_type?: string | null
+          activity_summary?: Json | null
           avatar_url?: string | null
           bio?: string | null
           blog?: string | null
@@ -1125,15 +1125,15 @@ export type Database = {
           node_id?: string | null
           public_gists?: number | null
           public_repos?: number | null
+          readme_markdown?: string | null
           search_text?: string | null
-          twitter_username?: string | null
           updated_at?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "github_profile_candid_id_fkey"
             columns: ["candid_id"]
-            isOneToOne: false
+            isOneOrOne: false
             referencedRelation: "candid"
             referencedColumns: ["id"]
           },
@@ -1318,7 +1318,6 @@ export type Database = {
           id: number
           commits: number
           merged_prs: number
-          description: string | null
           role: string | null
           last_contrib_at: string | null
           created_at: string
@@ -1330,7 +1329,6 @@ export type Database = {
           id?: number
           commits?: number
           merged_prs?: number
-          description?: string | null
           role?: string | null
           last_contrib_at?: string | null
           created_at?: string
@@ -1342,7 +1340,6 @@ export type Database = {
           id?: number
           commits?: number
           merged_prs?: number
-          description?: string | null
           role?: string | null
           last_contrib_at?: string | null
           created_at?: string

@@ -210,6 +210,20 @@ const GithubRepoContributionBox = ({
         {description || "[No description]"}
       </div>
 
+      {/* Topics */}
+      {contribution.github_repo?.topics && contribution.github_repo.topics.length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {(contribution.github_repo.topics as string[]).slice(0, 3).map((topic: string) => (
+            <span
+              key={topic}
+              className="inline-flex items-center rounded-full bg-accenta1/10 px-2 py-0.5 text-[10px] text-accenta1"
+            >
+              {topic}
+            </span>
+          ))}
+        </div>
+      )}
+
       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
         {/* Language chips */}
         {topLangs.length > 0 ? (
