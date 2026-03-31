@@ -301,7 +301,11 @@ const SelectionCardButton = ({
         </span>
       )}
       <div className="flex min-w-0 flex-col">
-        <span className="text-base font-normal">{label}</span>
+        <span
+          className={`${description ? "text-base" : "text-sm"} font-normal`}
+        >
+          {label}
+        </span>
         {description && (
           <span
             className={`mt-1 text-sm leading-5 text-beige900/60 ${active ? "font-medium" : "font-normal"}`}

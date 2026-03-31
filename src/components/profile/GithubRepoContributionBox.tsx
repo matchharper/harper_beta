@@ -150,7 +150,8 @@ const LanguagePill = ({ name, pct }: { name: string; pct: number }) => {
 const GithubRepoContributionBox = ({
   contribution,
 }: {
-  contribution?: GithubRepoContributionRow | null;
+  contribution?: any;
+  // contribution?: GithubRepoContributionRow | null;
 }) => {
   if (!contribution) {
     return (
