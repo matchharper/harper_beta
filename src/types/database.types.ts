@@ -1034,18 +1034,11 @@ export type Database = {
           id?: number
           user_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "feedback_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "company_users"
-            referencedColumns: ["user_id"]
-          },
-        ]
+        Relationships: []
       }
       github_profile: {
         Row: {
+          activity_summary: Json | null
           avatar_url: string | null
           bio: string | null
           blog: string | null
@@ -1073,6 +1066,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          activity_summary?: Json | null
           avatar_url?: string | null
           bio?: string | null
           blog?: string | null
@@ -1100,6 +1094,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          activity_summary?: Json | null
           avatar_url?: string | null
           bio?: string | null
           blog?: string | null

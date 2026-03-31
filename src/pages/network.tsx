@@ -1,22 +1,34 @@
 import Reveal from "@/components/landing/Animation/Reveal";
 import StaggerText from "@/components/landing/Animation/StaggerText";
 import { showToast } from "@/components/toast/toast";
-import { useCountryLang } from "@/hooks/useCountryLang";
-import { useIsMobile } from "@/hooks/useIsMobile";
-import {
-  TALENT_NETWORK_LAST_VISIT_AT_KEY,
-  TALENT_NETWORK_LOCAL_ID_KEY,
-  TALENT_NETWORK_LOG_ABTEST_TYPE,
-  createTalentNetworkLocalId,
-} from "@/lib/talentNetwork";
-import { supabase } from "@/lib/supabase";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUpRight, ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
+import {
+  ArrowUpRight,
+  ChevronLeft,
+  ChevronRight,
+  LoaderCircle,
+  Plus,
+  X,
+} from "lucide-react";
 import Head from "next/head";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { useCountryLang } from "@/hooks/useCountryLang";
+import { useIsMobile } from "@/hooks/useIsMobile";
+import { supabase } from "@/lib/supabase";
+import {
+  TALENT_NETWORK_ABTEST_TYPE_A,
+  TALENT_NETWORK_ABTEST_TYPE_B,
+  TALENT_NETWORK_ABTEST_TYPE_KEY,
+  TALENT_NETWORK_LAST_VISIT_AT_KEY,
+  TALENT_NETWORK_LOCAL_ID_KEY,
+  createTalentNetworkLocalId,
+  getRandomTalentNetworkAbtestType,
+  isTalentNetworkAbtestType,
+  type TalentNetworkAbtestType,
+} from "@/lib/talentNetwork";
 import { Onboarding2Content } from "./onboarding2";
 
 type CompanyRequest = {
@@ -50,6 +62,21 @@ const companyRequests: CompanyRequest[] = [
     compensation: "Worldwide competitive salary + Equity",
   },
   {
+    id: "aie",
+    title: "AI Engineer",
+    role: "AI Systems & Product",
+    company: "Multiple High-Growth AI Teams",
+    summary: "Full-time or Part-time",
+    intro:
+      "Harper works with a group of <i>high-growth AI teams (from fast-scaling startups to global tech companies)</i> building real-world AI products.",
+    about:
+      "You will design and ship AI systems that deliver real impact. This includes building agentic workflows, integrating LLMs into products, and ensuring AI features are reliable, measurable, and used in production. You will work across engineering, product, and business contexts to turn ambiguous problems into software.",
+    requirements:
+      "Strong engineering fundamentals with experience shipping products, familiarity with LLMs or AI tooling, and the ability to translate real-world problems into working systems. Experience in product thinking, data, or system design is a plus.",
+    engagement: "Full-time<br />Part-time (4~12 hours/week)<br />Intern",
+    compensation: "Average salary : 100k+",
+  },
+  {
     id: "fde",
     title: "Forward Deployed Engineer (FDE)",
     role: "Forward Deployed Engineer",
@@ -63,25 +90,25 @@ const companyRequests: CompanyRequest[] = [
     engagement: "Full-time",
     compensation: "Worldwide competitive salary + Equity",
   },
-  {
-    id: "deployment-strategist",
-    title: "Deployment Strategist",
-    role: "Deployment Strategist",
-    company: "Confidential AI Unicorn (Series B)",
-    summary: "Full-Time",
-    intro:
-      "Harper is partnered with a <i>Confidential Global AI Unicorn (Series B)</i>.",
-    about:
-      "You will own the business impact of AI deployments. Working alongside FDEs, you will design the rollout strategy, manage enterprise stakeholders, and ensure our AI solutions deliver measurable ROI for clients.",
-    requirements:
-      "Exceptional strategic thinking, background in tech consulting, PM, or operational leadership, and strong business acumen.",
-    engagement: "Full-time",
-    compensation: "Worldwide competitive salary + Equity",
-  },
+  // {
+  //   id: "deployment-strategist",
+  //   title: "Deployment Strategist",
+  //   role: "Deployment Strategist",
+  //   company: "Confidential AI Unicorn (Series B)",
+  //   summary: "Full-Time",
+  //   intro:
+  //     "Harper is partnered with a <i>Confidential Global AI Unicorn (Series B)</i>.",
+  //   about:
+  //     "You will own the business impact of AI deployments. Working alongside FDEs, you will design the rollout strategy, manage enterprise stakeholders, and ensure our AI solutions deliver measurable ROI for clients.",
+  //   requirements:
+  //     "Exceptional strategic thinking, background in tech consulting, PM, or operational leadership, and strong business acumen.",
+  //   engagement: "Full-time",
+  //   compensation: "Worldwide competitive salary + Equity",
+  // },
   {
     id: "aiml-engineer-researcher",
     title: "AI/ML Engineer & Researcher",
-    role: "AI/ML Engineer (Model Training/Inference & Agents)",
+    role: "AI/ML Engineer (Model Training/Inference & Pipeline)",
     company: "Multiple Elite Teams (Stealth to Unicorns)",
     summary: "Flexible",
     intro:
@@ -125,17 +152,17 @@ const companyRequests: CompanyRequest[] = [
     compensation: "Top 1% Industry Compensation + Equity",
   },
   {
-    id: "engineer-ai-native",
-    title: "Engineer (AI-native)",
-    role: "Engineer (AI-native)",
+    id: "swe",
+    title: "Software Engineer",
+    role: "Software Engineer",
     company: "10+ Elite Teams",
     summary: "Full-time or Part-time",
     intro:
       "Harper is partnered with 10+ <i>Elite Startups (from stealth to unicorn startups)</i>.",
     about:
-      "We are looking for engineers who deeply leverage AI tools to build faster.<br/>If you want to join a tech startup where your technical skills can truly be put to use, regardless of your main tech stack, apply here.",
+      "We are looking for engineers who love building and shipping real products.<br/>Whether you work on backend, frontend, infra, or data systems, this is a place for developers who want to solve meaningful problems and see their work used in production.",
     requirements:
-      "Hands-on experience using LLMs or AI tools in real workflows (coding, automation, product features), along with strong engineering fundamentals and a strong builder mindset.",
+      "Strong engineering fundamentals and experience building and shipping software. Ability to write clean, reliable code and work across systems. Experience with modern development tools and frameworks is a plus, but more importantly, you have a builder mindset and enjoy turning ideas into working products.",
     engagement:
       "Highly Flexible.<br />Full-time OR Fractional/Part-time (4~12 hours/week) available.<br />현업을 유지하며 임팩트 있는 프로젝트에만 참여하는 것도 가능합니다.",
     compensation: "Top 1% Industry Compensation + Equity",
@@ -165,7 +192,7 @@ const faqs = [
   {
     question: "등록해도 연락을 받는건 소수인가요?",
     answer:
-      "뛰어난 스포츠 선수에게는 전담 에이전트가 있는 것처럼, Harper는 AI/ML 인재분들을 위한 AI-native 에이전트입니다. <br/><br/>만약 선호하거나 원하시는 기회가 있으시다면 알려주세요. 그럼 Harper가 최대한 선호하실만한 기회를 적극적으로 찾고, 회사와 연결된 뒤 기회를 얻으실 수 있게 도와드립니다.",
+      "뛰어난 스포츠 선수에게는 전담 에이전트가 있는 것처럼, Harper는 AI/ML 인재분들을 위한 AI-native 에이전트입니다. <br/>인재의 입장에서 최대한 많은 기회를 받으실 수 있게 올려주실 정보들을 바탕으로 추가적인 기회들을 찾고있어요.<br/><br/>만약 선호하거나 원하시는 기회가 있으시다면 알려주세요. 그럼 Harper가 최대한 선호하실만한 기회를 적극적으로 찾고, 회사와 연결된 뒤 기회를 얻으실 수 있게 도와드립니다.",
     // "Harper는 인재 분들을 위한 AI native 헤드헌터입니다. 만약 선호하거나 원하시는 기회가 있으시다면 알려주세요. 그럼 Harper가 최대한 선호하실만한 기회를 적극적으로 찾고, 회사와 연결된 뒤 기회를 얻으실 수 있게 도와드립니다.",
   },
   {
@@ -178,12 +205,36 @@ const faqs = [
   },
   {
     question: "당장 이직 생각이 없어도 등록해둘 수 있을까요?",
-    answer: `네. 하퍼는 정규직 채용 외에도 <span class='font-semibold text-beige900 font-inter'>파트타임, 프리랜싱, 자문</span> 등 지원자님에게 도움이 될 수 있는 다양한 형태의 기회를 함께 연결합니다.<br />
-또한 <span class='font-semibold text-beige900 font-inter'>Passive</span>한 상태임을 알려주시면 모호한 기회들은 건너뛰고, 알려주신 내용들을 바탕으로 명확하게 선호하실만한 기회의 경우에만 연락드립니다.<br /><br />
-하퍼는 <span class='font-semibold text-beige900 font-inter'>해외의 유니콘 스타트업</span>부터 <span class='font-semibold text-beige900 font-inter'>국내의 소수 정예 스타트업</span>까지 다양한 회사들과 협업하며, 특히 시장에 공개되지 않은 특별한 포지션들을 제공하고 있습니다.
+    answer: `네. 하퍼는 정규직 채용 외에도 <span class='font-semibold text-beige900 font-inter'>파트타임, 인턴, 자문</span> 등 지원자님에게 도움이 될 수 있는 다양한 형태의 기회를 함께 연결합니다.<br /><br />
+아래의 사항들 중 하나에 해당되신다면 등록해두시는걸 추천드립니다.<br /><br />
+- 내가 잘 모르는 회사라도 그 회사의 좋은점/안좋은 점이 뭔지 나에게 구체적으로 설명해주면 좋겠다.<br />
+- 내 역량을 어떤 회사가 필요로 하는지 알고 싶다.<br />
+- 지금은 이직 생각이 없지만 좋은 기회를 받아보고 싶다.<br />
+- 내 GitHub / 논문 / 실제 작업을 누군가 제대로 읽고 알맞은 제안을 해주면 좋겠다.
 `,
   },
 ] as const;
+
+const valueCards = [
+  {
+    number: "01",
+    title: "Apply Once",
+    description:
+      "No need to repeat applications and interviews for every company.<br/>Sign up once, and we'll match you with the right opportunities.<br />No mass emails.",
+  },
+  {
+    number: "02",
+    title: "Private by Default",
+    description:
+      "Your information is never shared by default.<br/>Only the opportunities you choose will see your profile.",
+  },
+  {
+    number: "03",
+    title: "Access Hidden Roles",
+    description:
+      "Get access to roles that aren't publicly listed.<br/>From stealth startups to global unicorns, discover opportunities you wouldn't find on your own.",
+  },
+];
 
 const sectionTagClassName =
   "inline-flex items-center rounded-lg bg-beige500/80 px-4 py-2 font-geist text-[15px] font-medium tracking-[-0.03em] text-beige900/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] backdrop-blur-xl";
@@ -193,16 +244,8 @@ const titleTextClassName =
 
 const MOBILE_POSITION_PAGE_SIZE = 4;
 const SHARE_REQUEST_QUERY_KEY = "recommended";
-const SECTION_VIEW_INTERSECTION_THRESHOLD = 0.35;
-const SECTION_VIEW_LOG_COOLDOWN_MS = 15000;
-const SESSION_RESET_WINDOW_MS = 30 * 60 * 1000;
-
-type NetworkSectionKey =
-  | "hero"
-  | "social_proof"
-  | "opportunities"
-  | "faq"
-  | "footer";
+const TALENT_NETWORK_SESSION_TIMEOUT_MS = 30 * 60 * 1000;
+const MOBILE_HEADER_SCROLL_DELTA_THRESHOLD = 8;
 
 async function copyToClipboard(text: string) {
   if (navigator.clipboard?.writeText) {
@@ -219,6 +262,9 @@ async function copyToClipboard(text: string) {
   document.execCommand("copy");
   document.body.removeChild(ta);
 }
+
+const isValidEmail = (value: string) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
 const SectionTag = ({ children }: { children: React.ReactNode }) => (
   <div className={sectionTagClassName}>{children}</div>
@@ -506,56 +552,131 @@ const RequestDetailModal = ({
   );
 };
 
-const valueCards1 = [
-  {
-    number: "01",
-    title: "Apply Once",
-    description:
-      "서류 지원과 인터뷰를 회사마다 반복할 필요가 없습니다. 한번만 등록하세요. 매칭되는 회사가 어떤 회사인지, 조건이 어떻게 되는지도 저희가 설명해드립니다.",
-  },
-  {
-    number: "02",
-    title: "Private by Default",
-    description:
-      "당신의 정보는 기본적으로 공개되지 않습니다.<br/>매칭을 확인하고, 원할 때만 특정 회사에 공유됩니다.",
-  },
-  {
-    number: "03",
-    title: "Access Hidden Roles",
-    description:
-      "일반 채용시장에 공개되지 않은 포지션까지 연결됩니다.<br/>Stealth 스타트업부터 글로벌 유니콘까지, 직접 접근하기 어려운 기회들을 만날 수 있습니다.",
-  },
-];
+const InquiryModal = ({
+  email,
+  content,
+  isSubmitting,
+  onClose,
+  onSubmit,
+  onEmailChange,
+  onContentChange,
+}: {
+  email: string;
+  content: string;
+  isSubmitting: boolean;
+  onClose: () => void;
+  onSubmit: () => void;
+  onEmailChange: (value: string) => void;
+  onContentChange: (value: string) => void;
+}) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[145] flex items-center justify-center p-4 md:p-6"
+    >
+      <motion.button
+        type="button"
+        aria-label="문의 모달 닫기"
+        onClick={onClose}
+        className="absolute inset-0 bg-black/10 backdrop-blur-[2px]"
+      />
 
-const valueCards = [
-  {
-    number: "01",
-    title: "Apply Once",
-    description:
-      "No need to repeat applications and interviews for every company.<br/>Sign up once, and we'll match you with the right opportunities.<br />No mass emails.",
-  },
-  {
-    number: "02",
-    title: "Private by Default",
-    description:
-      "Your information is never shared by default.<br/>Only the opportunities you choose will see your profile.",
-  },
-  {
-    number: "03",
-    title: "Access Hidden Roles",
-    description:
-      "Get access to roles that aren't publicly listed.<br/>From stealth startups to global unicorns, discover opportunities you wouldn't find on your own.",
-  },
-];
+      <motion.div
+        initial={{ opacity: 0, y: 16, scale: 0.985 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 12, scale: 0.985 }}
+        transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+        className="relative z-10 w-full max-w-[560px] rounded-2xl border border-beige900/8 bg-beige200 p-6 shadow-[0_20px_60px_rgba(37,20,6,0.14)] md:p-7"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={isSubmitting}
+          className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-lg text-beige900/55 transition hover:bg-beige900/[0.03] hover:text-beige900/80 disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label="문의 모달 닫기"
+        >
+          <X className="h-4 w-4" />
+        </button>
+
+        <div className="pr-8">
+          <h2 className="text-xl font-medium tracking-[-0.04em] text-beige900">
+            문의하기
+          </h2>
+          <p className="mt-2 text-sm leading-[1.7] tracking-[-0.02em] text-beige900/60">
+            궁금한 점이나 원하는 기회가 있으면 남겨주세요. 확인 후
+            연락드리겠습니다.
+          </p>
+        </div>
+
+        <div className="mt-6 space-y-4">
+          <div>
+            <label className="mb-2 block text-sm font-medium tracking-[-0.02em] text-beige900/70">
+              회신 받으실 이메일
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(event) => onEmailChange(event.target.value)}
+              placeholder="example@example.com"
+              className="h-12 w-full rounded-xl border border-beige900/12 bg-white/70 px-4 text-[15px] text-beige900 outline-none transition focus:border-beige900/30 focus:ring-1 focus:ring-beige900/20 placeholder:text-beige900/30"
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium tracking-[-0.02em] text-beige900/70">
+              내용
+            </label>
+            <textarea
+              value={content}
+              onChange={(event) => onContentChange(event.target.value)}
+              rows={4}
+              placeholder="문의하실 내용을 입력해 주세요."
+              className="w-full rounded-xl border border-beige900/12 bg-white/70 px-4 py-3 text-[15px] leading-[1.6] text-beige900 outline-none transition focus:border-beige900/30 focus:ring-1 focus:ring-beige900/20 placeholder:text-beige900/30 resize-none"
+            />
+          </div>
+        </div>
+
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="inline-flex h-11 items-center justify-center rounded-xl border border-beige900/12 bg-white/60 px-4 text-sm font-medium text-beige900/80 transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            닫기
+          </button>
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={isSubmitting}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-beige900 px-4 text-sm font-medium text-beige100 transition hover:opacity-92 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {isSubmitting ? (
+              <>
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+                문의 접수 중...
+              </>
+            ) : (
+              "문의하기"
+            )}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
 
 const NetworkPage = () => {
   const router = useRouter();
-  const isMobile = useIsMobile();
   const countryLang = useCountryLang();
-  const [landingId, setLandingId] = useState("");
+  const isMobile = useIsMobile();
   const [openFaqIndex, setOpenFaqIndex] = useState(0);
   const [showPreloader, setShowPreloader] = useState(true);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
+  const [isMobileHeaderVisible, setIsMobileHeaderVisible] = useState(true);
   const [selectedOnboardingRole, setSelectedOnboardingRole] = useState<
     string | undefined
   >(undefined);
@@ -570,20 +691,19 @@ const NetworkPage = () => {
     string | null
   >(null);
   const [copiedRequestId, setCopiedRequestId] = useState<string | null>(null);
-  const heroSectionRef = useRef<HTMLElement | null>(null);
-  const socialProofSectionRef = useRef<HTMLElement | null>(null);
+  const [isInquiryOpen, setIsInquiryOpen] = useState(false);
+  const [inquiryEmail, setInquiryEmail] = useState("");
+  const [inquiryContent, setInquiryContent] = useState("");
+  const [isInquirySubmitting, setIsInquirySubmitting] = useState(false);
+  const [landingId, setLandingId] = useState("");
+  const [abtestType, setAbtestType] = useState<TalentNetworkAbtestType | null>(
+    null
+  );
   const opportunitiesSectionRef = useRef<HTMLElement | null>(null);
   const faqSectionRef = useRef<HTMLElement | null>(null);
   const footerSectionRef = useRef<HTMLElement | null>(null);
   const requestCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const hasLoggedFirstScrollRef = useRef(false);
-  const sectionLastLoggedAtRef = useRef<Record<NetworkSectionKey, number>>({
-    hero: 0,
-    social_proof: 0,
-    opportunities: 0,
-    faq: 0,
-    footer: 0,
-  });
+  const lastScrollYRef = useRef(0);
   const totalMobilePositionPages = Math.ceil(
     companyRequests.length / MOBILE_POSITION_PAGE_SIZE
   );
@@ -592,57 +712,31 @@ const NetworkPage = () => {
     (mobilePositionPage + 1) * MOBILE_POSITION_PAGE_SIZE
   );
 
-  const insertLandingLog = useCallback(
-    async (type: string, localId: string) => {
+  const addLandingLog = React.useCallback(
+    async (
+      type: string,
+      overrides?: {
+        localId?: string;
+        abtestType?: string | null;
+      }
+    ) => {
+      const resolvedLocalId = overrides?.localId || landingId;
+      const resolvedAbtestType = overrides?.abtestType || abtestType;
+      if (!resolvedLocalId || !resolvedAbtestType) return;
+
       try {
         await supabase.from("landing_logs").insert({
-          local_id: localId,
+          local_id: resolvedLocalId,
           type,
-          abtest_type: TALENT_NETWORK_LOG_ABTEST_TYPE,
+          abtest_type: resolvedAbtestType,
           is_mobile: isMobile,
           country_lang: countryLang,
         });
       } catch (error) {
-        console.error("talent network page log error:", error);
+        console.error("talent network page landing log error:", error);
       }
     },
-    [countryLang, isMobile]
-  );
-
-  const addLandingLog = useCallback(
-    async (type: string) => {
-      if (!landingId) return;
-      await insertLandingLog(type, landingId);
-    },
-    [insertLandingLog, landingId]
-  );
-
-  const openOnboarding = useCallback(
-    (type: string, role?: string) => {
-      void addLandingLog(type);
-      setSelectedOnboardingRole(role);
-      setIsOnboardingOpen(true);
-    },
-    [addLandingLog]
-  );
-
-  const handleOpenRequest = useCallback(
-    (request: CompanyRequest) => {
-      void addLandingLog(`view_network_request_${request.id}`);
-      setSelectedRequest(request);
-    },
-    [addLandingLog]
-  );
-
-  const handleFaqToggle = useCallback(
-    (index: number, isOpen: boolean) => {
-      if (!isOpen) {
-        void addLandingLog(`click_network_faq_${index + 1}`);
-      }
-
-      setOpenFaqIndex(isOpen ? -1 : index);
-    },
-    [addLandingLog]
+    [abtestType, countryLang, isMobile, landingId]
   );
 
   useEffect(() => {
@@ -655,108 +749,83 @@ const NetworkPage = () => {
 
   useEffect(() => {
     const savedId = localStorage.getItem(TALENT_NETWORK_LOCAL_ID_KEY);
-    if (savedId) {
-      setLandingId(savedId);
-      return;
+    const resolvedLandingId = savedId || createTalentNetworkLocalId();
+    if (!savedId) {
+      localStorage.setItem(TALENT_NETWORK_LOCAL_ID_KEY, resolvedLandingId);
     }
 
-    const nextId = createTalentNetworkLocalId();
-    const now = Date.now().toString();
-    localStorage.setItem(TALENT_NETWORK_LOCAL_ID_KEY, nextId);
-    localStorage.setItem(TALENT_NETWORK_LAST_VISIT_AT_KEY, now);
-    setLandingId(nextId);
-    void insertLandingLog("new_visit", nextId);
-  }, [insertLandingLog]);
+    setLandingId(resolvedLandingId);
+
+    const savedAbtestType = localStorage.getItem(
+      TALENT_NETWORK_ABTEST_TYPE_KEY
+    );
+    const resolvedAbtestType = isTalentNetworkAbtestType(savedAbtestType)
+      ? savedAbtestType
+      : getRandomTalentNetworkAbtestType();
+
+    if (!isTalentNetworkAbtestType(savedAbtestType)) {
+      localStorage.setItem(TALENT_NETWORK_ABTEST_TYPE_KEY, resolvedAbtestType);
+    }
+
+    setAbtestType(resolvedAbtestType);
+
+    if (!savedId) {
+      void addLandingLog("new_visit", {
+        localId: resolvedLandingId,
+        abtestType: resolvedAbtestType,
+      });
+    }
+  }, [addLandingLog]);
 
   useEffect(() => {
-    if (!landingId) return;
+    if (!landingId || !abtestType) return;
 
     const now = Date.now();
     const lastVisitRaw = localStorage.getItem(TALENT_NETWORK_LAST_VISIT_AT_KEY);
     const lastVisitAt = lastVisitRaw ? Number(lastVisitRaw) : null;
 
-    if (!lastVisitAt || now - lastVisitAt >= SESSION_RESET_WINDOW_MS) {
+    if (
+      !lastVisitAt ||
+      Number.isNaN(lastVisitAt) ||
+      now - lastVisitAt >= TALENT_NETWORK_SESSION_TIMEOUT_MS
+    ) {
       void addLandingLog("new_session");
     }
 
-    localStorage.setItem(TALENT_NETWORK_LAST_VISIT_AT_KEY, now.toString());
-  }, [addLandingLog, landingId]);
+    localStorage.setItem(TALENT_NETWORK_LAST_VISIT_AT_KEY, String(now));
+  }, [abtestType, addLandingLog, landingId]);
+
+  const resetInquiryForm = React.useCallback(() => {
+    setInquiryEmail("");
+    setInquiryContent("");
+  }, []);
+
+  const closeInquiryModal = React.useCallback(() => {
+    if (isInquirySubmitting) return;
+    setIsInquiryOpen(false);
+    resetInquiryForm();
+  }, [isInquirySubmitting, resetInquiryForm]);
+
+  const handleVariantOverride = React.useCallback(
+    (nextVariant: TalentNetworkAbtestType) => {
+      setAbtestType(nextVariant);
+      localStorage.setItem(TALENT_NETWORK_ABTEST_TYPE_KEY, nextVariant);
+    },
+    []
+  );
+
+  const openOnboarding = React.useCallback(
+    (eventType: string, role?: string) => {
+      void addLandingLog(eventType);
+      setSelectedOnboardingRole(role);
+      setIsOnboardingOpen(true);
+    },
+    [addLandingLog]
+  );
 
   useEffect(() => {
-    if (!landingId) return;
-
-    const handleScroll = () => {
-      if (hasLoggedFirstScrollRef.current || window.scrollY <= 0) return;
-
-      hasLoggedFirstScrollRef.current = true;
-      void addLandingLog("first_scroll_down");
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [addLandingLog, landingId]);
-
-  useEffect(() => {
-    if (!landingId || showPreloader) return;
-
-    const sectionElements: Array<{
-      key: NetworkSectionKey;
-      element: HTMLElement | null;
-    }> = [
-      { key: "hero", element: heroSectionRef.current },
-      { key: "social_proof", element: socialProofSectionRef.current },
-      { key: "opportunities", element: opportunitiesSectionRef.current },
-      { key: "faq", element: faqSectionRef.current },
-      { key: "footer", element: footerSectionRef.current },
-    ];
-
-    const observedSections = sectionElements.filter(
-      (
-        section
-      ): section is {
-        key: NetworkSectionKey;
-        element: HTMLElement;
-      } => section.element !== null
-    );
-
-    if (observedSections.length === 0) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const now = Date.now();
-
-        entries.forEach((entry) => {
-          const section = (entry.target as HTMLElement).dataset.section as
-            | NetworkSectionKey
-            | undefined;
-          if (!section) return;
-
-          const isVisible =
-            entry.isIntersecting &&
-            entry.intersectionRatio >= SECTION_VIEW_INTERSECTION_THRESHOLD;
-
-          if (!isVisible) return;
-
-          const lastLoggedAt = sectionLastLoggedAtRef.current[section] ?? 0;
-          if (now - lastLoggedAt < SECTION_VIEW_LOG_COOLDOWN_MS) return;
-
-          sectionLastLoggedAtRef.current[section] = now;
-          void addLandingLog(`view_section_network_${section}`);
-        });
-      },
-      {
-        root: null,
-        threshold: [0, SECTION_VIEW_INTERSECTION_THRESHOLD, 0.7],
-        rootMargin: "0px 0px -15% 0px",
-      }
-    );
-
-    observedSections.forEach(({ element }) => observer.observe(element));
-    return () => observer.disconnect();
-  }, [addLandingLog, landingId, showPreloader]);
-
-  useEffect(() => {
-    const isOverlayOpen = isOnboardingOpen || selectedRequest !== null;
+    const isOverlayOpen =
+      isOnboardingOpen || selectedRequest !== null || isInquiryOpen;
 
     if (!isOverlayOpen) return;
 
@@ -776,6 +845,11 @@ const NetworkPage = () => {
         return;
       }
 
+      if (isInquiryOpen) {
+        closeInquiryModal();
+        return;
+      }
+
       setSelectedRequest(null);
     };
 
@@ -786,7 +860,7 @@ const NetworkPage = () => {
       document.documentElement.style.overflow = previousHtmlOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOnboardingOpen, selectedRequest]);
+  }, [closeInquiryModal, isInquiryOpen, isOnboardingOpen, selectedRequest]);
 
   useEffect(() => {
     if (!copiedRequestId) return;
@@ -797,6 +871,41 @@ const NetworkPage = () => {
 
     return () => window.clearTimeout(timeout);
   }, [copiedRequestId]);
+
+  useEffect(() => {
+    if (!isMobile) {
+      setIsMobileHeaderVisible(true);
+      return;
+    }
+
+    lastScrollYRef.current = window.scrollY;
+
+    const handleScroll = () => {
+      const currentY = window.scrollY;
+      const delta = currentY - lastScrollYRef.current;
+
+      if (currentY <= 12) {
+        setIsMobileHeaderVisible(true);
+        lastScrollYRef.current = currentY;
+        return;
+      }
+
+      if (Math.abs(delta) < MOBILE_HEADER_SCROLL_DELTA_THRESHOLD) {
+        return;
+      }
+
+      if (delta > 0) {
+        setIsMobileHeaderVisible(false);
+      } else {
+        setIsMobileHeaderVisible(true);
+      }
+
+      lastScrollYRef.current = currentY;
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [isMobile]);
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -870,8 +979,7 @@ const NetworkPage = () => {
   }, [mobilePositionPage, pendingScrollRequestId, showPreloader]);
 
   const handleShareRequest = async (request: CompanyRequest) => {
-    void addLandingLog(`click_network_share_request_${request.id}`);
-
+    void addLandingLog(`talent_network_click_request_share:${request.id}`);
     try {
       const shareUrl = new URL(
         window.location.pathname,
@@ -891,6 +999,81 @@ const NetworkPage = () => {
         message: "링크 복사에 실패했습니다.",
         variant: "error",
       });
+    }
+  };
+
+  const handleSubmitInquiry = async () => {
+    const trimmedEmail = inquiryEmail.trim();
+    const trimmedContent = inquiryContent.trim();
+
+    if (isInquirySubmitting) return;
+
+    if (!trimmedEmail) {
+      showToast({
+        message: "이메일을 입력해 주세요.",
+        variant: "white",
+      });
+      return;
+    }
+
+    if (!isValidEmail(trimmedEmail)) {
+      showToast({
+        message: "올바른 이메일 형식으로 입력해 주세요.",
+        variant: "white",
+      });
+      return;
+    }
+
+    if (!trimmedContent) {
+      showToast({
+        message: "문의 내용을 입력해 주세요.",
+        variant: "white",
+      });
+      return;
+    }
+
+    setIsInquirySubmitting(true);
+    void addLandingLog("talent_network_click_inquiry_submit");
+
+    try {
+      const response = await fetch("/api/feedback/network", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: trimmedEmail,
+          content: trimmedContent,
+          pagePath:
+            typeof window !== "undefined"
+              ? window.location.pathname
+              : "/network",
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data?.error) {
+        throw new Error(data?.error ?? "문의 저장에 실패했습니다.");
+      }
+
+      setIsInquiryOpen(false);
+      resetInquiryForm();
+      showToast({
+        message: "문의가 접수되었습니다.",
+        variant: "white",
+      });
+    } catch (error) {
+      console.error("network inquiry submit failed:", error);
+      showToast({
+        message:
+          error instanceof Error
+            ? error.message
+            : "문의 접수 중 오류가 발생했습니다.",
+        variant: "error",
+      });
+    } finally {
+      setIsInquirySubmitting(false);
     }
   };
 
@@ -930,7 +1113,54 @@ const NetworkPage = () => {
           )}
         </AnimatePresence>
 
-        <nav className="fixed inset-x-0 top-0 z-50 bg-beige200 backdrop-blur-lg">
+        {/* <div className="fixed bottom-4 left-4 z-[170] rounded-xl border border-beige900/15 bg-beige200/95 p-3 shadow-[0_12px_30px_rgba(37,20,6,0.14)] backdrop-blur">
+          <div className="text-[11px] font-medium tracking-[0.14em] text-beige900/45">
+            AB Test Preview
+          </div>
+          <div className="mt-1 text-sm text-beige900/70">
+            Current:{" "}
+            <span className="font-semibold text-beige900">
+              {abtestType === TALENT_NETWORK_ABTEST_TYPE_B ? "B" : "A"}
+            </span>
+          </div>
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() =>
+                handleVariantOverride(TALENT_NETWORK_ABTEST_TYPE_A)
+              }
+              className={`inline-flex h-9 min-w-[40px] items-center justify-center rounded-lg border px-3 text-sm font-medium transition ${
+                abtestType === TALENT_NETWORK_ABTEST_TYPE_A
+                  ? "border-beige900 bg-beige900 text-beige100"
+                  : "border-beige900/15 bg-white/70 text-beige900/75 hover:bg-white"
+              }`}
+            >
+              A
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                handleVariantOverride(TALENT_NETWORK_ABTEST_TYPE_B)
+              }
+              className={`inline-flex h-9 min-w-[40px] items-center justify-center rounded-lg border px-3 text-sm font-medium transition ${
+                abtestType === TALENT_NETWORK_ABTEST_TYPE_B
+                  ? "border-beige900 bg-beige900 text-beige100"
+                  : "border-beige900/15 bg-white/70 text-beige900/75 hover:bg-white"
+              }`}
+            >
+              B
+            </button>
+          </div>
+        </div> */}
+
+        <motion.nav
+          initial={false}
+          animate={{
+            y: isMobile && !isMobileHeaderVisible ? -88 : 0,
+          }}
+          transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+          className="fixed inset-x-0 top-0 z-50 bg-beige200 backdrop-blur-lg"
+        >
           <div className="mx-auto flex h-[64px] max-w-[1160px] items-center justify-between px-4">
             <a
               href="#top"
@@ -943,21 +1173,17 @@ const NetworkPage = () => {
               size="sm"
               variant="secondary"
               showArrow={false}
-              onClick={() => openOnboarding("click_network_join_nav")}
+              onClick={() => openOnboarding("talent_network_click_nav_join")}
               className="inline-flex"
             />
           </div>
-        </nav>
+        </motion.nav>
 
         <main
           id="top"
           className="mx-auto flex max-w-[1160px] flex-col px-4 pb-24 pt-[72px] md:pt-[96px] "
         >
-          <section
-            ref={heroSectionRef}
-            data-section="hero"
-            className="py-10 text-center"
-          >
+          <section className="pt-10 text-center">
             <Reveal once delay={0.06} className="mx-auto mt-6 max-w-[900px]">
               <h2
                 className={`${titleTextClassName} text-beige900 text-4xl md:text-5xl`}
@@ -972,8 +1198,8 @@ const NetworkPage = () => {
               </h2>
             </Reveal>
 
-            <Reveal once delay={0.18} className="mt-8">
-              <div className="flex flex-col justify-center items-center text-lg tracking-[-0.03em] text-beige900/70">
+            <Reveal once delay={0.18}>
+              <div className="mt-8 flex flex-col justify-center items-center text-lg tracking-[-0.03em] text-beige900/70">
                 <div>
                   Direct backdoor to confidential AI unicorns backed by top-tier
                   Global VCs.
@@ -992,7 +1218,7 @@ const NetworkPage = () => {
               <NetworkButton
                 label="Initiate Match"
                 onClick={() =>
-                  openOnboarding("click_network_initiate_match_hero")
+                  openOnboarding("talent_network_click_hero_initiate_match")
                 }
               />
             </Reveal>
@@ -1007,44 +1233,38 @@ const NetworkPage = () => {
             </Reveal> */}
           </section>
 
-          <section
-            ref={socialProofSectionRef}
-            data-section="social_proof"
-            className="mt-2"
+          <Reveal
+            once
+            delay={0.08}
+            className="text-center justify-center items-center mt-8 mb-12"
           >
-            <Reveal
-              once
-              delay={0.08}
-              className="text-center justify-center items-center mb-12"
-            >
-              <div className="flex flex-row items-center justify-center gap-2">
-                <div className="relative items-baseline gap-1 font-normal flex">
-                  <div>100+ engineers and researchers From </div>
-                </div>
-                <div className="flex -space-x-2">
-                  {schoolLogos.map((school) => (
-                    <div
-                      key={school.name}
-                      className="h-10 w-10 rounded-full bg-beige500 border border-beige900/20"
-                    >
-                      <Image
-                        src={school.src}
-                        alt={school.name}
-                        className="rounded-full"
-                        width={42}
-                        height={42}
-                      />
-                    </div>
-                  ))}
-                </div>
+            <div className="flex flex-row items-center justify-center gap-2">
+              <div className="relative items-baseline gap-1 font-normal flex text-[15px] md:text-base">
+                <div>100+ engineers and researchers From </div>
               </div>
-              {/* <p className="mt-3 text-[17px] leading-[1.55] tracking-[-0.03em] text-beige900/55">
-                매칭을 위해 Active pool을 500명 이하로 관리 예정입니다.
-              </p> */}
-            </Reveal>
+              <div className="flex -space-x-2">
+                {schoolLogos.map((school) => (
+                  <div
+                    key={school.name}
+                    className="h-8 w-8 md:h-10 md:w-10 rounded-full bg-beige500 border border-beige900/20"
+                  >
+                    <Image
+                      src={school.src}
+                      alt={school.name}
+                      className="rounded-full"
+                      width={42}
+                      height={42}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* <p className="mt-3 text-[17px] leading-[1.55] tracking-[-0.03em] text-beige900/55">
+              매칭을 위해 Active pool을 500명 이하로 관리 예정입니다.
+            </p> */}
+          </Reveal>
 
-            <VCLogos />
-          </section>
+          <VCLogos abtestType={abtestType ?? "A"} />
 
           <section
             id="opportunities"
@@ -1061,7 +1281,9 @@ const NetworkPage = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      void addLandingLog("click_network_positions_prev_page");
+                      void addLandingLog(
+                        "talent_network_click_mobile_positions_prev"
+                      );
                       setMobilePositionPage((prev) => Math.max(prev - 1, 0));
                     }}
                     disabled={mobilePositionPage === 0}
@@ -1073,7 +1295,9 @@ const NetworkPage = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      void addLandingLog("click_network_positions_next_page");
+                      void addLandingLog(
+                        "talent_network_click_mobile_positions_next"
+                      );
                       setMobilePositionPage((prev) =>
                         Math.min(prev + 1, totalMobilePositionPages - 1)
                       );
@@ -1104,7 +1328,12 @@ const NetworkPage = () => {
                     containerRef={(node) => {
                       requestCardRefs.current[`mobile-${request.id}`] = node;
                     }}
-                    onClick={() => handleOpenRequest(request)}
+                    onClick={() => {
+                      void addLandingLog(
+                        `talent_network_click_request_card:${request.id}`
+                      );
+                      setSelectedRequest(request);
+                    }}
                   />
                 </Reveal>
               ))}
@@ -1124,62 +1353,64 @@ const NetworkPage = () => {
                     containerRef={(node) => {
                       requestCardRefs.current[`desktop-${request.id}`] = node;
                     }}
-                    onClick={() => handleOpenRequest(request)}
+                    onClick={() => {
+                      void addLandingLog(
+                        `talent_network_click_request_card:${request.id}`
+                      );
+                      setSelectedRequest(request);
+                    }}
                   />
                 </Reveal>
               ))}
             </div>
           </section>
 
-          <Reveal once className="text-center mt-24 md:mt-32">
-            <SectionTag>Our value</SectionTag>
+          {abtestType === TALENT_NETWORK_ABTEST_TYPE_B && (
+            <Reveal once className="text-center mt-24 md:mt-32">
+              <SectionTag>Our value</SectionTag>
 
-            <h2
-              className={`mx-auto mt-8 max-w-[860px] font-halant text-3xl md:text-4xl leading-[0.98] tracking-[-0.08em] text-beige900`}
-            >
-              Highly Curated
-            </h2>
-            {/* <p className="mx-auto mt-6 max-w-[680px] text-[20px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
-              Tell us who you need. We find, shortlist, and deliver candidates
-              you can review and interview right away.
-            </p> */}
+              <h2
+                className={`mx-auto mt-8 max-w-[860px] font-halant text-3xl md:text-4xl leading-[0.98] tracking-[-0.08em] text-beige900`}
+              >
+                Highly Curated
+              </h2>
+              {/* <p className="mx-auto mt-6 max-w-[680px] text-[20px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
+                Tell us who you need. We find, shortlist, and deliver candidates
+                you can review and interview right away.
+              </p> */}
 
-            <div className="mt-8 md:mt-16 flex flex-col md:flex-row gap-6 items-start justify-between">
-              {valueCards.map((item, index) => (
-                <Reveal
-                  key={item.number}
-                  once
-                  direction="right"
-                  delay={index * 0.08}
-                  className="w-full"
-                >
-                  <div className="grid grid-cols-[42px_1fr] gap-4 text-left">
-                    <div className="pt-1 font-geist text-2xl font-medium leading-none tracking-[-0.08em] text-beige900/60 max-[809px]:pt-2">
-                      {item.number}
-                    </div>
-                    <div>
-                      <div className="flex items-start gap-3 max-[809px]:flex-col-reverse max-[809px]:gap-2">
-                        <h3 className="text-xl font-medium leading-[1.12] tracking-[-0.05em] text-beige900 max-[809px]:mt-2">
-                          {item.title}
-                        </h3>
+              <div className="mt-8 md:mt-16 flex flex-col md:flex-row gap-6 items-start justify-between">
+                {valueCards.map((item, index) => (
+                  <Reveal
+                    key={item.number}
+                    once
+                    direction="right"
+                    delay={index * 0.08}
+                    className="w-full"
+                  >
+                    <div className="grid grid-cols-[42px_1fr] gap-4 text-left">
+                      <div className="pt-1 font-geist text-2xl font-medium leading-none tracking-[-0.08em] text-beige900/60 max-[809px]:pt-2">
+                        {item.number}
                       </div>
-                      <p
-                        className="mt-2 text-base md:text-[18px] leading-[1.5] tracking-[-0.03em] text-beige900/50"
-                        dangerouslySetInnerHTML={{ __html: item.description }}
-                      />
+                      <div>
+                        <div className="flex items-start gap-3 max-[809px]:flex-col-reverse max-[809px]:gap-2">
+                          <h3 className="text-xl font-medium leading-[1.12] tracking-[-0.05em] text-beige900 max-[809px]:mt-2">
+                            {item.title}
+                          </h3>
+                        </div>
+                        <p
+                          className="mt-2 text-base md:text-[18px] leading-[1.5] tracking-[-0.03em] text-beige900/50"
+                          dangerouslySetInnerHTML={{ __html: item.description }}
+                        />
+                      </div>
                     </div>
-                  </div>
-                </Reveal>
-              ))}
-            </div>
-          </Reveal>
+                  </Reveal>
+                ))}
+              </div>
+            </Reveal>
+          )}
 
-          <section
-            id="faq"
-            ref={faqSectionRef}
-            data-section="faq"
-            className="py-24 mt-0 md:mt-8"
-          >
+          <section id="faq" className="py-24">
             <Reveal once className="text-center">
               <SectionTag>FAQ</SectionTag>
             </Reveal>
@@ -1188,11 +1419,23 @@ const NetworkPage = () => {
               {faqs.map((faq, index) => {
                 const isOpen = openFaqIndex === index;
 
+                if (
+                  abtestType === TALENT_NETWORK_ABTEST_TYPE_A &&
+                  index === 0
+                ) {
+                  return null;
+                }
+
                 return (
                   <Reveal key={faq.question} once delay={index * 0.04}>
                     <motion.button
                       type="button"
-                      onClick={() => handleFaqToggle(index, isOpen)}
+                      onClick={() => {
+                        void addLandingLog(
+                          `talent_network_click_faq:${index + 1}`
+                        );
+                        setOpenFaqIndex(isOpen ? -1 : index);
+                      }}
                       aria-expanded={isOpen}
                       className="w-full rounded-[24px] bg-beige100 px-6 py-6 shadow-[0_14px_30px_rgba(66,38,10,0.06)]"
                     >
@@ -1239,6 +1482,19 @@ const NetworkPage = () => {
                 );
               })}
             </div>
+
+            <Reveal once delay={0.18} className="mt-8 pt-2 text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  void addLandingLog("talent_network_click_inquiry_open");
+                  setIsInquiryOpen(true);
+                }}
+                className="text-sm font-medium tracking-[-0.03em] text-beige900/75 underline underline-offset-4 transition hover:text-beige900 md:text-base"
+              >
+                문의하기
+              </button>
+            </Reveal>
           </section>
         </main>
         <div ref={footerSectionRef as any} data-section="footer">
@@ -1299,12 +1555,29 @@ const NetworkPage = () => {
                   : "공유하기"
               }
               onGetMatched={() => {
+                void addLandingLog(
+                  `talent_network_click_request_get_matched:${selectedRequest.id}`
+                );
                 setSelectedRequest(null);
                 openOnboarding(
-                  `click_network_get_matched_${selectedRequest.id}`,
+                  `talent_network_click_request_modal_open_onboarding:${selectedRequest.id}`,
                   selectedRequest.role
                 );
               }}
+            />
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {isInquiryOpen && (
+            <InquiryModal
+              email={inquiryEmail}
+              content={inquiryContent}
+              isSubmitting={isInquirySubmitting}
+              onClose={closeInquiryModal}
+              onSubmit={() => void handleSubmitInquiry()}
+              onEmailChange={setInquiryEmail}
+              onContentChange={setInquiryContent}
             />
           )}
         </AnimatePresence>
@@ -1319,7 +1592,10 @@ const NetworkPage = () => {
             >
               <button
                 type="button"
-                onClick={() => setIsOnboardingOpen(false)}
+                onClick={() => {
+                  void addLandingLog("talent_network_click_onboarding_close");
+                  setIsOnboardingOpen(false);
+                }}
                 className="fixed right-4 top-4 z-[150] inline-flex h-10 w-10 items-center justify-center rounded-md text-beige900 transition hover:bg-beige900/10 md:right-8 md:top-6"
                 aria-label="Close onboarding"
               >
@@ -1347,16 +1623,21 @@ const vcLogos = [
   { key: "besemmer2", src: "/svgs/bessemer.svg", width: 118 },
 ];
 
-function VCLogos() {
+function VCLogos({ abtestType }: { abtestType: string }) {
   const items = [...vcLogos];
 
   return (
-    <div className="relative w-[90%] mx-auto overflow-hidden mt-24">
+    <div className="relative w-[90%] mx-auto overflow-hidden mt-16">
       <Reveal once delay={0.08} className="w-full text-center">
         <div className="w-full text-center text-beige900 text-lg leading-[1.55] tracking-[-0.03em] font-medium">
           Partnering with <span className="text-beige900/50">AI companies</span>
           <br className="block md:hidden" /> funded by the world&apos;s elite.
         </div>
+        {abtestType === TALENT_NETWORK_ABTEST_TYPE_B && (
+          <div className="w-full text-center text-beige900 text-lg leading-[1.55] tracking-[-0.03em] font-medium mt-2">
+            It&apos;s worth joining even if you&apos;re not actively looking.
+          </div>
+        )}
       </Reveal>
       <Reveal once delay={0.14} className="w-full text-center">
         <div className="w-full flex-row items-center justify-center gap-16 hidden md:flex">

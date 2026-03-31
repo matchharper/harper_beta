@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Check, Minus, Pause, Plus, Square, X } from "lucide-react";
+import { Check, Minus, Pause, Plus, Square, Tag, X } from "lucide-react";
 import {
   CANDIDATE_MARK_OPTIONS,
   CandidateMarkIconKey,
@@ -89,10 +89,10 @@ export default function CandidateMarkButton({
       disabled={!userId || isPending}
       className={[
         "inline-flex flex-row gap-2 items-center justify-center rounded-md border transition-colors duration-200 disabled:opacity-60",
-        compact ? "py-1.5 px-2 text-sm" : "py-1.5 px-2 text-sm",
+        compact ? "py-2 px-2 text-sm" : "py-2 px-2 text-sm",
         meta
           ? `${meta.borderClassName} ${meta.bgClassName} ${meta.textClassName} hover:brightness-110`
-          : "border-white/10 bg-black/20 text-white/75 hover:bg-white/10 hover:text-white",
+          : "border-white/10 bg-black/20 text-hgray900 hover:bg-white/10 hover:text-white",
       ].join(" ")}
     >
       {meta ? (
@@ -101,7 +101,7 @@ export default function CandidateMarkButton({
           className={meta.shortLabel === "보류" ? "h-3 w-3" : "h-4 w-4"}
         />
       ) : (
-        <Plus className="h-4 w-4 my-0.5" strokeWidth={2} />
+        <Tag className="h-4 w-4 mx-0.5" strokeWidth={1.7} />
       )}
       {meta?.shortLabel}
     </button>

@@ -707,7 +707,7 @@ function CandidateProfileDetailPage({
             initialMemo={visibleShortlistMemo}
             initialMarkStatus={candidateMarkStatus}
             rows={4}
-            editorClassName="w-full min-h-[88px]"
+            editorClassName="min-h-[88px]"
             editorIsSmall={true}
           />
         </Box>

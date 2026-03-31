@@ -627,7 +627,7 @@ function CandidateRow({
       return (
         <div
           key={columnId}
-          className="px-0 py-0 min-w-0 h-full flex items-center"
+          className="px-2 py-0 min-w-0 h-full flex items-center"
         >
           {userId ? (
             <ShortlistMemoEditor
@@ -635,7 +635,6 @@ function CandidateRow({
               candidId={c.id}
               initialMemo={shortlistMemo}
               rows={2}
-              className="w-full"
             />
           ) : shortlistMemo ? (
             <div className="w-full whitespace-pre-wrap break-words px-2 py-2 text-[13px] leading-5 text-hgray900">
@@ -690,9 +689,9 @@ function CandidateRow({
                         <Image
                           src={getSearchSourceLogoPath(source)}
                           alt={getSearchSourceLabel(source)}
-                          width={12}
-                          height={12}
-                          className="object-contain"
+                          width={source === "github" ? 13 : 12}
+                          height={source === "github" ? 13 : 12}
+                          className="object-contain rounded-[2px]"
                         />
                       </span>
                     </Tooltips>
@@ -720,7 +719,7 @@ function CandidateRow({
                 />
               </div>
 
-              <div className="min-w-0 flex-1 self-start">
+              <div className="min-w-0 flex-1 self-center">
                 <div className="text-[14px] text-white font-normal truncate">
                   {c.name}
                 </div>
@@ -739,11 +738,6 @@ function CandidateRow({
                     "-"
                   )}
                 </div>
-                {/* {suitabilityScore !== null ? (
-                  <div className="mt-1 inline-flex items-center rounded-full border border-accenta1/20 bg-accenta1/10 px-2 py-0.5 text-[11px] font-normal text-accenta1">
-                    적합도 {suitabilityScore}
-                  </div>
-                ) : null} */}
               </div>
               <div
                 className="px-2 absolute right-1 flex items-center justify-end"

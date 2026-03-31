@@ -194,7 +194,7 @@ export default function SharedFolderCandidatePage() {
                   initialMemo={ownerShortlistMemo}
                   initialMarkStatus={ownerCandidateMarkStatus}
                   showMarkButton={Boolean(ownerCandidateMarkStatus)}
-                  editorClassName="w-full min-h-[88px]"
+                  editorClassName="min-h-[88px]"
                 />
               </Box>
             </div>

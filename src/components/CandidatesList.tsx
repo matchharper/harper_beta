@@ -328,9 +328,9 @@ function CandidateCard({
                                 <Image
                                   src={getSearchSourceLogoPath(source)}
                                   alt={getSearchSourceLabel(source)}
-                                  width={source === "github" ? 16 : 15}
-                                  height={source === "github" ? 16 : 15}
-                                  className="object-contain"
+                                  width={source === "github" ? 17 : 15}
+                                  height={source === "github" ? 17 : 15}
+                                  className="object-contain rounded-[2px]"
                                 />
                               </span>
                             </Tooltips>
@@ -519,7 +519,6 @@ function CandidateCard({
                     showMarkAction && Boolean(userId || candidateMarkStatus)
                   }
                   rows={4}
-                  editorClassName="w-full"
                 />
               </div>
             ) : null}
@@ -534,14 +533,6 @@ function CandidateCard({
               e.stopPropagation();
             }}
           >
-            {shouldShowCornerMark ? (
-              <CandidateMarkButton
-                userId={userId}
-                candidId={c.id}
-                initialStatus={candidateMarkStatus}
-                onChange={onMarkChange}
-              />
-            ) : null}
             {showBookmarkAction && userId ? (
               <div
                 className={`${
@@ -561,7 +552,7 @@ function CandidateCard({
         ) : null}
       </Link>
 
-      {sharedFolderContext?.token ? (
+      {sharedFolderContext?.token && (
         <div className="w-full shrink-0 xl:w-[420px]">
           <SharedFolderCandidateNotes
             token={sharedFolderContext.token}
@@ -571,7 +562,7 @@ function CandidateCard({
             variant="sidecar"
           />
         </div>
-      ) : null}
+      )}
     </div>
   );
 }
