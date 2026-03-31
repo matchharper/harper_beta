@@ -1,23 +1,24 @@
-import type { GithubRepoContributionRow } from "@/hooks/useCandidateDetail";
+import type { GithubContributionWithRepo } from "@/hooks/useCandidateDetail";
 import React from "react";
-import { Book, Users, Star, GitFork } from "lucide-react";
+import { Book, Star, GitFork } from "lucide-react";
 import { Tooltips } from "../ui/tooltip";
+import { useRepoModalStore } from "@/store/useRepoModalStore";
 
 const numberFormatter = new Intl.NumberFormat("en-US");
 
-const normalizeRepoLabel = (repo: string) => {
-  const cleaned = repo
+const normalizeRepoLabel = (repoFullName: string) => {
+  const cleaned = repoFullName
     .replace(/^https?:\/\/(www\.)?github\.com\//, "")
     .replace(/^github\.com\//, "")
     .replace(/\/+$/, "");
-  return cleaned || repo;
+  return cleaned || repoFullName;
 };
 
-const normalizeRepoUrl = (repo: string) => {
-  if (!repo) return "";
-  if (repo.startsWith("http://") || repo.startsWith("https://")) return repo;
-  if (repo.startsWith("github.com/")) return `https://${repo}`;
-  return `https://github.com/${repo.replace(/^\/+/, "")}`;
+const normalizeRepoUrl = (repoFullName: string) => {
+  if (!repoFullName) return "";
+  if (repoFullName.startsWith("http://") || repoFullName.startsWith("https://")) return repoFullName;
+  if (repoFullName.startsWith("github.com/")) return `https://${repoFullName}`;
+  return `https://github.com/${repoFullName.replace(/^\/+/, "")}`;
 };
 
 const formatNumber = (value?: number | null) => {
@@ -26,17 +27,8 @@ const formatNumber = (value?: number | null) => {
 };
 
 // Some datasets don't use `role` exactly. Try common fallbacks.
-const pickRoleText = (contribution: GithubRepoContributionRow) => {
-  const anyC = contribution as any;
-  const raw =
-    contribution.role ??
-    anyC.repo_role ??
-    anyC.contribution_role ??
-    anyC.github_role ??
-    anyC.permission ??
-    anyC.access ??
-    null;
-
+const pickRoleText = (contribution: GithubContributionWithRepo) => {
+  const raw = contribution.role ?? null;
   const text = typeof raw === "string" ? raw.trim() : "";
   return text || "Contributor";
 };
@@ -150,8 +142,10 @@ const LanguagePill = ({ name, pct }: { name: string; pct: number }) => {
 const GithubRepoContributionBox = ({
   contribution,
 }: {
-  contribution?: GithubRepoContributionRow | null;
+  contribution?: GithubContributionWithRepo | null;
 }) => {
+  const { handleOpenRepo } = useRepoModalStore();
+
   if (!contribution) {
     return (
       <div className="border border-hgray1000/10 bg-white/5 px-4 py-3 text-sm text-hgray700">
@@ -160,19 +154,35 @@ const GithubRepoContributionBox = ({
     );
   }
 
-  const repoLabel = normalizeRepoLabel(contribution.repo ?? "");
-  const repoUrl = normalizeRepoUrl(contribution.repo ?? "");
+  const repo = contribution.github_repo;
+  const repoFullName = repo?.repo_full_name ?? "";
+  const repoLabel = normalizeRepoLabel(repoFullName);
+  const repoUrl = normalizeRepoUrl(repoFullName);
   const roleText = pickRoleText(contribution);
 
-  // ✅ languages can be {Python:90.1, Rust:9.9}
-  const topLangs = getTopLanguages((contribution as any).languages, 3);
+  // Use github_repo for repo details, fall back to contribution-level data
+  const topLangs = getTopLanguages(repo?.languages, 3);
+  const stars = repo?.stars ?? null;
+  const forks = repo?.forks ?? null;
+  const description = repo?.description ?? repo?.readme_excerpt ?? "";
+
+  const handleClick = () => {
+    if (contribution.repo_id) {
+      handleOpenRepo({
+        repoId: contribution.repo_id,
+        repoFullName: repoLabel,
+      }).catch(() => {});
+      return;
+    }
+    // Fallback: no repo_id, open GitHub link
+    if (repoUrl) {
+      window.open(repoUrl, "_blank");
+    }
+  };
 
   return (
     <div
-      onClick={() => {
-        if (!repoUrl) return;
-        window.open(repoUrl, "_blank");
-      }}
+      onClick={handleClick}
       className="bg-white/[0.02] px-4 py-3 rounded-md hover:bg-white/5 cursor-pointer transition-colors"
     >
       {/* Top row */}
@@ -185,23 +195,23 @@ const GithubRepoContributionBox = ({
           />
           <div className="min-w-0">
             <div className="block max-w-full truncate text-[15px] font-normal text-blue-500 hover:underline">
-              {repoLabel}
+              {repoLabel || "Unknown repo"}
             </div>
           </div>
         </div>
 
-        {/* Public 자리 -> Role */}
+        {/* Role badge */}
         <div className="shrink-0">
           <Badge text={roleText} />
         </div>
       </div>
 
       <div className="mt-1 text-sm text-hgray700 line-clamp-1">
-        {contribution.description || "[No description]"}
+        {description || "[No description]"}
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-        {/* ✅ Language chips */}
+        {/* Language chips */}
         {topLangs.length > 0 ? (
           <div className="flex flex-row flex-wrap items-center gap-2 mr-1">
             {topLangs.map((l) => (
@@ -213,29 +223,22 @@ const GithubRepoContributionBox = ({
         <Metric
           icon={<Star size={16} className="text-yellow-300" />}
           label="Stars"
-          value={formatNumber(contribution.stars)}
+          value={formatNumber(stars)}
         />
         <Metric
           icon={<GitFork size={16} />}
           label="Forks"
-          value={formatNumber(contribution.forks)}
+          value={formatNumber(forks)}
         />
-        {Number(formatNumber(contribution.contributors)) > 0 && (
-          <Metric
-            icon={<Users size={14} />}
-            label="Contributors"
-            value={formatNumber(contribution.contributors)}
-          />
-        )}
       </div>
 
-      {/* Bottom metrics row (inside box) */}
+      {/* Bottom metrics row */}
       <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-2 text-sm font-normal text-hgray900">
         <div>활동 : </div>
-        {Number(formatNumber(contribution.commits)) > 0 && (
+        {(contribution.commits ?? 0) > 0 && (
           <div>{formatNumber(contribution.commits)} Commits</div>
         )}
-        {Number(formatNumber(contribution.merged_prs)) > 0 && (
+        {(contribution.merged_prs ?? 0) > 0 && (
           <div>{formatNumber(contribution.merged_prs)} PRs</div>
         )}
       </div>

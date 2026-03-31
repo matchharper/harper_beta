@@ -11,6 +11,7 @@ type ProfileBioProps = {
   oneline?: string;
   isLoadingOneline: boolean;
   onToggleMore?: (nextOpen: boolean) => void;
+  profileRevealed?: boolean;
 };
 
 export function sanitizeProfileLine(raw: string) {
@@ -27,6 +28,7 @@ const ProfileBio = ({
   oneline = "",
   isLoadingOneline,
   onToggleMore,
+  profileRevealed = true,
 }: ProfileBioProps) => {
   const [isBioOpen, setIsBioOpen] = useState(false);
   const { m } = useMessages();
@@ -38,7 +40,7 @@ const ProfileBio = ({
     return "";
   }, [summary, oneline, name]);
 
-  const hasBio = Boolean(bio?.trim());
+  const hasBio = Boolean(bio?.trim()) && profileRevealed;
 
   return (
     <div className="pb-4">
@@ -69,6 +71,10 @@ const ProfileBio = ({
           {displayLine ? (
             <div className="whitespace-pre-wrap leading-relaxed text-[15px] break-words">
               {displayLine}
+            </div>
+          ) : !profileRevealed ? (
+            <div className="whitespace-pre-wrap leading-relaxed text-[15px] break-words text-hgray700">
+              열람 후 확인할 수 있습니다.
             </div>
           ) : isLoadingOneline ? (
             <div className="flex flex-row items-center gap-1">

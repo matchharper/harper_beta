@@ -2,6 +2,7 @@ import { locationEnToKo } from "@/utils/language_map";
 import { useRouter } from "next/router";
 import React, { useState } from "react";
 import ConfirmModal from "./Modal/ConfirmModal";
+import { Lock } from "lucide-react";
 
 const NameProfile = ({
   id,
@@ -34,10 +35,10 @@ const NameProfile = ({
         open={isRevealConfirmModalOpen}
         onClose={() => setIsRevealConfirmModalOpen(false)}
         onConfirm={() => handleReveal()}
-        title="Are you sure you want to reveal this profile?"
-        description="This action cannot be undone."
-        confirmLabel="Reveal"
-        cancelLabel="Cancel"
+        title="이 프로필을 열람할까요?"
+        description="이 작업은 되돌릴 수 없습니다."
+        confirmLabel="열람"
+        cancelLabel="취소"
       />
       <div
         onClick={() => router.push(`/my/p/${id}`)}
@@ -92,44 +93,60 @@ export function Avatar({
   url,
   name,
   size = "md",
+  className = "",
+  isProfileRevealed = true,
 }: {
   url?: string | null;
   name?: string | null;
   size?: "sm" | "md" | "lg";
+  className?: string;
+  isProfileRevealed?: boolean;
 }) {
   const sizeClass = SIZE_CLASS[size];
 
-  if (url?.includes("media.licdn.com")) {
-    return (
+  const image = () => {
+    if (url?.includes("media.licdn.com")) {
+      return (
+        <div
+          className={`${sizeClass} rounded-full bg-neutral-200 text-neutral-700 flex items-center justify-center font-semibold ring-1 ring-black/10 ${className}`}
+        >
+          {initials(name)}
+        </div>
+      );
+    }
+    if (url?.includes("https://scholar.google")) {
+      return (
+        <img
+          src="/images/scholar_profile.png"
+          alt={name ?? "profile"}
+          className={`${sizeClass} rounded-full object-cover ring-1 ring-black/10 ${className}`}
+        />
+      );
+    }
+
+    return url ? (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={url}
+        alt={name ?? "profile"}
+        className={`${sizeClass} rounded-full object-cover ring-1 ring-black/10 ${className}`}
+      />
+    ) : (
       <div
-        className={`${sizeClass} rounded-full bg-neutral-200 text-neutral-700 flex items-center justify-center font-semibold ring-1 ring-black/10`}
+        className={`${sizeClass} rounded-full bg-neutral-200 text-neutral-700 flex items-center justify-center font-semibold ring-1 ring-black/10 ${className}`}
       >
         {initials(name)}
       </div>
     );
-  }
-  if (url?.includes("https://scholar.google")) {
-    return (
-      <img
-        src="/images/scholar_profile.png"
-        alt={name ?? "profile"}
-        className={`${sizeClass} rounded-full object-cover ring-1 ring-black/10`}
-      />
-    );
-  }
-
-  return url ? (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={url}
-      alt={name ?? "profile"}
-      className={`${sizeClass} rounded-full object-cover ring-1 ring-black/10`}
-    />
-  ) : (
-    <div
-      className={`${sizeClass} rounded-full bg-neutral-200 text-neutral-700 flex items-center justify-center font-semibold ring-1 ring-black/10`}
-    >
-      {initials(name)}
+  };
+  return (
+    <div className="relative">
+      {image()}
+      {isProfileRevealed ? null : (
+        <div className="flex items-center justify-center absolute w-full h-full top-0 left-0 bg-white/10 z-10 backdrop-blur-md rounded-full">
+          <Lock className="w-4 h-4 text-black/90" />
+        </div>
+      )}
     </div>
   );
 }

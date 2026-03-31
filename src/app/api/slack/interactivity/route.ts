@@ -86,7 +86,9 @@ export async function POST(req: NextRequest) {
     const actionValue = JSON.parse(String(action.value ?? "{}")) as {
       email?: string;
     };
-    const email = String(actionValue?.email ?? "").trim().toLowerCase();
+    const email = String(actionValue?.email ?? "")
+      .trim()
+      .toLowerCase();
     if (!email) {
       throw new Error("Missing request email");
     }

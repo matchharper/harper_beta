@@ -1,8 +1,5 @@
 export type GithubProfilePreview = {
-  githubProfileId: string;
-  githubUsername: string | null;
   name: string | null;
-  bio: string | null;
   company: string | null;
   location: string | null;
   followers: number;

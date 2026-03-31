@@ -7,6 +7,10 @@ import {
   getSupabaseAdmin,
   loadFolderShareByToken,
 } from "../_shared";
+import {
+  applyListRevealState,
+  fetchRevealMapForUser,
+} from "@/lib/server/candidateAccess";
 
 export const runtime = "nodejs";
 
@@ -145,6 +149,11 @@ export async function GET(req: Request) {
         share!.created_by,
         ids
       );
+    const revealMap = await fetchRevealMapForUser(
+      supabaseAdmin as any,
+      share!.created_by,
+      ids
+    );
     const { data: noteRows, error: noteError } = await (
       supabaseAdmin.from("bookmark_folder_share_note" as any) as any
     )
@@ -186,12 +195,22 @@ export async function GET(req: Request) {
       .map((id: any) => {
         const candidate = candidateById.get(id);
         if (!candidate) return null;
+        const isRevealed = revealMap.get(id) === true;
         return {
-          ...candidate,
+          ...applyListRevealState(
+            {
+              ...candidate,
+              scholar_profile_preview: scholarPreviewByCandidateId.get(id) ?? null,
+              candidate_mark: isRevealed
+                ? ownerCandidateMarkByCandidateId.get(id) ?? null
+                : null,
+              shortlist_memo: isRevealed
+                ? ownerShortlistMemoByCandidateId.get(id) ?? ""
+                : "",
+            },
+            isRevealed
+          ),
           connection: [],
-          candidate_mark: ownerCandidateMarkByCandidateId.get(id) ?? null,
-          scholar_profile_preview: scholarPreviewByCandidateId.get(id) ?? null,
-          shortlist_memo: ownerShortlistMemoByCandidateId.get(id) ?? "",
           shared_folder_notes: notesByCandidateId.get(id) ?? [],
         };
       })

@@ -69,6 +69,8 @@ export type CandidateTypeWithConnection = CandidateType & {
   search_rank?: SearchRank | null;
   candidate_mark?: CandidateMarkRecord | null;
   shared_folder_notes?: SharedFolderCandidateNote[];
+  profile_revealed?: boolean | null;
+  masked_experience_count?: number | null;
 };
 
 type SearchSettingsSnapshot = {
@@ -100,7 +102,7 @@ function extractUiJsonFromMessage(content: string): any | null {
  * 서버가 run/page별로 검색 id를 관리하는 전제:
  * POST /api/search
  * body: { queryId, runId, pageIdx }
- * resp: { results: string[], isNewSearch?: boolean }
+ * resp: { results: string[] }
  */
 async function fetchSearchIds(params: { runId: string; pageIdx: number }) {
   const { runId, pageIdx } = params;
@@ -131,7 +133,6 @@ async function fetchSearchIds(params: { runId: string; pageIdx: number }) {
     ids,
     evidenceByCandidateId,
     rankByCandidateId,
-    isNewSearch: false,
   };
 }
 
@@ -323,7 +324,7 @@ async function fetchGithubPreviewByCandidateIds(ids: string[]) {
   const { data: profiles, error: profileError } = await supabase
     .from("github_profile")
     .select(
-      "id, candid_id, github_username, name, bio, company, location, followers, public_repos"
+      "id, candid_id, name, company, location, followers, public_repos"
     )
     .in("candid_id", ids);
 
@@ -332,9 +333,7 @@ async function fetchGithubPreviewByCandidateIds(ids: string[]) {
   const profileRows = ((Array.isArray(profiles) ? profiles : []) as unknown) as Array<{
     id: string;
     candid_id: string | null;
-    github_username: string | null;
     name: string | null;
-    bio: string | null;
     company: string | null;
     location: string | null;
     followers: number | null;
@@ -401,10 +400,7 @@ async function fetchGithubPreviewByCandidateIds(ids: string[]) {
         return [
           row.candid_id as string,
           {
-            githubProfileId: row.id,
-            githubUsername: row.github_username,
             name: row.name,
-            bio: row.bio,
             company: row.company,
             location: row.location,
             followers: row.followers ?? 0,
@@ -582,14 +578,13 @@ export function useChatSearchCandidates(
     queryFn: async ({ pageParam }) => {
       const pageIdx = pageParam as number;
 
-      const { ids, isNewSearch, evidenceByCandidateId, rankByCandidateId } =
+      const { ids, evidenceByCandidateId, rankByCandidateId } =
         await fetchSearchIds({
           runId: runId!,
           pageIdx,
         });
 
       if (ids?.length) {
-        if (isNewSearch) await deduct(1);
         const items = await fetchCandidatesByIds(
           ids,
           userId!,
@@ -597,10 +592,10 @@ export function useChatSearchCandidates(
           evidenceByCandidateId,
           rankByCandidateId
         );
-        return { pageIdx, ids, items, isNewSearch };
+        return { pageIdx, ids, items };
       }
 
-      return { pageIdx, ids: [], items: [], isNewSearch };
+      return { pageIdx, ids: [], items: [] };
     },
     getNextPageParam: (lastPage) => {
       if (!lastPage.ids?.length) return undefined;
@@ -659,7 +654,4 @@ export function useChatSearchCandidates(
     ...infinite,
     runSearch,
   };
-}
-function deduct(arg0: number) {
-  throw new Error("Function not implemented.");
 }

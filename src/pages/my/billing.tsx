@@ -56,7 +56,6 @@ type SubscriptionInfo = {
   graceEndsAt: string | null;
   cardCompany: string | null;
   cardNumberMasked: string | null;
-  lsSubscriptionId: string | null;
 };
 
 type TossCheckoutPreview = {
@@ -188,16 +187,8 @@ function isDowngradeSelection(args: {
   return planDowngrade || billingDowngrade;
 }
 
-function inferProvider(
-  value?: string | null,
-  legacySubscriptionId?: string | null
-) {
-  if (value === "toss" || value === "polar" || value === "lemonsqueezy") {
-    return value;
-  }
-  if (legacySubscriptionId) {
-    return "polar" as const;
-  }
+function inferProvider(value?: string | null) {
+  if (value === "toss") return value;
   return null;
 }
 
@@ -257,6 +248,7 @@ const Billing = () => {
         ? "월간"
         : "주기 정보 없음";
   const canCancelSubscription =
+    currentProvider === "toss" &&
     !!subscription &&
     subscription.planKey !== "free" &&
     !subscription.cancelAtPeriodEnd &&
@@ -458,90 +450,6 @@ const Billing = () => {
     }
   };
 
-  const startLegacyCheckout = async (args: {
-    planKey: "pro" | "max";
-    billing: BillingPeriod;
-    allowSubscriptionSwitch: boolean;
-  }) => {
-    if (!companyUser?.user_id) {
-      showToast({
-        message: "로그인 정보를 확인할 수 없습니다.",
-        variant: "white",
-      });
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      if (currentProvider === "polar" && args.allowSubscriptionSwitch) {
-        const res = await fetch("/api/polar/change-plan", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId: companyUser.user_id,
-            planKey: args.planKey,
-            billing: args.billing,
-          }),
-        });
-
-        const payload = await res.json().catch(() => null);
-        if (!res.ok) {
-          showToast({
-            message:
-              typeof payload?.error === "string"
-                ? payload.error
-                : "기존 구독 플랜 변경에 실패했습니다.",
-            variant: "white",
-          });
-          return;
-        }
-
-        showToast({
-          message: "기존 구독 플랜 변경이 완료되었습니다.",
-          variant: "white",
-        });
-        void refetchCredits();
-        void router.replace("/my/billing?checkout_synced=1", undefined, {
-          shallow: true,
-        });
-        return;
-      }
-
-      const res = await fetch("/api/polar/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: companyUser.user_id,
-          planKey: args.planKey,
-          billing: args.billing,
-          allowSubscriptionSwitch: args.allowSubscriptionSwitch,
-        }),
-      });
-
-      const payload = await res.json().catch(() => null);
-      if (!res.ok || typeof payload?.url !== "string") {
-        showToast({
-          message:
-            typeof payload?.error === "string"
-              ? payload.error
-              : "기존 결제 세션 생성에 실패했습니다.",
-          variant: "white",
-        });
-        return;
-      }
-
-      window.location.href = payload.url;
-    } catch (error) {
-      console.error("Failed to start legacy checkout:", error);
-      showToast({
-        message: "기존 결제 요청 중 오류가 발생했습니다.",
-        variant: "white",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const requestTossPlanChange = async (args: {
     planKey: "pro" | "max";
     billing: BillingPeriod;
@@ -647,6 +555,15 @@ const Billing = () => {
     }
 
     if (!subscription || subscription.planKey === "free" || !currentProvider) {
+      if (subscription && subscription.planKey !== "free" && !currentProvider) {
+        showToast({
+          message:
+            "기존 구독은 더 이상 자동 변경할 수 없습니다. 관리자에게 문의해주세요.",
+          variant: "white",
+        });
+        return;
+      }
+
       await prepareTossCheckout({
         planKey,
         planName,
@@ -673,12 +590,6 @@ const Billing = () => {
       });
       return;
     }
-
-    await startLegacyCheckout({
-      planKey,
-      billing,
-      allowSubscriptionSwitch: Boolean(options?.allowSubscriptionSwitch),
-    });
   };
 
   const requestSubscriptionCancel = async () => {
@@ -700,13 +611,7 @@ const Billing = () => {
 
     setIsCanceling(true);
     try {
-      const cancelEndpoint =
-        currentProvider === "toss"
-          ? "/api/toss/subscriptions/cancel"
-          : currentProvider === "lemonsqueezy"
-            ? "/api/lemonsqueezy/cancel"
-            : "/api/polar/cancel";
-      const res = await fetch(cancelEndpoint, {
+      const res = await fetch("/api/toss/subscriptions/cancel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1044,7 +949,6 @@ const Billing = () => {
             grace_ends_at,
             card_company,
             card_number_masked,
-            ls_subscription_id,
             plans (
               plan_id,
               name,
@@ -1100,7 +1004,6 @@ const Billing = () => {
           graceEndsAt: null,
           cardCompany: null,
           cardNumberMasked: null,
-          lsSubscriptionId: null,
         });
         setIsSubscriptionLoading(false);
         return;
@@ -1122,10 +1025,7 @@ const Billing = () => {
                 start: activePayment.current_period_start ?? null,
                 end: activePayment.current_period_end ?? null,
               });
-      const provider = inferProvider(
-        (activePayment as any)?.provider ?? null,
-        (activePayment as any)?.ls_subscription_id ?? null
-      );
+      const provider = inferProvider((activePayment as any)?.provider ?? null);
       const planKey = inferPlanKey({
         planLabel: planName,
         planId: activePayment.plan_id ?? null,
@@ -1148,7 +1048,6 @@ const Billing = () => {
         graceEndsAt: (activePayment as any)?.grace_ends_at ?? null,
         cardCompany: (activePayment as any)?.card_company ?? null,
         cardNumberMasked: (activePayment as any)?.card_number_masked ?? null,
-        lsSubscriptionId: (activePayment as any)?.ls_subscription_id ?? null,
       });
       setIsSubscriptionLoading(false);
     }
@@ -1336,7 +1235,7 @@ const Billing = () => {
                     <div className="w-full flex flex-row items-center justify-end h-full mb-2">
                       <div className="w-[30%] flex flex-col items-start justify-end">
                         <div className="flex flex-row items-start justify-start gap-2 text-hgray900 text-sm font-normal">
-                          이번 달 남은 검색 횟수
+                          이번 달 남은 열람 횟수
                           <span className="text-accenta1">
                             {credits?.remain_credit}
                           </span>

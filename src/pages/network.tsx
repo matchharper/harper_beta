@@ -1,6 +1,15 @@
 import Reveal from "@/components/landing/Animation/Reveal";
 import StaggerText from "@/components/landing/Animation/StaggerText";
 import { showToast } from "@/components/toast/toast";
+import { useCountryLang } from "@/hooks/useCountryLang";
+import { useIsMobile } from "@/hooks/useIsMobile";
+import {
+  TALENT_NETWORK_LAST_VISIT_AT_KEY,
+  TALENT_NETWORK_LOCAL_ID_KEY,
+  TALENT_NETWORK_LOG_ABTEST_TYPE,
+  createTalentNetworkLocalId,
+} from "@/lib/talentNetwork";
+import { supabase } from "@/lib/supabase";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowUpRight,
@@ -700,6 +709,8 @@ const NetworkPage = () => {
     null
   );
   const opportunitiesSectionRef = useRef<HTMLElement | null>(null);
+  const faqSectionRef = useRef<HTMLElement | null>(null);
+  const footerSectionRef = useRef<HTMLElement | null>(null);
   const requestCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const lastScrollYRef = useRef(0);
   const totalMobilePositionPages = Math.ceil(
@@ -1267,6 +1278,7 @@ const NetworkPage = () => {
           <section
             id="opportunities"
             ref={opportunitiesSectionRef}
+            data-section="opportunities"
             className="mt-32 scroll-mt-24"
           >
             <Reveal once>
@@ -1468,7 +1480,7 @@ const NetworkPage = () => {
                             className="overflow-hidden"
                           >
                             <p
-                              className="max-w-[720px] text-left text-sm md:text-[15px] leading-[1.6] tracking-[-0.01em] text-beige900/70"
+                              className="w-full text-left text-sm md:text-[15px] leading-[1.6] tracking-[-0.01em] text-beige900/70"
                               dangerouslySetInnerHTML={{ __html: faq.answer }}
                             />
                           </motion.div>
@@ -1494,49 +1506,51 @@ const NetworkPage = () => {
             </Reveal>
           </section>
         </main>
-        <br />
-        <br />
-        <br />
-        <br />
-        <Reveal once delay={0.24} className="w-full">
-          <div className="flex items-center justify-center w-full mt-20 mb-4">
-            <Image
-              src="/images/objects.png"
-              alt="objects"
-              width={256}
-              height={256}
-              className="w-44 sm:w-52 md:w-64"
-            />
-          </div>
-        </Reveal>
+        <div ref={footerSectionRef as any} data-section="footer">
+          <br />
+          <br />
+          <br />
+          <br />
+          <Reveal once delay={0.24} className="w-full">
+            <div className="flex items-center justify-center w-full mt-20 mb-4">
+              <Image
+                src="/images/objects.png"
+                alt="objects"
+                width={256}
+                height={256}
+                className="w-44 sm:w-52 md:w-64"
+              />
+            </div>
+          </Reveal>
 
-        <footer className="border-t border-beige900/10 py-8">
-          <div className="mx-auto flex max-w-[1160px] flex-col items-center justify-between gap-4 px-4 tracking-[-0.03em] text-beige900/60 md:flex-row">
-            <div className="font-halant text-[28px] tracking-[-0.06em] text-beige900">
-              Harper
+          <footer className="border-t border-beige900/10 py-8">
+            <div className="mx-auto flex max-w-[1160px] flex-col items-center justify-between gap-4 px-4 tracking-[-0.03em] text-beige900/60 md:flex-row">
+              <div className="font-halant text-[28px] tracking-[-0.06em] text-beige900">
+                Harper
+              </div>
+              <div className="flex items-center gap-4 text-base">
+                <Link
+                  href="/terms"
+                  className="cursor-pointer transition hover:text-beige900"
+                >
+                  Terms
+                </Link>
+                <Link
+                  href="/privacy"
+                  className="cursor-pointer transition hover:text-beige900"
+                >
+                  Privacy
+                </Link>
+                <Link
+                  href="https://www.linkedin.com/company/matchharper/"
+                  className="cursor-pointer transition hover:text-beige900"
+                >
+                  LinkedIn
+                </Link>
+              </div>
             </div>
-            <div className="flex items-center gap-4 text-base">
-              <Link
-                href="/terms"
-                className="cursor-pointer transition hover:text-beige900"
-              >
-                Terms
-              </Link>
-              <Link
-                href="/privacy"
-                className="cursor-pointer transition hover:text-beige900"
-              >
-                Privacy
-              </Link>
-              <Link
-                href="https://www.linkedin.com/company/matchharper/"
-                className="cursor-pointer transition hover:text-beige900"
-              >
-                LinkedIn
-              </Link>
-            </div>
-          </div>
-        </footer>
+          </footer>
+        </div>
 
         <AnimatePresence>
           {selectedRequest && (
@@ -1625,8 +1639,7 @@ function VCLogos({ abtestType }: { abtestType: string }) {
     <div className="relative w-[90%] mx-auto overflow-hidden mt-16">
       <Reveal once delay={0.08} className="w-full text-center">
         <div className="w-full text-center text-beige900 text-lg leading-[1.55] tracking-[-0.03em] font-medium">
-          Partnering with{" "}
-          <span className="text-beige900/50">Global AI companies</span>
+          Partnering with <span className="text-beige900/50">AI companies</span>
           <br className="block md:hidden" /> funded by the world&apos;s elite.
         </div>
         {abtestType === TALENT_NETWORK_ABTEST_TYPE_B && (

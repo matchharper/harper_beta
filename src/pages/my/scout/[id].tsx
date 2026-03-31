@@ -6,7 +6,6 @@ import { supabase } from "@/lib/supabase";
 import { showToast } from "@/components/toast/toast";
 import { notifyToSlack } from "@/lib/slack";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
-import { useCredits } from "@/hooks/useCredit";
 import type { Database } from "@/types/database.types";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/router";
@@ -40,7 +39,6 @@ export default function AutomationDetailPage() {
   const router = useRouter();
   const qc = useQueryClient();
   const { companyUser } = useCompanyUserStore();
-  const { credits } = useCredits();
   const { m } = useMessages();
   const userId = companyUser?.user_id;
   const draftCreatedRef = useRef(false);
@@ -309,13 +307,6 @@ export default function AutomationDetailPage() {
     if (!automationId || !userId) return;
     const now = new Date().toISOString();
     let titleToSave = normalizeAutomationTitle(automation?.title);
-    if (credits && credits.remain_credit <= 3) {
-      showToast({
-        message: "이번 달 남은 월 검색 한도가 부족합니다.",
-        variant: "white",
-      });
-      return;
-    }
     try {
       const activeCount = await fetchActiveAutomationCount(automationId);
       if (activeCount >= MAX_ACTIVE_AUTOMATIONS) {
@@ -391,7 +382,6 @@ export default function AutomationDetailPage() {
     fetchActiveAutomationCount,
     generateAutomationTitle,
     isDraft,
-    credits,
     m.scout.limitMessage,
     m.scout.checkAutomationFail,
   ]);
@@ -434,13 +424,6 @@ export default function AutomationDetailPage() {
 
   const handleResume = useCallback(async () => {
     if (!automationId) return;
-    if (credits && credits.remain_credit <= 3) {
-      showToast({
-        message: "이번 달 남은 월 검색 한도가 부족합니다.",
-        variant: "white",
-      });
-      return;
-    }
     try {
       const activeCount = await fetchActiveAutomationCount(automationId);
       if (activeCount >= MAX_ACTIVE_AUTOMATIONS) {
@@ -479,7 +462,6 @@ export default function AutomationDetailPage() {
     qc,
     userId,
     fetchActiveAutomationCount,
-    credits,
     m.scout.limitMessage,
     m.scout.checkAutomationFail,
   ]);
@@ -682,7 +664,7 @@ export default function AutomationDetailPage() {
       <ConfirmModal
         open={confirmResumeOpen}
         title="진행을 재개할까요?"
-        description="진행 시 추천 결과가 현재 플랜의 월 검색 한도에 반영됩니다."
+        description="진행 시 후보자 추천이 다시 시작됩니다."
         confirmLabel="진행"
         cancelLabel="취소"
         onClose={() => setConfirmResumeOpen(false)}

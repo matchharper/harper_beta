@@ -91,7 +91,7 @@ export default function RequestAccessActivatePage() {
       <Header page="company" />
       <GradientBackground interactiveRef={interactiveRef} />
       <div className="relative z-10 flex min-h-screen items-center justify-center">
-        <div className="w-full max-w-lg rounded-[32px] border border-white/10 bg-white/5 p-8 text-center backdrop-blur-md">
+        <div className="w-full max-w-lg rounded-xl border border-white/5 bg-white/5 p-8 text-center backdrop-blur-md">
           <div className="text-2xl font-medium">Request Access</div>
           <p className="mt-4 text-sm leading-6 text-white/70">{message}</p>
           {state === "loading" || state === "success" ? (

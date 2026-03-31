@@ -34,10 +34,10 @@ const NameProfile = ({
         open={isRevealConfirmModalOpen}
         onClose={() => setIsRevealConfirmModalOpen(false)}
         onConfirm={() => handleReveal()}
-        title="Are you sure you want to reveal this profile?"
-        description="This action cannot be undone."
-        confirmLabel="Reveal"
-        cancelLabel="Cancel"
+        title="이 프로필을 열람할까요?"
+        description="이 작업은 되돌릴 수 없습니다."
+        confirmLabel="열람"
+        cancelLabel="취소"
       />
       <div
         onClick={() => router.push(`/my/p/${id}`)}
