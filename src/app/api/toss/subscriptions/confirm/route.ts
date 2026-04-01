@@ -16,6 +16,7 @@ import {
   resetCreditsForPlan,
   updatePaymentAttempt,
 } from "@/lib/billing/server";
+import { notifyBillingPaymentSucceeded } from "@/lib/billing/notifications";
 import {
   approveBilling,
   deleteBillingKey,
@@ -366,6 +367,29 @@ export async function POST(req: Request) {
           ? `${plan.name ?? session.plan_key}_subscription_recovery`
           : `${plan.name ?? session.plan_key}_subscription`,
     });
+
+    try {
+      await notifyBillingPaymentSucceeded({
+        kind:
+          session.reason === "recover"
+            ? "subscription_recovery"
+            : "subscription_purchase",
+        userId: session.user_id,
+        userEmail: companyUser?.email ?? null,
+        userName: companyUser?.name ?? null,
+        planName: plan.display_name ?? plan.name ?? session.plan_key,
+        billing: billingPeriod,
+        amountKRW: Number(session.amount_krw ?? 0),
+        approvedAt: payment.approvedAt ?? now.toISOString(),
+        orderId: payment.orderId,
+        paymentKey: payment.paymentKey,
+      });
+    } catch (slackError) {
+      console.error("[billing] slack notify failed after subscription confirm", {
+        sessionToken: session.session_token,
+        error: slackError,
+      });
+    }
 
     const previousBillingKey =
       session.reason === "recover" ? previousPayment?.toss_billing_key : null;

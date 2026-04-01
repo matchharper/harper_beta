@@ -223,7 +223,9 @@ export default function OpsShell({
   }
 
   if (!isAllowedUser) {
-    return <ForbiddenGate email={user.email} onSignOut={() => void signOut()} />;
+    return (
+      <ForbiddenGate email={user.email} onSignOut={() => void signOut()} />
+    );
   }
 
   return (
@@ -233,10 +235,7 @@ export default function OpsShell({
       <div className="relative mx-auto flex max-w-[1600px] flex-col gap-6 px-4 py-6 lg:flex-row lg:px-6">
         <aside className="group lg:sticky lg:top-6 lg:w-[92px] lg:self-start lg:transition-[width] lg:duration-300 lg:hover:w-[290px]">
           <div className={cx(opsTheme.panel, "h-full p-4 lg:overflow-hidden")}>
-            <Link
-              href="/ops"
-              className="flex items-center gap-3"
-            >
+            <Link href="/ops" className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-md bg-beige900 text-beige100 shadow-[0_14px_34px_rgba(46,23,6,0.18)]">
                 <ArrowRight className="h-4 w-4" />
               </div>
@@ -250,11 +249,24 @@ export default function OpsShell({
               </div>
             </Link>
 
-            <p className={cx(opsTheme.copy, "mt-4 hidden lg:block", revealTextClass)}>
-              내부 운영용 페이지 모음입니다. 새 도구는 계속 `/ops` 아래로 확장하면 됩니다.
+            <p
+              className={cx(
+                opsTheme.copy,
+                "mt-4 hidden lg:block",
+                revealTextClass
+              )}
+            >
+              내부 운영용 페이지 모음입니다. 새 도구는 계속 `/ops` 아래로
+              확장하면 됩니다.
             </p>
 
-            <div className={cx(opsTheme.panelMuted, "mt-5 hidden px-4 py-4 lg:block", revealTextClass)}>
+            <div
+              className={cx(
+                opsTheme.panelMuted,
+                "mt-5 hidden px-4 py-4 lg:block",
+                revealTextClass
+              )}
+            >
               <div className={opsTheme.eyebrow}>Signed in</div>
               <div className="mt-2 break-all font-geist text-sm font-medium text-beige900">
                 {user.email ?? "-"}
@@ -326,7 +338,6 @@ export default function OpsShell({
           <section className={cx(opsTheme.panel, "px-5 py-5")}>
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <div className={opsTheme.eyebrow}>Internal Ops</div>
                 <h1 className={cx(opsTheme.title, "mt-1")}>{title}</h1>
                 <div className={cx(opsTheme.copy, "mt-3 max-w-3xl")}>
                   {description}
@@ -334,7 +345,9 @@ export default function OpsShell({
               </div>
 
               {actions ? (
-                <div className="flex flex-wrap items-center gap-2">{actions}</div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {actions}
+                </div>
               ) : null}
             </div>
           </section>

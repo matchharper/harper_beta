@@ -2,10 +2,12 @@ import OpsShell from "@/components/ops/OpsShell";
 import { cx, opsTheme } from "@/components/ops/theme";
 import {
   useCreateOpsNetworkInternalEntry,
+  useDeleteOpsNetworkInternalEntry,
   useIngestOpsNetworkLead,
   useOpsNetworkDetail,
   useOpsNetworkLeads,
   useSendOpsNetworkMail,
+  useUpdateOpsNetworkInternalEntry,
 } from "@/hooks/useOpsNetwork";
 import type { NetworkLeadSummary, TalentInternalEntry } from "@/lib/opsNetwork";
 import { INTERNAL_EMAIL_DOMAIN } from "@/lib/internalAccess";
@@ -15,6 +17,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import {
   BookOpen,
   BriefcaseBusiness,
+  Check,
   ChevronRight,
   Copy,
   Download,
@@ -26,10 +29,13 @@ import {
   Mail,
   MessageSquareText,
   NotebookPen,
+  Pencil,
   RefreshCw,
   Search,
   Send,
   Sparkles,
+  Trash2,
+  X,
 } from "lucide-react";
 import Head from "next/head";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -90,6 +96,12 @@ function formatEntryType(type: TalentInternalEntry["type"]) {
   if (type === "mail") return "메일";
   if (type === "memo") return "메모";
   return "대화";
+}
+
+function isEditableEntryType(
+  type: TalentInternalEntry["type"]
+): type is "conversation" | "memo" {
+  return type === "conversation" || type === "memo";
 }
 
 const Badge = ({
@@ -222,28 +234,125 @@ const TabButton = ({
   </button>
 );
 
-function ActivityEntryCard({ entry }: { entry: TalentInternalEntry }) {
+function ActivityEntryCard({
+  deletePending,
+  editPending,
+  editingValue,
+  entry,
+  isEditing,
+  onDelete,
+  onEditCancel,
+  onEditChange,
+  onEditSave,
+  onEditStart,
+}: {
+  deletePending: boolean;
+  editPending: boolean;
+  editingValue: string;
+  entry: TalentInternalEntry;
+  isEditing: boolean;
+  onDelete: (entry: TalentInternalEntry) => void;
+  onEditCancel: () => void;
+  onEditChange: (value: string) => void;
+  onEditSave: (entry: TalentInternalEntry) => void;
+  onEditStart: (entry: TalentInternalEntry) => void;
+}) {
+  const editable = isEditableEntryType(entry.type);
+
   return (
     <div className={cx(opsTheme.panelSoft, "px-4 py-4")}>
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge tone={entry.type === "mail" ? "strong" : "default"}>
-          {formatEntryType(entry.type)}
-        </Badge>
-        <span className="font-geist text-xs text-beige900/55">
-          {formatKst(entry.created_at)}
-        </span>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone={entry.type === "mail" ? "strong" : "default"}>
+            {formatEntryType(entry.type)}
+          </Badge>
+          <span className="font-geist text-xs text-beige900/55">
+            {formatKst(entry.created_at)}
+          </span>
+        </div>
+
+        {editable ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {isEditing ? (
+              <>
+                <button
+                  type="button"
+                  onClick={onEditCancel}
+                  disabled={editPending}
+                  className={cx(opsTheme.buttonSecondary, "h-8 px-3 text-xs")}
+                >
+                  <X className="h-3.5 w-3.5" />
+                  취소
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onEditSave(entry)}
+                  disabled={editPending || !editingValue.trim()}
+                  className={cx(opsTheme.buttonSoft, "h-8 px-3 text-xs")}
+                >
+                  {editPending ? (
+                    <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Check className="h-3.5 w-3.5" />
+                  )}
+                  저장
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onEditStart(entry)}
+                  disabled={deletePending}
+                  className={cx(opsTheme.buttonSecondary, "h-8 px-3 text-xs")}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  수정
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDelete(entry)}
+                  disabled={deletePending}
+                  className="inline-flex h-8 items-center justify-center gap-2 rounded-md bg-[#F7DBD3] px-3 font-geist text-xs font-medium text-[#8A2E1D] transition hover:bg-[#f2c9be] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {deletePending ? (
+                    <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-3.5 w-3.5" />
+                  )}
+                  삭제
+                </button>
+              </>
+            )}
+          </div>
+        ) : null}
       </div>
 
       <div className="mt-3 space-y-2 font-geist text-sm text-beige900/70">
         <div>작성자: {entry.created_by}</div>
-        {entry.subject ? <div>제목: {entry.subject}</div> : null}
-        {entry.from_email ? <div>보낸 사람: {entry.from_email}</div> : null}
-        {entry.to_email ? <div>받는 사람: {entry.to_email}</div> : null}
+        {entry.type === "mail" && entry.subject ? (
+          <div>제목: {entry.subject}</div>
+        ) : null}
+        {entry.type === "mail" && entry.from_email ? (
+          <div>보낸 사람: {entry.from_email}</div>
+        ) : null}
+        {entry.type === "mail" && entry.to_email ? (
+          <div>받는 사람: {entry.to_email}</div>
+        ) : null}
       </div>
 
-      <div className="mt-4 whitespace-pre-wrap font-geist text-sm leading-6 text-beige900">
-        {entry.content}
-      </div>
+      {isEditing ? (
+        <textarea
+          value={editingValue}
+          onChange={(event) => onEditChange(event.target.value)}
+          className={cx(opsTheme.textarea, "mt-4 min-h-[140px]")}
+          placeholder="내용을 수정하세요."
+        />
+      ) : (
+        <div className="mt-4 whitespace-pre-wrap font-geist text-sm leading-6 text-beige900">
+          {entry.content}
+        </div>
+      )}
     </div>
   );
 }
@@ -278,6 +387,8 @@ export default function NetworkOpsPage() {
   const leadsQuery = useOpsNetworkLeads(FETCH_LIMIT);
   const ingestMutation = useIngestOpsNetworkLead();
   const internalMutation = useCreateOpsNetworkInternalEntry();
+  const updateInternalMutation = useUpdateOpsNetworkInternalEntry();
+  const deleteInternalMutation = useDeleteOpsNetworkInternalEntry();
   const mailMutation = useSendOpsNetworkMail();
 
   const [query, setQuery] = useState("");
@@ -291,6 +402,8 @@ export default function NetworkOpsPage() {
   const [mailContent, setMailContent] = useState("");
   const [memoContent, setMemoContent] = useState("");
   const [conversationContent, setConversationContent] = useState("");
+  const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
+  const [editingEntryContent, setEditingEntryContent] = useState("");
   const [isOpeningCv, setIsOpeningCv] = useState<number | null>(null);
 
   const detailQuery = useOpsNetworkDetail(selectedLeadId);
@@ -395,6 +508,8 @@ export default function NetworkOpsPage() {
     setConversationContent("");
     setMailSubject("");
     setMailContent("");
+    setEditingEntryId(null);
+    setEditingEntryContent("");
   }, [selectedLeadId]);
 
   const selectedLead = useMemo(
@@ -638,6 +753,76 @@ export default function NetworkOpsPage() {
     }
   }, [mailContent, mailFromEmail, mailMutation, mailSubject, selectedLeadId]);
 
+  const handleStartEditingEntry = useCallback((entry: TalentInternalEntry) => {
+    if (!isEditableEntryType(entry.type)) return;
+    setEditingEntryId(entry.id);
+    setEditingEntryContent(entry.content);
+  }, []);
+
+  const handleCancelEditingEntry = useCallback(() => {
+    if (updateInternalMutation.isPending) return;
+    setEditingEntryId(null);
+    setEditingEntryContent("");
+  }, [updateInternalMutation.isPending]);
+
+  const handleSaveEditedEntry = useCallback(
+    async (entry: TalentInternalEntry) => {
+      if (!selectedLeadId || !isEditableEntryType(entry.type)) return;
+
+      const content = editingEntryContent.trim();
+      if (!content) return;
+
+      try {
+        await updateInternalMutation.mutateAsync({
+          content,
+          entryId: entry.id,
+          leadId: selectedLeadId,
+        });
+        setEditingEntryId(null);
+        setEditingEntryContent("");
+        showToast({
+          message: entry.type === "memo" ? "메모 수정 완료" : "대화 기록 수정 완료",
+          variant: "white",
+        });
+      } catch (error) {
+        showToast({
+          message:
+            error instanceof Error ? error.message : "내부 활동 수정에 실패했습니다.",
+          variant: "error",
+        });
+      }
+    },
+    [editingEntryContent, selectedLeadId, updateInternalMutation]
+  );
+
+  const handleDeleteEntry = useCallback(
+    async (entry: TalentInternalEntry) => {
+      if (!selectedLeadId || !isEditableEntryType(entry.type)) return;
+
+      const label = entry.type === "memo" ? "메모" : "대화 기록";
+      if (!window.confirm(`${label}를 삭제하시겠습니까?`)) return;
+
+      try {
+        await deleteInternalMutation.mutateAsync({
+          entryId: entry.id,
+          leadId: selectedLeadId,
+        });
+        if (editingEntryId === entry.id) {
+          setEditingEntryId(null);
+          setEditingEntryContent("");
+        }
+        showToast({ message: `${label} 삭제 완료`, variant: "white" });
+      } catch (error) {
+        showToast({
+          message:
+            error instanceof Error ? error.message : "내부 활동 삭제에 실패했습니다.",
+          variant: "error",
+        });
+      }
+    },
+    [deleteInternalMutation, editingEntryId, selectedLeadId]
+  );
+
   const resetFilters = useCallback(() => {
     setQuery("");
     setRoleFilter("all");
@@ -647,6 +832,14 @@ export default function NetworkOpsPage() {
 
   const isSelectedLeadIngesting =
     ingestMutation.isPending && ingestMutation.variables === displayedLead?.id;
+  const updatingEntryId =
+    updateInternalMutation.isPending
+      ? (updateInternalMutation.variables?.entryId ?? null)
+      : null;
+  const deletingEntryId =
+    deleteInternalMutation.isPending
+      ? (deleteInternalMutation.variables?.entryId ?? null)
+      : null;
 
   return (
     <>
@@ -1686,7 +1879,20 @@ export default function NetworkOpsPage() {
                                   (entry) => (
                                     <ActivityEntryCard
                                       key={entry.id}
+                                      deletePending={deletingEntryId === entry.id}
+                                      editPending={updatingEntryId === entry.id}
+                                      editingValue={
+                                        editingEntryId === entry.id
+                                          ? editingEntryContent
+                                          : ""
+                                      }
                                       entry={entry}
+                                      isEditing={editingEntryId === entry.id}
+                                      onDelete={handleDeleteEntry}
+                                      onEditCancel={handleCancelEditingEntry}
+                                      onEditChange={setEditingEntryContent}
+                                      onEditSave={handleSaveEditedEntry}
+                                      onEditStart={handleStartEditingEntry}
                                     />
                                   )
                                 )}

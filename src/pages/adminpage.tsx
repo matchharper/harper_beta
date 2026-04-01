@@ -9,6 +9,8 @@ import { supabase } from "@/lib/supabase";
 import { showToast } from "@/components/toast/toast";
 import { Loading } from "@/components/ui/loading";
 import { ADMIN_PAGE_PASSWORD } from "@/lib/admin";
+import { isInternalEmail } from "@/lib/internalAccess";
+import { useAuthStore } from "@/store/useAuthStore";
 import {
   BLOG_CONVERSION_EVENT_PREFIX,
   BLOG_VIEW_EVENT_PREFIX,
@@ -356,6 +358,7 @@ function groupLandingLogsByUser(logItems: LandingLog[]) {
 }
 
 const AdminPage = () => {
+  const { user, loading: authLoading, init } = useAuthStore();
   const [password, setPassword] = useState("");
   const [isPassed, setIsPassed] = useState(false);
   const [activeTab, setActiveTab] = useState<AdminTab>("landingLogs");
@@ -437,16 +440,27 @@ const AdminPage = () => {
   >(null);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const isInternalAdmin = isInternalEmail(user?.email);
+  const canAccessAdminData = !authLoading && isInternalAdmin && isPassed;
 
   useEffect(() => {
-    const savedPassword = localStorage.getItem("admin_password");
-    if (savedPassword === ADMIN_PAGE_PASSWORD) {
-      setIsPassed(true);
+    void init();
+  }, [init]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!isInternalAdmin) {
+      setIsPassed(false);
+      return;
     }
-  }, []);
+
+    const savedPassword = localStorage.getItem("admin_password");
+    setIsPassed(savedPassword === ADMIN_PAGE_PASSWORD);
+  }, [authLoading, isInternalAdmin]);
 
   const fetchPage = useCallback(
     async ({ reset }: { reset: boolean }) => {
+      if (!canAccessAdminData) return;
       if (!reset && (!hasMore || loadingMore)) return;
 
       if (reset) {
@@ -507,13 +521,14 @@ const AdminPage = () => {
         setLoadingMore(false);
       }
     },
-    [cursor, hasMore, loadingMore]
+    [canAccessAdminData, cursor, hasMore, loadingMore]
   );
 
   useEffect(() => {
+    if (!canAccessAdminData) return;
     fetchPage({ reset: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [canAccessAdminData]);
 
   const fetchWaitlistCompanies = useCallback(async () => {
     setWaitlistLoading(true);
@@ -958,11 +973,13 @@ const AdminPage = () => {
   }, [fetchUserAnalyticsDetail, selectedAnalyticsUser]);
 
   useEffect(() => {
+    if (!canAccessAdminData) return;
     if (activeTab !== "waitlistCompany") return;
     if (waitlistLoaded || waitlistLoading || waitlistError) return;
     fetchWaitlistCompanies();
   }, [
     activeTab,
+    canAccessAdminData,
     fetchWaitlistCompanies,
     waitlistLoaded,
     waitlistLoading,
@@ -970,11 +987,13 @@ const AdminPage = () => {
   ]);
 
   useEffect(() => {
+    if (!canAccessAdminData) return;
     if (activeTab !== "blogMetrics") return;
     if (blogMetricsLoaded || blogMetricsLoading || blogMetricsError) return;
     fetchBlogMetrics();
   }, [
     activeTab,
+    canAccessAdminData,
     blogMetricsLoaded,
     blogMetricsLoading,
     blogMetricsError,
@@ -982,6 +1001,7 @@ const AdminPage = () => {
   ]);
 
   useEffect(() => {
+    if (!canAccessAdminData) return;
     if (activeTab !== "landingLogs") return;
     const el = sentinelRef.current;
     if (!el) return;
@@ -996,9 +1016,10 @@ const AdminPage = () => {
 
     io.observe(el);
     return () => io.disconnect();
-  }, [activeTab, fetchPage]);
+  }, [activeTab, canAccessAdminData, fetchPage]);
 
   useEffect(() => {
+    if (!canAccessAdminData) return;
     if (activeTab !== "networkAnalytics") return;
     if (
       networkAnalyticsLoaded ||
@@ -1009,6 +1030,7 @@ const AdminPage = () => {
     void fetchNetworkAnalyticsLogs();
   }, [
     activeTab,
+    canAccessAdminData,
     fetchNetworkAnalyticsLogs,
     networkAnalyticsError,
     networkAnalyticsLoaded,
@@ -1057,6 +1079,14 @@ const AdminPage = () => {
   };
 
   const onSubmit = async () => {
+    if (!isInternalAdmin) {
+      showToast({
+        message: "matchharper.com 계정으로 로그인한 사용자만 접근할 수 있습니다.",
+        variant: "white",
+      });
+      return;
+    }
+
     if (password === ADMIN_PAGE_PASSWORD) {
       setIsPassed(true);
       localStorage.setItem("admin_password", password);
@@ -1410,7 +1440,33 @@ const AdminPage = () => {
           ? blogMetricsError
           : isBookmarkFoldersTab
             ? null
-            : null;
+          : null;
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-white text-black font-inter">
+        <div className="flex h-screen items-center justify-center">
+          <Loading label="Checking admin access..." size="lg" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!isInternalAdmin) {
+    return (
+      <div className="min-h-screen bg-white text-black font-inter">
+        <div className="flex h-screen items-center justify-center px-6">
+          <div className="max-w-md text-center">
+            <div className="text-lg font-semibold">Admin Access Restricted</div>
+            <div className="mt-3 text-sm leading-6 text-black/65">
+              `/adminpage` is only available to signed-in users with a
+              `matchharper.com` email.
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!isPassed) {
     return (

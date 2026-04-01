@@ -255,8 +255,8 @@ export default function LinkedinHarperCompare() {
             </h2>
 
             <p className="mx-auto mt-8 max-w-[680px] text-balance text-sm md:text-[17px] font-light text-hgray700">
-              일반적인 연락시 응답률은 1~3%에 불과합니다. GitHub과 논문 이력을
-              기반으로 대화를 시작하면 응답률은 30%까지 올라갑니다.
+              일반적인 연락시 응답률은 1~3%에 불과합니다. GitHub 프로젝트와 논문
+              내용을 기반으로 대화를 시작하면 응답률은 30%까지 올라갑니다.
             </p>
           </div>
         </Reveal>

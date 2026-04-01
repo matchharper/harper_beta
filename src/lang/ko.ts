@@ -8,9 +8,9 @@ export const ko = {
     invalidAccount: "존재하지 않는 계정입니다.",
   },
   invitation: {
-    title: "코드를 입력해주세요.",
+    title: "Request access",
     description:
-      "하퍼는 현재 비공개 베타 중입니다. 초대 코드를 입력해주세요.\n초대코드가 필요하신분은 아래에서 신청해주세요.\n최대한 빠르게 사용을 도와드리겠습니다.",
+      "아래 정보를 남겨주시면 사용 권한을 최대한 빠르게\n로그인하신 이메일로 보내드리겠습니다.",
     nameTitle: "이름을 입력해주세요.",
     nameDescription:
       "초대 코드가 확인되었습니다. 사용자분의 이름을 입력해주세요.",
@@ -24,7 +24,7 @@ export const ko = {
     requestAccess: {
       title: "Request access",
       description:
-        "간단히 알려주시면 검토 후 접근 링크를 이메일로 보내드리겠습니다.",
+        "팀과 채용 상황을 간단히 알려주세요. 승인되면 로그인한 이메일로 접근 링크를 보내드리겠습니다.",
       submit: "요청 보내기",
       submitted:
         "요청이 접수되었습니다. 승인되면 이메일로 링크를 보내드리겠습니다.",
@@ -40,7 +40,7 @@ export const ko = {
       errors: {
         missingSession:
           "로그인 상태를 확인할 수 없습니다. 다시 로그인해주세요.",
-        invalidForm: "모든 항목을 입력해주세요.",
+        invalidForm: "이름과 회사명을 입력해주세요.",
         submitFailed: "요청 접수에 실패했습니다. 다시 시도해주세요.",
       },
     },
@@ -231,9 +231,9 @@ export const ko = {
       title: "Questions & Answers",
       items: [
         {
-          question: "지금 바로 사용할 수 있나요? (초대 코드는 어떻게 받나요?)",
+          question: "지금 바로 사용할 수 있나요?",
           answer:
-            "현재 Harper는 데이터 품질과 최적의 경험을 위해 베타 버전으로 운영 중입니다. 로그인 후 신청해주시면 최대한 빨리 사용해보실 수 있게 도와드리겠습니다.",
+            "현재 Harper는 승인 기반 베타로 운영 중입니다. 로그인 후 request access를 제출해주시면 검토 뒤 접근 권한을 순차적으로 열어드리고 있습니다.",
         },
         {
           question: "'키워드 검색'과 Harper의 'AI 검색'은 무엇이 다른가요?",

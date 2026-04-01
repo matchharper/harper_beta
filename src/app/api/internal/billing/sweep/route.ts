@@ -15,6 +15,7 @@ import {
   resetCreditsForPlan,
   updatePaymentAttempt,
 } from "@/lib/billing/server";
+import { notifyBillingPaymentSucceeded } from "@/lib/billing/notifications";
 import { approveBilling, deleteBillingKey, TossRequestError } from "@/lib/toss/server";
 
 export const runtime = "nodejs";
@@ -331,6 +332,29 @@ async function handleSweep(req: Request) {
             ? `${plan.name ?? "subscription"}_subscription_retry`
             : `${plan.name ?? "subscription"}_subscription_renewal`,
       });
+
+      try {
+        await notifyBillingPaymentSucceeded({
+          kind:
+            attemptReason === "retry"
+              ? "subscription_retry"
+              : "subscription_renewal",
+          userId: payment.user_id,
+          userEmail: companyUser?.email ?? null,
+          userName: companyUser?.name ?? null,
+          planName: plan.display_name ?? plan.name ?? "subscription",
+          billing,
+          amountKRW: Number(plan.price_krw ?? 0),
+          approvedAt: approvedPayment.approvedAt ?? nowIso,
+          orderId,
+          paymentKey: approvedPayment.paymentKey,
+        });
+      } catch (slackError) {
+        console.error("[billing] slack notify failed after billing sweep", {
+          paymentId: payment.id,
+          error: slackError,
+        });
+      }
 
       summary.charged += 1;
     } catch (error) {

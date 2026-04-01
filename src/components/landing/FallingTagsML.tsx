@@ -29,7 +29,7 @@ export const FallingTagsMl = ({
       x: -140,
       y: 40,
       rotate: -14,
-      color: "bg-emerald-400/80",
+      color: "bg-green-400/80",
     },
     {
       label: "Papers on multimodal LLM datasets from CVPR or NeurIPS",
@@ -50,7 +50,7 @@ export const FallingTagsMl = ({
       x: 10,
       y: -5,
       rotate: -12,
-      color: "bg-green-400/70",
+      color: "bg-accenta1/70",
     },
     {
       label:

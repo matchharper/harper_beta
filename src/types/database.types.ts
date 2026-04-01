@@ -2358,6 +2358,7 @@ export type Database = {
           affiliation: string | null
           candid_id: string | null
           created_at: string
+          email: string | null
           h_index: number
           homepage_link: string | null
           id: string
@@ -2374,6 +2375,7 @@ export type Database = {
           affiliation?: string | null
           candid_id?: string | null
           created_at?: string
+          email?: string | null
           h_index?: number
           homepage_link?: string | null
           id?: string
@@ -2390,6 +2392,7 @@ export type Database = {
           affiliation?: string | null
           candid_id?: string | null
           created_at?: string
+          email?: string | null
           h_index?: number
           homepage_link?: string | null
           id?: string

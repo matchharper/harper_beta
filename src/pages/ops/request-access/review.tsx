@@ -3,29 +3,26 @@
 import OpsShell from "@/components/ops/OpsShell";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { extractRequestAccessToken } from "@/lib/requestAccess/client";
+import type {
+  RequestAccessApprovalDraft,
+  RequestAccessApprovalEmailLocale,
+} from "@/lib/requestAccess/types";
 import { isInternalEmail } from "@/lib/internalAccess";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
-import { LoaderCircle, RotateCcw, Send } from "lucide-react";
+import {
+  Laptop,
+  LoaderCircle,
+  RotateCcw,
+  Send,
+  Smartphone,
+} from "lucide-react";
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-type RequestAccessApprovalDraft = {
-  status: "pending" | "approved" | "already_granted";
-  email: string;
-  name: string | null;
-  company: string | null;
-  role: string | null;
-  hiringNeed: string | null;
-  accessGrantedAt: string | null;
-  activationUrl: string;
-  from: string;
-  subject: string;
-  html: string;
-  text: string;
-};
+type PreviewViewport = "desktop" | "mobile";
 
 function DetailRow({
   label,
@@ -58,6 +55,185 @@ function statusLabel(status: RequestAccessApprovalDraft["status"] | undefined) {
   return "-";
 }
 
+function localeLabel(locale: RequestAccessApprovalEmailLocale) {
+  return locale === "ko" ? "한국어" : "English";
+}
+
+function buildEmailPreviewDocument(html: string) {
+  const trimmedHtml = html.trim();
+  if (!trimmedHtml) {
+    return `<!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        </head>
+        <body style="margin:0;background:#eef2f6;"></body>
+      </html>`;
+  }
+
+  const hasDocumentTag =
+    /<!doctype/i.test(trimmedHtml) || /<html[\s>]/i.test(trimmedHtml);
+
+  if (hasDocumentTag) {
+    return trimmedHtml;
+  }
+
+  return `<!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <style>
+          html, body {
+            margin: 0;
+            padding: 0;
+            background: #eef2f6;
+          }
+
+          img {
+            max-width: 100%;
+            height: auto;
+          }
+
+          table {
+            border-collapse: collapse;
+          }
+        </style>
+      </head>
+      <body>${trimmedHtml}</body>
+    </html>`;
+}
+
+function EmailClientPreview({
+  from,
+  html,
+  subject,
+  to,
+  viewport,
+  onViewportChange,
+}: {
+  from: string;
+  html: string;
+  subject: string;
+  to: string;
+  viewport: PreviewViewport;
+  onViewportChange: (viewport: PreviewViewport) => void;
+}) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const srcDoc = useMemo(() => buildEmailPreviewDocument(html), [html]);
+
+  const syncIframeHeight = useCallback(() => {
+    const iframe = iframeRef.current;
+    const doc = iframe?.contentWindow?.document;
+    if (!iframe || !doc) return;
+
+    const nextHeight = Math.max(
+      doc.body?.scrollHeight ?? 0,
+      doc.documentElement?.scrollHeight ?? 0,
+      560
+    );
+
+    iframe.style.height = `${nextHeight}px`;
+  }, []);
+
+  useEffect(() => {
+    const timeouts = [
+      window.setTimeout(syncIframeHeight, 0),
+      window.setTimeout(syncIframeHeight, 120),
+      window.setTimeout(syncIframeHeight, 360),
+    ];
+
+    return () => {
+      timeouts.forEach((timeoutId) => window.clearTimeout(timeoutId));
+    };
+  }, [srcDoc, syncIframeHeight, viewport]);
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white font-inter">
+      <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
+        <div className="min-w-0">
+          <div className="truncate text-[15px] font-semibold text-neutral-900">
+            {subject || "(No subject)"}
+          </div>
+        </div>
+
+        <div className="ml-4 inline-flex rounded-md border border-neutral-200 bg-neutral-50 p-0.5">
+          <button
+            type="button"
+            onClick={() => onViewportChange("desktop")}
+            className={cx(
+              "inline-flex h-8 items-center gap-1.5 rounded px-2.5 text-xs font-medium transition-colors",
+              viewport === "desktop"
+                ? "bg-white text-neutral-900 shadow-sm"
+                : "text-neutral-500 hover:text-neutral-700"
+            )}
+          >
+            <Laptop className="h-3.5 w-3.5" />
+            Desktop
+          </button>
+          <button
+            type="button"
+            onClick={() => onViewportChange("mobile")}
+            className={cx(
+              "inline-flex h-8 items-center gap-1.5 rounded px-2.5 text-xs font-medium transition-colors",
+              viewport === "mobile"
+                ? "bg-white text-neutral-900 shadow-sm"
+                : "text-neutral-500 hover:text-neutral-700"
+            )}
+          >
+            <Smartphone className="h-3.5 w-3.5" />
+            Mobile
+          </button>
+        </div>
+      </div>
+
+      <div className="border-b border-neutral-200 bg-white px-4 py-4">
+        <div className="grid gap-3 text-sm sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <div className="min-w-0">
+            <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-neutral-400">
+              From
+            </div>
+            <div className="mt-1 truncate text-neutral-800">
+              {from || "(Default sender)"}
+            </div>
+          </div>
+
+          <div className="min-w-0">
+            <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-neutral-400">
+              To
+            </div>
+            <div className="mt-1 truncate text-neutral-800">
+              {to || "(No recipient)"}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className=" p-4">
+        <div
+          className={cx(
+            "mx-auto overflow-hidden bg-white transition-[width] duration-200",
+            viewport === "mobile"
+              ? "w-[390px] max-w-full"
+              : "w-full max-w-[860px]"
+          )}
+        >
+          <iframe
+            ref={iframeRef}
+            title="Email preview"
+            srcDoc={srcDoc}
+            sandbox="allow-same-origin"
+            onLoad={syncIframeHeight}
+            className="block w-full border-0 bg-white"
+            style={{ minHeight: "560px" }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function OpsRequestAccessReviewPage() {
   const router = useRouter();
   const { session, user } = useAuthStore();
@@ -72,6 +248,9 @@ export default function OpsRequestAccessReviewPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [requestInput, setRequestInput] = useState("");
+  const [previewViewport, setPreviewViewport] =
+    useState<PreviewViewport>("desktop");
+  const [locale, setLocale] = useState<RequestAccessApprovalEmailLocale>("en");
 
   const requestToken = useMemo(() => {
     if (!router.isReady) return "";
@@ -141,6 +320,7 @@ export default function OpsRequestAccessReviewPage() {
         }
 
         setDraft(payload);
+        setLocale(payload.locale);
         setFrom(payload.from);
         setSubject(payload.subject);
         setHtml(payload.html);
@@ -165,13 +345,28 @@ export default function OpsRequestAccessReviewPage() {
     };
   }, [getAccessToken, isAllowedUser, requestToken, router.isReady, user]);
 
+  const applyLocaleTemplate = useCallback(
+    (nextLocale: RequestAccessApprovalEmailLocale) => {
+      if (!draft) return;
+
+      const template = draft.templates[nextLocale];
+      setLocale(nextLocale);
+      setSubject(template.subject);
+      setHtml(template.html);
+      setError("");
+      setNotice(`${localeLabel(nextLocale)} default email applied.`);
+    },
+    [draft]
+  );
+
   const handleReset = () => {
     if (!draft) return;
+    const template = draft.templates[locale];
     setFrom(draft.from);
-    setSubject(draft.subject);
-    setHtml(draft.html);
+    setSubject(template.subject);
+    setHtml(template.html);
     setError("");
-    setNotice("Default sender and approval email restored.");
+    setNotice(`${localeLabel(locale)} default sender and email restored.`);
   };
 
   const handleOpenReview = useCallback(() => {
@@ -205,6 +400,7 @@ export default function OpsRequestAccessReviewPage() {
         },
         body: JSON.stringify({
           request: requestToken,
+          locale,
           from,
           subject,
           html,
@@ -381,6 +577,33 @@ export default function OpsRequestAccessReviewPage() {
                   ) : null}
 
                   <div>
+                    <label className={opsTheme.label}>Language</label>
+                    <div className="mt-2 inline-flex rounded-md border border-beige900/10 bg-white/80 p-1">
+                      {(["en", "ko"] as RequestAccessApprovalEmailLocale[]).map(
+                        (option) => (
+                          <button
+                            key={option}
+                            type="button"
+                            onClick={() => applyLocaleTemplate(option)}
+                            className={cx(
+                              "rounded-md px-3 py-2 font-geist text-sm transition",
+                              locale === option
+                                ? "bg-beige900 text-beige100"
+                                : "text-beige900/60 hover:bg-beige500/35 hover:text-beige900"
+                            )}
+                          >
+                            {localeLabel(option)}
+                          </button>
+                        )
+                      )}
+                    </div>
+                    <p className="mt-2 font-geist text-xs leading-5 text-beige900/50">
+                      언어를 바꾸면 기본 제목과 HTML 본문이 해당 버전으로
+                      교체됩니다.
+                    </p>
+                  </div>
+
+                  <div>
                     <label className={opsTheme.label}>From</label>
                     <input
                       type="text"
@@ -402,7 +625,7 @@ export default function OpsRequestAccessReviewPage() {
                       value={subject}
                       onChange={(event) => setSubject(event.target.value)}
                       className={cx(opsTheme.input, "mt-2")}
-                      placeholder="Your Harper access is ready"
+                      placeholder={draft.templates[locale].subject}
                     />
                   </div>
 
@@ -424,7 +647,7 @@ export default function OpsRequestAccessReviewPage() {
                       onChange={(event) => setHtml(event.target.value)}
                       className={cx(
                         opsTheme.textarea,
-                        "mt-2 min-h-[320px] resize-y font-mono text-[13px]"
+                        "mt-2 min-h-[320px] resize-y text-[13px]"
                       )}
                       placeholder="<div>...</div>"
                       spellCheck={false}
@@ -448,27 +671,24 @@ export default function OpsRequestAccessReviewPage() {
                   </div>
 
                   <section className={cx(opsTheme.panelSoft, "p-5")}>
-                    <div className={opsTheme.eyebrow}>Preview</div>
-                    <div className="mt-4 rounded-lg bg-beige100/85 p-6 font-geist text-sm text-beige900 shadow-[0_16px_46px_rgba(89,57,24,0.06)]">
-                      <div className="mb-4 border-b border-beige900/10 pb-3">
-                        <div className="text-[11px] tracking-[0.14em] text-beige900/40">
-                          From
-                        </div>
-                        <div className="mt-2 text-sm text-beige900/70">
-                          {from || "(Default sender)"}
-                        </div>
-                      </div>
-                      <div className="mb-4 border-b border-beige900/10 pb-3">
-                        <div className="text-[11px] tracking-[0.14em] text-beige900/40">
-                          Subject
-                        </div>
-                        <div className="mt-2 text-base font-medium text-beige900">
-                          {subject || "(No subject)"}
+                    <div className="flex flex-wrap items-end justify-between gap-3">
+                      <div>
+                        <div className={opsTheme.eyebrow}>Email Preview</div>
+                        <div className="mt-1 font-geist text-sm leading-6 text-beige900/60">
+                          iframe 안에서 실제 메일 본문처럼 렌더링합니다. 페이지
+                          스타일 간섭 없이 데스크톱과 모바일 폭을 같이 볼 수
+                          있습니다.
                         </div>
                       </div>
-                      <div
-                        className="space-y-2"
-                        dangerouslySetInnerHTML={{ __html: html }}
+                    </div>
+                    <div className="mt-4">
+                      <EmailClientPreview
+                        from={from}
+                        to={draft.email}
+                        subject={subject}
+                        html={html}
+                        viewport={previewViewport}
+                        onViewportChange={setPreviewViewport}
                       />
                     </div>
                   </section>

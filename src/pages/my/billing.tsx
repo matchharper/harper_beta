@@ -40,6 +40,21 @@ function formatDateToDots(dateStr?: string | null) {
   return `${year}.${month}.${day}`;
 }
 
+function getBillingProviderStatusLabel(status?: BillingProviderStatus | null) {
+  switch (status) {
+    case "active":
+      return "활성화";
+    case "past_due":
+      return "미납";
+    case "cancel_scheduled":
+      return "해지 예정";
+    case "expired":
+      return "만료";
+    default:
+      return status ?? null;
+  }
+}
+
 type SubscriptionInfo = {
   planKey: "pro" | "max" | "enterprise" | "free" | null;
   planId: string | null;
@@ -239,6 +254,9 @@ const Billing = () => {
   const currentBilling = subscription?.billing ?? null;
   const currentProvider = subscription?.provider ?? null;
   const currentProviderStatus = subscription?.providerStatus ?? null;
+  const currentProviderStatusLabel = getBillingProviderStatusLabel(
+    currentProviderStatus
+  );
   const subscriptionPlanLabel =
     subscription?.planName ?? subscription?.planId ?? "알 수 없음";
   const subscriptionBillingLabel =
@@ -1184,7 +1202,7 @@ const Billing = () => {
                     </div>
                     {currentProviderStatus ? (
                       <div className="text-xs text-accenta1">
-                        {currentProviderStatus}
+                        {currentProviderStatusLabel}
                       </div>
                     ) : null}
                     {subscription.currentPeriodEnd ? (
@@ -1299,11 +1317,6 @@ const Billing = () => {
                     </div>
                   </div>
                 ) : null}
-                {isTossCancelScheduled ? (
-                  <div className="rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-hgray800">
-                    현재 결제 주기가 끝나면 자동으로 Free 플랜으로 전환됩니다.
-                  </div>
-                ) : null}
               </div>
             ) : (
               <div className="mt-2 text-sm text-hgray700">
@@ -1312,6 +1325,11 @@ const Billing = () => {
             )}
           </div>
         </div>
+        {isTossCancelScheduled && (
+          <div className="mt-4 rounded-lg border border-white/5 bg-white/5 px-4 py-3 text-sm text-hgray800">
+            현재 결제 주기가 끝나면 자동으로 Free 플랜으로 전환됩니다.
+          </div>
+        )}
         {/* <div className="mt-6">
           <div className="rounded-lg border border-white/10 bg-white/5 p-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -1416,7 +1434,7 @@ const Billing = () => {
               </div>
 
               {tossPreviewError ? (
-                <div className="mt-4 rounded-md border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                <div className="mt-4 rounded-md border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
                   {tossPreviewError}
                 </div>
               ) : null}
