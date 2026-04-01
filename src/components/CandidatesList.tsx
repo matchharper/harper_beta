@@ -45,7 +45,6 @@ import {
 import { Avatar } from "./NameProfile";
 import SharedFolderCandidateNotes from "./shared/SharedFolderCandidateNotes";
 import Bookmarkbutton from "./ui/bookmarkbutton";
-import CandidateMarkButton from "./ui/CandidateMarkButton";
 import CandidateMemoDock from "./ui/CandidateMemoDock";
 import { Tooltips } from "./ui/tooltip";
 import RevealProfileButton from "./ui/RevealProfileButton";
@@ -280,7 +279,7 @@ function CandidateCard({
       >
         <div className="flex flex-col items-start">
           <div
-            className={`group/content min-w-0 flex-1 relative ${hasSharedFolderNotes ? "px-5 pt-5" : "p-6"}`}
+            className={`group/content min-w-0 flex-1 w-full relative ${hasSharedFolderNotes ? "px-5 pt-5" : "p-6"}`}
           >
             {!isProfileRevealed && !hasSharedFolderNotes && (
               <RevealProfileButton
