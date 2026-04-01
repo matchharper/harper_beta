@@ -10,7 +10,7 @@ export type RequestAccessValues = {
   hiringNeed: string;
 };
 
-type RequestAccessCopy = {
+export type RequestAccessCopy = {
   title: string;
   description: string;
   submit: string;
@@ -32,13 +32,21 @@ type Props = {
   initialValues?: Partial<RequestAccessValues>;
 };
 
-export default function RequestAccessModal({
-  open,
-  onClose,
+type RequestAccessFormProps = {
+  onSubmit: (values: RequestAccessValues) => Promise<void>;
+  copy: RequestAccessCopy;
+  initialValues?: Partial<RequestAccessValues>;
+  className?: string;
+  submitButtonClassName?: string;
+};
+
+export function RequestAccessForm({
   onSubmit,
   copy,
   initialValues,
-}: Props) {
+  className,
+  submitButtonClassName,
+}: RequestAccessFormProps) {
   const [name, setName] = useState(initialValues?.name ?? "");
   const [company, setCompany] = useState(initialValues?.company ?? "");
   const [role, setRole] = useState(initialValues?.role ?? "");
@@ -46,7 +54,6 @@ export default function RequestAccessModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!open) return;
     setName(initialValues?.name ?? "");
     setCompany(initialValues?.company ?? "");
     setRole(initialValues?.role ?? "");
@@ -56,10 +63,7 @@ export default function RequestAccessModal({
     initialValues?.hiringNeed,
     initialValues?.name,
     initialValues?.role,
-    open,
   ]);
-
-  if (!open) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,18 +83,72 @@ export default function RequestAccessModal({
   };
 
   return (
+    <form onSubmit={handleSubmit} className={className ?? "space-y-4"}>
+      <LabeledInput
+        label={copy.nameLabel}
+        placeholder={copy.namePlaceholder}
+        value={name}
+        onChange={setName}
+      />
+      <LabeledInput
+        label={copy.companyLabel}
+        placeholder={copy.companyPlaceholder}
+        value={company}
+        onChange={setCompany}
+      />
+      <LabeledInput
+        label={copy.roleLabel}
+        placeholder={copy.rolePlaceholder}
+        value={role}
+        onChange={setRole}
+      />
+      <LabeledTextarea
+        label={"(optional) " + copy.hiringNeedLabel}
+        placeholder={copy.hiringNeedPlaceholder}
+        value={hiringNeed}
+        onChange={setHiringNeed}
+      />
+
+      <button
+        type="submit"
+        disabled={isSubmitting}
+        className={
+          submitButtonClassName ??
+          "mt-6 inline-flex w-full items-center justify-center rounded-full bg-white px-5 py-3.5 text-sm font-medium text-black transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-70"
+        }
+      >
+        {isSubmitting ? (
+          <LoaderCircle className="h-4 w-4 animate-spin" />
+        ) : (
+          copy.submit
+        )}
+      </button>
+    </form>
+  );
+}
+
+export default function RequestAccessModal({
+  open,
+  onClose,
+  onSubmit,
+  copy,
+  initialValues,
+}: Props) {
+  if (!open) return null;
+
+  return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={() => {
-          if (!isSubmitting) onClose();
+          onClose();
         }}
       />
       <div className="relative z-10 w-full max-w-xl rounded-[28px] border border-white/10 bg-[#111111] p-6 text-white shadow-2xl md:p-8">
         <button
           type="button"
           onClick={() => {
-            if (!isSubmitting) onClose();
+            onClose();
           }}
           className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white"
         >
@@ -104,44 +162,12 @@ export default function RequestAccessModal({
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-8 space-y-4">
-          <LabeledInput
-            label={copy.nameLabel}
-            placeholder={copy.namePlaceholder}
-            value={name}
-            onChange={setName}
-          />
-          <LabeledInput
-            label={copy.companyLabel}
-            placeholder={copy.companyPlaceholder}
-            value={company}
-            onChange={setCompany}
-          />
-          <LabeledInput
-            label={copy.roleLabel}
-            placeholder={copy.rolePlaceholder}
-            value={role}
-            onChange={setRole}
-          />
-          <LabeledTextarea
-            label={copy.hiringNeedLabel}
-            placeholder={copy.hiringNeedPlaceholder}
-            value={hiringNeed}
-            onChange={setHiringNeed}
-          />
-
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="mt-6 inline-flex w-full items-center justify-center rounded-full bg-white px-5 py-3.5 text-sm font-medium text-black transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-70"
-          >
-            {isSubmitting ? (
-              <LoaderCircle className="h-4 w-4 animate-spin" />
-            ) : (
-              copy.submit
-            )}
-          </button>
-        </form>
+        <RequestAccessForm
+          onSubmit={onSubmit}
+          copy={copy}
+          initialValues={initialValues}
+          className="mt-8 space-y-4"
+        />
       </div>
     </div>
   );
@@ -160,7 +186,9 @@ function LabeledInput({
 }) {
   return (
     <label className="block">
-      <div className="mb-2 text-sm font-medium text-white">{label}</div>
+      <div className="mb-2 text-left text-sm font-medium text-white">
+        {label}
+      </div>
       <input
         type="text"
         value={value}
@@ -184,8 +212,10 @@ function LabeledTextarea({
   placeholder: string;
 }) {
   return (
-    <label className="block">
-      <div className="mb-2 text-sm font-medium text-white">{label}</div>
+    <label className="block w-full">
+      <div className="mb-2 text-sm text-left w-full font-medium text-white">
+        {label}
+      </div>
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}

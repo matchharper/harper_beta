@@ -6,6 +6,7 @@ import { useRouter } from "next/router";
 import GradientBackground from "@/components/landing/GradientBackground";
 import Header from "@/components/landing/Header";
 import { supabase } from "@/lib/supabase";
+import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 
 type ActivationState =
   | "loading"
@@ -19,6 +20,7 @@ export default function RequestAccessActivatePage() {
   const interactiveRef = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<ActivationState>("loading");
   const [message, setMessage] = useState("");
+  const { load } = useCompanyUserStore();
 
   const token = useMemo(() => {
     if (!router.isReady) return "";
@@ -75,8 +77,28 @@ export default function RequestAccessActivatePage() {
       if (!cancelled) {
         setState("success");
         setMessage("Your access is ready. Redirecting to Harper...");
+
+        let nextPath = "/search";
+
+        try {
+          const userId = session.user?.id ?? "";
+          if (userId) {
+            await load(userId);
+            const refreshedCompanyUser =
+              useCompanyUserStore.getState().companyUser;
+            if (refreshedCompanyUser?.is_authenticated) {
+              nextPath = "/my";
+            }
+          }
+        } catch (loadError) {
+          console.error(
+            "[request-access/activate] failed to refresh company user",
+            loadError
+          );
+        }
+
         setTimeout(() => {
-          router.replace("/my");
+          void router.replace(nextPath);
         }, 900);
       }
     })();
@@ -84,7 +106,7 @@ export default function RequestAccessActivatePage() {
     return () => {
       cancelled = true;
     };
-  }, [router, router.isReady, token]);
+  }, [load, router, router.isReady, token]);
 
   return (
     <div className="relative min-h-screen bg-black px-4 text-white font-inter">

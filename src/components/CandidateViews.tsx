@@ -563,7 +563,7 @@ const CandidateViews = ({
   return (
     <div className="w-full relative h-full">
       {sortedItems.length > 0 && (
-        <div className="w-full flex flex-row items-center justify-between mt-2 px-4">
+        <div className="sticky top-0 z-50 w-full flex flex-row items-center justify-between pb-2 px-4">
           <div className="flex min-w-0 items-center gap-3"></div>
           <div className="flex flex-row items-center justify-start gap-2">
             {!hasSharedFolderNotes && userId ? (
@@ -575,7 +575,7 @@ const CandidateViews = ({
                       void handleBulkOpenProfiles();
                     }}
                     disabled={bulkRevealMutation.isPending}
-                    className="inline-flex flex-row gap-2 border border-white/80 bg-gradient-to-br from-white/85 via-white/75 to-white/70 text-black items-center justify-center rounded-lg px-2.5 py-1.5 text-xs font-normal transition duration-200 hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="inline-flex flex-row gap-2 border border-white/80 bg-gradient-to-br from-white/85 via-white/75 to-white/70 text-black items-center justify-center rounded-lg px-2.5 py-1.5 text-xs font-normal transition duration-200 hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <Unlock className="w-3.5 h-3.5" />
                     <span>

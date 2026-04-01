@@ -31,6 +31,10 @@ type TalentInternalInsert =
 const DEFAULT_LIMIT = 40;
 const MAX_LIMIT = 100;
 const MAX_RESUME_TEXT_CHARS = 20_000;
+const EDITABLE_INTERNAL_TYPES = new Set<TalentInternalType>([
+  "conversation",
+  "memo",
+]);
 
 function normalizeText(value: string | null | undefined, maxLength = 4000) {
   const normalized = String(value ?? "").replace(/\r/g, "").trim();
@@ -343,6 +347,33 @@ async function fetchTalentInternalEntries(waitlistId: number) {
   return (data ?? []) as TalentInternalEntry[];
 }
 
+async function fetchTalentInternalEntryById(entryId: number) {
+  const admin = getTalentSupabaseAdmin();
+  const { data, error } = await admin
+    .from("talent_internal")
+    .select(
+      "id, talent_id, waitlist_id, type, content, from_email, to_email, subject, created_by, created_at"
+    )
+    .eq("id", entryId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load talent_internal entry");
+  }
+
+  if (!data) {
+    throw new InternalApiError(404, "Internal entry not found");
+  }
+
+  return data as TalentInternalEntry;
+}
+
+function assertEditableInternalEntry(entry: TalentInternalEntry) {
+  if (!EDITABLE_INTERNAL_TYPES.has(entry.type)) {
+    throw new InternalApiError(400, "Only memo and conversation entries can be edited");
+  }
+}
+
 export async function fetchNetworkLeadDetail(
   leadId: number
 ): Promise<NetworkLeadDetailResponse> {
@@ -438,15 +469,16 @@ export async function insertTalentInternalEntry(args: {
   const lead = await fetchNetworkLeadById(args.leadId);
   const admin = getTalentSupabaseAdmin();
   const talentId = await upsertWaitlistLeadTalentUser(lead);
+  const isMail = args.type === "mail";
 
   const payload: TalentInternalInsert = {
     content: args.content,
     created_at: new Date().toISOString(),
     created_by: args.createdBy,
-    from_email: args.fromEmail ?? null,
-    subject: args.subject ?? null,
+    from_email: isMail ? args.fromEmail ?? null : null,
+    subject: isMail ? args.subject ?? null : null,
     talent_id: talentId,
-    to_email: args.toEmail ?? lead.email ?? null,
+    to_email: isMail ? args.toEmail ?? lead.email ?? null : null,
     type: args.type,
     waitlist_id: lead.id,
   };
@@ -464,6 +496,49 @@ export async function insertTalentInternalEntry(args: {
   }
 
   return data as TalentInternalEntry;
+}
+
+export async function updateTalentInternalEntry(args: {
+  content: string;
+  entryId: number;
+}) {
+  const admin = getTalentSupabaseAdmin();
+  const entry = await fetchTalentInternalEntryById(args.entryId);
+  assertEditableInternalEntry(entry);
+
+  const { data, error } = await admin
+    .from("talent_internal")
+    .update({
+      content: args.content,
+      from_email: null,
+      subject: null,
+      to_email: null,
+    })
+    .eq("id", entry.id)
+    .select(
+      "id, talent_id, waitlist_id, type, content, from_email, to_email, subject, created_by, created_at"
+    )
+    .single();
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to update talent_internal");
+  }
+
+  return data as TalentInternalEntry;
+}
+
+export async function deleteTalentInternalEntry(args: { entryId: number }) {
+  const admin = getTalentSupabaseAdmin();
+  const entry = await fetchTalentInternalEntryById(args.entryId);
+  assertEditableInternalEntry(entry);
+
+  const { error } = await admin.from("talent_internal").delete().eq("id", entry.id);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to delete talent_internal");
+  }
+
+  return entry;
 }
 
 export async function sendCandidateMailAndLog(args: {

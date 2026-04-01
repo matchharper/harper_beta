@@ -6,12 +6,14 @@ import {
   prepareRequestAccessApprovalDraft,
   sendRequestAccessApprovalEmail,
 } from "@/lib/requestAccess/server";
+import type { RequestAccessApprovalEmailLocale } from "@/lib/requestAccess/types";
 import { getRequestUser } from "@/lib/supabaseServer";
 
 export const runtime = "nodejs";
 
 type ReviewRequestBody = {
   request?: string;
+  locale?: RequestAccessApprovalEmailLocale;
   from?: string;
   subject?: string;
   html?: string;
@@ -98,6 +100,7 @@ export async function POST(req: NextRequest) {
       email,
       approvedBy: "request_access_review_link",
       baseUrl: getRequestAccessBaseUrl(req),
+      locale: body?.locale,
       from: String(body?.from ?? ""),
       subject: String(body?.subject ?? ""),
       html: String(body?.html ?? ""),

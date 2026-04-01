@@ -41,5 +41,5 @@ export const opsTheme = {
   title:
     "font-halant text-[2.55rem] leading-[0.92] tracking-[-0.08em] text-beige900",
   titleSm:
-    "font-halant text-[2rem] leading-[0.96] tracking-[-0.07em] text-beige900",
+    "font-halant text-[1.6rem] leading-[0.96] tracking-[-0.07em] text-beige900",
 } as const;

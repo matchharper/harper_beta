@@ -6,12 +6,10 @@ import {
   Sparkles,
   PanelLeft,
   PanelLeftOpen,
-  Database,
   User,
   LogOut,
   HelpCircle,
   MessageSquareMore,
-  Zap,
 } from "lucide-react";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
@@ -115,7 +113,7 @@ const AppLayout = ({
     : null;
 
   return (
-    <div className="flex h-screen font-sans w-full bg-white text-neutral-900 overflow-hidden">
+    <div className="flex h-screen font-sans w-full bg-hgray200 text-neutral-900 overflow-hidden">
       {/* Sidebar */}
       <aside
         className={[
@@ -205,19 +203,6 @@ const AppLayout = ({
                       {credits?.remain_credit ?? 0}
                     </div>
                   </div>
-                  {/* <div className="w-full flex relative rounded-full h-1 bg-white/10">
-                    <div
-                      className="absolute left-0 top-0 rounded-full h-1 bg-accenta1 transition-all duration-500 ease-out"
-                      style={{
-                        width: `${Math.min(
-                          ((credits?.remain_credit ?? 0) /
-                            (credits?.charged_credit ?? 1)) *
-                            100,
-                          100
-                        )}%`,
-                      }}
-                    ></div>
-                  </div> */}
                 </div>
               </Link>
             </>

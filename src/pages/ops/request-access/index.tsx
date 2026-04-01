@@ -83,9 +83,9 @@ export default function OpsRequestAccessPage() {
   const router = useRouter();
   const [inputValue, setInputValue] = useState("");
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | RequestAccessReviewStatus>(
-    "pending"
-  );
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | RequestAccessReviewStatus
+  >("pending");
 
   const queueQuery = useOpsRequestAccessQueue();
   const queue = queueQuery.data;
@@ -126,17 +126,9 @@ export default function OpsRequestAccessPage() {
         return true;
       }
 
-      return [
-        item.email,
-        item.name,
-        item.company,
-        item.role,
-        item.hiringNeed,
-      ]
+      return [item.email, item.name, item.company, item.role, item.hiringNeed]
         .filter(Boolean)
-        .some((value) =>
-          String(value).toLowerCase().includes(normalizedQuery)
-        );
+        .some((value) => String(value).toLowerCase().includes(normalizedQuery));
     });
   }, [queue?.items, search, statusFilter]);
 
@@ -182,12 +174,12 @@ export default function OpsRequestAccessPage() {
             <div className={cx(opsTheme.panel, "p-5")}>
               <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                  <div className={opsTheme.eyebrow}>Review Queue</div>
                   <div className={cx(opsTheme.titleSm, "mt-1")}>
                     검토할 신청 내역
                   </div>
                   <div className="mt-2 font-geist text-sm text-beige900/65">
-                    pending 항목을 먼저 보여주고, 승인됨/활성화됨 상태도 함께 볼 수 있습니다.
+                    pending 항목을 먼저 보여주고, 승인됨/활성화됨 상태도 함께 볼
+                    수 있습니다.
                   </div>
                 </div>
 
@@ -257,12 +249,20 @@ export default function OpsRequestAccessPage() {
                       : "request access 목록을 불러오지 못했습니다."}
                   </div>
                 ) : filteredItems.length === 0 ? (
-                  <div className={cx(opsTheme.panelSoft, "px-4 py-6 font-geist text-sm text-beige900/60")}>
+                  <div
+                    className={cx(
+                      opsTheme.panelSoft,
+                      "px-4 py-6 font-geist text-sm text-beige900/60"
+                    )}
+                  >
                     조건에 맞는 request access 신청이 없습니다.
                   </div>
                 ) : (
                   filteredItems.map((item) => (
-                    <div key={item.email} className={cx(opsTheme.panelSoft, "px-4 py-4")}>
+                    <div
+                      key={item.email}
+                      className={cx(opsTheme.panelSoft, "px-4 py-4")}
+                    >
                       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
@@ -281,28 +281,38 @@ export default function OpsRequestAccessPage() {
 
                           <div className="mt-3 flex flex-wrap items-center gap-2">
                             {item.company ? (
-                              <div className={opsTheme.badge}>{item.company}</div>
+                              <div className={opsTheme.badge}>
+                                {item.company}
+                              </div>
                             ) : null}
                             {item.role ? (
                               <div className={opsTheme.badge}>{item.role}</div>
                             ) : null}
                             {item.hiringNeed ? (
-                              <div className={opsTheme.badge}>{item.hiringNeed}</div>
+                              <div className={opsTheme.badge}>
+                                {item.hiringNeed}
+                              </div>
                             ) : null}
                           </div>
 
                           <div className="mt-4 grid gap-2 font-geist text-sm text-beige900/60 md:grid-cols-2">
                             <div>
-                              승인 메일 발송: {formatDateTime(item.approvalEmailSentAt)}
+                              승인 메일 발송:{" "}
+                              {formatDateTime(item.approvalEmailSentAt)}
                             </div>
-                            <div>활성화 완료: {formatDateTime(item.accessGrantedAt)}</div>
+                            <div>
+                              활성화 완료:{" "}
+                              {formatDateTime(item.accessGrantedAt)}
+                            </div>
                           </div>
                         </div>
 
                         <div className="flex flex-wrap gap-2">
                           <button
                             type="button"
-                            onClick={() => handleOpenQueueItem(item.requestToken)}
+                            onClick={() =>
+                              handleOpenQueueItem(item.requestToken)
+                            }
                             className={cx(opsTheme.buttonPrimary, "h-10 px-3")}
                           >
                             <KeyRound className="h-4 w-4" />
@@ -314,8 +324,7 @@ export default function OpsRequestAccessPage() {
                             rel="noreferrer"
                             className={cx(opsTheme.buttonSoft, "h-10 px-3")}
                           >
-                            <ExternalLink className="h-4 w-4" />
-                            새 탭
+                            <ExternalLink className="h-4 w-4" />새 탭
                           </a>
                         </div>
                       </div>
@@ -329,53 +338,13 @@ export default function OpsRequestAccessPage() {
               <div className={cx(opsTheme.panel, "p-5")}>
                 <div className="flex items-center gap-3">
                   <div className="rounded-md bg-beige500/70 p-3 text-beige900">
-                    <Link2 className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <div className={opsTheme.titleSm}>Open Review Link</div>
-                    <div className="mt-1 font-geist text-sm text-beige900/65">
-                      review URL 전체를 붙여넣어도 되고, `request` 토큰만 넣어도 됩니다.
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-5">
-                  <textarea
-                    value={inputValue}
-                    onChange={(event) => setInputValue(event.target.value)}
-                    className={cx(opsTheme.textarea, "min-h-[132px]")}
-                    placeholder="https://.../ops/request-access/review?request=..."
-                    spellCheck={false}
-                  />
-                </div>
-
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleOpenReview}
-                    disabled={!parsedToken}
-                    className={cx(opsTheme.buttonPrimary, "h-11")}
-                  >
-                    Review 열기
-                    <ArrowRight className="h-4 w-4" />
-                  </button>
-                  {parsedToken ? (
-                    <div className={cx(opsTheme.panelSoft, "px-3 py-2 font-geist text-xs text-beige900/60")}>
-                      token detected
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className={cx(opsTheme.panel, "p-5")}>
-                <div className="flex items-center gap-3">
-                  <div className="rounded-md bg-beige500/70 p-3 text-beige900">
                     <ClipboardPenLine className="h-5 w-5" />
                   </div>
                   <div>
                     <div className={opsTheme.titleSm}>Current Flow</div>
                     <div className="mt-1 font-geist text-sm text-beige900/65">
-                      request access 승인 메일 리뷰는 내부 도메인 로그인 이후에만 열립니다.
+                      request access 승인 메일 리뷰는 내부 도메인 로그인
+                      이후에만 열립니다.
                     </div>
                   </div>
                 </div>
@@ -385,10 +354,12 @@ export default function OpsRequestAccessPage() {
                     1. Queue에서 pending 신청을 확인합니다.
                   </div>
                   <div className={cx(opsTheme.panelSoft, "px-4 py-3")}>
-                    2. `Review 열기`로 draft를 열고 sender, subject, body를 검토합니다.
+                    2. `Review 열기`로 draft를 열고 sender, subject, body를
+                    검토합니다.
                   </div>
                   <div className={cx(opsTheme.panelSoft, "px-4 py-3")}>
-                    3. 메일을 보내면 상태가 승인 메일 발송으로 바뀌고, 이후 activation 여부도 여기서 추적할 수 있습니다.
+                    3. 메일을 보내면 상태가 승인 메일 발송으로 바뀌고, 이후
+                    activation 여부도 여기서 추적할 수 있습니다.
                   </div>
                 </div>
               </div>
@@ -407,19 +378,35 @@ export default function OpsRequestAccessPage() {
                 </div>
 
                 <div className="mt-5 space-y-3">
-                  <div className={cx(opsTheme.panelSoft, "flex items-center gap-3 px-4 py-3")}>
+                  <div
+                    className={cx(
+                      opsTheme.panelSoft,
+                      "flex items-center gap-3 px-4 py-3"
+                    )}
+                  >
                     <KeyRound className="h-4 w-4 text-beige900/60" />
                     <div className="font-geist text-sm text-beige900/70">
                       검토 대기: 아직 승인 메일을 보내지 않은 신청
                     </div>
                   </div>
-                  <div className={cx(opsTheme.panelSoft, "flex items-center gap-3 px-4 py-3")}>
+                  <div
+                    className={cx(
+                      opsTheme.panelSoft,
+                      "flex items-center gap-3 px-4 py-3"
+                    )}
+                  >
                     <MailCheck className="h-4 w-4 text-beige900/60" />
                     <div className="font-geist text-sm text-beige900/70">
-                      승인 메일 발송: review는 끝났지만 사용자가 아직 activation 전
+                      승인 메일 발송: review는 끝났지만 사용자가 아직 activation
+                      전
                     </div>
                   </div>
-                  <div className={cx(opsTheme.panelSoft, "flex items-center gap-3 px-4 py-3")}>
+                  <div
+                    className={cx(
+                      opsTheme.panelSoft,
+                      "flex items-center gap-3 px-4 py-3"
+                    )}
+                  >
                     <CheckCheck className="h-4 w-4 text-beige900/60" />
                     <div className="font-geist text-sm text-beige900/70">
                       활성화 완료: 이미 access grant까지 끝난 상태

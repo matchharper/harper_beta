@@ -9,9 +9,9 @@ export const en = {
     invalidAccount: "Account not found.",
   },
   invitation: {
-    title: "Enter your invite code.",
+    title: "Request access",
     description:
-      "Harper is currently in private beta. Please enter your invite code below.\nIf you don't have one yet, apply below.\nWe'll do our best to get you access as quickly as possible.",
+      "Harper is currently running as an approval-based beta.\nShare a few details below and we'll review your request, then email you an access link.",
     nameTitle: "Tell us your name.",
     nameDescription:
       "Your invite code has been verified. Please enter the name you'd like to use.",
@@ -25,7 +25,7 @@ export const en = {
     requestAccess: {
       title: "Request access",
       description:
-        "Tell us a bit about your team. If approved, we'll email you an activation link.",
+        "Tell us a bit about your team and hiring needs. If approved, we'll email the access link to your signed-in address.",
       submit: "Send request",
       submitted:
         "Your request has been submitted. We'll email you a link once access is approved.",
@@ -42,7 +42,7 @@ export const en = {
       errors: {
         missingSession:
           "We couldn't verify your session. Please sign in again.",
-        invalidForm: "Please fill in every field.",
+        invalidForm: "Please fill in your name and company.",
         submitFailed: "Failed to submit your request. Please try again.",
       },
     },
@@ -225,10 +225,9 @@ export const en = {
       title: "Questions & Answers",
       items: [
         {
-          question:
-            "Can I sign up and use it right now? (How do I get an invite code?)",
+          question: "Can I sign up and use it right away?",
           answer:
-            "Harper is currently running a private beta with a small set of tech companies to optimize data quality and AI resources. Our public launch is planned for Q2 this year. Join the waitlist and we'll send invite codes during onboarding.",
+            "Harper is currently operating as an approval-based beta. After you sign in and submit a request access form, we review requests and grant access on a rolling basis.",
         },
         {
           question:

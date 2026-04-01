@@ -76,7 +76,7 @@ export default function RevealProfileButton({
           }}
           disabled={revealMutation.isPending}
           className={cn(
-            "group-hover:bg-black/10 absolute inset-0 z-[70] flex h-full w-full cursor-pointer items-center justify-center border border-transparent transition-all duration-300 disabled:cursor-not-allowed",
+            "group-hover:bg-black/10 absolute inset-0 z-40 flex h-full w-full cursor-pointer items-center justify-center border border-transparent transition-all duration-300 disabled:cursor-not-allowed",
             overlayClassName
           )}
         >

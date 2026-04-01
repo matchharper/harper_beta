@@ -3,6 +3,34 @@ export type RequestAccessReviewStatus =
   | "approved"
   | "already_granted";
 
+export type RequestAccessApprovalEmailLocale = "en" | "ko";
+
+export type RequestAccessApprovalEmailTemplate = {
+  subject: string;
+  html: string;
+  text: string;
+};
+
+export type RequestAccessApprovalDraft = {
+  status: RequestAccessReviewStatus;
+  email: string;
+  name: string | null;
+  company: string | null;
+  role: string | null;
+  hiringNeed: string | null;
+  accessGrantedAt: string | null;
+  activationUrl: string;
+  locale: RequestAccessApprovalEmailLocale;
+  templates: Record<
+    RequestAccessApprovalEmailLocale,
+    RequestAccessApprovalEmailTemplate
+  >;
+  from: string;
+  subject: string;
+  html: string;
+  text: string;
+};
+
 export type RequestAccessReviewQueueItem = {
   accessGrantedAt: string | null;
   approvalEmailSentAt: string | null;

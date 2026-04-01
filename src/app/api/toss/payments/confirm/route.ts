@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import {
+  createSupabaseAdminClient,
+  getCompanyUserSummary,
+} from "@/lib/billing/server";
+import { notifyBillingPaymentSucceeded } from "@/lib/billing/notifications";
+import {
   confirmPayment,
   getPayment,
   TossRequestError,
@@ -8,12 +13,19 @@ import {
 export const runtime = "nodejs";
 
 const ONE_TIME_PAYMENT_AMOUNT_KRW = 1000;
+const ONE_TIME_PAYMENT_USER_ID_REGEX =
+  /^oneoff_([0-9a-fA-F-]{36})_\d+$/;
 
 type ConfirmOneTimePaymentBody = {
   paymentKey?: string;
   orderId?: string;
   amount?: string | number;
 };
+
+function parseOneTimePaymentUserId(orderId: string) {
+  const matched = orderId.match(ONE_TIME_PAYMENT_USER_ID_REGEX);
+  return matched?.[1] ?? null;
+}
 
 export async function POST(req: Request) {
   let body: ConfirmOneTimePaymentBody;
@@ -54,6 +66,31 @@ export async function POST(req: Request) {
       orderId,
       amount,
     });
+
+    const userId = parseOneTimePaymentUserId(orderId);
+    if (userId) {
+      try {
+        const supabaseAdmin = createSupabaseAdminClient();
+        const companyUser = await getCompanyUserSummary(supabaseAdmin, userId);
+        await notifyBillingPaymentSucceeded({
+          kind: "one_time_payment",
+          userId,
+          userEmail: companyUser?.email ?? null,
+          userName: companyUser?.name ?? null,
+          planName: "Harper 일회성 결제",
+          billing: null,
+          amountKRW: amount,
+          approvedAt: payment.approvedAt ?? null,
+          orderId: payment.orderId,
+          paymentKey: payment.paymentKey,
+        });
+      } catch (slackError) {
+        console.error("[billing] slack notify failed after one-time payment", {
+          orderId,
+          error: slackError,
+        });
+      }
+    }
 
     return NextResponse.json(
       {

@@ -3,6 +3,9 @@ import { createClient } from "@supabase/supabase-js";
 import { IncomingWebhook } from "@slack/webhook";
 import { resetCreditsForPlan } from "@/lib/billing/server";
 import type {
+  RequestAccessApprovalDraft,
+  RequestAccessApprovalEmailLocale,
+  RequestAccessApprovalEmailTemplate,
   RequestAccessReviewQueueItem,
   RequestAccessReviewQueueResponse,
   RequestAccessReviewStatus,
@@ -55,21 +58,6 @@ type RequestAccessQueueRow = Pick<
   | "status"
   | "user_id"
 >;
-
-export type RequestAccessApprovalDraft = {
-  status: "pending" | "approved" | "already_granted";
-  email: string;
-  name: string | null;
-  company: string | null;
-  role: string | null;
-  hiringNeed: string | null;
-  accessGrantedAt: string | null;
-  activationUrl: string;
-  from: string;
-  subject: string;
-  html: string;
-  text: string;
-};
 
 function toRequestAccessReviewStatus(
   row: Pick<RequestAccessRow, "access_granted_at" | "status">
@@ -265,7 +253,7 @@ function buildSlackBlocks(
       text: {
         type: "mrkdwn",
         text: [
-          "*Request Access Submitted*",
+          "☘️ *Request Access Submitted*",
           `• *Name*: ${row.name || "N/A"}`,
           `• *Email*: ${row.email || "N/A"}`,
           `• *Company*: ${row.company || "N/A"}`,
@@ -383,37 +371,102 @@ function getMailerConfig() {
 }
 
 function buildDefaultRequestAccessApprovedEmail(args: {
+  locale: RequestAccessApprovalEmailLocale;
+  name?: string | null;
+  activationUrl: string;
+}): RequestAccessApprovalEmailTemplate {
+  const recipientName =
+    normalizeText(args.name) || (args.locale === "ko" ? "고객" : "there");
+  const safeRecipientName = escapeHtml(recipientName);
+  const safeActivationUrl = escapeHtml(args.activationUrl);
+  const copy =
+    args.locale === "ko"
+      ? {
+          subject: "Harper 이용이 준비되었습니다",
+          greeting: `${safeRecipientName}님, 안녕하세요.`,
+          welcome: "Harper에 오신 것을 환영합니다.",
+          approved: "요청하신 Harper access가 승인되었습니다.",
+          intro:
+            "아래 링크를 눌러 접근을 활성화하고 바로 Harper를 사용해보세요.",
+          cta: "Harper 시작하기",
+          fallback:
+            "혹시 링크가 열리지 않는다면 아래 URL을 브라우저에 붙여넣어 주세요.",
+          footer:
+            "Harper는 진짜 인재를 발견하도록 도와주는 AI Recruiting Agent입니다.",
+          text: [
+            `${recipientName}님, 안녕하세요.`,
+            "",
+            "Harper에 오신 것을 환영합니다.",
+            "Harper request access가 승인되었습니다.",
+            "아래 링크를 열어 접근을 활성화해 주세요:",
+            args.activationUrl,
+          ].join("\n"),
+        }
+      : {
+          subject: "Your Harper access is ready",
+          greeting: `Hi ${safeRecipientName},`,
+          welcome: "Welcome to Harper!",
+          approved: "Your Harper request access has been approved.",
+          intro:
+            "Click the link below to activate your access and go straight into Harper.",
+          cta: "Activate Harper Access",
+          fallback:
+            "If the link does not open, paste this URL into your browser:",
+          footer:
+            "Harper helps you discover real engineers and researchers through their actual work.",
+          text: [
+            `Hi ${recipientName},`,
+            "",
+            "Welcome to Harper!",
+            "Your Harper request access has been approved.",
+            "Open the link below to activate your access:",
+            args.activationUrl,
+          ].join("\n"),
+        };
+  const html = `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111;">
+      <p>${copy.greeting}</p>
+      <p>${escapeHtml(copy.welcome)}</p>
+      <p>${escapeHtml(copy.approved)}</p>
+      <p>${escapeHtml(copy.intro)}</p>
+      <p><a href="${safeActivationUrl}">${escapeHtml(copy.cta)}</a></p>
+      <p>${escapeHtml(copy.fallback)}</p>
+      <p>${safeActivationUrl}</p>
+      <p></p>
+      <div style="margin-top: 32px; padding-left: 12px; border-left: 3px solid #EFFF3F;">
+        <p style="margin: 0; font-size: 13px; color: #111827;">
+          ${escapeHtml(copy.footer)}
+        </p>
+      </div>
+    </div>
+  `;
+
+  return {
+    subject: copy.subject,
+    html,
+    text: copy.text,
+  };
+}
+
+function buildDefaultRequestAccessApprovedEmailTemplates(args: {
   name?: string | null;
   activationUrl: string;
 }) {
-  const recipientName = normalizeText(args.name) || "there";
-  const safeRecipientName = escapeHtml(recipientName);
-  const safeActivationUrl = escapeHtml(args.activationUrl);
-  const subject = "Your Harper access is ready";
-  const html = `
-    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111;">
-      <p>Hi ${safeRecipientName},</p>
-      <p>Welcome to Harper!</p>
-      <p>Your Harper request access has been approved.</p>
-      <p>Click the link below to activate your access and go straight into Harper.</p>
-      <p><a href="${safeActivationUrl}" style="color: #0f172a;">Activate Harper Access</a></p>
-      <p>If the link does not open, paste this URL into your browser:</p>
-      <p>${safeActivationUrl}</p>
-    </div>
-  `;
-  const text = [
-    `Hi ${recipientName},`,
-    "",
-    "Your Harper request access has been approved.",
-    "Open the link below to activate your access:",
-    args.activationUrl,
-  ].join("\n");
-
   return {
-    subject,
-    html,
-    text,
-  };
+    en: buildDefaultRequestAccessApprovedEmail({
+      locale: "en",
+      name: args.name,
+      activationUrl: args.activationUrl,
+    }),
+    ko: buildDefaultRequestAccessApprovedEmail({
+      locale: "ko",
+      name: args.name,
+      activationUrl: args.activationUrl,
+    }),
+  } satisfies Record<
+    RequestAccessApprovalEmailLocale,
+    RequestAccessApprovalEmailTemplate
+  >;
 }
 
 async function sendRequestAccessApprovedEmail(args: {
@@ -645,7 +698,7 @@ async function resolveRequestAccessApprovalContext(args: {
     token: approvalToken,
     baseUrl: args.baseUrl,
   });
-  const defaultEmail = buildDefaultRequestAccessApprovedEmail({
+  const defaultTemplates = buildDefaultRequestAccessApprovedEmailTemplates({
     name: row.name,
     activationUrl,
   });
@@ -654,7 +707,8 @@ async function resolveRequestAccessApprovalContext(args: {
     row,
     approvalToken,
     activationUrl,
-    defaultEmail,
+    defaultEmail: defaultTemplates.en,
+    defaultTemplates,
     hiringNeed: Array.isArray(row.needs) ? (row.needs[0] ?? null) : null,
   };
 }
@@ -672,6 +726,8 @@ export async function prepareRequestAccessApprovalDraft(args: {
     baseUrl: args.baseUrl,
   });
   const status = toRequestAccessReviewStatus(context.row);
+  const locale: RequestAccessApprovalEmailLocale = "en";
+  const selectedTemplate = context.defaultTemplates[locale];
 
   return {
     status,
@@ -682,10 +738,12 @@ export async function prepareRequestAccessApprovalDraft(args: {
     hiringNeed: context.hiringNeed,
     accessGrantedAt: context.row.access_granted_at,
     activationUrl: context.activationUrl,
+    locale,
+    templates: context.defaultTemplates,
     from: defaultFrom,
-    subject: context.defaultEmail.subject,
-    html: context.defaultEmail.html,
-    text: context.defaultEmail.text,
+    subject: selectedTemplate.subject,
+    html: selectedTemplate.html,
+    text: selectedTemplate.text,
   } satisfies RequestAccessApprovalDraft;
 }
 
@@ -735,7 +793,8 @@ export async function listRequestAccessReviewQueue(args: {
       } satisfies RequestAccessReviewQueueItem;
     })
     .sort((left, right) => {
-      const statusDelta = statusWeight[left.status] - statusWeight[right.status];
+      const statusDelta =
+        statusWeight[left.status] - statusWeight[right.status];
       if (statusDelta !== 0) {
         return statusDelta;
       }
@@ -775,6 +834,7 @@ export async function sendRequestAccessApprovalEmail(args: {
   email: string;
   approvedBy: string;
   baseUrl: string;
+  locale?: RequestAccessApprovalEmailLocale | null;
   from?: string | null;
   subject?: string | null;
   html?: string | null;
@@ -794,9 +854,11 @@ export async function sendRequestAccessApprovalEmail(args: {
     };
   }
 
-  const subject = normalizeText(args.subject) || context.defaultEmail.subject;
-  const html = normalizeText(args.html) || context.defaultEmail.html;
-  const text = htmlToText(html) || context.defaultEmail.text;
+  const locale = args.locale === "ko" ? "ko" : "en";
+  const selectedTemplate = context.defaultTemplates[locale];
+  const subject = normalizeText(args.subject) || selectedTemplate.subject;
+  const html = normalizeText(args.html) || selectedTemplate.html;
+  const text = htmlToText(html) || selectedTemplate.text;
   const nowIso = new Date().toISOString();
 
   const { error: updateError } = await supabaseAdmin
@@ -828,8 +890,7 @@ export async function sendRequestAccessApprovalEmail(args: {
       name: context.row.name,
       approvedBy: args.approvedBy,
       mode:
-        subject !== context.defaultEmail.subject ||
-        html !== context.defaultEmail.html
+        subject !== selectedTemplate.subject || html !== selectedTemplate.html
           ? "custom"
           : "default",
     });

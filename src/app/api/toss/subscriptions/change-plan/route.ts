@@ -17,6 +17,7 @@ import {
   resetCreditsForPlan,
   updatePaymentAttempt,
 } from "@/lib/billing/server";
+import { notifyBillingPaymentSucceeded } from "@/lib/billing/notifications";
 import { approveBilling, TossRequestError } from "@/lib/toss/server";
 
 export const runtime = "nodejs";
@@ -238,6 +239,26 @@ export async function POST(req: Request) {
       plan,
       eventType: `${plan.name ?? planKey}_subscription_plan_change`,
     });
+
+    try {
+      await notifyBillingPaymentSucceeded({
+        kind: "subscription_plan_change",
+        userId,
+        userEmail: companyUser?.email ?? null,
+        userName: companyUser?.name ?? null,
+        planName: plan.display_name ?? plan.name ?? planKey,
+        billing: nextBilling,
+        amountKRW: Number(plan.price_krw ?? 0),
+        approvedAt: approvedPayment.approvedAt ?? nowIso,
+        orderId,
+        paymentKey: approvedPayment.paymentKey,
+      });
+    } catch (slackError) {
+      console.error("[billing] slack notify failed after plan change", {
+        paymentId: payment.id,
+        error: slackError,
+      });
+    }
 
     return NextResponse.json(
       {

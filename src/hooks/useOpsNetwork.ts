@@ -94,6 +94,61 @@ export function useCreateOpsNetworkInternalEntry() {
   });
 }
 
+export function useUpdateOpsNetworkInternalEntry() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (args: {
+      content: string;
+      entryId: number;
+      leadId: number;
+    }) =>
+      fetchWithInternalAuth<{ ok: boolean }>("/api/internal/network/internal", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          content: args.content,
+          entryId: args.entryId,
+        }),
+      }),
+    onSuccess: async (_, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: opsNetworkLeadsKey }),
+        queryClient.invalidateQueries({
+          queryKey: opsNetworkDetailKey(variables.leadId),
+        }),
+      ]);
+    },
+  });
+}
+
+export function useDeleteOpsNetworkInternalEntry() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (args: { entryId: number; leadId: number }) =>
+      fetchWithInternalAuth<{ ok: boolean }>("/api/internal/network/internal", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          entryId: args.entryId,
+        }),
+      }),
+    onSuccess: async (_, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: opsNetworkLeadsKey }),
+        queryClient.invalidateQueries({
+          queryKey: opsNetworkDetailKey(variables.leadId),
+        }),
+      ]);
+    },
+  });
+}
+
 export function useSendOpsNetworkMail() {
   const queryClient = useQueryClient();
 
