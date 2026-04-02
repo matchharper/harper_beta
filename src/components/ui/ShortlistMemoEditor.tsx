@@ -128,20 +128,18 @@ export default function ShortlistMemoEditor({
         className
       )}
     >
-      {!isEditing && hasMemo && (
+      {/* {!isEditing && hasMemo && (
         <div className="absolute top-0 left-[-1px] h-full bg-accenta1 w-0.5 rounded-[1px]"></div>
-      )}
+      )} */}
       {!isEditing ? (
         <>
           {hasMemo ? (
             <div className="group flex items-center justify-between gap-2 whitespace-pre-wrap break-words">
               <span>{memo}</span>
-              {!isSmall && (
-                <PencilLine
-                  className="w-3 h-3 text-hgray700/70 shrink-0 group-hover:text-white"
-                  strokeWidth={1.6}
-                />
-              )}
+              <PencilLine
+                className="w-3 h-3 mr-1 text-hgray700/70 shrink-0 group-hover:text-white"
+                strokeWidth={1.6}
+              />
             </div>
           ) : (
             <div className="group flex items-center justify-start gap-2.5 whitespace-pre-wrap break-words text-hgray900">

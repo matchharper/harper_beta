@@ -10,6 +10,7 @@ import {
 import { useRouter } from "next/router";
 import { Avatar } from "./NameProfile";
 import { Tooltips } from "./ui/tooltip";
+import { Checkbox } from "./ui/Checkbox";
 import SummaryCell, { SynthItem } from "./information/SummaryCell";
 import { useLogEvent } from "@/hooks/useLog";
 import { getSchoolLogo } from "@/utils/school_logo";
@@ -157,6 +158,9 @@ function CandidateRow({
   buildProfileHref,
   showBookmarkAction = true,
   showMarkAction = true,
+  showSelectionControl = false,
+  isSelected = false,
+  onToggleSelection,
   onMarkChange,
   sharedFolderContext = null,
 }: {
@@ -172,6 +176,9 @@ function CandidateRow({
   buildProfileHref?: (candidate: CandidateTypeWithConnection) => string;
   showBookmarkAction?: boolean;
   showMarkAction?: boolean;
+  showSelectionControl?: boolean;
+  isSelected?: boolean;
+  onToggleSelection?: () => void;
   onMarkChange?: (status: CandidateMarkStatus | null) => void;
   sharedFolderContext?: {
     token: string;
@@ -281,6 +288,30 @@ function CandidateRow({
   const githubDeveloperTooltipText = useMemo(() => {
     return buildGithubDeveloperTooltip(githubPreview);
   }, [githubPreview]);
+  const canSelectRow = Boolean(
+    showSelectionControl && !isProfileRevealed && !sharedFolderContext?.token
+  );
+
+  const leadingContent =
+    linkSources.length > 0 ? (
+      <div className="flex items-center justify-center gap-1 max-w-[36px] flex-wrap">
+        {linkSources.map((source) => (
+          <Tooltips key={source} text={getSearchSourceLabel(source)}>
+            <span className="flex items-center justify-center rounded-full">
+              <Image
+                src={getSearchSourceLogoPath(source)}
+                alt={getSearchSourceLabel(source)}
+                width={source === "github" ? 13 : 12}
+                height={source === "github" ? 13 : 12}
+                className="object-contain rounded-[2px]"
+              />
+            </span>
+          </Tooltips>
+        ))}
+      </div>
+    ) : (
+      rowIndex + 1
+    );
 
   const renderColumnCell = (columnId: CandidateTableColumnId) => {
     if (isCriteriaColumnId(columnId)) {
@@ -680,24 +711,44 @@ function CandidateRow({
             style={{ gridTemplateColumns }}
           >
             <div className="sticky left-0 z-30 h-full px-3 flex items-center justify-center text-xs text-hgray700 bg-hgray200 group-hover:bg-[#242424] transition-colors">
-              {linkSources.length > 0 ? (
-                <div className="flex items-center justify-center gap-1 max-w-[36px] flex-wrap">
-                  {linkSources.map((source) => (
-                    <Tooltips key={source} text={getSearchSourceLabel(source)}>
-                      <span className="flex items-center justify-center rounded-full">
-                        <Image
-                          src={getSearchSourceLogoPath(source)}
-                          alt={getSearchSourceLabel(source)}
-                          width={source === "github" ? 13 : 12}
-                          height={source === "github" ? 13 : 12}
-                          className="object-contain rounded-[2px]"
-                        />
-                      </span>
-                    </Tooltips>
-                  ))}
+              {canSelectRow ? (
+                <div className="relative flex w-full items-center justify-center">
+                  <div
+                    className={`transition-opacity duration-150 ${
+                      isSelected
+                        ? "opacity-0"
+                        : "opacity-100 group-hover:opacity-0"
+                    }`}
+                  >
+                    {leadingContent}
+                  </div>
+                  <div
+                    className={`absolute inset-0 flex items-center justify-center transition-opacity duration-150 ${
+                      isSelected
+                        ? "opacity-100"
+                        : "opacity-0 group-hover:opacity-100"
+                    } ${
+                      isSelected
+                        ? "pointer-events-auto"
+                        : "pointer-events-none group-hover:pointer-events-auto"
+                    }`}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                    }}
+                  >
+                    <Checkbox
+                      checked={isSelected}
+                      onChange={() => {
+                        onToggleSelection?.();
+                      }}
+                      aria-label={`${c.name ?? "candidate"} 선택`}
+                      className="h-5 w-5 rounded-[4px] border-white/50 bg-black/20"
+                    />
+                  </div>
                 </div>
               ) : (
-                rowIndex + 1
+                leadingContent
               )}
             </div>
             <div className="sticky left-14 z-20 h-full px-4 py-3 flex items-center gap-3 min-w-0 bg-hgray200 border-r border-white/5 group-hover:bg-[#242424] transition-colors">

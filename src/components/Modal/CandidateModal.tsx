@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useCallback, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useCandidateModalStore } from "@/store/useCandidateModalStore";
 import CandidateProfileDetailPage from "@/pages/my/p/CandidateProfile";
@@ -14,6 +14,18 @@ const CandidateModalRoot = () => {
   const { companyUser } = useCompanyUserStore();
   const userId = companyUser?.user_id;
   const candidId = payload?.candidId;
+  const requestClose = useCallback(() => {
+    if (
+      typeof window !== "undefined" &&
+      window.history.state?.modal === "candidate"
+    ) {
+      close();
+      window.history.back();
+      return;
+    }
+
+    close();
+  }, [close]);
   useEffect(() => {
     if (!isOpen) return;
     history.pushState({ modal: "candidate" }, "");
@@ -41,7 +53,7 @@ const CandidateModalRoot = () => {
             <button
               type="button"
               onClick={() => {
-                router.push(`/my/p/${payload.candidId}`);
+                router.replace(`/my/p/${payload.candidId}`);
               }}
               className="rounded-sm bg-white/0 px-1 py-1 text-sm hover:bg-white/5 cursor-pointer"
             >
@@ -49,7 +61,7 @@ const CandidateModalRoot = () => {
             </button>
             <button
               type="button"
-              onClick={close}
+              onClick={requestClose}
               className="rounded-sm bg-white/0 px-1 py-1 text-sm hover:bg-white/5 cursor-pointer"
             >
               <XIcon className="w-4 h-4" />

@@ -45,6 +45,7 @@ import {
 import { Avatar } from "./NameProfile";
 import SharedFolderCandidateNotes from "./shared/SharedFolderCandidateNotes";
 import Bookmarkbutton from "./ui/bookmarkbutton";
+import { Checkbox } from "./ui/Checkbox";
 import CandidateMemoDock from "./ui/CandidateMemoDock";
 import { Tooltips } from "./ui/tooltip";
 import RevealProfileButton from "./ui/RevealProfileButton";
@@ -129,6 +130,9 @@ function CandidateCard({
   buildProfileHref,
   showBookmarkAction = true,
   showMarkAction = true,
+  showSelectionControl = false,
+  isSelected = false,
+  onToggleSelection,
   onMarkChange,
   sharedFolderContext = null,
 }: {
@@ -141,6 +145,9 @@ function CandidateCard({
   buildProfileHref?: (candidate: CandidateTypeWithConnection) => string;
   showBookmarkAction?: boolean;
   showMarkAction?: boolean;
+  showSelectionControl?: boolean;
+  isSelected?: boolean;
+  onToggleSelection?: () => void;
   onMarkChange?: (status: CandidateMarkStatus | null) => void;
   sharedFolderContext?: {
     token: string;
@@ -249,6 +256,9 @@ function CandidateCard({
   const shouldShowCornerMark = Boolean(
     showMarkAction && userId && !shouldShowInlineMemo
   );
+  const canSelectCard = Boolean(
+    showSelectionControl && !isProfileRevealed && !hasSharedFolderNotes
+  );
 
   return (
     <div
@@ -277,9 +287,27 @@ function CandidateCard({
             : "cursor-default"
         } ${hasSharedFolderNotes ? "h-fit min-w-0" : ""}`}
       >
+        {canSelectCard ? (
+          <div
+            className="absolute left-[-40px] top-1 z-[60]"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+          >
+            <Checkbox
+              checked={isSelected}
+              onChange={() => {
+                onToggleSelection?.();
+              }}
+              aria-label={`${c.name ?? "candidate"} 선택`}
+              className="h-6 w-6 rounded-md border-white/50 bg-black/35 backdrop-blur-sm hover:bg-black/20"
+            />
+          </div>
+        ) : null}
         <div className="flex flex-col items-start">
           <div
-            className={`group/content min-w-0 flex-1 w-full relative ${hasSharedFolderNotes ? "px-5 pt-5" : "p-6"}`}
+            className={`group/content min-w-0 flex-1 w-full relative ${hasSharedFolderNotes ? "px-5 py-5" : "p-6"}`}
           >
             {!isProfileRevealed && !hasSharedFolderNotes && (
               <RevealProfileButton
@@ -473,11 +501,11 @@ function CandidateCard({
                     <div className="mt-1 line-clamp-2 text-[15px] font-normal text-white/95">
                       {evidencePaper.title}
                     </div>
-                    {evidencePaperMeta ? (
+                    {evidencePaperMeta && (
                       <div className="mt-1 text-sm font-normal text-hgray700">
                         {evidencePaperMeta}
                       </div>
-                    ) : null}
+                    )}
                   </div>
                 </div>
               </Tooltips>
@@ -486,7 +514,7 @@ function CandidateCard({
             {(synthesizedSummary.length !== 0 ||
               (isMyList && shortlistSummaryText.length > 0)) && (
               <div className="mt-6 font-light leading-relaxed text-hgray700">
-                {synthesizedSummary.length !== 0 ? (
+                {synthesizedSummary.length !== 0 && (
                   <div>
                     {synthesizedSummary?.map((item: any, index: number) => (
                       <MemoizedSummaryBox
@@ -497,19 +525,19 @@ function CandidateCard({
                       />
                     ))}
                   </div>
-                ) : null}
-                {isMyList && shortlistSummaryText.length > 0 ? (
+                )}
+                {isMyList && shortlistSummaryText.length > 0 && (
                   <div
                     className={`whitespace-pre-wrap break-words text-[14px] ${
                       synthesizedSummary.length !== 0 ? "mt-6" : ""
                     }`}
                     dangerouslySetInnerHTML={{ __html: shortlistSummaryText }}
                   />
-                ) : null}
+                )}
               </div>
             )}
           </div>
-          {shouldShowInlineMemo ? (
+          {shouldShowInlineMemo && (
             <div
               className={`w-full border-t border-white/10 pt-4 ${hasSharedFolderNotes ? "px-5 pb-5" : "px-6 pb-6"}`}
             >
@@ -525,34 +553,35 @@ function CandidateCard({
                 rows={4}
               />
             </div>
-          ) : null}
+          )}
         </div>
 
-        {shouldShowCornerMark || (showBookmarkAction && userId) ? (
-          <div
-            className="absolute right-3 top-3 flex items-center justify-start gap-2"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-          >
-            {showBookmarkAction && userId ? (
-              <div
-                className={`${
-                  isBookmarked && !isMyList ? "opacity-100" : "opacity-0"
-                } group-hover:opacity-100`}
-              >
-                <Bookmarkbutton
-                  userId={userId}
-                  candidId={c.id}
-                  connection={c.connection}
-                  isText={false}
-                  size="md"
-                />
-              </div>
-            ) : null}
-          </div>
-        ) : null}
+        {shouldShowCornerMark ||
+          (showBookmarkAction && userId && (
+            <div
+              className="absolute right-3 top-3 flex items-center justify-start gap-2"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+            >
+              {showBookmarkAction && userId && (
+                <div
+                  className={`${
+                    isBookmarked && !isMyList ? "opacity-100" : "opacity-0"
+                  } group-hover:opacity-100`}
+                >
+                  <Bookmarkbutton
+                    userId={userId}
+                    candidId={c.id}
+                    connection={c.connection}
+                    isText={false}
+                    size="md"
+                  />
+                </div>
+              )}
+            </div>
+          ))}
       </Link>
 
       {sharedFolderContext?.token && (
