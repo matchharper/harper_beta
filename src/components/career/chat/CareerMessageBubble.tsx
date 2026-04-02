@@ -3,9 +3,10 @@ import type { CareerMessage } from "@/components/career/types";
 
 // User bubble 색상을 바꾸려면 이 클래스를 수정하세요.
 export const USER_BUBBLE_CLASS =
-  "ml-auto bg-hblack100/60 px-3 py-2 text-hblack1000";
+  "ml-auto max-w-[820px] rounded-[8px] border border-[#6b4323] bg-[#6b4323] px-4 py-3 text-[#f5ecdd]";
 
-export const ASSISTANT_BUBBLE_CLASS = "text-hblack700";
+export const ASSISTANT_BUBBLE_CLASS =
+  "max-w-[920px] border-l border-beige900/15 pl-4 pr-2 py-1 text-beige900/75";
 const HIGHLIGHT_PATTERN = /<<([\s\S]+?)>>/g;
 
 type Props = {
@@ -32,7 +33,7 @@ function renderHighlightedContent(content: string): ReactNode {
       nodes.push(
         <span
           key={`highlight-${matchIndex}`}
-          className="box-decoration-clone rounded-md bg-beige900/10 px-1.5 py-0.5 text-beige900"
+          className="box-decoration-clone bg-beige900/10 px-1.5 py-0.5 text-beige900"
         >
           {highlightedText}
         </span>
@@ -57,11 +58,9 @@ const CareerMessageBubble = ({
   return (
     <article
       className={[
-        "max-w-[96%] rounded-lg text-sm leading-relaxed transition-colors duration-300",
+        "max-w-[92%] text-[14px] leading-7 transition-colors duration-300",
         isUser ? USER_BUBBLE_CLASS : ASSISTANT_BUBBLE_CLASS,
-        !isUser && isAssistantSpeaking
-          ? "bg-beige900/10 px-2 py-2"
-          : "px-2 py-2",
+        !isUser && isAssistantSpeaking ? "bg-white/20" : "",
       ].join(" ")}
     >
       <p className="whitespace-pre-wrap break-words">

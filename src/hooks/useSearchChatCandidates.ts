@@ -162,6 +162,7 @@ async function fetchCandidatesByIds(
         edu_user (
           school,
           degree,
+          description,
           field,
           start_date,
           end_date

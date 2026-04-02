@@ -258,6 +258,9 @@ export const buildLongDoc = (doc: any) => {
     if (edu.end_date) {
       eduText += `, End Date: ${edu.end_date ?? "Present"}`;
     }
+    if (edu.description) {
+      eduText += `\nDescription of the education: ${edu.description}`;
+    }
     return eduText;
   });
 
@@ -364,6 +367,9 @@ export const buildSummary = (doc: any) => {
     }
     if (edu.end_date) {
       eduText += `, End Date: ${edu.end_date ?? "Present"}`;
+    }
+    if (edu.description) {
+      eduText += `\nDescription of the education: ${edu.description}`;
     }
     return eduText;
   });

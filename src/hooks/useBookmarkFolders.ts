@@ -43,12 +43,39 @@ export const bookmarkFoldersKey = (userId?: string) =>
 export const candidateBookmarkFolderIdsKey = (userId?: string, candidId?: string) =>
   ["candidateBookmarkFolderIds", userId, candidId] as const;
 
+async function fetchBookmarkFolders(userId: string) {
+  const { data, error } = await ((supabase.from("bookmark_folder" as any) as any)
+    .select("id, user_id, name, is_default, created_at, updated_at")
+    .eq("user_id", userId)
+    .order("is_default", { ascending: false })
+    .order("created_at", { ascending: true }));
+
+  if (error) throw error;
+  return (data ?? []) as BookmarkFolder[];
+}
+
+async function fetchCandidateBookmarkFolderIds(userId: string, candidId: string) {
+  const { data, error } = await ((supabase.from("bookmark_folder_item" as any) as any)
+    .select("folder_id")
+    .eq("user_id", userId)
+    .eq("candid_id", candidId));
+
+  if (error) throw error;
+
+  const ids = new Set<number>();
+  for (const row of data ?? []) {
+    const value = Number(row?.folder_id);
+    if (Number.isFinite(value)) ids.add(value);
+  }
+
+  return Array.from(ids);
+}
+
 function invalidateBookmarkRelatedQueries(
   qc: ReturnType<typeof useQueryClient>,
   userId: string,
   candidId?: string
 ) {
-  qc.invalidateQueries({ queryKey: bookmarkFoldersKey(userId) });
   qc.invalidateQueries({ queryKey: ["connections", userId] });
   qc.invalidateQueries({ queryKey: ["connectionsCount", userId] });
   qc.invalidateQueries({ queryKey: ["candidate"] });
@@ -66,17 +93,11 @@ export function useBookmarkFolders(userId?: string, enabled: boolean = true) {
   return useQuery({
     queryKey: bookmarkFoldersKey(userId),
     enabled: !!userId && enabled,
-    queryFn: async () => {
-      const { data, error } = await ((supabase.from("bookmark_folder" as any) as any)
-        .select("id, user_id, name, is_default, created_at, updated_at")
-        .eq("user_id", userId!)
-        .order("is_default", { ascending: false })
-        .order("created_at", { ascending: true }));
-
-      if (error) throw error;
-      return (data ?? []) as BookmarkFolder[];
-    },
-    staleTime: 30_000,
+    queryFn: () => fetchBookmarkFolders(userId!),
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -88,25 +109,38 @@ export function useCandidateBookmarkFolderIds(
   return useQuery({
     queryKey: candidateBookmarkFolderIdsKey(userId, candidId),
     enabled: !!userId && !!candidId && enabled,
-    queryFn: async () => {
-      const { data, error } = await ((supabase.from(
-        "bookmark_folder_item" as any
-      ) as any)
-        .select("folder_id")
-        .eq("user_id", userId!)
-        .eq("candid_id", candidId!));
+    queryFn: () => fetchCandidateBookmarkFolderIds(userId!, candidId!),
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+  });
+}
 
-      if (error) throw error;
+export function prefetchBookmarkFolders(
+  qc: ReturnType<typeof useQueryClient>,
+  userId?: string
+) {
+  if (!userId) return Promise.resolve();
 
-      const ids = new Set<number>();
-      for (const row of data ?? []) {
-        const value = Number(row?.folder_id);
-        if (Number.isFinite(value)) ids.add(value);
-      }
+  return qc.prefetchQuery({
+    queryKey: bookmarkFoldersKey(userId),
+    queryFn: () => fetchBookmarkFolders(userId),
+    staleTime: 5 * 60_000,
+  });
+}
 
-      return Array.from(ids);
-    },
-    staleTime: 5_000,
+export function prefetchCandidateBookmarkFolderIds(
+  qc: ReturnType<typeof useQueryClient>,
+  userId?: string,
+  candidId?: string
+) {
+  if (!userId || !candidId) return Promise.resolve();
+
+  return qc.prefetchQuery({
+    queryKey: candidateBookmarkFolderIdsKey(userId, candidId),
+    queryFn: () => fetchCandidateBookmarkFolderIds(userId, candidId),
+    staleTime: 5 * 60_000,
   });
 }
 

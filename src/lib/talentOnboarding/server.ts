@@ -1,6 +1,15 @@
 import { createClient } from "@supabase/supabase-js";
 import type { User } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
+import {
+  TALENT_NETWORK_CAREER_MOVE_INTENT_OPTIONS,
+  TALENT_NETWORK_ENGAGEMENT_OPTIONS,
+  TALENT_NETWORK_LOCATION_OPTIONS,
+  type TalentNetworkApplication,
+  type TalentNetworkCareerMoveIntentOptionId,
+  type TalentNetworkEngagementOptionId,
+  type TalentNetworkLocationOptionId,
+} from "@/lib/talentNetworkApplication";
 
 export const TALENT_FIRST_VISIT_TEXT = [
   `안녕하세요. 하퍼에 처음 방문해주셔서 감사합니다.
@@ -35,6 +44,18 @@ export type TalentUserProfileRow = {
   headline: string | null;
   bio: string | null;
   location: string | null;
+  career_profile:
+    | TalentNetworkApplication
+    | Record<string, unknown>
+    | null;
+  career_profile_initialized_at: string | null;
+  network_waitlist_id: number | null;
+  network_claimed_at: string | null;
+  network_source_talent_id: string | null;
+  network_application:
+    | TalentNetworkApplication
+    | Record<string, unknown>
+    | null;
   resume_file_name: string | null;
   resume_storage_path: string | null;
   resume_text: string | null;
@@ -89,8 +110,24 @@ export type TalentSettingRow = {
   user_id: string;
   profile_visibility: TalentProfileVisibility;
   blocked_companies: string[];
+  engagement_types: TalentNetworkEngagementOptionId[];
+  preferred_locations: TalentNetworkLocationOptionId[];
+  career_move_intent: TalentNetworkCareerMoveIntentOptionId | null;
   created_at: string;
   updated_at: string;
+};
+
+export type TalentInsightContent = {
+  technical_strengths: string | null;
+  desired_teams: string | null;
+};
+
+export type TalentInsightRow = {
+  id: number;
+  talent_id: string | null;
+  content: TalentInsightContent | Record<string, unknown> | null;
+  created_at: string;
+  last_updated_at: string | null;
 };
 
 export const TALENT_RESUME_BUCKET = "talent-resumes";
@@ -100,6 +137,17 @@ const TALENT_ALLOWED_PROFILE_VISIBILITY = new Set<TalentProfileVisibility>([
   "exceptional_only",
   "dont_share",
 ]);
+const TALENT_ALLOWED_ENGAGEMENT_TYPES = new Set<TalentNetworkEngagementOptionId>(
+  TALENT_NETWORK_ENGAGEMENT_OPTIONS.map((option) => option.id)
+);
+const TALENT_ALLOWED_PREFERRED_LOCATIONS =
+  new Set<TalentNetworkLocationOptionId>(
+    TALENT_NETWORK_LOCATION_OPTIONS.map((option) => option.id)
+  );
+const TALENT_ALLOWED_CAREER_MOVE_INTENTS =
+  new Set<TalentNetworkCareerMoveIntentOptionId>(
+    TALENT_NETWORK_CAREER_MOVE_INTENT_OPTIONS.map((option) => option.id)
+  );
 
 export function normalizeTalentBlockedCompanies(companies: unknown): string[] {
   if (!Array.isArray(companies)) return [];
@@ -113,6 +161,139 @@ export function normalizeTalentBlockedCompanies(companies: unknown): string[] {
     unique.set(lower, name.slice(0, 120));
   }
   return Array.from(unique.values());
+}
+
+export function normalizeTalentEngagementTypes(
+  values: unknown
+): TalentNetworkEngagementOptionId[] {
+  if (!Array.isArray(values)) return [];
+
+  const unique = new Set<TalentNetworkEngagementOptionId>();
+  const normalized: TalentNetworkEngagementOptionId[] = [];
+
+  for (const raw of values) {
+    const value = String(raw ?? "").trim() as TalentNetworkEngagementOptionId;
+    if (!TALENT_ALLOWED_ENGAGEMENT_TYPES.has(value)) continue;
+    if (unique.has(value)) continue;
+    unique.add(value);
+    normalized.push(value);
+  }
+
+  return normalized;
+}
+
+export function normalizeTalentPreferredLocations(
+  values: unknown
+): TalentNetworkLocationOptionId[] {
+  if (!Array.isArray(values)) return [];
+
+  const unique = new Set<TalentNetworkLocationOptionId>();
+  const normalized: TalentNetworkLocationOptionId[] = [];
+
+  for (const raw of values) {
+    const value = String(raw ?? "").trim() as TalentNetworkLocationOptionId;
+    if (!TALENT_ALLOWED_PREFERRED_LOCATIONS.has(value)) continue;
+    if (unique.has(value)) continue;
+    unique.add(value);
+    normalized.push(value);
+  }
+
+  return normalized;
+}
+
+export function sanitizeTalentCareerMoveIntent(
+  value: unknown
+): TalentNetworkCareerMoveIntentOptionId | null {
+  const normalized = String(value ?? "").trim() as TalentNetworkCareerMoveIntentOptionId;
+  if (TALENT_ALLOWED_CAREER_MOVE_INTENTS.has(normalized)) {
+    return normalized;
+  }
+  return null;
+}
+
+function normalizeTalentInsightText(value: unknown, maxLength = 8000) {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+  if (!normalized) return null;
+  return normalized.slice(0, maxLength);
+}
+
+export function normalizeTalentInsightContent(
+  value: unknown
+): TalentInsightContent | null {
+  const record = asRecord(value);
+  if (!record) return null;
+
+  const normalized = {
+    technical_strengths: normalizeTalentInsightText(
+      record.technical_strengths ?? record.impact_summary,
+      8000
+    ),
+    desired_teams: normalizeTalentInsightText(
+      record.desired_teams ?? record.dream_teams,
+      4000
+    ),
+  } satisfies TalentInsightContent;
+
+  if (!normalized.technical_strengths && !normalized.desired_teams) {
+    return null;
+  }
+
+  return normalized;
+}
+
+export function mergeTalentInsightContent(args: {
+  currentContent: unknown;
+  seedContent: TalentInsightContent | null;
+}) {
+  const current = normalizeTalentInsightContent(args.currentContent);
+  const seed = normalizeTalentInsightContent(args.seedContent);
+
+  if (!current && !seed) return null;
+
+  return {
+    technical_strengths:
+      current?.technical_strengths ?? seed?.technical_strengths ?? null,
+    desired_teams: current?.desired_teams ?? seed?.desired_teams ?? null,
+  } satisfies TalentInsightContent;
+}
+
+export function mergeTalentSettingSeed(args: {
+  currentSetting: TalentSettingRow | null;
+  engagementTypes: unknown;
+  preferredLocations: unknown;
+  careerMoveIntent: unknown;
+}) {
+  const { currentSetting } = args;
+  const currentEngagementTypes = normalizeTalentEngagementTypes(
+    currentSetting?.engagement_types ?? []
+  );
+  const currentPreferredLocations = normalizeTalentPreferredLocations(
+    currentSetting?.preferred_locations ?? []
+  );
+  const currentCareerMoveIntent = sanitizeTalentCareerMoveIntent(
+    currentSetting?.career_move_intent
+  );
+
+  return {
+    profileVisibility: sanitizeTalentProfileVisibility(
+      currentSetting?.profile_visibility ?? DEFAULT_TALENT_PROFILE_VISIBILITY
+    ),
+    blockedCompanies: normalizeTalentBlockedCompanies(
+      currentSetting?.blocked_companies ?? []
+    ),
+    engagementTypes:
+      currentEngagementTypes.length > 0
+        ? currentEngagementTypes
+        : normalizeTalentEngagementTypes(args.engagementTypes),
+    preferredLocations:
+      currentPreferredLocations.length > 0
+        ? currentPreferredLocations
+        : normalizeTalentPreferredLocations(args.preferredLocations),
+    careerMoveIntent:
+      currentCareerMoveIntent ??
+      sanitizeTalentCareerMoveIntent(args.careerMoveIntent),
+  };
 }
 
 export function sanitizeTalentProfileVisibility(
@@ -167,25 +348,71 @@ export function toTalentDisplayName(user: User) {
   );
 }
 
+function normalizeComparableString(value: string | null | undefined) {
+  const normalized = String(value ?? "").trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
 export async function ensureTalentUserRecord(args: {
   admin: ReturnType<typeof getTalentSupabaseAdmin>;
   user: User;
 }) {
   const { admin, user } = args;
-  const payload = {
-    user_id: user.id,
-    email: user.email ?? null,
-    name: toTalentDisplayName(user),
-    profile_picture: user.user_metadata?.avatar_url ?? null,
-    updated_at: new Date().toISOString(),
-  };
-
-  const { error } = await admin
+  const email = normalizeComparableString(user.email);
+  const name = normalizeComparableString(toTalentDisplayName(user));
+  const profilePicture = normalizeComparableString(
+    user.user_metadata?.avatar_url
+  );
+  const { data: existing, error: existingError } = await admin
     .from("talent_users")
-    .upsert(payload, { onConflict: "user_id" });
+    .select("user_id, email, name, profile_picture")
+    .eq("user_id", user.id)
+    .maybeSingle();
 
-  if (error) {
-    throw new Error(error.message ?? "Failed to upsert talent_users");
+  if (existingError) {
+    throw new Error(existingError.message ?? "Failed to read talent_users");
+  }
+
+  if (!existing) {
+    const { error: insertError } = await admin.from("talent_users").insert({
+      user_id: user.id,
+      email,
+      name,
+      profile_picture: profilePicture,
+      updated_at: new Date().toISOString(),
+    });
+
+    if (insertError) {
+      throw new Error(insertError.message ?? "Failed to insert talent_users");
+    }
+    return;
+  }
+
+  const nextPayload: Database["public"]["Tables"]["talent_users"]["Update"] = {};
+
+  if (normalizeComparableString(existing.email) !== email) {
+    nextPayload.email = email;
+  }
+  if (normalizeComparableString(existing.name) !== name) {
+    nextPayload.name = name;
+  }
+  if (normalizeComparableString(existing.profile_picture) !== profilePicture) {
+    nextPayload.profile_picture = profilePicture;
+  }
+
+  if (Object.keys(nextPayload).length === 0) {
+    return;
+  }
+
+  nextPayload.updated_at = new Date().toISOString();
+
+  const { error: updateError } = await admin
+    .from("talent_users")
+    .update(nextPayload)
+    .eq("user_id", user.id);
+
+  if (updateError) {
+    throw new Error(updateError.message ?? "Failed to update talent_users");
   }
 }
 
@@ -298,7 +525,7 @@ export async function fetchTalentUserProfile(args: {
   const { data, error } = await admin
     .from("talent_users")
     .select(
-      "user_id, email, name, profile_picture, headline, bio, location, resume_file_name, resume_storage_path, resume_text, resume_links, created_at, updated_at"
+      "user_id, email, name, profile_picture, headline, bio, location, career_profile, career_profile_initialized_at, network_waitlist_id, network_claimed_at, network_source_talent_id, network_application, resume_file_name, resume_storage_path, resume_text, resume_links, created_at, updated_at"
     )
     .eq("user_id", userId)
     .maybeSingle();
@@ -589,7 +816,7 @@ export async function fetchTalentSetting(args: {
   const { data, error } = await admin
     .from("talent_setting")
     .select(
-      "user_id, profile_visibility, blocked_companies, created_at, updated_at"
+      "user_id, profile_visibility, blocked_companies, engagement_types, preferred_locations, career_move_intent, created_at, updated_at"
     )
     .eq("user_id", userId)
     .maybeSingle();
@@ -606,8 +833,19 @@ export async function upsertTalentSetting(args: {
   userId: string;
   profileVisibility: TalentProfileVisibility;
   blockedCompanies: string[];
+  engagementTypes?: TalentNetworkEngagementOptionId[];
+  preferredLocations?: TalentNetworkLocationOptionId[];
+  careerMoveIntent?: TalentNetworkCareerMoveIntentOptionId | null;
 }) {
-  const { admin, userId, profileVisibility, blockedCompanies } = args;
+  const {
+    admin,
+    userId,
+    profileVisibility,
+    blockedCompanies,
+    engagementTypes = [],
+    preferredLocations = [],
+    careerMoveIntent = null,
+  } = args;
   const now = new Date().toISOString();
 
   const { data, error } = await admin
@@ -617,12 +855,17 @@ export async function upsertTalentSetting(args: {
         user_id: userId,
         profile_visibility: profileVisibility,
         blocked_companies: blockedCompanies,
+        engagement_types: normalizeTalentEngagementTypes(engagementTypes),
+        preferred_locations: normalizeTalentPreferredLocations(
+          preferredLocations
+        ),
+        career_move_intent: sanitizeTalentCareerMoveIntent(careerMoveIntent),
         updated_at: now,
       },
       { onConflict: "user_id" }
     )
     .select(
-      "user_id, profile_visibility, blocked_companies, created_at, updated_at"
+      "user_id, profile_visibility, blocked_companies, engagement_types, preferred_locations, career_move_intent, created_at, updated_at"
     )
     .single();
 
@@ -631,6 +874,55 @@ export async function upsertTalentSetting(args: {
   }
 
   return data as TalentSettingRow;
+}
+
+export async function fetchTalentInsights(args: {
+  admin: ReturnType<typeof getTalentSupabaseAdmin>;
+  userId: string;
+}) {
+  const { admin, userId } = args;
+  const { data, error } = await admin
+    .from("talent_insights")
+    .select("id, talent_id, content, created_at, last_updated_at")
+    .eq("talent_id", userId)
+    .order("id", { ascending: false })
+    .limit(1);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load talent_insights");
+  }
+
+  const row = (data ?? [])[0] ?? null;
+  return (row ?? null) as TalentInsightRow | null;
+}
+
+export async function upsertTalentInsights(args: {
+  admin: ReturnType<typeof getTalentSupabaseAdmin>;
+  userId: string;
+  content: TalentInsightContent | null;
+}) {
+  const { admin, userId, content } = args;
+  const normalizedContent = normalizeTalentInsightContent(content);
+  const now = new Date().toISOString();
+
+  const { data, error } = await admin
+    .from("talent_insights")
+    .upsert(
+      {
+        talent_id: userId,
+        content: normalizedContent,
+        last_updated_at: now,
+      },
+      { onConflict: "talent_id" }
+    )
+    .select("id, talent_id, content, created_at, last_updated_at")
+    .single();
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to save talent_insights");
+  }
+
+  return data as TalentInsightRow;
 }
 
 export async function getTalentResumeSignedUrl(args: {

@@ -52,6 +52,37 @@ export type CareerTalentProfile = {
   talentExtras: CareerTalentExtra[];
 };
 
+export type CareerNetworkApplication = {
+  selectedRole: string | null;
+  profileInputTypes: Array<"linkedin" | "github" | "scholar" | "website" | "cv">;
+  linkedinProfileUrl: string | null;
+  githubProfileUrl: string | null;
+  scholarProfileUrl: string | null;
+  personalWebsiteUrl: string | null;
+  submittedAt: string | null;
+};
+
+export type CareerTalentPreferences = {
+  engagementTypes: string[];
+  preferredLocations: string[];
+  careerMoveIntent: string | null;
+  careerMoveIntentLabel: string | null;
+  technicalStrengths: string | null;
+  desiredTeams: string | null;
+};
+
+export type CareerHistoryItem = {
+  id: string;
+  title: string;
+  description: string;
+  createdAt: string;
+  type:
+    | "network_submission"
+    | "career_workspace_created"
+    | "career_conversation_started"
+    | "profile_updated";
+};
+
 export type CareerMessage = {
   id: string | number;
   role: MessageRole;
@@ -80,6 +111,9 @@ export type SessionResponse = {
     resumeLinks: string[];
     reliefNudgeSent: boolean;
   };
+  historyItems?: CareerHistoryItem[];
+  networkApplication?: CareerNetworkApplication | null;
+  talentPreferences?: CareerTalentPreferences | null;
   talentProfile?: CareerTalentProfile;
   messages: CareerMessagePayload[];
   nextBeforeMessageId: number | null;

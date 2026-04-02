@@ -7,9 +7,13 @@ type SessionPayload = SessionResponse & { error?: string };
 
 type UseCareerSessionArgs = {
   fetchWithAuth: FetchWithAuth;
+  inviteToken?: string | null;
 };
 
-export const useCareerSession = ({ fetchWithAuth }: UseCareerSessionArgs) => {
+export const useCareerSession = ({
+  fetchWithAuth,
+  inviteToken,
+}: UseCareerSessionArgs) => {
   const [sessionPending, setSessionPending] = useState(false);
   const [sessionError, setSessionError] = useState("");
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -23,6 +27,9 @@ export const useCareerSession = ({ fetchWithAuth }: UseCareerSessionArgs) => {
     try {
       const bootstrapRes = await fetchWithAuth("/api/talent/auth/bootstrap", {
         method: "POST",
+        body: JSON.stringify({
+          inviteToken: inviteToken?.trim() || undefined,
+        }),
       });
       if (!bootstrapRes.ok) {
         const payload = await bootstrapRes.json().catch(() => ({}));
@@ -56,7 +63,7 @@ export const useCareerSession = ({ fetchWithAuth }: UseCareerSessionArgs) => {
     } finally {
       setSessionPending(false);
     }
-  }, [fetchWithAuth]);
+  }, [fetchWithAuth, inviteToken]);
 
   const resetSessionState = useCallback(() => {
     setConversationId(null);

@@ -4,6 +4,11 @@ import {
   ensureTalentUserRecord,
   getTalentSupabaseAdmin,
 } from "@/lib/talentOnboarding/server";
+import { claimTalentNetworkInvite } from "@/lib/talentOnboarding/networkClaim";
+
+type Body = {
+  inviteToken?: string;
+};
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,10 +17,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const body = (await req.json().catch(() => ({}))) as Body;
+    const inviteToken = String(body?.inviteToken ?? "").trim();
     const admin = getTalentSupabaseAdmin();
     await ensureTalentUserRecord({ admin, user });
+    const claim =
+      inviteToken.length > 0
+        ? await claimTalentNetworkInvite({
+            admin,
+            inviteToken,
+            user,
+          })
+        : null;
 
     return NextResponse.json({
+      claim,
       ok: true,
       userId: user.id,
     });

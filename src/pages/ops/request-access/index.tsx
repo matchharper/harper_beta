@@ -370,7 +370,7 @@ export default function OpsRequestAccessPage() {
             />
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.65fr)]">
+          <div className="flex gap-4">
             <div className={cx(opsTheme.panel, "p-5")}>
               <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
@@ -734,89 +734,6 @@ export default function OpsRequestAccessPage() {
                     </div>
                   ))
                 )}
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className={cx(opsTheme.panel, "p-5")}>
-                <div className="flex items-center gap-3">
-                  <div className="rounded-md bg-beige500/70 p-3 text-beige900">
-                    <ClipboardPenLine className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <div className={opsTheme.titleSm}>Current Flow</div>
-                    <div className="mt-1 font-geist text-sm text-beige900/65">
-                      request access 승인 메일 리뷰는 내부 도메인 로그인
-                      이후에만 열립니다.
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-5 space-y-3 font-geist text-sm leading-6 text-beige900/70">
-                  <div className={cx(opsTheme.panelSoft, "px-4 py-3")}>
-                    1. Queue에서 pending 신청을 확인합니다.
-                  </div>
-                  <div className={cx(opsTheme.panelSoft, "px-4 py-3")}>
-                    2. 여러 명에게 같은 메일을 보낼 땐 체크박스로 고른 뒤 bulk
-                    send 폼에서 제목과 본문을 편집합니다.
-                  </div>
-                  <div className={cx(opsTheme.panelSoft, "px-4 py-3")}>
-                    3. 개인별로 다르게 손볼 필요가 있으면{" "}
-                    <span className="font-mono text-[12px]">Review 열기</span>로
-                    들어가 단건 draft를 수정해서 보냅니다.
-                  </div>
-                </div>
-              </div>
-
-              <div className={cx(opsTheme.panel, "p-5")}>
-                <div className="flex items-center gap-3">
-                  <div className="rounded-md bg-beige500/70 p-3 text-beige900">
-                    <MailCheck className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <div className={opsTheme.titleSm}>What To Prioritize</div>
-                    <div className="mt-1 font-geist text-sm text-beige900/65">
-                      지금 바로 봐야 하는 건 pending 신청들입니다.
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-5 space-y-3">
-                  <div
-                    className={cx(
-                      opsTheme.panelSoft,
-                      "flex items-center gap-3 px-4 py-3"
-                    )}
-                  >
-                    <KeyRound className="h-4 w-4 text-beige900/60" />
-                    <div className="font-geist text-sm text-beige900/70">
-                      검토 대기: 아직 승인 메일을 보내지 않은 신청
-                    </div>
-                  </div>
-                  <div
-                    className={cx(
-                      opsTheme.panelSoft,
-                      "flex items-center gap-3 px-4 py-3"
-                    )}
-                  >
-                    <MailCheck className="h-4 w-4 text-beige900/60" />
-                    <div className="font-geist text-sm text-beige900/70">
-                      승인 메일 발송: review는 끝났지만 사용자가 아직 activation
-                      전
-                    </div>
-                  </div>
-                  <div
-                    className={cx(
-                      opsTheme.panelSoft,
-                      "flex items-center gap-3 px-4 py-3"
-                    )}
-                  >
-                    <CheckCheck className="h-4 w-4 text-beige900/60" />
-                    <div className="font-geist text-sm text-beige900/70">
-                      활성화 완료: 이미 access grant까지 끝난 상태
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           </div>

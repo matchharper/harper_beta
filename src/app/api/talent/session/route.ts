@@ -4,12 +4,23 @@ import {
   TALENT_FIRST_VISIT_TEXT,
   TalentConversationRow,
   ensureTalentUserRecord,
+  fetchTalentInsights,
+  fetchTalentSetting,
   fetchVisibleMessagesPage,
   fetchTalentStructuredProfile,
   fetchTalentUserProfile,
   getTalentResumeSignedUrl,
   getTalentSupabaseAdmin,
+  normalizeTalentEngagementTypes,
+  normalizeTalentInsightContent,
+  normalizeTalentPreferredLocations,
+  sanitizeTalentCareerMoveIntent,
 } from "@/lib/talentOnboarding/server";
+import { autoStartClaimedTalentConversation } from "@/lib/talentOnboarding/kickoff";
+import {
+  getTalentCareerMoveIntentLabel,
+  normalizeTalentNetworkApplication,
+} from "@/lib/talentNetworkApplication";
 
 export async function GET(req: NextRequest) {
   try {
@@ -89,6 +100,20 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    let profile = await fetchTalentUserProfile({ admin, userId: user.id });
+    if (conversation.stage === "profile") {
+      const seeded = await autoStartClaimedTalentConversation({
+        admin,
+        conversation,
+        profile,
+        user,
+      });
+      if (seeded?.conversation) {
+        conversation = seeded.conversation;
+        profile = await fetchTalentUserProfile({ admin, userId: user.id });
+      }
+    }
+
     const rawLimit = Number(req.nextUrl.searchParams.get("messageLimit") ?? "20");
     const messageLimit = Number.isFinite(rawLimit)
       ? Math.max(1, Math.min(Math.floor(rawLimit), 100))
@@ -105,16 +130,32 @@ export async function GET(req: NextRequest) {
       limit: messageLimit,
       beforeMessageId,
     });
-    const profile = await fetchTalentUserProfile({ admin, userId: user.id });
-    const talentProfile = await fetchTalentStructuredProfile({
-      admin,
-      userId: user.id,
-      talentUser: profile,
-    });
-    const resumeDownloadUrl = await getTalentResumeSignedUrl({
-      admin,
-      storagePath: profile?.resume_storage_path,
-    });
+    const [talentProfile, resumeDownloadUrl, talentSetting, talentInsights] =
+      await Promise.all([
+        fetchTalentStructuredProfile({
+          admin,
+          userId: user.id,
+          talentUser: profile,
+        }),
+        getTalentResumeSignedUrl({
+          admin,
+          storagePath: profile?.resume_storage_path,
+        }),
+        fetchTalentSetting({
+          admin,
+          userId: user.id,
+        }),
+        fetchTalentInsights({
+          admin,
+          userId: user.id,
+        }),
+      ]);
+    const normalizedInsights = normalizeTalentInsightContent(
+      talentInsights?.content
+    );
+    const careerMoveIntent = sanitizeTalentCareerMoveIntent(
+      talentSetting?.career_move_intent
+    );
 
     return NextResponse.json({
       ok: true,
@@ -127,6 +168,22 @@ export async function GET(req: NextRequest) {
         resumeDownloadUrl,
         resumeLinks: profile?.resume_links ?? [],
         reliefNudgeSent: Boolean(conversation.relief_nudge_sent),
+      },
+      historyItems: [],
+      networkApplication: normalizeTalentNetworkApplication(
+        profile?.career_profile ?? profile?.network_application
+      ),
+      talentPreferences: {
+        engagementTypes: normalizeTalentEngagementTypes(
+          talentSetting?.engagement_types ?? []
+        ),
+        preferredLocations: normalizeTalentPreferredLocations(
+          talentSetting?.preferred_locations ?? []
+        ),
+        careerMoveIntent,
+        careerMoveIntentLabel: getTalentCareerMoveIntentLabel(careerMoveIntent),
+        technicalStrengths: normalizedInsights?.technical_strengths ?? null,
+        desiredTeams: normalizedInsights?.desired_teams ?? null,
       },
       talentProfile,
       messages: messages.map((message) => ({

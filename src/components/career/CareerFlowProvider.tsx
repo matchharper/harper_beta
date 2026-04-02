@@ -13,16 +13,20 @@ import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { useCareerChat } from "@/hooks/career/useCareerChat";
 import { useCareerMessageHistory } from "@/hooks/career/useCareerMessageHistory";
 import { useCareerOnboardingVoice } from "@/hooks/career/useCareerOnboardingVoice";
+import { useCareerNetworkApplication } from "@/hooks/career/useCareerNetworkApplication";
 import { useCareerProfile } from "@/hooks/career/useCareerProfile";
+import { useCareerTalentPreferences } from "@/hooks/career/useCareerTalentPreferences";
 import { useCareerTalentSettings } from "@/hooks/career/useCareerTalentSettings";
 import { useCareerSession } from "@/hooks/career/useCareerSession";
 import { TALENT_ONBOARDING_COMPLETION_TARGET } from "@/lib/talentOnboarding/progress";
 
 export const CareerFlowProvider = ({
   children,
+  inviteToken,
   onOpenSettings,
 }: {
   children: React.ReactNode;
+  inviteToken?: string | null;
   onOpenSettings: () => void;
 }) => {
   const {
@@ -47,7 +51,7 @@ export const CareerFlowProvider = ({
     sessionError,
     loadSession,
     resetSessionState,
-  } = useCareerSession({ fetchWithAuth });
+  } = useCareerSession({ fetchWithAuth, inviteToken });
 
   const {
     messages: persistedMessages,
@@ -118,6 +122,34 @@ export const CareerFlowProvider = ({
     enqueueAssistantTypewriter,
     setChatError,
     onMessagesChanged: appendLatestMessagesToCache,
+  });
+
+  const {
+    networkApplication,
+    networkApplicationSavePending,
+    networkApplicationSaveError,
+    networkApplicationSaveInfo,
+    applySessionNetworkState,
+    onNetworkApplicationChange,
+    onSaveNetworkApplication,
+    resetNetworkApplicationState,
+  } = useCareerNetworkApplication({
+    fetchWithAuth,
+    user,
+  });
+
+  const {
+    talentPreferences,
+    talentPreferencesSavePending,
+    talentPreferencesSaveError,
+    talentPreferencesSaveInfo,
+    applySessionTalentPreferences,
+    onTalentPreferencesChange,
+    onSaveTalentPreferences,
+    resetTalentPreferencesState,
+  } = useCareerTalentPreferences({
+    fetchWithAuth,
+    user,
   });
 
   const {
@@ -202,9 +234,17 @@ export const CareerFlowProvider = ({
     (payload: SessionResponse) => {
       applySessionConversation(payload);
       applySessionProfile(payload);
+      applySessionNetworkState(payload);
+      applySessionTalentPreferences(payload);
       applySessionPrompt(payload);
     },
-    [applySessionConversation, applySessionProfile, applySessionPrompt]
+    [
+      applySessionConversation,
+      applySessionNetworkState,
+      applySessionProfile,
+      applySessionTalentPreferences,
+      applySessionPrompt,
+    ]
   );
 
   useEffect(() => {
@@ -214,6 +254,8 @@ export const CareerFlowProvider = ({
       resetSessionState();
       resetChatState();
       resetProfileState();
+      resetNetworkApplicationState();
+      resetTalentPreferencesState();
       resetOnboardingState();
       return;
     }
@@ -228,8 +270,10 @@ export const CareerFlowProvider = ({
     hydrateSession,
     loadSession,
     resetChatState,
+    resetNetworkApplicationState,
     resetOnboardingState,
     resetProfileState,
+    resetTalentPreferencesState,
     resetSessionState,
     userId,
   ]);
@@ -401,6 +445,18 @@ export const CareerFlowProvider = ({
         talentEducations,
         talentExtras,
       },
+      networkApplication,
+      talentPreferences,
+      networkApplicationSavePending,
+      networkApplicationSaveError,
+      networkApplicationSaveInfo,
+      talentPreferencesSavePending,
+      talentPreferencesSaveError,
+      talentPreferencesSaveInfo,
+      onNetworkApplicationChange,
+      onSaveNetworkApplication,
+      onTalentPreferencesChange,
+      onSaveTalentPreferences,
       settingsLoading,
       settingsSaving,
       settingsError,
@@ -418,11 +474,19 @@ export const CareerFlowProvider = ({
       onAddBlockedCompany,
       handleLogout,
       handleProfileLinkChange,
+      networkApplication,
+      networkApplicationSaveError,
+      networkApplicationSaveInfo,
+      networkApplicationSavePending,
+      onSaveTalentPreferences,
+      onTalentPreferencesChange,
+      onNetworkApplicationChange,
       onProfileVisibilityChange,
       onReloadTalentSettings,
       onOpenSettings,
       handleRemoveProfileLink,
       onRemoveBlockedCompany,
+      onSaveNetworkApplication,
       handleSaveTalentProfile,
       profileLinks,
       profileVisibility,
@@ -440,6 +504,10 @@ export const CareerFlowProvider = ({
       settingsSaving,
       setResumeFile,
       stage,
+      talentPreferences,
+      talentPreferencesSaveError,
+      talentPreferencesSaveInfo,
+      talentPreferencesSavePending,
       userChatCount,
       talentEducations,
       talentExperiences,

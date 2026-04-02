@@ -43,7 +43,7 @@ const CareerSettingsModal = ({
       overlayClassName="items-start pt-14"
       panelClassName="max-w-none h-[80vh] max-h-[860px] px-0 w-[min(1040px,90vw)]"
       bodyClassName="h-full p-0"
-      closeButtonClassName="right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-hblack100 bg-hblack50 text-hblack600 transition-colors hover:border-beige900 hover:text-beige900"
+      closeButtonClassName="font-geist right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-hblack100 bg-hblack50 text-hblack600 transition-colors hover:border-beige900 hover:text-beige900"
     >
       <section className="h-full">
         <div className="grid h-full grid-cols-[260px_minmax(0,1fr)]">
@@ -99,7 +99,7 @@ const CareerSettingsModal = ({
                   </p>
                 </div>
 
-                <p className="text-sm text-hblack700">
+                <p className="font-geist text-sm text-hblack700">
                   {user?.email ?? "로그인 중"}
                 </p>
                 <button

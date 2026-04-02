@@ -77,7 +77,7 @@ const CareerVisibilitySettingsSection = () => {
   };
 
   return (
-    <div className="">
+    <div className="font-geist">
       <div className="">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-lg font-semibold text-hblack1000">프로필 공개</h2>

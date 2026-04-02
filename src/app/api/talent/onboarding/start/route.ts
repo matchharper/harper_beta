@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
-import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
 import {
   TALENT_PENDING_QUESTION_PREFIX,
   TalentConversationRow,
@@ -13,6 +12,7 @@ import {
   toTalentDisplayName,
 } from "@/lib/talentOnboarding/server";
 import { ingestTalentProfileFromLinkedin } from "@/lib/talentOnboarding/profileIngestion";
+import { generateTalentKickoff } from "@/lib/talentOnboarding/kickoff";
 import { logger } from "@/utils/logger";
 
 type Body = {
@@ -29,48 +29,6 @@ type TalentProfileUpdatePayload = {
   resume_text?: string;
   resume_file_name?: string;
   resume_storage_path?: string;
-};
-
-type LlmKickoff = {
-  acknowledgement: string;
-  insight: string;
-  firstQuestion: string;
-};
-
-function parseKickoffPayload(raw: string): LlmKickoff | null {
-  const normalized = raw
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
-    .replace(/\s*```$/i, "")
-    .trim();
-
-  try {
-    const parsed = JSON.parse(normalized) as Partial<LlmKickoff>;
-    if (!parsed || typeof parsed !== "object") return null;
-
-    const acknowledgement =
-      typeof parsed.acknowledgement === "string"
-        ? parsed.acknowledgement.trim()
-        : "";
-    const insight =
-      typeof parsed.insight === "string" ? parsed.insight.trim() : "";
-    const firstQuestion =
-      typeof parsed.firstQuestion === "string"
-        ? parsed.firstQuestion.trim()
-        : "";
-
-    if (!acknowledgement || !insight || !firstQuestion) return null;
-    return { acknowledgement, insight, firstQuestion };
-  } catch {
-    return null;
-  }
-}
-
-const FALLBACK_KICKOFF: LlmKickoff = {
-  acknowledgement: "정보를 알려주셔서 감사합니다.",
-  insight:
-    "제출해주신 이력서/링크 기반으로 볼 때 강점이 분명해서 하퍼가 찾을 수 있는 기회 폭이 넓습니다.",
-  firstQuestion: "가장 선호하는 역할과 포지션 레벨은 무엇인가요?",
 };
 
 export async function POST(req: NextRequest) {
@@ -148,37 +106,11 @@ export async function POST(req: NextRequest) {
     }
 
     const displayName = toTalentDisplayName(user);
-    const kickoffLlmPromise = runTalentAssistantCompletion({
-      messages: [
-        {
-          role: "system",
-          content: [
-            "You are Harper, an AI talent agent onboarding assistant.",
-            "Always write in Korean.",
-            "Return JSON only.",
-            "JSON format:",
-            "{",
-            '  "acknowledgement": "...",',
-            '  "insight": "...",',
-            '  "firstQuestion": "..."',
-            "}",
-            "Rules:",
-            '- acknowledgement should greet user naturally (e.g. "안녕하세요 OO님.") and thank for sharing.',
-            '- insight should mention one impressive point using << >> wrapping style.',
-            "- firstQuestion should be one concrete recruiting question.",
-          ].join("\n"),
-        },
-        {
-          role: "user",
-          content: [
-            `이름: ${displayName}`,
-            `이력서 파일명: ${resumeFileName || "(없음)"}`,
-            `링크: ${links.join(", ") || "(없음)"}`,
-            `이력서 텍스트(일부): ${resumeText.slice(0, 8000) || "(없음)"}`,
-          ].join("\n"),
-        },
-      ],
-      temperature: 0.25,
+    const kickoffLlmPromise = generateTalentKickoff({
+      displayName,
+      links,
+      resumeFileName,
+      resumeText,
     });
 
     const profileIngestionPromise = (async () => {
@@ -222,7 +154,7 @@ export async function POST(req: NextRequest) {
       profileIngestionPromise,
     ]);
 
-    const kickoff = parseKickoffPayload(llmRaw) ?? FALLBACK_KICKOFF;
+    const kickoff = llmRaw;
 
     const messagePayloads = [
       {

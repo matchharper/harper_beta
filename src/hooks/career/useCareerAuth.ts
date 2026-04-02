@@ -9,16 +9,26 @@ export const useCareerAuth = () => {
   const [authError, setAuthError] = useState("");
   const [authInfo, setAuthInfo] = useState("");
 
+  const buildCareerRedirectPath = useCallback(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const nextUrl = new URL("/career", window.location.origin);
+    const currentUrl = new URL(window.location.href);
+    const inviteToken = currentUrl.searchParams.get("invite");
+    if (inviteToken) {
+      nextUrl.searchParams.set("invite", inviteToken);
+    }
+
+    return nextUrl.toString();
+  }, []);
+
   const handleGoogleLogin = useCallback(async () => {
     if (authPending) return;
     setAuthPending(true);
     setAuthError("");
     setAuthInfo("");
     try {
-      const redirectTo =
-        typeof window !== "undefined"
-          ? `${window.location.origin}/career`
-          : undefined;
+      const redirectTo = buildCareerRedirectPath();
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: { redirectTo },
@@ -34,7 +44,7 @@ export const useCareerAuth = () => {
     } finally {
       setAuthPending(false);
     }
-  }, [authPending]);
+  }, [authPending, buildCareerRedirectPath]);
 
   const handleEmailAuth = useCallback(
     async (args: { mode: "signin" | "signup"; email: string; password: string }) => {
@@ -51,10 +61,7 @@ export const useCareerAuth = () => {
       setAuthInfo("");
       try {
         if (args.mode === "signup") {
-          const redirectTo =
-            typeof window !== "undefined"
-              ? `${window.location.origin}/career`
-              : undefined;
+          const redirectTo = buildCareerRedirectPath();
           const { data, error } = await supabase.auth.signUp({
             email,
             password: args.password,
@@ -82,7 +89,7 @@ export const useCareerAuth = () => {
         setAuthPending(false);
       }
     },
-    [authPending]
+    [authPending, buildCareerRedirectPath]
   );
 
   const handleLogout = useCallback(async () => {

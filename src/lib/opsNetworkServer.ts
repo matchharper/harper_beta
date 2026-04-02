@@ -13,11 +13,19 @@ import {
 import { buildNetworkLead, NETWORK_WAITLIST_TYPE, type NetworkLead } from "@/lib/networkOps";
 import { supabaseServer } from "@/lib/supabaseServer";
 import {
+  fetchTalentInsights,
+  fetchTalentSetting,
   fetchTalentStructuredProfile,
   fetchTalentUserProfile,
   getTalentSupabaseAdmin,
+  mergeTalentInsightContent,
+  mergeTalentSettingSeed,
+  upsertTalentInsights,
+  upsertTalentSetting,
 } from "@/lib/talentOnboarding/server";
+import { findClaimedTalentUserByWaitlistId } from "@/lib/talentOnboarding/networkClaim";
 import { ingestTalentProfileFromLinkedin } from "@/lib/talentOnboarding/profileIngestion";
+import { normalizeTalentNetworkApplication } from "@/lib/talentNetworkApplication";
 import type { Database } from "@/types/database.types";
 
 type NetworkWaitlistRow = Pick<
@@ -88,6 +96,17 @@ function collectLeadLinks(lead: NetworkLead) {
     lead.scholarProfileUrl,
     lead.primaryProfileUrl,
   ]);
+}
+
+function buildLeadInsightSeed(lead: NetworkLead) {
+  if (!lead.impactSummary && !lead.dreamTeams) {
+    return null;
+  }
+
+  return {
+    technical_strengths: lead.impactSummary ?? null,
+    desired_teams: lead.dreamTeams ?? null,
+  };
 }
 
 function isPdfResume(args: { fileName?: string | null; mimeType?: string | null }) {
@@ -379,44 +398,83 @@ export async function fetchNetworkLeadDetail(
 ): Promise<NetworkLeadDetailResponse> {
   const admin = getTalentSupabaseAdmin();
   const lead = await fetchNetworkLeadById(leadId);
-  const talentId = getNetworkTalentId(lead.id);
+  const sourceTalentId = getNetworkTalentId(lead.id);
+  const claimedTalentUser = await findClaimedTalentUserByWaitlistId({
+    admin,
+    waitlistId: lead.id,
+  });
+  const resolvedTalentId = claimedTalentUser?.user_id ?? sourceTalentId;
 
-  const [talentProfile, structuredProfile, internalEntries] = await Promise.all([
-    fetchTalentUserProfile({
-      admin,
-      userId: talentId,
-    }),
-    fetchTalentStructuredProfile({
-      admin,
-      userId: talentId,
-    }),
-    fetchTalentInternalEntries(lead.id),
-  ]);
+  const [
+    resolvedTalentProfile,
+    structuredProfile,
+    internalEntries,
+    latestTalentSetting,
+    latestTalentInsightsRow,
+  ] =
+    await Promise.all([
+      claimedTalentUser
+        ? Promise.resolve(claimedTalentUser)
+        : fetchTalentUserProfile({
+            admin,
+            userId: resolvedTalentId,
+          }),
+      fetchTalentStructuredProfile({
+        admin,
+        userId: resolvedTalentId,
+        talentUser: claimedTalentUser ?? undefined,
+      }),
+      fetchTalentInternalEntries(lead.id),
+      fetchTalentSetting({
+        admin,
+        userId: resolvedTalentId,
+      }),
+      fetchTalentInsights({
+        admin,
+        userId: resolvedTalentId,
+      }),
+    ]);
 
   const hasStructuredProfile = hasStructuredTalentProfile({
-    profile: talentProfile,
+    profile: resolvedTalentProfile,
     structuredProfile,
   });
   const lastInternalActivityAt = internalEntries[0]?.created_at ?? null;
 
   return {
+    claimedTalentId: claimedTalentUser?.user_id ?? null,
     hasStructuredProfile,
     ingestionState: {
       hasLinkedin: Boolean(lead.linkedinProfileUrl),
       hasResume: lead.hasCv,
       lastInternalActivityAt,
-      resumeTextAvailable: Boolean(talentProfile?.resume_text),
+      resumeTextAvailable: Boolean(resolvedTalentProfile?.resume_text),
     },
     internalEntries,
     lead: {
       ...lead,
-      talentId,
+      talentId: sourceTalentId,
       hasStructuredProfile,
       lastInternalActivityAt,
     },
+    latestNetworkApplication: normalizeTalentNetworkApplication(
+      resolvedTalentProfile?.career_profile ?? resolvedTalentProfile?.network_application
+    ),
+    latestTalentInsights: mergeTalentInsightContent({
+      currentContent: latestTalentInsightsRow?.content,
+      seedContent: null,
+    }),
+    latestTalentSetting: latestTalentSetting
+      ? {
+          engagement_types: latestTalentSetting.engagement_types,
+          preferred_locations: latestTalentSetting.preferred_locations,
+          career_move_intent: latestTalentSetting.career_move_intent,
+        }
+      : null,
+    sourceTalentId,
     structuredProfile,
-    talentId,
-    talentProfile,
+    talentId: resolvedTalentId,
+    talentProfile: resolvedTalentProfile,
   };
 }
 
@@ -430,7 +488,21 @@ export async function ingestNetworkLeadProfile(args: { leadId: number }) {
     );
   }
 
-  const talentId = await upsertWaitlistLeadTalentUser(lead);
+  const claimedTalentUser = await findClaimedTalentUserByWaitlistId({
+    admin,
+    waitlistId: lead.id,
+  });
+  const talentId = claimedTalentUser?.user_id ?? (await upsertWaitlistLeadTalentUser(lead));
+  const [existingTalentSetting, existingTalentInsights] = await Promise.all([
+    fetchTalentSetting({
+      admin,
+      userId: talentId,
+    }),
+    fetchTalentInsights({
+      admin,
+      userId: talentId,
+    }),
+  ]);
   let resumeText: string | null = null;
   if (lead.hasCv) {
     try {
@@ -449,6 +521,27 @@ export async function ingestNetworkLeadProfile(args: { leadId: number }) {
     resumeStoragePath: lead.cvStoragePath,
     resumeText,
   });
+
+  await Promise.all([
+    upsertTalentSetting({
+      admin,
+      userId: talentId,
+      ...mergeTalentSettingSeed({
+        currentSetting: existingTalentSetting,
+        engagementTypes: lead.engagementTypes,
+        preferredLocations: lead.preferredLocations,
+        careerMoveIntent: lead.careerMoveIntent,
+      }),
+    }),
+    upsertTalentInsights({
+      admin,
+      userId: talentId,
+      content: mergeTalentInsightContent({
+        currentContent: existingTalentInsights?.content,
+        seedContent: buildLeadInsightSeed(lead),
+      }),
+    }),
+  ]);
 
   return {
     ingestion,

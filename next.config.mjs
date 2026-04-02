@@ -1,6 +1,16 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // serverComponentsExternalPackages: ["pdf2json"],
+  experimental: {
+    serverComponentsExternalPackages: ["apify-client", "proxy-agent"],
+  },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "lh3.googleusercontent.com",
+      },
+    ],
+  },
   reactStrictMode: false,
   async headers() {
     return [
