@@ -218,7 +218,7 @@ export default function ShareTokenPage() {
                     start_date={ed.start_date}
                     end_date={ed.end_date}
                     link={ed.url}
-                    description={""}
+                    description={ed.description ?? ""}
                     typed="edu"
                     disableEntityClick={candid.profile_revealed === false}
                   />

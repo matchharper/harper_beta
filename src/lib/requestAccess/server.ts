@@ -2,10 +2,13 @@ import crypto from "crypto";
 import { createClient } from "@supabase/supabase-js";
 import { IncomingWebhook } from "@slack/webhook";
 import { resetCreditsForPlan } from "@/lib/billing/server";
+import {
+  buildRequestAccessApprovedEmailTemplates,
+  renderRequestAccessApprovalTemplate,
+} from "@/lib/requestAccess/emailTemplate";
 import type {
   RequestAccessApprovalDraft,
   RequestAccessApprovalEmailLocale,
-  RequestAccessApprovalEmailTemplate,
   RequestAccessReviewQueueItem,
   RequestAccessReviewQueueResponse,
   RequestAccessReviewStatus,
@@ -95,15 +98,6 @@ function normalizeEmail(value?: string | null) {
 
 function makeApprovalToken() {
   return crypto.randomBytes(24).toString("base64url");
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 }
 
 function htmlToText(html: string) {
@@ -370,105 +364,6 @@ function getMailerConfig() {
   return { apiKey, defaultFrom };
 }
 
-function buildDefaultRequestAccessApprovedEmail(args: {
-  locale: RequestAccessApprovalEmailLocale;
-  name?: string | null;
-  activationUrl: string;
-}): RequestAccessApprovalEmailTemplate {
-  const recipientName =
-    normalizeText(args.name) || (args.locale === "ko" ? "고객" : "there");
-  const safeRecipientName = escapeHtml(recipientName);
-  const safeActivationUrl = escapeHtml(args.activationUrl);
-  const copy =
-    args.locale === "ko"
-      ? {
-          subject: "Harper 이용이 준비되었습니다",
-          greeting: `${safeRecipientName}님, 안녕하세요.`,
-          welcome: "Harper에 오신 것을 환영합니다.",
-          approved: "요청하신 Harper access가 승인되었습니다.",
-          intro:
-            "아래 링크를 눌러 접근을 활성화하고 바로 Harper를 사용해보세요.",
-          cta: "Harper 시작하기",
-          fallback:
-            "혹시 링크가 열리지 않는다면 아래 URL을 브라우저에 붙여넣어 주세요.",
-          footer:
-            "Harper는 진짜 인재를 발견하도록 도와주는 AI Recruiting Agent입니다.",
-          text: [
-            `${recipientName}님, 안녕하세요.`,
-            "",
-            "Harper에 오신 것을 환영합니다.",
-            "Harper request access가 승인되었습니다.",
-            "아래 링크를 열어 접근을 활성화해 주세요:",
-            args.activationUrl,
-          ].join("\n"),
-        }
-      : {
-          subject: "Your Harper access is ready",
-          greeting: `Hi ${safeRecipientName},`,
-          welcome: "Welcome to Harper!",
-          approved: "Your Harper request access has been approved.",
-          intro:
-            "Click the link below to activate your access and go straight into Harper.",
-          cta: "Activate Harper Access",
-          fallback:
-            "If the link does not open, paste this URL into your browser:",
-          footer:
-            "Harper helps you discover real engineers and researchers through their actual work.",
-          text: [
-            `Hi ${recipientName},`,
-            "",
-            "Welcome to Harper!",
-            "Your Harper request access has been approved.",
-            "Open the link below to activate your access:",
-            args.activationUrl,
-          ].join("\n"),
-        };
-  const html = `
-    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111;">
-      <p>${copy.greeting}</p>
-      <p>${escapeHtml(copy.welcome)}</p>
-      <p>${escapeHtml(copy.approved)}</p>
-      <p>${escapeHtml(copy.intro)}</p>
-      <p><a href="${safeActivationUrl}">${escapeHtml(copy.cta)}</a></p>
-      <p>${escapeHtml(copy.fallback)}</p>
-      <p>${safeActivationUrl}</p>
-      <p></p>
-      <div style="margin-top: 32px; padding-left: 12px; border-left: 3px solid #EFFF3F;">
-        <p style="margin: 0; font-size: 13px; color: #111827;">
-          ${escapeHtml(copy.footer)}
-        </p>
-      </div>
-    </div>
-  `;
-
-  return {
-    subject: copy.subject,
-    html,
-    text: copy.text,
-  };
-}
-
-function buildDefaultRequestAccessApprovedEmailTemplates(args: {
-  name?: string | null;
-  activationUrl: string;
-}) {
-  return {
-    en: buildDefaultRequestAccessApprovedEmail({
-      locale: "en",
-      name: args.name,
-      activationUrl: args.activationUrl,
-    }),
-    ko: buildDefaultRequestAccessApprovedEmail({
-      locale: "ko",
-      name: args.name,
-      activationUrl: args.activationUrl,
-    }),
-  } satisfies Record<
-    RequestAccessApprovalEmailLocale,
-    RequestAccessApprovalEmailTemplate
-  >;
-}
-
 async function sendRequestAccessApprovedEmail(args: {
   to: string;
   from?: string | null;
@@ -698,7 +593,7 @@ async function resolveRequestAccessApprovalContext(args: {
     token: approvalToken,
     baseUrl: args.baseUrl,
   });
-  const defaultTemplates = buildDefaultRequestAccessApprovedEmailTemplates({
+  const defaultTemplates = buildRequestAccessApprovedEmailTemplates({
     name: row.name,
     activationUrl,
   });
@@ -856,8 +751,25 @@ export async function sendRequestAccessApprovalEmail(args: {
 
   const locale = args.locale === "ko" ? "ko" : "en";
   const selectedTemplate = context.defaultTemplates[locale];
-  const subject = normalizeText(args.subject) || selectedTemplate.subject;
-  const html = normalizeText(args.html) || selectedTemplate.html;
+  const templateVariables = {
+    activationUrl: context.activationUrl,
+    company: context.row.company,
+    email: context.row.email,
+    hiringNeed: context.hiringNeed,
+    name: context.row.name,
+    role: context.row.role,
+  };
+  const subjectTemplate =
+    normalizeText(args.subject) || selectedTemplate.subject;
+  const htmlTemplate = normalizeText(args.html) || selectedTemplate.html;
+  const subject =
+    normalizeText(
+      renderRequestAccessApprovalTemplate(subjectTemplate, templateVariables)
+    ) || selectedTemplate.subject;
+  const html =
+    normalizeText(
+      renderRequestAccessApprovalTemplate(htmlTemplate, templateVariables)
+    ) || selectedTemplate.html;
   const text = htmlToText(html) || selectedTemplate.text;
   const nowIso = new Date().toISOString();
 

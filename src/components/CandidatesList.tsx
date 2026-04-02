@@ -171,8 +171,8 @@ function CandidateCard({
     [c.synthesized_summary]
   );
   const shortlistSummaryText = useMemo(() => {
-    return sanitizeSummaryText(c.s?.[0]?.text ?? c.summary);
-  }, [c.s, c.summary]);
+    return sanitizeSummaryText(c.s?.[0]?.text);
+  }, [c.s]);
   const shortlistMemo = useMemo(() => {
     return String(c.shortlist_memo ?? "");
   }, [c.shortlist_memo]);

@@ -30,6 +30,7 @@ export type CareerTalentEducation = {
   talent_id: string;
   school: string | null;
   degree: string | null;
+  description: string | null;
   field: string | null;
   start_date: string | null;
   end_date: string | null;

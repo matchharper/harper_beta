@@ -387,7 +387,7 @@ const CareerTalentProfilePanel = () => {
                       .filter(Boolean)
                       .join(", ")}
                     dateLabel={formatRange(edu.start_date, edu.end_date)}
-                    description=""
+                    description={edu.description ?? ""}
                     memo={edu.memo ?? ""}
                     isLast={index === mergedExperience.length - 1}
                   />

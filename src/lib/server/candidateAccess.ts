@@ -555,6 +555,7 @@ export function applyListRevealState(candidate: any, isRevealed: boolean) {
     return {
       ...candidate,
       profile_revealed: true,
+      summary: Array.isArray(candidate?.summary) ? [] : "",
     };
   }
 
@@ -573,6 +574,7 @@ export function applyListRevealState(candidate: any, isRevealed: boolean) {
     bio: "",
     linkedin_url: "",
     location: candidate?.location ?? "",
+    summary: Array.isArray(candidate?.summary) ? [] : "",
     links: buildMaskedSourceLinks(candidate?.links),
     experience_user:
       experiences.length > 0 ? [maskExperienceEntry(experiences[0])] : [],

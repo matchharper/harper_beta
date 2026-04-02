@@ -836,6 +836,7 @@ export type Database = {
           candid_id: string | null
           created_at: string
           degree: string | null
+          description: string | null
           end_date: string | null
           field: string | null
           id: string
@@ -847,6 +848,7 @@ export type Database = {
           candid_id?: string | null
           created_at?: string
           degree?: string | null
+          description?: string | null
           end_date?: string | null
           field?: string | null
           id?: string
@@ -858,6 +860,7 @@ export type Database = {
           candid_id?: string | null
           created_at?: string
           degree?: string | null
+          description?: string | null
           end_date?: string | null
           field?: string | null
           id?: string
