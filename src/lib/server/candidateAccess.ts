@@ -318,14 +318,13 @@ export async function fetchBaseCandidatesByIds(params: {
   runId?: string;
 }) {
   const { supabaseAdmin, ids, userId, runId } = params;
+  const shouldIncludeSynthesizedSummary = Boolean(runId);
 
   if (ids.length === 0) {
     return [];
   }
 
-  let query = (supabaseAdmin.from("candid" as any) as any)
-    .select(
-      `
+  const selectFields = `
         id,
         headline,
         bio,
@@ -368,17 +367,23 @@ export async function fetchBaseCandidatesByIds(params: {
         ),
         s:summary (
           text
-        ),
+        )${
+          shouldIncludeSynthesizedSummary
+            ? `,
         synthesized_summary (
           text,
           run_id
-        )
-      `
-    )
+        )`
+            : ""
+        }
+      `;
+
+  let query = (supabaseAdmin.from("candid" as any) as any)
+    .select(selectFields)
     .in("id", ids)
     .eq("connection.user_id", userId);
 
-  if (runId) {
+  if (shouldIncludeSynthesizedSummary) {
     query = query.eq("synthesized_summary.run_id", runId);
   }
 

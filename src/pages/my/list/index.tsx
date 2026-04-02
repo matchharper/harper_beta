@@ -37,7 +37,7 @@ export default function MyPage() {
     <AppLayout initialCollapse={false}>
       <div className="min-h-screen w-full">
         {/* Header */}
-        <div className="sticky top-0 z-50 w-full backdrop-blur">
+        <div className="w-full backdrop-blur">
           <div className="mx-auto w-full px-4 pt-6 pb-2">
             <div className="flex items-end justify-between gap-4">
               <div className="text-3xl font-hedvig font-light tracking-tight text-white">

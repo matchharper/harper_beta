@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowUpRight,
@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { initials } from "@/components/NameProfile";
+import RevealProfileButton from "@/components/ui/RevealProfileButton";
 import { usePaperModalStore } from "@/store/usePaperModalStore";
 import { usePaperDetail } from "@/hooks/usePaperDetail";
 import LinkChips from "@/pages/my/p/components/LinkChips";
@@ -61,6 +62,18 @@ export default function PaperModalRoot() {
   const closeOnBackdrop = payload?.closeOnBackdrop ?? true;
   const paperId = payload?.paperId;
   const { data, isLoading, error } = usePaperDetail(paperId);
+  const requestClose = useCallback(() => {
+    if (
+      typeof window !== "undefined" &&
+      window.history.state?.modal === "paper"
+    ) {
+      close();
+      window.history.back();
+      return;
+    }
+
+    close();
+  }, [close]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -81,11 +94,11 @@ export default function PaperModalRoot() {
     if (!isOpen) return;
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
+      if (e.key === "Escape") requestClose();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isOpen, close]);
+  }, [isOpen, requestClose]);
 
   const paper = data?.paper ?? null;
   const contributors = data?.contributors ?? [];
@@ -120,14 +133,14 @@ export default function PaperModalRoot() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18 }}
             onClick={() => {
-              if (closeOnBackdrop) close();
+              if (closeOnBackdrop) requestClose();
             }}
           />
 
           <motion.div
             role="dialog"
             aria-modal="true"
-            className="absolute inset-x-0 top-[6vh] mx-auto max-h-[88vh] w-[min(760px,92vw)] overflow-y-auto rounded-[28px] bg-hgray200 px-6 pb-8 text-hgray900 shadow-2xl md:px-8"
+            className="absolute inset-x-0 top-[6vh] mx-auto max-h-[88vh] w-[min(760px,92vw)] scrollbar-none overflow-y-auto rounded-xl bg-hgray200 px-6 pb-8 text-hgray900 shadow-2xl md:px-8"
             initial={{ opacity: 0, y: 24, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.98 }}
@@ -135,9 +148,7 @@ export default function PaperModalRoot() {
           >
             <div className="sticky top-0 z-10 -mx-6 mb-6 flex items-start justify-between border-b border-white/5 bg-hgray200/95 px-6 pb-4 backdrop-blur md:-mx-8 md:px-8">
               <div className="pr-4 pt-6">
-                <div className="text-xs tracking-[0.14em] text-accenta1/80">
-                  {year}
-                </div>
+                <div className="text-sm text-accenta1/80">{year}</div>
                 <div className="mt-2 text-2xl leading-tight text-hgray1000">
                   {paper?.title ?? "논문 정보를 불러오는 중"}
                 </div>
@@ -150,8 +161,8 @@ export default function PaperModalRoot() {
               </div>
               <button
                 type="button"
-                onClick={close}
-                className="rounded-full p-2 text-hgray700 transition hover:bg-white/5"
+                onClick={requestClose}
+                className="absolute right-4 top-4 rounded-lg p-2 text-hgray700 transition hover:bg-white/5"
               >
                 <XIcon className="h-5 w-5" strokeWidth={1.6} />
               </button>
@@ -221,17 +232,43 @@ export default function PaperModalRoot() {
                         const contributorAffiliation =
                           profile?.affiliation?.trim() ||
                           "Affiliation unavailable";
+                        const contributorCandidId = String(
+                          profile?.candid_id ?? ""
+                        ).trim();
+                        const profilePath = contributorCandidId
+                          ? `/my/p/${contributorCandidId}`
+                          : "";
+                        const isProfileRevealed =
+                          contributor.profile_revealed !== false ||
+                          !contributorCandidId;
+                        const contributorKey = [
+                          contributor.paper_id,
+                          contributor.scholar_profile_id ?? "unknown",
+                          contributor.author_order ?? "na",
+                        ].join("-");
 
                         const content = (
                           <>
                             <div className="flex items-start gap-3">
                               <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/0 bg-white/5">
                                 {profile?.profile_image_url ? (
-                                  <img
-                                    src={profile.profile_image_url}
-                                    alt={contributorName}
-                                    className="h-full w-full object-cover"
-                                  />
+                                  <>
+                                    {profile?.profile_image_url.includes(
+                                      "scholar.google"
+                                    ) ? (
+                                      <img
+                                        src="/images/scholar_profile.png"
+                                        alt={contributorName}
+                                        className="h-full w-full object-cover"
+                                      />
+                                    ) : (
+                                      <img
+                                        src={profile.profile_image_url}
+                                        alt={contributorName}
+                                        className="h-full w-full object-cover"
+                                      />
+                                    )}
+                                  </>
                                 ) : (
                                   <div className="text-sm text-hgray800">
                                     {initials(contributorName)}
@@ -243,6 +280,11 @@ export default function PaperModalRoot() {
                                   <div className="text-base text-hgray1000">
                                     {contributorName}
                                   </div>
+                                  {contributorCandidId && !isProfileRevealed ? (
+                                    <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-hgray600">
+                                      Harper profile locked
+                                    </span>
+                                  ) : null}
                                   {contributor.author_order ? (
                                     <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-hgray600">
                                       Author #{contributor.author_order}
@@ -258,20 +300,14 @@ export default function PaperModalRoot() {
                                   {contributorAffiliation}
                                 </div>
                                 <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-hgray600">
-                                  {profile?.topics ? (
+                                  {profile?.topics && (
                                     <div className="inline-flex items-center gap-1">
                                       <BookOpenText className="h-3.5 w-3.5" />
                                       <span className="line-clamp-1">
                                         {profile.topics}
                                       </span>
                                     </div>
-                                  ) : null}
-                                  {/* {profile?.scholar_url ? (
-                                    <div className="inline-flex items-center gap-1">
-                                      <GraduationCap className="h-3.5 w-3.5" />
-                                      <span>Scholar profile</span>
-                                    </div>
-                                  ) : null} */}
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -285,25 +321,63 @@ export default function PaperModalRoot() {
                           </>
                         );
 
-                        if (profile?.candid_id) {
+                        if (profilePath && isProfileRevealed) {
                           return (
-                            <Link
-                              key={`${contributor.paper_id}-${contributor.scholar_profile_id}`}
-                              href={`/my/p/${profile.candid_id}`}
-                              onClick={close}
+                            <div
+                              key={contributorKey}
                               className="rounded-2xl bg-white/5 px-4 py-4 transition hover:bg-white/10"
                             >
-                              {content}
-                            </Link>
+                              <Link
+                                href={profilePath}
+                                replace
+                                onClick={close}
+                                className="block"
+                              >
+                                {content}
+                              </Link>
+                              <div className="ml-14 mt-3 flex flex-wrap items-center gap-2 text-xs text-hgray600">
+                                <Link
+                                  href={profilePath}
+                                  replace
+                                  onClick={close}
+                                  className="inline-flex items-center gap-1 rounded-full bg-white/5 px-3 py-1.5 text-hgray700 transition hover:bg-white/10"
+                                >
+                                  <span>프로필 보기</span>
+                                  <ArrowUpRight className="h-3.5 w-3.5" />
+                                </Link>
+                              </div>
+                            </div>
                           );
                         }
 
                         return (
                           <div
-                            key={`${contributor.paper_id}-${contributor.scholar_profile_id}`}
-                            className="rounded-2xl bg-white/5 px-4 py-4"
+                            key={contributorKey}
+                            className="relative group rounded-2xl bg-white/5 px-4 py-4"
                           >
-                            {content}
+                            {profilePath ? (
+                              <Link
+                                href={profilePath}
+                                replace
+                                onClick={close}
+                                className="block transition hover:opacity-95"
+                              >
+                                {content}
+                              </Link>
+                            ) : (
+                              content
+                            )}
+                            {profilePath && !isProfileRevealed && (
+                              <div className="ml-14 mt-3 gap-2 text-xs text-hgray600">
+                                <RevealProfileButton
+                                  overlay
+                                  overlayClassName="w-full h-full z-30 rounded-2xl group-hover:border-accenta1/40 group-hover:bg-black/15"
+                                  candidId={contributorCandidId}
+                                  label="프로필 열람"
+                                  className="px-4 py-1.5 text-xs"
+                                />
+                              </div>
+                            )}
                           </div>
                         );
                       })

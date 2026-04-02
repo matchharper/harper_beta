@@ -38,11 +38,54 @@ import { useEffect, useMemo, useState } from "react";
 import ShortlistEmptyState from "./components/EmptyState";
 import { useSettingStore } from "@/store/useSettingStore";
 import ForwardIcon from "@/assets/icons/forward.svg";
+import { useRouter } from "next/router";
 
 const PAGE_SIZE_OPTIONS = [10, 20, 30] as const;
 
 type ShortlistMode = "folder" | "requested";
 type PageSizeOption = (typeof PAGE_SIZE_OPTIONS)[number];
+
+function readSingleQueryValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function parseShortlistMode(
+  value: string | string[] | undefined
+): ShortlistMode {
+  return readSingleQueryValue(value) === "requested" ? "requested" : "folder";
+}
+
+function parsePageIndex(value: string | string[] | undefined) {
+  const raw = Number(readSingleQueryValue(value) ?? "");
+  if (!Number.isFinite(raw) || raw < 1) return 0;
+  return Math.floor(raw) - 1;
+}
+
+function parsePageSizeOption(
+  value: string | string[] | undefined
+): PageSizeOption {
+  const raw = Number(readSingleQueryValue(value) ?? "");
+  if (PAGE_SIZE_OPTIONS.includes(raw as PageSizeOption)) {
+    return raw as PageSizeOption;
+  }
+  return 10;
+}
+
+function parseFolderId(value: string | string[] | undefined) {
+  const raw = Number(readSingleQueryValue(value) ?? "");
+  if (!Number.isFinite(raw) || raw < 1) return null;
+  return Math.floor(raw);
+}
+
+function hasValidPositivePage(value: string | string[] | undefined) {
+  const raw = Number(readSingleQueryValue(value) ?? "");
+  return Number.isFinite(raw) && raw >= 1;
+}
+
+function hasValidPageSizeOption(value: string | string[] | undefined) {
+  const raw = Number(readSingleQueryValue(value) ?? "");
+  return PAGE_SIZE_OPTIONS.includes(raw as PageSizeOption);
+}
 
 async function copyToClipboard(text: string) {
   if (navigator.clipboard?.writeText) {
@@ -135,12 +178,11 @@ function BookmarkFolderTab({
 }
 
 export default function BookmarksPage() {
+  const router = useRouter();
   const { companyUser } = useCompanyUserStore();
   const userId = useMemo(() => companyUser?.user_id, [companyUser]);
 
   const { viewType } = useSettingStore();
-  const [mode, setMode] = useState<ShortlistMode>("folder");
-  const [selectedFolderId, setSelectedFolderId] = useState<number>(-1);
   const [folderToDelete, setFolderToDelete] = useState<BookmarkFolder | null>(
     null
   );
@@ -148,11 +190,6 @@ export default function BookmarksPage() {
     null
   );
   const [renameValue, setRenameValue] = useState("");
-  const [pageSize, setPageSize] = useState<PageSizeOption>(10);
-  const [pageByMode, setPageByMode] = useState<Record<ShortlistMode, number>>({
-    folder: 0,
-    requested: 0,
-  });
 
   const { data: folders = [], isLoading: isFoldersLoading } =
     useBookmarkFolders(userId, true);
@@ -178,28 +215,6 @@ export default function BookmarksPage() {
   }, [folders, defaultFolder]);
 
   useEffect(() => {
-    setMode("folder");
-    setSelectedFolderId(-1);
-    setPageSize(10);
-    setPageByMode({ folder: 0, requested: 0 });
-  }, [userId]);
-
-  useEffect(() => {
-    if (folders.length === 0) {
-      setSelectedFolderId(-1);
-      return;
-    }
-
-    const folderIds = new Set(folders.map((folder) => Number(folder.id)));
-    if (selectedFolderId !== -1 && folderIds.has(selectedFolderId)) return;
-
-    const fallback =
-      Number((folders.find((folder) => folder.is_default) ?? folders[0]).id) ||
-      -1;
-    setSelectedFolderId(fallback);
-  }, [folders, selectedFolderId]);
-
-  useEffect(() => {
     if (!folderToRename) {
       setRenameValue("");
       return;
@@ -207,9 +222,120 @@ export default function BookmarksPage() {
     setRenameValue(folderToRename.name);
   }, [folderToRename]);
 
+  const mode = useMemo(
+    () => parseShortlistMode(router.query.mode),
+    [router.query.mode]
+  );
+  const pageSize = useMemo(
+    () => parsePageSizeOption(router.query.pageSize),
+    [router.query.pageSize]
+  );
+  const folderPageIdx = useMemo(
+    () => parsePageIndex(router.query.folderPage),
+    [router.query.folderPage]
+  );
+  const requestedPageIdx = useMemo(
+    () => parsePageIndex(router.query.requestedPage),
+    [router.query.requestedPage]
+  );
+  const requestedFolderId = useMemo(
+    () => parseFolderId(router.query.folderId),
+    [router.query.folderId]
+  );
+  const selectedFolderId = useMemo(() => {
+    if (folders.length === 0) return -1;
+
+    const folderIds = new Set(folders.map((folder) => Number(folder.id)));
+    if (requestedFolderId !== null && folderIds.has(requestedFolderId)) {
+      return requestedFolderId;
+    }
+
+    return (
+      Number((folders.find((folder) => folder.is_default) ?? folders[0]).id) ||
+      -1
+    );
+  }, [folders, requestedFolderId]);
+  const updateListQuery = useMemo(() => {
+    return (
+      updates: Record<string, string | undefined>,
+      options?: { replace?: boolean }
+    ) => {
+      if (!router.isReady) return;
+
+      const nextQuery: Record<string, string> = {};
+      for (const [key, value] of Object.entries(router.query)) {
+        const singleValue = readSingleQueryValue(value);
+        if (typeof singleValue === "string" && singleValue.length > 0) {
+          nextQuery[key] = singleValue;
+        }
+      }
+
+      for (const [key, value] of Object.entries(updates)) {
+        if (!value) {
+          delete nextQuery[key];
+          continue;
+        }
+        nextQuery[key] = value;
+      }
+
+      const navigate = options?.replace ? router.replace : router.push;
+      void navigate(
+        {
+          pathname: router.pathname,
+          query: nextQuery,
+        },
+        undefined,
+        { shallow: true, scroll: false }
+      );
+    };
+  }, [router]);
+
+  useEffect(() => {
+    if (!router.isReady || isFoldersLoading) return;
+
+    const nextUpdates: Record<string, string | undefined> = {};
+    if (readSingleQueryValue(router.query.mode) !== mode) {
+      nextUpdates.mode = mode;
+    }
+    if (!hasValidPageSizeOption(router.query.pageSize)) {
+      nextUpdates.pageSize = String(pageSize);
+    }
+
+    if (mode === "folder") {
+      if (selectedFolderId > 0) {
+        const currentFolderId = parseFolderId(router.query.folderId);
+        if (currentFolderId !== selectedFolderId) {
+          nextUpdates.folderId = String(selectedFolderId);
+        }
+      }
+      if (!hasValidPositivePage(router.query.folderPage)) {
+        nextUpdates.folderPage = "1";
+      }
+    }
+
+    if (!hasValidPositivePage(router.query.requestedPage)) {
+      nextUpdates.requestedPage = "1";
+    }
+
+    if (Object.keys(nextUpdates).length === 0) return;
+    updateListQuery(nextUpdates, { replace: true });
+  }, [
+    isFoldersLoading,
+    mode,
+    pageSize,
+    router.isReady,
+    router.query.folderId,
+    router.query.folderPage,
+    router.query.mode,
+    router.query.pageSize,
+    router.query.requestedPage,
+    selectedFolderId,
+    updateListQuery,
+  ]);
+
   const currentTyped = mode === "requested" ? 1 : 0;
   const currentFolderId = mode === "folder" ? selectedFolderId : null;
-  const pageIdx = pageByMode[mode] ?? 0;
+  const pageIdx = mode === "requested" ? requestedPageIdx : folderPageIdx;
   const currentFolderShare =
     mode === "folder" && currentFolderId != null
       ? (activeShareByFolderId.get(Number(currentFolderId)) ?? null)
@@ -282,10 +408,15 @@ export default function BookmarksPage() {
 
       await deleteFolder({ userId, folderId: deletingId });
       setFolderToDelete(null);
-      setPageByMode((prev) => ({ ...prev, folder: 0 }));
 
       if (mode === "folder" && selectedFolderId === deletingId) {
-        setSelectedFolderId(-1);
+        updateListQuery(
+          {
+            folderId: undefined,
+            folderPage: "1",
+          },
+          { replace: true }
+        );
       }
 
       showToast({
@@ -342,15 +473,20 @@ export default function BookmarksPage() {
   };
 
   const selectFolderTab = (folderId: number) => {
-    setMode("folder");
-    setSelectedFolderId(folderId);
-    setPageByMode((prev) => ({ ...prev, folder: 0 }));
+    updateListQuery({
+      mode: "folder",
+      folderId: String(folderId),
+      folderPage: "1",
+    });
   };
 
   const changePageSize = (nextPageSize: PageSizeOption) => {
     if (nextPageSize === pageSize) return;
-    setPageSize(nextPageSize);
-    setPageByMode({ folder: 0, requested: 0 });
+    updateListQuery({
+      pageSize: String(nextPageSize),
+      folderPage: "1",
+      requestedPage: "1",
+    });
   };
 
   const handleCreateFolderShare = async () => {
@@ -422,10 +558,16 @@ export default function BookmarksPage() {
 
   if (error) return <div>Error</div>;
 
-  const Pagination = ({ isAbsolute = true }: { isAbsolute?: boolean }) => {
+  const Pagination = ({
+    variant = "toolbar",
+  }: {
+    variant?: "toolbar" | "footer";
+  }) => {
+    const isToolbar = variant === "toolbar";
+
     return (
       <div
-        className={`flex items-center justify-start gap-3 px-4 ${isAbsolute ? "absolute left-0 top-[-4px] z-10" : ""}`}
+        className={`flex items-center justify-start gap-3 ${isToolbar ? "" : "px-4"}`}
       >
         <div className="flex flex-row items-center gap-3 text-sm text-hgray900">
           <button
@@ -436,10 +578,11 @@ export default function BookmarksPage() {
                 : "cursor-pointer"
             }`}
             onClick={() =>
-              setPageByMode((prev) => ({
-                ...prev,
-                [mode]: Math.max(0, pageIdx - 1),
-              }))
+              updateListQuery({
+                [mode === "requested" ? "requestedPage" : "folderPage"]: String(
+                  Math.max(1, pageIdx)
+                ),
+              })
             }
             disabled={!hasPrev || isFetching}
           >
@@ -458,10 +601,11 @@ export default function BookmarksPage() {
             }`}
             onClick={() => {
               if (!hasNext) return;
-              setPageByMode((prev) => ({
-                ...prev,
-                [mode]: pageIdx + 1,
-              }));
+              updateListQuery({
+                [mode === "requested" ? "requestedPage" : "folderPage"]: String(
+                  pageIdx + 2
+                ),
+              });
             }}
             disabled={!hasNext || isFetching}
           >
@@ -470,7 +614,7 @@ export default function BookmarksPage() {
           {isFetching && <span className="ml-2 text-hgray500">Syncing…</span>}
         </div>
 
-        {isAbsolute && (
+        {isToolbar && (
           <ActionDropdown
             align="end"
             contentClassName="min-w-[140px]"
@@ -531,8 +675,10 @@ export default function BookmarksPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setMode("requested");
-                  setPageByMode((prev) => ({ ...prev, requested: 0 }));
+                  updateListQuery({
+                    mode: "requested",
+                    requestedPage: "1",
+                  });
                 }}
                 className={`relative inline-flex items-center gap-1 pb-3 px-3 pt-2 text-sm transition-colors ${
                   mode === "requested"
@@ -631,8 +777,6 @@ export default function BookmarksPage() {
       )}
       {!isLoading && items.length > 0 && (
         <div className="relative mt-8">
-          <Pagination />
-
           <CandidateViews
             items={itemsWithSharedNotes}
             userId={userId}
@@ -649,11 +793,12 @@ export default function BookmarksPage() {
                   }
                 : null
             }
+            toolbarLeftContent={<Pagination variant="toolbar" />}
           />
 
           {viewType === "card" && (
             <div className="relative mb-24 w-full items-center justify-center flex">
-              <Pagination isAbsolute={false} />
+              <Pagination variant="footer" />
             </div>
           )}
         </div>

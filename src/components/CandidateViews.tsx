@@ -35,6 +35,7 @@ import {
 import { DropdownMenuCheckboxItem } from "./ui/dropdown-menu";
 import { Tooltips } from "./ui/tooltip";
 import {
+  Check,
   ChevronLeft,
   ChevronRight,
   Columns2,
@@ -42,6 +43,7 @@ import {
   GripVertical,
   Table,
   Unlock,
+  X,
 } from "lucide-react";
 import { useLogEvent } from "@/hooks/useLog";
 import { useRevealCandidateProfiles } from "@/hooks/useRevealCandidateProfile";
@@ -115,6 +117,7 @@ const CandidateViews = ({
   showMarkAction,
   showMarkFilter = false,
   sharedFolderContext,
+  toolbarLeftContent,
 }: {
   items: any[];
   userId?: string;
@@ -131,6 +134,7 @@ const CandidateViews = ({
     token: string;
     viewer: SharedFolderViewerIdentity | null;
   } | null;
+  toolbarLeftContent?: React.ReactNode;
 }) => {
   const {
     viewType,
@@ -159,6 +163,7 @@ const CandidateViews = ({
     markStatusOverridesByCandidateId,
     setMarkStatusOverridesByCandidateId,
   ] = useState<Record<string, CandidateMarkStatus | null>>({});
+  const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
   const transparentDragImageRef = useRef<HTMLCanvasElement | null>(null);
   const logEvent = useLogEvent();
   const bulkRevealMutation = useRevealCandidateProfiles();
@@ -418,6 +423,19 @@ const CandidateViews = ({
     [filteredItems]
   );
   const unopenedCandidateCount = unopenedCandidateIds.length;
+  const unopenedCandidateIdSet = useMemo(
+    () => new Set(unopenedCandidateIds),
+    [unopenedCandidateIds]
+  );
+  const checkedCandidateCount = selectedCandidateIds.length;
+  const hasCheckedCandidates = checkedCandidateCount > 0;
+  const canSelectUnopenedProfiles = !hasSharedFolderNotes && Boolean(userId);
+
+  useEffect(() => {
+    setSelectedCandidateIds((current) =>
+      current.filter((candidateId) => unopenedCandidateIdSet.has(candidateId))
+    );
+  }, [unopenedCandidateIdSet]);
 
   const handleFilterMenuOpenChange = (open: boolean) => {
     if (open) {
@@ -471,17 +489,34 @@ const CandidateViews = ({
     });
   };
 
+  const handleToggleCandidateSelection = (candidateId: string) => {
+    if (!unopenedCandidateIdSet.has(candidateId)) return;
+
+    setSelectedCandidateIds((current) => {
+      if (current.includes(candidateId)) {
+        return current.filter((id) => id !== candidateId);
+      }
+      return [...current, candidateId];
+    });
+  };
+
   const handleBulkOpenProfiles = async () => {
     if (unopenedCandidateIds.length === 0) return;
 
+    if (!hasCheckedCandidates) {
+      setSelectedCandidateIds(unopenedCandidateIds);
+      return;
+    }
+
     try {
-      const result = await bulkRevealMutation.mutateAsync(unopenedCandidateIds);
+      const result = await bulkRevealMutation.mutateAsync(selectedCandidateIds);
+      setSelectedCandidateIds([]);
       const message =
         result.revealedCount > 0 && result.alreadyRevealedCount > 0
-          ? `현재 페이지의 프로필 ${result.revealedCount}개를 열람했고, ${result.alreadyRevealedCount}개는 이미 열람 상태였습니다.`
+          ? `선택한 프로필 ${result.revealedCount}개를 열람했고, ${result.alreadyRevealedCount}개는 이미 열람 상태였습니다.`
           : result.revealedCount > 0
-            ? `현재 페이지의 프로필 ${result.revealedCount}개를 열람했습니다.`
-            : "현재 페이지의 프로필은 모두 이미 열람 상태입니다.";
+            ? `선택한 프로필 ${result.revealedCount}개를 열람했습니다.`
+            : "선택한 프로필은 모두 이미 열람 상태입니다.";
 
       showToast({
         message,
@@ -563,30 +598,59 @@ const CandidateViews = ({
   return (
     <div className="w-full relative h-full">
       {sortedItems.length > 0 && (
-        <div className="sticky top-0 z-50 w-full flex flex-row items-center justify-between pb-2 px-4">
-          <div className="flex min-w-0 items-center gap-3"></div>
-          <div className="flex flex-row items-center justify-start gap-2">
-            {!hasSharedFolderNotes && userId ? (
-              <>
-                {unopenedCandidateCount > 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void handleBulkOpenProfiles();
-                    }}
-                    disabled={bulkRevealMutation.isPending}
-                    className="inline-flex flex-row gap-2 border border-white/80 bg-gradient-to-br from-white/85 via-white/75 to-white/70 text-black items-center justify-center rounded-lg px-2.5 py-1.5 text-xs font-normal transition duration-200 hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    <Unlock className="w-3.5 h-3.5" />
-                    <span>
-                      {bulkRevealMutation.isPending
-                        ? "열람 중..."
-                        : `${unopenedCandidateCount}개 열람하기`}
-                    </span>
-                  </button>
-                ) : null}
-              </>
-            ) : null}
+        <div
+          className={`sticky top-4 z-40 w-full flex flex-row items-center justify-between pb-2 px-4`}
+        >
+          <div className="flex min-w-0 items-center gap-3">
+            {toolbarLeftContent}
+          </div>
+	          <div className="flex flex-row items-center justify-start gap-2">
+	            {!hasSharedFolderNotes && userId && (
+	              <>
+	                {unopenedCandidateCount > 0 && (
+	                  <>
+	                    {hasCheckedCandidates ? (
+	                      <button
+	                        type="button"
+	                        onClick={() => {
+	                          setSelectedCandidateIds([]);
+	                        }}
+	                        disabled={bulkRevealMutation.isPending}
+	                        aria-label="선택 전체 취소"
+	                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-black/10 text-white/75 transition duration-200 hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+	                      >
+	                        <X className="h-3.5 w-3.5" />
+	                      </button>
+	                    ) : null}
+	                    <button
+	                      type="button"
+	                      onClick={() => {
+	                        void handleBulkOpenProfiles();
+	                      }}
+	                      disabled={bulkRevealMutation.isPending}
+	                      className={`inline-flex flex-row gap-2 items-center justify-center rounded-lg px-2.5 py-1.5 text-xs font-normal transition duration-200 disabled:cursor-not-allowed disabled:opacity-40 ${
+	                        hasCheckedCandidates
+	                          ? "border border-accenta1 bg-accenta1 text-black hover:opacity-90"
+	                          : "border border-white/80 bg-gradient-to-br from-white/85 via-white/75 to-white/70 text-black hover:bg-white"
+	                      }`}
+	                    >
+	                      {hasCheckedCandidates ? (
+	                        <Unlock className="w-3.5 h-3.5" />
+	                      ) : (
+	                        <Check className="w-3.5 h-3.5" />
+	                      )}
+	                      <span>
+	                        {bulkRevealMutation.isPending
+	                          ? "열람 중..."
+	                          : hasCheckedCandidates
+	                            ? `${checkedCandidateCount}개 열람하기`
+	                            : `${unopenedCandidateCount}개 체크하기`}
+	                      </span>
+	                    </button>
+	                  </>
+	                )}
+	              </>
+	            )}
             {canUseMarkFilter ? (
               <ActionDropdown
                 open={isFilterMenuOpen}
@@ -845,6 +909,11 @@ const CandidateViews = ({
                     buildProfileHref={buildProfileHref}
                     showBookmarkAction={shouldShowBookmarkAction}
                     showMarkAction={shouldShowMarkAction}
+                    showSelectionControl={canSelectUnopenedProfiles}
+                    isSelected={selectedCandidateIds.includes(String(c?.id ?? ""))}
+                    onToggleSelection={() => {
+                      handleToggleCandidateSelection(String(c?.id ?? ""));
+                    }}
                     onMarkChange={(status) => {
                       handleCandidateMarkChange(String(c?.id ?? ""), status);
                     }}
@@ -873,6 +942,11 @@ const CandidateViews = ({
                 buildProfileHref={buildProfileHref}
                 showBookmarkAction={shouldShowBookmarkAction}
                 showMarkAction={shouldShowMarkAction}
+                showSelectionControl={canSelectUnopenedProfiles}
+                isSelected={selectedCandidateIds.includes(String(c?.id ?? ""))}
+                onToggleSelection={() => {
+                  handleToggleCandidateSelection(String(c?.id ?? ""));
+                }}
                 onMarkChange={(status) => {
                   handleCandidateMarkChange(String(c?.id ?? ""), status);
                 }}

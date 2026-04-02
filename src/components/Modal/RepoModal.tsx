@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Book,
@@ -160,6 +160,18 @@ export default function RepoModalRoot() {
   const repoId = payload?.repoId;
   const repoFullName = payload?.repoFullName;
   const { data, isLoading, error } = useRepoDetail(repoId);
+  const requestClose = useCallback(() => {
+    if (
+      typeof window !== "undefined" &&
+      window.history.state?.modal === "repo"
+    ) {
+      close();
+      window.history.back();
+      return;
+    }
+
+    close();
+  }, [close]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -172,11 +184,11 @@ export default function RepoModalRoot() {
   useEffect(() => {
     if (!isOpen) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
+      if (e.key === "Escape") requestClose();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isOpen, close]);
+  }, [isOpen, requestClose]);
 
   const repo = data?.repo ?? null;
   const contributors = data?.contributors ?? [];
@@ -217,7 +229,7 @@ export default function RepoModalRoot() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18 }}
             onClick={() => {
-              if (closeOnBackdrop) close();
+              if (closeOnBackdrop) requestClose();
             }}
           />
 
@@ -254,7 +266,7 @@ export default function RepoModalRoot() {
               </div>
               <button
                 type="button"
-                onClick={close}
+                onClick={requestClose}
                 className="rounded-full p-2 text-hgray700 transition hover:bg-white/5"
               >
                 <XIcon className="h-5 w-5" strokeWidth={1.6} />
@@ -431,6 +443,7 @@ export default function RepoModalRoot() {
                             <Link
                               key={`${contributor.repo_id}-${contributor.github_profile_id}`}
                               href={`/my/p/${profile.candid_id}`}
+                              replace
                               onClick={close}
                               className="rounded-2xl bg-white/5 px-4 py-4 transition hover:bg-white/10"
                             >

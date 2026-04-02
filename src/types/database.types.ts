@@ -554,6 +554,7 @@ export type Database = {
       }
       company_db: {
         Row: {
+          crunchbase_information: Json | null
           description: string | null
           employee_count_range: Json | null
           founded_year: number | null
@@ -561,6 +562,7 @@ export type Database = {
           funding_url: string | null
           id: number
           investors: string | null
+          last_crunchbase_updated_at: string | null
           last_updated_at: string
           linkedin_url: string | null
           location: string | null
@@ -572,6 +574,7 @@ export type Database = {
           website_url: string | null
         }
         Insert: {
+          crunchbase_information?: Json | null
           description?: string | null
           employee_count_range?: Json | null
           founded_year?: number | null
@@ -579,6 +582,7 @@ export type Database = {
           funding_url?: string | null
           id?: number
           investors?: string | null
+          last_crunchbase_updated_at?: string | null
           last_updated_at?: string
           linkedin_url?: string | null
           location?: string | null
@@ -590,6 +594,7 @@ export type Database = {
           website_url?: string | null
         }
         Update: {
+          crunchbase_information?: Json | null
           description?: string | null
           employee_count_range?: Json | null
           founded_year?: number | null
@@ -597,6 +602,7 @@ export type Database = {
           funding_url?: string | null
           id?: number
           investors?: string | null
+          last_crunchbase_updated_at?: string | null
           last_updated_at?: string
           linkedin_url?: string | null
           location?: string | null
