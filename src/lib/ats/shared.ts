@@ -19,6 +19,7 @@ export type AtsEmailDiscoveryStatus =
 export type AtsSequenceStatus = "draft" | "active" | "paused" | "completed";
 export type AtsSequenceMarkStatus =
   | "need_email"
+  | "find_fail"
   | "ready"
   | "in_sequence"
   | "waiting_reply"
@@ -241,6 +242,7 @@ export function isAtsSequenceMarkStatus(
 ): value is AtsSequenceMarkStatus {
   return (
     value === "need_email" ||
+    value === "find_fail" ||
     value === "ready" ||
     value === "in_sequence" ||
     value === "waiting_reply" ||

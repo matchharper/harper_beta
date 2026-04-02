@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   Check,
   CirclePause,
+  CircleX,
   Clock3,
   Mail,
   Search,
@@ -44,6 +45,9 @@ function SequenceMarkIcon({
   }
   if (iconKey === "ready") {
     return <Mail className={className} strokeWidth={2} />;
+  }
+  if (iconKey === "find_fail") {
+    return <CircleX className={className} strokeWidth={2} />;
   }
   if (iconKey === "in_sequence") {
     return <Send className={className} strokeWidth={2} />;
