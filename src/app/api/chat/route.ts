@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import {
-  geminiChatStream,
   xaiClient,
-  client,
-  sseAsyncIterableToReadableStream,
 } from "@/lib/llm/llm";
 import { ChatScope } from "@/hooks/chat/useChatSession";
 import { buildLongDoc } from "@/utils/textprocess";
 import { logger } from "@/utils/logger";
 import { CANDID_SYSTEM_PROMPT, SYSTEM_PROMPT } from "./chat_prompt";
+import {
+  createXaiGeminiOpenAIReadableStream,
+  createXaiOrOpenAIStream,
+} from "./streamProviders";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -159,107 +160,6 @@ const tools = [
     },
   },
 ] as const;
-
-export async function createXaiOrOpenAIStream(params: {
-  model: string;
-  messages: any[];
-  temperature: number;
-  tools?: any;
-  tool_choice?: any;
-}) {
-  try {
-    return await xaiClient.chat.completions.create({
-      ...params,
-      stream: true,
-    });
-  } catch (err) {
-    return await client.chat.completions.create({
-      ...params,
-      model: "gpt-4.1-mini", // 원하는 fallback 모델
-      stream: true,
-    });
-  }
-}
-
-export async function createXaiGeminiOpenAIReadableStream(params: {
-  // xAI 모델명 (primary)
-  model: string;
-
-  // 공통
-  systemPrompt: string;
-  messages: { role: "user" | "assistant"; content: string }[];
-  temperature: number;
-
-  // tools는 xAI/openai에서만 (gemini는 너 구현에 따라 다름)
-  tools?: any;
-  tool_choice?: any;
-
-  // fallback 모델명들
-  openaiModel?: string; // default: gpt-4.1-mini
-  geminiModel?: string; // default: gemini-3-flash-preview
-}) {
-  const {
-    model,
-    systemPrompt,
-    messages,
-    temperature,
-    tools,
-    tool_choice,
-    openaiModel = "gpt-4.1-mini",
-    geminiModel = "gemini-3-flash-preview",
-  } = params;
-
-  // ---------- 1) xAI ----------
-  try {
-    const xaiSse = await xaiClient.chat.completions.create({
-      model,
-      messages: [{ role: "system", content: systemPrompt }, ...messages],
-      temperature,
-      stream: true,
-      ...(tools ? { tools } : {}),
-      ...(tool_choice ? { tool_choice } : {}),
-    });
-
-    return {
-      provider: "xai" as const,
-      stream: sseAsyncIterableToReadableStream(xaiSse as any),
-    };
-  } catch (err) {
-    logger.log("xAI failed. Falling back to Gemini...", err);
-  }
-
-  // ---------- 2) Gemini ----------
-  try {
-    const geminiReadable = await geminiChatStream({
-      model: geminiModel,
-      systemPrompt,
-      messages,
-      temperature,
-    });
-
-    return {
-      provider: "gemini" as const,
-      stream: geminiReadable,
-    };
-  } catch (err) {
-    logger.log("Gemini failed. Falling back to OpenAI...", err);
-  }
-
-  // ---------- 3) OpenAI ----------
-  const openaiSse = await client.chat.completions.create({
-    model: openaiModel,
-    messages: [{ role: "system", content: systemPrompt }, ...messages],
-    temperature,
-    stream: true,
-    ...(tools ? { tools } : {}),
-    ...(tool_choice ? { tool_choice } : {}),
-  });
-
-  return {
-    provider: "openai" as const,
-    stream: sseAsyncIterableToReadableStream(openaiSse as any),
-  };
-}
 
 async function streamWithTools(params: {
   req: NextRequest;

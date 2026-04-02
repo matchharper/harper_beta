@@ -2630,7 +2630,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "talent_conversations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       talent_educations: {
         Row: {
@@ -2764,6 +2772,38 @@ export type Database = {
           },
         ]
       }
+      talent_insights: {
+        Row: {
+          content: Json | null
+          created_at: string
+          id: number
+          last_updated_at: string | null
+          talent_id: string | null
+        }
+        Insert: {
+          content?: Json | null
+          created_at?: string
+          id?: number
+          last_updated_at?: string | null
+          talent_id?: string | null
+        }
+        Update: {
+          content?: Json | null
+          created_at?: string
+          id?: number
+          last_updated_at?: string | null
+          talent_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_insights_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       talent_internal: {
         Row: {
           content: string
@@ -2856,54 +2896,6 @@ export type Database = {
           },
         ]
       }
-      talent_network_onboarding: {
-        Row: {
-          contact: string | null
-          created_at: string
-          current_situation: string | null
-          cv_file_name: string | null
-          cv_storage_bucket: string | null
-          cv_storage_path: string | null
-          id: number
-          is_mobile: boolean | null
-          local_id: string | null
-          name: string | null
-          profile_input_type: string
-          profile_url: string | null
-          raw_payload: Json
-        }
-        Insert: {
-          contact?: string | null
-          created_at?: string
-          current_situation?: string | null
-          cv_file_name?: string | null
-          cv_storage_bucket?: string | null
-          cv_storage_path?: string | null
-          id?: never
-          is_mobile?: boolean | null
-          local_id?: string | null
-          name?: string | null
-          profile_input_type: string
-          profile_url?: string | null
-          raw_payload?: Json
-        }
-        Update: {
-          contact?: string | null
-          created_at?: string
-          current_situation?: string | null
-          cv_file_name?: string | null
-          cv_storage_bucket?: string | null
-          cv_storage_path?: string | null
-          id?: never
-          is_mobile?: boolean | null
-          local_id?: string | null
-          name?: string | null
-          profile_input_type?: string
-          profile_url?: string | null
-          raw_payload?: Json
-        }
-        Relationships: []
-      }
       talent_publications: {
         Row: {
           abstract: string | null
@@ -2951,22 +2943,31 @@ export type Database = {
       talent_setting: {
         Row: {
           blocked_companies: string[]
+          career_move_intent: string | null
           created_at: string
+          engagement_types: string[]
           profile_visibility: string
+          preferred_locations: string[]
           updated_at: string
           user_id: string
         }
         Insert: {
           blocked_companies?: string[]
+          career_move_intent?: string | null
           created_at?: string
+          engagement_types?: string[]
           profile_visibility?: string
+          preferred_locations?: string[]
           updated_at?: string
           user_id: string
         }
         Update: {
           blocked_companies?: string[]
+          career_move_intent?: string | null
           created_at?: string
+          engagement_types?: string[]
           profile_visibility?: string
+          preferred_locations?: string[]
           updated_at?: string
           user_id?: string
         }
@@ -2983,11 +2984,17 @@ export type Database = {
       talent_users: {
         Row: {
           bio: string | null
+          career_profile: Json
+          career_profile_initialized_at: string | null
           created_at: string
           email: string | null
           headline: string | null
           location: string | null
           name: string | null
+          network_application: Json
+          network_claimed_at: string | null
+          network_source_talent_id: string | null
+          network_waitlist_id: number | null
           profile_picture: string | null
           resume_file_name: string | null
           resume_links: string[]
@@ -2998,11 +3005,17 @@ export type Database = {
         }
         Insert: {
           bio?: string | null
+          career_profile?: Json
+          career_profile_initialized_at?: string | null
           created_at?: string
           email?: string | null
           headline?: string | null
           location?: string | null
           name?: string | null
+          network_application?: Json
+          network_claimed_at?: string | null
+          network_source_talent_id?: string | null
+          network_waitlist_id?: number | null
           profile_picture?: string | null
           resume_file_name?: string | null
           resume_links?: string[]
@@ -3013,11 +3026,17 @@ export type Database = {
         }
         Update: {
           bio?: string | null
+          career_profile?: Json
+          career_profile_initialized_at?: string | null
           created_at?: string
           email?: string | null
           headline?: string | null
           location?: string | null
           name?: string | null
+          network_application?: Json
+          network_claimed_at?: string | null
+          network_source_talent_id?: string | null
+          network_waitlist_id?: number | null
           profile_picture?: string | null
           resume_file_name?: string | null
           resume_links?: string[]

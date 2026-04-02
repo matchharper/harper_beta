@@ -28,8 +28,7 @@ export const opsTheme = {
   label: "font-geist text-sm font-medium text-beige900/80",
   link: "text-beige900 underline decoration-beige900/20 underline-offset-4 transition hover:decoration-beige900/50",
   page: "relative min-h-screen overflow-hidden bg-beige200 text-beige900",
-  panel:
-    "rounded-lg bg-beige100/90 shadow-[0_24px_70px_rgba(89,57,24,0.08)] backdrop-blur-sm",
+  panel: "rounded-lg bg-beige100/90 backdrop-blur-sm",
   panelMuted:
     "rounded-md bg-beige500/55 shadow-[inset_0_1px_0_rgba(255,255,255,0.78)]",
   panelSoft:

@@ -105,6 +105,7 @@ export async function GET(req: Request) {
           edu_user (
             school,
             degree,
+            description,
             field,
             start_date,
             end_date,

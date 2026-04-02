@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Check, Minus, Pause, Plus, Square, Tag, X } from "lucide-react";
+import { Check, Minus, Plus, Square, Tag, X } from "lucide-react";
 import {
   CANDIDATE_MARK_OPTIONS,
   CandidateMarkIconKey,
@@ -31,11 +31,17 @@ function MarkIcon({
   iconKey: CandidateMarkIconKey;
   className?: string;
 }) {
+  if (iconKey === "top_priority") {
+    return <Plus className={className} strokeWidth={2.2} />;
+  }
   if (iconKey === "not_fit") {
     return <Minus className={className} strokeWidth={2} />;
   }
   if (iconKey === "hold") {
     return <Square fill="currentColor" className={className} strokeWidth={2} />;
+  }
+  if (iconKey === "not_interested") {
+    return <X className={className} strokeWidth={2} />;
   }
   return <Check className={className} strokeWidth={2} />;
 }
@@ -89,7 +95,7 @@ export default function CandidateMarkButton({
       disabled={!userId || isPending}
       className={[
         "inline-flex flex-row gap-2 items-center justify-center rounded-md border transition-colors duration-200 disabled:opacity-60",
-        compact ? "py-2 px-2 text-sm" : "py-2 px-2 text-sm",
+        compact ? "h-[32px] px-2 text-sm" : "h-[32px] px-2 text-sm",
         meta
           ? `${meta.borderClassName} ${meta.bgClassName} ${meta.textClassName} hover:brightness-110`
           : "border-white/10 bg-black/20 text-hgray900 hover:bg-white/10 hover:text-white",
@@ -143,14 +149,14 @@ export default function CandidateMarkButton({
                   </span>
                   <span>{option.label}</span>
                 </div>
-                {isSelected ? (
+                {isSelected && (
                   <Check className="h-4 w-4 text-accenta1" strokeWidth={1.8} />
-                ) : null}
+                )}
               </ActionDropdownItem>
             );
           })}
 
-          {status ? (
+          {status && (
             <>
               <ActionDropdownSeparator />
               <ActionDropdownItem
@@ -163,7 +169,7 @@ export default function CandidateMarkButton({
                 태그 해제
               </ActionDropdownItem>
             </>
-          ) : null}
+          )}
         </ActionDropdown>
       </span>
     </Tooltips>

@@ -259,12 +259,14 @@ function CandidateProfileDetailPage({
   data,
   isLoading,
   error,
+  embedded = false,
 }: {
   candidId: string;
   runId?: string;
   data: CandidateDetail;
   isLoading: boolean;
   error: Error | null;
+  embedded?: boolean;
 }) {
   const [requested, setRequested] = useState(false);
   const [isLoadingOneline, setIsLoadingOneline] = useState(false);
@@ -622,7 +624,13 @@ function CandidateProfileDetailPage({
   }
 
   return (
-    <div className="w-full mx-auto overflow-y-auto h-screen relative">
+    <div
+      className={
+        embedded
+          ? "relative h-full w-full overflow-y-auto"
+          : "relative mx-auto h-screen w-full overflow-y-auto"
+      }
+    >
       {showAutomationFeedback && (
         <FeedbackBanner
           name={c.name}
@@ -632,7 +640,13 @@ function CandidateProfileDetailPage({
           qc={qc}
         />
       )}
-      <div className="relative w-[95%] max-w-[1080px] mx-auto px-4 py-10 space-y-10">
+      <div
+        className={
+          embedded
+            ? "relative w-full px-2 py-6 space-y-8"
+            : "relative mx-auto w-[95%] max-w-[1080px] px-4 py-10 space-y-10"
+        }
+      >
         <div className="flex flex-row items-start justify-between w-full">
           <ConnectionModal
             candidId={candidId}

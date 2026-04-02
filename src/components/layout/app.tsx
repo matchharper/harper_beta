@@ -10,6 +10,7 @@ import {
   LogOut,
   HelpCircle,
   MessageSquareMore,
+  Mail,
 } from "lucide-react";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
@@ -23,8 +24,10 @@ import { useLogEvent } from "@/hooks/useLog";
 import FeedbackRewardModal from "@/components/Modal/FeedbackRewardModal";
 import { useFeedbackModalStore } from "@/store/useFeedbackModalStore";
 import Link from "next/link";
+import Image from "next/image";
 import Script from "next/script";
 import { ActionDropdown, ActionDropdownItem } from "../ui/action-dropdown";
+import { isInternalEmail } from "@/lib/internalAccess";
 
 const AppLayout = ({
   children,
@@ -59,7 +62,9 @@ const AppLayout = ({
   const pathname = usePathname();
   const isHome = pathname === "/my";
   const isList = pathname === "/my/list";
+  const isAts = pathname === "/my/ats";
   const isAutomation = pathname?.startsWith("/my/scout");
+  const canAccessAts = isInternalEmail(user?.email);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -176,6 +181,16 @@ const AppLayout = ({
             href="/my/list"
             onNavigate={() => logEvent("enter_shortlist")}
           />
+          {canAccessAts ? (
+            <NavItem
+              collapsed={collapsed}
+              active={isAts}
+              label="ATS"
+              icon={<Mail size={16} />}
+              href="/my/ats"
+              onNavigate={() => logEvent("enter_ats")}
+            />
+          ) : null}
           <div className="flex h-16"></div>
           <HoverHistory
             collapsed={collapsed}
@@ -232,7 +247,7 @@ const AppLayout = ({
               >
                 <div className="shrink-0">
                   {companyUser?.profile_picture ? (
-                    <img
+                    <Image
                       src={companyUser?.profile_picture ?? ""}
                       alt="profile"
                       width={24}

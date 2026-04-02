@@ -1,8 +1,11 @@
 import type { NetworkLead } from "@/lib/networkOps";
 import type {
+  TalentInsightContent,
+  TalentSettingRow,
   TalentStructuredProfile,
   TalentUserProfileRow,
 } from "@/lib/talentOnboarding/server";
+import type { TalentNetworkApplication } from "@/lib/talentNetworkApplication";
 import type { Database } from "@/types/database.types";
 import { v5 as uuidv5 } from "uuid";
 
@@ -31,6 +34,7 @@ export type NetworkLeadListResponse = {
 };
 
 export type NetworkLeadDetailResponse = {
+  claimedTalentId: string | null;
   hasStructuredProfile: boolean;
   ingestionState: {
     hasLinkedin: boolean;
@@ -40,6 +44,13 @@ export type NetworkLeadDetailResponse = {
   };
   internalEntries: TalentInternalEntry[];
   lead: NetworkLeadSummary;
+  latestNetworkApplication: TalentNetworkApplication | null;
+  latestTalentInsights: TalentInsightContent | null;
+  latestTalentSetting: Pick<
+    TalentSettingRow,
+    "engagement_types" | "preferred_locations" | "career_move_intent"
+  > | null;
+  sourceTalentId: string;
   structuredProfile: TalentStructuredProfile | null;
   talentId: string;
   talentProfile: TalentUserProfileRow | null;

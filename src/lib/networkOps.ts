@@ -14,6 +14,7 @@ export type NetworkLeadPayload = {
   selected_role?: string | null;
   profile_input_types?: string[];
   linkedin_profile_url?: string | null;
+  personal_website_url?: string | null;
   github_profile_url?: string | null;
   scholar_profile_url?: string | null;
   cv_file_name?: string | null;
@@ -41,6 +42,7 @@ export type NetworkLead = {
   selectedRole: string | null;
   profileInputTypes: string[];
   linkedinProfileUrl: string | null;
+  personalWebsiteUrl: string | null;
   githubProfileUrl: string | null;
   scholarProfileUrl: string | null;
   cvFileName: string | null;
@@ -85,6 +87,7 @@ export function parseNetworkLeadPayload(raw: string | null) {
       selected_role: normalizeString(parsed.selected_role),
       profile_input_types: normalizeStringArray(parsed.profile_input_types),
       linkedin_profile_url: normalizeString(parsed.linkedin_profile_url),
+      personal_website_url: normalizeString(parsed.personal_website_url),
       github_profile_url: normalizeString(parsed.github_profile_url),
       scholar_profile_url: normalizeString(parsed.scholar_profile_url),
       cv_file_name: normalizeString(parsed.cv_file_name),
@@ -119,6 +122,7 @@ export function buildNetworkLead(row: NetworkWaitlistRow): NetworkLead {
     selectedRole: payload.selected_role ?? null,
     profileInputTypes: payload.profile_input_types ?? [],
     linkedinProfileUrl: payload.linkedin_profile_url ?? null,
+    personalWebsiteUrl: payload.personal_website_url ?? null,
     githubProfileUrl: payload.github_profile_url ?? null,
     scholarProfileUrl: payload.scholar_profile_url ?? null,
     cvFileName: payload.cv_file_name ?? null,

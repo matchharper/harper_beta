@@ -41,10 +41,14 @@ export async function fetchCandidateDetail(id: string, userId?: string) {
   );
 }
 
-export function useCandidateDetail(userId?: string, candidId?: string) {
+export function useCandidateDetail(
+  userId?: string,
+  candidId?: string,
+  enabled = true
+) {
   return useQuery({
     queryKey: candidateKey(candidId, userId),
-    enabled: !!candidId,
+    enabled: enabled && !!candidId,
     queryFn: () => fetchCandidateDetail(candidId!, userId),
     staleTime: 60_000,
   });

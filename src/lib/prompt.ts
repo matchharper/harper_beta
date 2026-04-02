@@ -21,6 +21,7 @@ edu_user
 - candid_id (FK → candid.id)
 - school : 학교명
 - degree : 학위 ex) Bachelor of Science, Master of Science, phd
+- description : 학교 활동/동아리-학회/프로젝트,학점,경험 등에 대한 설명
 - field : 전공
 - start_date (DATE)
 - end_date (DATE)
@@ -142,7 +143,7 @@ Output Rules (Strict — Must Not Be Violated)
 
 ### 조건 해석 가이드
 
-- 학력 조건 → edu_user.school, edu_user.degree, edu_user.field
+- 학력 조건 → edu_user.school, edu_user.degree, edu_user.field, edu_user.description
 - 직무/경력 → experience_user.role, experience_user.description, candid.summary
 - 회사 특징 → company_db.name, company_db.description, company_db.specialities
 - 개인 키워드 → candid.location, candid.summary

@@ -1,4 +1,4 @@
-import { Loader2, Phone, Upload, X } from "lucide-react";
+import { Loader2, Phone, Plus, Upload, X } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { CAREER_LINK_LABELS } from "@/components/career/constants";
 import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
@@ -11,6 +11,13 @@ import {
   shouldShowContinueConversationAction,
   shouldShowOnboardingInterestSelector,
 } from "@/hooks/career/careerHelpers";
+import {
+  CareerInlinePanel,
+  CareerPrimaryButton,
+  CareerSecondaryButton,
+  CareerTextInput,
+  careerCx,
+} from "../ui/CareerPrimitives";
 import CareerMessageBubble from "./CareerMessageBubble";
 
 const LOGIN_GREETING_TEXT =
@@ -29,6 +36,63 @@ const LOADING_EXAMPLES = [
 ];
 
 const VOICE_TRANSCRIPT_PREVIEW_LIMIT = 120;
+
+const TimelinePanel = ({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) => (
+  <CareerInlinePanel
+    className={careerCx("max-w-[980px] px-5 py-5", className)}
+  >
+    {children}
+  </CareerInlinePanel>
+);
+
+const AssistantLabel = ({ children }: { children: React.ReactNode }) => (
+  <div className="text-[12px] font-medium text-beige900/40">{children}</div>
+);
+
+const StatusMessage = ({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) => (
+  <div
+    className={careerCx(
+      "border-l-2 border-beige900/15 pl-4 text-[14px] leading-6 text-beige900/60",
+      className
+    )}
+  >
+    {children}
+  </div>
+);
+
+const InterestChoiceButton = ({
+  selected,
+  children,
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  selected?: boolean;
+}) => (
+  <button
+    type="button"
+    {...props}
+    className={careerCx(
+      "w-full rounded-[8px] border px-4 py-3 text-left text-[14px] leading-6 transition-colors",
+      selected
+        ? "border-beige900 bg-beige900 text-[#f5ecdd]"
+        : "border-beige900/10 bg-white/45 text-beige900/70 hover:border-beige900/25 hover:text-beige900",
+      props.className
+    )}
+  >
+    {children}
+  </button>
+);
 
 const CareerTimelineSection = () => {
   const {
@@ -67,8 +131,6 @@ const CareerTimelineSection = () => {
     onSubmitOnboardingInterest,
     onContinueOnboardingConversation,
     inputMode,
-    voiceListening,
-    voiceMuted,
     voiceTranscript,
     assistantAudioBusy,
   } = useCareerChatPanelContext();
@@ -179,225 +241,154 @@ const CareerTimelineSection = () => {
     setSelectedInterestOptions([]);
   }, [onSubmitOnboardingInterest, selectedInterestOptions]);
 
-  if (user && isVoiceMode && stage !== "profile" && false) {
-    return (
-      <div className="flex min-h-0 flex-1 flex-col px-4 py-4 lg:px-6 lg:py-6">
-        <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="relative flex flex-1 flex-col items-center justify-center overflow-hidden px-6 py-2 text-center">
-            <div className="relative flex h-44 w-44 items-center justify-center rounded-full bg-beige900 text-hblack000 shadow-[0_18px_60px_rgba(17,24,39,0.18)] sm:h-48 sm:w-48">
-              <p className="mt-3 font-halant text-2xl leading-none sm:text-3xl">
-                Harper
-              </p>
-            </div>
-          </div>
-
-          <div className="bg-hblack000 mb-12 backdrop-blur">
-            <div
-              ref={scrollRef}
-              className="h-[200px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-hblack200 scrollbar-track-transparent bg-hblack50 px-2 rounded-md"
-            >
-              {sessionPending && (
-                <article className="rounded-xl border border-hblack200 bg-hblack000 px-4 py-4">
-                  <div className="flex items-center gap-2 text-sm text-hblack700">
-                    <Loader2 className="h-4 w-4 animate-spin text-beige900" />
-                    저장된 대화를 불러오는 중입니다...
-                  </div>
-                </article>
-              )}
-
-              {!sessionPending && messages.length === 0 && (
-                <article className="rounded-2xl border border-hblack100 bg-hblack000/70 px-4 py-4 text-sm text-hblack600">
-                  아직 표시할 대화 기록이 없습니다.
-                </article>
-              )}
-
-              {!sessionPending && (
-                <div className="space-y-3 pb-2">
-                  {messages.map((message, index) => {
-                    const isUser = message.role === "user";
-                    return (
-                      <div
-                        key={`${message.id}-${index}`}
-                        className="flex flex-col gap-1"
-                      >
-                        <CareerMessageBubble
-                          message={message}
-                          isUser={isUser}
-                        />
-                      </div>
-                    );
-                  })}
-
-                  {chatPending && !assistantTyping && (
-                    <article className="rounded-2xl border border-hblack100 bg-hblack000/70 px-4 py-3 text-sm text-hblack700">
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin text-beige900" />
-                        채팅을 작성중입니다...
-                      </div>
-                    </article>
-                  )}
-                </div>
-              )}
-
-              {sessionError && (
-                <article className="mt-3 rounded-xl border border-beige900/20 bg-beige900/10 px-4 py-3 text-sm text-beige900">
-                  {sessionError}
-                </article>
-              )}
-
-              {chatError && (
-                <article className="mt-3 rounded-xl border border-beige900/20 bg-beige900/10 px-4 py-3 text-sm text-beige900">
-                  {chatError}
-                </article>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div
       ref={scrollRef}
       onScroll={handleTimelineScroll}
-      className="flex-1 space-y-4 overflow-y-auto px-6 py-6 pb-24 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent"
+      className="flex-1 overflow-y-auto px-0 py-4 pb-28 scrollbar-thin scrollbar-thumb-[rgba(92,61,34,0.16)] scrollbar-track-transparent"
     >
-      {user && showLoadOlderButton && hasOlderMessages ? (
-        <div className="sticky top-0 z-10 flex justify-center pb-2">
-          <button
-            type="button"
-            onClick={() => void handleLoadOlderMessages()}
-            disabled={loadingOlderMessages}
-            className="inline-flex h-9 items-center justify-center rounded-full border border-hblack200 bg-hblack000 px-4 text-xs text-hblack700 shadow-[0_8px_20px_rgba(17,24,39,0.08)] transition-colors hover:border-beige900 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {loadingOlderMessages ? "불러오는 중..." : "이전 대화 더 보기"}
-          </button>
-        </div>
-      ) : null}
-
-      {!user && (
-        <>
-          <div className="flex flex-col gap-1">
-            <div className="text-xs text-hblack500">Harper</div>
-            <article className="max-w-[96%] border border-hblack200 bg-hblack000 px-4 py-3 text-sm leading-relaxed text-hblack700">
-              <p className="whitespace-pre-line">{LOGIN_GREETING_TEXT}</p>
-            </article>
-          </div>
-
-          <article className="max-w-[96%] border border-hblack200 bg-hblack000 px-4 py-4">
+      <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-4 px-5 py-1">
+        {user && showLoadOlderButton && hasOlderMessages ? (
+          <div className="sticky top-0 z-10 flex justify-center pb-2">
             <button
               type="button"
-              onClick={() => void onGoogleLogin()}
-              disabled={authPending}
-              className="flex h-10 w-full items-center justify-center border border-hblack100 bg-hblack50 text-sm font-normal text-hblack900 transition-colors hover:bg-hblack100 hover:border-beige900 disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={() => void handleLoadOlderMessages()}
+              disabled={loadingOlderMessages}
+              className="inline-flex h-9 items-center justify-center rounded-[8px] border border-beige900/15 bg-white/45 px-4 text-xs text-beige900/55 transition-colors hover:border-beige900/30 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {authPending ? "처리 중..." : "Google 로그인"}
+              {loadingOlderMessages ? "불러오는 중..." : "이전 대화 더 보기"}
             </button>
+          </div>
+        ) : null}
 
-            <p className="mt-4 text-xs font-medium uppercase tracking-[0.08em] text-hblack500">
-              이메일 {authMode === "signup" ? "회원가입" : "로그인"}
-            </p>
-            <form onSubmit={handleEmailAuthSubmit} className="mt-2 space-y-2">
-              <input
-                value={authEmail}
-                onChange={(event) => setAuthEmail(event.target.value)}
-                type="email"
-                placeholder="ID (이메일)"
-                disabled={authPending}
-                className="h-10 w-full border border-hblack300 bg-hblack000 px-3 text-sm text-hblack900 outline-none transition-colors focus:border-beige900"
+        {!user ? (
+          <>
+            <div className="flex flex-col gap-2">
+              <AssistantLabel>Harper</AssistantLabel>
+              <CareerMessageBubble
+                message={{
+                  id: "login-greeting",
+                  role: "assistant",
+                  content: LOGIN_GREETING_TEXT,
+                  createdAt: "",
+                  messageType: "chat",
+                }}
+                isUser={false}
               />
-              <input
-                value={authPassword}
-                onChange={(event) => setAuthPassword(event.target.value)}
-                type="password"
-                placeholder="PW"
-                disabled={authPending}
-                className="h-10 w-full border border-hblack300 bg-hblack000 px-3 text-sm text-hblack900 outline-none transition-colors focus:border-beige900"
-              />
-              <button
-                type="submit"
-                disabled={authPending}
-                className="h-10 w-full border border-beige900 bg-beige900 text-sm font-medium text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {authMode === "signup" ? "회원가입" : "로그인"}
-              </button>
-            </form>
-
-            <p className="mt-3 text-sm text-hblack600">
-              {authMode === "signup"
-                ? "이미 계정이 있으신가요?"
-                : "첫 방문이신가요?"}{" "}
-              <button
-                type="button"
-                onClick={() =>
-                  setAuthMode((prev) =>
-                    prev === "signin" ? "signup" : "signin"
-                  )
-                }
-                disabled={authPending}
-                className="font-medium text-beige900 underline underline-offset-4"
-              >
-                {authMode === "signup" ? "로그인" : "회원가입"}
-              </button>
-            </p>
-
-            {authError && (
-              <p className="mt-2 border border-beige900/20 bg-beige900/10 px-3 py-2 text-sm text-beige900">
-                {authError}
-              </p>
-            )}
-            {authInfo && (
-              <p className="mt-2 border border-hblack200 bg-hblack100 px-3 py-2 text-sm text-hblack700">
-                {authInfo}
-              </p>
-            )}
-
-            <p className="mt-4 border border-beige900/15 bg-beige900/10 px-3 py-2 text-sm text-beige900">
-              {LOGIN_NUDGE}
-            </p>
-          </article>
-        </>
-      )}
-
-      {user && (
-        <>
-          {isVoiceMode && stage !== "profile" && (
-            <div className="inline-flex pr-6 pl-1 py-1 flex-row items-center justify-center gap-4 sticky rounded-full top-0 z-20 left-[50%] -translate-x-1/2 border-b border-beige900/15 bg-beige900 shadow-[0_10px_24px_rgba(17,24,39,0.08)]">
-              <div className="w-8 h-8 rounded-full bg-hblack000 flex items-center justify-center">
-                <Phone className="h-4 w-4 text-beige900" fill="currentColor" />
-              </div>
-              <div className="text-base font-medium text-hblack000">Harper</div>
             </div>
-          )}
 
-          {sessionPending && (
-            <article className="max-w-[96%] h-[60vh] flex items-center justify-center bg-hblack000 px-4 py-4">
-              <div className="flex items-center gap-2 text-sm text-hblack700">
-                <Loader2 className="h-4 w-4 animate-spin text-beige900" />
-                저장된 대화를 불러오는 중입니다...
+            <TimelinePanel>
+              <CareerSecondaryButton
+                onClick={() => void onGoogleLogin()}
+                disabled={authPending}
+                className="w-full justify-center px-4"
+              >
+                {authPending ? "처리 중..." : "Google 로그인"}
+              </CareerSecondaryButton>
+
+              <div className="mt-5 text-[14px] font-medium text-beige900/55">
+                이메일 {authMode === "signup" ? "회원가입" : "로그인"}
               </div>
-            </article>
-          )}
 
-          {!sessionPending &&
-            messages.map((message, index) => {
+              <form onSubmit={handleEmailAuthSubmit} className="mt-3 space-y-3">
+                <CareerTextInput
+                  value={authEmail}
+                  onChange={(event) => setAuthEmail(event.target.value)}
+                  type="email"
+                  placeholder="ID (이메일)"
+                  disabled={authPending}
+                />
+                <CareerTextInput
+                  value={authPassword}
+                  onChange={(event) => setAuthPassword(event.target.value)}
+                  type="password"
+                  placeholder="PW"
+                  disabled={authPending}
+                />
+                <CareerPrimaryButton
+                  type="submit"
+                  disabled={authPending}
+                  className="w-full justify-center"
+                >
+                  {authMode === "signup" ? "회원가입" : "로그인"}
+                </CareerPrimaryButton>
+              </form>
+
+              <div className="mt-4 text-sm text-beige900/55">
+                {authMode === "signup"
+                  ? "이미 계정이 있으신가요?"
+                  : "첫 방문이신가요?"}{" "}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setAuthMode((prev) =>
+                      prev === "signin" ? "signup" : "signin"
+                    )
+                  }
+                  disabled={authPending}
+                  className="font-medium text-beige900 underline underline-offset-4"
+                >
+                  {authMode === "signup" ? "로그인" : "회원가입"}
+                </button>
+              </div>
+
+              {authError ? (
+                <div className="mt-4 border border-[#7c2d12]/15 bg-[#7c2d12]/5 px-4 py-3 text-sm text-[#7c2d12]">
+                  {authError}
+                </div>
+              ) : null}
+              {authInfo ? (
+                <div className="mt-4 border border-beige900/10 bg-white/40 px-4 py-3 text-sm text-beige900/50">
+                  {authInfo}
+                </div>
+              ) : null}
+
+              <StatusMessage className="mt-5">
+                {LOGIN_NUDGE}
+              </StatusMessage>
+            </TimelinePanel>
+          </>
+        ) : null}
+
+        {user && isVoiceMode && stage !== "profile" ? (
+          <div className="sticky top-0 z-20 flex justify-center">
+            <div className="inline-flex items-center gap-3 rounded-[8px] border border-beige900 bg-beige900 px-4 py-2 text-sm text-[#f5ecdd]">
+              <div className="flex h-7 w-7 items-center justify-center rounded-[8px] border border-[#f5ecdd]/25">
+                <Phone className="h-3.5 w-3.5" />
+              </div>
+              <span>Harper 음성 대화</span>
+              {compactTranscriptPreview ? (
+                <span className="max-w-[360px] truncate text-[#f5ecdd]/75">
+                  {compactTranscriptPreview}
+                </span>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {user && sessionPending ? (
+          <div className="flex min-h-[52vh] items-center justify-center">
+            <div className="flex items-center gap-2 text-sm text-beige900/60">
+              <Loader2 className="h-4 w-4 animate-spin text-beige900" />
+              저장된 대화를 불러오는 중입니다...
+            </div>
+          </div>
+        ) : null}
+
+        {user && !sessionPending
+          ? messages.map((message, index) => {
               const isUser = message.role === "user";
               return (
                 <div
                   key={`${message.id}-${index}`}
-                  className={`flex flex-col gap-1 ${isVoiceMode && index !== lastSpokenAssistantMessageIndex ? "opacity-70" : ""}`}
+                  className={careerCx(
+                    "flex flex-col gap-2",
+                    isVoiceMode &&
+                      index !== lastSpokenAssistantMessageIndex &&
+                      "opacity-70"
+                  )}
                 >
-                  <div
-                    className={[
-                      "text-xs",
-                      isUser
-                        ? "text-right text-hblack500"
-                        : "text-left text-beige900",
-                    ].join(" ")}
-                  >
-                    {isUser ? "" : ""}
-                  </div>
+                  {!isUser ? <AssistantLabel>Harper</AssistantLabel> : null}
                   <CareerMessageBubble
                     message={message}
                     isUser={isUser}
@@ -407,258 +398,238 @@ const CareerTimelineSection = () => {
                   />
                 </div>
               );
-            })}
+            })
+          : null}
 
-          {!sessionPending &&
-            stage !== "profile" &&
-            chatPending &&
-            !assistantTyping && (
-              <div className="flex flex-col gap-1">
-                <div className="text-xs text-hblack500">Harper</div>
-                <article className="max-w-[96%] text-sm text-hblack700">
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin text-beige900" />
-                    채팅을 작성중입니다...
-                  </div>
-                </article>
-              </div>
-            )}
+        {user && !sessionPending && stage !== "profile" && chatPending && !assistantTyping ? (
+          <StatusMessage>
+            <span className="inline-flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin text-beige900" />
+              채팅을 작성중입니다...
+            </span>
+          </StatusMessage>
+        ) : null}
 
-          {profilePending && (
-            <article className="max-w-[96%] rounded-xl border border-hblack200 bg-hblack000 px-4 py-4">
-              <div className="flex items-center gap-2 text-sm text-hblack700">
-                <Loader2 className="h-4 w-4 animate-spin text-beige900" />
-                이력서/링크 정보를 분석 중입니다...
-              </div>
-              <p className="mt-3 border border-beige900/15 bg-beige900/10 px-3 py-2 text-sm text-beige900">
-                {LOADING_NUDGE}
-              </p>
-              <div className="mt-3 border border-hblack200 px-3 py-3">
-                {LOADING_EXAMPLES.map((example) => (
-                  <p key={example} className="text-sm text-hblack600">
-                    • {example}
-                  </p>
-                ))}
-              </div>
-            </article>
-          )}
-
-          {!profilePending && !sessionPending && stage === "profile" && (
-            <>
-              <article className="lg:max-w-[80%] max-w-[96%] rounded-xl border border-hblack200 bg-hblack000 px-4 py-4">
-                <div>
-                  <p className="text-sm font-medium text-hblack1000">
-                    이력서/포트폴리오 업로드
-                  </p>
-                  <p className="mt-1 text-xs text-hblack500">
-                    PDF, DOC, DOCX 파일을 업로드할 수 있습니다.
-                  </p>
-                  <div className="mt-3 flex items-center gap-2">
-                    <label
-                      htmlFor="career-resume-upload"
-                      className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-md bg-hblack50 px-3 pr-4 text-sm font-medium text-hblack800 transition-colors hover:bg-hblack100 hover:border-beige900"
-                    >
-                      <Upload className="h-4 w-4" />
-                      파일 선택
-                    </label>
-                    <input
-                      id="career-resume-upload"
-                      type="file"
-                      accept=".pdf,.doc,.docx"
-                      className="hidden"
-                      onChange={(event) => {
-                        onResumeFileChange(event.target.files?.[0] ?? null);
-                      }}
-                    />
-                    <div>
-                      <span className="truncate text-sm text-hblack500">
-                        {resumeFile?.name || "선택된 파일 없음"}
-                      </span>
-                    </div>
-                  </div>
+        {user && profilePending ? (
+          <TimelinePanel className="max-w-[980px]">
+            <div className="flex items-center gap-2 text-sm text-beige900/50">
+              <Loader2 className="h-4 w-4 animate-spin text-beige900" />
+              이력서와 링크 정보를 분석 중입니다...
+            </div>
+            <StatusMessage className="mt-4">{LOADING_NUDGE}</StatusMessage>
+            <div className="mt-5 grid gap-2 border-t border-beige900/10 pt-4">
+              {LOADING_EXAMPLES.map((example) => (
+                <div key={example} className="text-[14px] leading-7 text-beige900/55">
+                  {example}
                 </div>
+              ))}
+            </div>
+          </TimelinePanel>
+        ) : null}
 
-                <div className="mt-8">
-                  <p className="text-sm font-medium text-hblack1000">
-                    주요 링크 입력
-                  </p>
-                  <div className="mt-2 space-y-3">
-                    {profileLinks.map((link, index) => (
-                      <div
-                        key={`profile-link-${index}`}
-                        className="flex items-center gap-2"
-                      >
-                        <div className="w-28 text-sm font-medium text-hblack600">
-                          {CAREER_LINK_LABELS[index] ?? "추가 링크"}
-                        </div>
-                        <input
-                          value={link}
-                          onChange={(event) =>
-                            onProfileLinkChange(index, event.target.value)
-                          }
-                          placeholder="https://"
-                          className="h-9 flex-1 border-0 border-b border-hblack300 bg-transparent px-0.5 text-sm text-hblack900 outline-none transition-colors focus:border-beige900"
-                        />
-                        {index >= 3 && (
-                          <button
-                            type="button"
-                            onClick={() => onRemoveProfileLink(index)}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-hblack50 text-hblack600 hover:border-beige900 hover:text-beige900"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={onAddProfileLink}
-                    className="mt-3 inline-flex h-8 items-center bg-hblack50 rounded-md px-3 text-xs font-medium text-hblack700 hover:bg-hblack100 transition-colors cursor-pointer"
+        {user && !profilePending && !sessionPending && stage === "profile" ? (
+          <TimelinePanel className="max-w-[980px]">
+            <div className="grid gap-6">
+              <section>
+                <div className="text-[15px] font-medium text-beige900">
+                  이력서 업로드
+                </div>
+                <div className="mt-1 text-[13px] leading-6 text-beige900/45">
+                  PDF, DOC, DOCX 파일을 업로드할 수 있습니다.
+                </div>
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <label
+                    htmlFor="career-resume-upload"
+                    className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-[8px] border border-beige900/15 bg-white/45 px-4 text-sm text-beige900 transition-colors hover:border-beige900/30"
                   >
-                    + 링크 추가
-                  </button>
+                    <Upload className="h-4 w-4" />
+                    파일 선택
+                  </label>
+                  <input
+                    id="career-resume-upload"
+                    type="file"
+                    accept=".pdf,.doc,.docx"
+                    className="hidden"
+                    onChange={(event) => {
+                      onResumeFileChange(event.target.files?.[0] ?? null);
+                    }}
+                  />
+                  <div className="text-sm text-beige900/55">
+                    {resumeFile?.name || "선택된 파일 없음"}
+                  </div>
                 </div>
+              </section>
 
-                {profileError && (
-                  <p className="mt-3 rounded-sm border border-beige900/20 bg-beige900/10 px-3 py-2 text-xs text-beige900">
-                    {profileError}
-                  </p>
-                )}
-                <p className="mt-6 text-[13px] text-hblack400">
-                  이력서 혹은 링크드인 중 하나만으로도 우선 시작하실 수
-                  있습니다!
-                  <br />
-                  정보는 언제든지 변경가능합니다.
-                </p>
+              <section className="border-t border-beige900/10 pt-6">
+                <div className="text-[15px] font-medium text-beige900">
+                  주요 링크
+                </div>
+                <div className="mt-4 space-y-3">
+                  {profileLinks.map((link, index) => (
+                    <div
+                      key={`profile-link-${index}`}
+                      className="grid gap-2 md:grid-cols-[140px_minmax(0,1fr)_40px]"
+                    >
+                      <div className="pt-2 text-[14px] font-medium text-beige900/50">
+                        {CAREER_LINK_LABELS[index] ?? "추가 링크"}
+                      </div>
+                      <CareerTextInput
+                        value={link}
+                        onChange={(event) =>
+                          onProfileLinkChange(index, event.target.value)
+                        }
+                        placeholder="https://"
+                      />
+                      {index >= 3 ? (
+                        <button
+                          type="button"
+                          onClick={() => onRemoveProfileLink(index)}
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-beige900/15 bg-white/45 text-beige900/50 transition-colors hover:border-beige900/30 hover:text-beige900"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      ) : (
+                        <div />
+                      )}
+                    </div>
+                  ))}
+                </div>
                 <button
                   type="button"
+                  onClick={onAddProfileLink}
+                  className="mt-4 inline-flex h-10 items-center gap-2 rounded-[8px] border border-beige900/15 bg-white/45 px-4 text-sm text-beige900 transition-colors hover:border-beige900/30"
+                >
+                  <Plus className="h-4 w-4" />
+                  링크 추가
+                </button>
+              </section>
+
+              {profileError ? (
+                <div className="border border-[#7c2d12]/15 bg-[#7c2d12]/5 px-4 py-3 text-sm text-[#7c2d12]">
+                  {profileError}
+                </div>
+              ) : null}
+
+              <div className="border-t border-beige900/10 pt-5">
+                <div className="text-[13px] leading-6 text-beige900/45">
+                  이력서나 링크 하나만 있어도 우선 시작할 수 있습니다. 정보는
+                  언제든지 바꿀 수 있습니다.
+                </div>
+                <CareerPrimaryButton
                   onClick={() => void onProfileSubmit()}
                   disabled={profilePending}
-                  className="mt-2 h-10 w-full rounded-md border border-beige900 bg-beige900 text-sm font-medium text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-4 w-full justify-center"
                 >
                   {profilePending ? "분석 준비 중..." : "제출하기"}
-                </button>
-              </article>
-            </>
-          )}
-
-          {sessionError && (
-            <article className="max-w-[96%] rounded-xl border border-beige900/20 bg-beige900/10 px-4 py-3 text-sm text-beige900">
-              {sessionError}
-            </article>
-          )}
-
-          {chatError && (
-            <article className="max-w-[96%] rounded-xl border border-beige900/20 bg-beige900/10 px-4 py-3 text-sm text-beige900">
-              {chatError}
-            </article>
-          )}
-
-          {showVoiceStartPrompt && (
-            <article className="max-w-[96%] flex flex-col items-start justify-start">
-              <p className="whitespace-pre-line text-sm leading-relaxed text-hblack700">
-                현재 대화가 가능하신가요? <br />
-                간단한 질문 몇가지만 여쭤볼게요!
-              </p>
-              <div className="mt-4 flex flex-col gap-2 w-full max-w-[260px]">
-                <button
-                  type="button"
-                  onClick={() => onStartVoiceCall(5)}
-                  disabled={onboardingBeginPending}
-                  className="h-10 rounded-md border border-beige900 bg-beige900 px-4 text-sm font-normal text-hblack000 transition-opacity hover:opacity-90"
-                >
-                  {onboardingBeginPending ? "준비 중..." : "5분 통화 시작"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onStartVoiceCall(10)}
-                  disabled={onboardingBeginPending}
-                  className="h-10 rounded-md border border-beige900 bg-beige900 px-4 text-sm font-normal text-hblack000 transition-opacity hover:opacity-90"
-                >
-                  {onboardingBeginPending ? "준비 중..." : "10분 통화 시작"}
-                </button>
-                <button
-                  type="button"
-                  onClick={onUseChatOnly}
-                  disabled={onboardingBeginPending}
-                  className="h-10 rounded-md border border-hblack000 bg-hblack50 px-4 text-sm text-hblack700 transition-colors hover:bg-hblack100"
-                >
-                  {onboardingBeginPending ? "준비 중..." : "텍스트로 시작"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void onPauseOnboarding()}
-                  disabled={onboardingPausePending}
-                  className="h-10 rounded-md border border-hblack000 bg-hblack50 px-4 text-sm text-hblack700 transition-colors hover:bg-hblack100"
-                >
-                  {onboardingPausePending
-                    ? "준비 중..."
-                    : "우선 종료하고 나중에 이어할게요."}
-                </button>
+                </CareerPrimaryButton>
               </div>
-            </article>
-          )}
+            </div>
+          </TimelinePanel>
+        ) : null}
 
-          {showInterestSelector && (
-            <article className="max-w-[80%] px-2">
-              {/* <p className="text-sm font-medium text-hblack1000">
-                현재 어떤 기회를 찾고 있는지
-              </p> */}
-              <p className="mt-0 text-xs text-hblack500">복수 선택 가능</p>
+        {user && sessionError ? (
+          <div className="border border-[#7c2d12]/15 bg-[#7c2d12]/5 px-4 py-3 text-sm text-[#7c2d12]">
+            {sessionError}
+          </div>
+        ) : null}
 
-              <div className="mt-2 space-y-2">
-                {TALENT_ONBOARDING_INTEREST_OPTIONS.map((option, index) => {
-                  const selected = selectedInterestOptions.includes(option.id);
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => handleToggleInterestOption(option.id)}
-                      disabled={onboardingPausePending}
-                      className={[
-                        "flex w-full rounded-lg border px-3 py-3 text-left text-sm transition-colors",
-                        selected
-                          ? "border-beige900 bg-beige900/10 text-beige900"
-                          : "border-hblack200 bg-hblack000 text-hblack700 hover:border-hblack400",
-                      ].join(" ")}
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
+        {user && chatError ? (
+          <div className="border border-[#7c2d12]/15 bg-[#7c2d12]/5 px-4 py-3 text-sm text-[#7c2d12]">
+            {chatError}
+          </div>
+        ) : null}
 
-              <button
-                type="button"
-                onClick={() => void handleSubmitInterestOptions()}
-                disabled={
-                  onboardingPausePending || selectedInterestOptions.length === 0
-                }
-                className="mt-4 h-10 w-full rounded-md border border-beige900 bg-beige900 px-4 text-sm font-medium text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {onboardingPausePending ? "저장 중..." : "선택 저장하기"}
-              </button>
-            </article>
-          )}
-
-          {showContinueConversation && (
-            <article className="max-w-[96%] px-2">
-              <div className="text-sm text-hblack700 mb-2">
-                방문해주셔서 감사합니다.
-              </div>
-              <button
-                type="button"
-                onClick={() => void onContinueOnboardingConversation()}
+        {user && showVoiceStartPrompt ? (
+          <TimelinePanel className="max-w-[620px]">
+            <div className="text-[15px] leading-7 text-beige900/70">
+              현재 대화가 가능하신가요?
+              <br />
+              간단한 질문 몇 가지만 여쭤볼게요.
+            </div>
+            <div className="mt-5 grid gap-2">
+              <CareerPrimaryButton
+                onClick={() => onStartVoiceCall(5)}
                 disabled={onboardingBeginPending}
-                className="h-10 rounded-md bg-beige900 px-4 text-sm font-normal text-hblack000 transition-colors"
+                className="w-full justify-center"
               >
-                {onboardingBeginPending ? "준비 중..." : "지금 더 대화하기"}
-              </button>
-            </article>
-          )}
-        </>
-      )}
+                {onboardingBeginPending ? "준비 중..." : "5분 통화 시작"}
+              </CareerPrimaryButton>
+              <CareerPrimaryButton
+                onClick={() => onStartVoiceCall(10)}
+                disabled={onboardingBeginPending}
+                className="w-full justify-center"
+              >
+                {onboardingBeginPending ? "준비 중..." : "10분 통화 시작"}
+              </CareerPrimaryButton>
+              <CareerSecondaryButton
+                onClick={onUseChatOnly}
+                disabled={onboardingBeginPending}
+                className="w-full justify-center"
+              >
+                {onboardingBeginPending ? "준비 중..." : "텍스트로 시작"}
+              </CareerSecondaryButton>
+              <CareerSecondaryButton
+                onClick={() => void onPauseOnboarding()}
+                disabled={onboardingPausePending}
+                className="w-full justify-center"
+              >
+                {onboardingPausePending
+                  ? "준비 중..."
+                  : "우선 종료하고 나중에 이어할게요."}
+              </CareerSecondaryButton>
+            </div>
+          </TimelinePanel>
+        ) : null}
+
+        {user && showInterestSelector ? (
+          <TimelinePanel className="max-w-[900px]">
+            <div className="text-[12px] font-medium text-beige900/40">
+              복수 선택 가능
+            </div>
+
+            <div className="mt-3 space-y-2">
+              {TALENT_ONBOARDING_INTEREST_OPTIONS.map((option) => {
+                const selected = selectedInterestOptions.includes(option.id);
+                return (
+                  <InterestChoiceButton
+                    key={option.id}
+                    selected={selected}
+                    onClick={() => handleToggleInterestOption(option.id)}
+                    disabled={onboardingPausePending}
+                  >
+                    {option.label}
+                  </InterestChoiceButton>
+                );
+              })}
+            </div>
+
+            <CareerPrimaryButton
+              onClick={() => void handleSubmitInterestOptions()}
+              disabled={
+                onboardingPausePending || selectedInterestOptions.length === 0
+              }
+              className="mt-5 w-full justify-center"
+            >
+              {onboardingPausePending ? "저장 중..." : "선택 저장하기"}
+            </CareerPrimaryButton>
+          </TimelinePanel>
+        ) : null}
+
+        {user && showContinueConversation ? (
+          <TimelinePanel className="max-w-[620px]">
+            <div className="text-[15px] leading-7 text-beige900/55">
+              방문해주셔서 감사합니다.
+            </div>
+            <CareerPrimaryButton
+              onClick={() => void onContinueOnboardingConversation()}
+              disabled={onboardingBeginPending}
+              className="mt-4 justify-center"
+            >
+              {onboardingBeginPending ? "준비 중..." : "지금 더 대화하기"}
+            </CareerPrimaryButton>
+          </TimelinePanel>
+        ) : null}
+      </div>
     </div>
   );
 };

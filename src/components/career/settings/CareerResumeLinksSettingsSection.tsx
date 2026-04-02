@@ -37,7 +37,7 @@ const CareerResumeLinksSettingsSection = () => {
   const shouldShowSaveButton = Boolean(resumeFile) || hasUnsavedLinkChanges;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 font-geist">
       <div className="">
         <h2 className="text-lg font-semibold text-hblack1000">
           내 이력서/링크

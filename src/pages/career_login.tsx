@@ -31,8 +31,13 @@ const CareerLogin = () => {
 
   useEffect(() => {
     if (authLoading || !user) return;
-    void router.replace("/career");
-  }, [authLoading, router, user]);
+    const inviteToken =
+      typeof router.query.invite === "string" ? router.query.invite : "";
+    const nextUrl = inviteToken
+      ? `/career?invite=${encodeURIComponent(inviteToken)}`
+      : "/career";
+    void router.replace(nextUrl);
+  }, [authLoading, router, router.query.invite, user]);
 
   if (authLoading || user) {
     return <CareerLoginLoadingState />;
@@ -42,7 +47,7 @@ const CareerLogin = () => {
     <main className="relative min-h-screen w-full bg-hblack000 font-inter text-hblack900">
       <CareerLoginTopBar />
       <div className="relative flex min-h-screen items-center justify-center px-4 py-8 pt-20">
-        <section className="w-full max-w-[560px] rounded-[24px] border border-hblack200 bg-hblack000 px-8 py-6 shadow-[0_4px_12px_rgba(17,24,39,0.06)]">
+        <section className="w-full max-w-[560px] rounded-[24px] border border-hblack200 bg-hblack000 px-8 py-6">
           <header className="text-center">
             <h1 className="text-lg font-semibold">하퍼에서 기회를 발견하세요.</h1>
             <p className="mt-2 text-base">

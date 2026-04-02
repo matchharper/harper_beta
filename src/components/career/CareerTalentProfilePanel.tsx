@@ -1,20 +1,23 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import {
   AwardIcon,
   Building2,
-  ChevronDown,
+  ExternalLink,
   FileText,
   MapPin,
-  LinkIcon,
   SchoolIcon,
 } from "lucide-react";
 import { initials } from "@/components/NameProfile";
-import { locationEnToKo } from "@/utils/language_map";
-import { dateToFormat } from "@/utils/textprocess";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
 import type { CareerTalentExtra } from "./types";
-import { Tooltips } from "../ui/tooltip";
-import LinkPills from "../information/LinkPills";
+import { locationEnToKo } from "@/utils/language_map";
+import { dateToFormat } from "@/utils/textprocess";
+import {
+  CareerSectionHeader,
+  CareerSecondaryButton,
+  CareerSurface,
+  careerCx,
+} from "./ui/CareerPrimitives";
 
 const parseDate = (value: string | null | undefined) => {
   if (!value) return null;
@@ -44,138 +47,78 @@ const formatMonth = (months?: number | null) => {
   return `${years > 0 ? `${years}년 ` : ""}${remain}개월`;
 };
 
-const TimelineItem = ({
+const TimelineBlock = ({
   title,
   subtitle,
-  dateLabel,
   description,
   memo,
-  type,
+  meta,
+  icon,
   isLast,
-  isContinued,
 }: {
   title: string;
-  subtitle: string;
-  dateLabel: string;
-  description: string;
-  memo: string;
-  type: "experience" | "education" | "extra";
-  isLast: boolean;
-  isContinued?: boolean;
-}) => {
-  const hasDescription = Boolean(description);
-  const hasMemo = Boolean(memo);
-  const [isOpen, setIsOpen] = useState(true);
-
-  return (
-    <div className="relative">
-      {!isLast ? (
-        <div className="absolute left-[15px] top-0 h-full w-[2px] bg-hblack200" />
-      ) : null}
-
-      <div
-        className={`relative flex items-start justify-between gap-3 pb-12 ${
-          isContinued ? "mt-[-20px] pb-12" : "mt-0"
-        }`}
-      >
-        <div className="flex min-w-0 items-start gap-3">
-          <div
-            className={`min-w-8 ${isContinued ? "opacity-0" : "opacity-100"}`}
-          >
-            <div className="mt-[1px] flex h-10 w-10 items-center justify-center rounded-full border border-hblack200 bg-hblack50">
-              {type === "education" ? (
-                <SchoolIcon
-                  size={16}
-                  strokeWidth={1.4}
-                  className="text-hblack700"
-                />
-              ) : type === "extra" ? (
-                <AwardIcon
-                  size={16}
-                  strokeWidth={1.4}
-                  className="text-hblack700"
-                />
-              ) : (
-                <Building2
-                  size={16}
-                  strokeWidth={1.4}
-                  className="text-hblack700"
-                />
-              )}
-            </div>
-          </div>
-
-          <div className="mt-[-3px] flex min-w-0 flex-col gap-[2px]">
-            <div className="truncate text-[15px] font-medium text-hblack900">
-              {title}
-            </div>
-            <div className="flex flex-wrap items-center gap-2 text-[13px] font-normal text-hblack600">
-              {subtitle ? <span>{subtitle}</span> : null}
-            </div>
-            <div className="flex flex-wrap items-center gap-2 text-[13px] font-normal text-hblack600">
-              {dateLabel ? <span>{dateLabel}</span> : null}
-            </div>
-
-            {(hasDescription || hasMemo) && isOpen ? (
-              <div className="mt-2 space-y-2 text-sm font-light text-hblack700">
-                {hasDescription ? (
-                  <div className="whitespace-pre-wrap break-words">
-                    {description}
-                  </div>
-                ) : null}
-                {hasMemo ? (
-                  <div className="whitespace-pre-wrap break-words bg-beige900/10 text-beige900">
-                    Harper 메모: {memo}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        {hasDescription || hasMemo ? (
-          <button
-            type="button"
-            onClick={() => setIsOpen((prev) => !prev)}
-            className="absolute right-0 top-[-4px] inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-hblack50"
-            aria-expanded={isOpen}
-            aria-label={isOpen ? "접기" : "펼치기"}
-          >
-            <ChevronDown
-              size={18}
-              strokeWidth={1.4}
-              className={`text-hblack800 transition-transform duration-200 ${
-                isOpen ? "rotate-180" : "rotate-0"
-              }`}
-            />
-          </button>
-        ) : null}
-      </div>
+  subtitle?: string;
+  description?: string;
+  memo?: string;
+  meta?: string;
+  icon: React.ReactNode;
+  isLast?: boolean;
+}) => (
+  <div className={careerCx("relative pl-11", !isLast && "pb-6")}>
+    {!isLast ? (
+      <div className="absolute bottom-0 left-[14px] top-[30px] w-px bg-beige900/10" />
+    ) : null}
+    <div className="absolute left-0 top-1 flex h-7 w-7 items-center justify-center rounded-[8px] border border-beige900/15 bg-white/45 text-beige900/70">
+      {icon}
     </div>
-  );
-};
+    <div>
+      <div className="text-[16px] font-medium leading-6 text-beige900">
+        {title}
+      </div>
+      {subtitle ? (
+        <div className="mt-1 text-[14px] text-beige900/55">{subtitle}</div>
+      ) : null}
+      {meta ? (
+        <div className="mt-1 text-[13px] text-beige900/40">{meta}</div>
+      ) : null}
+      {description ? (
+        <div className="mt-2 whitespace-pre-wrap text-[14px] leading-6 text-beige900/55">
+          {description}
+        </div>
+      ) : null}
+      {memo ? (
+        <div className="mt-2 border-l border-beige900/20 pl-3 text-[13px] leading-6 text-beige900/50">
+          {memo}
+        </div>
+      ) : null}
+    </div>
+  </div>
+);
 
-const Section = ({
+const ProfileSection = ({
   title,
   children,
 }: {
   title: string;
   children: React.ReactNode;
 }) => (
-  <div className="w-full flex flex-col gap-4 border-t border-hblack100 pt-5">
-    <div className="col-span-1">
-      <div className="text-sm font-normal text-hblack900">{title}</div>
-    </div>
-    <div className="col-span-5">{children}</div>
-  </div>
+  <section className="first:border-t-0 first:pt-0">
+    <div className="text-[14px] font-medium text-beige900/45">{title}</div>
+    <div className="mt-3">{children}</div>
+  </section>
 );
 
-const CareerTalentProfilePanel = () => {
-  const { talentProfile, profileLinks } = useCareerSidebarContext();
+const CareerTalentProfilePanel = ({
+  className = "",
+  showManageButton = true,
+}: {
+  className?: string;
+  showManageButton?: boolean;
+}) => {
+  const { talentProfile, profileLinks, onOpenSettings } =
+    useCareerSidebarContext();
   const { talentUser, talentExperiences, talentEducations, talentExtras } =
     talentProfile;
-  const { onOpenSettings } = useCareerSidebarContext();
-  const [bioOpen, setBioOpen] = useState(false);
 
   const links = useMemo(() => {
     const unique = new Set<string>();
@@ -210,8 +153,9 @@ const CareerTalentProfilePanel = () => {
 
       const aStartDate = parseDate(a.item.start_date);
       const bStartDate = parseDate(b.item.start_date);
-      if (aStartDate && bStartDate)
+      if (aStartDate && bStartDate) {
         return bStartDate.getTime() - aStartDate.getTime();
+      }
       if (aStartDate && !bStartDate) return -1;
       if (!aStartDate && bStartDate) return 1;
       return 0;
@@ -220,6 +164,7 @@ const CareerTalentProfilePanel = () => {
     const undatedEdu = eduItems.filter(
       (edu) => !parseDate(edu.item.start_date)
     );
+
     if (undatedEdu.length === 0) return datedItems;
 
     const merged = [...datedItems];
@@ -236,6 +181,7 @@ const CareerTalentProfilePanel = () => {
       const insertAt = merged.findIndex(
         (entry) => entry.kind === "edu" && entry.item === nextDatedEdu.item
       );
+
       if (insertAt === -1) merged.push(edu);
       else merged.splice(insertAt, 0, edu);
     });
@@ -251,171 +197,125 @@ const CareerTalentProfilePanel = () => {
 
   if (!hasAnyProfileData) {
     return (
-      <div className="mt-4 rounded-2xl border border-hblack200 bg-hblack000 p-5">
-        <h2 className="text-base font-normal text-hblack1000">프로필</h2>
-        <div className="mt-3 rounded-xl border border-dashed border-hblack200 bg-hblack100 px-4 py-8 text-center text-sm text-hblack600">
-          LinkedIn/이력서 제출 후 프로필이 자동으로 표시됩니다.
-        </div>
-      </div>
+      <CareerSurface className={className}>
+        <div></div>
+      </CareerSurface>
     );
   }
 
   return (
-    <div className="mt-4 rounded-2xl border border-hblack200 bg-hblack000">
-      <div className="max-h-[calc(100vh-170px)] space-y-5 overflow-y-auto p-5 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
-        <div className="flex flex-row w-full gap-3 relative">
-          <div className="h-12 w-12 overflow-hidden rounded-full border border-hblack200 bg-hblack100">
+    <div className="space-y-5">
+      <ProfileSection title="">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
+          <div className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-[8px] border border-beige900/10 bg-white/45 text-[24px] text-beige900/70">
             {talentUser?.profile_picture &&
             !talentUser.profile_picture.includes("media.licdn.com") ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={talentUser.profile_picture}
                 alt={talentUser?.name ?? "profile"}
-                className="h-12 w-12 object-cover"
+                className="h-[72px] w-[72px] rounded-[8px] object-cover"
               />
             ) : (
-              <div className="flex h-full w-full items-center justify-center bg-hblack100 text-xl font-normal text-hblack700">
-                {initials(talentUser?.name)}
-              </div>
+              initials(talentUser?.name)
             )}
           </div>
 
-          <div className="flex min-w-0 flex-col gap-1">
-            <div className="text-xl font-normal text-hblack1000">
+          <div className="min-w-0 flex flex-col gap-2">
+            <div className="font-halant text-[28px] leading-[1] text-beige900">
               {talentUser?.name ?? "Unknown"}
             </div>
 
-            {talentUser?.headline ? (
-              <div className="text-sm font-light text-hblack700">
+            {talentUser?.headline && (
+              <div className="text-[15px] leading-6 text-beige900/55">
                 {talentUser.headline}
               </div>
-            ) : null}
+            )}
 
-            {talentUser?.location ? (
-              <div className="flex items-center gap-1 text-xs font-normal text-hblack600">
-                <MapPin className="h-3.5 w-3.5" />
+            {talentUser?.location && (
+              <div className="flex items-center gap-2 text-[14px] text-beige900/50">
+                <MapPin className="h-4 w-4" />
                 <span>{locationEnToKo(talentUser.location)}</span>
               </div>
-            ) : null}
-
-            <div className="mt-1">
-              <LinkPills links={links} />
-            </div>
-          </div>
-          <div className="absolute right-0 top-0">
-            <Tooltips text="이력서 / 링크 관리">
-              <button
-                type="button"
-                onClick={onOpenSettings}
-                className="flex flex-row cursor-pointer items-center justify-center gap-1 rounded-md bg-hblack50 px-2 py-1.5 text-hblack500 hover:bg-hblack100"
-                aria-label="이력서 및 링크 관리 열기"
-              >
-                <FileText className="h-3.5 w-3.5" />
-                /
-                <LinkIcon className="h-3.5 w-3.5" />
-              </button>
-            </Tooltips>
+            )}
           </div>
         </div>
+      </ProfileSection>
 
-        {talentUser?.bio ? (
-          <Section title="요약">
-            <div className="mb-2 flex w-full items-center justify-end">
-              <button
-                type="button"
-                className="text-xs font-normal text-hblack600 transition-all duration-200 hover:text-hblack900"
-                onClick={() => setBioOpen((prev) => !prev)}
-                aria-expanded={bioOpen}
-              >
-                {bioOpen ? "접기" : "더보기"}
-              </button>
-            </div>
-            <div
-              className={`text-sm leading-relaxed text-hblack700 ${
-                bioOpen ? "whitespace-pre-wrap" : "line-clamp-2"
-              }`}
-            >
-              {talentUser.bio}
-            </div>
-          </Section>
-        ) : null}
+      {talentUser?.bio ? (
+        <ProfileSection title="요약">
+          <div className="whitespace-pre-wrap text-[14px] leading-6 text-beige900/60">
+            {talentUser.bio}
+          </div>
+        </ProfileSection>
+      ) : null}
 
-        {mergedExperience.length > 0 ? (
-          <Section title="경력/학력">
-            <div>
-              {mergedExperience.map((entry, index) => {
-                if (entry.kind === "exp") {
-                  const exp = entry.item;
-                  const prevEntry =
-                    index > 0 ? mergedExperience[index - 1] : null;
-                  const isContinued =
-                    prevEntry?.kind === "exp" &&
-                    prevEntry.item.company_name === exp.company_name;
-                  const subtitleParts = [
-                    exp.company_name,
-                    exp.company_location,
-                  ].filter(Boolean);
-                  const dateLabel = [
-                    formatRange(exp.start_date, exp.end_date),
-                    formatMonth(exp.months),
-                  ]
-                    .filter(Boolean)
-                    .join(" · ");
+      {mergedExperience.length > 0 ? (
+        <ProfileSection title="경력 및 학력">
+          <div>
+            {mergedExperience.map((entry, index) => {
+              if (entry.kind === "exp") {
+                const exp = entry.item;
+                const subtitle = [exp.company_name, exp.company_location]
+                  .filter(Boolean)
+                  .join(" · ");
+                const meta = [
+                  formatRange(exp.start_date, exp.end_date),
+                  formatMonth(exp.months),
+                ]
+                  .filter(Boolean)
+                  .join(" · ");
 
-                  return (
-                    <TimelineItem
-                      key={`exp-${exp.id}-${index}`}
-                      type="experience"
-                      title={exp.role ?? "Employee"}
-                      subtitle={subtitleParts.join(" · ")}
-                      dateLabel={dateLabel}
-                      description={exp.description ?? ""}
-                      memo={exp.memo ?? ""}
-                      isLast={index === mergedExperience.length - 1}
-                      isContinued={isContinued}
-                    />
-                  );
-                }
-
-                const edu = entry.item;
                 return (
-                  <TimelineItem
-                    key={`edu-${edu.id}-${index}`}
-                    type="education"
-                    title={edu.school ?? "Student"}
-                    subtitle={[edu.field, edu.degree]
-                      .filter(Boolean)
-                      .join(", ")}
-                    dateLabel={formatRange(edu.start_date, edu.end_date)}
-                    description={edu.description ?? ""}
-                    memo={edu.memo ?? ""}
+                  <TimelineBlock
+                    key={`exp-${exp.id}-${index}`}
+                    title={exp.role ?? "Employee"}
+                    subtitle={subtitle}
+                    meta={meta}
+                    description={exp.description ?? ""}
+                    memo={exp.memo ?? ""}
+                    icon={<Building2 className="h-4 w-4" />}
                     isLast={index === mergedExperience.length - 1}
                   />
                 );
-              })}
-            </div>
-          </Section>
-        ) : null}
+              }
 
-        {talentExtras.length > 0 ? (
-          <Section title="추가 정보">
-            <div>
-              {talentExtras.map((extra: CareerTalentExtra, index) => (
-                <TimelineItem
-                  key={`extra-${index}-${extra.title ?? "untitled"}`}
-                  type="extra"
-                  title={extra.title ?? "기타"}
-                  subtitle={extra.date ?? ""}
-                  dateLabel=""
-                  description={extra.description ?? ""}
-                  memo={extra.memo ?? ""}
-                  isLast={index === talentExtras.length - 1}
+              const edu = entry.item;
+
+              return (
+                <TimelineBlock
+                  key={`edu-${edu.id}-${index}`}
+                  title={edu.school ?? "Student"}
+                  subtitle={[edu.field, edu.degree].filter(Boolean).join(" · ")}
+                  meta={formatRange(edu.start_date, edu.end_date)}
+                  description={edu.description ?? ""}
+                  memo={edu.memo ?? ""}
+                  icon={<SchoolIcon className="h-4 w-4" />}
+                  isLast={index === mergedExperience.length - 1}
                 />
-              ))}
-            </div>
-          </Section>
-        ) : null}
-      </div>
+              );
+            })}
+          </div>
+        </ProfileSection>
+      ) : null}
+
+      {talentExtras.length > 0 && (
+        <ProfileSection title="추가 정보">
+          <div>
+            {talentExtras.map((extra: CareerTalentExtra, index) => (
+              <TimelineBlock
+                key={`extra-${index}-${extra.title ?? "untitled"}`}
+                title={extra.title ?? "기타"}
+                subtitle={extra.date ?? ""}
+                description={extra.description ?? ""}
+                memo={extra.memo ?? ""}
+                icon={<AwardIcon className="h-4 w-4" />}
+                isLast={index === talentExtras.length - 1}
+              />
+            ))}
+          </div>
+        </ProfileSection>
+      )}
     </div>
   );
 };

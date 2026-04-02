@@ -313,7 +313,7 @@ export const GeometricAnimatedGraphics = () => {
           </div>
 
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="w-8 h-8 rounded-full bg-slate-200/60 ga-soft-glow" />
+            <div className="w-8 h-8 rounded-full bg-slate-200/50 ga-soft-glow" />
           </div>
         </div>
       </div>
@@ -423,7 +423,7 @@ export const GeometricAnimatedGraphics = () => {
           }}
         >
           {/* glow */}
-          <div className="absolute w-20 h-20 rounded-full bg-slate-100/80 ga-soft-glow" />
+          <div className="absolute w-20 h-20 rounded-full bg-slate-100/100 ga-soft-glow" />
 
           {/* band 1 */}
           <div

@@ -1,8 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { showToast } from "../toast/toast";
 import { Bookmark, Check, FolderPlus } from "lucide-react";
 import { useMessages } from "@/i18n/useMessage";
 import {
+  prefetchBookmarkFolders,
+  prefetchCandidateBookmarkFolderIds,
   useAddCandidateToBookmarkFolder,
   useBookmarkFolders,
   useCandidateBookmarkFolderIds,
@@ -29,13 +32,14 @@ const Bookmarkbutton = ({
   size?: "sm" | "md" | "lg";
 }) => {
   const { m } = useMessages();
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [isAddingFolder, setIsAddingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const { data: folders = [], isLoading: isFoldersLoading } =
-    useBookmarkFolders(userId, open);
+    useBookmarkFolders(userId);
   const { data: selectedFolderIds = [], isLoading: isSelectedFoldersLoading } =
     useCandidateBookmarkFolderIds(userId, candidId, open);
 
@@ -67,6 +71,15 @@ const Bookmarkbutton = ({
 
   const isMutating =
     isCreatingFolder || isAddingToFolder || isRemovingFromFolder;
+  const hasFolders = folders.length > 0;
+  const showInitialLoading =
+    (isFoldersLoading && !hasFolders) ||
+    (open && isSelectedFoldersLoading && !hasFolders);
+
+  const warmBookmarkMenu = () => {
+    void prefetchBookmarkFolders(queryClient, userId);
+    void prefetchCandidateBookmarkFolderIds(queryClient, userId, candidId);
+  };
 
   const handleToggleFolder = async (folderId: number, nextChecked: boolean) => {
     try {
@@ -120,6 +133,9 @@ const Bookmarkbutton = ({
     <ActionDropdown
       open={open}
       onOpenChange={(next) => {
+        if (next) {
+          warmBookmarkMenu();
+        }
         setOpen(next);
         if (!next) {
           setIsAddingFolder(false);
@@ -130,6 +146,8 @@ const Bookmarkbutton = ({
       contentClassName="w-[260px]"
       trigger={
         <button
+          onMouseEnter={warmBookmarkMenu}
+          onFocus={warmBookmarkMenu}
           className={`cursor-pointer text-sm rounded-xl text-white flex flex-row items-center gap-2 ${
             size === "sm"
               ? "h-7 px-1.5 text-xs bg-hgray500/20 hover:bg-hgray500/30"
@@ -149,26 +167,23 @@ const Bookmarkbutton = ({
         </button>
       }
     >
-      {(isFoldersLoading || isSelectedFoldersLoading) && (
+      {showInitialLoading && (
         <div className="px-2 py-2 text-xs text-white/45">불러오는 중...</div>
       )}
 
-      {!isFoldersLoading &&
-        !isSelectedFoldersLoading &&
-        folders.length === 0 && (
+      {!isFoldersLoading && !isSelectedFoldersLoading && folders.length === 0 && (
           <div className="px-2 py-2 text-xs text-white/45">
             폴더가 없습니다. 새 폴더를 만들어주세요.
           </div>
         )}
 
       {!isFoldersLoading &&
-        !isSelectedFoldersLoading &&
         folders.map((folder) => {
           const isChecked = selectedFolderIdSet.has(Number(folder.id));
           return (
             <ActionDropdownItem
               key={folder.id}
-              disabled={isMutating}
+              disabled={isMutating || isSelectedFoldersLoading}
               keepOpen
               onSelect={() => {
                 void handleToggleFolder(Number(folder.id), !isChecked);

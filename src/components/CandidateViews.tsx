@@ -61,9 +61,11 @@ const SCORE_WEIGHT: Record<string, number> = {
 };
 
 const FILTER_LABEL_BY_STATUS = {
+  top_priority: "최우선 제외",
   not_fit: "부적합 제외",
   hold: "보류 제외",
   fit: "적합 제외",
+  not_interested: "관심없음 제외",
 } satisfies Record<CandidateMarkStatus, string>;
 
 function getBaseCandidateMarkStatus(

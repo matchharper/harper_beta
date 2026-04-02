@@ -11,6 +11,11 @@ import {
 } from "@/hooks/useOpsNetwork";
 import type { NetworkLeadSummary, TalentInternalEntry } from "@/lib/opsNetwork";
 import { INTERNAL_EMAIL_DOMAIN } from "@/lib/internalAccess";
+import {
+  getTalentCareerMoveIntentLabel,
+  getTalentEngagementLabels,
+  getTalentLocationLabels,
+} from "@/lib/talentNetworkApplication";
 import { showToast } from "@/components/toast/toast";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -158,12 +163,7 @@ function ProfileChip({
 
   if (href) {
     return (
-      <a
-        href={href}
-        target="_blank"
-        rel="noreferrer"
-        className={className}
-      >
+      <a href={href} target="_blank" rel="noreferrer" className={className}>
         {children}
       </a>
     );
@@ -781,13 +781,16 @@ export default function NetworkOpsPage() {
         setEditingEntryId(null);
         setEditingEntryContent("");
         showToast({
-          message: entry.type === "memo" ? "메모 수정 완료" : "대화 기록 수정 완료",
+          message:
+            entry.type === "memo" ? "메모 수정 완료" : "대화 기록 수정 완료",
           variant: "white",
         });
       } catch (error) {
         showToast({
           message:
-            error instanceof Error ? error.message : "내부 활동 수정에 실패했습니다.",
+            error instanceof Error
+              ? error.message
+              : "내부 활동 수정에 실패했습니다.",
           variant: "error",
         });
       }
@@ -815,7 +818,9 @@ export default function NetworkOpsPage() {
       } catch (error) {
         showToast({
           message:
-            error instanceof Error ? error.message : "내부 활동 삭제에 실패했습니다.",
+            error instanceof Error
+              ? error.message
+              : "내부 활동 삭제에 실패했습니다.",
           variant: "error",
         });
       }
@@ -832,14 +837,12 @@ export default function NetworkOpsPage() {
 
   const isSelectedLeadIngesting =
     ingestMutation.isPending && ingestMutation.variables === displayedLead?.id;
-  const updatingEntryId =
-    updateInternalMutation.isPending
-      ? (updateInternalMutation.variables?.entryId ?? null)
-      : null;
-  const deletingEntryId =
-    deleteInternalMutation.isPending
-      ? (deleteInternalMutation.variables?.entryId ?? null)
-      : null;
+  const updatingEntryId = updateInternalMutation.isPending
+    ? (updateInternalMutation.variables?.entryId ?? null)
+    : null;
+  const deletingEntryId = deleteInternalMutation.isPending
+    ? (deleteInternalMutation.variables?.entryId ?? null)
+    : null;
 
   return (
     <>
@@ -993,7 +996,7 @@ export default function NetworkOpsPage() {
           ) : null}
 
           <div className="grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
-            <div className={cx(opsTheme.panel, "overflow-hidden")}>
+            <div className={cx(opsTheme.panel)}>
               <div className="flex items-center justify-between gap-3 px-4 py-4">
                 <div>
                   <div className={opsTheme.eyebrow}>Candidates</div>
@@ -1002,7 +1005,7 @@ export default function NetworkOpsPage() {
                     {lastPage?.totalCount ?? allLeads.length}명
                   </div>
                 </div>
-                {lastPage?.hasMore ? (
+                {lastPage?.hasMore && (
                   <button
                     type="button"
                     onClick={() => void leadsQuery.fetchNextPage()}
@@ -1016,10 +1019,10 @@ export default function NetworkOpsPage() {
                     )}
                     더 보기
                   </button>
-                ) : null}
+                )}
               </div>
 
-              <div className="max-h-[calc(100vh-320px)] overflow-y-auto divide-y divide-beige900/10">
+              <div className="max-h-[calc(100vh)] overflow-y-auto divide-y divide-beige900/10">
                 {leadsQuery.isLoading && allLeads.length === 0 ? (
                   <div className="flex items-center justify-center px-4 py-12">
                     <LoaderCircle className="h-5 w-5 animate-spin text-beige900/45" />
@@ -1140,6 +1143,9 @@ export default function NetworkOpsPage() {
                           ) : null}
                           {detail?.hasStructuredProfile ? (
                             <Badge>구조화 완료</Badge>
+                          ) : null}
+                          {detail?.claimedTalentId ? (
+                            <Badge>후보자 계정 연결됨</Badge>
                           ) : null}
                           {displayedLead.selectedRole ? (
                             <Badge>{displayedLead.selectedRole}</Badge>
@@ -1309,7 +1315,8 @@ export default function NetworkOpsPage() {
                                         }
                                       >
                                         <FileText className="h-4 w-4" />
-                                        {detail?.talentProfile?.resume_file_name ??
+                                        {detail?.talentProfile
+                                          ?.resume_file_name ??
                                           displayedLead.cvFileName ??
                                           "CV 파일"}
                                       </ProfileChip>
@@ -1317,38 +1324,41 @@ export default function NetworkOpsPage() {
                                     <ProfileChip>
                                       <FileText className="h-4 w-4" />
                                       Resume text{" "}
-                                      {detail?.ingestionState.resumeTextAvailable
+                                      {detail?.ingestionState
+                                        .resumeTextAvailable
                                         ? "추출됨"
                                         : "없음"}
                                     </ProfileChip>
-                                    {(detail?.talentProfile?.resume_links ?? []).map(
-                                      (link) => (
-                                        <ProfileChip key={link} href={link}>
-                                          <ExternalLink className="h-4 w-4" />
-                                          {getProfileLinkChipLabel(link)}
-                                        </ProfileChip>
-                                      )
-                                    )}
+                                    {(
+                                      detail?.talentProfile?.resume_links ?? []
+                                    ).map((link) => (
+                                      <ProfileChip key={link} href={link}>
+                                        <ExternalLink className="h-4 w-4" />
+                                        {getProfileLinkChipLabel(link)}
+                                      </ProfileChip>
+                                    ))}
                                   </div>
                                   {(detail?.talentProfile?.resume_links ?? [])
                                     .length > 0 ? (
                                     <div className="space-y-2">
-                                      {(detail?.talentProfile?.resume_links ?? []).map(
-                                        (link) => (
-                                          <div
-                                            key={`${link}-raw`}
-                                            className="break-all text-beige900/55"
-                                          >
-                                            {link}
-                                          </div>
-                                        )
-                                      )}
+                                      {(
+                                        detail?.talentProfile?.resume_links ??
+                                        []
+                                      ).map((link) => (
+                                        <div
+                                          key={`${link}-raw`}
+                                          className="break-all text-beige900/55"
+                                        >
+                                          {link}
+                                        </div>
+                                      ))}
                                     </div>
                                   ) : null}
                                   {displayedLead.hasCv ? (
                                     <div className="text-beige900/55">
                                       파일명:{" "}
-                                      {detail?.talentProfile?.resume_file_name ??
+                                      {detail?.talentProfile
+                                        ?.resume_file_name ??
                                         displayedLead.cvFileName ??
                                         "-"}
                                     </div>
@@ -1360,9 +1370,11 @@ export default function NetworkOpsPage() {
                                     </div>
                                   ) : null}
                                   {displayedLead.hasCv &&
-                                  !detail?.ingestionState.resumeTextAvailable ? (
+                                  !detail?.ingestionState
+                                    .resumeTextAvailable ? (
                                     <div className="text-beige900/55">
-                                      CV는 있지만 현재 저장된 resume text는 없습니다.
+                                      CV는 있지만 현재 저장된 resume text는
+                                      없습니다.
                                     </div>
                                   ) : null}
                                   {displayedLead.hasCv ||
@@ -1372,9 +1384,9 @@ export default function NetworkOpsPage() {
                                       저장된 링크와 파일이 없습니다.
                                     </div>
                                   )}
-                                  </div>
                                 </div>
                               </div>
+                            </div>
                           </StructuredSection>
 
                           <StructuredSection
@@ -1419,7 +1431,8 @@ export default function NetworkOpsPage() {
                                       <div className="mt-2 flex flex-wrap items-center gap-2 font-geist text-xs text-beige900/55">
                                         {item.company_id ? (
                                           <span>
-                                            LinkedIn company id: {item.company_id}
+                                            LinkedIn company id:{" "}
+                                            {item.company_id}
                                           </span>
                                         ) : null}
                                         {item.company_link ? (
@@ -1634,6 +1647,27 @@ export default function NetworkOpsPage() {
                                 }
                               />
                               <InfoRow
+                                label="Personal Website"
+                                value={
+                                  displayedLead.personalWebsiteUrl ? (
+                                    <a
+                                      href={displayedLead.personalWebsiteUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className={cx(
+                                        opsTheme.link,
+                                        "inline-flex items-center gap-2"
+                                      )}
+                                    >
+                                      열기
+                                      <ExternalLink className="h-4 w-4" />
+                                    </a>
+                                  ) : (
+                                    "-"
+                                  )
+                                }
+                              />
+                              <InfoRow
                                 label="GitHub / HF"
                                 value={
                                   displayedLead.githubProfileUrl ? (
@@ -1705,6 +1739,95 @@ export default function NetworkOpsPage() {
                               />
                             </div>
                           </div>
+
+                          {detail?.latestNetworkApplication ||
+                          detail?.latestTalentSetting ||
+                          detail?.latestTalentInsights ? (
+                            <div
+                              className={cx(opsTheme.panelSoft, "px-4 py-2")}
+                            >
+                              <div className="divide-y divide-beige900/10">
+                                <InfoRow
+                                  label="원하는 역할"
+                                  value={
+                                    detail?.latestNetworkApplication
+                                      ?.selectedRole ?? "-"
+                                  }
+                                />
+                                <InfoRow
+                                  label="제출 자료"
+                                  value={
+                                    detail?.latestNetworkApplication &&
+                                    detail.latestNetworkApplication.profileInputTypes
+                                      .length > 0
+                                      ? detail.latestNetworkApplication.profileInputTypes.join(
+                                          ", "
+                                        )
+                                      : "-"
+                                  }
+                                />
+                                <InfoRow
+                                  label="이직 의향"
+                                  value={
+                                    getTalentCareerMoveIntentLabel(
+                                      detail?.latestTalentSetting
+                                        ?.career_move_intent ?? null
+                                    ) ?? "-"
+                                  }
+                                />
+                                <InfoRow
+                                  label="선호 형태"
+                                  value={
+                                    detail?.latestTalentSetting &&
+                                    detail.latestTalentSetting.engagement_types
+                                      .length > 0
+                                      ? getTalentEngagementLabels(
+                                          detail.latestTalentSetting.engagement_types
+                                        ).join(", ")
+                                      : "-"
+                                  }
+                                />
+                                <InfoRow
+                                  label="선호 지역"
+                                  value={
+                                    detail?.latestTalentSetting &&
+                                    detail.latestTalentSetting.preferred_locations
+                                      .length > 0
+                                      ? getTalentLocationLabels(
+                                          detail.latestTalentSetting.preferred_locations
+                                        ).join(", ")
+                                      : "-"
+                                  }
+                                />
+                                <InfoRow
+                                  label="기술적 장점"
+                                  value={
+                                    detail?.latestTalentInsights
+                                      ?.technical_strengths ? (
+                                      <div className="whitespace-pre-wrap">
+                                        {detail.latestTalentInsights.technical_strengths}
+                                      </div>
+                                    ) : (
+                                      "-"
+                                    )
+                                  }
+                                />
+                                <InfoRow
+                                  label="원하는 팀"
+                                  value={
+                                    detail?.latestTalentInsights
+                                      ?.desired_teams ? (
+                                      <div className="whitespace-pre-wrap">
+                                        {detail.latestTalentInsights.desired_teams}
+                                      </div>
+                                    ) : (
+                                      "-"
+                                    )
+                                  }
+                                />
+                              </div>
+                            </div>
+                          ) : null}
 
                           <div className={cx(opsTheme.panelSoft, "p-4")}>
                             <div className={opsTheme.eyebrow}>원본 payload</div>
@@ -1879,7 +2002,9 @@ export default function NetworkOpsPage() {
                                   (entry) => (
                                     <ActivityEntryCard
                                       key={entry.id}
-                                      deletePending={deletingEntryId === entry.id}
+                                      deletePending={
+                                        deletingEntryId === entry.id
+                                      }
                                       editPending={updatingEntryId === entry.id}
                                       editingValue={
                                         editingEntryId === entry.id

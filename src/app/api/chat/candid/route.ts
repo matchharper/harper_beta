@@ -4,7 +4,7 @@ import { ChatScope } from "@/hooks/chat/useChatSession";
 import { buildLongDoc } from "@/utils/textprocess";
 import { logger } from "@/utils/logger";
 import { CANDID_SYSTEM_PROMPT, MAX_MESSEGE_LENGTH } from "../chat_prompt";
-import { createXaiOrOpenAIStream } from "../route";
+import { createXaiOrOpenAIStream } from "../streamProviders";
 
 type ChatMessage = {
   role: "user" | "assistant" | "system" | "tool";

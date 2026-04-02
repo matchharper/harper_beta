@@ -1,6 +1,11 @@
 import type { User } from "@supabase/supabase-js";
 import React, { createContext, useContext } from "react";
-import type { CareerStage, CareerTalentProfile } from "./types";
+import type {
+  CareerNetworkApplication,
+  CareerStage,
+  CareerTalentPreferences,
+  CareerTalentProfile,
+} from "./types";
 import type { CareerProfileVisibility } from "@/hooks/career/useCareerTalentSettings";
 
 export type CareerSidebarContextValue = {
@@ -28,6 +33,32 @@ export type CareerSidebarContextValue = {
   onRemoveProfileLink: (index: number) => void;
   onSaveTalentProfile: () => void | Promise<void>;
   talentProfile: CareerTalentProfile;
+  networkApplication: CareerNetworkApplication | null;
+  talentPreferences: CareerTalentPreferences | null;
+  networkApplicationSavePending: boolean;
+  networkApplicationSaveError: string;
+  networkApplicationSaveInfo: string;
+  talentPreferencesSavePending: boolean;
+  talentPreferencesSaveError: string;
+  talentPreferencesSaveInfo: string;
+  onNetworkApplicationChange: (
+    next:
+      | CareerNetworkApplication
+      | null
+      | ((
+          current: CareerNetworkApplication | null
+        ) => CareerNetworkApplication | null)
+  ) => void;
+  onSaveNetworkApplication: () => boolean | Promise<boolean>;
+  onTalentPreferencesChange: (
+    next:
+      | CareerTalentPreferences
+      | null
+      | ((
+          current: CareerTalentPreferences | null
+        ) => CareerTalentPreferences | null)
+  ) => void;
+  onSaveTalentPreferences: () => boolean | Promise<boolean>;
 
   settingsLoading: boolean;
   settingsSaving: boolean;

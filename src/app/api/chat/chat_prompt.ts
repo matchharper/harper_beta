@@ -23,6 +23,7 @@ edu_user
 - candid_id (FK → candid.id)
 - school : 학교명
 - degree : 학위 ex) Bachelor of Science, Master of Science, phd
+- description : 학교 활동/동아리-학회/프로젝트,학점,경험 등에 대한 설명
 - field : 전공
 - start_date (DATE)
 - end_date (DATE)
@@ -171,6 +172,7 @@ edu_user
 - candid_id (FK → candid.id)
 - school : 학교명
 - degree : 학위 ex) Bachelor of Science, Master of Science, phd
+- description : 학교 활동/동아리-학회/프로젝트,학점,경험 등에 대한 설명
 - field : 전공
 - start_date (DATE)
 - end_date (DATE)
