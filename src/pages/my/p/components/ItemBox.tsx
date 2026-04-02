@@ -166,7 +166,7 @@ const ItemBox = ({
               {/* {name && link ? <ExternalLink size={14} /> : null} */}
             </div>
 
-            {hasDescription && !isEdu ? (
+            {hasDescription ? (
               <div
                 className={[
                   "overflow-hidden transition-all duration-200 ease-out",
@@ -181,7 +181,7 @@ const ItemBox = ({
           </div>
         </div>
 
-        {hasDescription && !isEdu ? (
+        {hasDescription ? (
           <div
             className={`flex flex-row gap-2 shrink-0 absolute right-0 top-[-4px] h-20 w-24 items-center justify-center hover:bg-hgray1000/5 transition-all cursor-pointer rounded-r-md`}
             onClick={toggleDesc}

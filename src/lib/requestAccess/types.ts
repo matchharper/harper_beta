@@ -11,6 +11,11 @@ export type RequestAccessApprovalEmailTemplate = {
   text: string;
 };
 
+export type RequestAccessApprovalSendStatus =
+  | "approved"
+  | "already_granted"
+  | "failed";
+
 export type RequestAccessApprovalDraft = {
   status: RequestAccessReviewStatus;
   email: string;
@@ -55,4 +60,21 @@ export type RequestAccessReviewQueueResponse = {
     total: number;
   };
   items: RequestAccessReviewQueueItem[];
+};
+
+export type RequestAccessBulkApprovalResult = {
+  email: string;
+  error?: string;
+  status: RequestAccessApprovalSendStatus;
+};
+
+export type RequestAccessBulkApprovalResponse = {
+  counts: {
+    alreadyGranted: number;
+    approved: number;
+    failed: number;
+    total: number;
+  };
+  ok: boolean;
+  results: RequestAccessBulkApprovalResult[];
 };

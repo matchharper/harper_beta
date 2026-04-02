@@ -31,6 +31,7 @@ export async function GET(req: NextRequest) {
             candid_id,
             school,
             degree,
+            description,
             field,
             start_date,
             end_date,

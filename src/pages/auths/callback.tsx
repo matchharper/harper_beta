@@ -23,12 +23,12 @@ export default function AuthCallback() {
         typeof router.query.cl === "string" ? router.query.cl : null;
       const abtestType =
         typeof router.query.ab === "string" ? router.query.ab : null;
-      const code = typeof router.query.code === "string" ? router.query.code : "";
+      const code =
+        typeof router.query.code === "string" ? router.query.code : "";
 
       if (code) {
-        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(
-          code
-        );
+        const { error: exchangeError } =
+          await supabase.auth.exchangeCodeForSession(code);
         if (exchangeError) {
           console.error("exchangeCodeForSession error:", exchangeError);
         }
@@ -139,7 +139,7 @@ export default function AuthCallback() {
       }
 
       // 4) 완료 후 이동
-      router.replace("/invitation");
+      router.replace(nextPath);
     })();
   }, [router]);
 

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import React, { useState } from "react";
 import type { Locale } from "@/i18n/useMessage";
 import { en } from "@/lang/en";
@@ -11,6 +12,7 @@ interface LoginModalProps {
   onClose: () => void;
   onConfirm: (email: string, password: string) => Promise<LoginResult>;
   language?: Locale;
+  callbackPath?: string;
 
   onGoogle?: () => void;
   onForgotPassword?: (email?: string) => void;
@@ -64,8 +66,7 @@ const LOGIN_MODAL_COPY: Record<
     emailRequired: "Please enter your email.",
     passwordRequired: "Please enter your password.",
     passwordMismatch: "Passwords do not match.",
-    resetPasswordNeedsEmail:
-      "Enter your email first to reset your password.",
+    resetPasswordNeedsEmail: "Enter your email first to reset your password.",
     resetPasswordSent:
       "We've sent a password reset email. Open the link in the email to set a new password.",
     noAccount: "Don't have an account?",
@@ -100,6 +101,7 @@ const LoginModal = ({
   onConfirm,
   onGoogle,
   language = "ko",
+  callbackPath,
 }: LoginModalProps) => {
   const messages = LOGIN_MODAL_MESSAGES[language];
   const copy = LOGIN_MODAL_COPY[language];
@@ -113,6 +115,37 @@ const LoginModal = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!open) return null;
+
+  const buildAuthCallbackUrl = () => {
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    const redirectUrl = new URL("/auths/callback", window.location.origin);
+    const landingId = localStorage.getItem("harper_landing_id_0209");
+    if (landingId) {
+      redirectUrl.searchParams.set("lid", landingId);
+    }
+
+    const searchParams = new URLSearchParams(window.location.search);
+    const countryLang = searchParams.get("cl");
+    if (countryLang) {
+      redirectUrl.searchParams.set("cl", countryLang);
+    }
+
+    const abtestType =
+      searchParams.get("ab") ??
+      localStorage.getItem("harper_company_abtest_type_2026_02");
+    if (abtestType) {
+      redirectUrl.searchParams.set("ab", abtestType);
+    }
+
+    if (callbackPath?.startsWith("/")) {
+      redirectUrl.searchParams.set("next", callbackPath);
+    }
+
+    return redirectUrl;
+  };
 
   const resetAuthForm = () => {
     setEmail("");
@@ -166,7 +199,8 @@ const LoginModal = ({
         }
 
         if (typeof window !== "undefined") {
-          window.location.assign("/auths/callback");
+          const callbackUrl = buildAuthCallbackUrl();
+          window.location.assign(callbackUrl?.toString() ?? "/auths/callback");
         }
         return;
       }
@@ -217,24 +251,9 @@ const LoginModal = ({
     password: string
   ): Promise<any> => {
     let redirectTo: string | undefined;
-    if (typeof window !== "undefined") {
-      const redirectUrl = new URL("/auths/callback", window.location.origin);
-      const landingId = localStorage.getItem("harper_landing_id_0209");
-      if (landingId) {
-        redirectUrl.searchParams.set("lid", landingId);
-      }
-      const searchParams = new URLSearchParams(window.location.search);
-      const countryLang = searchParams.get("cl");
-      if (countryLang) {
-        redirectUrl.searchParams.set("cl", countryLang);
-      }
-      const abtestType =
-        searchParams.get("ab") ??
-        localStorage.getItem("harper_company_abtest_type_2026_02");
-      if (abtestType) {
-        redirectUrl.searchParams.set("ab", abtestType);
-      }
-      redirectTo = redirectUrl.toString();
+    const callbackUrl = buildAuthCallbackUrl();
+    if (callbackUrl) {
+      redirectTo = callbackUrl.toString();
     }
 
     const { data, error } = await supabase.auth.signUp({
@@ -272,7 +291,13 @@ const LoginModal = ({
       <div className="relative z-50 w-full max-w-[460px] rounded-2xl bg-hgray100 border border-hgray200 shadow-2xl transition-all duration-300">
         <div className="p-6 pb-10">
           <div className="flex flex-col items-start justify-start mb-6">
-            <img src="/svgs/logo.svg" alt="logo" className="w-10 h-10 mb-6" />
+            <Image
+              src="/svgs/logo.svg"
+              alt="logo"
+              width={40}
+              height={40}
+              className="mb-6 h-10 w-10"
+            />
             <div className="text-3xl font-bold tracking-tight text-hgray700">
               {isSignUp ? messages.auth.signup : messages.auth.login}
             </div>

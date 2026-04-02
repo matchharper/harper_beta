@@ -232,8 +232,8 @@ function CandidateRow({
     return parseSynthesizedSummary(rawText);
   }, [c.synthesized_summary]);
   const shortlistSummaryText = useMemo(() => {
-    return sanitizeSummaryText(c.s?.[0]?.text ?? c.summary, c.name ?? "");
-  }, [c.s, c.summary, c.name]);
+    return sanitizeSummaryText(c.s?.[0]?.text, c.name ?? "");
+  }, [c.s, c.name]);
   const shortlistMemo = useMemo(() => {
     return String(c.shortlist_memo ?? "");
   }, [c.shortlist_memo]);
@@ -599,7 +599,7 @@ function CandidateRow({
           className="px-4 py-3 min-w-0 h-full flex items-center"
         >
           <div className="text-[13px] font-normal text-hgray900 leading-5 whitespace-pre-wrap break-words line-clamp-3">
-            {shortlistSummaryText || "-"}
+            {shortlistSummaryText}
           </div>
         </div>
       );

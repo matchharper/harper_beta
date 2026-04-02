@@ -240,7 +240,7 @@ export default function SharedFolderCandidatePage() {
                   start_date={item.start_date}
                   end_date={item.end_date}
                   link={item.url}
-                  description=""
+                  description={item.description ?? ""}
                   typed="edu"
                   disableEntityClick={candid.profile_revealed === false}
                 />
