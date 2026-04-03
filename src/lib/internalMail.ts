@@ -1,30 +1,14 @@
+import {
+  renderEmailBodyHtml,
+  renderEmailBodyText,
+} from "@/lib/ats/emailBodyFormat";
+
 function readEnv(name: string) {
   const value = process.env[name];
   if (!value) {
     throw new Error(`${name} is required`);
   }
   return value;
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function toSimpleHtml(text: string) {
-  const normalized = text.replace(/\r/g, "").trim();
-  if (!normalized) {
-    return "<div></div>";
-  }
-
-  return normalized
-    .split(/\n{2,}/)
-    .map((block) => `<p>${escapeHtml(block).replace(/\n/g, "<br />")}</p>`)
-    .join("");
 }
 
 export async function sendInternalEmail(args: {
@@ -45,8 +29,8 @@ export async function sendInternalEmail(args: {
       from: args.from,
       to: [args.to],
       subject: args.subject,
-      text: args.text,
-      html: toSimpleHtml(args.text),
+      text: renderEmailBodyText(args.text),
+      html: renderEmailBodyHtml(args.text),
     }),
   });
 

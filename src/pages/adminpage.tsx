@@ -8,6 +8,7 @@ import React, {
 import { supabase } from "@/lib/supabase";
 import { showToast } from "@/components/toast/toast";
 import { Loading } from "@/components/ui/loading";
+import AdminMetricsTab from "@/components/admin/metrics/AdminMetricsTab";
 import { ADMIN_PAGE_PASSWORD } from "@/lib/admin";
 import { isInternalEmail } from "@/lib/internalAccess";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -185,7 +186,8 @@ type AdminTab =
   | "waitlistCompany"
   | "blogMetrics"
   | "bookmarkFolders"
-  | "userAnalytics";
+  | "userAnalytics"
+  | "metrics";
 
 const PAGE_SIZE = 50;
 const BLOG_METRIC_FETCH_BATCH_SIZE = 1000;
@@ -438,6 +440,7 @@ const AdminPage = () => {
   const [userAnalyticsDetailError, setUserAnalyticsDetailError] = useState<
     string | null
   >(null);
+  const [metricsRefreshToken, setMetricsRefreshToken] = useState(0);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const isInternalAdmin = isInternalEmail(user?.email);
@@ -1063,6 +1066,10 @@ const AdminPage = () => {
       await fetchUserAnalyticsUsers(userAnalyticsSearch);
       return;
     }
+    if (activeTab === "metrics") {
+      setMetricsRefreshToken((current) => current + 1);
+      return;
+    }
     if (selectedBookmarkUser && selectedBookmarkFolderId) {
       await fetchBookmarkFolderItems(
         selectedBookmarkUser.userId,
@@ -1394,6 +1401,7 @@ const AdminPage = () => {
   const isBlogMetricsTab = activeTab === "blogMetrics";
   const isBookmarkFoldersTab = activeTab === "bookmarkFolders";
   const isUserAnalyticsTab = activeTab === "userAnalytics";
+  const isMetricsTab = activeTab === "metrics";
 
   const pageTitle = isLandingTab
     ? "Landing Logs Admin"
@@ -1405,7 +1413,9 @@ const AdminPage = () => {
           ? "Blog Metrics Admin"
           : isBookmarkFoldersTab
             ? "Bookmark Folder Admin"
-            : "User Analytics Admin";
+            : isUserAnalyticsTab
+              ? "User Analytics Admin"
+              : "Metrics Admin";
   const pageSubTitle = isLandingTab
     ? "local_id 기준 · 액션 타임라인"
     : isNetworkAnalyticsTab
@@ -1416,7 +1426,9 @@ const AdminPage = () => {
           ? "blog slug 기준 조회/전환 집계"
           : isBookmarkFoldersTab
             ? "유저별 북마크 폴더와 저장 후보 조회"
-            : "company_users 기준 검색/프로필/링크 클릭 지표 조회";
+            : isUserAnalyticsTab
+              ? "company_users 기준 검색/프로필/링크 클릭 지표 조회"
+              : "기간별 제품 지표 차트";
   const isLoading = isLandingTab
     ? loading || loadingMore
     : isNetworkAnalyticsTab
@@ -1429,7 +1441,9 @@ const AdminPage = () => {
             ? bookmarkUsersLoading ||
               bookmarkFoldersLoading ||
               bookmarkFolderItemsLoading
-            : userAnalyticsUsersLoading || userAnalyticsDetailLoading;
+            : isUserAnalyticsTab
+              ? userAnalyticsUsersLoading || userAnalyticsDetailLoading
+              : false;
   const pageError = isLandingTab
     ? error
     : isNetworkAnalyticsTab
@@ -1567,6 +1581,17 @@ const AdminPage = () => {
                 style={{ borderRadius: 0 }}
               >
                 User Analytics
+              </button>
+              <button
+                onClick={() => setActiveTab("metrics")}
+                className={`h-8 px-3 text-[12px] border ${
+                  isMetricsTab
+                    ? "border-black bg-black text-white"
+                    : "border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
+                }`}
+                style={{ borderRadius: 0 }}
+              >
+                Metrics
               </button>
             </div>
           </div>
@@ -2525,7 +2550,7 @@ const AdminPage = () => {
               </div>
             </div>
           </>
-        ) : isUserAnalyticsTab ? (
+        ) : isBlogMetricsTab ? (
           <>
             <div className="mb-4 rounded-[20px] border border-[#d8c7aa] bg-[#fbf4e8] p-4 text-[#4d3a24]">
               <div className="text-[14px] font-semibold">User lookup</div>
@@ -2974,7 +2999,7 @@ const AdminPage = () => {
               </div>
             </div>
           </>
-        ) : (
+        ) : isUserAnalyticsTab ? (
           <>
             <div
               className="mb-4 border border-black/10 p-4 text-[13px] text-black/80"
@@ -3054,6 +3079,11 @@ const AdminPage = () => {
               )}
             </div>
           </>
+        ) : (
+          <AdminMetricsTab
+            enabled={canAccessAdminData && isMetricsTab}
+            refreshToken={metricsRefreshToken}
+          />
         )}
       </div>
     </div>

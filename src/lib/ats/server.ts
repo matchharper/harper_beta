@@ -5,14 +5,21 @@ import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { xaiInference } from "@/lib/llm/llm";
 import { findCandidateEmailWithAgenticFlow } from "@/lib/ats/emailFinder";
 import {
+  ATS_DEFAULT_SEQUENCE_TIME,
+  ATS_DEFAULT_TIMEZONE_OFFSET_MINUTES,
   ATS_SEQUENCE_INTERVAL_DAYS,
   ATS_SEQUENCE_STEP_COUNT,
   buildCandidateTemplateVariables,
   coerceJsonArray,
+  createDefaultAtsSequenceSchedule,
   type AtsCandidateDetail,
   type AtsCandidateDetailResponse,
   type AtsCandidatePublication,
   type AtsCandidateSummary,
+  type AtsBookmarkFolderOption,
+  type AtsContactEmailDraft,
+  type AtsContactHistoryChannel,
+  type AtsContactHistoryItem,
   type AtsEmailDiscoveryEvidence,
   type AtsEmailDiscoveryStatus,
   type AtsEmailDiscoveryTraceItem,
@@ -21,11 +28,14 @@ import {
   type AtsMessageRecord,
   type AtsOutreachRecord,
   type AtsSequenceMarkStatus,
+  type AtsSequenceStepSchedule,
   type AtsSequenceStatus,
   type AtsWorkspaceRecord,
   type AtsWorkspaceResponse,
   isAtsSequenceMarkStatus,
   isValidEmail,
+  normalizeAtsContactHistory,
+  normalizeAtsSequenceSchedule,
   normalizeEmail,
   replaceTemplateVariables,
 } from "@/lib/ats/shared";
@@ -37,6 +47,23 @@ type CompanyUserRecord = {
   company_description: string | null;
   email: string | null;
   name: string | null;
+  user_id: string;
+};
+
+type DueSequenceOutreachRow = {
+  activeStep: number;
+  candidId: string;
+  nextDueAt: string;
+  sequenceStatus: AtsSequenceStatus;
+  userId: string;
+};
+
+type BookmarkFolderRecord = {
+  created_at: string;
+  id: number;
+  is_default: boolean;
+  name: string;
+  updated_at: string;
   user_id: string;
 };
 
@@ -52,12 +79,34 @@ const OUTREACH_SELECT = [
   "email_discovery_summary",
   "email_discovery_trace",
   "email_discovery_evidence",
+  "memo",
+  "history",
   "sequence_mark",
+  "sequence_schedule",
   "sequence_status",
   "active_step",
   "last_sent_at",
   "next_due_at",
   "stopped_at",
+  "created_at",
+  "updated_at",
+].join(",");
+
+const MESSAGE_SELECT = [
+  "id",
+  "outreach_id",
+  "user_id",
+  "candid_id",
+  "kind",
+  "step_number",
+  "status",
+  "subject",
+  "body",
+  "rendered_subject",
+  "rendered_body",
+  "to_email",
+  "sent_at",
+  "created_by",
   "created_at",
   "updated_at",
 ].join(",");
@@ -93,11 +142,17 @@ function sortByLatestDate<T extends { endDate?: string | null; startDate?: strin
 }
 
 function mapWorkspaceRecord(args: {
+  bookmarkFolderId?: number | null;
   companyUser: CompanyUserRecord | null;
   row: any | null;
   userEmail: string | null | undefined;
 }): AtsWorkspaceRecord {
   return {
+    bookmarkFolderId:
+      args.bookmarkFolderId ??
+      (Number.isFinite(Number(args.row?.bookmark_folder_id))
+        ? Number(args.row?.bookmark_folder_id)
+        : null),
     companyPitch:
       String(args.row?.company_pitch ?? "").trim() ||
       String(args.companyUser?.company_description ?? "").trim() ||
@@ -128,12 +183,15 @@ function mapOutreachRecord(row: any): AtsOutreachRecord {
     emailSourceLabel: row?.email_source_label ?? null,
     emailSourceType: (row?.email_source_type as AtsEmailSourceType | null) ?? null,
     emailSourceUrl: row?.email_source_url ?? null,
+    history: normalizeAtsContactHistory(row?.history),
     id: Number(row?.id ?? 0) || 0,
     lastSentAt: row?.last_sent_at ?? null,
+    memo: String(row?.memo ?? "").trim() || null,
     nextDueAt: row?.next_due_at ?? null,
     sequenceMark: isAtsSequenceMarkStatus(row?.sequence_mark)
       ? row.sequence_mark
       : null,
+    sequenceSchedule: normalizeAtsSequenceSchedule(row?.sequence_schedule),
     sequenceStatus: (row?.sequence_status as AtsSequenceStatus) ?? "draft",
     stoppedAt: row?.stopped_at ?? null,
     targetEmail: row?.target_email ?? null,
@@ -159,6 +217,7 @@ function mapMessageRecord(row: any): AtsMessageRecord {
     sentAt: row?.sent_at ?? null,
     status:
       row?.status === "sent" ||
+      row?.status === "sending" ||
       row?.status === "skipped" ||
       row?.status === "canceled"
         ? row.status
@@ -185,11 +244,35 @@ async function fetchCompanyUserRecord(admin: AdminClient, userId: string) {
   return (data ?? null) as CompanyUserRecord | null;
 }
 
+async function fetchCompanyUserEmailMap(admin: AdminClient, userIds: string[]) {
+  const emailByUserId = new Map<string, string | null>();
+  if (userIds.length === 0) return emailByUserId;
+
+  const { data, error } = await ((admin.from("company_users" as any) as any)
+    .select("user_id, email")
+    .in("user_id", userIds));
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load company user emails");
+  }
+
+  for (const row of coerceJsonArray<any>(data)) {
+    const userId = String(row?.user_id ?? "").trim();
+    if (!userId) continue;
+    const email = String(row?.email ?? "").trim() || null;
+    emailByUserId.set(userId, email);
+  }
+
+  return emailByUserId;
+}
+
 async function fetchWorkspaceRow(admin: AdminClient, userId: string) {
   const { data, error } = await (
     admin.from("candidate_outreach_workspace" as any) as any
   )
-    .select("user_id, job_description, sender_email, company_pitch, signature")
+    .select(
+      "user_id, job_description, sender_email, company_pitch, signature, bookmark_folder_id"
+    )
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -202,6 +285,7 @@ async function fetchWorkspaceRow(admin: AdminClient, userId: string) {
 
 async function upsertWorkspaceRow(args: {
   admin: AdminClient;
+  bookmarkFolderId?: number | null;
   companyUser: CompanyUserRecord | null;
   companyPitch?: string | null;
   jobDescription?: string | null;
@@ -212,6 +296,10 @@ async function upsertWorkspaceRow(args: {
 }) {
   const existing = await fetchWorkspaceRow(args.admin, args.userId);
   const payload = {
+    bookmark_folder_id:
+      args.bookmarkFolderId !== undefined
+        ? args.bookmarkFolderId
+        : existing?.bookmark_folder_id ?? null,
     company_pitch:
       args.companyPitch != null
         ? String(args.companyPitch).trim() || null
@@ -236,7 +324,9 @@ async function upsertWorkspaceRow(args: {
     "candidate_outreach_workspace" as any
   ) as any)
     .upsert(payload, { onConflict: "user_id" })
-    .select("user_id, job_description, sender_email, company_pitch, signature")
+    .select(
+      "user_id, job_description, sender_email, company_pitch, signature, bookmark_folder_id"
+    )
     .single());
 
   if (error) {
@@ -267,10 +357,62 @@ async function fetchDefaultFolderCandidateIds(admin: AdminClient, userId: string
     return [] as string[];
   }
 
+  return fetchBookmarkFolderCandidateIds(admin, userId, Number(folder.id));
+}
+
+async function fetchBookmarkFolders(admin: AdminClient, userId: string) {
+  const { data, error } = await ((admin.from("bookmark_folder" as any) as any)
+    .select("id, user_id, name, is_default, created_at, updated_at")
+    .eq("user_id", userId)
+    .order("is_default", { ascending: false })
+    .order("created_at", { ascending: true }));
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load bookmark folders");
+  }
+
+  return coerceJsonArray<BookmarkFolderRecord>(data);
+}
+
+function mapBookmarkFolderOption(row: BookmarkFolderRecord): AtsBookmarkFolderOption {
+  return {
+    id: Number(row.id),
+    isDefault: Boolean(row.is_default),
+    name: String(row.name ?? ""),
+  };
+}
+
+function resolveAtsBookmarkFolderId(args: {
+  folders: BookmarkFolderRecord[];
+  requestedFolderId?: number | null;
+}) {
+  if (args.folders.length === 0) return null;
+
+  const folderById = new Set(args.folders.map((folder) => Number(folder.id)));
+  if (
+    args.requestedFolderId != null &&
+    folderById.has(Number(args.requestedFolderId))
+  ) {
+    return Number(args.requestedFolderId);
+  }
+
+  const defaultFolder = args.folders.find((folder) => folder.is_default);
+  return Number(defaultFolder?.id ?? args.folders[0]?.id ?? 0) || null;
+}
+
+async function fetchBookmarkFolderCandidateIds(
+  admin: AdminClient,
+  userId: string,
+  folderId: number
+) {
+  if (!Number.isFinite(folderId) || folderId < 1) {
+    return [] as string[];
+  }
+
   const { data, error } = await ((admin.from("bookmark_folder_item" as any) as any)
     .select("candid_id")
     .eq("user_id", userId)
-    .eq("folder_id", folder.id)
+    .eq("folder_id", folderId)
     .order("created_at", { ascending: false }));
 
   if (error) {
@@ -318,26 +460,7 @@ async function fetchMessageRecordsByCandidateId(args: {
   const { data, error } = await (
     args.admin.from("candidate_outreach_message" as any) as any
   )
-    .select(
-      [
-        "id",
-        "outreach_id",
-        "user_id",
-        "candid_id",
-        "kind",
-        "step_number",
-        "status",
-        "subject",
-        "body",
-        "rendered_subject",
-        "rendered_body",
-        "to_email",
-        "sent_at",
-        "created_by",
-        "created_at",
-        "updated_at",
-      ].join(",")
-    )
+    .select(MESSAGE_SELECT)
     .eq("user_id", args.userId)
     .eq("candid_id", args.candidId)
     .order("step_number", { ascending: true, nullsFirst: false })
@@ -348,6 +471,26 @@ async function fetchMessageRecordsByCandidateId(args: {
   }
 
   return coerceJsonArray<any>(data).map(mapMessageRecord);
+}
+
+async function fetchMessageRecordById(args: {
+  admin: AdminClient;
+  id: number;
+  userId: string;
+}) {
+  const { data, error } = await (
+    args.admin.from("candidate_outreach_message" as any) as any
+  )
+    .select(MESSAGE_SELECT)
+    .eq("user_id", args.userId)
+    .eq("id", args.id)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load outreach message");
+  }
+
+  return data ? mapMessageRecord(data) : null;
 }
 
 async function fetchShortlistMemoMap(admin: AdminClient, userId: string, ids: string[]) {
@@ -434,6 +577,33 @@ function buildExistingEmailSources(args: {
   ) as AtsExistingEmailSource[];
 }
 
+function normalizeLinkList(value: unknown) {
+  return coerceJsonArray<string>(value)
+    .map((item) => String(item ?? "").trim())
+    .filter(Boolean);
+}
+
+function findFirstLink(urls: string[], pattern: RegExp) {
+  return urls.find((url) => pattern.test(url)) ?? null;
+}
+
+function getCandidateProfileLinks(args: {
+  candidateLinks?: unknown;
+  githubProfile?: any | null;
+  scholarProfile?: any | null;
+}) {
+  const candidateLinks = normalizeLinkList(args.candidateLinks);
+
+  return {
+    githubUrl: String(args.githubProfile?.github_url ?? "").trim() || null,
+    linkedinUrl: findFirstLink(candidateLinks, /linkedin\.com/i),
+    scholarUrl:
+      String(
+        args.scholarProfile?.scholar_url ?? args.scholarProfile?.homepage_link ?? ""
+      ).trim() || null,
+  };
+}
+
 async function fetchCandidateSummariesByIds(args: {
   admin: AdminClient;
   candidIds: string[];
@@ -453,6 +623,7 @@ async function fetchCandidateSummariesByIds(args: {
         location,
         profile_picture,
         email,
+        links,
         experience_user (
           role,
           start_date,
@@ -546,6 +717,11 @@ async function fetchCandidateSummariesByIds(args: {
         githubProfile,
         scholarProfile,
       });
+      const profileLinks = getCandidateProfileLinks({
+        candidateLinks: candidate?.links,
+        githubProfile,
+        scholarProfile,
+      });
 
       return {
         currentCompany: experiences[0]?.company ?? null,
@@ -553,14 +729,17 @@ async function fetchCandidateSummariesByIds(args: {
         currentRole: experiences[0]?.role ?? null,
         currentSchool: education[0]?.school ?? null,
         existingEmailSources,
+        githubUrl: profileLinks.githubUrl,
         githubUsername: githubProfile?.github_username ?? null,
         headline: candidate?.headline ?? null,
         id,
+        linkedinUrl: profileLinks.linkedinUrl,
         location: candidate?.location ?? null,
         name: candidate?.name ?? null,
         outreach: args.outreachByCandidateId.get(id) ?? null,
         profilePicture: candidate?.profile_picture ?? null,
         scholarAffiliation: scholarProfile?.affiliation ?? null,
+        scholarUrl: profileLinks.scholarUrl,
         shortlistMemo: args.shortlistMemoByCandidateId.get(id) ?? "",
       } satisfies AtsCandidateSummary;
     })
@@ -661,6 +840,11 @@ async function fetchCandidateDetailById(args: {
   const bestGithubProfile = pickBestGithubProfile(
     coerceJsonArray<any>(githubProfiles)
   );
+  const profileLinks = getCandidateProfileLinks({
+    candidateLinks: data?.links,
+    githubProfile: bestGithubProfile,
+    scholarProfile,
+  });
 
   const existingEmailSources = buildExistingEmailSources({
     candidateEmail: data?.email ?? null,
@@ -736,9 +920,11 @@ async function fetchCandidateDetailById(args: {
           username: bestGithubProfile.github_username ?? null,
         }
       : null,
+    githubUrl: profileLinks.githubUrl,
     githubUsername: bestGithubProfile?.github_username ?? null,
     headline: data?.headline ?? null,
     id: String(data?.id ?? args.candidId),
+    linkedinUrl: profileLinks.linkedinUrl,
     links: coerceJsonArray<string>(data?.links).map((link) => String(link)),
     location: data?.location ?? null,
     name: data?.name ?? null,
@@ -746,6 +932,7 @@ async function fetchCandidateDetailById(args: {
     profilePicture: data?.profile_picture ?? null,
     publications,
     scholarAffiliation: scholarProfile?.affiliation ?? null,
+    scholarUrl: profileLinks.scholarUrl,
     scholarProfile: scholarProfile
       ? {
           affiliation: scholarProfile.affiliation ?? null,
@@ -779,9 +966,12 @@ async function ensureOutreachRecord(args: {
     email_source_label: string | null;
     email_source_type: AtsEmailSourceType | null;
     email_source_url: string | null;
+    history: AtsContactHistoryItem[];
     last_sent_at: string | null;
+    memo: string | null;
     next_due_at: string | null;
     sequence_mark: AtsSequenceMarkStatus | null;
+    sequence_schedule: AtsSequenceStepSchedule[];
     sequence_status: AtsSequenceStatus;
     stopped_at: string | null;
     target_email: string | null;
@@ -816,9 +1006,12 @@ async function ensureOutreachRecord(args: {
     email_source_label: null,
     email_source_type: null,
     email_source_url: null,
+    history: [],
     last_sent_at: null,
+    memo: null,
     next_due_at: null,
     sequence_mark: null,
+    sequence_schedule: createDefaultAtsSequenceSchedule(),
     sequence_status: "draft",
     stopped_at: null,
     target_email: null,
@@ -874,10 +1067,166 @@ async function updateOutreachRecord(args: {
   return mapOutreachRecord(data);
 }
 
-function addDays(date: Date, days: number) {
-  const next = new Date(date);
-  next.setUTCDate(next.getUTCDate() + days);
-  return next;
+async function fetchDueSequenceOutreachRows(args: {
+  admin: AdminClient;
+  limit: number;
+  nowIso: string;
+}) {
+  const { data, error } = await ((args.admin.from(
+    "candidate_outreach" as any
+  ) as any)
+    .select("user_id, candid_id, active_step, next_due_at, sequence_status")
+    .in("sequence_status", ["draft", "active"])
+    .not("next_due_at", "is", null)
+    .lte("next_due_at", args.nowIso)
+    .order("next_due_at", { ascending: true })
+    .limit(args.limit));
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load due ATS sequences");
+  }
+
+  return coerceJsonArray<any>(data)
+    .map((row) => {
+      const candidId = String(row?.candid_id ?? "").trim();
+      const userId = String(row?.user_id ?? "").trim();
+      const nextDueAt = String(row?.next_due_at ?? "").trim();
+      if (!candidId || !userId || !nextDueAt) return null;
+
+      return {
+        activeStep: Number(row?.active_step ?? 0) || 0,
+        candidId,
+        nextDueAt,
+        sequenceStatus:
+          row?.sequence_status === "active" ? "active" : "draft",
+        userId,
+      } satisfies DueSequenceOutreachRow;
+    })
+    .filter(Boolean) as DueSequenceOutreachRow[];
+}
+
+function getOutreachPairKey(userId: string, candidId: string) {
+  return `${userId}:${candidId}`;
+}
+
+async function fetchSequenceDraftPairKeys(args: {
+  admin: AdminClient;
+  rows: DueSequenceOutreachRow[];
+}) {
+  const pairKeys = new Set<string>();
+  if (args.rows.length === 0) return pairKeys;
+
+  const candidIds = Array.from(new Set(args.rows.map((row) => row.candidId)));
+  const userIds = Array.from(new Set(args.rows.map((row) => row.userId)));
+  const { data, error } = await ((args.admin.from(
+    "candidate_outreach_message" as any
+  ) as any)
+    .select("user_id, candid_id")
+    .eq("kind", "sequence")
+    .in("user_id", userIds)
+    .in("candid_id", candidIds));
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load sequence drafts");
+  }
+
+  for (const row of coerceJsonArray<any>(data)) {
+    const userId = String(row?.user_id ?? "").trim();
+    const candidId = String(row?.candid_id ?? "").trim();
+    if (!userId || !candidId) continue;
+    pairKeys.add(getOutreachPairKey(userId, candidId));
+  }
+
+  return pairKeys;
+}
+
+function pad2(value: number) {
+  return String(value).padStart(2, "0");
+}
+
+function getLocalDateStringForOffset(date: Date, timezoneOffsetMinutes: number) {
+  const shifted = new Date(date.getTime() - timezoneOffsetMinutes * 60_000);
+  const year = shifted.getUTCFullYear();
+  const month = pad2(shifted.getUTCMonth() + 1);
+  const day = pad2(shifted.getUTCDate());
+  return `${year}-${month}-${day}`;
+}
+
+function addDaysToDateString(dateString: string, days: number) {
+  const [year, month, day] = dateString.split("-").map((value) => Number(value));
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + days);
+  return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())}`;
+}
+
+function toIsoWithFixedOffset(args: {
+  date: string;
+  sendTime: string;
+  timezoneOffsetMinutes: number;
+}) {
+  const [year, month, day] = args.date
+    .split("-")
+    .map((value) => Number(value));
+  const [hours, minutes] = args.sendTime
+    .split(":")
+    .map((value) => Number(value));
+  const utcMs =
+    Date.UTC(year, month - 1, day, hours, minutes, 0, 0) +
+    args.timezoneOffsetMinutes * 60_000;
+  return new Date(utcMs).toISOString();
+}
+
+function getScheduleForStep(
+  schedule: AtsSequenceStepSchedule[] | null | undefined,
+  stepNumber: number
+) {
+  const normalized = normalizeAtsSequenceSchedule(schedule);
+  return (
+    normalized.find((item) => item.stepNumber === stepNumber) ??
+    normalized[stepNumber - 1] ??
+    {
+      date: null,
+      delayDays: stepNumber === 1 ? 0 : ATS_SEQUENCE_INTERVAL_DAYS,
+      mode: stepNumber === 1 ? ("date" as const) : ("relative" as const),
+      sendTime: ATS_DEFAULT_SEQUENCE_TIME,
+      stepNumber,
+      timezoneOffsetMinutes: ATS_DEFAULT_TIMEZONE_OFFSET_MINUTES,
+    }
+  );
+}
+
+function computeDueAtFromSchedule(args: {
+  baseAt: Date;
+  schedule: AtsSequenceStepSchedule | null | undefined;
+}) {
+  const schedule =
+    args.schedule ??
+    ({
+      date: null,
+      delayDays: ATS_SEQUENCE_INTERVAL_DAYS,
+      mode: "relative",
+      sendTime: ATS_DEFAULT_SEQUENCE_TIME,
+      stepNumber: 1,
+      timezoneOffsetMinutes: ATS_DEFAULT_TIMEZONE_OFFSET_MINUTES,
+    } satisfies AtsSequenceStepSchedule);
+  const timezoneOffsetMinutes = Number.isFinite(schedule.timezoneOffsetMinutes)
+    ? schedule.timezoneOffsetMinutes
+    : ATS_DEFAULT_TIMEZONE_OFFSET_MINUTES;
+  const sendTime =
+    /^\d{2}:\d{2}$/.test(schedule.sendTime) ? schedule.sendTime : ATS_DEFAULT_SEQUENCE_TIME;
+  const date =
+    schedule.mode === "date" && schedule.date
+      ? schedule.date
+      : addDaysToDateString(
+          getLocalDateStringForOffset(args.baseAt, timezoneOffsetMinutes),
+          Math.max(0, schedule.delayDays)
+        );
+
+  return toIsoWithFixedOffset({
+    date,
+    sendTime,
+    timezoneOffsetMinutes,
+  });
 }
 
 function resolveTargetEmail(args: {
@@ -958,6 +1307,110 @@ async function fetchSentStepNumbersByCandidateIds(args: {
   }
 
   return sentByCandidateId;
+}
+
+async function tryClaimSequenceDraftMessage(args: {
+  admin: AdminClient;
+  currentStatus: "draft" | "sending";
+  id: number;
+  staleBeforeIso?: string;
+  userId: string;
+}) {
+  let query = (args.admin.from("candidate_outreach_message" as any) as any)
+    .update({
+      status: "sending",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", args.userId)
+    .eq("id", args.id)
+    .eq("kind", "sequence")
+    .eq("status", args.currentStatus);
+
+  if (args.currentStatus === "sending" && args.staleBeforeIso) {
+    query = query.lte("updated_at", args.staleBeforeIso);
+  }
+
+  const { data, error } = await query.select(MESSAGE_SELECT);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to claim sequence draft");
+  }
+
+  const row = coerceJsonArray<any>(data)[0] ?? null;
+  return row ? mapMessageRecord(row) : null;
+}
+
+async function claimSequenceDraftMessage(args: {
+  admin: AdminClient;
+  id: number;
+  userId: string;
+}) {
+  const staleBeforeIso = new Date(Date.now() - 15 * 60_000).toISOString();
+  const claimedDraft = await tryClaimSequenceDraftMessage({
+    admin: args.admin,
+    currentStatus: "draft",
+    id: args.id,
+    userId: args.userId,
+  });
+  if (claimedDraft) {
+    return { message: claimedDraft, outcome: "claimed" as const };
+  }
+
+  const current = await fetchMessageRecordById({
+    admin: args.admin,
+    id: args.id,
+    userId: args.userId,
+  });
+  if (!current) {
+    return { outcome: "not_found" as const };
+  }
+
+  if (current.status === "sent") {
+    return { message: current, outcome: "already_sent" as const };
+  }
+
+  if (current.status === "sending") {
+    const currentUpdatedAt =
+      Date.parse(current.updatedAt || current.createdAt) || Number.NaN;
+    if (!Number.isNaN(currentUpdatedAt) && currentUpdatedAt <= Date.parse(staleBeforeIso)) {
+      const reclaimed = await tryClaimSequenceDraftMessage({
+        admin: args.admin,
+        currentStatus: "sending",
+        id: args.id,
+        staleBeforeIso,
+        userId: args.userId,
+      });
+      if (reclaimed) {
+        return { message: reclaimed, outcome: "claimed" as const };
+      }
+    }
+
+    return { message: current, outcome: "already_sending" as const };
+  }
+
+  return { message: current, outcome: "not_claimable" as const };
+}
+
+async function restoreSequenceDraftMessage(args: {
+  admin: AdminClient;
+  id: number;
+  userId: string;
+}) {
+  const { error } = await ((args.admin.from(
+    "candidate_outreach_message" as any
+  ) as any)
+    .update({
+      status: "draft",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", args.userId)
+    .eq("id", args.id)
+    .eq("kind", "sequence")
+    .eq("status", "sending"));
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to restore sequence draft");
+  }
 }
 
 async function upsertSequenceDrafts(args: {
@@ -1127,16 +1580,129 @@ ${args.candidate.publications
   return normalized;
 }
 
+function buildAtsCandidatePrompt(candidate: AtsCandidateDetail) {
+  return `Candidate:
+- name: ${candidate.name ?? ""}
+- headline: ${candidate.headline ?? ""}
+- location: ${candidate.location ?? ""}
+- current role: ${candidate.currentRole ?? ""}
+- current company: ${candidate.currentCompany ?? ""}
+- current school: ${candidate.currentSchool ?? ""}
+- scholar affiliation: ${candidate.scholarAffiliation ?? ""}
+- github username: ${candidate.githubUsername ?? ""}
+- bio: ${candidate.bio ?? ""}
+
+Top experience:
+${candidate.experience
+  .slice(0, 3)
+  .map((item, index) => {
+    return `${index + 1}. ${item.role ?? ""} @ ${item.company ?? ""} (${item.startDate ?? ""} ~ ${item.endDate ?? "current"})`;
+  })
+  .join("\n")}
+
+Top publications:
+${candidate.publications
+  .slice(0, 3)
+  .map((item, index) => {
+    return `${index + 1}. ${item.title} (${item.publishedAt ?? ""})`;
+  })
+  .join("\n")}`;
+}
+
+function buildAtsCompanyPrompt(args: {
+  companyUser: CompanyUserRecord | null;
+  workspace: AtsWorkspaceRecord;
+}) {
+  return `Company context:
+- company: ${args.companyUser?.company ?? "Harper"}
+- company pitch: ${args.workspace.companyPitch ?? ""}
+- signature: ${args.workspace.signature ?? ""}`;
+}
+
+async function buildInitialContactDraft(args: {
+  candidate: AtsCandidateDetail;
+  companyUser: CompanyUserRecord | null;
+  workspace: AtsWorkspaceRecord;
+}) {
+  const jobDescription = String(args.workspace.jobDescription ?? "").trim();
+  const companyPitch = String(args.workspace.companyPitch ?? "").trim();
+
+  if (!jobDescription && !companyPitch) {
+    throw new InternalApiError(400, "JD 또는 Company Pitch를 먼저 입력해 주세요.");
+  }
+
+  const systemPrompt = `You write a single first-touch recruiting outreach email.
+Return JSON only with keys "subject" and "body".
+
+Rules:
+- Write in Korean by default.
+- Keep company names, paper titles, repo names, and technical keywords in English when natural.
+- This is the very first outreach email, not a follow-up.
+- Personalize using only real candidate background from the prompt.
+- Tone: concise, thoughtful, recruiter-like, not pushy.
+- Subject should be short.
+- Body should be plain text and easy to skim.
+- Avoid markdown bullets unless absolutely natural for email.
+- Do not invent unavailable facts.
+- Do not include placeholders.
+- If a signature is provided, end with it naturally.`;
+
+  const userPrompt = `${buildAtsCompanyPrompt(args)}
+
+JD:
+${jobDescription}
+
+${buildAtsCandidatePrompt(args.candidate)}
+
+Write one initial outreach email for this candidate.`;
+
+  const raw = await xaiInference(
+    "grok-4-fast-reasoning",
+    systemPrompt,
+    userPrompt,
+    0.35
+  );
+  const parsed = safeParseJson(raw) as
+    | {
+        body?: string;
+        subject?: string;
+      }
+    | null;
+
+  const subject = String(parsed?.subject ?? "").trim();
+  const body = String(parsed?.body ?? "").trim();
+
+  if (!subject || !body) {
+    throw new Error("Initial contact draft generation failed");
+  }
+
+  return {
+    body,
+    subject,
+  } satisfies AtsContactEmailDraft;
+}
+
 export async function fetchAtsWorkspace(args: {
   userEmail: string | null | undefined;
   userId: string;
 }): Promise<AtsWorkspaceResponse> {
   const admin = getSupabaseAdmin();
-  const [companyUser, workspaceRow, candidateIds] = await Promise.all([
+  const [companyUser, workspaceRow, bookmarkFolders] = await Promise.all([
     fetchCompanyUserRecord(admin, args.userId),
     fetchWorkspaceRow(admin, args.userId),
-    fetchDefaultFolderCandidateIds(admin, args.userId),
+    fetchBookmarkFolders(admin, args.userId),
   ]);
+  const selectedFolderId = resolveAtsBookmarkFolderId({
+    folders: bookmarkFolders,
+    requestedFolderId:
+      Number.isFinite(Number(workspaceRow?.bookmark_folder_id))
+        ? Number(workspaceRow?.bookmark_folder_id)
+        : null,
+  });
+  const candidateIds =
+    selectedFolderId != null
+      ? await fetchBookmarkFolderCandidateIds(admin, args.userId, selectedFolderId)
+      : [];
 
   const [outreachByCandidateId, shortlistMemoByCandidateId] = await Promise.all([
     fetchOutreachRecordsByCandidateIds({
@@ -1157,8 +1723,10 @@ export async function fetchAtsWorkspace(args: {
   return {
     allowedDomain: "matchharper.com",
     candidates,
+    folders: bookmarkFolders.map(mapBookmarkFolderOption),
     totalCount: candidates.length,
     workspace: mapWorkspaceRecord({
+      bookmarkFolderId: selectedFolderId,
       companyUser,
       row: workspaceRow,
       userEmail: args.userEmail,
@@ -1167,6 +1735,7 @@ export async function fetchAtsWorkspace(args: {
 }
 
 export async function saveAtsWorkspace(args: {
+  bookmarkFolderId?: number | null;
   companyPitch?: string | null;
   jobDescription?: string | null;
   senderEmail?: string | null;
@@ -1175,15 +1744,36 @@ export async function saveAtsWorkspace(args: {
   userId: string;
 }) {
   const admin = getSupabaseAdmin();
-  const companyUser = await fetchCompanyUserRecord(admin, args.userId);
+  const [companyUser, bookmarkFolders] = await Promise.all([
+    fetchCompanyUserRecord(admin, args.userId),
+    fetchBookmarkFolders(admin, args.userId),
+  ]);
   const normalizedSenderEmail = String(args.senderEmail ?? "").trim();
 
   if (normalizedSenderEmail && !isValidEmail(normalizedSenderEmail)) {
     throw new InternalApiError(400, "유효한 발신자 이메일을 입력해 주세요.");
   }
 
+  const normalizedBookmarkFolderId =
+    args.bookmarkFolderId === undefined
+      ? undefined
+      : args.bookmarkFolderId == null
+        ? null
+        : Number(args.bookmarkFolderId);
+
+  if (
+    normalizedBookmarkFolderId !== undefined &&
+    normalizedBookmarkFolderId !== null &&
+    !bookmarkFolders.some(
+      (folder) => Number(folder.id) === normalizedBookmarkFolderId
+    )
+  ) {
+    throw new InternalApiError(400, "유효한 북마크 폴더를 선택해 주세요.");
+  }
+
   return upsertWorkspaceRow({
     admin,
+    bookmarkFolderId: normalizedBookmarkFolderId,
     companyPitch: args.companyPitch,
     companyUser,
     jobDescription: args.jobDescription,
@@ -1262,10 +1852,57 @@ export async function discoverCandidateEmail(args: {
     shortlistMemo: shortlistMemoByCandidateId.get(args.candidId) ?? "",
   });
 
+  let persistedTraceLength = 0;
+  let persistedTraceAt = 0;
+  let persistTraceChain: Promise<void> = Promise.resolve();
+
+  const queueLiveTracePersist = (trace: AtsEmailDiscoveryTraceItem[]) => {
+    const latestTrace = trace[trace.length - 1];
+    if (!latestTrace) return;
+
+    const now = Date.now();
+    const shouldPersist =
+      trace.length === 1 ||
+      latestTrace.kind === "query" ||
+      latestTrace.kind === "scrape" ||
+      trace.length - persistedTraceLength >= 2 ||
+      now - persistedTraceAt >= 1_500;
+
+    if (!shouldPersist) return;
+
+    persistedTraceLength = trace.length;
+    persistedTraceAt = now;
+
+    const traceSnapshot = trace.slice();
+    persistTraceChain = persistTraceChain
+      .catch(() => undefined)
+      .then(async () => {
+        await updateOutreachRecord({
+          admin,
+          candidId: args.candidId,
+          patch: {
+            email_discovery_status: "searching",
+            email_discovery_summary: latestTrace.content,
+            email_discovery_trace: traceSnapshot,
+          },
+          userId: args.userId,
+        });
+      })
+      .catch((error) => {
+        console.error("[ats-email-discovery] failed to persist live trace", {
+          candidId: args.candidId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+  };
+
   const result = await findCandidateEmailWithAgenticFlow({
     candidate,
+    onTrace: queueLiveTracePersist,
     req: args.req,
   });
+
+  await persistTraceChain;
 
   const patch = {
     email_discovery_evidence: result.evidence,
@@ -1335,6 +1972,313 @@ export async function setAtsSequenceMark(args: {
     patch: {
       sequence_mark: args.sequenceMark,
     },
+    userId: args.userId,
+  });
+}
+
+export async function saveAtsCandidateMemo(args: {
+  candidId: string;
+  memo: string | null;
+  userId: string;
+}) {
+  const admin = getSupabaseAdmin();
+  return updateOutreachRecord({
+    admin,
+    candidId: args.candidId,
+    patch: {
+      memo: String(args.memo ?? "").trim() || null,
+    },
+    userId: args.userId,
+  });
+}
+
+export async function clearAtsEmailDiscoveryTrace(args: {
+  candidId: string;
+  userId: string;
+}) {
+  const admin = getSupabaseAdmin();
+  return updateOutreachRecord({
+    admin,
+    candidId: args.candidId,
+    patch: {
+      email_discovery_trace: [],
+    },
+    userId: args.userId,
+  });
+}
+
+export async function saveAtsSequenceSchedule(args: {
+  candidId: string;
+  sequenceSchedule: AtsSequenceStepSchedule[];
+  userId: string;
+}) {
+  const admin = getSupabaseAdmin();
+  const current =
+    (
+      await fetchOutreachRecordsByCandidateIds({
+        admin,
+        candidIds: [args.candidId],
+        userId: args.userId,
+      })
+    ).get(args.candidId) ??
+    (await ensureOutreachRecord({
+      admin,
+      candidId: args.candidId,
+      userId: args.userId,
+    }));
+  const sequenceSchedule = normalizeAtsSequenceSchedule(args.sequenceSchedule);
+  const nextStep =
+    current.sequenceStatus === "completed"
+      ? null
+      : getNextOutreachStep(current.activeStep);
+  const baseAt = current.lastSentAt ? new Date(current.lastSentAt) : new Date();
+
+  return updateOutreachRecord({
+    admin,
+    candidId: args.candidId,
+    patch: {
+      next_due_at:
+        nextStep == null
+          ? null
+          : computeDueAtFromSchedule({
+              baseAt,
+              schedule: getScheduleForStep(sequenceSchedule, nextStep),
+            }),
+      sequence_schedule: sequenceSchedule,
+    },
+    userId: args.userId,
+  });
+}
+
+export async function generateAtsContactEmailDraft(args: {
+  candidId: string;
+  userEmail: string | null | undefined;
+  userId: string;
+}) {
+  const admin = getSupabaseAdmin();
+  const [companyUser, workspaceRow, outreachByCandidateId, shortlistMemoByCandidateId] =
+    await Promise.all([
+      fetchCompanyUserRecord(admin, args.userId),
+      fetchWorkspaceRow(admin, args.userId),
+      fetchOutreachRecordsByCandidateIds({
+        admin,
+        candidIds: [args.candidId],
+        userId: args.userId,
+      }),
+      fetchShortlistMemoMap(admin, args.userId, [args.candidId]),
+    ]);
+
+  const workspace = mapWorkspaceRecord({
+    companyUser,
+    row: workspaceRow,
+    userEmail: args.userEmail,
+  });
+  const outreach =
+    outreachByCandidateId.get(args.candidId) ??
+    (await ensureOutreachRecord({
+      admin,
+      candidId: args.candidId,
+      userId: args.userId,
+    }));
+  const candidate = await fetchCandidateDetailById({
+    admin,
+    candidId: args.candidId,
+    outreach,
+    shortlistMemo: shortlistMemoByCandidateId.get(args.candidId) ?? "",
+  });
+
+  return buildInitialContactDraft({
+    candidate,
+    companyUser,
+    workspace,
+  });
+}
+
+export async function addAtsContactHistory(args: {
+  candidId: string;
+  channel: AtsContactHistoryChannel;
+  contactedAt: string;
+  note: string | null;
+  source?: AtsContactHistoryItem["source"];
+  userId: string;
+}) {
+  const admin = getSupabaseAdmin();
+  const current =
+    (
+      await fetchOutreachRecordsByCandidateIds({
+        admin,
+        candidIds: [args.candidId],
+        userId: args.userId,
+      })
+    ).get(args.candidId) ??
+    (await ensureOutreachRecord({
+      admin,
+      candidId: args.candidId,
+      userId: args.userId,
+    }));
+  const item = {
+    channel: args.channel,
+    contactedAt: args.contactedAt,
+    createdAt: new Date().toISOString(),
+    id: crypto.randomUUID(),
+    note: String(args.note ?? "").trim() || null,
+    source: args.source ?? "manual",
+  } satisfies AtsContactHistoryItem;
+
+  return updateOutreachRecord({
+    admin,
+    candidId: args.candidId,
+    patch: {
+      history: [...current.history, item],
+    },
+    userId: args.userId,
+  });
+}
+
+export async function deleteAtsContactHistory(args: {
+  candidId: string;
+  historyId: string;
+  userId: string;
+}) {
+  const admin = getSupabaseAdmin();
+  const current =
+    (
+      await fetchOutreachRecordsByCandidateIds({
+        admin,
+        candidIds: [args.candidId],
+        userId: args.userId,
+      })
+    ).get(args.candidId) ??
+    (await ensureOutreachRecord({
+      admin,
+      candidId: args.candidId,
+      userId: args.userId,
+    }));
+
+  return updateOutreachRecord({
+    admin,
+    candidId: args.candidId,
+    patch: {
+      history: current.history.filter((item) => item.id !== args.historyId),
+    },
+    userId: args.userId,
+  });
+}
+
+export async function sendAtsSingleManualEmail(args: {
+  body: string;
+  candidId: string;
+  subject: string;
+  targetEmail?: string | null;
+  userEmail: string | null | undefined;
+  userId: string;
+}) {
+  if (!String(args.subject ?? "").trim() || !String(args.body ?? "").trim()) {
+    throw new InternalApiError(400, "제목과 본문을 입력해 주세요.");
+  }
+
+  const admin = getSupabaseAdmin();
+  const [workspaceRow, outreachByCandidateId, shortlistMemoByCandidateId] =
+    await Promise.all([
+      fetchWorkspaceRow(admin, args.userId),
+      fetchOutreachRecordsByCandidateIds({
+        admin,
+        candidIds: [args.candidId],
+        userId: args.userId,
+      }),
+      fetchShortlistMemoMap(admin, args.userId, [args.candidId]),
+    ]);
+
+  const outreach =
+    outreachByCandidateId.get(args.candidId) ??
+    (await ensureOutreachRecord({
+      admin,
+      candidId: args.candidId,
+      userId: args.userId,
+    }));
+  const candidate = await fetchCandidateDetailById({
+    admin,
+    candidId: args.candidId,
+    outreach,
+    shortlistMemo: shortlistMemoByCandidateId.get(args.candidId) ?? "",
+  });
+  const senderEmail = normalizeEmail(
+    workspaceRow?.sender_email ?? args.userEmail ?? ""
+  );
+  if (!isValidEmail(senderEmail)) {
+    throw new InternalApiError(400, "유효한 발신자 이메일이 필요합니다.");
+  }
+
+  const targetEmail = normalizeEmail(
+    args.targetEmail ?? resolveTargetEmail({ candidate, outreach }) ?? ""
+  );
+  if (!isValidEmail(targetEmail)) {
+    throw new InternalApiError(400, "유효한 대상 이메일이 필요합니다.");
+  }
+
+  const variables = buildCandidateTemplateVariables(candidate);
+  const renderedSubject = replaceTemplateVariables(args.subject, variables).trim();
+  const renderedBody = replaceTemplateVariables(args.body, variables).trim();
+  if (!renderedSubject || !renderedBody) {
+    throw new InternalApiError(400, "제목과 본문을 입력해 주세요.");
+  }
+
+  await sendInternalEmail({
+    from: senderEmail,
+    subject: renderedSubject,
+    text: renderedBody,
+    to: targetEmail,
+  });
+
+  const now = new Date().toISOString();
+  const { error: insertError } = await ((admin.from(
+    "candidate_outreach_message" as any
+  ) as any).insert({
+    body: args.body,
+    candid_id: args.candidId,
+    created_at: now,
+    created_by: senderEmail,
+    kind: "manual",
+    outreach_id: outreach.id,
+    rendered_body: renderedBody,
+    rendered_subject: renderedSubject,
+    sent_at: now,
+    status: "sent",
+    step_number: null,
+    subject: args.subject,
+    to_email: targetEmail,
+    updated_at: now,
+    user_id: args.userId,
+  }));
+
+  if (insertError) {
+    throw new Error(insertError.message ?? "Failed to log manual email");
+  }
+
+  await updateOutreachRecord({
+    admin,
+    candidId: args.candidId,
+    patch: {
+      history: [
+        ...outreach.history,
+        {
+          channel: "email",
+          contactedAt: now,
+          createdAt: now,
+          id: crypto.randomUUID(),
+          note: `Manual email sent · ${renderedSubject}`,
+          source: "manual",
+        } satisfies AtsContactHistoryItem,
+      ],
+      last_sent_at: now,
+      target_email: targetEmail,
+    },
+    userId: args.userId,
+  });
+
+  return fetchAtsCandidateDetail({
+    candidId: args.candidId,
+    userEmail: args.userEmail,
     userId: args.userId,
   });
 }
@@ -1428,6 +2372,15 @@ export async function generateCandidateSequence(args: {
   if (!targetEmail) {
     throw new InternalApiError(400, "이메일을 먼저 찾은 뒤 시퀀스를 생성해 주세요.");
   }
+  const sequenceSchedule = normalizeAtsSequenceSchedule(outreach.sequenceSchedule);
+  const nextStep = getNextOutreachStep(outreach.activeStep);
+  const nextDueAt =
+    nextStep == null
+      ? null
+      : computeDueAtFromSchedule({
+          baseAt: outreach.lastSentAt ? new Date(outreach.lastSentAt) : new Date(),
+          schedule: getScheduleForStep(sequenceSchedule, nextStep),
+        });
 
   const drafts = await buildSequenceDrafts({
     candidate,
@@ -1454,6 +2407,8 @@ export async function generateCandidateSequence(args: {
           : outreach.activeStep > 0
             ? "active"
             : "draft",
+      next_due_at: nextDueAt,
+      sequence_schedule: sequenceSchedule,
       target_email: targetEmail,
     },
     userId: args.userId,
@@ -1504,10 +2459,6 @@ export async function sendCandidateSequenceStep(args: {
   );
   const sentStepNumbers = getSentStepNumbers(detail.messages);
   const nextRequiredStep = getNextSequenceStepFromSentSet(sentStepNumbers);
-  const alreadySentForStep = detail.messages.some(
-    (message) =>
-      message.stepNumber === args.stepNumber && message.status === "sent"
-  );
   if (!draft) {
     throw new InternalApiError(400, "먼저 시퀀스를 생성해 주세요.");
   }
@@ -1520,8 +2471,20 @@ export async function sendCandidateSequenceStep(args: {
       `현재 발송 가능한 step은 ${nextRequiredStep}번입니다.`
     );
   }
-  if (draft.status === "sent" || alreadySentForStep) {
+
+  const claim = await claimSequenceDraftMessage({
+    admin,
+    id: draft.id,
+    userId: args.userId,
+  });
+  if (claim.outcome === "already_sent") {
     throw new InternalApiError(400, "이미 발송된 step입니다.");
+  }
+  if (claim.outcome === "already_sending") {
+    throw new InternalApiError(409, "해당 step 메일이 이미 발송 중입니다.");
+  }
+  if (claim.outcome !== "claimed") {
+    throw new InternalApiError(409, "메일 초안 상태가 변경되었습니다. 다시 시도해 주세요.");
   }
 
   const workspace = detail.workspace;
@@ -1534,22 +2497,54 @@ export async function sendCandidateSequenceStep(args: {
   const renderedSubject = replaceTemplateVariables(draft.subject, variables).trim();
   const renderedBody = replaceTemplateVariables(draft.body, variables).trim();
 
-  await sendInternalEmail({
-    from: senderEmail,
-    subject: renderedSubject,
-    text: renderedBody,
-    to: targetEmail,
-  });
+  try {
+    await sendInternalEmail({
+      from: senderEmail,
+      subject: renderedSubject,
+      text: renderedBody,
+      to: targetEmail,
+    });
+  } catch (error) {
+    try {
+      await restoreSequenceDraftMessage({
+        admin,
+        id: draft.id,
+        userId: args.userId,
+      });
+    } catch (restoreError) {
+      console.error("[ats-sequence] failed to restore draft after send failure", {
+        candidId: args.candidId,
+        draftId: draft.id,
+        error:
+          restoreError instanceof Error
+            ? restoreError.message
+            : "unknown_restore_error",
+      });
+    }
+    throw error;
+  }
 
   const now = new Date();
+  const upcomingStep = args.stepNumber < ATS_SEQUENCE_STEP_COUNT ? args.stepNumber + 1 : null;
   const nextDueAt =
-    args.stepNumber < ATS_SEQUENCE_STEP_COUNT
-      ? addDays(now, ATS_SEQUENCE_INTERVAL_DAYS).toISOString()
+    upcomingStep
+      ? computeDueAtFromSchedule({
+          baseAt: now,
+          schedule: getScheduleForStep(outreach.sequenceSchedule, upcomingStep),
+        })
       : null;
   const nextSequenceStatus =
     args.stepNumber >= ATS_SEQUENCE_STEP_COUNT ? "completed" : "active";
+  const historyItem = {
+    channel: "email",
+    contactedAt: now.toISOString(),
+    createdAt: now.toISOString(),
+    id: crypto.randomUUID(),
+    note: `Step ${args.stepNumber} sequence sent`,
+    source: "sequence",
+  } satisfies AtsContactHistoryItem;
 
-  const { error: messageError } = await (
+  const { data: sentMessageRows, error: messageError } = await (
     admin.from("candidate_outreach_message" as any) as any
   )
     .update({
@@ -1560,10 +2555,15 @@ export async function sendCandidateSequenceStep(args: {
       to_email: targetEmail,
       updated_at: now.toISOString(),
     })
-    .eq("id", draft.id);
+    .eq("id", draft.id)
+    .eq("status", "sending")
+    .select(MESSAGE_SELECT);
 
   if (messageError) {
     throw new Error(messageError.message ?? "Failed to update sent sequence");
+  }
+  if (!coerceJsonArray<any>(sentMessageRows)[0]) {
+    throw new Error("Failed to finalize sent sequence");
   }
 
   await updateOutreachRecord({
@@ -1576,6 +2576,7 @@ export async function sendCandidateSequenceStep(args: {
       sequence_status: nextSequenceStatus,
       stopped_at: null,
       target_email: targetEmail,
+      history: [...outreach.history, historyItem],
     },
     userId: args.userId,
   });
@@ -1585,6 +2586,137 @@ export async function sendCandidateSequenceStep(args: {
     userEmail: args.userEmail,
     userId: args.userId,
   });
+}
+
+export async function runAtsSequenceSweep(args?: { limit?: number }) {
+  const admin = getSupabaseAdmin();
+  const nowIso = new Date().toISOString();
+  const limit = Math.min(
+    100,
+    Math.max(1, Number(args?.limit ?? 25) || 25)
+  );
+  const dueRows = await fetchDueSequenceOutreachRows({
+    admin,
+    limit,
+    nowIso,
+  });
+  const sequenceDraftPairKeys = await fetchSequenceDraftPairKeys({
+    admin,
+    rows: dueRows,
+  });
+  const eligibleRows = dueRows.filter((row) =>
+    sequenceDraftPairKeys.has(getOutreachPairKey(row.userId, row.candidId))
+  );
+  const userEmailById = await fetchCompanyUserEmailMap(
+    admin,
+    Array.from(new Set(eligibleRows.map((row) => row.userId)))
+  );
+  const results: Array<{
+    candidId: string;
+    message?: string;
+    status: "failed" | "sent" | "skipped";
+    stepNumber: number | null;
+    userId: string;
+  }> = [];
+
+  let failed = 0;
+  let sent = 0;
+  let skipped = 0;
+
+  for (const row of dueRows) {
+    if (!sequenceDraftPairKeys.has(getOutreachPairKey(row.userId, row.candidId))) {
+      skipped += 1;
+      results.push({
+        candidId: row.candidId,
+        message: "Sequence drafts are not generated yet",
+        status: "skipped",
+        stepNumber: null,
+        userId: row.userId,
+      });
+      continue;
+    }
+
+    const nextStep = getNextOutreachStep(row.activeStep);
+
+    if (!nextStep) {
+      await updateOutreachRecord({
+        admin,
+        candidId: row.candidId,
+        patch: {
+          next_due_at: null,
+          sequence_status: "completed",
+          stopped_at: null,
+        },
+        userId: row.userId,
+      });
+      skipped += 1;
+      results.push({
+        candidId: row.candidId,
+        message: "Sequence already completed",
+        status: "skipped",
+        stepNumber: null,
+        userId: row.userId,
+      });
+      continue;
+    }
+
+    try {
+      await sendCandidateSequenceStep({
+        candidId: row.candidId,
+        stepNumber: nextStep,
+        userEmail: userEmailById.get(row.userId) ?? null,
+        userId: row.userId,
+      });
+      sent += 1;
+      results.push({
+        candidId: row.candidId,
+        status: "sent",
+        stepNumber: nextStep,
+        userId: row.userId,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to send ATS sequence";
+      const isSkippable =
+        error instanceof InternalApiError &&
+        (error.status === 409 ||
+          message.includes("중단된 시퀀스") ||
+          message.includes("이미 모든 step") ||
+          message.includes("현재 발송 가능한 step은") ||
+          message.includes("이미 발송된 step"));
+
+      if (isSkippable) {
+        skipped += 1;
+        results.push({
+          candidId: row.candidId,
+          message,
+          status: "skipped",
+          stepNumber: nextStep,
+          userId: row.userId,
+        });
+      } else {
+        failed += 1;
+        results.push({
+          candidId: row.candidId,
+          message,
+          status: "failed",
+          stepNumber: nextStep,
+          userId: row.userId,
+        });
+      }
+    }
+  }
+
+  return {
+    failed,
+    limit,
+    nowIso,
+    scanned: dueRows.length,
+    eligible: eligibleRows.length,
+    sent,
+    skipped,
+    results,
+  };
 }
 
 export async function sendBulkAtsManualEmails(args: {
@@ -1706,10 +2838,27 @@ export async function sendBulkAtsManualEmails(args: {
       candidId,
       patch: {
         active_step: nextStep,
+        history: [
+          ...outreach.history,
+          {
+            channel: "email",
+            contactedAt: now.toISOString(),
+            createdAt: now.toISOString(),
+            id: crypto.randomUUID(),
+            note: `Manual outreach sent as step ${nextStep}`,
+            source: "bulk_manual",
+          } satisfies AtsContactHistoryItem,
+        ],
         last_sent_at: now.toISOString(),
         next_due_at:
           nextStep < ATS_SEQUENCE_STEP_COUNT
-            ? addDays(now, ATS_SEQUENCE_INTERVAL_DAYS).toISOString()
+            ? computeDueAtFromSchedule({
+                baseAt: now,
+                schedule: getScheduleForStep(
+                  outreach.sequenceSchedule,
+                  nextStep + 1
+                ),
+              })
             : null,
         sequence_status:
           nextStep >= ATS_SEQUENCE_STEP_COUNT ? "completed" : "active",

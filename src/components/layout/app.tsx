@@ -27,7 +27,7 @@ import Link from "next/link";
 import Image from "next/image";
 import Script from "next/script";
 import { ActionDropdown, ActionDropdownItem } from "../ui/action-dropdown";
-import { isInternalEmail } from "@/lib/internalAccess";
+import { canAccessAts } from "@/lib/internalAccess";
 
 const AppLayout = ({
   children,
@@ -64,7 +64,7 @@ const AppLayout = ({
   const isList = pathname === "/my/list";
   const isAts = pathname === "/my/ats";
   const isAutomation = pathname?.startsWith("/my/scout");
-  const canAccessAts = isInternalEmail(user?.email);
+  const hasAtsAccess = canAccessAts(user?.email);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -181,7 +181,7 @@ const AppLayout = ({
             href="/my/list"
             onNavigate={() => logEvent("enter_shortlist")}
           />
-          {canAccessAts ? (
+          {hasAtsAccess ? (
             <NavItem
               collapsed={collapsed}
               active={isAts}

@@ -9,6 +9,7 @@ type Props = {
   items: any[];
   userId?: string;
   isLoading: boolean;
+  isSearchInProgress: boolean;
   pageIdx: number;
   pageIdxRaw: number;
   maxPrefetchPages: number;
@@ -29,6 +30,7 @@ export default function ResultBody(props: Props) {
     items,
     userId,
     isLoading,
+    isSearchInProgress,
     pageIdx,
     pageIdxRaw,
     maxPrefetchPages,
@@ -62,6 +64,7 @@ export default function ResultBody(props: Props) {
             criterias={criterias}
             showShortlistMemo={true}
             showMarkFilter={true}
+            isSelectionDisabled={isSearchInProgress}
             indexStart={pageIdx * 10}
             sourceType={sourceType}
           />

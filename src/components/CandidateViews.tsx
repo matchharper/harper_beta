@@ -118,6 +118,7 @@ const CandidateViews = ({
   showBookmarkAction,
   showMarkAction,
   showMarkFilter = false,
+  isSelectionDisabled = false,
   sharedFolderContext,
   toolbarLeftContent,
 }: {
@@ -132,6 +133,7 @@ const CandidateViews = ({
   showBookmarkAction?: boolean;
   showMarkAction?: boolean;
   showMarkFilter?: boolean;
+  isSelectionDisabled?: boolean;
   sharedFolderContext?: {
     token: string;
     viewer: SharedFolderViewerIdentity | null;
@@ -432,6 +434,9 @@ const CandidateViews = ({
   const checkedCandidateCount = selectedCandidateIds.length;
   const hasCheckedCandidates = checkedCandidateCount > 0;
   const canSelectUnopenedProfiles = !hasSharedFolderNotes && Boolean(userId);
+  const selectionDisabledReason = isSelectionDisabled
+    ? "검색 도중에는 현재 페이지의 결과가 새로운 후보자가 추가됨에 따라 변할 수 있습니다."
+    : "";
 
   useEffect(() => {
     setSelectedCandidateIds((current) =>
@@ -492,6 +497,7 @@ const CandidateViews = ({
   };
 
   const handleToggleCandidateSelection = (candidateId: string) => {
+    if (isSelectionDisabled) return;
     if (!unopenedCandidateIdSet.has(candidateId)) return;
 
     setSelectedCandidateIds((current) => {
@@ -606,53 +612,59 @@ const CandidateViews = ({
           <div className="flex min-w-0 items-center gap-3">
             {toolbarLeftContent}
           </div>
-	          <div className="flex flex-row items-center justify-start gap-2">
-	            {!hasSharedFolderNotes && userId && (
-	              <>
-	                {unopenedCandidateCount > 0 && (
-	                  <>
-	                    {hasCheckedCandidates ? (
-	                      <button
-	                        type="button"
-	                        onClick={() => {
-	                          setSelectedCandidateIds([]);
-	                        }}
-	                        disabled={bulkRevealMutation.isPending}
-	                        aria-label="선택 전체 취소"
-	                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-black/10 text-white/75 transition duration-200 hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-	                      >
-	                        <X className="h-3.5 w-3.5" />
-	                      </button>
-	                    ) : null}
-	                    <button
-	                      type="button"
-	                      onClick={() => {
-	                        void handleBulkOpenProfiles();
-	                      }}
-	                      disabled={bulkRevealMutation.isPending}
-	                      className={`inline-flex flex-row gap-2 items-center justify-center rounded-lg px-2.5 py-1.5 text-xs font-normal transition duration-200 disabled:cursor-not-allowed disabled:opacity-40 ${
-	                        hasCheckedCandidates
-	                          ? "border border-accenta1 bg-accenta1 text-black hover:opacity-90"
-	                          : "border border-white/80 bg-gradient-to-br from-white/85 via-white/75 to-white/70 text-black hover:bg-white"
-	                      }`}
-	                    >
-	                      {hasCheckedCandidates ? (
-	                        <Unlock className="w-3.5 h-3.5" />
-	                      ) : (
-	                        <Check className="w-3.5 h-3.5" />
-	                      )}
-	                      <span>
-	                        {bulkRevealMutation.isPending
-	                          ? "열람 중..."
-	                          : hasCheckedCandidates
-	                            ? `${checkedCandidateCount}개 열람하기`
-	                            : `${unopenedCandidateCount}개 체크하기`}
-	                      </span>
-	                    </button>
-	                  </>
-	                )}
-	              </>
-	            )}
+          <div className="flex flex-row items-center justify-start gap-2">
+            {!hasSharedFolderNotes && userId && (
+              <>
+                {unopenedCandidateCount > 0 && (
+                  <>
+                    {hasCheckedCandidates ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedCandidateIds([]);
+                        }}
+                        disabled={bulkRevealMutation.isPending}
+                        aria-label="선택 전체 취소"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-black/10 text-white/75 transition duration-200 hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    ) : null}
+                    <Tooltips text={selectionDisabledReason}>
+                      <span className="inline-flex">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void handleBulkOpenProfiles();
+                          }}
+                          disabled={
+                            bulkRevealMutation.isPending || isSelectionDisabled
+                          }
+                          className={`inline-flex flex-row gap-2 items-center justify-center rounded-lg px-2.5 py-1.5 text-xs font-normal transition duration-200 disabled:cursor-not-allowed disabled:opacity-40 ${
+                            hasCheckedCandidates
+                              ? "border border-accenta1 bg-accenta1 text-black hover:opacity-90"
+                              : "border border-white/80 bg-gradient-to-br from-white/85 via-white/75 to-white/70 text-black hover:bg-white"
+                          }`}
+                        >
+                          {hasCheckedCandidates ? (
+                            <Unlock className="w-3.5 h-3.5" />
+                          ) : (
+                            <Check className="w-3.5 h-3.5" />
+                          )}
+                          <span>
+                            {bulkRevealMutation.isPending
+                              ? "열람 중..."
+                              : hasCheckedCandidates
+                                ? `${checkedCandidateCount}개 열람하기`
+                                : `${unopenedCandidateCount}개 체크하기`}
+                          </span>
+                        </button>
+                      </span>
+                    </Tooltips>
+                  </>
+                )}
+              </>
+            )}
             {canUseMarkFilter ? (
               <ActionDropdown
                 open={isFilterMenuOpen}
@@ -912,6 +924,7 @@ const CandidateViews = ({
                     showBookmarkAction={shouldShowBookmarkAction}
                     showMarkAction={shouldShowMarkAction}
                     showSelectionControl={canSelectUnopenedProfiles}
+                    selectionDisabled={isSelectionDisabled}
                     isSelected={selectedCandidateIds.includes(String(c?.id ?? ""))}
                     onToggleSelection={() => {
                       handleToggleCandidateSelection(String(c?.id ?? ""));
@@ -945,6 +958,7 @@ const CandidateViews = ({
                 showBookmarkAction={shouldShowBookmarkAction}
                 showMarkAction={shouldShowMarkAction}
                 showSelectionControl={canSelectUnopenedProfiles}
+                selectionDisabled={isSelectionDisabled}
                 isSelected={selectedCandidateIds.includes(String(c?.id ?? ""))}
                 onToggleSelection={() => {
                   handleToggleCandidateSelection(String(c?.id ?? ""));

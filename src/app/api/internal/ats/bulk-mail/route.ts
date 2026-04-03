@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  requireInternalApiUser,
+  requireAtsApiUser,
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
 import { sendBulkAtsManualEmails } from "@/lib/ats/server";
@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await requireInternalApiUser(req);
+    const user = await requireAtsApiUser(req);
     const body = (await req.json().catch(() => ({}))) as {
       body?: string;
       candidIds?: string[];
