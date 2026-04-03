@@ -159,6 +159,7 @@ function CandidateRow({
   showBookmarkAction = true,
   showMarkAction = true,
   showSelectionControl = false,
+  selectionDisabled = false,
   isSelected = false,
   onToggleSelection,
   onMarkChange,
@@ -177,6 +178,7 @@ function CandidateRow({
   showBookmarkAction?: boolean;
   showMarkAction?: boolean;
   showSelectionControl?: boolean;
+  selectionDisabled?: boolean;
   isSelected?: boolean;
   onToggleSelection?: () => void;
   onMarkChange?: (status: CandidateMarkStatus | null) => void;
@@ -742,6 +744,7 @@ function CandidateRow({
                       onChange={() => {
                         onToggleSelection?.();
                       }}
+                      disabled={selectionDisabled}
                       aria-label={`${c.name ?? "candidate"} 선택`}
                       className="h-5 w-5 rounded-[4px] border-white/50 bg-black/20"
                     />

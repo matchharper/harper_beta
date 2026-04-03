@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { postLogEvent } from "@/lib/logEvent";
 
 type UpsertShortlistMemoArgs = {
   userId: string;
@@ -85,7 +86,7 @@ export function useUpsertShortlistMemo() {
       if (error) throw error;
       return { memo: trimmedMemo };
     },
-    onSuccess: (_res, vars) => {
+    onSuccess: (result, vars) => {
       qc.invalidateQueries({ queryKey: ["connections", vars.userId] });
       qc.invalidateQueries({ queryKey: ["searchCandidatesByRun"] });
       qc.invalidateQueries({ queryKey: ["runPages"] });
@@ -95,6 +96,10 @@ export function useUpsertShortlistMemo() {
       qc.invalidateQueries({
         queryKey: shortlistMemoKey(vars.userId, vars.candidId),
       });
+
+      if (String(result?.memo ?? "").trim()) {
+        void postLogEvent(`shortlist_memo_saved:${vars.candidId}`);
+      }
     },
   });
 }

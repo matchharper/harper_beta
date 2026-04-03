@@ -528,8 +528,10 @@ export type Database = {
           email_source_label: string | null
           email_source_type: string | null
           email_source_url: string | null
+          history: Json | null
           id: number
           last_sent_at: string | null
+          memo: string | null
           next_due_at: string | null
           sequence_mark: string | null
           sequence_status: string
@@ -549,8 +551,10 @@ export type Database = {
           email_source_label?: string | null
           email_source_type?: string | null
           email_source_url?: string | null
+          history?: Json | null
           id?: number
           last_sent_at?: string | null
+          memo?: string | null
           next_due_at?: string | null
           sequence_mark?: string | null
           sequence_status?: string
@@ -570,8 +574,10 @@ export type Database = {
           email_source_label?: string | null
           email_source_type?: string | null
           email_source_url?: string | null
+          history?: Json | null
           id?: number
           last_sent_at?: string | null
+          memo?: string | null
           next_due_at?: string | null
           sequence_mark?: string | null
           sequence_status?: string
@@ -678,6 +684,7 @@ export type Database = {
       }
       candidate_outreach_workspace: {
         Row: {
+          bookmark_folder_id: number | null
           company_pitch: string | null
           created_at: string
           job_description: string | null
@@ -687,6 +694,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          bookmark_folder_id?: number | null
           company_pitch?: string | null
           created_at?: string
           job_description?: string | null
@@ -696,6 +704,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          bookmark_folder_id?: number | null
           company_pitch?: string | null
           created_at?: string
           job_description?: string | null
@@ -705,6 +714,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "candidate_outreach_workspace_bookmark_folder_id_fkey"
+            columns: ["bookmark_folder_id"]
+            isOneToOne: false
+            referencedRelation: "bookmark_folder"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "candidate_outreach_workspace_user_id_fkey"
             columns: ["user_id"]

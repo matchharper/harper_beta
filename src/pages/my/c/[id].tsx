@@ -25,6 +25,7 @@ import {
   normalizeSearchSources,
   queryTypeToSearchSource,
 } from "@/lib/searchSource";
+import { StatusEnum } from "@/types/type";
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -389,6 +390,11 @@ export default function ResultPage() {
   );
 
   const isStreaming = runData?.status === "streaming";
+  const isSearchInProgress =
+    !!runData?.status &&
+    runData.status !== StatusEnum.FINISHED &&
+    runData.status !== StatusEnum.ERROR &&
+    runData.status !== StatusEnum.STOPPED;
 
   const prevStatusRef = useRef<string | undefined>(undefined);
 
@@ -523,6 +529,7 @@ export default function ResultPage() {
                 items={items}
                 userId={userId}
                 isLoading={isLoading}
+                isSearchInProgress={isSearchInProgress}
                 pageIdx={pageIdx}
                 pageIdxRaw={pageIdxRaw}
                 maxPrefetchPages={MAX_PREFETCH_PAGES}

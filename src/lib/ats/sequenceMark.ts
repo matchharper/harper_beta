@@ -2,13 +2,14 @@ import type { AtsSequenceMarkStatus } from "@/lib/ats/shared";
 
 export type AtsSequenceMarkIconKey =
   | "need_email"
+  | "find_fail"
   | "ready"
   | "in_sequence"
+  | "linkedin_contacted"
   | "waiting_reply"
   | "replied"
   | "paused"
-  | "closed"
-  | "find_fail";
+  | "closed";
 
 export type AtsSequenceMarkOption = {
   bgClassName: string;
@@ -29,14 +30,6 @@ export const ATS_SEQUENCE_MARK_OPTIONS: AtsSequenceMarkOption[] = [
     bgClassName: "bg-amber-400/50",
   },
   {
-    value: "find_fail",
-    label: "이메일 찾기 실패",
-    shortLabel: "Email 찾기 실패",
-    description: "이메일 탐색이 실패한 후보자",
-    iconKey: "find_fail",
-    bgClassName: "bg-red-400/50",
-  },
-  {
     value: "ready",
     label: "발송 준비",
     shortLabel: "발송 준비",
@@ -51,6 +44,14 @@ export const ATS_SEQUENCE_MARK_OPTIONS: AtsSequenceMarkOption[] = [
     description: "시퀀스가 현재 진행 중인 후보자",
     iconKey: "in_sequence",
     bgClassName: "bg-indigo-400/50",
+  },
+  {
+    value: "linkedin_contacted",
+    label: "LinkedIn 연락",
+    shortLabel: "LinkedIn",
+    description: "메일 대신 LinkedIn으로 먼저 연락한 상태",
+    iconKey: "linkedin_contacted",
+    bgClassName: "bg-cyan-400/50",
   },
   {
     value: "waiting_reply",
@@ -82,7 +83,7 @@ export const ATS_SEQUENCE_MARK_OPTIONS: AtsSequenceMarkOption[] = [
     shortLabel: "종료",
     description: "아웃리치를 더 이상 진행하지 않는 상태",
     iconKey: "closed",
-    bgClassName: "bg-white/50",
+    bgClassName: "bg-red-600 text-white",
   },
 ];
 

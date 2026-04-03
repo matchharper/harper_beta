@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import pdf from "pdf-parse-fork";
 
 import { htmlToReadableMarkdown } from "../utils";
-import { supabase } from "@/lib/supabase";
+import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { logger } from "@/utils/logger";
 import { ApifyClient } from "apify-client";
 
@@ -59,9 +59,74 @@ function normalizeText(s: string) {
     .trim();
 }
 
+async function saveDocumentCache(args: {
+  excerpt?: string | null;
+  markdown: string;
+  title: string;
+  url: string;
+}) {
+  try {
+    const supabaseAdmin = getSupabaseAdmin();
+    const { data, error } = await supabaseAdmin
+      .from("documents")
+      .insert({
+        url: args.url,
+        title: args.title,
+        markdown: args.markdown,
+        excerpt: args.excerpt ?? null,
+      })
+      .select("id")
+      .single();
+
+    if (error) {
+      logger.log("Failed to save scraped document cache", {
+        error: error.message,
+        url: args.url,
+      });
+      return null;
+    }
+
+    return data?.id ?? null;
+  } catch (error) {
+    logger.log("Unexpected cache save failure", {
+      error: error instanceof Error ? error.message : String(error),
+      url: args.url,
+    });
+    return null;
+  }
+}
+
+async function fetchHtmlDirect(url: string) {
+  const response = await fetch(url, {
+    headers: {
+      Accept:
+        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.9,ko-KR;q=0.8,ko;q=0.7",
+      "User-Agent":
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+    },
+    redirect: "follow",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Direct fetch error: ${response.status}`);
+  }
+
+  return response.text();
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { url } = await req.json();
+    const body = (await req.json().catch(() => ({}))) as {
+      pdfPageLimit?: number;
+      url?: string;
+    };
+    const url = body.url;
+    const pdfPageLimit =
+      Number.isFinite(Number(body.pdfPageLimit)) &&
+      Number(body.pdfPageLimit) > 0
+        ? Math.floor(Number(body.pdfPageLimit))
+        : 1;
 
     if (!url || typeof url !== "string") {
       return NextResponse.json(
@@ -70,8 +135,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    console.log("\nURL parsing을 실행합니다.\n");
+
     // 0) cache
-    const cache = await supabase
+    const supabaseAdmin = getSupabaseAdmin();
+    const cache = await supabaseAdmin
       .from("documents")
       .select("*")
       .eq("url", url)
@@ -112,7 +180,7 @@ export async function POST(req: NextRequest) {
       const buffer = Buffer.from(arrayBuffer);
 
       // 첫 페이지만 파싱
-      const data = await pdf(buffer, { max: 1 });
+      const data = await pdf(buffer, { max: pdfPageLimit });
 
       const title = (data?.info?.Title || "PDF Document").toString().trim();
       const text = normalizeText((data?.text || "").toString());
@@ -125,29 +193,17 @@ export async function POST(req: NextRequest) {
       }
 
       const markdown = `# ${title}\n\n${text}`;
-      const excerpt = text.slice(0, 600);
-
-      const { data: ins, error: insErr } = await supabase
-        .from("documents")
-        .insert({
-          url,
-          title,
-          markdown,
-          excerpt,
-        })
-        .select("id")
-        .single();
-
-      if (insErr || !ins) {
-        return NextResponse.json(
-          { error: insErr?.message ?? "Failed to insert document" },
-          { status: 500 }
-        );
-      }
+      const excerpt = text.slice(0, 1200);
+      const documentId = await saveDocumentCache({
+        excerpt,
+        markdown,
+        title,
+        url,
+      });
 
       return NextResponse.json(
         {
-          id: ins.id,
+          id: documentId,
           url,
           title,
           markdown,
@@ -196,27 +252,16 @@ export async function POST(req: NextRequest) {
       });
       console.log(results);
 
-      const { data: ins, error: insErr } = await supabase
-        .from("documents")
-        .insert({
-          url,
-          title: url,
-          markdown: JSON.stringify(results),
-          excerpt: "",
-        })
-        .select("id")
-        .single();
-
-      if (insErr || !ins) {
-        return NextResponse.json(
-          { error: insErr?.message ?? "Failed to insert document" },
-          { status: 500 }
-        );
-      }
+      const documentId = await saveDocumentCache({
+        excerpt: "",
+        markdown: JSON.stringify(results),
+        title: url,
+        url,
+      });
 
       return NextResponse.json(
         {
-          id: ins.id,
+          id: documentId,
           url,
           title: url,
           markdown: JSON.stringify(results),
@@ -228,57 +273,58 @@ export async function POST(req: NextRequest) {
 
     // 2) HTML (기존 ScrapingDog)
     const apiKey = process.env.SCRAPINGDOG_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "Missing SCRAPINGDOG_API_KEY" },
-        { status: 500 }
-      );
+    let html = "";
+    let fetchSource = "direct";
+
+    if (apiKey) {
+      try {
+        const params = {
+          api_key: apiKey,
+          url,
+          dynamic: "false",
+        };
+
+        const searchParams = new URLSearchParams(params);
+
+        const resp = await fetch(
+          `https://api.scrapingdog.com/scrape?${searchParams.toString()}`
+        );
+
+        if (!resp.ok) {
+          throw new Error(`ScrapingDog error: ${resp.status}`);
+        }
+
+        html = await resp.text();
+        fetchSource = "scrapingdog";
+      } catch (error) {
+        logger.log("ScrapingDog failed, falling back to direct fetch", {
+          error: error instanceof Error ? error.message : String(error),
+          url,
+        });
+      }
     }
 
-    const params = {
-      api_key: apiKey,
-      url,
-      dynamic: "false",
-    };
-
-    const searchParams = new URLSearchParams(params);
-
-    const resp = await fetch(
-      `https://api.scrapingdog.com/scrape?${searchParams.toString()}`
-    );
-
-    if (!resp.ok) {
-      throw new Error(`ScrapingDog error: ${resp.status}`);
+    if (!html.trim()) {
+      html = await fetchHtmlDirect(url);
+      fetchSource = "direct";
     }
 
-    const html = await resp.text();
     const result = htmlToReadableMarkdown(html, url, { maxLinks: 60 });
-
-    const { data: ins, error: insErr } = await supabase
-      .from("documents")
-      .insert({
-        url: result.url,
-        title: result.title,
-        markdown: result.markdown,
-        excerpt: result.excerpt,
-      })
-      .select("id")
-      .single();
-
-    if (insErr || !ins) {
-      return NextResponse.json(
-        { error: insErr?.message ?? "Failed to insert document" },
-        { status: 500 }
-      );
-    }
+    const documentId = await saveDocumentCache({
+      excerpt: result.excerpt,
+      markdown: result.markdown,
+      title: result.title,
+      url: result.url,
+    });
 
     return NextResponse.json(
       {
-        id: ins.id,
+        id: documentId,
         url: result.url,
         title: result.title,
         markdown: result.markdown,
         excerpt: result.excerpt,
+        source: fetchSource,
       },
       { status: 200 }
     );

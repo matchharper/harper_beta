@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  requireInternalApiUser,
+  requireAtsApiUser,
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
 import {
@@ -13,7 +13,7 @@ export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await requireInternalApiUser(req);
+    const user = await requireAtsApiUser(req);
     const body = (await req.json().catch(() => ({}))) as {
       candidId?: string;
     };
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const user = await requireInternalApiUser(req);
+    const user = await requireAtsApiUser(req);
     const body = (await req.json().catch(() => ({}))) as {
       action?: "pause" | "resume" | "send";
       candidId?: string;

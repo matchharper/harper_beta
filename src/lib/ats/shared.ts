@@ -1,5 +1,8 @@
 export const ATS_SEQUENCE_STEP_COUNT = 4;
 export const ATS_SEQUENCE_INTERVAL_DAYS = 2;
+export const ATS_DEFAULT_SEQUENCE_TIME = "10:00";
+export const ATS_DEFAULT_TIMEZONE_OFFSET_MINUTES = -540;
+export const ATS_EMAIL_DISCOVERY_OPERATION_LIMIT = 20;
 
 export type AtsEmailSourceType =
   | "candid"
@@ -22,10 +25,38 @@ export type AtsSequenceMarkStatus =
   | "find_fail"
   | "ready"
   | "in_sequence"
+  | "linkedin_contacted"
   | "waiting_reply"
   | "replied"
   | "paused"
   | "closed";
+
+export type AtsSequenceScheduleMode = "relative" | "date";
+
+export type AtsSequenceStepSchedule = {
+  date: string | null;
+  delayDays: number;
+  mode: AtsSequenceScheduleMode;
+  sendTime: string;
+  stepNumber: number;
+  timezoneOffsetMinutes: number;
+};
+
+export type AtsContactHistoryChannel =
+  | "email"
+  | "linkedin"
+  | "call"
+  | "meeting"
+  | "other";
+
+export type AtsContactHistoryItem = {
+  channel: AtsContactHistoryChannel;
+  contactedAt: string;
+  createdAt: string;
+  id: string;
+  note: string | null;
+  source: "manual" | "sequence" | "bulk_manual";
+};
 
 export type AtsTraceKind = "query" | "search_result" | "scrape" | "decision";
 
@@ -56,10 +87,13 @@ export type AtsOutreachRecord = {
   emailSourceLabel: string | null;
   emailSourceType: AtsEmailSourceType | null;
   emailSourceUrl: string | null;
+  history: AtsContactHistoryItem[];
   id: number;
   lastSentAt: string | null;
+  memo: string | null;
   nextDueAt: string | null;
   sequenceMark: AtsSequenceMarkStatus | null;
+  sequenceSchedule: AtsSequenceStepSchedule[];
   sequenceStatus: AtsSequenceStatus;
   stoppedAt: string | null;
   targetEmail: string | null;
@@ -68,7 +102,12 @@ export type AtsOutreachRecord = {
 };
 
 export type AtsMessageKind = "sequence" | "manual";
-export type AtsMessageStatus = "draft" | "sent" | "skipped" | "canceled";
+export type AtsMessageStatus =
+  | "draft"
+  | "sending"
+  | "sent"
+  | "skipped"
+  | "canceled";
 
 export type AtsMessageRecord = {
   body: string;
@@ -102,14 +141,17 @@ export type AtsCandidateSummary = {
   currentRole: string | null;
   currentSchool: string | null;
   existingEmailSources: AtsExistingEmailSource[];
+  githubUrl: string | null;
   githubUsername: string | null;
   headline: string | null;
   id: string;
+  linkedinUrl: string | null;
   location: string | null;
   name: string | null;
   outreach: AtsOutreachRecord | null;
   profilePicture: string | null;
   scholarAffiliation: string | null;
+  scholarUrl: string | null;
   shortlistMemo: string | null;
 };
 
@@ -159,15 +201,23 @@ export type AtsCandidateDetail = AtsCandidateSummary & {
 };
 
 export type AtsWorkspaceRecord = {
+  bookmarkFolderId: number | null;
   companyPitch: string | null;
   jobDescription: string | null;
   senderEmail: string | null;
   signature: string | null;
 };
 
+export type AtsBookmarkFolderOption = {
+  id: number;
+  isDefault: boolean;
+  name: string;
+};
+
 export type AtsWorkspaceResponse = {
   allowedDomain: string;
   candidates: AtsCandidateSummary[];
+  folders: AtsBookmarkFolderOption[];
   totalCount: number;
   workspace: AtsWorkspaceRecord;
 };
@@ -176,6 +226,11 @@ export type AtsCandidateDetailResponse = {
   candidate: AtsCandidateDetail;
   messages: AtsMessageRecord[];
   workspace: AtsWorkspaceRecord;
+};
+
+export type AtsContactEmailDraft = {
+  body: string;
+  subject: string;
 };
 
 export type AtsTemplateVariableDefinition = {
@@ -245,6 +300,7 @@ export function isAtsSequenceMarkStatus(
     value === "find_fail" ||
     value === "ready" ||
     value === "in_sequence" ||
+    value === "linkedin_contacted" ||
     value === "waiting_reply" ||
     value === "replied" ||
     value === "paused" ||
@@ -295,4 +351,104 @@ export function replaceTemplateVariables(
 
 export function coerceJsonArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
+}
+
+function pad2(value: number) {
+  return String(value).padStart(2, "0");
+}
+
+function shiftDateByOffset(date: Date, timezoneOffsetMinutes: number) {
+  return new Date(date.getTime() - timezoneOffsetMinutes * 60_000);
+}
+
+function getLocalDateString(date: Date, timezoneOffsetMinutes: number) {
+  const shifted = shiftDateByOffset(date, timezoneOffsetMinutes);
+  const year = shifted.getUTCFullYear();
+  const month = pad2(shifted.getUTCMonth() + 1);
+  const day = pad2(shifted.getUTCDate());
+  return `${year}-${month}-${day}`;
+}
+
+function isValidTimeInput(value: string | null | undefined) {
+  return /^\d{2}:\d{2}$/.test(String(value ?? "").trim());
+}
+
+function isValidDateInput(value: string | null | undefined) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(value ?? "").trim());
+}
+
+export function createDefaultAtsSequenceSchedule(baseDate = new Date()) {
+  const today = getLocalDateString(baseDate, ATS_DEFAULT_TIMEZONE_OFFSET_MINUTES);
+  return Array.from({ length: ATS_SEQUENCE_STEP_COUNT }, (_, index) => ({
+    date: index === 0 ? today : null,
+    delayDays: index === 0 ? 0 : ATS_SEQUENCE_INTERVAL_DAYS,
+    mode: index === 0 ? ("date" as const) : ("relative" as const),
+    sendTime: ATS_DEFAULT_SEQUENCE_TIME,
+    stepNumber: index + 1,
+    timezoneOffsetMinutes: ATS_DEFAULT_TIMEZONE_OFFSET_MINUTES,
+  })) satisfies AtsSequenceStepSchedule[];
+}
+
+export function normalizeAtsSequenceSchedule(value: unknown) {
+  const fallback = createDefaultAtsSequenceSchedule();
+  const source = coerceJsonArray<Partial<AtsSequenceStepSchedule>>(value);
+
+  return fallback.map((defaultItem) => {
+    const raw = source.find((item) => Number(item?.stepNumber) === defaultItem.stepNumber);
+    if (!raw) return defaultItem;
+
+    return {
+      date:
+        (raw.mode === "date" || defaultItem.mode === "date") &&
+        isValidDateInput(raw.date)
+          ? String(raw.date)
+          : raw.mode === "date"
+            ? defaultItem.date
+            : null,
+      delayDays: Math.max(
+        0,
+        Number.isFinite(Number(raw.delayDays))
+          ? Math.floor(Number(raw.delayDays))
+          : defaultItem.delayDays
+      ),
+      mode: raw.mode === "date" ? "date" : "relative",
+      sendTime: isValidTimeInput(raw.sendTime)
+        ? String(raw.sendTime)
+        : defaultItem.sendTime,
+      stepNumber: defaultItem.stepNumber,
+      timezoneOffsetMinutes: Number.isFinite(Number(raw.timezoneOffsetMinutes))
+        ? Number(raw.timezoneOffsetMinutes)
+        : defaultItem.timezoneOffsetMinutes,
+    } satisfies AtsSequenceStepSchedule;
+  });
+}
+
+export function normalizeAtsContactHistory(value: unknown) {
+  return coerceJsonArray<Partial<AtsContactHistoryItem>>(value)
+    .map((item) => {
+      const channel =
+        item.channel === "linkedin" ||
+        item.channel === "call" ||
+        item.channel === "meeting" ||
+        item.channel === "other"
+          ? item.channel
+          : "email";
+      const contactedAt = String(item.contactedAt ?? "").trim();
+      const createdAt = String(item.createdAt ?? contactedAt).trim();
+      const id = String(item.id ?? "").trim();
+      if (!id || !contactedAt) return null;
+
+      return {
+        channel,
+        contactedAt,
+        createdAt: createdAt || contactedAt,
+        id,
+        note: String(item.note ?? "").trim() || null,
+        source:
+          item.source === "sequence" || item.source === "bulk_manual"
+            ? item.source
+            : "manual",
+      } satisfies AtsContactHistoryItem;
+    })
+    .filter(Boolean) as AtsContactHistoryItem[];
 }

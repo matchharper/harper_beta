@@ -4,6 +4,7 @@ import {
   CirclePause,
   CircleX,
   Clock3,
+  Linkedin,
   Mail,
   Search,
   Send,
@@ -51,6 +52,9 @@ function SequenceMarkIcon({
   }
   if (iconKey === "in_sequence") {
     return <Send className={className} strokeWidth={2} />;
+  }
+  if (iconKey === "linkedin_contacted") {
+    return <Linkedin className={className} strokeWidth={2} />;
   }
   if (iconKey === "waiting_reply") {
     return <Clock3 className={className} strokeWidth={2} />;
@@ -153,7 +157,7 @@ export default function AtsSequenceMarkButton({
                 <div className="flex items-center gap-2">
                   <span
                     className={[
-                      "inline-flex h-6 w-6 items-center justify-center rounded-md border",
+                      "inline-flex h-6 w-6 items-center justify-center rounded-md",
                       option.bgClassName,
                     ].join(" ")}
                   >

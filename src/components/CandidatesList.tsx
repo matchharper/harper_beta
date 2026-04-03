@@ -131,6 +131,7 @@ function CandidateCard({
   showBookmarkAction = true,
   showMarkAction = true,
   showSelectionControl = false,
+  selectionDisabled = false,
   isSelected = false,
   onToggleSelection,
   onMarkChange,
@@ -146,6 +147,7 @@ function CandidateCard({
   showBookmarkAction?: boolean;
   showMarkAction?: boolean;
   showSelectionControl?: boolean;
+  selectionDisabled?: boolean;
   isSelected?: boolean;
   onToggleSelection?: () => void;
   onMarkChange?: (status: CandidateMarkStatus | null) => void;
@@ -300,6 +302,7 @@ function CandidateCard({
               onChange={() => {
                 onToggleSelection?.();
               }}
+              disabled={selectionDisabled}
               aria-label={`${c.name ?? "candidate"} 선택`}
               className="h-6 w-6 rounded-md border-white/50 bg-black/35 backdrop-blur-sm hover:bg-black/20"
             />

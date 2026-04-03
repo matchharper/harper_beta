@@ -1,6 +1,11 @@
 import type { User } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
-import { INTERNAL_EMAIL_DOMAIN, isInternalEmail } from "@/lib/internalAccess";
+import {
+  ATS_ALLOWED_EMAILS,
+  INTERNAL_EMAIL_DOMAIN,
+  canAccessAts,
+  isInternalEmail,
+} from "@/lib/internalAccess";
 import { getRequestUser } from "@/lib/supabaseServer";
 
 export class InternalApiError extends Error {
@@ -25,6 +30,22 @@ export async function requireInternalApiUser(
     throw new InternalApiError(
       403,
       `Forbidden: ${INTERNAL_EMAIL_DOMAIN} email required`
+    );
+  }
+
+  return user;
+}
+
+export async function requireAtsApiUser(req: NextRequest): Promise<User> {
+  const user = await getRequestUser(req);
+  if (!user) {
+    throw new InternalApiError(401, "Unauthorized");
+  }
+
+  if (!canAccessAts(user.email)) {
+    throw new InternalApiError(
+      403,
+      `Forbidden: ${INTERNAL_EMAIL_DOMAIN} or ${ATS_ALLOWED_EMAILS.join(", ")} required for ATS`
     );
   }
 

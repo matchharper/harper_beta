@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  requireInternalApiUser,
+  requireAtsApiUser,
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
 import { fetchAtsWorkspace, saveAtsWorkspace } from "@/lib/ats/server";
@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await requireInternalApiUser(req);
+    const user = await requireAtsApiUser(req);
     const data = await fetchAtsWorkspace({
       userEmail: user.email,
       userId: user.id,
@@ -23,8 +23,9 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const user = await requireInternalApiUser(req);
+    const user = await requireAtsApiUser(req);
     const body = (await req.json().catch(() => ({}))) as {
+      bookmarkFolderId?: number | null;
       companyPitch?: string;
       jobDescription?: string;
       senderEmail?: string;
@@ -32,6 +33,7 @@ export async function PATCH(req: NextRequest) {
     };
 
     const workspace = await saveAtsWorkspace({
+      bookmarkFolderId: body.bookmarkFolderId,
       companyPitch: body.companyPitch,
       jobDescription: body.jobDescription,
       senderEmail: body.senderEmail,

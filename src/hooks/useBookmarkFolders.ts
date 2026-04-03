@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { postLogEvent } from "@/lib/logEvent";
 
 export type BookmarkFolder = {
   id: number;
@@ -206,6 +207,15 @@ export function useAddCandidateToBookmarkFolder() {
 
   return useMutation({
     mutationFn: async ({ userId, candidId, folderId }: UserCandidateFolderArgs) => {
+      const { count, error: existingError } = await ((supabase.from(
+        "bookmark_folder_item" as any
+      ) as any)
+        .select("folder_id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("candid_id", candidId));
+
+      if (existingError) throw existingError;
+
       const { error } = await ((supabase.from("bookmark_folder_item" as any) as any)
         .insert({
           user_id: userId,
@@ -214,10 +224,17 @@ export function useAddCandidateToBookmarkFolder() {
         }));
 
       if (error && !isUniqueViolation(error)) throw error;
-      return true;
+      return {
+        shouldLogBookmarkAdded:
+          !error && Number(count ?? 0) === 0,
+      };
     },
-    onSuccess: (_res, vars) => {
+    onSuccess: (result, vars) => {
       invalidateBookmarkRelatedQueries(qc, vars.userId, vars.candidId);
+
+      if (result?.shouldLogBookmarkAdded) {
+        void postLogEvent(`bookmark_added:${vars.candidId}`);
+      }
     },
   });
 }
