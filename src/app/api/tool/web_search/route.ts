@@ -3,63 +3,110 @@ import { ApifyClient } from "apify-client"; // ✅ server-only
 import { supabase } from "@/lib/supabase";
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const token = process.env.APIFY_CLIENT_KEY;
-  const { query } = body ?? {};
-
-  const cache = await supabase
-    .from("documents")
-    .select("*")
-    .eq("url", query)
-    .maybeSingle();
-  if (cache.data) {
-    return NextResponse.json(JSON.parse(cache.data.markdown ?? "[]"), {
-      status: 200,
-    });
-  }
-
-  // Initialize the ApifyClient with API token
-  const client = new ApifyClient({
-    token: token,
-  });
-
-  const input = {
-    keyword: query,
-    language: "ko",
-    country: "KR",
-    page: 1,
-    limit: "10",
-    logger: null,
-  };
-
-  // Run the Actor and wait for it to finish
-  const run = await client.actor("563JCPLOqM1kMmbbP").call(input);
-
-  const { items } = await client.dataset(run.defaultDatasetId).listItems();
-  if (items.length <= 0 || !items) {
-    return NextResponse.json({ response: [] }, { status: 200 });
-  }
-
-  const response = (items as any[])[items.length - 1].results.map((i: any) => {
-    return {
-      url: i.url,
-      content: i.description,
-      title: i.title,
+  try {
+    const body = (await req.json().catch(() => ({}))) as {
+      query?: string;
     };
-  });
-  console.log(response);
-  console.log("\n\n----------\n\n");
+    const query = String(body.query ?? "").trim();
+    const token = String(process.env.APIFY_CLIENT_KEY ?? "").trim();
 
-  const { data, error: insErr } = await supabase
-    .from("documents")
-    .insert({
+    if (!query) {
+      return NextResponse.json({ error: "query is required" }, { status: 400 });
+    }
+
+    if (!token) {
+      return NextResponse.json(
+        { error: "APIFY_CLIENT_KEY is not configured" },
+        { status: 503 }
+      );
+    }
+
+    console.log(`\n\n-----웹 검색 ${query}-----\n\n`);
+
+    const cache = await supabase
+      .from("documents")
+      .select("*")
+      .eq("url", query)
+      .maybeSingle();
+    console.log(`\n\n-----웹 검색 캐시 ${cache}-----\n\n`);
+
+    if (cache.data?.markdown) {
+      try {
+        return NextResponse.json(JSON.parse(cache.data.markdown), {
+          status: 200,
+        });
+      } catch (error) {
+        console.warn("[web_search] failed to parse cached payload", {
+          error: error instanceof Error ? error.message : String(error),
+          query,
+        });
+      }
+    }
+
+    const client = new ApifyClient({
+      token,
+    });
+
+    const input = {
+      keyword: query,
+      language: "ko",
+      country: "KR",
+      page: 1,
+      limit: "10",
+      logger: null,
+    };
+
+    const run = await client.actor("563JCPLOqM1kMmbbP").call(input);
+    const { items } = await client.dataset(run.defaultDatasetId).listItems();
+    if (!items || items.length === 0) {
+      return NextResponse.json({ response: [] }, { status: 200 });
+    }
+    console.log(`\n\n-----웹 검색 출력 ${items}-----\n\n`);
+
+    const lastItem = items[items.length - 1] as {
+      results?: Array<{
+        description?: string;
+        title?: string;
+        url?: string;
+      }>;
+    };
+    const response = Array.isArray(lastItem?.results)
+      ? lastItem.results.map((item) => ({
+          content: String(item.description ?? ""),
+          title: String(item.title ?? ""),
+          url: String(item.url ?? ""),
+        }))
+      : [];
+    console.log(response);
+    console.log("\n\n----------\n\n");
+
+    const { error: insertError } = await supabase.from("documents").insert({
       url: query,
       title: "",
       markdown: JSON.stringify(response),
       excerpt: "",
-    })
-    .select("id")
-    .single();
+    });
 
-  return NextResponse.json(response, { status: 200 });
+    if (insertError) {
+      console.warn("[web_search] failed to cache search response", {
+        error: insertError.message,
+        query,
+      });
+    }
+
+    return NextResponse.json(response, { status: 200 });
+  } catch (error) {
+    console.error("[web_search] request failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "web_search request failed",
+      },
+      { status: 500 }
+    );
+  }
 }

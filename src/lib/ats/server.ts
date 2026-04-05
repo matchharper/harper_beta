@@ -1997,10 +1997,31 @@ export async function clearAtsEmailDiscoveryTrace(args: {
   userId: string;
 }) {
   const admin = getSupabaseAdmin();
+  const current = await ensureOutreachRecord({
+    admin,
+    candidId: args.candidId,
+    userId: args.userId,
+  });
+  const shouldResetDiscoveryState =
+    current.emailDiscoveryStatus === "not_started" ||
+    current.emailDiscoveryStatus === "searching" ||
+    current.emailDiscoveryStatus === "not_found" ||
+    current.emailDiscoveryStatus === "error";
+
   return updateOutreachRecord({
     admin,
     candidId: args.candidId,
     patch: {
+      ...(shouldResetDiscoveryState
+        ? {
+            email_discovery_evidence: [],
+            email_discovery_status: "not_started",
+            email_discovery_summary: null,
+            email_source_label: null,
+            email_source_type: null,
+            email_source_url: null,
+          }
+        : {}),
       email_discovery_trace: [],
     },
     userId: args.userId,
