@@ -788,7 +788,33 @@ async function callWebSearch(req: NextRequest, query: string): Promise<SearchRes
   });
 
   if (!response.ok) {
-    throw new Error(`web_search failed (${response.status})`);
+    const rawError = await response.text().catch(() => "");
+    let detail = rawError.trim();
+
+    if (detail) {
+      try {
+        const parsed = JSON.parse(detail) as {
+          error?: unknown;
+          message?: unknown;
+        };
+        if (typeof parsed.error === "string" && parsed.error.trim()) {
+          detail = parsed.error.trim();
+        } else if (
+          typeof parsed.message === "string" &&
+          parsed.message.trim()
+        ) {
+          detail = parsed.message.trim();
+        }
+      } catch {
+        detail = rawError.trim();
+      }
+    }
+
+    throw new Error(
+      detail
+        ? `web_search failed (${response.status}): ${detail}`
+        : `web_search failed (${response.status})`
+    );
   }
 
   const payload = (await response.json().catch(() => [])) as

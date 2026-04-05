@@ -1292,8 +1292,13 @@ export default function AtsPage() {
 
   const handleClearEmailTrace = async () => {
     if (!selectedCandidateId) return;
+    await handleClearCandidateEmailTrace(selectedCandidateId);
+  };
+
+  const handleClearCandidateEmailTrace = async (candidId: string) => {
+    if (!candidId) return;
     try {
-      await clearEmailTrace.mutateAsync(selectedCandidateId);
+      await clearEmailTrace.mutateAsync(candidId);
       showToast({
         message: "이메일 탐색 로그를 비웠습니다.",
         variant: "white",
@@ -1840,6 +1845,8 @@ export default function AtsPage() {
                           null;
                         const isRowEmailDiscoveryQueued =
                           queuedEmailDiscoverySet.has(candidate.id);
+                        const hasRowEmailDiscoveryTrace =
+                          (candidate.outreach?.emailDiscoveryTrace?.length ?? 0) > 0;
                         const rowEmailActionLabel = isRowEmailDiscoverySearching
                           ? "탐색 중"
                           : rowEmailDiscoveryQueuePosition
@@ -1968,27 +1975,52 @@ export default function AtsPage() {
                               <div className="mt-2 text-xs text-white/55">
                                 {resolveTargetEmail(candidate) ?? "-"}
                               </div>
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  handleQueueCandidateEmailDiscovery(candidate.id);
-                                }}
-                                disabled={
-                                  isRowEmailDiscoverySearching ||
-                                  isRowEmailDiscoveryQueued
-                                }
-                                className="mt-2 inline-flex items-center gap-1.5 rounded-sm border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/80 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-                              >
-                                {isRowEmailDiscoverySearching ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                ) : isRowEmailDiscoveryQueued ? (
-                                  <Clock3 className="h-3 w-3" />
-                                ) : (
-                                  <Sparkles className="h-3 w-3" />
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    handleQueueCandidateEmailDiscovery(candidate.id);
+                                  }}
+                                  disabled={
+                                    isRowEmailDiscoverySearching ||
+                                    isRowEmailDiscoveryQueued
+                                  }
+                                  className="inline-flex items-center gap-1.5 rounded-sm border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/80 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                                >
+                                  {isRowEmailDiscoverySearching ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : isRowEmailDiscoveryQueued ? (
+                                    <Clock3 className="h-3 w-3" />
+                                  ) : (
+                                    <Sparkles className="h-3 w-3" />
+                                  )}
+                                  {rowEmailActionLabel}
+                                </button>
+                                {hasRowEmailDiscoveryTrace && (
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      void handleClearCandidateEmailTrace(
+                                        candidate.id
+                                      );
+                                    }}
+                                    disabled={
+                                      clearEmailTrace.isPending ||
+                                      isRowEmailDiscoverySearching
+                                    }
+                                    className="inline-flex items-center gap-1.5 rounded-sm border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/70 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                                  >
+                                    {clearEmailTrace.isPending ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <X className="h-3 w-3" />
+                                    )}
+                                    로그 삭제
+                                  </button>
                                 )}
-                                {rowEmailActionLabel}
-                              </button>
+                              </div>
                               {isRowEmailDiscoverySearching && (
                                 <div className="mt-2 text-[11px] leading-5 text-sky-200/80">
                                   {(candidate.outreach?.emailDiscoveryTrace
