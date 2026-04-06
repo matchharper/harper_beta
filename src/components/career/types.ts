@@ -67,8 +67,20 @@ export type CareerTalentPreferences = {
   preferredLocations: string[];
   careerMoveIntent: string | null;
   careerMoveIntentLabel: string | null;
-  technicalStrengths: string | null;
-  desiredTeams: string | null;
+};
+
+export type CareerTalentInsights = Record<string, string>;
+
+export type CareerRecentOpportunity = {
+  id: string;
+  kind: "match" | "recommendation";
+  title: string;
+  companyName: string;
+  summary: string | null;
+  location: string | null;
+  engagementType: string | null;
+  matchedAt: string;
+  href?: string | null;
 };
 
 export type CareerHistoryItem = {
@@ -100,6 +112,14 @@ export type CareerMessagePayload = {
   createdAt: string;
 };
 
+export type CareerProfileSettingsMeta = {
+  networkApplicationUpdatedAt: string | null;
+  talentPreferencesUpdatedAt: string | null;
+  talentInsightsUpdatedAt: string | null;
+  talentSettingsUpdatedAt: string | null;
+  latestUpdatedAt: string | null;
+};
+
 export type SessionResponse = {
   conversation: {
     id: string;
@@ -114,6 +134,9 @@ export type SessionResponse = {
   historyItems?: CareerHistoryItem[];
   networkApplication?: CareerNetworkApplication | null;
   talentPreferences?: CareerTalentPreferences | null;
+  talentInsights?: CareerTalentInsights | null;
+  recentOpportunities?: CareerRecentOpportunity[];
+  profileSettingsMeta?: CareerProfileSettingsMeta;
   talentProfile?: CareerTalentProfile;
   messages: CareerMessagePayload[];
   nextBeforeMessageId: number | null;

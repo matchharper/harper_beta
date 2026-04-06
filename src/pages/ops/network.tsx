@@ -149,6 +149,12 @@ function getProfileLinkChipLabel(raw: string) {
   }
 }
 
+function formatTalentInsightLabel(key: string) {
+  if (key === "technical_strengths") return "기술적 강점";
+  if (key === "desired_teams") return "원하는 팀";
+  return key.replace(/_/g, " ");
+}
+
 function ProfileChip({
   children,
   href,
@@ -1799,32 +1805,27 @@ export default function NetworkOpsPage() {
                                       : "-"
                                   }
                                 />
-                                <InfoRow
-                                  label="기술적 장점"
-                                  value={
-                                    detail?.latestTalentInsights
-                                      ?.technical_strengths ? (
-                                      <div className="whitespace-pre-wrap">
-                                        {detail.latestTalentInsights.technical_strengths}
-                                      </div>
-                                    ) : (
-                                      "-"
-                                    )
-                                  }
-                                />
-                                <InfoRow
-                                  label="원하는 팀"
-                                  value={
-                                    detail?.latestTalentInsights
-                                      ?.desired_teams ? (
-                                      <div className="whitespace-pre-wrap">
-                                        {detail.latestTalentInsights.desired_teams}
-                                      </div>
-                                    ) : (
-                                      "-"
-                                    )
-                                  }
-                                />
+                                {detail?.latestTalentInsights &&
+                                Object.keys(detail.latestTalentInsights).length > 0
+                                  ? Object.entries(detail.latestTalentInsights)
+                                      .filter(([, value]) => value?.trim())
+                                      .sort(([left], [right]) =>
+                                        left.localeCompare(right)
+                                      )
+                                      .map(([key, value]) => (
+                                        <InfoRow
+                                          key={key}
+                                          label={formatTalentInsightLabel(key)}
+                                          value={
+                                            <div className="whitespace-pre-wrap">
+                                              {value}
+                                            </div>
+                                          }
+                                        />
+                                      ))
+                                  : (
+                                    <InfoRow label="Harper insight" value="-" />
+                                  )}
                               </div>
                             </div>
                           ) : null}

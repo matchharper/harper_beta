@@ -2028,6 +2028,38 @@ export async function clearAtsEmailDiscoveryTrace(args: {
   });
 }
 
+export async function resetAtsCandidateOutreach(args: {
+  candidId: string;
+  userId: string;
+}) {
+  const admin = getSupabaseAdmin();
+
+  return updateOutreachRecord({
+    admin,
+    candidId: args.candidId,
+    patch: {
+      active_step: 0,
+      email_discovery_evidence: [],
+      email_discovery_status: "not_started",
+      email_discovery_summary: null,
+      email_discovery_trace: [],
+      email_source_label: null,
+      email_source_type: null,
+      email_source_url: null,
+      history: [],
+      last_sent_at: null,
+      memo: null,
+      next_due_at: null,
+      sequence_mark: null,
+      sequence_schedule: createDefaultAtsSequenceSchedule(),
+      sequence_status: "draft",
+      stopped_at: null,
+      target_email: null,
+    },
+    userId: args.userId,
+  });
+}
+
 export async function saveAtsSequenceSchedule(args: {
   candidId: string;
   sequenceSchedule: AtsSequenceStepSchedule[];

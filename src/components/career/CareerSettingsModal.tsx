@@ -1,19 +1,19 @@
-import { ArrowLeft, FileText, LogOut, Shield, UserCircle2 } from "lucide-react";
+import { ArrowLeft, FileText, LogOut, Settings2, UserCircle2 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
+import CareerProfileSettingsSection from "./CareerProfileSettingsSection";
 import CareerResumeLinksSettingsSection from "./settings/CareerResumeLinksSettingsSection";
-import CareerVisibilitySettingsSection from "./settings/CareerVisibilitySettingsSection";
 
-type CareerSettingsTab = "resume" | "visibility" | "account";
+type CareerSettingsTab = "profile" | "resume" | "account";
 
 const SETTINGS_TABS: Array<{
   key: CareerSettingsTab;
   label: string;
   Icon: React.ComponentType<{ className?: string }>;
 }> = [
+  { key: "profile", label: "프로필 설정", Icon: Settings2 },
   { key: "resume", label: "내 이력서/링크", Icon: FileText },
-  { key: "visibility", label: "공개 여부", Icon: Shield },
   { key: "account", label: "계정 관리", Icon: UserCircle2 },
 ];
 
@@ -25,7 +25,7 @@ const CareerSettingsModal = ({
   onClose: () => void;
 }) => {
   const { onLogout, user } = useCareerSidebarContext();
-  const [activeTab, setActiveTab] = useState<CareerSettingsTab>("resume");
+  const [activeTab, setActiveTab] = useState<CareerSettingsTab>("profile");
 
   useEffect(() => {
     if (!open) return;
@@ -80,12 +80,10 @@ const CareerSettingsModal = ({
           </aside>
 
           <div className="h-full overflow-y-auto px-8 py-7">
+            {activeTab === "profile" ? <CareerProfileSettingsSection /> : null}
+
             {activeTab === "resume" ? (
               <CareerResumeLinksSettingsSection />
-            ) : null}
-
-            {activeTab === "visibility" ? (
-              <CareerVisibilitySettingsSection />
             ) : null}
 
             {activeTab === "account" ? (

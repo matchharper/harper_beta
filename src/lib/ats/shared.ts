@@ -2,7 +2,7 @@ export const ATS_SEQUENCE_STEP_COUNT = 4;
 export const ATS_SEQUENCE_INTERVAL_DAYS = 2;
 export const ATS_DEFAULT_SEQUENCE_TIME = "10:00";
 export const ATS_DEFAULT_TIMEZONE_OFFSET_MINUTES = -540;
-export const ATS_EMAIL_DISCOVERY_OPERATION_LIMIT = 20;
+export const ATS_EMAIL_DISCOVERY_OPERATION_LIMIT = 40;
 
 export type AtsEmailSourceType =
   | "candid"
@@ -378,7 +378,10 @@ function isValidDateInput(value: string | null | undefined) {
 }
 
 export function createDefaultAtsSequenceSchedule(baseDate = new Date()) {
-  const today = getLocalDateString(baseDate, ATS_DEFAULT_TIMEZONE_OFFSET_MINUTES);
+  const today = getLocalDateString(
+    baseDate,
+    ATS_DEFAULT_TIMEZONE_OFFSET_MINUTES
+  );
   return Array.from({ length: ATS_SEQUENCE_STEP_COUNT }, (_, index) => ({
     date: index === 0 ? today : null,
     delayDays: index === 0 ? 0 : ATS_SEQUENCE_INTERVAL_DAYS,
@@ -394,7 +397,9 @@ export function normalizeAtsSequenceSchedule(value: unknown) {
   const source = coerceJsonArray<Partial<AtsSequenceStepSchedule>>(value);
 
   return fallback.map((defaultItem) => {
-    const raw = source.find((item) => Number(item?.stepNumber) === defaultItem.stepNumber);
+    const raw = source.find(
+      (item) => Number(item?.stepNumber) === defaultItem.stepNumber
+    );
     if (!raw) return defaultItem;
 
     return {

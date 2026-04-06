@@ -321,9 +321,17 @@ function confidenceScore(value: "high" | "medium" | "low") {
 
 function evidenceRank(item: AtsEmailDiscoveryEvidence) {
   const typeBonus =
-    item.type === "direct" ? 40 : item.type === "pdf" ? 30 : item.type === "page" ? 20 : 10;
+    item.type === "direct"
+      ? 40
+      : item.type === "pdf"
+        ? 30
+        : item.type === "page"
+          ? 20
+          : 10;
   const domainBonus =
-    typeof item.url === "string" && item.url.toLowerCase().includes(".edu") ? 5 : 0;
+    typeof item.url === "string" && item.url.toLowerCase().includes(".edu")
+      ? 5
+      : 0;
   return confidenceScore(item.confidence) * 100 + typeBonus + domainBonus;
 }
 
@@ -341,7 +349,9 @@ function mergeEvidence(
     }
   }
 
-  return Array.from(map.values()).sort((a, b) => evidenceRank(b) - evidenceRank(a));
+  return Array.from(map.values()).sort(
+    (a, b) => evidenceRank(b) - evidenceRank(a)
+  );
 }
 
 function pickBestEvidence(
@@ -349,10 +359,12 @@ function pickBestEvidence(
   minimumConfidence: "high" | "medium" | "low" = "low"
 ) {
   const minScore = confidenceScore(minimumConfidence);
-  return evidence
-    .slice()
-    .sort((a, b) => evidenceRank(b) - evidenceRank(a))
-    .find((item) => confidenceScore(item.confidence) >= minScore) ?? null;
+  return (
+    evidence
+      .slice()
+      .sort((a, b) => evidenceRank(b) - evidenceRank(a))
+      .find((item) => confidenceScore(item.confidence) >= minScore) ?? null
+  );
 }
 
 function extractEmailsFromText(value: string | null | undefined) {
@@ -399,8 +411,13 @@ function scorePublication(publication: AtsCandidatePublication, index: number) {
   const year = parseYear(publication.publishedAt);
   const currentYear = new Date().getUTCFullYear();
   const recencyBoost =
-    year == null ? 0 : Math.max(0, Math.min(18, 18 - Math.max(0, currentYear - year) * 2));
-  const citationBoost = Math.max(0, Math.min(25, Math.floor(citationCount / 10) * 3));
+    year == null
+      ? 0
+      : Math.max(0, Math.min(18, 18 - Math.max(0, currentYear - year) * 2));
+  const citationBoost = Math.max(
+    0,
+    Math.min(25, Math.floor(citationCount / 10) * 3)
+  );
   return Math.max(0, 30 - index * 2) + recencyBoost + citationBoost;
 }
 
@@ -422,7 +439,10 @@ function dedupeUrlCandidates(candidates: UrlCandidate[]) {
 
     const normalized = {
       ...candidate,
-      priorityHint: Math.max(1, Math.min(100, Math.round(candidate.priorityHint))),
+      priorityHint: Math.max(
+        1,
+        Math.min(100, Math.round(candidate.priorityHint))
+      ),
       url: key,
     } satisfies UrlCandidate;
 
@@ -432,7 +452,9 @@ function dedupeUrlCandidates(candidates: UrlCandidate[]) {
     }
   }
 
-  return Array.from(map.values()).sort((a, b) => b.priorityHint - a.priorityHint);
+  return Array.from(map.values()).sort(
+    (a, b) => b.priorityHint - a.priorityHint
+  );
 }
 
 function addDerivedPdfCandidates(base: UrlCandidate) {
@@ -506,7 +528,9 @@ function collectSeedUrlCandidates(candidate: AtsCandidateDetail) {
     if (!url) return;
     const reasonParts = [
       "논문 링크",
-      score >= 50 ? "최신/인용수 기준으로 우선순위가 높은 논문" : "논문 PDF에서 이메일이 발견될 가능성이 있음",
+      score >= 50
+        ? "최신/인용수 기준으로 우선순위가 높은 논문"
+        : "논문 PDF에서 이메일이 발견될 가능성이 있음",
     ];
     const year = parseYear(publication.publishedAt);
     if (year != null) reasonParts.push(`year=${year}`);
@@ -544,7 +568,8 @@ function collectSeedUrlCandidates(candidate: AtsCandidateDetail) {
       discoveredFrom: "github_profile.githubUrl",
       label: "github_profile.githubUrl",
       priorityHint: 42,
-      priorityReason: "GitHub 프로필 또는 pinned/readme에 공개 이메일이 있을 수 있음",
+      priorityReason:
+        "GitHub 프로필 또는 pinned/readme에 공개 이메일이 있을 수 있음",
       readMode: inferReadMode(candidate.githubProfile.githubUrl),
       source: "github",
       url: candidate.githubProfile.githubUrl,
@@ -578,7 +603,10 @@ function collectSeedUrlCandidates(candidate: AtsCandidateDetail) {
   return dedupeUrlCandidates(candidates);
 }
 
-function upsertUrlPool(pool: Map<string, UrlMemoryEntry>, candidates: UrlCandidate[]) {
+function upsertUrlPool(
+  pool: Map<string, UrlMemoryEntry>,
+  candidates: UrlCandidate[]
+) {
   for (const candidate of dedupeUrlCandidates(candidates)) {
     const key = canonicalizeUrl(candidate.url);
     if (!key || isBlockedDomain(key)) continue;
@@ -598,16 +626,27 @@ function upsertUrlPool(pool: Map<string, UrlMemoryEntry>, candidates: UrlCandida
     pool.set(key, {
       ...prev,
       discoveredFrom:
-        candidate.priorityHint > prev.priorityHint ? candidate.discoveredFrom : prev.discoveredFrom,
-      label: candidate.priorityHint > prev.priorityHint ? candidate.label : prev.label,
+        candidate.priorityHint > prev.priorityHint
+          ? candidate.discoveredFrom
+          : prev.discoveredFrom,
+      label:
+        candidate.priorityHint > prev.priorityHint
+          ? candidate.label
+          : prev.label,
       priorityHint: Math.max(prev.priorityHint, candidate.priorityHint),
       priorityReason:
-        candidate.priorityHint > prev.priorityHint ? candidate.priorityReason : prev.priorityReason,
+        candidate.priorityHint > prev.priorityHint
+          ? candidate.priorityReason
+          : prev.priorityReason,
       readMode:
-        candidate.readMode === "pdf_first_page" || prev.readMode === "pdf_first_page"
+        candidate.readMode === "pdf_first_page" ||
+        prev.readMode === "pdf_first_page"
           ? "pdf_first_page"
           : "full",
-      source: candidate.priorityHint > prev.priorityHint ? candidate.source : prev.source,
+      source:
+        candidate.priorityHint > prev.priorityHint
+          ? candidate.source
+          : prev.source,
       url: key,
     });
   }
@@ -656,8 +695,8 @@ function buildCandidatesFromDiscoveredLinks(args: {
   links: Array<{ label: string; url: string }>;
   parentUrl: string;
 }) {
-  const publicationTitles = getPrioritizedPublications(args.candidate).map(({ publication }) =>
-    publication.title.toLowerCase()
+  const publicationTitles = getPrioritizedPublications(args.candidate).map(
+    ({ publication }) => publication.title.toLowerCase()
   );
 
   return dedupeUrlCandidates(
@@ -714,12 +753,15 @@ function buildCandidatesFromSearchResults(args: {
   results: SearchResult[];
 }) {
   const publications = getPrioritizedPublications(args.candidate);
-  const publicationTitles = publications.map(({ publication }) => publication.title.toLowerCase());
+  const publicationTitles = publications.map(({ publication }) =>
+    publication.title.toLowerCase()
+  );
 
   return dedupeUrlCandidates(
     args.results.map((result) => {
       const url = canonicalizeUrl(result.url);
-      const text = `${result.title ?? ""} ${result.content ?? ""} ${url}`.toLowerCase();
+      const text =
+        `${result.title ?? ""} ${result.content ?? ""} ${url}`.toLowerCase();
       let priorityHint = 34;
       const reasons = [`검색어 "${args.query}" 결과`];
 
@@ -738,7 +780,9 @@ function buildCandidatesFromSearchResults(args: {
         reasons.push("개인/학술 페이지 가능성");
       }
 
-      const matchedPublication = publicationTitles.find((title) => title && text.includes(title));
+      const matchedPublication = publicationTitles.find(
+        (title) => title && text.includes(title)
+      );
       if (matchedPublication) {
         priorityHint += 24;
         reasons.push("후보자 논문 제목과 매칭");
@@ -746,7 +790,9 @@ function buildCandidatesFromSearchResults(args: {
 
       return {
         discoveredFrom: `search:${args.query}`,
-        label: String(result.title ?? "").trim() || `search result for ${args.query}`,
+        label:
+          String(result.title ?? "").trim() ||
+          `search result for ${args.query}`,
         priorityHint: Math.min(100, priorityHint),
         priorityReason: reasons.join(", "),
         readMode: inferReadMode(url),
@@ -777,7 +823,10 @@ function buildSearchSnippetEvidence(results: SearchResult[]) {
   return mergeEvidence([], evidence);
 }
 
-async function callWebSearch(req: NextRequest, query: string): Promise<SearchResult[]> {
+async function callWebSearch(
+  req: NextRequest,
+  query: string
+): Promise<SearchResult[]> {
   const url = makeInternalUrl(req, "/api/tool/web_search");
   const response = await fetch(url, {
     method: "POST",
@@ -852,7 +901,9 @@ async function callScrape(
     }),
   });
 
-  const payload = (await response.json().catch(() => ({}))) as Partial<ScrapeResult>;
+  const payload = (await response
+    .json()
+    .catch(() => ({}))) as Partial<ScrapeResult>;
 
   if (!response.ok) {
     return {
@@ -1114,6 +1165,22 @@ Important research heuristics:
 - Do not repeat the same search query or scrape the same URL unless there is a concrete reason.
 - If memory already contains high-confidence evidence, choose finish.
 - If the best current next step is a PDF or suspected PDF, use readMode="pdf_first_page".
+- 다양한 방법을 시도해.
+
+아래는 실제 이메일 발견 확률이 높습니다.
+- direct PDF
+- arXiv PDF
+- personal homepage
+- university faculty/profile page
+- lab member page
+- GitHub blog/homepage
+- CV / Resume PDF
+- contact/about page
+- company page
+- generic search result landing page
+
+아래는 실제 이메일 발견 확률이 낮습니다.
+- rocketreach, zoominfo, commerce site, 회사 메인 홈페이지(ex. oracle.com)
 
 Return JSON only:
 {
@@ -1154,7 +1221,9 @@ function normalizePlannerAction(
   decision: PlannerDecision | null
 ): PlannerAction | null {
   const tool = decision?.action?.tool;
-  const reason = String(decision?.action?.reason ?? decision?.thinking ?? "").trim();
+  const reason = String(
+    decision?.action?.reason ?? decision?.thinking ?? ""
+  ).trim();
 
   if (tool !== "search_web" && tool !== "scrape_url" && tool !== "finish") {
     return null;
@@ -1181,7 +1250,10 @@ function normalizePlannerAction(
   if (!url || isBlockedDomain(url)) return null;
 
   return {
-    readMode: decision?.action?.readMode === "pdf_first_page" ? "pdf_first_page" : inferReadMode(url),
+    readMode:
+      decision?.action?.readMode === "pdf_first_page"
+        ? "pdf_first_page"
+        : inferReadMode(url),
     reason: reason || "현재 가장 유망한 링크를 파싱",
     tool,
     url,
@@ -1203,10 +1275,15 @@ function buildFallbackAction(args: {
     };
   }
 
-  const topPublication = getPrioritizedPublications(args.candidate)[0]?.publication;
+  const topPublication = getPrioritizedPublications(args.candidate)[0]
+    ?.publication;
   if (topPublication?.title) {
     const query = `"${args.candidate.name ?? ""}" "${topPublication.title}" pdf`;
-    if (!args.searchHistory.some((item) => normalizeQuery(item.query) === normalizeQuery(query))) {
+    if (
+      !args.searchHistory.some(
+        (item) => normalizeQuery(item.query) === normalizeQuery(query)
+      )
+    ) {
       return {
         query,
         reason: "fallback: 상위 논문 PDF 검색",
@@ -1394,7 +1471,9 @@ export async function findCandidateEmailWithAgenticFlow(args: {
         }
 
         if (
-          searchHistory.some((item) => normalizeQuery(item.query) === normalizedQuery)
+          searchHistory.some(
+            (item) => normalizeQuery(item.query) === normalizedQuery
+          )
         ) {
           pushTrace("decision", "이미 실행한 검색어라 건너뜁니다.", {
             query: action.query,
@@ -1574,24 +1653,37 @@ export async function findCandidateEmailWithAgenticFlow(args: {
         url,
       });
 
-      pushTrace("decision", `페이지에서 이메일 후보 ${findings.length}건 추출`, {
-        discoveredUrls: discoveredCandidates.slice(0, 8).map((item) => item.url),
-        findings,
-        url,
-      });
-
-      const highConfidence = evidence.find((item) => item.confidence === "high");
-      if (highConfidence) {
-        pushTrace("decision", "high confidence 이메일을 발견하여 즉시 종료합니다.", {
-          email: highConfidence.email,
+      pushTrace(
+        "decision",
+        `페이지에서 이메일 후보 ${findings.length}건 추출`,
+        {
+          discoveredUrls: discoveredCandidates
+            .slice(0, 8)
+            .map((item) => item.url),
+          findings,
           url,
-        });
+        }
+      );
+
+      const highConfidence = evidence.find(
+        (item) => item.confidence === "high"
+      );
+      if (highConfidence) {
+        pushTrace(
+          "decision",
+          "high confidence 이메일을 발견하여 즉시 종료합니다.",
+          {
+            email: highConfidence.email,
+            url,
+          }
+        );
 
         return {
           bestEmail: highConfidence.email,
           confidence: "high",
           evidence: collectedEvidence.slice(0, 5),
-          sourceLabel: highConfidence.title ?? scraped.title ?? poolEntry?.label ?? url,
+          sourceLabel:
+            highConfidence.title ?? scraped.title ?? poolEntry?.label ?? url,
           sourceType: "web",
           sourceUrl: highConfidence.url ?? url,
           status: "found",

@@ -41,13 +41,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { error: updateError } = await admin
+    const { data: updatedProfile, error: updateError } = await admin
       .from("talent_users")
       .update({
         career_profile: networkApplication,
         updated_at: new Date().toISOString(),
       })
-      .eq("user_id", user.id);
+      .eq("user_id", user.id)
+      .select("updated_at")
+      .single();
 
     if (updateError) {
       return NextResponse.json(
@@ -62,6 +64,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       networkApplication,
       ok: true,
+      updatedAt: updatedProfile?.updated_at ?? null,
     });
   } catch (error) {
     const message =

@@ -22,6 +22,22 @@ import {
   normalizeTalentNetworkApplication,
 } from "@/lib/talentNetworkApplication";
 
+const getLatestUpdatedAt = (...values: Array<string | null | undefined>) => {
+  const timestamps = values
+    .map((value) => {
+      if (typeof value !== "string") return null;
+      const time = Date.parse(value);
+      if (Number.isNaN(time)) return null;
+      return { time, value };
+    })
+    .filter((entry): entry is { time: number; value: string } => entry !== null);
+
+  if (timestamps.length === 0) return null;
+
+  timestamps.sort((left, right) => right.time - left.time);
+  return timestamps[0]?.value ?? null;
+};
+
 export async function GET(req: NextRequest) {
   try {
     const user = await getRequestUser(req);
@@ -156,6 +172,10 @@ export async function GET(req: NextRequest) {
     const careerMoveIntent = sanitizeTalentCareerMoveIntent(
       talentSetting?.career_move_intent
     );
+    const talentSettingsUpdatedAt = talentSetting?.updated_at ?? null;
+    const talentPreferencesUpdatedAt = talentSetting?.updated_at ?? null;
+    const talentInsightsUpdatedAt = talentInsights?.last_updated_at ?? null;
+    const networkApplicationUpdatedAt = profile?.updated_at ?? null;
 
     return NextResponse.json({
       ok: true,
@@ -182,8 +202,20 @@ export async function GET(req: NextRequest) {
         ),
         careerMoveIntent,
         careerMoveIntentLabel: getTalentCareerMoveIntentLabel(careerMoveIntent),
-        technicalStrengths: normalizedInsights?.technical_strengths ?? null,
-        desiredTeams: normalizedInsights?.desired_teams ?? null,
+      },
+      talentInsights: normalizedInsights,
+      recentOpportunities: [],
+      profileSettingsMeta: {
+        networkApplicationUpdatedAt,
+        talentPreferencesUpdatedAt,
+        talentInsightsUpdatedAt,
+        talentSettingsUpdatedAt,
+        latestUpdatedAt: getLatestUpdatedAt(
+          networkApplicationUpdatedAt,
+          talentPreferencesUpdatedAt,
+          talentInsightsUpdatedAt,
+          talentSettingsUpdatedAt
+        ),
       },
       talentProfile,
       messages: messages.map((message) => ({

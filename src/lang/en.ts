@@ -252,7 +252,7 @@ export const en = {
     },
     pricing: {
       title: "A plan that scales with your team",
-      subtitle: "Search is free. Credits are spent only when you reveal a profile.",
+      subtitle: "First, start for free and decide later.",
       contactLabel: "Contact us",
       billing: {
         monthly: "Monthly billing",

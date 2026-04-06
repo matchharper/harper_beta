@@ -17,42 +17,52 @@ import {
 } from "@/lib/talentOnboarding/server";
 import { getTalentCareerMoveIntentLabel } from "@/lib/talentNetworkApplication";
 
+const getLatestUpdatedAt = (...values: Array<string | null | undefined>) => {
+  const timestamps = values
+    .map((value) => {
+      if (typeof value !== "string") return null;
+      const time = Date.parse(value);
+      if (Number.isNaN(time)) return null;
+      return { time, value };
+    })
+    .filter((entry): entry is { time: number; value: string } => entry !== null);
+
+  if (timestamps.length === 0) return null;
+
+  timestamps.sort((left, right) => right.time - left.time);
+  return timestamps[0]?.value ?? null;
+};
+
 type Body = {
   engagementTypes?: string[];
   preferredLocations?: string[];
   careerMoveIntent?: string | null;
-  technicalStrengths?: string | null;
-  desiredTeams?: string | null;
+  insightContent?: Record<string, unknown> | null;
 };
 
-const toResponsePreferences = (args: {
-  setting?: {
-    engagement_types?: string[] | null;
-    preferred_locations?: string[] | null;
-    career_move_intent?: string | null;
-  } | null;
-  insights?: {
-    content?: unknown;
-  } | null;
-}) => {
-  const normalizedInsights = normalizeTalentInsightContent(args.insights?.content);
+const toResponsePreferences = (setting?: {
+  engagement_types?: string[] | null;
+  preferred_locations?: string[] | null;
+  career_move_intent?: string | null;
+} | null) => {
   const careerMoveIntent = sanitizeTalentCareerMoveIntent(
-    args.setting?.career_move_intent
+    setting?.career_move_intent
   );
 
   return {
     engagementTypes: normalizeTalentEngagementTypes(
-      args.setting?.engagement_types ?? []
+      setting?.engagement_types ?? []
     ),
     preferredLocations: normalizeTalentPreferredLocations(
-      args.setting?.preferred_locations ?? []
+      setting?.preferred_locations ?? []
     ),
     careerMoveIntent,
     careerMoveIntentLabel: getTalentCareerMoveIntentLabel(careerMoveIntent),
-    technicalStrengths: normalizedInsights?.technical_strengths ?? null,
-    desiredTeams: normalizedInsights?.desired_teams ?? null,
   };
 };
+
+const toResponseInsights = (insights?: { content?: unknown } | null) =>
+  normalizeTalentInsightContent(insights?.content);
 
 export async function GET(req: NextRequest) {
   try {
@@ -71,7 +81,14 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      preferences: toResponsePreferences({ setting, insights }),
+      preferences: toResponsePreferences(setting),
+      talentInsights: toResponseInsights(insights),
+      preferencesUpdatedAt: setting?.updated_at ?? null,
+      insightUpdatedAt: insights?.last_updated_at ?? null,
+      updatedAt: getLatestUpdatedAt(
+        setting?.updated_at ?? null,
+        insights?.last_updated_at ?? null
+      ),
     });
   } catch (error) {
     const message =
@@ -91,41 +108,58 @@ export async function POST(req: NextRequest) {
     const admin = getTalentSupabaseAdmin();
     await ensureTalentUserRecord({ admin, user });
 
-    const [existingSetting] = await Promise.all([
+    const [existingSetting, existingInsights] = await Promise.all([
       fetchTalentSetting({ admin, userId: user.id }),
+      fetchTalentInsights({ admin, userId: user.id }),
     ]);
 
-    const savedSetting = await upsertTalentSetting({
-      admin,
-      userId: user.id,
-      profileVisibility: sanitizeTalentProfileVisibility(
-        existingSetting?.profile_visibility ?? DEFAULT_TALENT_PROFILE_VISIBILITY
-      ),
-      blockedCompanies: normalizeTalentBlockedCompanies(
-        existingSetting?.blocked_companies ?? []
-      ),
-      engagementTypes: normalizeTalentEngagementTypes(body.engagementTypes ?? []),
-      preferredLocations: normalizeTalentPreferredLocations(
-        body.preferredLocations ?? []
-      ),
-      careerMoveIntent: sanitizeTalentCareerMoveIntent(body.careerMoveIntent),
-    });
+    const hasPreferenceUpdate =
+      body.engagementTypes !== undefined ||
+      body.preferredLocations !== undefined ||
+      body.careerMoveIntent !== undefined;
+    const hasInsightUpdate = body.insightContent !== undefined;
 
-    const savedInsights = await upsertTalentInsights({
-      admin,
-      userId: user.id,
-      content: {
-        technical_strengths: body.technicalStrengths ?? null,
-        desired_teams: body.desiredTeams ?? null,
-      },
-    });
+    const savedSetting = hasPreferenceUpdate
+      ? await upsertTalentSetting({
+          admin,
+          userId: user.id,
+          profileVisibility: sanitizeTalentProfileVisibility(
+            existingSetting?.profile_visibility ??
+              DEFAULT_TALENT_PROFILE_VISIBILITY
+          ),
+          blockedCompanies: normalizeTalentBlockedCompanies(
+            existingSetting?.blocked_companies ?? []
+          ),
+          engagementTypes: normalizeTalentEngagementTypes(
+            body.engagementTypes ?? existingSetting?.engagement_types ?? []
+          ),
+          preferredLocations: normalizeTalentPreferredLocations(
+            body.preferredLocations ?? existingSetting?.preferred_locations ?? []
+          ),
+          careerMoveIntent: sanitizeTalentCareerMoveIntent(
+            body.careerMoveIntent ?? existingSetting?.career_move_intent
+          ),
+        })
+      : existingSetting;
+
+    const savedInsights = hasInsightUpdate
+      ? await upsertTalentInsights({
+          admin,
+          userId: user.id,
+          content: normalizeTalentInsightContent(body.insightContent ?? null),
+        })
+      : existingInsights;
 
     return NextResponse.json({
       ok: true,
-      preferences: toResponsePreferences({
-        setting: savedSetting,
-        insights: savedInsights,
-      }),
+      preferences: toResponsePreferences(savedSetting),
+      talentInsights: toResponseInsights(savedInsights),
+      preferencesUpdatedAt: savedSetting?.updated_at ?? null,
+      insightUpdatedAt: savedInsights?.last_updated_at ?? null,
+      updatedAt: getLatestUpdatedAt(
+        savedSetting?.updated_at ?? null,
+        savedInsights?.last_updated_at ?? null
+      ),
     });
   } catch (error) {
     const message =

@@ -13,6 +13,8 @@ import CareerWorkspaceScreen from "@/components/career/CareerWorkspaceScreen";
 import type {
   CareerMessage,
   CareerNetworkApplication,
+  CareerRecentOpportunity,
+  CareerTalentInsights,
   CareerTalentPreferences,
   CareerTalentProfile,
 } from "@/components/career/types";
@@ -43,10 +45,14 @@ const initialTalentPreferences: CareerTalentPreferences = {
   engagementTypes: ["full_time", "fractional"],
   preferredLocations: ["korea_based", "global_remote"],
   careerMoveIntent: "open_to_explore",
-  careerMoveIntentLabel: "아직 이직 생각은 없지만, 기회를 받아보고 결정하고 싶음",
-  technicalStrengths:
+  careerMoveIntentLabel:
+    "아직 이직 생각은 없지만, 기회를 받아보고 결정하고 싶음",
+};
+
+const initialTalentInsights: CareerTalentInsights = {
+  technical_strengths:
     "LLM 제품을 실제 사용자와 맞닿은 환경에 배포하는 일을 주로 해왔고, 모델 품질과 제품 속도를 같이 관리하는 역할을 선호합니다.",
-  desiredTeams:
+  desired_teams:
     "작은 팀이어도 제품 방향과 기술 의사결정이 빠른 곳을 선호합니다. 의미 없는 AI 포장보다는 실제 사용량이 있는 제품이면 좋겠습니다.",
 };
 
@@ -140,6 +146,31 @@ const initialMessages: CareerMessage[] = [
   },
 ];
 
+const initialRecentOpportunities: CareerRecentOpportunity[] = [
+  {
+    id: "preview-opportunity-1",
+    kind: "match",
+    title: "Applied AI Engineer",
+    companyName: "Stealth Agent Startup",
+    summary:
+      "작은 팀에서 제품과 모델 품질을 함께 책임질 수 있는 역할입니다.",
+    location: "Seoul / Hybrid",
+    engagementType: "Full-time",
+    matchedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: "preview-opportunity-2",
+    kind: "recommendation",
+    title: "Founding ML Engineer",
+    companyName: "Global Remote SaaS",
+    summary:
+      "초기 제품 방향과 LLM workflow를 같이 설계할 수 있는 포지션입니다.",
+    location: "US / Remote",
+    engagementType: "Full-time or Fractional",
+    matchedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+];
+
 const CareerPreviewPage = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [messages, setMessages] = useState<CareerMessage[]>(initialMessages);
@@ -154,25 +185,54 @@ const CareerPreviewPage = () => {
     "https://previewcandidate.dev",
   ]);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
-  const [savedResumeFileName, setSavedResumeFileName] = useState(
-    "preview_resume.pdf"
-  );
+  const [savedResumeFileName, setSavedResumeFileName] =
+    useState("preview_resume.pdf");
   const [networkApplication, setNetworkApplication] = useState(
     initialNetworkApplication
+  );
+  const [savedNetworkApplication, setSavedNetworkApplication] = useState(
+    initialNetworkApplication
+  );
+  const [networkApplicationUpdatedAt, setNetworkApplicationUpdatedAt] = useState(
+    new Date().toISOString()
   );
   const [networkSaveInfo, setNetworkSaveInfo] = useState("");
   const [talentPreferences, setTalentPreferences] = useState(
     initialTalentPreferences
   );
+  const [savedTalentPreferences, setSavedTalentPreferences] = useState(
+    initialTalentPreferences
+  );
+  const [talentPreferencesUpdatedAt, setTalentPreferencesUpdatedAt] = useState(
+    new Date().toISOString()
+  );
   const [talentPreferencesSaveInfo, setTalentPreferencesSaveInfo] =
     useState("");
+  const [talentInsights, setTalentInsights] =
+    useState<CareerTalentInsights>(initialTalentInsights);
+  const [savedTalentInsights, setSavedTalentInsights] =
+    useState<CareerTalentInsights>(initialTalentInsights);
+  const [talentInsightsUpdatedAt, setTalentInsightsUpdatedAt] = useState(
+    new Date().toISOString()
+  );
+  const [talentInsightsSaveInfo, setTalentInsightsSaveInfo] = useState("");
   const [profileSaveInfo, setProfileSaveInfo] = useState("");
+  const [settingsSaveInfo, setSettingsSaveInfo] = useState("");
   const [profileVisibility, setProfileVisibility] = useState<
+    "open_to_matches" | "exceptional_only" | "dont_share"
+  >("exceptional_only");
+  const [savedProfileVisibility, setSavedProfileVisibility] = useState<
     "open_to_matches" | "exceptional_only" | "dont_share"
   >("exceptional_only");
   const [blockedCompanies, setBlockedCompanies] = useState<string[]>([
     "Stealth Robotics",
   ]);
+  const [savedBlockedCompanies, setSavedBlockedCompanies] = useState<string[]>([
+    "Stealth Robotics",
+  ]);
+  const [settingsUpdatedAt, setSettingsUpdatedAt] = useState(
+    new Date().toISOString()
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const sidebarContextValue: CareerSidebarContextValue = useMemo(
@@ -185,6 +245,7 @@ const CareerPreviewPage = () => {
       progressPercent: 50,
       onOpenSettings: () => setIsSettingsOpen(true),
       onLogout: () => undefined,
+      recentOpportunities: initialRecentOpportunities,
       resumeFile,
       savedResumeFileName,
       savedResumeStoragePath: "talent/resume/preview_resume.pdf",
@@ -221,61 +282,147 @@ const CareerPreviewPage = () => {
       },
       talentProfile: initialTalentProfile,
       networkApplication,
+      networkApplicationUpdatedAt,
       talentPreferences,
+      talentInsights,
+      talentPreferencesUpdatedAt,
+      talentInsightsUpdatedAt,
       networkApplicationSavePending: false,
       networkApplicationSaveError: "",
       networkApplicationSaveInfo: networkSaveInfo,
+      hasUnsavedNetworkApplicationChanges:
+        JSON.stringify(networkApplication) !==
+        JSON.stringify(savedNetworkApplication),
       talentPreferencesSavePending: false,
       talentPreferencesSaveError: "",
       talentPreferencesSaveInfo,
+      hasUnsavedTalentPreferencesChanges:
+        JSON.stringify(talentPreferences) !==
+        JSON.stringify(savedTalentPreferences),
+      talentInsightsSavePending: false,
+      talentInsightsSaveError: "",
+      talentInsightsSaveInfo,
+      hasUnsavedTalentInsightsChanges:
+        JSON.stringify(talentInsights) !== JSON.stringify(savedTalentInsights),
       onNetworkApplicationChange: (next) => {
         setNetworkSaveInfo("");
         setNetworkApplication((current) =>
           typeof next === "function"
-            ? next(current) ?? current
-            : next ?? current
+            ? (next(current) ?? current)
+            : (next ?? current)
         );
       },
       onSaveNetworkApplication: () => {
+        setSavedNetworkApplication(networkApplication);
+        setNetworkApplicationUpdatedAt(new Date().toISOString());
         setNetworkSaveInfo("프로필 설정을 저장했습니다.");
         return true;
+      },
+      onResetNetworkApplication: () => {
+        setNetworkSaveInfo("");
+        setNetworkApplication(savedNetworkApplication);
       },
       onTalentPreferencesChange: (next) => {
         setTalentPreferencesSaveInfo("");
         setTalentPreferences((current) =>
-          typeof next === "function" ? next(current) ?? current : next ?? current
+          typeof next === "function"
+            ? (next(current) ?? current)
+            : (next ?? current)
         );
       },
       onSaveTalentPreferences: () => {
+        setSavedTalentPreferences(talentPreferences);
+        setTalentPreferencesUpdatedAt(new Date().toISOString());
         setTalentPreferencesSaveInfo("프로필 설정을 저장했습니다.");
         return true;
+      },
+      onResetTalentPreferences: () => {
+        setTalentPreferencesSaveInfo("");
+        setTalentPreferences(savedTalentPreferences);
+      },
+      onTalentInsightsChange: (next) => {
+        setTalentInsightsSaveInfo("");
+        setTalentInsights((current) =>
+          typeof next === "function"
+            ? (next(current) ?? current)
+            : (next ?? current)
+        );
+      },
+      onSaveTalentInsights: () => {
+        setSavedTalentInsights(talentInsights);
+        setTalentInsightsUpdatedAt(new Date().toISOString());
+        setTalentInsightsSaveInfo("Harper insight를 저장했습니다.");
+        return true;
+      },
+      onResetTalentInsights: () => {
+        setTalentInsightsSaveInfo("");
+        setTalentInsights(savedTalentInsights);
       },
       settingsLoading: false,
       settingsSaving: false,
       settingsError: "",
+      settingsSaveInfo,
+      settingsUpdatedAt,
       profileVisibility,
       blockedCompanies,
-      onProfileVisibilityChange: (value) => setProfileVisibility(value),
-      onAddBlockedCompany: (name) =>
+      hasUnsavedTalentSettingsChanges:
+        profileVisibility !== savedProfileVisibility ||
+        JSON.stringify(blockedCompanies) !==
+          JSON.stringify(savedBlockedCompanies),
+      onProfileVisibilityChange: (value) => {
+        setSettingsSaveInfo("");
+        setProfileVisibility(value);
+      },
+      onAddBlockedCompany: (name) => {
+        setSettingsSaveInfo("");
         setBlockedCompanies((current) =>
           current.includes(name) ? current : [...current, name]
-        ),
-      onRemoveBlockedCompany: (name) =>
-        setBlockedCompanies((current) => current.filter((item) => item !== name)),
+        );
+      },
+      onRemoveBlockedCompany: (name) => {
+        setSettingsSaveInfo("");
+        setBlockedCompanies((current) =>
+          current.filter((item) => item !== name)
+        );
+      },
+      onSaveTalentSettings: () => {
+        setSavedProfileVisibility(profileVisibility);
+        setSavedBlockedCompanies(blockedCompanies);
+        setSettingsUpdatedAt(new Date().toISOString());
+        setSettingsSaveInfo("프로필 설정을 저장했습니다.");
+        return true;
+      },
+      onResetTalentSettings: () => {
+        setSettingsSaveInfo("");
+        setProfileVisibility(savedProfileVisibility);
+        setBlockedCompanies(savedBlockedCompanies);
+      },
       onReloadTalentSettings: () => undefined,
     }),
     [
       blockedCompanies,
       networkApplication,
+      networkApplicationUpdatedAt,
       networkSaveInfo,
       profileLinks,
       profileSaveInfo,
       profileVisibility,
       resumeFile,
+      savedBlockedCompanies,
+      savedNetworkApplication,
       savedProfileLinks,
+      savedProfileVisibility,
       savedResumeFileName,
+      savedTalentPreferences,
+      settingsSaveInfo,
+      settingsUpdatedAt,
       talentPreferences,
+      talentInsights,
+      talentInsightsSaveInfo,
+      talentInsightsUpdatedAt,
+      talentPreferencesUpdatedAt,
       talentPreferencesSaveInfo,
+      savedTalentInsights,
     ]
   );
 
@@ -332,7 +479,11 @@ const CareerPreviewPage = () => {
           messageType: "chat",
           createdAt: new Date().toISOString(),
         };
-        setMessages((current) => [...current, nextUserMessage, nextAssistantMessage]);
+        setMessages((current) => [
+          ...current,
+          nextUserMessage,
+          nextAssistantMessage,
+        ]);
       },
       onLoadOlderMessages: async () => undefined,
       showVoiceStartPrompt: false,
@@ -358,9 +509,7 @@ const CareerPreviewPage = () => {
   return (
     <CareerChatPanelProvider value={chatContextValue}>
       <CareerSidebarProvider value={sidebarContextValue}>
-        <CareerWorkspaceScreen
-          onOpenSettings={() => setIsSettingsOpen(true)}
-        />
+        <CareerWorkspaceScreen />
         <CareerSettingsModal
           open={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}

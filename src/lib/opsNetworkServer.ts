@@ -99,14 +99,14 @@ function collectLeadLinks(lead: NetworkLead) {
 }
 
 function buildLeadInsightSeed(lead: NetworkLead) {
-  if (!lead.impactSummary && !lead.dreamTeams) {
-    return null;
-  }
-
-  return {
-    technical_strengths: lead.impactSummary ?? null,
-    desired_teams: lead.dreamTeams ?? null,
+  const content = {
+    ...(lead.impactSummary
+      ? { technical_strengths: lead.impactSummary }
+      : {}),
+    ...(lead.dreamTeams ? { desired_teams: lead.dreamTeams } : {}),
   };
+
+  return Object.keys(content).length > 0 ? content : null;
 }
 
 function isPdfResume(args: { fileName?: string | null; mimeType?: string | null }) {

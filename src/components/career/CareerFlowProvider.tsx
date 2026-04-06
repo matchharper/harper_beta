@@ -1,5 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
-import type { SessionResponse } from "@/components/career/types";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type {
+  CareerRecentOpportunity,
+  SessionResponse,
+} from "@/components/career/types";
 import {
   CareerChatPanelProvider,
   type CareerChatPanelContextValue,
@@ -15,10 +18,31 @@ import { useCareerMessageHistory } from "@/hooks/career/useCareerMessageHistory"
 import { useCareerOnboardingVoice } from "@/hooks/career/useCareerOnboardingVoice";
 import { useCareerNetworkApplication } from "@/hooks/career/useCareerNetworkApplication";
 import { useCareerProfile } from "@/hooks/career/useCareerProfile";
+import { useCareerTalentInsights } from "@/hooks/career/useCareerTalentInsights";
 import { useCareerTalentPreferences } from "@/hooks/career/useCareerTalentPreferences";
 import { useCareerTalentSettings } from "@/hooks/career/useCareerTalentSettings";
 import { useCareerSession } from "@/hooks/career/useCareerSession";
 import { TALENT_ONBOARDING_COMPLETION_TARGET } from "@/lib/talentOnboarding/progress";
+
+const normalizeRecentOpportunities = (
+  value: SessionResponse["recentOpportunities"]
+): CareerRecentOpportunity[] => {
+  if (!Array.isArray(value)) return [];
+
+  return value.filter((item): item is CareerRecentOpportunity => {
+    if (!item || typeof item !== "object") return false;
+    if (typeof item.id !== "string" || !item.id.trim()) return false;
+    if (typeof item.title !== "string" || !item.title.trim()) return false;
+    if (typeof item.companyName !== "string" || !item.companyName.trim()) {
+      return false;
+    }
+    if (item.kind !== "match" && item.kind !== "recommendation") return false;
+    if (typeof item.matchedAt !== "string" || Number.isNaN(Date.parse(item.matchedAt))) {
+      return false;
+    }
+    return true;
+  });
+};
 
 export const CareerFlowProvider = ({
   children,
@@ -43,6 +67,9 @@ export const CareerFlowProvider = ({
   const userId = user?.id ?? null;
   const { fetchWithAuth } = useCareerApi();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [recentOpportunities, setRecentOpportunities] = useState<
+    CareerRecentOpportunity[]
+  >([]);
 
   const {
     conversationId,
@@ -126,12 +153,15 @@ export const CareerFlowProvider = ({
 
   const {
     networkApplication,
+    networkApplicationUpdatedAt,
     networkApplicationSavePending,
     networkApplicationSaveError,
     networkApplicationSaveInfo,
+    hasUnsavedNetworkApplicationChanges,
     applySessionNetworkState,
     onNetworkApplicationChange,
     onSaveNetworkApplication,
+    onResetNetworkApplication,
     resetNetworkApplicationState,
   } = useCareerNetworkApplication({
     fetchWithAuth,
@@ -140,14 +170,34 @@ export const CareerFlowProvider = ({
 
   const {
     talentPreferences,
+    talentPreferencesUpdatedAt,
     talentPreferencesSavePending,
     talentPreferencesSaveError,
     talentPreferencesSaveInfo,
+    hasUnsavedTalentPreferencesChanges,
     applySessionTalentPreferences,
     onTalentPreferencesChange,
     onSaveTalentPreferences,
+    onResetTalentPreferences,
     resetTalentPreferencesState,
   } = useCareerTalentPreferences({
+    fetchWithAuth,
+    user,
+  });
+
+  const {
+    talentInsights,
+    talentInsightsUpdatedAt,
+    talentInsightsSavePending,
+    talentInsightsSaveError,
+    talentInsightsSaveInfo,
+    hasUnsavedTalentInsightsChanges,
+    applySessionTalentInsights,
+    onTalentInsightsChange,
+    onSaveTalentInsights,
+    onResetTalentInsights,
+    resetTalentInsightsState,
+  } = useCareerTalentInsights({
     fetchWithAuth,
     user,
   });
@@ -156,11 +206,16 @@ export const CareerFlowProvider = ({
     settingsLoading,
     settingsSaving,
     settingsError,
+    settingsSaveInfo,
+    settingsUpdatedAt,
     profileVisibility,
     blockedCompanies,
+    hasUnsavedTalentSettingsChanges,
     onProfileVisibilityChange,
     onAddBlockedCompany,
     onRemoveBlockedCompany,
+    onSaveTalentSettings,
+    onResetTalentSettings,
     onReloadTalentSettings,
   } = useCareerTalentSettings({
     userId,
@@ -236,12 +291,15 @@ export const CareerFlowProvider = ({
       applySessionProfile(payload);
       applySessionNetworkState(payload);
       applySessionTalentPreferences(payload);
+      applySessionTalentInsights(payload);
       applySessionPrompt(payload);
+      setRecentOpportunities(normalizeRecentOpportunities(payload.recentOpportunities));
     },
     [
       applySessionConversation,
       applySessionNetworkState,
       applySessionProfile,
+      applySessionTalentInsights,
       applySessionTalentPreferences,
       applySessionPrompt,
     ]
@@ -256,7 +314,9 @@ export const CareerFlowProvider = ({
       resetProfileState();
       resetNetworkApplicationState();
       resetTalentPreferencesState();
+      resetTalentInsightsState();
       resetOnboardingState();
+      setRecentOpportunities([]);
       return;
     }
 
@@ -273,6 +333,7 @@ export const CareerFlowProvider = ({
     resetNetworkApplicationState,
     resetOnboardingState,
     resetProfileState,
+    resetTalentInsightsState,
     resetTalentPreferencesState,
     resetSessionState,
     userId,
@@ -425,6 +486,7 @@ export const CareerFlowProvider = ({
       progressPercent,
       onOpenSettings,
       onLogout: handleLogout,
+      recentOpportunities,
       resumeFile,
       savedResumeFileName,
       savedResumeStoragePath,
@@ -446,25 +508,45 @@ export const CareerFlowProvider = ({
         talentExtras,
       },
       networkApplication,
+      networkApplicationUpdatedAt,
       talentPreferences,
+      talentInsights,
+      talentPreferencesUpdatedAt,
+      talentInsightsUpdatedAt,
       networkApplicationSavePending,
       networkApplicationSaveError,
       networkApplicationSaveInfo,
+      hasUnsavedNetworkApplicationChanges,
       talentPreferencesSavePending,
       talentPreferencesSaveError,
       talentPreferencesSaveInfo,
+      hasUnsavedTalentPreferencesChanges,
+      talentInsightsSavePending,
+      talentInsightsSaveError,
+      talentInsightsSaveInfo,
+      hasUnsavedTalentInsightsChanges,
       onNetworkApplicationChange,
       onSaveNetworkApplication,
+      onResetNetworkApplication,
       onTalentPreferencesChange,
       onSaveTalentPreferences,
+      onResetTalentPreferences,
+      onTalentInsightsChange,
+      onSaveTalentInsights,
+      onResetTalentInsights,
       settingsLoading,
       settingsSaving,
       settingsError,
+      settingsSaveInfo,
+      settingsUpdatedAt,
       profileVisibility,
       blockedCompanies,
+      hasUnsavedTalentSettingsChanges,
       onProfileVisibilityChange,
       onAddBlockedCompany,
       onRemoveBlockedCompany,
+      onSaveTalentSettings,
+      onResetTalentSettings,
       onReloadTalentSettings,
     }),
     [
@@ -472,13 +554,25 @@ export const CareerFlowProvider = ({
       blockedCompanies,
       handleAddProfileLink,
       onAddBlockedCompany,
+      hasUnsavedNetworkApplicationChanges,
+      hasUnsavedTalentInsightsChanges,
+      hasUnsavedTalentPreferencesChanges,
+      hasUnsavedTalentSettingsChanges,
       handleLogout,
       handleProfileLinkChange,
       networkApplication,
+      networkApplicationUpdatedAt,
       networkApplicationSaveError,
       networkApplicationSaveInfo,
       networkApplicationSavePending,
+      onResetNetworkApplication,
+      onResetTalentInsights,
+      onResetTalentPreferences,
+      onResetTalentSettings,
+      onSaveTalentInsights,
       onSaveTalentPreferences,
+      onSaveTalentSettings,
+      onTalentInsightsChange,
       onTalentPreferencesChange,
       onNetworkApplicationChange,
       onProfileVisibilityChange,
@@ -494,6 +588,7 @@ export const CareerFlowProvider = ({
       profileSaveInfo,
       profileSavePending,
       progressPercent,
+      recentOpportunities,
       resumeFile,
       savedProfileLinks,
       savedResumeDownloadUrl,
@@ -501,13 +596,21 @@ export const CareerFlowProvider = ({
       savedResumeStoragePath,
       settingsError,
       settingsLoading,
+      settingsSaveInfo,
       settingsSaving,
+      settingsUpdatedAt,
       setResumeFile,
       stage,
+      talentInsights,
+      talentInsightsSaveError,
+      talentInsightsSaveInfo,
+      talentInsightsSavePending,
+      talentInsightsUpdatedAt,
       talentPreferences,
       talentPreferencesSaveError,
       talentPreferencesSaveInfo,
       talentPreferencesSavePending,
+      talentPreferencesUpdatedAt,
       userChatCount,
       talentEducations,
       talentExperiences,

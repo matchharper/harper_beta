@@ -483,6 +483,35 @@ export function useClearAtsEmailDiscoveryTrace() {
   });
 }
 
+export function useResetAtsCandidateOutreach() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (candidId: string) =>
+      fetchWithInternalAuth<{ ok: boolean; outreach: AtsOutreachRecord }>(
+        "/api/internal/ats/candidate",
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: "reset_outreach",
+            candidId,
+          }),
+        }
+      ),
+    onSuccess: async (_, candidId) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: atsWorkspaceKey }),
+        queryClient.invalidateQueries({
+          queryKey: atsCandidateDetailKey(candidId),
+        }),
+      ]);
+    },
+  });
+}
+
 export function useGenerateAtsContactEmail() {
   return useMutation({
     mutationFn: (candidId: string) =>

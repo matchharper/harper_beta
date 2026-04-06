@@ -6,34 +6,16 @@ export function careerCx(...values: ClassValue[]) {
   return values.filter(Boolean).join(" ");
 }
 
-export const careerSurfaceClassName = "border border-beige900/10 bg-[#f7f0e5]";
+export const careerSurfaceClassName = "";
 
 export const careerInlinePanelClassName =
   "border border-beige900/10 bg-white/55";
 
 export const careerInputClassName =
-  "h-[36px] w-full rounded-[8px] border border-beige900/15 bg-white/60 px-3 py-2 text-[14px] font-light leading-5 text-beige900 outline-none transition focus:ring-1 focus:ring-beige900/30 placeholder:text-beige900/30";
+  "h-[36px] w-full rounded-[8px] border border-beige900/15 bg-white/60 px-3 py-2 text-[14px] font-normal leading-5 text-beige900 outline-none transition focus:ring-1 focus:ring-beige900/30 placeholder:text-beige900/30";
 
 export const careerTextareaClassName =
-  "w-full rounded-[8px] border border-beige900/15 bg-white/60 px-3 py-2 text-[14px] font-light leading-6 text-beige900 outline-none transition focus:ring-1 focus:ring-beige900/30 placeholder:text-beige900/30";
-
-export const CareerSurface = ({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) => (
-  <section
-    className={careerCx(
-      "rounded-[8px] px-5 py-5",
-      careerSurfaceClassName,
-      className
-    )}
-  >
-    {children}
-  </section>
-);
+  "w-full rounded-[8px] border border-beige900/15 bg-white/60 px-3 py-2 text-[14px] font-normal leading-6 text-beige900 outline-none transition focus:ring-1 focus:ring-beige900/30 placeholder:text-beige900/30";
 
 export const CareerInlinePanel = ({
   children,
@@ -84,12 +66,27 @@ export const CareerSectionHeader = ({
   </div>
 );
 
+export const CareerFieldLabel = ({
+  icon,
+  label,
+}: {
+  icon?: React.ReactNode;
+  label: React.ReactNode;
+}) => (
+  <div className="flex flex-row items-center gap-2 text-sm text-beige900">
+    {icon && <span>{icon}</span>}
+    <span>{label}</span>
+  </div>
+);
+
 export const CareerField = ({
+  icon,
   label,
   children,
   hint,
   className,
 }: {
+  icon?: React.ReactNode;
   label: React.ReactNode;
   children: React.ReactNode;
   hint?: React.ReactNode;
@@ -97,20 +94,19 @@ export const CareerField = ({
 }) => (
   <div
     className={careerCx(
-      "grid gap-3 border-t border-beige900/10 py-5 first:border-t-0 first:pt-0",
-      "lg:grid-cols-[180px_minmax(0,1fr)]",
+      "flex flex-col items-start justify-start gap-3 pb-8",
       className
     )}
   >
     <div className="pt-1">
-      <div className="text-[14px] font-medium text-beige900/60">{label}</div>
+      <CareerFieldLabel icon={icon} label={label} />
       {hint ? (
-        <div className="mt-1 text-[13px] leading-5 text-beige900/40">
+        <div className="mt-1 text-[13px] leading-5 text-beige900/60">
           {hint}
         </div>
       ) : null}
     </div>
-    <div>{children}</div>
+    <div className="w-full">{children}</div>
   </div>
 );
 
@@ -152,10 +148,10 @@ export const CareerToggleButton = ({
     type="button"
     {...props}
     className={careerCx(
-      "inline-flex min-h-[36px] items-center rounded-[8px] border px-3 py-2 text-[13px] leading-5 transition-colors",
+      "inline-flex min-h-[36px] font-medium items-center rounded-md border px-5 py-3 min-w-[calc(30%-4px)] text-sm leading-5 transition-colors",
       active
-        ? "border-beige900 bg-beige900 text-[#f5ecdd]"
-        : "border-beige900/15 bg-white/45 text-beige900/70 hover:border-beige900/30 hover:text-beige900",
+        ? "border-beige900 bg-beige200 text-beige900 outline outline-[0.5px] outline-beige900"
+        : "border-beige900/15 bg-white/45 text-beige900/70 hover:border-beige900/80 hover:text-beige900",
       className
     )}
   >

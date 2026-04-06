@@ -32,9 +32,7 @@ const Career = () => {
       inviteToken={inviteToken}
       onOpenSettings={() => setIsSettingsModalOpen(true)}
     >
-      <CareerWorkspaceScreen
-        onOpenSettings={() => setIsSettingsModalOpen(true)}
-      />
+      <CareerWorkspaceScreen />
       <CareerSettingsModal
         open={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}

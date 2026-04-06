@@ -10,7 +10,6 @@ import {
   CareerField,
   CareerPrimaryButton,
   CareerSectionHeader,
-  CareerSurface,
   CareerTextInput,
   CareerTextarea,
   CareerToggleButton,
@@ -63,9 +62,9 @@ const CareerNetworkApplicationSection = () => {
 
   if (!networkApplication && !talentPreferences) {
     return (
-      <CareerSurface>
+      <div>
         <CareerSectionHeader title="프로필 설정" />
-      </CareerSurface>
+      </div>
     );
   }
 
@@ -89,7 +88,7 @@ const CareerNetworkApplicationSection = () => {
   };
 
   return (
-    <CareerSurface>
+    <div>
       <CareerSectionHeader title="프로필 설정" />
 
       <div className="mt-5">
@@ -184,26 +183,6 @@ const CareerNetworkApplicationSection = () => {
                 />
               ))}
             </div>
-          </CareerField>
-        ) : null}
-
-        {talentPreferences ? (
-          <CareerField label="기술적 장점">
-            <CareerTextarea
-              rows={5}
-              value={talentPreferences.technicalStrengths ?? ""}
-              onChange={(event) =>
-                onTalentPreferencesChange((current) =>
-                  current
-                    ? {
-                        ...current,
-                        technicalStrengths: event.target.value,
-                      }
-                    : current
-                )
-              }
-              placeholder="본인의 기술적 강점과 강하게 드러내고 싶은 내용을 적어주세요."
-            />
           </CareerField>
         ) : null}
 
@@ -313,25 +292,6 @@ const CareerNetworkApplicationSection = () => {
           </CareerField>
         ) : null}
 
-        {talentPreferences ? (
-          <CareerField label="원하는 팀">
-            <CareerTextarea
-              rows={4}
-              value={talentPreferences.desiredTeams ?? ""}
-              onChange={(event) =>
-                onTalentPreferencesChange((current) =>
-                  current
-                    ? {
-                        ...current,
-                        desiredTeams: event.target.value,
-                      }
-                    : current
-                )
-              }
-              placeholder="관심 있는 회사, 팀, 또는 선호하는 방향을 적어주세요."
-            />
-          </CareerField>
-        ) : null}
       </div>
 
       {saveError ? (
@@ -356,7 +316,7 @@ const CareerNetworkApplicationSection = () => {
           {isSavePending ? "저장 중..." : "프로필 설정 저장"}
         </CareerPrimaryButton>
       </div>
-    </CareerSurface>
+    </div>
   );
 };
 

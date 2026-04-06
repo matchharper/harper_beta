@@ -1,42 +1,5 @@
 import React from "react";
-
-export const BRAND_MAP = [
-  {
-    match: (h: string) => h.includes("linkedin.com"),
-    label: "링크드인",
-    icon: "https://www.linkedin.com/favicon.ico",
-  },
-  {
-    match: (h: string) => h === "x.com" || h.includes("twitter.com"),
-    label: "x.com",
-    icon: "https://abs.twimg.com/favicons/twitter.3.ico",
-  },
-  {
-    match: (h: string) => h.includes("instagram.com"),
-    label: "instagram",
-    icon: "https://www.instagram.com/static/images/ico/favicon-192.png/68d99ba29cc8.png",
-  },
-  {
-    match: (h: string) => h.includes("github.com"),
-    label: "github",
-    icon: "/svgs/github_white.svg",
-  },
-  {
-    match: (h: string) => h.includes("scholar.google."),
-    label: "google scholar",
-    icon: "https://scholar.google.com/favicon.ico",
-  },
-  {
-    match: (h: string) => h.toLowerCase().includes("cv.pdf"),
-    label: "cv.pdf",
-    icon: "/svgs/file.svg",
-  },
-  {
-    match: (h: string) => h.toLowerCase().includes("crunchbase.com"),
-    label: "crunchbase",
-    icon: "/images/crunchbase.png",
-  },
-];
+import { getLinkChipMeta } from "@/utils/linkChip";
 
 type Props = {
   links: string[];
@@ -59,28 +22,20 @@ function LinkChips({
       {links.map((raw) => {
         if (!raw || raw === "") return null;
 
-        const url = raw.startsWith("http") ? raw : `https://${raw}`;
-        let host = raw;
-
-        try {
-          host = new URL(url).hostname.replace("www.", "");
-        } catch {}
-
-        const brand = BRAND_MAP.find((b) => b.match(url)) ?? {
-          label: host,
-          icon: `/svgs/chain.svg`,
-        };
+        const { url, brand, icon, label } = getLinkChipMeta(raw);
+        const displayLabel =
+          brand?.label === "linkedin" && label === "linkedin" ? "링크드인" : label;
 
         const content = (
           <>
             <img
-              src={brand.icon}
+              src={icon}
               className={`${
-                brand.icon.includes("/svgs/chain") ? "h-3.5 w-3.5" : "h-4 w-4 "
+                icon.includes("/svgs/chain") ? "h-3.5 w-3.5" : "h-4 w-4 "
               }`}
               alt=""
             />
-            {masked ? "****" : brand.label}
+            {masked ? "****" : displayLabel}
           </>
         );
 

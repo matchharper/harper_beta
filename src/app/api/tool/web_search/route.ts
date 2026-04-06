@@ -28,7 +28,6 @@ export async function POST(req: NextRequest) {
       .select("*")
       .eq("url", query)
       .maybeSingle();
-    console.log(`\n\n-----웹 검색 캐시 ${cache}-----\n\n`);
 
     if (cache.data?.markdown) {
       try {
@@ -80,19 +79,19 @@ export async function POST(req: NextRequest) {
     console.log(response);
     console.log("\n\n----------\n\n");
 
-    const { error: insertError } = await supabase.from("documents").insert({
-      url: query,
-      title: "",
-      markdown: JSON.stringify(response),
-      excerpt: "",
-    });
+    // const { error: insertError } = await supabase.from("documents").insert({
+    //   url: query,
+    //   title: "",
+    //   markdown: JSON.stringify(response),
+    //   excerpt: "",
+    // });
 
-    if (insertError) {
-      console.warn("[web_search] failed to cache search response", {
-        error: insertError.message,
-        query,
-      });
-    }
+    // if (insertError) {
+    //   console.warn("[web_search] failed to cache search response", {
+    //     error: insertError.message,
+    //     query,
+    //   });
+    // }
 
     return NextResponse.json(response, { status: 200 });
   } catch (error) {
@@ -102,9 +101,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error:
-          error instanceof Error
-            ? error.message
-            : "web_search request failed",
+          error instanceof Error ? error.message : "web_search request failed",
       },
       { status: 500 }
     );

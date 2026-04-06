@@ -9,6 +9,7 @@ import {
   deleteAtsContactHistory,
   fetchAtsCandidateDetail,
   generateAtsContactEmailDraft,
+  resetAtsCandidateOutreach,
   saveAtsCandidateMemo,
   saveAtsSequenceSchedule,
   sendAtsSingleManualEmail,
@@ -52,6 +53,7 @@ export async function PATCH(req: NextRequest) {
         | "add_history"
         | "delete_history"
         | "clear_email_trace"
+        | "reset_outreach"
         | "generate_contact_email"
         | "send_contact_email";
       body?: string | null;
@@ -137,6 +139,14 @@ export async function PATCH(req: NextRequest) {
 
     if (body.action === "clear_email_trace") {
       const outreach = await clearAtsEmailDiscoveryTrace({
+        candidId,
+        userId: user.id,
+      });
+      return NextResponse.json({ ok: true, outreach });
+    }
+
+    if (body.action === "reset_outreach") {
+      const outreach = await resetAtsCandidateOutreach({
         candidId,
         userId: user.id,
       });

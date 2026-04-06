@@ -1,43 +1,6 @@
 import React from "react";
 import { Tooltips } from "../ui/tooltip";
-
-export const BRAND_MAP = [
-  {
-    match: (h: string) => h.includes("linkedin.com"),
-    label: "linkedin",
-    icon: "https://www.linkedin.com/favicon.ico",
-  },
-  {
-    match: (h: string) => h === "x.com" || h.includes("twitter.com"),
-    label: "x.com",
-    icon: "https://abs.twimg.com/favicons/twitter.3.ico",
-  },
-  {
-    match: (h: string) => h.includes("instagram.com"),
-    label: "instagram",
-    icon: "https://www.instagram.com/static/images/ico/favicon-192.png/68d99ba29cc8.png",
-  },
-  {
-    match: (h: string) => h.includes("github.com"),
-    label: "github",
-    icon: "/svgs/github_white.svg",
-  },
-  {
-    match: (h: string) => h.includes("scholar.google."),
-    label: "google scholar",
-    icon: "https://scholar.google.com/favicon.ico",
-  },
-  {
-    match: (h: string) => h.toLowerCase().includes("cv.pdf"),
-    label: "cv.pdf",
-    icon: "/svgs/file.svg",
-  },
-  {
-    match: (h: string) => h.toLowerCase().includes("crunchbase.com"),
-    label: "crunchbase",
-    icon: "/images/crunchbase.png",
-  },
-];
+import { getLinkChipMeta } from "@/utils/linkChip";
 
 type Props = {
   links: string[];
@@ -52,22 +15,9 @@ function LinkChips({ links, size = "default" }: Props) {
       {links.map((raw) => {
         if (!raw) return null;
 
-        const url = raw.startsWith("http") ? raw : `https://${raw}`;
+        const { url, brand, icon, label } = getLinkChipMeta(raw);
 
-        let host = raw;
-        try {
-          host = new URL(url).hostname.replace("www.", "");
-        } catch {}
-
-        const brand = BRAND_MAP.find((b) => b.match(url));
-
-        // sm일 때는 매핑 안 되는 링크는 아예 렌더링 X
         if (size === "sm" && !brand) return null;
-
-        const finalBrand = brand ?? {
-          label: host,
-          icon: "/svgs/chain.svg",
-        };
 
         const isSm = size === "sm";
 
@@ -84,23 +34,21 @@ function LinkChips({ links, size = "default" }: Props) {
                   : "bg-white/5 px-2.5 py-1.5 text-sm text-white hover:bg-white/20"
               }`}
           >
-            <Tooltips text={isSm ? finalBrand.label : ""}>
+            <Tooltips text={isSm ? label : ""}>
               <img
-                src={finalBrand.icon}
+                src={icon}
                 alt=""
                 className={
                   isSm
                     ? "h-4 w-4"
-                    : finalBrand.icon.includes("/svgs/chain")
+                    : icon.includes("/svgs/chain")
                       ? "h-3.5 w-3.5"
                       : "h-4 w-4"
                 }
               />
             </Tooltips>
             {!isSm && (
-              <span className="ml-2 font-normal text-white">
-                {finalBrand.label}
-              </span>
+              <span className="ml-2 font-normal text-white">{label}</span>
             )}
           </a>
         );
@@ -118,22 +66,9 @@ export const LinkChip = ({
   raw: string;
   size?: "default" | "sm" | "md";
 }) => {
-  const url = raw.startsWith("http") ? raw : `https://${raw}`;
+  const { url, brand, icon, label } = getLinkChipMeta(raw);
 
-  let host = raw;
-  try {
-    host = new URL(url).hostname.replace("www.", "");
-  } catch {}
-
-  const brand = BRAND_MAP.find((b) => b.match(url));
-
-  // sm일 때는 매핑 안 되는 링크는 아예 렌더링 X
   if (size === "sm" && !brand) return null;
-
-  const finalBrand = brand ?? {
-    label: host,
-    icon: "/svgs/chain.svg",
-  };
 
   const isSm = size === "sm";
   const isMd = size === "md";
@@ -153,24 +88,22 @@ export const LinkChip = ({
               : "bg-white/5 px-2.5 py-1.5 text-sm text-white hover:bg-white/20"
         }`}
     >
-      <Tooltips text={isSm ? finalBrand.label : ""}>
+      <Tooltips text={isSm ? label : ""}>
         <img
-          src={finalBrand.icon}
+          src={icon}
           alt=""
           className={
             isSm
               ? "h-4 w-4"
               : isMd
                 ? "h-3 w-3"
-                : finalBrand.icon.includes("/svgs/chain")
+                : icon.includes("/svgs/chain")
                   ? "h-3.5 w-3.5"
                   : "h-4 w-4"
           }
         />
       </Tooltips>
-      {!isSm && (
-        <span className="ml-2 font-light text-white">{finalBrand.label}</span>
-      )}
+      {!isSm && <span className="ml-2 font-light text-white">{label}</span>}
     </a>
   );
 };

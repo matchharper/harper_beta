@@ -14,6 +14,7 @@ type SettingsPayload = {
     profileVisibility?: string;
     blockedCompanies?: string[];
   };
+  updatedAt?: string | null;
   error?: string;
 };
 
@@ -56,6 +57,11 @@ const sameStringArray = (left: string[], right: string[]) => {
   return left.every((value, index) => value === right[index]);
 };
 
+const normalizeUpdatedAt = (value: unknown) => {
+  if (typeof value !== "string") return null;
+  return Number.isNaN(Date.parse(value)) ? null : value;
+};
+
 export const useCareerTalentSettings = ({
   userId,
   authLoading,
@@ -66,14 +72,30 @@ export const useCareerTalentSettings = ({
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsError, setSettingsError] = useState("");
+  const [settingsSaveInfo, setSettingsSaveInfo] = useState("");
   const [profileVisibility, setProfileVisibility] =
     useState<CareerProfileVisibility>(DEFAULT_PROFILE_VISIBILITY);
+  const [savedProfileVisibility, setSavedProfileVisibility] =
+    useState<CareerProfileVisibility>(DEFAULT_PROFILE_VISIBILITY);
   const [blockedCompanies, setBlockedCompanies] = useState<string[]>([]);
+  const [savedBlockedCompanies, setSavedBlockedCompanies] = useState<string[]>([]);
+  const [settingsUpdatedAt, setSettingsUpdatedAt] = useState<string | null>(null);
 
-  const applySettings = useCallback(
-    (settings: { profileVisibility?: unknown; blockedCompanies?: unknown }) => {
-      setProfileVisibility(normalizeProfileVisibility(settings.profileVisibility));
-      setBlockedCompanies(normalizeBlockedCompanies(settings.blockedCompanies));
+  const applyPersistedSettings = useCallback(
+    (
+      settings: { profileVisibility?: unknown; blockedCompanies?: unknown },
+      updatedAt?: unknown
+    ) => {
+      const nextVisibility = normalizeProfileVisibility(settings.profileVisibility);
+      const nextBlockedCompanies = normalizeBlockedCompanies(
+        settings.blockedCompanies
+      );
+
+      setProfileVisibility(nextVisibility);
+      setSavedProfileVisibility(nextVisibility);
+      setBlockedCompanies(nextBlockedCompanies);
+      setSavedBlockedCompanies(nextBlockedCompanies);
+      setSettingsUpdatedAt(normalizeUpdatedAt(updatedAt));
     },
     []
   );
@@ -96,7 +118,7 @@ export const useCareerTalentSettings = ({
       if (requestId !== fetchRequestIdRef.current) {
         return;
       }
-      applySettings(payload.settings ?? {});
+      applyPersistedSettings(payload.settings ?? {}, payload.updatedAt);
     } catch (error) {
       if (requestId !== fetchRequestIdRef.current) {
         return;
@@ -109,7 +131,7 @@ export const useCareerTalentSettings = ({
         setSettingsLoading(false);
       }
     }
-  }, [applySettings, fetchWithAuth, userId]);
+  }, [applyPersistedSettings, fetchWithAuth, userId]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -120,70 +142,76 @@ export const useCareerTalentSettings = ({
       setSettingsLoading(false);
       setSettingsSaving(false);
       setSettingsError("");
+      setSettingsSaveInfo("");
       setProfileVisibility(DEFAULT_PROFILE_VISIBILITY);
+      setSavedProfileVisibility(DEFAULT_PROFILE_VISIBILITY);
       setBlockedCompanies([]);
+      setSavedBlockedCompanies([]);
+      setSettingsUpdatedAt(null);
       return;
     }
 
     void fetchSettings();
   }, [authLoading, fetchSettings, userId]);
 
-  const saveSettings = useCallback(
-    async (next: {
-      profileVisibility: CareerProfileVisibility;
-      blockedCompanies: string[];
-    }) => {
-      if (!userId) return;
+  const saveSettings = useCallback(async () => {
+    if (!userId || settingsSaving) return false;
 
-      const requestId = ++saveRequestIdRef.current;
-      setSettingsSaving(true);
-      setSettingsError("");
-      try {
-        const response = await fetchWithAuth("/api/talent/settings", {
-          method: "POST",
-          body: JSON.stringify(next),
-        });
-        const payload = (await response
-          .json()
-          .catch(() => ({}))) as SettingsPayload;
-        if (!response.ok) {
-          throw new Error(getErrorMessage(payload, "설정 저장에 실패했습니다."));
-        }
-
-        if (requestId !== saveRequestIdRef.current) {
-          return;
-        }
-        applySettings(payload.settings ?? next);
-      } catch (error) {
-        if (requestId !== saveRequestIdRef.current) {
-          return;
-        }
-        const message =
-          error instanceof Error ? error.message : "설정 저장에 실패했습니다.";
-        setSettingsError(message);
-      } finally {
-        if (requestId === saveRequestIdRef.current) {
-          setSettingsSaving(false);
-        }
-      }
-    },
-    [applySettings, fetchWithAuth, userId]
-  );
-
-  const updateProfileVisibility = useCallback(
-    (value: CareerProfileVisibility) => {
-      const nextVisibility = normalizeProfileVisibility(value);
-      if (nextVisibility === profileVisibility) return;
-
-      const nextBlockedCompanies = blockedCompanies;
-      setProfileVisibility(nextVisibility);
-      void saveSettings({
-        profileVisibility: nextVisibility,
-        blockedCompanies: nextBlockedCompanies,
+    const requestId = ++saveRequestIdRef.current;
+    setSettingsSaving(true);
+    setSettingsError("");
+    setSettingsSaveInfo("");
+    try {
+      const response = await fetchWithAuth("/api/talent/settings", {
+        method: "POST",
+        body: JSON.stringify({
+          profileVisibility,
+          blockedCompanies,
+        }),
       });
-    },
-    [blockedCompanies, profileVisibility, saveSettings]
-  );
+      const payload = (await response
+        .json()
+        .catch(() => ({}))) as SettingsPayload;
+      if (!response.ok) {
+        throw new Error(getErrorMessage(payload, "설정 저장에 실패했습니다."));
+      }
+
+      if (requestId !== saveRequestIdRef.current) {
+        return false;
+      }
+      applyPersistedSettings(payload.settings ?? {}, payload.updatedAt);
+      setSettingsSaveInfo("프로필 설정을 저장했습니다.");
+      return true;
+    } catch (error) {
+      if (requestId !== saveRequestIdRef.current) {
+        return false;
+      }
+      const message =
+        error instanceof Error ? error.message : "설정 저장에 실패했습니다.";
+      setSettingsError(message);
+      return false;
+    } finally {
+      if (requestId === saveRequestIdRef.current) {
+        setSettingsSaving(false);
+      }
+    }
+  }, [
+    applyPersistedSettings,
+    blockedCompanies,
+    fetchWithAuth,
+    profileVisibility,
+    settingsSaving,
+    userId,
+  ]);
+
+  const updateProfileVisibility = useCallback((value: CareerProfileVisibility) => {
+    const nextVisibility = normalizeProfileVisibility(value);
+    if (nextVisibility === profileVisibility) return;
+
+    setProfileVisibility(nextVisibility);
+    setSettingsError("");
+    setSettingsSaveInfo("");
+  }, [profileVisibility]);
 
   const addBlockedCompany = useCallback(
     (rawName: string) => {
@@ -197,12 +225,10 @@ export const useCareerTalentSettings = ({
       if (sameStringArray(nextBlockedCompanies, blockedCompanies)) return;
 
       setBlockedCompanies(nextBlockedCompanies);
-      void saveSettings({
-        profileVisibility,
-        blockedCompanies: nextBlockedCompanies,
-      });
+      setSettingsError("");
+      setSettingsSaveInfo("");
     },
-    [blockedCompanies, profileVisibility, saveSettings]
+    [blockedCompanies]
   );
 
   const removeBlockedCompany = useCallback(
@@ -213,12 +239,29 @@ export const useCareerTalentSettings = ({
       if (sameStringArray(nextBlockedCompanies, blockedCompanies)) return;
 
       setBlockedCompanies(nextBlockedCompanies);
-      void saveSettings({
-        profileVisibility,
-        blockedCompanies: nextBlockedCompanies,
-      });
+      setSettingsError("");
+      setSettingsSaveInfo("");
     },
-    [blockedCompanies, profileVisibility, saveSettings]
+    [blockedCompanies]
+  );
+
+  const resetTalentSettings = useCallback(() => {
+    setProfileVisibility(savedProfileVisibility);
+    setBlockedCompanies(savedBlockedCompanies);
+    setSettingsError("");
+    setSettingsSaveInfo("");
+  }, [savedBlockedCompanies, savedProfileVisibility]);
+
+  const hasUnsavedTalentSettingsChanges = useMemo(
+    () =>
+      profileVisibility !== savedProfileVisibility ||
+      !sameStringArray(blockedCompanies, savedBlockedCompanies),
+    [
+      blockedCompanies,
+      profileVisibility,
+      savedBlockedCompanies,
+      savedProfileVisibility,
+    ]
   );
 
   return useMemo(
@@ -226,22 +269,32 @@ export const useCareerTalentSettings = ({
       settingsLoading,
       settingsSaving,
       settingsError,
+      settingsSaveInfo,
+      settingsUpdatedAt,
       profileVisibility,
       blockedCompanies,
+      hasUnsavedTalentSettingsChanges,
       onProfileVisibilityChange: updateProfileVisibility,
       onAddBlockedCompany: addBlockedCompany,
       onRemoveBlockedCompany: removeBlockedCompany,
+      onSaveTalentSettings: saveSettings,
+      onResetTalentSettings: resetTalentSettings,
       onReloadTalentSettings: fetchSettings,
     }),
     [
       addBlockedCompany,
       blockedCompanies,
       fetchSettings,
+      hasUnsavedTalentSettingsChanges,
       profileVisibility,
       removeBlockedCompany,
+      resetTalentSettings,
+      saveSettings,
       settingsError,
       settingsLoading,
+      settingsSaveInfo,
       settingsSaving,
+      settingsUpdatedAt,
       updateProfileVisibility,
     ]
   );

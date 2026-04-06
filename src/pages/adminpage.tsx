@@ -9,6 +9,30 @@ import { supabase } from "@/lib/supabase";
 import { showToast } from "@/components/toast/toast";
 import { Loading } from "@/components/ui/loading";
 import AdminMetricsTab from "@/components/admin/metrics/AdminMetricsTab";
+import AdminBlogMetricsTab from "@/components/admin/tabs/AdminBlogMetricsTab";
+import AdminBookmarkFoldersTab from "@/components/admin/tabs/AdminBookmarkFoldersTab";
+import AdminLandingLogsTab from "@/components/admin/tabs/AdminLandingLogsTab";
+import AdminNetworkAnalyticsTab from "@/components/admin/tabs/AdminNetworkAnalyticsTab";
+import AdminUserAnalyticsTab from "@/components/admin/tabs/AdminUserAnalyticsTab";
+import AdminWaitlistCompanyTab from "@/components/admin/tabs/AdminWaitlistCompanyTab";
+import type {
+  AbtestSummary,
+  AdminBookmarkFolder,
+  AdminBookmarkFolderItem,
+  AdminBookmarkUser,
+  AdminTab,
+  AdminUserAnalyticsProfile,
+  AdminUserAnalyticsSummary,
+  AdminUserAnalyticsUser,
+  BlogMetricRow,
+  GroupedLogs,
+  LandingLog,
+  SectionProgressSummary,
+  TalentNetworkButtonSummary,
+  TalentNetworkFunnelSummary,
+  TalentNetworkVariantFunnelSummary,
+  WaitlistCompany,
+} from "@/components/admin/types";
 import { ADMIN_PAGE_PASSWORD } from "@/lib/admin";
 import { isInternalEmail } from "@/lib/internalAccess";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -27,170 +51,63 @@ import {
   getTalentNetworkVariantLabel,
 } from "@/lib/talentNetwork";
 
-type LandingLog = {
-  id: string;
-  local_id: string;
-  type: string;
-  abtest_type: string | null;
-  created_at: string;
-  is_mobile: boolean | null;
-  country_lang: string | null;
-};
-
-type GroupedLogs = {
-  local_id: string;
-  entryTime: string;
-  country_lang: string;
-  abtest_type: string;
-  logs: LandingLog[];
-};
-
-type AbtestSummary = {
-  abtestType: string;
-  totalUsers: number;
-  scrolledUsers: number;
-  startClickedUsers: number;
-  pricingClickedUsers: number;
-  loggedInUsers: number;
-};
-
-type SectionProgressSummary = {
-  abtestType: string;
-  totalUsers: number;
-  sections: Array<{
-    sectionName: string;
-    userCount: number;
-  }>;
-};
-
-type TalentNetworkFunnelSummary = {
-  totalUsers: number;
-  onboardingStartUsers: number;
-  submittedUsers: number;
-  steps: Array<{
-    step: number;
-    label: string;
-    userCount: number;
-  }>;
-};
-
-type TalentNetworkButtonSummary = {
-  eventType: string;
-  totalClicks: number;
-  uniqueUsers: number;
-  variantBreakdown: Array<{
-    abtestType: string;
-    label: string;
-    totalClicks: number;
-    uniqueUsers: number;
-  }>;
-};
-
-type TalentNetworkVariantFunnelSummary = TalentNetworkFunnelSummary & {
-  abtestType: string;
-  label: string;
-};
-type WaitlistCompany = {
-  additional: string | null;
-  company: string | null;
-  company_link: string | null;
-  created_at: string;
-  email: string;
-  is_mobile: boolean | null;
-  is_submit: boolean;
-  main: string | null;
-  name: string | null;
-  needs: string[] | null;
-  role: string | null;
-  size: string | null;
-};
-
-type BlogMetricRow = {
-  slug: string;
-  viewCount: number;
-  conversionCount: number;
-};
-
-type AdminBookmarkUser = {
-  userId: string;
-  name: string | null;
-  email: string | null;
-  company: string | null;
-  folderCount: number;
-  bookmarkCount: number;
-};
-
-type AdminBookmarkFolder = {
-  id: number;
-  name: string;
-  isDefault: boolean;
-  createdAt: string;
-  updatedAt: string;
-  itemCount: number;
-};
-
-type AdminBookmarkFolderItem = {
-  folderItemId: number;
-  candidId: string;
-  name: string | null;
-  headline: string | null;
-  memo: string;
-  memoUpdatedAt: string | null;
-  linkedinUrl: string | null;
-  profileHref: string;
-  createdAt: string | null;
-};
-
-type AdminUserAnalyticsUser = {
-  userId: string;
-  name: string | null;
-  email: string | null;
-  company: string | null;
-  searchCount: number;
-  profileViewCount: number;
-  linkClickCount: number;
-};
-
-type AdminUserAnalyticsSummary = {
-  searchCount: number;
-  runCount: number;
-  pageViewCount: number;
-  profileViewCount: number;
-  linkClickCount: number;
-  uniqueProfilesViewed: number;
-  chatMessageCount: number;
-  markedCandidateCount: number;
-  bookmarkedCandidateCount: number;
-  memoCount: number;
-  pageViewsPerSearch: number;
-  profileViewsPerSearch: number;
-};
-
-type AdminUserAnalyticsProfile = {
-  candidId: string;
-  name: string | null;
-  headline: string | null;
-  linkedinUrl: string | null;
-  profileHref: string;
-  profileViewCount: number;
-  totalLinkClickCount: number;
-  linkClicks: Array<{
-    host: string;
-    count: number;
-  }>;
-};
-
-type AdminTab =
-  | "landingLogs"
-  | "networkAnalytics"
-  | "waitlistCompany"
-  | "blogMetrics"
-  | "bookmarkFolders"
-  | "userAnalytics"
-  | "metrics";
-
 const PAGE_SIZE = 50;
 const BLOG_METRIC_FETCH_BATCH_SIZE = 1000;
+
+const ADMIN_TAB_META: Record<
+  AdminTab,
+  {
+    label: string;
+    title: string;
+    subtitle: string;
+  }
+> = {
+  landingLogs: {
+    label: "Landing Logs",
+    title: "Landing Logs Admin",
+    subtitle: "local_id 기준 · 액션 타임라인",
+  },
+  networkAnalytics: {
+    label: "Network",
+    title: "Network Analytics Admin",
+    subtitle: "Talent Network A/B test · funnel · button clicks",
+  },
+  waitlistCompany: {
+    label: "Waitlist Company",
+    title: "Waitlist Company Admin",
+    subtitle: "harper_waitlist_company 목록",
+  },
+  blogMetrics: {
+    label: "Blog Metrics",
+    title: "Blog Metrics Admin",
+    subtitle: "blog slug 기준 조회/전환 집계",
+  },
+  bookmarkFolders: {
+    label: "Bookmark Folders",
+    title: "Bookmark Folder Admin",
+    subtitle: "유저별 북마크 폴더와 저장 후보 조회",
+  },
+  userAnalytics: {
+    label: "User Analytics",
+    title: "User Analytics Admin",
+    subtitle: "company_users 기준 검색/프로필/링크 클릭 지표 조회",
+  },
+  metrics: {
+    label: "Metrics",
+    title: "Metrics Admin",
+    subtitle: "기간별 제품 지표 차트",
+  },
+};
+
+const ADMIN_TAB_ORDER: AdminTab[] = [
+  "landingLogs",
+  "networkAnalytics",
+  "waitlistCompany",
+  "blogMetrics",
+  "bookmarkFolders",
+  "userAnalytics",
+  "metrics",
+];
 
 const ENTRY_TYPES = new Set(["new_visit", "new_session"]);
 const EXCLUDED_TYPE_KEYWORD = "index";
@@ -213,40 +130,6 @@ function extractSectionNameFromType(type: string) {
   if (!type.startsWith(SECTION_VIEW_EVENT_PREFIX)) return null;
   const sectionName = type.slice(SECTION_VIEW_EVENT_PREFIX.length).trim();
   return sectionName.length > 0 ? sectionName : null;
-}
-
-function formatSectionName(sectionName: string) {
-  return sectionName.replace(/_/g, " ");
-}
-
-function formatTalentNetworkEventName(type: string) {
-  return type
-    .replace(/^talent_network_/, "")
-    .replace(/:/g, " / ")
-    .replace(/_/g, " ");
-}
-function formatPercent(numerator: number, denominator: number) {
-  if (denominator === 0) return "0.0%";
-  return `${((numerator / denominator) * 100).toFixed(1)}%`;
-}
-
-function formatDecimal(value: number) {
-  if (!Number.isFinite(value)) return "0.00";
-  return value.toFixed(2);
-}
-
-function formatKST(iso?: string) {
-  if (!iso) return "";
-
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("ko-KR", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 const TALENT_NETWORK_VARIANT_SORT_ORDER: Record<string, number> = {
@@ -440,6 +323,7 @@ const AdminPage = () => {
   const [userAnalyticsDetailError, setUserAnalyticsDetailError] = useState<
     string | null
   >(null);
+  const [searchLandingRefreshToken, setSearchLandingRefreshToken] = useState(0);
   const [metricsRefreshToken, setMetricsRefreshToken] = useState(0);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -1043,6 +927,7 @@ const AdminPage = () => {
   const onRefresh = async () => {
     if (activeTab === "landingLogs") {
       await fetchPage({ reset: true });
+      setSearchLandingRefreshToken((current) => current + 1);
       return;
     }
     if (activeTab === "networkAnalytics") {
@@ -1402,33 +1287,9 @@ const AdminPage = () => {
   const isBookmarkFoldersTab = activeTab === "bookmarkFolders";
   const isUserAnalyticsTab = activeTab === "userAnalytics";
   const isMetricsTab = activeTab === "metrics";
-
-  const pageTitle = isLandingTab
-    ? "Landing Logs Admin"
-    : isNetworkAnalyticsTab
-      ? "Network Analytics Admin"
-      : isWaitlistTab
-        ? "Waitlist Company Admin"
-        : isBlogMetricsTab
-          ? "Blog Metrics Admin"
-          : isBookmarkFoldersTab
-            ? "Bookmark Folder Admin"
-            : isUserAnalyticsTab
-              ? "User Analytics Admin"
-              : "Metrics Admin";
-  const pageSubTitle = isLandingTab
-    ? "local_id 기준 · 액션 타임라인"
-    : isNetworkAnalyticsTab
-      ? "Talent Network A/B test · funnel · button clicks"
-      : isWaitlistTab
-        ? "harper_waitlist_company 목록"
-        : isBlogMetricsTab
-          ? "blog slug 기준 조회/전환 집계"
-          : isBookmarkFoldersTab
-            ? "유저별 북마크 폴더와 저장 후보 조회"
-            : isUserAnalyticsTab
-              ? "company_users 기준 검색/프로필/링크 클릭 지표 조회"
-              : "기간별 제품 지표 차트";
+  const activeTabMeta = ADMIN_TAB_META[activeTab];
+  const pageTitle = activeTabMeta.title;
+  const pageSubTitle = activeTabMeta.subtitle;
   const isLoading = isLandingTab
     ? loading || loadingMore
     : isNetworkAnalyticsTab
@@ -1516,83 +1377,24 @@ const AdminPage = () => {
               {pageSubTitle}
             </div>
             <div className="mt-3 flex items-center gap-2">
-              <button
-                onClick={() => setActiveTab("landingLogs")}
-                className={`h-8 px-3 text-[12px] border ${
-                  isLandingTab
-                    ? "border-black bg-black text-white"
-                    : "border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
-                }`}
-                style={{ borderRadius: 0 }}
-              >
-                Landing Logs
-              </button>
-              <button
-                onClick={() => setActiveTab("networkAnalytics")}
-                className={`h-8 px-3 text-[12px] border ${
-                  isNetworkAnalyticsTab
-                    ? "border-black bg-black text-white"
-                    : "border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
-                }`}
-                style={{ borderRadius: 0 }}
-              >
-                Network
-              </button>
-              <button
-                onClick={() => setActiveTab("waitlistCompany")}
-                className={`h-8 px-3 text-[12px] border ${
-                  isWaitlistTab
-                    ? "border-black bg-black text-white"
-                    : "border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
-                }`}
-                style={{ borderRadius: 0 }}
-              >
-                Waitlist Company
-              </button>
-              <button
-                onClick={() => setActiveTab("blogMetrics")}
-                className={`h-8 px-3 text-[12px] border ${
-                  isBlogMetricsTab
-                    ? "border-black bg-black text-white"
-                    : "border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
-                }`}
-                style={{ borderRadius: 0 }}
-              >
-                Blog Metrics
-              </button>
-              <button
-                onClick={() => setActiveTab("bookmarkFolders")}
-                className={`h-8 px-3 text-[12px] border ${
-                  isBookmarkFoldersTab
-                    ? "border-black bg-black text-white"
-                    : "border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
-                }`}
-                style={{ borderRadius: 0 }}
-              >
-                Bookmark Folders
-              </button>
-              <button
-                onClick={() => setActiveTab("userAnalytics")}
-                className={`h-8 px-3 text-[12px] border ${
-                  isUserAnalyticsTab
-                    ? "border-black bg-black text-white"
-                    : "border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
-                }`}
-                style={{ borderRadius: 0 }}
-              >
-                User Analytics
-              </button>
-              <button
-                onClick={() => setActiveTab("metrics")}
-                className={`h-8 px-3 text-[12px] border ${
-                  isMetricsTab
-                    ? "border-black bg-black text-white"
-                    : "border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
-                }`}
-                style={{ borderRadius: 0 }}
-              >
-                Metrics
-              </button>
+              {ADMIN_TAB_ORDER.map((tabKey) => {
+                const isActive = activeTab === tabKey;
+
+                return (
+                  <button
+                    key={tabKey}
+                    onClick={() => setActiveTab(tabKey)}
+                    className={`h-8 px-3 text-[12px] border ${
+                      isActive
+                        ? "border-black bg-black text-white"
+                        : "border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
+                    }`}
+                    style={{ borderRadius: 0 }}
+                  >
+                    {ADMIN_TAB_META[tabKey].label}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -1611,1474 +1413,103 @@ const AdminPage = () => {
 
       <div className="mx-auto max-w-[1100px] px-6 py-6 w-full">
         {isLandingTab ? (
-          <>
-            <div
-              className="mb-4 border border-black/10 p-4 text-[13px] text-black/80"
-              style={{ borderRadius: 0 }}
-            >
-              <div className="font-semibold text-black mb-1">
-                Loaded user summary
-              </div>
-              <div className="leading-6">
-                전체 유저:{" "}
-                <span className="text-black font-medium">
-                  {landingSummary.totalUsers}
-                </span>{" "}
-                · 스크롤 다운:{" "}
-                <span className="text-black font-medium">
-                  {landingSummary.scrolledUsers}
-                </span>{" "}
-                (
-                {formatPercent(
-                  landingSummary.scrolledUsers,
-                  landingSummary.totalUsers
-                )}
-                ) · click_*_start:{" "}
-                <span className="text-black font-medium">
-                  {landingSummary.startClickedUsers}
-                </span>{" "}
-                (
-                {formatPercent(
-                  landingSummary.startClickedUsers,
-                  landingSummary.totalUsers
-                )}
-                ) · 로그인:{" "}
-                <span className="text-black font-medium">
-                  {landingSummary.loggedInUsers}
-                </span>{" "}
-                (
-                {formatPercent(
-                  landingSummary.loggedInUsers,
-                  landingSummary.totalUsers
-                )}
-                )
-              </div>
-            </div>
-
-            <div
-              className="mb-4 border border-black/10 p-4 text-[12px] text-black/80"
-              style={{ borderRadius: 0 }}
-            >
-              <div className="font-semibold text-black mb-2">
-                AB Test summary (abtest_type)
-              </div>
-              {abtestSummary.length === 0 ? (
-                <div className="text-black/55">No AB test data.</div>
-              ) : (
-                <div className="space-y-1">
-                  <div className="grid grid-cols-[1.6fr_0.7fr_1fr_1fr_1fr_1fr] gap-2 font-semibold border-b border-black/10 pb-1">
-                    <div>abtest_type</div>
-                    <div className="text-right">Users</div>
-                    <div className="text-right">Scroll</div>
-                    <div className="text-right">Start</div>
-                    <div className="text-right">Pricing</div>
-                    <div className="text-right">Login</div>
-                  </div>
-                  {abtestSummary.map((item) => (
-                    <div
-                      key={item.abtestType}
-                      className="grid grid-cols-[1.6fr_0.7fr_1fr_1fr_1fr_1fr] gap-2"
-                    >
-                      <div className="break-all">{item.abtestType}</div>
-                      <div className="text-right">{item.totalUsers}</div>
-                      <div className="text-right">
-                        {item.scrolledUsers} (
-                        {formatPercent(item.scrolledUsers, item.totalUsers)})
-                      </div>
-                      <div className="text-right">
-                        {item.startClickedUsers} (
-                        {formatPercent(item.startClickedUsers, item.totalUsers)}
-                        )
-                      </div>
-                      <div className="text-right">
-                        {item.pricingClickedUsers} (
-                        {formatPercent(
-                          item.pricingClickedUsers,
-                          item.totalUsers
-                        )}
-                        )
-                      </div>
-                      <div className="text-right">
-                        {item.loggedInUsers} (
-                        {formatPercent(item.loggedInUsers, item.totalUsers)})
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div
-              className="mb-4 border border-black/10 p-4 text-[12px] text-black/80"
-              style={{ borderRadius: 0 }}
-            >
-              <div className="font-semibold text-black mb-2">
-                Section reach summary (abtest_type)
-              </div>
-              {sectionProgressSummary.length === 0 ? (
-                <div className="text-black/55">No section view data.</div>
-              ) : (
-                <div className="space-y-3">
-                  {sectionProgressSummary.map((item) => (
-                    <div
-                      key={item.abtestType}
-                      className="border-t border-black/10 pt-3 first:border-t-0 first:pt-0"
-                    >
-                      <div className="font-semibold text-black">
-                        {item.abtestType}
-                      </div>
-                      <div className="mt-1 text-black/55">
-                        Users: {item.totalUsers}
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {item.sections.map((section) => (
-                          <div
-                            key={`${item.abtestType}-${section.sectionName}`}
-                            className="border border-black/10 px-2 py-1"
-                          >
-                            <span className="font-medium text-black">
-                              {formatSectionName(section.sectionName)}
-                            </span>{" "}
-                            · {section.userCount} (
-                            {formatPercent(section.userCount, item.totalUsers)})
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="mb-4 flex items-center justify-between w-full">
-              <div className="text-[12px] text-black/55">
-                Loaded logs: <span className="text-black">{logs.length}</span> ·
-                Users: <span className="text-black">{grouped.length}</span>
-              </div>
-
-              {(loadingMore || loading) && (
-                <Loading
-                  size="sm"
-                  label="Loading…"
-                  className="text-[12px] text-black/55"
-                  inline={true}
-                />
-              )}
-            </div>
-
-            {pageError ? (
-              <div
-                className="border border-black/15 bg-black/[0.02] p-4 text-[13px] flex items-start justify-between gap-4"
-                style={{ borderRadius: 0 }}
-              >
-                <div>
-                  <div className="font-semibold">Error</div>
-                  <div className="text-black/70 mt-1">{pageError}</div>
-                </div>
-                <button
-                  onClick={onRefresh}
-                  className="h-9 px-3 text-[13px] border border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
-                  style={{ borderRadius: 0 }}
-                >
-                  Retry
-                </button>
-              </div>
-            ) : null}
-
-            <div
-              className="border border-black/10 w-full"
-              style={{ borderRadius: 0 }}
-            >
-              {loading ? (
-                <Loading
-                  size="sm"
-                  label="Loading…"
-                  className="p-6 text-[13px] text-black/55"
-                />
-              ) : grouped.length === 0 ? (
-                <div className="p-10 text-center">
-                  <div className="text-[14px] font-semibold">No logs</div>
-                  <div className="text-[13px] text-black/55 mt-2">
-                    No landing logs yet.
-                  </div>
-                </div>
-              ) : (
-                grouped.map((group) => (
-                  <div
-                    key={group.local_id}
-                    className="border-t border-black/10 first:border-t-0 w-full"
-                  >
-                    <div className="px-5 py-4 w-full">
-                      <div className="text-[14px] font-semibold">
-                        local_id: {group.local_id} - {group.country_lang}
-                      </div>
-                      <div className="text-[12px] text-black/55 mt-1">
-                        entry: {formatKST(group.entryTime)} · abtest:{" "}
-                        {group.abtest_type}
-                      </div>
-
-                      <div className="mt-3 text-[13px] text-black/80 w-full space-y-1">
-                        {group.logs.map((log) => (
-                          <div key={log.id} className="flex gap-2 w-full">
-                            <span className="text-black/50">•</span>
-                            {ENTRY_TYPES.has(log.type) ? (
-                              `${log.type} (${formatKST(log.created_at)})`
-                            ) : (
-                              <div className="flex flex-row w-full items-center justify-between">
-                                <div>{log.type}</div>
-                                <div>{formatKST(log.created_at)}</div>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div ref={sentinelRef} className="h-10" />
-
-            <div className="mt-4 text-[12px] text-black/45">
-              {hasMore ? "Scroll to load more…" : "No more rows."}
-            </div>
-          </>
+          <AdminLandingLogsTab
+            canAccessAdminData={canAccessAdminData}
+            searchLandingRefreshToken={searchLandingRefreshToken}
+            landingSummary={landingSummary}
+            abtestSummary={abtestSummary}
+            sectionProgressSummary={sectionProgressSummary}
+            logs={logs}
+            grouped={grouped}
+            loading={loading}
+            loadingMore={loadingMore}
+            error={pageError}
+            hasMore={hasMore}
+            sentinelRef={sentinelRef}
+            onRefresh={onRefresh}
+          />
         ) : isNetworkAnalyticsTab ? (
-          <>
-            <div className="mb-4 flex items-center justify-between w-full">
-              <div className="text-[12px] text-black/55">
-                Loaded logs:{" "}
-                <span className="text-black">
-                  {networkAnalyticsLogs.length}
-                </span>{" "}
-                · Users:{" "}
-                <span className="text-black">{networkGrouped.length}</span>
-              </div>
-
-              {networkAnalyticsLoading && (
-                <Loading
-                  size="sm"
-                  label="Loading…"
-                  className="text-[12px] text-black/55"
-                  inline={true}
-                />
-              )}
-            </div>
-
-            {pageError ? (
-              <div
-                className="mb-4 border border-black/15 bg-black/[0.02] p-4 text-[13px] flex items-start justify-between gap-4"
-                style={{ borderRadius: 0 }}
-              >
-                <div>
-                  <div className="font-semibold">Error</div>
-                  <div className="text-black/70 mt-1">{pageError}</div>
-                </div>
-                <button
-                  onClick={onRefresh}
-                  className="h-9 px-3 text-[13px] border border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
-                  style={{ borderRadius: 0 }}
-                >
-                  Retry
-                </button>
-              </div>
-            ) : !talentNetworkFunnelSummary ? (
-              <div
-                className="border border-black/10 p-8 text-center text-[13px] text-black/55"
-                style={{ borderRadius: 0 }}
-              >
-                No Talent Network data.
-              </div>
-            ) : (
-              <>
-                <div
-                  className="mb-4 border border-black/10 p-4 text-[12px] text-black/80"
-                  style={{ borderRadius: 0 }}
-                >
-                  <div className="font-semibold text-black mb-2">
-                    Talent Network overview
-                  </div>
-                  <div className="leading-6">
-                    유입 유저:{" "}
-                    <span className="font-medium text-black">
-                      {talentNetworkFunnelSummary.totalUsers}
-                    </span>{" "}
-                    · 시작 화면 도달:{" "}
-                    <span className="font-medium text-black">
-                      {talentNetworkFunnelSummary.onboardingStartUsers}
-                    </span>{" "}
-                    (
-                    {formatPercent(
-                      talentNetworkFunnelSummary.onboardingStartUsers,
-                      talentNetworkFunnelSummary.totalUsers
-                    )}
-                    ) · 제출 완료:{" "}
-                    <span className="font-medium text-black">
-                      {talentNetworkFunnelSummary.submittedUsers}
-                    </span>{" "}
-                    (
-                    {formatPercent(
-                      talentNetworkFunnelSummary.submittedUsers,
-                      talentNetworkFunnelSummary.totalUsers
-                    )}
-                    )
-                  </div>
-                </div>
-
-                <div
-                  className="mb-4 border border-black/10 p-4 text-[12px] text-black/80"
-                  style={{ borderRadius: 0 }}
-                >
-                  <div className="font-semibold text-black mb-2">
-                    A/B variant comparison
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[760px] text-left">
-                      <thead>
-                        <tr className="border-b border-black/10 text-black">
-                          <th className="py-2 pr-3 font-semibold">Variant</th>
-                          <th className="py-2 pr-3 font-semibold">UI</th>
-                          <th className="py-2 pr-3 text-right font-semibold">
-                            Users
-                          </th>
-                          <th className="py-2 pr-3 text-right font-semibold">
-                            Start
-                          </th>
-                          <th className="py-2 pr-3 text-right font-semibold">
-                            Submit
-                          </th>
-                          <th className="py-2 text-right font-semibold">
-                            Submit / Start
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {talentNetworkVariantSummaries.map((item) => (
-                          <tr
-                            key={item.abtestType}
-                            className="border-b border-black/5 align-top last:border-b-0"
-                          >
-                            <td className="py-2 pr-3 font-medium text-black">
-                              {item.label}
-                              <div className="text-[11px] font-normal text-black/45">
-                                {item.abtestType}
-                              </div>
-                            </td>
-                            <td className="py-2 pr-3 text-black/65">
-                              {getTalentNetworkVariantDescription(
-                                item.abtestType
-                              ) || "-"}
-                            </td>
-                            <td className="py-2 pr-3 text-right">
-                              {item.totalUsers}
-                            </td>
-                            <td className="py-2 pr-3 text-right">
-                              {item.onboardingStartUsers} (
-                              {formatPercent(
-                                item.onboardingStartUsers,
-                                item.totalUsers
-                              )}
-                              )
-                            </td>
-                            <td className="py-2 pr-3 text-right">
-                              {item.submittedUsers} (
-                              {formatPercent(
-                                item.submittedUsers,
-                                item.totalUsers
-                              )}
-                              )
-                            </td>
-                            <td className="py-2 text-right">
-                              {formatPercent(
-                                item.submittedUsers,
-                                item.onboardingStartUsers
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <div
-                  className="mb-4 border border-black/10 p-4 text-[12px] text-black/80"
-                  style={{ borderRadius: 0 }}
-                >
-                  <div className="font-semibold text-black mb-2">
-                    Onboarding step comparison
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[820px] text-left">
-                      <thead>
-                        <tr className="border-b border-black/10 text-black">
-                          <th className="py-2 pr-3 font-semibold">Step</th>
-                          {talentNetworkVariantColumns.map((variant) => (
-                            <th
-                              key={variant.abtestType}
-                              className="py-2 pr-3 text-right font-semibold"
-                            >
-                              {variant.label}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {TALENT_NETWORK_ONBOARDING_STEPS.map((step) => (
-                          <tr
-                            key={step.step}
-                            className="border-b border-black/5 last:border-b-0"
-                          >
-                            <td className="py-2 pr-3">
-                              <span className="font-medium text-black">
-                                Step {step.step}
-                              </span>{" "}
-                              {step.label}
-                            </td>
-                            {talentNetworkVariantColumns.map((variant) => {
-                              const summary =
-                                talentNetworkVariantSummaries.find(
-                                  (item) =>
-                                    item.abtestType === variant.abtestType
-                                );
-                              const stepSummary = summary?.steps.find(
-                                (item) => item.step === step.step
-                              );
-
-                              return (
-                                <td
-                                  key={`${step.step}-${variant.abtestType}`}
-                                  className="py-2 pr-3 text-right"
-                                >
-                                  {stepSummary?.userCount ?? 0} (
-                                  {formatPercent(
-                                    stepSummary?.userCount ?? 0,
-                                    summary?.totalUsers ?? 0
-                                  )}
-                                  )
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <div
-                  className="mb-4 border border-black/10 p-4 text-[12px] text-black/80"
-                  style={{ borderRadius: 0 }}
-                >
-                  <div className="font-semibold text-black mb-2">
-                    Button clicks by variant
-                  </div>
-                  {talentNetworkButtonSummary.length === 0 ? (
-                    <div className="text-black/55">No button click data.</div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[980px] text-left">
-                        <thead>
-                          <tr className="border-b border-black/10 text-black">
-                            <th className="py-2 pr-3 font-semibold">Event</th>
-                            <th className="py-2 pr-3 text-right font-semibold">
-                              Total Users
-                            </th>
-                            <th className="py-2 pr-3 text-right font-semibold">
-                              Total Clicks
-                            </th>
-                            {talentNetworkVariantColumns.map((variant) => (
-                              <th
-                                key={variant.abtestType}
-                                className="py-2 pr-3 text-right font-semibold"
-                              >
-                                {variant.label}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {talentNetworkButtonSummary.map((item) => (
-                            <tr
-                              key={item.eventType}
-                              className="border-b border-black/5 align-top last:border-b-0"
-                            >
-                              <td className="py-2 pr-3">
-                                <div className="break-all">
-                                  <div className="text-black">
-                                    {formatTalentNetworkEventName(
-                                      item.eventType
-                                    )}
-                                  </div>
-                                  <div className="text-[11px] text-black/45">
-                                    {item.eventType}
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="py-2 pr-3 text-right">
-                                {item.uniqueUsers}
-                              </td>
-                              <td className="py-2 pr-3 text-right">
-                                {item.totalClicks}
-                              </td>
-                              {talentNetworkVariantColumns.map((variant) => {
-                                const breakdown = item.variantBreakdown.find(
-                                  (entry) =>
-                                    entry.abtestType === variant.abtestType
-                                );
-
-                                return (
-                                  <td
-                                    key={`${item.eventType}-${variant.abtestType}`}
-                                    className="py-2 pr-3 text-right"
-                                  >
-                                    {breakdown
-                                      ? `${breakdown.uniqueUsers} / ${breakdown.totalClicks}`
-                                      : "0 / 0"}
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </>
+          <AdminNetworkAnalyticsTab
+            logs={networkAnalyticsLogs}
+            grouped={networkGrouped}
+            loading={networkAnalyticsLoading}
+            error={pageError}
+            funnelSummary={talentNetworkFunnelSummary}
+            variantSummaries={talentNetworkVariantSummaries}
+            variantColumns={talentNetworkVariantColumns}
+            buttonSummary={talentNetworkButtonSummary}
+            getVariantDescription={getTalentNetworkVariantDescription}
+            onRefresh={onRefresh}
+          />
         ) : isWaitlistTab ? (
-          <>
-            <div className="mb-4 flex items-center justify-between w-full">
-              <div className="text-[12px] text-black/55">
-                Rows: <span className="text-black">{waitlistRows.length}</span>
-              </div>
-
-              {waitlistLoading && (
-                <Loading
-                  size="sm"
-                  label="Loading…"
-                  className="text-[12px] text-black/55"
-                  inline={true}
-                />
-              )}
-            </div>
-
-            {pageError ? (
-              <div
-                className="border border-black/15 bg-black/[0.02] p-4 text-[13px] flex items-start justify-between gap-4"
-                style={{ borderRadius: 0 }}
-              >
-                <div>
-                  <div className="font-semibold">Error</div>
-                  <div className="text-black/70 mt-1">{pageError}</div>
-                </div>
-                <button
-                  onClick={onRefresh}
-                  className="h-9 px-3 text-[13px] border border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
-                  style={{ borderRadius: 0 }}
-                >
-                  Retry
-                </button>
-              </div>
-            ) : null}
-
-            <div
-              className="border border-black/10 w-full"
-              style={{ borderRadius: 0 }}
-            >
-              {waitlistLoading ? (
-                <Loading
-                  size="sm"
-                  label="Loading…"
-                  className="p-6 text-[13px] text-black/55"
-                />
-              ) : waitlistRows.length === 0 ? (
-                <div className="p-10 text-center">
-                  <div className="text-[14px] font-semibold">No rows</div>
-                  <div className="text-[13px] text-black/55 mt-2">
-                    No company waitlist data yet.
-                  </div>
-                </div>
-              ) : (
-                waitlistRows.map((row) => (
-                  <div
-                    key={`${row.email}-${row.created_at}`}
-                    className="border-t border-black/10 first:border-t-0 w-full"
-                  >
-                    <div className="px-5 py-4 w-full">
-                      <div className="flex flex-row items-start justify-between gap-4">
-                        <div className="text-[14px] font-semibold break-all">
-                          {row.email}
-                        </div>
-                        <div className="text-[12px] text-black/55 whitespace-nowrap">
-                          {formatKST(row.created_at)}
-                        </div>
-                      </div>
-
-                      <div className="mt-3 text-[13px] text-black/80 w-full space-y-1">
-                        <div>Name: {row.name ?? "-"}</div>
-                        <div className="break-all">
-                          Company: {row.company ?? "-"}
-                          {row.company_link ? (
-                            <>
-                              {" "}
-                              (
-                              <a
-                                href={row.company_link}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="underline"
-                              >
-                                link
-                              </a>
-                              )
-                            </>
-                          ) : null}
-                        </div>
-                        <div>
-                          Role / Size: {row.role ?? "-"} / {row.size ?? "-"}
-                        </div>
-                        <div>Needs: {row.needs?.join(", ") || "-"}</div>
-                        <div>Main: {row.main ?? "-"}</div>
-                        <div>Additional: {row.additional ?? "-"}</div>
-                        <div>
-                          Submit: {row.is_submit ? "Y" : "N"} · Beta Agree: ·
-                          Mobile:{" "}
-                          {row.is_mobile === null
-                            ? "-"
-                            : row.is_mobile
-                              ? "Y"
-                              : "N"}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </>
+          <AdminWaitlistCompanyTab
+            rows={waitlistRows}
+            loading={waitlistLoading}
+            error={pageError}
+            onRefresh={onRefresh}
+          />
         ) : isBookmarkFoldersTab ? (
-          <>
-            <div className="mb-4 rounded-[20px] border border-[#d8c7aa] bg-[#fbf4e8] p-4 text-[#4d3a24]">
-              <div className="text-[14px] font-semibold">User lookup</div>
-              <div className="mt-1 text-[12px] leading-5 text-[#7a664b]">
-                이름이나 이메일로 유저를 찾고, 해당 유저의 북마크 폴더와 저장된
-                후보를 확인합니다.
-              </div>
-              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                <input
-                  value={bookmarkSearch}
-                  onChange={(event) => setBookmarkSearch(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      void fetchBookmarkUsers(bookmarkSearch);
-                    }
-                  }}
-                  placeholder="이름 또는 이메일"
-                  className="h-11 flex-1 rounded-[14px] border border-[#d8c7aa] bg-[#fffaf1] px-4 text-[14px] text-[#3f301f] outline-none placeholder:text-[#9e8b6d]"
-                />
-                <button
-                  onClick={() => {
-                    void fetchBookmarkUsers(bookmarkSearch);
-                  }}
-                  className="h-11 rounded-[14px] border border-[#5d4931] bg-[#5d4931] px-4 text-[13px] text-[#fff8ef] transition-colors hover:bg-[#4f3e29]"
-                >
-                  Search
-                </button>
-              </div>
-              {bookmarkUsersError ? (
-                <div className="mt-3 text-[12px] text-[#8d3a24]">
-                  {bookmarkUsersError}
-                </div>
-              ) : null}
-            </div>
-
-            <div className="grid gap-4 xl:grid-cols-[280px_280px_minmax(0,1fr)]">
-              <div className="rounded-[20px] border border-[#d8c7aa] bg-[#fbf4e8] p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-[13px] font-semibold text-[#4d3a24]">
-                      Users
-                    </div>
-                    <div className="mt-1 text-[12px] text-[#7a664b]">
-                      {bookmarkUsers.length}명
-                    </div>
-                  </div>
-                  {bookmarkUsersLoading ? (
-                    <Loading
-                      size="sm"
-                      inline={true}
-                      className="text-[12px] text-[#7a664b]"
-                    />
-                  ) : null}
-                </div>
-
-                <div className="mt-4 space-y-2">
-                  {bookmarkUsers.length === 0 ? (
-                    <div className="rounded-[16px] border border-dashed border-[#d8c7aa] bg-[#fffaf1] px-4 py-6 text-center text-[12px] leading-5 text-[#8d7a5d]">
-                      {bookmarkSearch.trim()
-                        ? "일치하는 유저가 없습니다."
-                        : "이름이나 이메일을 입력해 유저를 찾아보세요."}
-                    </div>
-                  ) : (
-                    bookmarkUsers.map((user) => {
-                      const isSelected =
-                        selectedBookmarkUser?.userId === user.userId;
-
-                      return (
-                        <button
-                          key={user.userId}
-                          type="button"
-                          onClick={() => {
-                            void fetchBookmarkFolders(user);
-                          }}
-                          className={`w-full rounded-[16px] border px-4 py-3 text-left transition-colors ${
-                            isSelected
-                              ? "border-[#8e7554] bg-[#efe1c8]"
-                              : "border-[#dcccad] bg-[#fffaf1] hover:bg-[#f4eadb]"
-                          }`}
-                        >
-                          <div className="text-[13px] font-semibold text-[#3f301f]">
-                            {user.name || "(이름 없음)"}
-                          </div>
-                          <div className="mt-1 break-all text-[12px] text-[#7a664b]">
-                            {user.email || "-"}
-                          </div>
-                          <div className="mt-2 text-[11px] text-[#8d7a5d]">
-                            폴더 {user.folderCount} · 북마크{" "}
-                            {user.bookmarkCount}
-                          </div>
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-
-              <div className="rounded-[20px] border border-[#d8c7aa] bg-[#fbf4e8] p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-[13px] font-semibold text-[#4d3a24]">
-                      Folders
-                    </div>
-                    <div className="mt-1 text-[12px] text-[#7a664b]">
-                      {selectedBookmarkUser
-                        ? `${selectedBookmarkUser.name || selectedBookmarkUser.email || "선택된 유저"}`
-                        : "유저를 먼저 선택하세요"}
-                    </div>
-                  </div>
-                  {bookmarkFoldersLoading ? (
-                    <Loading
-                      size="sm"
-                      inline={true}
-                      className="text-[12px] text-[#7a664b]"
-                    />
-                  ) : null}
-                </div>
-
-                {selectedBookmarkUser ? (
-                  <div className="mt-3 rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-3 py-3 text-[12px] leading-5 text-[#6a563c]">
-                    <div>{selectedBookmarkUser.email || "-"}</div>
-                    <div>
-                      {selectedBookmarkUser.company || "회사 정보 없음"}
-                    </div>
-                  </div>
-                ) : null}
-
-                {bookmarkFoldersError ? (
-                  <div className="mt-3 text-[12px] text-[#8d3a24]">
-                    {bookmarkFoldersError}
-                  </div>
-                ) : null}
-
-                <div className="mt-4 space-y-2">
-                  {!selectedBookmarkUser ? (
-                    <div className="rounded-[16px] border border-dashed border-[#d8c7aa] bg-[#fffaf1] px-4 py-6 text-center text-[12px] leading-5 text-[#8d7a5d]">
-                      왼쪽에서 유저를 선택하면 폴더가 표시됩니다.
-                    </div>
-                  ) : bookmarkFolders.length === 0 &&
-                    !bookmarkFoldersLoading ? (
-                    <div className="rounded-[16px] border border-dashed border-[#d8c7aa] bg-[#fffaf1] px-4 py-6 text-center text-[12px] leading-5 text-[#8d7a5d]">
-                      북마크 폴더가 없습니다.
-                    </div>
-                  ) : (
-                    bookmarkFolders.map((folder) => {
-                      const isSelected = selectedBookmarkFolderId === folder.id;
-
-                      return (
-                        <button
-                          key={folder.id}
-                          type="button"
-                          onClick={() => {
-                            if (!selectedBookmarkUser) return;
-                            void fetchBookmarkFolderItems(
-                              selectedBookmarkUser.userId,
-                              folder.id
-                            );
-                          }}
-                          className={`w-full rounded-[16px] border px-4 py-3 text-left transition-colors ${
-                            isSelected
-                              ? "border-[#8e7554] bg-[#efe1c8]"
-                              : "border-[#dcccad] bg-[#fffaf1] hover:bg-[#f4eadb]"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="truncate text-[13px] font-semibold text-[#3f301f]">
-                                {folder.name}
-                              </div>
-                              <div className="mt-1 text-[11px] text-[#8d7a5d]">
-                                {folder.isDefault ? "기본 폴더" : "커스텀 폴더"}
-                              </div>
-                            </div>
-                            <div className="shrink-0 text-[11px] text-[#6a563c]">
-                              {folder.itemCount}명
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-
-              <div className="rounded-[20px] border border-[#d8c7aa] bg-[#fbf4e8] p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-[13px] font-semibold text-[#4d3a24]">
-                      Candidates
-                    </div>
-                    <div className="mt-1 text-[12px] text-[#7a664b]">
-                      {selectedBookmarkFolder
-                        ? `${selectedBookmarkFolder.name} · ${bookmarkFolderTotal}명`
-                        : "폴더를 선택하면 후보 목록이 표시됩니다."}
-                    </div>
-                  </div>
-                  {bookmarkFolderItemsLoading ? (
-                    <Loading
-                      size="sm"
-                      inline={true}
-                      className="text-[12px] text-[#7a664b]"
-                    />
-                  ) : null}
-                </div>
-
-                {selectedBookmarkFolder &&
-                bookmarkFolderTotal > bookmarkFolderLimit ? (
-                  <div className="mt-3 rounded-[14px] border border-[#dcccad] bg-[#fffaf1] px-3 py-2 text-[11px] text-[#7a664b]">
-                    최근 {bookmarkFolderLimit}개만 표시합니다. 전체 저장 수는{" "}
-                    {bookmarkFolderTotal}개입니다.
-                  </div>
-                ) : null}
-
-                {bookmarkFolderItemsError ? (
-                  <div className="mt-3 text-[12px] text-[#8d3a24]">
-                    {bookmarkFolderItemsError}
-                  </div>
-                ) : null}
-
-                <div className="mt-4 space-y-3">
-                  {!selectedBookmarkFolder ? (
-                    <div className="rounded-[16px] border border-dashed border-[#d8c7aa] bg-[#fffaf1] px-4 py-8 text-center text-[12px] leading-5 text-[#8d7a5d]">
-                      가운데에서 폴더를 선택하세요.
-                    </div>
-                  ) : bookmarkFolderItems.length === 0 &&
-                    !bookmarkFolderItemsLoading ? (
-                    <div className="rounded-[16px] border border-dashed border-[#d8c7aa] bg-[#fffaf1] px-4 py-8 text-center text-[12px] leading-5 text-[#8d7a5d]">
-                      저장된 후보가 없습니다.
-                    </div>
-                  ) : (
-                    bookmarkFolderItems.map((item) => (
-                      <div
-                        key={`${item.folderItemId}-${item.candidId}`}
-                        className="rounded-[18px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4"
-                      >
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                          <div className="min-w-0">
-                            <div className="text-[15px] font-semibold text-[#3f301f]">
-                              {item.name || "(이름 없음)"}
-                            </div>
-                            <div className="mt-1 text-[13px] leading-6 text-[#6a563c]">
-                              {item.headline || "headline 없음"}
-                            </div>
-                            <div className="mt-2 text-[11px] text-[#8d7a5d]">
-                              저장일 {formatKST(item.createdAt ?? undefined)}
-                              {item.memoUpdatedAt
-                                ? ` · 메모 수정 ${formatKST(item.memoUpdatedAt)}`
-                                : ""}
-                            </div>
-                          </div>
-
-                          <div className="flex shrink-0 items-center gap-2">
-                            <a
-                              href={item.profileHref}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex h-9 items-center rounded-[12px] border border-[#cfbb9a] bg-[#f4eadb] px-3 text-[12px] text-[#4d3a24] transition-colors hover:bg-[#eadcc7]"
-                            >
-                              Harper profile
-                            </a>
-                            {item.linkedinUrl ? (
-                              <a
-                                href={item.linkedinUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex h-9 items-center rounded-[12px] border border-[#e0d0b6] bg-transparent px-3 text-[12px] text-[#6a563c] transition-colors hover:bg-[#f4eadb]"
-                              >
-                                LinkedIn
-                              </a>
-                            ) : null}
-                          </div>
-                        </div>
-
-                        <div className="mt-4 rounded-[14px] border border-[#eadcc7] bg-[#f7efe2] px-3 py-3 text-[13px] leading-6 text-[#5b4932]">
-                          <div className="mb-1 text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
-                            Memo
-                          </div>
-                          <div className="whitespace-pre-wrap break-words">
-                            {item.memo || "유저가 남긴 메모 없음"}
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
-          </>
+          <AdminBookmarkFoldersTab
+            search={bookmarkSearch}
+            onSearchChange={setBookmarkSearch}
+            onSearchSubmit={() => {
+              void fetchBookmarkUsers(bookmarkSearch);
+            }}
+            users={bookmarkUsers}
+            usersLoading={bookmarkUsersLoading}
+            usersError={bookmarkUsersError}
+            selectedUser={selectedBookmarkUser}
+            onSelectUser={(user) => {
+              void fetchBookmarkFolders(user);
+            }}
+            folders={bookmarkFolders}
+            foldersLoading={bookmarkFoldersLoading}
+            foldersError={bookmarkFoldersError}
+            selectedFolderId={selectedBookmarkFolderId}
+            selectedFolder={selectedBookmarkFolder}
+            onSelectFolder={(folder) => {
+              if (!selectedBookmarkUser) return;
+              void fetchBookmarkFolderItems(selectedBookmarkUser.userId, folder.id);
+            }}
+            items={bookmarkFolderItems}
+            itemsLoading={bookmarkFolderItemsLoading}
+            itemsError={bookmarkFolderItemsError}
+            itemTotal={bookmarkFolderTotal}
+            itemLimit={bookmarkFolderLimit}
+          />
         ) : isBlogMetricsTab ? (
-          <>
-            <div className="mb-4 rounded-[20px] border border-[#d8c7aa] bg-[#fbf4e8] p-4 text-[#4d3a24]">
-              <div className="text-[14px] font-semibold">User lookup</div>
-              <div className="mt-1 text-[12px] leading-5 text-[#7a664b]">
-                이름, 이메일, 회사명으로 유저를 찾고 채팅세션 수, 프로필 view,
-                프로필 링크 클릭 지표를 확인합니다.
-              </div>
-              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                <input
-                  value={userAnalyticsSearch}
-                  onChange={(event) =>
-                    setUserAnalyticsSearch(event.target.value)
-                  }
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      void fetchUserAnalyticsUsers(userAnalyticsSearch);
-                    }
-                  }}
-                  placeholder="이름, 이메일 또는 회사명"
-                  className="h-11 flex-1 rounded-[14px] border border-[#d8c7aa] bg-[#fffaf1] px-4 text-[14px] text-[#3f301f] outline-none placeholder:text-[#9e8b6d]"
-                />
-                <button
-                  onClick={() => {
-                    void fetchUserAnalyticsUsers(userAnalyticsSearch);
-                  }}
-                  className="h-11 rounded-[14px] border border-[#5d4931] bg-[#5d4931] px-4 text-[13px] text-[#fff8ef] transition-colors hover:bg-[#4f3e29]"
-                >
-                  Search
-                </button>
-              </div>
-              {userAnalyticsUsersError ? (
-                <div className="mt-3 text-[12px] text-[#8d3a24]">
-                  {userAnalyticsUsersError}
-                </div>
-              ) : null}
-            </div>
-
-            <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
-              <div className="rounded-[20px] border border-[#d8c7aa] bg-[#fbf4e8] p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-[13px] font-semibold text-[#4d3a24]">
-                      Users
-                    </div>
-                    <div className="mt-1 text-[12px] text-[#7a664b]">
-                      {userAnalyticsUsers.length}명
-                    </div>
-                  </div>
-                  {userAnalyticsUsersLoading ? (
-                    <Loading
-                      size="sm"
-                      inline={true}
-                      className="text-[12px] text-[#7a664b]"
-                    />
-                  ) : null}
-                </div>
-
-                <div className="mt-4 space-y-2">
-                  {userAnalyticsUsers.length === 0 ? (
-                    <div className="rounded-[16px] border border-dashed border-[#d8c7aa] bg-[#fffaf1] px-4 py-6 text-center text-[12px] leading-5 text-[#8d7a5d]">
-                      {userAnalyticsSearch.trim()
-                        ? "일치하는 유저가 없습니다."
-                        : "이름, 이메일 또는 회사명을 입력해 유저를 찾아보세요."}
-                    </div>
-                  ) : (
-                    userAnalyticsUsers.map((user) => {
-                      const isSelected =
-                        selectedAnalyticsUser?.userId === user.userId;
-
-                      return (
-                        <button
-                          key={user.userId}
-                          type="button"
-                          onClick={() => {
-                            void fetchUserAnalyticsDetail(user);
-                          }}
-                          className={`w-full rounded-[16px] border px-4 py-3 text-left transition-colors ${
-                            isSelected
-                              ? "border-[#8e7554] bg-[#efe1c8]"
-                              : "border-[#dcccad] bg-[#fffaf1] hover:bg-[#f4eadb]"
-                          }`}
-                        >
-                          <div className="text-[13px] font-semibold text-[#3f301f]">
-                            {user.name || "(이름 없음)"}
-                          </div>
-                          <div className="mt-1 break-all text-[12px] text-[#7a664b]">
-                            {user.email || "-"}
-                          </div>
-                          <div className="mt-2 text-[11px] text-[#8d7a5d]">
-                            세션 {user.searchCount.toLocaleString("ko-KR")} ·
-                            후보 {user.profileViewCount.toLocaleString("ko-KR")}{" "}
-                            · 링크 {user.linkClickCount.toLocaleString("ko-KR")}
-                          </div>
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="rounded-[20px] border border-[#d8c7aa] bg-[#fbf4e8] p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-[13px] font-semibold text-[#4d3a24]">
-                        Summary
-                      </div>
-                      <div className="mt-1 text-[12px] text-[#7a664b]">
-                        {selectedAnalyticsUser
-                          ? `${selectedAnalyticsUser.name || selectedAnalyticsUser.email || "선택된 유저"}`
-                          : "유저를 먼저 선택하세요"}
-                      </div>
-                    </div>
-                    {userAnalyticsDetailLoading ? (
-                      <Loading
-                        size="sm"
-                        inline={true}
-                        className="text-[12px] text-[#7a664b]"
-                      />
-                    ) : null}
-                  </div>
-
-                  {selectedAnalyticsUser ? (
-                    <div className="mt-3 rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-3 py-3 text-[12px] leading-5 text-[#6a563c]">
-                      <div>{selectedAnalyticsUser.email || "-"}</div>
-                      <div>
-                        {selectedAnalyticsUser.company || "회사 정보 없음"}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {selectedAnalyticsUser ? (
-                    <div className="mt-3 rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-3 py-3">
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
-                        Date Range (KST)
-                      </div>
-                      <div className="mt-3 flex flex-col gap-2 lg:flex-row lg:items-center">
-                        <input
-                          type="date"
-                          value={userAnalyticsStartDate}
-                          onChange={(event) =>
-                            setUserAnalyticsStartDate(event.target.value)
-                          }
-                          className="h-10 rounded-[12px] border border-[#d8c7aa] bg-[#fffaf1] px-3 text-[13px] text-[#3f301f] outline-none"
-                        />
-                        <div className="px-1 text-[12px] text-[#8d7a5d]">~</div>
-                        <input
-                          type="date"
-                          value={userAnalyticsEndDate}
-                          onChange={(event) =>
-                            setUserAnalyticsEndDate(event.target.value)
-                          }
-                          className="h-10 rounded-[12px] border border-[#d8c7aa] bg-[#fffaf1] px-3 text-[13px] text-[#3f301f] outline-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={applyUserAnalyticsDateRange}
-                          className="h-10 rounded-[12px] border border-[#5d4931] bg-[#5d4931] px-4 text-[12px] text-[#fff8ef] transition-colors hover:bg-[#4f3e29]"
-                        >
-                          적용
-                        </button>
-                        <button
-                          type="button"
-                          onClick={resetUserAnalyticsDateRange}
-                          className="h-10 rounded-[12px] border border-[#dcccad] bg-transparent px-4 text-[12px] text-[#6a563c] transition-colors hover:bg-[#f4eadb]"
-                        >
-                          전체
-                        </button>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {userAnalyticsDetailError ? (
-                    <div className="mt-3 text-[12px] text-[#8d3a24]">
-                      {userAnalyticsDetailError}
-                    </div>
-                  ) : null}
-
-                  {!selectedAnalyticsUser ? (
-                    <div className="mt-4 rounded-[16px] border border-dashed border-[#d8c7aa] bg-[#fffaf1] px-4 py-10 text-center text-[12px] leading-5 text-[#8d7a5d]">
-                      왼쪽에서 유저를 선택하면 검색/프로필 지표가 표시됩니다.
-                    </div>
-                  ) : userAnalyticsSummary ? (
-                    <>
-                      <div className="mt-4">
-                        <div className="text-[12px] font-semibold text-[#6a563c]">
-                          기간별 지표
-                        </div>
-                        <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
-                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
-                              채팅세션 수
-                            </div>
-                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
-                              {userAnalyticsSummary.searchCount.toLocaleString(
-                                "ko-KR"
-                              )}
-                            </div>
-                          </div>
-                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
-                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
-                              검색 횟수
-                            </div>
-                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
-                              {userAnalyticsSummary.runCount.toLocaleString(
-                                "ko-KR"
-                              )}
-                            </div>
-                          </div>
-                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
-                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
-                              채팅 자체의 수
-                            </div>
-                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
-                              {userAnalyticsSummary.chatMessageCount.toLocaleString(
-                                "ko-KR"
-                              )}
-                            </div>
-                          </div>
-                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
-                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
-                              페이지 조회수
-                            </div>
-                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
-                              {userAnalyticsSummary.pageViewCount.toLocaleString(
-                                "ko-KR"
-                              )}
-                            </div>
-                          </div>
-                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
-                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
-                              프로필 본 후보자 수
-                            </div>
-                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
-                              {userAnalyticsSummary.uniqueProfilesViewed.toLocaleString(
-                                "ko-KR"
-                              )}
-                            </div>
-                          </div>
-                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
-                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
-                              링크 클릭 수
-                            </div>
-                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
-                              {userAnalyticsSummary.linkClickCount.toLocaleString(
-                                "ko-KR"
-                              )}
-                            </div>
-                          </div>
-                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
-                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
-                              페이지 / 세션
-                            </div>
-                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
-                              {formatDecimal(
-                                userAnalyticsSummary.pageViewsPerSearch
-                              )}
-                            </div>
-                          </div>
-                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
-                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
-                              후보자 수 / 세션
-                            </div>
-                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
-                              {formatDecimal(
-                                userAnalyticsSummary.profileViewsPerSearch
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-4">
-                        <div className="text-[12px] font-semibold text-[#6a563c]">
-                          누적 지표
-                        </div>
-                        <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
-                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
-                              마크 준 사람 수
-                            </div>
-                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
-                              {userAnalyticsSummary.markedCandidateCount.toLocaleString(
-                                "ko-KR"
-                              )}
-                            </div>
-                          </div>
-                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
-                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
-                              폴더에 넣은 사람 수
-                            </div>
-                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
-                              {userAnalyticsSummary.bookmarkedCandidateCount.toLocaleString(
-                                "ko-KR"
-                              )}
-                            </div>
-                          </div>
-                          <div className="rounded-[16px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4">
-                            <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
-                              메모 남긴 수
-                            </div>
-                            <div className="mt-2 text-[24px] font-semibold text-[#3f301f]">
-                              {userAnalyticsSummary.memoCount.toLocaleString(
-                                "ko-KR"
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  ) : null}
-                </div>
-
-                <div className="rounded-[20px] border border-[#d8c7aa] bg-[#fbf4e8] p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-[13px] font-semibold text-[#4d3a24]">
-                        Profiles
-                      </div>
-                      <div className="mt-1 text-[12px] text-[#7a664b]">
-                        {selectedAnalyticsUser
-                          ? `프로필 view 또는 링크 클릭이 있었던 후보 ${userAnalyticsProfiles.length}명`
-                          : "유저를 선택하면 프로필별 상세가 표시됩니다."}
-                      </div>
-                    </div>
-                    {userAnalyticsDetailLoading ? (
-                      <Loading
-                        size="sm"
-                        inline={true}
-                        className="text-[12px] text-[#7a664b]"
-                      />
-                    ) : null}
-                  </div>
-
-                  <div className="mt-4 space-y-3">
-                    {!selectedAnalyticsUser ? (
-                      <div className="rounded-[16px] border border-dashed border-[#d8c7aa] bg-[#fffaf1] px-4 py-8 text-center text-[12px] leading-5 text-[#8d7a5d]">
-                        왼쪽에서 유저를 선택하세요.
-                      </div>
-                    ) : userAnalyticsProfiles.length === 0 &&
-                      !userAnalyticsDetailLoading ? (
-                      <div className="rounded-[16px] border border-dashed border-[#d8c7aa] bg-[#fffaf1] px-4 py-8 text-center text-[12px] leading-5 text-[#8d7a5d]">
-                        프로필 view 또는 링크 클릭 데이터가 없습니다.
-                      </div>
-                    ) : (
-                      userAnalyticsProfiles.map((profile) => (
-                        <div
-                          key={profile.candidId}
-                          className="rounded-[18px] border border-[#dcccad] bg-[#fffaf1] px-4 py-4"
-                        >
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                            <div className="min-w-0">
-                              <div className="text-[15px] font-semibold text-[#3f301f]">
-                                {profile.name || "(이름 없음)"}
-                              </div>
-                              <div className="mt-1 text-[13px] leading-6 text-[#6a563c]">
-                                {profile.headline || profile.candidId}
-                              </div>
-                            </div>
-
-                            <div className="flex shrink-0 items-center gap-2">
-                              <a
-                                href={profile.profileHref}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex h-9 items-center rounded-[12px] border border-[#cfbb9a] bg-[#f4eadb] px-3 text-[12px] text-[#4d3a24] transition-colors hover:bg-[#eadcc7]"
-                              >
-                                Harper profile
-                              </a>
-                              {profile.linkedinUrl ? (
-                                <a
-                                  href={profile.linkedinUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex h-9 items-center rounded-[12px] border border-[#e0d0b6] bg-transparent px-3 text-[12px] text-[#6a563c] transition-colors hover:bg-[#f4eadb]"
-                                >
-                                  LinkedIn
-                                </a>
-                              ) : null}
-                            </div>
-                          </div>
-
-                          <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                            <div className="rounded-[14px] border border-[#eadcc7] bg-[#f7efe2] px-3 py-3">
-                              <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
-                                Profile Views
-                              </div>
-                              <div className="mt-2 text-[20px] font-semibold text-[#3f301f]">
-                                {profile.profileViewCount.toLocaleString(
-                                  "ko-KR"
-                                )}
-                              </div>
-                            </div>
-                            <div className="rounded-[14px] border border-[#eadcc7] bg-[#f7efe2] px-3 py-3">
-                              <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
-                                Link Clicks
-                              </div>
-                              <div className="mt-2 text-[20px] font-semibold text-[#3f301f]">
-                                {profile.totalLinkClickCount.toLocaleString(
-                                  "ko-KR"
-                                )}
-                              </div>
-                            </div>
-                            <div className="rounded-[14px] border border-[#eadcc7] bg-[#f7efe2] px-3 py-3">
-                              <div className="text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
-                                Link Hosts
-                              </div>
-                              <div className="mt-2 text-[20px] font-semibold text-[#3f301f]">
-                                {profile.linkClicks.length.toLocaleString(
-                                  "ko-KR"
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="mt-4 rounded-[14px] border border-[#eadcc7] bg-[#f7efe2] px-3 py-3 text-[13px] leading-6 text-[#5b4932]">
-                            <div className="mb-2 text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
-                              Link Click Breakdown
-                            </div>
-                            {profile.linkClicks.length === 0 ? (
-                              <div className="text-[#8d7a5d]">
-                                링크 클릭 데이터가 없습니다.
-                              </div>
-                            ) : (
-                              <div className="flex flex-wrap gap-2">
-                                {profile.linkClicks.map((item) => (
-                                  <div
-                                    key={`${profile.candidId}-${item.host}`}
-                                    className="inline-flex items-center gap-2 rounded-full border border-[#dcccad] bg-[#fffaf1] px-3 py-1 text-[12px] text-[#6a563c]"
-                                  >
-                                    <span>{item.host}</span>
-                                    <span className="font-semibold text-[#3f301f]">
-                                      {item.count.toLocaleString("ko-KR")}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </>
+          <AdminBlogMetricsTab
+            summary={blogMetricsSummary}
+            rows={blogMetricRows}
+            loading={blogMetricsLoading}
+            error={pageError}
+            onRefresh={onRefresh}
+          />
         ) : isUserAnalyticsTab ? (
-          <>
-            <div
-              className="mb-4 border border-black/10 p-4 text-[13px] text-black/80"
-              style={{ borderRadius: 0 }}
-            >
-              <div className="font-semibold text-black mb-1">Blog summary</div>
-              <div className="leading-6">
-                글 수:{" "}
-                <span className="text-black font-medium">
-                  {blogMetricsSummary.totalPosts}
-                </span>{" "}
-                · 조회수 합계:{" "}
-                <span className="text-black font-medium">
-                  {blogMetricsSummary.totalViews}
-                </span>{" "}
-                · 전환수 합계:{" "}
-                <span className="text-black font-medium">
-                  {blogMetricsSummary.totalConversions}
-                </span>
-              </div>
-            </div>
-
-            {pageError ? (
-              <div
-                className="border border-black/15 bg-black/[0.02] p-4 text-[13px] flex items-start justify-between gap-4"
-                style={{ borderRadius: 0 }}
-              >
-                <div>
-                  <div className="font-semibold">Error</div>
-                  <div className="text-black/70 mt-1">{pageError}</div>
-                </div>
-                <button
-                  onClick={onRefresh}
-                  className="h-9 px-3 text-[13px] border border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
-                  style={{ borderRadius: 0 }}
-                >
-                  Retry
-                </button>
-              </div>
-            ) : null}
-
-            <div
-              className="border border-black/10 w-full"
-              style={{ borderRadius: 0 }}
-            >
-              {blogMetricsLoading ? (
-                <Loading
-                  size="sm"
-                  label="Loading…"
-                  className="p-6 text-[13px] text-black/55"
-                />
-              ) : blogMetricRows.length === 0 ? (
-                <div className="p-10 text-center">
-                  <div className="text-[14px] font-semibold">No rows</div>
-                  <div className="text-[13px] text-black/55 mt-2">
-                    No blog metric logs yet.
-                  </div>
-                </div>
-              ) : (
-                <div className="w-full">
-                  <div className="grid grid-cols-[1.8fr_0.9fr_0.9fr] gap-2 px-5 py-3 border-b border-black/10 text-[12px] font-semibold text-black/80">
-                    <div>Slug</div>
-                    <div className="text-right">Views</div>
-                    <div className="text-right">Conversions</div>
-                  </div>
-                  {blogMetricRows.map((row) => (
-                    <div
-                      key={row.slug}
-                      className="grid grid-cols-[1.8fr_0.9fr_0.9fr] gap-2 px-5 py-3 border-t border-black/10 first:border-t-0 text-[13px]"
-                    >
-                      <div className="break-all">{row.slug}</div>
-                      <div className="text-right">{row.viewCount}</div>
-                      <div className="text-right">{row.conversionCount}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </>
+          <AdminUserAnalyticsTab
+            search={userAnalyticsSearch}
+            onSearchChange={setUserAnalyticsSearch}
+            onSearchSubmit={() => {
+              void fetchUserAnalyticsUsers(userAnalyticsSearch);
+            }}
+            users={userAnalyticsUsers}
+            usersLoading={userAnalyticsUsersLoading}
+            usersError={userAnalyticsUsersError}
+            selectedUser={selectedAnalyticsUser}
+            onSelectUser={(user) => {
+              void fetchUserAnalyticsDetail(user);
+            }}
+            summary={userAnalyticsSummary}
+            profiles={userAnalyticsProfiles}
+            detailLoading={userAnalyticsDetailLoading}
+            detailError={userAnalyticsDetailError}
+            startDate={userAnalyticsStartDate}
+            endDate={userAnalyticsEndDate}
+            onStartDateChange={setUserAnalyticsStartDate}
+            onEndDateChange={setUserAnalyticsEndDate}
+            onApplyDateRange={applyUserAnalyticsDateRange}
+            onResetDateRange={resetUserAnalyticsDateRange}
+          />
         ) : (
           <AdminMetricsTab
             enabled={canAccessAdminData && isMetricsTab}

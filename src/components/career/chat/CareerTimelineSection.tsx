@@ -44,15 +44,13 @@ const TimelinePanel = ({
   children: React.ReactNode;
   className?: string;
 }) => (
-  <CareerInlinePanel
-    className={careerCx("max-w-[980px] px-5 py-5", className)}
-  >
+  <CareerInlinePanel className={careerCx("max-w-[980px] px-5 py-5", className)}>
     {children}
   </CareerInlinePanel>
 );
 
 const AssistantLabel = ({ children }: { children: React.ReactNode }) => (
-  <div className="text-[12px] font-medium text-beige900/40">{children}</div>
+  <div className="text-[12px] font-medium text-beige900/90">{children}</div>
 );
 
 const StatusMessage = ({
@@ -62,12 +60,7 @@ const StatusMessage = ({
   children: React.ReactNode;
   className?: string;
 }) => (
-  <div
-    className={careerCx(
-      "border-l-2 border-beige900/15 pl-4 text-[14px] leading-6 text-beige900/60",
-      className
-    )}
-  >
+  <div className={careerCx("text-sm leading-6 text-beige900/70", className)}>
     {children}
   </div>
 );
@@ -248,7 +241,7 @@ const CareerTimelineSection = () => {
       className="flex-1 overflow-y-auto px-0 py-4 pb-28 scrollbar-thin scrollbar-thumb-[rgba(92,61,34,0.16)] scrollbar-track-transparent"
     >
       <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-4 px-5 py-1">
-        {user && showLoadOlderButton && hasOlderMessages ? (
+        {user && showLoadOlderButton && hasOlderMessages && (
           <div className="sticky top-0 z-10 flex justify-center pb-2">
             <button
               type="button"
@@ -259,7 +252,7 @@ const CareerTimelineSection = () => {
               {loadingOlderMessages ? "불러오는 중..." : "이전 대화 더 보기"}
             </button>
           </div>
-        ) : null}
+        )}
 
         {!user ? (
           <>
@@ -332,20 +325,18 @@ const CareerTimelineSection = () => {
                 </button>
               </div>
 
-              {authError ? (
+              {authError && (
                 <div className="mt-4 border border-[#7c2d12]/15 bg-[#7c2d12]/5 px-4 py-3 text-sm text-[#7c2d12]">
                   {authError}
                 </div>
-              ) : null}
-              {authInfo ? (
+              )}
+              {authInfo && (
                 <div className="mt-4 border border-beige900/10 bg-white/40 px-4 py-3 text-sm text-beige900/50">
                   {authInfo}
                 </div>
-              ) : null}
+              )}
 
-              <StatusMessage className="mt-5">
-                {LOGIN_NUDGE}
-              </StatusMessage>
+              <StatusMessage className="mt-5">{LOGIN_NUDGE}</StatusMessage>
             </TimelinePanel>
           </>
         ) : null}
@@ -375,42 +366,46 @@ const CareerTimelineSection = () => {
           </div>
         ) : null}
 
-        {user && !sessionPending
-          ? messages.map((message, index) => {
-              const isUser = message.role === "user";
-              return (
-                <div
-                  key={`${message.id}-${index}`}
-                  className={careerCx(
-                    "flex flex-col gap-2",
-                    isVoiceMode &&
-                      index !== lastSpokenAssistantMessageIndex &&
-                      "opacity-70"
-                  )}
-                >
-                  {!isUser ? <AssistantLabel>Harper</AssistantLabel> : null}
-                  <CareerMessageBubble
-                    message={message}
-                    isUser={isUser}
-                    isAssistantSpeaking={
-                      !isUser && index === lastSpokenAssistantMessageIndex
-                    }
-                  />
-                </div>
-              );
-            })
-          : null}
+        {user &&
+          !sessionPending &&
+          messages.map((message, index) => {
+            const isUser = message.role === "user";
+            return (
+              <div
+                key={`${message.id}-${index}`}
+                className={careerCx(
+                  "flex flex-col gap-2",
+                  isVoiceMode &&
+                    index !== lastSpokenAssistantMessageIndex &&
+                    "opacity-70"
+                )}
+              >
+                {!isUser && <AssistantLabel>Harper</AssistantLabel>}
+                <CareerMessageBubble
+                  message={message}
+                  isUser={isUser}
+                  isAssistantSpeaking={
+                    !isUser && index === lastSpokenAssistantMessageIndex
+                  }
+                />
+              </div>
+            );
+          })}
 
-        {user && !sessionPending && stage !== "profile" && chatPending && !assistantTyping ? (
-          <StatusMessage>
-            <span className="inline-flex items-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin text-beige900" />
-              채팅을 작성중입니다...
-            </span>
-          </StatusMessage>
-        ) : null}
+        {user &&
+          !sessionPending &&
+          stage !== "profile" &&
+          chatPending &&
+          !assistantTyping && (
+            <StatusMessage>
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-beige900" />
+                채팅을 작성중입니다...
+              </span>
+            </StatusMessage>
+          )}
 
-        {user && profilePending ? (
+        {user && profilePending && (
           <TimelinePanel className="max-w-[980px]">
             <div className="flex items-center gap-2 text-sm text-beige900/50">
               <Loader2 className="h-4 w-4 animate-spin text-beige900" />
@@ -419,15 +414,18 @@ const CareerTimelineSection = () => {
             <StatusMessage className="mt-4">{LOADING_NUDGE}</StatusMessage>
             <div className="mt-5 grid gap-2 border-t border-beige900/10 pt-4">
               {LOADING_EXAMPLES.map((example) => (
-                <div key={example} className="text-[14px] leading-7 text-beige900/55">
+                <div
+                  key={example}
+                  className="text-[14px] leading-7 text-beige900/55"
+                >
                   {example}
                 </div>
               ))}
             </div>
           </TimelinePanel>
-        ) : null}
+        )}
 
-        {user && !profilePending && !sessionPending && stage === "profile" ? (
+        {user && !profilePending && !sessionPending && stage === "profile" && (
           <TimelinePanel className="max-w-[980px]">
             <div className="grid gap-6">
               <section>
@@ -525,21 +523,21 @@ const CareerTimelineSection = () => {
               </div>
             </div>
           </TimelinePanel>
-        ) : null}
+        )}
 
-        {user && sessionError ? (
+        {user && sessionError && (
           <div className="border border-[#7c2d12]/15 bg-[#7c2d12]/5 px-4 py-3 text-sm text-[#7c2d12]">
             {sessionError}
           </div>
-        ) : null}
+        )}
 
-        {user && chatError ? (
+        {user && chatError && (
           <div className="border border-[#7c2d12]/15 bg-[#7c2d12]/5 px-4 py-3 text-sm text-[#7c2d12]">
             {chatError}
           </div>
-        ) : null}
+        )}
 
-        {user && showVoiceStartPrompt ? (
+        {user && showVoiceStartPrompt && (
           <TimelinePanel className="max-w-[620px]">
             <div className="text-[15px] leading-7 text-beige900/70">
               현재 대화가 가능하신가요?
@@ -579,9 +577,9 @@ const CareerTimelineSection = () => {
               </CareerSecondaryButton>
             </div>
           </TimelinePanel>
-        ) : null}
+        )}
 
-        {user && showInterestSelector ? (
+        {user && showInterestSelector && (
           <TimelinePanel className="max-w-[900px]">
             <div className="text-[12px] font-medium text-beige900/40">
               복수 선택 가능
@@ -613,9 +611,9 @@ const CareerTimelineSection = () => {
               {onboardingPausePending ? "저장 중..." : "선택 저장하기"}
             </CareerPrimaryButton>
           </TimelinePanel>
-        ) : null}
+        )}
 
-        {user && showContinueConversation ? (
+        {user && showContinueConversation && (
           <TimelinePanel className="max-w-[620px]">
             <div className="text-[15px] leading-7 text-beige900/55">
               방문해주셔서 감사합니다.
@@ -628,7 +626,7 @@ const CareerTimelineSection = () => {
               {onboardingBeginPending ? "준비 중..." : "지금 더 대화하기"}
             </CareerPrimaryButton>
           </TimelinePanel>
-        ) : null}
+        )}
       </div>
     </div>
   );

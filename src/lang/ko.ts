@@ -262,7 +262,7 @@ export const ko = {
     },
     pricing: {
       title: "Pricing",
-      subtitle: "팀의 성장에 맞는 합리적인 플랜",
+      subtitle: "우선 무료로 시작하고 결정하세요.",
       contactLabel: "별도 문의",
       billing: {
         monthly: "월간 결제",

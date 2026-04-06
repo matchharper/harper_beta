@@ -2,7 +2,9 @@ import type { User } from "@supabase/supabase-js";
 import React, { createContext, useContext } from "react";
 import type {
   CareerNetworkApplication,
+  CareerRecentOpportunity,
   CareerStage,
+  CareerTalentInsights,
   CareerTalentPreferences,
   CareerTalentProfile,
 } from "./types";
@@ -17,6 +19,7 @@ export type CareerSidebarContextValue = {
   progressPercent: number;
   onOpenSettings: () => void;
   onLogout: () => void | Promise<void>;
+  recentOpportunities: CareerRecentOpportunity[];
 
   resumeFile: File | null;
   savedResumeFileName: string | null;
@@ -35,12 +38,25 @@ export type CareerSidebarContextValue = {
   talentProfile: CareerTalentProfile;
   networkApplication: CareerNetworkApplication | null;
   talentPreferences: CareerTalentPreferences | null;
+  talentInsights: CareerTalentInsights | null;
+  networkApplicationUpdatedAt: string | null;
   networkApplicationSavePending: boolean;
   networkApplicationSaveError: string;
   networkApplicationSaveInfo: string;
+  hasUnsavedNetworkApplicationChanges: boolean;
+  onResetNetworkApplication: () => void;
+  talentPreferencesUpdatedAt: string | null;
   talentPreferencesSavePending: boolean;
   talentPreferencesSaveError: string;
   talentPreferencesSaveInfo: string;
+  hasUnsavedTalentPreferencesChanges: boolean;
+  onResetTalentPreferences: () => void;
+  talentInsightsUpdatedAt: string | null;
+  talentInsightsSavePending: boolean;
+  talentInsightsSaveError: string;
+  talentInsightsSaveInfo: string;
+  hasUnsavedTalentInsightsChanges: boolean;
+  onResetTalentInsights: () => void;
   onNetworkApplicationChange: (
     next:
       | CareerNetworkApplication
@@ -59,15 +75,27 @@ export type CareerSidebarContextValue = {
         ) => CareerTalentPreferences | null)
   ) => void;
   onSaveTalentPreferences: () => boolean | Promise<boolean>;
+  onTalentInsightsChange: (
+    next:
+      | CareerTalentInsights
+      | null
+      | ((current: CareerTalentInsights | null) => CareerTalentInsights | null)
+  ) => void;
+  onSaveTalentInsights: () => boolean | Promise<boolean>;
 
   settingsLoading: boolean;
   settingsSaving: boolean;
   settingsError: string;
+  settingsSaveInfo: string;
+  settingsUpdatedAt: string | null;
   profileVisibility: CareerProfileVisibility;
   blockedCompanies: string[];
+  hasUnsavedTalentSettingsChanges: boolean;
   onProfileVisibilityChange: (value: CareerProfileVisibility) => void;
   onAddBlockedCompany: (name: string) => void;
   onRemoveBlockedCompany: (name: string) => void;
+  onSaveTalentSettings: () => boolean | Promise<boolean>;
+  onResetTalentSettings: () => void;
   onReloadTalentSettings: () => void | Promise<void>;
 };
 

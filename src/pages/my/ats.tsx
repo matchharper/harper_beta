@@ -18,6 +18,7 @@ import {
   PauseCircle,
   PlayCircle,
   Plus,
+  RotateCcw,
   Search,
   Send,
   Sparkles,
@@ -40,6 +41,7 @@ import {
   useDiscoverAtsEmail,
   useGenerateAtsContactEmail,
   useGenerateAtsSequence,
+  useResetAtsCandidateOutreach,
   useSaveAtsWorkspace,
   useSaveAtsCandidateMemo,
   useSaveAtsSequenceSchedule,
@@ -762,6 +764,7 @@ export default function AtsPage() {
   const saveWorkspace = useSaveAtsWorkspace();
   const discoverEmail = useDiscoverAtsEmail();
   const clearEmailTrace = useClearAtsEmailDiscoveryTrace();
+  const resetCandidateOutreach = useResetAtsCandidateOutreach();
   const generateContactEmail = useGenerateAtsContactEmail();
   const saveManualEmail = useSetManualAtsEmail();
   const saveCandidateMemo = useSaveAtsCandidateMemo();
@@ -1309,6 +1312,33 @@ export default function AtsPage() {
           error instanceof Error
             ? error.message
             : "이메일 탐색 로그 삭제에 실패했습니다.",
+        variant: "error",
+      });
+    }
+  };
+
+  const handleResetCandidateOutreach = async () => {
+    if (!selectedCandidateId) return;
+    if (
+      !window.confirm(
+        "이 후보자의 candidate_outreach 상태를 초기화할까요? 이메일 탐색 상태, 메모, 히스토리, 시퀀스 상태가 기본값으로 돌아갑니다."
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await resetCandidateOutreach.mutateAsync(selectedCandidateId);
+      showToast({
+        message: "candidate_outreach를 초기화했습니다.",
+        variant: "white",
+      });
+    } catch (error) {
+      showToast({
+        message:
+          error instanceof Error
+            ? error.message
+            : "candidate_outreach 초기화에 실패했습니다.",
         variant: "error",
       });
     }
@@ -2197,6 +2227,24 @@ export default function AtsPage() {
                             <Mail className="h-4 w-4" />
                           )}
                           Generate 4-Step
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleResetCandidateOutreach}
+                          disabled={
+                            resetCandidateOutreach.isPending ||
+                            isEmailDiscoverySearching ||
+                            isSelectedEmailDiscoveryActive ||
+                            isSelectedEmailDiscoveryQueued
+                          }
+                          className="inline-flex items-center justify-center gap-2 rounded-sm border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-sm text-rose-100 transition hover:bg-rose-400/15 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          {resetCandidateOutreach.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <RotateCcw className="h-4 w-4" />
+                          )}
+                          Reset Outreach
                         </button>
                         <button
                           type="button"

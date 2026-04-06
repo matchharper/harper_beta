@@ -2,6 +2,7 @@ import type { User } from "@supabase/supabase-js";
 import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
 import type {
   TalentConversationRow,
+  TalentInsightContent,
   TalentMessageRow,
   TalentUserProfileRow,
 } from "@/lib/talentOnboarding/server";
@@ -36,8 +37,7 @@ type TalentKickoffPreferences = {
   engagementTypes: string[];
   preferredLocations: string[];
   careerMoveIntentLabel: string | null;
-  technicalStrengths: string | null;
-  desiredTeams: string | null;
+  insightContent: TalentInsightContent | null;
 };
 
 const FALLBACK_KICKOFF: LlmKickoff = {
@@ -115,6 +115,24 @@ function describeTalentPreferences(
 ) {
   if (!preferences) return "(없음)";
 
+  const insightContent = preferences.insightContent ?? {};
+  const priorityKeys = ["desired_teams", "technical_strengths"];
+  const renderedInsightKeys = new Set<string>();
+  const insightLines = priorityKeys
+    .map((key) => {
+      const value = insightContent[key];
+      if (!value) return null;
+      renderedInsightKeys.add(key);
+      if (key === "desired_teams") return `원하는 팀: ${value}`;
+      if (key === "technical_strengths") return `기술적 장점: ${value}`;
+      return `${key}: ${value}`;
+    })
+    .filter(Boolean);
+  for (const [key, value] of Object.entries(insightContent)) {
+    if (!value || renderedInsightKeys.has(key)) continue;
+    insightLines.push(`${key}: ${value}`);
+  }
+
   return [
     preferences.careerMoveIntentLabel
       ? `이직 의향: ${preferences.careerMoveIntentLabel}`
@@ -125,10 +143,7 @@ function describeTalentPreferences(
     preferences.preferredLocations.length > 0
       ? `선호 지역: ${preferences.preferredLocations.join(", ")}`
       : null,
-    preferences.desiredTeams ? `원하는 팀: ${preferences.desiredTeams}` : null,
-    preferences.technicalStrengths
-      ? `기술적 장점: ${preferences.technicalStrengths}`
-      : null,
+    ...insightLines,
   ]
     .filter(Boolean)
     .join("\n");
@@ -252,8 +267,7 @@ export async function autoStartClaimedTalentConversation(args: {
       engagementTypes: engagementLabels,
       preferredLocations: locationLabels,
       careerMoveIntentLabel,
-      technicalStrengths: normalizedInsights?.technical_strengths ?? null,
-      desiredTeams: normalizedInsights?.desired_teams ?? null,
+      insightContent: normalizedInsights,
     },
     resumeFileName: profile?.resume_file_name,
     resumeText: profile?.resume_text,
