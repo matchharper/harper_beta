@@ -5,14 +5,24 @@ import {
   buildTalentProfileContext,
   countUserChatTurns,
   fetchRecentMessages,
+  fetchTalentInsights,
   fetchTalentStructuredProfile,
+  mergeTalentInsightContent,
+  normalizeTalentInsightContent,
   TalentConversationRow,
   TalentMessageRow,
   TalentUserProfileRow,
   fetchTalentUserProfile,
   getTalentSupabaseAdmin,
+  upsertTalentInsights,
 } from "@/lib/talentOnboarding/server";
 import { TALENT_ONBOARDING_COMPLETION_TARGET } from "@/lib/talentOnboarding/progress";
+import {
+  getUncoveredChecklistItems,
+  INSIGHT_CHECKLIST,
+  type InsightChecklistItem,
+} from "@/lib/talentOnboarding/insightChecklist";
+import { logger } from "@/utils/logger";
 
 type Body = {
   conversationId?: string;
@@ -20,17 +30,102 @@ type Body = {
   link?: string;
 };
 
+type ParsedAssistantResponse = {
+  reply: string;
+  extractedInsights: Record<string, string> | null;
+};
+
+function parseAssistantResponse(raw: string): ParsedAssistantResponse {
+  // Attempt 1: direct JSON parse
+  try {
+    const parsed = JSON.parse(raw);
+    const reply = typeof parsed.reply === "string" ? parsed.reply.trim() : "";
+    const insights = parsed.extracted_insights;
+    if (!reply) throw new Error("empty reply");
+    return {
+      reply,
+      extractedInsights:
+        insights && typeof insights === "object" ? insights : null,
+    };
+  } catch {
+    // Attempt 2: regex extraction (handles LLM wrapping JSON in prose)
+    const match = raw.match(/\{[\s\S]*\}/);
+    if (match) {
+      try {
+        const parsed = JSON.parse(match[0]);
+        const reply =
+          typeof parsed.reply === "string" ? parsed.reply.trim() : "";
+        const insights = parsed.extracted_insights;
+        if (reply) {
+          return {
+            reply,
+            extractedInsights:
+              insights && typeof insights === "object" ? insights : null,
+          };
+        }
+      } catch {
+        logger.log("[TalentChat] JSON regex fallback parse failed");
+      }
+    }
+    // Final fallback: treat entire raw text as reply, skip extraction
+    logger.log("[TalentChat] Using raw text fallback, no extraction this turn");
+    return { reply: raw, extractedInsights: null };
+  }
+}
+
+function buildInsightExtractionPrompt(
+  uncoveredItems: InsightChecklistItem[],
+  coveredCount: number,
+  totalCount: number
+): string {
+  const checklistLines = uncoveredItems
+    .map((item) => `- "${item.key}": ${item.promptHint}`)
+    .join("\n");
+
+  const topUncovered = uncoveredItems
+    .slice(0, 3)
+    .map((item) => `- ${item.promptHint}`)
+    .join("\n");
+
+  return `
+## Response Format
+You MUST return a valid JSON object with exactly two fields:
+{
+  "reply": "your Korean conversational reply here",
+  "extracted_insights": {
+    "key_name": "extracted value or null"
+  }
+}
+
+## Insight Extraction Rules
+Insight coverage: ${coveredCount}/${totalCount} items covered.
+From the user's messages, extract any of these soft signals when mentioned:
+${checklistLines}
+
+Beyond the checklist above, you may also extract any other meaningful career insights you discover in the conversation as free-form keys (e.g. "leadership_experience", "side_project_interests", "industry_network"). Use descriptive snake_case keys and Korean values.
+
+Only include keys where the user provided clear information. Use Korean for values.
+If the conversation naturally covers a topic, extract it. Do NOT ask about all topics at once.
+
+## Conversation Guidance
+Prioritize naturally asking about these uncovered topics (one at a time):
+${topUncovered}
+`;
+}
+
 function buildSystemPrompt(args: {
   profile: TalentUserProfileRow | null;
   structuredProfileText: string;
   shouldSendReliefNudge: boolean;
   userTurnCount: number;
+  insightExtractionPrompt: string;
 }) {
   const {
     profile,
     structuredProfileText,
     shouldSendReliefNudge,
     userTurnCount,
+    insightExtractionPrompt,
   } = args;
   const linkText = (profile?.resume_links ?? []).join(", ");
 
@@ -81,6 +176,7 @@ Avoid markdown tables and long bullet dumps. Becaues your output will be used as
   return [
     "You are Harper, a Korean AI talent agent for candidate onboarding.",
     systemPrompt,
+    insightExtractionPrompt,
     "",
     `Current user turn count: ${userTurnCount}`,
     `Resume file: ${profile?.resume_file_name ?? "(none)"}`,
@@ -144,7 +240,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const profile = await fetchTalentUserProfile({ admin, userId: user.id });
+    const [profile, currentInsights] = await Promise.all([
+      fetchTalentUserProfile({ admin, userId: user.id }),
+      fetchTalentInsights({ admin, userId: user.id }),
+    ]);
     const structuredProfile = await fetchTalentStructuredProfile({
       admin,
       userId: user.id,
@@ -155,6 +254,15 @@ export async function POST(req: NextRequest) {
       structuredProfile,
       maxResumeChars: 3000,
     });
+
+    const currentInsightContent = (currentInsights?.content ?? null) as Record<string, string> | null;
+    const uncoveredItems = getUncoveredChecklistItems(currentInsightContent);
+    const coveredCount = (INSIGHT_CHECKLIST.length - uncoveredItems.length);
+    const insightExtractionPrompt = buildInsightExtractionPrompt(
+      uncoveredItems,
+      coveredCount,
+      INSIGHT_CHECKLIST.length
+    );
 
     const normalizedContent = link
       ? `${message}\n\n참고 링크: ${link}`
@@ -197,7 +305,7 @@ export async function POST(req: NextRequest) {
       }))
       .filter((item) => item.content.trim().length > 0);
 
-    const assistantText = await runTalentAssistantCompletion({
+    const rawAssistantText = await runTalentAssistantCompletion({
       messages: [
         {
           role: "system",
@@ -206,16 +314,47 @@ export async function POST(req: NextRequest) {
             structuredProfileText,
             shouldSendReliefNudge,
             userTurnCount,
+            insightExtractionPrompt,
           }),
         },
         ...llmMessages,
       ],
       temperature: 0.55,
+      jsonMode: true,
     });
 
+    const parsedResponse = parseAssistantResponse(rawAssistantText);
+
     const safeAssistantText =
-      assistantText.trim() ||
+      parsedResponse.reply.trim() ||
       "좋은 정보 감사합니다. 이어서 가장 우선순위인 조건을 하나만 더 알려주세요.";
+
+    // Persist extracted insights (never blocks chat response)
+    if (parsedResponse.extractedInsights) {
+      try {
+        const mergedContent = mergeTalentInsightContent({
+          currentContent: currentInsightContent,
+          seedContent: normalizeTalentInsightContent(
+            parsedResponse.extractedInsights
+          ),
+        });
+        if (mergedContent) {
+          await upsertTalentInsights({
+            admin,
+            userId: user.id,
+            content: mergedContent,
+          });
+        }
+      } catch (insightError) {
+        logger.log("[TalentChat] Failed to persist insights", {
+          userId: user.id,
+          error:
+            insightError instanceof Error
+              ? insightError.message
+              : "Unknown error",
+        });
+      }
+    }
 
     const { data: insertedAssistantMessage, error: assistantError } =
       await admin
@@ -239,7 +378,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const isCompleted = userTurnCount >= TALENT_ONBOARDING_COMPLETION_TARGET;
+    // Completed when enough turns AND at least 60% of checklist covered
+    const insightsCoveredAfter = parsedResponse.extractedInsights
+      ? coveredCount + Object.keys(parsedResponse.extractedInsights).length
+      : coveredCount;
+    const coverageRatio = INSIGHT_CHECKLIST.length > 0
+      ? insightsCoveredAfter / INSIGHT_CHECKLIST.length
+      : 1;
+    const isCompleted =
+      userTurnCount >= TALENT_ONBOARDING_COMPLETION_TARGET && coverageRatio >= 0.6;
     const now = new Date().toISOString();
     const { error: conversationUpdateError } = await admin
       .from("talent_conversations")

@@ -8,17 +8,11 @@ import {
   CareerSectionHeader,
   CareerTextarea,
 } from "./ui/CareerPrimitives";
-
-const formatInsightLabel = (key: string) =>
-  key
-    .split("_")
-    .filter(Boolean)
-    .map((segment, index) =>
-      index === 0
-        ? segment.charAt(0).toUpperCase() + segment.slice(1)
-        : segment
-    )
-    .join(" ");
+import {
+  INSIGHT_CHECKLIST,
+  INSIGHT_CHECKLIST_ORDER_MAP,
+  getInsightLabel,
+} from "@/lib/talentOnboarding/insightChecklist";
 
 const CareerHarperInsightsSection = () => {
   const {
@@ -32,13 +26,21 @@ const CareerHarperInsightsSection = () => {
     onResetTalentInsights,
   } = useCareerSidebarContext();
 
-  const insightEntries = useMemo(
-    () =>
-      Object.entries(talentInsights ?? {}).sort(([left], [right]) =>
-        left.localeCompare(right)
-      ),
-    [talentInsights]
-  );
+  const insightEntries = useMemo(() => {
+    const entries = Object.entries(talentInsights ?? {});
+    // Add empty entries for uncovered checklist items
+    const coveredKeys = new Set(entries.map(([k]) => k));
+    for (const item of INSIGHT_CHECKLIST) {
+      if (!coveredKeys.has(item.key)) {
+        entries.push([item.key, ""]);
+      }
+    }
+    return entries.sort(
+      ([a], [b]) =>
+        (INSIGHT_CHECKLIST_ORDER_MAP.get(a) ?? 999) -
+        (INSIGHT_CHECKLIST_ORDER_MAP.get(b) ?? 999)
+    );
+  }, [talentInsights]);
 
   if (!talentInsights) {
     return (
@@ -59,7 +61,7 @@ const CareerHarperInsightsSection = () => {
           insightEntries.map(([key, value]) => (
             <CareerField
               key={key}
-              label={formatInsightLabel(key)}
+              label={getInsightLabel(key)}
               hint={key}
             >
               <CareerTextarea

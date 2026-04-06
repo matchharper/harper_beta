@@ -16,14 +16,19 @@ function cleanModelText(raw: string) {
 export async function runTalentAssistantCompletion(args: {
   messages: TalentChatMessage[];
   temperature?: number;
+  jsonMode?: boolean;
 }) {
-  const { messages, temperature = 0.35 } = args;
+  const { messages, temperature = 0.35, jsonMode = false } = args;
+  const responseFormat = jsonMode
+    ? ({ type: "json_object" } as const)
+    : undefined;
 
   try {
     const response = await xaiClient.chat.completions.create({
       model: "grok-4-1-fast-non-reasoning",
       messages,
       temperature,
+      ...(responseFormat && { response_format: responseFormat }),
     });
     const content = response.choices[0]?.message?.content ?? "";
     return cleanModelText(content);
@@ -32,6 +37,7 @@ export async function runTalentAssistantCompletion(args: {
       model: "gpt-4.1-mini",
       messages,
       temperature,
+      ...(responseFormat && { response_format: responseFormat }),
     });
     const content = fallback.choices[0]?.message?.content ?? "";
     return cleanModelText(content);
