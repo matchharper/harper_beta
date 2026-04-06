@@ -1,8 +1,9 @@
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { queryKeys } from "@/lib/queryKeys";
 
-export const runKey = (id?: string) => ["run", id] as const;
+export const runKey = (id?: string) => queryKeys.run.detail(id ?? "");
 const TERMINAL_STATUSES = new Set(["finished", "error", "stopped"]);
 
 async function fetchRunDetail(id: string) {

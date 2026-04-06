@@ -14,9 +14,20 @@ import { Analytics } from "@vercel/analytics/react";
 import { useEffect, useRef } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
-import CompanyModalRoot from "@/components/Modal/CompanyModal";
-import PaperModalRoot from "@/components/Modal/PaperModal";
-import RepoModalRoot from "@/components/Modal/RepoModal";
+import dynamic from "next/dynamic";
+
+const CompanyModalRoot = dynamic(
+  () => import("@/components/Modal/CompanyModal"),
+  { ssr: false, loading: () => null }
+);
+const PaperModalRoot = dynamic(
+  () => import("@/components/Modal/PaperModal"),
+  { ssr: false, loading: () => null }
+);
+const RepoModalRoot = dynamic(
+  () => import("@/components/Modal/RepoModal"),
+  { ssr: false, loading: () => null }
+);
 import Script from "next/script";
 import { useRouter } from "next/router";
 

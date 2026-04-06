@@ -3,6 +3,7 @@ import type { CandidateType } from "@/types/type";
 import type { Database } from "@/types/database.types";
 import type { CandidateMarkRecord } from "@/lib/candidateMark";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
+import { queryKeys } from "@/lib/queryKeys";
 
 export type GithubRepoContributionRow =
   Database["public"]["Tables"]["github_repo_contribution"]["Row"];
@@ -30,8 +31,8 @@ export type CandidateDetail = CandidateType & {
   masked_experience_count?: number | null;
 };
 
-export const candidateKey = (id?: string, userId?: string) =>
-  ["candidate", id, userId] as const;
+export const candidateKey = (id?: string, _userId?: string) =>
+  queryKeys.candidate.detail(id ?? "");
 
 export async function fetchCandidateDetail(id: string, userId?: string) {
   if (!id || !userId) return null;
@@ -47,7 +48,7 @@ export function useCandidateDetail(
   enabled = true
 ) {
   return useQuery({
-    queryKey: candidateKey(candidId, userId),
+    queryKey: queryKeys.candidate.detail(candidId ?? ""),
     enabled: enabled && !!candidId,
     queryFn: () => fetchCandidateDetail(candidId!, userId),
     staleTime: 60_000,

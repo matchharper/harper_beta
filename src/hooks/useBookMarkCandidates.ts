@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { CandidateTypeWithConnection } from "./useSearchChatCandidates";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
+import { queryKeys } from "@/lib/queryKeys";
 
 export type ConnectionTyped = 0 | 1 | 2 | 3;
 
@@ -87,7 +88,7 @@ export function useConnectedCandidates(
 }
 
 export const connectionsCountKey = (userId?: string) =>
-  ["connectionsCount", userId] as const;
+  queryKeys.connections.count(userId ?? "");
 
 async function fetchConnectionCount(userId: string, typed: ConnectionTyped) {
   const { count, error } = await supabase
@@ -114,9 +115,8 @@ export function useConnectionCounts(userId?: string) {
       return { bookmark, picked };
     },
 
-    // "그때그때 바뀌는 값 반영"을 위해 보통 이 조합이 무난
-    staleTime: 3_000, // 캐시 유지(짧게)
-    refetchInterval: 10_000, // 10초마다 자동 갱신 (원하면 끄거나 조정)
-    refetchOnWindowFocus: true, // 탭 다시 보면 갱신
+    // refetchInterval 제거: 글로벌 스케일에서 DoS 벡터. 수동 invalidation으로 전환.
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
   });
 }

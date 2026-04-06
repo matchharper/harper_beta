@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { postLogEvent } from "@/lib/logEvent";
+import { queryKeys } from "@/lib/queryKeys";
 
 export type BookmarkFolder = {
   id: number;
@@ -39,7 +40,7 @@ type DeleteFolderArgs = {
 const isUniqueViolation = (error: any) => String(error?.code ?? "") === "23505";
 
 export const bookmarkFoldersKey = (userId?: string) =>
-  ["bookmarkFolders", userId] as const;
+  queryKeys.bookmarkFolders.byUser(userId ?? "");
 
 export const candidateBookmarkFolderIdsKey = (userId?: string, candidId?: string) =>
   ["candidateBookmarkFolderIds", userId, candidId] as const;
