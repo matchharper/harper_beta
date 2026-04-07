@@ -42,12 +42,20 @@ const CareerComposerSection = () => {
     onVoicePrimaryAction,
     onToggleVoiceMute,
     onSwitchToTextMode,
+    vapiCallStatus,
+    onStartVapiCall,
+    onEndVapiCall,
   } = useCareerChatPanelContext();
 
   const [draft, setDraft] = useState("");
   const [chatLinkDraft, setChatLinkDraft] = useState("");
   const [showLinkInput, setShowLinkInput] = useState(false);
   const onboardingPaused = isOnboardingPaused(messages);
+
+  const isVapiCallActive =
+    vapiCallStatus === "connecting" ||
+    vapiCallStatus === "active" ||
+    vapiCallStatus === "ending";
 
   const isComposerLocked =
     !user ||
@@ -59,7 +67,8 @@ const CareerComposerSection = () => {
     onboardingBeginPending ||
     onboardingPausePending ||
     chatPending ||
-    assistantTyping;
+    assistantTyping ||
+    isVapiCallActive;
 
   const composerPlaceholder = !user
     ? "로그인 후 대화를 시작할 수 있습니다."
@@ -111,15 +120,19 @@ const CareerComposerSection = () => {
   return (
     <div className="sticky bottom-0 px-5 py-4">
       <div className="mx-auto w-full max-w-[1120px]">
-        {showCallQuickAction ? (
-          <div className="mb-3 flex justify-end">
+        {isVapiCallActive ? (
+          <div className="mb-3 flex justify-center">
             <CareerPrimaryButton
-              onClick={() => onStartVoiceCall()}
-              disabled={isComposerLocked || onboardingBeginPending}
-              className="gap-2 px-4"
+              onClick={onEndVapiCall}
+              disabled={vapiCallStatus === "ending"}
+              className="gap-2 px-6 bg-red-600 hover:bg-red-700 border-red-600"
             >
-              <Phone className="h-3.5 w-3.5" />
-              {onboardingBeginPending ? "준비 중..." : "전화로 하기"}
+              <PhoneOff className="h-3.5 w-3.5" />
+              {vapiCallStatus === "ending"
+                ? "종료 중..."
+                : vapiCallStatus === "connecting"
+                  ? "연결 취소"
+                  : "통화 종료"}
             </CareerPrimaryButton>
           </div>
         ) : null}
@@ -225,7 +238,7 @@ const CareerComposerSection = () => {
               )}
             />
             {!isVoiceMode && (
-              <div className="absolute bottom-1 right-0 flex items-center gap-2">
+              <div className="absolute bottom-1 right-0 flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => setShowLinkInput((prev) => !prev)}
@@ -234,6 +247,28 @@ const CareerComposerSection = () => {
                 >
                   <Plus className="h-4 w-4" />
                 </button>
+                {showCallQuickAction && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => onStartVoiceCall()}
+                      disabled={isComposerLocked || onboardingBeginPending}
+                      title="음성 입력"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-beige900/15 bg-white/45 text-beige900/50 transition-colors hover:border-beige900/30 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Mic className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onStartVapiCall}
+                      disabled={isComposerLocked}
+                      title="전화로 대화하기"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-beige900/15 bg-white/45 text-beige900/50 transition-colors hover:border-beige900/30 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Phone className="h-4 w-4" />
+                    </button>
+                  </>
+                )}
                 <button
                   type="button"
                   onClick={() => void handleSend()}

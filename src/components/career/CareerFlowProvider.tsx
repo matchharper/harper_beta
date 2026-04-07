@@ -22,6 +22,7 @@ import { useCareerTalentInsights } from "@/hooks/career/useCareerTalentInsights"
 import { useCareerTalentPreferences } from "@/hooks/career/useCareerTalentPreferences";
 import { useCareerTalentSettings } from "@/hooks/career/useCareerTalentSettings";
 import { useCareerSession } from "@/hooks/career/useCareerSession";
+import { useCareerVapiCall } from "@/hooks/career/useCareerVapiCall";
 import { TALENT_ONBOARDING_COMPLETION_TARGET } from "@/lib/talentOnboarding/progress";
 
 const normalizeRecentOpportunities = (
@@ -281,6 +282,15 @@ export const CareerFlowProvider = ({
     onMessagesChanged: appendLatestMessagesToCache,
   });
 
+  const {
+    vapiCallStatus,
+    vapiCallDuration,
+    vapiCallError,
+    startVapiCall,
+    endVapiCall,
+    dismissVapiCall,
+  } = useCareerVapiCall();
+
   const handleProfileSubmit = useCallback(async () => {
     await handleProfileSubmitBase(handleProfileSubmitSuccess);
   }, [handleProfileSubmitBase, handleProfileSubmitSuccess]);
@@ -304,6 +314,34 @@ export const CareerFlowProvider = ({
       applySessionPrompt,
     ]
   );
+
+  const handleStartVapiCall = useCallback(() => {
+    console.log("[VapiCall] handleStartVapiCall called", { userId, conversationId });
+    if (!userId || !conversationId) {
+      console.warn("[VapiCall] Missing userId or conversationId", { userId, conversationId });
+      return;
+    }
+    const existingInsightsContext = talentInsights
+      ? `이미 수집된 인사이트:\n${Object.entries(talentInsights)
+          .map(([k, v]) => `- ${k}: ${v}`)
+          .join("\n")}\n\n위 항목들은 이미 수집되었으므로 건너뛰세요.`
+      : undefined;
+    void startVapiCall({ userId, conversationId, existingInsightsContext });
+  }, [userId, conversationId, talentInsights, startVapiCall]);
+
+  const handleEndVapiCall = useCallback(() => {
+    endVapiCall();
+  }, [endVapiCall]);
+
+  const handleDismissVapiCall = useCallback(() => {
+    dismissVapiCall();
+    if (userId) {
+      void (async () => {
+        const payload = await loadSession();
+        if (payload) hydrateSession(payload);
+      })();
+    }
+  }, [dismissVapiCall, userId, loadSession, hydrateSession]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -425,6 +463,12 @@ export const CareerFlowProvider = ({
       onVoicePrimaryAction: handleVoicePrimaryAction,
       onToggleVoiceMute: handleToggleVoiceMute,
       onSwitchToTextMode: handleSwitchToTextMode,
+      vapiCallStatus,
+      vapiCallDuration,
+      vapiCallError,
+      onStartVapiCall: handleStartVapiCall,
+      onEndVapiCall: handleEndVapiCall,
+      onDismissVapiCall: handleDismissVapiCall,
     }),
     [
       assistantTyping,
@@ -473,6 +517,12 @@ export const CareerFlowProvider = ({
       voiceMuted,
       voicePrimaryPressed,
       voiceTranscript,
+      vapiCallStatus,
+      vapiCallDuration,
+      vapiCallError,
+      handleStartVapiCall,
+      handleEndVapiCall,
+      handleDismissVapiCall,
     ]
   );
 

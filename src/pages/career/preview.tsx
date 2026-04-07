@@ -502,6 +502,12 @@ const CareerPreviewPage = () => {
       onVoicePrimaryAction: () => undefined,
       onToggleVoiceMute: () => undefined,
       onSwitchToTextMode: () => undefined,
+      vapiCallStatus: "idle" as const,
+      vapiCallDuration: 0,
+      vapiCallError: null,
+      onStartVapiCall: () => undefined,
+      onEndVapiCall: () => undefined,
+      onDismissVapiCall: () => undefined,
     }),
     [messages, profileLinks, resumeFile]
   );

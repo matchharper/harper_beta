@@ -69,6 +69,13 @@ export type CareerChatPanelContextValue = {
   onVoicePrimaryAction: () => void;
   onToggleVoiceMute: () => void;
   onSwitchToTextMode: () => void;
+
+  vapiCallStatus: "idle" | "connecting" | "active" | "ending" | "ended";
+  vapiCallDuration: number;
+  vapiCallError: string | null;
+  onStartVapiCall: () => void;
+  onEndVapiCall: () => void;
+  onDismissVapiCall: () => void;
 };
 
 const CareerChatPanelContext =
