@@ -7,8 +7,7 @@ import {
   fetchRecentMessages,
   fetchTalentInsights,
   fetchTalentStructuredProfile,
-  mergeTalentInsightContent,
-  normalizeTalentInsightContent,
+  normalizeTalentInsightKey,
   TalentConversationRow,
   TalentMessageRow,
   TalentUserProfileRow,
@@ -30,10 +29,41 @@ type Body = {
   link?: string;
 };
 
+type ExtractedInsightValue = {
+  value: string;
+  action: "new" | "update";
+};
+
 type ParsedAssistantResponse = {
   reply: string;
-  extractedInsights: Record<string, string> | null;
+  extractedInsights: Record<string, ExtractedInsightValue> | null;
 };
+
+/** Normalize raw extracted_insights: supports both legacy string and {value, action} formats */
+function normalizeExtractedInsights(
+  raw: Record<string, unknown> | null
+): Record<string, ExtractedInsightValue> | null {
+  if (!raw) return null;
+  const result: Record<string, ExtractedInsightValue> = {};
+  for (const [key, val] of Object.entries(raw)) {
+    if (val == null) continue;
+    if (typeof val === "string") {
+      const trimmed = val.trim();
+      if (!trimmed) continue;
+      result[key] = { value: trimmed, action: "new" };
+    } else if (typeof val === "object" && val !== null) {
+      const obj = val as Record<string, unknown>;
+      const value = typeof obj.value === "string" ? obj.value.trim() : "";
+      if (!value) continue;
+      const action = obj.action === "update" ? "update" : "new";
+      if (obj.action && obj.action !== "new" && obj.action !== "update") {
+        logger.log("[TalentChat] Unrecognized insight action, defaulting to new", { key, action: obj.action });
+      }
+      result[key] = { value, action };
+    }
+  }
+  return Object.keys(result).length > 0 ? result : null;
+}
 
 function parseAssistantResponse(raw: string): ParsedAssistantResponse {
   // Attempt 1: direct JSON parse
@@ -45,7 +75,9 @@ function parseAssistantResponse(raw: string): ParsedAssistantResponse {
     return {
       reply,
       extractedInsights:
-        insights && typeof insights === "object" ? insights : null,
+        insights && typeof insights === "object"
+          ? normalizeExtractedInsights(insights)
+          : null,
     };
   } catch {
     // Attempt 2: regex extraction (handles LLM wrapping JSON in prose)
@@ -60,7 +92,9 @@ function parseAssistantResponse(raw: string): ParsedAssistantResponse {
           return {
             reply,
             extractedInsights:
-              insights && typeof insights === "object" ? insights : null,
+              insights && typeof insights === "object"
+                ? normalizeExtractedInsights(insights)
+                : null,
           };
         }
       } catch {
@@ -73,10 +107,29 @@ function parseAssistantResponse(raw: string): ParsedAssistantResponse {
   }
 }
 
+/** Build bounded "Currently known insights" section for the prompt */
+function buildExistingInsightsSection(content: Record<string, string> | null): string {
+  if (!content || Object.keys(content).length === 0) return "";
+  const MAX_TOTAL = 2000;
+  const MAX_PER_VALUE = 150;
+  let section = "\n## Currently Known Insights (do NOT re-extract unless user corrects or enriches)\n";
+  let totalLen = section.length;
+  const sortedEntries = Object.entries(content).sort(([a], [b]) => a.localeCompare(b));
+  for (const [key, value] of sortedEntries) {
+    const truncated = value.length > MAX_PER_VALUE ? value.slice(0, MAX_PER_VALUE) + "..." : value;
+    const line = `- "${key}": "${truncated}"\n`;
+    if (totalLen + line.length > MAX_TOTAL) break;
+    section += line;
+    totalLen += line.length;
+  }
+  return section;
+}
+
 function buildInsightExtractionPrompt(
   uncoveredItems: InsightChecklistItem[],
   coveredCount: number,
-  totalCount: number
+  totalCount: number,
+  currentInsightContent: Record<string, string> | null
 ): string {
   const checklistLines = uncoveredItems
     .map((item) => `- "${item.key}": ${item.promptHint}`)
@@ -87,22 +140,32 @@ function buildInsightExtractionPrompt(
     .map((item) => `- ${item.promptHint}`)
     .join("\n");
 
+  const existingInsightsSection = buildExistingInsightsSection(currentInsightContent);
+
   return `
 ## Response Format
 You MUST return a valid JSON object with exactly two fields:
 {
   "reply": "your Korean conversational reply here",
   "extracted_insights": {
-    "key_name": "extracted value or null"
+    "key_name": { "value": "extracted value", "action": "new" | "update" }
   }
 }
 
 ## Insight Extraction Rules
 Insight coverage: ${coveredCount}/${totalCount} items covered.
-From the user's messages, extract any of these soft signals when mentioned:
+
+### Action Types
+- "new": Use when filling a key for the first time (the key has no existing value).
+- "update": Use when the user corrects, enriches, or contradicts a previously known insight. The "value" must be the final integrated text combining old and new information, not just the new part.
+
+When using "update", naturally acknowledge the change in your reply (e.g. "그럼 연봉과 문화 둘 다 중요하시다는 거죠?"). Do NOT ask an explicit confirmation question — weave it into the conversation naturally.
+If unsure whether something is new or an update, default to "new".
+${existingInsightsSection}
+### Uncovered Topics (extract when mentioned)
 ${checklistLines}
 
-Beyond the checklist above, you may also extract any other meaningful career insights you discover in the conversation as free-form keys (e.g. "leadership_experience", "side_project_interests", "industry_network"). Use descriptive snake_case keys and Korean values.
+Beyond the checklist above, you may also extract any other meaningful career insights you discover in the conversation as free-form keys (e.g. "leadership_experience", "side_project_interests", "industry_network"). Use descriptive snake_case keys and Korean values. Both checklist and free-form keys support "update" if the user revises them.
 
 Only include keys where the user provided clear information. Use Korean for values.
 If the conversation naturally covers a topic, extract it. Do NOT ask about all topics at once.
@@ -261,7 +324,8 @@ export async function POST(req: NextRequest) {
     const insightExtractionPrompt = buildInsightExtractionPrompt(
       uncoveredItems,
       coveredCount,
-      INSIGHT_CHECKLIST.length
+      INSIGHT_CHECKLIST.length,
+      currentInsightContent
     );
 
     const normalizedContent = link
@@ -329,20 +393,52 @@ export async function POST(req: NextRequest) {
       parsedResponse.reply.trim() ||
       "좋은 정보 감사합니다. 이어서 가장 우선순위인 조건을 하나만 더 알려주세요.";
 
-    // Persist extracted insights (never blocks chat response)
+    // Persist extracted insights with action-aware merge (never blocks chat response)
     if (parsedResponse.extractedInsights) {
       try {
-        const mergedContent = mergeTalentInsightContent({
-          currentContent: currentInsightContent,
-          seedContent: normalizeTalentInsightContent(
-            parsedResponse.extractedInsights
-          ),
-        });
-        if (mergedContent) {
+        // Step A: Convert {value, action} objects to plain Record<string, string>.
+        // IMPORTANT: Must produce plain strings before upsertTalentInsights,
+        // because normalizeTalentInsightText (server.ts:212) rejects non-strings.
+        const processedInsights: Record<string, string> = {};
+
+        for (const [rawKey, extracted] of Object.entries(parsedResponse.extractedInsights)) {
+          const key = normalizeTalentInsightKey(rawKey);
+          if (!key || !extracted.value) continue;
+
+          const existingValue = currentInsightContent?.[key]?.trim();
+
+          if (extracted.action === "update") {
+            // Update: always write (upsert — works even if key doesn't exist yet)
+            if (existingValue && extracted.value.length < existingValue.length * 0.3) {
+              logger.log("[TalentChat] Insight update suspiciously shorter", {
+                key, existingLen: existingValue.length, newLen: extracted.value.length,
+              });
+            }
+            processedInsights[key] = extracted.value;
+            logger.log("[TalentChat] Insight updated", { key, action: "update" });
+          } else {
+            // New: only write if key is empty/missing
+            if (!existingValue) {
+              processedInsights[key] = extracted.value;
+              logger.log("[TalentChat] Insight created", { key, action: "new" });
+            }
+          }
+        }
+
+        if (Object.keys(processedInsights).length > 0) {
+          // Step B: Merge — processedInsights last so "update" keys overwrite existing.
+          // Safe because Step A already filtered "new" actions for existing keys.
+          const finalContent: Record<string, string> = {
+            ...(currentInsightContent ?? {}),
+            ...processedInsights,
+          };
+
+          // Step C: Upsert — finalContent is Record<string, string>,
+          // safe for normalizeTalentInsightContent inside upsertTalentInsights.
           await upsertTalentInsights({
             admin,
             userId: user.id,
-            content: mergedContent,
+            content: finalContent,
           });
         }
       } catch (insightError) {
@@ -379,9 +475,15 @@ export async function POST(req: NextRequest) {
     }
 
     // Completed when enough turns AND at least 60% of checklist covered
-    const insightsCoveredAfter = parsedResponse.extractedInsights
-      ? coveredCount + Object.keys(parsedResponse.extractedInsights).length
-      : coveredCount;
+    // Count keys that result in genuinely new coverage (not already in currentInsightContent),
+    // regardless of action label — LLM may send "update" for a first-time key.
+    const newKeysCount = parsedResponse.extractedInsights
+      ? Object.entries(parsedResponse.extractedInsights).filter(
+          ([key]) =>
+            !currentInsightContent?.[normalizeTalentInsightKey(key) ?? ""]?.trim()
+        ).length
+      : 0;
+    const insightsCoveredAfter = coveredCount + newKeysCount;
     const coverageRatio = INSIGHT_CHECKLIST.length > 0
       ? insightsCoveredAfter / INSIGHT_CHECKLIST.length
       : 1;
