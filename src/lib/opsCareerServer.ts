@@ -3,8 +3,10 @@ import {
   fetchTalentStructuredProfile,
   fetchTalentUserProfile,
   getTalentSupabaseAdmin,
+  getMergedChecklist,
 } from "@/lib/talentOnboarding/server";
 import { normalizeTalentInsightContent } from "@/lib/talentOnboarding/server";
+import type { MergedChecklistItem } from "@/lib/talentOnboarding/server";
 import type { Database } from "@/types/database.types";
 
 type TalentUserRow = Database["public"]["Tables"]["talent_users"]["Row"];
@@ -44,6 +46,7 @@ export type CareerTalentDetailResponse = {
   lastConversationAt: string | null;
   createdAt: string | null;
   insights: Record<string, string> | null;
+  mergedChecklist: MergedChecklistItem[];
   structuredProfile: {
     experiences: unknown[];
     educations: unknown[];
@@ -179,10 +182,11 @@ export async function fetchCareerTalentDetail(
 ): Promise<CareerTalentDetailResponse> {
   const admin = getTalentSupabaseAdmin();
 
-  const [profile, insights, structuredProfile] = await Promise.all([
+  const [profile, insights, structuredProfile, mergedChecklist] = await Promise.all([
     fetchTalentUserProfile({ admin, userId }),
     fetchTalentInsights({ admin, userId }),
     fetchTalentStructuredProfile({ admin, userId, talentUser: null }),
+    getMergedChecklist({ admin }),
   ]);
 
   // Fetch latest conversation
@@ -237,6 +241,7 @@ export async function fetchCareerTalentDetail(
     lastConversationAt: latestConv?.updated_at ?? null,
     createdAt: profile?.created_at ?? null,
     insights: normalizedInsights,
+    mergedChecklist,
     structuredProfile: structuredProfile
       ? {
           experiences: structuredProfile.talentExperiences ?? [],

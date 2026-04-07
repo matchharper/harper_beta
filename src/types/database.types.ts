@@ -2986,6 +2986,39 @@ export type Database = {
           },
         ]
       }
+      insight_checklist_items: {
+        Row: {
+          id: number
+          key: string
+          label: string
+          prompt_hint: string | null
+          priority: number
+          is_active: boolean
+          created_at: string
+          created_by: string | null
+        }
+        Insert: {
+          id?: number
+          key: string
+          label: string
+          prompt_hint?: string | null
+          priority?: number
+          is_active?: boolean
+          created_at?: string
+          created_by?: string | null
+        }
+        Update: {
+          id?: number
+          key?: string
+          label?: string
+          prompt_hint?: string | null
+          priority?: number
+          is_active?: boolean
+          created_at?: string
+          created_by?: string | null
+        }
+        Relationships: []
+      }
       talent_insights: {
         Row: {
           content: Json | null

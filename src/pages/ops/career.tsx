@@ -1,16 +1,20 @@
 import OpsShell from "@/components/ops/OpsShell";
 import { cx, opsTheme } from "@/components/ops/theme";
-import { useOpsCareerTalents, useOpsCareerDetail } from "@/hooks/useOpsCareer";
-import { getInsightLabel } from "@/lib/talentOnboarding/insightChecklist";
+import { useOpsCareerTalents, useOpsCareerDetail, useAddChecklistItem, useRefreshInsights, useUpdateInsights, useDeleteChecklistItem } from "@/hooks/useOpsCareer";
+import type { CareerTalentDetailResponse } from "@/lib/opsCareerServer";
 import {
   ChevronRight,
   LoaderCircle,
   MessageSquareText,
+  Plus,
+  RefreshCw,
+  Save,
   Search,
+  Trash2,
   User,
 } from "lucide-react";
 import Head from "next/head";
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 const FETCH_LIMIT = 40;
 
@@ -188,7 +192,7 @@ function TalentDetail({ userId }: { userId: string }) {
       {/* Tab Content */}
       <div className="p-5">
         {activeTab === "insights" && (
-          <InsightsTab insights={detail.insights} preferences={detail.preferences} />
+          <InsightsTab userId={userId} insights={detail.insights} mergedChecklist={detail.mergedChecklist} preferences={detail.preferences} />
         )}
         {activeTab === "messages" && <MessagesTab messages={detail.messages} />}
         {activeTab === "profile" && <ProfileTab detail={detail} />}
@@ -198,10 +202,14 @@ function TalentDetail({ userId }: { userId: string }) {
 }
 
 function InsightsTab({
+  userId,
   insights,
+  mergedChecklist,
   preferences,
 }: {
+  userId: string;
   insights: Record<string, string> | null;
+  mergedChecklist: CareerTalentDetailResponse["mergedChecklist"];
   preferences: {
     engagementTypes: string[];
     preferredLocations: string[];
@@ -209,12 +217,81 @@ function InsightsTab({
     profileVisibility: string | null;
   } | null;
 }) {
-  const entries = useMemo(() => {
-    if (!insights) return [];
-    return Object.entries(insights)
-      .filter(([, v]) => v?.trim())
-      .sort(([a], [b]) => a.localeCompare(b));
-  }, [insights]);
+  const [newKey, setNewKey] = useState("");
+  const [newLabel, setNewLabel] = useState("");
+  const [newPromptHint, setNewPromptHint] = useState("");
+  const [editedValues, setEditedValues] = useState<Record<string, string>>({});
+  const [isEditing, setIsEditing] = useState(false);
+
+  const addChecklistItemMutation = useAddChecklistItem();
+  const refreshInsightsMutation = useRefreshInsights(userId);
+  const updateInsightsMutation = useUpdateInsights(userId);
+  const deleteChecklistItemMutation = useDeleteChecklistItem();
+
+  // Sync editedValues when insights change
+  useEffect(() => {
+    if (!isEditing) {
+      setEditedValues({});
+    }
+  }, [insights, isEditing]);
+
+  const emptyCount = useMemo(() => {
+    return mergedChecklist.filter((item) => !insights?.[item.key]?.trim()).length;
+  }, [mergedChecklist, insights]);
+
+  const hasChanges = useMemo(() => {
+    return Object.entries(editedValues).some(
+      ([key, val]) => val !== (insights?.[key] ?? "")
+    );
+  }, [editedValues, insights]);
+
+  const handleEditChange = useCallback((key: string, value: string) => {
+    setEditedValues((prev) => ({ ...prev, [key]: value }));
+  }, []);
+
+  function handleSave() {
+    if (!hasChanges) return;
+    const updates: Record<string, string> = {};
+    for (const [key, val] of Object.entries(editedValues)) {
+      if (val !== (insights?.[key] ?? "")) {
+        updates[key] = val;
+      }
+    }
+    if (Object.keys(updates).length === 0) return;
+    updateInsightsMutation.mutate(updates, {
+      onSuccess: () => {
+        setIsEditing(false);
+        setEditedValues({});
+      },
+    });
+  }
+
+  function handleDeleteChecklistItem(key: string, label: string) {
+    if (!window.confirm(`'${label}' (${key}) 항목을 삭제하시겠습니까? 모든 인재에서 제거됩니다.`)) return;
+    deleteChecklistItemMutation.mutate(key);
+  }
+
+  function handleAddItem() {
+    const trimmedKey = newKey.trim();
+    const trimmedLabel = newLabel.trim();
+    if (!trimmedKey || !trimmedLabel) return;
+    if (!window.confirm(`'${trimmedLabel}' (${trimmedKey}) 항목을 추가하시겠습니까? 이 항목은 모든 인재에게 적용됩니다.`)) return;
+    addChecklistItemMutation.mutate(
+      { key: trimmedKey, label: trimmedLabel, promptHint: newPromptHint.trim() || undefined },
+      {
+        onSuccess: () => {
+          setNewKey("");
+          setNewLabel("");
+          setNewPromptHint("");
+        },
+      }
+    );
+  }
+
+  function handleRefresh() {
+    if (!window.confirm(`빈 인사이트 항목 ${emptyCount}개를 LLM으로 추출합니다. 기존 값은 변경되지 않습니다.`)) return;
+    refreshInsightsMutation.mutate();
+  }
 
   return (
     <div className="space-y-4">
@@ -245,23 +322,178 @@ function InsightsTab({
         </div>
       )}
 
-      {/* Extracted Insights */}
-      {entries.length > 0 ? (
-        <div className="space-y-2">
-          {entries.map(([key, value]) => (
-            <div key={key} className={cx(opsTheme.panelSoft, "p-3")}>
-              <div className={opsTheme.eyebrow}>{getInsightLabel(key)}</div>
-              <div className="mt-1 whitespace-pre-wrap font-geist text-sm text-beige900/80">
-                {value}
+      {/* Insights section header + action buttons */}
+      <div className="flex items-center justify-between">
+        <div className={opsTheme.eyebrow}>인사이트</div>
+        <div className="flex items-center gap-2">
+          {isEditing ? (
+            <>
+              <button
+                type="button"
+                onClick={() => { setIsEditing(false); setEditedValues({}); }}
+                className={cx(opsTheme.buttonSecondary, "h-8 px-3 text-xs")}
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={!hasChanges || updateInsightsMutation.isPending}
+                className={cx(
+                  opsTheme.buttonSecondary,
+                  "h-8 px-3 text-xs flex items-center gap-1.5",
+                  (!hasChanges || updateInsightsMutation.isPending) && "opacity-50 cursor-not-allowed"
+                )}
+              >
+                {updateInsightsMutation.isPending ? (
+                  <><LoaderCircle className="h-3.5 w-3.5 animate-spin" />저장 중...</>
+                ) : (
+                  <><Save className="h-3.5 w-3.5" />저장</>
+                )}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => setIsEditing(true)}
+                className={cx(opsTheme.buttonSecondary, "h-8 px-3 text-xs")}
+              >
+                편집
+              </button>
+              <button
+                type="button"
+                onClick={handleRefresh}
+                disabled={emptyCount === 0 || refreshInsightsMutation.isPending}
+                className={cx(
+                  opsTheme.buttonSecondary,
+                  "h-8 px-3 text-xs flex items-center gap-1.5",
+                  (emptyCount === 0 || refreshInsightsMutation.isPending) && "opacity-50 cursor-not-allowed"
+                )}
+              >
+                {refreshInsightsMutation.isPending ? (
+                  <><LoaderCircle className="h-3.5 w-3.5 animate-spin" />추출 중...</>
+                ) : (
+                  <><RefreshCw className="h-3.5 w-3.5" />빈 항목 {emptyCount}개 추출</>
+                )}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Checklist items — ALL items in priority order */}
+      <div className="space-y-2">
+        {mergedChecklist.map((item) => {
+          const savedValue = insights?.[item.key] ?? "";
+          const displayValue = isEditing
+            ? (editedValues[item.key] ?? savedValue)
+            : savedValue.trim();
+          const isFilled = Boolean(savedValue.trim());
+          return (
+            <div
+              key={item.key}
+              className={cx(
+                "p-3 rounded-md",
+                isFilled
+                  ? cx(opsTheme.panelSoft)
+                  : "border border-dashed border-beige900/20 bg-white/20"
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <div className={opsTheme.eyebrow}>{item.label}</div>
+                  {item.source === "db" && (
+                    <span className="rounded px-1 py-0.5 font-geist text-[10px] bg-beige500/50 text-beige900/50">
+                      custom
+                    </span>
+                  )}
+                </div>
+                {item.source === "db" && !isEditing && (
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteChecklistItem(item.key, item.label)}
+                    disabled={deleteChecklistItemMutation.isPending}
+                    className="p-1 rounded hover:bg-beige500/30 text-beige900/30 hover:text-red-500 transition-colors"
+                    title="항목 삭제"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
+              {isEditing ? (
+                <textarea
+                  value={displayValue}
+                  onChange={(e) => handleEditChange(item.key, e.target.value)}
+                  rows={2}
+                  className={cx(
+                    opsTheme.input,
+                    "mt-1 w-full text-sm font-geist resize-y min-h-[2.5rem]"
+                  )}
+                  placeholder="값을 입력하세요..."
+                />
+              ) : isFilled ? (
+                <div className="mt-1 whitespace-pre-wrap font-geist text-sm text-beige900/80">
+                  {displayValue}
+                </div>
+              ) : (
+                <div className="mt-1 font-geist text-sm text-beige900/30 italic">미입력</div>
+              )}
             </div>
-          ))}
+          );
+        })}
+        {mergedChecklist.length === 0 && (
+          <div className="rounded-md border border-dashed border-beige900/15 bg-white/30 px-4 py-6 text-center font-geist text-sm text-beige900/40">
+            추출된 인사이트가 없습니다.
+          </div>
+        )}
+      </div>
+
+      {/* Add checklist item form */}
+      <div className={cx(opsTheme.panelSoft, "p-4 space-y-3")}>
+        <div className={cx(opsTheme.eyebrow, "mb-1")}>체크리스트 항목 추가</div>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            placeholder="영문 키 (snake_case)"
+            value={newKey}
+            onChange={(e) => setNewKey(e.target.value.replace(/[^a-z0-9_]/g, ""))}
+            className={cx(opsTheme.input, "h-8 text-xs flex-1")}
+          />
+          <input
+            type="text"
+            placeholder="한국어 라벨"
+            value={newLabel}
+            onChange={(e) => setNewLabel(e.target.value)}
+            className={cx(opsTheme.input, "h-8 text-xs flex-1")}
+          />
         </div>
-      ) : (
-        <div className="rounded-md border border-dashed border-beige900/15 bg-white/30 px-4 py-6 text-center font-geist text-sm text-beige900/40">
-          추출된 인사이트가 없습니다.
+        <input
+          type="text"
+          placeholder="프롬프트 힌트 (선택)"
+          value={newPromptHint}
+          onChange={(e) => setNewPromptHint(e.target.value)}
+          className={cx(opsTheme.input, "h-8 text-xs w-full")}
+        />
+        <div className="flex items-center justify-between gap-3">
+          <p className="font-geist text-[11px] text-beige900/40">
+            이 항목은 수동 추출만 지원됩니다
+          </p>
+          <button
+            type="button"
+            onClick={handleAddItem}
+            disabled={!newKey.trim() || !newLabel.trim() || addChecklistItemMutation.isPending}
+            className={cx(
+              opsTheme.buttonSecondary,
+              "h-8 px-3 text-xs flex items-center gap-1.5 shrink-0",
+              (!newKey.trim() || !newLabel.trim() || addChecklistItemMutation.isPending) && "opacity-50 cursor-not-allowed"
+            )}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            항목 추가
+          </button>
         </div>
-      )}
+      </div>
     </div>
   );
 }

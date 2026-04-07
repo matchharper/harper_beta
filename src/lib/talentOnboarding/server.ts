@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import type { User } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
+import { INSIGHT_CHECKLIST } from "@/lib/talentOnboarding/insightChecklist";
 import {
   TALENT_NETWORK_CAREER_MOVE_INTENT_OPTIONS,
   TALENT_NETWORK_ENGAGEMENT_OPTIONS,
@@ -215,7 +216,7 @@ function normalizeTalentInsightText(value: unknown, maxLength = 8000) {
   return normalized.slice(0, maxLength);
 }
 
-function normalizeTalentInsightKey(value: unknown, maxLength = 64) {
+export function normalizeTalentInsightKey(value: unknown, maxLength = 64) {
   if (typeof value !== "string") return null;
 
   const normalized = value
@@ -973,4 +974,110 @@ export async function getTalentResumeSignedUrl(args: {
     return null;
   }
   return data?.signedUrl ?? null;
+}
+
+export async function fetchCustomChecklistItems(args: {
+  admin: ReturnType<typeof getTalentSupabaseAdmin>;
+}) {
+  const { admin } = args;
+  const { data, error } = await admin
+    .from("insight_checklist_items")
+    .select("id, key, label, prompt_hint, priority, is_active, created_at, created_by")
+    .eq("is_active", true)
+    .order("priority", { ascending: true });
+
+  if (error) throw new Error(error.message ?? "Failed to load checklist items");
+  return data ?? [];
+}
+
+export async function addCustomChecklistItem(args: {
+  admin: ReturnType<typeof getTalentSupabaseAdmin>;
+  key: string;
+  label: string;
+  promptHint?: string;
+  createdBy?: string;
+}) {
+  const { admin, label, promptHint, createdBy } = args;
+  const key = normalizeTalentInsightKey(args.key);
+  if (!key) throw new Error("Invalid key");
+
+  const { data, error } = await admin
+    .from("insight_checklist_items")
+    .insert({
+      key,
+      label,
+      prompt_hint: promptHint ?? null,
+      is_active: true,
+      created_by: createdBy ?? null,
+    })
+    .select("id, key, label, prompt_hint, priority, is_active, created_at, created_by")
+    .single();
+
+  if (error) throw new Error(error.message ?? "Failed to insert checklist item");
+  return data;
+}
+
+export async function deleteCustomChecklistItem(args: {
+  admin: ReturnType<typeof getTalentSupabaseAdmin>;
+  key: string;
+}) {
+  const { admin, key } = args;
+  const { error } = await admin
+    .from("insight_checklist_items")
+    .update({ is_active: false })
+    .eq("key", key);
+
+  if (error) throw new Error(error.message ?? "Failed to delete checklist item");
+}
+
+export type MergedChecklistItem = {
+  key: string;
+  label: string;
+  promptHint: string | null;
+  priority: number;
+  source: "code" | "db";
+};
+
+export async function getMergedChecklist(args: {
+  admin: ReturnType<typeof getTalentSupabaseAdmin>;
+}): Promise<MergedChecklistItem[]> {
+  // Graceful fallback: if insight_checklist_items table doesn't exist yet
+  // (migration not run), return code-only checklist instead of crashing
+  let dbItems: Awaited<ReturnType<typeof fetchCustomChecklistItems>> = [];
+  try {
+    dbItems = await fetchCustomChecklistItems(args);
+  } catch {
+    // Table may not exist yet — fall back to code-only checklist
+  }
+
+  const codeItems: MergedChecklistItem[] = INSIGHT_CHECKLIST.map((item) => ({
+    key: item.key,
+    label: item.label,
+    promptHint: item.promptHint,
+    priority: item.priority,
+    source: "code" as const,
+  }));
+
+  const dbMapped: MergedChecklistItem[] = dbItems.map((item) => ({
+    key: item.key,
+    label: item.label,
+    promptHint: item.prompt_hint,
+    priority: item.priority ?? 50,
+    source: "db" as const,
+  }));
+
+  const codeKeySet = new Set(codeItems.map((i) => i.key));
+  const deduped = [...codeItems, ...dbMapped.filter((i) => !codeKeySet.has(i.key))];
+
+  return deduped.sort((a, b) => a.priority - b.priority);
+}
+
+export async function getEmptyInsightKeys(
+  content: Record<string, string> | null,
+  mergedChecklist: MergedChecklistItem[]
+): Promise<MergedChecklistItem[]> {
+  return mergedChecklist.filter((item) => {
+    const value = content?.[item.key];
+    return !value || !value.trim();
+  });
 }
