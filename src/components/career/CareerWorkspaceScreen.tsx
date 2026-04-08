@@ -61,11 +61,7 @@ const CareerWorkspaceContent = ({
   if (activeTab === "history") {
     return (
       <CareerCanvas>
-        <CareerWorkspaceHeader
-          title="History"
-          description="이전 대화와 저장된 흐름을 한곳에서 확인합니다."
-        />
-        <div className="px-6 py-6">
+        <div className="py-4">
           <CareerHistoryPanel />
         </div>
       </CareerCanvas>
@@ -95,21 +91,7 @@ const CareerWorkspaceContent = ({
 };
 
 export const CareerWorkspace = () => {
-  const [activeTab, setActiveTab] = useState<CareerWorkspaceTab>("home");
-
-  return (
-    <div className="flex min-h-screen w-full flex-col bg-beige50 lg:flex-row">
-      <CareerWorkspaceNav activeTab={activeTab} onChange={setActiveTab} />
-      <div className="min-w-0 flex-1">
-        <div className="overflow-y-auto h-[100vh] mx-auto w-full max-w-[1380px] px-4 py-4 sm:px-6 lg:px-8 lg:py-6">
-          <CareerWorkspaceContent
-            activeTab={activeTab}
-            onChangeTab={setActiveTab}
-          />
-        </div>
-      </div>
-    </div>
-  );
+  return <CareerWorkspaceRoot />;
 };
 
 export const CareerLoadingState = () => (
@@ -120,13 +102,45 @@ export const CareerLoadingState = () => (
 );
 
 const CareerWorkspaceScreen = ({
+  activeTab,
+  onChangeTab,
   children,
 }: {
+  activeTab?: CareerWorkspaceTab;
   children?: React.ReactNode;
+  onChangeTab?: (tab: CareerWorkspaceTab) => void;
 }) => (
   <main className="relative min-h-screen w-full bg-beige50 font-geist text-beige900">
-    {children ?? <CareerWorkspace />}
+    {children ?? (
+      <CareerWorkspaceRoot activeTab={activeTab} onChangeTab={onChangeTab} />
+    )}
   </main>
 );
 
 export default CareerWorkspaceScreen;
+
+const CareerWorkspaceRoot = ({
+  activeTab: controlledActiveTab,
+  onChangeTab: controlledOnChangeTab,
+}: {
+  activeTab?: CareerWorkspaceTab;
+  onChangeTab?: (tab: CareerWorkspaceTab) => void;
+}) => {
+  const [activeTabState, setActiveTabState] = useState<CareerWorkspaceTab>("home");
+  const activeTab = controlledActiveTab ?? activeTabState;
+  const handleChangeTab = controlledOnChangeTab ?? setActiveTabState;
+
+  return (
+    <div className="flex min-h-screen w-full flex-col bg-beige50 lg:flex-row">
+      <CareerWorkspaceNav activeTab={activeTab} onChange={handleChangeTab} />
+      <div className="min-w-0 flex-1">
+        <div className="overflow-y-auto h-[100vh] mx-auto w-full max-w-[1380px] px-4 py-4 sm:px-6 lg:px-8 lg:py-6">
+          <CareerWorkspaceContent
+            activeTab={activeTab}
+            onChangeTab={handleChangeTab}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};

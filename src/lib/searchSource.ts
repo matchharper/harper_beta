@@ -5,6 +5,13 @@ export const ENABLED_SEARCH_SOURCE_VALUES = [
   "github",
 ] as const;
 
+export const SEARCH_SOURCE_DESCRIPTIONS = {
+  linkedin: "링크드인을 기반으로 검색합니다.",
+  scholar:
+    "링크드인 프로필이 없고 Google Scholar 프로필만 있는 경우도 검색에 잡힙니다.",
+  github: "링크드인 프로필이 없고 GitHub 프로필만 있는 경우도 검색에 잡힙니다.",
+} as const;
+
 export type SearchSource = (typeof SEARCH_SOURCE_VALUES)[number];
 export type EnabledSearchSource = (typeof ENABLED_SEARCH_SOURCE_VALUES)[number];
 

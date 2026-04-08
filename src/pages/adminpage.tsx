@@ -43,6 +43,9 @@ import {
 import {
   TALENT_NETWORK_ABTEST_TYPE_A,
   TALENT_NETWORK_ABTEST_TYPE_B,
+  TALENT_NETWORK_ABTEST_TYPE_A_V1,
+  TALENT_NETWORK_ABTEST_TYPE_B_V1,
+  TALENT_NETWORK_ABTEST_TYPE_B_V1_ROLLOUT,
   TALENT_NETWORK_ANALYTICS_ABTEST_TYPES,
   TALENT_NETWORK_CLICK_EVENT_PREFIX,
   TALENT_NETWORK_LEGACY_ABTEST_TYPE,
@@ -133,10 +136,13 @@ function extractSectionNameFromType(type: string) {
 }
 
 const TALENT_NETWORK_VARIANT_SORT_ORDER: Record<string, number> = {
-  [TALENT_NETWORK_ABTEST_TYPE_A]: 0,
-  [TALENT_NETWORK_ABTEST_TYPE_B]: 1,
-  [TALENT_NETWORK_LEGACY_ABTEST_TYPE]: 2,
-  unknown: 3,
+  [TALENT_NETWORK_ABTEST_TYPE_B_V1_ROLLOUT]: 0,
+  [TALENT_NETWORK_ABTEST_TYPE_A]: 1,
+  [TALENT_NETWORK_ABTEST_TYPE_B]: 2,
+  [TALENT_NETWORK_ABTEST_TYPE_A_V1]: 3,
+  [TALENT_NETWORK_ABTEST_TYPE_B_V1]: 4,
+  [TALENT_NETWORK_LEGACY_ABTEST_TYPE]: 5,
+  unknown: 6,
 };
 
 function compareTalentNetworkVariantType(a: string, b: string) {
@@ -173,11 +179,20 @@ function buildTalentNetworkFunnelSummary(
 }
 
 function getTalentNetworkVariantDescription(abtestType: string) {
+  if (abtestType === TALENT_NETWORK_ABTEST_TYPE_B_V1_ROLLOUT) {
+    return "v1 B rolled out to 100%";
+  }
   if (abtestType === TALENT_NETWORK_ABTEST_TYPE_A) {
-    return "Our value hidden";
+    return "v2 test A";
   }
   if (abtestType === TALENT_NETWORK_ABTEST_TYPE_B) {
-    return "Our value shown";
+    return "v2 test B";
+  }
+  if (abtestType === TALENT_NETWORK_ABTEST_TYPE_A_V1) {
+    return "v1 test A";
+  }
+  if (abtestType === TALENT_NETWORK_ABTEST_TYPE_B_V1) {
+    return "v1 test B";
   }
   if (abtestType === TALENT_NETWORK_LEGACY_ABTEST_TYPE) {
     return "Before A/B test";
@@ -1138,17 +1153,7 @@ const AdminPage = () => {
   const talentNetworkVariantSummaries = useMemo<
     TalentNetworkVariantFunnelSummary[]
   >(() => {
-    const variantsToShow = [
-      TALENT_NETWORK_ABTEST_TYPE_A,
-      TALENT_NETWORK_ABTEST_TYPE_B,
-      ...Array.from(networkGroupsByVariant.keys()).filter(
-        (key) =>
-          key !== TALENT_NETWORK_ABTEST_TYPE_A &&
-          key !== TALENT_NETWORK_ABTEST_TYPE_B
-      ),
-    ];
-
-    const uniqueVariants = Array.from(new Set(variantsToShow)).sort(
+    const uniqueVariants = Array.from(networkGroupsByVariant.keys()).sort(
       compareTalentNetworkVariantType
     );
 

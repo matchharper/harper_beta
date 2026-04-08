@@ -5,6 +5,7 @@ import {
 } from "@/lib/internalApi";
 import {
   generateCandidateSequence,
+  saveAtsSequenceDraft,
   sendCandidateSequenceStep,
   updateAtsSequenceStatus,
 } from "@/lib/ats/server";
@@ -42,9 +43,11 @@ export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAtsApiUser(req);
     const body = (await req.json().catch(() => ({}))) as {
-      action?: "pause" | "resume" | "send";
+      action?: "pause" | "resume" | "send" | "update_draft";
+      body?: string | null;
       candidId?: string;
       stepNumber?: number;
+      subject?: string | null;
     };
     const candidId = String(body.candidId ?? "").trim();
 
@@ -66,6 +69,19 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ ok: true, data });
     }
 
+    if (body.action === "update_draft") {
+      const data = await saveAtsSequenceDraft({
+        body: String(body.body ?? ""),
+        candidId,
+        stepNumber: Number(body.stepNumber ?? 0),
+        subject: String(body.subject ?? ""),
+        userEmail: user.email,
+        userId: user.id,
+      });
+
+      return NextResponse.json({ ok: true, data });
+    }
+
     if (body.action === "pause" || body.action === "resume") {
       const outreach = await updateAtsSequenceStatus({
         candidId,
@@ -76,10 +92,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ ok: true, outreach });
     }
 
-    return NextResponse.json(
-      { error: "Invalid action" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   } catch (error) {
     return toInternalApiErrorResponse(error, "Failed to update ATS sequence");
   }

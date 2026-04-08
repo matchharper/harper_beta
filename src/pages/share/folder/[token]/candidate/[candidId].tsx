@@ -12,7 +12,7 @@ import MainProfile from "@/pages/my/p/components/MainProfile";
 import ProfileBio from "@/pages/my/p/components/ProfileBio";
 import ItemBox from "@/pages/my/p/components/ItemBox";
 import PublicationBox from "@/pages/my/p/components/PublicationBox";
-import { Box } from "@/pages/my/p/CandidateProfile";
+import { Box } from "@/components/profile/CandidateProfileDetailPage";
 import CandidateMemoDock from "@/components/ui/CandidateMemoDock";
 import {
   companyEnToKo,

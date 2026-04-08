@@ -35,6 +35,8 @@ type NetworkWaitlistRow = Pick<
 
 type TalentInternalInsert =
   Database["public"]["Tables"]["talent_internal"]["Insert"];
+type TalentNotificationInsert =
+  Database["public"]["Tables"]["talent_notification"]["Insert"];
 
 const DEFAULT_LIMIT = 40;
 const MAX_LIMIT = 100;
@@ -323,6 +325,44 @@ async function upsertWaitlistLeadTalentUser(lead: NetworkLead) {
   }
 
   return talentId;
+}
+
+export async function insertTalentNotification(args: {
+  leadId: number;
+  message: string;
+}) {
+  const admin = getTalentSupabaseAdmin();
+  const lead = await fetchNetworkLeadById(args.leadId);
+  const claimedTalentUser = await findClaimedTalentUserByWaitlistId({
+    admin,
+    waitlistId: lead.id,
+  });
+  const talentId =
+    claimedTalentUser?.user_id ?? (await upsertWaitlistLeadTalentUser(lead));
+  const message = normalizeText(args.message);
+
+  if (!message) {
+    throw new InternalApiError(400, "Notification message is required");
+  }
+
+  const payload: TalentNotificationInsert = {
+    created_at: new Date().toISOString(),
+    is_read: false,
+    message,
+    talent_id: talentId,
+  };
+
+  const { data, error } = await admin
+    .from("talent_notification")
+    .insert(payload)
+    .select("id, talent_id, message, is_read, created_at")
+    .single();
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to insert talent_notification");
+  }
+
+  return data;
 }
 
 async function extractResumeTextFromLead(lead: NetworkLead) {

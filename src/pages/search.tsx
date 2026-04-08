@@ -358,7 +358,7 @@ export default function RadarLandingPage() {
     async (type: string, overrides?: { localId?: string }) => {
       const storedLocalId =
         typeof window !== "undefined"
-          ? localStorage.getItem(SEARCH_LANDING_LOCAL_ID_KEY) ?? ""
+          ? (localStorage.getItem(SEARCH_LANDING_LOCAL_ID_KEY) ?? "")
           : "";
       const resolvedLocalId =
         overrides?.localId || landingId || storedLocalId || "";
@@ -516,7 +516,7 @@ export default function RadarLandingPage() {
     const resolvedLandingId =
       landingId ||
       (typeof window !== "undefined"
-        ? localStorage.getItem(SEARCH_LANDING_LOCAL_ID_KEY) ?? ""
+        ? (localStorage.getItem(SEARCH_LANDING_LOCAL_ID_KEY) ?? "")
         : "");
 
     const redirectTo =
@@ -538,72 +538,75 @@ export default function RadarLandingPage() {
     return data;
   }, [addLandingLog, countryLang, landingId]);
 
-  const customLogin = useCallback(async (email: string, password: string) => {
-    void addLandingLog("click_login_email");
+  const customLogin = useCallback(
+    async (email: string, password: string) => {
+      void addLandingLog("click_login_email");
 
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
 
-      if (error) {
-        return { message: error.message };
-      }
+        if (error) {
+          return { message: error.message };
+        }
 
-      const user = data.user;
-      if (!user) {
+        const user = data.user;
+        if (!user) {
+          return { message: en.auth.invalidAccount };
+        }
+
+        const isEmailConfirmed = Boolean(
+          user.email_confirmed_at || user.user_metadata?.email_verified
+        );
+
+        if (!isEmailConfirmed) {
+          return { message: en.auth.emailConfirmationSent };
+        }
+
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        const accessToken = session?.access_token;
+
+        if (!accessToken) {
+          return {
+            message: RADAR_LOGIN_MODAL_COPY.sessionExpired,
+          };
+        }
+
+        const bootstrapRes = await fetch("/api/auth/bootstrap", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        if (!bootstrapRes.ok) {
+          const bootstrapJson = await bootstrapRes.json().catch(() => ({}));
+          return {
+            message:
+              bootstrapJson?.error ?? RADAR_LOGIN_MODAL_COPY.bootstrapFailed,
+          };
+        }
+
+        await logCompletedLogin(user.email ?? email.trim());
+
+        setIsOpenLoginModal(false);
+        router.push("/invitation");
+        return null;
+      } catch (error) {
+        if (error instanceof Error && error.message) {
+          return { message: error.message };
+        }
         return { message: en.auth.invalidAccount };
       }
-
-      const isEmailConfirmed = Boolean(
-        user.email_confirmed_at || user.user_metadata?.email_verified
-      );
-
-      if (!isEmailConfirmed) {
-        return { message: en.auth.emailConfirmationSent };
-      }
-
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      const accessToken = session?.access_token;
-
-      if (!accessToken) {
-        return {
-          message: RADAR_LOGIN_MODAL_COPY.sessionExpired,
-        };
-      }
-
-      const bootstrapRes = await fetch("/api/auth/bootstrap", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-
-      if (!bootstrapRes.ok) {
-        const bootstrapJson = await bootstrapRes.json().catch(() => ({}));
-        return {
-          message:
-            bootstrapJson?.error ?? RADAR_LOGIN_MODAL_COPY.bootstrapFailed,
-        };
-      }
-
-      await logCompletedLogin(user.email ?? email.trim());
-
-      setIsOpenLoginModal(false);
-      router.push("/invitation");
-      return null;
-    } catch (error) {
-      if (error instanceof Error && error.message) {
-        return { message: error.message };
-      }
-      return { message: en.auth.invalidAccount };
-    }
-  }, [addLandingLog, logCompletedLogin]);
+    },
+    [addLandingLog, logCompletedLogin]
+  );
 
   return (
     <>
@@ -645,7 +648,7 @@ export default function RadarLandingPage() {
               className="pointer-events-none absolute inset-0"
               style={HERO_DOT_BACKGROUND_STYLE}
             />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(180,255,120,0.12),transparent_34%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(180,255,120,0.12),transparent_15%)]" />
           </div>
 
           <Reveal delay={0.08} className="w-full max-w-[980px]">

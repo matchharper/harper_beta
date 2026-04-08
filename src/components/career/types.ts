@@ -83,6 +83,51 @@ export type CareerRecentOpportunity = {
   href?: string | null;
 };
 
+export type CareerHistoryOpportunityFeedback =
+  | "tracked"
+  | "dont_know"
+  | "not_for_me";
+
+export type CareerHistoryOpportunity = {
+  clickedAt: string | null;
+  companyDescription: string | null;
+  companyHomepageUrl: string | null;
+  companyLinkedinUrl: string | null;
+  companyLogoUrl: string | null;
+  companyName: string;
+  description: string | null;
+  dismissedAt: string | null;
+  employmentTypes: string[];
+  externalJdUrl: string | null;
+  feedback: CareerHistoryOpportunityFeedback | null;
+  feedbackAt: string | null;
+  feedbackReason: string | null;
+  href: string | null;
+  id: string;
+  isAccepted: boolean;
+  isInternal: boolean;
+  kind: "match" | "recommendation";
+  location: string | null;
+  postedAt: string | null;
+  recommendedAt: string;
+  recommendationReasons: string[];
+  roleId: string;
+  sourceJobId: string | null;
+  sourceProvider: string | null;
+  sourceType: "internal" | "external";
+  status: string;
+  title: string;
+  viewedAt: string | null;
+  workMode: string | null;
+};
+
+export type CareerTalentNotification = {
+  id: number;
+  message: string | null;
+  isRead: boolean;
+  createdAt: string;
+};
+
 export type CareerHistoryItem = {
   id: string;
   title: string;
@@ -132,6 +177,8 @@ export type SessionResponse = {
     reliefNudgeSent: boolean;
   };
   historyItems?: CareerHistoryItem[];
+  historyOpportunities?: CareerHistoryOpportunity[];
+  notifications?: CareerTalentNotification[];
   networkApplication?: CareerNetworkApplication | null;
   talentPreferences?: CareerTalentPreferences | null;
   talentInsights?: CareerTalentInsights | null;

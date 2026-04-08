@@ -130,7 +130,7 @@ export default function PricingSection({
     currentLabel ?? (isEnglish ? "Current plan" : "현재 이용 중");
   const changeButtonLabel =
     changeLabel ?? (isEnglish ? "Change plan" : "구독 변경하기");
-  const subscribeButtonLabel = isEnglish ? "Subscribe" : "구독하기";
+  const subscribeButtonLabel = isEnglish ? "Subscribe" : "이용하기";
   const enterpriseButtonLabel = pricing.plans.enterprise.buttonLabel;
   const shouldShowSubscribe = hasCurrent && currentPlanKey === "free";
 

@@ -7,7 +7,7 @@ import MainProfile from "@/pages/my/p/components/MainProfile";
 import ProfileBio from "@/pages/my/p/components/ProfileBio";
 import ItemBox from "@/pages/my/p/components/ItemBox";
 import PublicationBox from "@/pages/my/p/components/PublicationBox";
-import { Box } from "@/pages/my/p/CandidateProfile"; // 현재 파일에서 export한 Box를 재사용한다는 가정
+import { Box } from "@/components/profile/CandidateProfileDetailPage";
 // 만약 경로/파일명이 다르면 Box를 별도 컴포넌트로 빼는 걸 추천
 
 import {

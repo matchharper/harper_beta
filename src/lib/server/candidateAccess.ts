@@ -17,6 +17,8 @@ import {
   maskWithFirstCharacter,
 } from "@/lib/profileReveal";
 
+const REVEAL_QUERY_CHUNK_SIZE = 200;
+
 export function getSupabaseAdmin() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -49,24 +51,34 @@ export async function fetchRevealMapForUser(
   ids: string[]
 ) {
   const revealMap = new Map<string, boolean>();
+  const normalizedIds = Array.from(
+    new Set(ids.map((value) => String(value ?? "").trim()).filter(Boolean))
+  );
 
-  if (!userId || ids.length === 0) {
+  if (!userId || normalizedIds.length === 0) {
     return revealMap;
   }
 
-  const { data, error } = await (
-    supabaseAdmin.from("unlock_profile" as any) as any
-  )
-    .select("candid_id")
-    .eq("company_user_id", userId)
-    .in("candid_id", ids);
+  for (
+    let index = 0;
+    index < normalizedIds.length;
+    index += REVEAL_QUERY_CHUNK_SIZE
+  ) {
+    const chunk = normalizedIds.slice(index, index + REVEAL_QUERY_CHUNK_SIZE);
+    const { data, error } = await (
+      supabaseAdmin.from("unlock_profile" as any) as any
+    )
+      .select("candid_id")
+      .eq("company_user_id", userId)
+      .in("candid_id", chunk);
 
-  if (error) throw error;
+    if (error) throw error;
 
-  for (const row of data ?? []) {
-    const candidId = String(row?.candid_id ?? "").trim();
-    if (!candidId) continue;
-    revealMap.set(candidId, true);
+    for (const row of data ?? []) {
+      const candidId = String(row?.candid_id ?? "").trim();
+      if (!candidId) continue;
+      revealMap.set(candidId, true);
+    }
   }
 
   return revealMap;
@@ -249,7 +261,7 @@ export async function fetchGithubPreviewByCandidateIds(
   const { data: contributions, error: contributionError } = await (
     supabaseAdmin.from("github_repo_contribution" as any) as any
   )
-    .select("github_profile_id, repo_id")
+    .select("github_profile_id, repo_id, role")
     .in("github_profile_id", profileIds);
 
   if (contributionError) throw contributionError;
@@ -271,7 +283,12 @@ export async function fetchGithubPreviewByCandidateIds(
   );
   const profileData = new Map<
     string,
-    { topLanguages: Set<string>; topRepoStars: number }
+    {
+      topLanguages: Set<string>;
+      topRepoStars: number;
+      ownerCreatorTotalStars: number;
+      countedOwnerCreatorRepoIds: Set<string>;
+    }
   >();
 
   for (const contribution of contributions ?? []) {
@@ -285,12 +302,23 @@ export async function fetchGithubPreviewByCandidateIds(
     const current = profileData.get(profileId) ?? {
       topLanguages: new Set<string>(),
       topRepoStars: 0,
+      ownerCreatorTotalStars: 0,
+      countedOwnerCreatorRepoIds: new Set<string>(),
     };
 
     if (repo.language) {
       current.topLanguages.add(String(repo.language));
     }
     current.topRepoStars = Math.max(current.topRepoStars, repo.stars ?? 0);
+
+    const role = String((contribution as any)?.role ?? "").toLowerCase();
+    if (
+      (role === "owner" || role === "creator") &&
+      !current.countedOwnerCreatorRepoIds.has(repoId)
+    ) {
+      current.countedOwnerCreatorRepoIds.add(repoId);
+      current.ownerCreatorTotalStars += Number(repo.stars ?? 0);
+    }
     profileData.set(profileId, current);
   }
 
@@ -303,6 +331,7 @@ export async function fetchGithubPreviewByCandidateIds(
       location: row.location,
       followers: row.followers ?? 0,
       publicRepos: row.public_repos ?? 0,
+      ownerCreatorTotalStars: current?.ownerCreatorTotalStars ?? 0,
       topLanguages: current ? Array.from(current.topLanguages).slice(0, 5) : [],
       topRepoStars: current?.topRepoStars ?? 0,
     });

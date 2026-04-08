@@ -1,9 +1,12 @@
 import type { User } from "@supabase/supabase-js";
 import React, { createContext, useContext } from "react";
 import type {
+  CareerHistoryOpportunity,
+  CareerHistoryOpportunityFeedback,
   CareerNetworkApplication,
   CareerRecentOpportunity,
   CareerStage,
+  CareerTalentNotification,
   CareerTalentInsights,
   CareerTalentPreferences,
   CareerTalentProfile,
@@ -20,6 +23,20 @@ export type CareerSidebarContextValue = {
   onOpenSettings: () => void;
   onLogout: () => void | Promise<void>;
   recentOpportunities: CareerRecentOpportunity[];
+  historyOpportunities: CareerHistoryOpportunity[];
+  historyUpdatingRoleIds: string[];
+  historyUpdateError: string;
+  onUpdateHistoryOpportunityFeedback: (
+    roleId: string,
+    feedback: CareerHistoryOpportunityFeedback
+  ) => void | Promise<void>;
+  onMarkHistoryOpportunityViewed: (roleId: string) => void | Promise<void>;
+  onMarkHistoryOpportunityClicked: (roleId: string) => void | Promise<void>;
+  notifications: CareerTalentNotification[];
+  unreadNotificationCount: number;
+  notificationsMarkingAsRead: boolean;
+  notificationsError: string;
+  onMarkNotificationsRead: () => void | Promise<void>;
 
   resumeFile: File | null;
   savedResumeFileName: string | null;

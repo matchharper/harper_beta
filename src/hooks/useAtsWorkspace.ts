@@ -28,7 +28,9 @@ function hasSearchingCandidate(data: AtsWorkspaceResponse | undefined) {
   );
 }
 
-function isCandidateDetailSearching(data: AtsCandidateDetailResponse | undefined) {
+function isCandidateDetailSearching(
+  data: AtsCandidateDetailResponse | undefined
+) {
   return data?.candidate.outreach?.emailDiscoveryStatus === "searching";
 }
 
@@ -59,7 +61,8 @@ function applyOptimisticEmailDiscoveryState(
     createdAt: outreach?.createdAt ?? optimisticTrace.at,
     emailDiscoveryEvidence: outreach?.emailDiscoveryEvidence ?? [],
     emailDiscoveryStatus: "searching",
-    emailDiscoverySummary: "공개 이메일 탐색을 시작했습니다. 로그를 갱신하는 중입니다.",
+    emailDiscoverySummary:
+      "공개 이메일 탐색을 시작했습니다. 로그를 갱신하는 중입니다.",
     emailDiscoveryTrace: hasOptimisticTrace
       ? currentTrace
       : [...currentTrace, optimisticTrace],
@@ -72,7 +75,8 @@ function applyOptimisticEmailDiscoveryState(
     memo: outreach?.memo ?? null,
     nextDueAt: outreach?.nextDueAt ?? null,
     sequenceMark: outreach?.sequenceMark ?? null,
-    sequenceSchedule: outreach?.sequenceSchedule ?? createDefaultAtsSequenceSchedule(),
+    sequenceSchedule:
+      outreach?.sequenceSchedule ?? createDefaultAtsSequenceSchedule(),
     sequenceStatus: outreach?.sequenceStatus ?? "draft",
     stoppedAt: outreach?.stoppedAt ?? null,
     targetEmail: outreach?.targetEmail ?? null,
@@ -85,11 +89,15 @@ export function useAtsWorkspace(enabled = true) {
   return useQuery({
     queryKey: atsWorkspaceKey,
     queryFn: () =>
-      fetchWithInternalAuth<AtsWorkspaceResponse>("/api/internal/ats/workspace"),
+      fetchWithInternalAuth<AtsWorkspaceResponse>(
+        "/api/internal/ats/workspace"
+      ),
     enabled,
     refetchInterval: enabled
       ? (query) =>
-          hasSearchingCandidate(query.state.data as AtsWorkspaceResponse | undefined)
+          hasSearchingCandidate(
+            query.state.data as AtsWorkspaceResponse | undefined
+          )
             ? ATS_SEARCHING_POLL_INTERVAL_MS
             : ATS_IDLE_POLL_INTERVAL_MS
       : false,
@@ -169,12 +177,12 @@ export function useDiscoverAtsEmail() {
         }),
       ]);
 
-      const previousWorkspace = queryClient.getQueryData<AtsWorkspaceResponse>(
-        atsWorkspaceKey
-      );
-      const previousDetail = queryClient.getQueryData<AtsCandidateDetailResponse>(
-        atsCandidateDetailKey(candidId)
-      );
+      const previousWorkspace =
+        queryClient.getQueryData<AtsWorkspaceResponse>(atsWorkspaceKey);
+      const previousDetail =
+        queryClient.getQueryData<AtsCandidateDetailResponse>(
+          atsCandidateDetailKey(candidId)
+        );
 
       queryClient.setQueryData<AtsWorkspaceResponse | undefined>(
         atsWorkspaceKey,
@@ -588,6 +596,43 @@ export function useGenerateAtsSequence() {
         queryClient.invalidateQueries({ queryKey: atsWorkspaceKey }),
         queryClient.invalidateQueries({
           queryKey: atsCandidateDetailKey(candidId),
+        }),
+      ]);
+    },
+  });
+}
+
+export function useSaveAtsSequenceDraft() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (args: {
+      body: string;
+      candidId: string;
+      stepNumber: number;
+      subject: string;
+    }) =>
+      fetchWithInternalAuth<{ ok: boolean; data: AtsCandidateDetailResponse }>(
+        "/api/internal/ats/sequence",
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: "update_draft",
+            body: args.body,
+            candidId: args.candidId,
+            stepNumber: args.stepNumber,
+            subject: args.subject,
+          }),
+        }
+      ),
+    onSuccess: async (_, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: atsWorkspaceKey }),
+        queryClient.invalidateQueries({
+          queryKey: atsCandidateDetailKey(variables.candidId),
         }),
       ]);
     },

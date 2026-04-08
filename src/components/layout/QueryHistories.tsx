@@ -37,7 +37,7 @@ const QueryHistories = ({
 
   return (
     <div
-      className={`flex-col gap-2 ${collapsed ? "hidden" : "flex"} ${
+      className={`flex-col gap-2 pb-6 ${collapsed ? "hidden" : "flex"} ${
         isHoverModal ? "max-h-64" : "h-full"
       }`}
     >

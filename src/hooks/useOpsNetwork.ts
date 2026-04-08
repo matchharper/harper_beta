@@ -94,6 +94,22 @@ export function useCreateOpsNetworkInternalEntry() {
   });
 }
 
+export function useCreateOpsNetworkNotification() {
+  return useMutation({
+    mutationFn: async (args: { id: number; message: string }) =>
+      fetchWithInternalAuth<{ ok: boolean }>(
+        "/api/internal/network/notification",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(args),
+        }
+      ),
+  });
+}
+
 export function useUpdateOpsNetworkInternalEntry() {
   const queryClient = useQueryClient();
 

@@ -1,79 +1,21 @@
 import type { GithubContributionWithRepo } from "@/hooks/useCandidateDetail";
-import React, { useState } from "react";
-import { Book, Star, GitFork, ChevronDown, ChevronUp } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import {
+  Star,
+  GitFork,
+  ChevronDown,
+  ChevronUp,
+  GitCommitHorizontal,
+  GitPullRequest,
+  CalendarDays,
+  CircleDot,
+} from "lucide-react";
 import { Tooltips } from "../ui/tooltip";
 import { useRepoModalStore } from "@/store/useRepoModalStore";
 import { MarkdownView } from "@/components/chat/MarkDownView";
 
 const numberFormatter = new Intl.NumberFormat("en-US");
 
-const normalizeRepoLabel = (repoFullName: string) => {
-  const cleaned = repoFullName
-    .replace(/^https?:\/\/(www\.)?github\.com\//, "")
-    .replace(/^github\.com\//, "")
-    .replace(/\/+$/, "");
-  return cleaned || repoFullName;
-};
-
-const normalizeRepoUrl = (repoFullName: string) => {
-  if (!repoFullName) return "";
-  if (repoFullName.startsWith("http://") || repoFullName.startsWith("https://"))
-    return repoFullName;
-  if (repoFullName.startsWith("github.com/")) return `https://${repoFullName}`;
-  return `https://github.com/${repoFullName.replace(/^\/+/, "")}`;
-};
-
-const formatNumber = (value?: number | null) => {
-  if (typeof value !== "number" || Number.isNaN(value)) return "-";
-  return numberFormatter.format(value);
-};
-
-// Some datasets don't use `role` exactly. Try common fallbacks.
-const pickRoleText = (contribution: GithubContributionWithRepo) => {
-  const raw = contribution.role ?? null;
-  const text = typeof raw === "string" ? raw.trim() : "";
-  return text || "Contributor";
-};
-
-const Badge = ({ text }: { text: string }) => (
-  <span
-    className={[
-      "inline-flex items-center",
-      "h-6 px-2.5",
-      "text-[12px] font-medium",
-      "text-hgray800",
-      "bg-hgray1000/5",
-      "border border-hgray1000/10",
-      "rounded-full",
-      "whitespace-nowrap",
-    ].join(" ")}
-    title={text}
-  >
-    {text}
-  </span>
-);
-
-const Metric = ({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}) => (
-  <Tooltips text={label}>
-    <div className="inline-flex items-center gap-1.5 text-sm text-hgray700">
-      <span className="text-hgray600">{icon}</span>
-      <span className="font-medium text-hgray900">{value}</span>
-    </div>
-  </Tooltips>
-);
-
-/**
- * GitHub language colors (partial but useful). Add more as needed.
- * Fallback is deterministic per language via hash -> HSL.
- */
 const GITHUB_LANG_COLORS: Record<string, string> = {
   JavaScript: "#f1e05a",
   TypeScript: "#3178c6",
@@ -96,40 +38,175 @@ const GITHUB_LANG_COLORS: Record<string, string> = {
   Jupyter: "#DA5B0B",
 };
 
-const stableColorForLanguage = (lang: string) => {
+const COLLAPSE_PREVIEW_CHARS = 220;
+
+function normalizeRepoLabel(repoFullName: string) {
+  const cleaned = repoFullName
+    .replace(/^https?:\/\/(www\.)?github\.com\//, "")
+    .replace(/^github\.com\//, "")
+    .replace(/\/+$/, "");
+
+  return cleaned || repoFullName;
+}
+
+function normalizeRepoUrl(repoFullName: string) {
+  if (!repoFullName) return "";
+  if (
+    repoFullName.startsWith("http://") ||
+    repoFullName.startsWith("https://")
+  ) {
+    return repoFullName;
+  }
+  if (repoFullName.startsWith("github.com/")) {
+    return `https://${repoFullName}`;
+  }
+  return `https://github.com/${repoFullName.replace(/^\/+/, "")}`;
+}
+
+function formatNumber(value?: number | null) {
+  if (typeof value !== "number" || Number.isNaN(value)) return "-";
+  return numberFormatter.format(value);
+}
+
+function getRoleVariant(contribution: GithubContributionWithRepo) {
+  const raw = String(contribution.role ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (raw === "owner") {
+    return {
+      raw: "owner",
+      label: "Owner",
+      isOwner: true,
+    };
+  }
+
+  return {
+    raw: "contributor",
+    label: "Contributor",
+    isOwner: false,
+  };
+}
+
+function stableColorForLanguage(lang: string) {
   const known = GITHUB_LANG_COLORS[lang];
   if (known) return known;
 
-  // deterministic hash -> hue
   let hash = 0;
-  for (let i = 0; i < lang.length; i++)
+  for (let i = 0; i < lang.length; i++) {
     hash = (hash * 31 + lang.charCodeAt(i)) >>> 0;
+  }
   const hue = hash % 360;
   return `hsl(${hue} 70% 55%)`;
+}
+
+type LangEntry = {
+  name: string;
+  pct: number;
 };
 
-type LangEntry = { name: string; pct: number };
-
-const getTopLanguages = (languages: unknown, limit = 3): LangEntry[] => {
+function getTopLanguages(languages: unknown, limit = 3): LangEntry[] {
   if (!languages || typeof languages !== "object") return [];
 
-  const entries = Object.entries(languages as Record<string, unknown>)
-    .map(([name, v]) => ({
+  return Object.entries(languages as Record<string, unknown>)
+    .map(([name, value]) => ({
       name,
-      pct: typeof v === "number" ? v : Number(v),
+      pct: typeof value === "number" ? value : Number(value),
     }))
-    .filter((x) => Number.isFinite(x.pct) && x.pct > 0)
+    .filter((item) => Number.isFinite(item.pct) && item.pct > 0)
     .sort((a, b) => b.pct - a.pct)
     .slice(0, limit);
+}
 
-  return entries;
-};
+function formatRepoCreatedAt(dateString?: string | null) {
+  if (!dateString) return null;
 
-const LanguagePill = ({ name, pct }: { name: string; pct: number }) => {
-  const color = stableColorForLanguage(name);
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "short",
+  }).format(date);
+}
+
+function getRelativeRepoAge(dateString?: string | null) {
+  if (!dateString) return null;
+
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const now = new Date();
+  let years = now.getFullYear() - date.getFullYear();
+  const monthDiff = now.getMonth() - date.getMonth();
+
+  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < date.getDate())) {
+    years -= 1;
+  }
+
+  if (years < 1) return "Less than 1 year old";
+  if (years === 1) return "1 year old";
+  return `${years} years old`;
+}
+
+function cn(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
+
+function RolePill({ isOwner }: { isOwner: boolean }) {
   return (
     <span
-      className="inline-flex items-center gap-1.5 text-sm text-hgray800"
+      className={cn(
+        "inline-flex h-8 items-center rounded-full px-3 text-sm font-semibold",
+        isOwner ? "bg-white/10 text-white" : "bg-white/5 text-hgray700"
+      )}
+    >
+      {isOwner ? "Owner" : "Contributor"}
+    </span>
+  );
+}
+
+function Metric({
+  icon,
+  label,
+  value,
+  dimmed = false,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  dimmed?: boolean;
+}) {
+  return (
+    <Tooltips text={label}>
+      <div
+        className={cn(
+          "inline-flex items-center gap-1.5 text-sm",
+          dimmed ? "text-hgray700" : "text-hgray800"
+        )}
+      >
+        <span className={cn(dimmed ? "text-hgray700" : "text-hgray600")}>
+          {icon}
+        </span>
+        <span
+          className={cn(
+            "font-medium",
+            dimmed ? "text-hgray800" : "text-hgray950"
+          )}
+        >
+          {value}
+        </span>
+      </div>
+    </Tooltips>
+  );
+}
+
+function LanguagePill({ name, pct }: { name: string; pct: number }) {
+  const color = stableColorForLanguage(name);
+
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-[13px] text-hgray800"
       title={`${name} ${pct.toFixed(1)}%`}
     >
       <span
@@ -139,54 +216,69 @@ const LanguagePill = ({ name, pct }: { name: string; pct: number }) => {
       <span className="whitespace-nowrap">{name}</span>
     </span>
   );
-};
+}
 
-const COLLAPSE_PREVIEW_CHARS = 200;
+function TopicPill({ topic }: { topic: string }) {
+  return (
+    <span className="inline-flex items-center rounded-full bg-white/5 px-2.5 py-1 text-[12px] text-hgray700">
+      {topic}
+    </span>
+  );
+}
 
-const CollapsibleReadmeSection = ({
+function CollapsibleReadmeSection({
   markdown,
   onExpand,
 }: {
   markdown: string;
   onExpand?: () => void;
-}) => {
+}) {
   const [expanded, setExpanded] = useState(false);
 
   const isLong = markdown.length > COLLAPSE_PREVIEW_CHARS;
-  const displayMarkdown = expanded || !isLong ? markdown : markdown.slice(0, COLLAPSE_PREVIEW_CHARS);
+  const displayMarkdown =
+    expanded || !isLong
+      ? markdown
+      : `${markdown.slice(0, COLLAPSE_PREVIEW_CHARS)}...`;
 
-  const handleToggle = () => {
-    if (!expanded && onExpand) onExpand();
+  const handleToggle = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+
+    if (!expanded && onExpand) {
+      onExpand();
+    }
+
     setExpanded((prev) => !prev);
   };
 
   return (
-    <div className="mt-2">
+    <div className="mt-4 w-full">
       <div className="[&_.prose]:max-w-none [&_.prose]:text-hgray800 [&_.prose_a]:text-blue-500 [&_.prose_code]:text-hgray900 [&_.prose_headings]:text-hgray1000 [&_.prose_p]:!my-1 [&_.prose]:text-sm">
         <MarkdownView markdown={displayMarkdown} />
       </div>
+
       {isLong && (
         <button
           type="button"
           onClick={handleToggle}
-          className="mt-1 flex items-center gap-1 text-xs text-blue-500 transition hover:underline"
+          className="mt-1 inline-flex items-center gap-1 text-xs text-blue-500 transition hover:underline"
         >
           {expanded ? (
             <>
               <ChevronUp size={12} />
-              접기
+              Collapse
             </>
           ) : (
             <>
               <ChevronDown size={12} />
-              더 보기
+              Read more
             </>
           )}
         </button>
       )}
     </div>
   );
-};
+}
 
 const GithubRepoContributionBox = ({
   contribution,
@@ -195,9 +287,17 @@ const GithubRepoContributionBox = ({
 }) => {
   const { handleOpenRepo } = useRepoModalStore();
 
+  const role = useMemo(
+    () =>
+      contribution
+        ? getRoleVariant(contribution)
+        : { raw: "contributor", label: "Contributor", isOwner: false },
+    [contribution]
+  );
+
   if (!contribution) {
     return (
-      <div className="border border-hgray1000/10 bg-white/5 px-4 py-3 text-sm text-hgray700">
+      <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-hgray700">
         GitHub repository data is unavailable.
       </div>
     );
@@ -207,17 +307,24 @@ const GithubRepoContributionBox = ({
   const repoFullName = repo?.repo_full_name ?? "";
   const repoLabel = normalizeRepoLabel(repoFullName);
   const repoUrl = normalizeRepoUrl(repoFullName);
-  const roleText = pickRoleText(contribution);
 
-  // Use github_repo for repo details, fall back to contribution-level data
-  const topLangs = getTopLanguages(repo?.languages, 3);
-  const stars = repo?.stars ?? null;
-  const forks = repo?.forks ?? null;
-  const description = repo?.description ?? "";
+  const description = repo?.description?.trim() ?? "";
   const readmeExcerpt =
-    typeof repo?.readme_excerpt === "string" && repo.readme_excerpt.trim().length > 0
+    typeof repo?.readme_excerpt === "string" &&
+    repo.readme_excerpt.trim().length > 0
       ? repo.readme_excerpt.trim()
       : null;
+
+  const topLangs = getTopLanguages(repo?.languages, 3);
+  const topics = Array.isArray(repo?.topics) ? repo.topics.slice(0, 4) : [];
+
+  const stars = repo?.stars ?? null;
+  const forks = repo?.forks ?? null;
+
+  const commits = contribution.commits ?? 0;
+  const mergedPrs = contribution.merged_prs ?? 0;
+
+  const createdAtLabel = formatRepoCreatedAt(repo?.updated_at);
 
   const handleClick = () => {
     if (contribution.repo_id) {
@@ -227,97 +334,131 @@ const GithubRepoContributionBox = ({
       }).catch(() => {});
       return;
     }
-    // Fallback: no repo_id, open GitHub link
+
     if (repoUrl) {
-      window.open(repoUrl, "_blank");
+      window.open(repoUrl, "_blank", "noopener,noreferrer");
     }
   };
 
   return (
-    <div
+    <button
+      type="button"
       onClick={handleClick}
-      className="bg-white/[0.02] px-4 py-3 rounded-md hover:bg-white/5 cursor-pointer transition-colors"
+      className={cn(
+        "group w-full rounded-2xl border text-left transition-all duration-200 flex flex-col items-start justify-start",
+        "px-5 py-4",
+        role.isOwner
+          ? "border-white/0 bg-white/[0.04] hover:bg-white/[0.06] hover:border-white/10"
+          : "border-white/0 bg-white/[0.02] hover:bg-white/5 hover:border-white/5"
+      )}
     >
-      {/* Top row */}
-      <div className="flex items-center justify-start gap-3">
-        <div className="min-w-0 flex items-center gap-2">
-          <Book
-            size={15}
-            className="mt-[2px] text-hgray700 shrink-0"
-            strokeWidth={1.6}
-          />
-          <div className="min-w-0">
-            <div className="block max-w-full truncate text-[15px] font-normal text-blue-500 hover:underline">
+      <div className="flex items-start justify-between gap-4 w-full">
+        <div className="min-w-0 flex flex-wrap flex-col items-start justify-start">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="truncate text-[15px] font-medium text-blue-500/95 group-hover:underline">
               {repoLabel || "Unknown repo"}
             </div>
           </div>
+
+          {createdAtLabel && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-hgray700">
+              <span className="inline-flex items-center gap-1">
+                <CalendarDays size={12} />
+                Last Updated {createdAtLabel}
+              </span>
+            </div>
+          )}
         </div>
 
-        {/* Role badge */}
         <div className="shrink-0">
-          <Badge text={roleText} />
+          <RolePill isOwner={role.isOwner} />
         </div>
       </div>
 
-      {readmeExcerpt ? (
-        <CollapsibleReadmeSection markdown={readmeExcerpt} />
-      ) : description ? (
-        <div className="mt-1 text-sm text-hgray700 line-clamp-1">
+      {description ? (
+        <div
+          className={cn(
+            "mt-4 rounded-xl px-3.5 py-3 text-sm leading-6 w-full",
+            role.isOwner
+              ? "bg-white/6 text-hgray850"
+              : "bg-white/5 text-hgray800"
+          )}
+        >
           {description}
         </div>
+      ) : readmeExcerpt ? (
+        <CollapsibleReadmeSection markdown={readmeExcerpt} />
       ) : (
-        <div className="mt-1 text-sm text-hgray700 line-clamp-1 italic">
+        <div className="mt-4 text-sm italic text-hgray700">
           [No description]
         </div>
       )}
 
-      {/* Topics */}
-      {contribution.github_repo?.topics && contribution.github_repo.topics.length > 0 && (
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          {(contribution.github_repo.topics as string[]).slice(0, 3).map((topic: string) => (
-            <span
-              key={topic}
-              className="inline-flex items-center rounded-full bg-accenta1/10 px-2 py-0.5 text-[10px] text-accenta1"
-            >
-              {topic}
-            </span>
+      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+        {commits > 0 && (
+          <Metric
+            icon={<GitCommitHorizontal size={15} />}
+            label="Commits"
+            value={`${formatNumber(commits)} commits`}
+            dimmed={!role.isOwner}
+          />
+        )}
+
+        {mergedPrs > 0 && (
+          <Metric
+            icon={<GitPullRequest size={15} />}
+            label="Merged PRs"
+            value={`${formatNumber(mergedPrs)} PRs`}
+            dimmed={!role.isOwner}
+          />
+        )}
+
+        {createdAtLabel && !commits && !mergedPrs && (
+          <Metric
+            icon={<CalendarDays size={15} />}
+            label="Created at"
+            value={createdAtLabel}
+            dimmed={!role.isOwner}
+          />
+        )}
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 w-full">
+        <div className="flex flex-wrap items-center gap-2">
+          {topics.map((topic) => (
+            <TopicPill key={topic} topic={topic} />
+          ))}
+        </div>
+
+        <div
+          className={cn(
+            "flex items-center gap-3",
+            !role.isOwner && "opacity-75"
+          )}
+        >
+          <Metric
+            icon={<Star size={16} className="text-yellow-300" />}
+            label="Stars"
+            value={formatNumber(stars)}
+            dimmed={!role.isOwner}
+          />
+          <Metric
+            icon={<GitFork size={16} />}
+            label="Forks"
+            value={formatNumber(forks)}
+            dimmed={!role.isOwner}
+          />
+        </div>
+      </div>
+
+      {topLangs.length > 0 && (
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          {topLangs.map((lang) => (
+            <LanguagePill key={lang.name} name={lang.name} pct={lang.pct} />
           ))}
         </div>
       )}
-
-      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-        {/* Language chips */}
-        {topLangs.length > 0 ? (
-          <div className="flex flex-row flex-wrap items-center gap-2 mr-1">
-            {topLangs.map((l) => (
-              <LanguagePill key={l.name} name={l.name} pct={l.pct} />
-            ))}
-          </div>
-        ) : null}
-
-        <Metric
-          icon={<Star size={16} className="text-yellow-300" />}
-          label="Stars"
-          value={formatNumber(stars)}
-        />
-        <Metric
-          icon={<GitFork size={16} />}
-          label="Forks"
-          value={formatNumber(forks)}
-        />
-      </div>
-
-      {/* Bottom metrics row */}
-      <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-2 text-sm font-normal text-hgray900">
-        <div>활동 : </div>
-        {(contribution.commits ?? 0) > 0 && (
-          <div>{formatNumber(contribution.commits)} Commits</div>
-        )}
-        {(contribution.merged_prs ?? 0) > 0 && (
-          <div>{formatNumber(contribution.merged_prs)} PRs</div>
-        )}
-      </div>
-    </div>
+    </button>
   );
 };
 

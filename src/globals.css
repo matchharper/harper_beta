@@ -2,8 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300..700;1,300..700&family=Geist:wght@400;500;700;900&family=Halant:wght@300;400;500;600;700&family=Hedvig+Letters+Serif:opsz@12..24&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap");
-
 @font-face {
   font-family: "PretendardVariable";
   src: url("/fonts/pretendard/PretendardVariable.woff2")
@@ -24,8 +22,11 @@
   --foreground-rgb: 0, 0, 0;
   --background-start-rgb: 0, 0, 0;
   --background-end-rgb: 0, 0, 0;
-  --font-roboto: var(--font-roboto);
-  --font-serif: var(--font-averia);
+  --font-inter: "Inter";
+  --font-garamond: "Cormorant Garamond";
+  --font-roboto: "Roboto";
+  --font-averia: "Averia Serif Libre";
+  --font-serif: "Averia Serif Libre";
   --ink: #111111;
   --paper: #ffffff;
   --gold: #0624a8;
@@ -222,8 +223,6 @@ button {
   position: relative;
   z-index: 1;
 }
-
-@import url("https://fonts.googleapis.com/css?family=Montserrat:400,700");
 
 :root {
   --color-bg1: rgb(8, 10, 15);
@@ -563,4 +562,51 @@ button {
     transparent 1px,
     transparent 10px
   );
+}
+
+.dashed {
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      #a42828,
+      #a42828 16px,
+      transparent 16px,
+      transparent 30px,
+      #a42828 30px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      #a42828,
+      #a42828 16px,
+      transparent 16px,
+      transparent 30px,
+      #a42828 30px
+    ),
+    repeating-linear-gradient(
+      180deg,
+      #a42828,
+      #a42828 16px,
+      transparent 16px,
+      transparent 30px,
+      #a42828 30px
+    ),
+    repeating-linear-gradient(
+      270deg,
+      #a42828,
+      #a42828 16px,
+      transparent 16px,
+      transparent 30px,
+      #a42828 30px
+    );
+  background-size:
+    2px 100%,
+    100% 2px,
+    2px 100%,
+    100% 2px;
+  background-position:
+    0 0,
+    0 0,
+    100% 0,
+    0 100%;
+  background-repeat: no-repeat;
 }

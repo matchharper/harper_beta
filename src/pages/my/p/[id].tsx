@@ -1,6 +1,6 @@
 import AppLayout from "@/components/layout/app";
 import { useRouter } from "next/router";
-import CandidateProfileDetailPage from "./CandidateProfile";
+import CandidateProfileDetailPage from "@/components/profile/CandidateProfileDetailPage";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import ChatPanel, { ChatScope } from "@/components/chat/ChatPanel";
 import { useMemo, useState } from "react";

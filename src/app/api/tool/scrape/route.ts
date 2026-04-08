@@ -99,8 +99,7 @@ async function saveDocumentCache(args: {
 async function fetchHtmlDirect(url: string) {
   const response = await fetch(url, {
     headers: {
-      Accept:
-        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       "Accept-Language": "en-US,en;q=0.9,ko-KR;q=0.8,ko;q=0.7",
       "User-Agent":
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
@@ -193,7 +192,7 @@ export async function POST(req: NextRequest) {
       }
 
       const markdown = `# ${title}\n\n${text}`;
-      const excerpt = text.slice(0, 1200);
+      const excerpt = text.slice(0, 2500);
       const documentId = await saveDocumentCache({
         excerpt,
         markdown,

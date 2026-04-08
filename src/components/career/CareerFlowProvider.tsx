@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
+  CareerHistoryOpportunity,
+  CareerHistoryOpportunityFeedback,
   CareerRecentOpportunity,
+  CareerTalentNotification,
   SessionResponse,
 } from "@/components/career/types";
 import {
@@ -22,6 +25,7 @@ import { useCareerTalentInsights } from "@/hooks/career/useCareerTalentInsights"
 import { useCareerTalentPreferences } from "@/hooks/career/useCareerTalentPreferences";
 import { useCareerTalentSettings } from "@/hooks/career/useCareerTalentSettings";
 import { useCareerSession } from "@/hooks/career/useCareerSession";
+import { getErrorMessage } from "@/hooks/career/careerHelpers";
 import { TALENT_ONBOARDING_COMPLETION_TARGET } from "@/lib/talentOnboarding/progress";
 
 const normalizeRecentOpportunities = (
@@ -41,6 +45,57 @@ const normalizeRecentOpportunities = (
       return false;
     }
     return true;
+  });
+};
+
+const normalizeHistoryOpportunities = (
+  value: SessionResponse["historyOpportunities"]
+): CareerHistoryOpportunity[] => {
+  if (!Array.isArray(value)) return [];
+
+  return value.filter((item): item is CareerHistoryOpportunity => {
+    if (!item || typeof item !== "object") return false;
+    if (typeof item.id !== "string" || !item.id.trim()) return false;
+    if (typeof item.roleId !== "string" || !item.roleId.trim()) return false;
+    if (typeof item.title !== "string" || !item.title.trim()) return false;
+    if (typeof item.companyName !== "string" || !item.companyName.trim()) {
+      return false;
+    }
+    if (item.kind !== "match" && item.kind !== "recommendation") return false;
+    if (item.sourceType !== "internal" && item.sourceType !== "external") {
+      return false;
+    }
+    if (typeof item.recommendedAt !== "string") return false;
+    if (Number.isNaN(Date.parse(item.recommendedAt))) return false;
+    if (!Array.isArray(item.employmentTypes)) return false;
+    if (!Array.isArray(item.recommendationReasons)) return false;
+    if (typeof item.isAccepted !== "boolean") return false;
+    if (typeof item.isInternal !== "boolean") return false;
+    if (
+      item.feedback !== null &&
+      item.feedback !== "tracked" &&
+      item.feedback !== "dont_know" &&
+      item.feedback !== "not_for_me"
+    ) {
+      return false;
+    }
+    return true;
+  });
+};
+
+const normalizeNotifications = (
+  value: SessionResponse["notifications"]
+): CareerTalentNotification[] => {
+  if (!Array.isArray(value)) return [];
+
+  return value.filter((item): item is CareerTalentNotification => {
+    if (!item || typeof item !== "object") return false;
+    if (typeof item.id !== "number" || !Number.isFinite(item.id)) return false;
+    if (typeof item.createdAt !== "string" || Number.isNaN(Date.parse(item.createdAt))) {
+      return false;
+    }
+    if (item.message !== null && typeof item.message !== "string") return false;
+    return typeof item.isRead === "boolean";
   });
 };
 
@@ -70,6 +125,19 @@ export const CareerFlowProvider = ({
   const [recentOpportunities, setRecentOpportunities] = useState<
     CareerRecentOpportunity[]
   >([]);
+  const [historyOpportunities, setHistoryOpportunities] = useState<
+    CareerHistoryOpportunity[]
+  >([]);
+  const [historyUpdatingRoleIds, setHistoryUpdatingRoleIds] = useState<string[]>(
+    []
+  );
+  const [historyUpdateError, setHistoryUpdateError] = useState("");
+  const [notifications, setNotifications] = useState<CareerTalentNotification[]>(
+    []
+  );
+  const [notificationsMarkingAsRead, setNotificationsMarkingAsRead] =
+    useState(false);
+  const [notificationsError, setNotificationsError] = useState("");
 
   const {
     conversationId,
@@ -285,6 +353,233 @@ export const CareerFlowProvider = ({
     await handleProfileSubmitBase(handleProfileSubmitSuccess);
   }, [handleProfileSubmitBase, handleProfileSubmitSuccess]);
 
+  const unreadNotificationCount = useMemo(
+    () => notifications.filter((notification) => !notification.isRead).length,
+    [notifications]
+  );
+
+  const updateHistoryOpportunityLocally = useCallback(
+    (
+      roleId: string,
+      updater: (
+        current: CareerHistoryOpportunity
+      ) => CareerHistoryOpportunity
+    ) => {
+      setHistoryOpportunities((current) =>
+        current.map((item) => (item.roleId === roleId ? updater(item) : item))
+      );
+    },
+    []
+  );
+
+  const restoreHistoryOpportunity = useCallback(
+    (roleId: string, previousItem: CareerHistoryOpportunity) => {
+      setHistoryOpportunities((current) =>
+        current.map((item) => (item.roleId === roleId ? previousItem : item))
+      );
+    },
+    []
+  );
+
+  const beginHistoryUpdate = useCallback((roleId: string) => {
+    setHistoryUpdateError("");
+    setHistoryUpdatingRoleIds((current) =>
+      current.includes(roleId) ? current : [...current, roleId]
+    );
+  }, []);
+
+  const endHistoryUpdate = useCallback((roleId: string) => {
+    setHistoryUpdatingRoleIds((current) =>
+      current.filter((item) => item !== roleId)
+    );
+  }, []);
+
+  const patchHistoryOpportunity = useCallback(
+    async (body: {
+      action: "feedback" | "view" | "click";
+      feedback?: CareerHistoryOpportunityFeedback;
+      roleId: string;
+    }) => {
+      const response = await fetchWithAuth("/api/talent/opportunities", {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          getErrorMessage(payload, "기회 상태를 업데이트하지 못했습니다.")
+        );
+      }
+    },
+    [fetchWithAuth]
+  );
+
+  const onUpdateHistoryOpportunityFeedback = useCallback(
+    async (roleId: string, feedback: CareerHistoryOpportunityFeedback) => {
+      const normalizedRoleId = roleId.trim();
+      if (!normalizedRoleId) return;
+
+      const previousItem = historyOpportunities.find(
+        (item) => item.roleId === normalizedRoleId
+      );
+      if (!previousItem) return;
+      const now = new Date().toISOString();
+
+      beginHistoryUpdate(normalizedRoleId);
+      updateHistoryOpportunityLocally(normalizedRoleId, (item) => ({
+        ...item,
+        dismissedAt: feedback === "not_for_me" ? now : null,
+        feedback,
+        feedbackAt: now,
+      }));
+
+      try {
+        await patchHistoryOpportunity({
+          action: "feedback",
+          feedback,
+          roleId: normalizedRoleId,
+        });
+      } catch (error) {
+        restoreHistoryOpportunity(normalizedRoleId, previousItem);
+        setHistoryUpdateError(
+          error instanceof Error
+            ? error.message
+            : "기회 상태를 업데이트하지 못했습니다."
+        );
+      } finally {
+        endHistoryUpdate(normalizedRoleId);
+      }
+    },
+    [
+      beginHistoryUpdate,
+      endHistoryUpdate,
+      historyOpportunities,
+      patchHistoryOpportunity,
+      restoreHistoryOpportunity,
+      updateHistoryOpportunityLocally,
+    ]
+  );
+
+  const onMarkHistoryOpportunityViewed = useCallback(
+    async (roleId: string) => {
+      const normalizedRoleId = roleId.trim();
+      if (!normalizedRoleId) return;
+
+      const currentItem = historyOpportunities.find(
+        (item) => item.roleId === normalizedRoleId
+      );
+      if (!currentItem || currentItem.viewedAt) return;
+      const now = new Date().toISOString();
+
+      updateHistoryOpportunityLocally(normalizedRoleId, (item) => ({
+        ...item,
+        viewedAt: now,
+      }));
+
+      try {
+        await patchHistoryOpportunity({
+          action: "view",
+          roleId: normalizedRoleId,
+        });
+      } catch (error) {
+        restoreHistoryOpportunity(normalizedRoleId, currentItem);
+        setHistoryUpdateError(
+          error instanceof Error
+            ? error.message
+            : "기회 상태를 업데이트하지 못했습니다."
+        );
+      }
+    },
+    [
+      historyOpportunities,
+      patchHistoryOpportunity,
+      restoreHistoryOpportunity,
+      updateHistoryOpportunityLocally,
+    ]
+  );
+
+  const onMarkHistoryOpportunityClicked = useCallback(
+    async (roleId: string) => {
+      const normalizedRoleId = roleId.trim();
+      if (!normalizedRoleId) return;
+
+      const currentItem = historyOpportunities.find(
+        (item) => item.roleId === normalizedRoleId
+      );
+      if (!currentItem || currentItem.clickedAt) return;
+      const now = new Date().toISOString();
+
+      updateHistoryOpportunityLocally(normalizedRoleId, (item) => ({
+        ...item,
+        clickedAt: now,
+      }));
+
+      try {
+        await patchHistoryOpportunity({
+          action: "click",
+          roleId: normalizedRoleId,
+        });
+      } catch (error) {
+        restoreHistoryOpportunity(normalizedRoleId, currentItem);
+        setHistoryUpdateError(
+          error instanceof Error
+            ? error.message
+            : "기회 상태를 업데이트하지 못했습니다."
+        );
+      }
+    },
+    [
+      historyOpportunities,
+      patchHistoryOpportunity,
+      restoreHistoryOpportunity,
+      updateHistoryOpportunityLocally,
+    ]
+  );
+
+  const markNotificationsRead = useCallback(async () => {
+    if (!userId || notificationsMarkingAsRead || unreadNotificationCount === 0) {
+      return;
+    }
+
+    const previousNotifications = notifications;
+    setNotificationsError("");
+    setNotificationsMarkingAsRead(true);
+    setNotifications((current) =>
+      current.map((notification) =>
+        notification.isRead ? notification : { ...notification, isRead: true }
+      )
+    );
+
+    try {
+      const response = await fetchWithAuth("/api/talent/notifications", {
+        method: "PATCH",
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          getErrorMessage(payload, "알림 읽음 처리에 실패했습니다.")
+        );
+      }
+    } catch (error) {
+      setNotifications(previousNotifications);
+      setNotificationsError(
+        error instanceof Error
+          ? error.message
+          : "알림 읽음 처리에 실패했습니다."
+      );
+    } finally {
+      setNotificationsMarkingAsRead(false);
+    }
+  }, [
+    fetchWithAuth,
+    notifications,
+    notificationsMarkingAsRead,
+    unreadNotificationCount,
+    userId,
+  ]);
+
   const hydrateSession = useCallback(
     (payload: SessionResponse) => {
       applySessionConversation(payload);
@@ -293,7 +588,14 @@ export const CareerFlowProvider = ({
       applySessionTalentPreferences(payload);
       applySessionTalentInsights(payload);
       applySessionPrompt(payload);
+      setHistoryOpportunities(
+        normalizeHistoryOpportunities(payload.historyOpportunities)
+      );
+      setHistoryUpdatingRoleIds([]);
+      setHistoryUpdateError("");
       setRecentOpportunities(normalizeRecentOpportunities(payload.recentOpportunities));
+      setNotifications(normalizeNotifications(payload.notifications));
+      setNotificationsError("");
     },
     [
       applySessionConversation,
@@ -317,6 +619,12 @@ export const CareerFlowProvider = ({
       resetTalentInsightsState();
       resetOnboardingState();
       setRecentOpportunities([]);
+      setHistoryOpportunities([]);
+      setHistoryUpdatingRoleIds([]);
+      setHistoryUpdateError("");
+      setNotifications([]);
+      setNotificationsMarkingAsRead(false);
+      setNotificationsError("");
       return;
     }
 
@@ -487,6 +795,17 @@ export const CareerFlowProvider = ({
       onOpenSettings,
       onLogout: handleLogout,
       recentOpportunities,
+      historyOpportunities,
+      historyUpdatingRoleIds,
+      historyUpdateError,
+      onUpdateHistoryOpportunityFeedback,
+      onMarkHistoryOpportunityViewed,
+      onMarkHistoryOpportunityClicked,
+      notifications,
+      unreadNotificationCount,
+      notificationsMarkingAsRead,
+      notificationsError,
+      onMarkNotificationsRead: markNotificationsRead,
       resumeFile,
       savedResumeFileName,
       savedResumeStoragePath,
@@ -565,6 +884,9 @@ export const CareerFlowProvider = ({
       networkApplicationSaveError,
       networkApplicationSaveInfo,
       networkApplicationSavePending,
+      notifications,
+      notificationsError,
+      notificationsMarkingAsRead,
       onResetNetworkApplication,
       onResetTalentInsights,
       onResetTalentPreferences,
@@ -580,8 +902,12 @@ export const CareerFlowProvider = ({
       onOpenSettings,
       handleRemoveProfileLink,
       onRemoveBlockedCompany,
+      markNotificationsRead,
       onSaveNetworkApplication,
       handleSaveTalentProfile,
+      historyOpportunities,
+      historyUpdateError,
+      historyUpdatingRoleIds,
       profileLinks,
       profileVisibility,
       profileSaveError,
@@ -611,7 +937,11 @@ export const CareerFlowProvider = ({
       talentPreferencesSaveInfo,
       talentPreferencesSavePending,
       talentPreferencesUpdatedAt,
+      unreadNotificationCount,
       userChatCount,
+      onMarkHistoryOpportunityClicked,
+      onMarkHistoryOpportunityViewed,
+      onUpdateHistoryOpportunityFeedback,
       talentEducations,
       talentExperiences,
       talentExtras,

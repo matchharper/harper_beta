@@ -23,6 +23,25 @@ export const queryKeys = {
     byUser: (userId: string) => ['bookmarkFolders', 'byUser', userId] as const,
     detail: (folderId: string) => ['bookmarkFolders', 'detail', folderId] as const,
   },
+  match: {
+    all: ['match'] as const,
+    workspace: (workspaceId?: string | null) =>
+      ['match', 'workspace', workspaceId ?? 'active'] as const,
+    candidates: (workspaceId?: string | null, roleId?: string | null) =>
+      ['match', 'candidates', workspaceId ?? 'active', roleId ?? 'all'] as const,
+    candidateDetail: (candidId: string, roleId?: string | null) =>
+      ['match', 'candidate', candidId, roleId ?? 'primary'] as const,
+  },
+  opsOpportunity: {
+    all: ['opsOpportunity'] as const,
+    catalog: ['opsOpportunity', 'catalog'] as const,
+    candidates: (query?: string | null, roleId?: string | null) =>
+      ['opsOpportunity', 'candidates', query ?? '', roleId ?? 'all'] as const,
+    matches: (roleId?: string | null, candidId?: string | null) =>
+      ['opsOpportunity', 'matches', roleId ?? 'all', candidId ?? 'all'] as const,
+    recommendations: (roleId?: string | null, talentId?: string | null) =>
+      ['opsOpportunity', 'recommendations', roleId ?? 'all', talentId ?? 'all'] as const,
+  },
   searchHistory: {
     all: ['searchHistory'] as const,
     byUser: (userId: string) => ['searchHistory', 'byUser', userId] as const,

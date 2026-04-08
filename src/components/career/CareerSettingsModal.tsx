@@ -1,4 +1,10 @@
-import { ArrowLeft, FileText, LogOut, Settings2, UserCircle2 } from "lucide-react";
+import {
+  ArrowLeft,
+  FileText,
+  LogOut,
+  Settings2,
+  UserCircle2,
+} from "lucide-react";
 import React, { useEffect, useState } from "react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
@@ -43,11 +49,11 @@ const CareerSettingsModal = ({
       overlayClassName="items-start pt-14"
       panelClassName="max-w-none h-[80vh] max-h-[860px] px-0 w-[min(1040px,90vw)]"
       bodyClassName="h-full p-0"
-      closeButtonClassName="font-geist right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-hblack100 bg-hblack50 text-hblack600 transition-colors hover:border-beige900 hover:text-beige900"
+      closeButtonClassName="font-geist right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-hblack100 bg-beige50 text-hblack600 transition-colors hover:border-beige900 hover:text-beige900"
     >
       <section className="h-full">
         <div className="grid h-full grid-cols-[260px_minmax(0,1fr)]">
-          <aside className="border-r border-hblack200 bg-hblack100/50 p-2">
+          <aside className="border-r border-beige500 bg-beige200 p-2">
             <nav className="mt-2 space-y-1">
               <button
                 type="button"
@@ -65,10 +71,10 @@ const CareerSettingsModal = ({
                     type="button"
                     onClick={() => setActiveTab(tab.key)}
                     className={[
-                      "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors",
+                      "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors",
                       isActive
-                        ? "bg-hblack200 text-hblack900"
-                        : "text-hblack700 hover:bg-hblack100",
+                        ? "bg-beige500 text-hblack900"
+                        : "text-hblack700 hover:bg-beige200",
                     ].join(" ")}
                   >
                     <tab.Icon className="h-4 w-4" />
@@ -79,9 +85,8 @@ const CareerSettingsModal = ({
             </nav>
           </aside>
 
-          <div className="h-full overflow-y-auto px-8 py-7">
+          <div className="bg-beige100 h-full overflow-y-auto px-8 py-7">
             {activeTab === "profile" ? <CareerProfileSettingsSection /> : null}
-
             {activeTab === "resume" ? (
               <CareerResumeLinksSettingsSection />
             ) : null}
@@ -103,7 +108,7 @@ const CareerSettingsModal = ({
                 <button
                   type="button"
                   onClick={() => void onLogout()}
-                  className="mt-3 inline-flex h-10 items-center gap-2 rounded-lg bg-hblack50 hover:bg-hblack100 px-4 text-sm text-hblack700 transition-colors hover:border-beige900 hover:text-beige900"
+                  className="mt-3 inline-flex h-10 items-center gap-2 rounded-lg bg-beige500 hover:bg-beige200 px-4 text-sm text-hblack700 transition-colors hover:border-beige900 hover:text-beige900"
                 >
                   <LogOut className="h-4 w-4" />
                   로그아웃

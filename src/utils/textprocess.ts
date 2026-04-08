@@ -1,5 +1,7 @@
 const MIN_CHUNK_LEN = 15;
 const MAX_SUMMARY_SCHOLAR_PAPERS = 10;
+const MAX_SUMMARY_GITHUB_REPOS = 5;
+const MAX_SUMMARY_TEXT_LEN = 240;
 
 const ABBREVIATIONS = new Set([
   "mr",
@@ -40,6 +42,96 @@ const isSentenceBoundary = (text: string, idx: number): boolean => {
   }
 
   return true;
+};
+
+const truncateSummaryText = (value: string, maxLen = MAX_SUMMARY_TEXT_LEN) => {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLen) return normalized;
+  return `${normalized.slice(0, maxLen - 3).trimEnd()}...`;
+};
+
+const getTimeValue = (value?: string | null) => {
+  if (!value) return 0;
+
+  const timeValue = new Date(value).getTime();
+  return Number.isFinite(timeValue) ? timeValue : 0;
+};
+
+const buildGithubRepoSummary = (doc: any) => {
+  const repoContributions = Array.isArray(doc.github_repo_contribution)
+    ? doc.github_repo_contribution
+    : [];
+
+  if (!repoContributions.length) return [];
+
+  return repoContributions
+    .filter((contribution: any) => {
+      const repo = contribution?.github_repo;
+      return (
+        repo ||
+        contribution?.description ||
+        contribution?.role ||
+        Number(contribution?.commits ?? 0) > 0 ||
+        Number(contribution?.merged_prs ?? 0) > 0
+      );
+    })
+    .slice()
+    .sort((a: any, b: any) => {
+      const aRepo = a?.github_repo ?? {};
+      const bRepo = b?.github_repo ?? {};
+
+      return (
+        Number(bRepo?.stars ?? 0) - Number(aRepo?.stars ?? 0) ||
+        Number(b?.merged_prs ?? 0) - Number(a?.merged_prs ?? 0) ||
+        Number(b?.commits ?? 0) - Number(a?.commits ?? 0) ||
+        getTimeValue(bRepo?.pushed_at ?? b?.last_contrib_at) -
+          getTimeValue(aRepo?.pushed_at ?? a?.last_contrib_at)
+      );
+    })
+    .slice(0, MAX_SUMMARY_GITHUB_REPOS)
+    .map((contribution: any, idx: number) => {
+      const repo = contribution?.github_repo ?? {};
+      const repoName =
+        repo?.repo_full_name ?? repo?.repo_name ?? `Repository ${idx + 1}`;
+
+      let repoText = `${idx + 1}. Repository: ${repoName}`;
+
+      if (contribution?.role) {
+        repoText += `, Role: ${contribution.role}`;
+      }
+      if (repo?.language) {
+        repoText += `, Primary Language: ${repo.language}`;
+      }
+      if (Array.isArray(repo?.topics) && repo.topics.length > 0) {
+        repoText += `, Topics: ${repo.topics.slice(0, 5).join(", ")}`;
+      }
+      if (Number(repo?.stars ?? 0) > 0) {
+        repoText += `, Stars: ${repo.stars}`;
+      }
+      if (Number(repo?.forks ?? 0) > 0) {
+        repoText += `, Forks: ${repo.forks}`;
+      }
+      if (Number(contribution?.commits ?? 0) > 0) {
+        repoText += `, Commits: ${contribution.commits}`;
+      }
+      if (Number(contribution?.merged_prs ?? 0) > 0) {
+        repoText += `, Merged PRs: ${contribution.merged_prs}`;
+      }
+      if (repo?.description) {
+        repoText += `\nRepo Description: ${truncateSummaryText(repo.description)}`;
+      } else if (contribution?.description) {
+        repoText += `\nContribution Description: ${truncateSummaryText(
+          contribution.description
+        )}`;
+      }
+      if (repo?.readme_excerpt) {
+        repoText += `\nRepo README Excerpt: ${truncateSummaryText(
+          repo.readme_excerpt
+        )}`;
+      }
+
+      return repoText;
+    });
 };
 
 export const splitTextToChunks = (text: string): string[] => {
@@ -323,7 +415,11 @@ export const buildLongDoc = (doc: any) => {
   return docSummary;
 };
 
-export const buildSummary = (doc: any) => {
+type BuildSummaryOptions = {
+  includeGithubRepos?: boolean;
+};
+
+export const buildSummary = (doc: any, options: BuildSummaryOptions = {}) => {
   const exps = doc.experience_user?.map((exp: any, idx: number) => {
     let expText = `\n${idx + 1}. Role: ${exp.role}, Company: ${
       exp.company_db.name
@@ -389,13 +485,12 @@ export const buildSummary = (doc: any) => {
       }, Citations: ${paper.total_citations}`;
     });
 
-  // const awards = doc.awards
-  //   ?.slice(0, 20)
-  //   .map((award: any, idx: number) => {
-  //     return `${idx + 1}. Title: ${award.title}, Awarded At: ${
-  //       award.awarded_at
-  //     }`;
-  //   });
+  const awards = doc.awards?.slice(0, 20).map((award: any, idx: number) => {
+    return `${idx + 1}. Title: ${award.title}, Awarded At: ${award.awarded_at}`;
+  });
+  const githubRepos = options.includeGithubRepos
+    ? buildGithubRepoSummary(doc)
+    : [];
 
   const bio = doc.bio ?? "";
 
@@ -426,6 +521,9 @@ export const buildSummary = (doc: any) => {
   }
   if (scholarPublications?.length) {
     docSummary += `\nScholar Papers: ${scholarPublications}`;
+  }
+  if (githubRepos.length > 0) {
+    docSummary += `\nGitHub Repositories: ${githubRepos}`;
   }
 
   return docSummary;
