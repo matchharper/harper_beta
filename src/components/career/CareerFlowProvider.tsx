@@ -22,7 +22,7 @@ import { useCareerTalentInsights } from "@/hooks/career/useCareerTalentInsights"
 import { useCareerTalentPreferences } from "@/hooks/career/useCareerTalentPreferences";
 import { useCareerTalentSettings } from "@/hooks/career/useCareerTalentSettings";
 import { useCareerSession } from "@/hooks/career/useCareerSession";
-import { useCareerVapiCall } from "@/hooks/career/useCareerVapiCall";
+import { useCareerVoiceCall } from "@/hooks/career/useCareerVoiceCall";
 import { TALENT_ONBOARDING_COMPLETION_TARGET } from "@/lib/talentOnboarding/progress";
 
 const normalizeRecentOpportunities = (
@@ -283,13 +283,14 @@ export const CareerFlowProvider = ({
   });
 
   const {
-    vapiCallStatus,
-    vapiCallDuration,
-    vapiCallError,
-    startVapiCall,
-    endVapiCall,
-    dismissVapiCall,
-  } = useCareerVapiCall();
+    voiceCallStatus,
+    voiceCallDuration,
+    voiceCallError,
+    voiceChatTranscript,
+    startVoiceCall,
+    endVoiceCall,
+    dismissVoiceCall,
+  } = useCareerVoiceCall();
 
   const handleProfileSubmit = useCallback(async () => {
     await handleProfileSubmitBase(handleProfileSubmitSuccess);
@@ -315,10 +316,10 @@ export const CareerFlowProvider = ({
     ]
   );
 
-  const handleStartVapiCall = useCallback(() => {
-    console.log("[VapiCall] handleStartVapiCall called", { userId, conversationId });
+  const handleStartVoiceChat = useCallback(() => {
+    console.log("[VoiceChat] handleStartVoiceChat called", { userId, conversationId });
     if (!userId || !conversationId) {
-      console.warn("[VapiCall] Missing userId or conversationId", { userId, conversationId });
+      console.warn("[VoiceChat] Missing userId or conversationId", { userId, conversationId });
       return;
     }
     const existingInsightsContext = talentInsights
@@ -326,22 +327,22 @@ export const CareerFlowProvider = ({
           .map(([k, v]) => `- ${k}: ${v}`)
           .join("\n")}\n\n위 항목들은 이미 수집되었으므로 건너뛰세요.`
       : undefined;
-    void startVapiCall({ userId, conversationId, existingInsightsContext });
-  }, [userId, conversationId, talentInsights, startVapiCall]);
+    void startVoiceCall({ userId, conversationId, existingInsightsContext, fetchWithAuth: fetchWithAuth as (url: string, init?: RequestInit) => Promise<Response> });
+  }, [userId, conversationId, talentInsights, startVoiceCall, fetchWithAuth]);
 
-  const handleEndVapiCall = useCallback(() => {
-    endVapiCall();
-  }, [endVapiCall]);
+  const handleEndVoiceChat = useCallback(() => {
+    void endVoiceCall();
+  }, [endVoiceCall]);
 
-  const handleDismissVapiCall = useCallback(() => {
-    dismissVapiCall();
+  const handleDismissVoiceChat = useCallback(() => {
+    dismissVoiceCall();
     if (userId) {
       void (async () => {
         const payload = await loadSession();
         if (payload) hydrateSession(payload);
       })();
     }
-  }, [dismissVapiCall, userId, loadSession, hydrateSession]);
+  }, [dismissVoiceCall, userId, loadSession, hydrateSession]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -463,12 +464,13 @@ export const CareerFlowProvider = ({
       onVoicePrimaryAction: handleVoicePrimaryAction,
       onToggleVoiceMute: handleToggleVoiceMute,
       onSwitchToTextMode: handleSwitchToTextMode,
-      vapiCallStatus,
-      vapiCallDuration,
-      vapiCallError,
-      onStartVapiCall: handleStartVapiCall,
-      onEndVapiCall: handleEndVapiCall,
-      onDismissVapiCall: handleDismissVapiCall,
+      voiceChatStatus: voiceCallStatus,
+      voiceChatDuration: voiceCallDuration,
+      voiceChatError: voiceCallError,
+      voiceChatTranscript,
+      onStartVoiceChat: handleStartVoiceChat,
+      onEndVoiceChat: handleEndVoiceChat,
+      onDismissVoiceChat: handleDismissVoiceChat,
     }),
     [
       assistantTyping,
@@ -517,12 +519,13 @@ export const CareerFlowProvider = ({
       voiceMuted,
       voicePrimaryPressed,
       voiceTranscript,
-      vapiCallStatus,
-      vapiCallDuration,
-      vapiCallError,
-      handleStartVapiCall,
-      handleEndVapiCall,
-      handleDismissVapiCall,
+      voiceCallStatus,
+      voiceCallDuration,
+      voiceCallError,
+      voiceChatTranscript,
+      handleStartVoiceChat,
+      handleEndVoiceChat,
+      handleDismissVoiceChat,
     ]
   );
 

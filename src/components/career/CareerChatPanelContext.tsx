@@ -70,12 +70,13 @@ export type CareerChatPanelContextValue = {
   onToggleVoiceMute: () => void;
   onSwitchToTextMode: () => void;
 
-  vapiCallStatus: "idle" | "connecting" | "active" | "ending" | "ended";
-  vapiCallDuration: number;
-  vapiCallError: string | null;
-  onStartVapiCall: () => void;
-  onEndVapiCall: () => void;
-  onDismissVapiCall: () => void;
+  voiceChatStatus: "idle" | "connecting" | "active" | "ending" | "ended";
+  voiceChatDuration: number;
+  voiceChatError: string | null;
+  voiceChatTranscript: Array<{ role: "user" | "assistant"; content: string }>;
+  onStartVoiceChat: () => void;
+  onEndVoiceChat: () => void;
+  onDismissVoiceChat: () => void;
 };
 
 const CareerChatPanelContext =

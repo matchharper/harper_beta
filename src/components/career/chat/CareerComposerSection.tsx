@@ -42,9 +42,9 @@ const CareerComposerSection = () => {
     onVoicePrimaryAction,
     onToggleVoiceMute,
     onSwitchToTextMode,
-    vapiCallStatus,
-    onStartVapiCall,
-    onEndVapiCall,
+    voiceChatStatus,
+    onStartVoiceChat,
+    onEndVoiceChat,
   } = useCareerChatPanelContext();
 
   const [draft, setDraft] = useState("");
@@ -52,10 +52,10 @@ const CareerComposerSection = () => {
   const [showLinkInput, setShowLinkInput] = useState(false);
   const onboardingPaused = isOnboardingPaused(messages);
 
-  const isVapiCallActive =
-    vapiCallStatus === "connecting" ||
-    vapiCallStatus === "active" ||
-    vapiCallStatus === "ending";
+  const isVoiceChatActive =
+    voiceChatStatus === "connecting" ||
+    voiceChatStatus === "active" ||
+    voiceChatStatus === "ending";
 
   const isComposerLocked =
     !user ||
@@ -68,7 +68,7 @@ const CareerComposerSection = () => {
     onboardingPausePending ||
     chatPending ||
     assistantTyping ||
-    isVapiCallActive;
+    isVoiceChatActive;
 
   const composerPlaceholder = !user
     ? "로그인 후 대화를 시작할 수 있습니다."
@@ -120,17 +120,17 @@ const CareerComposerSection = () => {
   return (
     <div className="sticky bottom-0 px-5 py-4">
       <div className="mx-auto w-full max-w-[1120px]">
-        {isVapiCallActive ? (
+        {isVoiceChatActive ? (
           <div className="mb-3 flex justify-center">
             <CareerPrimaryButton
-              onClick={onEndVapiCall}
-              disabled={vapiCallStatus === "ending"}
+              onClick={onEndVoiceChat}
+              disabled={voiceChatStatus === "ending"}
               className="gap-2 px-6 bg-red-600 hover:bg-red-700 border-red-600"
             >
               <PhoneOff className="h-3.5 w-3.5" />
-              {vapiCallStatus === "ending"
+              {voiceChatStatus === "ending"
                 ? "종료 중..."
-                : vapiCallStatus === "connecting"
+                : voiceChatStatus === "connecting"
                   ? "연결 취소"
                   : "통화 종료"}
             </CareerPrimaryButton>
@@ -260,9 +260,9 @@ const CareerComposerSection = () => {
                     </button>
                     <button
                       type="button"
-                      onClick={onStartVapiCall}
+                      onClick={onStartVoiceChat}
                       disabled={isComposerLocked}
-                      title="전화로 대화하기"
+                      title="음성으로 대화하기"
                       className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-beige900/15 bg-white/45 text-beige900/50 transition-colors hover:border-beige900/30 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Phone className="h-4 w-4" />
