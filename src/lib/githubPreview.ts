@@ -4,6 +4,7 @@ export type GithubProfilePreview = {
   location: string | null;
   followers: number;
   publicRepos: number;
+  ownerCreatorTotalStars: number;
   topLanguages: string[];
   topRepoStars: number;
 };
@@ -14,6 +15,10 @@ function formatCount(value: number) {
 
 export function formatGithubRepoCount(count: number) {
   return `${formatCount(count)} repos`;
+}
+
+export function formatGithubOwnerCreatorStars(count: number) {
+  return `${formatCount(count)} stars`;
 }
 
 export function formatGithubFollowerCount(count: number) {
@@ -29,8 +34,9 @@ export function buildGithubDeveloperTooltip(
     preview.name ? `Name: ${preview.name}` : "",
     preview.company ? `Company: ${preview.company}` : "",
     preview.location ? `Location: ${preview.location}` : "",
-    `Repositories: ${formatCount(preview.publicRepos)}`,
+    `Owner/creator stars: ${formatCount(preview.ownerCreatorTotalStars)}`,
     `Followers: ${formatCount(preview.followers)}`,
+    `Repositories: ${formatCount(preview.publicRepos)}`,
     preview.topLanguages.length > 0
       ? `Languages: ${preview.topLanguages.slice(0, 3).join(", ")}`
       : "",

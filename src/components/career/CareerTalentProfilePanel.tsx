@@ -12,12 +12,7 @@ import { useCareerSidebarContext } from "./CareerSidebarContext";
 import type { CareerTalentExtra } from "./types";
 import { locationEnToKo } from "@/utils/language_map";
 import { dateToFormat } from "@/utils/textprocess";
-import {
-  CareerSectionHeader,
-  CareerSecondaryButton,
-  CareerSurface,
-  careerCx,
-} from "./ui/CareerPrimitives";
+import { careerCx } from "./ui/CareerPrimitives";
 
 const parseDate = (value: string | null | undefined) => {
   if (!value) return null;
@@ -65,9 +60,9 @@ const TimelineBlock = ({
   isLast?: boolean;
 }) => (
   <div className={careerCx("relative pl-11", !isLast && "pb-6")}>
-    {!isLast ? (
+    {!isLast && (
       <div className="absolute bottom-0 left-[14px] top-[30px] w-px bg-beige900/10" />
-    ) : null}
+    )}
     <div className="absolute left-0 top-1 flex h-7 w-7 items-center justify-center rounded-[8px] border border-beige900/15 bg-white/45 text-beige900/70">
       {icon}
     </div>
@@ -75,22 +70,20 @@ const TimelineBlock = ({
       <div className="text-[16px] font-medium leading-6 text-beige900">
         {title}
       </div>
-      {subtitle ? (
+      {subtitle && (
         <div className="mt-1 text-[14px] text-beige900/55">{subtitle}</div>
-      ) : null}
-      {meta ? (
-        <div className="mt-1 text-[13px] text-beige900/40">{meta}</div>
-      ) : null}
-      {description ? (
-        <div className="mt-2 whitespace-pre-wrap text-[14px] leading-6 text-beige900/55">
+      )}
+      {meta && <div className="mt-1 text-[13px] text-beige900/40">{meta}</div>}
+      {description && (
+        <div className="mt-2 whitespace-pre-wrap text-[14px] leading-6 text-beige900/65">
           {description}
         </div>
-      ) : null}
-      {memo ? (
-        <div className="mt-2 border-l border-beige900/20 pl-3 text-[13px] leading-6 text-beige900/50">
+      )}
+      {memo && (
+        <div className="mt-2 border-l border-beige900/20 pl-3 text-[13px] leading-6 text-beige900/70">
           {memo}
         </div>
-      ) : null}
+      )}
     </div>
   </div>
 );
@@ -110,10 +103,8 @@ const ProfileSection = ({
 
 const CareerTalentProfilePanel = ({
   className = "",
-  showManageButton = true,
 }: {
   className?: string;
-  showManageButton?: boolean;
 }) => {
   const { talentProfile, profileLinks, onOpenSettings } =
     useCareerSidebarContext();
@@ -196,11 +187,7 @@ const CareerTalentProfilePanel = ({
     links.length > 0;
 
   if (!hasAnyProfileData) {
-    return (
-      <CareerSurface className={className}>
-        <div></div>
-      </CareerSurface>
-    );
+    return <div></div>;
   }
 
   return (
@@ -221,19 +208,17 @@ const CareerTalentProfilePanel = ({
             )}
           </div>
 
-          <div className="min-w-0 flex flex-col gap-2">
-            <div className="font-halant text-[28px] leading-[1] text-beige900">
+          <div className="min-w-0 flex flex-col gap-1.5">
+            <div className="font-halant font-medium text-2xl leading-[1] text-beige900">
               {talentUser?.name ?? "Unknown"}
             </div>
 
             {talentUser?.headline && (
-              <div className="text-[15px] leading-6 text-beige900/55">
-                {talentUser.headline}
-              </div>
+              <div className="text-base leading-6">{talentUser.headline}</div>
             )}
 
             {talentUser?.location && (
-              <div className="flex items-center gap-2 text-[14px] text-beige900/50">
+              <div className="flex items-center gap-2 text-sm">
                 <MapPin className="h-4 w-4" />
                 <span>{locationEnToKo(talentUser.location)}</span>
               </div>
@@ -242,15 +227,15 @@ const CareerTalentProfilePanel = ({
         </div>
       </ProfileSection>
 
-      {talentUser?.bio ? (
+      {talentUser?.bio && (
         <ProfileSection title="요약">
           <div className="whitespace-pre-wrap text-[14px] leading-6 text-beige900/60">
             {talentUser.bio}
           </div>
         </ProfileSection>
-      ) : null}
+      )}
 
-      {mergedExperience.length > 0 ? (
+      {mergedExperience.length > 0 && (
         <ProfileSection title="경력 및 학력">
           <div>
             {mergedExperience.map((entry, index) => {
@@ -297,7 +282,7 @@ const CareerTalentProfilePanel = ({
             })}
           </div>
         </ProfileSection>
-      ) : null}
+      )}
 
       {talentExtras.length > 0 && (
         <ProfileSection title="추가 정보">

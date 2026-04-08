@@ -4,7 +4,7 @@ import type { CandidateMarkStatus } from "@/lib/candidateMark";
 import {
   buildGithubDeveloperTooltip,
   formatGithubFollowerCount,
-  formatGithubRepoCount,
+  formatGithubOwnerCreatorStars,
 } from "@/lib/githubPreview";
 import {
   buildScholarResearchTooltip,
@@ -24,6 +24,7 @@ import {
   isScholarSearchSource,
 } from "@/lib/searchSource";
 import { SharedFolderViewerIdentity } from "@/lib/sharedFolder";
+import { sortCandidateItemsByLatest } from "@/lib/candidateChronology";
 import { SummaryScore } from "@/types/type";
 import {
   companyEnToKo,
@@ -181,24 +182,35 @@ function CandidateCard({
 
   const exps = asArr(c.experience_user ?? []);
   const edus = asArr(c.edu_user ?? []);
+  const sortedExperiences = useMemo(
+    () => sortCandidateItemsByLatest(exps),
+    [exps]
+  );
+  const sortedEducations = useMemo(
+    () => sortCandidateItemsByLatest(edus),
+    [edus]
+  );
 
   const isBookmarked = useMemo(() => {
     return (c.connection ?? []).some((con) => con.typed === 0);
   }, [c.connection]);
 
-  const latestCompany = exps[0];
-  const school = useMemo(() => edus[0], [edus]);
+  const latestCompany = sortedExperiences[0];
+  const school = sortedEducations[0];
   const scholarPreview = c.scholar_profile_preview;
   const githubPreview = c.github_profile_preview;
   const candidateMarkStatus = c.candidate_mark?.status ?? null;
   const sharedFolderNotes = c.shared_folder_notes ?? [];
   const evidencePaper = getEvidencePaper(c.search_evidence);
   const isScholarSource = isScholarSearchSource(sourceType);
-  const isGithubSource = sourceType === "github";
   const isOnlyScholar =
-    !!scholarPreview && exps.length === 0 && edus.length === 0;
+    !!scholarPreview &&
+    sortedExperiences.length === 0 &&
+    sortedEducations.length === 0;
   const isOnlyGithub =
-    !!githubPreview && exps.length === 0 && edus.length === 0;
+    !!githubPreview &&
+    sortedExperiences.length === 0 &&
+    sortedEducations.length === 0;
   const linkSources = useMemo(
     () => extractSearchSourcesFromLinks(c.links),
     [c.links]
@@ -218,19 +230,19 @@ function CandidateCard({
   }, [c.search_rank?.suitabilityScore]);
 
   const companyHistoryTooltipText = useMemo(() => {
-    if (exps.length === 0) return "경력 정보 없음";
-    return exps
+    if (sortedExperiences.length === 0) return "경력 정보 없음";
+    return sortedExperiences
       .map((exp: any) => {
         const companyName = companyEnToKo(exp?.company_db?.name ?? "-");
         const period = formatPeriod(exp?.start_date, exp?.end_date);
         return period ? `${companyName} (${period})` : companyName;
       })
       .join("\n");
-  }, [exps]);
+  }, [sortedExperiences]);
 
   const schoolHistoryTooltipText = useMemo(() => {
-    if (edus.length === 0) return "학력 정보 없음";
-    return edus
+    if (sortedEducations.length === 0) return "학력 정보 없음";
+    return sortedEducations
       .map((edu: any) => {
         const schoolName = koreaUniversityEnToKo(edu?.school ?? "-");
         const degreeName = degreeEnToKo(edu?.degree ?? "-");
@@ -239,7 +251,7 @@ function CandidateCard({
         return period ? `${title}\n${period}` : title;
       })
       .join("\n\n");
-  }, [edus]);
+  }, [sortedEducations]);
 
   const scholarAffiliationTooltipText = useMemo(() => {
     return buildScholarResearchTooltip(scholarPreview);
@@ -453,7 +465,9 @@ function CandidateCard({
                         <GithubSignalBox
                           title={
                             githubPreview
-                              ? formatGithubRepoCount(githubPreview.publicRepos)
+                              ? formatGithubOwnerCreatorStars(
+                                  githubPreview.ownerCreatorTotalStars
+                                )
                               : "-"
                           }
                           description={

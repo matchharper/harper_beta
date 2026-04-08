@@ -12,6 +12,7 @@ module.exports = {
           "linear-gradient(180deg, #F2E7AE 0%, #F1C4A6 50%, #94B8F0 100%)",
       },
       colors: {
+        beige50: "#FDFAF3",
         beige100: "#FDF6EE",
         beige200: "#F7F0E8",
         beige500: "#F2E7DC",

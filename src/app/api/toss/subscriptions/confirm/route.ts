@@ -32,6 +32,22 @@ type ConfirmBody = {
   customerKey?: string;
 };
 
+function redactValue(
+  value: string | null | undefined,
+  visibleStart = 6,
+  visibleEnd = 4
+) {
+  if (!value) {
+    return null;
+  }
+
+  if (value.length <= visibleStart + visibleEnd) {
+    return `${value.slice(0, 2)}***`;
+  }
+
+  return `${value.slice(0, visibleStart)}...${value.slice(-visibleEnd)}`;
+}
+
 function getCustomerIp(req: Request) {
   const forwardedFor = req.headers.get("x-forwarded-for");
   if (forwardedFor) {
@@ -56,8 +72,23 @@ export async function POST(req: Request) {
   const sessionToken = String(body?.sessionToken ?? "").trim();
   const authKey = String(body?.authKey ?? "").trim();
   const customerKey = String(body?.customerKey ?? "").trim();
+  const requestLogContext = {
+    method: req.method,
+    userAgent: req.headers.get("user-agent") ?? "unknown",
+    customerIp: getCustomerIp(req) ?? null,
+    sessionTokenPreview: redactValue(sessionToken),
+    customerKeyPreview: redactValue(customerKey),
+    hasAuthKey: Boolean(authKey),
+  };
+
+  console.info("[billing-confirm] request received", requestLogContext);
 
   if (!sessionToken || !authKey || !customerKey) {
+    console.warn("[billing-confirm] missing required fields", {
+      ...requestLogContext,
+      hasSessionToken: Boolean(sessionToken),
+      hasCustomerKey: Boolean(customerKey),
+    });
     return NextResponse.json(
       { error: "Missing sessionToken, authKey, or customerKey" },
       { status: 400 }
@@ -72,6 +103,10 @@ export async function POST(req: Request) {
     .maybeSingle();
 
   if (sessionError) {
+    console.error("[billing-confirm] failed to load billing session", {
+      ...requestLogContext,
+      error: sessionError,
+    });
     return NextResponse.json(
       { error: "Failed to load billing session" },
       { status: 500 }
@@ -79,12 +114,20 @@ export async function POST(req: Request) {
   }
 
   if (!session) {
+    console.warn("[billing-confirm] billing session not found", requestLogContext);
     return NextResponse.json({ error: "Billing session not found" }, { status: 404 });
   }
 
   const now = new Date();
   const expiresAt = new Date(session.expires_at);
   if (!Number.isNaN(expiresAt.getTime()) && expiresAt < now && session.status === "pending") {
+    console.warn("[billing-confirm] billing session expired", {
+      ...requestLogContext,
+      sessionId: session.id,
+      sessionStatus: session.status,
+      expiresAt: session.expires_at,
+      nowIso: now.toISOString(),
+    });
     await supabaseAdmin
       .from("billing_sessions")
       .update({
@@ -100,6 +143,14 @@ export async function POST(req: Request) {
   }
 
   if (customerKey !== getTossCustomerKeyForUser(session.user_id)) {
+    console.warn("[billing-confirm] customer key mismatch", {
+      ...requestLogContext,
+      sessionId: session.id,
+      userId: session.user_id,
+      expectedCustomerKeyPreview: redactValue(
+        getTossCustomerKeyForUser(session.user_id)
+      ),
+    });
     return NextResponse.json(
       { error: "customerKey does not match the billing session" },
       { status: 400 }
@@ -113,6 +164,13 @@ export async function POST(req: Request) {
     .maybeSingle();
 
   if (planError || !plan) {
+    console.error("[billing-confirm] failed to load billing plan", {
+      ...requestLogContext,
+      sessionId: session.id,
+      planId: session.plan_id,
+      error: planError,
+      hasPlan: Boolean(plan),
+    });
     return NextResponse.json(
       { error: "Failed to load billing plan" },
       { status: 500 }
@@ -120,6 +178,11 @@ export async function POST(req: Request) {
   }
 
   if (session.status === "consumed") {
+    console.info("[billing-confirm] billing session already consumed", {
+      ...requestLogContext,
+      sessionId: session.id,
+      paymentId: session.payment_id,
+    });
     if (session.payment_id) {
       const { data: existingPaymentData } = await supabaseAdmin
         .from("payments")
@@ -151,6 +214,11 @@ export async function POST(req: Request) {
   }
 
   if (session.status !== "pending") {
+    console.warn("[billing-confirm] billing session not pending", {
+      ...requestLogContext,
+      sessionId: session.id,
+      sessionStatus: session.status,
+    });
     return NextResponse.json(
       { error: `Billing session is ${session.status}` },
       { status: 409 }
@@ -182,6 +250,14 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     if (!getExistingAttemptConflictCode(error as { code?: string })) {
+      console.error("[billing-confirm] failed to create processing attempt", {
+        ...requestLogContext,
+        sessionId: session.id,
+        paymentId: session.payment_id,
+        attemptKey,
+        orderId,
+        error,
+      });
       throw error;
     }
 
@@ -216,6 +292,14 @@ export async function POST(req: Request) {
       }
     }
 
+    console.warn("[billing-confirm] processing attempt already in progress", {
+      ...requestLogContext,
+      sessionId: session.id,
+      paymentId: session.payment_id,
+      attemptKey,
+      existingAttemptId: existingAttempt?.id ?? null,
+      existingAttemptStatus: existingAttempt?.status ?? null,
+    });
     return NextResponse.json(
       { error: "Billing confirmation is already in progress" },
       { status: 409 }
@@ -223,6 +307,12 @@ export async function POST(req: Request) {
   }
 
   if (!attempt?.id) {
+    console.error("[billing-confirm] processing attempt missing id", {
+      ...requestLogContext,
+      sessionId: session.id,
+      paymentId: session.payment_id,
+      attemptKey,
+    });
     return NextResponse.json(
       { error: "Failed to create payment attempt" },
       { status: 500 }
@@ -230,6 +320,20 @@ export async function POST(req: Request) {
   }
 
   let issuedBillingKey: string | null = null;
+
+  console.info("[billing-confirm] processing started", {
+    ...requestLogContext,
+    sessionId: session.id,
+    userId: session.user_id,
+    paymentId: session.payment_id,
+    attemptId: attempt.id,
+    attemptKey,
+    planId: plan.plan_id,
+    planKey: session.plan_key,
+    reason: session.reason,
+    amountKRW: Number(session.amount_krw ?? 0),
+    orderId,
+  });
 
   try {
     const billing = await issueBillingKey({
@@ -431,6 +535,28 @@ export async function POST(req: Request) {
       error instanceof TossRequestError && error.status >= 400
         ? error.status
         : 502;
+
+    console.error("[billing-confirm] confirm failed", {
+      ...requestLogContext,
+      sessionId: session.id,
+      sessionStatus: session.status,
+      userId: session.user_id,
+      paymentId: session.payment_id,
+      attemptId: attempt.id,
+      attemptKey,
+      planId: plan.plan_id,
+      planKey: session.plan_key,
+      reason: session.reason,
+      amountKRW: Number(session.amount_krw ?? 0),
+      orderId,
+      issuedBillingKeyPreview: redactValue(issuedBillingKey),
+      errorName: error instanceof Error ? error.name : typeof error,
+      message,
+      code,
+      status,
+      responseBody,
+      stack: error instanceof Error ? error.stack : null,
+    });
 
     await updatePaymentAttempt(supabaseAdmin, attempt.id, {
       status: "failed",

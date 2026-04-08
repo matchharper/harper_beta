@@ -4,6 +4,7 @@ import type {
   CareerTalentPreferences,
   SessionResponse,
 } from "@/components/career/types";
+import { getTalentCareerMoveIntentLabel } from "@/lib/talentNetworkApplication";
 import { getErrorMessage } from "./careerHelpers";
 import type { FetchWithAuth } from "./useCareerApi";
 
@@ -12,14 +13,70 @@ type UseCareerTalentPreferencesArgs = {
   user: User | null;
 };
 
+type TalentPreferencesPayload = {
+  preferences?: unknown;
+  preferencesUpdatedAt?: string | null;
+  error?: string;
+};
+
 const emptyPreferences = (): CareerTalentPreferences => ({
   engagementTypes: [],
   preferredLocations: [],
   careerMoveIntent: null,
   careerMoveIntentLabel: null,
-  technicalStrengths: null,
-  desiredTeams: null,
 });
+
+const normalizeUpdatedAt = (value: unknown) => {
+  if (typeof value !== "string") return null;
+  return Number.isNaN(Date.parse(value)) ? null : value;
+};
+
+const cloneTalentPreferences = (value: unknown): CareerTalentPreferences => {
+  const record =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Partial<CareerTalentPreferences>)
+      : null;
+  if (!record) return emptyPreferences();
+
+  const careerMoveIntent =
+    typeof record.careerMoveIntent === "string" && record.careerMoveIntent.trim()
+      ? record.careerMoveIntent
+      : null;
+
+  return {
+    engagementTypes: Array.isArray(record.engagementTypes)
+      ? record.engagementTypes
+          .map((item) => String(item ?? "").trim())
+          .filter(Boolean)
+      : [],
+    preferredLocations: Array.isArray(record.preferredLocations)
+      ? record.preferredLocations
+          .map((item) => String(item ?? "").trim())
+          .filter(Boolean)
+      : [],
+    careerMoveIntent,
+    careerMoveIntentLabel: getTalentCareerMoveIntentLabel(careerMoveIntent),
+  };
+};
+
+const sameStringArray = (left: string[], right: string[]) => {
+  if (left.length !== right.length) return false;
+  return left.every((value, index) => value === right[index]);
+};
+
+const sameTalentPreferences = (
+  left: CareerTalentPreferences | null,
+  right: CareerTalentPreferences | null
+) => {
+  if (left === right) return true;
+  if (!left || !right) return false;
+
+  return (
+    sameStringArray(left.engagementTypes, right.engagementTypes) &&
+    sameStringArray(left.preferredLocations, right.preferredLocations) &&
+    left.careerMoveIntent === right.careerMoveIntent
+  );
+};
 
 export const useCareerTalentPreferences = ({
   fetchWithAuth,
@@ -27,6 +84,10 @@ export const useCareerTalentPreferences = ({
 }: UseCareerTalentPreferencesArgs) => {
   const [talentPreferences, setTalentPreferences] =
     useState<CareerTalentPreferences | null>(null);
+  const [savedTalentPreferences, setSavedTalentPreferences] =
+    useState<CareerTalentPreferences | null>(null);
+  const [talentPreferencesUpdatedAt, setTalentPreferencesUpdatedAt] =
+    useState<string | null>(null);
   const [talentPreferencesSavePending, setTalentPreferencesSavePending] =
     useState(false);
   const [talentPreferencesSaveError, setTalentPreferencesSaveError] =
@@ -34,11 +95,26 @@ export const useCareerTalentPreferences = ({
   const [talentPreferencesSaveInfo, setTalentPreferencesSaveInfo] =
     useState("");
 
-  const applySessionTalentPreferences = useCallback(
-    (payload: SessionResponse) => {
-      setTalentPreferences(payload.talentPreferences ?? emptyPreferences());
+  const applyPersistedTalentPreferences = useCallback(
+    (next: unknown, updatedAt?: unknown) => {
+      const normalized = cloneTalentPreferences(next);
+      setTalentPreferences(normalized);
+      setSavedTalentPreferences(normalized);
+      setTalentPreferencesUpdatedAt(normalizeUpdatedAt(updatedAt));
     },
     []
+  );
+
+  const applySessionTalentPreferences = useCallback(
+    (payload: SessionResponse) => {
+      applyPersistedTalentPreferences(
+        payload.talentPreferences ?? emptyPreferences(),
+        payload.profileSettingsMeta?.talentPreferencesUpdatedAt
+      );
+      setTalentPreferencesSaveError("");
+      setTalentPreferencesSaveInfo("");
+    },
+    [applyPersistedTalentPreferences]
   );
 
   const updateTalentPreferences = useCallback(
@@ -75,18 +151,21 @@ export const useCareerTalentPreferences = ({
           engagementTypes: talentPreferences.engagementTypes,
           preferredLocations: talentPreferences.preferredLocations,
           careerMoveIntent: talentPreferences.careerMoveIntent,
-          technicalStrengths: talentPreferences.technicalStrengths,
-          desiredTeams: talentPreferences.desiredTeams,
         }),
       });
-      const payload = await response.json().catch(() => ({}));
+      const payload = (await response
+        .json()
+        .catch(() => ({}))) as TalentPreferencesPayload;
       if (!response.ok) {
         throw new Error(
           getErrorMessage(payload, "프로필 선호 정보 저장에 실패했습니다.")
         );
       }
 
-      setTalentPreferences(payload.preferences ?? emptyPreferences());
+      applyPersistedTalentPreferences(
+        payload.preferences ?? emptyPreferences(),
+        payload.preferencesUpdatedAt
+      );
       setTalentPreferencesSaveInfo("프로필 설정을 저장했습니다.");
       return true;
     } catch (error) {
@@ -99,34 +178,59 @@ export const useCareerTalentPreferences = ({
     } finally {
       setTalentPreferencesSavePending(false);
     }
-  }, [fetchWithAuth, talentPreferences, talentPreferencesSavePending, user]);
+  }, [
+    applyPersistedTalentPreferences,
+    fetchWithAuth,
+    talentPreferences,
+    talentPreferencesSavePending,
+    user,
+  ]);
+
+  const resetTalentPreferencesDraft = useCallback(() => {
+    setTalentPreferences(cloneTalentPreferences(savedTalentPreferences));
+    setTalentPreferencesSaveError("");
+    setTalentPreferencesSaveInfo("");
+  }, [savedTalentPreferences]);
 
   const resetTalentPreferencesState = useCallback(() => {
     setTalentPreferences(null);
+    setSavedTalentPreferences(null);
+    setTalentPreferencesUpdatedAt(null);
     setTalentPreferencesSavePending(false);
     setTalentPreferencesSaveError("");
     setTalentPreferencesSaveInfo("");
   }, []);
 
+  const hasUnsavedTalentPreferencesChanges = useMemo(
+    () => !sameTalentPreferences(talentPreferences, savedTalentPreferences),
+    [savedTalentPreferences, talentPreferences]
+  );
+
   return useMemo(
     () => ({
       talentPreferences,
+      talentPreferencesUpdatedAt,
       talentPreferencesSavePending,
       talentPreferencesSaveError,
       talentPreferencesSaveInfo,
+      hasUnsavedTalentPreferencesChanges,
       applySessionTalentPreferences,
       onTalentPreferencesChange: updateTalentPreferences,
       onSaveTalentPreferences: saveTalentPreferences,
+      onResetTalentPreferences: resetTalentPreferencesDraft,
       resetTalentPreferencesState,
     }),
     [
       applySessionTalentPreferences,
+      hasUnsavedTalentPreferencesChanges,
+      resetTalentPreferencesDraft,
       resetTalentPreferencesState,
       saveTalentPreferences,
       talentPreferences,
       talentPreferencesSaveError,
       talentPreferencesSaveInfo,
       talentPreferencesSavePending,
+      talentPreferencesUpdatedAt,
       updateTalentPreferences,
     ]
   );

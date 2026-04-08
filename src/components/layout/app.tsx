@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   Search,
   List,
-  Sparkles,
+  Target,
   PanelLeft,
   PanelLeftOpen,
   User,
@@ -11,8 +11,10 @@ import {
   HelpCircle,
   MessageSquareMore,
   Mail,
+  Scan,
+  UserSearch,
 } from "lucide-react";
-import { useParams, usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/router";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useCredits } from "@/hooks/useCredit";
@@ -28,6 +30,8 @@ import Image from "next/image";
 import Script from "next/script";
 import { ActionDropdown, ActionDropdownItem } from "../ui/action-dropdown";
 import { canAccessAts } from "@/lib/internalAccess";
+import { useMatchWorkspace } from "@/hooks/useMatchWorkspace";
+import MatchSidebarRoles from "@/components/match/MatchSidebarRoles";
 
 const AppLayout = ({
   children,
@@ -45,7 +49,10 @@ const AppLayout = ({
   const { open: openFeedbackModal } = useFeedbackModalStore();
 
   const router = useRouter();
-  const params = useParams();
+  const pathname = useMemo(() => {
+    const path = router.asPath ?? router.pathname ?? "";
+    return path.split("?")[0] ?? "";
+  }, [router.asPath, router.pathname]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -59,12 +66,20 @@ const AppLayout = ({
     }
   }, [authLoading, user, loading, initialized, companyUser, router]);
 
-  const pathname = usePathname();
   const isHome = pathname === "/my";
   const isList = pathname === "/my/list";
   const isAts = pathname === "/my/ats";
-  const isAutomation = pathname?.startsWith("/my/scout");
+  const isMatch = pathname?.startsWith("/my/match");
   const hasAtsAccess = canAccessAts(user?.email);
+  const userId = companyUser?.user_id;
+  const requestedWorkspaceId =
+    typeof router.query.workspaceId === "string"
+      ? router.query.workspaceId
+      : null;
+  const { data: matchWorkspaceData } = useMatchWorkspace(
+    requestedWorkspaceId,
+    Boolean(userId) && isMatch
+  );
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -88,18 +103,15 @@ const AppLayout = ({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [pathname, router]);
-
-  const userId = companyUser?.user_id;
-
   // ✅ /my/c/[queryId] 라면 queryId 읽기 (쿼리스트링 유무 무관)
   const activeQueryId = useMemo(() => {
-    const q = params?.queryId;
+    const q = router.query.id;
     if (typeof q === "string" && q.length > 0) return q;
     if (Array.isArray(q) && q[0]) return q[0];
 
     const m = pathname?.match(/^\/my\/c\/([^/?#]+)/);
     return m?.[1] ?? null;
-  }, [params, pathname]);
+  }, [pathname, router.query.id]);
   const crispWebsiteId = process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID;
   const crispScript = crispWebsiteId
     ? `
@@ -167,12 +179,21 @@ const AppLayout = ({
           />
           <NavItem
             collapsed={collapsed}
-            active={isAutomation}
-            label="Harper Scout"
-            icon={<Sparkles size={16} />}
-            href="/my/scout"
-            onNavigate={() => logEvent("enter_scout")}
+            active={isMatch}
+            label="Scout"
+            icon={<UserSearch size={16} />}
+            href="/my/match"
+            onNavigate={() => logEvent("enter_match")}
           />
+          {isMatch ? (
+            <MatchSidebarRoles
+              collapsed={collapsed}
+              roles={matchWorkspaceData?.roles ?? []}
+              workspace={matchWorkspaceData?.workspace ?? null}
+            />
+          ) : (
+            <></>
+          )}
           <NavItem
             collapsed={collapsed}
             active={isList}
@@ -191,7 +212,11 @@ const AppLayout = ({
               onNavigate={() => logEvent("enter_ats")}
             />
           ) : null}
-          <div className="flex h-16"></div>
+          {isMatch ? (
+            <div className="flex h-2" />
+          ) : (
+            <div className="flex h-16" />
+          )}
           <HoverHistory
             collapsed={collapsed}
             userId={userId}
@@ -208,7 +233,7 @@ const AppLayout = ({
                 className="cursor-pointer"
                 onClick={() => logEvent("enter_billing")}
               >
-                <div className="rounded-lg p-3 flex flex-col gap-2 border border-white/5 transition-color duration-300 ease-out hover:bg-[#FFFFFF12]">
+                <div className="rounded-lg p-3 flex flex-col gap-2 border border-white/5 transition-colors duration-300 ease-out hover:bg-white/10">
                   <div className="w-full flex flex-row items-center justify-between text-[15px]">
                     {/* <Zap fill="#fff" size={14} /> */}
                     <div className="w-[68%] text-xs text-hgray700">
@@ -228,7 +253,7 @@ const AppLayout = ({
               className="cursor-pointer"
               onClick={() => logEvent("enter_billing")}
             >
-              <div className="rounded-lg p-1 py-2 flex flex-col gap-2 transition-color duration-300 ease-out hover:bg-[#FFFFFF12]">
+              <div className="rounded-lg p-1 py-2 flex flex-col gap-2 transition-colors duration-300 ease-out hover:bg-white/10">
                 <div className="w-full text-center text-[15px] text-xs text-hgray700">
                   {credits?.remain_credit ?? 0}
                 </div>

@@ -1,96 +1,113 @@
-import { Save } from "lucide-react";
+import { RefreshCcw, Save } from "lucide-react";
+import { useMemo } from "react";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
 import {
   CareerField,
   CareerPrimaryButton,
+  CareerSecondaryButton,
   CareerSectionHeader,
-  CareerSurface,
   CareerTextarea,
 } from "./ui/CareerPrimitives";
 
+const formatInsightLabel = (key: string) =>
+  key
+    .split("_")
+    .filter(Boolean)
+    .map((segment, index) =>
+      index === 0 ? segment.charAt(0).toUpperCase() + segment.slice(1) : segment
+    )
+    .join(" ");
+
 const CareerHarperInsightsSection = () => {
   const {
-    talentPreferences,
-    talentPreferencesSavePending,
-    talentPreferencesSaveError,
-    talentPreferencesSaveInfo,
-    onTalentPreferencesChange,
-    onSaveTalentPreferences,
+    talentInsights,
+    talentInsightsSavePending,
+    talentInsightsSaveError,
+    talentInsightsSaveInfo,
+    hasUnsavedTalentInsightsChanges,
+    onTalentInsightsChange,
+    onSaveTalentInsights,
+    onResetTalentInsights,
   } = useCareerSidebarContext();
 
-  if (!talentPreferences) {
+  const insightEntries = useMemo(
+    () =>
+      Object.entries(talentInsights ?? {}).sort(([left], [right]) =>
+        left.localeCompare(right)
+      ),
+    [talentInsights]
+  );
+
+  if (!talentInsights) {
     return (
-      <CareerSurface>
+      <div>
         <CareerSectionHeader title="Harper's insight" />
-      </CareerSurface>
+      </div>
     );
   }
 
   return (
-    <CareerSurface>
-      <CareerSectionHeader title="Harper's insight" />
-
-      <div className="mt-5">
-        <CareerField label="기술적 장점">
-          <CareerTextarea
-            rows={5}
-            value={talentPreferences.technicalStrengths ?? ""}
-            onChange={(event) =>
-              onTalentPreferencesChange((current) =>
-                current
-                  ? {
-                      ...current,
-                      technicalStrengths: event.target.value,
-                    }
-                  : current
-              )
-            }
-            placeholder="기술적 강점을 정리합니다."
-          />
-        </CareerField>
-
-        <CareerField label="원하는 팀">
-          <CareerTextarea
-            rows={4}
-            value={talentPreferences.desiredTeams ?? ""}
-            onChange={(event) =>
-              onTalentPreferencesChange((current) =>
-                current
-                  ? {
-                      ...current,
-                      desiredTeams: event.target.value,
-                    }
-                  : current
-              )
-            }
-            placeholder="관심 있는 회사, 팀, 혹은 선호 방향을 정리합니다."
-          />
-        </CareerField>
+    <div>
+      <div>
+        {insightEntries.length === 0 ? (
+          <div className="rounded-[8px] border border-dashed border-beige900/15 bg-white/30 px-4 py-3 text-sm text-beige900/45">
+            아직 저장된 Harper insight가 없습니다.
+          </div>
+        ) : (
+          insightEntries.map(([key, value]) => (
+            <CareerField key={key} label={formatInsightLabel(key)} hint={key}>
+              <CareerTextarea
+                rows={Math.max(
+                  4,
+                  Math.min(8, Math.ceil((value.length || 1) / 120))
+                )}
+                value={value}
+                onChange={(event) =>
+                  onTalentInsightsChange((current) => ({
+                    ...(current ?? {}),
+                    [key]: event.target.value,
+                  }))
+                }
+                placeholder={`${key} 값을 편집합니다.`}
+              />
+            </CareerField>
+          ))
+        )}
       </div>
 
-      {talentPreferencesSaveError ? (
+      {talentInsightsSaveError ? (
         <div className="mt-5 border border-[#7c2d12]/15 bg-[#7c2d12]/5 px-4 py-3 text-sm text-[#7c2d12]">
-          {talentPreferencesSaveError}
+          {talentInsightsSaveError}
         </div>
       ) : null}
 
-      {talentPreferencesSaveInfo ? (
+      {talentInsightsSaveInfo ? (
         <div className="mt-5 border border-beige900/10 bg-white/40 px-4 py-3 text-sm text-beige900/50">
-          {talentPreferencesSaveInfo}
+          {talentInsightsSaveInfo}
         </div>
       ) : null}
 
-      <div className="mt-6 flex justify-end">
-        <CareerPrimaryButton
-          onClick={() => void onSaveTalentPreferences()}
-          disabled={talentPreferencesSavePending}
-          className="gap-2 px-5"
-        >
-          <Save className="h-4 w-4" />
-          {talentPreferencesSavePending ? "저장 중..." : "Insight 저장"}
-        </CareerPrimaryButton>
-      </div>
-    </CareerSurface>
+      {hasUnsavedTalentInsightsChanges ? (
+        <div className="mt-6 flex justify-end gap-2">
+          <CareerSecondaryButton
+            onClick={onResetTalentInsights}
+            disabled={talentInsightsSavePending}
+            className="gap-2 px-4"
+          >
+            <RefreshCcw className="h-4 w-4" />
+            Refresh
+          </CareerSecondaryButton>
+          <CareerPrimaryButton
+            onClick={() => void onSaveTalentInsights()}
+            disabled={talentInsightsSavePending}
+            className="gap-2 px-5"
+          >
+            <Save className="h-4 w-4" />
+            {talentInsightsSavePending ? "저장 중..." : "Insight 저장"}
+          </CareerPrimaryButton>
+        </div>
+      ) : null}
+    </div>
   );
 };
 

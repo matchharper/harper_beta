@@ -111,14 +111,23 @@ function collectLeadLinks(lead: ReturnType<typeof buildNetworkLead>) {
 }
 
 function buildLeadInsightSeed(lead: ReturnType<typeof buildNetworkLead>) {
-  if (!lead.impactSummary && !lead.dreamTeams) {
-    return null;
-  }
-
-  return {
-    technical_strengths: lead.impactSummary ?? null,
-    desired_teams: lead.dreamTeams ?? null,
+  const content = {
+    ...(lead.impactSummary
+      ? { technical_strengths: lead.impactSummary }
+      : {}),
+    ...(lead.dreamTeams ? { desired_teams: lead.dreamTeams } : {}),
   } satisfies TalentInsightContent;
+
+  return Object.keys(content).length > 0 ? content : null;
+}
+
+function toStableInsightSignature(content: TalentInsightContent | null) {
+  if (!content) return "";
+
+  return Object.keys(content)
+    .sort()
+    .map((key) => `${key}:${content[key]}`)
+    .join("\n");
 }
 
 async function fetchWaitlistLead(admin: AdminClient, waitlistId: number) {
@@ -413,11 +422,11 @@ async function copyTalentInsightsIfEmpty(args: {
     seedContent: sourceNormalized ?? null,
   });
 
+  const hasSameContent =
+    toStableInsightSignature(mergedContent) ===
+    toStableInsightSignature(currentNormalized);
   const shouldSave = Boolean(
-    mergedContent &&
-      (!currentInsights ||
-        mergedContent.technical_strengths !== currentNormalized?.technical_strengths ||
-        mergedContent.desired_teams !== currentNormalized?.desired_teams)
+    mergedContent && (!currentInsights || !hasSameContent)
   );
 
   if (!shouldSave) return;
@@ -427,6 +436,24 @@ async function copyTalentInsightsIfEmpty(args: {
     userId: targetTalentId,
     content: mergedContent,
   });
+}
+
+async function moveTalentNotifications(args: {
+  admin: AdminClient;
+  sourceTalentId: string;
+  targetTalentId: string;
+}) {
+  const { admin, sourceTalentId, targetTalentId } = args;
+  if (sourceTalentId === targetTalentId) return;
+
+  const { error } = await admin
+    .from("talent_notification")
+    .update({ talent_id: targetTalentId })
+    .eq("talent_id", sourceTalentId);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to move notifications");
+  }
 }
 
 function buildTalentUserMergePayload(args: {
@@ -633,6 +660,11 @@ export async function claimTalentNetworkInvite(args: {
       sourceTalentId,
       targetTalentId: user.id,
       lead,
+    }),
+    moveTalentNotifications({
+      admin,
+      sourceTalentId,
+      targetTalentId: user.id,
     }),
   ]);
 

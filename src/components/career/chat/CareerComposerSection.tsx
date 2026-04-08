@@ -109,7 +109,7 @@ const CareerComposerSection = () => {
   };
 
   return (
-    <div className="sticky bottom-0 border-t border-beige900/10 bg-[rgba(244,236,223,0.95)] px-5 py-4 backdrop-blur-md">
+    <div className="sticky bottom-0 px-5 py-4">
       <div className="mx-auto w-full max-w-[1120px]">
         {showCallQuickAction ? (
           <div className="mb-3 flex justify-end">
@@ -201,7 +201,7 @@ const CareerComposerSection = () => {
           </div>
         ) : null}
 
-        <div className="border border-beige900/10 bg-white/45 px-4 py-4">
+        <div className="rounded-3xl border border-beige900/20 transition-all duration-200 focus-within:border-beige900/40 focus-within:shadow-[0_0_16px_rgba(0,0,0,0.08)] bg-white px-4 py-4 shadow-[0_0_16px_rgba(0,0,0,0.04)]">
           <div className="relative flex items-end">
             <textarea
               value={isVoiceMode ? voiceTranscript : draft}
@@ -224,7 +224,7 @@ const CareerComposerSection = () => {
                 !isVoiceMode && "pr-[90px]"
               )}
             />
-            {!isVoiceMode ? (
+            {!isVoiceMode && (
               <div className="absolute bottom-1 right-0 flex items-center gap-2">
                 <button
                   type="button"
@@ -247,7 +247,7 @@ const CareerComposerSection = () => {
                   )}
                 </button>
               </div>
-            ) : null}
+            )}
           </div>
         </div>
       </div>

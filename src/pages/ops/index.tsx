@@ -15,6 +15,7 @@ export default function OpsOverviewPage() {
       </Head>
 
       <OpsShell
+        compactHeader
         title="Operations Overview"
         description="내부적으로 봐야 하는 기능들을 `/ops` 아래 여러 페이지로 나눴습니다. 네트워크 리드와 request access 리뷰를 여기서 이동하면 됩니다."
       >
@@ -38,7 +39,7 @@ export default function OpsOverviewPage() {
                   <ArrowRight className="h-4 w-4 text-beige900/35 transition group-hover:translate-x-0.5" />
                 </div>
 
-                <div className="mt-5 font-halant text-[2rem] leading-[0.96] tracking-[-0.06em] text-beige900">
+                <div className="mt-5 font-geist text-[1rem] font-medium leading-6 text-beige900">
                   {tool.label}
                 </div>
                 <div className="mt-2 font-geist text-sm leading-6 text-beige900/65">
@@ -62,6 +63,18 @@ export default function OpsOverviewPage() {
               <div className="font-semibold">/ops/network</div>
               <div className="mt-1 text-beige900/55">
                 network.tsx 제출 리드 조회
+              </div>
+            </Link>
+            <Link
+              href="/ops/opportunities"
+              className={cx(
+                opsTheme.panelSoft,
+                "block px-4 py-4 font-geist text-sm text-beige900 transition hover:bg-white/80"
+              )}
+            >
+              <div className="font-semibold">/ops/opportunities</div>
+              <div className="mt-1 text-beige900/55">
+                회사·기회 관리와 수동 매칭
               </div>
             </Link>
             <Link

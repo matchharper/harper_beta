@@ -3,10 +3,10 @@ import type { CareerMessage } from "@/components/career/types";
 
 // User bubble 색상을 바꾸려면 이 클래스를 수정하세요.
 export const USER_BUBBLE_CLASS =
-  "ml-auto max-w-[820px] rounded-[8px] border border-[#6b4323] bg-[#6b4323] px-4 py-3 text-[#f5ecdd]";
+  "ml-auto max-w-[820px] rounded-[8px] bg-beige900 px-4 py-3 text-beige100";
 
-export const ASSISTANT_BUBBLE_CLASS =
-  "max-w-[920px] border-l border-beige900/15 pl-4 pr-2 py-1 text-beige900/75";
+export const ASSISTANT_BUBBLE_CLASS = "max-w-[920px] py-1 text-beige900/80";
+
 const HIGHLIGHT_PATTERN = /<<([\s\S]+?)>>/g;
 
 type Props = {

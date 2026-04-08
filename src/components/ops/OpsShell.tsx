@@ -6,6 +6,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { INTERNAL_EMAIL_DOMAIN, isInternalEmail } from "@/lib/internalAccess";
 import {
   ArrowRight,
+  BriefcaseBusiness,
   KeyRound,
   LayoutDashboard,
   Lock,
@@ -38,6 +39,13 @@ export const OPS_NAV_ITEMS: OpsNavItem[] = [
     icon: Users,
     label: "Network Leads",
     matchPrefix: "/ops/network",
+  },
+  {
+    description: "회사·기회 관리와 수동 매칭",
+    href: "/ops/opportunities",
+    icon: BriefcaseBusiness,
+    label: "Opportunities",
+    matchPrefix: "/ops/opportunities",
   },
   {
     description: "access 요청 승인 및 리뷰",
@@ -150,11 +158,13 @@ function ForbiddenGate({
 export default function OpsShell({
   actions,
   children,
+  compactHeader = false,
   description,
   title,
 }: {
   actions?: React.ReactNode;
   children: React.ReactNode;
+  compactHeader?: boolean;
   description: React.ReactNode;
   title: string;
 }) {
@@ -240,7 +250,7 @@ export default function OpsShell({
                 <ArrowRight className="h-4 w-4" />
               </div>
               <div className={revealTextClass}>
-                <div className="font-halant text-[2rem] leading-none tracking-[-0.07em] text-beige900">
+                <div className="font-halant text-[1.35rem] leading-none tracking-[-0.05em] text-beige900">
                   Harper Ops
                 </div>
                 <div className="mt-1 font-geist text-xs text-beige900/55">
@@ -338,7 +348,16 @@ export default function OpsShell({
           <section className={cx(opsTheme.panel, "px-5 py-5")}>
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <h1 className={cx(opsTheme.title, "mt-1")}>{title}</h1>
+                <h1
+                  className={cx(
+                    compactHeader
+                      ? "mt-1 font-geist text-[1.15rem] font-medium tracking-[-0.02em] text-beige900"
+                      : opsTheme.title,
+                    compactHeader ? "" : "mt-1"
+                  )}
+                >
+                  {title}
+                </h1>
                 <div className={cx(opsTheme.copy, "mt-3 max-w-3xl")}>
                   {description}
                 </div>

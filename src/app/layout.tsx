@@ -1,14 +1,7 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "../globals.css";
 import ToastProvider from "@/components/toast/ToastProvider";
 import ReactQueryProvider from "@/components/Provider";
-import { pretendard } from "./fonts";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-});
 
 export const metadata: Metadata = {
   title: "Sonus",
@@ -25,10 +18,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={inter.className + pretendard.variable}>
-        <ReactQueryProvider>{children}</ReactQueryProvider>
+      <body className="font-sans">
+        <ReactQueryProvider>
+          {children}
+          <ToastProvider />
+        </ReactQueryProvider>
       </body>
-      <ToastProvider />
     </html>
   );
 }

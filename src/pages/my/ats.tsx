@@ -18,6 +18,7 @@ import {
   PauseCircle,
   PlayCircle,
   Plus,
+  RotateCcw,
   Search,
   Send,
   Sparkles,
@@ -40,8 +41,10 @@ import {
   useDiscoverAtsEmail,
   useGenerateAtsContactEmail,
   useGenerateAtsSequence,
+  useResetAtsCandidateOutreach,
   useSaveAtsWorkspace,
   useSaveAtsCandidateMemo,
+  useSaveAtsSequenceDraft,
   useSaveAtsSequenceSchedule,
   useSendAtsContactEmail,
   useSendAtsBulkMail,
@@ -49,7 +52,7 @@ import {
   useSetManualAtsEmail,
   useUpdateAtsSequenceStatus,
 } from "@/hooks/useAtsWorkspace";
-import CandidateProfileDetailPage from "@/pages/my/p/CandidateProfile";
+import CandidateProfileDetailPage from "@/components/profile/CandidateProfileDetailPage";
 import {
   ATS_SEQUENCE_STEP_COUNT,
   ATS_TEMPLATE_VARIABLES,
@@ -62,6 +65,7 @@ import {
   type AtsContactEmailDraft,
   type AtsContactHistoryChannel,
   type AtsContactHistoryItem,
+  type AtsEmailDiscoveryTraceItem,
   type AtsMessageRecord,
   type AtsOutreachRecord,
   type AtsSequenceStepSchedule,
@@ -126,8 +130,199 @@ const EMPTY_CONTACT_DRAFT: AtsContactEmailDraft = {
   subject: "",
 };
 
+type SequenceDraftState = Record<number, AtsContactEmailDraft>;
+type ScrapeTestResult = {
+  error?: string | null;
+  excerpt?: string | null;
+  markdown?: string | null;
+  source?: string | null;
+  status: number;
+  title?: string | null;
+  url: string;
+};
+type ManualReviewUrlSuggestion = {
+  category:
+    | "github"
+    | "scholar"
+    | "homepage"
+    | "blog"
+    | "resume"
+    | "publication"
+    | "paper_pdf"
+    | "lab_profile"
+    | "company_profile"
+    | "other";
+  label: string;
+  reason: string;
+  scrapeStatus:
+    | "blocked"
+    | "not_checked"
+    | "scrape_failed"
+    | "scraped_no_email"
+    | "scraped_with_email"
+    | "search_only";
+  source: string;
+  url: string;
+};
+
 const EMPTY_ATS_FOLDERS: AtsBookmarkFolderOption[] = [];
 const EMPTY_CANDIDATES: AtsCandidateSummary[] = [];
+
+function createEmptySequenceDraftState(): SequenceDraftState {
+  return Object.fromEntries(
+    Array.from({ length: ATS_SEQUENCE_STEP_COUNT }, (_, index) => [
+      index + 1,
+      { ...EMPTY_CONTACT_DRAFT },
+    ])
+  ) as SequenceDraftState;
+}
+
+function cloneSequenceDraftState(
+  state: SequenceDraftState
+): SequenceDraftState {
+  return Object.fromEntries(
+    Object.entries(state).map(([stepNumber, draft]) => [
+      Number(stepNumber),
+      {
+        body: draft.body,
+        subject: draft.subject,
+      },
+    ])
+  ) as SequenceDraftState;
+}
+
+function buildSequenceDraftState(messages: AtsMessageRecord[]) {
+  const draftState = createEmptySequenceDraftState();
+  const seenSteps = new Set<number>();
+
+  for (const message of messages) {
+    if (message.kind !== "sequence" || !message.stepNumber) continue;
+    if (
+      message.stepNumber < 1 ||
+      message.stepNumber > ATS_SEQUENCE_STEP_COUNT ||
+      seenSteps.has(message.stepNumber)
+    ) {
+      continue;
+    }
+
+    draftState[message.stepNumber] = {
+      body: message.body ?? "",
+      subject: message.subject ?? "",
+    };
+    seenSteps.add(message.stepNumber);
+  }
+
+  return draftState;
+}
+
+function mergeSequenceDraftState(args: {
+  currentDrafts: SequenceDraftState;
+  nextServerDrafts: SequenceDraftState;
+  previousServerDrafts: SequenceDraftState;
+}) {
+  const merged = createEmptySequenceDraftState();
+
+  for (
+    let stepNumber = 1;
+    stepNumber <= ATS_SEQUENCE_STEP_COUNT;
+    stepNumber += 1
+  ) {
+    const currentDraft = args.currentDrafts[stepNumber] ?? EMPTY_CONTACT_DRAFT;
+    const nextServerDraft =
+      args.nextServerDrafts[stepNumber] ?? EMPTY_CONTACT_DRAFT;
+    const previousServerDraft =
+      args.previousServerDrafts[stepNumber] ?? EMPTY_CONTACT_DRAFT;
+
+    merged[stepNumber] = {
+      body:
+        currentDraft.body === previousServerDraft.body
+          ? nextServerDraft.body
+          : currentDraft.body,
+      subject:
+        currentDraft.subject === previousServerDraft.subject
+          ? nextServerDraft.subject
+          : currentDraft.subject,
+    };
+  }
+
+  return merged;
+}
+
+function extractManualReviewSuggestions(
+  trace: AtsEmailDiscoveryTraceItem[] | null | undefined
+) {
+  const items = Array.isArray(trace) ? [...trace].reverse() : [];
+
+  for (const item of items) {
+    const raw = item.meta?.suggestedManualReviewUrls;
+    if (!Array.isArray(raw)) continue;
+
+    return raw
+      .map((entry) => {
+        const candidate = entry as Partial<ManualReviewUrlSuggestion>;
+        const url = String(candidate.url ?? "").trim();
+        if (!url) return null;
+
+        return {
+          category:
+            candidate.category === "github" ||
+            candidate.category === "scholar" ||
+            candidate.category === "homepage" ||
+            candidate.category === "blog" ||
+            candidate.category === "resume" ||
+            candidate.category === "publication" ||
+            candidate.category === "paper_pdf" ||
+            candidate.category === "lab_profile" ||
+            candidate.category === "company_profile" ||
+            candidate.category === "other"
+              ? candidate.category
+              : "other",
+          label: String(candidate.label ?? "").trim() || url,
+          reason: String(candidate.reason ?? "").trim(),
+          scrapeStatus:
+            candidate.scrapeStatus === "blocked" ||
+            candidate.scrapeStatus === "not_checked" ||
+            candidate.scrapeStatus === "scrape_failed" ||
+            candidate.scrapeStatus === "scraped_no_email" ||
+            candidate.scrapeStatus === "scraped_with_email" ||
+            candidate.scrapeStatus === "search_only"
+              ? candidate.scrapeStatus
+              : "not_checked",
+          source: String(candidate.source ?? "").trim(),
+          url,
+        } satisfies ManualReviewUrlSuggestion;
+      })
+      .filter(Boolean) as ManualReviewUrlSuggestion[];
+  }
+
+  return [];
+}
+
+function getManualReviewCategoryLabel(
+  category: ManualReviewUrlSuggestion["category"]
+) {
+  if (category === "github") return "GitHub";
+  if (category === "scholar") return "Scholar";
+  if (category === "homepage") return "Homepage";
+  if (category === "blog") return "Blog";
+  if (category === "resume") return "Resume/CV";
+  if (category === "publication") return "Paper";
+  if (category === "paper_pdf") return "Paper PDF";
+  if (category === "lab_profile") return "Lab/Profile";
+  if (category === "company_profile") return "Company";
+  return "Other";
+}
+
+function getManualReviewStatusLabel(
+  status: ManualReviewUrlSuggestion["scrapeStatus"]
+) {
+  if (status === "blocked") return "Manual Only";
+  if (status === "scrape_failed") return "Scrape Failed";
+  if (status === "scraped_no_email") return "Checked";
+  if (status === "scraped_with_email") return "Email Found";
+  if (status === "search_only") return "Search Result";
+  return "Not Checked";
+}
 
 function getStageBadge(outreach: AtsOutreachRecord | null) {
   if (!outreach) {
@@ -541,27 +736,52 @@ function ContactHistoryCell({
 
 function SequenceStepCard({
   canSend,
+  draft,
+  isDraftDirty,
+  isEditing,
+  isSent,
   label,
   message,
+  onDraftChange,
+  onResetDraft,
   onSaveSchedule,
+  onSaveDraft,
   onScheduleChange,
   onSend,
+  onToggleEdit,
+  saveDraftPending,
   saveSchedulePending,
   schedule,
   sendPending,
   stepNumber,
 }: {
   canSend: boolean;
+  draft: AtsContactEmailDraft;
+  isDraftDirty: boolean;
+  isEditing: boolean;
+  isSent: boolean;
   label: { className: string; text: string };
   message: AtsMessageRecord | null;
+  onDraftChange: (patch: Partial<AtsContactEmailDraft>) => void;
+  onResetDraft: () => void;
   onSaveSchedule: () => void;
+  onSaveDraft: () => void;
   onScheduleChange: (patch: Partial<AtsSequenceStepSchedule>) => void;
   onSend: () => void;
+  onToggleEdit: () => void;
+  saveDraftPending: boolean;
   saveSchedulePending: boolean;
   schedule: AtsSequenceStepSchedule;
   sendPending: boolean;
   stepNumber: number;
 }) {
+  const subjectPreview = isSent
+    ? (message?.renderedSubject ?? message?.subject ?? "Draft pending")
+    : draft.subject.trim() || message?.subject || "Draft pending";
+  const bodyPreview = isSent
+    ? (message?.renderedBody ?? message?.body ?? "아직 생성되지 않았습니다.")
+    : draft.body.trim() || message?.body || "아직 생성되지 않았습니다.";
+
   return (
     <div className="rounded-md border border-white/10 bg-white/5 p-4 text-white">
       <div className="mb-4 rounded-md bg-black/10 p-3">
@@ -707,38 +927,111 @@ function SequenceStepCard({
             {describeSchedule(schedule, stepNumber)}
           </div>
         </div>
-        <span
-          className={`rounded-md border px-2 py-1 text-xs ${label.className}`}
-        >
-          {label.text}
-        </span>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <span
+            className={`rounded-md border px-2 py-1 text-xs ${label.className}`}
+          >
+            {label.text}
+          </span>
+          {!isSent && message && (
+            <button
+              type="button"
+              onClick={onToggleEdit}
+              className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white/70 transition hover:bg-white/10 hover:text-white"
+            >
+              <ChevronDown
+                className={`h-3.5 w-3.5 transition ${isEditing ? "rotate-180" : ""}`}
+              />
+              {isEditing ? "Close" : "Edit Draft"}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="mt-4 space-y-3">
-        <div>
-          <div className="text-xs text-white/45">Subject</div>
-          <div className="mt-1 text-sm text-white">
-            {message?.renderedSubject ?? message?.subject ?? "Draft pending"}
+        {isEditing && !isSent ? (
+          <div className="space-y-4">
+            <div>
+              <div className="mb-2 text-xs text-white/45">Subject</div>
+              <input
+                value={draft.subject}
+                onChange={(event) =>
+                  onDraftChange({ subject: event.target.value })
+                }
+                placeholder="메일 제목"
+                className={INPUT_CLASS}
+              />
+            </div>
+            <div>
+              <div className="mb-2 text-xs text-white/45">Body</div>
+              <AtsEmailBodyEditor
+                value={draft.body}
+                onChange={(body) => onDraftChange({ body })}
+                rows={10}
+                placeholder="메일 본문을 작성하세요."
+                textareaClassName={TEXTAREA_CLASS}
+              />
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="text-xs text-white/45">
+                템플릿 변수는 발송 시 실제 후보자 값으로 치환됩니다.
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={onResetDraft}
+                  disabled={saveDraftPending || !isDraftDirty}
+                  className={BUTTON_SECONDARY}
+                >
+                  Reset
+                </button>
+                <button
+                  type="button"
+                  onClick={onSaveDraft}
+                  disabled={
+                    saveDraftPending ||
+                    !isDraftDirty ||
+                    !draft.subject.trim() ||
+                    !draft.body.trim()
+                  }
+                  className={BUTTON_PRIMARY}
+                >
+                  {saveDraftPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Check className="h-4 w-4" />
+                  )}
+                  Save Draft
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-        <div>
-          <div className="text-xs text-white/45">Body</div>
-          <div className="mt-1 line-clamp-5 whitespace-pre-wrap text-sm leading-6 text-white/65">
-            {message?.renderedBody ??
-              message?.body ??
-              "아직 생성되지 않았습니다."}
-          </div>
-        </div>
+        ) : (
+          <>
+            <div>
+              <div className="text-xs text-white/45">Subject</div>
+              <div className="mt-1 text-sm text-white">{subjectPreview}</div>
+            </div>
+            <div>
+              <div className="text-xs text-white/45">Body</div>
+              <div className="mt-1 line-clamp-5 whitespace-pre-wrap text-sm leading-6 text-white/65">
+                {bodyPreview}
+              </div>
+            </div>
+          </>
+        )}
         <div className="flex items-center justify-between gap-3">
           <div className="text-xs text-white/45">
-            {message?.sentAt
-              ? `Sent ${formatDateTime(message.sentAt)}`
-              : "아직 발송되지 않음"}
+            {isDraftDirty && !isSent
+              ? "저장되지 않은 draft 변경이 있습니다."
+              : message?.sentAt
+                ? `Sent ${formatDateTime(message.sentAt)}`
+                : "아직 발송되지 않음"}
           </div>
           <button
             type="button"
             onClick={onSend}
-            disabled={!canSend || sendPending}
+            disabled={!canSend || sendPending || saveDraftPending}
             className={BUTTON_SECONDARY}
           >
             {sendPending ? (
@@ -762,9 +1055,11 @@ export default function AtsPage() {
   const saveWorkspace = useSaveAtsWorkspace();
   const discoverEmail = useDiscoverAtsEmail();
   const clearEmailTrace = useClearAtsEmailDiscoveryTrace();
+  const resetCandidateOutreach = useResetAtsCandidateOutreach();
   const generateContactEmail = useGenerateAtsContactEmail();
   const saveManualEmail = useSetManualAtsEmail();
   const saveCandidateMemo = useSaveAtsCandidateMemo();
+  const saveSequenceDraft = useSaveAtsSequenceDraft();
   const saveSequenceSchedule = useSaveAtsSequenceSchedule();
   const generateSequence = useGenerateAtsSequence();
   const sendContactEmail = useSendAtsContactEmail();
@@ -801,7 +1096,18 @@ export default function AtsPage() {
   const [contactDraftByCandidateId, setContactDraftByCandidateId] = useState<
     Record<string, AtsContactEmailDraft>
   >({});
+  const [sequenceDraftByCandidateId, setSequenceDraftByCandidateId] = useState<
+    Record<string, SequenceDraftState>
+  >({});
+  const [
+    expandedSequenceStepByCandidateId,
+    setExpandedSequenceStepByCandidateId,
+  ] = useState<Record<string, number | null>>({});
   const [manualEmail, setManualEmail] = useState("");
+  const [scrapeTestUrl, setScrapeTestUrl] = useState("");
+  const [scrapeTestResult, setScrapeTestResult] =
+    useState<ScrapeTestResult | null>(null);
+  const [scrapeTestPending, setScrapeTestPending] = useState(false);
   const [sequenceScheduleDraft, setSequenceScheduleDraft] = useState<
     AtsSequenceStepSchedule[]
   >(() => createDefaultAtsSequenceSchedule());
@@ -816,6 +1122,9 @@ export default function AtsPage() {
   const lastSyncedWorkspaceRef = useRef<NormalizedWorkspaceRecord>(
     normalizeWorkspaceRecord(null)
   );
+  const lastSyncedSequenceDraftsRef = useRef<
+    Record<string, SequenceDraftState>
+  >({});
 
   useEffect(() => {
     if (!workspaceQuery.data?.workspace) return;
@@ -880,7 +1189,9 @@ export default function AtsPage() {
   const currentAtsFolder = useMemo(() => {
     if (atsFolders.length === 0) return null;
     return (
-      atsFolders.find((folder) => folder.id === workspaceDraft.bookmarkFolderId) ??
+      atsFolders.find(
+        (folder) => folder.id === workspaceDraft.bookmarkFolderId
+      ) ??
       atsFolders.find((folder) => folder.isDefault) ??
       atsFolders[0] ??
       null
@@ -940,6 +1251,40 @@ export default function AtsPage() {
     selectedCandidateId,
   ]);
 
+  useEffect(() => {
+    if (!selectedCandidateId) return;
+
+    const nextServerDrafts = buildSequenceDraftState(
+      detailQuery.data?.messages ?? []
+    );
+
+    setSequenceDraftByCandidateId((prev) => {
+      const currentDrafts = prev[selectedCandidateId];
+      if (!currentDrafts) {
+        return {
+          ...prev,
+          [selectedCandidateId]: cloneSequenceDraftState(nextServerDrafts),
+        };
+      }
+
+      const previousServerDrafts =
+        lastSyncedSequenceDraftsRef.current[selectedCandidateId] ??
+        createEmptySequenceDraftState();
+
+      return {
+        ...prev,
+        [selectedCandidateId]: mergeSequenceDraftState({
+          currentDrafts,
+          nextServerDrafts,
+          previousServerDrafts,
+        }),
+      };
+    });
+
+    lastSyncedSequenceDraftsRef.current[selectedCandidateId] =
+      cloneSequenceDraftState(nextServerDrafts);
+  }, [detailQuery.data?.messages, selectedCandidateId]);
+
   const contactDraft = useMemo(
     () =>
       (selectedCandidateId && contactDraftByCandidateId[selectedCandidateId]) ||
@@ -954,6 +1299,89 @@ export default function AtsPage() {
         ...(prev[selectedCandidateId] ?? EMPTY_CONTACT_DRAFT),
         ...patch,
       },
+    }));
+  };
+  const nextServerSequenceDrafts = buildSequenceDraftState(
+    detailQuery.data?.messages ?? []
+  );
+  const savedSequenceDrafts =
+    (selectedCandidateId &&
+      lastSyncedSequenceDraftsRef.current[selectedCandidateId]) ||
+    nextServerSequenceDrafts;
+  const sequenceDrafts =
+    (selectedCandidateId && sequenceDraftByCandidateId[selectedCandidateId]) ||
+    savedSequenceDrafts;
+  const expandedSequenceStep =
+    (selectedCandidateId &&
+      expandedSequenceStepByCandidateId[selectedCandidateId]) ??
+    null;
+  const hasUnsavedSequenceDraftChanges = selectedCandidateId
+    ? Array.from(
+        { length: ATS_SEQUENCE_STEP_COUNT },
+        (_, index) => index + 1
+      ).some((stepNumber) => {
+        const currentDraft = sequenceDrafts[stepNumber] ?? EMPTY_CONTACT_DRAFT;
+        const savedDraft =
+          savedSequenceDrafts[stepNumber] ?? EMPTY_CONTACT_DRAFT;
+
+        return (
+          currentDraft.subject !== savedDraft.subject ||
+          currentDraft.body !== savedDraft.body
+        );
+      })
+    : false;
+
+  const updateSequenceDraft = (
+    stepNumber: number,
+    patch: Partial<AtsContactEmailDraft>
+  ) => {
+    if (!selectedCandidateId) return;
+
+    setSequenceDraftByCandidateId((prev) => {
+      const currentDrafts =
+        prev[selectedCandidateId] ??
+        cloneSequenceDraftState(savedSequenceDrafts);
+
+      return {
+        ...prev,
+        [selectedCandidateId]: {
+          ...currentDrafts,
+          [stepNumber]: {
+            ...(currentDrafts[stepNumber] ?? EMPTY_CONTACT_DRAFT),
+            ...patch,
+          },
+        },
+      };
+    });
+  };
+
+  const resetSequenceDraft = (stepNumber: number) => {
+    if (!selectedCandidateId) return;
+
+    setSequenceDraftByCandidateId((prev) => {
+      const currentDrafts =
+        prev[selectedCandidateId] ??
+        cloneSequenceDraftState(savedSequenceDrafts);
+
+      return {
+        ...prev,
+        [selectedCandidateId]: {
+          ...currentDrafts,
+          [stepNumber]: {
+            ...(savedSequenceDrafts[stepNumber] ?? EMPTY_CONTACT_DRAFT),
+          },
+        },
+      };
+    });
+  };
+
+  const toggleSequenceStepEditor = (stepNumber: number) => {
+    if (!selectedCandidateId) return;
+
+    setExpandedSequenceStepByCandidateId((prev) => ({
+      ...prev,
+      [selectedCandidateId]:
+        prev[selectedCandidateId] === stepNumber ? null : stepNumber,
     }));
   };
 
@@ -1248,9 +1676,8 @@ export default function AtsPage() {
   };
 
   const handleChangeWorkspaceFolder = async (nextFolderId: number | null) => {
-    const previousBookmarkFolderId = normalizeWorkspaceRecord(
-      workspaceDraft
-    ).bookmarkFolderId;
+    const previousBookmarkFolderId =
+      normalizeWorkspaceRecord(workspaceDraft).bookmarkFolderId;
     if (previousBookmarkFolderId === nextFolderId) return;
 
     setWorkspaceDraft((prev) => ({
@@ -1309,6 +1736,33 @@ export default function AtsPage() {
           error instanceof Error
             ? error.message
             : "이메일 탐색 로그 삭제에 실패했습니다.",
+        variant: "error",
+      });
+    }
+  };
+
+  const handleResetCandidateOutreach = async () => {
+    if (!selectedCandidateId) return;
+    if (
+      !window.confirm(
+        "이 후보자의 candidate_outreach 상태를 초기화할까요? 이메일 탐색 상태, 메모, 히스토리, 시퀀스 상태가 기본값으로 돌아갑니다."
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await resetCandidateOutreach.mutateAsync(selectedCandidateId);
+      showToast({
+        message: "candidate_outreach를 초기화했습니다.",
+        variant: "white",
+      });
+    } catch (error) {
+      showToast({
+        message:
+          error instanceof Error
+            ? error.message
+            : "candidate_outreach 초기화에 실패했습니다.",
         variant: "error",
       });
     }
@@ -1383,12 +1837,78 @@ export default function AtsPage() {
     }
   };
 
+  const persistSequenceDraft = async (
+    stepNumber: number,
+    options?: { silent?: boolean }
+  ) => {
+    if (!selectedCandidateId) return;
+
+    const currentDraft = sequenceDrafts[stepNumber] ?? EMPTY_CONTACT_DRAFT;
+    const savedDraft = savedSequenceDrafts[stepNumber] ?? EMPTY_CONTACT_DRAFT;
+    const isDirty =
+      currentDraft.subject !== savedDraft.subject ||
+      currentDraft.body !== savedDraft.body;
+
+    if (!currentDraft.subject.trim() || !currentDraft.body.trim()) {
+      throw new Error("제목과 본문을 입력해 주세요.");
+    }
+
+    if (!isDirty) return;
+
+    const result = await saveSequenceDraft.mutateAsync({
+      body: currentDraft.body,
+      candidId: selectedCandidateId,
+      stepNumber,
+      subject: currentDraft.subject,
+    });
+
+    const nextServerDrafts = buildSequenceDraftState(result.data.messages);
+    setSequenceDraftByCandidateId((prev) => ({
+      ...prev,
+      [selectedCandidateId]: cloneSequenceDraftState(nextServerDrafts),
+    }));
+    lastSyncedSequenceDraftsRef.current[selectedCandidateId] =
+      cloneSequenceDraftState(nextServerDrafts);
+
+    if (!options?.silent) {
+      showToast({
+        message: `Step ${stepNumber} 초안을 저장했습니다.`,
+        variant: "white",
+      });
+    }
+  };
+
+  const handleSaveSequenceDraft = async (stepNumber: number) => {
+    try {
+      await persistSequenceDraft(stepNumber);
+    } catch (error) {
+      showToast({
+        message:
+          error instanceof Error
+            ? error.message
+            : "시퀀스 초안 저장에 실패했습니다.",
+        variant: "error",
+      });
+    }
+  };
+
   const handleGenerateSequence = async () => {
     if (!selectedCandidateId) return;
     try {
       await ensureWorkspaceSaved();
       await ensureSequenceScheduleSaved();
-      await generateSequence.mutateAsync(selectedCandidateId);
+      const result = await generateSequence.mutateAsync(selectedCandidateId);
+      const nextServerDrafts = buildSequenceDraftState(result.data.messages);
+      setSequenceDraftByCandidateId((prev) => ({
+        ...prev,
+        [selectedCandidateId]: cloneSequenceDraftState(nextServerDrafts),
+      }));
+      lastSyncedSequenceDraftsRef.current[selectedCandidateId] =
+        cloneSequenceDraftState(nextServerDrafts);
+      setExpandedSequenceStepByCandidateId((prev) => ({
+        ...prev,
+        [selectedCandidateId]: 1,
+      }));
       setMainPanelTab("sequence");
       showToast({
         message: "4-step sequence를 생성했습니다.",
@@ -1439,6 +1959,7 @@ export default function AtsPage() {
     try {
       await ensureWorkspaceSaved();
       await ensureSequenceScheduleSaved();
+      await persistSequenceDraft(stepNumber, { silent: true });
       await sendSequenceStep.mutateAsync({
         candidId: selectedCandidateId,
         stepNumber,
@@ -1480,6 +2001,71 @@ export default function AtsPage() {
             : "bulk mail 발송에 실패했습니다.",
         variant: "error",
       });
+    }
+  };
+
+  const handleRunScrapeTest = async () => {
+    const url = scrapeTestUrl.trim();
+    if (!url) {
+      showToast({
+        message: "테스트할 URL을 입력해 주세요.",
+        variant: "error",
+      });
+      return;
+    }
+
+    setScrapeTestPending(true);
+    try {
+      const response = await fetch("/api/tool/scrape", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ url }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        excerpt?: string | null;
+        markdown?: string | null;
+        source?: string | null;
+        title?: string | null;
+        url?: string | null;
+      };
+
+      if (!response.ok) {
+        throw new Error(
+          payload.error || `scrape failed with status ${response.status}`
+        );
+      }
+
+      setScrapeTestResult({
+        excerpt: payload.excerpt ?? null,
+        markdown: payload.markdown ?? null,
+        source: payload.source ?? null,
+        status: response.status,
+        title: payload.title ?? null,
+        url: String(payload.url ?? url),
+      });
+      showToast({
+        message: "scrape 테스트가 완료되었습니다.",
+        variant: "white",
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "scrape 테스트에 실패했습니다.";
+      setScrapeTestResult({
+        error: message,
+        status: 0,
+        url,
+      });
+      showToast({
+        message,
+        variant: "error",
+      });
+    } finally {
+      setScrapeTestPending(false);
     }
   };
 
@@ -1552,13 +2138,17 @@ export default function AtsPage() {
     detailCandidate?.outreach ?? activeCandidateSummary?.outreach ?? null;
   const isEmailDiscoverySearching =
     emailDiscoveryOutreach?.emailDiscoveryStatus === "searching";
+  const manualReviewSuggestions = extractManualReviewSuggestions(
+    emailDiscoveryOutreach?.emailDiscoveryTrace ?? []
+  );
   const selectedEmailDiscoveryQueuePosition = selectedCandidateId
-    ? queuedEmailDiscoveryPositionById.get(selectedCandidateId) ?? null
+    ? (queuedEmailDiscoveryPositionById.get(selectedCandidateId) ?? null)
     : null;
   const isSelectedEmailDiscoveryQueued =
     selectedEmailDiscoveryQueuePosition != null;
   const isSelectedEmailDiscoveryActive =
-    Boolean(selectedCandidateId) && activeEmailDiscoveryId === selectedCandidateId;
+    Boolean(selectedCandidateId) &&
+    activeEmailDiscoveryId === selectedCandidateId;
   const emailDiscoveryQueueCount = queuedEmailDiscoveryIds.length;
 
   const PanelCard = ({ children }: { children: React.ReactNode }) => {
@@ -1746,11 +2336,12 @@ export default function AtsPage() {
                             ? "border-white/0 bg-accenta1 text-black"
                             : "border-white/10 bg-white/5 text-white/55 hover:bg-white/10"
                         }`}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    {(activeEmailDiscoveryId || emailDiscoveryQueueCount > 0) && (
+                      >
+                        {label}
+                      </button>
+                    ))}
+                    {(activeEmailDiscoveryId ||
+                      emailDiscoveryQueueCount > 0) && (
                       <div className="inline-flex items-center gap-2 rounded-md border border-sky-400/20 bg-sky-400/10 px-3 py-1.5 text-xs text-sky-100">
                         {activeEmailDiscoveryId ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1838,7 +2429,8 @@ export default function AtsPage() {
                         const emailBadge = getEmailBadge(candidate);
                         const stageBadge = getStageBadge(candidate.outreach);
                         const isRowEmailDiscoverySearching =
-                          candidate.outreach?.emailDiscoveryStatus === "searching" ||
+                          candidate.outreach?.emailDiscoveryStatus ===
+                            "searching" ||
                           activeEmailDiscoveryId === candidate.id;
                         const rowEmailDiscoveryQueuePosition =
                           queuedEmailDiscoveryPositionById.get(candidate.id) ??
@@ -1846,7 +2438,8 @@ export default function AtsPage() {
                         const isRowEmailDiscoveryQueued =
                           queuedEmailDiscoverySet.has(candidate.id);
                         const hasRowEmailDiscoveryTrace =
-                          (candidate.outreach?.emailDiscoveryTrace?.length ?? 0) > 0;
+                          (candidate.outreach?.emailDiscoveryTrace?.length ??
+                            0) > 0;
                         const rowEmailActionLabel = isRowEmailDiscoverySearching
                           ? "탐색 중"
                           : rowEmailDiscoveryQueuePosition
@@ -1980,7 +2573,9 @@ export default function AtsPage() {
                                   type="button"
                                   onClick={(event) => {
                                     event.stopPropagation();
-                                    handleQueueCandidateEmailDiscovery(candidate.id);
+                                    handleQueueCandidateEmailDiscovery(
+                                      candidate.id
+                                    );
                                   }}
                                   disabled={
                                     isRowEmailDiscoverySearching ||
@@ -2026,8 +2621,9 @@ export default function AtsPage() {
                                   {(candidate.outreach?.emailDiscoveryTrace
                                     ?.length ?? 0) > 0
                                     ? `로그 ${candidate.outreach?.emailDiscoveryTrace.length ?? 0}개 수집됨`
-                                    : candidate.outreach?.emailDiscoverySummary ??
-                                      "탐색 요청을 전송했습니다."}
+                                    : (candidate.outreach
+                                        ?.emailDiscoverySummary ??
+                                      "탐색 요청을 전송했습니다.")}
                                 </div>
                               )}
                               {!isRowEmailDiscoverySearching &&
@@ -2200,6 +2796,24 @@ export default function AtsPage() {
                         </button>
                         <button
                           type="button"
+                          onClick={handleResetCandidateOutreach}
+                          disabled={
+                            resetCandidateOutreach.isPending ||
+                            isEmailDiscoverySearching ||
+                            isSelectedEmailDiscoveryActive ||
+                            isSelectedEmailDiscoveryQueued
+                          }
+                          className="inline-flex items-center justify-center gap-2 rounded-sm border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-sm text-rose-100 transition hover:bg-rose-400/15 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          {resetCandidateOutreach.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <RotateCcw className="h-4 w-4" />
+                          )}
+                          Reset Outreach
+                        </button>
+                        <button
+                          type="button"
                           onClick={handleToggleSequencePause}
                           disabled={
                             !canToggleSequencePause ||
@@ -2251,10 +2865,10 @@ export default function AtsPage() {
                   </div>
 
                   {mainPanelTab === "candidate" && (
-                    <div className="space-y-4">
-                      <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
-                        <div className="space-y-4">
-                          <div className="">
+                    <div className="w-full min-w-0 space-y-4">
+                      <div className="grid w-full min-w-0 gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+                        <div className="min-w-0 space-y-4">
+                          <div className="w-full min-w-0">
                             <div className="flex items-center justify-between gap-3">
                               <div className="text-sm font-medium text-white">
                                 이메일 찾기
@@ -2283,7 +2897,7 @@ export default function AtsPage() {
                                 Save
                               </button>
                             </div>
-                            <div className="mt-4">
+                            <div className="mt-4 min-w-0">
                               <AtsEmailDiscoveryActivity
                                 outreach={emailDiscoveryOutreach}
                                 isSearching={isEmailDiscoverySearching}
@@ -2291,12 +2905,72 @@ export default function AtsPage() {
                                 clearPending={clearEmailTrace.isPending}
                               />
                             </div>
+                            <div className="mt-4 rounded-md border border-white/10 bg-black/10 p-4">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="text-sm font-medium text-white">
+                                  Manual Review URLs
+                                </div>
+                                <div className="text-xs text-white/40">
+                                  {manualReviewSuggestions.length > 0
+                                    ? `${manualReviewSuggestions.length}개 추천`
+                                    : isEmailDiscoverySearching
+                                      ? "탐색 종료 후 갱신"
+                                      : "아직 없음"}
+                                </div>
+                              </div>
+                              <div className="mt-3 space-y-3">
+                                {manualReviewSuggestions.length === 0 ? (
+                                  <div className="rounded-md border border-dashed border-white/10 px-3 py-3 text-sm text-white/50">
+                                    {isEmailDiscoverySearching
+                                      ? "이메일 탐색이 끝나면 수동 확인 추천 URL이 여기에 표시됩니다."
+                                      : "추천 URL이 아직 없습니다. 이메일 탐색을 실행하면 후보자와 가장 관련 있는 링크들을 정리합니다."}
+                                  </div>
+                                ) : (
+                                  manualReviewSuggestions.map(
+                                    (suggestion, index) => (
+                                      <div
+                                        key={`${suggestion.url}-${index}`}
+                                        className="rounded-md border border-white/10 bg-white/[0.03] p-3"
+                                      >
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/60">
+                                            {index + 1}
+                                          </span>
+                                          <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/60">
+                                            {getManualReviewCategoryLabel(
+                                              suggestion.category
+                                            )}
+                                          </span>
+                                          <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/45">
+                                            {getManualReviewStatusLabel(
+                                              suggestion.scrapeStatus
+                                            )}
+                                          </span>
+                                        </div>
+                                        <a
+                                          href={suggestion.url}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="mt-3 inline-flex items-start gap-1 break-all text-sm text-accenta1 transition hover:text-accenta1/90"
+                                        >
+                                          <span>{suggestion.label}</span>
+                                          <ArrowUpRight className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                                        </a>
+                                        <div className="mt-2 break-words text-xs leading-5 text-white/60">
+                                          {suggestion.reason}
+                                        </div>
+                                      </div>
+                                    )
+                                  )
+                                )}
+                              </div>
+                            </div>
                             <div className="mt-3 flex flex-wrap gap-2">
                               {detailCandidate?.existingEmailSources.map(
                                 (source) => (
                                   <span
                                     key={`${source.sourceType}-${source.email}`}
-                                    className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/60"
+                                    className="break-all rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/60"
                                   >
                                     {source.label}: {source.email}
                                   </span>
@@ -2305,7 +2979,7 @@ export default function AtsPage() {
                             </div>
                           </div>
 
-                          <div className="">
+                          <div className="w-full min-w-0">
                             <div className="text-sm font-medium text-white">
                               Discovery Evidence
                             </div>
@@ -2333,12 +3007,12 @@ export default function AtsPage() {
                                       </span>
                                     </div>
                                     {evidence.title && (
-                                      <div className="mt-2 text-sm text-white/70">
+                                      <div className="mt-2 break-words text-sm text-white/70">
                                         {evidence.title}
                                       </div>
                                     )}
                                     {evidence.snippet && (
-                                      <div className="mt-2 text-sm leading-6 text-white/55">
+                                      <div className="mt-2 break-words text-sm leading-6 text-white/55">
                                         {evidence.snippet}
                                       </div>
                                     )}
@@ -2360,7 +3034,7 @@ export default function AtsPage() {
                           </div>
                         </div>
 
-                        <div className="space-y-4">
+                        <div className="min-w-0 space-y-4">
                           <div className="rounded-md p-4">
                             <div className="flex items-center justify-between gap-3">
                               <div className="text-sm font-medium text-white">
@@ -2436,6 +3110,13 @@ export default function AtsPage() {
 
                   {mainPanelTab === "sequence" && (
                     <div className="space-y-4">
+                      {hasUnsavedSequenceDraftChanges && (
+                        <div className="rounded-md border border-sky-400/20 bg-sky-400/10 px-4 py-3 text-sm text-sky-100">
+                          저장되지 않은 sequence draft 변경이 있습니다. `Send`
+                          전에 자동 반영되지만, step 카드에서 바로 저장할 수도
+                          있습니다.
+                        </div>
+                      )}
                       {hasUnsavedSequenceScheduleChanges && (
                         <div className="rounded-md border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
                           저장되지 않은 timing 변경이 있습니다. `Send` 또는
@@ -2521,6 +3202,15 @@ export default function AtsPage() {
                               const draftMessage =
                                 stepDraftMessageByNumber.get(stepNumber) ??
                                 null;
+                              const stepDraft =
+                                sequenceDrafts[stepNumber] ??
+                                EMPTY_CONTACT_DRAFT;
+                              const savedStepDraft =
+                                savedSequenceDrafts[stepNumber] ??
+                                EMPTY_CONTACT_DRAFT;
+                              const isDraftDirty =
+                                stepDraft.subject !== savedStepDraft.subject ||
+                                stepDraft.body !== savedStepDraft.body;
                               const isReadyStep =
                                 nextSequenceStep === stepNumber;
                               const canSend =
@@ -2577,9 +3267,24 @@ export default function AtsPage() {
                                 <SequenceStepCard
                                   key={stepNumber}
                                   canSend={canSend}
+                                  draft={stepDraft}
+                                  isDraftDirty={isDraftDirty}
+                                  isEditing={
+                                    expandedSequenceStep === stepNumber
+                                  }
+                                  isSent={Boolean(sentMessage)}
                                   label={label}
                                   message={sentMessage ?? draftMessage}
+                                  onDraftChange={(patch) =>
+                                    updateSequenceDraft(stepNumber, patch)
+                                  }
+                                  onResetDraft={() =>
+                                    resetSequenceDraft(stepNumber)
+                                  }
                                   onSaveSchedule={handleSaveSequenceSchedule}
+                                  onSaveDraft={() =>
+                                    handleSaveSequenceDraft(stepNumber)
+                                  }
                                   onScheduleChange={(patch) =>
                                     updateSequenceScheduleDraft(
                                       stepNumber,
@@ -2588,6 +3293,14 @@ export default function AtsPage() {
                                   }
                                   onSend={() =>
                                     handleSendSequenceStep(stepNumber)
+                                  }
+                                  onToggleEdit={() =>
+                                    toggleSequenceStepEditor(stepNumber)
+                                  }
+                                  saveDraftPending={
+                                    saveSequenceDraft.isPending &&
+                                    saveSequenceDraft.variables?.stepNumber ===
+                                      stepNumber
                                   }
                                   saveSchedulePending={
                                     saveSequenceSchedule.isPending

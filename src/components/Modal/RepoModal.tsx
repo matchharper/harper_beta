@@ -1,12 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import {
-  Book,
-  GitFork,
-  Star,
-  Users,
-  XIcon,
-} from "lucide-react";
+import { Book, GitFork, Star, Users, XIcon } from "lucide-react";
 import Link from "next/link";
 import { initials } from "@/components/NameProfile";
 import { useRepoModalStore } from "@/store/useRepoModalStore";
@@ -120,7 +114,8 @@ function CollapsibleMarkdownSection({
   const [expanded, setExpanded] = useState(false);
 
   const isLong = markdown.length > COLLAPSE_PREVIEW_CHARS;
-  const displayMarkdown = expanded || !isLong ? markdown : markdown.slice(0, COLLAPSE_PREVIEW_CHARS);
+  const displayMarkdown =
+    expanded || !isLong ? markdown : markdown.slice(0, COLLAPSE_PREVIEW_CHARS);
 
   return (
     <div className={className}>
@@ -135,15 +130,35 @@ function CollapsibleMarkdownSection({
         >
           {expanded ? (
             <>
-              <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+              <svg
+                className="h-3.5 w-3.5 shrink-0"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M5 15l7-7 7 7"
+                />
               </svg>
               접기
             </>
           ) : (
             <>
-              <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              <svg
+                className="h-3.5 w-3.5 shrink-0"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M19 9l-7 7-7-7"
+                />
               </svg>
               더 보기
             </>
@@ -198,7 +213,10 @@ export default function RepoModalRoot() {
     [repo?.languages]
   );
   const topics = Array.isArray(repo?.topics)
-    ? repo.topics.filter((topic): topic is string => typeof topic === "string" && topic.trim().length > 0)
+    ? repo.topics.filter(
+        (topic): topic is string =>
+          typeof topic === "string" && topic.trim().length > 0
+      )
     : [];
   const readmeExcerpt =
     typeof repo?.readme_excerpt === "string" ? repo.readme_excerpt.trim() : "";
@@ -209,7 +227,8 @@ export default function RepoModalRoot() {
       ? `https://github.com/${repoFullName}`
       : "";
 
-  const displayTitle = repo?.repo_full_name ?? repoFullName ?? "Repo 정보를 불러오는 중";
+  const displayTitle =
+    repo?.repo_full_name ?? repoFullName ?? "Repo 정보를 불러오는 중";
 
   return (
     <AnimatePresence>
@@ -245,14 +264,14 @@ export default function RepoModalRoot() {
             {/* Header */}
             <div className="sticky top-0 z-10 -mx-6 mb-6 flex items-start justify-between border-b border-white/5 bg-hgray200/95 px-6 pb-4 backdrop-blur md:-mx-8 md:px-8">
               <div className="pr-4 pt-6">
-                <div className="text-xs tracking-[0.14em] text-accenta1/80">
+                <div className="text-sm text-accenta1/80">
                   GitHub Repository
                 </div>
                 <div className="mt-2 text-2xl leading-tight text-hgray1000">
                   {displayTitle}
                 </div>
                 {repoUrl && (
-                  <div className="mt-2">
+                  <div className="mt-4">
                     <a
                       href={repoUrl}
                       target="_blank"
@@ -350,7 +369,10 @@ export default function RepoModalRoot() {
                 )}
 
                 {readmeExcerpt && (
-                  <Section title="Repo README" icon={<Book className="h-4 w-4" />}>
+                  <Section
+                    title="Repo README"
+                    icon={<Book className="h-4 w-4" />}
+                  >
                     <CollapsibleMarkdownSection
                       markdown={readmeExcerpt}
                       className="rounded-2xl bg-white/5 px-4 py-4"

@@ -6,6 +6,7 @@ import {
   Github,
   GraduationCap,
   Plus,
+  StarIcon,
 } from "lucide-react";
 import { useRouter } from "next/router";
 import { Avatar } from "./NameProfile";
@@ -36,10 +37,11 @@ import {
   formatScholarCitationCount,
   formatScholarPaperCount,
 } from "@/lib/scholarPreview";
+import { sortCandidateItemsByLatest } from "@/lib/candidateChronology";
 import {
   buildGithubDeveloperTooltip,
   formatGithubFollowerCount,
-  formatGithubRepoCount,
+  formatGithubOwnerCreatorStars,
 } from "@/lib/githubPreview";
 import {
   companyEnToKo,
@@ -192,6 +194,14 @@ function CandidateRow({
   const logEvent = useLogEvent();
   const exps = asArr(c.experience_user ?? []);
   const edus = asArr(c.edu_user ?? []);
+  const sortedExperiences = useMemo(
+    () => sortCandidateItemsByLatest(exps),
+    [exps]
+  );
+  const sortedEducations = useMemo(
+    () => sortCandidateItemsByLatest(edus),
+    [edus]
+  );
   const sourceRunId =
     typeof router.query.run === "string" ? router.query.run : "";
   const profileHref = buildProfileHref
@@ -200,8 +210,8 @@ function CandidateRow({
       ? `/my/p/${candidId}?run=${encodeURIComponent(sourceRunId)}`
       : `/my/p/${candidId}`;
 
-  const latestCompany = exps[0];
-  const latestEdu = edus[0];
+  const latestCompany = sortedExperiences[0];
+  const latestEdu = sortedEducations[0];
   const scholarPreview = c.scholar_profile_preview;
   const githubPreview = c.github_profile_preview;
   const candidateMarkStatus = c.candidate_mark?.status ?? null;
@@ -211,12 +221,15 @@ function CandidateRow({
   );
   const evidencePaper = getEvidencePaper(c.search_evidence);
   const isScholarSource = isScholarSearchSource(sourceType);
-  const isGithubSource = sourceType === "github";
   const isProfileRevealed = c.profile_revealed !== false;
   const isOnlyScholar =
-    !!scholarPreview && exps.length === 0 && edus.length === 0;
+    !!scholarPreview &&
+    sortedExperiences.length === 0 &&
+    sortedEducations.length === 0;
   const isOnlyGithub =
-    !!githubPreview && exps.length === 0 && edus.length === 0;
+    !!githubPreview &&
+    sortedExperiences.length === 0 &&
+    sortedEducations.length === 0;
   const evidencePaperMeta = useMemo(
     () => buildEvidencePaperMeta(c.search_evidence),
     [c.search_evidence]
@@ -260,19 +273,19 @@ function CandidateRow({
   }, [latestEdu]);
 
   const companyHistoryTooltipText = useMemo(() => {
-    if (exps.length === 0) return "경력 정보 없음";
-    return exps
+    if (sortedExperiences.length === 0) return "경력 정보 없음";
+    return sortedExperiences
       .map((exp: any) => {
         const companyName = companyEnToKo(exp?.company_db?.name ?? "-");
         const period = formatPeriod(exp?.start_date, exp?.end_date);
         return period ? `${companyName} (${period})` : companyName;
       })
       .join("\n");
-  }, [exps]);
+  }, [sortedExperiences]);
 
   const schoolHistoryTooltipText = useMemo(() => {
-    if (edus.length === 0) return "학력 정보 없음";
-    return edus
+    if (sortedEducations.length === 0) return "학력 정보 없음";
+    return sortedEducations
       .map((edu: any) => {
         const schoolName = koreaUniversityEnToKo(edu?.school ?? "-");
         const degreeName = degreeEnToKo(edu?.degree ?? "-");
@@ -281,7 +294,7 @@ function CandidateRow({
         return period ? `${title}\n${period}` : title;
       })
       .join("\n\n");
-  }, [edus]);
+  }, [sortedEducations]);
 
   const scholarAffiliationTooltipText = useMemo(() => {
     return buildScholarResearchTooltip(scholarPreview);
@@ -330,25 +343,6 @@ function CandidateRow({
     }
 
     if (columnId === CandidateTableStaticColumnId.Company) {
-      if (isGithubSource) {
-        return (
-          <Tooltips text={githubDeveloperTooltipText} side="bottom">
-            <div>
-              <Cell
-                key={columnId}
-                title={
-                  <div className="min-w-0 whitespace-normal break-words">
-                    {githubPreview?.company ?? githubPreview?.location ?? "-"}
-                  </div>
-                }
-                description=""
-                multiline
-              />
-            </div>
-          </Tooltips>
-        );
-      }
-
       if (isOnlyGithub) {
         return (
           <Tooltips text={githubDeveloperTooltipText} side="bottom">
@@ -458,31 +452,6 @@ function CandidateRow({
     }
 
     if (columnId === CandidateTableStaticColumnId.School) {
-      if (isGithubSource) {
-        return (
-          <Tooltips
-            text={buildGithubDeveloperTooltip(githubPreview)}
-            side="bottom"
-          >
-            <div>
-              <Cell
-                key={columnId}
-                title={
-                  githubPreview
-                    ? formatGithubRepoCount(githubPreview.publicRepos)
-                    : "-"
-                }
-                description={
-                  githubPreview
-                    ? formatGithubFollowerCount(githubPreview.followers)
-                    : "-"
-                }
-              />
-            </div>
-          </Tooltips>
-        );
-      }
-
       if (isOnlyGithub) {
         return (
           <Tooltips
@@ -494,7 +463,9 @@ function CandidateRow({
                 key={columnId}
                 title={
                   githubPreview
-                    ? formatGithubRepoCount(githubPreview.publicRepos)
+                    ? formatGithubOwnerCreatorStars(
+                        githubPreview.ownerCreatorTotalStars
+                      )
                     : "-"
                 }
                 description={
@@ -1036,7 +1007,7 @@ export const GithubSignalBox = ({
   icon?: "company" | "repos";
   tooltipSide?: "bottom" | "top" | "left" | "right";
 }) => {
-  const Icon = icon === "repos" ? FileText : Github;
+  const Icon = icon === "repos" ? StarIcon : Github;
   const hasDescription =
     description !== undefined && description !== null && description !== "";
 

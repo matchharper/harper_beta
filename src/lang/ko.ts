@@ -189,7 +189,7 @@ export const ko = {
       cards: [
         {
           title: "Beyond Keywords",
-          desc: "단순한 키워드 검색을 넘어, <br />기술적 역량과 맥락을 이해하고 찾아주는 지능을 경험하세요.",
+          desc: "단순한 키워드 검색을 넘어, <br />기술적 역량과 맥락을 이해하고<br/>기준을 충족하는지 판단해 알려드립니다.",
         },
         {
           title: "Focus on Value",
@@ -262,7 +262,7 @@ export const ko = {
     },
     pricing: {
       title: "Pricing",
-      subtitle: "팀의 성장에 맞는 합리적인 플랜",
+      subtitle: "우선 무료로 시작하고 결정하세요.",
       contactLabel: "별도 문의",
       billing: {
         monthly: "월간 결제",
@@ -275,7 +275,7 @@ export const ko = {
           tagline: "소수 정예 팀이 지금 필요한 1~2명을 찾는 데 최적화",
           priceUnit: "원/월",
           priceUnit2: "/월",
-          buttonLabel: "문의하기",
+          buttonLabel: "이용하기",
           features: [
             "무제한 AI 검색 및 랭킹",
             "월 50회 프로필 열람",
@@ -288,7 +288,7 @@ export const ko = {
           tagline: "공격적인 소싱과 빠른 조직 확장이 필요한 플랜",
           priceUnit: "원/월",
           priceUnit2: "/월",
-          buttonLabel: "문의하기",
+          buttonLabel: "이용하기",
           features: [
             "Pro의 모든 기능 포함, 및:",
             "월 120회 프로필 열람",

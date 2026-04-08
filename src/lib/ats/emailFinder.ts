@@ -102,6 +102,37 @@ type EmailFinderResult = {
   trace: AtsEmailDiscoveryTraceItem[];
 };
 
+type ManualReviewUrlCategory =
+  | "github"
+  | "scholar"
+  | "homepage"
+  | "blog"
+  | "resume"
+  | "publication"
+  | "paper_pdf"
+  | "lab_profile"
+  | "company_profile"
+  | "other";
+
+type ManualReviewUrlSuggestion = {
+  category: ManualReviewUrlCategory;
+  label: string;
+  reason: string;
+  scrapeStatus:
+    | "blocked"
+    | "not_checked"
+    | "scrape_failed"
+    | "scraped_no_email"
+    | "scraped_with_email"
+    | "search_only";
+  source: string;
+  url: string;
+};
+
+type ManualReviewUrlCandidate = ManualReviewUrlSuggestion & {
+  heuristicScore: number;
+};
+
 type OperationKind = "llm" | "search";
 type EmailDiscoveryTraceListener = (
   trace: AtsEmailDiscoveryTraceItem[]
@@ -321,9 +352,17 @@ function confidenceScore(value: "high" | "medium" | "low") {
 
 function evidenceRank(item: AtsEmailDiscoveryEvidence) {
   const typeBonus =
-    item.type === "direct" ? 40 : item.type === "pdf" ? 30 : item.type === "page" ? 20 : 10;
+    item.type === "direct"
+      ? 40
+      : item.type === "pdf"
+        ? 30
+        : item.type === "page"
+          ? 20
+          : 10;
   const domainBonus =
-    typeof item.url === "string" && item.url.toLowerCase().includes(".edu") ? 5 : 0;
+    typeof item.url === "string" && item.url.toLowerCase().includes(".edu")
+      ? 5
+      : 0;
   return confidenceScore(item.confidence) * 100 + typeBonus + domainBonus;
 }
 
@@ -341,7 +380,9 @@ function mergeEvidence(
     }
   }
 
-  return Array.from(map.values()).sort((a, b) => evidenceRank(b) - evidenceRank(a));
+  return Array.from(map.values()).sort(
+    (a, b) => evidenceRank(b) - evidenceRank(a)
+  );
 }
 
 function pickBestEvidence(
@@ -349,10 +390,12 @@ function pickBestEvidence(
   minimumConfidence: "high" | "medium" | "low" = "low"
 ) {
   const minScore = confidenceScore(minimumConfidence);
-  return evidence
-    .slice()
-    .sort((a, b) => evidenceRank(b) - evidenceRank(a))
-    .find((item) => confidenceScore(item.confidence) >= minScore) ?? null;
+  return (
+    evidence
+      .slice()
+      .sort((a, b) => evidenceRank(b) - evidenceRank(a))
+      .find((item) => confidenceScore(item.confidence) >= minScore) ?? null
+  );
 }
 
 function extractEmailsFromText(value: string | null | undefined) {
@@ -399,8 +442,13 @@ function scorePublication(publication: AtsCandidatePublication, index: number) {
   const year = parseYear(publication.publishedAt);
   const currentYear = new Date().getUTCFullYear();
   const recencyBoost =
-    year == null ? 0 : Math.max(0, Math.min(18, 18 - Math.max(0, currentYear - year) * 2));
-  const citationBoost = Math.max(0, Math.min(25, Math.floor(citationCount / 10) * 3));
+    year == null
+      ? 0
+      : Math.max(0, Math.min(18, 18 - Math.max(0, currentYear - year) * 2));
+  const citationBoost = Math.max(
+    0,
+    Math.min(25, Math.floor(citationCount / 10) * 3)
+  );
   return Math.max(0, 30 - index * 2) + recencyBoost + citationBoost;
 }
 
@@ -422,7 +470,10 @@ function dedupeUrlCandidates(candidates: UrlCandidate[]) {
 
     const normalized = {
       ...candidate,
-      priorityHint: Math.max(1, Math.min(100, Math.round(candidate.priorityHint))),
+      priorityHint: Math.max(
+        1,
+        Math.min(100, Math.round(candidate.priorityHint))
+      ),
       url: key,
     } satisfies UrlCandidate;
 
@@ -432,7 +483,9 @@ function dedupeUrlCandidates(candidates: UrlCandidate[]) {
     }
   }
 
-  return Array.from(map.values()).sort((a, b) => b.priorityHint - a.priorityHint);
+  return Array.from(map.values()).sort(
+    (a, b) => b.priorityHint - a.priorityHint
+  );
 }
 
 function addDerivedPdfCandidates(base: UrlCandidate) {
@@ -506,7 +559,9 @@ function collectSeedUrlCandidates(candidate: AtsCandidateDetail) {
     if (!url) return;
     const reasonParts = [
       "논문 링크",
-      score >= 50 ? "최신/인용수 기준으로 우선순위가 높은 논문" : "논문 PDF에서 이메일이 발견될 가능성이 있음",
+      score >= 50
+        ? "최신/인용수 기준으로 우선순위가 높은 논문"
+        : "논문 PDF에서 이메일이 발견될 가능성이 있음",
     ];
     const year = parseYear(publication.publishedAt);
     if (year != null) reasonParts.push(`year=${year}`);
@@ -544,7 +599,8 @@ function collectSeedUrlCandidates(candidate: AtsCandidateDetail) {
       discoveredFrom: "github_profile.githubUrl",
       label: "github_profile.githubUrl",
       priorityHint: 42,
-      priorityReason: "GitHub 프로필 또는 pinned/readme에 공개 이메일이 있을 수 있음",
+      priorityReason:
+        "GitHub 프로필 또는 pinned/readme에 공개 이메일이 있을 수 있음",
       readMode: inferReadMode(candidate.githubProfile.githubUrl),
       source: "github",
       url: candidate.githubProfile.githubUrl,
@@ -578,7 +634,10 @@ function collectSeedUrlCandidates(candidate: AtsCandidateDetail) {
   return dedupeUrlCandidates(candidates);
 }
 
-function upsertUrlPool(pool: Map<string, UrlMemoryEntry>, candidates: UrlCandidate[]) {
+function upsertUrlPool(
+  pool: Map<string, UrlMemoryEntry>,
+  candidates: UrlCandidate[]
+) {
   for (const candidate of dedupeUrlCandidates(candidates)) {
     const key = canonicalizeUrl(candidate.url);
     if (!key || isBlockedDomain(key)) continue;
@@ -598,16 +657,27 @@ function upsertUrlPool(pool: Map<string, UrlMemoryEntry>, candidates: UrlCandida
     pool.set(key, {
       ...prev,
       discoveredFrom:
-        candidate.priorityHint > prev.priorityHint ? candidate.discoveredFrom : prev.discoveredFrom,
-      label: candidate.priorityHint > prev.priorityHint ? candidate.label : prev.label,
+        candidate.priorityHint > prev.priorityHint
+          ? candidate.discoveredFrom
+          : prev.discoveredFrom,
+      label:
+        candidate.priorityHint > prev.priorityHint
+          ? candidate.label
+          : prev.label,
       priorityHint: Math.max(prev.priorityHint, candidate.priorityHint),
       priorityReason:
-        candidate.priorityHint > prev.priorityHint ? candidate.priorityReason : prev.priorityReason,
+        candidate.priorityHint > prev.priorityHint
+          ? candidate.priorityReason
+          : prev.priorityReason,
       readMode:
-        candidate.readMode === "pdf_first_page" || prev.readMode === "pdf_first_page"
+        candidate.readMode === "pdf_first_page" ||
+        prev.readMode === "pdf_first_page"
           ? "pdf_first_page"
           : "full",
-      source: candidate.priorityHint > prev.priorityHint ? candidate.source : prev.source,
+      source:
+        candidate.priorityHint > prev.priorityHint
+          ? candidate.source
+          : prev.source,
       url: key,
     });
   }
@@ -656,8 +726,8 @@ function buildCandidatesFromDiscoveredLinks(args: {
   links: Array<{ label: string; url: string }>;
   parentUrl: string;
 }) {
-  const publicationTitles = getPrioritizedPublications(args.candidate).map(({ publication }) =>
-    publication.title.toLowerCase()
+  const publicationTitles = getPrioritizedPublications(args.candidate).map(
+    ({ publication }) => publication.title.toLowerCase()
   );
 
   return dedupeUrlCandidates(
@@ -714,12 +784,15 @@ function buildCandidatesFromSearchResults(args: {
   results: SearchResult[];
 }) {
   const publications = getPrioritizedPublications(args.candidate);
-  const publicationTitles = publications.map(({ publication }) => publication.title.toLowerCase());
+  const publicationTitles = publications.map(({ publication }) =>
+    publication.title.toLowerCase()
+  );
 
   return dedupeUrlCandidates(
     args.results.map((result) => {
       const url = canonicalizeUrl(result.url);
-      const text = `${result.title ?? ""} ${result.content ?? ""} ${url}`.toLowerCase();
+      const text =
+        `${result.title ?? ""} ${result.content ?? ""} ${url}`.toLowerCase();
       let priorityHint = 34;
       const reasons = [`검색어 "${args.query}" 결과`];
 
@@ -738,7 +811,9 @@ function buildCandidatesFromSearchResults(args: {
         reasons.push("개인/학술 페이지 가능성");
       }
 
-      const matchedPublication = publicationTitles.find((title) => title && text.includes(title));
+      const matchedPublication = publicationTitles.find(
+        (title) => title && text.includes(title)
+      );
       if (matchedPublication) {
         priorityHint += 24;
         reasons.push("후보자 논문 제목과 매칭");
@@ -746,7 +821,9 @@ function buildCandidatesFromSearchResults(args: {
 
       return {
         discoveredFrom: `search:${args.query}`,
-        label: String(result.title ?? "").trim() || `search result for ${args.query}`,
+        label:
+          String(result.title ?? "").trim() ||
+          `search result for ${args.query}`,
         priorityHint: Math.min(100, priorityHint),
         priorityReason: reasons.join(", "),
         readMode: inferReadMode(url),
@@ -777,7 +854,10 @@ function buildSearchSnippetEvidence(results: SearchResult[]) {
   return mergeEvidence([], evidence);
 }
 
-async function callWebSearch(req: NextRequest, query: string): Promise<SearchResult[]> {
+async function callWebSearch(
+  req: NextRequest,
+  query: string
+): Promise<SearchResult[]> {
   const url = makeInternalUrl(req, "/api/tool/web_search");
   const response = await fetch(url, {
     method: "POST",
@@ -852,7 +932,9 @@ async function callScrape(
     }),
   });
 
-  const payload = (await response.json().catch(() => ({}))) as Partial<ScrapeResult>;
+  const payload = (await response
+    .json()
+    .catch(() => ({}))) as Partial<ScrapeResult>;
 
   if (!response.ok) {
     return {
@@ -1010,6 +1092,483 @@ Priority publications for email lookup:
 ${publications || "(none)"}`;
 }
 
+function getManualReviewCategory(
+  url: string,
+  label?: string | null
+): ManualReviewUrlCategory {
+  const lower = `${canonicalizeUrl(url)} ${String(label ?? "")}`.toLowerCase();
+
+  if (lower.includes("scholar.google.")) return "scholar";
+  if (lower.includes("github.com")) return "github";
+  if (lower.includes("cv") || lower.includes("resume")) return "resume";
+  if (lower.includes(".pdf") || lower.includes("/pdf/")) return "paper_pdf";
+  if (
+    lower.includes("paper") ||
+    lower.includes("publication") ||
+    lower.includes("doi.org") ||
+    lower.includes("arxiv.org")
+  ) {
+    return "publication";
+  }
+  if (
+    lower.includes("blog") ||
+    lower.includes("substack") ||
+    lower.includes("medium.com") ||
+    lower.includes("github.io")
+  ) {
+    return "blog";
+  }
+  if (
+    lower.includes("lab") ||
+    lower.includes("faculty") ||
+    lower.includes("member") ||
+    lower.includes("people") ||
+    lower.includes("person")
+  ) {
+    return "lab_profile";
+  }
+  if (
+    lower.includes("homepage") ||
+    lower.includes("about") ||
+    lower.includes("contact") ||
+    lower.includes("/~") ||
+    lower.includes(".edu") ||
+    lower.includes(".ac.")
+  ) {
+    return "homepage";
+  }
+  if (lower.includes("company") || lower.includes("team")) {
+    return "company_profile";
+  }
+
+  return "other";
+}
+
+function getManualReviewBaseScore(category: ManualReviewUrlCategory) {
+  if (category === "resume") return 98;
+  if (category === "homepage") return 95;
+  if (category === "blog") return 92;
+  if (category === "github") return 90;
+  if (category === "scholar") return 88;
+  if (category === "paper_pdf") return 86;
+  if (category === "publication") return 80;
+  if (category === "lab_profile") return 76;
+  if (category === "company_profile") return 60;
+  return 50;
+}
+
+function buildScrapeHistoryMap(scrapeHistory: ScrapeRecord[]) {
+  const map = new Map<string, ScrapeRecord>();
+
+  for (const item of scrapeHistory) {
+    const url = canonicalizeUrl(item.url);
+    if (!url) continue;
+    map.set(url, item);
+  }
+
+  return map;
+}
+
+function getManualReviewScrapeStatus(args: {
+  scrapeByUrl: Map<string, ScrapeRecord>;
+  source: string;
+  url: string;
+}) {
+  if (isBlockedDomain(args.url)) return "blocked" as const;
+
+  const scrape = args.scrapeByUrl.get(args.url);
+  if (scrape?.status === "found_email") return "scraped_with_email" as const;
+  if (scrape?.status === "no_email") return "scraped_no_email" as const;
+  if (scrape?.status === "failed") return "scrape_failed" as const;
+  if (args.source.startsWith("search:")) return "search_only" as const;
+  return "not_checked" as const;
+}
+
+function dedupeManualReviewCandidates(candidates: ManualReviewUrlCandidate[]) {
+  const map = new Map<string, ManualReviewUrlCandidate>();
+
+  for (const candidate of candidates) {
+    const url = canonicalizeUrl(candidate.url);
+    if (!url) continue;
+
+    const normalized = {
+      ...candidate,
+      url,
+    } satisfies ManualReviewUrlCandidate;
+    const previous = map.get(url);
+
+    if (!previous || normalized.heuristicScore > previous.heuristicScore) {
+      map.set(url, normalized);
+    }
+  }
+
+  return Array.from(map.values()).sort(
+    (a, b) => b.heuristicScore - a.heuristicScore
+  );
+}
+
+function buildManualReviewUrlCandidates(args: {
+  candidate: AtsCandidateDetail;
+  scrapeHistory: ScrapeRecord[];
+  urlPool: Map<string, UrlMemoryEntry>;
+}) {
+  const candidates: ManualReviewUrlCandidate[] = [];
+  const scrapeByUrl = buildScrapeHistoryMap(args.scrapeHistory);
+  const prioritizedPublications = getPrioritizedPublications(args.candidate);
+
+  const push = (input: {
+    heuristicScore: number;
+    label: string;
+    reason: string;
+    source: string;
+    url: string | null | undefined;
+  }) => {
+    const url = canonicalizeUrl(input.url);
+    if (!url) return;
+
+    const category = getManualReviewCategory(url, input.label);
+    candidates.push({
+      category,
+      heuristicScore: input.heuristicScore + getManualReviewBaseScore(category),
+      label: input.label,
+      reason: input.reason,
+      scrapeStatus: getManualReviewScrapeStatus({
+        scrapeByUrl,
+        source: input.source,
+        url,
+      }),
+      source: input.source,
+      url,
+    });
+  };
+
+  push({
+    heuristicScore: 10,
+    label: "GitHub profile",
+    reason:
+      "GitHub 프로필 README, pinned repo, profile bio, blog 링크를 직접 확인하기 좋음",
+    source: "candidate.githubUrl",
+    url: args.candidate.githubUrl ?? args.candidate.githubProfile?.githubUrl,
+  });
+  push({
+    heuristicScore: 14,
+    label: "GitHub blog/homepage",
+    reason:
+      "GitHub에 연결된 개인 블로그/홈페이지는 연락처, About, CV 링크로 이어질 가능성이 큼",
+    source: "githubProfile.blog",
+    url: args.candidate.githubProfile?.blog,
+  });
+  push({
+    heuristicScore: 12,
+    label: "Scholar profile",
+    reason:
+      "Scholar 프로필에서 개인 홈페이지, 최신 논문, 저자 PDF 링크로 이동하기 좋음",
+    source: "candidate.scholarUrl",
+    url: args.candidate.scholarUrl ?? args.candidate.scholarProfile?.scholarUrl,
+  });
+  push({
+    heuristicScore: 18,
+    label: "Scholar homepage",
+    reason:
+      "Scholar에 연결된 개인 홈페이지 또는 연구실 페이지는 수동 이메일 확인 가치가 높음",
+    source: "scholarProfile.homepageLink",
+    url: args.candidate.scholarProfile?.homepageLink,
+  });
+
+  for (const link of args.candidate.links ?? []) {
+    push({
+      heuristicScore: isLikelyPersonalOrAcademicPage(link) ? 16 : 8,
+      label: "candidate link",
+      reason: "후보자 프로필에 직접 연결된 링크",
+      source: "candidate.links",
+      url: link,
+    });
+  }
+
+  for (const companyLink of args.candidate.companyLinks ?? []) {
+    push({
+      heuristicScore: isLikelyPersonalOrAcademicPage(companyLink) ? 12 : 4,
+      label: "company/profile link",
+      reason: "경력 정보에서 수집된 후보자 관련 링크",
+      source: "candidate.companyLinks",
+      url: companyLink,
+    });
+  }
+
+  prioritizedPublications.slice(0, 6).forEach(({ publication }, index) => {
+    const year = parseYear(publication.publishedAt);
+    push({
+      heuristicScore: Math.max(6, 22 - index * 2) + (year != null ? 4 : 0),
+      label: publication.title,
+      reason:
+        year != null
+          ? `후보자 최신 논문 후보 (year=${year}). 논문 페이지 또는 PDF 첫 페이지 author block을 수동 확인하기 좋음`
+          : "후보자 논문 링크. 논문 페이지 또는 PDF 첫 페이지 author block을 수동 확인하기 좋음",
+      source: "candidate.publications",
+      url: publication.link,
+    });
+  });
+
+  for (const entry of Array.from(args.urlPool.values())) {
+    push({
+      heuristicScore: entry.priorityHint,
+      label: entry.lastTitle ?? entry.label,
+      reason: entry.priorityReason,
+      source: entry.discoveredFrom,
+      url: entry.url,
+    });
+  }
+
+  return dedupeManualReviewCandidates(candidates);
+}
+
+function buildManualReviewMemoryPrompt(args: {
+  candidate: AtsCandidateDetail;
+  evidence: AtsEmailDiscoveryEvidence[];
+  scrapeHistory: ScrapeRecord[];
+  searchHistory: SearchRecord[];
+  suggestions: ManualReviewUrlCandidate[];
+}) {
+  const candidatePrompt = buildCandidatePrompt(args.candidate);
+
+  const searchHistory = args.searchHistory
+    .slice(-5)
+    .map((item, index) => {
+      const topResults = item.results
+        .slice(0, 4)
+        .map((result, resultIndex) => {
+          return `${resultIndex + 1}) ${result.title || "Untitled"} | ${result.url}`;
+        })
+        .join(" ; ");
+      return `${index + 1}. query="${item.query}" | top=${topResults || "none"}`;
+    })
+    .join("\n");
+
+  const scrapeHistory = args.scrapeHistory
+    .slice(-8)
+    .map((item, index) => {
+      return `${index + 1}. status=${item.status} | url=${item.url} | title=${
+        item.title ?? ""
+      } | findings=${item.findings.length}`;
+    })
+    .join("\n");
+
+  const evidence = args.evidence
+    .slice(0, 5)
+    .map((item, index) => {
+      return `${index + 1}. ${item.email} | confidence=${item.confidence} | type=${item.type} | url=${
+        item.url ?? ""
+      }`;
+    })
+    .join("\n");
+
+  const suggestionPool = args.suggestions
+    .slice(0, 24)
+    .map((item, index) => {
+      return `${index + 1}. category=${item.category} | scrapeStatus=${item.scrapeStatus} | source=${item.source} | score=${item.heuristicScore} | label=${
+        item.label
+      } | url=${item.url} | reason=${item.reason}`;
+    })
+    .join("\n");
+
+  return `${candidatePrompt}
+
+Observed search history:
+${searchHistory || "(none)"}
+
+Observed scrape history:
+${scrapeHistory || "(none)"}
+
+Email evidence found:
+${evidence || "(none)"}
+
+Manual review URL pool:
+${suggestionPool || "(none)"}`;
+}
+
+function normalizeManualReviewCategory(
+  value: string | null | undefined,
+  fallback: ManualReviewUrlCategory
+) {
+  if (
+    value === "github" ||
+    value === "scholar" ||
+    value === "homepage" ||
+    value === "blog" ||
+    value === "resume" ||
+    value === "publication" ||
+    value === "paper_pdf" ||
+    value === "lab_profile" ||
+    value === "company_profile" ||
+    value === "other"
+  ) {
+    return value;
+  }
+
+  return fallback;
+}
+
+async function recommendManualReviewUrls(args: {
+  candidate: AtsCandidateDetail;
+  evidence: AtsEmailDiscoveryEvidence[];
+  scrapeHistory: ScrapeRecord[];
+  searchHistory: SearchRecord[];
+  urlPool: Map<string, UrlMemoryEntry>;
+}) {
+  const candidatePool = buildManualReviewUrlCandidates(args);
+  const fallback = candidatePool.slice(0, 8).map((item) => ({
+    category: item.category,
+    label: item.label,
+    reason: item.reason,
+    scrapeStatus: item.scrapeStatus,
+    source: item.source,
+    url: item.url,
+  })) satisfies ManualReviewUrlSuggestion[];
+
+  if (candidatePool.length === 0) {
+    return fallback;
+  }
+
+  const allowedByUrl = new Map(
+    candidatePool.map((item) => [item.url, item] as const)
+  );
+
+  const systemPrompt = `You rank public URLs for manual recruiter review after an automated email search finishes.
+
+Your job is NOT to infer or fabricate an email.
+Your job is to choose URLs that a human recruiter should open manually because they are strongly associated with the candidate and most likely to reveal contact information or lead to it.
+
+Ranking preferences:
+- Prefer candidate-owned pages over generic sites.
+- Strongly prefer personal homepage, blog, CV/resume, GitHub profile, Google Scholar profile, scholar-linked homepage, university faculty/member page, lab page, and direct paper PDFs.
+- If publications exist, prefer newer papers before older ones when both seem similarly useful.
+- Include URLs even if the automated scrape found no email, if the page is still a strong manual-review target.
+- Avoid generic company homepages or broad aggregator pages unless they are clearly candidate-specific.
+- Only choose URLs from the provided URL pool.
+
+Return JSON only:
+{
+  "suggestions": [
+    {
+      "url": string,
+      "label": string,
+      "category": "github" | "scholar" | "homepage" | "blog" | "resume" | "publication" | "paper_pdf" | "lab_profile" | "company_profile" | "other",
+      "reason": string
+    }
+  ]
+}
+
+Rules:
+- Return at most 8 suggestions.
+- Keep them in priority order.
+- Each reason should be specific and concise.
+- If a stronger direct profile/homepage exists, rank it above generic search results.`;
+
+  const userPrompt = buildManualReviewMemoryPrompt({
+    candidate: args.candidate,
+    evidence: args.evidence,
+    scrapeHistory: args.scrapeHistory,
+    searchHistory: args.searchHistory,
+    suggestions: candidatePool,
+  });
+
+  try {
+    const raw = await xaiInference(
+      "grok-4-fast-reasoning",
+      systemPrompt,
+      userPrompt,
+      0.1
+    );
+    const parsed = safeParseJson(raw) as {
+      suggestions?: Array<{
+        category?: string;
+        label?: string;
+        reason?: string;
+        url?: string;
+      }>;
+    } | null;
+
+    const normalized = (parsed?.suggestions ?? [])
+      .map((item) => {
+        const url = canonicalizeUrl(item?.url);
+        if (!url) return null;
+
+        const matched = allowedByUrl.get(url);
+        if (!matched) return null;
+
+        return {
+          category: normalizeManualReviewCategory(
+            item?.category,
+            matched.category
+          ),
+          label: String(item?.label ?? "").trim() || matched.label,
+          reason: String(item?.reason ?? "").trim() || matched.reason,
+          scrapeStatus: matched.scrapeStatus,
+          source: matched.source,
+          url,
+        } satisfies ManualReviewUrlSuggestion;
+      })
+      .filter(Boolean) as ManualReviewUrlSuggestion[];
+
+    return normalized.length > 0
+      ? dedupeManualReviewCandidates(
+          normalized.map((item, index) => ({
+            ...item,
+            heuristicScore: Math.max(1, 100 - index),
+          }))
+        )
+          .slice(0, 8)
+          .map((item) => ({
+            category: item.category,
+            label: item.label,
+            reason: item.reason,
+            scrapeStatus: item.scrapeStatus,
+            source: item.source,
+            url: item.url,
+          }))
+      : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+async function attachManualReviewSuggestions(args: {
+  candidate: AtsCandidateDetail;
+  evidence: AtsEmailDiscoveryEvidence[];
+  pushTrace: (
+    kind: AtsEmailDiscoveryTraceItem["kind"],
+    content: string,
+    meta?: Record<string, unknown> | null
+  ) => void;
+  result: EmailFinderResult;
+  scrapeHistory: ScrapeRecord[];
+  searchHistory: SearchRecord[];
+  urlPool: Map<string, UrlMemoryEntry>;
+}) {
+  const suggestions = await recommendManualReviewUrls({
+    candidate: args.candidate,
+    evidence: args.evidence,
+    scrapeHistory: args.scrapeHistory,
+    searchHistory: args.searchHistory,
+    urlPool: args.urlPool,
+  });
+
+  if (suggestions.length > 0) {
+    args.pushTrace(
+      "decision",
+      `수동 확인용 추천 URL ${suggestions.length}건을 정리했습니다.`,
+      {
+        suggestedManualReviewUrls: suggestions,
+      }
+    );
+  }
+
+  return {
+    ...args.result,
+    trace: args.result.trace,
+  } satisfies EmailFinderResult;
+}
+
 function buildMemoryPrompt(args: {
   actionHistory: string[];
   budgetMeta: ReturnType<ReturnType<typeof makeBudgetController>["meta"]>;
@@ -1114,6 +1673,22 @@ Important research heuristics:
 - Do not repeat the same search query or scrape the same URL unless there is a concrete reason.
 - If memory already contains high-confidence evidence, choose finish.
 - If the best current next step is a PDF or suspected PDF, use readMode="pdf_first_page".
+- 다양한 방법을 시도해.
+
+아래는 실제 이메일 발견 확률이 높습니다.
+- direct PDF
+- arXiv PDF
+- personal homepage
+- university faculty/profile page
+- lab member page
+- GitHub blog/homepage
+- CV / Resume PDF
+- contact/about page
+- company page
+- generic search result landing page
+
+아래는 실제 이메일 발견 확률이 낮습니다.
+- rocketreach, zoominfo, commerce site, 회사 메인 홈페이지(ex. oracle.com)
 
 Return JSON only:
 {
@@ -1154,7 +1729,9 @@ function normalizePlannerAction(
   decision: PlannerDecision | null
 ): PlannerAction | null {
   const tool = decision?.action?.tool;
-  const reason = String(decision?.action?.reason ?? decision?.thinking ?? "").trim();
+  const reason = String(
+    decision?.action?.reason ?? decision?.thinking ?? ""
+  ).trim();
 
   if (tool !== "search_web" && tool !== "scrape_url" && tool !== "finish") {
     return null;
@@ -1181,7 +1758,10 @@ function normalizePlannerAction(
   if (!url || isBlockedDomain(url)) return null;
 
   return {
-    readMode: decision?.action?.readMode === "pdf_first_page" ? "pdf_first_page" : inferReadMode(url),
+    readMode:
+      decision?.action?.readMode === "pdf_first_page"
+        ? "pdf_first_page"
+        : inferReadMode(url),
     reason: reason || "현재 가장 유망한 링크를 파싱",
     tool,
     url,
@@ -1203,10 +1783,15 @@ function buildFallbackAction(args: {
     };
   }
 
-  const topPublication = getPrioritizedPublications(args.candidate)[0]?.publication;
+  const topPublication = getPrioritizedPublications(args.candidate)[0]
+    ?.publication;
   if (topPublication?.title) {
     const query = `"${args.candidate.name ?? ""}" "${topPublication.title}" pdf`;
-    if (!args.searchHistory.some((item) => normalizeQuery(item.query) === normalizeQuery(query))) {
+    if (
+      !args.searchHistory.some(
+        (item) => normalizeQuery(item.query) === normalizeQuery(query)
+      )
+    ) {
       return {
         query,
         reason: "fallback: 상위 논문 PDF 검색",
@@ -1285,6 +1870,13 @@ export async function findCandidateEmailWithAgenticFlow(args: {
     content: string,
     meta?: Record<string, unknown> | null
   ) => addTrace(trace, kind, content, meta, args.onTrace);
+  const searchHistory: SearchRecord[] = [];
+  const scrapeHistory: ScrapeRecord[] = [];
+  const actionHistory: string[] = [];
+  let collectedEvidence: AtsEmailDiscoveryEvidence[] = [];
+  let finishReason: string | null = null;
+  const urlPool = new Map<string, UrlMemoryEntry>();
+  upsertUrlPool(urlPool, collectSeedUrlCandidates(args.candidate));
 
   try {
     const directEmail =
@@ -1304,9 +1896,8 @@ export async function findCandidateEmailWithAgenticFlow(args: {
         sourceType: directEmail.sourceType,
       });
 
-      return {
-        bestEmail: normalizeEmail(directEmail.email),
-        confidence: "high",
+      return attachManualReviewSuggestions({
+        candidate: args.candidate,
         evidence: [
           {
             confidence: "high",
@@ -1317,28 +1908,37 @@ export async function findCandidateEmailWithAgenticFlow(args: {
             url: null,
           },
         ],
-        sourceLabel: `existingEmailSources.${directEmail.sourceType}`,
-        sourceType:
-          directEmail.sourceType === "candid" ||
-          directEmail.sourceType === "github" ||
-          directEmail.sourceType === "scholar"
-            ? directEmail.sourceType
-            : null,
-        sourceUrl: null,
-        status: "found",
-        summary: "기존 저장 이메일을 사용했습니다.",
-        trace,
-      };
+        pushTrace,
+        result: {
+          bestEmail: normalizeEmail(directEmail.email),
+          confidence: "high",
+          evidence: [
+            {
+              confidence: "high",
+              email: normalizeEmail(directEmail.email),
+              snippet: "existingEmailSources 에 저장된 이메일",
+              title: `existingEmailSources.${directEmail.sourceType}`,
+              type: "direct",
+              url: null,
+            },
+          ],
+          sourceLabel: `existingEmailSources.${directEmail.sourceType}`,
+          sourceType:
+            directEmail.sourceType === "candid" ||
+            directEmail.sourceType === "github" ||
+            directEmail.sourceType === "scholar"
+              ? directEmail.sourceType
+              : null,
+          sourceUrl: null,
+          status: "found",
+          summary: "기존 저장 이메일을 사용했습니다.",
+          trace,
+        },
+        scrapeHistory,
+        searchHistory,
+        urlPool,
+      });
     }
-
-    const searchHistory: SearchRecord[] = [];
-    const scrapeHistory: ScrapeRecord[] = [];
-    const actionHistory: string[] = [];
-    let collectedEvidence: AtsEmailDiscoveryEvidence[] = [];
-    let finishReason: string | null = null;
-
-    const urlPool = new Map<string, UrlMemoryEntry>();
-    upsertUrlPool(urlPool, collectSeedUrlCandidates(args.candidate));
 
     pushTrace("decision", "초기 URL 메모리를 구성했습니다.", {
       urls: getPendingUrls(urlPool).map((item) => ({
@@ -1394,7 +1994,9 @@ export async function findCandidateEmailWithAgenticFlow(args: {
         }
 
         if (
-          searchHistory.some((item) => normalizeQuery(item.query) === normalizedQuery)
+          searchHistory.some(
+            (item) => normalizeQuery(item.query) === normalizedQuery
+          )
         ) {
           pushTrace("decision", "이미 실행한 검색어라 건너뜁니다.", {
             query: action.query,
@@ -1574,57 +2176,94 @@ export async function findCandidateEmailWithAgenticFlow(args: {
         url,
       });
 
-      pushTrace("decision", `페이지에서 이메일 후보 ${findings.length}건 추출`, {
-        discoveredUrls: discoveredCandidates.slice(0, 8).map((item) => item.url),
-        findings,
-        url,
-      });
-
-      const highConfidence = evidence.find((item) => item.confidence === "high");
-      if (highConfidence) {
-        pushTrace("decision", "high confidence 이메일을 발견하여 즉시 종료합니다.", {
-          email: highConfidence.email,
+      pushTrace(
+        "decision",
+        `페이지에서 이메일 후보 ${findings.length}건 추출`,
+        {
+          discoveredUrls: discoveredCandidates
+            .slice(0, 8)
+            .map((item) => item.url),
+          findings,
           url,
-        });
+        }
+      );
 
-        return {
-          bestEmail: highConfidence.email,
-          confidence: "high",
-          evidence: collectedEvidence.slice(0, 5),
-          sourceLabel: highConfidence.title ?? scraped.title ?? poolEntry?.label ?? url,
-          sourceType: "web",
-          sourceUrl: highConfidence.url ?? url,
-          status: "found",
-          summary: "공개 페이지에서 high confidence 이메일을 발견했습니다.",
-          trace,
-        };
+      const highConfidence = evidence.find(
+        (item) => item.confidence === "high"
+      );
+      if (highConfidence) {
+        pushTrace(
+          "decision",
+          "high confidence 이메일을 발견하여 즉시 종료합니다.",
+          {
+            email: highConfidence.email,
+            url,
+          }
+        );
+
+        return attachManualReviewSuggestions({
+          candidate: args.candidate,
+          evidence: collectedEvidence,
+          pushTrace,
+          result: {
+            bestEmail: highConfidence.email,
+            confidence: "high",
+            evidence: collectedEvidence.slice(0, 5),
+            sourceLabel:
+              highConfidence.title ?? scraped.title ?? poolEntry?.label ?? url,
+            sourceType: "web",
+            sourceUrl: highConfidence.url ?? url,
+            status: "found",
+            summary: "공개 페이지에서 high confidence 이메일을 발견했습니다.",
+            trace,
+          },
+          scrapeHistory,
+          searchHistory,
+          urlPool,
+        });
       }
     }
 
-    return makeFinalResult({
+    return attachManualReviewSuggestions({
+      candidate: args.candidate,
       evidence: collectedEvidence,
-      exhausted: budget.isExhausted(),
-      finishReason,
-      trace,
+      pushTrace,
+      result: makeFinalResult({
+        evidence: collectedEvidence,
+        exhausted: budget.isExhausted(),
+        finishReason,
+        trace,
+      }),
+      scrapeHistory,
+      searchHistory,
+      urlPool,
     });
   } catch (error) {
     pushTrace("decision", "이메일 탐색 중 오류가 발생했습니다.", {
       error: error instanceof Error ? error.message : "unknown",
     });
 
-    return {
-      bestEmail: null,
-      confidence: "low",
-      evidence: [],
-      sourceLabel: null,
-      sourceType: null,
-      sourceUrl: null,
-      status: "error",
-      summary:
-        error instanceof Error
-          ? error.message
-          : "이메일 탐색 중 오류가 발생했습니다.",
-      trace,
-    };
+    return attachManualReviewSuggestions({
+      candidate: args.candidate,
+      evidence: collectedEvidence,
+      pushTrace,
+      result: {
+        bestEmail: null,
+        confidence: "low",
+        evidence: [],
+        sourceLabel: null,
+        sourceType: null,
+        sourceUrl: null,
+        status: "error",
+        summary:
+          error instanceof Error
+            ? error.message
+            : "이메일 탐색 중 오류가 발생했습니다.",
+        trace,
+      },
+      scrapeHistory,
+      searchHistory,
+      urlPool,
+    });
   }
 }

@@ -1,0 +1,129 @@
+- generic [ref=e1]:
+  - main [ref=e4]:
+    - generic [ref=e5]:
+      - complementary [ref=e6]:
+        - generic [ref=e7]:
+          - button "Harper" [ref=e8] [cursor=pointer]:
+            - generic [ref=e9]: Harper
+          - navigation [ref=e10]:
+            - button "Home" [ref=e11] [cursor=pointer]:
+              - img [ref=e13]
+              - generic [ref=e17]: Home
+            - button "대화" [ref=e21] [cursor=pointer]:
+              - img [ref=e23]
+              - generic [ref=e27]: 대화
+            - button "프로필" [ref=e29] [cursor=pointer]:
+              - img [ref=e31]
+              - generic [ref=e44]: 프로필
+            - button "History" [active] [ref=e46] [cursor=pointer]:
+              - img [ref=e48]
+              - generic [ref=e51]: History
+              - img [ref=e132]
+          - generic [ref=e54]:
+            - button "설정" [ref=e55] [cursor=pointer]:
+              - img [ref=e56]
+              - text: 설정
+            - button "Notification" [ref=e59] [cursor=pointer]:
+              - img [ref=e60]
+              - generic [ref=e63]: Notification
+            - button "PC Preview Candidate preview@harper.ai" [ref=e66] [cursor=pointer]:
+              - generic [ref=e67]:
+                - generic [ref=e68]: PC
+                - generic [ref=e69]:
+                  - generic [ref=e70]: Preview Candidate
+                  - generic [ref=e71]: preview@harper.ai
+      - generic [ref=e135]:
+        - generic [ref=e138]:
+          - button "All" [ref=e139] [cursor=pointer]
+          - button "연결 수락" [ref=e140] [cursor=pointer]
+          - button "Tracked" [ref=e141] [cursor=pointer]
+          - button "Not for me" [ref=e142] [cursor=pointer]
+          - button "Don't know" [ref=e143] [cursor=pointer]
+        - generic [ref=e144]:
+          - generic [ref=e145]: 4개의 기회를 한 장씩 검토할 수 있습니다.
+          - generic [ref=e146]:
+            - generic [ref=e147]: ← → 이동
+            - generic [ref=e148]: Z Track
+            - generic [ref=e149]: X Don't know
+            - generic [ref=e150]: C Not for me
+        - article [ref=e151]:
+          - generic [ref=e153]:
+            - generic [ref=e154]:
+              - generic [ref=e155]: 내부 기회
+              - generic [ref=e156]: Match
+              - generic [ref=e268]: 연결 수락 가능
+              - generic [ref=e157]: 1 / 4
+            - generic [ref=e158]:
+              - button "Prev" [disabled] [ref=e159]:
+                - img [ref=e160]
+                - text: Prev
+              - button "Next" [ref=e162] [cursor=pointer]:
+                - text: Next
+                - img [ref=e163]
+          - generic [ref=e165]:
+            - generic [ref=e166]:
+              - generic [ref=e167]:
+                - generic [ref=e168]:
+                  - generic [ref=e169]: Applied AI Engineer
+                  - generic [ref=e170]: Harper Portfolio Team
+                - generic [ref=e171]:
+                  - generic [ref=e172]: 4월 6일 추천
+                  - generic [ref=e173]: 4월 4일 게시
+              - generic [ref=e174]:
+                - generic [ref=e175]: Seoul
+                - generic [ref=e176]: Hybrid
+                - generic [ref=e177]: Full-time
+              - generic [ref=e179]:
+                - generic [ref=e180]: 역할
+                - generic [ref=e181]: 프로덕트 팀과 바로 붙어 agent 기능을 제품에 배포하고 운영 지표까지 같이 보는 역할입니다.
+              - generic [ref=e182]:
+                - generic [ref=e183]:
+                  - generic [ref=e184]:
+                    - img [ref=e185]
+                    - generic [ref=e187]: 추천 이유
+                  - generic [ref=e188]:
+                    - generic [ref=e269]: LLM 제품 론치 경험이 직접적으로 연결됩니다.
+                    - generic [ref=e270]: 작은 팀에서 제품 방향과 기술 의사결정을 함께 가져갈 수 있습니다.
+                - generic [ref=e191]:
+                  - generic [ref=e192]:
+                    - img [ref=e193]
+                    - generic [ref=e197]: 회사 메모
+                  - generic [ref=e198]:
+                    - generic [ref=e200]: 작은 제품팀에서 모델 품질과 사용자 경험을 같이 책임지는 팀입니다.
+                    - generic [ref=e202]:
+                      - img [ref=e203]
+                      - generic [ref=e206]: 내부 기회
+            - complementary [ref=e208]:
+              - generic [ref=e209]:
+                - generic [ref=e210]:
+                  - generic [ref=e211]: 상태
+                  - generic [ref=e212]:
+                    - generic [ref=e213]: 반응 없음
+                    - generic [ref=e214]: 확인함
+                - generic [ref=e216]:
+                  - button "Track Z" [ref=e217] [cursor=pointer]:
+                    - generic [ref=e218]:
+                      - img [ref=e219]
+                      - generic [ref=e222]: Track
+                    - generic [ref=e223]: Z
+                  - button "Don't know X" [ref=e224] [cursor=pointer]:
+                    - generic [ref=e225]:
+                      - img [ref=e226]
+                      - generic [ref=e229]: Don't know
+                    - generic [ref=e230]: X
+                  - button "Not for me C" [ref=e231] [cursor=pointer]:
+                    - generic [ref=e232]:
+                      - img [ref=e233]
+                      - generic [ref=e237]: Not for me
+                    - generic [ref=e238]: C
+                - button "회사 보기" [ref=e271] [cursor=pointer]:
+                  - text: 회사 보기
+                  - img [ref=e240]
+                - generic [ref=e244]:
+                  - generic [ref=e245]:
+                    - img [ref=e246]
+                    - generic [ref=e249]: Seoul
+                  - generic [ref=e255]:
+                    - img [ref=e256]
+                    - generic [ref=e259]: 4월 8일 오후 5:53
+  - alert [ref=e131]

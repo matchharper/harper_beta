@@ -117,10 +117,7 @@ export type TalentSettingRow = {
   updated_at: string;
 };
 
-export type TalentInsightContent = {
-  technical_strengths: string | null;
-  desired_teams: string | null;
-};
+export type TalentInsightContent = Record<string, string>;
 
 export type TalentInsightRow = {
   id: number;
@@ -218,28 +215,42 @@ function normalizeTalentInsightText(value: unknown, maxLength = 8000) {
   return normalized.slice(0, maxLength);
 }
 
+function normalizeTalentInsightKey(value: unknown, maxLength = 64) {
+  if (typeof value !== "string") return null;
+
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_")
+    .replace(/[^a-z0-9_]/g, "")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, maxLength);
+
+  if (!normalized) return null;
+
+  if (normalized === "impact_summary") return "technical_strengths";
+  if (normalized === "dream_teams") return "desired_teams";
+
+  return normalized;
+}
+
 export function normalizeTalentInsightContent(
   value: unknown
 ): TalentInsightContent | null {
   const record = asRecord(value);
   if (!record) return null;
 
-  const normalized = {
-    technical_strengths: normalizeTalentInsightText(
-      record.technical_strengths ?? record.impact_summary,
-      8000
-    ),
-    desired_teams: normalizeTalentInsightText(
-      record.desired_teams ?? record.dream_teams,
-      4000
-    ),
-  } satisfies TalentInsightContent;
+  const normalized: TalentInsightContent = {};
 
-  if (!normalized.technical_strengths && !normalized.desired_teams) {
-    return null;
+  for (const [rawKey, rawValue] of Object.entries(record)) {
+    const key = normalizeTalentInsightKey(rawKey);
+    const nextValue = normalizeTalentInsightText(rawValue, 8000);
+    if (!key || !nextValue) continue;
+    normalized[key] = nextValue;
   }
 
-  return normalized;
+  return Object.keys(normalized).length > 0 ? normalized : null;
 }
 
 export function mergeTalentInsightContent(args: {
@@ -251,11 +262,12 @@ export function mergeTalentInsightContent(args: {
 
   if (!current && !seed) return null;
 
-  return {
-    technical_strengths:
-      current?.technical_strengths ?? seed?.technical_strengths ?? null,
-    desired_teams: current?.desired_teams ?? seed?.desired_teams ?? null,
+  const merged = {
+    ...(seed ?? {}),
+    ...(current ?? {}),
   } satisfies TalentInsightContent;
+
+  return Object.keys(merged).length > 0 ? merged : null;
 }
 
 export function mergeTalentSettingSeed(args: {
@@ -904,25 +916,45 @@ export async function upsertTalentInsights(args: {
   const { admin, userId, content } = args;
   const normalizedContent = normalizeTalentInsightContent(content);
   const now = new Date().toISOString();
+  const payload = {
+    talent_id: userId,
+    content: normalizedContent,
+    last_updated_at: now,
+  };
+  const selectQuery = "id, talent_id, content, created_at, last_updated_at";
 
   const { data, error } = await admin
     .from("talent_insights")
-    .upsert(
-      {
-        talent_id: userId,
-        content: normalizedContent,
-        last_updated_at: now,
-      },
-      { onConflict: "talent_id" }
-    )
-    .select("id, talent_id, content, created_at, last_updated_at")
+    .upsert(payload, { onConflict: "talent_id" })
+    .select(selectQuery)
     .single();
 
-  if (error) {
-    throw new Error(error.message ?? "Failed to save talent_insights");
+  if (!error) {
+    return data as TalentInsightRow;
   }
 
-  return data as TalentInsightRow;
+  const errorMessage = error.message ?? "Failed to save talent_insights";
+  const canRetryWithoutConflictKey =
+    errorMessage.includes("ON CONFLICT") ||
+    errorMessage.includes("unique or exclusion constraint");
+
+  if (!canRetryWithoutConflictKey) {
+    throw new Error(errorMessage);
+  }
+
+  const existing = await fetchTalentInsights({ admin, userId });
+  const mutation = existing
+    ? admin.from("talent_insights").update(payload).eq("id", existing.id)
+    : admin.from("talent_insights").insert(payload);
+  const { data: fallbackData, error: fallbackError } = await mutation
+    .select(selectQuery)
+    .single();
+
+  if (fallbackError) {
+    throw new Error(fallbackError.message ?? "Failed to save talent_insights");
+  }
+
+  return fallbackData as TalentInsightRow;
 }
 
 export async function getTalentResumeSignedUrl(args: {

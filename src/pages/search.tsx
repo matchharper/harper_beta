@@ -3,8 +3,17 @@ import { BaseSectionLayout } from "@/components/landing/GridSectionLayout";
 import Head1 from "@/components/landing/Head1";
 import CandidateGithubCardDark from "@/components/landing/Rad";
 import ScholarProfile from "@/components/landing/ScholarProfile";
+import { useCountryLang } from "@/hooks/useCountryLang";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import { useMessages } from "@/i18n/useMessage";
 import { en } from "@/lang/en";
+import {
+  createSearchLandingId,
+  SEARCH_LANDING_LAST_VISIT_AT_KEY,
+  SEARCH_LANDING_LOCAL_ID_KEY,
+  SEARCH_LANDING_LOG_ABTEST_TYPE,
+  SEARCH_LANDING_SESSION_GAP_MS,
+} from "@/lib/searchLandingLogs";
 import { supabase } from "@/lib/supabase";
 import {
   ArrowUp,
@@ -15,14 +24,18 @@ import {
   Search,
   type LucideIcon,
 } from "lucide-react";
-import Image from "next/image";
 import dynamic from "next/dynamic";
 import Head from "next/head";
 import router from "next/router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import PricingSection from "@/components/landing/Pricing";
 import { FallingTagsMl } from "@/components/landing/FallingTagsML";
-import { OrbitIconsSmall } from "@/components/landing/Orbit";
 import Reveal from "@/components/landing/Animation/Reveal";
 import Footer from "@/components/landing/Footer";
 import SearchHeader, {
@@ -333,29 +346,152 @@ function SearchInputPanel({
 
 export default function RadarLandingPage() {
   const { m, locale } = useMessages();
+  const countryLang = useCountryLang();
+  const isMobile = useIsMobile();
 
   const [query, setQuery] = useState("");
+  const [landingId, setLandingId] = useState("");
   const [isOpenLoginModal, setIsOpenLoginModal] = useState(false);
+  const hasLoggedFirstScrollRef = useRef(false);
 
-  const openLoginModal = useCallback((draft?: string) => {
-    if (typeof window !== "undefined") {
-      const value = draft?.trim();
-      if (value) {
-        localStorage.setItem("harper_radar_query_draft", value);
+  const addLandingLog = useCallback(
+    async (type: string, overrides?: { localId?: string }) => {
+      const storedLocalId =
+        typeof window !== "undefined"
+          ? (localStorage.getItem(SEARCH_LANDING_LOCAL_ID_KEY) ?? "")
+          : "";
+      const resolvedLocalId =
+        overrides?.localId || landingId || storedLocalId || "";
+
+      if (!resolvedLocalId) return;
+
+      try {
+        await supabase.from("landing_logs").insert({
+          local_id: resolvedLocalId,
+          type,
+          abtest_type: SEARCH_LANDING_LOG_ABTEST_TYPE,
+          is_mobile: isMobile,
+          country_lang: countryLang,
+        });
+      } catch (error) {
+        console.error("search landing log insert error:", error);
       }
-    }
-    setIsOpenLoginModal(true);
-  }, []);
+    },
+    [countryLang, isMobile, landingId]
+  );
 
-  const handleStart = useCallback(() => {
-    openLoginModal(query);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const savedId = localStorage.getItem(SEARCH_LANDING_LOCAL_ID_KEY);
+    if (!savedId) {
+      const newId = createSearchLandingId();
+      localStorage.setItem(SEARCH_LANDING_LOCAL_ID_KEY, newId);
+      localStorage.setItem(
+        SEARCH_LANDING_LAST_VISIT_AT_KEY,
+        Date.now().toString()
+      );
+      setLandingId(newId);
+      void addLandingLog("new_visit", { localId: newId });
+      return;
+    }
+
+    setLandingId(savedId);
+  }, [addLandingLog]);
+
+  useEffect(() => {
+    if (!landingId || typeof window === "undefined") return;
+
+    const now = Date.now();
+    const lastVisitRaw = localStorage.getItem(SEARCH_LANDING_LAST_VISIT_AT_KEY);
+    const lastVisitAt = lastVisitRaw ? Number(lastVisitRaw) : null;
+
+    if (
+      lastVisitAt &&
+      Number.isFinite(lastVisitAt) &&
+      now - lastVisitAt >= SEARCH_LANDING_SESSION_GAP_MS
+    ) {
+      void addLandingLog("new_session");
+    }
+
+    localStorage.setItem(SEARCH_LANDING_LAST_VISIT_AT_KEY, now.toString());
+  }, [addLandingLog, landingId]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!landingId) return;
+      if (hasLoggedFirstScrollRef.current) return;
+      if (window.scrollY <= 0) return;
+
+      hasLoggedFirstScrollRef.current = true;
+      void addLandingLog("first_scroll_down");
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [addLandingLog, landingId]);
+
+  const openLoginModal = useCallback(
+    (args?: { draft?: string; eventType?: string }) => {
+      if (typeof window !== "undefined") {
+        const value = args?.draft?.trim();
+        if (value) {
+          localStorage.setItem("harper_radar_query_draft", value);
+        }
+      }
+
+      if (args?.eventType) {
+        void addLandingLog(args.eventType);
+      }
+
+      setIsOpenLoginModal(true);
+    },
+    [addLandingLog]
+  );
+
+  const handlePrimaryStart = useCallback(() => {
+    openLoginModal({
+      draft: query,
+      eventType: "click_start",
+    });
   }, [openLoginModal, query]);
+
+  const handleHeaderStart = useCallback(() => {
+    openLoginModal({
+      draft: query,
+      eventType: "click_nav_start",
+    });
+  }, [openLoginModal, query]);
+
+  const handleFooterStart = useCallback(
+    (eventType: string) => {
+      openLoginModal({
+        draft: query,
+        eventType,
+      });
+    },
+    [openLoginModal, query]
+  );
+
+  const handlePricingPlanClick = useCallback(
+    (plan: string, _billing: "monthly" | "yearly") => {
+      openLoginModal({
+        draft: query,
+        eventType: `click_pricing_${plan}`,
+      });
+    },
+    [openLoginModal, query]
+  );
 
   const handleSearchSubmit = useCallback(
     (e?: React.FormEvent) => {
       e?.preventDefault();
       if (!query.trim()) return;
-      openLoginModal(query);
+
+      openLoginModal({
+        draft: query,
+        eventType: "click_query_start",
+      });
     },
     [openLoginModal, query]
   );
@@ -364,10 +500,28 @@ export default function RadarLandingPage() {
     setIsOpenLoginModal(false);
   }, []);
 
+  const logCompletedLogin = useCallback(
+    async (email: string | null | undefined) => {
+      const resolvedEmail = String(email ?? "").trim();
+      if (!resolvedEmail) return;
+
+      await addLandingLog(`login_email:${resolvedEmail}`);
+    },
+    [addLandingLog]
+  );
+
   const login = useCallback(async () => {
+    void addLandingLog("click_login_google");
+
+    const resolvedLandingId =
+      landingId ||
+      (typeof window !== "undefined"
+        ? (localStorage.getItem(SEARCH_LANDING_LOCAL_ID_KEY) ?? "")
+        : "");
+
     const redirectTo =
       typeof window !== "undefined"
-        ? `${window.location.origin}/auths/callback`
+        ? `${window.location.origin}/auths/callback?lid=${resolvedLandingId}&cl=${encodeURIComponent(countryLang)}&ab=${encodeURIComponent(SEARCH_LANDING_LOG_ABTEST_TYPE)}`
         : undefined;
 
     const { data, error } = await supabase.auth.signInWithOAuth({
@@ -382,70 +536,77 @@ export default function RadarLandingPage() {
     }
 
     return data;
-  }, []);
+  }, [addLandingLog, countryLang, landingId]);
 
-  const customLogin = useCallback(async (email: string, password: string) => {
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
+  const customLogin = useCallback(
+    async (email: string, password: string) => {
+      void addLandingLog("click_login_email");
 
-      if (error) {
-        return { message: error.message };
-      }
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
 
-      const user = data.user;
-      if (!user) {
+        if (error) {
+          return { message: error.message };
+        }
+
+        const user = data.user;
+        if (!user) {
+          return { message: en.auth.invalidAccount };
+        }
+
+        const isEmailConfirmed = Boolean(
+          user.email_confirmed_at || user.user_metadata?.email_verified
+        );
+
+        if (!isEmailConfirmed) {
+          return { message: en.auth.emailConfirmationSent };
+        }
+
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        const accessToken = session?.access_token;
+
+        if (!accessToken) {
+          return {
+            message: RADAR_LOGIN_MODAL_COPY.sessionExpired,
+          };
+        }
+
+        const bootstrapRes = await fetch("/api/auth/bootstrap", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        if (!bootstrapRes.ok) {
+          const bootstrapJson = await bootstrapRes.json().catch(() => ({}));
+          return {
+            message:
+              bootstrapJson?.error ?? RADAR_LOGIN_MODAL_COPY.bootstrapFailed,
+          };
+        }
+
+        await logCompletedLogin(user.email ?? email.trim());
+
+        setIsOpenLoginModal(false);
+        router.push("/invitation");
+        return null;
+      } catch (error) {
+        if (error instanceof Error && error.message) {
+          return { message: error.message };
+        }
         return { message: en.auth.invalidAccount };
       }
-
-      const isEmailConfirmed = Boolean(
-        user.email_confirmed_at || user.user_metadata?.email_verified
-      );
-
-      if (!isEmailConfirmed) {
-        return { message: en.auth.emailConfirmationSent };
-      }
-
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      const accessToken = session?.access_token;
-
-      if (!accessToken) {
-        return {
-          message: RADAR_LOGIN_MODAL_COPY.sessionExpired,
-        };
-      }
-
-      const bootstrapRes = await fetch("/api/auth/bootstrap", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-
-      if (!bootstrapRes.ok) {
-        const bootstrapJson = await bootstrapRes.json().catch(() => ({}));
-        return {
-          message:
-            bootstrapJson?.error ?? RADAR_LOGIN_MODAL_COPY.bootstrapFailed,
-        };
-      }
-
-      setIsOpenLoginModal(false);
-      router.push("/invitation");
-      return null;
-    } catch (error) {
-      if (error instanceof Error && error.message) {
-        return { message: error.message };
-      }
-      return { message: en.auth.invalidAccount };
-    }
-  }, []);
+    },
+    [addLandingLog, logCompletedLogin]
+  );
 
   return (
     <>
@@ -468,7 +629,7 @@ export default function RadarLandingPage() {
           />
         )}
 
-        <SearchHeader onStartClick={handleStart} />
+        <SearchHeader onStartClick={handleHeaderStart} />
 
         <nav className="sr-only" aria-label="Radar section links">
           {navItems.map((item) => (
@@ -487,7 +648,7 @@ export default function RadarLandingPage() {
               className="pointer-events-none absolute inset-0"
               style={HERO_DOT_BACKGROUND_STYLE}
             />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(180,255,120,0.12),transparent_34%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(180,255,120,0.12),transparent_15%)]" />
           </div>
 
           <Reveal delay={0.08} className="w-full max-w-[980px]">
@@ -514,7 +675,10 @@ export default function RadarLandingPage() {
                 </div>
               </div>
               <div className="mt-4 flex md:hidden">
-                <StartButton onClick={handleStart} label={"무료로 시작하기"} />
+                <StartButton
+                  onClick={handlePrimaryStart}
+                  label={"무료로 시작하기"}
+                />
               </div>
             </div>
 
@@ -599,7 +763,7 @@ export default function RadarLandingPage() {
         {/* <CompareSection /> */}
 
         <div id={RadarSection.Pricing} className="h-28 md:h-40" />
-        <PricingSection onClick={handleStart} />
+        <PricingSection onClick={handlePricingPlanClick} />
 
         <div className="h-28 md:h-40" />
         <FounderNote />
@@ -646,7 +810,10 @@ export default function RadarLandingPage() {
                 하퍼와 함께 진짜 인재를 찾아보세요.
               </p>
 
-              <StartButton onClick={handleStart} label={"무료로 시작하기"} />
+              <StartButton
+                onClick={handlePrimaryStart}
+                label={"무료로 시작하기"}
+              />
               <div className="mt-32 w-full md:flex hidden">
                 <FallingTagsMl theme="dark" startDelay={800} />
               </div>
@@ -654,7 +821,7 @@ export default function RadarLandingPage() {
           </section>
         </Animate>
 
-        <Footer onClickStart={handleStart} />
+        <Footer onClickStart={handleFooterStart} />
       </main>
     </>
   );

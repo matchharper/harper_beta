@@ -1,6 +1,6 @@
 import React from "react";
 import { Tooltips } from "../ui/tooltip";
-import { BRAND_MAP } from "./LinkChips";
+import { getLinkChipMeta } from "@/utils/linkChip";
 
 type Props = {
   links: string[];
@@ -15,22 +15,9 @@ function LinkPills({ links, size = "default" }: Props) {
       {links.map((raw) => {
         if (!raw) return null;
 
-        const url = raw.startsWith("http") ? raw : `https://${raw}`;
+        const { url, brand, icon, label } = getLinkChipMeta(raw);
 
-        let host = raw;
-        try {
-          host = new URL(url).hostname.replace("www.", "");
-        } catch {}
-
-        const brand = BRAND_MAP.find((b) => b.match(url));
-
-        // sm일 때는 매핑 안 되는 링크는 아예 렌더링 X
         if (size === "sm" && !brand) return null;
-
-        const finalBrand = brand ?? {
-          label: host,
-          icon: "/svgs/chain.svg",
-        };
 
         const isSm = size === "sm";
 
@@ -47,22 +34,20 @@ function LinkPills({ links, size = "default" }: Props) {
                   : "bg-hblack50 px-2.5 py-1.5 text-xs text-black hover:bg-hblack100"
               }`}
           >
-            <Tooltips text={isSm ? finalBrand.label : ""}>
+            <Tooltips text={isSm ? label : ""}>
               <img
-                src={finalBrand.icon}
+                src={icon}
                 alt=""
                 className={
                   isSm
                     ? "h-4 w-4"
-                    : finalBrand.icon.includes("/svgs/chain")
+                    : icon.includes("/svgs/chain")
                       ? "h-3.5 w-3.5"
                       : "h-4 w-4"
                 }
               />
             </Tooltips>
-            {!isSm && (
-              <span className="ml-2 font-normal">{finalBrand.label}</span>
-            )}
+            {!isSm && <span className="ml-2 font-normal">{label}</span>}
           </a>
         );
       })}

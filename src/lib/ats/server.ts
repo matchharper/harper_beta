@@ -127,9 +127,9 @@ function safeParseJson(raw: string) {
   }
 }
 
-function sortByLatestDate<T extends { endDate?: string | null; startDate?: string | null }>(
-  items: T[]
-) {
+function sortByLatestDate<
+  T extends { endDate?: string | null; startDate?: string | null },
+>(items: T[]) {
   return items.slice().sort((a, b) => {
     const aEnd = a.endDate ? Date.parse(a.endDate) : Number.POSITIVE_INFINITY;
     const bEnd = b.endDate ? Date.parse(b.endDate) : Number.POSITIVE_INFINITY;
@@ -181,7 +181,8 @@ function mapOutreachRecord(row: any): AtsOutreachRecord {
       row?.email_discovery_trace
     ),
     emailSourceLabel: row?.email_source_label ?? null,
-    emailSourceType: (row?.email_source_type as AtsEmailSourceType | null) ?? null,
+    emailSourceType:
+      (row?.email_source_type as AtsEmailSourceType | null) ?? null,
     emailSourceUrl: row?.email_source_url ?? null,
     history: normalizeAtsContactHistory(row?.history),
     id: Number(row?.id ?? 0) || 0,
@@ -232,10 +233,10 @@ function mapMessageRecord(row: any): AtsMessageRecord {
 }
 
 async function fetchCompanyUserRecord(admin: AdminClient, userId: string) {
-  const { data, error } = await ((admin.from("company_users" as any) as any)
+  const { data, error } = await (admin.from("company_users" as any) as any)
     .select("user_id, email, name, company, company_description")
     .eq("user_id", userId)
-    .maybeSingle());
+    .maybeSingle();
 
   if (error) {
     throw new Error(error.message ?? "Failed to load company user");
@@ -248,9 +249,9 @@ async function fetchCompanyUserEmailMap(admin: AdminClient, userIds: string[]) {
   const emailByUserId = new Map<string, string | null>();
   if (userIds.length === 0) return emailByUserId;
 
-  const { data, error } = await ((admin.from("company_users" as any) as any)
+  const { data, error } = await (admin.from("company_users" as any) as any)
     .select("user_id, email")
-    .in("user_id", userIds));
+    .in("user_id", userIds);
 
   if (error) {
     throw new Error(error.message ?? "Failed to load company user emails");
@@ -299,35 +300,37 @@ async function upsertWorkspaceRow(args: {
     bookmark_folder_id:
       args.bookmarkFolderId !== undefined
         ? args.bookmarkFolderId
-        : existing?.bookmark_folder_id ?? null,
+        : (existing?.bookmark_folder_id ?? null),
     company_pitch:
       args.companyPitch != null
         ? String(args.companyPitch).trim() || null
-        : existing?.company_pitch ?? args.companyUser?.company_description ?? null,
+        : (existing?.company_pitch ??
+          args.companyUser?.company_description ??
+          null),
     job_description:
       args.jobDescription != null
         ? String(args.jobDescription).trim() || null
-        : existing?.job_description ?? null,
+        : (existing?.job_description ?? null),
     sender_email:
       args.senderEmail != null
         ? String(args.senderEmail).trim() || null
-        : existing?.sender_email ?? args.userEmail ?? null,
+        : (existing?.sender_email ?? args.userEmail ?? null),
     signature:
       args.signature != null
         ? String(args.signature).trim() || null
-        : existing?.signature ?? null,
+        : (existing?.signature ?? null),
     updated_at: new Date().toISOString(),
     user_id: args.userId,
   };
 
-  const { data, error } = await ((args.admin.from(
-    "candidate_outreach_workspace" as any
-  ) as any)
+  const { data, error } = await (
+    args.admin.from("candidate_outreach_workspace" as any) as any
+  )
     .upsert(payload, { onConflict: "user_id" })
     .select(
       "user_id, job_description, sender_email, company_pitch, signature, bookmark_folder_id"
     )
-    .single());
+    .single();
 
   if (error) {
     throw new Error(error.message ?? "Failed to save ATS workspace");
@@ -340,7 +343,10 @@ async function upsertWorkspaceRow(args: {
   });
 }
 
-async function fetchDefaultFolderCandidateIds(admin: AdminClient, userId: string) {
+async function fetchDefaultFolderCandidateIds(
+  admin: AdminClient,
+  userId: string
+) {
   const { data: folder, error: folderError } = await (
     admin.from("bookmark_folder" as any) as any
   )
@@ -361,11 +367,11 @@ async function fetchDefaultFolderCandidateIds(admin: AdminClient, userId: string
 }
 
 async function fetchBookmarkFolders(admin: AdminClient, userId: string) {
-  const { data, error } = await ((admin.from("bookmark_folder" as any) as any)
+  const { data, error } = await (admin.from("bookmark_folder" as any) as any)
     .select("id, user_id, name, is_default, created_at, updated_at")
     .eq("user_id", userId)
     .order("is_default", { ascending: false })
-    .order("created_at", { ascending: true }));
+    .order("created_at", { ascending: true });
 
   if (error) {
     throw new Error(error.message ?? "Failed to load bookmark folders");
@@ -374,7 +380,9 @@ async function fetchBookmarkFolders(admin: AdminClient, userId: string) {
   return coerceJsonArray<BookmarkFolderRecord>(data);
 }
 
-function mapBookmarkFolderOption(row: BookmarkFolderRecord): AtsBookmarkFolderOption {
+function mapBookmarkFolderOption(
+  row: BookmarkFolderRecord
+): AtsBookmarkFolderOption {
   return {
     id: Number(row.id),
     isDefault: Boolean(row.is_default),
@@ -409,11 +417,13 @@ async function fetchBookmarkFolderCandidateIds(
     return [] as string[];
   }
 
-  const { data, error } = await ((admin.from("bookmark_folder_item" as any) as any)
+  const { data, error } = await (
+    admin.from("bookmark_folder_item" as any) as any
+  )
     .select("candid_id")
     .eq("user_id", userId)
     .eq("folder_id", folderId)
-    .order("created_at", { ascending: false }));
+    .order("created_at", { ascending: false });
 
   if (error) {
     throw new Error(error.message ?? "Failed to load shortlist candidates");
@@ -493,14 +503,18 @@ async function fetchMessageRecordById(args: {
   return data ? mapMessageRecord(data) : null;
 }
 
-async function fetchShortlistMemoMap(admin: AdminClient, userId: string, ids: string[]) {
+async function fetchShortlistMemoMap(
+  admin: AdminClient,
+  userId: string,
+  ids: string[]
+) {
   const memoById = new Map<string, string>();
   if (ids.length === 0) return memoById;
 
-  const { data, error } = await ((admin.from("shortlist_memo" as any) as any)
+  const { data, error } = await (admin.from("shortlist_memo" as any) as any)
     .select("candid_id, memo")
     .eq("user_id", userId)
-    .in("candid_id", ids));
+    .in("candid_id", ids);
 
   if (error) {
     throw new Error(error.message ?? "Failed to load shortlist memos");
@@ -516,9 +530,8 @@ async function fetchShortlistMemoMap(admin: AdminClient, userId: string, ids: st
 }
 
 function pickBestGithubProfile(rows: any[]) {
-  return rows
-    .slice()
-    .sort((a, b) => {
+  return (
+    rows.slice().sort((a, b) => {
       const aHasReadme =
         typeof a?.readme_markdown === "string" && a.readme_markdown.trim()
           ? 1
@@ -529,7 +542,8 @@ function pickBestGithubProfile(rows: any[]) {
           : 0;
       if (aHasReadme !== bHasReadme) return bHasReadme - aHasReadme;
       return Number(b?.followers ?? 0) - Number(a?.followers ?? 0);
-    })[0] ?? null;
+    })[0] ?? null
+  );
 }
 
 function buildExistingEmailSources(args: {
@@ -599,7 +613,9 @@ function getCandidateProfileLinks(args: {
     linkedinUrl: findFirstLink(candidateLinks, /linkedin\.com/i),
     scholarUrl:
       String(
-        args.scholarProfile?.scholar_url ?? args.scholarProfile?.homepage_link ?? ""
+        args.scholarProfile?.scholar_url ??
+          args.scholarProfile?.homepage_link ??
+          ""
       ).trim() || null,
   };
 }
@@ -686,7 +702,10 @@ async function fetchCandidateSummariesByIds(args: {
   }
 
   const candidateById = new Map(
-    coerceJsonArray<any>(candidates).map((candidate) => [candidate.id, candidate])
+    coerceJsonArray<any>(candidates).map((candidate) => [
+      candidate.id,
+      candidate,
+    ])
   );
 
   return args.candidIds
@@ -710,7 +729,9 @@ async function fetchCandidateSummariesByIds(args: {
           startDate: item?.start_date ?? null,
         }))
       );
-      const githubProfile = pickBestGithubProfile(githubByCandidateId.get(id) ?? []);
+      const githubProfile = pickBestGithubProfile(
+        githubByCandidateId.get(id) ?? []
+      );
       const scholarProfile = scholarByCandidateId.get(id) ?? null;
       const existingEmailSources = buildExistingEmailSources({
         candidateEmail: candidate?.email ?? null,
@@ -752,7 +773,7 @@ async function fetchCandidateDetailById(args: {
   outreach: AtsOutreachRecord | null;
   shortlistMemo: string | null;
 }) {
-  const { data, error } = await ((args.admin.from("candid" as any) as any)
+  const { data, error } = await (args.admin.from("candid" as any) as any)
     .select(
       `
         id,
@@ -788,7 +809,7 @@ async function fetchCandidateDetailById(args: {
       `
     )
     .eq("id", args.candidId)
-    .maybeSingle());
+    .maybeSingle();
 
   if (error) {
     throw new Error(error.message ?? "Failed to load ATS candidate detail");
@@ -1020,14 +1041,14 @@ async function ensureOutreachRecord(args: {
     ...(args.seed ?? {}),
   };
 
-  const { data, error } = await ((args.admin.from(
-    "candidate_outreach" as any
-  ) as any)
+  const { data, error } = await (
+    args.admin.from("candidate_outreach" as any) as any
+  )
     .upsert(payload, {
       onConflict: "user_id,candid_id",
     })
     .select(OUTREACH_SELECT)
-    .single());
+    .single();
 
   if (error) {
     throw new Error(error.message ?? "Failed to ensure outreach record");
@@ -1048,9 +1069,9 @@ async function updateOutreachRecord(args: {
     userId: args.userId,
   });
 
-  const { data, error } = await ((args.admin.from(
-    "candidate_outreach" as any
-  ) as any)
+  const { data, error } = await (
+    args.admin.from("candidate_outreach" as any) as any
+  )
     .update({
       ...args.patch,
       updated_at: new Date().toISOString(),
@@ -1058,7 +1079,7 @@ async function updateOutreachRecord(args: {
     .eq("user_id", args.userId)
     .eq("candid_id", args.candidId)
     .select(OUTREACH_SELECT)
-    .single());
+    .single();
 
   if (error) {
     throw new Error(error.message ?? "Failed to update outreach record");
@@ -1072,15 +1093,15 @@ async function fetchDueSequenceOutreachRows(args: {
   limit: number;
   nowIso: string;
 }) {
-  const { data, error } = await ((args.admin.from(
-    "candidate_outreach" as any
-  ) as any)
+  const { data, error } = await (
+    args.admin.from("candidate_outreach" as any) as any
+  )
     .select("user_id, candid_id, active_step, next_due_at, sequence_status")
     .in("sequence_status", ["draft", "active"])
     .not("next_due_at", "is", null)
     .lte("next_due_at", args.nowIso)
     .order("next_due_at", { ascending: true })
-    .limit(args.limit));
+    .limit(args.limit);
 
   if (error) {
     throw new Error(error.message ?? "Failed to load due ATS sequences");
@@ -1097,8 +1118,7 @@ async function fetchDueSequenceOutreachRows(args: {
         activeStep: Number(row?.active_step ?? 0) || 0,
         candidId,
         nextDueAt,
-        sequenceStatus:
-          row?.sequence_status === "active" ? "active" : "draft",
+        sequenceStatus: row?.sequence_status === "active" ? "active" : "draft",
         userId,
       } satisfies DueSequenceOutreachRow;
     })
@@ -1118,13 +1138,13 @@ async function fetchSequenceDraftPairKeys(args: {
 
   const candidIds = Array.from(new Set(args.rows.map((row) => row.candidId)));
   const userIds = Array.from(new Set(args.rows.map((row) => row.userId)));
-  const { data, error } = await ((args.admin.from(
-    "candidate_outreach_message" as any
-  ) as any)
+  const { data, error } = await (
+    args.admin.from("candidate_outreach_message" as any) as any
+  )
     .select("user_id, candid_id")
     .eq("kind", "sequence")
     .in("user_id", userIds)
-    .in("candid_id", candidIds));
+    .in("candid_id", candidIds);
 
   if (error) {
     throw new Error(error.message ?? "Failed to load sequence drafts");
@@ -1144,7 +1164,10 @@ function pad2(value: number) {
   return String(value).padStart(2, "0");
 }
 
-function getLocalDateStringForOffset(date: Date, timezoneOffsetMinutes: number) {
+function getLocalDateStringForOffset(
+  date: Date,
+  timezoneOffsetMinutes: number
+) {
   const shifted = new Date(date.getTime() - timezoneOffsetMinutes * 60_000);
   const year = shifted.getUTCFullYear();
   const month = pad2(shifted.getUTCMonth() + 1);
@@ -1153,7 +1176,9 @@ function getLocalDateStringForOffset(date: Date, timezoneOffsetMinutes: number) 
 }
 
 function addDaysToDateString(dateString: string, days: number) {
-  const [year, month, day] = dateString.split("-").map((value) => Number(value));
+  const [year, month, day] = dateString
+    .split("-")
+    .map((value) => Number(value));
   const date = new Date(Date.UTC(year, month - 1, day));
   date.setUTCDate(date.getUTCDate() + days);
   return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())}`;
@@ -1164,9 +1189,7 @@ function toIsoWithFixedOffset(args: {
   sendTime: string;
   timezoneOffsetMinutes: number;
 }) {
-  const [year, month, day] = args.date
-    .split("-")
-    .map((value) => Number(value));
+  const [year, month, day] = args.date.split("-").map((value) => Number(value));
   const [hours, minutes] = args.sendTime
     .split(":")
     .map((value) => Number(value));
@@ -1183,8 +1206,7 @@ function getScheduleForStep(
   const normalized = normalizeAtsSequenceSchedule(schedule);
   return (
     normalized.find((item) => item.stepNumber === stepNumber) ??
-    normalized[stepNumber - 1] ??
-    {
+    normalized[stepNumber - 1] ?? {
       date: null,
       delayDays: stepNumber === 1 ? 0 : ATS_SEQUENCE_INTERVAL_DAYS,
       mode: stepNumber === 1 ? ("date" as const) : ("relative" as const),
@@ -1212,8 +1234,9 @@ function computeDueAtFromSchedule(args: {
   const timezoneOffsetMinutes = Number.isFinite(schedule.timezoneOffsetMinutes)
     ? schedule.timezoneOffsetMinutes
     : ATS_DEFAULT_TIMEZONE_OFFSET_MINUTES;
-  const sendTime =
-    /^\d{2}:\d{2}$/.test(schedule.sendTime) ? schedule.sendTime : ATS_DEFAULT_SEQUENCE_TIME;
+  const sendTime = /^\d{2}:\d{2}$/.test(schedule.sendTime)
+    ? schedule.sendTime
+    : ATS_DEFAULT_SEQUENCE_TIME;
   const date =
     schedule.mode === "date" && schedule.date
       ? schedule.date
@@ -1230,7 +1253,10 @@ function computeDueAtFromSchedule(args: {
 }
 
 function resolveTargetEmail(args: {
-  candidate: Pick<AtsCandidateDetail | AtsCandidateSummary, "existingEmailSources">;
+  candidate: Pick<
+    AtsCandidateDetail | AtsCandidateSummary,
+    "existingEmailSources"
+  >;
   outreach: AtsOutreachRecord | null;
 }) {
   if (isValidEmail(args.outreach?.targetEmail)) {
@@ -1267,7 +1293,11 @@ function getSentStepNumbers(messages: AtsMessageRecord[]) {
 }
 
 function getNextSequenceStepFromSentSet(sentStepNumbers: Set<number>) {
-  for (let stepNumber = 1; stepNumber <= ATS_SEQUENCE_STEP_COUNT; stepNumber += 1) {
+  for (
+    let stepNumber = 1;
+    stepNumber <= ATS_SEQUENCE_STEP_COUNT;
+    stepNumber += 1
+  ) {
     if (!sentStepNumbers.has(stepNumber)) {
       return stepNumber;
     }
@@ -1299,7 +1329,8 @@ async function fetchSentStepNumbersByCandidateIds(args: {
   for (const row of coerceJsonArray<any>(data)) {
     const candidId = String(row?.candid_id ?? "").trim();
     const stepNumber = Number(row?.step_number ?? 0) || 0;
-    if (!candidId || stepNumber < 1 || stepNumber > ATS_SEQUENCE_STEP_COUNT) continue;
+    if (!candidId || stepNumber < 1 || stepNumber > ATS_SEQUENCE_STEP_COUNT)
+      continue;
 
     const existing = sentByCandidateId.get(candidId) ?? new Set<number>();
     existing.add(stepNumber);
@@ -1372,7 +1403,10 @@ async function claimSequenceDraftMessage(args: {
   if (current.status === "sending") {
     const currentUpdatedAt =
       Date.parse(current.updatedAt || current.createdAt) || Number.NaN;
-    if (!Number.isNaN(currentUpdatedAt) && currentUpdatedAt <= Date.parse(staleBeforeIso)) {
+    if (
+      !Number.isNaN(currentUpdatedAt) &&
+      currentUpdatedAt <= Date.parse(staleBeforeIso)
+    ) {
       const reclaimed = await tryClaimSequenceDraftMessage({
         admin: args.admin,
         currentStatus: "sending",
@@ -1396,9 +1430,9 @@ async function restoreSequenceDraftMessage(args: {
   id: number;
   userId: string;
 }) {
-  const { error } = await ((args.admin.from(
-    "candidate_outreach_message" as any
-  ) as any)
+  const { error } = await (
+    args.admin.from("candidate_outreach_message" as any) as any
+  )
     .update({
       status: "draft",
       updated_at: new Date().toISOString(),
@@ -1406,7 +1440,7 @@ async function restoreSequenceDraftMessage(args: {
     .eq("user_id", args.userId)
     .eq("id", args.id)
     .eq("kind", "sequence")
-    .eq("status", "sending"));
+    .eq("status", "sending");
 
   if (error) {
     throw new Error(error.message ?? "Failed to restore sequence draft");
@@ -1453,11 +1487,11 @@ async function upsertSequenceDrafts(args: {
     };
 
     if (existingMessage) {
-      const { error } = await ((args.admin.from(
-        "candidate_outreach_message" as any
-      ) as any)
+      const { error } = await (
+        args.admin.from("candidate_outreach_message" as any) as any
+      )
         .update(payload)
-        .eq("id", existingMessage.id));
+        .eq("id", existingMessage.id);
 
       if (error) {
         throw new Error(error.message ?? "Failed to update sequence draft");
@@ -1465,12 +1499,12 @@ async function upsertSequenceDrafts(args: {
       continue;
     }
 
-    const { error } = await ((args.admin.from(
-      "candidate_outreach_message" as any
-    ) as any).insert({
+    const { error } = await (
+      args.admin.from("candidate_outreach_message" as any) as any
+    ).insert({
       ...payload,
       created_at: new Date().toISOString(),
-    }));
+    });
 
     if (error) {
       throw new Error(error.message ?? "Failed to insert sequence draft");
@@ -1549,15 +1583,13 @@ ${args.candidate.publications
     userPrompt,
     0.35
   );
-  const parsed = safeParseJson(raw) as
-    | {
-        steps?: Array<{
-          body?: string;
-          stepNumber?: number;
-          subject?: string;
-        }>;
-      }
-    | null;
+  const parsed = safeParseJson(raw) as {
+    steps?: Array<{
+      body?: string;
+      stepNumber?: number;
+      subject?: string;
+    }>;
+  } | null;
 
   const steps = Array.isArray(parsed?.steps) ? parsed.steps : [];
   const normalized = steps
@@ -1566,7 +1598,10 @@ ${args.candidate.publications
       stepNumber: Number(step?.stepNumber ?? 0),
       subject: String(step?.subject ?? "").trim(),
     }))
-    .filter((step) => step.stepNumber >= 1 && step.stepNumber <= ATS_SEQUENCE_STEP_COUNT)
+    .filter(
+      (step) =>
+        step.stepNumber >= 1 && step.stepNumber <= ATS_SEQUENCE_STEP_COUNT
+    )
     .sort((a, b) => a.stepNumber - b.stepNumber);
 
   if (normalized.length !== ATS_SEQUENCE_STEP_COUNT) {
@@ -1628,7 +1663,10 @@ async function buildInitialContactDraft(args: {
   const companyPitch = String(args.workspace.companyPitch ?? "").trim();
 
   if (!jobDescription && !companyPitch) {
-    throw new InternalApiError(400, "JD 또는 Company Pitch를 먼저 입력해 주세요.");
+    throw new InternalApiError(
+      400,
+      "JD 또는 Company Pitch를 먼저 입력해 주세요."
+    );
   }
 
   const systemPrompt = `You write a single first-touch recruiting outreach email.
@@ -1662,12 +1700,10 @@ Write one initial outreach email for this candidate.`;
     userPrompt,
     0.35
   );
-  const parsed = safeParseJson(raw) as
-    | {
-        body?: string;
-        subject?: string;
-      }
-    | null;
+  const parsed = safeParseJson(raw) as {
+    body?: string;
+    subject?: string;
+  } | null;
 
   const subject = String(parsed?.subject ?? "").trim();
   const body = String(parsed?.body ?? "").trim();
@@ -1694,24 +1730,29 @@ export async function fetchAtsWorkspace(args: {
   ]);
   const selectedFolderId = resolveAtsBookmarkFolderId({
     folders: bookmarkFolders,
-    requestedFolderId:
-      Number.isFinite(Number(workspaceRow?.bookmark_folder_id))
-        ? Number(workspaceRow?.bookmark_folder_id)
-        : null,
+    requestedFolderId: Number.isFinite(Number(workspaceRow?.bookmark_folder_id))
+      ? Number(workspaceRow?.bookmark_folder_id)
+      : null,
   });
   const candidateIds =
     selectedFolderId != null
-      ? await fetchBookmarkFolderCandidateIds(admin, args.userId, selectedFolderId)
+      ? await fetchBookmarkFolderCandidateIds(
+          admin,
+          args.userId,
+          selectedFolderId
+        )
       : [];
 
-  const [outreachByCandidateId, shortlistMemoByCandidateId] = await Promise.all([
-    fetchOutreachRecordsByCandidateIds({
-      admin,
-      candidIds: candidateIds,
-      userId: args.userId,
-    }),
-    fetchShortlistMemoMap(admin, args.userId, candidateIds),
-  ]);
+  const [outreachByCandidateId, shortlistMemoByCandidateId] = await Promise.all(
+    [
+      fetchOutreachRecordsByCandidateIds({
+        admin,
+        candidIds: candidateIds,
+        userId: args.userId,
+      }),
+      fetchShortlistMemoMap(admin, args.userId, candidateIds),
+    ]
+  );
 
   const candidates = await fetchCandidateSummariesByIds({
     admin,
@@ -1790,17 +1831,21 @@ export async function fetchAtsCandidateDetail(args: {
   candidId: string;
 }): Promise<AtsCandidateDetailResponse> {
   const admin = getSupabaseAdmin();
-  const [companyUser, workspaceRow, outreachByCandidateId, shortlistMemoByCandidateId] =
-    await Promise.all([
-      fetchCompanyUserRecord(admin, args.userId),
-      fetchWorkspaceRow(admin, args.userId),
-      fetchOutreachRecordsByCandidateIds({
-        admin,
-        candidIds: [args.candidId],
-        userId: args.userId,
-      }),
-      fetchShortlistMemoMap(admin, args.userId, [args.candidId]),
-    ]);
+  const [
+    companyUser,
+    workspaceRow,
+    outreachByCandidateId,
+    shortlistMemoByCandidateId,
+  ] = await Promise.all([
+    fetchCompanyUserRecord(admin, args.userId),
+    fetchWorkspaceRow(admin, args.userId),
+    fetchOutreachRecordsByCandidateIds({
+      admin,
+      candidIds: [args.candidId],
+      userId: args.userId,
+    }),
+    fetchShortlistMemoMap(admin, args.userId, [args.candidId]),
+  ]);
 
   const outreach = outreachByCandidateId.get(args.candidId) ?? null;
   const candidate = await fetchCandidateDetailById({
@@ -1842,9 +1887,11 @@ export async function discoverCandidateEmail(args: {
     userId: args.userId,
   });
 
-  const shortlistMemoByCandidateId = await fetchShortlistMemoMap(admin, args.userId, [
-    args.candidId,
-  ]);
+  const shortlistMemoByCandidateId = await fetchShortlistMemoMap(
+    admin,
+    args.userId,
+    [args.candidId]
+  );
   const candidate = await fetchCandidateDetailById({
     admin,
     candidId: args.candidId,
@@ -2028,6 +2075,38 @@ export async function clearAtsEmailDiscoveryTrace(args: {
   });
 }
 
+export async function resetAtsCandidateOutreach(args: {
+  candidId: string;
+  userId: string;
+}) {
+  const admin = getSupabaseAdmin();
+
+  return updateOutreachRecord({
+    admin,
+    candidId: args.candidId,
+    patch: {
+      active_step: 0,
+      email_discovery_evidence: [],
+      email_discovery_status: "not_started",
+      email_discovery_summary: null,
+      email_discovery_trace: [],
+      email_source_label: null,
+      email_source_type: null,
+      email_source_url: null,
+      history: [],
+      last_sent_at: null,
+      memo: null,
+      next_due_at: null,
+      sequence_mark: null,
+      sequence_schedule: createDefaultAtsSequenceSchedule(),
+      sequence_status: "draft",
+      stopped_at: null,
+      target_email: null,
+    },
+    userId: args.userId,
+  });
+}
+
 export async function saveAtsSequenceSchedule(args: {
   candidId: string;
   sequenceSchedule: AtsSequenceStepSchedule[];
@@ -2077,17 +2156,21 @@ export async function generateAtsContactEmailDraft(args: {
   userId: string;
 }) {
   const admin = getSupabaseAdmin();
-  const [companyUser, workspaceRow, outreachByCandidateId, shortlistMemoByCandidateId] =
-    await Promise.all([
-      fetchCompanyUserRecord(admin, args.userId),
-      fetchWorkspaceRow(admin, args.userId),
-      fetchOutreachRecordsByCandidateIds({
-        admin,
-        candidIds: [args.candidId],
-        userId: args.userId,
-      }),
-      fetchShortlistMemoMap(admin, args.userId, [args.candidId]),
-    ]);
+  const [
+    companyUser,
+    workspaceRow,
+    outreachByCandidateId,
+    shortlistMemoByCandidateId,
+  ] = await Promise.all([
+    fetchCompanyUserRecord(admin, args.userId),
+    fetchWorkspaceRow(admin, args.userId),
+    fetchOutreachRecordsByCandidateIds({
+      admin,
+      candidIds: [args.candidId],
+      userId: args.userId,
+    }),
+    fetchShortlistMemoMap(admin, args.userId, [args.candidId]),
+  ]);
 
   const workspace = mapWorkspaceRecord({
     companyUser,
@@ -2238,7 +2321,10 @@ export async function sendAtsSingleManualEmail(args: {
   }
 
   const variables = buildCandidateTemplateVariables(candidate);
-  const renderedSubject = replaceTemplateVariables(args.subject, variables).trim();
+  const renderedSubject = replaceTemplateVariables(
+    args.subject,
+    variables
+  ).trim();
   const renderedBody = replaceTemplateVariables(args.body, variables).trim();
   if (!renderedSubject || !renderedBody) {
     throw new InternalApiError(400, "제목과 본문을 입력해 주세요.");
@@ -2252,9 +2338,9 @@ export async function sendAtsSingleManualEmail(args: {
   });
 
   const now = new Date().toISOString();
-  const { error: insertError } = await ((admin.from(
-    "candidate_outreach_message" as any
-  ) as any).insert({
+  const { error: insertError } = await (
+    admin.from("candidate_outreach_message" as any) as any
+  ).insert({
     body: args.body,
     candid_id: args.candidId,
     created_at: now,
@@ -2270,7 +2356,7 @@ export async function sendAtsSingleManualEmail(args: {
     to_email: targetEmail,
     updated_at: now,
     user_id: args.userId,
-  }));
+  });
 
   if (insertError) {
     throw new Error(insertError.message ?? "Failed to log manual email");
@@ -2333,7 +2419,10 @@ export async function updateAtsSequenceStatus(args: {
     throw new InternalApiError(400, "먼저 시퀀스를 생성해 주세요.");
   }
 
-  if (current.sequenceStatus === "completed" || current.activeStep >= ATS_SEQUENCE_STEP_COUNT) {
+  if (
+    current.sequenceStatus === "completed" ||
+    current.activeStep >= ATS_SEQUENCE_STEP_COUNT
+  ) {
     throw new InternalApiError(400, "완료된 시퀀스는 변경할 수 없습니다.");
   }
 
@@ -2358,17 +2447,21 @@ export async function generateCandidateSequence(args: {
   userId: string;
 }) {
   const admin = getSupabaseAdmin();
-  const [companyUser, workspaceRow, outreachByCandidateId, shortlistMemoByCandidateId] =
-    await Promise.all([
-      fetchCompanyUserRecord(admin, args.userId),
-      fetchWorkspaceRow(admin, args.userId),
-      fetchOutreachRecordsByCandidateIds({
-        admin,
-        candidIds: [args.candidId],
-        userId: args.userId,
-      }),
-      fetchShortlistMemoMap(admin, args.userId, [args.candidId]),
-    ]);
+  const [
+    companyUser,
+    workspaceRow,
+    outreachByCandidateId,
+    shortlistMemoByCandidateId,
+  ] = await Promise.all([
+    fetchCompanyUserRecord(admin, args.userId),
+    fetchWorkspaceRow(admin, args.userId),
+    fetchOutreachRecordsByCandidateIds({
+      admin,
+      candidIds: [args.candidId],
+      userId: args.userId,
+    }),
+    fetchShortlistMemoMap(admin, args.userId, [args.candidId]),
+  ]);
 
   const workspace = mapWorkspaceRecord({
     companyUser,
@@ -2391,15 +2484,22 @@ export async function generateCandidateSequence(args: {
 
   const targetEmail = resolveTargetEmail({ candidate, outreach });
   if (!targetEmail) {
-    throw new InternalApiError(400, "이메일을 먼저 찾은 뒤 시퀀스를 생성해 주세요.");
+    throw new InternalApiError(
+      400,
+      "이메일을 먼저 찾은 뒤 시퀀스를 생성해 주세요."
+    );
   }
-  const sequenceSchedule = normalizeAtsSequenceSchedule(outreach.sequenceSchedule);
+  const sequenceSchedule = normalizeAtsSequenceSchedule(
+    outreach.sequenceSchedule
+  );
   const nextStep = getNextOutreachStep(outreach.activeStep);
   const nextDueAt =
     nextStep == null
       ? null
       : computeDueAtFromSchedule({
-          baseAt: outreach.lastSentAt ? new Date(outreach.lastSentAt) : new Date(),
+          baseAt: outreach.lastSentAt
+            ? new Date(outreach.lastSentAt)
+            : new Date(),
           schedule: getScheduleForStep(sequenceSchedule, nextStep),
         });
 
@@ -2442,6 +2542,79 @@ export async function generateCandidateSequence(args: {
   });
 }
 
+export async function saveAtsSequenceDraft(args: {
+  body: string;
+  candidId: string;
+  stepNumber: number;
+  subject: string;
+  userEmail: string | null | undefined;
+  userId: string;
+}) {
+  if (args.stepNumber < 1 || args.stepNumber > ATS_SEQUENCE_STEP_COUNT) {
+    throw new InternalApiError(400, "잘못된 step 번호입니다.");
+  }
+
+  const subject = String(args.subject ?? "").trim();
+  const body = String(args.body ?? "").trim();
+  if (!subject || !body) {
+    throw new InternalApiError(400, "제목과 본문을 입력해 주세요.");
+  }
+
+  const admin = getSupabaseAdmin();
+  const detail = await fetchAtsCandidateDetail({
+    candidId: args.candidId,
+    userEmail: args.userEmail,
+    userId: args.userId,
+  });
+  const outreach = detail.candidate.outreach;
+  if (!outreach) {
+    throw new InternalApiError(400, "시퀀스 상태를 찾지 못했습니다.");
+  }
+
+  const draft = detail.messages.find(
+    (message) =>
+      message.kind === "sequence" && message.stepNumber === args.stepNumber
+  );
+  if (!draft) {
+    throw new InternalApiError(400, "Generate 4-Step 후에 수정할 수 있습니다.");
+  }
+  if (draft.status === "sent") {
+    throw new InternalApiError(400, "이미 발송된 step은 수정할 수 없습니다.");
+  }
+  if (draft.status === "sending") {
+    throw new InternalApiError(
+      409,
+      "해당 step 메일이 발송 중입니다. 잠시 후 다시 시도해 주세요."
+    );
+  }
+
+  const now = new Date().toISOString();
+  const { error } = await (
+    admin.from("candidate_outreach_message" as any) as any
+  )
+    .update({
+      body,
+      rendered_body: null,
+      rendered_subject: null,
+      status: "draft",
+      subject,
+      updated_at: now,
+    })
+    .eq("id", draft.id)
+    .eq("user_id", args.userId)
+    .eq("kind", "sequence");
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to update sequence draft");
+  }
+
+  return fetchAtsCandidateDetail({
+    candidId: args.candidId,
+    userEmail: args.userEmail,
+    userId: args.userId,
+  });
+}
+
 export async function sendCandidateSequenceStep(args: {
   candidId: string;
   stepNumber: number;
@@ -2463,7 +2636,10 @@ export async function sendCandidateSequenceStep(args: {
     throw new InternalApiError(400, "시퀀스 상태를 찾지 못했습니다.");
   }
   if (outreach.sequenceStatus === "paused") {
-    throw new InternalApiError(400, "중단된 시퀀스입니다. 재개 후 발송해 주세요.");
+    throw new InternalApiError(
+      400,
+      "중단된 시퀀스입니다. 재개 후 발송해 주세요."
+    );
   }
 
   const targetEmail = resolveTargetEmail({
@@ -2505,17 +2681,25 @@ export async function sendCandidateSequenceStep(args: {
     throw new InternalApiError(409, "해당 step 메일이 이미 발송 중입니다.");
   }
   if (claim.outcome !== "claimed") {
-    throw new InternalApiError(409, "메일 초안 상태가 변경되었습니다. 다시 시도해 주세요.");
+    throw new InternalApiError(
+      409,
+      "메일 초안 상태가 변경되었습니다. 다시 시도해 주세요."
+    );
   }
 
   const workspace = detail.workspace;
-  const senderEmail = normalizeEmail(workspace.senderEmail ?? args.userEmail ?? "");
+  const senderEmail = normalizeEmail(
+    workspace.senderEmail ?? args.userEmail ?? ""
+  );
   if (!isValidEmail(senderEmail)) {
     throw new InternalApiError(400, "유효한 발신자 이메일이 필요합니다.");
   }
 
   const variables = buildCandidateTemplateVariables(detail.candidate);
-  const renderedSubject = replaceTemplateVariables(draft.subject, variables).trim();
+  const renderedSubject = replaceTemplateVariables(
+    draft.subject,
+    variables
+  ).trim();
   const renderedBody = replaceTemplateVariables(draft.body, variables).trim();
 
   try {
@@ -2533,27 +2717,30 @@ export async function sendCandidateSequenceStep(args: {
         userId: args.userId,
       });
     } catch (restoreError) {
-      console.error("[ats-sequence] failed to restore draft after send failure", {
-        candidId: args.candidId,
-        draftId: draft.id,
-        error:
-          restoreError instanceof Error
-            ? restoreError.message
-            : "unknown_restore_error",
-      });
+      console.error(
+        "[ats-sequence] failed to restore draft after send failure",
+        {
+          candidId: args.candidId,
+          draftId: draft.id,
+          error:
+            restoreError instanceof Error
+              ? restoreError.message
+              : "unknown_restore_error",
+        }
+      );
     }
     throw error;
   }
 
   const now = new Date();
-  const upcomingStep = args.stepNumber < ATS_SEQUENCE_STEP_COUNT ? args.stepNumber + 1 : null;
-  const nextDueAt =
-    upcomingStep
-      ? computeDueAtFromSchedule({
-          baseAt: now,
-          schedule: getScheduleForStep(outreach.sequenceSchedule, upcomingStep),
-        })
-      : null;
+  const upcomingStep =
+    args.stepNumber < ATS_SEQUENCE_STEP_COUNT ? args.stepNumber + 1 : null;
+  const nextDueAt = upcomingStep
+    ? computeDueAtFromSchedule({
+        baseAt: now,
+        schedule: getScheduleForStep(outreach.sequenceSchedule, upcomingStep),
+      })
+    : null;
   const nextSequenceStatus =
     args.stepNumber >= ATS_SEQUENCE_STEP_COUNT ? "completed" : "active";
   const historyItem = {
@@ -2612,10 +2799,7 @@ export async function sendCandidateSequenceStep(args: {
 export async function runAtsSequenceSweep(args?: { limit?: number }) {
   const admin = getSupabaseAdmin();
   const nowIso = new Date().toISOString();
-  const limit = Math.min(
-    100,
-    Math.max(1, Number(args?.limit ?? 25) || 25)
-  );
+  const limit = Math.min(100, Math.max(1, Number(args?.limit ?? 25) || 25));
   const dueRows = await fetchDueSequenceOutreachRows({
     admin,
     limit,
@@ -2645,7 +2829,9 @@ export async function runAtsSequenceSweep(args?: { limit?: number }) {
   let skipped = 0;
 
   for (const row of dueRows) {
-    if (!sequenceDraftPairKeys.has(getOutreachPairKey(row.userId, row.candidId))) {
+    if (
+      !sequenceDraftPairKeys.has(getOutreachPairKey(row.userId, row.candidId))
+    ) {
       skipped += 1;
       results.push({
         candidId: row.candidId,
@@ -2748,7 +2934,9 @@ export async function sendBulkAtsManualEmails(args: {
   userEmail: string | null | undefined;
   userId: string;
 }) {
-  const candidIds = Array.from(new Set(args.candidIds.map((id) => id.trim()).filter(Boolean)));
+  const candidIds = Array.from(
+    new Set(args.candidIds.map((id) => id.trim()).filter(Boolean))
+  );
   if (candidIds.length === 0) {
     throw new InternalApiError(400, "후보자를 먼저 선택해 주세요.");
   }
@@ -2764,19 +2952,23 @@ export async function sendBulkAtsManualEmails(args: {
   if (!isValidEmail(senderEmail)) {
     throw new InternalApiError(400, "유효한 발신자 이메일이 필요합니다.");
   }
-  const [outreachByCandidateId, shortlistMemoByCandidateId] = await Promise.all([
-    fetchOutreachRecordsByCandidateIds({
+  const [outreachByCandidateId, shortlistMemoByCandidateId] = await Promise.all(
+    [
+      fetchOutreachRecordsByCandidateIds({
+        admin,
+        candidIds,
+        userId: args.userId,
+      }),
+      fetchShortlistMemoMap(admin, args.userId, candidIds),
+    ]
+  );
+  const sentStepNumbersByCandidateId = await fetchSentStepNumbersByCandidateIds(
+    {
       admin,
       candidIds,
       userId: args.userId,
-    }),
-    fetchShortlistMemoMap(admin, args.userId, candidIds),
-  ]);
-  const sentStepNumbersByCandidateId = await fetchSentStepNumbersByCandidateIds({
-    admin,
-    candidIds,
-    userId: args.userId,
-  });
+    }
+  );
 
   const candidateSummaries = await fetchCandidateSummariesByIds({
     admin,
@@ -2811,15 +3003,19 @@ export async function sendBulkAtsManualEmails(args: {
       continue;
     }
     const nextStep =
-      getNextSequenceStepFromSentSet(sentStepNumbersByCandidateId.get(candidId) ?? new Set()) ??
-      getNextOutreachStep(outreach.activeStep);
+      getNextSequenceStepFromSentSet(
+        sentStepNumbersByCandidateId.get(candidId) ?? new Set()
+      ) ?? getNextOutreachStep(outreach.activeStep);
     if (!nextStep) {
       skipped.push({ candidId, reason: "sequence_completed" });
       continue;
     }
 
     const variables = buildCandidateTemplateVariables(candidate);
-    const renderedSubject = replaceTemplateVariables(args.subject, variables).trim();
+    const renderedSubject = replaceTemplateVariables(
+      args.subject,
+      variables
+    ).trim();
     const renderedBody = replaceTemplateVariables(args.body, variables).trim();
 
     await sendInternalEmail({
@@ -2830,9 +3026,9 @@ export async function sendBulkAtsManualEmails(args: {
     });
 
     const now = new Date();
-    const { error: insertError } = await ((admin.from(
-      "candidate_outreach_message" as any
-    ) as any).insert({
+    const { error: insertError } = await (
+      admin.from("candidate_outreach_message" as any) as any
+    ).insert({
       body: args.body,
       candid_id: candidId,
       created_at: now.toISOString(),
@@ -2848,7 +3044,7 @@ export async function sendBulkAtsManualEmails(args: {
       to_email: targetEmail,
       updated_at: now.toISOString(),
       user_id: args.userId,
-    }));
+    });
 
     if (insertError) {
       throw new Error(insertError.message ?? "Failed to log manual email");

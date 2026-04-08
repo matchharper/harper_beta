@@ -35,6 +35,8 @@ type NetworkWaitlistRow = Pick<
 
 type TalentInternalInsert =
   Database["public"]["Tables"]["talent_internal"]["Insert"];
+type TalentNotificationInsert =
+  Database["public"]["Tables"]["talent_notification"]["Insert"];
 
 const DEFAULT_LIMIT = 40;
 const MAX_LIMIT = 100;
@@ -99,14 +101,14 @@ function collectLeadLinks(lead: NetworkLead) {
 }
 
 function buildLeadInsightSeed(lead: NetworkLead) {
-  if (!lead.impactSummary && !lead.dreamTeams) {
-    return null;
-  }
-
-  return {
-    technical_strengths: lead.impactSummary ?? null,
-    desired_teams: lead.dreamTeams ?? null,
+  const content = {
+    ...(lead.impactSummary
+      ? { technical_strengths: lead.impactSummary }
+      : {}),
+    ...(lead.dreamTeams ? { desired_teams: lead.dreamTeams } : {}),
   };
+
+  return Object.keys(content).length > 0 ? content : null;
 }
 
 function isPdfResume(args: { fileName?: string | null; mimeType?: string | null }) {
@@ -323,6 +325,44 @@ async function upsertWaitlistLeadTalentUser(lead: NetworkLead) {
   }
 
   return talentId;
+}
+
+export async function insertTalentNotification(args: {
+  leadId: number;
+  message: string;
+}) {
+  const admin = getTalentSupabaseAdmin();
+  const lead = await fetchNetworkLeadById(args.leadId);
+  const claimedTalentUser = await findClaimedTalentUserByWaitlistId({
+    admin,
+    waitlistId: lead.id,
+  });
+  const talentId =
+    claimedTalentUser?.user_id ?? (await upsertWaitlistLeadTalentUser(lead));
+  const message = normalizeText(args.message);
+
+  if (!message) {
+    throw new InternalApiError(400, "Notification message is required");
+  }
+
+  const payload: TalentNotificationInsert = {
+    created_at: new Date().toISOString(),
+    is_read: false,
+    message,
+    talent_id: talentId,
+  };
+
+  const { data, error } = await admin
+    .from("talent_notification")
+    .insert(payload)
+    .select("id, talent_id, message, is_read, created_at")
+    .single();
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to insert talent_notification");
+  }
+
+  return data;
 }
 
 async function extractResumeTextFromLead(lead: NetworkLead) {

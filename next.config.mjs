@@ -5,10 +5,16 @@ const nextConfig = {
   },
   images: {
     remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "lh3.googleusercontent.com",
-      },
+      // Google auth avatar
+      { protocol: "https", hostname: "lh3.googleusercontent.com" },
+      // GitHub avatars (global)
+      { protocol: "https", hostname: "avatars.githubusercontent.com" },
+      // LinkedIn media CDN (Apify-scraped profile avatars)
+      { protocol: "https", hostname: "media.licdn.com" },
+      { protocol: "https", hostname: "static.licdn.com" },
+      // Scholar / Google user content (paper & profile assets)
+      { protocol: "https", hostname: "scholar.google.com" },
+      { protocol: "https", hostname: "scholar.googleusercontent.com" },
     ],
   },
   reactStrictMode: false,

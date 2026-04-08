@@ -15,6 +15,8 @@ import {
 import { showToast } from "@/components/toast/toast";
 import Link from "next/link";
 import router from "next/router";
+import { MATCH_BOOKING_URL } from "@/lib/booking";
+import BeigeButton from "@/components/ui/career/BeigeButton";
 
 const papers = [
   {
@@ -27,7 +29,7 @@ const papers = [
   },
 ];
 
-const BOOKING_URL = "https://calendly.com/chris-matchharper/30min";
+const BOOKING_URL = MATCH_BOOKING_URL;
 
 const trustedCompanies = [
   {
@@ -553,10 +555,21 @@ const Beige = () => {
                 today.
               </Reveal>
 
-              <Reveal once delay={0.18} className="mt-10">
+              <Reveal
+                once
+                delay={0.18}
+                className="mt-10 flex flex-col md:flex-row items-center gap-4"
+              >
                 <CalendlyButton
                   label="Get Started Now"
-                  className="h-[58px] px-8 text-lg font-medium max-[809px]:h-[52px] max-[809px]:px-6 max-[809px]:text-[15px]"
+                  className="h-[58px] px-8 text-lg font-medium max-[809px]:h-[58px] max-[809px]:px-6 max-[809px]:text-[15px]"
+                />
+                <CalendlyButton
+                  label="검색 사용해보기"
+                  variant="secondary"
+                  size="md"
+                  href="/search"
+                  className="font-medium"
                 />
               </Reveal>
 

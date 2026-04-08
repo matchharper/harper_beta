@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useCandidateModalStore } from "@/store/useCandidateModalStore";
-import CandidateProfileDetailPage from "@/pages/my/p/CandidateProfile";
+import CandidateProfileDetailPage from "@/components/profile/CandidateProfileDetailPage";
 import { ExpandIcon, XIcon } from "lucide-react";
 import { useRouter } from "next/router";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";

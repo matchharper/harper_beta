@@ -16,7 +16,7 @@ const CareerInPageTabs = <T extends string>({
 }) => {
   return (
     <div className="overflow-x-auto">
-      <div className="flex min-w-max items-center gap-7 border-b border-beige900/10">
+      <div className="flex min-w-max items-center gap-7 border-b border-black/5">
         {items.map((item) => {
           const active = item.id === activeId;
           return (

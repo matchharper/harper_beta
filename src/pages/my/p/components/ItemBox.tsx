@@ -10,8 +10,6 @@ import {
 } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { getSchoolLogo } from "@/utils/school_logo";
-import { ExperienceCal } from "../CandidateProfile";
-import { getRevealLogoColor } from "@/lib/profileReveal";
 
 const ItemBox = ({
   title,

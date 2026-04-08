@@ -1,6 +1,7 @@
 import OpsShell from "@/components/ops/OpsShell";
 import { cx, opsTheme } from "@/components/ops/theme";
 import {
+  useCreateOpsNetworkNotification,
   useCreateOpsNetworkInternalEntry,
   useDeleteOpsNetworkInternalEntry,
   useIngestOpsNetworkLead,
@@ -149,6 +150,12 @@ function getProfileLinkChipLabel(raw: string) {
   }
 }
 
+function formatTalentInsightLabel(key: string) {
+  if (key === "technical_strengths") return "기술적 강점";
+  if (key === "desired_teams") return "원하는 팀";
+  return key.replace(/_/g, " ");
+}
+
 function ProfileChip({
   children,
   href,
@@ -180,18 +187,9 @@ function ProfileChip({
   return <div className={className}>{children}</div>;
 }
 
-const StatCard = ({
-  hint,
-  label,
-  value,
-}: {
-  hint: string;
-  label: string;
-  value: string;
-}) => (
-  <div className={cx(opsTheme.panelSoft, "px-4 py-4")}>
-    <div className={opsTheme.eyebrow}>{label}</div>
-    <div className="mt-3 font-halant text-[2.1rem] leading-none tracking-[-0.07em] text-beige900">
+const StatCard = ({ hint, value }: { hint: string; value: string }) => (
+  <div className={cx(opsTheme.panelSoft, "px-2 py-2")}>
+    <div className="font-halant text-[1.6rem] leading-none tracking-[-0.07em] text-beige900">
       {value}
     </div>
     <div className="mt-2 font-geist text-sm text-beige900/60">{hint}</div>
@@ -387,6 +385,7 @@ export default function NetworkOpsPage() {
   const leadsQuery = useOpsNetworkLeads(FETCH_LIMIT);
   const ingestMutation = useIngestOpsNetworkLead();
   const internalMutation = useCreateOpsNetworkInternalEntry();
+  const notificationMutation = useCreateOpsNetworkNotification();
   const updateInternalMutation = useUpdateOpsNetworkInternalEntry();
   const deleteInternalMutation = useDeleteOpsNetworkInternalEntry();
   const mailMutation = useSendOpsNetworkMail();
@@ -401,6 +400,7 @@ export default function NetworkOpsPage() {
   const [mailSubject, setMailSubject] = useState("");
   const [mailContent, setMailContent] = useState("");
   const [memoContent, setMemoContent] = useState("");
+  const [notificationContent, setNotificationContent] = useState("");
   const [conversationContent, setConversationContent] = useState("");
   const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
   const [editingEntryContent, setEditingEntryContent] = useState("");
@@ -510,6 +510,7 @@ export default function NetworkOpsPage() {
     setMailContent("");
     setEditingEntryId(null);
     setEditingEntryContent("");
+    setNotificationContent("");
   }, [selectedLeadId]);
 
   const selectedLead = useMemo(
@@ -731,6 +732,33 @@ export default function NetworkOpsPage() {
     [conversationContent, internalMutation, memoContent, selectedLeadId]
   );
 
+  const handleSaveNotification = useCallback(async () => {
+    if (!selectedLeadId) return;
+
+    const message = notificationContent.trim();
+    if (!message) return;
+
+    try {
+      await notificationMutation.mutateAsync({
+        id: selectedLeadId,
+        message,
+      });
+      setNotificationContent("");
+      showToast({
+        message: "후보자 알림 저장 완료",
+        variant: "white",
+      });
+    } catch (error) {
+      showToast({
+        message:
+          error instanceof Error
+            ? error.message
+            : "후보자 알림 저장에 실패했습니다.",
+        variant: "error",
+      });
+    }
+  }, [notificationContent, notificationMutation, selectedLeadId]);
+
   const handleSendMail = useCallback(async () => {
     if (!selectedLeadId) return;
 
@@ -859,9 +887,7 @@ export default function NetworkOpsPage() {
         description={
           <>
             <span className="font-medium text-beige900">harper_waitlist</span>에
-            저장된 후보자 제출 데이터를 확인하고, LinkedIn 및 CV를 바탕으로
-            `talent_*` 테이블 프로필을 만들 수 있는 내부 화면입니다. 현재{" "}
-            {allLeads.length}건을 불러왔고 전체는{" "}
+            현재 {allLeads.length}건을 불러왔고 전체는{" "}
             {lastPage?.totalCount ?? allLeads.length}
             건입니다. 허용 도메인 기준은{" "}
             <span className="font-medium text-beige900">
@@ -901,22 +927,18 @@ export default function NetworkOpsPage() {
       >
         <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <StatCard
-            label="전체 후보자"
             value={String(stats.totalCount)}
             hint="현재 waitlist 전체 수"
           />
           <StatCard
-            label="즉시 이직 가능"
             value={String(stats.readyNowCount)}
             hint="좋은 기회면 바로 이직 가능"
           />
           <StatCard
-            label="CV 업로드"
             value={String(stats.withCvCount)}
             hint="CV 또는 이력서 파일 포함"
           />
           <StatCard
-            label="최근 7일"
             value={String(stats.recentCount)}
             hint="최근 7일 신규 제출"
           />
@@ -1758,8 +1780,8 @@ export default function NetworkOpsPage() {
                                   label="제출 자료"
                                   value={
                                     detail?.latestNetworkApplication &&
-                                    detail.latestNetworkApplication.profileInputTypes
-                                      .length > 0
+                                    detail.latestNetworkApplication
+                                      .profileInputTypes.length > 0
                                       ? detail.latestNetworkApplication.profileInputTypes.join(
                                           ", "
                                         )
@@ -1782,7 +1804,8 @@ export default function NetworkOpsPage() {
                                     detail.latestTalentSetting.engagement_types
                                       .length > 0
                                       ? getTalentEngagementLabels(
-                                          detail.latestTalentSetting.engagement_types
+                                          detail.latestTalentSetting
+                                            .engagement_types
                                         ).join(", ")
                                       : "-"
                                   }
@@ -1791,40 +1814,37 @@ export default function NetworkOpsPage() {
                                   label="선호 지역"
                                   value={
                                     detail?.latestTalentSetting &&
-                                    detail.latestTalentSetting.preferred_locations
-                                      .length > 0
+                                    detail.latestTalentSetting
+                                      .preferred_locations.length > 0
                                       ? getTalentLocationLabels(
-                                          detail.latestTalentSetting.preferred_locations
+                                          detail.latestTalentSetting
+                                            .preferred_locations
                                         ).join(", ")
                                       : "-"
                                   }
                                 />
-                                <InfoRow
-                                  label="기술적 장점"
-                                  value={
-                                    detail?.latestTalentInsights
-                                      ?.technical_strengths ? (
-                                      <div className="whitespace-pre-wrap">
-                                        {detail.latestTalentInsights.technical_strengths}
-                                      </div>
-                                    ) : (
-                                      "-"
+                                {detail?.latestTalentInsights &&
+                                Object.keys(detail.latestTalentInsights)
+                                  .length > 0 ? (
+                                  Object.entries(detail.latestTalentInsights)
+                                    .filter(([, value]) => value?.trim())
+                                    .sort(([left], [right]) =>
+                                      left.localeCompare(right)
                                     )
-                                  }
-                                />
-                                <InfoRow
-                                  label="원하는 팀"
-                                  value={
-                                    detail?.latestTalentInsights
-                                      ?.desired_teams ? (
-                                      <div className="whitespace-pre-wrap">
-                                        {detail.latestTalentInsights.desired_teams}
-                                      </div>
-                                    ) : (
-                                      "-"
-                                    )
-                                  }
-                                />
+                                    .map(([key, value]) => (
+                                      <InfoRow
+                                        key={key}
+                                        label={formatTalentInsightLabel(key)}
+                                        value={
+                                          <div className="whitespace-pre-wrap">
+                                            {value}
+                                          </div>
+                                        }
+                                      />
+                                    ))
+                                ) : (
+                                  <InfoRow label="Harper insight" value="-" />
+                                )}
                               </div>
                             </div>
                           ) : null}
@@ -1959,6 +1979,45 @@ export default function NetworkOpsPage() {
                               >
                                 메모 저장
                               </button>
+
+                              <div className="mt-5 border-t border-beige900/10 pt-5">
+                                <label className={opsTheme.label}>
+                                  Candidate Notification
+                                </label>
+                                <p className="mt-2 font-geist text-sm leading-6 text-beige900/60">
+                                  여기서 입력한 내용은 후보자의 `career` 페이지
+                                  Notification에 표시됩니다. 아직 계정 연결
+                                  전이어도 이후 이어지도록 저장됩니다.
+                                </p>
+                                <textarea
+                                  value={notificationContent}
+                                  onChange={(event) =>
+                                    setNotificationContent(event.target.value)
+                                  }
+                                  className={cx(
+                                    opsTheme.textarea,
+                                    "mt-3 min-h-[120px]"
+                                  )}
+                                  placeholder="후보자에게 보여줄 알림 내용을 입력하세요."
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => void handleSaveNotification()}
+                                  disabled={
+                                    notificationMutation.isPending ||
+                                    !notificationContent.trim()
+                                  }
+                                  className={cx(
+                                    opsTheme.buttonSoft,
+                                    "mt-3 h-10"
+                                  )}
+                                >
+                                  {notificationMutation.isPending ? (
+                                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                                  ) : null}
+                                  알림 저장
+                                </button>
+                              </div>
                             </StructuredSection>
 
                             <StructuredSection

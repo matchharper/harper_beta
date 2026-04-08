@@ -37,8 +37,10 @@ import {
   getSearchSourceLabel,
   getSearchSourceLogoPath,
   normalizeSearchSources,
+  SEARCH_SOURCE_DESCRIPTIONS,
 } from "@/lib/searchSource";
 import { useRunDetail } from "@/hooks/useRunDetail";
+import { Tooltips } from "../ui/tooltip";
 
 const DEFAULT_CRITERIA_CARD_SOURCES: EnabledSearchSource[] = ["linkedin"];
 
@@ -437,11 +439,11 @@ export const CriteriaCard = React.memo(function CriteriaCard({
             onConfirm={updateQueryText}
           />
 
-          {/* <div className="mt-3 text-xs text-hgray600">Sources</div>
+          <div className="mt-3 text-xs text-hgray600">Sources</div>
 
           <div className="flex flex-row gap-1 items-center justify-between">
             <div className="text-sm text-white font-light">
-              검색에 사용할 소스
+              검색에 사용할 출처
             </div>
 
             <DropdownMenu
@@ -462,64 +464,69 @@ export const CriteriaCard = React.memo(function CriteriaCard({
                 className="w-[220px] rounded-2xl border-white/10 bg-ngray300/70 p-2 backdrop-blur-sm"
               >
                 <div className="px-1 pb-2 text-[11px] text-hgray700">
-                  검색에 사용할 소스를 선택하세요.
+                  검색에 사용할 출처를 선택하세요.
                 </div>
                 <div className="flex flex-col gap-1">
                   {ENABLED_SEARCH_SOURCE_VALUES.map((source) => {
                     const checked = selectedSources.includes(source);
                     return (
-                      <button
+                      <Tooltips
                         key={source}
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          toggleSource(source);
-                        }}
-                        className={`group flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition-all duration-200 ${
-                          checked ? "bg-white/10" : "hover:bg-white/5"
-                        }`}
+                        text={SEARCH_SOURCE_DESCRIPTIONS[source]}
                       >
-                        <div className="flex items-center gap-2 text-hgray900">
-                          <Image
-                            src={getSearchSourceLogoPath(source)}
-                            alt={getSearchSourceLabel(source)}
-                            width={14}
-                            height={14}
-                            className="object-contain"
-                          />
-                          <span>{getSearchSourceLabel(source)}</span>
-                        </div>
-                        <div className="relative h-3.5 w-3.5 shrink-0 overflow-hidden">
-                          <Check
-                            className={`absolute inset-0 h-3.5 w-3.5 text-accenta1 transition-all duration-200 ${
-                              checked
-                                ? "opacity-100 translate-y-0 group-hover:opacity-0 group-hover:-translate-y-1.5"
-                                : "pointer-events-none opacity-0 translate-y-1.5"
-                            }`}
-                          />
-                          <ChevronDown
-                            className={`absolute inset-0 h-3.5 w-3.5 text-hgray700 transition-all duration-200 ${
-                              checked
-                                ? "opacity-0 translate-y-1.5 group-hover:opacity-100 group-hover:translate-y-0"
-                                : "pointer-events-none opacity-0 translate-y-1.5"
-                            }`}
-                          />
-                          <ChevronUp
-                            className={`absolute inset-0 h-3.5 w-3.5 text-hgray700 transition-all duration-200 ${
-                              checked
-                                ? "pointer-events-none opacity-0 -translate-y-1.5"
-                                : "opacity-0 translate-y-1.5 group-hover:opacity-100 group-hover:translate-y-0"
-                            }`}
-                          />
-                        </div>
-                      </button>
+                        <button
+                          key={source}
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            toggleSource(source);
+                          }}
+                          className={`group flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition-all duration-200 ${
+                            checked ? "bg-white/10" : "hover:bg-white/5"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 text-hgray900">
+                            <Image
+                              src={getSearchSourceLogoPath(source)}
+                              alt={getSearchSourceLabel(source)}
+                              width={14}
+                              height={14}
+                              className="object-contain"
+                            />
+                            <span>{getSearchSourceLabel(source)}</span>
+                          </div>
+                          <div className="relative h-3.5 w-3.5 shrink-0 overflow-hidden">
+                            <Check
+                              className={`absolute inset-0 h-3.5 w-3.5 text-accenta1 transition-all duration-200 ${
+                                checked
+                                  ? "opacity-100 translate-y-0 group-hover:opacity-0 group-hover:-translate-y-1.5"
+                                  : "pointer-events-none opacity-0 translate-y-1.5"
+                              }`}
+                            />
+                            <ChevronDown
+                              className={`absolute inset-0 h-3.5 w-3.5 text-hgray700 transition-all duration-200 ${
+                                checked
+                                  ? "opacity-0 translate-y-1.5 group-hover:opacity-100 group-hover:translate-y-0"
+                                  : "pointer-events-none opacity-0 translate-y-1.5"
+                              }`}
+                            />
+                            <ChevronUp
+                              className={`absolute inset-0 h-3.5 w-3.5 text-hgray700 transition-all duration-200 ${
+                                checked
+                                  ? "pointer-events-none opacity-0 -translate-y-1.5"
+                                  : "opacity-0 translate-y-1.5 group-hover:opacity-100 group-hover:translate-y-0"
+                              }`}
+                            />
+                          </div>
+                        </button>
+                      </Tooltips>
                     );
                   })}
                 </div>
               </DropdownMenuContent>
             </DropdownMenu>
-          </div> */}
+          </div>
 
           <div className="mt-3 text-xs text-hgray600">Criteria</div>
 

@@ -21,6 +21,23 @@ import {
   getTalentCareerMoveIntentLabel,
   normalizeTalentNetworkApplication,
 } from "@/lib/talentNetworkApplication";
+import { fetchTalentOpportunityHistory } from "@/lib/talentOpportunity";
+
+const getLatestUpdatedAt = (...values: Array<string | null | undefined>) => {
+  const timestamps = values
+    .map((value) => {
+      if (typeof value !== "string") return null;
+      const time = Date.parse(value);
+      if (Number.isNaN(time)) return null;
+      return { time, value };
+    })
+    .filter((entry): entry is { time: number; value: string } => entry !== null);
+
+  if (timestamps.length === 0) return null;
+
+  timestamps.sort((left, right) => right.time - left.time);
+  return timestamps[0]?.value ?? null;
+};
 
 export async function GET(req: NextRequest) {
   try {
@@ -130,8 +147,14 @@ export async function GET(req: NextRequest) {
       limit: messageLimit,
       beforeMessageId,
     });
-    const [talentProfile, resumeDownloadUrl, talentSetting, talentInsights] =
-      await Promise.all([
+    const [
+      talentProfile,
+      resumeDownloadUrl,
+      talentSetting,
+      talentInsights,
+      talentNotificationsResponse,
+      historyOpportunities,
+    ] = await Promise.all([
         fetchTalentStructuredProfile({
           admin,
           userId: user.id,
@@ -149,13 +172,53 @@ export async function GET(req: NextRequest) {
           admin,
           userId: user.id,
         }),
+        admin
+          .from("talent_notification")
+          .select("id, message, is_read, created_at")
+          .eq("talent_id", user.id)
+          .order("created_at", { ascending: false }),
+        fetchTalentOpportunityHistory({
+          admin,
+          userId: user.id,
+        }),
       ]);
     const normalizedInsights = normalizeTalentInsightContent(
       talentInsights?.content
     );
+    const notifications = talentNotificationsResponse.error
+      ? []
+      : (talentNotificationsResponse.data ?? []).map((notification) => ({
+          id: notification.id,
+          message: notification.message ?? null,
+          isRead: Boolean(notification.is_read),
+          createdAt: notification.created_at,
+        }));
     const careerMoveIntent = sanitizeTalentCareerMoveIntent(
       talentSetting?.career_move_intent
     );
+    const talentSettingsUpdatedAt = talentSetting?.updated_at ?? null;
+    const talentPreferencesUpdatedAt = talentSetting?.updated_at ?? null;
+    const talentInsightsUpdatedAt = talentInsights?.last_updated_at ?? null;
+    const networkApplicationUpdatedAt = profile?.updated_at ?? null;
+    const recentOpportunities = historyOpportunities
+      .slice(0, 8)
+      .map((item) => ({
+        id: item.id,
+        kind: item.kind,
+        title: item.title,
+        companyName: item.companyName,
+        summary: item.description ?? item.companyDescription ?? null,
+        location:
+          [item.location, item.workMode]
+            .filter(Boolean)
+            .join(" / ") || null,
+        engagementType:
+          item.employmentTypes.length > 0
+            ? item.employmentTypes.join(" / ")
+            : null,
+        matchedAt: item.recommendedAt,
+        href: item.href,
+      }));
 
     return NextResponse.json({
       ok: true,
@@ -170,6 +233,8 @@ export async function GET(req: NextRequest) {
         reliefNudgeSent: Boolean(conversation.relief_nudge_sent),
       },
       historyItems: [],
+      historyOpportunities,
+      notifications,
       networkApplication: normalizeTalentNetworkApplication(
         profile?.career_profile ?? profile?.network_application
       ),
@@ -182,8 +247,20 @@ export async function GET(req: NextRequest) {
         ),
         careerMoveIntent,
         careerMoveIntentLabel: getTalentCareerMoveIntentLabel(careerMoveIntent),
-        technicalStrengths: normalizedInsights?.technical_strengths ?? null,
-        desiredTeams: normalizedInsights?.desired_teams ?? null,
+      },
+      talentInsights: normalizedInsights,
+      recentOpportunities,
+      profileSettingsMeta: {
+        networkApplicationUpdatedAt,
+        talentPreferencesUpdatedAt,
+        talentInsightsUpdatedAt,
+        talentSettingsUpdatedAt,
+        latestUpdatedAt: getLatestUpdatedAt(
+          networkApplicationUpdatedAt,
+          talentPreferencesUpdatedAt,
+          talentInsightsUpdatedAt,
+          talentSettingsUpdatedAt
+        ),
       },
       talentProfile,
       messages: messages.map((message) => ({
