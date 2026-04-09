@@ -1,6 +1,11 @@
 import type { User } from "@supabase/supabase-js";
 import React, { createContext, useContext } from "react";
-import type { CareerInputMode, CareerMessage, CareerStage } from "./types";
+import type {
+  CallTranscriptEntry,
+  CareerInputMode,
+  CareerMessage,
+  CareerStage,
+} from "./types";
 import type { TalentOnboardingInterestOptionId } from "@/lib/talentOnboarding/onboarding";
 
 export type CareerChatPanelContextValue = {
@@ -69,6 +74,12 @@ export type CareerChatPanelContextValue = {
   onVoicePrimaryAction: () => void;
   onToggleVoiceMute: () => void;
   onSwitchToTextMode: () => void;
+
+  // Call mode (optional — not provided by preview.tsx)
+  onStartCallMode?: () => void;
+  onEndCallMode?: () => void;
+  callTranscriptEntries?: CallTranscriptEntry[];
+  callConnectionStatus?: "connected" | "reconnecting" | "disconnected";
 };
 
 const CareerChatPanelContext =

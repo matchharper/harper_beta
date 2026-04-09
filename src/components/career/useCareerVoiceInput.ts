@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { CareerInputMode, CareerMessage } from "./types";
+import type { CallTranscriptEntry, CareerInputMode, CareerMessage } from "./types";
 import { useCareerVoiceInputStore } from "@/store/useCareerVoiceInputStore";
 
 type SpeechRecognitionLike = {
@@ -19,11 +19,27 @@ type VoiceSendArgs = {
   onError?: () => void;
 };
 
+type VoiceEngine = "realtime" | "webspeech";
+
+type RealtimeControls = {
+  isConnected: boolean;
+  isConnecting: boolean;
+  partialTranscript: string;
+  connectionStatus: "connected" | "reconnecting" | "disconnected";
+  connect: () => Promise<boolean>;
+  disconnect: () => void;
+  sendTextMessage: (text: string) => void;
+  triggerResponse: () => void;
+  cancelResponse: () => void;
+  getMediaStream: () => MediaStream | null;
+};
+
 type UseCareerVoiceInputArgs = {
   canInteract: boolean;
   messages: CareerMessage[];
   onSendMessage: (args: VoiceSendArgs) => void | Promise<void>;
   onUnsupported: (message: string) => void;
+  realtimeControls?: RealtimeControls | null;
 };
 
 const getSpeechRecognitionCtor = () => {
@@ -55,7 +71,7 @@ const isEditableTarget = (target: EventTarget | null) => {
 };
 
 export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
-  const { canInteract, messages, onSendMessage, onUnsupported } = args;
+  const { canInteract, messages, onSendMessage, onUnsupported, realtimeControls } = args;
   const [inputMode, setInputMode] = useState<CareerInputMode>("text");
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [voiceListening, setVoiceListening] = useState(false);
@@ -64,6 +80,11 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   const [isSpeechSupported, setIsSpeechSupported] = useState(false);
   const [assistantAudioBusy, setAssistantAudioBusy] = useState(false);
   const [voicePrimaryPressed, setVoicePrimaryPressed] = useState(false);
+  const [voiceEngine, setVoiceEngine] = useState<VoiceEngine>("webspeech");
+  const voiceEngineRef = useRef<VoiceEngine>("webspeech");
+  const [callTranscriptEntries, setCallTranscriptEntries] = useState<
+    CallTranscriptEntry[]
+  >([]);
 
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const voiceFinalTextRef = useRef("");
@@ -159,12 +180,26 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   }, [logVoiceDebug, readPermissionState]);
 
   useEffect(() => {
-    setIsSpeechSupported(Boolean(getSpeechRecognitionCtor()));
+    const hasWebSpeech = Boolean(getSpeechRecognitionCtor());
+    const hasWebSocket = typeof WebSocket !== "undefined";
+    setIsSpeechSupported(hasWebSpeech || hasWebSocket);
   }, []);
 
   useEffect(() => {
     voiceDraftTextRef.current = voiceTranscript;
   }, [voiceTranscript]);
+
+  useEffect(() => {
+    voiceEngineRef.current = voiceEngine;
+  }, [voiceEngine]);
+
+  // Sync Realtime partial transcript to input field display
+  useEffect(() => {
+    if (voiceEngine === "realtime" && realtimeControls?.partialTranscript != null) {
+      setVoiceTranscript(realtimeControls.partialTranscript);
+      voiceDraftTextRef.current = realtimeControls.partialTranscript;
+    }
+  }, [voiceEngine, realtimeControls?.partialTranscript]);
 
   useEffect(() => {
     if (canInteract) return;
@@ -193,7 +228,11 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
       voiceLevelAnalyserRef.current = null;
       voiceLevelDataRef.current = null;
 
-      voiceLevelStreamRef.current?.getTracks().forEach((track) => track.stop());
+      // Only stop tracks if we own the stream (not shared from Realtime)
+      const realtimeStream = realtimeControls?.getMediaStream?.() ?? null;
+      if (voiceLevelStreamRef.current && voiceLevelStreamRef.current !== realtimeStream) {
+        voiceLevelStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
       voiceLevelStreamRef.current = null;
 
       const audioContext = voiceLevelAudioContextRef.current;
@@ -228,7 +267,9 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      // Use Realtime session's shared MediaStream if available
+      const realtimeStream = realtimeControls?.getMediaStream?.() ?? null;
+      const stream = realtimeStream ?? await navigator.mediaDevices.getUserMedia({
         audio: {
           channelCount: 1,
           echoCancellation: true,
@@ -380,6 +421,12 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
         autoResumeAfterResponseRef.current = true;
       }
 
+      // Route text through Realtime WebSocket when connected
+      if (voiceEngine === "realtime" && realtimeControls?.isConnected) {
+        realtimeControls.sendTextMessage(text);
+        return;
+      }
+
       void onSendMessage({
         text,
         onError: () => {
@@ -389,19 +436,19 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
         },
       });
     },
-    [clearVoiceBuffer, inputMode, onSendMessage]
+    [clearVoiceBuffer, inputMode, onSendMessage, realtimeControls, voiceEngine]
   );
 
   useEffect(() => {
     if (previousInputModeRef.current === inputMode) return;
 
-    if (inputMode === "voice") {
+    if (inputMode === "voice" || inputMode === "call") {
       stopAssistantAudio();
       const existingAssistantIds = messages
         .filter((message) => message.role === "assistant")
         .map((message) => String(message.id));
       spokenAssistantIdsRef.current = new Set(existingAssistantIds);
-    } else if (previousInputModeRef.current === "voice") {
+    } else if (previousInputModeRef.current === "voice" || previousInputModeRef.current === "call") {
       stopAssistantAudio();
     }
 
@@ -409,7 +456,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   }, [inputMode, messages, stopAssistantAudio]);
 
   useEffect(() => {
-    if (inputMode !== "voice" || voiceMuted || !voiceListening) {
+    if ((inputMode !== "voice" && inputMode !== "call") || voiceMuted || !voiceListening) {
       stopVoiceLevelMonitor();
       return;
     }
@@ -436,7 +483,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   ]);
 
   useEffect(() => {
-    if (inputMode !== "voice") return;
+    if (inputMode !== "voice" && inputMode !== "call") return;
     if (typeof window === "undefined") return;
 
     const latestAssistantMessage = [...messages]
@@ -645,7 +692,19 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
       logVoiceDebug("recognition-end", {
         commitOnEnd: commitOnEndRef.current,
         transcriptLength: voiceDraftTextRef.current.trim().length,
+        voiceEngine: voiceEngineRef.current,
       });
+
+      // When Realtime is active, Web Speech is display-only — don't send, auto-restart
+      if (voiceEngineRef.current === "realtime") {
+        try {
+          recognition.start();
+        } catch {
+          // Safe to ignore — may fail if context lost
+        }
+        return;
+      }
+
       setVoiceListening(false);
       const shouldCommit = commitOnEndRef.current;
       commitOnEndRef.current = false;
@@ -803,6 +862,26 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     autoResumeAfterResponseRef.current = false;
     stopAssistantAudio();
     clearVoiceBuffer();
+
+    // Try Realtime first, fallback to Web Speech API
+    if (realtimeControls) {
+      logVoiceDebug("attempting-realtime-connect");
+      const connected = await realtimeControls.connect();
+      if (connected) {
+        setVoiceEngine("realtime");
+        setVoiceListening(true);
+        logVoiceDebug("realtime-connected");
+        // Start Web Speech API in parallel for real-time transcript display
+        if (getSpeechRecognitionCtor()) {
+          startVoiceListening({ suppressError: true });
+          logVoiceDebug("webspeech-started-for-display");
+        }
+        return;
+      }
+      logVoiceDebug("realtime-connect-failed, falling back to webspeech");
+    }
+
+    setVoiceEngine("webspeech");
     startVoiceListening();
   }, [
     clearVoiceBuffer,
@@ -810,6 +889,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     logEnvironmentSnapshot,
     logVoiceDebug,
     onUnsupported,
+    realtimeControls,
     startVoiceListening,
     stopAssistantAudio,
   ]);
@@ -817,6 +897,19 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   const handleVoicePrimaryAction = useCallback(() => {
     if (!canInteract) return;
 
+    // Realtime engine: spacebar triggers response.create (VAD handles audio commit)
+    if (voiceEngine === "realtime" && realtimeControls?.isConnected) {
+      if (voiceMuted) {
+        setVoiceMuted(false);
+        setVoiceListening(true);
+        return;
+      }
+      // Force-send: trigger response generation from current audio buffer
+      realtimeControls.triggerResponse();
+      return;
+    }
+
+    // Web Speech API engine (fallback)
     if (voiceMuted) {
       setVoiceMuted(false);
       startVoiceListening();
@@ -839,8 +932,10 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     startVoiceListening();
   }, [
     canInteract,
+    realtimeControls,
     sendTranscript,
     startVoiceListening,
+    voiceEngine,
     voiceListening,
     voiceMuted,
     voiceTranscript,
@@ -913,13 +1008,19 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     if (voiceMuted) {
       setVoiceMuted(false);
       setVoiceError("");
-      startVoiceListening();
+      if (voiceEngine === "realtime") {
+        setVoiceListening(true);
+      } else {
+        startVoiceListening();
+      }
       logVoiceDebug("voice-unmuted");
       return;
     }
 
     commitOnEndRef.current = false;
-    recognitionRef.current?.stop();
+    if (voiceEngine === "webspeech") {
+      recognitionRef.current?.stop();
+    }
     setVoiceListening(false);
     stopVoiceLevelMonitor();
     setVoiceMuted(true);
@@ -929,6 +1030,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     logVoiceDebug,
     startVoiceListening,
     stopVoiceLevelMonitor,
+    voiceEngine,
     voiceMuted,
   ]);
 
@@ -938,6 +1040,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     spacebarPressActiveRef.current = false;
     setVoicePrimaryPressed(false);
     recognitionRef.current?.stop();
+    // Note: do NOT disconnect Realtime here — text input also uses the Realtime session
     stopVoiceLevelMonitor();
     stopAssistantAudio();
     setVoiceListening(false);
@@ -966,6 +1069,9 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     setVoicePrimaryPressed(false);
     stopVoiceLevelMonitor();
     stopAssistantAudio();
+    // Disconnect Realtime session on full reset
+    realtimeControls?.disconnect();
+    setVoiceEngine("webspeech");
     setVoiceListening(false);
     setVoiceMuted(false);
     setVoiceError("");
@@ -975,9 +1081,96 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   }, [
     clearVoiceBuffer,
     logVoiceDebug,
+    realtimeControls,
     stopAssistantAudio,
     stopVoiceLevelMonitor,
   ]);
+
+  const startCallMode = useCallback(async () => {
+    if (!isSpeechSupported) {
+      onUnsupported(
+        "이 브라우저는 음성 인식을 지원하지 않습니다. 현재 채팅으로 계속 진행해 주세요."
+      );
+      return;
+    }
+
+    void logEnvironmentSnapshot();
+    logVoiceDebug("start-call-mode");
+    setVoiceError("");
+    setVoiceMuted(false);
+    stopAssistantAudio();
+    clearVoiceBuffer();
+    setCallTranscriptEntries([]);
+
+    if (realtimeControls) {
+      const connected = await realtimeControls.connect();
+      if (connected) {
+        setVoiceEngine("realtime");
+        setVoiceListening(true);
+        setInputMode("call");
+        inputModeRef.current = "call";
+        logVoiceDebug("call-mode-connected");
+
+        // Start voice level monitor for waveform visualization
+        void startVoiceLevelMonitor();
+
+        // Start Web Speech for display transcript
+        if (getSpeechRecognitionCtor()) {
+          startVoiceListening({ suppressError: true });
+        }
+        return;
+      }
+    }
+
+    // Fallback: can't connect realtime, stay in text mode
+    onUnsupported("실시간 연결에 실패했습니다. 채팅으로 진행해 주세요.");
+  }, [
+    clearVoiceBuffer,
+    isSpeechSupported,
+    logEnvironmentSnapshot,
+    logVoiceDebug,
+    onUnsupported,
+    realtimeControls,
+    startVoiceListening,
+    startVoiceLevelMonitor,
+    stopAssistantAudio,
+  ]);
+
+  const endCallMode = useCallback(() => {
+    logVoiceDebug("end-call-mode");
+    commitOnEndRef.current = false;
+    autoResumeAfterResponseRef.current = false;
+    spacebarPressActiveRef.current = false;
+    setVoicePrimaryPressed(false);
+    recognitionRef.current?.stop();
+    stopVoiceLevelMonitor();
+    stopAssistantAudio();
+    realtimeControls?.disconnect();
+    setVoiceEngine("webspeech");
+    setVoiceListening(false);
+    setVoiceMuted(false);
+    setInputMode("text");
+    inputModeRef.current = "text";
+    // Don't clear callTranscriptEntries — needed for wrap-up generation
+  }, [logVoiceDebug, realtimeControls, stopAssistantAudio, stopVoiceLevelMonitor]);
+
+  // Accumulate transcript entries only during call mode
+  const inputModeRef = useRef(inputMode);
+  useEffect(() => {
+    inputModeRef.current = inputMode;
+  }, [inputMode]);
+
+  const addCallTranscriptEntry = useCallback(
+    (role: "user" | "assistant", text: string) => {
+      if (inputModeRef.current !== "call") return;
+      if (!text.trim()) return;
+      setCallTranscriptEntries((prev) => [
+        ...prev,
+        { role, text: text.trim(), timestamp: new Date().toISOString() },
+      ]);
+    },
+    []
+  );
 
   return {
     inputMode,
@@ -987,8 +1180,14 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     voiceError,
     assistantAudioBusy,
     voicePrimaryPressed,
+    voiceEngine,
     onboardingVoiceSupported: isSpeechSupported,
+    callTranscriptEntries,
+    connectionStatus: realtimeControls?.connectionStatus ?? ("disconnected" as const),
     startVoiceCall,
+    startCallMode,
+    endCallMode,
+    addCallTranscriptEntry,
     switchToChatOnly,
     handleVoicePrimaryAction,
     toggleVoiceMute,
@@ -996,5 +1195,6 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     armAutoResumeAfterAssistant,
     clearAutoResumeAfterAssistant,
     resetVoice,
+    clearVoiceBuffer,
   };
 }

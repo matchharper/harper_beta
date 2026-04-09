@@ -1,5 +1,6 @@
 import React, { type ReactNode } from "react";
-import type { CareerMessage } from "@/components/career/types";
+import type { CareerCallWrapUp, CareerMessage } from "@/components/career/types";
+import CareerCallWrapUpCard from "./CareerCallWrapUpCard";
 
 // User bubble 색상을 바꾸려면 이 클래스를 수정하세요.
 export const USER_BUBBLE_CLASS =
@@ -55,6 +56,15 @@ const CareerMessageBubble = ({
   isUser,
   isAssistantSpeaking = false,
 }: Props) => {
+  if (message.messageType === "call_wrapup") {
+    try {
+      const data = JSON.parse(message.content) as CareerCallWrapUp;
+      return <CareerCallWrapUpCard data={data} />;
+    } catch {
+      // Fall through to regular rendering if JSON parse fails
+    }
+  }
+
   return (
     <article
       className={[
