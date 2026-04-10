@@ -205,6 +205,7 @@ export async function GET(req: NextRequest) {
       .map((item) => ({
         id: item.id,
         kind: item.kind,
+        opportunityType: item.opportunityType,
         title: item.title,
         companyName: item.companyName,
         summary: item.description ?? item.companyDescription ?? null,

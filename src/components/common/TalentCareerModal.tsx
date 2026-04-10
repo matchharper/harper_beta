@@ -108,7 +108,7 @@ const TalentCareerModal = ({
             type="button"
             onClick={onClose}
             className={cn(
-              "absolute right-4 top-4 z-10 inline-flex h-9 w-9 items-center justify-center rounded-md bg-hblack50 text-hblack600 transition-colors hover:border-xprimary hover:text-xprimary",
+              "absolute right-4 top-4 z-10 inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors",
               closeButtonClassName
             )}
             aria-label="모달 닫기"
@@ -123,35 +123,35 @@ const TalentCareerModal = ({
               headerClassName
             )}
           >
-            {eyebrow ? (
+            {eyebrow && (
               <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-hblack500">
                 {eyebrow}
               </div>
-            ) : null}
-            {hasTitle ? (
+            )}
+            {hasTitle && (
               <h2
                 id={titleId}
-                className="mt-2 text-lg font-semibold tracking-[-0.02em] text-hblack1000"
+                className="mt-2 text-base font-semibold tracking-[-0.02em] text-beige900"
               >
                 {title}
               </h2>
-            ) : null}
-            {hasDescription ? (
+            )}
+            {hasDescription && (
               <p
                 id={descriptionId}
-                className="mt-2 max-w-[56ch] text-sm leading-relaxed text-hblack600 sm:text-[15px]"
+                className="mt-2 max-w-[56ch] text-sm leading-relaxed text-hblack700"
               >
                 {description}
               </p>
-            ) : null}
+            )}
           </header>
         ) : null}
         <div className={cn("py-0", bodyClassName)}>{children}</div>
-        {footer ? (
+        {footer && (
           <footer className={cn("px-4 py-5 sm:px-5", footerClassName)}>
             {footer}
           </footer>
-        ) : null}
+        )}
       </section>
     </div>
   );

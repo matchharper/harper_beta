@@ -1,6 +1,7 @@
 import type { Json } from "@/types/database.types";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { normalizeTalentNetworkApplication } from "@/lib/talentNetworkApplication";
+import { OpportunityType, isOpportunityType } from "@/lib/opportunityType";
 
 type AdminClient = ReturnType<typeof getSupabaseAdmin>;
 
@@ -71,28 +72,26 @@ type MatchRow = {
 };
 
 type RecommendationRow = {
-  company_role:
-    | {
-        company_workspace:
-          | {
-              company_name: string;
-            }
-          | null;
-        external_jd_url: string | null;
-        location_text: string | null;
-        name: string;
-        posted_at: string | null;
-        role_id: string;
-        source_type: string;
-      }
-    | null;
+  company_role: {
+    company_workspace: {
+      company_name: string;
+    } | null;
+    external_jd_url: string | null;
+    location_text: string | null;
+    name: string;
+    posted_at: string | null;
+    role_id: string;
+    source_type: string;
+  } | null;
   created_at: string;
   feedback: string | null;
   id: string;
   kind: string;
+  opportunity_type: string | null;
   recommendation_reasons: Json;
   recommended_at: string;
   role_id: string;
+  saved_stage: string | null;
   talent_id: string;
   updated_at: string;
 };
@@ -158,6 +157,7 @@ export type OpsOpportunityCatalogResponse = {
 
 export type OpsOpportunityCandidateRecord = {
   candidId: string | null;
+  email: string | null;
   headline: string | null;
   linkedinUrl: string | null;
   location: string | null;
@@ -195,10 +195,15 @@ export type OpsOpportunityMatchListResponse = {
   items: OpsOpportunityMatchRecord[];
 };
 
-export type OpsOpportunityRecommendationFeedback =
-  | "like"
-  | "neutral"
-  | "dislike";
+export type OpsOpportunityRecommendationFeedback = "like" | "dislike";
+
+export { OpportunityType as OpsOpportunityType };
+
+export type OpsOpportunitySavedStage =
+  | "saved"
+  | "applied"
+  | "connected"
+  | "closed";
 
 export type OpsOpportunityRecommendationRecord = {
   companyName: string;
@@ -206,6 +211,7 @@ export type OpsOpportunityRecommendationRecord = {
   feedback: OpsOpportunityRecommendationFeedback | null;
   kind: "match" | "recommendation";
   locationText: string | null;
+  opportunityType: OpportunityType;
   postedAt: string | null;
   recommendationId: string;
   recommendationMemo: string | null;
@@ -213,6 +219,7 @@ export type OpsOpportunityRecommendationRecord = {
   recommendedAt: string;
   roleId: string;
   roleName: string;
+  savedStage: OpsOpportunitySavedStage | null;
   sourceType: OpportunitySourceType;
   talentId: string;
   updatedAt: string;
@@ -258,7 +265,9 @@ function findTalentLinkedinUrl(row: CandidateRow): string | null {
   return normalizeLink(String(linkedinLink));
 }
 
-function extractLinkedinProfileId(raw: string | null | undefined): string | null {
+function extractLinkedinProfileId(
+  raw: string | null | undefined
+): string | null {
   const normalized = String(raw ?? "").trim();
   if (!normalized) return null;
 
@@ -296,19 +305,19 @@ async function resolveCandidateIdByLinkedinProfileIds(
   await Promise.all(
     uniqueIds.map(async (profileId) => {
       const pattern = `%linkedin.com/in/${profileId}%`;
-      let { data, error } = await ((admin.from("candid" as any) as any)
+      let { data, error } = await (admin.from("candid" as any) as any)
         .select("id, linkedin_url, last_updated_at")
         .ilike("linkedin_url", pattern)
         .order("last_updated_at", { ascending: false, nullsFirst: false })
-        .limit(1));
+        .limit(1);
 
       if (!error && coerceJsonArray(data).length === 0) {
         const pubPattern = `%linkedin.com/pub/${profileId}%`;
-        const fallbackResponse = await ((admin.from("candid" as any) as any)
+        const fallbackResponse = await (admin.from("candid" as any) as any)
           .select("id, linkedin_url, last_updated_at")
           .ilike("linkedin_url", pubPattern)
           .order("last_updated_at", { ascending: false, nullsFirst: false })
-          .limit(1));
+          .limit(1);
         data = fallbackResponse.data;
         error = fallbackResponse.error;
       }
@@ -344,9 +353,7 @@ function normalizeLinkedinCompanyUrl(raw: string): string | null {
       return null;
     }
 
-    return `https://www.linkedin.com/company/${decodeURIComponent(
-      segments[1]
-    )
+    return `https://www.linkedin.com/company/${decodeURIComponent(segments[1])
       .trim()
       .toLowerCase()}`;
   } catch {
@@ -354,9 +361,7 @@ function normalizeLinkedinCompanyUrl(raw: string): string | null {
   }
 }
 
-function normalizeOpportunitySourceType(
-  value: unknown
-): OpportunitySourceType {
+function normalizeOpportunitySourceType(value: unknown): OpportunitySourceType {
   return value === "external" ? "external" : "internal";
 }
 
@@ -419,14 +424,33 @@ function parseDateString(value: unknown, fieldName: string) {
   return parsed.toISOString();
 }
 
-function normalizeRecommendationKind(value: unknown): "match" | "recommendation" {
+function normalizeRecommendationKind(
+  value: unknown
+): "match" | "recommendation" {
   return value === "match" ? "match" : "recommendation";
 }
 
 function normalizeRecommendationFeedback(
   value: unknown
 ): OpsOpportunityRecommendationFeedback | null {
-  if (value === "like" || value === "neutral" || value === "dislike") {
+  if (value === "like" || value === "dislike") {
+    return value;
+  }
+  return null;
+}
+
+function normalizeOpportunityType(value: unknown): OpportunityType {
+  if (isOpportunityType(value)) return value;
+  return OpportunityType.ExternalJd;
+}
+
+function normalizeSavedStage(value: unknown): OpsOpportunitySavedStage | null {
+  if (
+    value === "saved" ||
+    value === "applied" ||
+    value === "connected" ||
+    value === "closed"
+  ) {
     return value;
   }
   return null;
@@ -450,6 +474,58 @@ function normalizeRecommendationReasons(value: Json): string[] {
   return [];
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function buildOpportunityRecommendationNotificationMessage(args: {
+  companyName: string;
+  opportunityType: OpportunityType;
+  roleName: string;
+}) {
+  const companyName = `<strong>${escapeHtml(args.companyName)}</strong>`;
+  const roleName = `<strong>${escapeHtml(args.roleName)}</strong>`;
+
+  if (args.opportunityType === OpportunityType.IntroRequest) {
+    return `${companyName}의 채용담당자가 회원님과의 연결을 원합니다.`;
+  }
+
+  if (args.opportunityType === OpportunityType.InternalRecommendation) {
+    return `${companyName}의 ${roleName}에 추천드리고 싶습니다.`;
+  }
+
+  return `${companyName}의 ${roleName} 기회를 추천합니다.`;
+}
+
+async function insertTalentOpportunityNotification(args: {
+  admin: AdminClient;
+  message: string;
+  talentId: string;
+}) {
+  const now = new Date().toISOString();
+  const message = String(args.message ?? "").trim();
+  if (!message) {
+    throw new Error("Notification message is required");
+  }
+
+  const { error } = await (args.admin.from("talent_notification" as any) as any)
+    .insert({
+      created_at: now,
+      is_read: false,
+      message,
+      talent_id: args.talentId,
+    } as any);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to insert talent notification");
+  }
+}
+
 function buildRecommendationReasons(memo: string | null) {
   return memo ? [memo] : [];
 }
@@ -471,6 +547,7 @@ function mapRecommendationRecord(
     feedback: normalizeRecommendationFeedback(row.feedback),
     kind: normalizeRecommendationKind(row.kind),
     locationText: role.location_text ?? null,
+    opportunityType: normalizeOpportunityType(row.opportunity_type),
     postedAt: role.posted_at ?? null,
     recommendationId: String(row.id ?? ""),
     recommendationMemo: recommendationReasons[0] ?? null,
@@ -478,6 +555,7 @@ function mapRecommendationRecord(
     recommendedAt: String(row.recommended_at ?? ""),
     roleId: String(row.role_id ?? ""),
     roleName: String(role.name ?? ""),
+    savedStage: normalizeSavedStage(row.saved_stage),
     sourceType: normalizeOpportunitySourceType(role.source_type),
     talentId: String(row.talent_id ?? ""),
     updatedAt: String(row.updated_at ?? row.created_at ?? ""),
@@ -503,10 +581,10 @@ async function resolveCompanyDbRecord(args: {
       `${normalizedLinkedinUrl.replace("https://www.", "https://")}/`,
     ];
 
-    const { data, error } = await ((args.admin.from("company_db" as any) as any)
+    const { data, error } = await (args.admin.from("company_db" as any) as any)
       .select("id, name, linkedin_url, logo")
       .in("linkedin_url", linkedinCandidates)
-      .limit(1));
+      .limit(1);
 
     if (error) {
       throw new Error(error.message ?? "Failed to resolve company");
@@ -523,10 +601,10 @@ async function resolveCompanyDbRecord(args: {
   }
 
   if (normalizedCompanyName) {
-    const { data, error } = await ((args.admin.from("company_db" as any) as any)
+    const { data, error } = await (args.admin.from("company_db" as any) as any)
       .select("id, name, linkedin_url, logo")
       .ilike("name", normalizedCompanyName)
-      .limit(1));
+      .limit(1);
 
     if (error) {
       throw new Error(error.message ?? "Failed to resolve company");
@@ -559,7 +637,9 @@ function mapWorkspaceRecord(args: {
   return {
     activeRoleCount: args.activeRoleCount,
     companyDbId:
-      typeof args.row.company_db_id === "number" ? args.row.company_db_id : null,
+      typeof args.row.company_db_id === "number"
+        ? args.row.company_db_id
+        : null,
     companyDescription: args.row.company_description ?? null,
     companyName: String(args.row.company_name ?? ""),
     companyWorkspaceId: String(args.row.company_workspace_id ?? ""),
@@ -609,9 +689,11 @@ async function fetchMatchedCandidateCountByRoleId(
   const counts = new Map<string, number>();
   if (roleIds.length === 0) return counts;
 
-  const { data, error } = await ((admin.from("company_role_matched" as any) as any)
+  const { data, error } = await (
+    admin.from("company_role_matched" as any) as any
+  )
     .select("role_id")
-    .in("role_id", roleIds));
+    .in("role_id", roleIds);
 
   if (error) {
     throw new Error(error.message ?? "Failed to load match counts");
@@ -629,16 +711,16 @@ async function fetchMatchedCandidateCountByRoleId(
 export async function fetchOpsOpportunityCatalog(): Promise<OpsOpportunityCatalogResponse> {
   const admin = getSupabaseAdmin();
   const [workspaceResponse, roleResponse] = await Promise.all([
-    ((admin.from("company_workspace" as any) as any)
+    (admin.from("company_workspace" as any) as any)
       .select(
         "company_workspace_id, company_name, homepage_url, linkedin_url, logo_url, logo_storage_path, company_description, company_db_id, created_at, updated_at"
       )
-      .order("updated_at", { ascending: false })) as any,
-    ((admin.from("company_roles" as any) as any)
+      .order("updated_at", { ascending: false }) as any,
+    (admin.from("company_roles" as any) as any)
       .select(
         "role_id, company_workspace_id, name, external_jd_url, description, information, type, status, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode"
       )
-      .order("updated_at", { ascending: false })) as any,
+      .order("updated_at", { ascending: false }) as any,
   ]);
 
   const workspaceError = (workspaceResponse as { error?: { message?: string } })
@@ -658,13 +740,15 @@ export async function fetchOpsOpportunityCatalog(): Promise<OpsOpportunityCatalo
   const roleRows = coerceJsonArray<RoleRow>(
     (roleResponse as { data?: unknown }).data
   );
-  const roleIds = roleRows.map((row) => String(row.role_id ?? "")).filter(Boolean);
-  const matchedCandidateCountByRoleId = await fetchMatchedCandidateCountByRoleId(
-    admin,
-    roleIds
-  );
+  const roleIds = roleRows
+    .map((row) => String(row.role_id ?? ""))
+    .filter(Boolean);
+  const matchedCandidateCountByRoleId =
+    await fetchMatchedCandidateCountByRoleId(admin, roleIds);
   const workspaceById = new Map(
-    workspaceRows.map((row) => [String(row.company_workspace_id ?? ""), row] as const)
+    workspaceRows.map(
+      (row) => [String(row.company_workspace_id ?? ""), row] as const
+    )
   );
   const roleStatsByWorkspaceId = new Map<
     string,
@@ -700,8 +784,8 @@ export async function fetchOpsOpportunityCatalog(): Promise<OpsOpportunityCatalo
       .map((row) =>
         mapRoleRecord({
           companyName:
-            workspaceById.get(String(row.company_workspace_id ?? ""))?.company_name ??
-            "",
+            workspaceById.get(String(row.company_workspace_id ?? ""))
+              ?.company_name ?? "",
           matchedCandidateCount:
             matchedCandidateCountByRoleId.get(String(row.role_id ?? "")) ?? 0,
           row,
@@ -709,13 +793,14 @@ export async function fetchOpsOpportunityCatalog(): Promise<OpsOpportunityCatalo
       )
       .filter((row) => row.companyWorkspaceId),
     workspaces: workspaceRows.map((row) => {
-      const stats =
-        roleStatsByWorkspaceId.get(String(row.company_workspace_id ?? "")) ?? {
-          active: 0,
-          external: 0,
-          internal: 0,
-          total: 0,
-        };
+      const stats = roleStatsByWorkspaceId.get(
+        String(row.company_workspace_id ?? "")
+      ) ?? {
+        active: 0,
+        external: 0,
+        internal: 0,
+        total: 0,
+      };
 
       return mapWorkspaceRecord({
         activeRoleCount: stats.active,
@@ -746,8 +831,7 @@ export async function saveOpsOpportunityWorkspace(args: {
 
   const payload = {
     company_db_id: companyDbRecord.companyDbId,
-    company_description:
-      String(args.companyDescription ?? "").trim() || null,
+    company_description: String(args.companyDescription ?? "").trim() || null,
     company_name: companyName,
     homepage_url: String(args.homepageUrl ?? "").trim() || null,
     linkedin_url: companyDbRecord.linkedinUrl,
@@ -758,13 +842,13 @@ export async function saveOpsOpportunityWorkspace(args: {
 
   const workspaceId = String(args.workspaceId ?? "").trim();
   const query = workspaceId
-    ? ((admin.from("company_workspace" as any) as any)
+    ? (admin.from("company_workspace" as any) as any)
         .update(payload)
-        .eq("company_workspace_id", workspaceId))
-    : ((admin.from("company_workspace" as any) as any).insert({
+        .eq("company_workspace_id", workspaceId)
+    : (admin.from("company_workspace" as any) as any).insert({
         ...payload,
         created_at: now,
-      }));
+      });
 
   const { data, error } = await query
     .select(
@@ -809,7 +893,7 @@ export async function saveOpsOpportunityRole(args: {
   );
 
   const { data: workspaceData, error: workspaceError } = await (
-    (admin.from("company_workspace" as any) as any)
+    admin.from("company_workspace" as any) as any
   )
     .select("company_workspace_id, company_name")
     .eq("company_workspace_id", workspaceId)
@@ -839,14 +923,14 @@ export async function saveOpsOpportunityRole(args: {
 
   const roleId = String(args.roleId ?? "").trim();
   const query = roleId
-    ? ((admin.from("company_roles" as any) as any)
+    ? (admin.from("company_roles" as any) as any)
         .update(payload)
         .eq("role_id", roleId)
-        .eq("company_workspace_id", workspaceId))
-    : ((admin.from("company_roles" as any) as any).insert({
+        .eq("company_workspace_id", workspaceId)
+    : (admin.from("company_roles" as any) as any).insert({
         ...payload,
         created_at: now,
-      }));
+      });
 
   const { data, error } = await query
     .select(
@@ -864,7 +948,9 @@ export async function saveOpsOpportunityRole(args: {
   ]);
 
   return mapRoleRecord({
-    companyName: String((workspaceData as { company_name?: string }).company_name ?? ""),
+    companyName: String(
+      (workspaceData as { company_name?: string }).company_name ?? ""
+    ),
     matchedCandidateCount:
       matchedCounts.get(String(savedRole.role_id ?? "")) ?? 0,
     row: savedRole,
@@ -886,7 +972,7 @@ export async function searchOpsOpportunityCandidates(args: {
   const safeQuery = query.replace(/[%(),]/g, " ").trim();
   const pattern = `%${safeQuery}%`;
 
-  const { data, error } = await ((admin.from("talent_users" as any) as any)
+  const { data, error } = await (admin.from("talent_users" as any) as any)
     .select(
       "user_id, name, headline, location, profile_picture, email, bio, resume_text, resume_links, career_profile, network_application, updated_at"
     )
@@ -901,7 +987,7 @@ export async function searchOpsOpportunityCandidates(args: {
       ].join(",")
     )
     .order("updated_at", { ascending: false, nullsFirst: false })
-    .limit(limit));
+    .limit(limit);
 
   if (error) {
     throw new Error(error.message ?? "Failed to search talents");
@@ -922,10 +1008,11 @@ export async function searchOpsOpportunityCandidates(args: {
     linkedinProfileIdByTalentId.set(talentId, linkedinProfileId);
   }
 
-  const candidateIdByLinkedinProfileId = await resolveCandidateIdByLinkedinProfileIds(
-    admin,
-    Array.from(linkedinProfileIdByTalentId.values())
-  );
+  const candidateIdByLinkedinProfileId =
+    await resolveCandidateIdByLinkedinProfileIds(
+      admin,
+      Array.from(linkedinProfileIdByTalentId.values())
+    );
 
   const roleId = String(args.roleId ?? "").trim();
   const matchedIds = new Set<string>();
@@ -944,17 +1031,21 @@ export async function searchOpsOpportunityCandidates(args: {
 
     if (candidateIds.length > 0) {
       const { data: matchData, error: matchError } = await (
-        (admin.from("company_role_matched" as any) as any)
+        admin.from("company_role_matched" as any) as any
       )
         .select("candid_id")
         .eq("role_id", roleId)
         .in("candid_id", candidateIds);
 
       if (matchError) {
-        throw new Error(matchError.message ?? "Failed to load existing matches");
+        throw new Error(
+          matchError.message ?? "Failed to load existing matches"
+        );
       }
 
-      for (const row of coerceJsonArray<{ candid_id?: string | null }>(matchData)) {
+      for (const row of coerceJsonArray<{ candid_id?: string | null }>(
+        matchData
+      )) {
         const candidId = String(row.candid_id ?? "").trim();
         if (!candidId) continue;
         matchedIds.add(candidId);
@@ -966,18 +1057,20 @@ export async function searchOpsOpportunityCandidates(args: {
     items: rows.map((row) => ({
       candidId:
         candidateIdByLinkedinProfileId.get(
-          linkedinProfileIdByTalentId.get(String(row.user_id ?? "").trim()) ?? ""
+          linkedinProfileIdByTalentId.get(String(row.user_id ?? "").trim()) ??
+            ""
         ) ?? null,
+      email: row.email ?? null,
       headline: row.headline ?? null,
       linkedinUrl:
         linkedinUrlByTalentId.get(String(row.user_id ?? "").trim()) ?? null,
       location: row.location ?? null,
-      matched:
-        matchedIds.has(
-          candidateIdByLinkedinProfileId.get(
-            linkedinProfileIdByTalentId.get(String(row.user_id ?? "").trim()) ?? ""
-          ) ?? ""
-        ),
+      matched: matchedIds.has(
+        candidateIdByLinkedinProfileId.get(
+          linkedinProfileIdByTalentId.get(String(row.user_id ?? "").trim()) ??
+            ""
+        ) ?? ""
+      ),
       name: row.name ?? null,
       profilePicture: row.profile_picture ?? null,
       summary: row.bio ?? row.resume_text ?? null,
@@ -988,14 +1081,43 @@ export async function searchOpsOpportunityCandidates(args: {
   };
 }
 
+export async function fetchOpsOpportunityCandidateContact(args: {
+  talentId: string;
+}) {
+  const admin = getSupabaseAdmin();
+  const talentId = ensureNonEmptyString(args.talentId, "talentId");
+
+  const { data, error } = await ((admin.from("talent_users" as any) as any)
+    .select("user_id, name, email")
+    .eq("user_id", talentId)
+    .maybeSingle() as any);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load candidate contact");
+  }
+
+  const email = String(data?.email ?? "")
+    .trim()
+    .toLowerCase();
+  if (!email) {
+    throw new Error("이 talent에는 등록된 이메일이 없습니다.");
+  }
+
+  return {
+    email,
+    name: typeof data?.name === "string" ? data.name : null,
+    talentId,
+  };
+}
+
 async function fetchRoleLookupByIds(admin: AdminClient, roleIds: string[]) {
   if (roleIds.length === 0) return new Map<string, OpsOpportunityRoleRecord>();
 
-  const { data, error } = await ((admin.from("company_roles" as any) as any)
+  const { data, error } = await (admin.from("company_roles" as any) as any)
     .select(
       "role_id, company_workspace_id, name, external_jd_url, description, information, type, status, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode"
     )
-    .in("role_id", roleIds));
+    .in("role_id", roleIds);
 
   if (error) {
     throw new Error(error.message ?? "Failed to load roles");
@@ -1003,10 +1125,14 @@ async function fetchRoleLookupByIds(admin: AdminClient, roleIds: string[]) {
 
   const roleRows = coerceJsonArray<RoleRow>(data);
   const workspaceIds = Array.from(
-    new Set(roleRows.map((row) => String(row.company_workspace_id ?? "")).filter(Boolean))
+    new Set(
+      roleRows
+        .map((row) => String(row.company_workspace_id ?? ""))
+        .filter(Boolean)
+    )
   );
   const { data: workspaceData, error: workspaceError } = await (
-    (admin.from("company_workspace" as any) as any)
+    admin.from("company_workspace" as any) as any
   )
     .select("company_workspace_id, company_name")
     .in("company_workspace_id", workspaceIds);
@@ -1016,9 +1142,13 @@ async function fetchRoleLookupByIds(admin: AdminClient, roleIds: string[]) {
   }
 
   const workspaceNameById = new Map(
-    coerceJsonArray<{ company_name?: string | null; company_workspace_id?: string | null }>(
-      workspaceData
-    ).map((row) => [String(row.company_workspace_id ?? ""), String(row.company_name ?? "")])
+    coerceJsonArray<{
+      company_name?: string | null;
+      company_workspace_id?: string | null;
+    }>(workspaceData).map((row) => [
+      String(row.company_workspace_id ?? ""),
+      String(row.company_name ?? ""),
+    ])
   );
 
   const counts = await fetchMatchedCandidateCountByRoleId(admin, roleIds);
@@ -1036,6 +1166,40 @@ async function fetchRoleLookupByIds(admin: AdminClient, roleIds: string[]) {
   );
 }
 
+async function fetchRoleNotificationContext(args: {
+  admin: AdminClient;
+  roleId: string;
+}) {
+  const { data, error } = await ((args.admin.from("company_roles" as any) as any)
+    .select(
+      `
+        role_id,
+        name,
+        company_workspace:company_workspace (
+          company_name
+        )
+      `
+    )
+    .eq("role_id", args.roleId)
+    .maybeSingle() as any);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load role notification context");
+  }
+
+  const roleName = String(data?.name ?? "").trim();
+  const companyName = String(data?.company_workspace?.company_name ?? "").trim();
+
+  if (!roleName || !companyName) {
+    throw new Error("Failed to load role notification context");
+  }
+
+  return {
+    companyName,
+    roleName,
+  };
+}
+
 export async function fetchOpsOpportunityMatches(args: {
   candidId?: string | null;
   roleId?: string | null;
@@ -1044,7 +1208,7 @@ export async function fetchOpsOpportunityMatches(args: {
   const roleId = String(args.roleId ?? "").trim();
   const candidId = String(args.candidId ?? "").trim();
 
-  let query = ((admin.from("company_role_matched" as any) as any)
+  let query = (admin.from("company_role_matched" as any) as any)
     .select(
       `
         id,
@@ -1064,7 +1228,7 @@ export async function fetchOpsOpportunityMatches(args: {
         )
       `
     )
-    .order("updated_at", { ascending: false })) as any;
+    .order("updated_at", { ascending: false }) as any;
 
   if (roleId) {
     query = query.eq("role_id", roleId);
@@ -1081,7 +1245,9 @@ export async function fetchOpsOpportunityMatches(args: {
   const rows = coerceJsonArray<MatchRow>(data);
   const roleLookup = await fetchRoleLookupByIds(
     admin,
-    Array.from(new Set(rows.map((row) => String(row.role_id ?? "")).filter(Boolean)))
+    Array.from(
+      new Set(rows.map((row) => String(row.role_id ?? "")).filter(Boolean))
+    )
   );
 
   return {
@@ -1118,7 +1284,9 @@ export async function saveOpsOpportunityMatch(args: {
   const roleId = ensureNonEmptyString(args.roleId, "roleId");
   const now = new Date().toISOString();
 
-  const { error } = await ((admin.from("company_role_matched" as any) as any).upsert(
+  const { error } = await (
+    admin.from("company_role_matched" as any) as any
+  ).upsert(
     {
       candid_id: candidId,
       harper_memo: String(args.harperMemo ?? "").trim() || null,
@@ -1129,7 +1297,7 @@ export async function saveOpsOpportunityMatch(args: {
     {
       onConflict: "candid_id,role_id",
     }
-  ));
+  );
 
   if (error) {
     throw new Error(error.message ?? "Failed to save match");
@@ -1146,10 +1314,10 @@ export async function deleteOpsOpportunityMatch(args: {
   const candidId = ensureNonEmptyString(args.candidId, "candidId");
   const roleId = ensureNonEmptyString(args.roleId, "roleId");
 
-  const { error } = await ((admin.from("company_role_matched" as any) as any)
+  const { error } = await (admin.from("company_role_matched" as any) as any)
     .delete()
     .eq("candid_id", candidId)
-    .eq("role_id", roleId));
+    .eq("role_id", roleId);
 
   if (error) {
     throw new Error(error.message ?? "Failed to delete match");
@@ -1166,17 +1334,17 @@ export async function fetchOpsOpportunityRecommendations(args: {
   const roleId = String(args.roleId ?? "").trim();
   const talentId = String(args.talentId ?? "").trim();
 
-  let query = ((admin.from(
-    "talent_opportunity_recommendation" as any
-  ) as any)
+  let query = (admin.from("talent_opportunity_recommendation" as any) as any)
     .select(
       `
         id,
         talent_id,
         role_id,
         kind,
+        opportunity_type,
         recommendation_reasons,
         feedback,
+        saved_stage,
         recommended_at,
         created_at,
         updated_at,
@@ -1193,7 +1361,7 @@ export async function fetchOpsOpportunityRecommendations(args: {
         )
       `
     )
-    .order("recommended_at", { ascending: false })) as any;
+    .order("recommended_at", { ascending: false }) as any;
 
   if (roleId) {
     query = query.eq("role_id", roleId);
@@ -1210,11 +1378,14 @@ export async function fetchOpsOpportunityRecommendations(args: {
   return {
     items: coerceJsonArray<RecommendationRow>(data)
       .map(mapRecommendationRecord)
-      .filter((item): item is OpsOpportunityRecommendationRecord => item !== null),
+      .filter(
+        (item): item is OpsOpportunityRecommendationRecord => item !== null
+      ),
   };
 }
 
 export async function saveOpsOpportunityRecommendation(args: {
+  opportunityType: OpportunityType;
   recommendationMemo?: string | null;
   roleId: string;
   talentId: string;
@@ -1223,61 +1394,75 @@ export async function saveOpsOpportunityRecommendation(args: {
   const talentId = ensureNonEmptyString(args.talentId, "talentId");
   const roleId = ensureNonEmptyString(args.roleId, "roleId");
   const now = new Date().toISOString();
-  const recommendationMemo = String(args.recommendationMemo ?? "").trim() || null;
+  const recommendationMemo =
+    String(args.recommendationMemo ?? "").trim() || null;
+  const opportunityType = normalizeOpportunityType(args.opportunityType);
+  const kind =
+    opportunityType === OpportunityType.IntroRequest
+      ? "match"
+      : "recommendation";
+  const role = await fetchRoleNotificationContext({ admin, roleId });
 
-  const { data: existingData, error: existingError } = await (
-    (admin.from("talent_opportunity_recommendation" as any) as any)
+  const notificationMessage = buildOpportunityRecommendationNotificationMessage({
+    companyName: role.companyName,
+    opportunityType,
+    roleName: role.roleName,
+  });
+
+  const { data, error } = await (
+    admin.from("talent_opportunity_recommendation" as any) as any
   )
-    .select("kind")
-    .eq("talent_id", talentId)
-    .eq("role_id", roleId)
-    .maybeSingle();
-
-  if (existingError) {
-    throw new Error(existingError.message ?? "Failed to load recommendation");
-  }
-
-  const existingKind = normalizeRecommendationKind(
-    (existingData as { kind?: string | null } | null)?.kind
-  );
-
-  const { error } = await ((admin.from(
-    "talent_opportunity_recommendation" as any
-  ) as any).upsert(
-    {
-      kind: existingData ? existingKind : "recommendation",
+    .insert({
+      kind,
+      opportunity_type: opportunityType,
       recommendation_reasons: buildRecommendationReasons(recommendationMemo),
       recommended_at: now,
       role_id: roleId,
       talent_id: talentId,
       updated_at: now,
-    },
-    {
-      onConflict: "talent_id,role_id",
-    }
-  ));
+    })
+    .select("id")
+    .single();
 
   if (error) {
     throw new Error(error.message ?? "Failed to save recommendation");
+  }
+
+  const recommendationId = String(data?.id ?? "").trim();
+
+  try {
+    await insertTalentOpportunityNotification({
+      admin,
+      message: notificationMessage,
+      talentId,
+    });
+  } catch (notificationError) {
+    if (recommendationId) {
+      await (admin.from("talent_opportunity_recommendation" as any) as any)
+        .delete()
+        .eq("id", recommendationId);
+    }
+
+    throw notificationError;
   }
 
   return fetchOpsOpportunityRecommendations({ talentId });
 }
 
 export async function deleteOpsOpportunityRecommendation(args: {
-  roleId: string;
-  talentId: string;
+  recommendationId: string;
 }) {
   const admin = getSupabaseAdmin();
-  const talentId = ensureNonEmptyString(args.talentId, "talentId");
-  const roleId = ensureNonEmptyString(args.roleId, "roleId");
+  const recommendationId = ensureNonEmptyString(
+    args.recommendationId,
+    "recommendationId"
+  );
 
-  const { error } = await ((admin.from(
-    "talent_opportunity_recommendation" as any
-  ) as any)
+  const { error } = await (
+    admin.from("talent_opportunity_recommendation" as any) as any
+  )
     .delete()
-    .eq("talent_id", talentId)
-    .eq("role_id", roleId));
+    .eq("id", recommendationId);
 
   if (error) {
     throw new Error(error.message ?? "Failed to delete recommendation");

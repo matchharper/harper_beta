@@ -1,6 +1,23 @@
+import { OpportunityType } from "@/lib/opportunityType";
+
+export { OpportunityType as CareerOpportunityType };
+
 export type CareerStage = "profile" | "chat" | "completed";
 export type MessageRole = "assistant" | "user";
-export type CareerInputMode = "text" | "voice";
+export type CareerInputMode = "text" | "voice" | "call";
+
+export type CallTranscriptEntry = {
+  role: "user" | "assistant";
+  text: string;
+  timestamp: string;
+};
+
+export type CareerCallWrapUp = {
+  duration: string;
+  whatWeCovered: string[];
+  keyLearnings: string[];
+  nextSteps: string[];
+};
 
 export type CareerTalentUser = {
   user_id: string;
@@ -54,7 +71,9 @@ export type CareerTalentProfile = {
 
 export type CareerNetworkApplication = {
   selectedRole: string | null;
-  profileInputTypes: Array<"linkedin" | "github" | "scholar" | "website" | "cv">;
+  profileInputTypes: Array<
+    "linkedin" | "github" | "scholar" | "website" | "cv"
+  >;
   linkedinProfileUrl: string | null;
   githubProfileUrl: string | null;
   scholarProfileUrl: string | null;
@@ -71,9 +90,16 @@ export type CareerTalentPreferences = {
 
 export type CareerTalentInsights = Record<string, string>;
 
+export type CareerOpportunitySavedStage =
+  | "saved"
+  | "applied"
+  | "connected"
+  | "closed";
+
 export type CareerRecentOpportunity = {
   id: string;
   kind: "match" | "recommendation";
+  opportunityType: OpportunityType;
   title: string;
   companyName: string;
   summary: string | null;
@@ -83,10 +109,7 @@ export type CareerRecentOpportunity = {
   href?: string | null;
 };
 
-export type CareerHistoryOpportunityFeedback =
-  | "tracked"
-  | "dont_know"
-  | "not_for_me";
+export type CareerHistoryOpportunityFeedback = "positive" | "negative";
 
 export type CareerHistoryOpportunity = {
   clickedAt: string | null;
@@ -108,10 +131,12 @@ export type CareerHistoryOpportunity = {
   isInternal: boolean;
   kind: "match" | "recommendation";
   location: string | null;
+  opportunityType: OpportunityType;
   postedAt: string | null;
   recommendedAt: string;
   recommendationReasons: string[];
   roleId: string;
+  savedStage: CareerOpportunitySavedStage | null;
   sourceJobId: string | null;
   sourceProvider: string | null;
   sourceType: "internal" | "external";

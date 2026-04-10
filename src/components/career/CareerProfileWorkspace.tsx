@@ -47,7 +47,10 @@ const PROFILE_SECTION_ITEMS: Array<{
 const CareerProfileWorkspace = () => {
   const [activeSection, setActiveSection] =
     useState<ProfileSectionId>("preference");
-  const tabs = useMemo(() => PROFILE_SECTION_ITEMS, []);
+  const tabs = useMemo(
+    () => PROFILE_SECTION_ITEMS.filter((item) => item.id !== "insight"),
+    []
+  );
 
   const activeContent = useMemo(() => {
     if (activeSection === "preference") {

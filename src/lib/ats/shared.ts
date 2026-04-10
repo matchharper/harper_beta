@@ -16,6 +16,7 @@ export type AtsEmailDiscoveryStatus =
   | "searching"
   | "found"
   | "not_found"
+  | "canceled"
   | "manual"
   | "error";
 
@@ -80,6 +81,7 @@ export type AtsOutreachRecord = {
   activeStep: number;
   candidId: string;
   createdAt: string;
+  emailRecipientName: string | null;
   emailDiscoveryEvidence: AtsEmailDiscoveryEvidence[];
   emailDiscoveryStatus: AtsEmailDiscoveryStatus;
   emailDiscoverySummary: string | null;
@@ -119,6 +121,7 @@ export type AtsMessageRecord = {
   outreachId: number | null;
   renderedBody: string | null;
   renderedSubject: string | null;
+  scheduledFor: string | null;
   sentAt: string | null;
   status: AtsMessageStatus;
   stepNumber: number | null;
@@ -243,12 +246,12 @@ export const ATS_TEMPLATE_VARIABLES: AtsTemplateVariableDefinition[] = [
   {
     key: "name",
     label: "{{name}}",
-    description: "후보자 전체 이름",
+    description: "메일에 사용할 후보자 이름",
   },
   {
     key: "first_name",
     label: "{{first_name}}",
-    description: "이름 첫 토큰",
+    description: "메일용 이름의 첫 토큰",
   },
   {
     key: "headline",
@@ -323,16 +326,23 @@ export function buildCandidateTemplateVariables(candidate: {
   headline?: string | null;
   location?: string | null;
   name?: string | null;
+  outreach?: {
+    emailRecipientName?: string | null;
+  } | null;
   scholarAffiliation?: string | null;
 }) {
+  const resolvedName = String(
+    candidate.outreach?.emailRecipientName ?? candidate.name ?? ""
+  ).trim();
+
   return {
     current_company: String(candidate.currentCompany ?? "").trim(),
     current_role: String(candidate.currentRole ?? "").trim(),
-    first_name: extractFirstName(candidate.name),
+    first_name: extractFirstName(resolvedName),
     github_username: String(candidate.githubUsername ?? "").trim(),
     headline: String(candidate.headline ?? "").trim(),
     location: String(candidate.location ?? "").trim(),
-    name: String(candidate.name ?? "").trim(),
+    name: resolvedName,
     scholar_affiliation: String(candidate.scholarAffiliation ?? "").trim(),
   };
 }

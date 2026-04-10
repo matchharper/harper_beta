@@ -77,7 +77,7 @@ export default function AdminMetricsTab({
   enabled,
   refreshToken = 0,
 }: AdminMetricsTabProps) {
-  const { excludedEmails, setExcludedEmails, clearExcludedEmails } =
+  const { excludedEmails, setExcludedEmails, resetExcludedEmails } =
     useAdminMetricsStore();
   const [interval, setInterval] = useState<AdminMetricInterval>("day");
   const [selectedMetricKeys, setSelectedMetricKeys] = useState<AdminMetricKey[]>(
@@ -146,9 +146,9 @@ export default function AdminMetricsTab({
           });
         }}
         onReset={() => {
-          clearExcludedEmails();
+          resetExcludedEmails();
           showToast({
-            message: "Excluded emails cleared",
+            message: "Excluded emails reset to defaults",
             variant: "white",
           });
         }}

@@ -8,6 +8,7 @@ import {
   fetchOpsOpportunityRecommendations,
   saveOpsOpportunityRecommendation,
 } from "@/lib/opsOpportunity";
+import { OpportunityType, isOpportunityType } from "@/lib/opportunityType";
 
 export const runtime = "nodejs";
 
@@ -33,12 +34,16 @@ export async function POST(req: NextRequest) {
   try {
     await requireInternalApiUser(req);
     const body = (await req.json().catch(() => ({}))) as {
+      opportunityType?: OpportunityType;
       recommendationMemo?: string | null;
       roleId?: string;
       talentId?: string;
     };
 
     const data = await saveOpsOpportunityRecommendation({
+      opportunityType: isOpportunityType(body.opportunityType)
+        ? body.opportunityType
+        : OpportunityType.ExternalJd,
       recommendationMemo: body.recommendationMemo,
       roleId: String(body.roleId ?? ""),
       talentId: String(body.talentId ?? ""),
@@ -54,13 +59,11 @@ export async function DELETE(req: NextRequest) {
   try {
     await requireInternalApiUser(req);
     const body = (await req.json().catch(() => ({}))) as {
-      roleId?: string;
-      talentId?: string;
+      recommendationId?: string;
     };
 
     const data = await deleteOpsOpportunityRecommendation({
-      roleId: String(body.roleId ?? ""),
-      talentId: String(body.talentId ?? ""),
+      recommendationId: String(body.recommendationId ?? ""),
     });
 
     return NextResponse.json(data);

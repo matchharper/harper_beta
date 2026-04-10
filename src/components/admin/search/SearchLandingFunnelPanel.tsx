@@ -1,8 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { filterLandingLogsByExcludedLocalIds } from "@/lib/adminEmailExclusions";
 import { supabase } from "@/lib/supabase";
 import { Loading } from "@/components/ui/loading";
 import {
-  SEARCH_LANDING_LOG_ABTEST_TYPE,
+  getSearchLandingVariantDescription,
+  getSearchLandingVariantLabel,
+  SEARCH_LANDING_ANALYTICS_ABTEST_TYPES,
   summarizeSearchLandingFunnel,
   type SearchLandingLog,
 } from "@/lib/searchLandingLogs";
@@ -11,6 +14,10 @@ const SEARCH_LANDING_FETCH_BATCH_SIZE = 1000;
 
 type SearchLandingFunnelPanelProps = {
   enabled: boolean;
+  excludedLocalIds?: string[];
+  excludedLocalIdsError?: string | null;
+  excludedLocalIdsLoading?: boolean;
+  excludedLocalIdsReady?: boolean;
   refreshToken?: number;
 };
 
@@ -52,8 +59,19 @@ function MetricCard({
   );
 }
 
+type VariantSummary = {
+  abtestType: string;
+  label: string;
+  description: string;
+  summary: ReturnType<typeof summarizeSearchLandingFunnel>;
+};
+
 export default function SearchLandingFunnelPanel({
   enabled,
+  excludedLocalIds = [],
+  excludedLocalIdsError = null,
+  excludedLocalIdsLoading = false,
+  excludedLocalIdsReady = true,
   refreshToken = 0,
 }: SearchLandingFunnelPanelProps) {
   const [logs, setLogs] = useState<SearchLandingLog[]>([]);
@@ -78,7 +96,7 @@ export default function SearchLandingFunnelPanel({
           .select(
             "id,local_id,type,created_at,abtest_type,is_mobile,country_lang"
           )
-          .eq("abtest_type", SEARCH_LANDING_LOG_ABTEST_TYPE)
+          .in("abtest_type", [...SEARCH_LANDING_ANALYTICS_ABTEST_TYPES])
           .order("id", { ascending: true })
           .range(from, to);
 
@@ -143,7 +161,37 @@ export default function SearchLandingFunnelPanel({
     void fetchLogs();
   }, [enabled, fetchLogs, refreshToken]);
 
-  const summary = useMemo(() => summarizeSearchLandingFunnel(logs), [logs]);
+  const filteredLogs = useMemo(
+    () =>
+      excludedLocalIdsLoading || !excludedLocalIdsReady
+        ? []
+        : filterLandingLogsByExcludedLocalIds(logs, excludedLocalIds),
+    [excludedLocalIds, excludedLocalIdsLoading, excludedLocalIdsReady, logs]
+  );
+  const summary = useMemo(
+    () => summarizeSearchLandingFunnel(filteredLogs),
+    [filteredLogs]
+  );
+  const variantSummaries = useMemo<VariantSummary[]>(() => {
+    const byVariant = new Map<string, SearchLandingLog[]>();
+
+    for (const log of filteredLogs) {
+      const key = String(log.abtest_type ?? "").trim() || "unknown";
+      const list = byVariant.get(key) ?? [];
+      list.push(log);
+      byVariant.set(key, list);
+    }
+
+    return Array.from(byVariant.entries())
+      .map(([abtestType, items]) => ({
+        abtestType,
+        label: getSearchLandingVariantLabel(abtestType),
+        description: getSearchLandingVariantDescription(abtestType),
+        summary: summarizeSearchLandingFunnel(items),
+      }))
+      .sort((a, b) => b.summary.totalUsers - a.summary.totalUsers);
+  }, [filteredLogs]);
+  const isLoading = loading || excludedLocalIdsLoading;
 
   return (
     <div
@@ -158,7 +206,7 @@ export default function SearchLandingFunnelPanel({
           </div>
         </div>
 
-        {loading ? (
+        {isLoading ? (
           <Loading
             size="sm"
             label="Loading…"
@@ -167,15 +215,15 @@ export default function SearchLandingFunnelPanel({
           />
         ) : (
           <div className="text-right text-[12px] text-black/55">
-            <div>Logs: {logs.length}</div>
+            <div>Logs: {filteredLogs.length}</div>
             <div>Updated: {formatLoadedAt(loadedAt)}</div>
           </div>
         )}
       </div>
 
-      {error ? (
+      {error || excludedLocalIdsError ? (
         <div className="mt-3 border border-red-200 bg-red-50 p-3 text-[12px] text-red-700">
-          {error}
+          {error ?? excludedLocalIdsError}
         </div>
       ) : null}
 
@@ -200,6 +248,72 @@ export default function SearchLandingFunnelPanel({
           value={formatPercent(summary.loggedInUsers, summary.totalUsers)}
           detail={`${summary.loggedInUsers} / ${summary.totalUsers} 유저`}
         />
+      </div>
+
+      <div className="mt-4 border border-black/10 p-4">
+        <div className="font-semibold text-black">Variant breakdown</div>
+        <div className="mt-1 text-[12px] text-black/55">
+          Search landing A/B test variant별 집계
+        </div>
+
+        {variantSummaries.length === 0 ? (
+          <div className="mt-3 text-[12px] text-black/55">
+            No search landing variant data yet.
+          </div>
+        ) : (
+          <div className="mt-4 space-y-3">
+            <div className="grid grid-cols-[0.8fr_1.6fr_0.7fr_1fr_1fr_1fr] gap-2 border-b border-black/10 pb-2 text-[12px] font-semibold text-black/70">
+              <div>Variant</div>
+              <div>Description</div>
+              <div className="text-right">Users</div>
+              <div className="text-right">Scroll</div>
+              <div className="text-right">Start</div>
+              <div className="text-right">Login</div>
+            </div>
+
+            {variantSummaries.map((item) => (
+              <div
+                key={item.abtestType}
+                className="grid grid-cols-[0.8fr_1.6fr_0.7fr_1fr_1fr_1fr] gap-2 text-[12px] text-black/80"
+              >
+                <div className="font-semibold text-black">
+                  {item.label}
+                  <div className="mt-1 break-all text-[11px] font-normal text-black/45">
+                    {item.abtestType}
+                  </div>
+                </div>
+                <div className="text-black/60">
+                  {item.description || "-"}
+                </div>
+                <div className="text-right">{item.summary.totalUsers}</div>
+                <div className="text-right">
+                  {item.summary.scrolledUsers} (
+                  {formatPercent(
+                    item.summary.scrolledUsers,
+                    item.summary.totalUsers
+                  )}
+                  )
+                </div>
+                <div className="text-right">
+                  {item.summary.startClickedUsers} (
+                  {formatPercent(
+                    item.summary.startClickedUsers,
+                    item.summary.totalUsers
+                  )}
+                  )
+                </div>
+                <div className="text-right">
+                  {item.summary.loggedInUsers} (
+                  {formatPercent(
+                    item.summary.loggedInUsers,
+                    item.summary.totalUsers
+                  )}
+                  )
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

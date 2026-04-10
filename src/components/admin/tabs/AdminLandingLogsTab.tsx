@@ -14,6 +14,10 @@ const ENTRY_TYPES = new Set(["new_visit", "new_session"]);
 
 type AdminLandingLogsTabProps = {
   canAccessAdminData: boolean;
+  excludedLocalIds: string[];
+  excludedLocalIdsError: string | null;
+  excludedLocalIdsLoading: boolean;
+  excludedLocalIdsReady: boolean;
   searchLandingRefreshToken: number;
   landingSummary: LandingSummary;
   abtestSummary: AbtestSummary[];
@@ -30,6 +34,10 @@ type AdminLandingLogsTabProps = {
 
 export default function AdminLandingLogsTab({
   canAccessAdminData,
+  excludedLocalIds,
+  excludedLocalIdsError,
+  excludedLocalIdsLoading,
+  excludedLocalIdsReady,
   searchLandingRefreshToken,
   landingSummary,
   abtestSummary,
@@ -47,6 +55,10 @@ export default function AdminLandingLogsTab({
     <>
       <SearchLandingFunnelPanel
         enabled={canAccessAdminData}
+        excludedLocalIds={excludedLocalIds}
+        excludedLocalIdsError={excludedLocalIdsError}
+        excludedLocalIdsLoading={excludedLocalIdsLoading}
+        excludedLocalIdsReady={excludedLocalIdsReady}
         refreshToken={searchLandingRefreshToken}
       />
 

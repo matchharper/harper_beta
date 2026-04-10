@@ -10,8 +10,7 @@ export const en = {
   },
   invitation: {
     title: "Request access",
-    description:
-      "Harper is currently running as an approval-based beta.\nShare a few details below and we'll review your request, then email you an access link.",
+    description: "We will email you an access link as soon as possible.",
     nameTitle: "Tell us your name.",
     nameDescription:
       "Your invite code has been verified. Please enter the name you'd like to use.",

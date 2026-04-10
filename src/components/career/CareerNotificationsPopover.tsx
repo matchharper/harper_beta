@@ -135,10 +135,14 @@ const CareerNotificationsPopover = ({
                     />
 
                     <div className="min-w-0 flex-1">
-                      <div className="text-[14px] leading-6 text-beige900">
-                        {notification.message?.trim() ||
-                          "내용이 비어 있는 알림입니다."}
-                      </div>
+                      <div
+                        className="text-[14px] leading-6 text-beige900 [&_strong]:font-semibold"
+                        dangerouslySetInnerHTML={{
+                          __html:
+                            notification.message?.trim() ||
+                            "내용이 비어 있는 알림입니다.",
+                        }}
+                      />
                       <div className="mt-1 text-[12px] leading-5 text-beige900/45">
                         {formatNotificationDate(notification.createdAt)}
                       </div>

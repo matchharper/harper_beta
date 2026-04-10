@@ -1,11 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
+import OpenAI from "openai";
+import { getRequestUser } from "@/lib/supabaseServer";
+
+const MAX_TTS_TEXT_LENGTH = 5000;
 
 export async function POST(req: NextRequest) {
   try {
+    const user = await getRequestUser(req);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { text } = await req.json();
 
     if (!text || typeof text !== "string") {
       return NextResponse.json({ error: "text is required" }, { status: 400 });
+    }
+
+    if (text.length > MAX_TTS_TEXT_LENGTH) {
+      return NextResponse.json(
+        { error: `Text exceeds maximum length of ${MAX_TTS_TEXT_LENGTH}` },
+        { status: 400 }
+      );
     }
 
     const apiKey = process.env.ELEVENLABS_API_KEY;
@@ -42,10 +58,30 @@ export async function POST(req: NextRequest) {
     if (!elevenRes.ok) {
       const errText = await elevenRes.text();
       console.error("ElevenLabs error:", errText);
-      return NextResponse.json(
-        { error: "Failed to call ElevenLabs TTS" },
-        { status: 500 }
-      );
+
+      // Fallback to OpenAI TTS
+      try {
+        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+        const mp3 = await openai.audio.speech.create({
+          model: "tts-1",
+          voice: "nova",
+          input: text,
+        });
+        const buffer = Buffer.from(await mp3.arrayBuffer());
+        return new NextResponse(buffer, {
+          status: 200,
+          headers: {
+            "Content-Type": "audio/mpeg",
+            "Content-Length": String(buffer.byteLength),
+          },
+        });
+      } catch (openaiErr) {
+        console.error("OpenAI TTS fallback error:", openaiErr);
+        return NextResponse.json(
+          { error: "All TTS providers failed" },
+          { status: 500 }
+        );
+      }
     }
 
     const audioArrayBuffer = await elevenRes.arrayBuffer();

@@ -1,15 +1,14 @@
+import { type ClassValue } from "clsx";
+import { cn } from "@/lib/utils";
 import React from "react";
 
-type ClassValue = string | false | null | undefined;
-
 export function careerCx(...values: ClassValue[]) {
-  return values.filter(Boolean).join(" ");
+  return cn(...values);
 }
 
 export const careerSurfaceClassName = "";
 
-export const careerInlinePanelClassName =
-  "border border-beige900/10 bg-white/55";
+export const careerInlinePanelClassName = "";
 
 export const careerInputClassName =
   "h-[36px] w-full rounded-[8px] border border-beige900/15 bg-white/60 px-3 py-2 text-[14px] font-normal leading-5 text-beige900 outline-none transition focus:ring-1 focus:ring-beige900/30 placeholder:text-beige900/30";
