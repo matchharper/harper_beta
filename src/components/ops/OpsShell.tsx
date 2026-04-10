@@ -9,6 +9,8 @@ import {
   KeyRound,
   LayoutDashboard,
   Lock,
+  LogOut,
+  MessageSquareText,
   ShieldAlert,
   Users,
 } from "lucide-react";
@@ -37,6 +39,13 @@ export const OPS_NAV_ITEMS: OpsNavItem[] = [
     icon: Users,
     label: "Network Leads",
     matchPrefix: "/ops/network",
+  },
+  {
+    description: "career 온보딩 인사이트",
+    href: "/ops/career",
+    icon: MessageSquareText,
+    label: "Career Talents",
+    matchPrefix: "/ops/career",
   },
   {
     description: "회사·기회 관리와 수동 매칭",

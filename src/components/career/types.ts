@@ -4,7 +4,20 @@ export { OpportunityType as CareerOpportunityType };
 
 export type CareerStage = "profile" | "chat" | "completed";
 export type MessageRole = "assistant" | "user";
-export type CareerInputMode = "text" | "voice";
+export type CareerInputMode = "text" | "voice" | "call";
+
+export type CallTranscriptEntry = {
+  role: "user" | "assistant";
+  text: string;
+  timestamp: string;
+};
+
+export type CareerCallWrapUp = {
+  duration: string;
+  whatWeCovered: string[];
+  keyLearnings: string[];
+  nextSteps: string[];
+};
 
 export type CareerTalentUser = {
   user_id: string;

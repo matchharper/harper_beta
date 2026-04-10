@@ -42,6 +42,7 @@ const CareerComposerSection = () => {
     onVoicePrimaryAction,
     onToggleVoiceMute,
     onSwitchToTextMode,
+    onStartCallMode,
   } = useCareerChatPanelContext();
 
   const [draft, setDraft] = useState("");
@@ -111,19 +112,6 @@ const CareerComposerSection = () => {
   return (
     <div className="sticky bottom-0 px-5 py-4">
       <div className="mx-auto w-full max-w-[1120px]">
-        {showCallQuickAction ? (
-          <div className="mb-3 flex justify-end">
-            <CareerPrimaryButton
-              onClick={() => onStartVoiceCall()}
-              disabled={isComposerLocked || onboardingBeginPending}
-              className="gap-2 px-4"
-            >
-              <Phone className="h-3.5 w-3.5" />
-              {onboardingBeginPending ? "준비 중..." : "전화로 하기"}
-            </CareerPrimaryButton>
-          </div>
-        ) : null}
-
         {!isVoiceMode && showLinkInput ? (
           <div className="mb-3 flex items-center gap-2 rounded-[8px] border border-beige900/10 bg-white/45 px-4 py-3">
             <input
@@ -221,7 +209,8 @@ const CareerComposerSection = () => {
                 isVoiceMode
                   ? "min-h-[64px] max-h-[120px]"
                   : "min-h-[88px] max-h-[152px]",
-                !isVoiceMode && "pr-[90px]"
+                !isVoiceMode &&
+                  (showCallQuickAction ? "pr-[176px]" : "pr-[90px]")
               )}
             />
             {!isVoiceMode && (
@@ -234,6 +223,28 @@ const CareerComposerSection = () => {
                 >
                   <Plus className="h-4 w-4" />
                 </button>
+                {showCallQuickAction && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => onStartVoiceCall()}
+                      disabled={isComposerLocked || onboardingBeginPending}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-beige900/15 bg-white/45 text-beige900/50 transition-colors hover:border-beige900/30 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-label="음성 모드"
+                    >
+                      <Mic className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onStartCallMode?.()}
+                      disabled={isComposerLocked || onboardingBeginPending}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-beige900/15 bg-white/45 text-beige900/50 transition-colors hover:border-beige900/30 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-label="통화 모드"
+                    >
+                      <Phone className="h-3.5 w-3.5" />
+                    </button>
+                  </>
+                )}
                 <button
                   type="button"
                   onClick={() => void handleSend()}

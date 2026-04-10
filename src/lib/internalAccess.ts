@@ -1,6 +1,7 @@
 export const INTERNAL_EMAIL_DOMAIN = "matchharper.com";
 export const ATS_ALLOWED_EMAILS = [
   "hongbeom.heo@gmail.com",
+  "yijunlee.000@gmail.com",
   "khj605123@gmail.com",
 ] as const;
 
@@ -18,7 +19,13 @@ export function getEmailDomain(value: string | null | undefined) {
 }
 
 export function isInternalEmail(value: string | null | undefined) {
-  return getEmailDomain(value) === INTERNAL_EMAIL_DOMAIN;
+  const normalized = normalizeEmail(value);
+  return (
+    getEmailDomain(normalized) === INTERNAL_EMAIL_DOMAIN ||
+    ATS_ALLOWED_EMAILS.includes(
+      normalized as (typeof ATS_ALLOWED_EMAILS)[number]
+    )
+  );
 }
 
 export function canAccessAts(value: string | null | undefined) {
