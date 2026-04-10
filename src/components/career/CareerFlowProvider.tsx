@@ -34,7 +34,7 @@ import { useCareerTalentPreferences } from "@/hooks/career/useCareerTalentPrefer
 import { useCareerTalentSettings } from "@/hooks/career/useCareerTalentSettings";
 import { useCareerSession } from "@/hooks/career/useCareerSession";
 import { getErrorMessage } from "@/hooks/career/careerHelpers";
-import { TALENT_ONBOARDING_COMPLETION_TARGET } from "@/lib/talentOnboarding/progress";
+import { TALENT_INTERVIEW_FINAL_STEP } from "@/lib/talentOnboarding/progress";
 import { getCareerDefaultSavedStage } from "./opportunityTypeMeta";
 
 const getDefaultSavedStage = (
@@ -370,6 +370,7 @@ export const CareerFlowProvider = ({
     applySessionPrompt,
     handleProfileSubmitSuccess,
     resetOnboardingState,
+    isAssistantSpeaking,
   } = useCareerOnboardingVoice({
     user,
     userId,
@@ -782,12 +783,12 @@ export const CareerFlowProvider = ({
   );
 
   const answeredCount = useMemo(
-    () => Math.min(userChatCount, TALENT_ONBOARDING_COMPLETION_TARGET),
+    () => Math.min(userChatCount, TALENT_INTERVIEW_FINAL_STEP),
     [userChatCount]
   );
 
   const progressPercent = Math.round(
-    (answeredCount / TALENT_ONBOARDING_COMPLETION_TARGET) * 100
+    (answeredCount / TALENT_INTERVIEW_FINAL_STEP) * 100
   );
 
   const chatPanelContextValue: CareerChatPanelContextValue = useMemo(
@@ -843,6 +844,7 @@ export const CareerFlowProvider = ({
       onEndCallMode: handleEndCallMode,
       callTranscriptEntries,
       callConnectionStatus: connectionStatus,
+      isAssistantSpeaking,
     }),
     [
       assistantTyping,
@@ -895,6 +897,7 @@ export const CareerFlowProvider = ({
       voiceMuted,
       voicePrimaryPressed,
       voiceTranscript,
+      isAssistantSpeaking,
     ]
   );
 
@@ -904,7 +907,7 @@ export const CareerFlowProvider = ({
       stage,
       userChatCount,
       answeredCount,
-      targetQuestions: TALENT_ONBOARDING_COMPLETION_TARGET,
+      targetQuestions: TALENT_INTERVIEW_FINAL_STEP,
       progressPercent,
       onOpenSettings,
       onLogout: handleLogout,

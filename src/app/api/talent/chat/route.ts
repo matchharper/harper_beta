@@ -15,7 +15,8 @@ import {
   getTalentSupabaseAdmin,
   upsertTalentInsights,
 } from "@/lib/talentOnboarding/server";
-import { TALENT_ONBOARDING_COMPLETION_TARGET } from "@/lib/talentOnboarding/progress";
+import { TALENT_INTERVIEW_FINAL_STEP, TALENT_INTERVIEW_MIN_COVERAGE } from "@/lib/talentOnboarding/progress";
+import { getStepGuideForPrompt, INTERRUPT_HANDLING_INSTRUCTION } from "@/lib/talentOnboarding/interviewSteps";
 import {
   getUncoveredChecklistItems,
   INSIGHT_CHECKLIST,
@@ -33,10 +34,24 @@ type Body = {
   link?: string;
 };
 
+type StepTransition = { next_step: number } | null;
+
 type ParsedAssistantResponse = {
   reply: string;
   extractedInsights: Record<string, ExtractedInsightValue> | null;
+  stepTransition: StepTransition;
 };
+
+function parseStepTransition(parsed: Record<string, unknown>): StepTransition {
+  const st = parsed.step_transition;
+  if (st && typeof st === "object" && !Array.isArray(st)) {
+    const nextStep = (st as Record<string, unknown>).next_step;
+    if (typeof nextStep === "number" && nextStep >= 1 && nextStep <= 5) {
+      return { next_step: nextStep };
+    }
+  }
+  return null;
+}
 
 function parseAssistantResponse(raw: string): ParsedAssistantResponse {
   // Attempt 1: direct JSON parse
@@ -51,6 +66,7 @@ function parseAssistantResponse(raw: string): ParsedAssistantResponse {
         insights && typeof insights === "object"
           ? normalizeExtractedInsights(insights)
           : null,
+      stepTransition: parseStepTransition(parsed),
     };
   } catch {
     // Attempt 2: regex extraction (handles LLM wrapping JSON in prose)
@@ -68,6 +84,7 @@ function parseAssistantResponse(raw: string): ParsedAssistantResponse {
               insights && typeof insights === "object"
                 ? normalizeExtractedInsights(insights)
                 : null,
+            stepTransition: parseStepTransition(parsed),
           };
         }
       } catch {
@@ -76,7 +93,7 @@ function parseAssistantResponse(raw: string): ParsedAssistantResponse {
     }
     // Final fallback: treat entire raw text as reply, skip extraction
     logger.log("[TalentChat] Using raw text fallback, no extraction this turn");
-    return { reply: raw, extractedInsights: null };
+    return { reply: raw, extractedInsights: null, stepTransition: null };
   }
 }
 
@@ -117,13 +134,18 @@ function buildInsightExtractionPrompt(
 
   return `
 ## Response Format
-You MUST return a valid JSON object with exactly two fields:
+You MUST return a valid JSON object with exactly these fields:
 {
   "reply": "your Korean conversational reply here",
   "extracted_insights": {
     "key_name": { "value": "extracted value", "action": "new" | "update" }
-  }
+  },
+  "step_transition": null | { "next_step": <number> }
 }
+
+## Step Transition
+If the current step's transition condition (described in the interview step guide above) is met, set "step_transition" to { "next_step": <next step number> }.
+Otherwise set it to null. Do NOT skip steps — always transition to the immediately next step.
 
 ## Insight Extraction Rules
 Insight coverage: ${coveredCount}/${totalCount} items covered.
@@ -155,6 +177,7 @@ function buildSystemPrompt(args: {
   shouldSendReliefNudge: boolean;
   userTurnCount: number;
   insightExtractionPrompt: string;
+  currentStep: number;
 }) {
   const {
     profile,
@@ -162,56 +185,27 @@ function buildSystemPrompt(args: {
     shouldSendReliefNudge,
     userTurnCount,
     insightExtractionPrompt,
+    currentStep,
   } = args;
   const linkText = (profile?.resume_links ?? []).join(", ");
 
-  const systemPrompt = `
-Always answer in Korean.
-Be concise, clear, and warm.
-Given the conversation, do all of the following:
-1) brief acknowledgement
-2) short guidance or summary
-3) one next question (if needed).
-Avoid markdown tables and long bullet dumps. Becaues your output will be used as a voice script for TTS.
+  const stepGuide = getStepGuideForPrompt(currentStep);
 
-전체적인 대화는 이런 흐름이면 좋다.
----
-원하는 정도의 대답이 아니면 follow-up 질문 해도 됨.
-
-- 안녕하세요, 저는 하퍼입니다.
-  짧게 몇 가지 질문만 드리고, 어떤 기회가 잘 맞을지 확인해보려고 합니다.
-  보통 5분 정도 걸립니다.
-  지금 잠깐 이야기 괜찮으실까요?
-
-- 올려주신 정보를 잘 확인했어요. 통화하시는 지금 기준으로, 어떤 상황이신지 말해주실 수 있나요?
-  지금은 이직을 적극적으로 생각 중이신가요,
-  아니면 좋은 기회가 있으면 보는 정도일까요?
-- 지금 이력서/링크드인 을 보니까 ~~~ 하고 계신데/~~한 상황이신 것 같은데 지금은 어떻게 하고 계신가요?
-- 만약 이직을 하신다면 어떤 점이 가장 중요하신가요?
-- 최근에는 어떻게 업무를 하고 계세요? AI 툴을 많이들 사용하는데, 어떻게 얼마나 활용하시고 계신지 궁금해요.
-- 지금 회사에서 가장 만족하는 점은 뭐고
-  아쉬운 점은 어떤 게 있을까요?
-- 어떤 종류의 회사가 잘 맞을 것 같으세요?
-  - (왜요?)
-- 앞으로 어떤 역할을 더 하고 싶으세요?
-- 이런 기회가 있으면 좋을 것 같다고 생각하시는게 있나요?
-  - (왜요?)
-- 하퍼에서는 다양한 기회가 제안될 수 있는데요, 혹시 해외에서 업무를 할 의사나 혹은 한국의 해외기반 기업에서도 일할 생각이 있으신가요?
-  - (Yes) 해외 관련 경험 혹은 언어 숙련도가 어떻게 됨?
-- 혹시 꼭 피하고 싶은 회사나 분야도 있으실까요?
-- 회사의 조건도 선호가 있으세요? 연봉, 복지, 워라밸 등
-- 감사합니다. 말씀해주신 내용을 기반으로
-몇 가지 기회를 찾아보고
-잘 맞는 게 있으면 다시 연락드릴게요.
-우선 대화는 여기서 종료해도 될 것 같아요.
-
-하지만 정보를 많이 알려주실 수록 저희에게는 도움이 되긴 하니, 대화를 할 시간이 있으시다면 언제든지 다시 대화를 걸어주세요!
-[종료하기] [계속 대화하기]
----
-`;
   return [
     "You are Harper, a Korean AI talent agent for candidate onboarding.",
-    systemPrompt,
+    "",
+    "Always answer in Korean.",
+    "Be concise, clear, and warm.",
+    "Given the conversation, do all of the following:",
+    "1) brief acknowledgement",
+    "2) short guidance or summary",
+    "3) one next question (if needed).",
+    "Avoid markdown tables and long bullet dumps. Your output will be used as a voice script for TTS.",
+    "",
+    stepGuide,
+    "",
+    INTERRUPT_HANDLING_INSTRUCTION,
+    "",
     insightExtractionPrompt,
     "",
     `Current user turn count: ${userTurnCount}`,
@@ -342,6 +336,10 @@ export async function POST(req: NextRequest) {
       }))
       .filter((item) => item.content.trim().length > 0);
 
+    const currentStep: number =
+      (conversation as TalentConversationRow & { current_step?: number })
+        .current_step ?? 1;
+
     const rawAssistantText = await runTalentAssistantCompletion({
       messages: [
         {
@@ -352,6 +350,7 @@ export async function POST(req: NextRequest) {
             shouldSendReliefNudge,
             userTurnCount,
             insightExtractionPrompt,
+            currentStep,
           }),
         },
         ...llmMessages,
@@ -447,9 +446,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Completed when enough turns AND at least 60% of checklist covered
-    // Count keys that result in genuinely new coverage (not already in currentInsightContent),
-    // regardless of action label — LLM may send "update" for a first-time key.
+    // Step transition: if LLM signals a step change, update current_step
+    const nextStep = parsedResponse.stepTransition?.next_step ?? null;
+    const effectiveStep =
+      nextStep && nextStep > currentStep && nextStep <= TALENT_INTERVIEW_FINAL_STEP
+        ? nextStep
+        : currentStep;
+
+    // Completed when Step 5 reached AND at least 60% of checklist covered
     const newKeysCount = parsedResponse.extractedInsights
       ? Object.entries(parsedResponse.extractedInsights).filter(
           ([key]) =>
@@ -461,12 +465,16 @@ export async function POST(req: NextRequest) {
       ? insightsCoveredAfter / INSIGHT_CHECKLIST.length
       : 1;
     const isCompleted =
-      userTurnCount >= TALENT_ONBOARDING_COMPLETION_TARGET && coverageRatio >= 0.6;
+      effectiveStep >= TALENT_INTERVIEW_FINAL_STEP &&
+      coverageRatio >= TALENT_INTERVIEW_MIN_COVERAGE;
+    // Step 6 = post-interview update mode
+    const finalStep = isCompleted ? 6 : effectiveStep;
     const now = new Date().toISOString();
     const { error: conversationUpdateError } = await admin
       .from("talent_conversations")
       .update({
         stage: isCompleted ? "completed" : "chat",
+        current_step: finalStep,
         relief_nudge_sent: shouldSendReliefNudge
           ? true
           : Boolean((conversation as TalentConversationRow).relief_nudge_sent),
@@ -501,12 +509,10 @@ export async function POST(req: NextRequest) {
         insertedAssistantMessage as TalentMessageRow
       ),
       progress: {
-        answeredCount: Math.min(
-          userTurnCount,
-          TALENT_ONBOARDING_COMPLETION_TARGET
-        ),
-        targetCount: TALENT_ONBOARDING_COMPLETION_TARGET,
+        answeredCount: userTurnCount,
+        targetCount: TALENT_INTERVIEW_FINAL_STEP,
         completed: isCompleted,
+        currentStep: effectiveStep,
       },
     });
   } catch (error) {
