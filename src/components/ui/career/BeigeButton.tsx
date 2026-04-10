@@ -71,4 +71,4 @@ const BeigeButton = ({
   );
 };
 
-export default BeigeButton;
+export default React.memo(BeigeButton);

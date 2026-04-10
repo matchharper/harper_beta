@@ -6,10 +6,22 @@ import {
   UserRoundCog,
 } from "lucide-react";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
+import CareerNotificationsPopover from "./CareerNotificationsPopover";
 import { careerCx } from "./ui/CareerPrimitives";
 import ChatbubblesIcon from "@/assets/icons/chatbubbles.svg";
 
 export type CareerWorkspaceTab = "home" | "profile" | "chat" | "history";
+
+export const isCareerWorkspaceTab = (
+  value: string | null | undefined
+): value is CareerWorkspaceTab =>
+  value === "home" ||
+  value === "profile" ||
+  value === "chat" ||
+  value === "history";
+
+export const getCareerWorkspaceHref = (tab: CareerWorkspaceTab) =>
+  tab === "home" ? "/career" : `/career/${tab}`;
 
 const NAV_ITEMS: Array<{
   id: CareerWorkspaceTab;
@@ -33,7 +45,7 @@ const NAV_ITEMS: Array<{
   },
   {
     id: "history",
-    label: "History",
+    label: "Jobs",
     icon: GalleryVerticalEnd,
   },
 ];
@@ -45,7 +57,16 @@ const CareerWorkspaceNav = ({
   activeTab: CareerWorkspaceTab;
   onChange: (tab: CareerWorkspaceTab) => void;
 }) => {
-  const { user, onOpenSettings, talentProfile } = useCareerSidebarContext();
+  const {
+    user,
+    onOpenSettings,
+    talentProfile,
+    notifications,
+    unreadNotificationCount,
+    notificationsMarkingAsRead,
+    notificationsError,
+    onMarkNotificationsRead,
+  } = useCareerSidebarContext();
 
   const displayName =
     user?.user_metadata?.full_name ??
@@ -134,6 +155,13 @@ const CareerWorkspaceNav = ({
             <Settings2 className="h-4 w-4" />
             설정
           </button>
+          <CareerNotificationsPopover
+            notifications={notifications}
+            unreadNotificationCount={unreadNotificationCount}
+            notificationsMarkingAsRead={notificationsMarkingAsRead}
+            notificationsError={notificationsError}
+            onMarkNotificationsRead={onMarkNotificationsRead}
+          />
           <button
             type="button"
             onClick={() => onChange("profile")}

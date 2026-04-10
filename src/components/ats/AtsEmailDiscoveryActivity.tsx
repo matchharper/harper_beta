@@ -11,12 +11,15 @@ type AtsEmailDiscoveryActivityProps = {
 };
 
 const LINK_CLASS_NAME =
-  "inline-flex items-center gap-1 text-sky-400 underline decoration-sky-400/60 underline-offset-2 transition hover:text-sky-300";
+  "inline-flex max-w-full flex-wrap items-center gap-1 align-top text-sky-400 underline decoration-sky-400/60 underline-offset-2 transition hover:text-sky-300";
 const MARKDOWN_LINK_PATTERN = /\[([^\]]+)\]\(([^)\s]+)\)/g;
 const PLAIN_LINK_PATTERN =
   /https?:\/\/[^\s<>"']+|www\.[^\s<>"']+|(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?:\/[^\s<>"']*)?/g;
 
-function getStatusTone(outreach: AtsOutreachRecord | null, isSearching: boolean) {
+function getStatusTone(
+  outreach: AtsOutreachRecord | null,
+  isSearching: boolean
+) {
   if (isSearching || outreach?.emailDiscoveryStatus === "searching") {
     return {
       badgeClassName: "border-sky-400/30 bg-sky-400/10 text-sky-100",
@@ -29,7 +32,8 @@ function getStatusTone(outreach: AtsOutreachRecord | null, isSearching: boolean)
     outreach?.emailDiscoveryStatus === "manual"
   ) {
     return {
-      badgeClassName: "border-emerald-400/30 bg-emerald-400/10 text-emerald-100",
+      badgeClassName:
+        "border-emerald-400/30 bg-emerald-400/10 text-emerald-100",
       label: "이메일 확보",
     };
   }
@@ -45,6 +49,13 @@ function getStatusTone(outreach: AtsOutreachRecord | null, isSearching: boolean)
     return {
       badgeClassName: "border-amber-400/30 bg-amber-400/10 text-amber-100",
       label: "미발견",
+    };
+  }
+
+  if (outreach?.emailDiscoveryStatus === "canceled") {
+    return {
+      badgeClassName: "border-white/15 bg-white/5 text-white/75",
+      label: "중단됨",
     };
   }
 
@@ -89,8 +100,10 @@ function createLinkNode(label: string, href: string, key: string) {
       rel="noreferrer"
       className={LINK_CLASS_NAME}
     >
-      {label}
-      <ArrowUpRight className="h-3 w-3" />
+      <span className="min-w-0 break-all [overflow-wrap:anywhere]">
+        {label}
+      </span>
+      <ArrowUpRight className="h-3 w-3 shrink-0" />
     </a>
   );
 }
@@ -100,18 +113,25 @@ function renderPlainLinkedText(content: string, keyPrefix: string) {
   let lastIndex = 0;
   const pattern = new RegExp(PLAIN_LINK_PATTERN);
 
-  for (let match = pattern.exec(content); match; match = pattern.exec(content)) {
+  for (
+    let match = pattern.exec(content);
+    match;
+    match = pattern.exec(content)
+  ) {
     const rawUrl = match[0];
     const startIndex = match.index ?? 0;
     if (!isValidLinkBoundary(content, startIndex)) continue;
 
-    const { trailing, value: normalizedUrl } = trimTrailingLinkPunctuation(rawUrl);
+    const { trailing, value: normalizedUrl } =
+      trimTrailingLinkPunctuation(rawUrl);
 
     if (startIndex > lastIndex) {
       nodes.push(content.slice(lastIndex, startIndex));
     }
 
-    nodes.push(createLinkNode(normalizedUrl, normalizedUrl, `${keyPrefix}-${startIndex}`));
+    nodes.push(
+      createLinkNode(normalizedUrl, normalizedUrl, `${keyPrefix}-${startIndex}`)
+    );
 
     if (trailing) {
       nodes.push(trailing);
@@ -132,11 +152,16 @@ function renderLinkedText(content: string, keyPrefix: string) {
   let lastIndex = 0;
   const pattern = new RegExp(MARKDOWN_LINK_PATTERN);
 
-  for (let match = pattern.exec(content); match; match = pattern.exec(content)) {
+  for (
+    let match = pattern.exec(content);
+    match;
+    match = pattern.exec(content)
+  ) {
     const startIndex = match.index ?? 0;
     const label = match[1] ?? "";
     const rawHref = match[2] ?? "";
-    const { trailing, value: normalizedHref } = trimTrailingLinkPunctuation(rawHref);
+    const { trailing, value: normalizedHref } =
+      trimTrailingLinkPunctuation(rawHref);
 
     if (startIndex > lastIndex) {
       nodes.push(
@@ -171,17 +196,22 @@ function renderLinkedText(content: string, keyPrefix: string) {
     );
   }
 
-  return nodes.length > 0 ? nodes : renderPlainLinkedText(content, `${keyPrefix}-plain`);
+  return nodes.length > 0
+    ? nodes
+    : renderPlainLinkedText(content, `${keyPrefix}-plain`);
 }
 
-function renderTraceMeta(meta: Record<string, unknown> | null | undefined, key: string) {
+function renderTraceMeta(
+  meta: Record<string, unknown> | null | undefined,
+  key: string
+) {
   if (!meta || Object.keys(meta).length === 0) return null;
 
   const serialized = JSON.stringify(meta, null, 2);
   if (!serialized) return null;
 
   return (
-    <pre className="mt-2 overflow-x-auto rounded-md border border-white/10 bg-white/[0.03] p-2 text-xs leading-5 text-white/45">
+    <pre className="mt-2 max-w-full whitespace-pre-wrap break-words rounded-md border border-white/10 bg-white/[0.03] p-2 text-xs leading-5 text-white/45 [overflow-wrap:anywhere]">
       {renderLinkedText(serialized, `${key}-meta`)}
     </pre>
   );
@@ -209,7 +239,7 @@ export default function AtsEmailDiscoveryActivity({
   const statusTone = getStatusTone(outreach, isSearching);
 
   return (
-    <div className="rounded-md border border-white/10 bg-black/10 p-4">
+    <div className="min-w-0 rounded-md border border-white/10 bg-black/10 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -221,10 +251,12 @@ export default function AtsEmailDiscoveryActivity({
             </div>
             <div className="text-xs text-white/40">
               로그 {trace.length}개
-              {lastTrace ? ` · 마지막 업데이트 ${formatDateTime(lastTrace.at)}` : ""}
+              {lastTrace
+                ? ` · 마지막 업데이트 ${formatDateTime(lastTrace.at)}`
+                : ""}
             </div>
           </div>
-          <div className="mt-3 text-sm leading-6 text-white/75">
+          <div className="mt-3 min-w-0 break-words text-sm leading-6 text-white/75 [overflow-wrap:anywhere]">
             {renderLinkedText(summary, "summary")}
           </div>
           {isSearching && (
@@ -252,13 +284,13 @@ export default function AtsEmailDiscoveryActivity({
       </div>
 
       {trace.length > 0 && (
-        <div className="mt-4 max-h-[360px] space-y-2 overflow-y-auto">
+        <div className="mt-4 max-h-[360px] min-w-0 space-y-2 overflow-y-auto">
           {trace.map((item, index) => (
             <div
               key={`${item.at}-${index}`}
-              className="rounded-md border border-white/10 bg-black/20 px-3 py-2"
+              className="min-w-0 rounded-md border border-white/10 bg-black/20 px-3 py-2"
             >
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center justify-between gap-3">
                 <span className="text-xs uppercase tracking-[0.18em] text-white/35">
                   {item.kind}
                 </span>
@@ -266,7 +298,7 @@ export default function AtsEmailDiscoveryActivity({
                   {formatDateTime(item.at)}
                 </span>
               </div>
-              <div className="mt-2 text-sm leading-6 text-white/65">
+              <div className="mt-2 min-w-0 break-words text-sm leading-6 text-white/65 [overflow-wrap:anywhere]">
                 {renderLinkedText(item.content, `trace-${index}`)}
               </div>
               {renderTraceMeta(item.meta, `trace-${index}`)}

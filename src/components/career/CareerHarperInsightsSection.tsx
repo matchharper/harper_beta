@@ -55,17 +55,16 @@ const CareerHarperInsightsSection = () => {
       <div>
         {insightEntries.length === 0 ? (
           <div className="rounded-[8px] border border-dashed border-beige900/15 bg-white/30 px-4 py-3 text-sm text-beige900/45">
-            아직 저장된 Harper insight key가 없습니다.
+            아직 저장된 Harper insight가 없습니다.
           </div>
         ) : (
           insightEntries.map(([key, value]) => (
-            <CareerField
-              key={key}
-              label={getInsightLabel(key)}
-              hint={key}
-            >
+            <CareerField key={key} label={getInsightLabel(key)} hint={key}>
               <CareerTextarea
-                rows={Math.max(4, Math.min(8, Math.ceil((value.length || 1) / 120)))}
+                rows={Math.max(
+                  4,
+                  Math.min(8, Math.ceil((value.length || 1) / 120))
+                )}
                 value={value}
                 onChange={(event) =>
                   onTalentInsightsChange((current) => ({

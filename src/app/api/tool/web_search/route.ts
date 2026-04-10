@@ -60,8 +60,6 @@ export async function POST(req: NextRequest) {
     if (!items || items.length === 0) {
       return NextResponse.json({ response: [] }, { status: 200 });
     }
-    console.log(`\n\n-----웹 검색 출력 ${items}-----\n\n`);
-
     const lastItem = items[items.length - 1] as {
       results?: Array<{
         description?: string;
@@ -76,7 +74,6 @@ export async function POST(req: NextRequest) {
           url: String(item.url ?? ""),
         }))
       : [];
-    console.log(response);
     console.log("\n\n----------\n\n");
 
     // const { error: insertError } = await supabase.from("documents").insert({

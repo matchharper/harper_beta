@@ -1,6 +1,7 @@
 import OpsShell from "@/components/ops/OpsShell";
 import { cx, opsTheme } from "@/components/ops/theme";
 import {
+  useCreateOpsNetworkNotification,
   useCreateOpsNetworkInternalEntry,
   useDeleteOpsNetworkInternalEntry,
   useIngestOpsNetworkLead,
@@ -10,7 +11,6 @@ import {
   useUpdateOpsNetworkInternalEntry,
 } from "@/hooks/useOpsNetwork";
 import type { NetworkLeadSummary, TalentInternalEntry } from "@/lib/opsNetwork";
-import { INTERNAL_EMAIL_DOMAIN } from "@/lib/internalAccess";
 import {
   getTalentCareerMoveIntentLabel,
   getTalentEngagementLabels,
@@ -20,9 +20,15 @@ import { showToast } from "@/components/toast/toast";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
 import {
+  OPS_NETWORK_PAGE_SIZE_OPTIONS,
+  useOpsNetworkStore,
+} from "@/store/useOpsNetworkStore";
+import { AnimatePresence, motion } from "framer-motion";
+import {
   BookOpen,
   BriefcaseBusiness,
   Check,
+  ChevronLeft,
   ChevronRight,
   Copy,
   Download,
@@ -43,17 +49,18 @@ import {
   X,
 } from "lucide-react";
 import Head from "next/head";
+import { useRouter } from "next/router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 type DetailTab = "internal" | "profile" | "waitlist";
-
-const FETCH_LIMIT = 40;
 
 const DETAIL_TABS: Array<{ id: DetailTab; label: string }> = [
   { id: "profile", label: "구조화 프로필" },
   { id: "waitlist", label: "원본 제출 정보" },
   { id: "internal", label: "내부 활동" },
 ];
+
+const PAGINATION_BUTTON_COUNT = 5;
 
 const formatKst = (value: string | null | undefined) => {
   if (!value) return "-";
@@ -65,6 +72,17 @@ const formatKst = (value: string | null | undefined) => {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
+  });
+};
+
+const formatKstDate = (value: string | null | undefined) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
   });
 };
 
@@ -96,6 +114,72 @@ const escapeCsvCell = (value: string | null | undefined) => {
   if (!/[",\n]/.test(safe)) return safe;
   return `"${safe.replace(/"/g, '""')}"`;
 };
+
+function readQueryValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function parsePositiveQueryNumber(value: string | string[] | undefined) {
+  const raw = readQueryValue(value);
+  const numeric = Number(raw ?? "");
+  if (!Number.isInteger(numeric) || numeric <= 0) return null;
+  return numeric;
+}
+
+function buildPaginationNumbers(currentPage: number, totalPages: number) {
+  if (totalPages <= 0) return [];
+
+  const half = Math.floor(PAGINATION_BUTTON_COUNT / 2);
+  const start = Math.max(
+    1,
+    Math.min(currentPage - half, totalPages - PAGINATION_BUTTON_COUNT + 1)
+  );
+  const end = Math.min(totalPages, start + PAGINATION_BUTTON_COUNT - 1);
+
+  return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+}
+
+function getLatestExperienceText(lead: NetworkLeadSummary) {
+  const latestExperience = lead.latestExperience;
+  if (latestExperience?.companyName || latestExperience?.role) {
+    return {
+      meta: [
+        latestExperience.startDate || latestExperience.endDate
+          ? `${latestExperience.startDate ?? "-"} ~ ${
+              latestExperience.endDate ?? "Present"
+            }`
+          : null,
+        latestExperience.companyLocation,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      primary: [
+        latestExperience.companyName ?? "회사 없음",
+        latestExperience.role ?? "역할 없음",
+      ].join(" / "),
+    };
+  }
+
+  return {
+    meta: null,
+    primary: lead.selectedRole ?? "구조화된 최근 경력 없음",
+  };
+}
+
+function getLeadPreferenceLabels(lead: NetworkLeadSummary) {
+  const moveLabel =
+    lead.careerMoveIntentLabel ??
+    getTalentCareerMoveIntentLabel(lead.careerMoveIntent) ??
+    null;
+  const engagementLabels = getTalentEngagementLabels(lead.engagementTypes);
+  const locationLabels = getTalentLocationLabels(lead.preferredLocations);
+
+  return {
+    engagementLabels,
+    locationLabels,
+    moveLabel,
+  };
+}
 
 function formatEntryType(type: TalentInternalEntry["type"]) {
   if (type === "mail") return "메일";
@@ -186,21 +270,12 @@ function ProfileChip({
   return <div className={className}>{children}</div>;
 }
 
-const StatCard = ({
-  hint,
-  label,
-  value,
-}: {
-  hint: string;
-  label: string;
-  value: string;
-}) => (
-  <div className={cx(opsTheme.panelSoft, "px-4 py-4")}>
-    <div className={opsTheme.eyebrow}>{label}</div>
-    <div className="mt-3 font-halant text-[2.1rem] leading-none tracking-[-0.07em] text-beige900">
+const StatCard = ({ hint, value }: { hint: string; value: string }) => (
+  <div className="p-2 flex flex-row items-center justify-center gap-2 bg-beige500">
+    <div className="font-halant text-[1.4rem] leading-none text-beige900">
       {value}
     </div>
-    <div className="mt-2 font-geist text-sm text-beige900/60">{hint}</div>
+    <div className="font-geist text-sm text-beige900/60">{hint}</div>
   </div>
 );
 
@@ -388,11 +463,18 @@ function StructuredSection({
 }
 
 export default function NetworkOpsPage() {
+  const router = useRouter();
   const { user } = useAuthStore();
+  const pageSize = useOpsNetworkStore((state) => state.pageSize);
+  const setPageSize = useOpsNetworkStore((state) => state.setPageSize);
 
-  const leadsQuery = useOpsNetworkLeads(FETCH_LIMIT);
+  const currentPage = parsePositiveQueryNumber(router.query.page) ?? 1;
+  const selectedLeadId = parsePositiveQueryNumber(router.query.leadId);
+  const currentOffset = Math.max(0, (currentPage - 1) * pageSize);
+
   const ingestMutation = useIngestOpsNetworkLead();
   const internalMutation = useCreateOpsNetworkInternalEntry();
+  const notificationMutation = useCreateOpsNetworkNotification();
   const updateInternalMutation = useUpdateOpsNetworkInternalEntry();
   const deleteInternalMutation = useDeleteOpsNetworkInternalEntry();
   const mailMutation = useSendOpsNetworkMail();
@@ -401,24 +483,146 @@ export default function NetworkOpsPage() {
   const [roleFilter, setRoleFilter] = useState("all");
   const [moveFilter, setMoveFilter] = useState("all");
   const [cvOnly, setCvOnly] = useState(false);
-  const [selectedLeadId, setSelectedLeadId] = useState<number | null>(null);
   const [detailTab, setDetailTab] = useState<DetailTab>("profile");
   const [mailFromEmail, setMailFromEmail] = useState("");
   const [mailSubject, setMailSubject] = useState("");
   const [mailContent, setMailContent] = useState("");
   const [memoContent, setMemoContent] = useState("");
+  const [notificationContent, setNotificationContent] = useState("");
   const [conversationContent, setConversationContent] = useState("");
   const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
   const [editingEntryContent, setEditingEntryContent] = useState("");
   const [isOpeningCv, setIsOpeningCv] = useState<number | null>(null);
+  const [quickMemoLead, setQuickMemoLead] = useState<NetworkLeadSummary | null>(
+    null
+  );
+  const [quickMemoContent, setQuickMemoContent] = useState("");
 
+  const leadsQuery = useOpsNetworkLeads({
+    cvOnly,
+    enabled: router.isReady,
+    limit: pageSize,
+    move: moveFilter !== "all" ? moveFilter : null,
+    offset: currentOffset,
+    query,
+    role: roleFilter !== "all" ? roleFilter : null,
+  });
   const detailQuery = useOpsNetworkDetail(selectedLeadId);
 
-  const leadPages = leadsQuery.data?.pages;
-  const lastPage = leadPages?.[leadPages.length - 1] ?? null;
-  const allLeads = useMemo(
-    () => (leadPages ?? []).flatMap((page) => page.leads),
-    [leadPages]
+  const list = leadsQuery.data;
+  const currentLeads = useMemo(() => list?.leads ?? [], [list?.leads]);
+  const totalPages = list?.totalPages ?? 1;
+  const pageNumbers = useMemo(
+    () => buildPaginationNumbers(currentPage, totalPages),
+    [currentPage, totalPages]
+  );
+
+  const updateRouteQuery = useCallback(
+    (
+      patch: Record<string, string | null | undefined>,
+      replaceHistory = false
+    ) => {
+      const nextQuery = { ...router.query } as Record<
+        string,
+        string | string[] | undefined
+      >;
+
+      Object.entries(patch).forEach(([key, value]) => {
+        if (!value) {
+          delete nextQuery[key];
+          return;
+        }
+
+        nextQuery[key] = value;
+      });
+
+      const navigate = replaceHistory ? router.replace : router.push;
+
+      void navigate(
+        {
+          pathname: router.pathname,
+          query: nextQuery,
+        },
+        undefined,
+        { scroll: false, shallow: true }
+      );
+    },
+    [router]
+  );
+
+  const goToPage = useCallback(
+    (page: number, replaceHistory = false) => {
+      updateRouteQuery({ page: String(Math.max(1, page)) }, replaceHistory);
+    },
+    [updateRouteQuery]
+  );
+
+  const openLeadDrawer = useCallback(
+    (leadId: number) => {
+      setDetailTab("profile");
+      updateRouteQuery(
+        {
+          leadId: String(leadId),
+          page: String(currentPage),
+        },
+        false
+      );
+    },
+    [currentPage, updateRouteQuery]
+  );
+
+  const closeLeadDrawer = useCallback(() => {
+    updateRouteQuery({ leadId: null }, false);
+  }, [updateRouteQuery]);
+
+  const handleQueryChange = useCallback(
+    (value: string) => {
+      setQuery(value);
+      if (currentPage !== 1) {
+        goToPage(1, true);
+      }
+    },
+    [currentPage, goToPage]
+  );
+
+  const handleRoleFilterChange = useCallback(
+    (value: string) => {
+      setRoleFilter(value);
+      if (currentPage !== 1) {
+        goToPage(1, true);
+      }
+    },
+    [currentPage, goToPage]
+  );
+
+  const handleMoveFilterChange = useCallback(
+    (value: string) => {
+      setMoveFilter(value);
+      if (currentPage !== 1) {
+        goToPage(1, true);
+      }
+    },
+    [currentPage, goToPage]
+  );
+
+  const handleCvOnlyChange = useCallback(
+    (value: boolean) => {
+      setCvOnly(value);
+      if (currentPage !== 1) {
+        goToPage(1, true);
+      }
+    },
+    [currentPage, goToPage]
+  );
+
+  const handlePageSizeChange = useCallback(
+    (value: number) => {
+      setPageSize(value);
+      if (currentPage !== 1) {
+        goToPage(1, true);
+      }
+    },
+    [currentPage, goToPage, setPageSize]
   );
 
   useEffect(() => {
@@ -428,86 +632,55 @@ export default function NetworkOpsPage() {
   }, [mailFromEmail, user?.email]);
 
   useEffect(() => {
-    if (allLeads.length === 0) {
-      setSelectedLeadId(null);
-      return;
+    if (!router.isReady) return;
+
+    const rawPage = readQueryValue(router.query.page);
+    if (!rawPage || parsePositiveQueryNumber(rawPage) === null) {
+      goToPage(1, true);
     }
-
-    if (!allLeads.some((lead) => lead.id === selectedLeadId)) {
-      setSelectedLeadId(allLeads[0].id);
-    }
-  }, [allLeads, selectedLeadId]);
-
-  const roleOptions = useMemo(() => {
-    return Array.from(
-      new Set(
-        allLeads
-          .map((lead) => lead.selectedRole)
-          .filter((value): value is string => Boolean(value))
-      )
-    ).sort((a, b) => a.localeCompare(b));
-  }, [allLeads]);
-
-  const moveOptions = useMemo(() => {
-    return Array.from(
-      new Set(
-        allLeads
-          .map(
-            (lead) =>
-              lead.careerMoveIntentLabel ?? lead.careerMoveIntent ?? "미입력"
-          )
-          .filter((value): value is string => Boolean(value))
-      )
-    ).sort((a, b) => a.localeCompare(b));
-  }, [allLeads]);
-
-  const filteredLeads = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-
-    return allLeads.filter((lead) => {
-      if (cvOnly && !lead.hasCv) return false;
-      if (roleFilter !== "all" && lead.selectedRole !== roleFilter)
-        return false;
-
-      const moveValue =
-        lead.careerMoveIntentLabel ?? lead.careerMoveIntent ?? "미입력";
-      if (moveFilter !== "all" && moveValue !== moveFilter) return false;
-
-      if (!needle) return true;
-
-      const haystack = [
-        lead.name,
-        lead.email,
-        lead.selectedRole,
-        lead.linkedinProfileUrl,
-        lead.githubProfileUrl,
-        lead.scholarProfileUrl,
-        lead.primaryProfileUrl,
-        lead.impactSummary,
-        lead.dreamTeams,
-        lead.careerMoveIntentLabel,
-        lead.careerMoveIntent,
-        lead.engagementTypes.join(" "),
-        lead.preferredLocations.join(" "),
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-      return haystack.includes(needle);
-    });
-  }, [allLeads, cvOnly, moveFilter, query, roleFilter]);
+  }, [goToPage, router.isReady, router.query.page]);
 
   useEffect(() => {
-    if (filteredLeads.length === 0) {
-      setSelectedLeadId(null);
-      return;
-    }
+    if (!router.isReady || !list) return;
+    if (currentPage <= totalPages) return;
+    goToPage(totalPages, true);
+  }, [currentPage, goToPage, list, router.isReady, totalPages]);
 
-    if (!filteredLeads.some((lead) => lead.id === selectedLeadId)) {
-      setSelectedLeadId(filteredLeads[0].id);
-    }
-  }, [filteredLeads, selectedLeadId]);
+  useEffect(() => {
+    if (!selectedLeadId) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeLeadDrawer();
+      }
+    };
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [closeLeadDrawer, selectedLeadId]);
+
+  useEffect(() => {
+    if (!quickMemoLead) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setQuickMemoLead(null);
+        setQuickMemoContent("");
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [quickMemoLead]);
 
   useEffect(() => {
     setMemoContent("");
@@ -516,33 +689,24 @@ export default function NetworkOpsPage() {
     setMailContent("");
     setEditingEntryId(null);
     setEditingEntryContent("");
+    setNotificationContent("");
   }, [selectedLeadId]);
 
   const selectedLead = useMemo(
-    () => filteredLeads.find((lead) => lead.id === selectedLeadId) ?? null,
-    [filteredLeads, selectedLeadId]
+    () => currentLeads.find((lead) => lead.id === selectedLeadId) ?? null,
+    [currentLeads, selectedLeadId]
   );
 
   const detail = detailQuery.data;
   const displayedLead = detail?.lead ?? selectedLead;
-
-  const stats = useMemo(() => {
-    const readyNowCount = allLeads.filter(
-      (lead) => lead.careerMoveIntent === "ready_to_move"
-    ).length;
-    const withCvCount = allLeads.filter((lead) => lead.hasCv).length;
-    const recentCount = allLeads.filter((lead) => {
-      const diff = daysAgo(lead.submittedAt);
-      return diff !== null && diff <= 7;
-    }).length;
-
-    return {
-      readyNowCount,
-      recentCount,
-      totalCount: lastPage?.totalCount ?? allLeads.length,
-      withCvCount,
-    };
-  }, [allLeads, lastPage?.totalCount]);
+  const stats = list?.stats ?? {
+    readyNowCount: 0,
+    recentCount: 0,
+    totalCount: 0,
+    withCvCount: 0,
+  };
+  const roleOptions = list?.filters.roleOptions ?? [];
+  const moveOptions = list?.filters.moveOptions ?? [];
 
   const listError =
     leadsQuery.error instanceof Error ? leadsQuery.error.message : null;
@@ -641,7 +805,7 @@ export default function NetworkOpsPage() {
       "has_structured_profile",
     ];
 
-    const rows = filteredLeads.map((lead) => [
+    const rows = currentLeads.map((lead) => [
       lead.submittedAt,
       lead.name,
       lead.email,
@@ -676,7 +840,7 @@ export default function NetworkOpsPage() {
     anchor.click();
     document.body.removeChild(anchor);
     URL.revokeObjectURL(url);
-  }, [filteredLeads]);
+  }, [currentLeads]);
 
   const handleIngest = useCallback(async () => {
     if (!displayedLead) return;
@@ -736,6 +900,68 @@ export default function NetworkOpsPage() {
     },
     [conversationContent, internalMutation, memoContent, selectedLeadId]
   );
+
+  const handleSaveNotification = useCallback(async () => {
+    if (!selectedLeadId) return;
+
+    const message = notificationContent.trim();
+    if (!message) return;
+
+    try {
+      await notificationMutation.mutateAsync({
+        id: selectedLeadId,
+        message,
+      });
+      setNotificationContent("");
+      showToast({
+        message: "후보자 알림 저장 완료",
+        variant: "white",
+      });
+    } catch (error) {
+      showToast({
+        message:
+          error instanceof Error
+            ? error.message
+            : "후보자 알림 저장에 실패했습니다.",
+        variant: "error",
+      });
+    }
+  }, [notificationContent, notificationMutation, selectedLeadId]);
+
+  const handleOpenQuickMemo = useCallback((lead: NetworkLeadSummary) => {
+    setQuickMemoLead(lead);
+    setQuickMemoContent("");
+  }, []);
+
+  const handleCloseQuickMemo = useCallback(() => {
+    if (internalMutation.isPending) return;
+    setQuickMemoLead(null);
+    setQuickMemoContent("");
+  }, [internalMutation.isPending]);
+
+  const handleSaveQuickMemo = useCallback(async () => {
+    if (!quickMemoLead) return;
+
+    const content = quickMemoContent.trim();
+    if (!content) return;
+
+    try {
+      await internalMutation.mutateAsync({
+        content,
+        id: quickMemoLead.id,
+        type: "memo",
+      });
+      setQuickMemoLead(null);
+      setQuickMemoContent("");
+      showToast({ message: "메모 저장 완료", variant: "white" });
+    } catch (error) {
+      showToast({
+        message:
+          error instanceof Error ? error.message : "메모 저장에 실패했습니다.",
+        variant: "error",
+      });
+    }
+  }, [internalMutation, quickMemoContent, quickMemoLead]);
 
   const handleSendMail = useCallback(async () => {
     if (!selectedLeadId) return;
@@ -839,7 +1065,10 @@ export default function NetworkOpsPage() {
     setRoleFilter("all");
     setMoveFilter("all");
     setCvOnly(false);
-  }, []);
+    if (currentPage !== 1) {
+      goToPage(1, true);
+    }
+  }, [currentPage, goToPage]);
 
   const isSelectedLeadIngesting =
     ingestMutation.isPending && ingestMutation.variables === displayedLead?.id;
@@ -849,6 +1078,10 @@ export default function NetworkOpsPage() {
   const deletingEntryId = deleteInternalMutation.isPending
     ? (deleteInternalMutation.variables?.entryId ?? null)
     : null;
+  const isQuickMemoSaving =
+    internalMutation.isPending &&
+    internalMutation.variables?.type === "memo" &&
+    internalMutation.variables?.id === quickMemoLead?.id;
 
   return (
     <>
@@ -862,20 +1095,6 @@ export default function NetworkOpsPage() {
 
       <OpsShell
         title="Network Leads"
-        description={
-          <>
-            <span className="font-medium text-beige900">harper_waitlist</span>에
-            저장된 후보자 제출 데이터를 확인하고, LinkedIn 및 CV를 바탕으로
-            `talent_*` 테이블 프로필을 만들 수 있는 내부 화면입니다. 현재{" "}
-            {allLeads.length}건을 불러왔고 전체는{" "}
-            {lastPage?.totalCount ?? allLeads.length}
-            건입니다. 허용 도메인 기준은{" "}
-            <span className="font-medium text-beige900">
-              {INTERNAL_EMAIL_DOMAIN}
-            </span>
-            입니다.
-          </>
-        }
         actions={
           <>
             <button
@@ -896,41 +1115,37 @@ export default function NetworkOpsPage() {
             <button
               type="button"
               onClick={handleExportCsv}
-              disabled={filteredLeads.length === 0}
+              disabled={currentLeads.length === 0}
               className={cx(opsTheme.buttonSecondary, "h-10")}
             >
               <Download className="h-4 w-4" />
-              CSV 내보내기
+              현재 페이지 CSV
             </button>
           </>
         }
       >
         <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <StatCard
-            label="전체 후보자"
             value={String(stats.totalCount)}
             hint="현재 waitlist 전체 수"
           />
           <StatCard
-            label="즉시 이직 가능"
             value={String(stats.readyNowCount)}
             hint="좋은 기회면 바로 이직 가능"
           />
           <StatCard
-            label="CV 업로드"
             value={String(stats.withCvCount)}
             hint="CV 또는 이력서 파일 포함"
           />
           <StatCard
-            label="최근 7일"
             value={String(stats.recentCount)}
             hint="최근 7일 신규 제출"
           />
         </section>
 
         <section className="space-y-6">
-          <div className={cx(opsTheme.panel, "p-4")}>
-            <div className="grid gap-3 xl:grid-cols-[minmax(0,1.3fr)_180px_220px_160px_auto]">
+          <div className="px-4">
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1.3fr)_180px_220px_160px_160px_auto]">
               <label
                 className={cx(
                   opsTheme.panelSoft,
@@ -940,15 +1155,15 @@ export default function NetworkOpsPage() {
                 <Search className="h-4 w-4 text-beige900/40" />
                 <input
                   value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="이름, 이메일, 역할, 링크, 메모 검색"
+                  onChange={(event) => handleQueryChange(event.target.value)}
+                  placeholder="이름, 이메일, 역할, 링크 검색"
                   className="h-full w-full bg-transparent font-geist text-sm text-beige900 outline-none placeholder:text-beige900/35"
                 />
               </label>
 
               <select
                 value={roleFilter}
-                onChange={(event) => setRoleFilter(event.target.value)}
+                onChange={(event) => handleRoleFilterChange(event.target.value)}
                 className={cx(opsTheme.input, "appearance-none")}
               >
                 <option value="all">모든 역할</option>
@@ -961,7 +1176,7 @@ export default function NetworkOpsPage() {
 
               <select
                 value={moveFilter}
-                onChange={(event) => setMoveFilter(event.target.value)}
+                onChange={(event) => handleMoveFilterChange(event.target.value)}
                 className={cx(opsTheme.input, "appearance-none")}
               >
                 <option value="all">모든 이직 의향</option>
@@ -981,11 +1196,25 @@ export default function NetworkOpsPage() {
                 <input
                   type="checkbox"
                   checked={cvOnly}
-                  onChange={(event) => setCvOnly(event.target.checked)}
+                  onChange={(event) => handleCvOnlyChange(event.target.checked)}
                   className="accent-[#2E1706]"
                 />
                 CV만 보기
               </label>
+
+              <select
+                value={pageSize}
+                onChange={(event) =>
+                  handlePageSizeChange(Number(event.target.value))
+                }
+                className={cx(opsTheme.input, "appearance-none")}
+              >
+                {OPS_NETWORK_PAGE_SIZE_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    페이지당 {option}명
+                  </option>
+                ))}
+              </select>
 
               <button
                 type="button"
@@ -1001,1042 +1230,1428 @@ export default function NetworkOpsPage() {
             <div className={opsTheme.errorNotice}>{listError}</div>
           ) : null}
 
-          <div className="grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
-            <div className={cx(opsTheme.panel)}>
-              <div className="flex items-center justify-between gap-3 px-4 py-4">
-                <div>
-                  <div className={opsTheme.eyebrow}>Candidates</div>
-                  <div className="mt-1 font-geist text-sm text-beige900/70">
-                    불러온 후보자 {allLeads.length}명 / 전체{" "}
-                    {lastPage?.totalCount ?? allLeads.length}명
-                  </div>
+          <div className={cx(opsTheme.panel, "overflow-hidden")}>
+            <div className="flex flex-col gap-3 border-b border-beige900/10 px-4 py-4 md:flex-row md:items-end md:justify-between">
+              <div>
+                <div className={opsTheme.eyebrow}>Candidates</div>
+                <div className="mt-1 font-geist text-sm text-beige900/70">
+                  필터 결과 {list?.filteredCount ?? 0}명 / 전체{" "}
+                  {list?.allCount ?? 0}명
                 </div>
-                {lastPage?.hasMore && (
-                  <button
-                    type="button"
-                    onClick={() => void leadsQuery.fetchNextPage()}
-                    disabled={leadsQuery.isFetchingNextPage}
-                    className={cx(opsTheme.buttonSoft, "h-10 px-3")}
-                  >
-                    {leadsQuery.isFetchingNextPage ? (
-                      <LoaderCircle className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4" />
-                    )}
-                    더 보기
-                  </button>
-                )}
               </div>
+              <div className="font-geist text-sm text-beige900/55">
+                페이지 {currentPage} / {totalPages} · 현재 {currentLeads.length}
+                명
+              </div>
+            </div>
 
-              <div className="max-h-[calc(100vh)] overflow-y-auto divide-y divide-beige900/10">
-                {leadsQuery.isLoading && allLeads.length === 0 ? (
-                  <div className="flex items-center justify-center px-4 py-12">
-                    <LoaderCircle className="h-5 w-5 animate-spin text-beige900/45" />
-                  </div>
-                ) : filteredLeads.length === 0 ? (
-                  <div className="px-4 py-10 text-center font-geist text-sm text-beige900/55">
-                    조건에 맞는 후보자가 없습니다.
-                  </div>
-                ) : (
-                  filteredLeads.map((lead) => {
-                    const isSelected = selectedLeadId === lead.id;
-                    const submittedDaysAgo = daysAgo(lead.submittedAt);
-
-                    return (
-                      <button
-                        key={lead.id}
-                        type="button"
-                        onClick={() => setSelectedLeadId(lead.id)}
-                        className={cx(
-                          "w-full px-4 py-4 text-left transition",
-                          isSelected
-                            ? "bg-beige900 text-beige100"
-                            : "hover:bg-white/55"
-                        )}
+            <div className="overflow-x-auto">
+              <table className="min-w-[1360px] w-full table-fixed border-collapse">
+                <thead className="bg-white/55 text-left">
+                  <tr className="border-b border-beige900/10 font-geist text-xs uppercase text-beige900/50">
+                    <th className="w-[240px] px-4 py-3 font-medium">이름</th>
+                    <th className="w-[280px] px-4 py-3 font-medium">
+                      최근 회사 / 역할
+                    </th>
+                    <th className="w-[320px] px-4 py-3 font-medium">
+                      선택한 값
+                    </th>
+                    <th className="w-[360px] px-4 py-3 font-medium">메모</th>
+                    <th className="w-[160px] px-4 py-3 font-medium">가입일</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {leadsQuery.isLoading && !list ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-12">
+                        <div className="flex items-center justify-center">
+                          <LoaderCircle className="h-5 w-5 animate-spin text-beige900/45" />
+                        </div>
+                      </td>
+                    </tr>
+                  ) : currentLeads.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        className="px-4 py-12 text-center font-geist text-sm text-beige900/55"
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="truncate font-geist text-base font-semibold">
-                              {lead.name ?? "이름 없음"}
+                        조건에 맞는 후보자가 없습니다.
+                      </td>
+                    </tr>
+                  ) : (
+                    currentLeads.map((lead) => {
+                      const isSelected = selectedLeadId === lead.id;
+                      const latestExperience = getLatestExperienceText(lead);
+                      const preferenceLabels = getLeadPreferenceLabels(lead);
+                      const submittedDaysAgo = daysAgo(lead.submittedAt);
+
+                      return (
+                        <tr
+                          key={lead.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => openLeadDrawer(lead.id)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              openLeadDrawer(lead.id);
+                            }
+                          }}
+                          className={cx(
+                            "cursor-pointer border-b border-beige900/10 align-top transition hover:bg-white/50 focus-visible:bg-white/60",
+                            isSelected && "bg-[#2E1706] text-beige100"
+                          )}
+                        >
+                          <td className="px-4 py-4 align-top">
+                            <div className="min-w-0">
+                              <div className="truncate font-geist text-base font-medium">
+                                {lead.name ?? "이름 없음"}
+                              </div>
+                              <div
+                                className={cx(
+                                  "mt-1 truncate font-geist text-sm",
+                                  isSelected
+                                    ? "text-beige100/72"
+                                    : "text-beige900/55"
+                                )}
+                              >
+                                {lead.email ?? "이메일 없음"}
+                              </div>
+                              <div className="mt-3 flex flex-wrap items-center gap-2">
+                                {lead.hasCv ? (
+                                  <Badge
+                                    tone={isSelected ? "inverse" : "default"}
+                                  >
+                                    CV
+                                  </Badge>
+                                ) : null}
+                                {lead.hasStructuredProfile ? (
+                                  <Badge
+                                    tone={isSelected ? "inverse" : "default"}
+                                  >
+                                    Structured
+                                  </Badge>
+                                ) : null}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 align-top">
+                            <div className="font-geist text-sm font-medium">
+                              {latestExperience.primary}
                             </div>
                             <div
                               className={cx(
-                                "mt-1 truncate font-geist text-sm",
+                                "mt-2 font-geist text-xs",
                                 isSelected
-                                  ? "text-beige100/70"
+                                  ? "text-beige100/65"
                                   : "text-beige900/55"
                               )}
                             >
-                              {lead.email ?? "이메일 없음"}
+                              {latestExperience.meta ?? "세부 경력 정보 없음"}
                             </div>
-                          </div>
-                          <div className="flex flex-wrap items-center justify-end gap-2">
-                            {lead.hasCv ? (
-                              <Badge tone={isSelected ? "inverse" : "default"}>
-                                CV
-                              </Badge>
-                            ) : null}
-                            {lead.hasStructuredProfile ? (
-                              <Badge tone={isSelected ? "inverse" : "default"}>
-                                Structured
-                              </Badge>
-                            ) : null}
-                          </div>
-                        </div>
-
-                        <div
-                          className={cx(
-                            "mt-3 font-geist text-sm",
-                            isSelected ? "text-beige100/75" : "text-beige900/70"
-                          )}
-                        >
-                          {lead.selectedRole ?? "역할 미입력"}
-                        </div>
-
-                        <div className="mt-3 flex flex-wrap items-center gap-2">
-                          {lead.careerMoveIntentLabel ? (
-                            <Badge tone={isSelected ? "inverse" : "default"}>
-                              {lead.careerMoveIntentLabel}
-                            </Badge>
-                          ) : null}
-                          {lead.lastInternalActivityAt ? (
-                            <Badge tone={isSelected ? "inverse" : "default"}>
-                              최근 활동 있음
-                            </Badge>
-                          ) : null}
-                        </div>
-
-                        <div
-                          className={cx(
-                            "mt-3 font-geist text-xs",
-                            isSelected ? "text-beige100/55" : "text-beige900/50"
-                          )}
-                        >
-                          {formatKst(lead.submittedAt)}
-                          {submittedDaysAgo !== null
-                            ? ` · ${submittedDaysAgo}일 전`
-                            : ""}
-                        </div>
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-
-            <div className={cx(opsTheme.panel, "overflow-hidden")}>
-              {!displayedLead ? (
-                <div className="px-6 py-10 text-center font-geist text-sm text-beige900/55">
-                  왼쪽에서 후보자를 선택해 주세요.
-                </div>
-              ) : (
-                <>
-                  <div className="px-5 py-5">
-                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                      <div>
-                        <div className={opsTheme.eyebrow}>Candidate</div>
-                        <h2 className={cx(opsTheme.titleSm, "mt-1")}>
-                          {displayedLead.name ?? "이름 없음"}
-                        </h2>
-                        <div className="mt-3 flex flex-wrap items-center gap-2">
-                          {displayedLead.careerMoveIntentLabel ? (
-                            <Badge tone="strong">
-                              {displayedLead.careerMoveIntentLabel}
-                            </Badge>
-                          ) : null}
-                          {displayedLead.hasCv ? (
-                            <Badge>CV 업로드</Badge>
-                          ) : null}
-                          {detail?.hasStructuredProfile ? (
-                            <Badge>구조화 완료</Badge>
-                          ) : null}
-                          {detail?.claimedTalentId ? (
-                            <Badge>후보자 계정 연결됨</Badge>
-                          ) : null}
-                          {displayedLead.selectedRole ? (
-                            <Badge>{displayedLead.selectedRole}</Badge>
-                          ) : null}
-                        </div>
-                        <div className="mt-3 font-geist text-sm text-beige900/65">
-                          {displayedLead.email ?? "이메일 없음"}
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        {displayedLead.email ? (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void handleCopy(
-                                displayedLead.email ?? "",
-                                "이메일"
-                              )
-                            }
-                            className={cx(opsTheme.buttonSoft, "h-10 px-3")}
-                          >
-                            <Copy className="h-4 w-4" />
-                            이메일 복사
-                          </button>
-                        ) : null}
-                        {displayedLead.hasCv ? (
-                          <button
-                            type="button"
-                            onClick={() => void handleOpenCv(displayedLead)}
-                            disabled={isOpeningCv === displayedLead.id}
-                            className={cx(opsTheme.buttonSoft, "h-10 px-3")}
-                          >
-                            {isOpeningCv === displayedLead.id ? (
-                              <LoaderCircle className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <FileText className="h-4 w-4" />
-                            )}
-                            CV 열기
-                          </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          onClick={() => void handleIngest()}
-                          disabled={isSelectedLeadIngesting}
-                          className={cx(opsTheme.buttonSecondary, "h-10 px-3")}
-                        >
-                          {isSelectedLeadIngesting ? (
-                            <LoaderCircle className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Sparkles className="h-4 w-4" />
-                          )}
-                          {detail?.hasStructuredProfile
-                            ? "정보 다시 추출하기"
-                            : "정보 추출하기"}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="border-t border-beige900/10 px-5 py-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {DETAIL_TABS.map((tab) => (
-                        <TabButton
-                          key={tab.id}
-                          active={detailTab === tab.id}
-                          label={tab.label}
-                          onClick={() => setDetailTab(tab.id)}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  {detailError && !detail ? (
-                    <div className="px-5 pb-5">
-                      <div className={opsTheme.errorNotice}>{detailError}</div>
-                    </div>
-                  ) : detailQuery.isLoading && !detail ? (
-                    <div className="flex min-h-[420px] items-center justify-center">
-                      <LoaderCircle className="h-6 w-6 animate-spin text-beige900/45" />
-                    </div>
-                  ) : (
-                    <div className="px-5 pb-5">
-                      {detailTab === "profile" ? (
-                        <div className="space-y-4">
-                          {!detail?.hasStructuredProfile ? (
-                            <div className={cx(opsTheme.panelSoft, "p-5")}>
-                              <div className="font-geist text-base font-semibold text-beige900">
-                                아직 구조화 프로필이 없습니다.
-                              </div>
-                              <div className="mt-2 font-geist text-sm leading-6 text-beige900/65">
-                                LinkedIn 링크와 CV를 바탕으로 `talent_users`,
-                                `talent_experiences`, `talent_educations`,
-                                `talent_extras`를 채웁니다. LinkedIn 링크가
-                                있어야 추출 가능합니다.
-                              </div>
-                              <div className="mt-4 flex flex-wrap items-center gap-2">
-                                <Badge>
-                                  LinkedIn{" "}
-                                  {displayedLead.linkedinProfileUrl
-                                    ? "있음"
-                                    : "없음"}
+                          </td>
+                          <td className="px-4 py-4 align-top">
+                            <div className="flex flex-wrap gap-2">
+                              {preferenceLabels.moveLabel ? (
+                                <Badge
+                                  tone={isSelected ? "inverse" : "default"}
+                                >
+                                  {preferenceLabels.moveLabel}
                                 </Badge>
-                                <Badge>
-                                  CV {displayedLead.hasCv ? "있음" : "없음"}
+                              ) : null}
+                              {preferenceLabels.engagementLabels.map(
+                                (label) => (
+                                  <Badge
+                                    key={`${lead.id}-engagement-${label}`}
+                                    tone={isSelected ? "inverse" : "default"}
+                                  >
+                                    {label}
+                                  </Badge>
+                                )
+                              )}
+                              {preferenceLabels.locationLabels.map((label) => (
+                                <Badge
+                                  key={`${lead.id}-location-${label}`}
+                                  tone={isSelected ? "inverse" : "default"}
+                                >
+                                  {label}
                                 </Badge>
-                              </div>
+                              ))}
+                              {!preferenceLabels.moveLabel &&
+                              preferenceLabels.engagementLabels.length === 0 &&
+                              preferenceLabels.locationLabels.length === 0 ? (
+                                <span
+                                  className={cx(
+                                    "font-geist text-sm",
+                                    isSelected
+                                      ? "text-beige100/65"
+                                      : "text-beige900/50"
+                                  )}
+                                >
+                                  저장된 선택 값 없음
+                                </span>
+                              ) : null}
                             </div>
-                          ) : null}
-
-                          <StructuredSection icon={FileUp} title="기본 프로필">
-                            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-                              <div
+                          </td>
+                          <td className="px-4 py-4 align-top">
+                            <div className="space-y-3">
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  handleOpenQuickMemo(lead);
+                                }}
                                 className={cx(
-                                  opsTheme.panel,
-                                  "p-4 shadow-none"
+                                  "inline-flex h-8 items-center justify-center rounded-md px-3 font-geist text-xs transition",
+                                  isSelected
+                                    ? "bg-beige100/14 text-beige100 hover:bg-beige100/20"
+                                    : "bg-white/75 text-beige900 hover:bg-white"
                                 )}
                               >
-                                <div className="font-geist text-base font-semibold text-beige900">
-                                  {detail?.structuredProfile?.talentUser
-                                    ?.name ??
-                                    detail?.talentProfile?.name ??
-                                    displayedLead.name ??
-                                    "이름 없음"}
-                                </div>
-                                {detail?.structuredProfile?.talentUser
-                                  ?.headline ||
-                                detail?.talentProfile?.headline ? (
-                                  <div className="mt-2 font-geist text-sm text-beige900/70">
-                                    {detail?.structuredProfile?.talentUser
-                                      ?.headline ??
-                                      detail?.talentProfile?.headline}
-                                  </div>
-                                ) : null}
-                                {detail?.structuredProfile?.talentUser
-                                  ?.location ||
-                                detail?.talentProfile?.location ? (
-                                  <div className="mt-2 font-geist text-sm text-beige900/60">
-                                    {detail?.structuredProfile?.talentUser
-                                      ?.location ??
-                                      detail?.talentProfile?.location}
-                                  </div>
-                                ) : null}
-                                {detail?.structuredProfile?.talentUser?.bio ||
-                                detail?.talentProfile?.bio ? (
-                                  <div className="mt-4 whitespace-pre-wrap font-geist text-sm leading-6 text-beige900">
-                                    {detail?.structuredProfile?.talentUser
-                                      ?.bio ?? detail?.talentProfile?.bio}
-                                  </div>
-                                ) : (
-                                  <div className="mt-4 font-geist text-sm text-beige900/55">
-                                    구조화된 bio가 아직 없습니다.
-                                  </div>
-                                )}
-                              </div>
-
-                              <div className={cx(opsTheme.panelSoft, "p-4")}>
-                                <div className={opsTheme.eyebrow}>
-                                  프로필 링크와 파일
-                                </div>
-                                <div className="mt-3 space-y-3 font-geist text-sm text-beige900/70">
-                                  <div className="flex flex-wrap gap-2">
-                                    {displayedLead.hasCv ? (
-                                      <ProfileChip
-                                        onClick={() =>
-                                          void handleOpenCv(displayedLead)
-                                        }
+                                메모 추가
+                              </button>
+                              {lead.recentMemos.length > 0 ? (
+                                <div className="space-y-3">
+                                  {lead.recentMemos.map((memo) => (
+                                    <div key={memo.id}>
+                                      <div
+                                        className={cx(
+                                          "font-geist text-xs",
+                                          isSelected
+                                            ? "text-beige100/60"
+                                            : "text-beige900/45"
+                                        )}
                                       >
-                                        <FileText className="h-4 w-4" />
-                                        {detail?.talentProfile
-                                          ?.resume_file_name ??
-                                          displayedLead.cvFileName ??
-                                          "CV 파일"}
-                                      </ProfileChip>
-                                    ) : null}
-                                    <ProfileChip>
-                                      <FileText className="h-4 w-4" />
-                                      Resume text{" "}
-                                      {detail?.ingestionState
-                                        .resumeTextAvailable
-                                        ? "추출됨"
-                                        : "없음"}
-                                    </ProfileChip>
-                                    {(
-                                      detail?.talentProfile?.resume_links ?? []
-                                    ).map((link) => (
-                                      <ProfileChip key={link} href={link}>
-                                        <ExternalLink className="h-4 w-4" />
-                                        {getProfileLinkChipLabel(link)}
-                                      </ProfileChip>
-                                    ))}
-                                  </div>
-                                  {(detail?.talentProfile?.resume_links ?? [])
-                                    .length > 0 ? (
-                                    <div className="space-y-2">
-                                      {(
-                                        detail?.talentProfile?.resume_links ??
-                                        []
-                                      ).map((link) => (
-                                        <div
-                                          key={`${link}-raw`}
-                                          className="break-all text-beige900/55"
-                                        >
-                                          {link}
-                                        </div>
-                                      ))}
+                                        {formatKstDate(memo.createdAt)}
+                                      </div>
+                                      <div className="mt-1 line-clamp-2 font-geist text-sm leading-6">
+                                        {memo.content}
+                                      </div>
                                     </div>
-                                  ) : null}
-                                  {displayedLead.hasCv ? (
-                                    <div className="text-beige900/55">
-                                      파일명:{" "}
-                                      {detail?.talentProfile
-                                        ?.resume_file_name ??
-                                        displayedLead.cvFileName ??
-                                        "-"}
-                                    </div>
-                                  ) : null}
-                                  {displayedLead.hasCv &&
-                                  isOpeningCv === displayedLead.id ? (
-                                    <div className="text-beige900/55">
-                                      CV 열기 준비 중...
-                                    </div>
-                                  ) : null}
-                                  {displayedLead.hasCv &&
-                                  !detail?.ingestionState
-                                    .resumeTextAvailable ? (
-                                    <div className="text-beige900/55">
-                                      CV는 있지만 현재 저장된 resume text는
-                                      없습니다.
-                                    </div>
-                                  ) : null}
-                                  {displayedLead.hasCv ||
-                                  (detail?.talentProfile?.resume_links ?? [])
-                                    .length > 0 ? null : (
-                                    <div className="text-beige900/55">
-                                      저장된 링크와 파일이 없습니다.
-                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div
+                                  className={cx(
+                                    "font-geist text-sm",
+                                    isSelected
+                                      ? "text-beige100/65"
+                                      : "text-beige900/50"
                                   )}
-                                </div>
-                              </div>
-                            </div>
-                          </StructuredSection>
-
-                          <StructuredSection
-                            icon={BriefcaseBusiness}
-                            title="경력"
-                          >
-                            {(
-                              detail?.structuredProfile?.talentExperiences ?? []
-                            ).length > 0 ? (
-                              <div className="space-y-3">
-                                {(
-                                  detail?.structuredProfile
-                                    ?.talentExperiences ?? []
-                                ).map((item) => (
-                                  <div
-                                    key={item.id}
-                                    className={cx(
-                                      opsTheme.panel,
-                                      "p-4 shadow-none"
-                                    )}
-                                  >
-                                    <div className="font-geist text-sm font-semibold text-beige900">
-                                      {item.role ?? "직함 없음"}
-                                    </div>
-                                    <div className="mt-1 font-geist text-sm text-beige900/65">
-                                      {item.company_name ?? "회사 없음"}
-                                      {item.company_location
-                                        ? ` · ${item.company_location}`
-                                        : ""}
-                                    </div>
-                                    <div className="mt-2 font-geist text-xs text-beige900/55">
-                                      {item.start_date || item.end_date
-                                        ? `${item.start_date ?? "-"} ~ ${
-                                            item.end_date ?? "Present"
-                                          }`
-                                        : "날짜 정보 없음"}
-                                      {item.months
-                                        ? ` · ${item.months}개월`
-                                        : ""}
-                                    </div>
-                                    {item.company_id || item.company_link ? (
-                                      <div className="mt-2 flex flex-wrap items-center gap-2 font-geist text-xs text-beige900/55">
-                                        {item.company_id ? (
-                                          <span>
-                                            LinkedIn company id:{" "}
-                                            {item.company_id}
-                                          </span>
-                                        ) : null}
-                                        {item.company_link ? (
-                                          <a
-                                            href={item.company_link}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className={opsTheme.link}
-                                          >
-                                            Company link
-                                          </a>
-                                        ) : null}
-                                      </div>
-                                    ) : null}
-                                    {item.description ? (
-                                      <div className="mt-3 whitespace-pre-wrap font-geist text-sm leading-6 text-beige900">
-                                        {item.description}
-                                      </div>
-                                    ) : null}
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="font-geist text-sm text-beige900/55">
-                                저장된 경력 정보가 없습니다.
-                              </div>
-                            )}
-                          </StructuredSection>
-
-                          <div className="grid gap-4 lg:grid-cols-1">
-                            <StructuredSection
-                              icon={GraduationCap}
-                              title="학력"
-                            >
-                              {(
-                                detail?.structuredProfile?.talentEducations ??
-                                []
-                              ).length > 0 ? (
-                                <div className="space-y-3">
-                                  {(
-                                    detail?.structuredProfile
-                                      ?.talentEducations ?? []
-                                  ).map((item) => (
-                                    <div
-                                      key={item.id}
-                                      className={cx(
-                                        opsTheme.panel,
-                                        "p-4 shadow-none"
-                                      )}
-                                    >
-                                      <div className="font-geist text-sm font-semibold text-beige900">
-                                        {item.school ?? "학교 없음"}
-                                      </div>
-                                      <div className="mt-1 font-geist text-sm text-beige900/65">
-                                        {[item.degree, item.field]
-                                          .filter(Boolean)
-                                          .join(" · ") || "세부 정보 없음"}
-                                      </div>
-                                      <div className="mt-2 font-geist text-xs text-beige900/55">
-                                        {item.start_date || item.end_date
-                                          ? `${item.start_date ?? "-"} ~ ${
-                                              item.end_date ?? "-"
-                                            }`
-                                          : "날짜 정보 없음"}
-                                      </div>
-                                      {item.description ? (
-                                        <div className="mt-3 whitespace-pre-wrap font-geist text-sm leading-6 text-beige900">
-                                          {item.description}
-                                        </div>
-                                      ) : null}
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <div className="font-geist text-sm text-beige900/55">
-                                  저장된 학력 정보가 없습니다.
+                                >
+                                  최근 메모 없음
                                 </div>
                               )}
-                            </StructuredSection>
-
-                            <StructuredSection
-                              icon={BookOpen}
-                              title="추가 정보"
-                            >
-                              {(detail?.structuredProfile?.talentExtras ?? [])
-                                .length > 0 ? (
-                                <div className="space-y-3">
-                                  {(
-                                    detail?.structuredProfile?.talentExtras ??
-                                    []
-                                  ).map((item, index) => (
-                                    <div
-                                      key={`${item.title}-${index}`}
-                                      className={cx(
-                                        opsTheme.panel,
-                                        "p-4 shadow-none"
-                                      )}
-                                    >
-                                      <div className="font-geist text-sm font-semibold text-beige900">
-                                        {item.title ?? "제목 없음"}
-                                      </div>
-                                      {item.date ? (
-                                        <div className="mt-1 font-geist text-xs text-beige900/55">
-                                          {item.date}
-                                        </div>
-                                      ) : null}
-                                      {item.description ? (
-                                        <div className="mt-3 whitespace-pre-wrap font-geist text-sm leading-6 text-beige900">
-                                          {item.description}
-                                        </div>
-                                      ) : null}
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <div className="font-geist text-sm text-beige900/55">
-                                  저장된 추가 정보가 없습니다.
-                                </div>
-                              )}
-                            </StructuredSection>
-                          </div>
-                        </div>
-                      ) : null}
-
-                      {detailTab === "waitlist" ? (
-                        <div className="space-y-4">
-                          <div className={cx(opsTheme.panelSoft, "p-4")}>
-                            <div className={opsTheme.eyebrow}>핵심 상태</div>
-                            <div className="mt-3 flex flex-wrap items-center gap-2">
-                              {displayedLead.careerMoveIntentLabel ? (
-                                <Badge tone="strong">
-                                  {displayedLead.careerMoveIntentLabel}
-                                </Badge>
-                              ) : null}
-                              <Badge>
-                                {displayedLead.hasCv ? "CV 있음" : "CV 없음"}
-                              </Badge>
-                              {displayedLead.selectedRole ? (
-                                <Badge>{displayedLead.selectedRole}</Badge>
-                              ) : null}
                             </div>
-                          </div>
-
-                          <div className={cx(opsTheme.panelSoft, "px-4 py-2")}>
-                            <div className="divide-y divide-beige900/10">
-                              <InfoRow
-                                label="이메일"
-                                value={
-                                  displayedLead.email ? (
-                                    <div className="flex items-center gap-2">
-                                      <Mail className="h-4 w-4 text-beige900/35" />
-                                      <span>{displayedLead.email}</span>
-                                    </div>
-                                  ) : (
-                                    "-"
-                                  )
-                                }
-                              />
-                              <InfoRow
-                                label="제출 시각"
-                                value={formatKst(displayedLead.submittedAt)}
-                              />
-                              <InfoRow
-                                label="생성 시각"
-                                value={formatKst(displayedLead.createdAt)}
-                              />
-                              <InfoRow
-                                label="Engagement"
-                                value={
-                                  displayedLead.engagementTypes.length > 0
-                                    ? displayedLead.engagementTypes.join(", ")
-                                    : "-"
-                                }
-                              />
-                              <InfoRow
-                                label="Preferred Location"
-                                value={
-                                  displayedLead.preferredLocations.length > 0
-                                    ? displayedLead.preferredLocations.join(
-                                        ", "
-                                      )
-                                    : "-"
-                                }
-                              />
-                              <InfoRow
-                                label="Profile Inputs"
-                                value={
-                                  displayedLead.profileInputTypes.length > 0
-                                    ? displayedLead.profileInputTypes.join(", ")
-                                    : "-"
-                                }
-                              />
-                              <InfoRow
-                                label="LinkedIn"
-                                value={
-                                  displayedLead.linkedinProfileUrl ? (
-                                    <a
-                                      href={displayedLead.linkedinProfileUrl}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className={cx(
-                                        opsTheme.link,
-                                        "inline-flex items-center gap-2"
-                                      )}
-                                    >
-                                      열기
-                                      <ExternalLink className="h-4 w-4" />
-                                    </a>
-                                  ) : (
-                                    "-"
-                                  )
-                                }
-                              />
-                              <InfoRow
-                                label="Personal Website"
-                                value={
-                                  displayedLead.personalWebsiteUrl ? (
-                                    <a
-                                      href={displayedLead.personalWebsiteUrl}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className={cx(
-                                        opsTheme.link,
-                                        "inline-flex items-center gap-2"
-                                      )}
-                                    >
-                                      열기
-                                      <ExternalLink className="h-4 w-4" />
-                                    </a>
-                                  ) : (
-                                    "-"
-                                  )
-                                }
-                              />
-                              <InfoRow
-                                label="GitHub / HF"
-                                value={
-                                  displayedLead.githubProfileUrl ? (
-                                    <a
-                                      href={displayedLead.githubProfileUrl}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className={cx(
-                                        opsTheme.link,
-                                        "inline-flex items-center gap-2"
-                                      )}
-                                    >
-                                      열기
-                                      <ExternalLink className="h-4 w-4" />
-                                    </a>
-                                  ) : (
-                                    "-"
-                                  )
-                                }
-                              />
-                              <InfoRow
-                                label="Scholar"
-                                value={
-                                  displayedLead.scholarProfileUrl ? (
-                                    <a
-                                      href={displayedLead.scholarProfileUrl}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className={cx(
-                                        opsTheme.link,
-                                        "inline-flex items-center gap-2"
-                                      )}
-                                    >
-                                      열기
-                                      <ExternalLink className="h-4 w-4" />
-                                    </a>
-                                  ) : (
-                                    "-"
-                                  )
-                                }
-                              />
-                              <InfoRow
-                                label="Impact Summary"
-                                value={
-                                  displayedLead.impactSummary ? (
-                                    <div className="whitespace-pre-wrap">
-                                      {displayedLead.impactSummary}
-                                    </div>
-                                  ) : (
-                                    "-"
-                                  )
-                                }
-                              />
-                              <InfoRow
-                                label="Dream Teams"
-                                value={
-                                  displayedLead.dreamTeams ? (
-                                    <div className="whitespace-pre-wrap">
-                                      {displayedLead.dreamTeams}
-                                    </div>
-                                  ) : (
-                                    "-"
-                                  )
-                                }
-                              />
-                              <InfoRow
-                                label="Local ID"
-                                value={displayedLead.localId ?? "-"}
-                              />
+                          </td>
+                          <td className="px-4 py-4 align-top">
+                            <div className="font-geist text-sm">
+                              {formatKstDate(lead.createdAt)}
                             </div>
-                          </div>
-
-                          {detail?.latestNetworkApplication ||
-                          detail?.latestTalentSetting ||
-                          detail?.latestTalentInsights ? (
                             <div
-                              className={cx(opsTheme.panelSoft, "px-4 py-2")}
+                              className={cx(
+                                "mt-2 font-geist text-xs",
+                                isSelected
+                                  ? "text-beige100/60"
+                                  : "text-beige900/45"
+                              )}
                             >
-                              <div className="divide-y divide-beige900/10">
-                                <InfoRow
-                                  label="원하는 역할"
-                                  value={
-                                    detail?.latestNetworkApplication
-                                      ?.selectedRole ?? "-"
-                                  }
-                                />
-                                <InfoRow
-                                  label="제출 자료"
-                                  value={
-                                    detail?.latestNetworkApplication &&
-                                    detail.latestNetworkApplication.profileInputTypes
-                                      .length > 0
-                                      ? detail.latestNetworkApplication.profileInputTypes.join(
-                                          ", "
-                                        )
-                                      : "-"
-                                  }
-                                />
-                                <InfoRow
-                                  label="이직 의향"
-                                  value={
-                                    getTalentCareerMoveIntentLabel(
-                                      detail?.latestTalentSetting
-                                        ?.career_move_intent ?? null
-                                    ) ?? "-"
-                                  }
-                                />
-                                <InfoRow
-                                  label="선호 형태"
-                                  value={
-                                    detail?.latestTalentSetting &&
-                                    detail.latestTalentSetting.engagement_types
-                                      .length > 0
-                                      ? getTalentEngagementLabels(
-                                          detail.latestTalentSetting.engagement_types
-                                        ).join(", ")
-                                      : "-"
-                                  }
-                                />
-                                <InfoRow
-                                  label="선호 지역"
-                                  value={
-                                    detail?.latestTalentSetting &&
-                                    detail.latestTalentSetting.preferred_locations
-                                      .length > 0
-                                      ? getTalentLocationLabels(
-                                          detail.latestTalentSetting.preferred_locations
-                                        ).join(", ")
-                                      : "-"
-                                  }
-                                />
-                                {detail?.latestTalentInsights &&
-                                Object.keys(detail.latestTalentInsights).length > 0
-                                  ? Object.entries(detail.latestTalentInsights)
-                                      .filter(([, value]) => value?.trim())
-                                      .sort(([left], [right]) =>
-                                        left.localeCompare(right)
-                                      )
-                                      .map(([key, value]) => (
-                                        <InfoRow
-                                          key={key}
-                                          label={formatTalentInsightLabel(key)}
-                                          value={
-                                            <div className="whitespace-pre-wrap">
-                                              {value}
-                                            </div>
-                                          }
-                                        />
-                                      ))
-                                  : (
-                                    <InfoRow label="Harper insight" value="-" />
-                                  )}
+                              {submittedDaysAgo !== null
+                                ? `${submittedDaysAgo}일 전 제출`
+                                : formatKstDate(lead.submittedAt)}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex flex-col gap-3 border-t border-beige900/10 px-4 py-4 md:flex-row md:items-center md:justify-between">
+              <div className="font-geist text-sm text-beige900/55">
+                페이지당 {pageSize}명
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => goToPage(currentPage - 1)}
+                  disabled={currentPage <= 1}
+                  className={cx(opsTheme.buttonSoft, "h-10 px-3")}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  이전
+                </button>
+                {pageNumbers.map((page) => (
+                  <button
+                    key={page}
+                    type="button"
+                    onClick={() => goToPage(page)}
+                    className={cx(
+                      "inline-flex h-10 min-w-10 items-center justify-center rounded-md px-3 font-geist text-sm transition",
+                      page === currentPage
+                        ? "bg-beige900 text-beige100"
+                        : "bg-white/60 text-beige900 hover:bg-white/80"
+                    )}
+                  >
+                    {page}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => goToPage(currentPage + 1)}
+                  disabled={currentPage >= totalPages}
+                  className={cx(opsTheme.buttonSoft, "h-10 px-3")}
+                >
+                  다음
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <AnimatePresence>
+            {selectedLeadId ? (
+              <div className="fixed inset-0 z-[70]">
+                <motion.button
+                  type="button"
+                  aria-label="Close candidate drawer"
+                  className="absolute inset-0 bg-beige900/28 backdrop-blur-[2px]"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={closeLeadDrawer}
+                />
+                <motion.aside
+                  initial={{ opacity: 0, x: "100%" }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: "100%" }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
+                  className="absolute inset-y-0 right-0 w-full max-w-[min(1080px,94vw)] overflow-hidden border-l border-beige900/10 bg-[#F4E8D8] shadow-[-24px_0_80px_rgba(46,23,6,0.18)]"
+                >
+                  <div className="h-full overflow-y-auto">
+                    {!displayedLead ? (
+                      <div className="flex h-full items-center justify-center px-6 py-10 font-geist text-sm text-beige900/55">
+                        {detailError ? (
+                          <div className={opsTheme.errorNotice}>
+                            {detailError}
+                          </div>
+                        ) : (
+                          <LoaderCircle className="h-6 w-6 animate-spin text-beige900/45" />
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        <div className="px-5 py-5">
+                          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                            <div>
+                              <div className={opsTheme.eyebrow}>Candidate</div>
+                              <h2 className={cx(opsTheme.titleSm, "mt-1")}>
+                                {displayedLead.name ?? "이름 없음"}
+                              </h2>
+                              <div className="mt-3 flex flex-wrap items-center gap-2">
+                                {displayedLead.careerMoveIntentLabel ? (
+                                  <Badge tone="strong">
+                                    {displayedLead.careerMoveIntentLabel}
+                                  </Badge>
+                                ) : null}
+                                {displayedLead.hasCv ? (
+                                  <Badge>CV 업로드</Badge>
+                                ) : null}
+                                {detail?.hasStructuredProfile ? (
+                                  <Badge>구조화 완료</Badge>
+                                ) : null}
+                                {detail?.claimedTalentId ? (
+                                  <Badge>후보자 계정 연결됨</Badge>
+                                ) : null}
+                                {displayedLead.selectedRole ? (
+                                  <Badge>{displayedLead.selectedRole}</Badge>
+                                ) : null}
+                              </div>
+                              <div className="mt-3 font-geist text-sm text-beige900/65">
+                                {displayedLead.email ?? "이메일 없음"}
                               </div>
                             </div>
-                          ) : null}
 
-                          <div className={cx(opsTheme.panelSoft, "p-4")}>
-                            <div className={opsTheme.eyebrow}>원본 payload</div>
-                            <pre className="mt-3 overflow-x-auto whitespace-pre-wrap font-mono text-[12px] leading-6 text-beige900/70">
-                              {JSON.stringify(
-                                displayedLead.rawPayload,
-                                null,
-                                2
-                              )}
-                            </pre>
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={closeLeadDrawer}
+                                className={cx(opsTheme.buttonSoft, "h-10 px-3")}
+                              >
+                                <X className="h-4 w-4" />
+                                닫기
+                              </button>
+                              {displayedLead.email ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    void handleCopy(
+                                      displayedLead.email ?? "",
+                                      "이메일"
+                                    )
+                                  }
+                                  className={cx(
+                                    opsTheme.buttonSoft,
+                                    "h-10 px-3"
+                                  )}
+                                >
+                                  <Copy className="h-4 w-4" />
+                                  이메일 복사
+                                </button>
+                              ) : null}
+                              {displayedLead.hasCv ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    void handleOpenCv(displayedLead)
+                                  }
+                                  disabled={isOpeningCv === displayedLead.id}
+                                  className={cx(
+                                    opsTheme.buttonSoft,
+                                    "h-10 px-3"
+                                  )}
+                                >
+                                  {isOpeningCv === displayedLead.id ? (
+                                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <FileText className="h-4 w-4" />
+                                  )}
+                                  CV 열기
+                                </button>
+                              ) : null}
+                              <button
+                                type="button"
+                                onClick={() => void handleIngest()}
+                                disabled={isSelectedLeadIngesting}
+                                className={cx(
+                                  opsTheme.buttonSecondary,
+                                  "h-10 px-3"
+                                )}
+                              >
+                                {isSelectedLeadIngesting ? (
+                                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Sparkles className="h-4 w-4" />
+                                )}
+                                {detail?.hasStructuredProfile
+                                  ? "정보 다시 추출하기"
+                                  : "정보 추출하기"}
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      ) : null}
 
-                      {detailTab === "internal" ? (
-                        <div className="space-y-4">
-                          {detailError ? (
+                        <div className="border-t border-beige900/10 px-5 py-4">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {DETAIL_TABS.map((tab) => (
+                              <TabButton
+                                key={tab.id}
+                                active={detailTab === tab.id}
+                                label={tab.label}
+                                onClick={() => setDetailTab(tab.id)}
+                              />
+                            ))}
+                          </div>
+                        </div>
+
+                        {detailError && !detail ? (
+                          <div className="px-5 pb-5">
                             <div className={opsTheme.errorNotice}>
                               {detailError}
                             </div>
-                          ) : null}
+                          </div>
+                        ) : detailQuery.isLoading && !detail ? (
+                          <div className="flex min-h-[420px] items-center justify-center">
+                            <LoaderCircle className="h-6 w-6 animate-spin text-beige900/45" />
+                          </div>
+                        ) : (
+                          <div className="px-5 pb-5">
+                            {detailTab === "profile" ? (
+                              <div className="space-y-4">
+                                {!detail?.hasStructuredProfile ? (
+                                  <div
+                                    className={cx(opsTheme.panelSoft, "p-5")}
+                                  >
+                                    <div className="font-geist text-base font-semibold text-beige900">
+                                      아직 구조화 프로필이 없습니다.
+                                    </div>
+                                    <div className="mt-2 font-geist text-sm leading-6 text-beige900/65">
+                                      LinkedIn 링크와 CV를 바탕으로
+                                      `talent_users`, `talent_experiences`,
+                                      `talent_educations`, `talent_extras`를
+                                      채웁니다. LinkedIn 링크가 있어야 추출
+                                      가능합니다.
+                                    </div>
+                                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                                      <Badge>
+                                        LinkedIn{" "}
+                                        {displayedLead.linkedinProfileUrl
+                                          ? "있음"
+                                          : "없음"}
+                                      </Badge>
+                                      <Badge>
+                                        CV{" "}
+                                        {displayedLead.hasCv ? "있음" : "없음"}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                ) : null}
 
-                          <StructuredSection icon={Send} title="메일 보내기">
-                            <div className="space-y-3">
-                              <div className="grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)]">
-                                <div>
-                                  <label className={opsTheme.label}>
-                                    보내는 사람
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={mailFromEmail}
-                                    onChange={(event) =>
-                                      setMailFromEmail(event.target.value)
-                                    }
-                                    className={cx(opsTheme.input, "mt-2")}
-                                    placeholder="team@matchharper.com"
-                                  />
+                                <StructuredSection
+                                  icon={FileUp}
+                                  title="기본 프로필"
+                                >
+                                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+                                    <div
+                                      className={cx(
+                                        opsTheme.panel,
+                                        "p-4 shadow-none"
+                                      )}
+                                    >
+                                      <div className="font-geist text-base font-semibold text-beige900">
+                                        {detail?.structuredProfile?.talentUser
+                                          ?.name ??
+                                          detail?.talentProfile?.name ??
+                                          displayedLead.name ??
+                                          "이름 없음"}
+                                      </div>
+                                      {detail?.structuredProfile?.talentUser
+                                        ?.headline ||
+                                      detail?.talentProfile?.headline ? (
+                                        <div className="mt-2 font-geist text-sm text-beige900/70">
+                                          {detail?.structuredProfile?.talentUser
+                                            ?.headline ??
+                                            detail?.talentProfile?.headline}
+                                        </div>
+                                      ) : null}
+                                      {detail?.structuredProfile?.talentUser
+                                        ?.location ||
+                                      detail?.talentProfile?.location ? (
+                                        <div className="mt-2 font-geist text-sm text-beige900/60">
+                                          {detail?.structuredProfile?.talentUser
+                                            ?.location ??
+                                            detail?.talentProfile?.location}
+                                        </div>
+                                      ) : null}
+                                      {detail?.structuredProfile?.talentUser
+                                        ?.bio || detail?.talentProfile?.bio ? (
+                                        <div className="mt-4 whitespace-pre-wrap font-geist text-sm leading-6 text-beige900">
+                                          {detail?.structuredProfile?.talentUser
+                                            ?.bio ?? detail?.talentProfile?.bio}
+                                        </div>
+                                      ) : (
+                                        <div className="mt-4 font-geist text-sm text-beige900/55">
+                                          구조화된 bio가 아직 없습니다.
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    <div
+                                      className={cx(opsTheme.panelSoft, "p-4")}
+                                    >
+                                      <div className={opsTheme.eyebrow}>
+                                        프로필 링크와 파일
+                                      </div>
+                                      <div className="mt-3 space-y-3 font-geist text-sm text-beige900/70">
+                                        <div className="flex flex-wrap gap-2">
+                                          {displayedLead.hasCv ? (
+                                            <ProfileChip
+                                              onClick={() =>
+                                                void handleOpenCv(displayedLead)
+                                              }
+                                            >
+                                              <FileText className="h-4 w-4" />
+                                              {detail?.talentProfile
+                                                ?.resume_file_name ??
+                                                displayedLead.cvFileName ??
+                                                "CV 파일"}
+                                            </ProfileChip>
+                                          ) : null}
+                                          <ProfileChip>
+                                            <FileText className="h-4 w-4" />
+                                            Resume text{" "}
+                                            {detail?.ingestionState
+                                              .resumeTextAvailable
+                                              ? "추출됨"
+                                              : "없음"}
+                                          </ProfileChip>
+                                          {(
+                                            detail?.talentProfile
+                                              ?.resume_links ?? []
+                                          ).map((link) => (
+                                            <ProfileChip key={link} href={link}>
+                                              <ExternalLink className="h-4 w-4" />
+                                              {getProfileLinkChipLabel(link)}
+                                            </ProfileChip>
+                                          ))}
+                                        </div>
+                                        {(
+                                          detail?.talentProfile?.resume_links ??
+                                          []
+                                        ).length > 0 ? (
+                                          <div className="space-y-2">
+                                            {(
+                                              detail?.talentProfile
+                                                ?.resume_links ?? []
+                                            ).map((link) => (
+                                              <div
+                                                key={`${link}-raw`}
+                                                className="break-all text-beige900/55"
+                                              >
+                                                {link}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        ) : null}
+                                        {displayedLead.hasCv ? (
+                                          <div className="text-beige900/55">
+                                            파일명:{" "}
+                                            {detail?.talentProfile
+                                              ?.resume_file_name ??
+                                              displayedLead.cvFileName ??
+                                              "-"}
+                                          </div>
+                                        ) : null}
+                                        {displayedLead.hasCv &&
+                                        isOpeningCv === displayedLead.id ? (
+                                          <div className="text-beige900/55">
+                                            CV 열기 준비 중...
+                                          </div>
+                                        ) : null}
+                                        {displayedLead.hasCv &&
+                                        !detail?.ingestionState
+                                          .resumeTextAvailable ? (
+                                          <div className="text-beige900/55">
+                                            CV는 있지만 현재 저장된 resume
+                                            text는 없습니다.
+                                          </div>
+                                        ) : null}
+                                        {displayedLead.hasCv ||
+                                        (
+                                          detail?.talentProfile?.resume_links ??
+                                          []
+                                        ).length > 0 ? null : (
+                                          <div className="text-beige900/55">
+                                            저장된 링크와 파일이 없습니다.
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </StructuredSection>
+
+                                <StructuredSection
+                                  icon={BriefcaseBusiness}
+                                  title="경력"
+                                >
+                                  {(
+                                    detail?.structuredProfile
+                                      ?.talentExperiences ?? []
+                                  ).length > 0 ? (
+                                    <div className="space-y-3">
+                                      {(
+                                        detail?.structuredProfile
+                                          ?.talentExperiences ?? []
+                                      ).map((item) => (
+                                        <div
+                                          key={item.id}
+                                          className={cx(
+                                            opsTheme.panel,
+                                            "p-4 shadow-none"
+                                          )}
+                                        >
+                                          <div className="font-geist text-sm font-semibold text-beige900">
+                                            {item.role ?? "직함 없음"}
+                                          </div>
+                                          <div className="mt-1 font-geist text-sm text-beige900/65">
+                                            {item.company_name ?? "회사 없음"}
+                                            {item.company_location
+                                              ? ` · ${item.company_location}`
+                                              : ""}
+                                          </div>
+                                          <div className="mt-2 font-geist text-xs text-beige900/55">
+                                            {item.start_date || item.end_date
+                                              ? `${item.start_date ?? "-"} ~ ${
+                                                  item.end_date ?? "Present"
+                                                }`
+                                              : "날짜 정보 없음"}
+                                            {item.months
+                                              ? ` · ${item.months}개월`
+                                              : ""}
+                                          </div>
+                                          {item.company_id ||
+                                          item.company_link ? (
+                                            <div className="mt-2 flex flex-wrap items-center gap-2 font-geist text-xs text-beige900/55">
+                                              {item.company_id ? (
+                                                <span>
+                                                  LinkedIn company id:{" "}
+                                                  {item.company_id}
+                                                </span>
+                                              ) : null}
+                                              {item.company_link ? (
+                                                <a
+                                                  href={item.company_link}
+                                                  target="_blank"
+                                                  rel="noreferrer"
+                                                  className={opsTheme.link}
+                                                >
+                                                  Company link
+                                                </a>
+                                              ) : null}
+                                            </div>
+                                          ) : null}
+                                          {item.description ? (
+                                            <div className="mt-3 whitespace-pre-wrap font-geist text-sm leading-6 text-beige900">
+                                              {item.description}
+                                            </div>
+                                          ) : null}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div className="font-geist text-sm text-beige900/55">
+                                      저장된 경력 정보가 없습니다.
+                                    </div>
+                                  )}
+                                </StructuredSection>
+
+                                <div className="grid gap-4 lg:grid-cols-1">
+                                  <StructuredSection
+                                    icon={GraduationCap}
+                                    title="학력"
+                                  >
+                                    {(
+                                      detail?.structuredProfile
+                                        ?.talentEducations ?? []
+                                    ).length > 0 ? (
+                                      <div className="space-y-3">
+                                        {(
+                                          detail?.structuredProfile
+                                            ?.talentEducations ?? []
+                                        ).map((item) => (
+                                          <div
+                                            key={item.id}
+                                            className={cx(
+                                              opsTheme.panel,
+                                              "p-4 shadow-none"
+                                            )}
+                                          >
+                                            <div className="font-geist text-sm font-semibold text-beige900">
+                                              {item.school ?? "학교 없음"}
+                                            </div>
+                                            <div className="mt-1 font-geist text-sm text-beige900/65">
+                                              {[item.degree, item.field]
+                                                .filter(Boolean)
+                                                .join(" · ") ||
+                                                "세부 정보 없음"}
+                                            </div>
+                                            <div className="mt-2 font-geist text-xs text-beige900/55">
+                                              {item.start_date || item.end_date
+                                                ? `${item.start_date ?? "-"} ~ ${
+                                                    item.end_date ?? "-"
+                                                  }`
+                                                : "날짜 정보 없음"}
+                                            </div>
+                                            {item.description ? (
+                                              <div className="mt-3 whitespace-pre-wrap font-geist text-sm leading-6 text-beige900">
+                                                {item.description}
+                                              </div>
+                                            ) : null}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <div className="font-geist text-sm text-beige900/55">
+                                        저장된 학력 정보가 없습니다.
+                                      </div>
+                                    )}
+                                  </StructuredSection>
+
+                                  <StructuredSection
+                                    icon={BookOpen}
+                                    title="추가 정보"
+                                  >
+                                    {(
+                                      detail?.structuredProfile?.talentExtras ??
+                                      []
+                                    ).length > 0 ? (
+                                      <div className="space-y-3">
+                                        {(
+                                          detail?.structuredProfile
+                                            ?.talentExtras ?? []
+                                        ).map((item, index) => (
+                                          <div
+                                            key={`${item.title}-${index}`}
+                                            className={cx(
+                                              opsTheme.panel,
+                                              "p-4 shadow-none"
+                                            )}
+                                          >
+                                            <div className="font-geist text-sm font-semibold text-beige900">
+                                              {item.title ?? "제목 없음"}
+                                            </div>
+                                            {item.date ? (
+                                              <div className="mt-1 font-geist text-xs text-beige900/55">
+                                                {item.date}
+                                              </div>
+                                            ) : null}
+                                            {item.description ? (
+                                              <div className="mt-3 whitespace-pre-wrap font-geist text-sm leading-6 text-beige900">
+                                                {item.description}
+                                              </div>
+                                            ) : null}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <div className="font-geist text-sm text-beige900/55">
+                                        저장된 추가 정보가 없습니다.
+                                      </div>
+                                    )}
+                                  </StructuredSection>
                                 </div>
-                                <div>
-                                  <label className={opsTheme.label}>
-                                    받는 사람
-                                  </label>
+                              </div>
+                            ) : null}
+
+                            {detailTab === "waitlist" ? (
+                              <div className="space-y-4">
+                                <div className={cx(opsTheme.panelSoft, "p-4")}>
+                                  <div className={opsTheme.eyebrow}>
+                                    핵심 상태
+                                  </div>
+                                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                                    {displayedLead.careerMoveIntentLabel ? (
+                                      <Badge tone="strong">
+                                        {displayedLead.careerMoveIntentLabel}
+                                      </Badge>
+                                    ) : null}
+                                    <Badge>
+                                      {displayedLead.hasCv
+                                        ? "CV 있음"
+                                        : "CV 없음"}
+                                    </Badge>
+                                    {displayedLead.selectedRole ? (
+                                      <Badge>
+                                        {displayedLead.selectedRole}
+                                      </Badge>
+                                    ) : null}
+                                  </div>
+                                </div>
+
+                                <div
+                                  className={cx(
+                                    opsTheme.panelSoft,
+                                    "px-4 py-2"
+                                  )}
+                                >
+                                  <div className="divide-y divide-beige900/10">
+                                    <InfoRow
+                                      label="이메일"
+                                      value={
+                                        displayedLead.email ? (
+                                          <div className="flex items-center gap-2">
+                                            <Mail className="h-4 w-4 text-beige900/35" />
+                                            <span>{displayedLead.email}</span>
+                                          </div>
+                                        ) : (
+                                          "-"
+                                        )
+                                      }
+                                    />
+                                    <InfoRow
+                                      label="제출 시각"
+                                      value={formatKst(
+                                        displayedLead.submittedAt
+                                      )}
+                                    />
+                                    <InfoRow
+                                      label="생성 시각"
+                                      value={formatKst(displayedLead.createdAt)}
+                                    />
+                                    <InfoRow
+                                      label="Engagement"
+                                      value={
+                                        displayedLead.engagementTypes.length > 0
+                                          ? displayedLead.engagementTypes.join(
+                                              ", "
+                                            )
+                                          : "-"
+                                      }
+                                    />
+                                    <InfoRow
+                                      label="Preferred Location"
+                                      value={
+                                        displayedLead.preferredLocations
+                                          .length > 0
+                                          ? displayedLead.preferredLocations.join(
+                                              ", "
+                                            )
+                                          : "-"
+                                      }
+                                    />
+                                    <InfoRow
+                                      label="Profile Inputs"
+                                      value={
+                                        displayedLead.profileInputTypes.length >
+                                        0
+                                          ? displayedLead.profileInputTypes.join(
+                                              ", "
+                                            )
+                                          : "-"
+                                      }
+                                    />
+                                    <InfoRow
+                                      label="LinkedIn"
+                                      value={
+                                        displayedLead.linkedinProfileUrl ? (
+                                          <a
+                                            href={
+                                              displayedLead.linkedinProfileUrl
+                                            }
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className={cx(
+                                              opsTheme.link,
+                                              "inline-flex items-center gap-2"
+                                            )}
+                                          >
+                                            열기
+                                            <ExternalLink className="h-4 w-4" />
+                                          </a>
+                                        ) : (
+                                          "-"
+                                        )
+                                      }
+                                    />
+                                    <InfoRow
+                                      label="Personal Website"
+                                      value={
+                                        displayedLead.personalWebsiteUrl ? (
+                                          <a
+                                            href={
+                                              displayedLead.personalWebsiteUrl
+                                            }
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className={cx(
+                                              opsTheme.link,
+                                              "inline-flex items-center gap-2"
+                                            )}
+                                          >
+                                            열기
+                                            <ExternalLink className="h-4 w-4" />
+                                          </a>
+                                        ) : (
+                                          "-"
+                                        )
+                                      }
+                                    />
+                                    <InfoRow
+                                      label="GitHub / HF"
+                                      value={
+                                        displayedLead.githubProfileUrl ? (
+                                          <a
+                                            href={
+                                              displayedLead.githubProfileUrl
+                                            }
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className={cx(
+                                              opsTheme.link,
+                                              "inline-flex items-center gap-2"
+                                            )}
+                                          >
+                                            열기
+                                            <ExternalLink className="h-4 w-4" />
+                                          </a>
+                                        ) : (
+                                          "-"
+                                        )
+                                      }
+                                    />
+                                    <InfoRow
+                                      label="Scholar"
+                                      value={
+                                        displayedLead.scholarProfileUrl ? (
+                                          <a
+                                            href={
+                                              displayedLead.scholarProfileUrl
+                                            }
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className={cx(
+                                              opsTheme.link,
+                                              "inline-flex items-center gap-2"
+                                            )}
+                                          >
+                                            열기
+                                            <ExternalLink className="h-4 w-4" />
+                                          </a>
+                                        ) : (
+                                          "-"
+                                        )
+                                      }
+                                    />
+                                    <InfoRow
+                                      label="Impact Summary"
+                                      value={
+                                        displayedLead.impactSummary ? (
+                                          <div className="whitespace-pre-wrap">
+                                            {displayedLead.impactSummary}
+                                          </div>
+                                        ) : (
+                                          "-"
+                                        )
+                                      }
+                                    />
+                                    <InfoRow
+                                      label="Dream Teams"
+                                      value={
+                                        displayedLead.dreamTeams ? (
+                                          <div className="whitespace-pre-wrap">
+                                            {displayedLead.dreamTeams}
+                                          </div>
+                                        ) : (
+                                          "-"
+                                        )
+                                      }
+                                    />
+                                    <InfoRow
+                                      label="Local ID"
+                                      value={displayedLead.localId ?? "-"}
+                                    />
+                                  </div>
+                                </div>
+
+                                {detail?.latestNetworkApplication ||
+                                detail?.latestTalentSetting ||
+                                detail?.latestTalentInsights ? (
                                   <div
                                     className={cx(
                                       opsTheme.panelSoft,
-                                      "mt-2 flex h-11 items-center px-3 font-geist text-sm text-beige900/70"
+                                      "px-4 py-2"
                                     )}
                                   >
-                                    {displayedLead.email ?? "이메일 없음"}
+                                    <div className="divide-y divide-beige900/10">
+                                      <InfoRow
+                                        label="원하는 역할"
+                                        value={
+                                          detail?.latestNetworkApplication
+                                            ?.selectedRole ?? "-"
+                                        }
+                                      />
+                                      <InfoRow
+                                        label="제출 자료"
+                                        value={
+                                          detail?.latestNetworkApplication &&
+                                          detail.latestNetworkApplication
+                                            .profileInputTypes.length > 0
+                                            ? detail.latestNetworkApplication.profileInputTypes.join(
+                                                ", "
+                                              )
+                                            : "-"
+                                        }
+                                      />
+                                      <InfoRow
+                                        label="이직 의향"
+                                        value={
+                                          getTalentCareerMoveIntentLabel(
+                                            detail?.latestTalentSetting
+                                              ?.career_move_intent ?? null
+                                          ) ?? "-"
+                                        }
+                                      />
+                                      <InfoRow
+                                        label="선호 형태"
+                                        value={
+                                          detail?.latestTalentSetting &&
+                                          detail.latestTalentSetting
+                                            .engagement_types.length > 0
+                                            ? getTalentEngagementLabels(
+                                                detail.latestTalentSetting
+                                                  .engagement_types
+                                              ).join(", ")
+                                            : "-"
+                                        }
+                                      />
+                                      <InfoRow
+                                        label="선호 지역"
+                                        value={
+                                          detail?.latestTalentSetting &&
+                                          detail.latestTalentSetting
+                                            .preferred_locations.length > 0
+                                            ? getTalentLocationLabels(
+                                                detail.latestTalentSetting
+                                                  .preferred_locations
+                                              ).join(", ")
+                                            : "-"
+                                        }
+                                      />
+                                      {detail?.latestTalentInsights &&
+                                      Object.keys(detail.latestTalentInsights)
+                                        .length > 0 ? (
+                                        Object.entries(
+                                          detail.latestTalentInsights
+                                        )
+                                          .filter(([, value]) => value?.trim())
+                                          .sort(([left], [right]) =>
+                                            left.localeCompare(right)
+                                          )
+                                          .map(([key, value]) => (
+                                            <InfoRow
+                                              key={key}
+                                              label={formatTalentInsightLabel(
+                                                key
+                                              )}
+                                              value={
+                                                <div className="whitespace-pre-wrap">
+                                                  {value}
+                                                </div>
+                                              }
+                                            />
+                                          ))
+                                      ) : (
+                                        <InfoRow
+                                          label="Harper insight"
+                                          value="-"
+                                        />
+                                      )}
+                                    </div>
                                   </div>
+                                ) : null}
+
+                                <div className={cx(opsTheme.panelSoft, "p-4")}>
+                                  <div className={opsTheme.eyebrow}>
+                                    원본 payload
+                                  </div>
+                                  <pre className="mt-3 overflow-x-auto whitespace-pre-wrap font-mono text-[12px] leading-6 text-beige900/70">
+                                    {JSON.stringify(
+                                      displayedLead.rawPayload,
+                                      null,
+                                      2
+                                    )}
+                                  </pre>
                                 </div>
                               </div>
+                            ) : null}
 
-                              <div>
-                                <label className={opsTheme.label}>제목</label>
-                                <input
-                                  type="text"
-                                  value={mailSubject}
-                                  onChange={(event) =>
-                                    setMailSubject(event.target.value)
-                                  }
-                                  className={cx(opsTheme.input, "mt-2")}
-                                  placeholder="후보자에게 보낼 메일 제목"
-                                />
-                              </div>
+                            {detailTab === "internal" ? (
+                              <div className="space-y-4">
+                                {detailError ? (
+                                  <div className={opsTheme.errorNotice}>
+                                    {detailError}
+                                  </div>
+                                ) : null}
 
-                              <div>
-                                <label className={opsTheme.label}>본문</label>
-                                <textarea
-                                  value={mailContent}
-                                  onChange={(event) =>
-                                    setMailContent(event.target.value)
-                                  }
-                                  className={cx(
-                                    opsTheme.textarea,
-                                    "mt-2 min-h-[180px]"
-                                  )}
-                                  placeholder="후보자에게 보낼 메일 내용을 작성하세요."
-                                />
-                              </div>
+                                <StructuredSection
+                                  icon={Send}
+                                  title="메일 보내기"
+                                >
+                                  <div className="space-y-3">
+                                    <div className="grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)]">
+                                      <div>
+                                        <label className={opsTheme.label}>
+                                          보내는 사람
+                                        </label>
+                                        <input
+                                          type="text"
+                                          value={mailFromEmail}
+                                          onChange={(event) =>
+                                            setMailFromEmail(event.target.value)
+                                          }
+                                          className={cx(opsTheme.input, "mt-2")}
+                                          placeholder="team@matchharper.com"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className={opsTheme.label}>
+                                          받는 사람
+                                        </label>
+                                        <div
+                                          className={cx(
+                                            opsTheme.panelSoft,
+                                            "mt-2 flex h-11 items-center px-3 font-geist text-sm text-beige900/70"
+                                          )}
+                                        >
+                                          {displayedLead.email ?? "이메일 없음"}
+                                        </div>
+                                      </div>
+                                    </div>
 
-                              <button
-                                type="button"
-                                onClick={() => void handleSendMail()}
-                                disabled={
-                                  mailMutation.isPending ||
-                                  !displayedLead.email ||
-                                  !mailFromEmail.trim() ||
-                                  !mailSubject.trim() ||
-                                  !mailContent.trim()
-                                }
-                                className={cx(opsTheme.buttonPrimary, "h-11")}
-                              >
-                                {mailMutation.isPending ? (
-                                  <LoaderCircle className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Send className="h-4 w-4" />
-                                )}
-                                메일 발송
-                              </button>
-                            </div>
-                          </StructuredSection>
+                                    <div>
+                                      <label className={opsTheme.label}>
+                                        제목
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={mailSubject}
+                                        onChange={(event) =>
+                                          setMailSubject(event.target.value)
+                                        }
+                                        className={cx(opsTheme.input, "mt-2")}
+                                        placeholder="후보자에게 보낼 메일 제목"
+                                      />
+                                    </div>
 
-                          <div className="grid gap-4 lg:grid-cols-2">
-                            <StructuredSection
-                              icon={NotebookPen}
-                              title="공용 메모"
-                            >
-                              <textarea
-                                value={memoContent}
-                                onChange={(event) =>
-                                  setMemoContent(event.target.value)
-                                }
-                                className={cx(
-                                  opsTheme.textarea,
-                                  "min-h-[180px]"
-                                )}
-                                placeholder="후보자에 대한 공용 메모를 남기세요."
-                              />
-                              <button
-                                type="button"
-                                onClick={() => void handleSaveInternal("memo")}
-                                disabled={
-                                  internalMutation.isPending ||
-                                  !memoContent.trim()
-                                }
-                                className={cx(opsTheme.buttonSoft, "mt-3 h-10")}
-                              >
-                                메모 저장
-                              </button>
-                            </StructuredSection>
+                                    <div>
+                                      <label className={opsTheme.label}>
+                                        본문
+                                      </label>
+                                      <textarea
+                                        value={mailContent}
+                                        onChange={(event) =>
+                                          setMailContent(event.target.value)
+                                        }
+                                        className={cx(
+                                          opsTheme.textarea,
+                                          "mt-2 min-h-[180px]"
+                                        )}
+                                        placeholder="후보자에게 보낼 메일 내용을 작성하세요."
+                                      />
+                                    </div>
 
-                            <StructuredSection
-                              icon={MessageSquareText}
-                              title="직접 대화 기록"
-                            >
-                              <textarea
-                                value={conversationContent}
-                                onChange={(event) =>
-                                  setConversationContent(event.target.value)
-                                }
-                                className={cx(
-                                  opsTheme.textarea,
-                                  "min-h-[180px]"
-                                )}
-                                placeholder="전화나 미팅으로 직접 나눈 대화 내용을 기록하세요."
-                              />
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void handleSaveInternal("conversation")
-                                }
-                                disabled={
-                                  internalMutation.isPending ||
-                                  !conversationContent.trim()
-                                }
-                                className={cx(opsTheme.buttonSoft, "mt-3 h-10")}
-                              >
-                                대화 기록 저장
-                              </button>
-                            </StructuredSection>
-                          </div>
-
-                          <StructuredSection
-                            icon={FileText}
-                            title="활동 타임라인"
-                          >
-                            {(detail?.internalEntries ?? []).length > 0 ? (
-                              <div className="space-y-3">
-                                {(detail?.internalEntries ?? []).map(
-                                  (entry) => (
-                                    <ActivityEntryCard
-                                      key={entry.id}
-                                      deletePending={
-                                        deletingEntryId === entry.id
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleSendMail()}
+                                      disabled={
+                                        mailMutation.isPending ||
+                                        !displayedLead.email ||
+                                        !mailFromEmail.trim() ||
+                                        !mailSubject.trim() ||
+                                        !mailContent.trim()
                                       }
-                                      editPending={updatingEntryId === entry.id}
-                                      editingValue={
-                                        editingEntryId === entry.id
-                                          ? editingEntryContent
-                                          : ""
+                                      className={cx(
+                                        opsTheme.buttonPrimary,
+                                        "h-11"
+                                      )}
+                                    >
+                                      {mailMutation.isPending ? (
+                                        <LoaderCircle className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <Send className="h-4 w-4" />
+                                      )}
+                                      메일 발송
+                                    </button>
+                                  </div>
+                                </StructuredSection>
+
+                                <div className="grid gap-4 lg:grid-cols-2">
+                                  <StructuredSection
+                                    icon={NotebookPen}
+                                    title="공용 메모"
+                                  >
+                                    <textarea
+                                      value={memoContent}
+                                      onChange={(event) =>
+                                        setMemoContent(event.target.value)
                                       }
-                                      entry={entry}
-                                      isEditing={editingEntryId === entry.id}
-                                      onDelete={handleDeleteEntry}
-                                      onEditCancel={handleCancelEditingEntry}
-                                      onEditChange={setEditingEntryContent}
-                                      onEditSave={handleSaveEditedEntry}
-                                      onEditStart={handleStartEditingEntry}
+                                      className={cx(
+                                        opsTheme.textarea,
+                                        "min-h-[180px]"
+                                      )}
+                                      placeholder="후보자에 대한 공용 메모를 남기세요."
                                     />
-                                  )
-                                )}
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        void handleSaveInternal("memo")
+                                      }
+                                      disabled={
+                                        internalMutation.isPending ||
+                                        !memoContent.trim()
+                                      }
+                                      className={cx(
+                                        opsTheme.buttonSoft,
+                                        "mt-3 h-10"
+                                      )}
+                                    >
+                                      메모 저장
+                                    </button>
+
+                                    <div className="mt-5 border-t border-beige900/10 pt-5">
+                                      <label className={opsTheme.label}>
+                                        Candidate Notification
+                                      </label>
+                                      <p className="mt-2 font-geist text-sm leading-6 text-beige900/60">
+                                        여기서 입력한 내용은 후보자의 `career`
+                                        페이지 Notification에 표시됩니다. 아직
+                                        계정 연결 전이어도 이후 이어지도록
+                                        저장됩니다.
+                                      </p>
+                                      <textarea
+                                        value={notificationContent}
+                                        onChange={(event) =>
+                                          setNotificationContent(
+                                            event.target.value
+                                          )
+                                        }
+                                        className={cx(
+                                          opsTheme.textarea,
+                                          "mt-3 min-h-[120px]"
+                                        )}
+                                        placeholder="후보자에게 보여줄 알림 내용을 입력하세요."
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          void handleSaveNotification()
+                                        }
+                                        disabled={
+                                          notificationMutation.isPending ||
+                                          !notificationContent.trim()
+                                        }
+                                        className={cx(
+                                          opsTheme.buttonSoft,
+                                          "mt-3 h-10"
+                                        )}
+                                      >
+                                        {notificationMutation.isPending ? (
+                                          <LoaderCircle className="h-4 w-4 animate-spin" />
+                                        ) : null}
+                                        알림 저장
+                                      </button>
+                                    </div>
+                                  </StructuredSection>
+
+                                  <StructuredSection
+                                    icon={MessageSquareText}
+                                    title="직접 대화 기록"
+                                  >
+                                    <textarea
+                                      value={conversationContent}
+                                      onChange={(event) =>
+                                        setConversationContent(
+                                          event.target.value
+                                        )
+                                      }
+                                      className={cx(
+                                        opsTheme.textarea,
+                                        "min-h-[180px]"
+                                      )}
+                                      placeholder="전화나 미팅으로 직접 나눈 대화 내용을 기록하세요."
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        void handleSaveInternal("conversation")
+                                      }
+                                      disabled={
+                                        internalMutation.isPending ||
+                                        !conversationContent.trim()
+                                      }
+                                      className={cx(
+                                        opsTheme.buttonSoft,
+                                        "mt-3 h-10"
+                                      )}
+                                    >
+                                      대화 기록 저장
+                                    </button>
+                                  </StructuredSection>
+                                </div>
+
+                                <StructuredSection
+                                  icon={FileText}
+                                  title="활동 타임라인"
+                                >
+                                  {(detail?.internalEntries ?? []).length >
+                                  0 ? (
+                                    <div className="space-y-3">
+                                      {(detail?.internalEntries ?? []).map(
+                                        (entry) => (
+                                          <ActivityEntryCard
+                                            key={entry.id}
+                                            deletePending={
+                                              deletingEntryId === entry.id
+                                            }
+                                            editPending={
+                                              updatingEntryId === entry.id
+                                            }
+                                            editingValue={
+                                              editingEntryId === entry.id
+                                                ? editingEntryContent
+                                                : ""
+                                            }
+                                            entry={entry}
+                                            isEditing={
+                                              editingEntryId === entry.id
+                                            }
+                                            onDelete={handleDeleteEntry}
+                                            onEditCancel={
+                                              handleCancelEditingEntry
+                                            }
+                                            onEditChange={
+                                              setEditingEntryContent
+                                            }
+                                            onEditSave={handleSaveEditedEntry}
+                                            onEditStart={
+                                              handleStartEditingEntry
+                                            }
+                                          />
+                                        )
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div className="font-geist text-sm text-beige900/55">
+                                      아직 저장된 내부 활동이 없습니다.
+                                    </div>
+                                  )}
+                                </StructuredSection>
                               </div>
-                            ) : (
-                              <div className="font-geist text-sm text-beige900/55">
-                                아직 저장된 내부 활동이 없습니다.
-                              </div>
-                            )}
-                          </StructuredSection>
-                        </div>
-                      ) : null}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
+                            ) : null}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </motion.aside>
+              </div>
+            ) : null}
+          </AnimatePresence>
+
+          <AnimatePresence>
+            {quickMemoLead ? (
+              <div className="fixed inset-0 z-[80]">
+                <motion.button
+                  type="button"
+                  aria-label="Close quick memo modal"
+                  className="absolute inset-0 bg-beige900/24 backdrop-blur-[2px]"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={handleCloseQuickMemo}
+                />
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 12 }}
+                  transition={{ duration: 0.18, ease: "easeOut" }}
+                  className="absolute left-1/2 top-1/2 w-[min(520px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-beige900/10 bg-[#F4E8D8] p-4 shadow-[0_24px_80px_rgba(46,23,6,0.18)]"
+                >
+                  <textarea
+                    value={quickMemoContent}
+                    onChange={(event) =>
+                      setQuickMemoContent(event.target.value)
+                    }
+                    className={cx(opsTheme.textarea, "min-h-[180px]")}
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleSaveQuickMemo()}
+                    disabled={isQuickMemoSaving || !quickMemoContent.trim()}
+                    className={cx(opsTheme.buttonPrimary, "mt-3 h-11 w-full")}
+                  >
+                    {isQuickMemoSaving ? (
+                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                    ) : null}
+                    등록
+                  </button>
+                </motion.div>
+              </div>
+            ) : null}
+          </AnimatePresence>
         </section>
       </OpsShell>
     </>

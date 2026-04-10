@@ -45,17 +45,20 @@ async function attachScholarSummaryContext(doc: Record<string, any>) {
     };
   }
 
-  const { data: contributions, error: contributionsError } = await supabaseServer
-    .from("scholar_contributions")
-    .select("paper_id")
-    .eq("scholar_profile_id", scholarProfile.id);
+  const { data: contributions, error: contributionsError } =
+    await supabaseServer
+      .from("scholar_contributions")
+      .select("paper_id")
+      .eq("scholar_profile_id", scholarProfile.id);
 
   if (contributionsError) throw contributionsError;
 
   const paperIds = Array.from(
     new Set(
       (contributions ?? [])
-        .map((row) => String((row as { paper_id?: string | null }).paper_id ?? "").trim())
+        .map((row) =>
+          String((row as { paper_id?: string | null }).paper_id ?? "").trim()
+        )
         .filter(Boolean)
     )
   );

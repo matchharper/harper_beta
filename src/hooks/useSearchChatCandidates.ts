@@ -350,7 +350,7 @@ async function fetchGithubPreviewByCandidateIds(ids: string[]) {
   const { data: contributions, error: contributionError } = await supabase
     .from("github_repo_contribution")
     .select(
-      "github_profile_id, repo_id, commits, additions, deletions, merged_prs"
+      "github_profile_id, repo_id, role, commits, additions, deletions, merged_prs"
     )
     .in("github_profile_id", profileIds);
 
@@ -371,6 +371,8 @@ async function fetchGithubPreviewByCandidateIds(ids: string[]) {
     {
       topLanguages: Set<string>;
       topRepoStars: number;
+      ownerCreatorTotalStars: number;
+      countedOwnerCreatorRepoIds: Set<string>;
     }
   >();
 
@@ -385,7 +387,12 @@ async function fetchGithubPreviewByCandidateIds(ids: string[]) {
     if (!repo) continue;
 
     if (!profileData.has(profileId)) {
-      profileData.set(profileId, { topLanguages: new Set(), topRepoStars: 0 });
+      profileData.set(profileId, {
+        topLanguages: new Set(),
+        topRepoStars: 0,
+        ownerCreatorTotalStars: 0,
+        countedOwnerCreatorRepoIds: new Set(),
+      });
     }
 
     const data = profileData.get(profileId)!;
@@ -393,6 +400,15 @@ async function fetchGithubPreviewByCandidateIds(ids: string[]) {
       data.topLanguages.add((repo as any).language);
     }
     data.topRepoStars = Math.max(data.topRepoStars, (repo as any).stars ?? 0);
+
+    const role = String((contrib as any)?.role ?? "").toLowerCase();
+    if (
+      (role === "owner" || role === "creator") &&
+      !data.countedOwnerCreatorRepoIds.has(String(repoId))
+    ) {
+      data.countedOwnerCreatorRepoIds.add(String(repoId));
+      data.ownerCreatorTotalStars += Number((repo as any).stars ?? 0);
+    }
   }
 
   return new Map<string, GithubProfilePreview>(
@@ -408,6 +424,7 @@ async function fetchGithubPreviewByCandidateIds(ids: string[]) {
             location: row.location,
             followers: row.followers ?? 0,
             publicRepos: row.public_repos ?? 0,
+            ownerCreatorTotalStars: data?.ownerCreatorTotalStars ?? 0,
             topLanguages: data ? Array.from(data.topLanguages).slice(0, 5) : [],
             topRepoStars: data?.topRepoStars ?? 0,
           },

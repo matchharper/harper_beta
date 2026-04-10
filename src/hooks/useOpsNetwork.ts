@@ -1,9 +1,4 @@
-import {
-  useInfiniteQuery,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import {
   type NetworkLeadDetailResponse,
@@ -15,15 +10,52 @@ export const opsNetworkLeadsKey = ["ops-network-leads"] as const;
 export const opsNetworkDetailKey = (leadId?: number | null) =>
   ["ops-network-detail", leadId] as const;
 
-export function useOpsNetworkLeads(limit = 40) {
-  return useInfiniteQuery({
-    queryKey: [...opsNetworkLeadsKey, limit],
-    queryFn: ({ pageParam }) =>
+export function useOpsNetworkLeads(args: {
+  cvOnly?: boolean;
+  enabled?: boolean;
+  limit?: number;
+  move?: string | null;
+  offset?: number;
+  query?: string;
+  role?: string | null;
+}) {
+  const searchParams = new URLSearchParams();
+  searchParams.set("limit", String(args.limit ?? 40));
+  searchParams.set("offset", String(args.offset ?? 0));
+
+  const query = args.query?.trim();
+  if (query) {
+    searchParams.set("query", query);
+  }
+
+  if (args.role) {
+    searchParams.set("role", args.role);
+  }
+
+  if (args.move) {
+    searchParams.set("move", args.move);
+  }
+
+  if (args.cvOnly) {
+    searchParams.set("cvOnly", "true");
+  }
+
+  return useQuery({
+    enabled: args.enabled ?? true,
+    queryKey: [
+      ...opsNetworkLeadsKey,
+      args.limit ?? 40,
+      args.offset ?? 0,
+      query ?? "",
+      args.role ?? "",
+      args.move ?? "",
+      args.cvOnly === true,
+    ],
+    queryFn: () =>
       fetchWithInternalAuth<NetworkLeadListResponse>(
-        `/api/internal/network/leads?limit=${limit}&offset=${pageParam}`
+        `/api/internal/network/leads?${searchParams.toString()}`
       ),
-    getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
-    initialPageParam: 0,
+    placeholderData: (previousData) => previousData,
     staleTime: 30_000,
   });
 }
@@ -91,6 +123,22 @@ export function useCreateOpsNetworkInternalEntry() {
         }),
       ]);
     },
+  });
+}
+
+export function useCreateOpsNetworkNotification() {
+  return useMutation({
+    mutationFn: async (args: { id: number; message: string }) =>
+      fetchWithInternalAuth<{ ok: boolean }>(
+        "/api/internal/network/notification",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(args),
+        }
+      ),
   });
 }
 

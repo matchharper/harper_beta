@@ -15,22 +15,56 @@ export type TalentInternalEntry =
   Database["public"]["Tables"]["talent_internal"]["Row"];
 export type TalentInternalType = TalentInternalEntry["type"];
 
+export type NetworkLeadLatestExperience = {
+  companyLocation: string | null;
+  companyName: string | null;
+  endDate: string | null;
+  role: string | null;
+  startDate: string | null;
+};
+
+export type NetworkLeadRecentMemo = {
+  content: string;
+  createdAt: string;
+  id: number;
+};
+
 export type NetworkLeadSummary = NetworkLead & {
   hasStructuredProfile: boolean;
   lastInternalActivityAt: string | null;
+  latestExperience: NetworkLeadLatestExperience | null;
+  recentMemos: NetworkLeadRecentMemo[];
   talentId: string;
+};
+
+export type NetworkLeadListStats = {
+  readyNowCount: number;
+  recentCount: number;
+  totalCount: number;
+  withCvCount: number;
+};
+
+export type NetworkLeadListFilters = {
+  moveOptions: string[];
+  roleOptions: string[];
 };
 
 export type NetworkLeadListResponse = {
   allowedDomain: string;
+  allCount: number;
+  filters: NetworkLeadListFilters;
+  filteredCount: number;
   hasMore: boolean;
   leads: NetworkLeadSummary[];
   limit: number;
   loadedCount: number;
   nextOffset: number | null;
   offset: number;
+  page: number;
+  totalPages: number;
   totalCount: number;
   userEmail: string | null;
+  stats: NetworkLeadListStats;
 };
 
 export type NetworkLeadDetailResponse = {
@@ -78,8 +112,8 @@ export function hasStructuredTalentProfile(args: {
 
   return Boolean(
     talentUser?.headline ||
-      talentUser?.bio ||
-      talentUser?.location ||
-      profile?.resume_text
+    talentUser?.bio ||
+    talentUser?.location ||
+    profile?.resume_text
   );
 }

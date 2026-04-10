@@ -62,6 +62,11 @@ type RequestAccessQueueRow = Pick<
   | "user_id"
 >;
 
+type RequestAccessSlackRow = Pick<
+  RequestAccessRow,
+  "email" | "name" | "company" | "role" | "needs" | "user_id"
+>;
+
 function toRequestAccessReviewStatus(
   row: Pick<RequestAccessRow, "access_granted_at" | "status">
 ): RequestAccessReviewStatus {
@@ -232,11 +237,26 @@ async function getFreePlan(supabaseAdmin: SupabaseAdminClient) {
   return data;
 }
 
+function buildSlackApprovalActions(row: Pick<RequestAccessRow, "email">) {
+  return [
+    {
+      type: "button",
+      text: {
+        type: "plain_text",
+        text: "Approve",
+        emoji: true,
+      },
+      style: "primary",
+      action_id: REQUEST_ACCESS_APPROVE_ACTION_ID,
+      value: JSON.stringify({
+        email: row.email,
+      }),
+    },
+  ];
+}
+
 function buildSlackBlocks(
-  row: Pick<
-    RequestAccessRow,
-    "email" | "name" | "company" | "role" | "needs" | "user_id"
-  >,
+  row: RequestAccessSlackRow,
   reviewUrl: string
 ) {
   const hiringNeed = Array.isArray(row.needs) ? row.needs[0] : null;
@@ -260,19 +280,53 @@ function buildSlackBlocks(
     {
       type: "actions",
       elements: [
+        ...buildSlackApprovalActions(row),
         {
           type: "button",
           text: {
             type: "plain_text",
-            text: "Approve",
+            text: "Customize Email",
             emoji: true,
           },
-          style: "primary",
-          action_id: REQUEST_ACCESS_APPROVE_ACTION_ID,
-          value: JSON.stringify({
-            email: row.email,
-          }),
+          url: reviewUrl,
         },
+      ],
+    },
+    {
+      type: "context",
+      elements: [
+        {
+          type: "mrkdwn",
+          text: `Custom email draft: <${reviewUrl}|${reviewUrl.replace(/^https?:\/\//, "")}>`,
+        },
+      ],
+    },
+  ];
+}
+
+function buildSlackSignupBlocks(
+  row: RequestAccessSlackRow,
+  reviewUrl: string
+) {
+  return [
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: [
+          "🎉 *New Signup*",
+          `• *Name*: ${row.name || "N/A"}`,
+          `• *Email*: ${row.email || "N/A"}`,
+          `• *User ID*: ${row.user_id || "N/A"}`,
+          `• *Company*: ${row.company || "N/A"}`,
+          `• *Role*: ${row.role || "N/A"}`,
+        ].join("\n"),
+      },
+    },
+    {
+      type: "actions",
+      elements: [
+        ...buildSlackApprovalActions(row),
         {
           type: "button",
           text: {
@@ -297,10 +351,7 @@ function buildSlackBlocks(
 }
 
 async function sendSlackRequestAccessMessage(
-  row: Pick<
-    RequestAccessRow,
-    "email" | "name" | "company" | "role" | "needs" | "user_id"
-  >,
+  row: RequestAccessSlackRow,
   baseUrl: string
 ) {
   const webhook = getSlackWebhook();
@@ -311,6 +362,18 @@ async function sendSlackRequestAccessMessage(
   await webhook.send({
     text: `Request access submitted: ${row.email || "unknown email"}`,
     blocks: buildSlackBlocks(row, reviewUrl),
+  });
+}
+
+async function sendSlackSignupMessage(row: RequestAccessSlackRow, baseUrl: string) {
+  const webhook = getSlackWebhook();
+  const reviewUrl = buildRequestAccessReviewUrl({
+    email: row.email ?? "",
+    baseUrl,
+  });
+  await webhook.send({
+    text: `New signup: ${row.email || "unknown email"}`,
+    blocks: buildSlackSignupBlocks(row, reviewUrl),
   });
 }
 
@@ -516,6 +579,124 @@ export async function submitRequestAccess(
 
 export function getRequestAccessBaseUrl(req: Request) {
   return getSiteUrlFromRequest(req);
+}
+
+async function ensureSignupApprovalCandidate(args: {
+  supabaseAdmin: SupabaseAdminClient;
+  userId: string;
+  email: string;
+  name?: string | null;
+}) {
+  const userId = normalizeText(args.userId);
+  const email = normalizeEmail(args.email);
+  const name = normalizeText(args.name);
+
+  const { data: existing, error: existingError } = await args.supabaseAdmin
+    .from("harper_waitlist_company")
+    .select("email, name, company, role, needs, user_id")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (existingError) {
+    throw existingError;
+  }
+
+  if (existing?.email) {
+    const updatePayload: Database["public"]["Tables"]["harper_waitlist_company"]["Update"] =
+      {};
+
+    if (userId && existing.user_id !== userId) {
+      updatePayload.user_id = userId;
+    }
+
+    if (name && !normalizeText(existing.name)) {
+      updatePayload.name = name;
+    }
+
+    if (Object.keys(updatePayload).length > 0) {
+      const { error: updateError } = await args.supabaseAdmin
+        .from("harper_waitlist_company")
+        .update(updatePayload)
+        .eq("email", email);
+
+      if (updateError) {
+        throw updateError;
+      }
+    }
+
+    return {
+      email,
+      name: existing.name || name || null,
+      company: existing.company || null,
+      role: existing.role || null,
+      needs: existing.needs || null,
+      user_id: (updatePayload.user_id as string | undefined) ?? existing.user_id,
+    } satisfies RequestAccessSlackRow;
+  }
+
+  const insertPayload: Database["public"]["Tables"]["harper_waitlist_company"]["Insert"] =
+    {
+      user_id: userId || null,
+      email,
+      name: name || null,
+      is_submit: false,
+      status: REQUEST_ACCESS_STATUS_PENDING,
+      approved_at: null,
+      approved_by: null,
+      approval_token: null,
+      approval_email_sent_at: null,
+      access_granted_at: null,
+    };
+
+  const { data: inserted, error: insertError } = await args.supabaseAdmin
+    .from("harper_waitlist_company")
+    .insert(insertPayload)
+    .select("email, name, company, role, needs, user_id")
+    .maybeSingle();
+
+  if (insertError) {
+    if (insertError.code === "23505") {
+      return ensureSignupApprovalCandidate(args);
+    }
+    throw insertError;
+  }
+
+  return (
+    inserted ?? {
+      email,
+      name: name || null,
+      company: null,
+      role: null,
+      needs: null,
+      user_id: userId || null,
+    }
+  ) satisfies RequestAccessSlackRow;
+}
+
+export async function notifySlackSignupApprovalCandidate(args: {
+  userId: string;
+  email: string;
+  name?: string | null;
+  baseUrl: string;
+}) {
+  if (process.env.NEXT_PUBLIC_WORKER_TEST_MODE === "true") {
+    return;
+  }
+
+  const email = normalizeEmail(args.email);
+  if (!email) {
+    throw new Error("Signup email is required");
+  }
+
+  const supabaseAdmin = createSupabaseAdminClient();
+  const row = await ensureSignupApprovalCandidate({
+    supabaseAdmin,
+    userId: args.userId,
+    email,
+    name: args.name,
+  });
+
+  await sendSlackSignupMessage(row, args.baseUrl);
 }
 
 export function buildRequestAccessActivationUrl(args: {

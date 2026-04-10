@@ -10,6 +10,8 @@ import {
   CareerSecondaryButton,
   careerCx,
 } from "./ui/CareerPrimitives";
+import { getCareerOpportunityTypeShortLabel } from "./opportunityTypeMeta";
+import type { CareerRecentOpportunity } from "./types";
 
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -23,8 +25,9 @@ const formatMatchedAt = (value: string) => {
   }).format(date);
 };
 
-const formatOpportunityKind = (kind: "match" | "recommendation") =>
-  kind === "match" ? "매칭" : "추천";
+const formatOpportunityKind = (
+  opportunityType: CareerRecentOpportunity["opportunityType"]
+) => getCareerOpportunityTypeShortLabel(opportunityType);
 
 const isWithinLastWeek = (value: string) => {
   const timestamp = Date.parse(value);
@@ -52,9 +55,11 @@ const PreferenceRow = ({
 
 const CareerHomePanel = ({
   onOpenChat,
+  onOpenHistory,
   onOpenProfile,
 }: {
   onOpenChat: () => void;
+  onOpenHistory: () => void;
   onOpenProfile: () => void;
 }) => {
   const {
@@ -170,19 +175,17 @@ const CareerHomePanel = ({
         {recentWeeklyOpportunities.length > 0 ? (
           <div className="mt-2 grid gap-4 lg:grid-cols-2">
             {recentWeeklyOpportunities.map((item) => (
-              <a
+              <button
                 key={item.id}
-                href={item.href ?? undefined}
-                target={item.href ? "_blank" : undefined}
-                rel={item.href ? "noreferrer" : undefined}
+                type="button"
+                onClick={onOpenHistory}
                 className={careerCx(
-                  "rounded-[18px] border border-beige900/10 bg-white/45 px-5 py-5 transition-colors",
-                  item.href ? "hover:border-beige900/25" : ""
+                  "rounded-[18px] border border-beige900/10 bg-white/45 px-5 py-5 text-left transition-colors hover:border-beige900/25"
                 )}
               >
                 <div className="flex items-center justify-between gap-3">
                   <span className="rounded-full border border-beige900/10 bg-beige100/65 px-3 py-1 text-[12px] text-beige900/55">
-                    {formatOpportunityKind(item.kind)}
+                    {formatOpportunityKind(item.opportunityType)}
                   </span>
                   <span className="text-[12px] text-beige900/40">
                     {formatMatchedAt(item.matchedAt)}
@@ -213,13 +216,11 @@ const CareerHomePanel = ({
                     ) : null}
                   </div>
                 ) : null}
-                {item.href ? (
-                  <div className="mt-5 inline-flex items-center gap-1 text-sm text-beige900/65">
-                    자세히 보기
-                    <ArrowRight className="h-4 w-4" />
-                  </div>
-                ) : null}
-              </a>
+                <div className="mt-5 inline-flex items-center gap-1 text-sm text-beige900/65">
+                  History에서 보기
+                  <ArrowRight className="h-4 w-4" />
+                </div>
+              </button>
             ))}
           </div>
         ) : (

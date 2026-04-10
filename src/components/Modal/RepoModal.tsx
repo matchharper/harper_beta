@@ -271,7 +271,7 @@ export default function RepoModalRoot() {
                   {displayTitle}
                 </div>
                 {repoUrl && (
-                  <div className="mt-2">
+                  <div className="mt-4">
                     <a
                       href={repoUrl}
                       target="_blank"

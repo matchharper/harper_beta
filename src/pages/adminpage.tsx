@@ -8,7 +8,9 @@ import React, {
 import { supabase } from "@/lib/supabase";
 import { showToast } from "@/components/toast/toast";
 import { Loading } from "@/components/ui/loading";
+import AdminMetricsExcludedEmails from "@/components/admin/metrics/AdminMetricsExcludedEmails";
 import AdminMetricsTab from "@/components/admin/metrics/AdminMetricsTab";
+import { useAdminMetricsStore } from "@/components/admin/metrics/useAdminMetricsStore";
 import AdminBlogMetricsTab from "@/components/admin/tabs/AdminBlogMetricsTab";
 import AdminBookmarkFoldersTab from "@/components/admin/tabs/AdminBookmarkFoldersTab";
 import AdminLandingLogsTab from "@/components/admin/tabs/AdminLandingLogsTab";
@@ -40,9 +42,17 @@ import {
   BLOG_CONVERSION_EVENT_PREFIX,
   BLOG_VIEW_EVENT_PREFIX,
 } from "@/lib/blogMetrics";
+import { normalizeExcludedEmails } from "@/lib/adminMetrics/utils";
+import {
+  collectExcludedLandingLocalIds,
+  filterLandingLogsByExcludedLocalIds,
+} from "@/lib/adminEmailExclusions";
 import {
   TALENT_NETWORK_ABTEST_TYPE_A,
   TALENT_NETWORK_ABTEST_TYPE_B,
+  TALENT_NETWORK_ABTEST_TYPE_A_V1,
+  TALENT_NETWORK_ABTEST_TYPE_B_V1,
+  TALENT_NETWORK_ABTEST_TYPE_B_V1_ROLLOUT,
   TALENT_NETWORK_ANALYTICS_ABTEST_TYPES,
   TALENT_NETWORK_CLICK_EVENT_PREFIX,
   TALENT_NETWORK_LEGACY_ABTEST_TYPE,
@@ -133,10 +143,13 @@ function extractSectionNameFromType(type: string) {
 }
 
 const TALENT_NETWORK_VARIANT_SORT_ORDER: Record<string, number> = {
-  [TALENT_NETWORK_ABTEST_TYPE_A]: 0,
-  [TALENT_NETWORK_ABTEST_TYPE_B]: 1,
-  [TALENT_NETWORK_LEGACY_ABTEST_TYPE]: 2,
-  unknown: 3,
+  [TALENT_NETWORK_ABTEST_TYPE_B_V1_ROLLOUT]: 0,
+  [TALENT_NETWORK_ABTEST_TYPE_A]: 1,
+  [TALENT_NETWORK_ABTEST_TYPE_B]: 2,
+  [TALENT_NETWORK_ABTEST_TYPE_A_V1]: 3,
+  [TALENT_NETWORK_ABTEST_TYPE_B_V1]: 4,
+  [TALENT_NETWORK_LEGACY_ABTEST_TYPE]: 5,
+  unknown: 6,
 };
 
 function compareTalentNetworkVariantType(a: string, b: string) {
@@ -173,11 +186,20 @@ function buildTalentNetworkFunnelSummary(
 }
 
 function getTalentNetworkVariantDescription(abtestType: string) {
+  if (abtestType === TALENT_NETWORK_ABTEST_TYPE_B_V1_ROLLOUT) {
+    return "v1 B rolled out to 100%";
+  }
   if (abtestType === TALENT_NETWORK_ABTEST_TYPE_A) {
-    return "Our value hidden";
+    return "v2 test A";
   }
   if (abtestType === TALENT_NETWORK_ABTEST_TYPE_B) {
-    return "Our value shown";
+    return "v2 test B";
+  }
+  if (abtestType === TALENT_NETWORK_ABTEST_TYPE_A_V1) {
+    return "v1 test A";
+  }
+  if (abtestType === TALENT_NETWORK_ABTEST_TYPE_B_V1) {
+    return "v1 test B";
   }
   if (abtestType === TALENT_NETWORK_LEGACY_ABTEST_TYPE) {
     return "Before A/B test";
@@ -325,10 +347,23 @@ const AdminPage = () => {
   >(null);
   const [searchLandingRefreshToken, setSearchLandingRefreshToken] = useState(0);
   const [metricsRefreshToken, setMetricsRefreshToken] = useState(0);
+  const [isExcludedEmailsModalOpen, setIsExcludedEmailsModalOpen] =
+    useState(false);
+  const [excludedLandingLocalIds, setExcludedLandingLocalIds] = useState<
+    string[]
+  >([]);
+  const [excludedLandingLocalIdsLoading, setExcludedLandingLocalIdsLoading] =
+    useState(false);
+  const [excludedLandingLocalIdsLoaded, setExcludedLandingLocalIdsLoaded] =
+    useState(false);
+  const [excludedLandingLocalIdsError, setExcludedLandingLocalIdsError] =
+    useState<string | null>(null);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const isInternalAdmin = isInternalEmail(user?.email);
   const canAccessAdminData = !authLoading && isInternalAdmin && isPassed;
+  const { excludedEmails, setExcludedEmails, resetExcludedEmails } =
+    useAdminMetricsStore();
 
   useEffect(() => {
     void init();
@@ -512,6 +547,86 @@ const AdminPage = () => {
       setNetworkAnalyticsLoading(false);
     }
   }, []);
+
+  const fetchExcludedLandingLocalIds = useCallback(async () => {
+    if (!canAccessAdminData) {
+      setExcludedLandingLocalIds([]);
+      setExcludedLandingLocalIdsError(null);
+      setExcludedLandingLocalIdsLoaded(false);
+      setExcludedLandingLocalIdsLoading(false);
+      return [];
+    }
+
+    if (excludedEmails.length === 0) {
+      setExcludedLandingLocalIds([]);
+      setExcludedLandingLocalIdsError(null);
+      setExcludedLandingLocalIdsLoaded(true);
+      setExcludedLandingLocalIdsLoading(false);
+      return [];
+    }
+
+    setExcludedLandingLocalIdsLoading(true);
+    setExcludedLandingLocalIdsError(null);
+    setExcludedLandingLocalIdsLoaded(false);
+
+    try {
+      let from = 0;
+      const identityLogs: Array<{ local_id: string | null; type: string | null }> =
+        [];
+
+      while (true) {
+        const to = from + BLOG_METRIC_FETCH_BATCH_SIZE - 1;
+        const { data, error } = await supabase
+          .from("landing_logs")
+          .select("local_id,type")
+          .like("type", "login_email:%")
+          .order("id", { ascending: true })
+          .range(from, to);
+
+        if (error) throw error;
+
+        const rows = (data ?? []) as Array<{
+          local_id: string | null;
+          type: string | null;
+        }>;
+        identityLogs.push(...rows);
+
+        if (rows.length < BLOG_METRIC_FETCH_BATCH_SIZE) {
+          break;
+        }
+
+        from += BLOG_METRIC_FETCH_BATCH_SIZE;
+      }
+
+      const resolvedLocalIds = Array.from(
+        collectExcludedLandingLocalIds(identityLogs, excludedEmails)
+      ).sort((a, b) => a.localeCompare(b));
+
+      setExcludedLandingLocalIds(resolvedLocalIds);
+      setExcludedLandingLocalIdsLoaded(true);
+      return resolvedLocalIds;
+    } catch (e: any) {
+      const message = e?.message ?? "Failed to load excluded landing users";
+      setExcludedLandingLocalIds([]);
+      setExcludedLandingLocalIdsError(message);
+      setExcludedLandingLocalIdsLoaded(false);
+      return [];
+    } finally {
+      setExcludedLandingLocalIdsLoading(false);
+    }
+  }, [canAccessAdminData, excludedEmails]);
+
+  useEffect(() => {
+    if (!canAccessAdminData) {
+      setExcludedLandingLocalIds([]);
+      setExcludedLandingLocalIdsError(null);
+      setExcludedLandingLocalIdsLoaded(false);
+      setExcludedLandingLocalIdsLoading(false);
+      return;
+    }
+
+    void fetchExcludedLandingLocalIds();
+  }, [canAccessAdminData, excludedEmails, fetchExcludedLandingLocalIds]);
 
   const fetchEventTypesByPrefix = useCallback(async (prefix: string) => {
     let from = 0;
@@ -926,12 +1041,15 @@ const AdminPage = () => {
 
   const onRefresh = async () => {
     if (activeTab === "landingLogs") {
-      await fetchPage({ reset: true });
+      await Promise.all([fetchExcludedLandingLocalIds(), fetchPage({ reset: true })]);
       setSearchLandingRefreshToken((current) => current + 1);
       return;
     }
     if (activeTab === "networkAnalytics") {
-      await fetchNetworkAnalyticsLogs();
+      await Promise.all([
+        fetchExcludedLandingLocalIds(),
+        fetchNetworkAnalyticsLogs(),
+      ]);
       return;
     }
     if (activeTab === "waitlistCompany") {
@@ -990,13 +1108,55 @@ const AdminPage = () => {
     }
   };
 
+  const saveExcludedEmails = useCallback(
+    (value: string) => {
+      const nextValue = normalizeExcludedEmails(value);
+      setExcludedEmails(nextValue);
+      setIsExcludedEmailsModalOpen(false);
+      showToast({
+        message: `Excluded emails saved (${nextValue.length})`,
+        variant: "white",
+      });
+    },
+    [setExcludedEmails]
+  );
+
+  const resetExcludedEmailSettings = useCallback(() => {
+    resetExcludedEmails();
+    setIsExcludedEmailsModalOpen(false);
+    showToast({
+      message: "Excluded emails reset to defaults",
+      variant: "white",
+    });
+  }, [resetExcludedEmails]);
+
+  const canShowFilteredLandingLogs =
+    excludedEmails.length === 0 ||
+    (excludedLandingLocalIdsLoaded && !excludedLandingLocalIdsError);
+  const filteredLogs = useMemo(
+    () =>
+      canShowFilteredLandingLogs
+        ? filterLandingLogsByExcludedLocalIds(logs, excludedLandingLocalIds)
+        : [],
+    [canShowFilteredLandingLogs, excludedLandingLocalIds, logs]
+  );
+  const filteredNetworkAnalyticsLogs = useMemo(
+    () =>
+      canShowFilteredLandingLogs
+        ? filterLandingLogsByExcludedLocalIds(
+            networkAnalyticsLogs,
+            excludedLandingLocalIds
+          )
+        : [],
+    [canShowFilteredLandingLogs, excludedLandingLocalIds, networkAnalyticsLogs]
+  );
   const grouped = useMemo<GroupedLogs[]>(
-    () => groupLandingLogsByUser(logs),
-    [logs]
+    () => groupLandingLogsByUser(filteredLogs),
+    [filteredLogs]
   );
   const networkGrouped = useMemo<GroupedLogs[]>(
-    () => groupLandingLogsByUser(networkAnalyticsLogs),
-    [networkAnalyticsLogs]
+    () => groupLandingLogsByUser(filteredNetworkAnalyticsLogs),
+    [filteredNetworkAnalyticsLogs]
   );
   const networkGroupsByVariant = useMemo(() => {
     const byVariant = new Map<string, GroupedLogs[]>();
@@ -1138,17 +1298,7 @@ const AdminPage = () => {
   const talentNetworkVariantSummaries = useMemo<
     TalentNetworkVariantFunnelSummary[]
   >(() => {
-    const variantsToShow = [
-      TALENT_NETWORK_ABTEST_TYPE_A,
-      TALENT_NETWORK_ABTEST_TYPE_B,
-      ...Array.from(networkGroupsByVariant.keys()).filter(
-        (key) =>
-          key !== TALENT_NETWORK_ABTEST_TYPE_A &&
-          key !== TALENT_NETWORK_ABTEST_TYPE_B
-      ),
-    ];
-
-    const uniqueVariants = Array.from(new Set(variantsToShow)).sort(
+    const uniqueVariants = Array.from(networkGroupsByVariant.keys()).sort(
       compareTalentNetworkVariantType
     );
 
@@ -1290,10 +1440,14 @@ const AdminPage = () => {
   const activeTabMeta = ADMIN_TAB_META[activeTab];
   const pageTitle = activeTabMeta.title;
   const pageSubTitle = activeTabMeta.subtitle;
+  const landingTabLoading =
+    loading || loadingMore || excludedLandingLocalIdsLoading;
+  const networkTabLoading =
+    networkAnalyticsLoading || excludedLandingLocalIdsLoading;
   const isLoading = isLandingTab
-    ? loading || loadingMore
+    ? landingTabLoading
     : isNetworkAnalyticsTab
-      ? networkAnalyticsLoading
+      ? networkTabLoading
       : isWaitlistTab
         ? waitlistLoading
         : isBlogMetricsTab
@@ -1306,9 +1460,9 @@ const AdminPage = () => {
               ? userAnalyticsUsersLoading || userAnalyticsDetailLoading
               : false;
   const pageError = isLandingTab
-    ? error
+    ? error ?? excludedLandingLocalIdsError
     : isNetworkAnalyticsTab
-      ? networkAnalyticsError
+      ? networkAnalyticsError ?? excludedLandingLocalIdsError
       : isWaitlistTab
         ? waitlistError
         : isBlogMetricsTab
@@ -1400,6 +1554,13 @@ const AdminPage = () => {
 
           <div className="ml-auto flex items-center gap-2">
             <button
+              onClick={() => setIsExcludedEmailsModalOpen(true)}
+              className="h-9 px-3 text-[13px] border border-black/15 hover:border-black/30 hover:bg-black/[0.03] active:bg-black/[0.06]"
+              style={{ borderRadius: 0 }}
+            >
+              Excluded emails ({excludedEmails.length})
+            </button>
+            <button
               onClick={onRefresh}
               className="h-9 px-3 text-[13px] border border-black/15 hover:border-black/30 hover:bg-black/[0.03] active:bg-black/[0.06]"
               style={{ borderRadius: 0 }}
@@ -1415,13 +1576,17 @@ const AdminPage = () => {
         {isLandingTab ? (
           <AdminLandingLogsTab
             canAccessAdminData={canAccessAdminData}
+            excludedLocalIds={excludedLandingLocalIds}
+            excludedLocalIdsError={excludedLandingLocalIdsError}
+            excludedLocalIdsLoading={excludedLandingLocalIdsLoading}
+            excludedLocalIdsReady={canShowFilteredLandingLogs}
             searchLandingRefreshToken={searchLandingRefreshToken}
             landingSummary={landingSummary}
             abtestSummary={abtestSummary}
             sectionProgressSummary={sectionProgressSummary}
-            logs={logs}
+            logs={filteredLogs}
             grouped={grouped}
-            loading={loading}
+            loading={landingTabLoading}
             loadingMore={loadingMore}
             error={pageError}
             hasMore={hasMore}
@@ -1430,9 +1595,9 @@ const AdminPage = () => {
           />
         ) : isNetworkAnalyticsTab ? (
           <AdminNetworkAnalyticsTab
-            logs={networkAnalyticsLogs}
+            logs={filteredNetworkAnalyticsLogs}
             grouped={networkGrouped}
-            loading={networkAnalyticsLoading}
+            loading={networkTabLoading}
             error={pageError}
             funnelSummary={talentNetworkFunnelSummary}
             variantSummaries={talentNetworkVariantSummaries}
@@ -1517,6 +1682,48 @@ const AdminPage = () => {
           />
         )}
       </div>
+
+      {isExcludedEmailsModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6 py-8">
+          <div
+            className="absolute inset-0 bg-black/35"
+            onClick={() => setIsExcludedEmailsModalOpen(false)}
+          />
+          <div
+            className="relative z-10 w-full max-w-[640px] border border-black/15 bg-white p-5 shadow-2xl"
+            style={{ borderRadius: 0 }}
+          >
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <div className="text-[15px] font-semibold text-black">
+                  Excluded emails
+                </div>
+                <div className="mt-1 text-[12px] leading-5 text-black/60">
+                  Metrics, Landing Logs, Search funnel, Network 탭이 같은 목록을
+                  공유합니다.
+                </div>
+                <div className="mt-1 text-[12px] text-black/45">
+                  현재 제외된 local_id {excludedLandingLocalIds.length}개
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsExcludedEmailsModalOpen(false)}
+                className="h-9 px-3 text-[12px] border border-black/15 text-black hover:border-black/30 hover:bg-black/[0.03]"
+                style={{ borderRadius: 0 }}
+              >
+                Close
+              </button>
+            </div>
+
+            <AdminMetricsExcludedEmails
+              excludedEmails={excludedEmails}
+              onSave={saveExcludedEmails}
+              onReset={resetExcludedEmailSettings}
+            />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };

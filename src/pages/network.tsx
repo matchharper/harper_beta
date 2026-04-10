@@ -5,15 +5,15 @@ import { useCountryLang } from "@/hooks/useCountryLang";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { supabase } from "@/lib/supabase";
 import {
-  TALENT_NETWORK_ABTEST_TYPE_A,
-  TALENT_NETWORK_ABTEST_TYPE_B,
+  TALENT_NETWORK_ACTIVE_ROLLOUT_TYPE,
   TALENT_NETWORK_ABTEST_TYPE_KEY,
   TALENT_NETWORK_LAST_VISIT_AT_KEY,
   TALENT_NETWORK_LOCAL_ID_KEY,
   createTalentNetworkLocalId,
-  getRandomTalentNetworkAbtestType,
-  isTalentNetworkAbtestType,
-  type TalentNetworkAbtestType,
+  resolveTalentNetworkAssignmentType,
+  usesTalentNetworkAExperience,
+  usesTalentNetworkBExperience,
+  type TalentNetworkAssignmentType,
 } from "@/lib/talentNetwork";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -190,9 +190,10 @@ const companyRequests: CompanyRequest[] = [
 
 const faqs = [
   {
-    question: "등록해도 연락을 받는건 소수인가요?",
+    question: "등록하면 어떻게 되는건가요?",
     answer:
-      "뛰어난 스포츠 선수에게는 전담 에이전트가 있는 것처럼, Harper는 AI/ML 인재분들을 위한 AI-native 에이전트입니다. <br/>인재의 입장에서 최대한 많은 기회를 받으실 수 있게 올려주실 정보들을 바탕으로 추가적인 기회들을 찾고있어요.<br/><br/>만약 선호하거나 원하시는 기회가 있으시다면 알려주세요. 그럼 Harper가 최대한 선호하실만한 기회를 적극적으로 찾고, 회사와 연결된 뒤 기회를 얻으실 수 있게 도와드립니다.",
+      "뛰어난 스포츠 선수에게는 전담 에이전트가 있는 것처럼, Harper는 AI/ML 인재분들을 위한 AI-native 에이전트입니다. <br/>등록하신다면 Harper와 협업하는 회사들중 적합한 역할을 매칭하고, 인재 분께 먼저 회사와 역할에 대한 자세한 설명과 함께 연결의사를 묻습니다. 동의하신다면, 회사와 연결시켜 드립니다.<br/><br/>이 때 Harper는 직접 나눈 대화, 회사의 모든 내부 정보, 인재 분의 커리어, 활동(논문, Github, 블로그, 이력서 등)을 기반으로 모든 요소를 고려해서 매칭하기 때문에 일반 헤드헌터보다 6배 높은 수락율을 보이고 있습니다.<br/><br/>만약 선호하거나 원하시는 기회가 있으시다면 알려주세요. 그럼 Harper가 최대한 선호하실만한 기회를 적극적으로 찾고, 먼저 회사와 연결된 뒤 기회를 얻으실 수 있게 도와드립니다.",
+    // "뛰어난 스포츠 선수에게는 전담 에이전트가 있는 것처럼, Harper는 AI/ML 인재분들을 위한 AI-native 에이전트입니다. <br/>인재의 입장에서 최대한 많은 기회를 받으실 수 있게 올려주실 정보들을 바탕으로 추가적인 기회들을 찾고있어요.<br/><br/>만약 선호하거나 원하시는 기회가 있으시다면 알려주세요. 그럼 Harper가 최대한 선호하실만한 기회를 적극적으로 찾고, 회사와 연결된 뒤 기회를 얻으실 수 있게 도와드립니다.",
     // "Harper는 인재 분들을 위한 AI native 헤드헌터입니다. 만약 선호하거나 원하시는 기회가 있으시다면 알려주세요. 그럼 Harper가 최대한 선호하실만한 기회를 적극적으로 찾고, 회사와 연결된 뒤 기회를 얻으실 수 있게 도와드립니다.",
   },
   {
@@ -705,9 +706,8 @@ const NetworkPage = () => {
   const [inquiryContent, setInquiryContent] = useState("");
   const [isInquirySubmitting, setIsInquirySubmitting] = useState(false);
   const [landingId, setLandingId] = useState("");
-  const [abtestType, setAbtestType] = useState<TalentNetworkAbtestType | null>(
-    null
-  );
+  const [abtestType, setAbtestType] =
+    useState<TalentNetworkAssignmentType | null>(null);
   const heroSectionRef = useRef<HTMLElement | null>(null);
   const socialProofSectionRef = useRef<HTMLElement | null>(null);
   const opportunitiesSectionRef = useRef<HTMLElement | null>(null);
@@ -730,6 +730,8 @@ const NetworkPage = () => {
     mobilePositionPage * MOBILE_POSITION_PAGE_SIZE,
     (mobilePositionPage + 1) * MOBILE_POSITION_PAGE_SIZE
   );
+  const usesAExperience = usesTalentNetworkAExperience(abtestType);
+  const usesBExperience = usesTalentNetworkBExperience(abtestType);
 
   const addLandingLog = useCallback(
     async (
@@ -806,11 +808,10 @@ const NetworkPage = () => {
     const savedAbtestType = localStorage.getItem(
       TALENT_NETWORK_ABTEST_TYPE_KEY
     );
-    const resolvedAbtestType = isTalentNetworkAbtestType(savedAbtestType)
-      ? savedAbtestType
-      : getRandomTalentNetworkAbtestType();
+    const resolvedAbtestType =
+      resolveTalentNetworkAssignmentType(savedAbtestType);
 
-    if (!isTalentNetworkAbtestType(savedAbtestType)) {
+    if (savedAbtestType !== resolvedAbtestType) {
       localStorage.setItem(TALENT_NETWORK_ABTEST_TYPE_KEY, resolvedAbtestType);
     }
 
@@ -818,6 +819,18 @@ const NetworkPage = () => {
 
     if (!savedId) {
       void addLandingLog("new_visit", {
+        localId: resolvedLandingId,
+        abtestType: resolvedAbtestType,
+      });
+      return;
+    }
+
+    if (savedAbtestType !== resolvedAbtestType) {
+      localStorage.setItem(
+        TALENT_NETWORK_LAST_VISIT_AT_KEY,
+        String(Date.now())
+      );
+      void addLandingLog("new_session", {
         localId: resolvedLandingId,
         abtestType: resolvedAbtestType,
       });
@@ -1376,7 +1389,9 @@ const NetworkPage = () => {
               </p> */}
             </Reveal>
 
-            <VCLogos abtestType={abtestType ?? TALENT_NETWORK_ABTEST_TYPE_A} />
+            <VCLogos
+              abtestType={abtestType ?? TALENT_NETWORK_ACTIVE_ROLLOUT_TYPE}
+            />
           </section>
 
           <section
@@ -1468,7 +1483,7 @@ const NetworkPage = () => {
             </div>
           </section>
 
-          {abtestType === TALENT_NETWORK_ABTEST_TYPE_B && (
+          {usesBExperience && (
             <Reveal once className="text-center mt-24 md:mt-32">
               <SectionTag>Our value</SectionTag>
 
@@ -1527,10 +1542,7 @@ const NetworkPage = () => {
               {faqs.map((faq, index) => {
                 const isOpen = openFaqIndex === index;
 
-                if (
-                  abtestType === TALENT_NETWORK_ABTEST_TYPE_A &&
-                  index === 0
-                ) {
+                if (usesAExperience && index === 0) {
                   return null;
                 }
 
@@ -1728,6 +1740,7 @@ const vcLogos = [
 
 function VCLogos({ abtestType }: { abtestType: string }) {
   const items = [...vcLogos];
+  const showsBMessaging = usesTalentNetworkBExperience(abtestType);
 
   return (
     <div className="relative w-[90%] mx-auto overflow-hidden mt-16">
@@ -1736,7 +1749,7 @@ function VCLogos({ abtestType }: { abtestType: string }) {
           Partnering with <span className="text-beige900/50">AI companies</span>
           <br className="block md:hidden" /> funded by the world&apos;s elite.
         </div>
-        {abtestType === TALENT_NETWORK_ABTEST_TYPE_B && (
+        {showsBMessaging && (
           <div className="w-full text-center text-beige900 text-lg leading-[1.55] tracking-[-0.03em] font-medium mt-2">
             It&apos;s worth joining even if you&apos;re not actively looking.
           </div>

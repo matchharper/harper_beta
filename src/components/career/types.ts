@@ -1,3 +1,7 @@
+import { OpportunityType } from "@/lib/opportunityType";
+
+export { OpportunityType as CareerOpportunityType };
+
 export type CareerStage = "profile" | "chat" | "completed";
 export type MessageRole = "assistant" | "user";
 export type CareerInputMode = "text" | "voice" | "call";
@@ -67,7 +71,9 @@ export type CareerTalentProfile = {
 
 export type CareerNetworkApplication = {
   selectedRole: string | null;
-  profileInputTypes: Array<"linkedin" | "github" | "scholar" | "website" | "cv">;
+  profileInputTypes: Array<
+    "linkedin" | "github" | "scholar" | "website" | "cv"
+  >;
   linkedinProfileUrl: string | null;
   githubProfileUrl: string | null;
   scholarProfileUrl: string | null;
@@ -84,9 +90,16 @@ export type CareerTalentPreferences = {
 
 export type CareerTalentInsights = Record<string, string>;
 
+export type CareerOpportunitySavedStage =
+  | "saved"
+  | "applied"
+  | "connected"
+  | "closed";
+
 export type CareerRecentOpportunity = {
   id: string;
   kind: "match" | "recommendation";
+  opportunityType: OpportunityType;
   title: string;
   companyName: string;
   summary: string | null;
@@ -94,6 +107,50 @@ export type CareerRecentOpportunity = {
   engagementType: string | null;
   matchedAt: string;
   href?: string | null;
+};
+
+export type CareerHistoryOpportunityFeedback = "positive" | "negative";
+
+export type CareerHistoryOpportunity = {
+  clickedAt: string | null;
+  companyDescription: string | null;
+  companyHomepageUrl: string | null;
+  companyLinkedinUrl: string | null;
+  companyLogoUrl: string | null;
+  companyName: string;
+  description: string | null;
+  dismissedAt: string | null;
+  employmentTypes: string[];
+  externalJdUrl: string | null;
+  feedback: CareerHistoryOpportunityFeedback | null;
+  feedbackAt: string | null;
+  feedbackReason: string | null;
+  href: string | null;
+  id: string;
+  isAccepted: boolean;
+  isInternal: boolean;
+  kind: "match" | "recommendation";
+  location: string | null;
+  opportunityType: OpportunityType;
+  postedAt: string | null;
+  recommendedAt: string;
+  recommendationReasons: string[];
+  roleId: string;
+  savedStage: CareerOpportunitySavedStage | null;
+  sourceJobId: string | null;
+  sourceProvider: string | null;
+  sourceType: "internal" | "external";
+  status: string;
+  title: string;
+  viewedAt: string | null;
+  workMode: string | null;
+};
+
+export type CareerTalentNotification = {
+  id: number;
+  message: string | null;
+  isRead: boolean;
+  createdAt: string;
 };
 
 export type CareerHistoryItem = {
@@ -145,6 +202,8 @@ export type SessionResponse = {
     reliefNudgeSent: boolean;
   };
   historyItems?: CareerHistoryItem[];
+  historyOpportunities?: CareerHistoryOpportunity[];
+  notifications?: CareerTalentNotification[];
   networkApplication?: CareerNetworkApplication | null;
   talentPreferences?: CareerTalentPreferences | null;
   talentInsights?: CareerTalentInsights | null;

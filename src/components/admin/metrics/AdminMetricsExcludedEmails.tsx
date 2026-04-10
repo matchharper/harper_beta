@@ -29,6 +29,7 @@ export default function AdminMetricsExcludedEmails({
           </div>
           <div className="mt-1 text-[12px] leading-5 text-black/60">
             한 줄에 하나씩 넣거나 쉼표로 구분해서 저장하면 됩니다.
+            @도메인 형태도 지원합니다.
           </div>
         </div>
         <div className="text-[12px] text-black/45">
@@ -43,6 +44,7 @@ export default function AdminMetricsExcludedEmails({
         className="mt-3 w-full resize-y border border-black/15 px-3 py-2 text-[13px] text-black outline-none transition focus:border-black/35"
         style={{ borderRadius: 0 }}
         placeholder={[
+          "@matchharper.com",
           "test@matchharper.com",
           "demo@matchharper.com",
           "internal@example.com",
@@ -64,7 +66,7 @@ export default function AdminMetricsExcludedEmails({
           className="h-9 px-3 text-[12px] border border-black/15 text-black hover:border-black/30 hover:bg-black/[0.03]"
           style={{ borderRadius: 0 }}
         >
-          Clear
+          Reset defaults
         </button>
       </div>
     </div>

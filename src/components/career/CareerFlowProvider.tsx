@@ -1,8 +1,19 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type {
+  CareerHistoryOpportunity,
+  CareerHistoryOpportunityFeedback,
+  CareerOpportunitySavedStage,
   CareerRecentOpportunity,
+  CareerTalentNotification,
   SessionResponse,
 } from "@/components/career/types";
+import { isOpportunityType } from "@/lib/opportunityType";
 import {
   CareerChatPanelProvider,
   type CareerChatPanelContextValue,
@@ -22,7 +33,14 @@ import { useCareerTalentInsights } from "@/hooks/career/useCareerTalentInsights"
 import { useCareerTalentPreferences } from "@/hooks/career/useCareerTalentPreferences";
 import { useCareerTalentSettings } from "@/hooks/career/useCareerTalentSettings";
 import { useCareerSession } from "@/hooks/career/useCareerSession";
+import { getErrorMessage } from "@/hooks/career/careerHelpers";
 import { TALENT_ONBOARDING_COMPLETION_TARGET } from "@/lib/talentOnboarding/progress";
+import { getCareerDefaultSavedStage } from "./opportunityTypeMeta";
+
+const getDefaultSavedStage = (
+  item: CareerHistoryOpportunity
+): CareerOpportunitySavedStage =>
+  getCareerDefaultSavedStage(item.opportunityType);
 
 const normalizeRecentOpportunities = (
   value: SessionResponse["recentOpportunities"]
@@ -37,10 +55,81 @@ const normalizeRecentOpportunities = (
       return false;
     }
     if (item.kind !== "match" && item.kind !== "recommendation") return false;
-    if (typeof item.matchedAt !== "string" || Number.isNaN(Date.parse(item.matchedAt))) {
+    if (!isOpportunityType(item.opportunityType)) {
+      return false;
+    }
+    if (
+      typeof item.matchedAt !== "string" ||
+      Number.isNaN(Date.parse(item.matchedAt))
+    ) {
       return false;
     }
     return true;
+  });
+};
+
+const normalizeHistoryOpportunities = (
+  value: SessionResponse["historyOpportunities"]
+): CareerHistoryOpportunity[] => {
+  if (!Array.isArray(value)) return [];
+
+  return value.filter((item): item is CareerHistoryOpportunity => {
+    if (!item || typeof item !== "object") return false;
+    if (typeof item.id !== "string" || !item.id.trim()) return false;
+    if (typeof item.roleId !== "string" || !item.roleId.trim()) return false;
+    if (typeof item.title !== "string" || !item.title.trim()) return false;
+    if (typeof item.companyName !== "string" || !item.companyName.trim()) {
+      return false;
+    }
+    if (item.kind !== "match" && item.kind !== "recommendation") return false;
+    if (item.sourceType !== "internal" && item.sourceType !== "external") {
+      return false;
+    }
+    if (typeof item.recommendedAt !== "string") return false;
+    if (Number.isNaN(Date.parse(item.recommendedAt))) return false;
+    if (!Array.isArray(item.employmentTypes)) return false;
+    if (!Array.isArray(item.recommendationReasons)) return false;
+    if (typeof item.isAccepted !== "boolean") return false;
+    if (typeof item.isInternal !== "boolean") return false;
+    if (!isOpportunityType(item.opportunityType)) {
+      return false;
+    }
+    if (
+      item.feedback !== null &&
+      item.feedback !== "positive" &&
+      item.feedback !== "negative"
+    ) {
+      return false;
+    }
+    if (
+      item.savedStage !== null &&
+      item.savedStage !== "saved" &&
+      item.savedStage !== "applied" &&
+      item.savedStage !== "connected" &&
+      item.savedStage !== "closed"
+    ) {
+      return false;
+    }
+    return true;
+  });
+};
+
+const normalizeNotifications = (
+  value: SessionResponse["notifications"]
+): CareerTalentNotification[] => {
+  if (!Array.isArray(value)) return [];
+
+  return value.filter((item): item is CareerTalentNotification => {
+    if (!item || typeof item !== "object") return false;
+    if (typeof item.id !== "number" || !Number.isFinite(item.id)) return false;
+    if (
+      typeof item.createdAt !== "string" ||
+      Number.isNaN(Date.parse(item.createdAt))
+    ) {
+      return false;
+    }
+    if (item.message !== null && typeof item.message !== "string") return false;
+    return typeof item.isRead === "boolean";
   });
 };
 
@@ -70,6 +159,18 @@ export const CareerFlowProvider = ({
   const [recentOpportunities, setRecentOpportunities] = useState<
     CareerRecentOpportunity[]
   >([]);
+  const [historyOpportunities, setHistoryOpportunities] = useState<
+    CareerHistoryOpportunity[]
+  >([]);
+  const [historyUpdatingOpportunityIds, setHistoryUpdatingOpportunityIds] =
+    useState<string[]>([]);
+  const [historyUpdateError, setHistoryUpdateError] = useState("");
+  const [notifications, setNotifications] = useState<
+    CareerTalentNotification[]
+  >([]);
+  const [notificationsMarkingAsRead, setNotificationsMarkingAsRead] =
+    useState(false);
+  const [notificationsError, setNotificationsError] = useState("");
 
   const {
     conversationId,
@@ -289,6 +390,300 @@ export const CareerFlowProvider = ({
     await handleProfileSubmitBase(handleProfileSubmitSuccess);
   }, [handleProfileSubmitBase, handleProfileSubmitSuccess]);
 
+  const unreadNotificationCount = useMemo(
+    () => notifications.filter((notification) => !notification.isRead).length,
+    [notifications]
+  );
+
+  const updateHistoryOpportunityLocally = useCallback(
+    (
+      opportunityId: string,
+      updater: (current: CareerHistoryOpportunity) => CareerHistoryOpportunity
+    ) => {
+      setHistoryOpportunities((current) =>
+        current.map((item) =>
+          item.id === opportunityId ? updater(item) : item
+        )
+      );
+    },
+    []
+  );
+
+  const restoreHistoryOpportunity = useCallback(
+    (opportunityId: string, previousItem: CareerHistoryOpportunity) => {
+      setHistoryOpportunities((current) =>
+        current.map((item) => (item.id === opportunityId ? previousItem : item))
+      );
+    },
+    []
+  );
+
+  const beginHistoryUpdate = useCallback((opportunityId: string) => {
+    setHistoryUpdateError("");
+    setHistoryUpdatingOpportunityIds((current) =>
+      current.includes(opportunityId) ? current : [...current, opportunityId]
+    );
+  }, []);
+
+  const endHistoryUpdate = useCallback((opportunityId: string) => {
+    setHistoryUpdatingOpportunityIds((current) =>
+      current.filter((item) => item !== opportunityId)
+    );
+  }, []);
+
+  const patchHistoryOpportunity = useCallback(
+    async (body: {
+      action: "feedback" | "saved_stage" | "view" | "click";
+      feedback?: CareerHistoryOpportunityFeedback | null;
+      feedbackReason?: string | null;
+      opportunityId: string;
+      savedStage?: CareerOpportunitySavedStage | null;
+    }) => {
+      const response = await fetchWithAuth("/api/talent/opportunities", {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          getErrorMessage(payload, "기회 상태를 업데이트하지 못했습니다.")
+        );
+      }
+    },
+    [fetchWithAuth]
+  );
+
+  const onUpdateHistoryOpportunityFeedback = useCallback(
+    async (
+      opportunityId: string,
+      feedback: CareerHistoryOpportunityFeedback | null,
+      options?: {
+        feedbackReason?: string | null;
+        savedStage?: CareerOpportunitySavedStage | null;
+      }
+    ) => {
+      const normalizedOpportunityId = opportunityId.trim();
+      if (!normalizedOpportunityId) return;
+
+      const previousItem = historyOpportunities.find(
+        (item) => item.id === normalizedOpportunityId
+      );
+      if (!previousItem) return;
+      const now = new Date().toISOString();
+      const nextSavedStage =
+        feedback === "positive"
+          ? (options?.savedStage ??
+            previousItem.savedStage ??
+            getDefaultSavedStage(previousItem))
+          : null;
+
+      beginHistoryUpdate(normalizedOpportunityId);
+      updateHistoryOpportunityLocally(normalizedOpportunityId, (item) => ({
+        ...item,
+        dismissedAt: feedback === "negative" ? now : null,
+        feedback,
+        feedbackAt: feedback ? now : null,
+        feedbackReason: feedback ? (options?.feedbackReason ?? null) : null,
+        savedStage: nextSavedStage,
+      }));
+
+      try {
+        await patchHistoryOpportunity({
+          action: "feedback",
+          feedback,
+          feedbackReason: options?.feedbackReason ?? null,
+          opportunityId: normalizedOpportunityId,
+          savedStage: nextSavedStage,
+        });
+      } catch (error) {
+        restoreHistoryOpportunity(normalizedOpportunityId, previousItem);
+        setHistoryUpdateError(
+          error instanceof Error
+            ? error.message
+            : "기회 상태를 업데이트하지 못했습니다."
+        );
+      } finally {
+        endHistoryUpdate(normalizedOpportunityId);
+      }
+    },
+    [
+      beginHistoryUpdate,
+      endHistoryUpdate,
+      historyOpportunities,
+      patchHistoryOpportunity,
+      restoreHistoryOpportunity,
+      updateHistoryOpportunityLocally,
+    ]
+  );
+
+  const onUpdateHistoryOpportunitySavedStage = useCallback(
+    async (opportunityId: string, savedStage: CareerOpportunitySavedStage) => {
+      const normalizedOpportunityId = opportunityId.trim();
+      if (!normalizedOpportunityId) return;
+
+      const previousItem = historyOpportunities.find(
+        (item) => item.id === normalizedOpportunityId
+      );
+      if (!previousItem) return;
+
+      beginHistoryUpdate(normalizedOpportunityId);
+      updateHistoryOpportunityLocally(normalizedOpportunityId, (item) => ({
+        ...item,
+        feedback: "positive",
+        savedStage,
+      }));
+
+      try {
+        await patchHistoryOpportunity({
+          action: "saved_stage",
+          opportunityId: normalizedOpportunityId,
+          savedStage,
+        });
+      } catch (error) {
+        restoreHistoryOpportunity(normalizedOpportunityId, previousItem);
+        setHistoryUpdateError(
+          error instanceof Error
+            ? error.message
+            : "기회 상태를 업데이트하지 못했습니다."
+        );
+      } finally {
+        endHistoryUpdate(normalizedOpportunityId);
+      }
+    },
+    [
+      beginHistoryUpdate,
+      endHistoryUpdate,
+      historyOpportunities,
+      patchHistoryOpportunity,
+      restoreHistoryOpportunity,
+      updateHistoryOpportunityLocally,
+    ]
+  );
+
+  const onMarkHistoryOpportunityViewed = useCallback(
+    async (opportunityId: string) => {
+      const normalizedOpportunityId = opportunityId.trim();
+      if (!normalizedOpportunityId) return;
+
+      const currentItem = historyOpportunities.find(
+        (item) => item.id === normalizedOpportunityId
+      );
+      if (!currentItem || currentItem.viewedAt) return;
+      const now = new Date().toISOString();
+
+      updateHistoryOpportunityLocally(normalizedOpportunityId, (item) => ({
+        ...item,
+        viewedAt: now,
+      }));
+
+      try {
+        await patchHistoryOpportunity({
+          action: "view",
+          opportunityId: normalizedOpportunityId,
+        });
+      } catch (error) {
+        restoreHistoryOpportunity(normalizedOpportunityId, currentItem);
+        setHistoryUpdateError(
+          error instanceof Error
+            ? error.message
+            : "기회 상태를 업데이트하지 못했습니다."
+        );
+      }
+    },
+    [
+      historyOpportunities,
+      patchHistoryOpportunity,
+      restoreHistoryOpportunity,
+      updateHistoryOpportunityLocally,
+    ]
+  );
+
+  const onMarkHistoryOpportunityClicked = useCallback(
+    async (opportunityId: string) => {
+      const normalizedOpportunityId = opportunityId.trim();
+      if (!normalizedOpportunityId) return;
+
+      const currentItem = historyOpportunities.find(
+        (item) => item.id === normalizedOpportunityId
+      );
+      if (!currentItem || currentItem.clickedAt) return;
+      const now = new Date().toISOString();
+
+      updateHistoryOpportunityLocally(normalizedOpportunityId, (item) => ({
+        ...item,
+        clickedAt: now,
+      }));
+
+      try {
+        await patchHistoryOpportunity({
+          action: "click",
+          opportunityId: normalizedOpportunityId,
+        });
+      } catch (error) {
+        restoreHistoryOpportunity(normalizedOpportunityId, currentItem);
+        setHistoryUpdateError(
+          error instanceof Error
+            ? error.message
+            : "기회 상태를 업데이트하지 못했습니다."
+        );
+      }
+    },
+    [
+      historyOpportunities,
+      patchHistoryOpportunity,
+      restoreHistoryOpportunity,
+      updateHistoryOpportunityLocally,
+    ]
+  );
+
+  const markNotificationsRead = useCallback(async () => {
+    if (
+      !userId ||
+      notificationsMarkingAsRead ||
+      unreadNotificationCount === 0
+    ) {
+      return;
+    }
+
+    const previousNotifications = notifications;
+    setNotificationsError("");
+    setNotificationsMarkingAsRead(true);
+    setNotifications((current) =>
+      current.map((notification) =>
+        notification.isRead ? notification : { ...notification, isRead: true }
+      )
+    );
+
+    try {
+      const response = await fetchWithAuth("/api/talent/notifications", {
+        method: "PATCH",
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          getErrorMessage(payload, "알림 읽음 처리에 실패했습니다.")
+        );
+      }
+    } catch (error) {
+      setNotifications(previousNotifications);
+      setNotificationsError(
+        error instanceof Error
+          ? error.message
+          : "알림 읽음 처리에 실패했습니다."
+      );
+    } finally {
+      setNotificationsMarkingAsRead(false);
+    }
+  }, [
+    fetchWithAuth,
+    notifications,
+    notificationsMarkingAsRead,
+    unreadNotificationCount,
+    userId,
+  ]);
+
   const hydrateSession = useCallback(
     (payload: SessionResponse) => {
       applySessionConversation(payload);
@@ -297,7 +692,16 @@ export const CareerFlowProvider = ({
       applySessionTalentPreferences(payload);
       applySessionTalentInsights(payload);
       applySessionPrompt(payload);
-      setRecentOpportunities(normalizeRecentOpportunities(payload.recentOpportunities));
+      setHistoryOpportunities(
+        normalizeHistoryOpportunities(payload.historyOpportunities)
+      );
+      setHistoryUpdatingOpportunityIds([]);
+      setHistoryUpdateError("");
+      setRecentOpportunities(
+        normalizeRecentOpportunities(payload.recentOpportunities)
+      );
+      setNotifications(normalizeNotifications(payload.notifications));
+      setNotificationsError("");
     },
     [
       applySessionConversation,
@@ -321,6 +725,12 @@ export const CareerFlowProvider = ({
       resetTalentInsightsState();
       resetOnboardingState();
       setRecentOpportunities([]);
+      setHistoryOpportunities([]);
+      setHistoryUpdatingOpportunityIds([]);
+      setHistoryUpdateError("");
+      setNotifications([]);
+      setNotificationsMarkingAsRead(false);
+      setNotificationsError("");
       return;
     }
 
@@ -499,6 +909,18 @@ export const CareerFlowProvider = ({
       onOpenSettings,
       onLogout: handleLogout,
       recentOpportunities,
+      historyOpportunities,
+      historyUpdatingOpportunityIds,
+      historyUpdateError,
+      onUpdateHistoryOpportunityFeedback,
+      onUpdateHistoryOpportunitySavedStage,
+      onMarkHistoryOpportunityViewed,
+      onMarkHistoryOpportunityClicked,
+      notifications,
+      unreadNotificationCount,
+      notificationsMarkingAsRead,
+      notificationsError,
+      onMarkNotificationsRead: markNotificationsRead,
       resumeFile,
       savedResumeFileName,
       savedResumeStoragePath,
@@ -577,6 +999,9 @@ export const CareerFlowProvider = ({
       networkApplicationSaveError,
       networkApplicationSaveInfo,
       networkApplicationSavePending,
+      notifications,
+      notificationsError,
+      notificationsMarkingAsRead,
       onResetNetworkApplication,
       onResetTalentInsights,
       onResetTalentPreferences,
@@ -592,8 +1017,12 @@ export const CareerFlowProvider = ({
       onOpenSettings,
       handleRemoveProfileLink,
       onRemoveBlockedCompany,
+      markNotificationsRead,
       onSaveNetworkApplication,
       handleSaveTalentProfile,
+      historyOpportunities,
+      historyUpdateError,
+      historyUpdatingOpportunityIds,
       profileLinks,
       profileVisibility,
       profileSaveError,
@@ -623,7 +1052,12 @@ export const CareerFlowProvider = ({
       talentPreferencesSaveInfo,
       talentPreferencesSavePending,
       talentPreferencesUpdatedAt,
+      unreadNotificationCount,
       userChatCount,
+      onMarkHistoryOpportunityClicked,
+      onMarkHistoryOpportunityViewed,
+      onUpdateHistoryOpportunityFeedback,
+      onUpdateHistoryOpportunitySavedStage,
       talentEducations,
       talentExperiences,
       talentExtras,

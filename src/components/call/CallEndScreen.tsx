@@ -147,7 +147,7 @@ const RecruiterCallSummaryScreen: React.FC<RecruiterCallSummaryProps> = ({
           onClick={onClickProfile}
           className="flex flex-row items-center justify-center gap-2 cursor-pointer hover:opacity-90 rounded-lg bg-brightnavy text-white py-4 w-full"
         >
-          저장 후 진행하기
+          계속하기
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>

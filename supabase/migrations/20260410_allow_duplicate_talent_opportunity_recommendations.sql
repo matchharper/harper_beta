@@ -1,0 +1,2 @@
+alter table public.talent_opportunity_recommendation
+  drop constraint if exists talent_opportunity_recommendation_unique;

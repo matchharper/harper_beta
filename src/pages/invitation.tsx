@@ -560,14 +560,6 @@ export default function InvitationPage() {
 
         <div className="w-full max-w-lg">
           <div className="rounded-3xl border border-white/10 bg-white/5 px-6 py-6 shadow-xl backdrop-blur-md md:px-8 md:py-8">
-            <div className="text-left">
-              {companyUser?.email || user?.email ? (
-                <div className="mb-4 text-sm text-white/70 font-light">
-                  {companyUser?.email || user?.email}
-                </div>
-              ) : null}
-            </div>
-
             <div className="mt-0">
               {inviteCode ? (
                 <div className="rounded-2xl border border-white/10 bg-black/20 px-5 py-5 text-left">
@@ -650,7 +642,7 @@ export default function InvitationPage() {
                     company: companyUser?.company ?? "",
                     role: companyUser?.role ?? "",
                   }}
-                  className="space-y-4"
+                  className="gap-4 flex flex-col"
                   submitButtonClassName="mt-6 inline-flex w-full items-center justify-center rounded-full bg-white px-5 py-3.5 text-sm font-medium text-black transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-70"
                 />
               )}

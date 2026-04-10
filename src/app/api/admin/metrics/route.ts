@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isValidAdminPassword } from "@/lib/admin";
+import { isEmailExcluded } from "@/lib/adminEmailExclusions";
 import { supabaseServer } from "@/lib/supabaseServer";
 import {
   createEmptyMetricBucket,
@@ -326,7 +327,7 @@ function canIncludeUser(
   if (!normalizedUserId) return false;
 
   const email = normalizeEmail(emailByUserId.get(normalizedUserId) ?? "");
-  return !email || !excludedEmailSet.has(email);
+  return !email || !isEmailExcluded(email, excludedEmailSet);
 }
 
 export async function POST(req: NextRequest) {
@@ -460,7 +461,7 @@ export async function POST(req: NextRequest) {
       if (!userId) continue;
 
       const email = normalizeEmail(row?.email ?? "");
-      if (email && excludedEmailSet.has(email)) continue;
+      if (email && isEmailExcluded(email, excludedEmailSet)) continue;
 
       const date = toKstDateKey(row?.created_at);
       const bucket = bucketMap.get(date);

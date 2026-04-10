@@ -10,14 +10,18 @@ import {
 } from "@/components/career/CareerSidebarContext";
 import CareerSettingsModal from "@/components/career/CareerSettingsModal";
 import CareerWorkspaceScreen from "@/components/career/CareerWorkspaceScreen";
-import type {
-  CareerMessage,
-  CareerNetworkApplication,
-  CareerRecentOpportunity,
-  CareerTalentInsights,
-  CareerTalentPreferences,
-  CareerTalentProfile,
+import {
+  CareerOpportunityType,
+  type CareerHistoryOpportunity,
+  type CareerMessage,
+  type CareerNetworkApplication,
+  type CareerRecentOpportunity,
+  type CareerTalentInsights,
+  type CareerTalentNotification,
+  type CareerTalentPreferences,
+  type CareerTalentProfile,
 } from "@/components/career/types";
+import { getCareerDefaultSavedStage } from "@/components/career/opportunityTypeMeta";
 
 const mockUser = {
   id: "career-preview-user",
@@ -119,6 +123,21 @@ const initialTalentProfile: CareerTalentProfile = {
   ],
 };
 
+const initialNotifications: CareerTalentNotification[] = [
+  {
+    id: 1,
+    message: "Harper가 당신의 프로필을 바탕으로 새 매칭 가능성을 찾았습니다.",
+    isRead: false,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 2,
+    message: "프로필 링크가 최신 상태인지 확인해 주세요.",
+    isRead: true,
+    createdAt: new Date(Date.now() - 1000 * 60 * 90).toISOString(),
+  },
+];
+
 const initialMessages: CareerMessage[] = [
   {
     id: 1,
@@ -150,10 +169,10 @@ const initialRecentOpportunities: CareerRecentOpportunity[] = [
   {
     id: "preview-opportunity-1",
     kind: "match",
+    opportunityType: CareerOpportunityType.IntroRequest,
     title: "Applied AI Engineer",
     companyName: "Stealth Agent Startup",
-    summary:
-      "작은 팀에서 제품과 모델 품질을 함께 책임질 수 있는 역할입니다.",
+    summary: "작은 팀에서 제품과 모델 품질을 함께 책임질 수 있는 역할입니다.",
     location: "Seoul / Hybrid",
     engagementType: "Full-time",
     matchedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
@@ -161,6 +180,7 @@ const initialRecentOpportunities: CareerRecentOpportunity[] = [
   {
     id: "preview-opportunity-2",
     kind: "recommendation",
+    opportunityType: CareerOpportunityType.ExternalJd,
     title: "Founding ML Engineer",
     companyName: "Global Remote SaaS",
     summary:
@@ -168,6 +188,164 @@ const initialRecentOpportunities: CareerRecentOpportunity[] = [
     location: "US / Remote",
     engagementType: "Full-time or Fractional",
     matchedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+];
+
+const initialHistoryOpportunities: CareerHistoryOpportunity[] = [
+  {
+    id: "preview-history-1",
+    roleId: "preview-role-1",
+    title: "Applied AI Engineer",
+    companyName: "Harper Portfolio Team",
+    companyDescription:
+      "작은 제품팀에서 모델 품질과 사용자 경험을 같이 책임지는 팀입니다.",
+    companyHomepageUrl: "https://harper.ai",
+    companyLinkedinUrl: null,
+    companyLogoUrl: null,
+    description:
+      "프로덕트 팀과 바로 붙어 agent 기능을 제품에 배포하고 운영 지표까지 같이 보는 역할입니다.",
+    employmentTypes: ["full_time"],
+    externalJdUrl: null,
+    feedback: null,
+    feedbackAt: null,
+    feedbackReason: null,
+    href: "https://harper.ai",
+    clickedAt: null,
+    dismissedAt: null,
+    isAccepted: true,
+    isInternal: true,
+    kind: "match",
+    location: "Seoul",
+    opportunityType: CareerOpportunityType.IntroRequest,
+    postedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+    recommendedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    recommendationReasons: [
+      "LLM 제품 론치 경험이 직접적으로 연결됩니다.",
+      "작은 팀에서 제품 방향과 기술 의사결정을 함께 가져갈 수 있습니다.",
+    ],
+    sourceJobId: null,
+    savedStage: null,
+    sourceProvider: null,
+    sourceType: "internal",
+    status: "active",
+    viewedAt: null,
+    workMode: "hybrid",
+  },
+  {
+    id: "preview-history-2",
+    roleId: "preview-role-2",
+    title: "Founding ML Engineer",
+    companyName: "Global Remote SaaS",
+    companyDescription:
+      "미국 기반 B2B SaaS 팀으로, 초기 AI 기능을 제품 핵심으로 전환하고 있습니다.",
+    companyHomepageUrl: "https://example.com/remote-saas",
+    companyLinkedinUrl: "https://linkedin.com/company/remote-saas",
+    companyLogoUrl: null,
+    description:
+      "LLM workflow와 evaluation 체계를 만들고, 엔지니어링 팀과 함께 고객 기능을 빠르게 실험하는 포지션입니다.",
+    employmentTypes: ["full_time", "contract"],
+    externalJdUrl: "https://jobs.example.com/founding-ml",
+    feedback: "positive",
+    feedbackAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    feedbackReason: null,
+    href: "https://jobs.example.com/founding-ml",
+    clickedAt: new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString(),
+    dismissedAt: null,
+    isAccepted: false,
+    isInternal: false,
+    kind: "recommendation",
+    location: "US",
+    opportunityType: CareerOpportunityType.ExternalJd,
+    postedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    recommendedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    recommendationReasons: [
+      "Remote 선호와 제품 중심 applied AI 경험이 잘 맞습니다.",
+      "초기 시스템 설계와 품질 기준 수립 경험을 바로 활용할 수 있습니다.",
+    ],
+    sourceJobId: "remote-saas-ml-1",
+    savedStage: "saved",
+    sourceProvider: "greenhouse",
+    sourceType: "external",
+    status: "active",
+    viewedAt: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(),
+    workMode: "remote",
+  },
+  {
+    id: "preview-history-3",
+    roleId: "preview-role-3",
+    title: "Research Engineer",
+    companyName: "Frontier Robotics Lab",
+    companyDescription:
+      "논문과 프로덕트 사이를 잇는 applied research 조직입니다.",
+    companyHomepageUrl: "https://example.com/robotics-lab",
+    companyLinkedinUrl: null,
+    companyLogoUrl: null,
+    description:
+      "멀티모달 모델 평가 파이프라인과 배포 시스템을 만드는 역할입니다.",
+    employmentTypes: ["full_time"],
+    externalJdUrl: "https://jobs.example.com/research-engineer",
+    feedback: null,
+    feedbackAt: null,
+    feedbackReason: null,
+    href: "https://jobs.example.com/research-engineer",
+    clickedAt: null,
+    dismissedAt: null,
+    isAccepted: false,
+    isInternal: false,
+    kind: "recommendation",
+    location: "Tokyo",
+    opportunityType: CareerOpportunityType.ExternalJd,
+    postedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
+    recommendedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+    recommendationReasons: [
+      "논문 기반 평가 시스템 경험이 직접적으로 이어집니다.",
+      "research와 product의 중간 지점 역할을 선호하는지 확인이 필요한 기회입니다.",
+    ],
+    sourceJobId: "robotics-lab-2",
+    savedStage: null,
+    sourceProvider: "lever",
+    sourceType: "external",
+    status: "active",
+    viewedAt: null,
+    workMode: "onsite",
+  },
+  {
+    id: "preview-history-4",
+    roleId: "preview-role-4",
+    title: "Product ML Lead",
+    companyName: "Stealth Commerce AI",
+    companyDescription:
+      "커머스 검색과 개인화 모델을 제품 KPI에 직접 연결하는 팀입니다.",
+    companyHomepageUrl: null,
+    companyLinkedinUrl: "https://linkedin.com/company/stealth-commerce-ai",
+    companyLogoUrl: null,
+    description:
+      "추천 모델과 conversational UX를 제품 조직과 함께 리드하는 포지션입니다.",
+    employmentTypes: ["full_time"],
+    externalJdUrl: null,
+    feedback: "negative",
+    feedbackAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+    feedbackReason: null,
+    href: "https://linkedin.com/company/stealth-commerce-ai",
+    clickedAt: null,
+    dismissedAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+    isAccepted: false,
+    isInternal: true,
+    kind: "recommendation",
+    location: "Singapore",
+    opportunityType: CareerOpportunityType.InternalRecommendation,
+    postedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+    recommendedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    recommendationReasons: [
+      "제품 오너십은 높지만 도메인 자체 선호가 갈릴 수 있습니다.",
+    ],
+    sourceJobId: null,
+    savedStage: null,
+    sourceProvider: null,
+    sourceType: "internal",
+    status: "active",
+    viewedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    workMode: "hybrid",
   },
 ];
 
@@ -193,9 +371,8 @@ const CareerPreviewPage = () => {
   const [savedNetworkApplication, setSavedNetworkApplication] = useState(
     initialNetworkApplication
   );
-  const [networkApplicationUpdatedAt, setNetworkApplicationUpdatedAt] = useState(
-    new Date().toISOString()
-  );
+  const [networkApplicationUpdatedAt, setNetworkApplicationUpdatedAt] =
+    useState(new Date().toISOString());
   const [networkSaveInfo, setNetworkSaveInfo] = useState("");
   const [talentPreferences, setTalentPreferences] = useState(
     initialTalentPreferences
@@ -208,8 +385,9 @@ const CareerPreviewPage = () => {
   );
   const [talentPreferencesSaveInfo, setTalentPreferencesSaveInfo] =
     useState("");
-  const [talentInsights, setTalentInsights] =
-    useState<CareerTalentInsights>(initialTalentInsights);
+  const [talentInsights, setTalentInsights] = useState<CareerTalentInsights>(
+    initialTalentInsights
+  );
   const [savedTalentInsights, setSavedTalentInsights] =
     useState<CareerTalentInsights>(initialTalentInsights);
   const [talentInsightsUpdatedAt, setTalentInsightsUpdatedAt] = useState(
@@ -233,6 +411,9 @@ const CareerPreviewPage = () => {
   const [settingsUpdatedAt, setSettingsUpdatedAt] = useState(
     new Date().toISOString()
   );
+  const [historyOpportunities, setHistoryOpportunities] = useState(
+    initialHistoryOpportunities
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const sidebarContextValue: CareerSidebarContextValue = useMemo(
@@ -246,6 +427,70 @@ const CareerPreviewPage = () => {
       onOpenSettings: () => setIsSettingsOpen(true),
       onLogout: () => undefined,
       recentOpportunities: initialRecentOpportunities,
+      historyOpportunities,
+      historyUpdatingOpportunityIds: [],
+      historyUpdateError: "",
+      onUpdateHistoryOpportunityFeedback: (
+        opportunityId,
+        feedback,
+        options
+      ) => {
+        const now = new Date().toISOString();
+        setHistoryOpportunities((current) =>
+          current.map((item) =>
+            item.id === opportunityId
+              ? {
+                  ...item,
+                  dismissedAt: feedback === "negative" ? now : null,
+                  feedback,
+                  feedbackAt: now,
+                  feedbackReason: options?.feedbackReason ?? null,
+                  savedStage:
+                    feedback === "positive"
+                      ? (options?.savedStage ??
+                        getCareerDefaultSavedStage(item.opportunityType))
+                      : null,
+                }
+              : item
+          )
+        );
+      },
+      onUpdateHistoryOpportunitySavedStage: (opportunityId, savedStage) => {
+        setHistoryOpportunities((current) =>
+          current.map((item) =>
+            item.id === opportunityId
+              ? { ...item, feedback: "positive", savedStage }
+              : item
+          )
+        );
+      },
+      onMarkHistoryOpportunityViewed: (opportunityId) => {
+        const now = new Date().toISOString();
+        setHistoryOpportunities((current) =>
+          current.map((item) =>
+            item.id === opportunityId && !item.viewedAt
+              ? { ...item, viewedAt: now }
+              : item
+          )
+        );
+      },
+      onMarkHistoryOpportunityClicked: (opportunityId) => {
+        const now = new Date().toISOString();
+        setHistoryOpportunities((current) =>
+          current.map((item) =>
+            item.id === opportunityId && !item.clickedAt
+              ? { ...item, clickedAt: now }
+              : item
+          )
+        );
+      },
+      notifications: initialNotifications,
+      unreadNotificationCount: initialNotifications.filter(
+        (notification) => !notification.isRead
+      ).length,
+      notificationsMarkingAsRead: false,
+      notificationsError: "",
+      onMarkNotificationsRead: () => undefined,
       resumeFile,
       savedResumeFileName,
       savedResumeStoragePath: "talent/resume/preview_resume.pdf",
@@ -423,6 +668,7 @@ const CareerPreviewPage = () => {
       talentPreferencesUpdatedAt,
       talentPreferencesSaveInfo,
       savedTalentInsights,
+      historyOpportunities,
     ]
   );
 

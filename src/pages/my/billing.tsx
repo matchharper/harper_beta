@@ -430,6 +430,7 @@ const Billing = () => {
       });
 
       const payload = await res.json().catch(() => null);
+      logger.log(`\n\n🐙 ${JSON.stringify(payload)} \n\n`);
       if (!res.ok) {
         showToast({
           message:
@@ -493,6 +494,7 @@ const Billing = () => {
       });
 
       const payload = await res.json().catch(() => null);
+      logger.log(`\n\n🐙 ${JSON.stringify(payload)} \n\n`);
       if (!res.ok) {
         showToast({
           message:

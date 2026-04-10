@@ -53,15 +53,6 @@ const CareerResumeLinksSettingsSection = () => {
 
   return (
     <div className="font-geist">
-      {/* <div className="">
-        <h2 className="text-lg font-semibold text-hblack1000">
-          내 이력서/링크
-        </h2>
-        <p className="mt-1 text-sm text-hblack600">
-          지금 내 이력서/링크 저장된 파일과 링크를 확인하고 수정할 수 있습니다.
-        </p>
-      </div> */}
-
       <CareerField
         label="저장된 이력서"
         icon={<FileText className="h-4 w-4" />}

@@ -10,6 +10,9 @@ import { ApifyClient } from "apify-client";
 // (선택) 혹시 런타임이 Edge로 잡히는 환경이면 강제로 Node로
 export const runtime = "nodejs";
 
+const DEFAULT_APIFY_WEBSITE_CONTENT_CRAWLER_ACTOR_ID =
+  "apify/website-content-crawler";
+
 function isPdfUrl(url: string) {
   try {
     const u = new URL(url);
@@ -59,6 +62,21 @@ function normalizeText(s: string) {
     .trim();
 }
 
+function extractMeaningfulTextLength(markdown: string) {
+  return markdown
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`[^`]*`/g, " ")
+    .replace(/!\[[^\]]*\]\([^)]+\)/g, " ")
+    .replace(/\[[^\]]*\]\([^)]+\)/g, " ")
+    .replace(/[#>*_\-\[\]()]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim().length;
+}
+
+function isReadableMarkdown(markdown: string) {
+  return extractMeaningfulTextLength(markdown) >= 180;
+}
+
 async function saveDocumentCache(args: {
   excerpt?: string | null;
   markdown: string;
@@ -99,8 +117,7 @@ async function saveDocumentCache(args: {
 async function fetchHtmlDirect(url: string) {
   const response = await fetch(url, {
     headers: {
-      Accept:
-        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       "Accept-Language": "en-US,en;q=0.9,ko-KR;q=0.8,ko;q=0.7",
       "User-Agent":
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
@@ -113,6 +130,73 @@ async function fetchHtmlDirect(url: string) {
   }
 
   return response.text();
+}
+
+async function fetchWebsiteContentWithApify(url: string) {
+  const token = String(process.env.APIFY_CLIENT_KEY ?? "").trim();
+  if (!token) {
+    throw new Error("APIFY_CLIENT_KEY is not configured");
+  }
+
+  const actorId =
+    String(process.env.APIFY_WEBSITE_CONTENT_CRAWLER_ACTOR_ID ?? "").trim() ||
+    DEFAULT_APIFY_WEBSITE_CONTENT_CRAWLER_ACTOR_ID;
+  const client = new ApifyClient({ token });
+  const run = await client.actor(actorId).call({
+    crawlerType: "playwright:adaptive",
+    maxCrawlDepth: 0,
+    maxCrawlPages: 1,
+    startUrls: [{ url }],
+  });
+
+  if (!run.defaultDatasetId) {
+    throw new Error("Apify website content crawler returned no dataset");
+  }
+
+  const { items } = await client.dataset(run.defaultDatasetId).listItems({
+    limit: 1,
+  });
+  const item = (Array.isArray(items) ? items[0] : null) as
+    | Record<string, any>
+    | null;
+
+  if (!item) {
+    throw new Error("Apify website content crawler returned empty dataset");
+  }
+
+  const title =
+    String(
+      item.title ??
+        item.pageTitle ??
+        item.metadata?.title ??
+        item.request?.userData?.title ??
+        ""
+    ).trim() || url;
+  const resolvedUrl =
+    String(
+      item.url ?? item.loadedUrl ?? item.request?.loadedUrl ?? item.request?.url
+    ).trim() || url;
+  const rawMarkdown = String(
+    item.markdown ?? item.contentMarkdown ?? item.cleanedMarkdown ?? ""
+  ).trim();
+  const rawText = normalizeText(
+    String(item.text ?? item.description ?? item.excerpt ?? "").trim()
+  );
+  const markdown = rawMarkdown || `# ${title}\n\n${rawText}`;
+
+  if (!markdown.trim()) {
+    throw new Error("Apify website content crawler returned empty content");
+  }
+
+  return {
+    excerpt:
+      normalizeText(String(item.excerpt ?? item.description ?? "").trim()) ||
+      rawText.slice(0, 2500) ||
+      markdown.slice(0, 2500),
+    markdown,
+    title,
+    url: resolvedUrl,
+  };
 }
 
 export async function POST(req: NextRequest) {
@@ -193,7 +277,7 @@ export async function POST(req: NextRequest) {
       }
 
       const markdown = `# ${title}\n\n${text}`;
-      const excerpt = text.slice(0, 1200);
+      const excerpt = text.slice(0, 2500);
       const documentId = await saveDocumentCache({
         excerpt,
         markdown,
@@ -271,45 +355,52 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2) HTML (기존 ScrapingDog)
-    const apiKey = process.env.SCRAPINGDOG_API_KEY;
-    let html = "";
-    let fetchSource = "direct";
-
-    if (apiKey) {
-      try {
-        const params = {
-          api_key: apiKey,
-          url,
-          dynamic: "false",
-        };
-
-        const searchParams = new URLSearchParams(params);
-
-        const resp = await fetch(
-          `https://api.scrapingdog.com/scrape?${searchParams.toString()}`
-        );
-
-        if (!resp.ok) {
-          throw new Error(`ScrapingDog error: ${resp.status}`);
+    // 2) HTML
+    let result:
+      | {
+          excerpt?: string;
+          markdown: string;
+          title: string;
+          url: string;
         }
+      | null = null;
+    let fetchSource = "direct";
+    let directFetchError: string | null = null;
 
-        html = await resp.text();
-        fetchSource = "scrapingdog";
-      } catch (error) {
-        logger.log("ScrapingDog failed, falling back to direct fetch", {
-          error: error instanceof Error ? error.message : String(error),
+    try {
+      const html = await fetchHtmlDirect(url);
+      const directResult = htmlToReadableMarkdown(html, url, { maxLinks: 60 });
+
+      if (isReadableMarkdown(directResult.markdown)) {
+        result = directResult;
+      } else {
+        logger.log("Direct fetch returned thin content, retrying via Apify", {
           url,
         });
       }
+    } catch (error) {
+      directFetchError =
+        error instanceof Error ? error.message : "direct fetch failed";
+      logger.log("Direct fetch failed, retrying via Apify", {
+        error: directFetchError,
+        url,
+      });
     }
 
-    if (!html.trim()) {
-      html = await fetchHtmlDirect(url);
-      fetchSource = "direct";
+    if (!result) {
+      const apifyResult = await fetchWebsiteContentWithApify(url);
+      result = apifyResult;
+      fetchSource = "apify";
     }
 
-    const result = htmlToReadableMarkdown(html, url, { maxLinks: 60 });
+    if (!result?.markdown?.trim()) {
+      throw new Error(
+        directFetchError
+          ? `Failed to scrape page: ${directFetchError}`
+          : "Failed to scrape page"
+      );
+    }
+
     const documentId = await saveDocumentCache({
       excerpt: result.excerpt,
       markdown: result.markdown,

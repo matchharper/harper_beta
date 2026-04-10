@@ -1,9 +1,13 @@
 import type { User } from "@supabase/supabase-js";
 import React, { createContext, useContext } from "react";
 import type {
+  CareerHistoryOpportunity,
+  CareerHistoryOpportunityFeedback,
   CareerNetworkApplication,
+  CareerOpportunitySavedStage,
   CareerRecentOpportunity,
   CareerStage,
+  CareerTalentNotification,
   CareerTalentInsights,
   CareerTalentPreferences,
   CareerTalentProfile,
@@ -20,6 +24,32 @@ export type CareerSidebarContextValue = {
   onOpenSettings: () => void;
   onLogout: () => void | Promise<void>;
   recentOpportunities: CareerRecentOpportunity[];
+  historyOpportunities: CareerHistoryOpportunity[];
+  historyUpdatingOpportunityIds: string[];
+  historyUpdateError: string;
+  onUpdateHistoryOpportunityFeedback: (
+    opportunityId: string,
+    feedback: CareerHistoryOpportunityFeedback | null,
+    options?: {
+      feedbackReason?: string | null;
+      savedStage?: CareerOpportunitySavedStage | null;
+    }
+  ) => void | Promise<void>;
+  onUpdateHistoryOpportunitySavedStage: (
+    opportunityId: string,
+    savedStage: CareerOpportunitySavedStage
+  ) => void | Promise<void>;
+  onMarkHistoryOpportunityViewed: (
+    opportunityId: string
+  ) => void | Promise<void>;
+  onMarkHistoryOpportunityClicked: (
+    opportunityId: string
+  ) => void | Promise<void>;
+  notifications: CareerTalentNotification[];
+  unreadNotificationCount: number;
+  notificationsMarkingAsRead: boolean;
+  notificationsError: string;
+  onMarkNotificationsRead: () => void | Promise<void>;
 
   resumeFile: File | null;
   savedResumeFileName: string | null;

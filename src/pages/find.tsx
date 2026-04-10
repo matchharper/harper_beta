@@ -420,7 +420,7 @@ const CandidatePage = () => {
         whySubtitle:
           "Harper는 링크드인 세일즈 네비게이터보다 더 많은 소스와 입력을 바탕으로<br />적합도가 높은 후보만 찾아서 보여드립니다.",
         whyFirstCardDesc:
-          "단순한 키워드 검색을 넘어, <br />역량과 맥락을 이해하고 찾아주는 지능을 경험하세요.",
+          "단순한 키워드 검색을 넘어, <br />역량과 맥락을 이해하고 기준 충족 여부를 판단합니다.",
         whyThirdCardDesc:
           "링크드인, github, 논문, 트위터, SNS, 블로그 등<br />흩어진 정보를 하나로 모아 분석하고<br />인사이트를 추출해 알려줍니다.",
         heroSubtitle:

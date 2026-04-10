@@ -55,7 +55,7 @@ Output:
 };
 
 export const generateOneLineSummary = async (doc: any) => {
-  const information = buildSummary(doc);
+  const information = buildSummary(doc, { includeGithubRepos: true });
 
   const systemPrompt = `You are a helpful assistant.`;
 

@@ -17,10 +17,9 @@ import {
   TALENT_NETWORK_LOCAL_ID_KEY,
   TALENT_NETWORK_SUBMIT_COMPLETED_EVENT,
   createTalentNetworkLocalId,
-  getRandomTalentNetworkAbtestType,
   getTalentNetworkOnboardingStepEventType,
-  isTalentNetworkAbtestType,
-  type TalentNetworkAbtestType,
+  resolveTalentNetworkAssignmentType,
+  type TalentNetworkAssignmentType,
 } from "@/lib/talentNetwork";
 import { notifyToSlack } from "@/lib/slack";
 import { supabase } from "@/lib/supabase";
@@ -396,7 +395,7 @@ export const Onboarding2Content = ({
   const [submissionPending, setSubmissionPending] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [landingId, setLandingId] = useState("");
-  const [abtestType, setAbtestType] = useState<TalentNetworkAbtestType | null>(
+  const [abtestType, setAbtestType] = useState<TalentNetworkAssignmentType | null>(
     null
   );
   const [isDirty, setIsDirty] = useState(false);
@@ -507,16 +506,22 @@ export const Onboarding2Content = ({
     const savedAbtestType = localStorage.getItem(
       TALENT_NETWORK_ABTEST_TYPE_KEY
     );
-    const resolvedAbtestType = isTalentNetworkAbtestType(savedAbtestType)
-      ? savedAbtestType
-      : getRandomTalentNetworkAbtestType();
+    const resolvedAbtestType =
+      resolveTalentNetworkAssignmentType(savedAbtestType);
 
-    if (!isTalentNetworkAbtestType(savedAbtestType)) {
+    if (savedAbtestType !== resolvedAbtestType) {
       localStorage.setItem(TALENT_NETWORK_ABTEST_TYPE_KEY, resolvedAbtestType);
     }
 
     setAbtestType(resolvedAbtestType);
-  }, []);
+
+    if (savedId && savedAbtestType !== resolvedAbtestType) {
+      void addLandingLog("new_session", {
+        localId: savedId,
+        abtestType: resolvedAbtestType,
+      });
+    }
+  }, [addLandingLog]);
 
   const handleProfileInputChange = (option: ProfileInputType) => {
     setIsDirty(true);
@@ -576,9 +581,8 @@ export const Onboarding2Content = ({
     const savedAbtestType = localStorage.getItem(
       TALENT_NETWORK_ABTEST_TYPE_KEY
     );
-    const resolvedAbtestType = isTalentNetworkAbtestType(savedAbtestType)
-      ? savedAbtestType
-      : abtestType || getRandomTalentNetworkAbtestType();
+    const resolvedAbtestType =
+      abtestType || resolveTalentNetworkAssignmentType(savedAbtestType);
     const selectedEngagementLabels = ENGAGEMENT_OPTIONS.filter((option) =>
       selectedEngagements.includes(option.id)
     ).map((option) => option.label);

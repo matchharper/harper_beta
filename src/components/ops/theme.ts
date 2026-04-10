@@ -14,7 +14,7 @@ export const opsTheme = {
   buttonPrimary:
     "inline-flex items-center justify-center gap-2 rounded-md bg-beige900 px-4 font-geist text-sm font-medium text-beige100 transition hover:bg-beige900/90 disabled:cursor-not-allowed disabled:opacity-50",
   buttonSecondary:
-    "inline-flex items-center justify-center gap-2 rounded-md bg-beige500/70 px-4 font-geist text-sm font-medium text-beige900 shadow-[inset_0_1px_0_rgba(255,255,255,0.76)] transition hover:bg-beige500/90 disabled:cursor-not-allowed disabled:opacity-50",
+    "inline-flex items-center justify-center gap-2 rounded-md bg-beige500/70 px-4 font-geist text-sm font-medium shadow-[inset_0_1px_0_rgba(255,255,255,0.76)] transition hover:bg-beige500/90 disabled:cursor-not-allowed disabled:opacity-50",
   buttonSoft:
     "inline-flex items-center justify-center gap-2 rounded-md bg-beige900 px-4 font-geist text-sm font-medium text-beige100 transition hover:bg-beige900/90 disabled:cursor-not-allowed disabled:opacity-50",
   copy: "font-geist text-sm leading-6 text-beige900/65",

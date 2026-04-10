@@ -1,0 +1,1046 @@
+import { useCompanyUserStore } from "@/store/useCompanyUserStore";
+import {
+  CandidateDetail,
+  GithubContributionWithRepo,
+  candidateKey,
+} from "@/hooks/useCandidateDetail";
+import ShareProfileModal from "@/components/Modal/ShareProfileModal";
+import ConnectionModal from "@/components/Modal/ConnectionModal";
+import { ChevronDown, GraduationCap, Upload } from "lucide-react";
+import Bookmarkbutton from "@/components/ui/bookmarkbutton";
+import GithubRepoContributionBox from "@/components/profile/GithubRepoContributionBox";
+import ItemBox from "@/pages/my/p/components/ItemBox";
+import PublicationBox from "@/pages/my/p/components/PublicationBox";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useMessages } from "@/i18n/useMessage";
+import {
+  companyEnToKo,
+  degreeEnToKo,
+  koreaUniversityEnToKo,
+  majorEnToKo,
+} from "@/utils/language_map";
+import { useQueryClient } from "@tanstack/react-query";
+import MainProfile from "@/pages/my/p/components/MainProfile";
+import ProfileBio from "@/pages/my/p/components/ProfileBio";
+import { useLogEvent } from "@/hooks/useLog";
+import { logger } from "@/utils/logger";
+import { Loading } from "@/components/ui/loading";
+import FeedbackBanner from "@/pages/my/p/components/FeedbackBanner";
+import { useRunDetail } from "@/hooks/useRunDetail";
+import { supabase } from "@/lib/supabase";
+import Criterias from "@/pages/my/p/components/Criterias";
+import CandidateMemoDock from "@/components/ui/CandidateMemoDock";
+import { useShortlistMemo } from "@/hooks/useShortlistMemo";
+import {
+  formatScholarCitationCount,
+  formatScholarPaperCount,
+} from "@/lib/scholarPreview";
+import RevealProfileButton from "@/components/ui/RevealProfileButton";
+import { MarkdownView } from "@/components/chat/MarkDownView";
+
+const PUBLICATION_PREVIEW_COUNT = 10;
+
+type SynthesizedSummaryItem = {
+  score: string;
+  reason: string;
+};
+
+type ProfileInsightCardProps = {
+  label: string;
+  primary: React.ReactNode;
+  secondary?: React.ReactNode;
+};
+
+function ProfileInsightCard({
+  label,
+  primary,
+  secondary,
+}: ProfileInsightCardProps) {
+  return (
+    <div className="rounded-2xl bg-white/5 px-4 py-3">
+      <div className="text-xs text-hgray600">{label}</div>
+      <div className="mt-2 truncate text-sm text-hgray900">{primary}</div>
+      {secondary ? (
+        <div className="mt-1 text-xs leading-5 text-hgray600">{secondary}</div>
+      ) : null}
+    </div>
+  );
+}
+
+function ScholarProfileSection({
+  scholarProfile,
+  scholarPaperCount,
+  publications,
+  visiblePublications,
+  remainingPublicationCount,
+  showAllPublications,
+  onShowAllPublications,
+  profileRevealed,
+}: {
+  scholarProfile: NonNullable<CandidateDetail["scholar_profile"]>;
+  scholarPaperCount: number;
+  publications: Array<{
+    paper_id?: string | null;
+    title: string;
+    published_at?: string | null;
+    link?: string | null;
+    citation_num: number;
+  }>;
+  visiblePublications: Array<{
+    paper_id?: string | null;
+    title: string;
+    published_at?: string | null;
+    link?: string | null;
+    citation_num: number;
+  }>;
+  remainingPublicationCount: number;
+  showAllPublications: boolean;
+  onShowAllPublications: () => void;
+  profileRevealed: boolean;
+}) {
+  return (
+    <Box
+      title={`Scholar Profile${publications.length > 0 ? ` (${publications.length})` : ""}`}
+    >
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <ProfileInsightCard
+            label="소속"
+            primary={scholarProfile.affiliation || "정보 없음"}
+          />
+          <ProfileInsightCard
+            label="연구 주제"
+            primary={scholarProfile.topics || "정보 없음"}
+          />
+          <ProfileInsightCard
+            label="작성 논문"
+            primary={formatScholarPaperCount(scholarPaperCount)}
+          />
+          <ProfileInsightCard
+            label="Impact"
+            primary={
+              "Total " +
+              formatScholarCitationCount(
+                scholarProfile.total_citations_num ?? 0
+              )
+            }
+            secondary={`h-index ${scholarProfile.h_index ?? 0}`}
+          />
+        </div>
+
+        {publications.length > 0 ? (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-1 gap-3">
+              {visiblePublications.map((p, idx) => (
+                <PublicationBox
+                  key={`${p.paper_id ?? p.link ?? p.title}-${idx}`}
+                  title={p.title}
+                  published_at={p.published_at}
+                  link={p.link}
+                  citation_num={p.citation_num ?? -1}
+                  paperId={p.paper_id}
+                  disabled={!profileRevealed}
+                />
+              ))}
+            </div>
+
+            {!showAllPublications && remainingPublicationCount > 0 && (
+              <button
+                type="button"
+                onClick={onShowAllPublications}
+                className="inline-flex items-center rounded-full bg-white/5 px-5 py-2.5 font-light text-sm text-hgray700 transition hover:bg-white/10"
+              >
+                Show {remainingPublicationCount} more papers
+              </button>
+            )}
+          </>
+        ) : (
+          <div className="rounded-2xl bg-white/5 px-4 py-4 text-sm text-hgray700">
+            연결된 Scholar Profile은 있지만 아직 표시할 논문 데이터가 없습니다.
+          </div>
+        )}
+      </div>
+    </Box>
+  );
+}
+
+function GithubProfileSection({
+  githubProfile,
+  profileRevealed,
+}: {
+  githubProfile: NonNullable<CandidateDetail["github_profile"]>;
+  profileRevealed: boolean;
+}) {
+  const [openReadme, setOpenReadme] = useState(false);
+
+  const hasReadme =
+    typeof githubProfile.readme_markdown === "string" &&
+    githubProfile.readme_markdown.trim().length > 0;
+
+  const readmeText = useMemo(() => {
+    if (openReadme) return githubProfile.readme_markdown;
+    return githubProfile.readme_markdown?.slice(0, 200) ?? "";
+  }, [githubProfile.readme_markdown, openReadme]);
+
+  return (
+    <Box title="GitHub Profile">
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <ProfileInsightCard
+            label="Username"
+            primary={
+              githubProfile.github_username
+                ? `@${githubProfile.github_username}`
+                : "정보 없음"
+            }
+          />
+          <ProfileInsightCard
+            label="Company"
+            primary={githubProfile.company || "정보 없음"}
+          />
+          <ProfileInsightCard
+            label="Followers"
+            primary={Number(githubProfile.followers ?? 0).toLocaleString(
+              "en-US"
+            )}
+          />
+          <ProfileInsightCard
+            label="Public Repos"
+            primary={Number(githubProfile.public_repos ?? 0).toLocaleString(
+              "en-US"
+            )}
+          />
+        </div>
+
+        {hasReadme ? (
+          <div className="rounded-2xl bg-white/5 px-5 py-5">
+            <div className="mb-3 text-sm text-hgray700">Profile README</div>
+            <div className="[&_.prose]:max-w-none [&_.prose]:text-hgray800 [&_.prose_a]:text-blue-500 [&_.prose_code]:text-hgray900 [&_.prose_headings]:text-hgray1000">
+              <MarkdownView markdown={readmeText ?? ""} />
+
+              <div className="mt-4 flex w-full items-center justify-center">
+                <button
+                  type="button"
+                  onClick={() => setOpenReadme(!openReadme)}
+                  className="inline-flex items-center rounded-full px-4 py-2 font-light text-sm text-hgray700 transition hover:bg-white/10"
+                >
+                  <ChevronDown
+                    size={12}
+                    className={`transition-transform duration-200 ${openReadme ? "rotate-180" : ""}`}
+                  />
+                  {openReadme ? "접기" : "더 보기"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : !profileRevealed ? (
+          <div className="rounded-2xl bg-white/5 px-5 py-5 text-sm text-hgray700">
+            열람 후 GitHub 프로필을 확인할 수 있습니다.
+          </div>
+        ) : null}
+      </div>
+    </Box>
+  );
+}
+
+function parseSynthesizedSummaryText(
+  rawText: string | null | undefined
+): SynthesizedSummaryItem[] {
+  if (!rawText) return [];
+
+  try {
+    const parsed = JSON.parse(rawText);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.map((value: any) => {
+      const text = String(value ?? "");
+      const score = text.split(",")[0] ?? "";
+      const reason = text.split(",").slice(1).join(",") ?? "";
+      return { score, reason };
+    });
+  } catch {
+    return [];
+  }
+}
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => String(item ?? "").trim())
+    .filter((item) => item.length > 0);
+}
+
+function isOwnedGithubContribution(
+  contribution: GithubContributionWithRepo,
+  githubUsername?: string | null
+) {
+  const roleText = String(contribution?.role ?? "")
+    .trim()
+    .toLowerCase();
+  const repoOwner = String(contribution?.github_repo?.owner ?? "")
+    .trim()
+    .toLowerCase();
+  const normalizedGithubUsername = String(githubUsername ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (roleText.includes("owner") || roleText.includes("creator")) {
+    return true;
+  }
+
+  if (normalizedGithubUsername && repoOwner === normalizedGithubUsername) {
+    return true;
+  }
+
+  return false;
+}
+
+function CandidateProfileDetailPage({
+  candidId,
+  runId,
+  data,
+  isLoading,
+  error,
+  embedded = false,
+  showConnectionAction = true,
+  showShortlistMemo = true,
+}: {
+  candidId: string;
+  runId?: string;
+  data: CandidateDetail;
+  isLoading: boolean;
+  error: Error | null;
+  embedded?: boolean;
+  showConnectionAction?: boolean;
+  showShortlistMemo?: boolean;
+}) {
+  const [requested, setRequested] = useState(false);
+  const [isLoadingOneline, setIsLoadingOneline] = useState(false);
+  const [oneline, setOneline] = useState<string | null>(null);
+  const [isShareOpen, setIsShareOpen] = useState(false);
+  const [isConnectionModalOpen, setIsConnectionModalOpen] = useState(false);
+  const [isIntroRequested, setIsIntroRequested] = useState(false);
+  const [showAllPublications, setShowAllPublications] = useState(false);
+  const [runSynthesizedSummary, setRunSynthesizedSummary] = useState<
+    SynthesizedSummaryItem[]
+  >([]);
+
+  const logEvent = useLogEvent();
+  const { m } = useMessages();
+  const { companyUser } = useCompanyUserStore();
+  const userId = companyUser?.user_id;
+  const qc = useQueryClient();
+  const { data: runData } = useRunDetail(runId);
+  const { data: shortlistMemo = "" } = useShortlistMemo(userId, candidId);
+
+  const c: any = data;
+  const isProfileRevealed = c?.profile_revealed !== false;
+  const showAutomationFeedback =
+    data?.isAutomationResult && companyUser?.is_custom;
+
+  useEffect(() => {
+    setIsIntroRequested(
+      c?.connection?.some((con: { typed: number }) => con.typed === 1) ?? false
+    );
+  }, [c?.connection]);
+
+  useEffect(() => {
+    setShowAllPublications(false);
+  }, [candidId]);
+
+  const runCriteriaList = useMemo(
+    () => asStringArray((runData as any)?.criteria),
+    [runData]
+  );
+
+  const criteriaSummaries = useMemo(() => {
+    if (
+      !runId ||
+      runCriteriaList.length === 0 ||
+      runSynthesizedSummary.length === 0
+    ) {
+      return [];
+    }
+
+    return runCriteriaList.map((criteria, index) => ({
+      criteria,
+      score: runSynthesizedSummary[index]?.score ?? "",
+      reason: runSynthesizedSummary[index]?.reason ?? "",
+    }));
+  }, [runId, runCriteriaList, runSynthesizedSummary]);
+
+  const links: string[] = useMemo(() => {
+    if (!c?.links) return [];
+
+    const newLinks: string[] = [];
+    if (Array.isArray(c.links)) {
+      for (const link of c.links) {
+        const ll = link.replace(/\/+$/, "");
+        if (ll && ll !== "" && !newLinks.includes(ll)) {
+          newLinks.push(ll);
+        }
+      }
+      return newLinks;
+    }
+    return [];
+  }, [c]);
+
+  const mergedExperience = useMemo(() => {
+    if (!c) return [];
+    const expItems = (c.experience_user ?? []).map((e: any) => ({
+      kind: "exp" as const,
+      item: e,
+    }));
+    const eduItems = (c.edu_user ?? []).map((ed: any, index: number) => ({
+      kind: "edu" as const,
+      index,
+      item: ed,
+    }));
+
+    const parseDate = (value: string | null | undefined) => {
+      if (!value) return null;
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? null : date;
+    };
+
+    const datedItems = [
+      ...expItems,
+      ...eduItems.filter((ed: any) => !!parseDate(ed.item?.start_date)),
+    ];
+
+    datedItems.sort((a, b) => {
+      const aIsOngoing = !parseDate(a.item?.end_date);
+      const bIsOngoing = !parseDate(b.item?.end_date);
+      if (aIsOngoing !== bIsOngoing) {
+        return aIsOngoing ? -1 : 1;
+      }
+
+      const aStartDate = parseDate(a.item?.start_date);
+      const bStartDate = parseDate(b.item?.start_date);
+      if (aStartDate && bStartDate) {
+        return bStartDate.getTime() - aStartDate.getTime();
+      }
+      if (aStartDate && !bStartDate) return -1;
+      if (!aStartDate && bStartDate) return 1;
+      return 0;
+    });
+
+    const undatedEdu = eduItems.filter(
+      (ed: any) => !parseDate(ed.item?.start_date)
+    );
+    if (undatedEdu.length === 0) return datedItems;
+
+    const merged = [...datedItems];
+
+    undatedEdu.forEach((edu: any) => {
+      const nextDatedEdu = eduItems
+        .slice(edu.index + 1)
+        .find((next: any) => !!parseDate(next.item?.start_date));
+
+      if (!nextDatedEdu) {
+        merged.push(edu);
+        return;
+      }
+
+      const insertAt = merged.findIndex(
+        (entry) => entry.kind === "edu" && entry.item === nextDatedEdu.item
+      );
+
+      if (insertAt === -1) {
+        merged.push(edu);
+      } else {
+        merged.splice(insertAt, 0, edu);
+      }
+    });
+
+    return merged;
+  }, [c]);
+
+  const recentGithubContributions = useMemo(() => {
+    const repos = Array.isArray(c?.github_repo_contribution)
+      ? c.github_repo_contribution
+      : [];
+
+    const cutoffDate = new Date();
+    cutoffDate.setFullYear(cutoffDate.getFullYear() - 5);
+
+    const parseDate = (value: string | null | undefined) => {
+      if (!value) return null;
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? null : date;
+    };
+
+    const resolveActivityDate = (repo: any) =>
+      parseDate(repo?.last_contrib_at) ??
+      parseDate(repo?.github_repo?.pushed_at) ??
+      parseDate(repo?.last_updated_at) ??
+      parseDate(repo?.updated_at) ??
+      parseDate(repo?.created_at);
+
+    return repos
+      .filter((repo: any) => {
+        const activityDate = resolveActivityDate(repo);
+        return !!activityDate && activityDate >= cutoffDate;
+      })
+      .sort((a: any, b: any) => {
+        const aDate = resolveActivityDate(a);
+        const bDate = resolveActivityDate(b);
+
+        if (aDate && bDate) {
+          return bDate.getTime() - aDate.getTime();
+        }
+        if (aDate && !bDate) return -1;
+        if (!aDate && bDate) return 1;
+
+        return (b?.default_rank_score ?? 0) - (a?.default_rank_score ?? 0);
+      });
+  }, [c]);
+
+  const scholarProfile = c?.scholar_profile ?? null;
+  const githubProfile = c?.github_profile ?? null;
+  const githubContributionGroups = useMemo(() => {
+    const contributions =
+      recentGithubContributions as GithubContributionWithRepo[];
+    const grouped: {
+      owned: GithubContributionWithRepo[];
+      contributed: GithubContributionWithRepo[];
+    } = {
+      owned: [],
+      contributed: [],
+    };
+
+    contributions.forEach((contribution) => {
+      if (
+        isOwnedGithubContribution(
+          contribution,
+          githubProfile?.github_username ?? null
+        )
+      ) {
+        grouped.owned.push(contribution);
+      } else {
+        grouped.contributed.push(contribution);
+      }
+    });
+
+    return grouped;
+  }, [githubProfile?.github_username, recentGithubContributions]);
+  const publications = useMemo(
+    () => (Array.isArray(c?.publications) ? c.publications : []),
+    [c]
+  );
+  const scholarPublications = useMemo(() => {
+    const scholarPapers = Array.isArray(c?.scholar_papers)
+      ? c.scholar_papers
+      : [];
+    return scholarPapers.map((paper: any) => ({
+      paper_id: paper.id,
+      title: paper.title,
+      published_at: paper.published_at,
+      link: paper.external_link ?? paper.scholar_link,
+      citation_num: paper.total_citations,
+    }));
+  }, [c]);
+  const displayedPublications = useMemo(
+    () => (scholarProfile ? scholarPublications : publications),
+    [publications, scholarProfile, scholarPublications]
+  );
+  const scholarPaperCount = Array.isArray(c?.scholar_papers)
+    ? c.scholar_papers.length
+    : 0;
+  const candidateMarkStatus = c?.candidate_mark?.status ?? null;
+  const visibleShortlistMemo = isProfileRevealed ? shortlistMemo : "";
+
+  const visiblePublications = useMemo(
+    () =>
+      showAllPublications
+        ? displayedPublications
+        : displayedPublications.slice(0, PUBLICATION_PREVIEW_COUNT),
+    [displayedPublications, showAllPublications]
+  );
+
+  const remainingPublicationCount = Math.max(
+    0,
+    displayedPublications.length - PUBLICATION_PREVIEW_COUNT
+  );
+
+  const compactLogToken = useCallback((value: unknown) => {
+    return String(value ?? "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 64);
+  }, []);
+
+  const handleProfileLinkClick = useCallback(
+    (url: string) => {
+      let host = url;
+      try {
+        host = new URL(url).hostname.replace("www.", "");
+      } catch {}
+
+      logEvent(
+        `profile_link_click:${candidId}:${compactLogToken(host || "unknown")}`
+      );
+    },
+    [candidId, compactLogToken, logEvent]
+  );
+
+  const handleProfileSummaryToggle = useCallback(
+    (nextOpen: boolean) => {
+      if (!nextOpen) return;
+      logEvent(`profile_summary_more_click:${candidId}`);
+    },
+    [candidId, logEvent]
+  );
+
+  const generateOneLineSummary = useCallback(async () => {
+    if (!isProfileRevealed) return;
+    setIsLoadingOneline(true);
+    try {
+      const res = await fetch("/api/search/criteria_summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          doc: c,
+          is_one_line: true,
+        }),
+      });
+
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        logger.log(
+          "one_line_summary request failed:",
+          payload?.error ?? `status:${res.status}`
+        );
+        return;
+      }
+
+      setOneline(payload?.result ?? null);
+      // ✅ 서버에서 DB 업데이트 끝났으면 캐시 무효화 → 최신 재조회
+      await qc.invalidateQueries({
+        queryKey: candidateKey(candidId, userId), // 너 useCandidateDetail의 키랑 반드시 동일해야 함
+      });
+    } catch (e) {
+      logger.log("one_line_summary request error:", e);
+    } finally {
+      setIsLoadingOneline(false);
+    }
+  }, [c, candidId, isProfileRevealed, qc, userId]);
+
+  useEffect(() => {
+    if (isLoading) return;
+    if (!c || !userId || !candidId) return;
+    if (!isProfileRevealed) return;
+
+    const hasSummary = Array.isArray(c.s) && c.s.length > 0;
+    if (hasSummary) return;
+
+    // ✅ 같은 세션에서 중복 요청 방지
+    if (requested) return;
+
+    setRequested(true);
+    generateOneLineSummary().finally(() => {});
+  }, [
+    isLoading,
+    c,
+    userId,
+    candidId,
+    requested,
+    generateOneLineSummary,
+    isProfileRevealed,
+  ]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    if (!runId || !candidId || !isProfileRevealed) {
+      setRunSynthesizedSummary([]);
+      return;
+    }
+
+    const loadSynthesizedSummary = async () => {
+      const { data, error } = await supabase
+        .from("synthesized_summary")
+        .select("text, created_at")
+        .eq("candid_id", candidId)
+        .eq("run_id", runId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (isCancelled) return;
+      if (error) {
+        logger.log("profile synthesized_summary load error:", error);
+        setRunSynthesizedSummary([]);
+        return;
+      }
+
+      setRunSynthesizedSummary(parseSynthesizedSummaryText(data?.text));
+    };
+
+    loadSynthesizedSummary().finally(() => {});
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [candidId, isProfileRevealed, runId]);
+
+  if (!candidId || !userId || isLoading || error || !data)
+    return <Loading className="text-xgray800" />;
+
+  // 대충: email은 string일 수도 / JSON string일 수도 있어서 try-catch 한 번만
+  let emails: string[] = [];
+  try {
+    emails = Array.isArray(c.email) ? c.email : JSON.parse(c.email || "[]");
+  } catch {
+    emails = c.email ? [String(c.email)] : [];
+  }
+
+  return (
+    <div
+      className={
+        embedded
+          ? "relative h-full w-full overflow-y-auto"
+          : "relative mx-auto h-screen w-full overflow-y-auto"
+      }
+    >
+      {showAutomationFeedback && (
+        <FeedbackBanner
+          name={c.name}
+          connection={c.connection}
+          candidId={candidId}
+          userId={userId}
+          qc={qc}
+        />
+      )}
+      <div
+        className={
+          embedded
+            ? "relative w-full px-2 py-6 space-y-8"
+            : "relative mx-auto w-[95%] max-w-[1080px] px-4 py-10 space-y-10"
+        }
+      >
+        <div className="flex flex-row items-start justify-between w-full">
+          {showConnectionAction ? (
+            <ConnectionModal
+              candidId={candidId}
+              open={isConnectionModalOpen}
+              name={c.name ?? ""}
+              headline={c.headline ?? ""}
+              location={c.location ?? ""}
+              profilePicture={c.profile_picture ?? ""}
+              isRequested={isIntroRequested}
+              onClose={() => setIsConnectionModalOpen(false)}
+              onConfirm={() => setIsIntroRequested((prev) => !prev)}
+            />
+          ) : null}
+          <MainProfile
+            profile_picture={c.profile_picture}
+            name={c.name}
+            headline={c.headline}
+            location={c.location}
+            metaLabel={scholarProfile ? "Scholar" : undefined}
+            metaIcon={scholarProfile ? GraduationCap : undefined}
+            links={links}
+            onLinkClick={handleProfileLinkClick}
+            profileRevealed={isProfileRevealed}
+          />
+          <div className="absolute top-2 right-2 font-normal flex flex-col gap-1 ">
+            <div className="flex flex-row items-end justify-end gap-2">
+              {isProfileRevealed ? (
+                <button
+                  onClick={() => {
+                    logEvent("open share: " + candidId);
+                    setIsShareOpen(true);
+                  }}
+                  className="inline-flex items-center gap-2 rounded-xl px-2 py-2 text-sm hover:bg-hgray900/5"
+                >
+                  <Upload className="w-4 h-4" />
+                </button>
+              ) : (
+                <RevealProfileButton candidId={candidId} />
+              )}
+              <Bookmarkbutton
+                userId={userId}
+                candidId={c.id}
+                connection={c.connection}
+              />
+              {showConnectionAction && isProfileRevealed ? (
+                <button
+                  onClick={() => setIsConnectionModalOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-sm text-accenta1 hover:bg-accenta1/10"
+                >
+                  {isIntroRequested ? "Intro 요청됨" : "Intro 요청"}
+                </button>
+              ) : null}
+            </div>
+          </div>
+
+          <ShareProfileModal
+            open={isShareOpen}
+            onClose={() => setIsShareOpen(false)}
+            candidId={candidId}
+          />
+        </div>
+
+        {criteriaSummaries && criteriaSummaries.length > 0 && (
+          <Box title="">
+            <Criterias criteriaSummaries={criteriaSummaries} />
+          </Box>
+        )}
+
+        {showShortlistMemo ? (
+          <Box title={visibleShortlistMemo ? "내부 메모" : ""} color="accenta1">
+            <CandidateMemoDock
+              userId={userId}
+              candidId={candidId}
+              initialMemo={visibleShortlistMemo}
+              initialMarkStatus={candidateMarkStatus}
+              rows={4}
+              editorClassName="min-h-[88px]"
+              editorIsSmall={true}
+            />
+          </Box>
+        ) : null}
+
+        <ProfileBio
+          summary={c.s ?? []}
+          bio={c.bio ?? ""}
+          name={c.name ?? ""}
+          oneline={oneline ?? ""}
+          isLoadingOneline={isLoadingOneline ?? false}
+          onToggleMore={handleProfileSummaryToggle}
+          profileRevealed={isProfileRevealed}
+        />
+
+        {mergedExperience.length > 0 && (
+          <Box title={`${m.data.experience}`}>
+            {isProfileRevealed ? (
+              <div className="space-y-0">
+                {mergedExperience.map((entry, idx) => {
+                  if (entry.kind === "exp") {
+                    const e = entry.item;
+                    return (
+                      <ItemBox
+                        key={`exp-${idx}`}
+                        isContinued={
+                          idx > 0 &&
+                          mergedExperience[idx - 1]?.kind === "exp" &&
+                          mergedExperience[idx - 1]?.item?.company_db?.name ===
+                            e.company_db?.name
+                        }
+                        title={e.role}
+                        company_id={e.company_id}
+                        name={companyEnToKo(e.company_db.name)}
+                        start_date={e.start_date}
+                        end_date={e.end_date}
+                        link={e.company_db.linkedin_url}
+                        description={e.description}
+                        logo_url={e.company_db.logo}
+                        months={e.months}
+                        isLast={idx === mergedExperience.length - 1}
+                        onToggleDescription={(nextOpen) => {
+                          if (!nextOpen) return;
+                          const companyName = companyEnToKo(e.company_db.name);
+                          const target = compactLogToken(
+                            companyName ||
+                              e.company_db.name ||
+                              e.role ||
+                              "unknown"
+                          );
+                          logEvent(
+                            `profile_experience_chevron_click:${candidId}:${target}`
+                          );
+                        }}
+                      />
+                    );
+                  }
+
+                  const ed = entry.item;
+                  return (
+                    <ItemBox
+                      key={`edu-${idx}`}
+                      title={`${koreaUniversityEnToKo(ed.school)}`}
+                      name={
+                        ed.field
+                          ? `${majorEnToKo(ed.field)}, ${degreeEnToKo(ed.degree)}`
+                          : ed.degree
+                      }
+                      start_date={ed.start_date}
+                      end_date={ed.end_date}
+                      link={ed.url}
+                      description={ed.description ?? ""}
+                      typed="edu"
+                      isLast={idx === mergedExperience.length - 1}
+                    />
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {Array.isArray(c.experience_user) && c.experience_user[0] ? (
+                  <ItemBox
+                    title={c.experience_user[0]?.role ?? "****"}
+                    name={c.experience_user[0]?.company_db?.name ?? "****"}
+                    start_date={c.experience_user[0]?.start_date ?? ""}
+                    end_date={c.experience_user[0]?.end_date ?? ""}
+                    link=""
+                    description=""
+                    logo_url={c.experience_user[0]?.company_db?.logo}
+                    isLast={true}
+                    disableEntityClick={true}
+                  />
+                ) : (
+                  <div className="text-sm text-hgray700">
+                    열람 후 경력 정보를 확인할 수 있습니다.
+                  </div>
+                )}
+                {(c.masked_experience_count ?? 0) > 0 ? (
+                  <div className="rounded-2xl bg-white/5 px-4 py-3 text-sm text-hgray700">
+                    + {c.masked_experience_count}개 경력
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </Box>
+        )}
+
+        {/* Awards */}
+        {isProfileRevealed && (c.extra_experience ?? []).length > 0 && (
+          <Box title={`수상 기록`}>
+            <div className="space-y-0">
+              {(c.extra_experience ?? []).map((extra: any, idx: number) => (
+                <ItemBox
+                  key={idx}
+                  title={`${extra.title}`}
+                  name={extra.issued_by}
+                  start_date={extra.issued_at}
+                  end_date={""}
+                  link={""}
+                  description={extra.description}
+                  typed="award"
+                  isLast={
+                    idx === (c.extra_experience ?? []).length - 1 ? true : false
+                  }
+                />
+              ))}
+            </div>
+          </Box>
+        )}
+
+        {isProfileRevealed && githubProfile && (
+          <GithubProfileSection
+            githubProfile={githubProfile}
+            profileRevealed={isProfileRevealed}
+          />
+        )}
+
+        {isProfileRevealed && recentGithubContributions.length > 0 && (
+          <Box title={`GitHub\nMain Contributions`}>
+            <div className="space-y-6">
+              {githubContributionGroups.owned.length > 0 && (
+                <div className="space-y-3">
+                  <div className="text-base font-normal text-hgray800">
+                    [소유 프로젝트]
+                  </div>
+                  <div className="grid grid-cols-1 gap-3">
+                    {githubContributionGroups.owned.map((repo: any) => (
+                      <GithubRepoContributionBox
+                        key={`${repo.id}-${repo.repo}`}
+                        contribution={repo}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {githubContributionGroups.contributed.length > 0 && (
+                <div className="space-y-3">
+                  <div className="text-base font-normal text-hgray800">
+                    [기여한 프로젝트]
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {githubContributionGroups.contributed.map((repo: any) => (
+                      <GithubRepoContributionBox
+                        key={`${repo.id}-${repo.repo}`}
+                        contribution={repo}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </Box>
+        )}
+
+        {scholarProfile ? (
+          <ScholarProfileSection
+            scholarProfile={scholarProfile}
+            scholarPaperCount={scholarPaperCount}
+            publications={displayedPublications}
+            visiblePublications={visiblePublications}
+            remainingPublicationCount={remainingPublicationCount}
+            showAllPublications={showAllPublications}
+            onShowAllPublications={() => setShowAllPublications(true)}
+            profileRevealed={isProfileRevealed}
+          />
+        ) : displayedPublications.length > 0 ? (
+          <Box
+            title={`${m.data.publications} (${displayedPublications.length})`}
+          >
+            <div className="grid grid-cols-1 md:grid-cols-1 gap-3">
+              {visiblePublications.map((p: any, idx: number) => (
+                <PublicationBox
+                  key={`${p.link ?? p.title ?? "publication"}-${idx}`}
+                  title={p.title}
+                  published_at={p.published_at}
+                  link={p.link}
+                  citation_num={p.citation_num ?? -1}
+                  paperId={p.paper_id}
+                  disabled={!isProfileRevealed}
+                />
+              ))}
+            </div>
+
+            {!showAllPublications && remainingPublicationCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowAllPublications(true)}
+                className="mt-3 inline-flex items-center rounded-full bg-white/5 px-5 py-2.5 font-light text-sm text-hgray700 transition hover:bg-white/10"
+              >
+                Show {remainingPublicationCount} more publications
+              </button>
+            )}
+          </Box>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+export default React.memo(CandidateProfileDetailPage);
+
+export const Box = ({
+  title,
+  icon,
+  children,
+  color,
+}: {
+  title: string;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+  color?: string;
+}) => {
+  return (
+    <div className="shadow-sm w-full grid grid-cols-7">
+      <div className="col-span-1">
+        <div
+          className={`flex items-center gap-2 font-normal ${color ? `text-${color} text-sm` : "text-base text-hgray1000"}`}
+        >
+          {icon}
+          {title}
+        </div>
+      </div>
+      <div className="col-span-6">{children}</div>
+    </div>
+  );
+};

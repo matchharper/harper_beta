@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
 import { INTERNAL_EMAIL_DOMAIN, isInternalEmail } from "@/lib/internalAccess";
 import {
-  ArrowRight,
+  BriefcaseBusiness,
   KeyRound,
   LayoutDashboard,
   Lock,
@@ -46,6 +46,13 @@ export const OPS_NAV_ITEMS: OpsNavItem[] = [
     icon: MessageSquareText,
     label: "Career Talents",
     matchPrefix: "/ops/career",
+  },
+  {
+    description: "회사·기회 관리와 수동 매칭",
+    href: "/ops/opportunities",
+    icon: BriefcaseBusiness,
+    label: "Opportunities",
+    matchPrefix: "/ops/opportunities",
   },
   {
     description: "access 요청 승인 및 리뷰",
@@ -158,20 +165,19 @@ function ForbiddenGate({
 export default function OpsShell({
   actions,
   children,
-  description,
+  compactHeader = false,
   title,
 }: {
   actions?: React.ReactNode;
   children: React.ReactNode;
-  description: React.ReactNode;
+  compactHeader?: boolean;
+  description?: React.ReactNode;
   title: string;
 }) {
   const router = useRouter();
   const { loading: authLoading, signOut, user } = useAuthStore();
   const [authPending, setAuthPending] = useState(false);
   const [authError, setAuthError] = useState("");
-  const revealTextClass =
-    "transition-all duration-200 lg:max-w-0 lg:overflow-hidden lg:opacity-0 lg:translate-x-2 group-hover:lg:max-w-[220px] group-hover:lg:opacity-100 group-hover:lg:translate-x-0";
 
   const isAllowedUser = isInternalEmail(user?.email);
 
@@ -240,116 +246,55 @@ export default function OpsShell({
     <div className={opsTheme.page}>
       <div className={opsTheme.backgroundGlow} />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-[linear-gradient(180deg,rgba(255,255,255,0.18),transparent)]" />
-      <div className="relative mx-auto flex max-w-[1600px] flex-col gap-6 px-4 py-6 lg:flex-row lg:px-6">
-        <aside className="group lg:sticky lg:top-6 lg:w-[92px] lg:self-start lg:transition-[width] lg:duration-300 lg:hover:w-[290px]">
-          <div className={cx(opsTheme.panel, "h-full p-4 lg:overflow-hidden")}>
-            <Link href="/ops" className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-md bg-beige900 text-beige100 shadow-[0_14px_34px_rgba(46,23,6,0.18)]">
-                <ArrowRight className="h-4 w-4" />
-              </div>
-              <div className={revealTextClass}>
-                <div className="font-halant text-[2rem] leading-none tracking-[-0.07em] text-beige900">
-                  Harper Ops
-                </div>
-                <div className="mt-1 font-geist text-xs text-beige900/55">
-                  Internal tools
-                </div>
-              </div>
+      <div className="sticky top-0 z-30 border-b border-beige900/10 bg-beige100/80 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-[1600px] flex-col gap-3 px-4 py-3 lg:px-6">
+          <div className="flex items-center justify-between gap-4">
+            <Link
+              href="/ops"
+              className="shrink-0 font-halant text-[1.55rem] leading-none tracking-[-0.06em] text-beige900"
+            >
+              Harper Ops
             </Link>
-
-            <p
-              className={cx(
-                opsTheme.copy,
-                "mt-4 hidden lg:block",
-                revealTextClass
-              )}
-            >
-              내부 운영용 페이지 모음입니다. 새 도구는 계속 `/ops` 아래로
-              확장하면 됩니다.
-            </p>
-
-            <div
-              className={cx(
-                opsTheme.panelMuted,
-                "mt-5 hidden px-4 py-4 lg:block",
-                revealTextClass
-              )}
-            >
-              <div className={opsTheme.eyebrow}>Signed in</div>
-              <div className="mt-2 break-all font-geist text-sm font-medium text-beige900">
-                {user.email ?? "-"}
-              </div>
-              <div className="mt-2 font-geist text-xs text-beige900/55">
-                domain: {INTERNAL_EMAIL_DOMAIN}
-              </div>
-            </div>
-
-            <nav className="mt-5 space-y-2">
+          </div>
+          <nav className="overflow-x-auto">
+            <div className="flex min-w-max items-center gap-2">
               {OPS_NAV_ITEMS.map((item) => {
                 const active = isItemActive(item, activePath);
-                const Icon = item.icon;
 
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
                     className={cx(
-                      "block rounded-lg px-3 py-3 transition",
+                      "rounded-full px-3 py-2 font-geist text-sm font-medium transition-colors",
                       active
-                        ? "bg-beige900 text-beige100 shadow-[0_18px_44px_rgba(46,23,6,0.2)]"
-                        : "bg-white/60 text-beige900 hover:bg-white/80"
+                        ? "bg-beige900 text-beige100"
+                        : "bg-white/55 text-beige900/65 hover:bg-white/80 hover:text-beige900"
                     )}
                   >
-                    <div className="flex items-start gap-3">
-                      <div
-                        className={cx(
-                          "mt-0.5 rounded-md p-2",
-                          active ? "bg-white/10" : "bg-beige500/70"
-                        )}
-                      >
-                        <Icon className="h-4 w-4" />
-                      </div>
-                      <div className={cx("min-w-0", revealTextClass)}>
-                        <div className="font-geist text-sm font-semibold">
-                          {item.label}
-                        </div>
-                        <div
-                          className={cx(
-                            "mt-1 font-geist text-xs leading-5",
-                            active ? "text-beige100/70" : "text-beige900/55"
-                          )}
-                        >
-                          {item.description}
-                        </div>
-                      </div>
-                    </div>
+                    {item.label}
                   </Link>
                 );
               })}
-            </nav>
-
-            <button
-              type="button"
-              onClick={() => void signOut()}
-              className={cx(
-                opsTheme.buttonSoft,
-                "mt-5 h-11 w-full px-0 lg:px-0 group-hover:lg:px-4"
-              )}
-            >
-              <LogOut className="h-4 w-4" />
-              <span className={revealTextClass}>로그아웃</span>
-            </button>
-          </div>
-        </aside>
-
-        <main className="min-w-0 flex-1 space-y-6">
-          <section className={cx(opsTheme.panel, "px-5 py-5")}>
+            </div>
+          </nav>
+        </div>
+      </div>
+      <div className="relative mx-auto max-w-[1600px] px-4 py-6 lg:px-6">
+        <main className="min-w-0 space-y-6">
+          <section className="flex flex-col gap-4 px-4">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <h1 className={cx(opsTheme.title, "mt-1")}>{title}</h1>
-                <div className={cx(opsTheme.copy, "mt-3 max-w-3xl")}>
-                  {description}
-                </div>
+                <h1
+                  className={cx(
+                    compactHeader
+                      ? "mt-1 font-geist text-[1.15rem] font-medium tracking-[-0.02em] text-beige900"
+                      : opsTheme.title,
+                    compactHeader ? "" : "mt-1"
+                  )}
+                >
+                  {title}
+                </h1>
               </div>
 
               {actions ? (

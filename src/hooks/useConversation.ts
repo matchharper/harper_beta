@@ -1,391 +1,481 @@
-// "use client";
+"use client";
 
-// import { useCallback, useEffect, useRef, useState } from "react";
-// import { useMicRecorder } from "./useMicRecorder";
-// import {
-//   OpenAIRealtimeClient,
-//   OpenAIRealtimeCallbacks,
-// } from "@/lib/stt/createSttSocket";
-// import { int16ToBase64 } from "@/utils/audio";
-// import { callGreeting, makeQuestion } from "@/lib/llm/llm";
-// import { useUserProfile } from "@/states/useUserProfile";
-// import { splitTextToChunks } from "@/utils/textprocess";
-// import { OPENAI_KEY } from "@/utils/constantkeys";
-// import { showToast } from "@/components/toast/toast";
+import { showToast } from "@/components/toast/toast";
+import { useEffect, useRef, useState } from "react";
 
-// type CallStatus = "idle" | "calling" | "ended" | "test";
+type CallStatus = "idle" | "calling" | "ended";
+type ConversationMode = "greeting" | "followup";
 
-// export const useConversation = (
-//   startMicRecording: (
-//     sendAudio: (pcm16: any) => void,
-//     changeIsRecording?: boolean
-//   ) => void,
-//   stopMicCompletely: (changeIsRecording?: boolean) => void
-// ) => {
-//   const [callStatus, setCallStatus] = useState<CallStatus>("idle");
-//   const [userTranscripts, setUserTranscripts] = useState<string[]>([]);
-//   const [assistantTexts, setAssistantTexts] = useState<string[]>([]);
-//   const [harperSaying, setHarperSaying] = useState<string>("");
-//   const [userTranscript, setUserTranscript] = useState<string>("");
-//   const [isPlayingTts, setIsPlayingTts] = useState<boolean>(false);
-//   const [isMuted, setIsMuted] = useState<boolean>(false);
-//   const [isThinking, setIsThinking] = useState<boolean>(false);
+type SpeechRecognitionAlternativeLike = {
+  transcript: string;
+};
 
-//   const audioRef = useRef<HTMLAudioElement | null>(null);
-//   const sayingRef = useRef<string>("");
+type SpeechRecognitionResultLike = {
+  isFinal: boolean;
+  length: number;
+  [index: number]: SpeechRecognitionAlternativeLike;
+};
 
-//   const userTranscriptRef = useRef(userTranscript);
+type SpeechRecognitionEventLike = {
+  resultIndex: number;
+  results: ArrayLike<SpeechRecognitionResultLike>;
+};
 
-//   // keep ref in sync with state
-//   useEffect(() => {
-//     userTranscriptRef.current = userTranscript;
-//   }, [userTranscript]);
+type SpeechRecognitionErrorEventLike = {
+  error?: string;
+};
 
-//   const userId =
-//     typeof window !== "undefined" ? localStorage.getItem("userId") : null;
-//   const { data: userProfile } = useUserProfile(userId);
+interface SpeechRecognitionLike extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+}
 
-//   const clientRef = useRef<OpenAIRealtimeClient | null>(null);
-//   const callScriptRef = useRef<string>("");
-//   const callStartTimeRef = useRef<number>(0);
+type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
 
-//   const connectSttSocket = async () => {
-//     if (clientRef.current) return clientRef.current;
+declare global {
+  interface Window {
+    SpeechRecognition?: SpeechRecognitionCtor;
+    webkitSpeechRecognition?: SpeechRecognitionCtor;
+  }
+}
 
-//     const callbacks: OpenAIRealtimeCallbacks = {
-//       onDelta: (text) => {
-//         logger.log("onDelta", text);
-//       },
-//       onFinal: (text) => {
-//         setUserTranscript((prev) => prev + " " + text);
-//         logger.log("onFinal", text);
-//       },
-//       onError: (err) => {
-//         console.error("Realtime STT error:", err);
-//       },
-//       onClose: () => {
-//         logger.log("onClose");
-//       },
-//     };
+const DEFAULT_GREETING = "하퍼입니다. 오디오나 마이크는 괜찮으신가요?";
+const FOLLOW_UP_FALLBACKS = [
+  "좋아요. 최근에 가장 몰입해서 했던 일이나 프로젝트를 짧게 말씀해 주세요.",
+  "좋습니다. 다음으로, 어떤 역할이나 회사 환경을 가장 선호하는지도 알려주세요.",
+  "알겠습니다. 지금 시점에서 가장 중요하게 보는 조건이 무엇인지도 말씀해 주세요.",
+  "좋아요. 이어서 더 강조하고 싶은 강점이나 원하는 조건이 있다면 자유롭게 말씀해 주세요.",
+];
 
-//     try {
-//       const client = new OpenAIRealtimeClient({
-//         token: OPENAI_KEY,
-//         callbacks,
-//       });
+const NO_OP_SEND_AUDIO = () => {};
 
-//       clientRef.current = client;
-//       logger.log("Connected to STT socket", client);
-//     } catch (err) {
-//       console.error("Error connecting to STT socket:", err);
-//     }
-//   };
+const wait = (ms: number) =>
+  new Promise<void>((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
 
-//   const sendAudio = async (pcm16: any) => {
-//     // pcm16 is Int16Array
-//     // openai realtime stt expects base64 encoded audio
-//     if (isMuted) return;
+const getRecognitionConstructor = (): SpeechRecognitionCtor | null => {
+  if (typeof window === "undefined") return null;
+  return window.SpeechRecognition ?? window.webkitSpeechRecognition ?? null;
+};
 
-//     clientRef.current?.sendAudio(int16ToBase64(pcm16));
-//   };
+const getFallbackFollowUp = (conversationHistory: string) => {
+  const userTurnCount = conversationHistory
+    .split("\n")
+    .filter((line) => line.startsWith("User:")).length;
 
-//   const startMicAndScripting = async () => {
-//     setUserTranscript("");
-//     await connectSttSocket();
-//     await clientRef.current?.start("ko-KR");
-//     await startMicRecording(sendAudio);
-//   };
+  return FOLLOW_UP_FALLBACKS[
+    Math.min(userTurnCount, FOLLOW_UP_FALLBACKS.length - 1)
+  ];
+};
 
-//   const stopMicAndScripting = async () => {
-//     await clientRef.current?.sendAudioStreamEnd(); // 마지막으로 말하던거는 script 따고 종료
-//     await stopMicCompletely();
-//     await clientRef.current?.stop();
-//   };
+const requestAssistantText = async ({
+  mode,
+  conversationHistory,
+}: {
+  mode: ConversationMode;
+  conversationHistory?: string;
+}) => {
+  try {
+    const res = await fetch("/api/call", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        mode,
+        conversationHistory,
+      }),
+    });
 
-//   const toggleMute = async () => {
-//     if (isMuted) {
-//       setIsMuted(false);
-//       await startMicRecording(sendAudio, false);
-//       // await startMicAndScripting();
-//     } else {
-//       setIsMuted(true);
-//       await stopMicCompletely(false);
-//       // await clientRef.current?.sendAudioStreamEnd(); // 마지막으로 말하던거는 script 따고 종료
-//       // await clientRef.current?.stop();
-//     }
-//   };
+    if (!res.ok) {
+      throw new Error(`Failed to fetch call response: ${res.status}`);
+    }
 
-//   const playTts = useCallback(
-//     async (
-//       text: string,
-//       opts?: {
-//         onBeforeLast?: () => void | Promise<void>;
-//         onAfterLast?: () => void | Promise<void>;
-//       }
-//     ) => {
-//       const cleaned = text.trim();
-//       if (!cleaned) return;
+    const data = (await res.json()) as { text?: string };
+    if (typeof data.text === "string" && data.text.trim().length > 0) {
+      return data.text.trim();
+    }
+  } catch (error) {
+    console.error("[useConversation] requestAssistantText failed", error);
+  }
 
-//       const chunks = splitTextToChunks(cleaned);
-//       if (!chunks.length) return;
+  if (mode === "greeting") {
+    return DEFAULT_GREETING;
+  }
 
-//       try {
-//         const concurrencyLimit = 1;
-//         const fetchPromises: Promise<any>[] = []; // 오디오 생성 Promise를 담을 풀
+  return getFallbackFollowUp(conversationHistory ?? "");
+};
 
-//         const generatedChunks: {
-//           blob: Blob;
-//           isLast: boolean;
-//           index: number;
-//           chunk: string;
-//         }[] = [];
+export const useConversation = (
+  startMicRecording: (
+    sendAudio: (pcm16: any) => void,
+    changeIsRecording?: boolean
+  ) => Promise<void> | void,
+  stopMicCompletely: (changeIsRecording?: boolean) => void
+) => {
+  const [callStatus, setCallStatus] = useState<CallStatus>("idle");
+  const [userTranscripts, setUserTranscripts] = useState<string[]>([]);
+  const [assistantTexts, setAssistantTexts] = useState<string[]>([]);
+  const [harperSaying, setHarperSaying] = useState<string>("");
+  const [userTranscript, setUserTranscript] = useState<string>("");
+  const [isPlayingTts, setIsPlayingTts] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isThinking, setIsThinking] = useState(false);
 
-//         // 1. 모든 청크에 대한 생성 작업을 시작하고, 동시성 2를 유지합니다.
-//         for (let i = 0; i < chunks.length; i++) {
-//           setIsPlayingTts(true);
-//           const chunk = chunks[i];
-//           const isLast = i === chunks.length - 1;
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const liveTranscriptRef = useRef("");
+  const finalTranscriptRef = useRef("");
+  const callScriptRef = useRef("");
+  const callStartTimeRef = useRef(0);
+  const isListeningRef = useRef(false);
+  const callStatusRef = useRef<CallStatus>("idle");
+  const isMutedRef = useRef(false);
+  const isPlayingTtsRef = useRef(false);
+  const activeSpeechIdRef = useRef(0);
 
-//           // TTS 오디오 생성 요청을 비동기 함수로 정의
-//           const fetchJob = async (index: number) => {
-//             if (isLast && opts?.onBeforeLast) {
-//               await opts.onBeforeLast();
-//             }
-//             logger.log(`[Chunk ${index + 1}] 생성 요청 시작:`, chunk);
+  useEffect(() => {
+    callStatusRef.current = callStatus;
+  }, [callStatus]);
 
-//             const res = await fetch("/api/tts", {
-//               method: "POST",
-//               headers: { "Content-Type": "application/json" },
-//               body: JSON.stringify({ text: chunk }),
-//             });
-//             if (!res.ok)
-//               throw new Error(`Failed to fetch TTS for chunk ${index}`);
+  useEffect(() => {
+    isMutedRef.current = isMuted;
+  }, [isMuted]);
 
-//             const blob = await res.blob();
-//             logger.log(`[Chunk ${index + 1}] 생성 완료`);
+  useEffect(() => {
+    isPlayingTtsRef.current = isPlayingTts;
+  }, [isPlayingTts]);
 
-//             return { blob, isLast, index, chunk };
-//           };
+  const syncTranscript = (value: string) => {
+    liveTranscriptRef.current = value;
+    setUserTranscript(value);
+  };
 
-//           // Promise를 생성 풀(fetchPromises)에 추가
-//           const jobPromise = fetchJob(i)
-//             .then((result) => {
-//               // 완료된 결과를 순서 보장을 위해 인덱스와 함께 저장
-//               generatedChunks[result.index] = result;
-//               return result;
-//             })
-//             .catch((err) => {
-//               console.error(`Error in fetchJob for chunk ${i}:`, err);
-//               throw err;
-//             });
+  const stopSpeech = () => {
+    activeSpeechIdRef.current += 1;
+    setIsPlayingTts(false);
+    setHarperSaying("");
 
-//           fetchPromises.push(jobPromise);
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+  };
 
-//           // 동시성 제한을 초과하면, 가장 먼저 시작된 작업이 끝날 때까지 기다립니다.
-//           if (fetchPromises.length >= concurrencyLimit) {
-//             // Promise.race는 가장 빨리 끝난 Promise의 결과를 반환합니다.
-//             await Promise.race(fetchPromises);
+  const stopListening = async () => {
+    if (recognitionRef.current && isListeningRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (error) {
+        console.error("[useConversation] stop recognition failed", error);
+      }
+    }
 
-//             // 완료된 Promise를 제거 (여기서는 단순하게 배열의 맨 앞에서 제거)
-//             // 실제 구현 시 Promise.race는 "어떤" Promise가 끝났는지 정확히 알려주지 않아 까다롭지만,
-//             // 생성 완료 후 `generatedChunks`에 저장되므로 여기서는 단순히 `await`만 사용하여 압박을 줄입니다.
-//             // *가장 간단하게,* `Promise.all`로 `concurrencyLimit` 단위로 끊어서 생성하는 방법을 채택합니다.
+    isListeningRef.current = false;
+    stopMicCompletely();
+    await wait(250);
+  };
 
-//             // === 이 부분이 너무 복잡해지므로, 이전 답변의 "Batch and Wait" 방식으로 회귀하고 에러 핸들링을 강화합니다. ===
-//           }
-//         }
+  const ensureRecognition = () => {
+    if (recognitionRef.current) {
+      return recognitionRef.current;
+    }
 
-//         // 2. 모든 생성이 완료되기를 기다립니다 (생성 풀이 빌 때까지).
-//         await Promise.all(fetchPromises);
+    const Recognition = getRecognitionConstructor();
+    if (!Recognition) {
+      return null;
+    }
 
-//         // 3. 생성된 청크를 순서대로 재생
-//         // generatedChunks는 인덱스 순서대로 채워졌을 것입니다. (정확히는 인덱스에 따라 위치가 보장)
-//         // 실제 순차 재생을 위해 인덱스 순서대로 정렬해야 합니다.
-//         const sortedChunks = generatedChunks
-//           .filter((c) => c)
-//           .sort((a, b) => a.index - b.index);
+    const recognition = new Recognition();
+    recognition.lang = "ko-KR";
+    recognition.continuous = true;
+    recognition.interimResults = true;
 
-//         for (const { blob, isLast, index, chunk } of sortedChunks) {
-//           if (index === 0) setIsThinking(false);
-//           const url = URL.createObjectURL(blob);
+    recognition.onresult = (event) => {
+      let nextFinal = "";
+      let nextInterim = "";
 
-//           // 이전 오디오 중지 및 URL 해제
-//           if (audioRef.current) {
-//             audioRef.current.pause();
-//             audioRef.current.src = "";
-//           }
+      for (let i = 0; i < event.results.length; i += 1) {
+        const result = event.results[i];
+        const transcript = result?.[0]?.transcript?.trim();
 
-//           logger.log(`[Chunk ${index + 1}] 재생 시작`);
-//           setHarperSaying((prev) => prev + " " + chunk);
-//           sayingRef.current += " " + chunk;
+        if (!transcript) continue;
 
-//           await new Promise<void>((resolve, reject) => {
-//             const audio = new Audio(url);
-//             audioRef.current = audio;
+        if (result.isFinal) {
+          nextFinal += ` ${transcript}`;
+        } else {
+          nextInterim += ` ${transcript}`;
+        }
+      }
 
-//             let beforeEndTimeout: number | null = null;
-//             let beforeEndCalled = false;
+      finalTranscriptRef.current = nextFinal.trim();
+      syncTranscript(
+        [finalTranscriptRef.current, nextInterim.trim()]
+          .filter(Boolean)
+          .join(" ")
+          .trim()
+      );
+    };
 
-//             // helper: call only once
-//             const callBeforeEnd = async () => {
-//               if (beforeEndCalled) return;
-//               beforeEndCalled = true;
+    recognition.onerror = (event) => {
+      if (event.error && event.error !== "no-speech") {
+        showToast({
+          message: `음성 인식 오류: ${event.error}`,
+          variant: "error",
+        });
+      }
+    };
 
-//               if (isLast) {
-//                 await startMicAndScripting();
-//               }
-//             };
+    recognition.onend = () => {
+      isListeningRef.current = false;
+    };
 
-//             audio.onloadedmetadata = () => {
-//               if (!audio.duration || !isFinite(audio.duration)) return;
+    recognitionRef.current = recognition;
+    return recognition;
+  };
 
-//               const msUntilOneSecondBeforeEnd =
-//                 (audio.duration - 1 - audio.currentTime) * 1000;
+  const startListening = async () => {
+    if (isMutedRef.current) return;
 
-//               if (msUntilOneSecondBeforeEnd <= 0) {
-//                 void callBeforeEnd();
-//               } else {
-//                 beforeEndTimeout = window.setTimeout(() => {
-//                   void callBeforeEnd();
-//                 }, msUntilOneSecondBeforeEnd);
-//               }
-//             };
+    const recognition = ensureRecognition();
+    if (!recognition) {
+      showToast({
+        message: "이 브라우저는 음성 인식을 지원하지 않습니다. Chrome 계열에서 테스트해 주세요.",
+        variant: "white",
+      });
+      return;
+    }
 
-//             audio.onended = async () => {
-//               URL.revokeObjectURL(url);
-//               setIsPlayingTts(false);
+    finalTranscriptRef.current = "";
+    syncTranscript("");
 
-//               if (isLast) {
-//                 await opts?.onAfterLast?.();
-//                 logger.log("harperSaying", harperSaying);
-//                 setAssistantTexts((prev) => [...prev, sayingRef.current]);
+    try {
+      await startMicRecording(NO_OP_SEND_AUDIO);
+    } catch (error) {
+      console.error("[useConversation] mic recorder failed", error);
+      showToast({
+        message: "마이크 접근에 실패했습니다.",
+        variant: "error",
+      });
+    }
 
-//                 setHarperSaying("");
-//               }
-//               resolve();
-//             };
+    if (isListeningRef.current) return;
 
-//             audio.onerror = (e) => {
-//               URL.revokeObjectURL(url);
-//               reject(e);
-//               setIsPlayingTts(false);
-//             };
+    try {
+      recognition.start();
+      isListeningRef.current = true;
+    } catch (error) {
+      const isInvalidStateError =
+        error instanceof DOMException && error.name === "InvalidStateError";
 
-//             audio.play().catch((err) => {
-//               URL.revokeObjectURL(url);
-//               reject(err);
-//               setIsPlayingTts(false);
-//             });
-//           });
+      if (!isInvalidStateError) {
+        stopMicCompletely();
+        console.error("[useConversation] start recognition failed", error);
+        showToast({
+          message: "음성 인식을 시작하지 못했습니다.",
+          variant: "error",
+        });
+      }
+    }
+  };
 
-//           logger.log(`[Chunk ${index + 1}] 재생 완료`);
-//           if (isLast) break;
-//         }
-//       } catch (err) {
-//         console.error("Error playing TTS:", err);
-//       } finally {
-//         setIsPlayingTts(false);
-//       }
-//     },
-//     [
-//       setIsPlayingTts,
-//       audioRef,
-//       startMicAndScripting,
-//       setHarperSaying,
-//       setAssistantTexts,
-//       harperSaying,
-//     ]
-//   );
+  const speakAssistantText = async (text: string) => {
+    const speechId = activeSpeechIdRef.current + 1;
+    activeSpeechIdRef.current = speechId;
 
-//   const startCall = async () => {
-//     setUserTranscript("");
-//     setUserTranscripts([]);
-//     setAssistantTexts([]);
-//     callStartTimeRef.current = performance.now();
-//     setCallStatus("calling");
-//     const question = await callGreeting("", "");
-//     // setAssistantTexts((prev) => [...prev, question]);
-//     await playTts(question);
-//     callScriptRef.current += `Harper: ${question}\n`;
-//     await startMicRecording(sendAudio);
-//   };
+    setIsThinking(false);
+    setHarperSaying(text);
 
-//   const startTest = async () => {
-//     await startMicAndScripting();
-//   };
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      setAssistantTexts((prev) => [...prev, text]);
+      setHarperSaying("");
 
-//   const endTest = async () => {
-//     await stopMicAndScripting();
+      if (callStatusRef.current === "calling" && !isMutedRef.current) {
+        await startListening();
+      }
+      return;
+    }
 
-//     return userTranscript;
-//   };
+    window.speechSynthesis.cancel();
 
-//   const endCall = async () => {
-//     setCallStatus("ended");
-//     await stopMicAndScripting();
-//     if (userTranscript.trim() !== "") {
-//       callScriptRef.current += `User: ${userTranscript}\n`;
-//     }
-//     return {
-//       script: callScriptRef.current,
-//       callTime: performance.now() - callStartTimeRef.current,
-//     };
-//   };
+    await new Promise<void>((resolve) => {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = "ko-KR";
+      utterance.rate = 1.05;
+      utterance.pitch = 1;
 
-//   const sendAudioCommit = async () => {
-//     // 현재까지 유저가 말한걸 보내기.
-//     logger.log("\nuserTranscriptRef: ", userTranscriptRef.current);
-//     logger.log("\nuserTranscript: ", userTranscript);
-//     // audio 끊고
-//     await stopMicAndScripting();
-//     if (
-//       userTranscript.trim() === "" &&
-//       userTranscriptRef.current.trim() === ""
-//     ) {
-//       logger.log("userTranscript is empty");
-//       showToast({
-//         message: "Nothing recorded",
-//         variant: "white",
-//       });
-//       return;
-//     }
+      utterance.onstart = () => {
+        if (speechId !== activeSpeechIdRef.current) {
+          resolve();
+          return;
+        }
 
-//     const currentUserTranscript = userTranscriptRef.current;
+        setIsPlayingTts(true);
+      };
 
-//     setUserTranscripts((prev) => [...prev, currentUserTranscript]);
-//     setUserTranscript("");
-//     setIsThinking(true);
-//     callScriptRef.current += `User: ${currentUserTranscript}\n`;
-//     // script는 나와있고
-//     // llm 요청하고
-//     // const userInfo = `이름: ${userProfile?.resumes?[0].[0].}, 사는 곳 ${userProfile?.resumes?.[0]?.location}`;
-//     sayingRef.current = "";
-//     const question = await makeQuestion(
-//       callScriptRef.current,
-//       "",
-//       ""
-//       // userInfo,
-//       // userProfile?.resumes?.[0]?.resume_text ?? ""
-//     );
-//     callScriptRef.current += `Harper: ${question}\n`;
-//     // tts로 오디오 출력까지
-//     await playTts(question);
-//   };
+      utterance.onend = async () => {
+        if (speechId !== activeSpeechIdRef.current) {
+          resolve();
+          return;
+        }
 
-//   return {
-//     isPlayingTts,
-//     isMuted,
-//     userTranscripts,
-//     isThinking,
-//     assistantTexts,
-//     callStatus,
-//     harperSaying,
-//     startCall,
-//     sendAudioCommit,
-//     endCall,
-//     userTranscript,
-//     toggleMute,
-//     startTest,
-//     endTest,
-//   };
-// };
+        setIsPlayingTts(false);
+        setAssistantTexts((prev) => [...prev, text]);
+        setHarperSaying("");
+
+        if (callStatusRef.current === "calling" && !isMutedRef.current) {
+          await startListening();
+        }
+
+        resolve();
+      };
+
+      utterance.onerror = () => {
+        if (speechId === activeSpeechIdRef.current) {
+          setIsPlayingTts(false);
+          setAssistantTexts((prev) => [...prev, text]);
+          setHarperSaying("");
+        }
+        resolve();
+      };
+
+      window.speechSynthesis.speak(utterance);
+    });
+  };
+
+  const startCall = async () => {
+    await stopListening();
+    stopSpeech();
+
+    setCallStatus("calling");
+    setUserTranscripts([]);
+    setAssistantTexts([]);
+    setIsThinking(false);
+    setIsMuted(false);
+    finalTranscriptRef.current = "";
+    syncTranscript("");
+
+    callStartTimeRef.current = performance.now();
+    callScriptRef.current = "";
+
+    const greeting = await requestAssistantText({ mode: "greeting" });
+    callScriptRef.current += `Harper: ${greeting}\n`;
+    await speakAssistantText(greeting);
+  };
+
+  const startTest = async () => {
+    await stopListening();
+    stopSpeech();
+    finalTranscriptRef.current = "";
+    syncTranscript("");
+    await startListening();
+  };
+
+  const endTest = async () => {
+    await stopListening();
+    return liveTranscriptRef.current;
+  };
+
+  const endCall = async () => {
+    setCallStatus("ended");
+    await stopListening();
+    stopSpeech();
+
+    const remainingTranscript = liveTranscriptRef.current.trim();
+    if (remainingTranscript) {
+      callScriptRef.current += `User: ${remainingTranscript}\n`;
+    }
+
+    return {
+      script: callScriptRef.current,
+      callTime: performance.now() - callStartTimeRef.current,
+    };
+  };
+
+  const toggleMute = async () => {
+    if (isMutedRef.current) {
+      setIsMuted(false);
+
+      if (callStatusRef.current === "calling" && !isPlayingTtsRef.current) {
+        await startListening();
+      }
+      return;
+    }
+
+    setIsMuted(true);
+    await stopListening();
+  };
+
+  const sendAudioCommit = async () => {
+    await stopListening();
+
+    const currentUserTranscript = liveTranscriptRef.current.trim();
+    if (!currentUserTranscript) {
+      showToast({
+        message: "인식된 음성이 없습니다.",
+        variant: "white",
+      });
+
+      if (callStatusRef.current === "calling" && !isMutedRef.current) {
+        await startListening();
+      }
+      return;
+    }
+
+    setUserTranscripts((prev) => [...prev, currentUserTranscript]);
+    callScriptRef.current += `User: ${currentUserTranscript}\n`;
+
+    finalTranscriptRef.current = "";
+    syncTranscript("");
+    setIsThinking(true);
+
+    const question = await requestAssistantText({
+      mode: "followup",
+      conversationHistory: callScriptRef.current,
+    });
+
+    callScriptRef.current += `Harper: ${question}\n`;
+    await speakAssistantText(question);
+  };
+
+  useEffect(() => {
+    return () => {
+      stopMicCompletely();
+
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch (error) {
+          console.error("[useConversation] abort recognition failed", error);
+        }
+      }
+    };
+  }, [stopMicCompletely]);
+
+  return {
+    isPlayingTts,
+    isMuted,
+    userTranscripts,
+    isThinking,
+    assistantTexts,
+    callStatus,
+    harperSaying,
+    startCall,
+    sendAudioCommit,
+    endCall,
+    userTranscript,
+    toggleMute,
+    startTest,
+    endTest,
+  };
+};

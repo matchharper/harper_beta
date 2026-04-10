@@ -36,7 +36,7 @@ function isSafeUrl(value: string) {
 function tokenizeLinks(value: string) {
   const links: Array<{ label: string; token: string; url: string }> = [];
   const text = value.replace(/\[([^\]\n]+)\]\(([^)\n]+)\)/g, (_, label, url) => {
-    const token = `ATS_LINK_TOKEN_${links.length}`;
+    const token = `ATSLINKTOKEN${links.length}PLACEHOLDER`;
     links.push({
       label: String(label ?? ""),
       token,
@@ -88,7 +88,7 @@ function formatInline(value: string) {
           )}" target="_blank" rel="noreferrer" style="color: inherit; text-decoration: underline;">${labelHtml}</a>`
         : labelHtml;
 
-    formatted = formatted.replace(link.token, replacement);
+    formatted = formatted.replaceAll(link.token, replacement);
   }
 
   return formatted;
