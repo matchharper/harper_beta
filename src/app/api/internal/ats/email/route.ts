@@ -4,6 +4,7 @@ import {
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
 import {
+  cancelCandidateEmailDiscovery,
   discoverCandidateEmail,
   setManualCandidateEmail,
 } from "@/lib/ats/server";
@@ -66,5 +67,34 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ ok: true, outreach });
   } catch (error) {
     return toInternalApiErrorResponse(error, "Failed to save candidate email");
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const user = await requireAtsApiUser(req);
+    const body = (await req.json().catch(() => ({}))) as {
+      candidId?: string;
+    };
+    const candidId = String(body.candidId ?? "").trim();
+
+    if (!candidId) {
+      return NextResponse.json(
+        { error: "candidId is required" },
+        { status: 400 }
+      );
+    }
+
+    const outreach = await cancelCandidateEmailDiscovery({
+      candidId,
+      userId: user.id,
+    });
+
+    return NextResponse.json({ ok: true, outreach });
+  } catch (error) {
+    return toInternalApiErrorResponse(
+      error,
+      "Failed to cancel candidate email discovery"
+    );
   }
 }

@@ -52,6 +52,7 @@ const CareerWorkspaceContent = ({
       <CareerCanvas>
         <CareerHomePanel
           onOpenChat={() => onChangeTab("chat")}
+          onOpenHistory={() => onChangeTab("history")}
           onOpenProfile={() => onChangeTab("profile")}
         />
       </CareerCanvas>

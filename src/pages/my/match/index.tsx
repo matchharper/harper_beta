@@ -612,16 +612,11 @@ export default function MatchPage() {
                 </button>
               </div>
 
-              <div className="mt-0">
+              <div className="mt-4">
                 {roles.length === 0 ? (
                   <MatchEmptyState
                     title="아직 등록된 Role이 없습니다"
-                    description={
-                      <>
-                        Role을 하나 이상 추가하면 이 워크스페이스에 연결된
-                        후보를 역할 기준으로 정리해서 볼 수 있습니다.
-                      </>
-                    }
+                    description={<></>}
                   />
                 ) : (
                   <div className="">

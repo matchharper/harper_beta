@@ -6,6 +6,7 @@ import type {
   OpsOpportunityCatalogResponse,
   OpsOpportunityMatchListResponse,
   OpsOpportunityRecommendationListResponse,
+  OpsOpportunityType,
   OpportunityEmploymentType,
   OpportunitySourceType,
   OpportunityStatus,
@@ -49,13 +50,20 @@ type DeleteMatchInput = {
 };
 
 type SaveRecommendationInput = {
+  opportunityType: OpsOpportunityType;
   recommendationMemo?: string | null;
   roleId: string;
   talentId: string;
 };
 
 type DeleteRecommendationInput = {
-  roleId: string;
+  recommendationId: string;
+};
+
+type SendCandidateMailInput = {
+  content: string;
+  fromEmail: string;
+  subject: string;
   talentId: string;
 };
 
@@ -277,5 +285,22 @@ export function useDeleteOpsOpportunityRecommendation() {
         queryKey: queryKeys.opsOpportunity.all,
       });
     },
+  });
+}
+
+export function useSendOpsOpportunityCandidateMail() {
+  return useMutation({
+    mutationFn: (input: SendCandidateMailInput) =>
+      fetchWithInternalAuth<{
+        ok: boolean;
+        recipientEmail: string;
+        recipientName: string | null;
+      }>("/api/internal/opportunities/candidate-mail", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(input),
+      }),
   });
 }

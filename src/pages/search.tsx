@@ -7,14 +7,24 @@ import { useCountryLang } from "@/hooks/useCountryLang";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useMessages } from "@/i18n/useMessage";
 import { en } from "@/lang/en";
+import SearchRequestAccessModal from "@/components/Modal/SearchRequestAccessModal";
+import type { RequestAccessValues } from "@/components/Modal/RequestAccessModal";
+import { showToast } from "@/components/toast/toast";
 import {
   createSearchLandingId,
+  resolveSearchLandingAssignmentType,
+  SEARCH_LANDING_ABTEST_TYPE_A,
+  SEARCH_LANDING_ABTEST_TYPE_B,
+  SEARCH_LANDING_ABTEST_TYPE_KEY,
   SEARCH_LANDING_LAST_VISIT_AT_KEY,
   SEARCH_LANDING_LOCAL_ID_KEY,
-  SEARCH_LANDING_LOG_ABTEST_TYPE,
   SEARCH_LANDING_SESSION_GAP_MS,
+  usesSearchLandingBExperience,
+  type SearchLandingAssignmentType,
 } from "@/lib/searchLandingLogs";
 import { supabase } from "@/lib/supabase";
+import { useAuthStore } from "@/store/useAuthStore";
+import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import {
   ArrowUp,
   BookOpen,
@@ -26,7 +36,7 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import Head from "next/head";
-import router from "next/router";
+import { useRouter } from "next/router";
 import React, {
   useCallback,
   useEffect,
@@ -60,12 +70,37 @@ export const START_BUTTON_LABEL = "Try for Free";
 const PLACEHOLDER_SWITCH_MS = 2800;
 const PLACEHOLDER_SLIDE_MS = 450;
 const PLACEHOLDER_LINE_HEIGHT_PX = 24;
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://matchharper.com")
+  .trim()
+  .replace(/\/$/, "");
+const SEARCH_CANONICAL_URL = `${SITE_URL}/search`;
+const SEARCH_OG_IMAGE_URL = `${SITE_URL}/images/usemain.png`;
+const SEARCH_OG_IMAGE_ALT = "Harper talent search product preview";
+const SEARCH_SEO_TITLE = "Harper | Find Real Engineers and Researchers";
+const SEARCH_SEO_DESCRIPTION =
+  "Find under-the-radar engineers and researchers through GitHub, shipped projects, papers, and Scholar signals.";
+const SEARCH_OG_IMAGE_WIDTH = 2906;
+const SEARCH_OG_IMAGE_HEIGHT = 1898;
+const SEARCH_REQUEST_ACCESS_QUERY_KEY = "requestAccess";
+const SEARCH_REQUEST_ACCESS_CALLBACK_PATH = "/search?requestAccess=1";
 
 const HERO_DOT_BACKGROUND_STYLE = {
   opacity: 0.4,
   backgroundImage:
     "radial-gradient(rgba(255,255,255,0.16) 0.9px, transparent 0.9px)",
   backgroundSize: "20px 20px",
+};
+
+const stripHtmlForMetadata = (value: string) =>
+  value
+    .replace(/<br\s*\/?>/gi, " ")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const isMissingDisplayName = (name?: string | null) => {
+  const normalized = (name ?? "").trim();
+  return !normalized || normalized.toLowerCase() === "anonymous";
 };
 
 type OutputItem = {
@@ -346,30 +381,55 @@ function SearchInputPanel({
 
 export default function RadarLandingPage() {
   const { m, locale } = useMessages();
+  const router = useRouter();
   const countryLang = useCountryLang();
   const isMobile = useIsMobile();
+  const { user, loading: authLoading, init } = useAuthStore();
+  const { companyUser, load: loadCompanyUser } = useCompanyUserStore();
 
   const [query, setQuery] = useState("");
   const [landingId, setLandingId] = useState("");
+  const [abtestType, setAbtestType] =
+    useState<SearchLandingAssignmentType | null>(null);
   const [isOpenLoginModal, setIsOpenLoginModal] = useState(false);
+  const [isOpenRequestAccessModal, setIsOpenRequestAccessModal] =
+    useState(false);
+  const [hasSubmittedRequestAccess, setHasSubmittedRequestAccess] =
+    useState(false);
+  const [requestAccessSeed, setRequestAccessSeed] = useState<
+    Partial<RequestAccessValues>
+  >({});
   const hasLoggedFirstScrollRef = useRef(false);
+  const hasHandledRequestAccessQueryRef = useRef(false);
 
   const addLandingLog = useCallback(
-    async (type: string, overrides?: { localId?: string }) => {
+    async (
+      type: string,
+      overrides?: {
+        localId?: string;
+        abtestType?: SearchLandingAssignmentType | null;
+      }
+    ) => {
       const storedLocalId =
         typeof window !== "undefined"
           ? (localStorage.getItem(SEARCH_LANDING_LOCAL_ID_KEY) ?? "")
           : "";
+      const storedAbtestType =
+        typeof window !== "undefined"
+          ? (localStorage.getItem(SEARCH_LANDING_ABTEST_TYPE_KEY) ?? "")
+          : "";
       const resolvedLocalId =
         overrides?.localId || landingId || storedLocalId || "";
+      const resolvedAbtestType =
+        overrides?.abtestType || abtestType || storedAbtestType || "";
 
-      if (!resolvedLocalId) return;
+      if (!resolvedLocalId || !resolvedAbtestType) return;
 
       try {
         await supabase.from("landing_logs").insert({
           local_id: resolvedLocalId,
           type,
-          abtest_type: SEARCH_LANDING_LOG_ABTEST_TYPE,
+          abtest_type: resolvedAbtestType,
           is_mobile: isMobile,
           country_lang: countryLang,
         });
@@ -377,11 +437,23 @@ export default function RadarLandingPage() {
         console.error("search landing log insert error:", error);
       }
     },
-    [countryLang, isMobile, landingId]
+    [abtestType, countryLang, isMobile, landingId]
   );
 
   useEffect(() => {
+    void init();
+  }, [init]);
+
+  useEffect(() => {
     if (typeof window === "undefined") return;
+
+    const savedAbtestType = localStorage.getItem(
+      SEARCH_LANDING_ABTEST_TYPE_KEY
+    );
+    const resolvedAbtestType =
+      resolveSearchLandingAssignmentType(savedAbtestType);
+    localStorage.setItem(SEARCH_LANDING_ABTEST_TYPE_KEY, resolvedAbtestType);
+    setAbtestType(resolvedAbtestType);
 
     const savedId = localStorage.getItem(SEARCH_LANDING_LOCAL_ID_KEY);
     if (!savedId) {
@@ -392,7 +464,10 @@ export default function RadarLandingPage() {
         Date.now().toString()
       );
       setLandingId(newId);
-      void addLandingLog("new_visit", { localId: newId });
+      void addLandingLog("new_visit", {
+        localId: newId,
+        abtestType: resolvedAbtestType,
+      });
       return;
     }
 
@@ -431,6 +506,89 @@ export default function RadarLandingPage() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, [addLandingLog, landingId]);
 
+  const clearRequestAccessQueryParam = useCallback(() => {
+    if (typeof window === "undefined") return;
+
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has(SEARCH_REQUEST_ACCESS_QUERY_KEY)) return;
+
+    url.searchParams.delete(SEARCH_REQUEST_ACCESS_QUERY_KEY);
+    const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+    window.history.replaceState({}, "", nextUrl);
+  }, []);
+
+  const handleCloseRequestAccessModal = useCallback(() => {
+    setIsOpenRequestAccessModal(false);
+    clearRequestAccessQueryParam();
+  }, [clearRequestAccessQueryParam]);
+
+  const getAccessToken = useCallback(async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    return session?.access_token ?? null;
+  }, []);
+
+  const continueToRequestAccess = useCallback(async () => {
+    const resolvedUser =
+      useAuthStore.getState().user ??
+      (await supabase.auth.getUser()).data.user ??
+      null;
+
+    if (!resolvedUser) {
+      setIsOpenRequestAccessModal(false);
+      setIsOpenLoginModal(true);
+      return;
+    }
+
+    const resolvedMetadataName = [
+      resolvedUser.user_metadata?.full_name,
+      resolvedUser.user_metadata?.name,
+    ]
+      .map((value) => String(value ?? "").trim())
+      .find(Boolean);
+    if (resolvedMetadataName) {
+      setRequestAccessSeed((current) => ({
+        ...current,
+        name: current.name || resolvedMetadataName,
+      }));
+    }
+
+    try {
+      await loadCompanyUser(resolvedUser.id);
+    } catch (error) {
+      console.error("failed to load company user on search:", error);
+    }
+
+    const latestCompanyUser = useCompanyUserStore.getState().companyUser;
+    if (latestCompanyUser?.is_authenticated) {
+      setIsOpenLoginModal(false);
+      setIsOpenRequestAccessModal(false);
+      clearRequestAccessQueryParam();
+      void router.push("/my");
+      return;
+    }
+
+    setIsOpenLoginModal(false);
+    setIsOpenRequestAccessModal(true);
+    clearRequestAccessQueryParam();
+  }, [clearRequestAccessQueryParam, loadCompanyUser, router]);
+
+  useEffect(() => {
+    if (!router.isReady || authLoading) return;
+
+    const requestAccessValue = router.query[SEARCH_REQUEST_ACCESS_QUERY_KEY];
+    if (requestAccessValue !== "1") {
+      hasHandledRequestAccessQueryRef.current = false;
+      return;
+    }
+
+    if (hasHandledRequestAccessQueryRef.current) return;
+    hasHandledRequestAccessQueryRef.current = true;
+
+    void continueToRequestAccess();
+  }, [authLoading, continueToRequestAccess, router.isReady, router.query]);
+
   const openLoginModal = useCallback(
     (args?: { draft?: string; eventType?: string }) => {
       if (typeof window !== "undefined") {
@@ -444,9 +602,21 @@ export default function RadarLandingPage() {
         void addLandingLog(args.eventType);
       }
 
-      setIsOpenLoginModal(true);
+      void (async () => {
+        const currentUser =
+          useAuthStore.getState().user ??
+          (await supabase.auth.getUser()).data.user ??
+          null;
+
+        if (currentUser) {
+          await continueToRequestAccess();
+          return;
+        }
+
+        setIsOpenLoginModal(true);
+      })();
     },
-    [addLandingLog]
+    [addLandingLog, continueToRequestAccess]
   );
 
   const handlePrimaryStart = useCallback(() => {
@@ -500,6 +670,96 @@ export default function RadarLandingPage() {
     setIsOpenLoginModal(false);
   }, []);
 
+  const requestAccessInitialValues = useMemo<
+    Partial<RequestAccessValues>
+  >(() => {
+    const resolvedMetadataName = [
+      requestAccessSeed.name,
+      user?.user_metadata?.full_name,
+      user?.user_metadata?.name,
+    ]
+      .map((value) => String(value ?? "").trim())
+      .find(Boolean);
+
+    const resolvedName = isMissingDisplayName(companyUser?.name)
+      ? (resolvedMetadataName ?? "")
+      : String(companyUser?.name ?? "").trim();
+
+    return {
+      name: resolvedName,
+      company: String(
+        companyUser?.company ?? requestAccessSeed.company ?? ""
+      ).trim(),
+      role: String(companyUser?.role ?? requestAccessSeed.role ?? "").trim(),
+    };
+  }, [
+    companyUser?.company,
+    companyUser?.name,
+    companyUser?.role,
+    requestAccessSeed.company,
+    requestAccessSeed.name,
+    requestAccessSeed.role,
+    user,
+  ]);
+
+  const submitRequestAccess = useCallback(
+    async (values: RequestAccessValues) => {
+      const normalizedValues = {
+        name: values.name.trim(),
+        company: values.company.trim(),
+        role: values.role.trim(),
+        hiringNeed: values.hiringNeed.trim(),
+      };
+
+      if (!normalizedValues.name || !normalizedValues.company) {
+        showToast({
+          message: m.invitation.requestAccess.errors.invalidForm,
+          variant: "white",
+        });
+        return;
+      }
+
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        showToast({
+          message: m.invitation.requestAccess.errors.missingSession,
+          variant: "white",
+        });
+        setIsOpenRequestAccessModal(false);
+        setIsOpenLoginModal(true);
+        return;
+      }
+
+      const response = await fetch("/api/request-access/submit", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          ...normalizedValues,
+          isMobile,
+        }),
+      });
+
+      if (!response.ok) {
+        showToast({
+          message: m.invitation.requestAccess.errors.submitFailed,
+          variant: "white",
+        });
+        return;
+      }
+
+      await addLandingLog("submit_request_access");
+      setHasSubmittedRequestAccess(true);
+      showToast({
+        message: m.invitation.requestAccess.submitted,
+        variant: "white",
+      });
+    },
+    [addLandingLog, getAccessToken, isMobile, m.invitation.requestAccess]
+  );
+
   const logCompletedLogin = useCallback(
     async (email: string | null | undefined) => {
       const resolvedEmail = String(email ?? "").trim();
@@ -518,10 +778,15 @@ export default function RadarLandingPage() {
       (typeof window !== "undefined"
         ? (localStorage.getItem(SEARCH_LANDING_LOCAL_ID_KEY) ?? "")
         : "");
+    const resolvedAbtestType =
+      abtestType ||
+      (typeof window !== "undefined"
+        ? (localStorage.getItem(SEARCH_LANDING_ABTEST_TYPE_KEY) ?? "")
+        : "");
 
     const redirectTo =
       typeof window !== "undefined"
-        ? `${window.location.origin}/auths/callback?lid=${resolvedLandingId}&cl=${encodeURIComponent(countryLang)}&ab=${encodeURIComponent(SEARCH_LANDING_LOG_ABTEST_TYPE)}`
+        ? `${window.location.origin}/auths/callback?lid=${resolvedLandingId}&cl=${encodeURIComponent(countryLang)}&ab=${encodeURIComponent(resolvedAbtestType)}&next=${encodeURIComponent(SEARCH_REQUEST_ACCESS_CALLBACK_PATH)}`
         : undefined;
 
     const { data, error } = await supabase.auth.signInWithOAuth({
@@ -536,7 +801,20 @@ export default function RadarLandingPage() {
     }
 
     return data;
-  }, [addLandingLog, countryLang, landingId]);
+  }, [abtestType, addLandingLog, countryLang, landingId]);
+
+  const usesVariantB = usesSearchLandingBExperience(abtestType);
+  const heroTitleLines = usesVariantB
+    ? ["Describe what you need.", "Get who you want."]
+    : ["Find who actually", "builds and publishes."];
+  const heroSubtitle = usesVariantB
+    ? "AI가 경력과 GitHub, 논문 등을 분석해<br/>상위 1%의 후보자 리스트를 만들어 드립니다."
+    : m.companyLanding.hero.subtitle;
+  const heroStartLabel =
+    abtestType === SEARCH_LANDING_ABTEST_TYPE_A ||
+    abtestType === SEARCH_LANDING_ABTEST_TYPE_B
+      ? "무료로 시작하기"
+      : "무료로 시작하기";
 
   const customLogin = useCallback(
     async (email: string, password: string) => {
@@ -555,6 +833,19 @@ export default function RadarLandingPage() {
         const user = data.user;
         if (!user) {
           return { message: en.auth.invalidAccount };
+        }
+
+        const resolvedMetadataName = [
+          user.user_metadata?.full_name,
+          user.user_metadata?.name,
+        ]
+          .map((value) => String(value ?? "").trim())
+          .find(Boolean);
+        if (resolvedMetadataName) {
+          setRequestAccessSeed((current) => ({
+            ...current,
+            name: current.name || resolvedMetadataName,
+          }));
         }
 
         const isEmailConfirmed = Boolean(
@@ -594,9 +885,7 @@ export default function RadarLandingPage() {
         }
 
         await logCompletedLogin(user.email ?? email.trim());
-
-        setIsOpenLoginModal(false);
-        router.push("/invitation");
+        await continueToRequestAccess();
         return null;
       } catch (error) {
         if (error instanceof Error && error.message) {
@@ -605,17 +894,173 @@ export default function RadarLandingPage() {
         return { message: en.auth.invalidAccount };
       }
     },
-    [addLandingLog, logCompletedLogin]
+    [addLandingLog, continueToRequestAccess, logCompletedLogin]
   );
+
+  const searchPageLanguage = locale === "en" ? "en-US" : "ko-KR";
+  const searchPageOgLocale = locale === "en" ? "en_US" : "ko_KR";
+  const alternateOgLocale = locale === "en" ? "ko_KR" : "en_US";
+
+  const searchPageStructuredData = useMemo(
+    () => ({
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      name: SEARCH_SEO_TITLE,
+      headline: "Find who actually builds and publishes.",
+      description: SEARCH_SEO_DESCRIPTION,
+      url: SEARCH_CANONICAL_URL,
+      inLanguage: searchPageLanguage,
+      isPartOf: {
+        "@type": "WebSite",
+        name: "Harper",
+        url: SITE_URL,
+      },
+      about: [
+        "AI recruiting",
+        "talent sourcing",
+        "engineer search",
+        "researcher search",
+      ],
+      primaryImageOfPage: {
+        "@type": "ImageObject",
+        url: SEARCH_OG_IMAGE_URL,
+        width: SEARCH_OG_IMAGE_WIDTH,
+        height: SEARCH_OG_IMAGE_HEIGHT,
+      },
+      publisher: {
+        "@type": "Organization",
+        name: "Harper",
+        url: SITE_URL,
+        logo: {
+          "@type": "ImageObject",
+          url: `${SITE_URL}/images/logo.png`,
+        },
+      },
+    }),
+    [searchPageLanguage]
+  );
+
+  const faqStructuredData = useMemo(() => {
+    return {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      inLanguage: searchPageLanguage,
+      mainEntity: m.companyLanding.faq.items.map((item) => ({
+        "@type": "Question",
+        name: stripHtmlForMetadata(item.question),
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: stripHtmlForMetadata(item.answer),
+        },
+      })),
+    };
+  }, [m, searchPageLanguage]);
 
   return (
     <>
       <Head>
-        <title>Harper | Find Real Engineers and Researchers</title>
+        <title>{SEARCH_SEO_TITLE}</title>
         <meta
+          key="description"
           name="description"
-          content="Find under-the-radar engineers and researchers through GitHub, shipped projects, papers, and Scholar signals."
+          content={SEARCH_SEO_DESCRIPTION}
         />
+        <meta
+          key="robots"
+          name="robots"
+          content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1"
+        />
+        <link key="canonical" rel="canonical" href={SEARCH_CANONICAL_URL} />
+        <meta key="og:type" property="og:type" content="website" />
+        <meta key="og:site_name" property="og:site_name" content="Harper" />
+        <meta
+          key="og:locale"
+          property="og:locale"
+          content={searchPageOgLocale}
+        />
+        <meta
+          key="og:locale:alternate"
+          property="og:locale:alternate"
+          content={alternateOgLocale}
+        />
+        <meta key="og:title" property="og:title" content={SEARCH_SEO_TITLE} />
+        <meta
+          key="og:description"
+          property="og:description"
+          content={SEARCH_SEO_DESCRIPTION}
+        />
+        <meta key="og:url" property="og:url" content={SEARCH_CANONICAL_URL} />
+        <meta
+          key="og:image"
+          property="og:image"
+          content={SEARCH_OG_IMAGE_URL}
+        />
+        <meta
+          key="og:image:secure_url"
+          property="og:image:secure_url"
+          content={SEARCH_OG_IMAGE_URL}
+        />
+        <meta
+          key="og:image:alt"
+          property="og:image:alt"
+          content={SEARCH_OG_IMAGE_ALT}
+        />
+        <meta
+          key="og:image:type"
+          property="og:image:type"
+          content="image/png"
+        />
+        <meta
+          key="og:image:width"
+          property="og:image:width"
+          content={String(SEARCH_OG_IMAGE_WIDTH)}
+        />
+        <meta
+          key="og:image:height"
+          property="og:image:height"
+          content={String(SEARCH_OG_IMAGE_HEIGHT)}
+        />
+        <meta
+          key="twitter:card"
+          name="twitter:card"
+          content="summary_large_image"
+        />
+        <meta
+          key="twitter:title"
+          name="twitter:title"
+          content={SEARCH_SEO_TITLE}
+        />
+        <meta
+          key="twitter:description"
+          name="twitter:description"
+          content={SEARCH_SEO_DESCRIPTION}
+        />
+        <meta
+          key="twitter:image"
+          name="twitter:image"
+          content={SEARCH_OG_IMAGE_URL}
+        />
+        <meta
+          key="twitter:image:alt"
+          name="twitter:image:alt"
+          content={SEARCH_OG_IMAGE_ALT}
+        />
+        <script
+          key="ld-search-page"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(searchPageStructuredData),
+          }}
+        />
+        {faqStructuredData ? (
+          <script
+            key="ld-search-faq"
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{
+              __html: JSON.stringify(faqStructuredData),
+            }}
+          />
+        ) : null}
       </Head>
 
       <main className="min-h-screen w-full overflow-x-hidden bg-black font-inter text-white">
@@ -626,8 +1071,22 @@ export default function RadarLandingPage() {
             onGoogle={login}
             onConfirm={customLogin}
             language={RADAR_LOGIN_MODAL_LANGUAGE}
+            callbackPath={SEARCH_REQUEST_ACCESS_CALLBACK_PATH}
           />
         )}
+        {isOpenRequestAccessModal ? (
+          <SearchRequestAccessModal
+            open={isOpenRequestAccessModal}
+            onClose={handleCloseRequestAccessModal}
+            onSubmit={submitRequestAccess}
+            title={m.invitation.title}
+            description={m.invitation.description}
+            requestCopy={m.invitation.requestAccess}
+            submitted={hasSubmittedRequestAccess}
+            submittedMessage={m.invitation.requestAccess.submitted}
+            initialValues={requestAccessInitialValues}
+          />
+        ) : null}
 
         <SearchHeader onStartClick={handleHeaderStart} />
 
@@ -652,20 +1111,20 @@ export default function RadarLandingPage() {
           </div>
 
           <Reveal delay={0.08} className="w-full max-w-[980px]">
-            <div className="relative z-10 mx-auto mt-10 flex w-full flex-col items-center text-center md:mt-16 min-h-[64vh] md:min-h-[80vh]">
+            <div className="relative z-10 mx-auto mt-10 flex w-full flex-col items-center text-center md:mt-24 min-h-[64vh] md:min-h-[66vh]">
               <h1 className="mt-6 max-w-[920px] text-3xl font-medium leading-relaxed tracking-[-0.03em] md:text-5xl">
-                <StaggerText text="Find who actually" />
+                <StaggerText text={heroTitleLines[0] ?? ""} />
                 <div className="mt-0 md:mt-3.5" />
-                <StaggerText text="builds and publishes." delay={0.14} />
+                <StaggerText text={heroTitleLines[1] ?? ""} delay={0.14} />
               </h1>
 
               <p
                 className="mt-6 md:mt-8 max-w-[700px] text-base font-light leading-7 text-hgray700 md:text-lg md:leading-8"
                 dangerouslySetInnerHTML={{
-                  __html: m.companyLanding.hero.subtitle,
+                  __html: heroSubtitle,
                 }}
               />
-              <div className="hidden md:flex mt-12 w-full max-w-[820px] md:mt-16">
+              {/* <div className="hidden md:flex mt-12 w-full max-w-[820px] md:mt-16">
                 <div className="w-full overflow-hidden rounded-[30px] bg-gradpastel2 p-1">
                   <SearchInputPanel
                     query={query}
@@ -673,36 +1132,50 @@ export default function RadarLandingPage() {
                     onSubmit={handleSearchSubmit}
                   />
                 </div>
-              </div>
-              <div className="mt-4 flex md:hidden">
+              </div> */}
+              {/* <div className="mt-4 flex md:hidden"> */}
+              <div className="mt-4 flex">
                 <StartButton
                   onClick={handlePrimaryStart}
-                  label={"무료로 시작하기"}
+                  label={heroStartLabel}
                 />
               </div>
             </div>
 
             {locale === "ko" && (
-              <Reveal delay={0.08} duration={1.2}>
-                <div className="w-full mb-20 mt-12 md:mt-8 flex flex-col items-center justify-center">
-                  <div className="max-w-[1280px] bg-gradpastel2 overflow-hidden md:rounded-[30px] rounded-2xl pt-8 md:pt-0 flex flex-col items-center justify-center">
-                    <video
-                      src="/videos/usemain.mp4"
-                      poster="/images/usemain.png"
-                      autoPlay
-                      loop
-                      muted
-                      playsInline
-                      className="w-[90%] h-full object-cover  md:rounded-t-[30px] rounded-t-2xl md:translate-y-[40px] translate-y-0 shadow-lg"
-                    />
-                  </div>
+              // <Reveal delay={0.08} duration={1.2}>
+              <div className="w-full mb-20 mt-4 md:mt-0 flex flex-col items-center justify-center">
+                <div className="max-w-[1280px] bg-gradpastel2 overflow-hidden md:rounded-[30px] rounded-2xl pt-8 md:pt-0 flex flex-col items-center justify-center">
+                  <video
+                    src="/videos/usemain.mp4"
+                    poster="/images/usemain.png"
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    className="w-[90%] h-full object-cover  md:rounded-t-[30px] rounded-t-2xl md:translate-y-[40px] translate-y-0 shadow-lg"
+                  />
                 </div>
-              </Reveal>
+              </div>
+              // </Reveal>
             )}
             <div className="mt-6 text-white/80"></div>
           </Reveal>
         </section>
 
+        <Animate>
+          <BaseSectionLayout>
+            <div className="gap-2 w-full flex flex-col items-center justify-center text-center py-8 md:py-10 px-0">
+              <Head1 as="h2">{m.companyLanding.section1.title}</Head1>
+              <h3 className="text-[22px] md:text-3xl text-white font-normal mt-10">
+                {m.companyLanding.section1.headlineLine1}
+                <br />
+                {m.companyLanding.section1.headlineLine2}
+              </h3>
+            </div>
+          </BaseSectionLayout>
+          {/* <VCLogosWidth /> */}
+        </Animate>
         <div className="h-20 md:h-40" />
         <WhySection />
         <div className="h-20 md:h-40" />

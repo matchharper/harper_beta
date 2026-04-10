@@ -59,6 +59,7 @@ function applyOptimisticEmailDiscoveryState(
     activeStep: outreach?.activeStep ?? 0,
     candidId: outreach?.candidId ?? candidId,
     createdAt: outreach?.createdAt ?? optimisticTrace.at,
+    emailRecipientName: outreach?.emailRecipientName ?? null,
     emailDiscoveryEvidence: outreach?.emailDiscoveryEvidence ?? [],
     emailDiscoveryStatus: "searching",
     emailDiscoverySummary:
@@ -148,7 +149,17 @@ export function useSaveAtsWorkspace() {
           body: JSON.stringify(args),
         }
       ),
-    onSuccess: async () => {
+    onSuccess: async (response) => {
+      queryClient.setQueryData<AtsWorkspaceResponse | undefined>(
+        atsWorkspaceKey,
+        (current) =>
+          current
+            ? {
+                ...current,
+                workspace: response.workspace,
+              }
+            : current
+      );
       await queryClient.invalidateQueries({ queryKey: atsWorkspaceKey });
     },
   });
@@ -258,6 +269,32 @@ export function useDiscoverAtsEmail() {
   });
 }
 
+export function useCancelAtsEmailDiscovery() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (candidId: string) =>
+      fetchWithInternalAuth<{ ok: boolean; outreach: AtsOutreachRecord }>(
+        "/api/internal/ats/email",
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ candidId }),
+        }
+      ),
+    onSuccess: async (_, candidId) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: atsWorkspaceKey }),
+        queryClient.invalidateQueries({
+          queryKey: atsCandidateDetailKey(candidId),
+        }),
+      ]);
+    },
+  });
+}
+
 export function useSaveAtsEmail() {
   const queryClient = useQueryClient();
 
@@ -348,6 +385,36 @@ export function useSaveAtsCandidateMemo() {
             action: "memo",
             candidId: args.candidId,
             memo: args.memo,
+          }),
+        }
+      ),
+    onSuccess: async (_, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: atsWorkspaceKey }),
+        queryClient.invalidateQueries({
+          queryKey: atsCandidateDetailKey(variables.candidId),
+        }),
+      ]);
+    },
+  });
+}
+
+export function useSaveAtsEmailRecipientName() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (args: { candidId: string; emailRecipientName: string }) =>
+      fetchWithInternalAuth<{ ok: boolean; outreach: AtsOutreachRecord }>(
+        "/api/internal/ats/candidate",
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: "email_recipient_name",
+            candidId: args.candidId,
+            emailRecipientName: args.emailRecipientName,
           }),
         }
       ),
@@ -562,6 +629,75 @@ export function useSendAtsContactEmail() {
             candidId: args.candidId,
             subject: args.subject,
             targetEmail: args.targetEmail,
+          }),
+        }
+      ),
+    onSuccess: async (_, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: atsWorkspaceKey }),
+        queryClient.invalidateQueries({
+          queryKey: atsCandidateDetailKey(variables.candidId),
+        }),
+      ]);
+    },
+  });
+}
+
+export function useScheduleAtsContactEmail() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (args: {
+      body: string;
+      candidId: string;
+      scheduledAt: string;
+      subject: string;
+      targetEmail: string;
+    }) =>
+      fetchWithInternalAuth<{ ok: boolean; data: AtsCandidateDetailResponse }>(
+        "/api/internal/ats/candidate",
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: "schedule_contact_email",
+            body: args.body,
+            candidId: args.candidId,
+            scheduledAt: args.scheduledAt,
+            subject: args.subject,
+            targetEmail: args.targetEmail,
+          }),
+        }
+      ),
+    onSuccess: async (_, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: atsWorkspaceKey }),
+        queryClient.invalidateQueries({
+          queryKey: atsCandidateDetailKey(variables.candidId),
+        }),
+      ]);
+    },
+  });
+}
+
+export function useCancelAtsScheduledContactEmail() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (args: { candidId: string; messageId: number }) =>
+      fetchWithInternalAuth<{ ok: boolean; data: AtsCandidateDetailResponse }>(
+        "/api/internal/ats/candidate",
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: "cancel_scheduled_contact_email",
+            candidId: args.candidId,
+            messageId: args.messageId,
           }),
         }
       ),

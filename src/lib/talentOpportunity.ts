@@ -1,5 +1,6 @@
 import type { Json } from "@/types/database.types";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
+import { OpportunityType, isOpportunityType } from "@/lib/opportunityType";
 
 type AdminClient = ReturnType<typeof getTalentSupabaseAdmin>;
 
@@ -11,41 +12,44 @@ type RawRecommendationRow = {
   feedback_reason: string | null;
   id: string;
   kind: string;
+  opportunity_type: string | null;
   recommended_at: string;
   recommendation_reasons: Json;
   role_id: string;
+  saved_stage: string | null;
   viewed_at: string | null;
-  company_role:
-    | {
-        company_workspace:
-          | {
-              company_description: string | null;
-              company_name: string;
-              homepage_url: string | null;
-              linkedin_url: string | null;
-              logo_url: string | null;
-            }
-          | null;
-        description: string | null;
-        external_jd_url: string | null;
-        location_text: string | null;
-        name: string;
-        posted_at: string | null;
-        role_id: string;
-        source_job_id: string | null;
-        source_provider: string | null;
-        source_type: string;
-        status: string;
-        type: string[];
-        work_mode: string | null;
-      }
-    | null;
+  company_role: {
+    company_workspace: {
+      company_description: string | null;
+      company_name: string;
+      homepage_url: string | null;
+      linkedin_url: string | null;
+      logo_url: string | null;
+    } | null;
+    description: string | null;
+    external_jd_url: string | null;
+    location_text: string | null;
+    name: string;
+    posted_at: string | null;
+    role_id: string;
+    source_job_id: string | null;
+    source_provider: string | null;
+    source_type: string;
+    status: string;
+    type: string[];
+    work_mode: string | null;
+  } | null;
 };
 
-export type TalentOpportunityFeedback =
-  | "tracked"
-  | "dont_know"
-  | "not_for_me";
+export type TalentOpportunityFeedback = "positive" | "negative";
+
+export { OpportunityType as TalentOpportunityType };
+
+export type TalentOpportunitySavedStage =
+  | "saved"
+  | "applied"
+  | "connected"
+  | "closed";
 
 export type TalentOpportunityHistoryItem = {
   clickedAt: string | null;
@@ -67,10 +71,12 @@ export type TalentOpportunityHistoryItem = {
   isInternal: boolean;
   kind: "match" | "recommendation";
   location: string | null;
+  opportunityType: OpportunityType;
   postedAt: string | null;
   recommendedAt: string;
   recommendationReasons: string[];
   roleId: string;
+  savedStage: TalentOpportunitySavedStage | null;
   sourceJobId: string | null;
   sourceProvider: string | null;
   sourceType: "internal" | "external";
@@ -84,8 +90,37 @@ function coerceJsonArray<T>(value: unknown) {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
-function normalizeRecommendationKind(value: unknown): "match" | "recommendation" {
+function normalizeRecommendationKind(
+  value: unknown
+): "match" | "recommendation" {
   return value === "match" ? "match" : "recommendation";
+}
+
+function normalizeOpportunityType(args: {
+  kind: "match" | "recommendation";
+  sourceType: "internal" | "external";
+  value: unknown;
+}): OpportunityType {
+  if (isOpportunityType(args.value)) return args.value;
+  if (args.kind === "match") return OpportunityType.IntroRequest;
+  if (args.sourceType === "internal") {
+    return OpportunityType.InternalRecommendation;
+  }
+  return OpportunityType.ExternalJd;
+}
+
+function normalizeSavedStage(
+  value: unknown
+): TalentOpportunitySavedStage | null {
+  if (
+    value === "saved" ||
+    value === "applied" ||
+    value === "connected" ||
+    value === "closed"
+  ) {
+    return value;
+  }
+  return null;
 }
 
 function normalizeSourceType(value: unknown): "internal" | "external" {
@@ -93,18 +128,16 @@ function normalizeSourceType(value: unknown): "internal" | "external" {
 }
 
 function normalizeFeedback(value: unknown): TalentOpportunityFeedback | null {
-  if (value === "like") return "tracked";
-  if (value === "neutral") return "dont_know";
-  if (value === "dislike") return "not_for_me";
+  if (value === "like") return "positive";
+  if (value === "dislike") return "negative";
   return null;
 }
 
 export function toDatabaseFeedback(
   value: TalentOpportunityFeedback | null | undefined
-): "like" | "neutral" | "dislike" | null {
-  if (value === "tracked") return "like";
-  if (value === "dont_know") return "neutral";
-  if (value === "not_for_me") return "dislike";
+): "like" | "dislike" | null {
+  if (value === "positive") return "like";
+  if (value === "negative") return "dislike";
   return null;
 }
 
@@ -139,6 +172,11 @@ function mapRecommendationRow(
   const linkedinUrl = workspace.linkedin_url ?? null;
   const href = externalJdUrl || homepageUrl || linkedinUrl || null;
   const kind = normalizeRecommendationKind(row.kind);
+  const opportunityType = normalizeOpportunityType({
+    kind,
+    sourceType,
+    value: row.opportunity_type,
+  });
 
   return {
     clickedAt: row.clicked_at ?? null,
@@ -160,12 +198,14 @@ function mapRecommendationRow(
     isInternal: sourceType === "internal",
     kind,
     location: role.location_text ?? null,
+    opportunityType,
     postedAt: role.posted_at ?? null,
     recommendedAt: row.recommended_at,
     recommendationReasons: normalizeRecommendationReasons(
       row.recommendation_reasons
     ),
     roleId: String(row.role_id ?? ""),
+    savedStage: normalizeSavedStage(row.saved_stage),
     sourceJobId: role.source_job_id ?? null,
     sourceProvider: role.source_provider ?? null,
     sourceType,
@@ -180,19 +220,21 @@ export async function fetchTalentOpportunityHistory(args: {
   admin: AdminClient;
   userId: string;
 }) {
-  const { data, error } = await (((args.admin.from(
-    "talent_opportunity_recommendation" as any
-  ) as any)
+  const { data, error } = await ((
+    args.admin.from("talent_opportunity_recommendation" as any) as any
+  )
     .select(
       `
         id,
         role_id,
         kind,
+        opportunity_type,
         recommended_at,
         recommendation_reasons,
         feedback,
         feedback_at,
         feedback_reason,
+        saved_stage,
         viewed_at,
         clicked_at,
         dismissed_at,
@@ -220,7 +262,7 @@ export async function fetchTalentOpportunityHistory(args: {
       `
     )
     .eq("talent_id", args.userId)
-    .order("recommended_at", { ascending: false })) as any);
+    .order("recommended_at", { ascending: false }) as any);
 
   if (error) {
     throw new Error(error.message ?? "Failed to load talent opportunities");
@@ -232,16 +274,17 @@ export async function fetchTalentOpportunityHistory(args: {
 }
 
 export async function updateTalentOpportunityHistoryItem(args: {
-  action: "feedback" | "view" | "click";
+  action: "feedback" | "saved_stage" | "view" | "click";
   admin: AdminClient;
   feedback?: TalentOpportunityFeedback | null;
   feedbackReason?: string | null;
-  roleId: string;
+  opportunityId: string;
+  savedStage?: TalentOpportunitySavedStage | null;
   userId: string;
 }) {
-  const roleId = String(args.roleId ?? "").trim();
-  if (!roleId) {
-    throw new Error("roleId is required");
+  const opportunityId = String(args.opportunityId ?? "").trim();
+  if (!opportunityId) {
+    throw new Error("opportunityId is required");
   }
 
   const now = new Date().toISOString();
@@ -249,20 +292,27 @@ export async function updateTalentOpportunityHistoryItem(args: {
 
   if (args.action === "feedback") {
     payload.feedback = toDatabaseFeedback(args.feedback);
-    payload.feedback_at = now;
-    payload.feedback_reason = String(args.feedbackReason ?? "").trim() || null;
+    payload.feedback_at = args.feedback ? now : null;
+    payload.feedback_reason = args.feedback
+      ? String(args.feedbackReason ?? "").trim() || null
+      : null;
+    payload.saved_stage =
+      args.feedback === "positive" ? (args.savedStage ?? null) : null;
+    payload.dismissed_at = args.feedback === "negative" ? now : null;
+  } else if (args.action === "saved_stage") {
+    payload.saved_stage = args.savedStage ?? null;
   } else if (args.action === "view") {
     payload.viewed_at = now;
   } else {
     payload.clicked_at = now;
   }
 
-  const { error } = await (((args.admin.from(
-    "talent_opportunity_recommendation" as any
-  ) as any)
+  const { error } = await ((
+    args.admin.from("talent_opportunity_recommendation" as any) as any
+  )
     .update(payload)
     .eq("talent_id", args.userId)
-    .eq("role_id", roleId)) as any);
+    .eq("id", opportunityId) as any);
 
   if (error) {
     throw new Error(error.message ?? "Failed to update opportunity state");

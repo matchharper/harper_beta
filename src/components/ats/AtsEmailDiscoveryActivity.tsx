@@ -52,6 +52,13 @@ function getStatusTone(
     };
   }
 
+  if (outreach?.emailDiscoveryStatus === "canceled") {
+    return {
+      badgeClassName: "border-white/15 bg-white/5 text-white/75",
+      label: "중단됨",
+    };
+  }
+
   return {
     badgeClassName: "border-white/10 bg-white/5 text-white/70",
     label: "대기",

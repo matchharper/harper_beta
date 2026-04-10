@@ -4,6 +4,7 @@ import type {
   CareerHistoryOpportunity,
   CareerHistoryOpportunityFeedback,
   CareerNetworkApplication,
+  CareerOpportunitySavedStage,
   CareerRecentOpportunity,
   CareerStage,
   CareerTalentNotification,
@@ -24,14 +25,26 @@ export type CareerSidebarContextValue = {
   onLogout: () => void | Promise<void>;
   recentOpportunities: CareerRecentOpportunity[];
   historyOpportunities: CareerHistoryOpportunity[];
-  historyUpdatingRoleIds: string[];
+  historyUpdatingOpportunityIds: string[];
   historyUpdateError: string;
   onUpdateHistoryOpportunityFeedback: (
-    roleId: string,
-    feedback: CareerHistoryOpportunityFeedback
+    opportunityId: string,
+    feedback: CareerHistoryOpportunityFeedback | null,
+    options?: {
+      feedbackReason?: string | null;
+      savedStage?: CareerOpportunitySavedStage | null;
+    }
   ) => void | Promise<void>;
-  onMarkHistoryOpportunityViewed: (roleId: string) => void | Promise<void>;
-  onMarkHistoryOpportunityClicked: (roleId: string) => void | Promise<void>;
+  onUpdateHistoryOpportunitySavedStage: (
+    opportunityId: string,
+    savedStage: CareerOpportunitySavedStage
+  ) => void | Promise<void>;
+  onMarkHistoryOpportunityViewed: (
+    opportunityId: string
+  ) => void | Promise<void>;
+  onMarkHistoryOpportunityClicked: (
+    opportunityId: string
+  ) => void | Promise<void>;
   notifications: CareerTalentNotification[];
   unreadNotificationCount: number;
   notificationsMarkingAsRead: boolean;

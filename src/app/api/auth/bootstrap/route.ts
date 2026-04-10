@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  getRequestAccessBaseUrl,
+  notifySlackSignupApprovalCandidate,
+} from "@/lib/requestAccess/server";
 import { getRequestUser, supabaseServer } from "@/lib/supabaseServer";
 
 export async function POST(req: NextRequest) {
@@ -39,6 +43,19 @@ export async function POST(req: NextRequest) {
       { error: upsertError.message ?? "Failed to upsert company_users" },
       { status: 500 }
     );
+  }
+
+  if (!existing && user.email) {
+    try {
+      await notifySlackSignupApprovalCandidate({
+        userId: user.id,
+        email: user.email,
+        name: payload.name,
+        baseUrl: getRequestAccessBaseUrl(req),
+      });
+    } catch (error) {
+      console.error("[auth/bootstrap] signup slack notify error:", error);
+    }
   }
 
   return NextResponse.json({

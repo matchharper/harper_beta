@@ -1,4 +1,10 @@
-import { Check, GalleryVerticalEnd, House, Settings2, UserRoundCog } from "lucide-react";
+import {
+  Check,
+  GalleryVerticalEnd,
+  House,
+  Settings2,
+  UserRoundCog,
+} from "lucide-react";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
 import CareerNotificationsPopover from "./CareerNotificationsPopover";
 import { careerCx } from "./ui/CareerPrimitives";
@@ -39,7 +45,7 @@ const NAV_ITEMS: Array<{
   },
   {
     id: "history",
-    label: "History",
+    label: "Jobs",
     icon: GalleryVerticalEnd,
   },
 ];

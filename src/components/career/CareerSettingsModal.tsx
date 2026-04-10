@@ -85,7 +85,7 @@ const CareerSettingsModal = ({
             </nav>
           </aside>
 
-          <div className="bg-beige100 h-full overflow-y-auto px-8 py-7">
+          <div className="bg-beige50 h-full overflow-y-auto px-8 py-7">
             {activeTab === "profile" ? <CareerProfileSettingsSection /> : null}
             {activeTab === "resume" ? (
               <CareerResumeLinksSettingsSection />

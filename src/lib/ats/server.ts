@@ -58,6 +58,13 @@ type DueSequenceOutreachRow = {
   userId: string;
 };
 
+type DueScheduledManualMessageRow = {
+  candidId: string;
+  id: number;
+  scheduledFor: string;
+  userId: string;
+};
+
 type BookmarkFolderRecord = {
   created_at: string;
   id: number;
@@ -72,6 +79,7 @@ const OUTREACH_SELECT = [
   "user_id",
   "candid_id",
   "target_email",
+  "email_recipient_name",
   "email_source_type",
   "email_source_label",
   "email_source_url",
@@ -105,6 +113,7 @@ const MESSAGE_SELECT = [
   "rendered_subject",
   "rendered_body",
   "to_email",
+  "scheduled_for",
   "sent_at",
   "created_by",
   "created_at",
@@ -171,6 +180,7 @@ function mapOutreachRecord(row: any): AtsOutreachRecord {
     activeStep: Number(row?.active_step ?? 0) || 0,
     candidId: String(row?.candid_id ?? ""),
     createdAt: String(row?.created_at ?? ""),
+    emailRecipientName: String(row?.email_recipient_name ?? "").trim() || null,
     emailDiscoveryEvidence: coerceJsonArray<AtsEmailDiscoveryEvidence>(
       row?.email_discovery_evidence
     ),
@@ -215,6 +225,7 @@ function mapMessageRecord(row: any): AtsMessageRecord {
       row?.rendered_body == null ? null : String(row.rendered_body ?? ""),
     renderedSubject:
       row?.rendered_subject == null ? null : String(row.rendered_subject ?? ""),
+    scheduledFor: row?.scheduled_for ?? null,
     sentAt: row?.sent_at ?? null,
     status:
       row?.status === "sent" ||
@@ -978,10 +989,12 @@ async function fetchCandidateDetailById(args: {
 async function ensureOutreachRecord(args: {
   admin: AdminClient;
   candidId: string;
-  seed?: Partial<{
-    active_step: number;
-    email_discovery_evidence: AtsEmailDiscoveryEvidence[];
-    email_discovery_status: AtsEmailDiscoveryStatus;
+    seed?: Partial<{
+      active_step: number;
+      email_recipient_name: string | null;
+      email_discovery_cancel_requested_at: string | null;
+      email_discovery_evidence: AtsEmailDiscoveryEvidence[];
+      email_discovery_status: AtsEmailDiscoveryStatus;
     email_discovery_summary: string | null;
     email_discovery_trace: AtsEmailDiscoveryTraceItem[];
     email_source_label: string | null;
@@ -1020,6 +1033,8 @@ async function ensureOutreachRecord(args: {
     active_step: 0,
     candid_id: args.candidId,
     created_at: now,
+    email_recipient_name: null,
+    email_discovery_cancel_requested_at: null,
     email_discovery_evidence: [],
     email_discovery_status: "not_started",
     email_discovery_summary: null,
@@ -1055,6 +1070,28 @@ async function ensureOutreachRecord(args: {
   }
 
   return mapOutreachRecord(data);
+}
+
+async function hasEmailDiscoveryCancelRequest(args: {
+  admin: AdminClient;
+  candidId: string;
+  userId: string;
+}) {
+  const { data, error } = await (
+    args.admin.from("candidate_outreach" as any) as any
+  )
+    .select("email_discovery_cancel_requested_at")
+    .eq("user_id", args.userId)
+    .eq("candid_id", args.candidId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      error.message ?? "Failed to read email discovery cancellation state"
+    );
+  }
+
+  return Boolean(data?.email_discovery_cancel_requested_at);
 }
 
 async function updateOutreachRecord(args: {
@@ -1123,6 +1160,44 @@ async function fetchDueSequenceOutreachRows(args: {
       } satisfies DueSequenceOutreachRow;
     })
     .filter(Boolean) as DueSequenceOutreachRow[];
+}
+
+async function fetchDueScheduledManualMessageRows(args: {
+  admin: AdminClient;
+  limit: number;
+  nowIso: string;
+}) {
+  const { data, error } = await (
+    args.admin.from("candidate_outreach_message" as any) as any
+  )
+    .select("id, user_id, candid_id, scheduled_for")
+    .eq("kind", "manual")
+    .eq("status", "draft")
+    .not("scheduled_for", "is", null)
+    .lte("scheduled_for", args.nowIso)
+    .order("scheduled_for", { ascending: true })
+    .limit(args.limit);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load due manual ATS emails");
+  }
+
+  return coerceJsonArray<any>(data)
+    .map((row) => {
+      const candidId = String(row?.candid_id ?? "").trim();
+      const userId = String(row?.user_id ?? "").trim();
+      const scheduledFor = String(row?.scheduled_for ?? "").trim();
+      const id = Number(row?.id ?? 0) || 0;
+      if (!candidId || !userId || !scheduledFor || !id) return null;
+
+      return {
+        candidId,
+        id,
+        scheduledFor,
+        userId,
+      } satisfies DueScheduledManualMessageRow;
+    })
+    .filter(Boolean) as DueScheduledManualMessageRow[];
 }
 
 function getOutreachPairKey(userId: string, candidId: string) {
@@ -1447,6 +1522,116 @@ async function restoreSequenceDraftMessage(args: {
   }
 }
 
+async function tryClaimScheduledManualMessage(args: {
+  admin: AdminClient;
+  currentStatus: "draft" | "sending";
+  id: number;
+  staleBeforeIso?: string;
+  userId: string;
+}) {
+  let query = (args.admin.from("candidate_outreach_message" as any) as any)
+    .update({
+      status: "sending",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", args.userId)
+    .eq("id", args.id)
+    .eq("kind", "manual")
+    .not("scheduled_for", "is", null)
+    .eq("status", args.currentStatus);
+
+  if (args.currentStatus === "sending" && args.staleBeforeIso) {
+    query = query.lte("updated_at", args.staleBeforeIso);
+  }
+
+  const { data, error } = await query.select(MESSAGE_SELECT);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to claim scheduled manual email");
+  }
+
+  const row = coerceJsonArray<any>(data)[0] ?? null;
+  return row ? mapMessageRecord(row) : null;
+}
+
+async function claimScheduledManualMessage(args: {
+  admin: AdminClient;
+  id: number;
+  userId: string;
+}) {
+  const staleBeforeIso = new Date(Date.now() - 15 * 60_000).toISOString();
+  const claimedMessage = await tryClaimScheduledManualMessage({
+    admin: args.admin,
+    currentStatus: "draft",
+    id: args.id,
+    userId: args.userId,
+  });
+  if (claimedMessage) {
+    return { message: claimedMessage, outcome: "claimed" as const };
+  }
+
+  const current = await fetchMessageRecordById({
+    admin: args.admin,
+    id: args.id,
+    userId: args.userId,
+  });
+  if (!current) {
+    return { outcome: "not_found" as const };
+  }
+  if (current.status === "sent") {
+    return { message: current, outcome: "already_sent" as const };
+  }
+  if (current.status === "canceled") {
+    return { message: current, outcome: "canceled" as const };
+  }
+
+  if (current.status === "sending") {
+    const currentUpdatedAt =
+      Date.parse(current.updatedAt || current.createdAt) || Number.NaN;
+    if (
+      !Number.isNaN(currentUpdatedAt) &&
+      currentUpdatedAt <= Date.parse(staleBeforeIso)
+    ) {
+      const reclaimed = await tryClaimScheduledManualMessage({
+        admin: args.admin,
+        currentStatus: "sending",
+        id: args.id,
+        staleBeforeIso,
+        userId: args.userId,
+      });
+      if (reclaimed) {
+        return { message: reclaimed, outcome: "claimed" as const };
+      }
+    }
+
+    return { message: current, outcome: "already_sending" as const };
+  }
+
+  return { message: current, outcome: "not_claimable" as const };
+}
+
+async function restoreScheduledManualMessage(args: {
+  admin: AdminClient;
+  id: number;
+  userId: string;
+}) {
+  const { error } = await (
+    args.admin.from("candidate_outreach_message" as any) as any
+  )
+    .update({
+      status: "draft",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", args.userId)
+    .eq("id", args.id)
+    .eq("kind", "manual")
+    .eq("status", "sending");
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to restore scheduled manual email");
+  }
+}
+
 async function upsertSequenceDrafts(args: {
   admin: AdminClient;
   candidId: string;
@@ -1723,43 +1908,86 @@ export async function fetchAtsWorkspace(args: {
   userId: string;
 }): Promise<AtsWorkspaceResponse> {
   const admin = getSupabaseAdmin();
-  const [companyUser, workspaceRow, bookmarkFolders] = await Promise.all([
-    fetchCompanyUserRecord(admin, args.userId),
-    fetchWorkspaceRow(admin, args.userId),
-    fetchBookmarkFolders(admin, args.userId),
-  ]);
+
+  const wrapWorkspaceError = (stage: string, error: unknown) => {
+    const message =
+      error instanceof Error ? error.message : "unknown_workspace_error";
+
+    console.error("[ats-workspace] failed", {
+      error: message,
+      stage,
+      stack: error instanceof Error ? error.stack : undefined,
+      userEmail: args.userEmail ?? null,
+      userId: args.userId,
+    });
+
+    return new Error(`[ats-workspace:${stage}] ${message}`);
+  };
+
+  let companyUser: Awaited<ReturnType<typeof fetchCompanyUserRecord>>;
+  let workspaceRow: Awaited<ReturnType<typeof fetchWorkspaceRow>>;
+  let bookmarkFolders: Awaited<ReturnType<typeof fetchBookmarkFolders>>;
+
+  try {
+    [companyUser, workspaceRow, bookmarkFolders] = await Promise.all([
+      fetchCompanyUserRecord(admin, args.userId),
+      fetchWorkspaceRow(admin, args.userId),
+      fetchBookmarkFolders(admin, args.userId),
+    ]);
+  } catch (error) {
+    throw wrapWorkspaceError("load_workspace_dependencies", error);
+  }
+
   const selectedFolderId = resolveAtsBookmarkFolderId({
     folders: bookmarkFolders,
     requestedFolderId: Number.isFinite(Number(workspaceRow?.bookmark_folder_id))
       ? Number(workspaceRow?.bookmark_folder_id)
       : null,
   });
-  const candidateIds =
-    selectedFolderId != null
-      ? await fetchBookmarkFolderCandidateIds(
-          admin,
-          args.userId,
-          selectedFolderId
-        )
-      : [];
 
-  const [outreachByCandidateId, shortlistMemoByCandidateId] = await Promise.all(
-    [
+  let candidateIds: string[];
+  try {
+    candidateIds =
+      selectedFolderId != null
+        ? await fetchBookmarkFolderCandidateIds(
+            admin,
+            args.userId,
+            selectedFolderId
+          )
+        : [];
+  } catch (error) {
+    throw wrapWorkspaceError("load_bookmark_folder_candidates", error);
+  }
+
+  let outreachByCandidateId: Awaited<
+    ReturnType<typeof fetchOutreachRecordsByCandidateIds>
+  >;
+  let shortlistMemoByCandidateId: Awaited<ReturnType<typeof fetchShortlistMemoMap>>;
+
+  try {
+    [outreachByCandidateId, shortlistMemoByCandidateId] = await Promise.all([
       fetchOutreachRecordsByCandidateIds({
         admin,
         candidIds: candidateIds,
         userId: args.userId,
       }),
       fetchShortlistMemoMap(admin, args.userId, candidateIds),
-    ]
-  );
+    ]);
+  } catch (error) {
+    throw wrapWorkspaceError("load_outreach_and_shortlist_state", error);
+  }
 
-  const candidates = await fetchCandidateSummariesByIds({
-    admin,
-    candidIds: candidateIds,
-    outreachByCandidateId,
-    shortlistMemoByCandidateId,
-  });
+  let candidates: Awaited<ReturnType<typeof fetchCandidateSummariesByIds>>;
+  try {
+    candidates = await fetchCandidateSummariesByIds({
+      admin,
+      candidIds: candidateIds,
+      outreachByCandidateId,
+      shortlistMemoByCandidateId,
+    });
+  } catch (error) {
+    throw wrapWorkspaceError("load_candidate_summaries", error);
+  }
 
   return {
     allowedDomain: "matchharper.com",
@@ -1877,10 +2105,16 @@ export async function discoverCandidateEmail(args: {
   userId: string;
 }) {
   const admin = getSupabaseAdmin();
-  const outreach = await ensureOutreachRecord({
+  await ensureOutreachRecord({
     admin,
     candidId: args.candidId,
-    seed: {
+    userId: args.userId,
+  });
+  const outreach = await updateOutreachRecord({
+    admin,
+    candidId: args.candidId,
+    patch: {
+      email_discovery_cancel_requested_at: null,
       email_discovery_status: "searching",
       email_discovery_summary: "공개 이메일 탐색 중입니다.",
     },
@@ -1902,6 +2136,8 @@ export async function discoverCandidateEmail(args: {
   let persistedTraceLength = 0;
   let persistedTraceAt = 0;
   let persistTraceChain: Promise<void> = Promise.resolve();
+  let lastCancellationCheckAt = 0;
+  let cancellationRequested = false;
 
   const queueLiveTracePersist = (trace: AtsEmailDiscoveryTraceItem[]) => {
     const latestTrace = trace[trace.length - 1];
@@ -1943,21 +2179,54 @@ export async function discoverCandidateEmail(args: {
       });
   };
 
+  const shouldStop = async () => {
+    if (cancellationRequested) return true;
+
+    const now = Date.now();
+    if (now - lastCancellationCheckAt < 1_000) {
+      return false;
+    }
+
+    lastCancellationCheckAt = now;
+
+    try {
+      cancellationRequested = await hasEmailDiscoveryCancelRequest({
+        admin,
+        candidId: args.candidId,
+        userId: args.userId,
+      });
+    } catch (error) {
+      console.error(
+        "[ats-email-discovery] failed to read cancellation request",
+        {
+          candidId: args.candidId,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+    }
+
+    return cancellationRequested;
+  };
+
   const result = await findCandidateEmailWithAgenticFlow({
     candidate,
     onTrace: queueLiveTracePersist,
     req: args.req,
+    shouldStop,
   });
 
   await persistTraceChain;
 
   const patch = {
+    email_discovery_cancel_requested_at: null,
     email_discovery_evidence: result.evidence,
     email_discovery_status:
       result.status === "found"
         ? result.sourceType === "manual"
           ? "manual"
           : "found"
+        : result.status === "canceled"
+          ? "canceled"
         : result.status === "error"
           ? "error"
           : "not_found",
@@ -1992,12 +2261,39 @@ export async function setManualCandidateEmail(args: {
     admin,
     candidId: args.candidId,
     patch: {
+      email_discovery_cancel_requested_at: null,
       email_discovery_status: "manual",
       email_discovery_summary: "수동으로 이메일을 입력했습니다.",
       email_source_label: "manual override",
       email_source_type: "manual",
       email_source_url: null,
       target_email: normalizedEmail,
+    },
+    userId: args.userId,
+  });
+}
+
+export async function cancelCandidateEmailDiscovery(args: {
+  candidId: string;
+  userId: string;
+}) {
+  const admin = getSupabaseAdmin();
+  const current = await ensureOutreachRecord({
+    admin,
+    candidId: args.candidId,
+    userId: args.userId,
+  });
+
+  if (current.emailDiscoveryStatus !== "searching") {
+    return current;
+  }
+
+  return updateOutreachRecord({
+    admin,
+    candidId: args.candidId,
+    patch: {
+      email_discovery_cancel_requested_at: new Date().toISOString(),
+      email_discovery_summary: "사용자 요청으로 이메일 탐색 중단을 요청했습니다.",
     },
     userId: args.userId,
   });
@@ -2039,6 +2335,22 @@ export async function saveAtsCandidateMemo(args: {
   });
 }
 
+export async function saveAtsEmailRecipientName(args: {
+  candidId: string;
+  emailRecipientName: string | null;
+  userId: string;
+}) {
+  const admin = getSupabaseAdmin();
+  return updateOutreachRecord({
+    admin,
+    candidId: args.candidId,
+    patch: {
+      email_recipient_name: String(args.emailRecipientName ?? "").trim() || null,
+    },
+    userId: args.userId,
+  });
+}
+
 export async function clearAtsEmailDiscoveryTrace(args: {
   candidId: string;
   userId: string;
@@ -2052,6 +2364,7 @@ export async function clearAtsEmailDiscoveryTrace(args: {
   const shouldResetDiscoveryState =
     current.emailDiscoveryStatus === "not_started" ||
     current.emailDiscoveryStatus === "searching" ||
+    current.emailDiscoveryStatus === "canceled" ||
     current.emailDiscoveryStatus === "not_found" ||
     current.emailDiscoveryStatus === "error";
 
@@ -2061,6 +2374,7 @@ export async function clearAtsEmailDiscoveryTrace(args: {
     patch: {
       ...(shouldResetDiscoveryState
         ? {
+            email_discovery_cancel_requested_at: null,
             email_discovery_evidence: [],
             email_discovery_status: "not_started",
             email_discovery_summary: null,
@@ -2086,6 +2400,8 @@ export async function resetAtsCandidateOutreach(args: {
     candidId: args.candidId,
     patch: {
       active_step: 0,
+      email_recipient_name: null,
+      email_discovery_cancel_requested_at: null,
       email_discovery_evidence: [],
       email_discovery_status: "not_started",
       email_discovery_summary: null,
@@ -2349,6 +2665,7 @@ export async function sendAtsSingleManualEmail(args: {
     outreach_id: outreach.id,
     rendered_body: renderedBody,
     rendered_subject: renderedSubject,
+    scheduled_for: null,
     sent_at: now,
     status: "sent",
     step_number: null,
@@ -2385,6 +2702,323 @@ export async function sendAtsSingleManualEmail(args: {
 
   return fetchAtsCandidateDetail({
     candidId: args.candidId,
+    userEmail: args.userEmail,
+    userId: args.userId,
+  });
+}
+
+export async function scheduleAtsSingleManualEmail(args: {
+  body: string;
+  candidId: string;
+  scheduledAt: string;
+  subject: string;
+  targetEmail?: string | null;
+  userEmail: string | null | undefined;
+  userId: string;
+}) {
+  if (!String(args.subject ?? "").trim() || !String(args.body ?? "").trim()) {
+    throw new InternalApiError(400, "제목과 본문을 입력해 주세요.");
+  }
+
+  const scheduledAtMs = Date.parse(String(args.scheduledAt ?? ""));
+  if (Number.isNaN(scheduledAtMs)) {
+    throw new InternalApiError(400, "유효한 예약 시간이 필요합니다.");
+  }
+  if (scheduledAtMs <= Date.now()) {
+    throw new InternalApiError(400, "예약 시간은 현재보다 이후여야 합니다.");
+  }
+
+  const admin = getSupabaseAdmin();
+  const [workspaceRow, outreachByCandidateId, shortlistMemoByCandidateId] =
+    await Promise.all([
+      fetchWorkspaceRow(admin, args.userId),
+      fetchOutreachRecordsByCandidateIds({
+        admin,
+        candidIds: [args.candidId],
+        userId: args.userId,
+      }),
+      fetchShortlistMemoMap(admin, args.userId, [args.candidId]),
+    ]);
+
+  const outreach =
+    outreachByCandidateId.get(args.candidId) ??
+    (await ensureOutreachRecord({
+      admin,
+      candidId: args.candidId,
+      userId: args.userId,
+    }));
+  const candidate = await fetchCandidateDetailById({
+    admin,
+    candidId: args.candidId,
+    outreach,
+    shortlistMemo: shortlistMemoByCandidateId.get(args.candidId) ?? "",
+  });
+  const senderEmail = normalizeEmail(
+    workspaceRow?.sender_email ?? args.userEmail ?? ""
+  );
+  if (!isValidEmail(senderEmail)) {
+    throw new InternalApiError(400, "유효한 발신자 이메일이 필요합니다.");
+  }
+
+  const targetEmail = normalizeEmail(
+    args.targetEmail ?? resolveTargetEmail({ candidate, outreach }) ?? ""
+  );
+  if (!isValidEmail(targetEmail)) {
+    throw new InternalApiError(400, "유효한 대상 이메일이 필요합니다.");
+  }
+
+  const variables = buildCandidateTemplateVariables(candidate);
+  const renderedSubject = replaceTemplateVariables(
+    args.subject,
+    variables
+  ).trim();
+  const renderedBody = replaceTemplateVariables(args.body, variables).trim();
+  if (!renderedSubject || !renderedBody) {
+    throw new InternalApiError(400, "제목과 본문을 입력해 주세요.");
+  }
+
+  const now = new Date().toISOString();
+  const { error: insertError } = await (
+    admin.from("candidate_outreach_message" as any) as any
+  ).insert({
+    body: args.body,
+    candid_id: args.candidId,
+    created_at: now,
+    created_by: senderEmail,
+    kind: "manual",
+    outreach_id: outreach.id,
+    rendered_body: null,
+    rendered_subject: null,
+    scheduled_for: new Date(scheduledAtMs).toISOString(),
+    sent_at: null,
+    status: "draft",
+    step_number: null,
+    subject: args.subject,
+    to_email: targetEmail,
+    updated_at: now,
+    user_id: args.userId,
+  });
+
+  if (insertError) {
+    throw new Error(insertError.message ?? "Failed to schedule manual email");
+  }
+
+  await updateOutreachRecord({
+    admin,
+    candidId: args.candidId,
+    patch: {
+      target_email: targetEmail,
+    },
+    userId: args.userId,
+  });
+
+  return fetchAtsCandidateDetail({
+    candidId: args.candidId,
+    userEmail: args.userEmail,
+    userId: args.userId,
+  });
+}
+
+export async function cancelAtsScheduledManualEmail(args: {
+  candidId: string;
+  messageId: number;
+  userEmail: string | null | undefined;
+  userId: string;
+}) {
+  const admin = getSupabaseAdmin();
+  const message = await fetchMessageRecordById({
+    admin,
+    id: args.messageId,
+    userId: args.userId,
+  });
+
+  if (!message || message.candidId !== args.candidId || message.kind !== "manual") {
+    throw new InternalApiError(404, "예약된 메일을 찾지 못했습니다.");
+  }
+  if (!message.scheduledFor) {
+    throw new InternalApiError(400, "예약 발송 메일이 아닙니다.");
+  }
+  if (message.status === "sent") {
+    throw new InternalApiError(400, "이미 발송된 메일입니다.");
+  }
+  if (message.status === "sending") {
+    throw new InternalApiError(
+      409,
+      "이미 발송 중인 메일입니다. 잠시 후 다시 시도해 주세요."
+    );
+  }
+
+  if (message.status !== "canceled") {
+    const { error } = await (admin.from("candidate_outreach_message" as any) as any)
+      .update({
+        status: "canceled",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("user_id", args.userId)
+      .eq("id", args.messageId)
+      .eq("kind", "manual");
+
+    if (error) {
+      throw new Error(error.message ?? "Failed to cancel scheduled manual email");
+    }
+  }
+
+  return fetchAtsCandidateDetail({
+    candidId: args.candidId,
+    userEmail: args.userEmail,
+    userId: args.userId,
+  });
+}
+
+async function sendScheduledAtsManualEmail(args: {
+  messageId: number;
+  userEmail: string | null | undefined;
+  userId: string;
+}) {
+  const admin = getSupabaseAdmin();
+  const claim = await claimScheduledManualMessage({
+    admin,
+    id: args.messageId,
+    userId: args.userId,
+  });
+  if (claim.outcome === "already_sent") {
+    throw new InternalApiError(400, "이미 발송된 메일입니다.");
+  }
+  if (claim.outcome === "canceled") {
+    throw new InternalApiError(400, "취소된 예약 메일입니다.");
+  }
+  if (claim.outcome === "already_sending") {
+    throw new InternalApiError(409, "예약 메일이 이미 발송 중입니다.");
+  }
+  if (claim.outcome !== "claimed") {
+    throw new InternalApiError(
+      409,
+      "예약 메일 상태가 변경되었습니다. 다시 시도해 주세요."
+    );
+  }
+
+  const message = claim.message;
+  const detail = await fetchAtsCandidateDetail({
+    candidId: message.candidId,
+    userEmail: args.userEmail,
+    userId: args.userId,
+  });
+  const outreach =
+    detail.candidate.outreach ??
+    (await ensureOutreachRecord({
+      admin,
+      candidId: message.candidId,
+      userId: args.userId,
+    }));
+  const senderEmail = normalizeEmail(
+    (isValidEmail(message.createdBy)
+      ? message.createdBy
+      : detail.workspace.senderEmail) ??
+      args.userEmail ??
+      ""
+  );
+  if (!isValidEmail(senderEmail)) {
+    throw new InternalApiError(400, "유효한 발신자 이메일이 필요합니다.");
+  }
+
+  const targetEmail = normalizeEmail(
+    (isValidEmail(message.toEmail)
+      ? message.toEmail
+      : resolveTargetEmail({
+          candidate: detail.candidate,
+          outreach,
+        })) ??
+      ""
+  );
+  if (!isValidEmail(targetEmail)) {
+    throw new InternalApiError(400, "유효한 대상 이메일이 필요합니다.");
+  }
+
+  const variables = buildCandidateTemplateVariables(detail.candidate);
+  const renderedSubject = replaceTemplateVariables(
+    message.subject,
+    variables
+  ).trim();
+  const renderedBody = replaceTemplateVariables(message.body, variables).trim();
+  if (!renderedSubject || !renderedBody) {
+    throw new InternalApiError(400, "제목과 본문을 입력해 주세요.");
+  }
+
+  try {
+    await sendInternalEmail({
+      from: senderEmail,
+      subject: renderedSubject,
+      text: renderedBody,
+      to: targetEmail,
+    });
+  } catch (error) {
+    try {
+      await restoreScheduledManualMessage({
+        admin,
+        id: message.id,
+        userId: args.userId,
+      });
+    } catch (restoreError) {
+      console.error("[ats-manual] failed to restore scheduled manual email", {
+        candidId: message.candidId,
+        error:
+          restoreError instanceof Error
+            ? restoreError.message
+            : "unknown_restore_error",
+        messageId: message.id,
+      });
+    }
+    throw error;
+  }
+
+  const now = new Date().toISOString();
+  const { data: sentRows, error: sentError } = await (
+    admin.from("candidate_outreach_message" as any) as any
+  )
+    .update({
+      rendered_body: renderedBody,
+      rendered_subject: renderedSubject,
+      sent_at: now,
+      status: "sent",
+      to_email: targetEmail,
+      updated_at: now,
+    })
+    .eq("user_id", args.userId)
+    .eq("id", message.id)
+    .eq("kind", "manual")
+    .eq("status", "sending")
+    .select(MESSAGE_SELECT);
+
+  if (sentError) {
+    throw new Error(sentError.message ?? "Failed to finalize scheduled email");
+  }
+  if (!coerceJsonArray<any>(sentRows)[0]) {
+    throw new Error("Failed to finalize scheduled email");
+  }
+
+  await updateOutreachRecord({
+    admin,
+    candidId: message.candidId,
+    patch: {
+      history: [
+        ...outreach.history,
+        {
+          channel: "email",
+          contactedAt: now,
+          createdAt: now,
+          id: crypto.randomUUID(),
+          note: `Scheduled manual email sent · ${renderedSubject}`,
+          source: "manual",
+        } satisfies AtsContactHistoryItem,
+      ],
+      last_sent_at: now,
+      target_email: targetEmail,
+    },
+    userId: args.userId,
+  });
+
+  return fetchAtsCandidateDetail({
+    candidId: message.candidId,
     userEmail: args.userEmail,
     userId: args.userId,
   });
@@ -2796,28 +3430,38 @@ export async function sendCandidateSequenceStep(args: {
   });
 }
 
-export async function runAtsSequenceSweep(args?: { limit?: number }) {
+export async function runAtsSweep(args?: { limit?: number }) {
   const admin = getSupabaseAdmin();
   const nowIso = new Date().toISOString();
   const limit = Math.min(100, Math.max(1, Number(args?.limit ?? 25) || 25));
-  const dueRows = await fetchDueSequenceOutreachRows({
+  const dueSequenceRows = await fetchDueSequenceOutreachRows({
+    admin,
+    limit,
+    nowIso,
+  });
+  const dueManualRows = await fetchDueScheduledManualMessageRows({
     admin,
     limit,
     nowIso,
   });
   const sequenceDraftPairKeys = await fetchSequenceDraftPairKeys({
     admin,
-    rows: dueRows,
+    rows: dueSequenceRows,
   });
-  const eligibleRows = dueRows.filter((row) =>
+  const eligibleSequenceRows = dueSequenceRows.filter((row) =>
     sequenceDraftPairKeys.has(getOutreachPairKey(row.userId, row.candidId))
   );
   const userEmailById = await fetchCompanyUserEmailMap(
     admin,
-    Array.from(new Set(eligibleRows.map((row) => row.userId)))
+    Array.from(
+      new Set(
+        [...eligibleSequenceRows, ...dueManualRows].map((row) => row.userId)
+      )
+    )
   );
   const results: Array<{
     candidId: string;
+    kind: "manual" | "sequence";
     message?: string;
     status: "failed" | "sent" | "skipped";
     stepNumber: number | null;
@@ -2827,14 +3471,22 @@ export async function runAtsSequenceSweep(args?: { limit?: number }) {
   let failed = 0;
   let sent = 0;
   let skipped = 0;
+  let manualFailed = 0;
+  let manualSent = 0;
+  let manualSkipped = 0;
+  let sequenceFailed = 0;
+  let sequenceSent = 0;
+  let sequenceSkipped = 0;
 
-  for (const row of dueRows) {
+  for (const row of dueSequenceRows) {
     if (
       !sequenceDraftPairKeys.has(getOutreachPairKey(row.userId, row.candidId))
     ) {
       skipped += 1;
+      sequenceSkipped += 1;
       results.push({
         candidId: row.candidId,
+        kind: "sequence",
         message: "Sequence drafts are not generated yet",
         status: "skipped",
         stepNumber: null,
@@ -2857,8 +3509,10 @@ export async function runAtsSequenceSweep(args?: { limit?: number }) {
         userId: row.userId,
       });
       skipped += 1;
+      sequenceSkipped += 1;
       results.push({
         candidId: row.candidId,
+        kind: "sequence",
         message: "Sequence already completed",
         status: "skipped",
         stepNumber: null,
@@ -2875,8 +3529,10 @@ export async function runAtsSequenceSweep(args?: { limit?: number }) {
         userId: row.userId,
       });
       sent += 1;
+      sequenceSent += 1;
       results.push({
         candidId: row.candidId,
+        kind: "sequence",
         status: "sent",
         stepNumber: nextStep,
         userId: row.userId,
@@ -2894,8 +3550,10 @@ export async function runAtsSequenceSweep(args?: { limit?: number }) {
 
       if (isSkippable) {
         skipped += 1;
+        sequenceSkipped += 1;
         results.push({
           candidId: row.candidId,
+          kind: "sequence",
           message,
           status: "skipped",
           stepNumber: nextStep,
@@ -2903,8 +3561,10 @@ export async function runAtsSequenceSweep(args?: { limit?: number }) {
         });
       } else {
         failed += 1;
+        sequenceFailed += 1;
         results.push({
           candidId: row.candidId,
+          kind: "sequence",
           message,
           status: "failed",
           stepNumber: nextStep,
@@ -2914,16 +3574,86 @@ export async function runAtsSequenceSweep(args?: { limit?: number }) {
     }
   }
 
+  for (const row of dueManualRows) {
+    try {
+      await sendScheduledAtsManualEmail({
+        messageId: row.id,
+        userEmail: userEmailById.get(row.userId) ?? null,
+        userId: row.userId,
+      });
+      sent += 1;
+      manualSent += 1;
+      results.push({
+        candidId: row.candidId,
+        kind: "manual",
+        status: "sent",
+        stepNumber: null,
+        userId: row.userId,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to send scheduled ATS manual email";
+      const isSkippable =
+        error instanceof InternalApiError &&
+        (error.status === 409 ||
+          message.includes("이미 발송된 메일") ||
+          message.includes("취소된 예약 메일"));
+
+      if (isSkippable) {
+        skipped += 1;
+        manualSkipped += 1;
+        results.push({
+          candidId: row.candidId,
+          kind: "manual",
+          message,
+          status: "skipped",
+          stepNumber: null,
+          userId: row.userId,
+        });
+      } else {
+        failed += 1;
+        manualFailed += 1;
+        results.push({
+          candidId: row.candidId,
+          kind: "manual",
+          message,
+          status: "failed",
+          stepNumber: null,
+          userId: row.userId,
+        });
+      }
+    }
+  }
+
   return {
     failed,
+    manual: {
+      failed: manualFailed,
+      scanned: dueManualRows.length,
+      sent: manualSent,
+      skipped: manualSkipped,
+    },
     limit,
     nowIso,
-    scanned: dueRows.length,
-    eligible: eligibleRows.length,
+    scanned: dueSequenceRows.length + dueManualRows.length,
+    eligible: eligibleSequenceRows.length + dueManualRows.length,
     sent,
+    sequence: {
+      eligible: eligibleSequenceRows.length,
+      failed: sequenceFailed,
+      scanned: dueSequenceRows.length,
+      sent: sequenceSent,
+      skipped: sequenceSkipped,
+    },
     skipped,
     results,
   };
+}
+
+export async function runAtsSequenceSweep(args?: { limit?: number }) {
+  return runAtsSweep(args);
 }
 
 export async function sendBulkAtsManualEmails(args: {
@@ -3037,6 +3767,7 @@ export async function sendBulkAtsManualEmails(args: {
       outreach_id: outreach.id,
       rendered_body: renderedBody,
       rendered_subject: renderedSubject,
+      scheduled_for: null,
       sent_at: now.toISOString(),
       status: "sent",
       step_number: nextStep,

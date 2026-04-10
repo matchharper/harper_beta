@@ -179,7 +179,7 @@ export default function MatchWorkspaceForm({
                   inputSurfaceClassName,
                   "min-h-[148px] resize-none py-3"
                 )}
-                placeholder="팀의 현재 상황, 찾는 포지션의 맥락, 채용 우선순위를 간단히 적어주세요."
+                placeholder="회사에 대해서 설명해주세요."
                 value={companyDescription}
                 onChange={(event) => setCompanyDescription(event.target.value)}
               />

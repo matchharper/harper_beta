@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { runAtsSequenceSweep } from "@/lib/ats/server";
+import { runAtsSweep } from "@/lib/ats/server";
 
 export const runtime = "nodejs";
 
@@ -59,14 +59,14 @@ async function handleSweep(req: Request) {
     userAgent: req.headers.get("user-agent") ?? "unknown",
   });
   try {
-    const summary = await runAtsSequenceSweep({ limit });
+    const summary = await runAtsSweep({ limit });
 
     console.info("[ats-sweep] completed", summary);
 
     return NextResponse.json(summary, { status: 200 });
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Failed to sweep ATS sequences";
+      error instanceof Error ? error.message : "Failed to sweep ATS outreach";
     console.error("[ats-sweep] failed", { error: message, limit });
     return NextResponse.json({ error: message }, { status: 500 });
   }

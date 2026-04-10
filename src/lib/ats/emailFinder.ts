@@ -97,7 +97,7 @@ type EmailFinderResult = {
   sourceLabel: string | null;
   sourceType: AtsEmailSourceType | null;
   sourceUrl: string | null;
-  status: "found" | "not_found" | "error";
+  status: "found" | "not_found" | "canceled" | "error";
   summary: string | null;
   trace: AtsEmailDiscoveryTraceItem[];
 };
@@ -1858,10 +1858,28 @@ function makeFinalResult(args: {
   };
 }
 
+function makeCanceledResult(args: {
+  evidence: AtsEmailDiscoveryEvidence[];
+  trace: AtsEmailDiscoveryTraceItem[];
+}) {
+  return {
+    bestEmail: null,
+    confidence: "low" as const,
+    evidence: args.evidence.slice(0, 5),
+    sourceLabel: null,
+    sourceType: null,
+    sourceUrl: null,
+    status: "canceled" as const,
+    summary: "사용자 요청으로 이메일 탐색을 중단했습니다.",
+    trace: args.trace,
+  };
+}
+
 export async function findCandidateEmailWithAgenticFlow(args: {
   candidate: AtsCandidateDetail;
   onTrace?: EmailDiscoveryTraceListener | null;
   req: NextRequest;
+  shouldStop?: (() => Promise<boolean>) | null;
 }): Promise<EmailFinderResult> {
   const trace: AtsEmailDiscoveryTraceItem[] = [];
   const budget = makeBudgetController(trace, args.onTrace);
@@ -1877,6 +1895,27 @@ export async function findCandidateEmailWithAgenticFlow(args: {
   let finishReason: string | null = null;
   const urlPool = new Map<string, UrlMemoryEntry>();
   upsertUrlPool(urlPool, collectSeedUrlCandidates(args.candidate));
+  let stopTraceWritten = false;
+
+  const stopIfRequested = async (
+    stage: string,
+    meta?: Record<string, unknown> | null
+  ) => {
+    if (!args.shouldStop) return false;
+
+    const requested = await args.shouldStop();
+    if (!requested) return false;
+
+    if (!stopTraceWritten) {
+      stopTraceWritten = true;
+      pushTrace("decision", "사용자 요청으로 이메일 탐색을 중단합니다.", {
+        stage,
+        ...(meta ?? {}),
+      });
+    }
+
+    return true;
+  };
 
   try {
     const directEmail =
@@ -1951,6 +1990,13 @@ export async function findCandidateEmailWithAgenticFlow(args: {
     });
 
     for (let step = 1; step <= ATS_EMAIL_DISCOVERY_OPERATION_LIMIT; step += 1) {
+      if (await stopIfRequested("planner_loop_start", { step })) {
+        return makeCanceledResult({
+          evidence: collectedEvidence,
+          trace,
+        });
+      }
+
       if (!budget.consume("llm", { stage: "planner", step })) {
         break;
       }
@@ -1965,6 +2011,13 @@ export async function findCandidateEmailWithAgenticFlow(args: {
         step,
         urlPool,
       });
+
+      if (await stopIfRequested("planner_complete", { step })) {
+        return makeCanceledResult({
+          evidence: collectedEvidence,
+          trace,
+        });
+      }
 
       const action =
         normalizePlannerAction(plannerDecision) ??
@@ -2019,6 +2072,13 @@ export async function findCandidateEmailWithAgenticFlow(args: {
           pushTrace("search_result", "검색 중 오류가 발생했습니다.", {
             error: error instanceof Error ? error.message : "unknown",
             query,
+          });
+        }
+
+        if (await stopIfRequested("web_search_complete", { query, step })) {
+          return makeCanceledResult({
+            evidence: collectedEvidence,
+            trace,
           });
         }
 
@@ -2096,6 +2156,13 @@ export async function findCandidateEmailWithAgenticFlow(args: {
         url,
       });
 
+      if (await stopIfRequested("scrape_complete", { step, url })) {
+        return makeCanceledResult({
+          evidence: collectedEvidence,
+          trace,
+        });
+      }
+
       const poolEntry = urlPool.get(url);
       if (poolEntry) {
         poolEntry.attempts += 1;
@@ -2150,6 +2217,13 @@ export async function findCandidateEmailWithAgenticFlow(args: {
         pageUrl: url,
         readMode: action.readMode ?? inferReadMode(url),
       });
+
+      if (await stopIfRequested("extract_emails_complete", { step, url })) {
+        return makeCanceledResult({
+          evidence: collectedEvidence,
+          trace,
+        });
+      }
 
       const evidence = findings.map((finding) =>
         evidenceFromFinding({

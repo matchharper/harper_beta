@@ -10,16 +10,18 @@ import {
 } from "@/components/career/CareerSidebarContext";
 import CareerSettingsModal from "@/components/career/CareerSettingsModal";
 import CareerWorkspaceScreen from "@/components/career/CareerWorkspaceScreen";
-import type {
-  CareerHistoryOpportunity,
-  CareerMessage,
-  CareerNetworkApplication,
-  CareerRecentOpportunity,
-  CareerTalentNotification,
-  CareerTalentInsights,
-  CareerTalentPreferences,
-  CareerTalentProfile,
+import {
+  CareerOpportunityType,
+  type CareerHistoryOpportunity,
+  type CareerMessage,
+  type CareerNetworkApplication,
+  type CareerRecentOpportunity,
+  type CareerTalentInsights,
+  type CareerTalentNotification,
+  type CareerTalentPreferences,
+  type CareerTalentProfile,
 } from "@/components/career/types";
+import { getCareerDefaultSavedStage } from "@/components/career/opportunityTypeMeta";
 
 const mockUser = {
   id: "career-preview-user",
@@ -167,10 +169,10 @@ const initialRecentOpportunities: CareerRecentOpportunity[] = [
   {
     id: "preview-opportunity-1",
     kind: "match",
+    opportunityType: CareerOpportunityType.IntroRequest,
     title: "Applied AI Engineer",
     companyName: "Stealth Agent Startup",
-    summary:
-      "작은 팀에서 제품과 모델 품질을 함께 책임질 수 있는 역할입니다.",
+    summary: "작은 팀에서 제품과 모델 품질을 함께 책임질 수 있는 역할입니다.",
     location: "Seoul / Hybrid",
     engagementType: "Full-time",
     matchedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
@@ -178,6 +180,7 @@ const initialRecentOpportunities: CareerRecentOpportunity[] = [
   {
     id: "preview-opportunity-2",
     kind: "recommendation",
+    opportunityType: CareerOpportunityType.ExternalJd,
     title: "Founding ML Engineer",
     companyName: "Global Remote SaaS",
     summary:
@@ -213,15 +216,15 @@ const initialHistoryOpportunities: CareerHistoryOpportunity[] = [
     isInternal: true,
     kind: "match",
     location: "Seoul",
+    opportunityType: CareerOpportunityType.IntroRequest,
     postedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-    recommendedAt: new Date(
-      Date.now() - 2 * 24 * 60 * 60 * 1000
-    ).toISOString(),
+    recommendedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
     recommendationReasons: [
       "LLM 제품 론치 경험이 직접적으로 연결됩니다.",
       "작은 팀에서 제품 방향과 기술 의사결정을 함께 가져갈 수 있습니다.",
     ],
     sourceJobId: null,
+    savedStage: null,
     sourceProvider: null,
     sourceType: "internal",
     status: "active",
@@ -242,35 +245,29 @@ const initialHistoryOpportunities: CareerHistoryOpportunity[] = [
       "LLM workflow와 evaluation 체계를 만들고, 엔지니어링 팀과 함께 고객 기능을 빠르게 실험하는 포지션입니다.",
     employmentTypes: ["full_time", "contract"],
     externalJdUrl: "https://jobs.example.com/founding-ml",
-    feedback: "tracked",
-    feedbackAt: new Date(
-      Date.now() - 24 * 60 * 60 * 1000
-    ).toISOString(),
+    feedback: "positive",
+    feedbackAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
     feedbackReason: null,
     href: "https://jobs.example.com/founding-ml",
-    clickedAt: new Date(
-      Date.now() - 23 * 60 * 60 * 1000
-    ).toISOString(),
+    clickedAt: new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString(),
     dismissedAt: null,
     isAccepted: false,
     isInternal: false,
     kind: "recommendation",
     location: "US",
+    opportunityType: CareerOpportunityType.ExternalJd,
     postedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-    recommendedAt: new Date(
-      Date.now() - 3 * 24 * 60 * 60 * 1000
-    ).toISOString(),
+    recommendedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
     recommendationReasons: [
       "Remote 선호와 제품 중심 applied AI 경험이 잘 맞습니다.",
       "초기 시스템 설계와 품질 기준 수립 경험을 바로 활용할 수 있습니다.",
     ],
     sourceJobId: "remote-saas-ml-1",
+    savedStage: "saved",
     sourceProvider: "greenhouse",
     sourceType: "external",
     status: "active",
-    viewedAt: new Date(
-      Date.now() - 25 * 60 * 60 * 1000
-    ).toISOString(),
+    viewedAt: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(),
     workMode: "remote",
   },
   {
@@ -287,10 +284,8 @@ const initialHistoryOpportunities: CareerHistoryOpportunity[] = [
       "멀티모달 모델 평가 파이프라인과 배포 시스템을 만드는 역할입니다.",
     employmentTypes: ["full_time"],
     externalJdUrl: "https://jobs.example.com/research-engineer",
-    feedback: "dont_know",
-    feedbackAt: new Date(
-      Date.now() - 12 * 60 * 60 * 1000
-    ).toISOString(),
+    feedback: null,
+    feedbackAt: null,
     feedbackReason: null,
     href: "https://jobs.example.com/research-engineer",
     clickedAt: null,
@@ -299,15 +294,15 @@ const initialHistoryOpportunities: CareerHistoryOpportunity[] = [
     isInternal: false,
     kind: "recommendation",
     location: "Tokyo",
+    opportunityType: CareerOpportunityType.ExternalJd,
     postedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
-    recommendedAt: new Date(
-      Date.now() - 4 * 24 * 60 * 60 * 1000
-    ).toISOString(),
+    recommendedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
     recommendationReasons: [
       "논문 기반 평가 시스템 경험이 직접적으로 이어집니다.",
       "research와 product의 중간 지점 역할을 선호하는지 확인이 필요한 기회입니다.",
     ],
     sourceJobId: "robotics-lab-2",
+    savedStage: null,
     sourceProvider: "lever",
     sourceType: "external",
     status: "active",
@@ -328,34 +323,28 @@ const initialHistoryOpportunities: CareerHistoryOpportunity[] = [
       "추천 모델과 conversational UX를 제품 조직과 함께 리드하는 포지션입니다.",
     employmentTypes: ["full_time"],
     externalJdUrl: null,
-    feedback: "not_for_me",
-    feedbackAt: new Date(
-      Date.now() - 6 * 60 * 60 * 1000
-    ).toISOString(),
+    feedback: "negative",
+    feedbackAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
     feedbackReason: null,
     href: "https://linkedin.com/company/stealth-commerce-ai",
     clickedAt: null,
-    dismissedAt: new Date(
-      Date.now() - 6 * 60 * 60 * 1000
-    ).toISOString(),
+    dismissedAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
     isAccepted: false,
     isInternal: true,
     kind: "recommendation",
     location: "Singapore",
+    opportunityType: CareerOpportunityType.InternalRecommendation,
     postedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-    recommendedAt: new Date(
-      Date.now() - 5 * 24 * 60 * 60 * 1000
-    ).toISOString(),
+    recommendedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
     recommendationReasons: [
       "제품 오너십은 높지만 도메인 자체 선호가 갈릴 수 있습니다.",
     ],
     sourceJobId: null,
+    savedStage: null,
     sourceProvider: null,
     sourceType: "internal",
     status: "active",
-    viewedAt: new Date(
-      Date.now() - 5 * 24 * 60 * 60 * 1000
-    ).toISOString(),
+    viewedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
     workMode: "hybrid",
   },
 ];
@@ -382,9 +371,8 @@ const CareerPreviewPage = () => {
   const [savedNetworkApplication, setSavedNetworkApplication] = useState(
     initialNetworkApplication
   );
-  const [networkApplicationUpdatedAt, setNetworkApplicationUpdatedAt] = useState(
-    new Date().toISOString()
-  );
+  const [networkApplicationUpdatedAt, setNetworkApplicationUpdatedAt] =
+    useState(new Date().toISOString());
   const [networkSaveInfo, setNetworkSaveInfo] = useState("");
   const [talentPreferences, setTalentPreferences] = useState(
     initialTalentPreferences
@@ -397,8 +385,9 @@ const CareerPreviewPage = () => {
   );
   const [talentPreferencesSaveInfo, setTalentPreferencesSaveInfo] =
     useState("");
-  const [talentInsights, setTalentInsights] =
-    useState<CareerTalentInsights>(initialTalentInsights);
+  const [talentInsights, setTalentInsights] = useState<CareerTalentInsights>(
+    initialTalentInsights
+  );
   const [savedTalentInsights, setSavedTalentInsights] =
     useState<CareerTalentInsights>(initialTalentInsights);
   const [talentInsightsUpdatedAt, setTalentInsightsUpdatedAt] = useState(
@@ -439,38 +428,57 @@ const CareerPreviewPage = () => {
       onLogout: () => undefined,
       recentOpportunities: initialRecentOpportunities,
       historyOpportunities,
-      historyUpdatingRoleIds: [],
+      historyUpdatingOpportunityIds: [],
       historyUpdateError: "",
-      onUpdateHistoryOpportunityFeedback: (roleId, feedback) => {
+      onUpdateHistoryOpportunityFeedback: (
+        opportunityId,
+        feedback,
+        options
+      ) => {
         const now = new Date().toISOString();
         setHistoryOpportunities((current) =>
           current.map((item) =>
-            item.roleId === roleId
+            item.id === opportunityId
               ? {
                   ...item,
-                  dismissedAt: feedback === "not_for_me" ? now : null,
+                  dismissedAt: feedback === "negative" ? now : null,
                   feedback,
                   feedbackAt: now,
+                  feedbackReason: options?.feedbackReason ?? null,
+                  savedStage:
+                    feedback === "positive"
+                      ? (options?.savedStage ??
+                        getCareerDefaultSavedStage(item.opportunityType))
+                      : null,
                 }
               : item
           )
         );
       },
-      onMarkHistoryOpportunityViewed: (roleId) => {
+      onUpdateHistoryOpportunitySavedStage: (opportunityId, savedStage) => {
+        setHistoryOpportunities((current) =>
+          current.map((item) =>
+            item.id === opportunityId
+              ? { ...item, feedback: "positive", savedStage }
+              : item
+          )
+        );
+      },
+      onMarkHistoryOpportunityViewed: (opportunityId) => {
         const now = new Date().toISOString();
         setHistoryOpportunities((current) =>
           current.map((item) =>
-            item.roleId === roleId && !item.viewedAt
+            item.id === opportunityId && !item.viewedAt
               ? { ...item, viewedAt: now }
               : item
           )
         );
       },
-      onMarkHistoryOpportunityClicked: (roleId) => {
+      onMarkHistoryOpportunityClicked: (opportunityId) => {
         const now = new Date().toISOString();
         setHistoryOpportunities((current) =>
           current.map((item) =>
-            item.roleId === roleId && !item.clickedAt
+            item.id === opportunityId && !item.clickedAt
               ? { ...item, clickedAt: now }
               : item
           )

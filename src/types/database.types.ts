@@ -521,6 +521,7 @@ export type Database = {
           active_step: number
           candid_id: string
           created_at: string
+          email_discovery_cancel_requested_at: string | null
           email_discovery_evidence: Json
           email_discovery_status: string
           email_discovery_summary: string | null
@@ -545,6 +546,7 @@ export type Database = {
           active_step?: number
           candid_id: string
           created_at?: string
+          email_discovery_cancel_requested_at?: string | null
           email_discovery_evidence?: Json
           email_discovery_status?: string
           email_discovery_summary?: string | null
@@ -569,6 +571,7 @@ export type Database = {
           active_step?: number
           candid_id?: string
           created_at?: string
+          email_discovery_cancel_requested_at?: string | null
           email_discovery_evidence?: Json
           email_discovery_status?: string
           email_discovery_summary?: string | null
@@ -617,6 +620,7 @@ export type Database = {
           outreach_id: number | null
           rendered_body: string | null
           rendered_subject: string | null
+          scheduled_for: string | null
           sent_at: string | null
           status: string
           step_number: number | null
@@ -635,6 +639,7 @@ export type Database = {
           outreach_id?: number | null
           rendered_body?: string | null
           rendered_subject?: string | null
+          scheduled_for?: string | null
           sent_at?: string | null
           status?: string
           step_number?: number | null
@@ -653,6 +658,7 @@ export type Database = {
           outreach_id?: number | null
           rendered_body?: string | null
           rendered_subject?: string | null
+          scheduled_for?: string | null
           sent_at?: string | null
           status?: string
           step_number?: number | null
@@ -3397,10 +3403,12 @@ export type Database = {
           id: string
           kind: string
           model_version: string | null
+          opportunity_type: string
           rank: number | null
           recommendation_reasons: Json
           recommended_at: string
           role_id: string
+          saved_stage: string | null
           score: number | null
           talent_id: string
           updated_at: string
@@ -3416,10 +3424,12 @@ export type Database = {
           id?: string
           kind?: string
           model_version?: string | null
+          opportunity_type?: string
           rank?: number | null
           recommendation_reasons?: Json
           recommended_at?: string
           role_id: string
+          saved_stage?: string | null
           score?: number | null
           talent_id: string
           updated_at?: string
@@ -3435,10 +3445,12 @@ export type Database = {
           id?: string
           kind?: string
           model_version?: string | null
+          opportunity_type?: string
           rank?: number | null
           recommendation_reasons?: Json
           recommended_at?: string
           role_id?: string
+          saved_stage?: string | null
           score?: number | null
           talent_id?: string
           updated_at?: string

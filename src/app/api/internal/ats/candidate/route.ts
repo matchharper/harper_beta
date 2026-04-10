@@ -5,13 +5,16 @@ import {
 } from "@/lib/internalApi";
 import {
   addAtsContactHistory,
+  cancelAtsScheduledManualEmail,
   clearAtsEmailDiscoveryTrace,
   deleteAtsContactHistory,
   fetchAtsCandidateDetail,
   generateAtsContactEmailDraft,
   resetAtsCandidateOutreach,
   saveAtsCandidateMemo,
+  saveAtsEmailRecipientName,
   saveAtsSequenceSchedule,
+  scheduleAtsSingleManualEmail,
   sendAtsSingleManualEmail,
 } from "@/lib/ats/server";
 import { normalizeAtsSequenceSchedule } from "@/lib/ats/shared";
@@ -49,19 +52,25 @@ export async function PATCH(req: NextRequest) {
     const body = (await req.json().catch(() => ({}))) as {
       action?:
         | "memo"
+        | "email_recipient_name"
         | "schedule"
         | "add_history"
         | "delete_history"
         | "clear_email_trace"
         | "reset_outreach"
         | "generate_contact_email"
-        | "send_contact_email";
+        | "send_contact_email"
+        | "schedule_contact_email"
+        | "cancel_scheduled_contact_email";
       body?: string | null;
       candidId?: string;
       channel?: "email" | "linkedin" | "call" | "meeting" | "other";
       contactedAt?: string;
+      emailRecipientName?: string | null;
       historyId?: string;
+      messageId?: number | string;
       memo?: string | null;
+      scheduledAt?: string | null;
       note?: string | null;
       subject?: string | null;
       targetEmail?: string | null;
@@ -80,6 +89,16 @@ export async function PATCH(req: NextRequest) {
       const outreach = await saveAtsCandidateMemo({
         candidId,
         memo: String(body.memo ?? "").trim() || null,
+        userId: user.id,
+      });
+      return NextResponse.json({ ok: true, outreach });
+    }
+
+    if (body.action === "email_recipient_name") {
+      const outreach = await saveAtsEmailRecipientName({
+        candidId,
+        emailRecipientName:
+          String(body.emailRecipientName ?? "").trim() || null,
         userId: user.id,
       });
       return NextResponse.json({ ok: true, outreach });
@@ -168,6 +187,37 @@ export async function PATCH(req: NextRequest) {
         candidId,
         subject: String(body.subject ?? ""),
         targetEmail: String(body.targetEmail ?? "").trim() || null,
+        userEmail: user.email,
+        userId: user.id,
+      });
+      return NextResponse.json({ ok: true, data });
+    }
+
+    if (body.action === "schedule_contact_email") {
+      const data = await scheduleAtsSingleManualEmail({
+        body: String(body.body ?? ""),
+        candidId,
+        scheduledAt: String(body.scheduledAt ?? "").trim(),
+        subject: String(body.subject ?? ""),
+        targetEmail: String(body.targetEmail ?? "").trim() || null,
+        userEmail: user.email,
+        userId: user.id,
+      });
+      return NextResponse.json({ ok: true, data });
+    }
+
+    if (body.action === "cancel_scheduled_contact_email") {
+      const messageId = Number(body.messageId ?? 0) || 0;
+      if (!messageId) {
+        return NextResponse.json(
+          { error: "messageId is required" },
+          { status: 400 }
+        );
+      }
+
+      const data = await cancelAtsScheduledManualEmail({
+        candidId,
+        messageId,
         userEmail: user.email,
         userId: user.id,
       });

@@ -4,7 +4,6 @@ import { useRouter } from "next/router";
 import { supabase } from "@/lib/supabase";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { finalizePendingTalentCapture } from "@/lib/talentCapture/client";
-import { notifyToSlack } from "@/lib/slack";
 
 export default function AuthCallback() {
   const router = useRouter();
@@ -61,16 +60,6 @@ export default function AuthCallback() {
         }
       }
 
-      const payload = {
-        user_id: user.id,
-        email: user.email ?? null,
-        name:
-          user.user_metadata?.full_name ??
-          user.user_metadata?.name ??
-          "Anonymous",
-        profile_picture: user.user_metadata?.avatar_url ?? null,
-      };
-
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -124,19 +113,6 @@ export default function AuthCallback() {
       }
 
       await useCompanyUserStore.getState().load(user.id);
-
-      if (bootstrapJson?.created) {
-        try {
-          await notifyToSlack(`🎉 *New Signup*
-
-• *Name*: ${payload.name ?? "Anonymous"}
-• *Email*: ${payload.email ?? "N/A"}
-• *User ID*: ${user.id}
-• *Time(Standard Korea Time)*: ${new Date().toLocaleString("ko-KR")}`);
-        } catch (notifyError) {
-          console.error("new signup slack notify error:", notifyError);
-        }
-      }
 
       // 4) 완료 후 이동
       router.replace(nextPath);
