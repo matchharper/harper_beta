@@ -13,6 +13,7 @@ import {
   getUncoveredChecklistItems,
   INSIGHT_CHECKLIST,
 } from "@/lib/talentOnboarding/insightChecklist";
+import { buildRealtimeStepGuides, INTERRUPT_HANDLING_INSTRUCTION, CALL_END_INSTRUCTION } from "@/lib/talentOnboarding/interviewSteps";
 
 /**
  * Build Realtime session instructions with Harper persona + user profile context.
@@ -68,6 +69,26 @@ async function buildRealtimeInstructions(
 
   const linkText = (profile?.resume_links ?? []).join(", ");
 
+  const currentStep: number =
+    (conversation as TalentConversationRow & { current_step?: number })
+      ?.current_step ?? 1;
+
+  // Build existing insights section (capped at 1500 chars for Realtime context budget)
+  let existingInsightsSection = "";
+  if (currentInsightContent && Object.keys(currentInsightContent).length > 0) {
+    const MAX_TOTAL = 1500;
+    let section = "\n## 이미 알고 있는 정보 (재질문 금지, 더 깊은 질문에 활용)\n";
+    let totalLen = section.length;
+    for (const [key, value] of Object.entries(currentInsightContent).sort(([a], [b]) => a.localeCompare(b))) {
+      const truncated = value.length > 120 ? value.slice(0, 120) + "..." : value;
+      const line = `- ${key}: ${truncated}\n`;
+      if (totalLen + line.length > MAX_TOTAL) break;
+      section += line;
+      totalLen += line.length;
+    }
+    existingInsightsSection = section;
+  }
+
   return [
     "You are Harper, a Korean AI talent agent for candidate onboarding.",
     "",
@@ -79,39 +100,13 @@ async function buildRealtimeInstructions(
     "3) one next question (if needed).",
     "Avoid markdown tables and long bullet dumps. Your output will be used as a voice script for TTS.",
     "",
-    "전체적인 대화는 이런 흐름이면 좋다.",
-    "---",
-    "원하는 정도의 대답이 아니면 follow-up 질문 해도 됨.",
+    buildRealtimeStepGuides(currentStep),
     "",
-    "- 안녕하세요, 저는 하퍼입니다.",
-    "  짧게 몇 가지 질문만 드리고, 어떤 기회가 잘 맞을지 확인해보려고 합니다.",
-    "  보통 5분 정도 걸립니다.",
-    "  지금 잠깐 이야기 괜찮으실까요?",
+    INTERRUPT_HANDLING_INSTRUCTION,
     "",
-    "- 올려주신 정보를 잘 확인했어요. 통화하시는 지금 기준으로, 어떤 상황이신지 말해주실 수 있나요?",
-    "  지금은 이직을 적극적으로 생각 중이신가요,",
-    "  아니면 좋은 기회가 있으면 보는 정도일까요?",
-    "- 지금 이력서/링크드인 을 보니까 ~~~ 하고 계신데/~~한 상황이신 것 같은데 지금은 어떻게 하고 계신가요?",
-    "- 만약 이직을 하신다면 어떤 점이 가장 중요하신가요?",
-    "- 최근에는 어떻게 업무를 하고 계세요? AI 툴을 많이들 사용하는데, 어떻게 얼마나 활용하시고 계신지 궁금해요.",
-    "- 지금 회사에서 가장 만족하는 점은 뭐고",
-    "  아쉬운 점은 어떤 게 있을까요?",
-    "- 어떤 종류의 회사가 잘 맞을 것 같으세요?",
-    "  - (왜요?)",
-    "- 앞으로 어떤 역할을 더 하고 싶으세요?",
-    "- 이런 기회가 있으면 좋을 것 같다고 생각하시는게 있나요?",
-    "  - (왜요?)",
-    "- 하퍼에서는 다양한 기회가 제안될 수 있는데요, 혹시 해외에서 업무를 할 의사나 혹은 한국의 해외기반 기업에서도 일할 생각이 있으신가요?",
-    "  - (Yes) 해외 관련 경험 혹은 언어 숙련도가 어떻게 됨?",
-    "- 혹시 꼭 피하고 싶은 회사나 분야도 있으실까요?",
-    "- 회사의 조건도 선호가 있으세요? 연봉, 복지, 워라밸 등",
-    "- 감사합니다. 말씀해주신 내용을 기반으로",
-    "몇 가지 기회를 찾아보고",
-    "잘 맞는 게 있으면 다시 연락드릴게요.",
-    "우선 대화는 여기서 종료해도 될 것 같아요.",
+    CALL_END_INSTRUCTION,
     "",
-    "하지만 정보를 많이 알려주실 수록 저희에게는 도움이 되긴 하니, 대화를 할 시간이 있으시다면 언제든지 다시 대화를 걸어주세요!",
-    "---",
+    existingInsightsSection,
     "",
     `Insight coverage: ${coveredCount}/${INSIGHT_CHECKLIST.length} items covered.`,
     "Prioritize naturally asking about these uncovered topics (one at a time):",
@@ -199,15 +194,16 @@ export async function POST(req: NextRequest) {
         },
         body: JSON.stringify({
           model: "gpt-realtime-1.5",
-          modalities: ["text"],
+          modalities: ["text", "audio"],
+          voice: "coral",
           input_audio_transcription: {
             model: "gpt-4o-mini-transcribe",
           },
           instructions,
           turn_detection: {
             type: "server_vad",
-            threshold: 0.4,
-            silence_duration_ms: 500,
+            threshold: 0.7,
+            silence_duration_ms: 800,
             prefix_padding_ms: 300,
           },
           input_audio_noise_reduction: { type: "near_field" },
