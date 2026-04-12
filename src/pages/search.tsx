@@ -31,6 +31,7 @@ import {
   FolderOpen,
   Github,
   GraduationCap,
+  Quote,
   Search,
   type LucideIcon,
 } from "lucide-react";
@@ -58,6 +59,7 @@ import StaggerText from "@/components/landing/Animation/StaggerText";
 import WhySection from "@/components/landing/WhySection";
 import FounderNote from "@/components/landing/FounderNote";
 import LinkedinHarperCompare from "@/components/landing/LinkedinHarperCompare";
+import AsteriskIcon from "@/assets/icons/asterisk";
 
 const LoginModal = dynamic(() => import("@/components/Modal/LoginModal"));
 const RADAR_LOGIN_MODAL_LANGUAGE = "ko" as const;
@@ -190,6 +192,20 @@ const coverageStats: Array<{
     label: "Projects and Publications",
   },
 ];
+
+const socialProofItems = [
+  {
+    quote:
+      "There is a clear '<span class='text-white'>before and after</span>' in our recruiting.<br /><span class='text-white'>Harper changed everything.</span>",
+    attribution: "VP at a global startup backed by $200M+",
+  },
+  {
+    quote:
+      "Harper는 <span class='text-white'>링크드인</span>에 없는 <span class='text-white'>최상위 인재</span>를<br />발견할 수 있는 유일한 <span class='text-white'>플랫폼</span>입니다.",
+    // "Harper is the only platform where we can find top talent that isn't on LinkedIn.",
+    attribution: "Fast-growing AI avatar startup",
+  },
+] as const;
 
 export const StartButton = React.memo(function StartButton({
   onClick,
@@ -1163,11 +1179,56 @@ export default function RadarLandingPage() {
           </Reveal>
         </section>
 
-        <Animate>
+        <div className="h-12 md:h-24" />
+        <Reveal delay={0.08}>
+          <BaseSectionLayout>
+            <section className="relative rounded-2xl bg-white/5 border border-white/10 w-full px-4 py-12 md:px-8">
+              <div
+                className="pointer-events-none absolute inset-0"
+                style={{
+                  opacity: 0.4,
+                  backgroundImage:
+                    "radial-gradient(rgba(255,255,255,0.3) 1.1px, transparent 1.1px)",
+                  backgroundSize: "32px 32px",
+                }}
+              />
+              <div className="text-white flex flex-row items-center justify-center gap-3 w-full text-center text-xl md:text-2xl font-medium font-hedvig">
+                <AsteriskIcon className="w-6 h-6 text-accenta1/90" />
+                Harper를 신뢰하는 팀들
+              </div>
+
+              <div className="grid md:grid-cols-2">
+                {socialProofItems.map((item, index) => (
+                  <div
+                    key={item.quote}
+                    className={`relative flex h-full flex-col`}
+                  >
+                    <p
+                      className="font-geist mt-12 text-center max-w-[560px] text-[16px] text-white/65 md:text-[20px]"
+                      dangerouslySetInnerHTML={{
+                        __html: item.quote,
+                      }}
+                    />
+
+                    <div
+                      className="text-center w-full mt-4 text-hgray700 text-lg font-light"
+                      dangerouslySetInnerHTML={{
+                        __html: item.attribution,
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </section>
+          </BaseSectionLayout>
+        </Reveal>
+
+        <div className="h-12 md:h-24" />
+        <Reveal>
           <BaseSectionLayout>
             <div className="gap-2 w-full flex flex-col items-center justify-center text-center py-8 md:py-10 px-0">
               <Head1 as="h2">{m.companyLanding.section1.title}</Head1>
-              <h3 className="text-[22px] md:text-3xl text-white font-normal mt-10">
+              <h3 className="text-lg md:text-xl text-white font-normal mt-10">
                 {m.companyLanding.section1.headlineLine1}
                 <br />
                 {m.companyLanding.section1.headlineLine2}
@@ -1175,7 +1236,7 @@ export default function RadarLandingPage() {
             </div>
           </BaseSectionLayout>
           {/* <VCLogosWidth /> */}
-        </Animate>
+        </Reveal>
         <div className="h-20 md:h-40" />
         <WhySection />
         <div className="h-20 md:h-40" />

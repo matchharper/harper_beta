@@ -1402,10 +1402,7 @@ export default function NetworkOpsPage() {
                                   handleOpenQuickMemo(lead);
                                 }}
                                 className={cx(
-                                  "inline-flex h-8 items-center justify-center rounded-md px-3 font-geist text-xs transition",
-                                  isSelected
-                                    ? "bg-beige100/14 text-beige100 hover:bg-beige100/20"
-                                    : "bg-white/75 text-beige900 hover:bg-white"
+                                  "inline-flex h-8 items-center justify-center rounded-md px-3 font-geist text-xs transition bg-beige900 text-beige100 hover:opacity-90"
                                 )}
                               >
                                 메모 추가

@@ -497,51 +497,76 @@ const CareerHistoryPanel = () => {
     () => [...historyOpportunities].sort(compareRecommendedAtDesc),
     [historyOpportunities]
   );
+  const {
+    archivedItems,
+    newItems,
+    savedItems,
+    savedItemsByStage,
+    savedStageCounts,
+  } = useMemo(() => {
+    const nextNewItems: CareerHistoryOpportunity[] = [];
+    const nextSavedItems: CareerHistoryOpportunity[] = [];
+    const nextArchivedItems: CareerHistoryOpportunity[] = [];
+    const nextSavedItemsByStage: Record<SavedTabId, CareerHistoryOpportunity[]> =
+      {
+        saved: [],
+        applied: [],
+        connected: [],
+        closed: [],
+      };
+    const nextSavedStageCounts: Record<SavedTabId, number> = {
+      saved: 0,
+      applied: 0,
+      connected: 0,
+      closed: 0,
+    };
 
-  const newItems = useMemo(
-    () =>
-      sortedOpportunities
-        .filter(isNewOpportunity)
-        .sort(
-          (left, right) =>
-            getCareerOpportunitySortPriority(left.opportunityType) -
-              getCareerOpportunitySortPriority(right.opportunityType) ||
-            compareRecommendedAtDesc(left, right)
-        ),
-    [sortedOpportunities]
-  );
-  const savedItems = useMemo(
-    () => sortedOpportunities.filter(isSavedOpportunity),
-    [sortedOpportunities]
-  );
-  const archivedItems = useMemo(
-    () => sortedOpportunities.filter(isArchivedOpportunity),
-    [sortedOpportunities]
-  );
+    for (const item of sortedOpportunities) {
+      if (isNewOpportunity(item)) {
+        nextNewItems.push(item);
+        continue;
+      }
 
-  const filteredSavedItems = useMemo(
-    () =>
-      savedItems.filter(
-        (item) => getResolvedSavedStage(item) === activeSavedTab
-      ),
-    [activeSavedTab, savedItems]
+      if (isSavedOpportunity(item)) {
+        const stage = getResolvedSavedStage(item);
+        nextSavedItems.push(item);
+        nextSavedItemsByStage[stage].push(item);
+        nextSavedStageCounts[stage] += 1;
+        continue;
+      }
+
+      if (isArchivedOpportunity(item)) {
+        nextArchivedItems.push(item);
+      }
+    }
+
+    nextNewItems.sort(
+      (left, right) =>
+        getCareerOpportunitySortPriority(left.opportunityType) -
+          getCareerOpportunitySortPriority(right.opportunityType) ||
+        compareRecommendedAtDesc(left, right)
+    );
+
+    return {
+      archivedItems: nextArchivedItems,
+      newItems: nextNewItems,
+      savedItems: nextSavedItems,
+      savedItemsByStage: nextSavedItemsByStage,
+      savedStageCounts: nextSavedStageCounts,
+    };
+  }, [sortedOpportunities]);
+  const filteredSavedItems = savedItemsByStage[activeSavedTab];
+  const opportunityById = useMemo(
+    () => new Map(sortedOpportunities.map((item) => [item.id, item])),
+    [sortedOpportunities]
   );
-  const savedStageCounts = useMemo<Record<SavedTabId, number>>(
-    () => ({
-      saved: savedItems.filter(
-        (item) => getResolvedSavedStage(item) === "saved"
-      ).length,
-      applied: savedItems.filter(
-        (item) => getResolvedSavedStage(item) === "applied"
-      ).length,
-      connected: savedItems.filter(
-        (item) => getResolvedSavedStage(item) === "connected"
-      ).length,
-      closed: savedItems.filter(
-        (item) => getResolvedSavedStage(item) === "closed"
-      ).length,
-    }),
-    [savedItems]
+  const sortedOpportunityIds = useMemo(
+    () => new Set(sortedOpportunities.map((item) => item.id)),
+    [sortedOpportunities]
+  );
+  const newItemIndexById = useMemo(
+    () => new Map(newItems.map((item, index) => [item.id, index])),
+    [newItems]
   );
 
   useEffect(() => {
@@ -560,80 +585,64 @@ const CareerHistoryPanel = () => {
       return;
     }
 
-    if (
-      !activeOpportunityId ||
-      !newItems.some((item) => item.id === activeOpportunityId)
-    ) {
+    if (!activeOpportunityId || !newItemIndexById.has(activeOpportunityId)) {
       setActiveOpportunityId(newItems[0]?.id ?? null);
     }
-  }, [activeOpportunityId, newItems]);
+  }, [activeOpportunityId, newItemIndexById, newItems]);
 
   useEffect(() => {
     if (!modalOpportunityId) return;
-    if (sortedOpportunities.some((item) => item.id === modalOpportunityId))
-      return;
+    if (sortedOpportunityIds.has(modalOpportunityId)) return;
     setModalOpportunityId(null);
-  }, [modalOpportunityId, sortedOpportunities]);
+  }, [modalOpportunityId, sortedOpportunityIds]);
 
   useEffect(() => {
     if (!positivePromptOpportunityId) return;
-    if (
-      sortedOpportunities.some(
-        (item) => item.id === positivePromptOpportunityId
-      )
-    ) {
+    if (sortedOpportunityIds.has(positivePromptOpportunityId)) {
       return;
     }
     setPositivePromptOpportunityId(null);
     setPositivePromptDraft("");
-  }, [positivePromptOpportunityId, sortedOpportunities]);
+  }, [positivePromptOpportunityId, sortedOpportunityIds]);
 
   useEffect(() => {
     if (!negativePromptOpportunityId) return;
-    if (
-      sortedOpportunities.some(
-        (item) => item.id === negativePromptOpportunityId
-      )
-    ) {
+    if (sortedOpportunityIds.has(negativePromptOpportunityId)) {
       return;
     }
     setNegativePromptOpportunityId(null);
     setNegativePromptSelectedOptions([]);
     setNegativePromptCustomReason("");
-  }, [negativePromptOpportunityId, sortedOpportunities]);
+  }, [negativePromptOpportunityId, sortedOpportunityIds]);
 
   useEffect(() => {
     setModalOpportunityId(null);
   }, [activeTab]);
 
-  const activeIndex = useMemo(
-    () => newItems.findIndex((item) => item.id === activeOpportunityId),
-    [activeOpportunityId, newItems]
-  );
+  const activeIndex =
+    activeOpportunityId ? (newItemIndexById.get(activeOpportunityId) ?? -1) : -1;
 
   const activeOpportunity = activeIndex >= 0 ? newItems[activeIndex] : null;
 
   const modalOpportunity = useMemo(
-    () =>
-      sortedOpportunities.find((item) => item.id === modalOpportunityId) ??
-      null,
-    [modalOpportunityId, sortedOpportunities]
+    () => (modalOpportunityId ? opportunityById.get(modalOpportunityId) ?? null : null),
+    [modalOpportunityId, opportunityById]
   );
 
   const positivePromptOpportunity = useMemo(
     () =>
-      sortedOpportunities.find(
-        (item) => item.id === positivePromptOpportunityId
-      ) ?? null,
-    [positivePromptOpportunityId, sortedOpportunities]
+      positivePromptOpportunityId
+        ? opportunityById.get(positivePromptOpportunityId) ?? null
+        : null,
+    [opportunityById, positivePromptOpportunityId]
   );
 
   const negativePromptOpportunity = useMemo(
     () =>
-      sortedOpportunities.find(
-        (item) => item.id === negativePromptOpportunityId
-      ) ?? null,
-    [negativePromptOpportunityId, sortedOpportunities]
+      negativePromptOpportunityId
+        ? opportunityById.get(negativePromptOpportunityId) ?? null
+        : null,
+    [negativePromptOpportunityId, opportunityById]
   );
 
   useEffect(() => {
@@ -888,7 +897,10 @@ const CareerHistoryPanel = () => {
   );
   const activeSection =
     HISTORY_TABS.find((section) => section.id === activeTab) ?? HISTORY_TABS[0];
-  const pendingOpportunityIds = new Set(historyUpdatingOpportunityIds);
+  const pendingOpportunityIds = useMemo(
+    () => new Set(historyUpdatingOpportunityIds),
+    [historyUpdatingOpportunityIds]
+  );
 
   const listItems = activeTab === "saved" ? filteredSavedItems : archivedItems;
 

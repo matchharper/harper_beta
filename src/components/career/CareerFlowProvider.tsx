@@ -394,6 +394,13 @@ export const CareerFlowProvider = ({
     () => notifications.filter((notification) => !notification.isRead).length,
     [notifications]
   );
+  const historyOpportunityById = useMemo(
+    () =>
+      new Map(
+        historyOpportunities.map((opportunity) => [opportunity.id, opportunity])
+      ),
+    [historyOpportunities]
+  );
 
   const updateHistoryOpportunityLocally = useCallback(
     (
@@ -466,9 +473,7 @@ export const CareerFlowProvider = ({
       const normalizedOpportunityId = opportunityId.trim();
       if (!normalizedOpportunityId) return;
 
-      const previousItem = historyOpportunities.find(
-        (item) => item.id === normalizedOpportunityId
-      );
+      const previousItem = historyOpportunityById.get(normalizedOpportunityId);
       if (!previousItem) return;
       const now = new Date().toISOString();
       const nextSavedStage =
@@ -510,7 +515,7 @@ export const CareerFlowProvider = ({
     [
       beginHistoryUpdate,
       endHistoryUpdate,
-      historyOpportunities,
+      historyOpportunityById,
       patchHistoryOpportunity,
       restoreHistoryOpportunity,
       updateHistoryOpportunityLocally,
@@ -522,9 +527,7 @@ export const CareerFlowProvider = ({
       const normalizedOpportunityId = opportunityId.trim();
       if (!normalizedOpportunityId) return;
 
-      const previousItem = historyOpportunities.find(
-        (item) => item.id === normalizedOpportunityId
-      );
+      const previousItem = historyOpportunityById.get(normalizedOpportunityId);
       if (!previousItem) return;
 
       beginHistoryUpdate(normalizedOpportunityId);
@@ -554,7 +557,7 @@ export const CareerFlowProvider = ({
     [
       beginHistoryUpdate,
       endHistoryUpdate,
-      historyOpportunities,
+      historyOpportunityById,
       patchHistoryOpportunity,
       restoreHistoryOpportunity,
       updateHistoryOpportunityLocally,
@@ -566,9 +569,7 @@ export const CareerFlowProvider = ({
       const normalizedOpportunityId = opportunityId.trim();
       if (!normalizedOpportunityId) return;
 
-      const currentItem = historyOpportunities.find(
-        (item) => item.id === normalizedOpportunityId
-      );
+      const currentItem = historyOpportunityById.get(normalizedOpportunityId);
       if (!currentItem || currentItem.viewedAt) return;
       const now = new Date().toISOString();
 
@@ -592,7 +593,7 @@ export const CareerFlowProvider = ({
       }
     },
     [
-      historyOpportunities,
+      historyOpportunityById,
       patchHistoryOpportunity,
       restoreHistoryOpportunity,
       updateHistoryOpportunityLocally,
@@ -604,9 +605,7 @@ export const CareerFlowProvider = ({
       const normalizedOpportunityId = opportunityId.trim();
       if (!normalizedOpportunityId) return;
 
-      const currentItem = historyOpportunities.find(
-        (item) => item.id === normalizedOpportunityId
-      );
+      const currentItem = historyOpportunityById.get(normalizedOpportunityId);
       if (!currentItem || currentItem.clickedAt) return;
       const now = new Date().toISOString();
 
@@ -630,7 +629,7 @@ export const CareerFlowProvider = ({
       }
     },
     [
-      historyOpportunities,
+      historyOpportunityById,
       patchHistoryOpportunity,
       restoreHistoryOpportunity,
       updateHistoryOpportunityLocally,
