@@ -2,7 +2,7 @@ import { Check, Minus, X } from "lucide-react";
 import { useMemo } from "react";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
 import {
-  TALENT_ONBOARDING_COMPLETION_TARGET,
+  TALENT_INTERVIEW_FINAL_STEP,
   TALENT_ONBOARDING_QUESTION_MILESTONE,
 } from "@/lib/talentOnboarding/progress";
 
@@ -34,11 +34,11 @@ const CareerOnboardingChecklist = () => {
     const hasUploadedProfile = stage !== "profile" || hasResume || hasLinkedin;
     const normalizedConversationCount = Math.min(
       userChatCount,
-      TALENT_ONBOARDING_COMPLETION_TARGET
+      TALENT_INTERVIEW_FINAL_STEP
     );
     const isCompleted =
       stage === "completed" ||
-      normalizedConversationCount >= TALENT_ONBOARDING_COMPLETION_TARGET;
+      normalizedConversationCount >= TALENT_INTERVIEW_FINAL_STEP;
 
     return {
       hasUploadedProfile,
@@ -137,13 +137,13 @@ const CareerOnboardingChecklist = () => {
                         <div
                           className="h-full rounded-full bg-beige900 transition-[width] duration-300"
                           style={{
-                            width: `${(checklistState.normalizedConversationCount / TALENT_ONBOARDING_COMPLETION_TARGET) * 100}%`,
+                            width: `${(checklistState.normalizedConversationCount / TALENT_INTERVIEW_FINAL_STEP) * 100}%`,
                           }}
                         />
                       </div>
                       <p className="mt-1.5 text-xs text-hblack500">
                         {checklistState.normalizedConversationCount}/
-                        {TALENT_ONBOARDING_COMPLETION_TARGET}
+                        {TALENT_INTERVIEW_FINAL_STEP}
                       </p>
                     </div>
                   ) : null}

@@ -111,6 +111,7 @@ const CareerCallScreen = () => {
     onEndCallMode,
     callTranscriptEntries,
     callConnectionStatus,
+    isAssistantSpeaking,
   } = useCareerChatPanelContext();
 
   const [showTranscript, setShowTranscript] = useState(false);
@@ -150,6 +151,16 @@ const CareerCallScreen = () => {
         </div>
         <span className="mt-4 text-sm tabular-nums text-beige900/50">
           {timer}
+        </span>
+        {/* Speaking / Listening status */}
+        <span
+          className={`mt-3 rounded-full px-3 py-1 text-xs font-medium ${
+            isAssistantSpeaking
+              ? "bg-emerald-100 text-emerald-700"
+              : "bg-amber-100 text-amber-700"
+          }`}
+        >
+          {isAssistantSpeaking ? "Speaking" : "Listening"}
         </span>
       </div>
 

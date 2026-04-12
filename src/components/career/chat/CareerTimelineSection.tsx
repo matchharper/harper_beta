@@ -368,7 +368,7 @@ const CareerTimelineSection = () => {
 
         {user &&
           !sessionPending &&
-          messages.map((message, index) => {
+          messages.filter((m) => m.messageType !== "call_transcript").map((message, index) => {
             const isUser = message.role === "user";
             return (
               <div

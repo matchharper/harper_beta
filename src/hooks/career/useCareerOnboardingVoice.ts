@@ -122,6 +122,11 @@ export const useCareerOnboardingVoice = ({
   const savePendingRef = useRef(false);
   const clearVoiceBufferRef = useRef<(() => void) | null>(null);
 
+  const updateSessionInstructionsRef = useRef<((instructions: string) => void) | null>(null);
+  const endCallModeRef = useRef<(() => void) | null>(null);
+  const pendingCallEndRef = useRef(false);
+  const isAssistantSpeakingRef = useRef(false);
+
   const saveRealtimeTurn = useCallback(
     async (userText: string, assistantText: string) => {
       if (!conversationId || savePendingRef.current) return;
@@ -133,11 +138,16 @@ export const useCareerOnboardingVoice = ({
             conversationId,
             userMessage: userText,
             assistantMessage: assistantText,
+            isCallMode: true,
           }),
         });
         const payload = await response.json().catch(() => ({}));
         if (response.ok && payload?.progress?.completed) {
           setStage("completed" as CareerStage);
+        }
+        // Handle step transition: update Realtime session instructions
+        if (response.ok && payload?.nextStepInstructions) {
+          updateSessionInstructionsRef.current?.(payload.nextStepInstructions);
         }
       } catch (err) {
         console.error("[CareerOnboardingVoice] Save turn failed:", err);
@@ -153,6 +163,7 @@ export const useCareerOnboardingVoice = ({
   >(null);
   const inputModeRef = useRef<string>("text");
   const fetchWithAuthRef = useRef(fetchWithAuth);
+  const generateSpeechRef = useRef<((text: string) => void) | null>(null);
 
   const handleRealtimeTranscript = useCallback((text: string) => {
     if (text.trim()) {
@@ -164,12 +175,51 @@ export const useCareerOnboardingVoice = ({
   const handleRealtimeAssistantDone = useCallback(
     (fullText: string) => {
       if (!fullText.trim()) return;
-      addCallTranscriptEntryRef.current?.("assistant", fullText.trim());
+
+      const CALL_END_MARKER = "##END##";
+      const hasEndMarker = fullText.includes(CALL_END_MARKER);
+      const cleanText = hasEndMarker
+        ? fullText.replace(CALL_END_MARKER, "").trim()
+        : fullText.trim();
+
+      addCallTranscriptEntryRef.current?.("assistant", cleanText);
 
       const now = new Date().toISOString();
-      const userText = lastRealtimeUserTextRef.current || "(voice input)";
+      const userText = lastRealtimeUserTextRef.current;
+      const isCallMode = inputModeRef.current === "call";
 
-      // Append user message to UI with Realtime transcript
+      // System-initiated response (e.g., greeting) — skip UI append in call mode
+      if (!userText) {
+        if (!isCallMode) {
+          const assistantMsg: CareerMessage = {
+            id: `rt-assistant-${Date.now()}`,
+            role: "assistant",
+            content: cleanText,
+            messageType: "chat",
+            createdAt: now,
+          };
+          appendMessage(assistantMsg);
+        }
+        return;
+      }
+
+      // In call mode: save to DB only, don't show in chat timeline
+      if (isCallMode) {
+        clearVoiceBufferRef.current?.();
+        void saveRealtimeTurn(userText, cleanText);
+        lastRealtimeUserTextRef.current = "";
+        // AI signaled end of interview — wait for audio then end call
+        if (hasEndMarker) {
+          pendingCallEndRef.current = true;
+          if (!isAssistantSpeakingRef.current) {
+            pendingCallEndRef.current = false;
+            endCallModeRef.current?.();
+          }
+        }
+        return;
+      }
+
+      // Non-call voice mode: append to UI as before
       const userMsg: CareerMessage = {
         id: `rt-user-${Date.now()}`,
         role: "user",
@@ -179,7 +229,6 @@ export const useCareerOnboardingVoice = ({
       };
       appendMessage(userMsg);
 
-      // Append assistant message to UI
       const assistantMsg: CareerMessage = {
         id: `rt-assistant-${Date.now()}`,
         role: "assistant",
@@ -193,13 +242,12 @@ export const useCareerOnboardingVoice = ({
         assistantMsg as unknown as CareerMessagePayload,
       ]);
 
-      // Clear input field and save turn to DB
       clearVoiceBufferRef.current?.();
       void saveRealtimeTurn(userText, fullText);
       lastRealtimeUserTextRef.current = "";
 
-      // Play TTS directly during call mode
-      if (inputModeRef.current === "call") {
+      // ElevenLabs TTS playback — skipped in call mode (native Realtime audio handles it)
+      if (inputModeRef.current === "call" && false) {
         void (async () => {
           try {
             const ttsRes = await fetchWithAuthRef.current("/api/tts", {
@@ -302,6 +350,15 @@ export const useCareerOnboardingVoice = ({
   useEffect(() => {
     fetchWithAuthRef.current = fetchWithAuth;
   }, [fetchWithAuth]);
+
+  useEffect(() => {
+    generateSpeechRef.current = realtimeSession.generateSpeech;
+  }, [realtimeSession.generateSpeech]);
+
+  useEffect(() => {
+    updateSessionInstructionsRef.current = realtimeSession.updateSessionInstructions;
+  }, [realtimeSession.updateSessionInstructions]);
+
 
   useEffect(() => {
     if (authLoading) return;
@@ -530,41 +587,12 @@ export const useCareerOnboardingVoice = ({
 
     await startCallMode();
 
+    // Generate greeting via OpenAI Realtime native audio (no ElevenLabs round-trip)
     const greetingText =
-      "안녕하세요, Harper입니다. 오늘 커리어에 대해 이야기 나눠볼게요. 편하게 말씀해 주세요!";
-
-    addCallTranscriptEntry("assistant", greetingText);
-
-    const greetingMsg: CareerMessage = {
-      id: `call-greeting-${Date.now()}`,
-      role: "assistant",
-      content: greetingText,
-      messageType: "chat",
-      createdAt: new Date().toISOString(),
-    };
-    appendMessage(greetingMsg);
-
-    // Play greeting TTS directly in click handler to satisfy autoplay policy
-    try {
-      const ttsRes = await fetchWithAuth("/api/tts", {
-        method: "POST",
-        body: JSON.stringify({ text: greetingText }),
-      });
-      if (ttsRes.ok) {
-        const blob = await ttsRes.blob();
-        const url = URL.createObjectURL(blob);
-        const audio = new Audio(url);
-        audio.onended = () => URL.revokeObjectURL(url);
-        await audio.play();
-      }
-    } catch {
-      // TTS failure is non-critical
-    }
+      "안녕하세요, 하퍼입니다. 오늘 커리어에 대해 이야기 나눠볼게요. 편하게 말씀해 주세요!";
+    generateSpeechRef.current?.(greetingText);
   }, [
-    addCallTranscriptEntry,
-    appendMessage,
     beginOnboardingConversation,
-    fetchWithAuth,
     onboardingBeginPending,
     showVoiceStartPrompt,
     startCallMode,
@@ -643,6 +671,24 @@ export const useCareerOnboardingVoice = ({
     setChatError,
   ]);
 
+  // Wire endCallModeRef for auto-end on interview completion
+  useEffect(() => {
+    endCallModeRef.current = handleEndCallMode;
+  }, [handleEndCallMode]);
+
+  // Track isAssistantSpeaking in ref for use in callbacks
+  useEffect(() => {
+    isAssistantSpeakingRef.current = realtimeSession.isAssistantSpeaking;
+  }, [realtimeSession.isAssistantSpeaking]);
+
+  // Auto-end call after AI finishes speaking when interview is completed
+  useEffect(() => {
+    if (pendingCallEndRef.current && !realtimeSession.isAssistantSpeaking) {
+      pendingCallEndRef.current = false;
+      endCallModeRef.current?.();
+    }
+  }, [realtimeSession.isAssistantSpeaking]);
+
   const resetOnboardingState = useCallback(() => {
     setShowVoiceStartPrompt(false);
     setOnboardingBeginPending(false);
@@ -676,5 +722,6 @@ export const useCareerOnboardingVoice = ({
     applySessionPrompt,
     handleProfileSubmitSuccess,
     resetOnboardingState,
+    isAssistantSpeaking: realtimeSession.isAssistantSpeaking,
   };
 };

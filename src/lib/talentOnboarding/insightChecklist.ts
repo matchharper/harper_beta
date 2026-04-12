@@ -101,6 +101,64 @@ export const INSIGHT_CHECKLIST: InsightChecklistItem[] = [
       "Job move intent: actively looking, open to exploring, or only interested in part-time/advisor",
     priority: 1,
   },
+  // --- Step 4 (Logistics & Relocation) items ---
+  {
+    key: "relocation_intent",
+    label: "리로케이션 의향",
+    promptHint:
+      "Willingness to relocate (e.g. US→Korea or vice versa), timeline, and seriousness level",
+    priority: 11,
+  },
+  {
+    key: "visa_status",
+    label: "비자 상황",
+    promptHint:
+      "Current visa/residency status and any immigration hurdles for relocation (family, sponsorship needs)",
+    priority: 12,
+  },
+  {
+    key: "salary_package",
+    label: "연봉 패키지",
+    promptHint:
+      "Current compensation package and target salary expectations for the next role",
+    priority: 13,
+  },
+  {
+    key: "equity_openness",
+    label: "스톡옵션/지분 수용도",
+    promptHint:
+      "Openness to stock options or equity as part of compensation, especially if cash comp is lower",
+    priority: 14,
+  },
+  {
+    key: "competing_offers",
+    label: "경쟁 오퍼",
+    promptHint:
+      "Whether they are interviewing elsewhere or have existing offers (for timeline coordination)",
+    priority: 15,
+  },
+  {
+    key: "join_timeline",
+    label: "합류 타이밍",
+    promptHint:
+      "How soon they can join after accepting an offer (notice period, relocation logistics)",
+    priority: 16,
+  },
+  // --- Step 3 (Expectation vs Reality) items ---
+  {
+    key: "business_impact_experience",
+    label: "비즈니스 임팩트 경험",
+    promptHint:
+      "Experience contributing to business metrics beyond technical work (revenue, user growth, cost reduction)",
+    priority: 17,
+  },
+  {
+    key: "first_quarter_goal",
+    label: "첫 3개월 목표",
+    promptHint:
+      "What impact they want to demonstrate in the first 3 months at a new company",
+    priority: 18,
+  },
 ];
 
 /** Get checklist items the talent has NOT yet answered, sorted by priority */
