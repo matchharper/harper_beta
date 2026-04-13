@@ -7,17 +7,17 @@ import {
   fetchTalentStructuredProfile,
   fetchTalentUserProfile,
   getTalentSupabaseAdmin,
-  type TalentConversationRow,
 } from "@/lib/talentOnboarding/server";
 import {
   getUncoveredChecklistItems,
   INSIGHT_CHECKLIST,
 } from "@/lib/talentOnboarding/insightChecklist";
-import { buildRealtimeStepGuides, INTERRUPT_HANDLING_INSTRUCTION, CALL_END_INSTRUCTION } from "@/lib/talentOnboarding/interviewSteps";
+import { buildCareerSystemPrompt, INTERRUPT_HANDLING_INSTRUCTION, CALL_END_INSTRUCTION } from "@/lib/talentOnboarding/interviewSteps";
 
 /**
  * Build Realtime session instructions with Harper persona + user profile context.
- * Excludes insight extraction format (handled by separate save endpoint).
+ * Uses unified system prompt with Voice channel + interrupt/call-end instructions.
+ * Insight extraction is handled by the separate /api/talent/chat/save endpoint.
  */
 async function buildRealtimeInstructions(
   userId: string,
@@ -42,13 +42,6 @@ async function buildRealtimeInstructions(
     maxResumeChars: 3000,
   });
 
-  const { data: conversation } = await admin
-    .from("talent_conversations")
-    .select("*")
-    .eq("id", conversationId)
-    .eq("user_id", userId)
-    .maybeSingle();
-
   const userTurnCount = await countUserChatTurns({ admin, conversationId });
 
   const currentInsightContent = (currentInsights?.content ?? null) as Record<
@@ -58,26 +51,11 @@ async function buildRealtimeInstructions(
   const uncoveredItems = getUncoveredChecklistItems(currentInsightContent);
   const coveredCount = INSIGHT_CHECKLIST.length - uncoveredItems.length;
 
-  const topUncovered = uncoveredItems
-    .slice(0, 3)
-    .map((item) => `- ${item.promptHint}`)
-    .join("\n");
-
-  const shouldSendReliefNudge =
-    userTurnCount >= 5 &&
-    !Boolean((conversation as TalentConversationRow | null)?.relief_nudge_sent);
-
-  const linkText = (profile?.resume_links ?? []).join(", ");
-
-  const currentStep: number =
-    (conversation as TalentConversationRow & { current_step?: number })
-      ?.current_step ?? 1;
-
   // Build existing insights section (capped at 1500 chars for Realtime context budget)
   let existingInsightsSection = "";
   if (currentInsightContent && Object.keys(currentInsightContent).length > 0) {
     const MAX_TOTAL = 1500;
-    let section = "\n## 이미 알고 있는 정보 (재질문 금지, 더 깊은 질문에 활용)\n";
+    let section = "\n이미 수집된 정보 (재질문 금지, 더 깊은 질문에 활용):\n";
     let totalLen = section.length;
     for (const [key, value] of Object.entries(currentInsightContent).sort(([a], [b]) => a.localeCompare(b))) {
       const truncated = value.length > 120 ? value.slice(0, 120) + "..." : value;
@@ -89,42 +67,26 @@ async function buildRealtimeInstructions(
     existingInsightsSection = section;
   }
 
+  const uncoveredSlotsSection = uncoveredItems.length > 0
+    ? "우선 수집할 슬롯:\n" + uncoveredItems.slice(0, 3).map((item) => `- ${item.label}: ${item.promptHint}`).join("\n")
+    : "";
+
   return [
-    "You are Harper, a Korean AI talent agent for candidate onboarding.",
-    "",
-    "Always answer in Korean.",
-    "Be concise, clear, and warm.",
-    "Given the conversation, do all of the following:",
-    "1) brief acknowledgement",
-    "2) short guidance or summary",
-    "3) one next question (if needed).",
-    "Avoid markdown tables and long bullet dumps. Your output will be used as a voice script for TTS.",
-    "",
-    buildRealtimeStepGuides(currentStep),
+    buildCareerSystemPrompt({
+      channelType: "Voice",
+      candidateName: profile?.name ?? "",
+      structuredProfileText,
+      resumeFileName: profile?.resume_file_name ?? null,
+      resumeLinks: (profile?.resume_links ?? []) as string[],
+      userTurnCount,
+      existingInsightsSection,
+      uncoveredSlotsSection,
+      slotCoverage: `${coveredCount}/${INSIGHT_CHECKLIST.length} 슬롯 수집 완료.`,
+    }),
     "",
     INTERRUPT_HANDLING_INSTRUCTION,
     "",
     CALL_END_INSTRUCTION,
-    "",
-    existingInsightsSection,
-    "",
-    `Insight coverage: ${coveredCount}/${INSIGHT_CHECKLIST.length} items covered.`,
-    "Prioritize naturally asking about these uncovered topics (one at a time):",
-    topUncovered,
-    "",
-    `Current user turn count: ${userTurnCount}`,
-    `Resume file: ${profile?.resume_file_name ?? "(none)"}`,
-    `Resume links: ${linkText || "(none)"}`,
-    structuredProfileText || "[Structured Talent Profile]\n(none)",
-    "",
-    shouldSendReliefNudge
-      ? [
-          "IMPORTANT: Include this exact nudge once in your response:",
-          "지금은 여기까지 해도 됩니다.",
-          "지금 정보만으로도 매칭을 시작할 수 있습니다.",
-          "After that, optionally ask one lightweight follow-up question.",
-        ].join("\n")
-      : "Keep the flow moving with one high-signal follow-up question when useful.",
   ].join("\n");
 }
 

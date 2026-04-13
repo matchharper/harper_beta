@@ -1,8 +1,8 @@
 export const TALENT_ONBOARDING_QUESTION_MILESTONE = 2;
-/** @deprecated Use TALENT_INTERVIEW_FINAL_STEP instead for step-based completion */
+/** @deprecated Use slot coverage for completion checks */
 export const TALENT_ONBOARDING_COMPLETION_TARGET = 10;
 
-/** Final step in the 5-stage interview flow */
-export const TALENT_INTERVIEW_FINAL_STEP = 5;
-/** Minimum insight coverage ratio required for interview completion */
-export const TALENT_INTERVIEW_MIN_COVERAGE = 0.6;
+/** Total data slots to fill (used as progress denominator in UI) */
+export const TALENT_INTERVIEW_FINAL_STEP = 10;
+/** Minimum insight coverage ratio required for interview completion (10/10 slots) */
+export const TALENT_INTERVIEW_MIN_COVERAGE = 1.0;

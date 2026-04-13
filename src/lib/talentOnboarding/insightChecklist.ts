@@ -1,5 +1,5 @@
 export type InsightChecklistItem = {
-  /** Normalized key for talent_insights.content, e.g. "career_move_motivation" */
+  /** Normalized key for talent_insights.content, e.g. "recent_achievement_hook" */
   key: string;
   /** Korean display label for UI */
   label: string;
@@ -9,155 +9,84 @@ export type InsightChecklistItem = {
   priority: number;
 };
 
+/**
+ * 10 data slots aligned with the Harper career system prompt.
+ * Each slot maps to a conversation topic the AI should naturally explore.
+ */
 export const INSIGHT_CHECKLIST: InsightChecklistItem[] = [
+  // Part 1: The Hook
   {
-    key: "career_move_motivation",
-    label: "이직 동기",
+    key: "recent_achievement_hook",
+    label: "최근 성과 훅",
     promptHint:
-      "Why they want to change jobs, what triggered the search",
+      "Most impactful project/performance from resume — what they drove and the breakthrough achieved",
     priority: 1,
   },
   {
-    key: "ideal_company_culture",
-    label: "선호 회사 문화",
+    key: "unique_strength",
+    label: "독보적 무기",
     promptHint:
-      "Preferred company culture, work style, team dynamics (horizontal vs vertical, fast-paced vs stable)",
+      "The sharpest problem they can solve within the first month at a new team, based on their expertise",
     priority: 2,
   },
+  // Part 2: Reality Fit
   {
-    key: "career_direction",
-    label: "커리어 방향",
+    key: "managing_vs_ic",
+    label: "매니징 vs 실무",
     promptHint:
-      "Where they want their career to go in 2-3 years, desired role evolution",
+      "Ideal ratio between team leading (managing) and hands-on IC work in their next role",
     priority: 3,
   },
   {
-    key: "work_values",
-    label: "업무 가치관",
+    key: "environment_preference",
+    label: "불확실성/환경 내성",
     promptHint:
-      "What they value most in work: impact, compensation, growth, autonomy, work-life balance, etc.",
+      "Preference between 0-to-1 chaotic startup environment vs stable scale-up with established systems",
     priority: 4,
   },
+  // Part 3: Motivation
   {
-    key: "compensation_expectations",
-    label: "보상 기대",
+    key: "current_pain_point",
+    label: "현재 결핍",
     promptHint:
-      "Salary expectations, equity preferences, benefits priorities",
+      "Career frustrations or structural dissatisfaction at current job (push factors)",
     priority: 5,
   },
   {
-    key: "work_style_preference",
-    label: "근무 형태 선호",
+    key: "decisive_trigger",
+    label: "결정적 트리거",
     promptHint:
-      "Remote/hybrid/onsite preference, commute tolerance, work-life balance expectations",
+      "The single 'cheat-key' condition that would make them join immediately if guaranteed",
     priority: 6,
   },
   {
-    key: "company_avoidance",
-    label: "기피 회사/분야",
+    key: "domain_interest",
+    label: "도메인 흥미",
     promptHint:
-      "Companies, industries, or environments they want to avoid and why",
+      "Specific domain they are most excited about (e.g. AI, B2B SaaS, fintech, biotech)",
     priority: 7,
   },
+  // Part 4: Logistics & Alignment
   {
-    key: "current_satisfaction",
-    label: "현재 직장 만족도",
+    key: "hard_constraints",
+    label: "현실적 조건",
     promptHint:
-      "What they like and dislike about current role/company, pain points",
+      "Non-negotiable constraints: relocation, visa, 100% remote, location, family considerations",
     priority: 8,
   },
   {
-    key: "ai_tool_usage",
-    label: "AI 도구 활용",
+    key: "compensation_philosophy",
+    label: "보상 철학",
     promptHint:
-      "How they use AI tools in their work, level of adoption and attitude",
+      "Preference between stable high base salary vs aggressive equity/incentive, and absolute cash floor (bottom-line)",
     priority: 9,
   },
   {
-    key: "global_mobility",
-    label: "해외 근무 의사",
+    key: "target_references",
+    label: "레퍼런스",
     promptHint:
-      "Willingness to work abroad or at international companies, language proficiency",
+      "Specific target companies or services they admire or believe would be a good fit",
     priority: 10,
-  },
-  {
-    key: "preferred_engagement_type",
-    label: "선호 근무 형태",
-    promptHint:
-      "Preferred engagement: full-time, fractional/part-time, or technical advisor role",
-    priority: 2,
-  },
-  {
-    key: "preferred_work_location",
-    label: "선호 근무 지역",
-    promptHint:
-      "Preferred work location: Korea-based, US/global remote, or willing to relocate",
-    priority: 3,
-  },
-  {
-    key: "career_move_intent",
-    label: "이직 의향",
-    promptHint:
-      "Job move intent: actively looking, open to exploring, or only interested in part-time/advisor",
-    priority: 1,
-  },
-  // --- Step 4 (Logistics & Relocation) items ---
-  {
-    key: "relocation_intent",
-    label: "리로케이션 의향",
-    promptHint:
-      "Willingness to relocate (e.g. US→Korea or vice versa), timeline, and seriousness level",
-    priority: 11,
-  },
-  {
-    key: "visa_status",
-    label: "비자 상황",
-    promptHint:
-      "Current visa/residency status and any immigration hurdles for relocation (family, sponsorship needs)",
-    priority: 12,
-  },
-  {
-    key: "salary_package",
-    label: "연봉 패키지",
-    promptHint:
-      "Current compensation package and target salary expectations for the next role",
-    priority: 13,
-  },
-  {
-    key: "equity_openness",
-    label: "스톡옵션/지분 수용도",
-    promptHint:
-      "Openness to stock options or equity as part of compensation, especially if cash comp is lower",
-    priority: 14,
-  },
-  {
-    key: "competing_offers",
-    label: "경쟁 오퍼",
-    promptHint:
-      "Whether they are interviewing elsewhere or have existing offers (for timeline coordination)",
-    priority: 15,
-  },
-  {
-    key: "join_timeline",
-    label: "합류 타이밍",
-    promptHint:
-      "How soon they can join after accepting an offer (notice period, relocation logistics)",
-    priority: 16,
-  },
-  // --- Step 3 (Expectation vs Reality) items ---
-  {
-    key: "business_impact_experience",
-    label: "비즈니스 임팩트 경험",
-    promptHint:
-      "Experience contributing to business metrics beyond technical work (revenue, user growth, cost reduction)",
-    priority: 17,
-  },
-  {
-    key: "first_quarter_goal",
-    label: "첫 3개월 목표",
-    promptHint:
-      "What impact they want to demonstrate in the first 3 months at a new company",
-    priority: 18,
   },
 ];
 
@@ -171,12 +100,12 @@ export function getUncoveredChecklistItems(
   );
 }
 
-/** Map of checklist key → Korean label for UI display */
+/** Map of checklist key -> Korean label for UI display */
 export const INSIGHT_CHECKLIST_LABEL_MAP = new Map(
   INSIGHT_CHECKLIST.map((item) => [item.key, item.label])
 );
 
-/** Map of checklist key → priority index for UI ordering */
+/** Map of checklist key -> priority index for UI ordering */
 export const INSIGHT_CHECKLIST_ORDER_MAP = new Map(
   INSIGHT_CHECKLIST.map((item, index) => [item.key, index])
 );
