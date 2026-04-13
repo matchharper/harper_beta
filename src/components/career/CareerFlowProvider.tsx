@@ -34,7 +34,7 @@ import { useCareerTalentPreferences } from "@/hooks/career/useCareerTalentPrefer
 import { useCareerTalentSettings } from "@/hooks/career/useCareerTalentSettings";
 import { useCareerSession } from "@/hooks/career/useCareerSession";
 import { getErrorMessage } from "@/hooks/career/careerHelpers";
-import { TALENT_ONBOARDING_COMPLETION_TARGET } from "@/lib/talentOnboarding/progress";
+import { TALENT_INTERVIEW_FINAL_STEP } from "@/lib/talentOnboarding/progress";
 import { getCareerDefaultSavedStage } from "./opportunityTypeMeta";
 
 const getDefaultSavedStage = (
@@ -370,6 +370,7 @@ export const CareerFlowProvider = ({
     applySessionPrompt,
     handleProfileSubmitSuccess,
     resetOnboardingState,
+    isAssistantSpeaking,
   } = useCareerOnboardingVoice({
     user,
     userId,
@@ -393,6 +394,13 @@ export const CareerFlowProvider = ({
   const unreadNotificationCount = useMemo(
     () => notifications.filter((notification) => !notification.isRead).length,
     [notifications]
+  );
+  const historyOpportunityById = useMemo(
+    () =>
+      new Map(
+        historyOpportunities.map((opportunity) => [opportunity.id, opportunity])
+      ),
+    [historyOpportunities]
   );
 
   const updateHistoryOpportunityLocally = useCallback(
@@ -466,9 +474,7 @@ export const CareerFlowProvider = ({
       const normalizedOpportunityId = opportunityId.trim();
       if (!normalizedOpportunityId) return;
 
-      const previousItem = historyOpportunities.find(
-        (item) => item.id === normalizedOpportunityId
-      );
+      const previousItem = historyOpportunityById.get(normalizedOpportunityId);
       if (!previousItem) return;
       const now = new Date().toISOString();
       const nextSavedStage =
@@ -510,7 +516,7 @@ export const CareerFlowProvider = ({
     [
       beginHistoryUpdate,
       endHistoryUpdate,
-      historyOpportunities,
+      historyOpportunityById,
       patchHistoryOpportunity,
       restoreHistoryOpportunity,
       updateHistoryOpportunityLocally,
@@ -522,9 +528,7 @@ export const CareerFlowProvider = ({
       const normalizedOpportunityId = opportunityId.trim();
       if (!normalizedOpportunityId) return;
 
-      const previousItem = historyOpportunities.find(
-        (item) => item.id === normalizedOpportunityId
-      );
+      const previousItem = historyOpportunityById.get(normalizedOpportunityId);
       if (!previousItem) return;
 
       beginHistoryUpdate(normalizedOpportunityId);
@@ -554,7 +558,7 @@ export const CareerFlowProvider = ({
     [
       beginHistoryUpdate,
       endHistoryUpdate,
-      historyOpportunities,
+      historyOpportunityById,
       patchHistoryOpportunity,
       restoreHistoryOpportunity,
       updateHistoryOpportunityLocally,
@@ -566,9 +570,7 @@ export const CareerFlowProvider = ({
       const normalizedOpportunityId = opportunityId.trim();
       if (!normalizedOpportunityId) return;
 
-      const currentItem = historyOpportunities.find(
-        (item) => item.id === normalizedOpportunityId
-      );
+      const currentItem = historyOpportunityById.get(normalizedOpportunityId);
       if (!currentItem || currentItem.viewedAt) return;
       const now = new Date().toISOString();
 
@@ -592,7 +594,7 @@ export const CareerFlowProvider = ({
       }
     },
     [
-      historyOpportunities,
+      historyOpportunityById,
       patchHistoryOpportunity,
       restoreHistoryOpportunity,
       updateHistoryOpportunityLocally,
@@ -604,9 +606,7 @@ export const CareerFlowProvider = ({
       const normalizedOpportunityId = opportunityId.trim();
       if (!normalizedOpportunityId) return;
 
-      const currentItem = historyOpportunities.find(
-        (item) => item.id === normalizedOpportunityId
-      );
+      const currentItem = historyOpportunityById.get(normalizedOpportunityId);
       if (!currentItem || currentItem.clickedAt) return;
       const now = new Date().toISOString();
 
@@ -630,10 +630,58 @@ export const CareerFlowProvider = ({
       }
     },
     [
-      historyOpportunities,
+      historyOpportunityById,
       patchHistoryOpportunity,
       restoreHistoryOpportunity,
       updateHistoryOpportunityLocally,
+    ]
+  );
+
+  const onSendHistoryOpportunityQuestion = useCallback(
+    async (opportunityId: string, question: string) => {
+      const normalizedOpportunityId = opportunityId.trim();
+      const normalizedQuestion = question.trim();
+
+      if (!normalizedOpportunityId || !normalizedQuestion) {
+        return false;
+      }
+
+      const currentItem = historyOpportunityById.get(normalizedOpportunityId);
+      if (!currentItem) return false;
+
+      beginHistoryUpdate(normalizedOpportunityId);
+
+      try {
+        const response = await fetchWithAuth("/api/talent/opportunities/question", {
+          method: "POST",
+          body: JSON.stringify({
+            opportunityId: normalizedOpportunityId,
+            question: normalizedQuestion,
+          }),
+        });
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(
+            getErrorMessage(payload, "질문을 전송하지 못했습니다.")
+          );
+        }
+
+        return true;
+      } catch (error) {
+        setHistoryUpdateError(
+          error instanceof Error ? error.message : "질문을 전송하지 못했습니다."
+        );
+        return false;
+      } finally {
+        endHistoryUpdate(normalizedOpportunityId);
+      }
+    },
+    [
+      beginHistoryUpdate,
+      endHistoryUpdate,
+      fetchWithAuth,
+      historyOpportunityById,
     ]
   );
 
@@ -782,12 +830,12 @@ export const CareerFlowProvider = ({
   );
 
   const answeredCount = useMemo(
-    () => Math.min(userChatCount, TALENT_ONBOARDING_COMPLETION_TARGET),
+    () => Math.min(userChatCount, TALENT_INTERVIEW_FINAL_STEP),
     [userChatCount]
   );
 
   const progressPercent = Math.round(
-    (answeredCount / TALENT_ONBOARDING_COMPLETION_TARGET) * 100
+    (answeredCount / TALENT_INTERVIEW_FINAL_STEP) * 100
   );
 
   const chatPanelContextValue: CareerChatPanelContextValue = useMemo(
@@ -843,6 +891,7 @@ export const CareerFlowProvider = ({
       onEndCallMode: handleEndCallMode,
       callTranscriptEntries,
       callConnectionStatus: connectionStatus,
+      isAssistantSpeaking,
     }),
     [
       assistantTyping,
@@ -895,6 +944,7 @@ export const CareerFlowProvider = ({
       voiceMuted,
       voicePrimaryPressed,
       voiceTranscript,
+      isAssistantSpeaking,
     ]
   );
 
@@ -904,7 +954,7 @@ export const CareerFlowProvider = ({
       stage,
       userChatCount,
       answeredCount,
-      targetQuestions: TALENT_ONBOARDING_COMPLETION_TARGET,
+      targetQuestions: TALENT_INTERVIEW_FINAL_STEP,
       progressPercent,
       onOpenSettings,
       onLogout: handleLogout,
@@ -916,6 +966,7 @@ export const CareerFlowProvider = ({
       onUpdateHistoryOpportunitySavedStage,
       onMarkHistoryOpportunityViewed,
       onMarkHistoryOpportunityClicked,
+      onSendHistoryOpportunityQuestion,
       notifications,
       unreadNotificationCount,
       notificationsMarkingAsRead,
@@ -1056,6 +1107,7 @@ export const CareerFlowProvider = ({
       userChatCount,
       onMarkHistoryOpportunityClicked,
       onMarkHistoryOpportunityViewed,
+      onSendHistoryOpportunityQuestion,
       onUpdateHistoryOpportunityFeedback,
       onUpdateHistoryOpportunitySavedStage,
       talentEducations,

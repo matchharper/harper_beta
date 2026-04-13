@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import React, { useEffect, useId } from "react";
+import React, { useEffect, useId, type RefObject } from "react";
 import { cn } from "@/lib/cn";
 
 type TalentCareerModalProps = {
@@ -20,6 +20,7 @@ type TalentCareerModalProps = {
   bodyClassName?: string;
   footerClassName?: string;
   closeButtonClassName?: string;
+  initialFocusRef?: RefObject<HTMLElement | null>;
 };
 
 const TalentCareerModal = ({
@@ -40,6 +41,7 @@ const TalentCareerModal = ({
   bodyClassName,
   footerClassName,
   closeButtonClassName,
+  initialFocusRef,
 }: TalentCareerModalProps) => {
   const titleId = useId();
   const descriptionId = useId();
@@ -70,6 +72,17 @@ const TalentCareerModal = ({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose, open]);
+
+  useEffect(() => {
+    if (!open || typeof window === "undefined") return;
+    if (!initialFocusRef?.current) return;
+
+    const timeoutId = window.setTimeout(() => {
+      initialFocusRef.current?.focus();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [initialFocusRef, open]);
 
   if (!open) return null;
 
@@ -140,9 +153,8 @@ const TalentCareerModal = ({
               <p
                 id={descriptionId}
                 className="mt-2 max-w-[56ch] text-sm leading-relaxed text-hblack700"
-              >
-                {description}
-              </p>
+                dangerouslySetInnerHTML={{ __html: description }}
+              />
             )}
           </header>
         ) : null}

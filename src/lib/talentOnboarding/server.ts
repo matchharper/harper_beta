@@ -521,7 +521,7 @@ export async function countUserChatTurns(args: {
     .select("id", { count: "exact", head: true })
     .eq("conversation_id", conversationId)
     .eq("role", "user")
-    .eq("message_type", "chat");
+    .in("message_type", ["chat", "call_transcript"]);
 
   if (error) {
     throw new Error(error.message ?? "Failed to count user chat turns");

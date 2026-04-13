@@ -33,6 +33,46 @@ function pcm16ToBase64(int16Array: Int16Array): string {
   return btoa(binary);
 }
 
+/** Decode base64 PCM16 audio chunk and schedule gapless playback via Web Audio API */
+function scheduleAudioChunk(
+  base64Audio: string,
+  ctxRef: { current: AudioContext | null },
+  nextTimeRef: { current: number }
+): void {
+  try {
+    if (!ctxRef.current || ctxRef.current.state === "closed") {
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext })
+          .webkitAudioContext;
+      ctxRef.current = new AudioCtx({ sampleRate: 24000 });
+    }
+    const ctx = ctxRef.current;
+    if (ctx.state === "suspended") void ctx.resume();
+
+    const binary = atob(base64Audio);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+    const int16 = new Int16Array(bytes.buffer);
+    const float32 = new Float32Array(int16.length);
+    for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768;
+
+    const buf = ctx.createBuffer(1, float32.length, 24000);
+    buf.getChannelData(0).set(float32);
+
+    const source = ctx.createBufferSource();
+    source.buffer = buf;
+    source.connect(ctx.destination);
+
+    const startTime = Math.max(ctx.currentTime, nextTimeRef.current);
+    source.start(startTime);
+    nextTimeRef.current = startTime + buf.duration;
+  } catch (e) {
+    console.error("[RealtimeSession] Audio chunk playback error:", e);
+  }
+}
+
 export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   const {
     conversationId,
@@ -48,6 +88,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [partialTranscript, setPartialTranscript] = useState("");
+  const [isAssistantSpeaking, setIsAssistantSpeaking] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<
     "connected" | "reconnecting" | "disconnected"
   >("disconnected");
@@ -62,6 +103,12 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     null
   );
   const reconnectAttemptRef = useRef(0);
+
+  // Audio playback refs (native Realtime audio output)
+  const playbackCtxRef = useRef<AudioContext | null>(null);
+  const nextPlayTimeRef = useRef(0);
+  const hasAudioInResponseRef = useRef(false);
+  const interruptTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Stable callback refs
   const onTranscriptRef = useRef(onTranscript);
@@ -160,21 +207,94 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
           break;
         }
 
-        case "response.text.delta": {
+        case "response.audio.delta": {
+          hasAudioInResponseRef.current = true;
+          setIsAssistantSpeaking(true);
+          const audioData = typeof msg.delta === "string" ? msg.delta : "";
+          if (audioData) {
+            scheduleAudioChunk(audioData, playbackCtxRef, nextPlayTimeRef);
+          }
+          break;
+        }
+
+        case "response.audio_transcript.delta": {
           const delta = typeof msg.delta === "string" ? msg.delta : "";
           responseTextRef.current += delta;
           onAssistantDeltaRef.current(delta);
           break;
         }
 
+        case "response.text.delta": {
+          const delta = typeof msg.delta === "string" ? msg.delta : "";
+          // Skip when native audio is active (audio_transcript.delta handles text)
+          if (!hasAudioInResponseRef.current) {
+            responseTextRef.current += delta;
+            onAssistantDeltaRef.current(delta);
+          }
+          break;
+        }
+
         case "response.text.done":
-          // response.text.done has the full text; use it as source of truth
           break;
 
         case "response.done": {
           const fullText = responseTextRef.current;
           responseTextRef.current = "";
+          hasAudioInResponseRef.current = false;
+
+          const response = msg.response as Record<string, unknown> | undefined;
+          const status = typeof response?.status === "string" ? response.status : "completed";
+
+          if (status === "cancelled") {
+            // User interrupted — stop audio immediately
+            const ctx = playbackCtxRef.current;
+            if (ctx && ctx.state !== "closed") {
+              void ctx.close().catch(() => undefined);
+              playbackCtxRef.current = null;
+              nextPlayTimeRef.current = 0;
+            }
+            setIsAssistantSpeaking(false);
+          } else {
+            // Natural end — wait for buffered audio to finish playing
+            const ctx = playbackCtxRef.current;
+            if (ctx && ctx.state !== "closed") {
+              const remaining = Math.max(0, nextPlayTimeRef.current - ctx.currentTime);
+              if (remaining > 0.05) {
+                setTimeout(() => setIsAssistantSpeaking(false), remaining * 1000);
+              } else {
+                setIsAssistantSpeaking(false);
+              }
+            } else {
+              setIsAssistantSpeaking(false);
+            }
+          }
+
           onAssistantDoneRef.current(fullText);
+          break;
+        }
+
+        case "input_audio_buffer.speech_started": {
+          // TODO: Interrupt detection disabled — revisit with better noise filtering
+          // if (hasAudioInResponseRef.current && !interruptTimerRef.current) {
+          //   interruptTimerRef.current = setTimeout(() => {
+          //     interruptTimerRef.current = null;
+          //     const ctx = playbackCtxRef.current;
+          //     if (ctx && ctx.state !== "closed") {
+          //       void ctx.close().catch(() => undefined);
+          //       playbackCtxRef.current = null;
+          //       nextPlayTimeRef.current = 0;
+          //     }
+          //   }, 500);
+          // }
+          break;
+        }
+
+        case "input_audio_buffer.speech_stopped": {
+          // TODO: Re-enable with speech_started interrupt detection
+          // if (interruptTimerRef.current) {
+          //   clearTimeout(interruptTimerRef.current);
+          //   interruptTimerRef.current = null;
+          // }
           break;
         }
 
@@ -253,6 +373,16 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   const disconnect = useCallback(() => {
     clearRefreshTimer();
     cleanupAudio();
+    // Clean up native audio playback context
+    if (interruptTimerRef.current) {
+      clearTimeout(interruptTimerRef.current);
+      interruptTimerRef.current = null;
+    }
+    const playbackCtx = playbackCtxRef.current;
+    playbackCtxRef.current = null;
+    nextPlayTimeRef.current = 0;
+    hasAudioInResponseRef.current = false;
+    void playbackCtx?.close().catch(() => undefined);
     const socket = socketRef.current;
     if (socket) {
       socket.onclose = null;
@@ -361,7 +491,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
               session: {
                 turn_detection: {
                   type: "server_vad",
-                  threshold: 0.5,
+                  threshold: 0.7,
                   prefix_padding_ms: 300,
                   silence_duration_ms: 800,
                 },
@@ -481,7 +611,40 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   const cancelResponse = useCallback(() => {
     sendEvent({ type: "response.cancel" });
     responseTextRef.current = "";
+    hasAudioInResponseRef.current = false;
+    // Stop current audio playback by closing context (will be recreated on next response)
+    const ctx = playbackCtxRef.current;
+    if (ctx && ctx.state !== "closed") {
+      void ctx.close().catch(() => undefined);
+      playbackCtxRef.current = null;
+      nextPlayTimeRef.current = 0;
+    }
   }, [sendEvent]);
+
+  /** Update the Realtime session instructions (e.g., on interview step transition) */
+  const updateSessionInstructions = useCallback(
+    (instructions: string) => {
+      sendEvent({
+        type: "session.update",
+        session: { instructions },
+      });
+    },
+    [sendEvent]
+  );
+
+  /** Request the model to speak the given text via native Realtime audio */
+  const generateSpeech = useCallback(
+    (text: string) => {
+      responseTextRef.current = "";
+      sendEvent({
+        type: "response.create",
+        response: {
+          instructions: `다음 내용을 정확히 그대로 자연스럽게 말해주세요: "${text}"`,
+        },
+      });
+    },
+    [sendEvent]
+  );
 
   /** Expose the MediaStream for voice level monitoring */
   const getMediaStream = useCallback((): MediaStream | null => {
@@ -498,6 +661,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   return {
     isConnected,
     isConnecting,
+    isAssistantSpeaking,
     partialTranscript,
     connectionStatus,
     connect,
@@ -507,6 +671,8 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     sendTextMessage,
     triggerResponse,
     cancelResponse,
+    generateSpeech,
+    updateSessionInstructions,
     getMediaStream,
   };
 }

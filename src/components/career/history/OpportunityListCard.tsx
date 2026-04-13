@@ -4,13 +4,8 @@ import {
   CareerOpportunitySavedStage,
   CareerOpportunityType,
 } from "../types";
-import { formatRelativeTime } from "@/lib/utils";
 import { careerCx, CareerInlinePanel } from "../ui/CareerPrimitives";
-import {
-  getMetaItems,
-  getOpportunityTypeLabel,
-  SAVED_TABS,
-} from "../CareerHistoryPanel";
+import { SAVED_TABS } from "../CareerHistoryPanel";
 import { getOpportunityPanelTone } from "../CareerHistoryPanel";
 import { Building2, ChevronDown } from "lucide-react";
 import {
@@ -21,10 +16,7 @@ import {
   getResolvedSavedStage,
   getSavedStageLabel,
 } from "../CareerHistoryPanel";
-import {
-  HistoryOpportunityInfoTag,
-  OpportunityHeader,
-} from "./HistoryOpportunityDetailContent";
+import { OpportunityHeader } from "./HistoryOpportunityDetailContent";
 
 const HistorySavedStageDropdown = ({
   disabled,

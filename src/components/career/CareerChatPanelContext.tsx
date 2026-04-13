@@ -80,6 +80,7 @@ export type CareerChatPanelContextValue = {
   onEndCallMode?: () => void;
   callTranscriptEntries?: CallTranscriptEntry[];
   callConnectionStatus?: "connected" | "reconnecting" | "disconnected";
+  isAssistantSpeaking?: boolean;
 };
 
 const CareerChatPanelContext =
