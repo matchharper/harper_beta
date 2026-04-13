@@ -637,6 +637,54 @@ export const CareerFlowProvider = ({
     ]
   );
 
+  const onSendHistoryOpportunityQuestion = useCallback(
+    async (opportunityId: string, question: string) => {
+      const normalizedOpportunityId = opportunityId.trim();
+      const normalizedQuestion = question.trim();
+
+      if (!normalizedOpportunityId || !normalizedQuestion) {
+        return false;
+      }
+
+      const currentItem = historyOpportunityById.get(normalizedOpportunityId);
+      if (!currentItem) return false;
+
+      beginHistoryUpdate(normalizedOpportunityId);
+
+      try {
+        const response = await fetchWithAuth("/api/talent/opportunities/question", {
+          method: "POST",
+          body: JSON.stringify({
+            opportunityId: normalizedOpportunityId,
+            question: normalizedQuestion,
+          }),
+        });
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(
+            getErrorMessage(payload, "질문을 전송하지 못했습니다.")
+          );
+        }
+
+        return true;
+      } catch (error) {
+        setHistoryUpdateError(
+          error instanceof Error ? error.message : "질문을 전송하지 못했습니다."
+        );
+        return false;
+      } finally {
+        endHistoryUpdate(normalizedOpportunityId);
+      }
+    },
+    [
+      beginHistoryUpdate,
+      endHistoryUpdate,
+      fetchWithAuth,
+      historyOpportunityById,
+    ]
+  );
+
   const markNotificationsRead = useCallback(async () => {
     if (
       !userId ||
@@ -918,6 +966,7 @@ export const CareerFlowProvider = ({
       onUpdateHistoryOpportunitySavedStage,
       onMarkHistoryOpportunityViewed,
       onMarkHistoryOpportunityClicked,
+      onSendHistoryOpportunityQuestion,
       notifications,
       unreadNotificationCount,
       notificationsMarkingAsRead,
@@ -1058,6 +1107,7 @@ export const CareerFlowProvider = ({
       userChatCount,
       onMarkHistoryOpportunityClicked,
       onMarkHistoryOpportunityViewed,
+      onSendHistoryOpportunityQuestion,
       onUpdateHistoryOpportunityFeedback,
       onUpdateHistoryOpportunitySavedStage,
       talentEducations,

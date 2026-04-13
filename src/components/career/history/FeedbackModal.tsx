@@ -1,9 +1,9 @@
-import React from "react";
+import React, { useRef } from "react";
 import { Loader2 } from "lucide-react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import type { CareerHistoryOpportunity } from "../types";
 import {
-  getCareerFeedbackButtonClassName,
+  getCareerDefaultFeedbackButtonClassName,
   getCareerNegativeFeedbackOptions,
   getCareerNegativeFeedbackModalCopy,
   getCareerPositiveFeedbackModalCopy,
@@ -130,6 +130,8 @@ export const HistoryPositiveFeedbackModal = ({
   onClose: () => void;
   onSubmit: () => void;
 }) => {
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
   if (!item) return null;
 
   const positiveFeedbackModalCopy = getCareerPositiveFeedbackModalCopy(
@@ -162,9 +164,11 @@ export const HistoryPositiveFeedbackModal = ({
         </div>
       }
       closeButtonClassName="font-geist right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-beige900/10 bg-white/70 text-beige900/70 transition-colors hover:border-beige900/25 hover:text-beige900"
+      initialFocusRef={textareaRef}
     >
       <div className="space-y-3">
         <textarea
+          ref={textareaRef}
           value={draft}
           onChange={(event) => onChangeDraft(event.target.value)}
           placeholder={positiveFeedbackModalCopy.placeholder}
@@ -237,7 +241,7 @@ export const HistoryNegativeFeedbackModal = ({
                 onClick={() => onToggleOption(option.value)}
                 className={careerCx(
                   "flex items-start gap-3 rounded-md border px-3 py-3 text-left text-sm leading-5 transition-colors",
-                  getCareerFeedbackButtonClassName(item.opportunityType, active)
+                  getCareerDefaultFeedbackButtonClassName(active)
                 )}
               >
                 <span
@@ -265,6 +269,71 @@ export const HistoryNegativeFeedbackModal = ({
             className={careerCx(careerTextareaClassName, "min-h-[120px]")}
           />
         )}
+      </div>
+    </TalentCareerModal>
+  );
+};
+
+export const HistoryQuestionModal = ({
+  draft,
+  item,
+  pending,
+  onChangeDraft,
+  onClose,
+  onSubmit,
+}: {
+  draft: string;
+  item: CareerHistoryOpportunity | null;
+  pending: boolean;
+  onChangeDraft: (value: string) => void;
+  onClose: () => void;
+  onSubmit: () => void | Promise<void>;
+}) => {
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  if (!item) return null;
+
+  return (
+    <TalentCareerModal
+      open={Boolean(item)}
+      onClose={onClose}
+      title="결정하시기전에 궁금한게 있으신가요?"
+      description="질문하신 내용은 Harper가 대신해서 익명으로 회사에 물어보고 알려드리겠습니다.<br/>민감한 질문이라도 궁금하신게 있다면 얼마든지 요청해주세요."
+      panelClassName="max-w-[520px] border border-beige900/10 bg-beige50"
+      bodyClassName="bg-beige50 px-5 py-5"
+      footer={
+        <div className="flex items-center justify-end gap-2">
+          <CareerSecondaryButton onClick={onClose} disabled={pending}>
+            취소
+          </CareerSecondaryButton>
+          <CareerPrimaryButton
+            onClick={() => void onSubmit()}
+            disabled={pending || !draft.trim()}
+          >
+            {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            보내기
+          </CareerPrimaryButton>
+        </div>
+      }
+      closeButtonClassName="font-geist right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-beige900/10 bg-white/70 text-beige900/70 transition-colors hover:border-beige900/25 hover:text-beige900"
+      initialFocusRef={textareaRef}
+    >
+      <div className="space-y-3">
+        <textarea
+          ref={textareaRef}
+          value={draft}
+          onChange={(event) => onChangeDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing) return;
+            if (event.key !== "Enter" || event.shiftKey) return;
+
+            event.preventDefault();
+            if (pending || !draft.trim()) return;
+            void onSubmit();
+          }}
+          placeholder="궁금한 점을 남겨주세요."
+          className={careerCx(careerTextareaClassName, "min-h-[148px]")}
+        />
       </div>
     </TalentCareerModal>
   );

@@ -320,3 +320,62 @@ export async function updateTalentOpportunityHistoryItem(args: {
 
   return { ok: true, updatedAt: now };
 }
+
+export async function createTalentOpportunityQuestion(args: {
+  admin: AdminClient;
+  opportunityId: string;
+  question: string;
+  userId: string;
+}) {
+  const opportunityId = String(args.opportunityId ?? "").trim();
+  if (!opportunityId) {
+    throw new Error("opportunityId is required");
+  }
+
+  const question = String(args.question ?? "").trim();
+  if (!question) {
+    throw new Error("question is required");
+  }
+
+  const { data: opportunity, error: lookupError } = await ((
+    args.admin.from("talent_opportunity_recommendation" as any) as any
+  )
+    .select("role_id")
+    .eq("talent_id", args.userId)
+    .eq("id", opportunityId)
+    .maybeSingle() as any);
+
+  if (lookupError) {
+    throw new Error(lookupError.message ?? "Failed to load opportunity");
+  }
+
+  const roleId =
+    typeof opportunity?.role_id === "string" ? opportunity.role_id.trim() : "";
+  if (!roleId) {
+    throw new Error("Opportunity not found");
+  }
+
+  const content = `Role:${roleId}\n${question}`;
+  const { data: insertedMessage, error: insertError } = await args.admin
+    .from("talent_messages")
+    .insert({
+      conversation_id: null,
+      user_id: args.userId,
+      role: "user",
+      content,
+      message_type: "question",
+    })
+    .select("id, created_at")
+    .single();
+
+  if (insertError) {
+    throw new Error(insertError.message ?? "Failed to save question");
+  }
+
+  return {
+    ok: true,
+    createdAt: insertedMessage.created_at,
+    messageId: insertedMessage.id,
+    roleId,
+  };
+}

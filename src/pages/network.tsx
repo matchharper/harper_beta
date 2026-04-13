@@ -198,11 +198,38 @@ const faqs = [
   },
   {
     question: "일반적인 채용공고나 헤드헌터와 어떻게 다른가요?",
-    answer: `<div><span class='font-semibold text-beige900 font-inter'>Focused Expertise:</span> 저희는 오직 AI/ML 분야에만 집중합니다. 모델 트레이닝, LLM 인프라, NPU 설계 등 기술적 난도가 높은 직무의 맥락을 정확히 이해하고, 정확한 기회만 연결합니다.</div>
-<div class="mt-2"><span class='font-semibold text-beige900 font-inter'>Exclusive Partnership:</span> 모든 회사의 공고를 제안하지 않습니다. 실리콘밸리 Tier 1 VC의 투자를 받았거나 기술적 파괴력이 입증된 소수의 팀들과만 긴밀하게 협업하며, 시장에 공개되지 않은 핵심 포지션(Stealth Roles)을 우선적으로 매칭합니다.</div>
-<div class="mt-2"><span class='font-semibold text-beige900 font-inter'>Streamlined Process:</span> 불필요한 단계를 생략합니다. Harper의 추천은 파트너사의 창업자 또는 기술 리드에게 직접 전달되어, 가장 효율적이고 전문적인 논의가 이루어질 수 있도록 지원합니다.</div>
-<div class="mt-2"><span class='font-semibold text-beige900 font-inter'>Engagement Flexibility:</span> 정규직 합류뿐만 아니라, 현업을 유지하며 주당 4~12시간 내외로 핵심 프로젝트에 기여하는 'Fractional(파트타임)' 형태의 협업 기회도 Harper 네트워크 안에서 활발하게 연결됩니다.</div>
-`,
+    answer: `<div className="w-[90%] md:w-[60%] text-center mt-32 mb-4">
+              <div>
+                ※ Harper는 최고의 인재와 회사 네트워크를 관리합니다.
+                인재분들에게는 선호하실만한 모든 커리어 기회를 찾아 알려드리고,
+                수락하신다면 해당 회사의 담당자와 직접 연결해드립니다. (모든
+                정보는 추천을 수락하시기 전까지 어떤 회사에도 공개되지
+                않습니다.)
+              </div>
+              <div>
+                <br />
+                특히 국내/해외의 AI 스타트업들과 주로 협업하고 있고 글로벌
+                유니콘이나 아시아 리더십 포지션 등, 평소 외부에 잘 공개되지 않는
+                희귀한 탑티어 포지션들도 독점적으로 발굴해 핏을 찾아드리고
+                있습니다.
+              </div>
+              <div>
+                <br />
+                Most Exciting Tech companies / 경쟁력 있는 회사들을 모시고 있고,
+                풀은 갈수록 커지고 있습니다.
+                <br />
+                바로 연결이 되지는 않을 수 있지만, 적절한 기회를 찾아서
+                연결드리겠습니다.
+              </div>
+              <div>
+                <br />
+              정규직 합류뿐만 아니라, 현업을 유지하며 주당 4~12시간 내외로 핵심 프로젝트에 기여하는 'Fractional(파트타임)' 형태의 협업 기회도 Harper 네트워크 안에서 활발하게 연결됩니다.</div>
+            </div>`,
+    //             `<div><span class='font-semibold text-beige900 font-inter'>Focused Expertise:</span> 저희는 오직 AI/ML 분야에만 집중합니다. 모델 트레이닝, LLM 인프라, NPU 설계 등 기술적 난도가 높은 직무의 맥락을 정확히 이해하고, 정확한 기회만 연결합니다.</div>
+    // <div class="mt-2"><span class='font-semibold text-beige900 font-inter'>Exclusive Partnership:</span> 모든 회사의 공고를 제안하지 않습니다. 실리콘밸리 Tier 1 VC의 투자를 받았거나 기술적 파괴력이 입증된 소수의 팀들과만 긴밀하게 협업하며, 시장에 공개되지 않은 핵심 포지션(Stealth Roles)을 우선적으로 매칭합니다.</div>
+    // <div class="mt-2"><span class='font-semibold text-beige900 font-inter'>Streamlined Process:</span> 불필요한 단계를 생략합니다. Harper의 추천은 파트너사의 창업자 또는 기술 리드에게 직접 전달되어, 가장 효율적이고 전문적인 논의가 이루어질 수 있도록 지원합니다.</div>
+    // <div class="mt-2"><span class='font-semibold text-beige900 font-inter'>Engagement Flexibility:</span> 정규직 합류뿐만 아니라, 현업을 유지하며 주당 4~12시간 내외로 핵심 프로젝트에 기여하는 'Fractional(파트타임)' 형태의 협업 기회도 Harper 네트워크 안에서 활발하게 연결됩니다.</div>
+    // `
   },
   {
     question: "당장 이직 생각이 없어도 등록해둘 수 있을까요?",
@@ -1586,7 +1613,7 @@ const NetworkPage = () => {
                             className="overflow-hidden"
                           >
                             <p
-                              className="w-full text-left text-sm md:text-[15px] leading-[1.6] tracking-[-0.01em] text-beige900/70"
+                              className="w-full text-left text-sm md:text-[15px] leading-[1.6] tracking-[-0.01em] text-beige900/80"
                               dangerouslySetInnerHTML={{ __html: faq.answer }}
                             />
                           </motion.div>
@@ -1617,14 +1644,20 @@ const NetworkPage = () => {
           <br />
           <br />
           <br />
-          <Reveal once delay={0.24} className="w-full">
-            <div className="flex items-center justify-center w-full mt-20 mb-4">
+          <Reveal once delay={0.32} className="w-full">
+            <div className="flex flex-col gap-8 items-center justify-center w-full mt-28 mb-20">
               <Image
                 src="/images/objects.png"
                 alt="objects"
                 width={256}
                 height={256}
                 className="w-44 sm:w-52 md:w-64"
+              />
+              <NetworkButton
+                label="Initiate Match"
+                onClick={() =>
+                  openOnboarding("talent_network_click_last_initiate_match")
+                }
               />
             </div>
           </Reveal>
@@ -1745,12 +1778,13 @@ function VCLogos({ abtestType }: { abtestType: string }) {
   return (
     <div className="relative w-[90%] mx-auto overflow-hidden mt-16">
       <Reveal once delay={0.08} className="w-full text-center">
-        <div className="w-full text-center text-beige900 text-lg leading-[1.55] tracking-[-0.03em] font-medium">
-          Partnering with <span className="text-beige900/50">AI companies</span>
-          <br className="block md:hidden" /> funded by the world&apos;s elite.
+        <div className="w-full text-center text-beige900 text-base md:text-lg leading-[1.55] tracking-[-0.03em] font-medium">
+          Partnering with{" "}
+          <span className="text-beige900/50">Most Exciting Tech companies</span>{" "}
+          funded by the world&apos;s elite.
         </div>
         {showsBMessaging && (
-          <div className="w-full text-center text-beige900 text-lg leading-[1.55] tracking-[-0.03em] font-medium mt-2">
+          <div className="w-full text-center text-beige900 text-base md:text-lg leading-[1.55] tracking-[-0.03em] font-medium mt-2">
             It&apos;s worth joining even if you&apos;re not actively looking.
           </div>
         )}

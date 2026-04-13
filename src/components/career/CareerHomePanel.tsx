@@ -1,5 +1,5 @@
-import { ArrowRight, BriefcaseBusiness, MessageSquareText } from "lucide-react";
-import { useMemo } from "react";
+import { BriefcaseBusiness, MessageSquareText } from "lucide-react";
+import { useMemo, useState } from "react";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
 import {
   getTalentEngagementLabels,
@@ -8,10 +8,14 @@ import {
 import {
   CareerPrimaryButton,
   CareerSecondaryButton,
-  careerCx,
 } from "./ui/CareerPrimitives";
-import { getCareerOpportunityTypeShortLabel } from "./opportunityTypeMeta";
-import type { CareerRecentOpportunity } from "./types";
+import {
+  CareerOpportunityType,
+  type CareerHistoryOpportunity,
+  type CareerRecentOpportunity,
+} from "./types";
+import OpportunityListCard from "./history/OpportunityListCard";
+import HistoryOpportunityInfoModal from "./history/HistoryOppotunityInfoModal";
 
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -25,14 +29,58 @@ const formatMatchedAt = (value: string) => {
   }).format(date);
 };
 
-const formatOpportunityKind = (
-  opportunityType: CareerRecentOpportunity["opportunityType"]
-) => getCareerOpportunityTypeShortLabel(opportunityType);
-
 const isWithinLastWeek = (value: string) => {
   const timestamp = Date.parse(value);
   if (Number.isNaN(timestamp)) return false;
   return Date.now() - timestamp <= ONE_WEEK_MS;
+};
+
+const createRecentOpportunityCardItem = ({
+  historyItem,
+  recentItem,
+}: {
+  historyItem?: CareerHistoryOpportunity;
+  recentItem: CareerRecentOpportunity;
+}): CareerHistoryOpportunity => {
+  if (historyItem) return historyItem;
+
+  return {
+    clickedAt: null,
+    companyDescription: null,
+    companyHomepageUrl: recentItem.href ?? null,
+    companyLinkedinUrl: null,
+    companyLogoUrl: null,
+    companyName: recentItem.companyName,
+    description: recentItem.summary,
+    dismissedAt: null,
+    employmentTypes: recentItem.engagementType ? [recentItem.engagementType] : [],
+    externalJdUrl: recentItem.href ?? null,
+    feedback: null,
+    feedbackAt: null,
+    feedbackReason: null,
+    href: recentItem.href ?? null,
+    id: recentItem.id,
+    isAccepted: false,
+    isInternal: recentItem.opportunityType !== CareerOpportunityType.ExternalJd,
+    kind: recentItem.kind,
+    location: recentItem.location,
+    opportunityType: recentItem.opportunityType,
+    postedAt: null,
+    recommendedAt: recentItem.matchedAt,
+    recommendationReasons: [],
+    roleId: `recent-${recentItem.id}`,
+    savedStage: null,
+    sourceJobId: null,
+    sourceProvider: null,
+    sourceType:
+      recentItem.opportunityType === CareerOpportunityType.ExternalJd
+        ? "external"
+        : "internal",
+    status: "active",
+    title: recentItem.title,
+    viewedAt: null,
+    workMode: null,
+  };
 };
 
 const PreferenceRow = ({
@@ -69,7 +117,10 @@ const CareerHomePanel = ({
     talentPreferences,
     networkApplication,
     recentOpportunities,
+    historyOpportunities,
   } = useCareerSidebarContext();
+  const [infoOpportunityType, setInfoOpportunityType] =
+    useState<CareerOpportunityType | null>(null);
 
   const displayName =
     talentProfile.talentUser?.name ??
@@ -87,6 +138,11 @@ const CareerHomePanel = ({
     getTalentCareerMoveIntentLabel(talentPreferences?.careerMoveIntent) ??
     "아직 설정되지 않았습니다.";
 
+  const historyOpportunityById = useMemo(
+    () => new Map(historyOpportunities.map((item) => [item.id, item])),
+    [historyOpportunities]
+  );
+
   const recentWeeklyOpportunities = useMemo(
     () =>
       recentOpportunities
@@ -95,8 +151,14 @@ const CareerHomePanel = ({
           (left, right) =>
             Date.parse(right.matchedAt) - Date.parse(left.matchedAt)
         )
-        .slice(0, 4),
-    [recentOpportunities]
+        .slice(0, 4)
+        .map((item) =>
+          createRecentOpportunityCardItem({
+            recentItem: item,
+            historyItem: historyOpportunityById.get(item.id),
+          })
+        ),
+    [historyOpportunityById, recentOpportunities]
   );
 
   const startButtonLabel =
@@ -175,52 +237,18 @@ const CareerHomePanel = ({
         {recentWeeklyOpportunities.length > 0 ? (
           <div className="mt-2 grid gap-4 lg:grid-cols-2">
             {recentWeeklyOpportunities.map((item) => (
-              <button
+              <OpportunityListCard
                 key={item.id}
-                type="button"
-                onClick={onOpenHistory}
-                className={careerCx(
-                  "rounded-[18px] border border-beige900/10 bg-white/45 px-5 py-5 text-left transition-colors hover:border-beige900/25"
-                )}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <span className="rounded-full border border-beige900/10 bg-beige100/65 px-3 py-1 text-[12px] text-beige900/55">
-                    {formatOpportunityKind(item.opportunityType)}
+                item={item}
+                pending={false}
+                action={
+                  <span className="text-[12px] leading-5 text-beige900/45">
+                    {formatMatchedAt(item.recommendedAt)}
                   </span>
-                  <span className="text-[12px] text-beige900/40">
-                    {formatMatchedAt(item.matchedAt)}
-                  </span>
-                </div>
-                <div className="mt-4 text-[20px] leading-6 text-beige900">
-                  {item.title}
-                </div>
-                <div className="mt-1 text-[14px] leading-6 text-beige900/50">
-                  {item.companyName}
-                </div>
-                {item.summary ? (
-                  <p className="mt-3 text-[14px] leading-6 text-beige900/65">
-                    {item.summary}
-                  </p>
-                ) : null}
-                {item.location || item.engagementType ? (
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {item.location ? (
-                      <span className="rounded-full border border-beige900/10 bg-white/60 px-3 py-1 text-[12px] text-beige900/60">
-                        {item.location}
-                      </span>
-                    ) : null}
-                    {item.engagementType ? (
-                      <span className="rounded-full border border-beige900/10 bg-white/60 px-3 py-1 text-[12px] text-beige900/60">
-                        {item.engagementType}
-                      </span>
-                    ) : null}
-                  </div>
-                ) : null}
-                <div className="mt-5 inline-flex items-center gap-1 text-sm text-beige900/65">
-                  History에서 보기
-                  <ArrowRight className="h-4 w-4" />
-                </div>
-              </button>
+                }
+                onOpenDetail={onOpenHistory}
+                onOpenOpportunityInfo={setInfoOpportunityType}
+              />
             ))}
           </div>
         ) : (
@@ -230,6 +258,11 @@ const CareerHomePanel = ({
           </div>
         )}
       </section>
+
+      <HistoryOpportunityInfoModal
+        opportunityType={infoOpportunityType}
+        onClose={() => setInfoOpportunityType(null)}
+      />
     </div>
   );
 };

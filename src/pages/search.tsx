@@ -1163,7 +1163,7 @@ export default function RadarLandingPage() {
               <div className="w-full mb-20 mt-4 md:mt-0 flex flex-col items-center justify-center">
                 <div className="max-w-[1280px] bg-gradpastel2 overflow-hidden md:rounded-[30px] rounded-2xl pt-8 md:pt-0 flex flex-col items-center justify-center">
                   <video
-                    src="/videos/usemain.mp4"
+                    src="/videos/newclipharper.mov"
                     poster="/images/usemain.png"
                     autoPlay
                     loop

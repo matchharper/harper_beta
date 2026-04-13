@@ -645,7 +645,7 @@ const CandidatePage = () => {
         <div className="mb-20 mt-12 md:mt-0 flex flex-col items-center justify-center">
           <div className="w-[90%] max-w-[960px] bg-gradpastel2 overflow-hidden md:rounded-[30px] rounded-2xl pt-8 md:pt-0 flex flex-col items-center justify-center">
             <video
-              src="/videos/usemain.mp4"
+              src="/videos/newclipharper.mov"
               poster="/images/usemain.png"
               autoPlay
               loop

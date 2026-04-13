@@ -162,7 +162,7 @@ export default function SearchRequestAccessModal({
             <div className="flex h-full min-h-[280px] w-full flex-col overflow-hidden bg-gradpastel2">
               <div className="flex flex-1 items-center justify-center px-1 py-4">
                 <video
-                  src="/videos/usemain.mp4"
+                  src="/videos/newclipharper.mov"
                   poster="/images/usemain.png"
                   autoPlay
                   loop

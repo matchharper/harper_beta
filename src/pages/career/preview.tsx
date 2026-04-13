@@ -167,7 +167,7 @@ const initialMessages: CareerMessage[] = [
 
 const initialRecentOpportunities: CareerRecentOpportunity[] = [
   {
-    id: "preview-opportunity-1",
+    id: "preview-history-1",
     kind: "match",
     opportunityType: CareerOpportunityType.IntroRequest,
     title: "Applied AI Engineer",
@@ -178,7 +178,7 @@ const initialRecentOpportunities: CareerRecentOpportunity[] = [
     matchedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
   },
   {
-    id: "preview-opportunity-2",
+    id: "preview-history-2",
     kind: "recommendation",
     opportunityType: CareerOpportunityType.ExternalJd,
     title: "Founding ML Engineer",
@@ -484,6 +484,7 @@ const CareerPreviewPage = () => {
           )
         );
       },
+      onSendHistoryOpportunityQuestion: async () => true,
       notifications: initialNotifications,
       unreadNotificationCount: initialNotifications.filter(
         (notification) => !notification.isRead
