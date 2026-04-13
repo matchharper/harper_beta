@@ -874,7 +874,9 @@ export default function AtsPage() {
   }, [atsFolders, workspaceDraft.bookmarkFolderId]);
   const activeCandidateSummary = useMemo(
     () =>
-      (selectedCandidateId && candidateById.get(selectedCandidateId)) ?? null,
+      selectedCandidateId
+        ? candidateById.get(selectedCandidateId) ?? null
+        : null,
     [candidateById, selectedCandidateId]
   );
   const detailCandidate = detailQuery.data?.candidate ?? null;
@@ -2556,7 +2558,7 @@ export default function AtsPage() {
                 hasUnsavedDraftChanges: hasUnsavedSequenceDraftChanges,
                 hasUnsavedScheduleChanges: hasUnsavedSequenceScheduleChanges,
                 isCompleted: isSequenceCompleted,
-                messages: sequenceMessages,
+                messages: detailMessages,
                 nextStep: nextSequenceStep,
                 onResetDraft: resetSequenceDraft,
                 onSaveDraft: handleSaveSequenceDraft,
