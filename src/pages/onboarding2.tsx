@@ -5,6 +5,7 @@ import {
   CornerDownLeft,
   FileText,
   LoaderCircle,
+  Shield,
   Upload,
 } from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
@@ -395,9 +396,8 @@ export const Onboarding2Content = ({
   const [submissionPending, setSubmissionPending] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [landingId, setLandingId] = useState("");
-  const [abtestType, setAbtestType] = useState<TalentNetworkAssignmentType | null>(
-    null
-  );
+  const [abtestType, setAbtestType] =
+    useState<TalentNetworkAssignmentType | null>(null);
   const [isDirty, setIsDirty] = useState(false);
 
   const onSave = useCallback(() => {
@@ -900,8 +900,11 @@ export const Onboarding2Content = ({
                     confidential roles at Series B+ Unicorns and Stealth
                     Startups.
                     <br />
-                    입력하신 정보는 매칭 전까지 철저히 익명으로 보호되며, 현재
-                    재직 중인 회사에는 절대 노출되지 않습니다.
+                    <div className="mt-4 md:mt-1 flex flex-col items-start md:items-center md:flex-row gap-1.5">
+                      <Shield className="w-5 h-5" />
+                      입력하신 정보는 추천을 위해 내부적으로만 사용되며, 허락
+                      없이 절대로 회사 측에 공개되지 않습니다.
+                    </div>
                   </div>
                 )}
 
@@ -1012,9 +1015,8 @@ export const Onboarding2Content = ({
                       <div className="text-lg font-medium tracking-[-0.03em] text-beige900">
                         Drop your links. Let your work speak for itself.
                       </div>
-                      <div className="mt-1 text-sm leading-6 text-beige900/55">
-                        (당신의 전문성을 가장 잘 보여줄 수 있는 링크를
-                        남겨주세요.)
+                      <div className="mt-1 text-sm leading-6 text-beige900/65">
+                        (링크드인이 없다면 다른 정보만 주셔도 괜찮습니다.)
                       </div>
                     </div>
                     {selectedProfileInputs.includes("linkedin") && (

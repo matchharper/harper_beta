@@ -132,6 +132,7 @@ type ScrapeTestResult = {
 
 const EMPTY_ATS_FOLDERS: AtsBookmarkFolderOption[] = [];
 const EMPTY_CANDIDATES: AtsCandidateSummary[] = [];
+const EMPTY_MESSAGES: AtsMessageRecord[] = [];
 
 function getDefaultScheduledContactAtValue() {
   return formatDateTimeInputValue(new Date(Date.now() + 60 * 60 * 1000));
@@ -717,6 +718,7 @@ export default function AtsPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FilterKey>("all");
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const [mainPanelTab, setMainPanelTab] =
     useState<AtsMainPanelTab>("candidate");
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
@@ -767,6 +769,28 @@ export default function AtsPage() {
   const lastSyncedSequenceDraftsRef = useRef<
     Record<string, SequenceDraftState>
   >({});
+  const candidateSearchTextById = useMemo(
+    () =>
+      new Map(
+        candidates.map((candidate) => [
+          candidate.id,
+          [
+            candidate.name,
+            candidate.headline,
+            candidate.currentCompany,
+            candidate.currentRole,
+            candidate.currentSchool,
+            candidate.location,
+            candidate.scholarAffiliation,
+            resolveTargetEmail(candidate),
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase(),
+        ])
+      ),
+    [candidates]
+  );
 
   useEffect(() => {
     if (!workspaceQuery.data?.workspace) return;
@@ -806,22 +830,10 @@ export default function AtsPage() {
     return candidates.filter((candidate) => {
       if (!matchesFilter(candidate, filter)) return false;
       if (!needle) return true;
-      const haystack = [
-        candidate.name,
-        candidate.headline,
-        candidate.currentCompany,
-        candidate.currentRole,
-        candidate.currentSchool,
-        candidate.location,
-        candidate.scholarAffiliation,
-        resolveTargetEmail(candidate),
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
+      const haystack = candidateSearchTextById.get(candidate.id) ?? "";
       return haystack.includes(needle);
     });
-  }, [candidates, filter, query]);
+  }, [candidateSearchTextById, candidates, filter, query]);
 
   useEffect(() => {
     if (filteredCandidates.length === 0) {
@@ -862,13 +874,51 @@ export default function AtsPage() {
   }, [atsFolders, workspaceDraft.bookmarkFolderId]);
   const activeCandidateSummary = useMemo(
     () =>
-      candidates.find((candidate) => candidate.id === selectedCandidateId) ??
-      null,
-    [candidates, selectedCandidateId]
+      (selectedCandidateId && candidateById.get(selectedCandidateId)) ?? null,
+    [candidateById, selectedCandidateId]
   );
   const detailCandidate = detailQuery.data?.candidate ?? null;
   const activeCandidate =
     (detailCandidate as AtsCandidateSummary | null) ?? activeCandidateSummary;
+  const detailMessages = detailQuery.data?.messages ?? EMPTY_MESSAGES;
+  const {
+    emailHistory,
+    nextServerSequenceDrafts,
+    scheduledContactMessages,
+  } = useMemo(() => {
+    const nextEmailHistory: AtsMessageRecord[] = [];
+    const nextScheduledContactMessages: AtsMessageRecord[] = [];
+
+    for (const message of detailMessages) {
+      if (message.status === "sent") {
+        nextEmailHistory.push(message);
+      }
+      if (
+        message.kind === "manual" &&
+        message.status === "draft" &&
+        message.scheduledFor
+      ) {
+        nextScheduledContactMessages.push(message);
+      }
+    }
+
+    nextEmailHistory.sort((a, b) => {
+      const aTime = Date.parse(a.sentAt ?? a.createdAt);
+      const bTime = Date.parse(b.sentAt ?? b.createdAt);
+      return bTime - aTime;
+    });
+    nextScheduledContactMessages.sort((a, b) => {
+      const aTime = Date.parse(a.scheduledFor ?? a.createdAt);
+      const bTime = Date.parse(b.scheduledFor ?? b.createdAt);
+      return aTime - bTime;
+    });
+
+    return {
+      emailHistory: nextEmailHistory,
+      nextServerSequenceDrafts: buildSequenceDraftState(detailMessages),
+      scheduledContactMessages: nextScheduledContactMessages,
+    };
+  }, [detailMessages]);
   const savedSequenceSchedule = useMemo(
     () =>
       normalizeAtsSequenceSchedule(
@@ -929,16 +979,14 @@ export default function AtsPage() {
   useEffect(() => {
     if (!selectedCandidateId) return;
 
-    const nextServerDrafts = buildSequenceDraftState(
-      detailQuery.data?.messages ?? []
-    );
-
     setSequenceDraftByCandidateId((prev) => {
       const currentDrafts = prev[selectedCandidateId];
       if (!currentDrafts) {
         return {
           ...prev,
-          [selectedCandidateId]: cloneSequenceDraftState(nextServerDrafts),
+          [selectedCandidateId]: cloneSequenceDraftState(
+            nextServerSequenceDrafts
+          ),
         };
       }
 
@@ -950,15 +998,15 @@ export default function AtsPage() {
         ...prev,
         [selectedCandidateId]: mergeSequenceDraftState({
           currentDrafts,
-          nextServerDrafts,
+          nextServerDrafts: nextServerSequenceDrafts,
           previousServerDrafts,
         }),
       };
     });
 
     lastSyncedSequenceDraftsRef.current[selectedCandidateId] =
-      cloneSequenceDraftState(nextServerDrafts);
-  }, [detailQuery.data?.messages, selectedCandidateId]);
+      cloneSequenceDraftState(nextServerSequenceDrafts);
+  }, [nextServerSequenceDrafts, selectedCandidateId]);
 
   const contactDraft = useMemo(
     () =>
@@ -988,9 +1036,6 @@ export default function AtsPage() {
       [selectedCandidateId]: value,
     }));
   };
-  const nextServerSequenceDrafts = buildSequenceDraftState(
-    detailQuery.data?.messages ?? []
-  );
   const savedSequenceDrafts =
     (selectedCandidateId &&
       lastSyncedSequenceDraftsRef.current[selectedCandidateId]) ||
@@ -1072,20 +1117,28 @@ export default function AtsPage() {
   };
 
   const stats = useMemo(() => {
-    const emailReadyCount = candidates.filter((candidate) =>
-      Boolean(resolveTargetEmail(candidate))
-    ).length;
-    const dueTodayCount = candidates.filter(
-      (candidate) =>
+    let emailReadyCount = 0;
+    let dueTodayCount = 0;
+    let pausedCount = 0;
+    let completedCount = 0;
+
+    for (const candidate of candidates) {
+      if (resolveTargetEmail(candidate)) {
+        emailReadyCount += 1;
+      }
+      if (
         candidate.outreach?.nextDueAt &&
         isDueToday(candidate.outreach.nextDueAt)
-    ).length;
-    const pausedCount = candidates.filter(
-      (candidate) => candidate.outreach?.sequenceStatus === "paused"
-    ).length;
-    const completedCount = candidates.filter(
-      (candidate) => candidate.outreach?.sequenceStatus === "completed"
-    ).length;
+      ) {
+        dueTodayCount += 1;
+      }
+      if (candidate.outreach?.sequenceStatus === "paused") {
+        pausedCount += 1;
+      }
+      if (candidate.outreach?.sequenceStatus === "completed") {
+        completedCount += 1;
+      }
+    }
 
     return {
       completedCount,
@@ -1128,9 +1181,9 @@ export default function AtsPage() {
     () =>
       filteredCandidates.length > 0 &&
       filteredCandidates.every((candidate) =>
-        selectedIds.includes(candidate.id)
+        selectedIdSet.has(candidate.id)
       ),
-    [filteredCandidates, selectedIds]
+    [filteredCandidates, selectedIdSet]
   );
   const hasUnsavedWorkspaceChanges = useMemo(() => {
     const savedWorkspace = normalizeWorkspaceRecord(
@@ -1150,29 +1203,6 @@ export default function AtsPage() {
     () => JSON.stringify(sequenceScheduleDraft) !== savedSequenceScheduleKey,
     [savedSequenceScheduleKey, sequenceScheduleDraft]
   );
-  const emailHistory = useMemo(() => {
-    return [...(detailQuery.data?.messages ?? [])]
-      .filter((message) => message.status === "sent")
-      .sort((a, b) => {
-        const aTime = Date.parse(a.sentAt ?? a.createdAt);
-        const bTime = Date.parse(b.sentAt ?? b.createdAt);
-        return bTime - aTime;
-      });
-  }, [detailQuery.data?.messages]);
-  const scheduledContactMessages = useMemo(() => {
-    return [...(detailQuery.data?.messages ?? [])]
-      .filter(
-        (message) =>
-          message.kind === "manual" &&
-          message.status === "draft" &&
-          Boolean(message.scheduledFor)
-      )
-      .sort((a, b) => {
-        const aTime = Date.parse(a.scheduledFor ?? a.createdAt);
-        const bTime = Date.parse(b.scheduledFor ?? b.createdAt);
-        return aTime - bTime;
-      });
-  }, [detailQuery.data?.messages]);
   const queuedEmailDiscoveryPositionById = useMemo(
     () =>
       new Map(
@@ -1188,6 +1218,31 @@ export default function AtsPage() {
     () => new Set(cancellingEmailDiscoveryIds),
     [cancellingEmailDiscoveryIds]
   );
+  const { stepDraftMessageByNumber, stepSentMessageByNumber } = useMemo(() => {
+    const nextStepSentMessageByNumber = new Map<number, AtsMessageRecord>();
+    const nextStepDraftMessageByNumber = new Map<number, AtsMessageRecord>();
+
+    for (const message of detailMessages) {
+      if (!message.stepNumber) continue;
+      if (
+        message.status === "sent" &&
+        !nextStepSentMessageByNumber.has(message.stepNumber)
+      ) {
+        nextStepSentMessageByNumber.set(message.stepNumber, message);
+      }
+      if (
+        message.kind === "sequence" &&
+        !nextStepDraftMessageByNumber.has(message.stepNumber)
+      ) {
+        nextStepDraftMessageByNumber.set(message.stepNumber, message);
+      }
+    }
+
+    return {
+      stepDraftMessageByNumber: nextStepDraftMessageByNumber,
+      stepSentMessageByNumber: nextStepSentMessageByNumber,
+    };
+  }, [detailMessages]);
 
   useEffect(() => {
     if (activeEmailDiscoveryId || queuedEmailDiscoveryIds.length === 0) return;
@@ -1311,13 +1366,20 @@ export default function AtsPage() {
 
   const toggleSelectAllVisible = () => {
     const visibleIds = filteredCandidates.map((candidate) => candidate.id);
+    const visibleIdSet = new Set(visibleIds);
 
     if (allVisibleSelected) {
-      setSelectedIds((prev) => prev.filter((id) => !visibleIds.includes(id)));
+      setSelectedIds((prev) => prev.filter((id) => !visibleIdSet.has(id)));
       return;
     }
 
-    setSelectedIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
+    setSelectedIds((prev) => {
+      const nextSelectedIds = new Set(prev);
+      for (const visibleId of visibleIds) {
+        nextSelectedIds.add(visibleId);
+      }
+      return Array.from(nextSelectedIds);
+    });
   };
 
   const queueEmailDiscoveries = (candidIds: string[]) => {
@@ -1927,24 +1989,6 @@ export default function AtsPage() {
     );
   }
 
-  const sequenceMessages = detailQuery.data?.messages ?? [];
-  const stepSentMessageByNumber = new Map<number, AtsMessageRecord>();
-  const stepDraftMessageByNumber = new Map<number, AtsMessageRecord>();
-  for (const message of sequenceMessages) {
-    if (!message.stepNumber) continue;
-    if (
-      message.status === "sent" &&
-      !stepSentMessageByNumber.has(message.stepNumber)
-    ) {
-      stepSentMessageByNumber.set(message.stepNumber, message);
-    }
-    if (
-      message.kind === "sequence" &&
-      !stepDraftMessageByNumber.has(message.stepNumber)
-    ) {
-      stepDraftMessageByNumber.set(message.stepNumber, message);
-    }
-  }
   const nextSequenceStep =
     Array.from(
       { length: ATS_SEQUENCE_STEP_COUNT },
@@ -2215,7 +2259,7 @@ export default function AtsPage() {
                             <td className={ATS_TABLE_LAYOUT.bodyCell}>
                               <input
                                 type="checkbox"
-                                checked={selectedIds.includes(candidate.id)}
+                                checked={selectedIdSet.has(candidate.id)}
                                 onChange={() =>
                                   toggleCandidateSelection(candidate.id)
                                 }

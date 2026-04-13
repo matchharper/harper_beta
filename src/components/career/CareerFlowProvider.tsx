@@ -395,6 +395,13 @@ export const CareerFlowProvider = ({
     () => notifications.filter((notification) => !notification.isRead).length,
     [notifications]
   );
+  const historyOpportunityById = useMemo(
+    () =>
+      new Map(
+        historyOpportunities.map((opportunity) => [opportunity.id, opportunity])
+      ),
+    [historyOpportunities]
+  );
 
   const updateHistoryOpportunityLocally = useCallback(
     (
@@ -467,9 +474,7 @@ export const CareerFlowProvider = ({
       const normalizedOpportunityId = opportunityId.trim();
       if (!normalizedOpportunityId) return;
 
-      const previousItem = historyOpportunities.find(
-        (item) => item.id === normalizedOpportunityId
-      );
+      const previousItem = historyOpportunityById.get(normalizedOpportunityId);
       if (!previousItem) return;
       const now = new Date().toISOString();
       const nextSavedStage =
@@ -511,7 +516,7 @@ export const CareerFlowProvider = ({
     [
       beginHistoryUpdate,
       endHistoryUpdate,
-      historyOpportunities,
+      historyOpportunityById,
       patchHistoryOpportunity,
       restoreHistoryOpportunity,
       updateHistoryOpportunityLocally,
@@ -523,9 +528,7 @@ export const CareerFlowProvider = ({
       const normalizedOpportunityId = opportunityId.trim();
       if (!normalizedOpportunityId) return;
 
-      const previousItem = historyOpportunities.find(
-        (item) => item.id === normalizedOpportunityId
-      );
+      const previousItem = historyOpportunityById.get(normalizedOpportunityId);
       if (!previousItem) return;
 
       beginHistoryUpdate(normalizedOpportunityId);
@@ -555,7 +558,7 @@ export const CareerFlowProvider = ({
     [
       beginHistoryUpdate,
       endHistoryUpdate,
-      historyOpportunities,
+      historyOpportunityById,
       patchHistoryOpportunity,
       restoreHistoryOpportunity,
       updateHistoryOpportunityLocally,
@@ -567,9 +570,7 @@ export const CareerFlowProvider = ({
       const normalizedOpportunityId = opportunityId.trim();
       if (!normalizedOpportunityId) return;
 
-      const currentItem = historyOpportunities.find(
-        (item) => item.id === normalizedOpportunityId
-      );
+      const currentItem = historyOpportunityById.get(normalizedOpportunityId);
       if (!currentItem || currentItem.viewedAt) return;
       const now = new Date().toISOString();
 
@@ -593,7 +594,7 @@ export const CareerFlowProvider = ({
       }
     },
     [
-      historyOpportunities,
+      historyOpportunityById,
       patchHistoryOpportunity,
       restoreHistoryOpportunity,
       updateHistoryOpportunityLocally,
@@ -605,9 +606,7 @@ export const CareerFlowProvider = ({
       const normalizedOpportunityId = opportunityId.trim();
       if (!normalizedOpportunityId) return;
 
-      const currentItem = historyOpportunities.find(
-        (item) => item.id === normalizedOpportunityId
-      );
+      const currentItem = historyOpportunityById.get(normalizedOpportunityId);
       if (!currentItem || currentItem.clickedAt) return;
       const now = new Date().toISOString();
 
@@ -631,10 +630,58 @@ export const CareerFlowProvider = ({
       }
     },
     [
-      historyOpportunities,
+      historyOpportunityById,
       patchHistoryOpportunity,
       restoreHistoryOpportunity,
       updateHistoryOpportunityLocally,
+    ]
+  );
+
+  const onSendHistoryOpportunityQuestion = useCallback(
+    async (opportunityId: string, question: string) => {
+      const normalizedOpportunityId = opportunityId.trim();
+      const normalizedQuestion = question.trim();
+
+      if (!normalizedOpportunityId || !normalizedQuestion) {
+        return false;
+      }
+
+      const currentItem = historyOpportunityById.get(normalizedOpportunityId);
+      if (!currentItem) return false;
+
+      beginHistoryUpdate(normalizedOpportunityId);
+
+      try {
+        const response = await fetchWithAuth("/api/talent/opportunities/question", {
+          method: "POST",
+          body: JSON.stringify({
+            opportunityId: normalizedOpportunityId,
+            question: normalizedQuestion,
+          }),
+        });
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(
+            getErrorMessage(payload, "질문을 전송하지 못했습니다.")
+          );
+        }
+
+        return true;
+      } catch (error) {
+        setHistoryUpdateError(
+          error instanceof Error ? error.message : "질문을 전송하지 못했습니다."
+        );
+        return false;
+      } finally {
+        endHistoryUpdate(normalizedOpportunityId);
+      }
+    },
+    [
+      beginHistoryUpdate,
+      endHistoryUpdate,
+      fetchWithAuth,
+      historyOpportunityById,
     ]
   );
 
@@ -919,6 +966,7 @@ export const CareerFlowProvider = ({
       onUpdateHistoryOpportunitySavedStage,
       onMarkHistoryOpportunityViewed,
       onMarkHistoryOpportunityClicked,
+      onSendHistoryOpportunityQuestion,
       notifications,
       unreadNotificationCount,
       notificationsMarkingAsRead,
@@ -1059,6 +1107,7 @@ export const CareerFlowProvider = ({
       userChatCount,
       onMarkHistoryOpportunityClicked,
       onMarkHistoryOpportunityViewed,
+      onSendHistoryOpportunityQuestion,
       onUpdateHistoryOpportunityFeedback,
       onUpdateHistoryOpportunitySavedStage,
       talentEducations,

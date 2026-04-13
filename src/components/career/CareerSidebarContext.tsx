@@ -45,6 +45,10 @@ export type CareerSidebarContextValue = {
   onMarkHistoryOpportunityClicked: (
     opportunityId: string
   ) => void | Promise<void>;
+  onSendHistoryOpportunityQuestion: (
+    opportunityId: string,
+    question: string
+  ) => boolean | Promise<boolean>;
   notifications: CareerTalentNotification[];
   unreadNotificationCount: number;
   notificationsMarkingAsRead: boolean;
