@@ -199,7 +199,6 @@ export const CareerFlowProvider = ({
     stage,
     setStage,
     messages,
-    scrollTick,
     appendMessage,
     chatPending,
     chatError,

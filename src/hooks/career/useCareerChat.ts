@@ -38,8 +38,6 @@ type UseCareerChatArgs = {
   onMessagesChanged?: (messages: CareerMessagePayload[]) => void | Promise<void>;
 };
 
-const TYPEWRITER_SCROLL_INTERVAL = 20;
-
 const mergeMessages = (
   persistedMessages: CareerMessage[],
   localMessages: CareerMessage[]
@@ -84,7 +82,6 @@ export const useCareerChat = ({
   const [chatPending, setChatPending] = useState(false);
   const [chatError, setChatError] = useState("");
   const [assistantTyping, setAssistantTyping] = useState(false);
-  const [scrollTick, setScrollTick] = useState(0);
 
   const typingQueueRef = useRef<Promise<void>>(Promise.resolve());
   const mountedRef = useRef(true);
@@ -110,10 +107,6 @@ export const useCareerChat = ({
     );
   }, [persistedMessages]);
 
-  const bumpScrollTick = useCallback(() => {
-    setScrollTick((prev) => prev + 1);
-  }, []);
-
   const enqueueAssistantTypewriter = useCallback((message: CareerMessage) => {
     typingQueueRef.current = typingQueueRef.current.then(async () => {
       if (!mountedRef.current) return;
@@ -128,7 +121,6 @@ export const useCareerChat = ({
           typing: true,
         },
       ]);
-      bumpScrollTick();
 
       const fullText = message.content;
       const delay = Math.max(
@@ -148,10 +140,6 @@ export const useCareerChat = ({
               : item
           )
         );
-
-        if (index % TYPEWRITER_SCROLL_INTERVAL === 0 || index === fullText.length) {
-          bumpScrollTick();
-        }
       }
 
       setLocalMessages((prev) =>
@@ -166,11 +154,10 @@ export const useCareerChat = ({
         )
       );
       setAssistantTyping(false);
-      bumpScrollTick();
     });
 
     return typingQueueRef.current;
-  }, [bumpScrollTick]);
+  }, []);
 
   const applySessionConversation = useCallback((payload: SessionResponse) => {
     setStage(payload.conversation.stage);
@@ -179,8 +166,7 @@ export const useCareerChat = ({
 
   const appendMessage = useCallback((message: CareerMessage) => {
     setLocalMessages((prev) => [...prev, message]);
-    bumpScrollTick();
-  }, [bumpScrollTick]);
+  }, []);
 
   const sendChatMessage = useCallback(
     async (args: SendChatArgs, options?: SendChatOptions) => {
@@ -216,7 +202,6 @@ export const useCareerChat = ({
           createdAt: nowIso,
         },
       ]);
-      bumpScrollTick();
 
       try {
         const response = await fetchWithAuth("/api/talent/chat", {
@@ -236,7 +221,6 @@ export const useCareerChat = ({
           ...prev.filter((item) => item.id !== tempId),
           toUiMessage(payload.userMessage),
         ]);
-        bumpScrollTick();
         await enqueueAssistantTypewriter(toUiMessage(payload.assistantMessage));
         await onMessagesChanged?.([
           payload.userMessage as CareerMessagePayload,
@@ -260,7 +244,6 @@ export const useCareerChat = ({
     },
     [
       assistantTyping,
-      bumpScrollTick,
       chatPending,
       conversationId,
       enqueueAssistantTypewriter,
@@ -289,7 +272,6 @@ export const useCareerChat = ({
     stage,
     setStage,
     messages,
-    scrollTick,
     appendMessage,
     chatPending,
     chatError,

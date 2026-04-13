@@ -7,7 +7,7 @@ const CareerChatPanel = () => {
   const { inputMode } = useCareerChatPanelContext();
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col lg:h-full">
+    <section className="flex h-full min-h-0 flex-1 flex-col">
       {inputMode === "call" ? (
         <CareerCallScreen />
       ) : (
