@@ -21,7 +21,15 @@ import {
   type InsightChecklistItem,
 } from "@/lib/talentOnboarding/insightChecklist";
 import { normalizeExtractedInsights } from "@/lib/talentOnboarding/insights";
+import {
+  loadPrompt,
+  extractSection,
+  fillPlaceholders,
+  validatePromptFile,
+} from "@/lib/talentOnboarding/prompts";
 import { logger } from "@/utils/logger";
+
+validatePromptFile("insight-extraction.md");
 
 type Body = {
   conversationId: string;
@@ -54,30 +62,13 @@ function buildInsightExtractionOnlyPrompt(
         .join("\n");
   }
 
-  return `You are an insight extraction assistant. Given a conversation turn between a user and Harper (an AI career counselor), extract structured career insights.
-
-Insight coverage: ${coveredCount}/${totalCount} items covered.
-${existingSection}
-
-## Checklist (extract when mentioned)
-${checklistLines}
-
-You may also extract free-form insights as snake_case keys with Korean values.
-
-## Response Format
-Return a valid JSON object:
-{
-  "extracted_insights": {
-    "key_name": { "value": "extracted value in Korean", "action": "new" | "update" }
-  },
-  "step_transition": null | { "next_step": <number> }
-}
-
-- "new": key has no existing value
-- "update": user corrected or enriched a previously known insight (value = final integrated text)
-- If nothing to extract, return: { "extracted_insights": {} }
-- Only include keys where the user provided clear information.
-- "step_transition": If based on the conversation content, the current interview step's goals have been met and it's time to move to the next step, set this to { "next_step": <next step number 1-5> }. Otherwise null.`;
+  const md = loadPrompt("insight-extraction.md");
+  return fillPlaceholders(extractSection(md, "extractionOnly"), {
+    coveredCount,
+    totalCount,
+    checklistLines,
+    existingInsightsSection: existingSection,
+  });
 }
 
 export async function POST(req: NextRequest) {

@@ -12,17 +12,14 @@ import {
   type TalentNetworkLocationOptionId,
 } from "@/lib/talentNetworkApplication";
 
-export const TALENT_FIRST_VISIT_TEXT = [
-  `안녕하세요. 하퍼에 처음 방문해주셔서 감사합니다.
+import { loadPrompt, extractSection, validatePromptFile } from "./prompts";
 
-<<하퍼는 숨겨진 글로벌/딥테크 기회를 먼저 찾아 제안하고,
-후보자 관점에서 커리어 기회와 조건 협상까지 함께 돕는 AI 헤드헌터입니다.>>
+validatePromptFile("misc.md");
 
-대화를 시작하기 전에 기본 정보를 간단히 알려주세요.
-
-제출 후에는 약 5~10분 정도의 대화가 진행됩니다.
-대화는 언제든지 중지할 수 있고, 다음에 다시 이어서 진행할 수 있습니다.`,
-].join("\n");
+export const TALENT_FIRST_VISIT_TEXT = extractSection(
+  loadPrompt("misc.md"),
+  "firstVisitText"
+);
 
 export type TalentConversationRow = {
   id: string;
