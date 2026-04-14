@@ -84,7 +84,7 @@ const companyRequests: CompanyRequest[] = [
     requirements:
       "Strong engineering fundamentals with experience shipping products, familiarity with LLMs or AI tooling, and the ability to translate real-world problems into working systems. Experience in product thinking, data, or system design is a plus.",
     engagement: "Full-time<br />Part-time (4~12 hours/week)<br />Intern",
-    compensation: "Average salary : $ 120k+",
+    compensation: "Average salary : $ 350k+",
   },
   {
     id: "fde",
