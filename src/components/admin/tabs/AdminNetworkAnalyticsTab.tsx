@@ -12,7 +12,10 @@ import {
   formatTalentNetworkEventName,
 } from "@/components/admin/utils";
 import { Loading } from "@/components/ui/loading";
-import { TALENT_NETWORK_ONBOARDING_STEPS } from "@/lib/talentNetwork";
+import {
+  TALENT_NETWORK_ONBOARDING_COMPARISON_STEPS,
+  TALENT_NETWORK_PROFILE_IDENTITY_COMPLETED_EVENT,
+} from "@/lib/talentNetwork";
 
 type AdminNetworkAnalyticsTabProps = {
   logs: LandingLog[];
@@ -201,41 +204,49 @@ export default function AdminNetworkAnalyticsTab({
                   </tr>
                 </thead>
                 <tbody>
-                  {TALENT_NETWORK_ONBOARDING_STEPS.map((step) => (
-                    <tr
-                      key={step.step}
-                      className="border-b border-black/5 last:border-b-0"
-                    >
-                      <td className="py-2 pr-3">
-                        <span className="font-medium text-black">
-                          Step {step.step}
-                        </span>{" "}
-                        {step.label}
-                      </td>
-                      {variantColumns.map((variant) => {
-                        const summary = variantSummaries.find(
-                          (item) => item.abtestType === variant.abtestType
-                        );
-                        const stepSummary = summary?.steps.find(
-                          (item) => item.step === step.step
-                        );
+                  {TALENT_NETWORK_ONBOARDING_COMPARISON_STEPS.map((step) => {
+                    const isProfileIdentityRow =
+                      step.eventType ===
+                      TALENT_NETWORK_PROFILE_IDENTITY_COMPLETED_EVENT;
 
-                        return (
-                          <td
-                            key={`${step.step}-${variant.abtestType}`}
-                            className="py-2 pr-3 text-right"
-                          >
-                            {stepSummary?.userCount ?? 0} (
-                            {formatPercent(
-                              stepSummary?.userCount ?? 0,
-                              summary?.totalUsers ?? 0
-                            )}
-                            )
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
+                    return (
+                      <tr
+                        key={step.key}
+                        className="border-b border-black/5 last:border-b-0"
+                      >
+                        <td
+                          className={`py-2 pr-3 ${isProfileIdentityRow ? "pl-6" : ""}`}
+                        >
+                          <span className="font-medium text-black">
+                            Step {step.step}
+                          </span>{" "}
+                          {step.label}
+                        </td>
+                        {variantColumns.map((variant) => {
+                          const summary = variantSummaries.find(
+                            (item) => item.abtestType === variant.abtestType
+                          );
+                          const stepSummary = summary?.steps.find(
+                            (item) => item.eventType === step.eventType
+                          );
+
+                          return (
+                            <td
+                              key={`${step.key}-${variant.abtestType}`}
+                              className="py-2 pr-3 text-right"
+                            >
+                              {stepSummary?.userCount ?? 0} (
+                              {formatPercent(
+                                stepSummary?.userCount ?? 0,
+                                summary?.totalUsers ?? 0
+                              )}
+                              )
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

@@ -1,14 +1,23 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { useMemo } from "react";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import {
   type NetworkLeadDetailResponse,
   type NetworkLeadListResponse,
+  type NetworkLeadMessagesPageResponse,
   type TalentInternalType,
 } from "@/lib/opsNetwork";
 
 export const opsNetworkLeadsKey = ["ops-network-leads"] as const;
 export const opsNetworkDetailKey = (leadId?: number | null) =>
   ["ops-network-detail", leadId] as const;
+export const opsNetworkMessagesKey = (leadId?: number | null, limit = 20) =>
+  ["ops-network-messages", leadId, limit] as const;
 
 export function useOpsNetworkLeads(args: {
   cvOnly?: boolean;
@@ -70,6 +79,56 @@ export function useOpsNetworkDetail(leadId?: number | null) {
     enabled: typeof leadId === "number" && leadId > 0,
     staleTime: 15_000,
   });
+}
+
+export function useOpsNetworkMessages(args: {
+  enabled?: boolean;
+  leadId?: number | null;
+  limit?: number;
+}) {
+  const limit = Math.max(1, Math.min(args.limit ?? 20, 50));
+
+  const infinite = useInfiniteQuery({
+    queryKey: opsNetworkMessagesKey(args.leadId, limit),
+    enabled:
+      (args.enabled ?? true) &&
+      typeof args.leadId === "number" &&
+      args.leadId > 0,
+    initialPageParam: null as number | null,
+    queryFn: ({ pageParam }) => {
+      const searchParams = new URLSearchParams({
+        id: String(args.leadId),
+        limit: String(limit),
+      });
+
+      if (pageParam) {
+        searchParams.set("beforeMessageId", String(pageParam));
+      }
+
+      return fetchWithInternalAuth<NetworkLeadMessagesPageResponse>(
+        `/api/internal/network/messages?${searchParams.toString()}`
+      );
+    },
+    getNextPageParam: (lastPage) => lastPage.nextBeforeMessageId ?? undefined,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+
+  const messages = useMemo(
+    () =>
+      [...(infinite.data?.pages ?? [])]
+        .reverse()
+        .flatMap((page) => page.messages),
+    [infinite.data?.pages]
+  );
+
+  return {
+    ...infinite,
+    messages,
+    hasOlderMessages: Boolean(infinite.hasNextPage),
+    loadOlderMessages: infinite.fetchNextPage,
+    loadingOlderMessages: infinite.isFetchingNextPage,
+  };
 }
 
 export function useIngestOpsNetworkLead() {

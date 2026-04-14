@@ -60,6 +60,17 @@ type DeleteRecommendationInput = {
   recommendationId: string;
 };
 
+type GenerateRecommendationDraftInput = {
+  opportunityType: OpsOpportunityType;
+  promptTemplate?: string | null;
+  roleId: string;
+  talentId: string;
+};
+
+type GenerateRecommendationDraftResponse = {
+  draft: string;
+};
+
 type SendCandidateMailInput = {
   content: string;
   fromEmail: string;
@@ -285,6 +296,22 @@ export function useDeleteOpsOpportunityRecommendation() {
         queryKey: queryKeys.opsOpportunity.all,
       });
     },
+  });
+}
+
+export function useGenerateOpsOpportunityRecommendationDraft() {
+  return useMutation({
+    mutationFn: (input: GenerateRecommendationDraftInput) =>
+      fetchWithInternalAuth<GenerateRecommendationDraftResponse>(
+        "/api/internal/opportunities/recommendation-draft",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(input),
+        }
+      ),
   });
 }
 

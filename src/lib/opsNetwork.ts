@@ -29,10 +29,31 @@ export type NetworkLeadRecentMemo = {
   id: number;
 };
 
+export const NETWORK_LEAD_PROGRESS_STEP_ORDER = [
+  "emailSent",
+  "signedUp",
+  "conversationStarted",
+  "conversationCompleted",
+  "roleRecommended",
+] as const;
+
+export type NetworkLeadProgressStep =
+  (typeof NETWORK_LEAD_PROGRESS_STEP_ORDER)[number];
+
+export type NetworkLeadProgress = {
+  conversationCompleted: boolean;
+  conversationStarted: boolean;
+  currentStep: NetworkLeadProgressStep | null;
+  emailSent: boolean;
+  roleRecommended: boolean;
+  signedUp: boolean;
+};
+
 export type NetworkLeadSummary = NetworkLead & {
   hasStructuredProfile: boolean;
   lastInternalActivityAt: string | null;
   latestExperience: NetworkLeadLatestExperience | null;
+  progress: NetworkLeadProgress;
   recentMemos: NetworkLeadRecentMemo[];
   talentId: string;
 };
@@ -88,6 +109,19 @@ export type NetworkLeadDetailResponse = {
   structuredProfile: TalentStructuredProfile | null;
   talentId: string;
   talentProfile: TalentUserProfileRow | null;
+};
+
+export type NetworkLeadMessage = {
+  id: number;
+  role: "user" | "assistant";
+  content: string;
+  messageType: string | null;
+  createdAt: string;
+};
+
+export type NetworkLeadMessagesPageResponse = {
+  messages: NetworkLeadMessage[];
+  nextBeforeMessageId: number | null;
 };
 
 export function getNetworkTalentId(leadId: number) {

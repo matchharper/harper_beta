@@ -8,7 +8,7 @@ import {
   Shield,
   Upload,
 } from "lucide-react";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { showToast } from "@/components/toast/toast";
 import { useCountryLang } from "@/hooks/useCountryLang";
@@ -16,18 +16,28 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import {
   TALENT_NETWORK_ABTEST_TYPE_KEY,
   TALENT_NETWORK_LOCAL_ID_KEY,
+  TALENT_NETWORK_PROFILE_IDENTITY_COMPLETED_EVENT,
   TALENT_NETWORK_SUBMIT_COMPLETED_EVENT,
   createTalentNetworkLocalId,
   getTalentNetworkOnboardingStepEventType,
   resolveTalentNetworkAssignmentType,
   type TalentNetworkAssignmentType,
 } from "@/lib/talentNetwork";
+import {
+  clearTalentNetworkStoredReferral,
+  copyTextToClipboard,
+  createTalentNetworkReferralLink,
+  markTalentNetworkReferralConverted,
+  readTalentNetworkStoredReferral,
+  TALENT_NETWORK_REFERRAL_SOURCE_ONBOARDING_STEP6,
+} from "@/lib/talentNetworkReferral";
 import { notifyToSlack } from "@/lib/slack";
 import { supabase } from "@/lib/supabase";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { logger } from "@/utils/logger";
 import Image from "next/image";
 import { useRouter } from "next/router";
+import { NetworkButton } from "./network";
 
 const TALENT_NETWORK_CV_BUCKET = "talent-network-cv";
 const HARPER_WAITLIST_TYPE_ONBOARDING2 = 2;
@@ -38,6 +48,9 @@ const sanitizeFileName = (fileName: string) =>
     .replace(/[^a-zA-Z0-9._-]/g, "_")
     .replace(/_+/g, "_")
     .slice(0, 120);
+
+const isValidEmail = (value: string) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
 const QUESTION_STEP_COUNT = 5;
 const TOTAL_STEPS = QUESTION_STEP_COUNT + 2;
@@ -394,11 +407,15 @@ export const Onboarding2Content = ({
   >("");
   const [dreamTeams, setDreamTeams] = useState("");
   const [submissionPending, setSubmissionPending] = useState(false);
+  const [sharePending, setSharePending] = useState(false);
+  const [hasCopiedShareLink, setHasCopiedShareLink] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [landingId, setLandingId] = useState("");
   const [abtestType, setAbtestType] =
     useState<TalentNetworkAssignmentType | null>(null);
   const [isDirty, setIsDirty] = useState(false);
+  const [hasUnlockedProfileLinks, setHasUnlockedProfileLinks] = useState(false);
+  const hasLoggedProfileIdentityCompletedRef = useRef(false);
 
   const onSave = useCallback(() => {
     if (!isDirty) return;
@@ -583,6 +600,7 @@ export const Onboarding2Content = ({
     );
     const resolvedAbtestType =
       abtestType || resolveTalentNetworkAssignmentType(savedAbtestType);
+    const storedReferral = readTalentNetworkStoredReferral();
     const selectedEngagementLabels = ENGAGEMENT_OPTIONS.filter((option) =>
       selectedEngagements.includes(option.id)
     ).map((option) => option.label);
@@ -648,6 +666,11 @@ export const Onboarding2Content = ({
         career_move_intent: selectedCareerMoveIntent || null,
         career_move_intent_label: selectedCareerMoveIntentLabel,
         dream_teams: trimmedDreamTeams || null,
+        referral_captured_at: storedReferral?.capturedAt ?? null,
+        referral_sharer_email: storedReferral?.sharerEmail ?? null,
+        referral_sharer_name: storedReferral?.sharerName ?? null,
+        referral_source: storedReferral?.source ?? null,
+        referral_token: storedReferral?.token ?? null,
         submitted_at: new Date().toISOString(),
       };
 
@@ -671,6 +694,24 @@ export const Onboarding2Content = ({
 
       if (insertError) {
         throw new Error(insertError.message || "제출에 실패했습니다.");
+      }
+
+      if (storedReferral?.token) {
+        try {
+          await markTalentNetworkReferralConverted({
+            referredEmail: trimmedEmail,
+            referredLocalId: resolvedLandingId,
+            referredName: trimmedName,
+            selectedRole: selectedRoleLabel,
+            token: storedReferral.token,
+          });
+          clearTalentNetworkStoredReferral();
+        } catch (referralError) {
+          console.error(
+            "talent network referral conversion error:",
+            referralError
+          );
+        }
       }
 
       await addLandingLog(TALENT_NETWORK_SUBMIT_COMPLETED_EVENT, {
@@ -727,6 +768,57 @@ export const Onboarding2Content = ({
     }
   }
 
+  const handleCopyShareLink = useCallback(async () => {
+    if (sharePending) return;
+
+    const trimmedEmail = email.trim().toLowerCase();
+    const trimmedName = name.trim();
+
+    if (!trimmedEmail) {
+      showToast({
+        message: "공유 링크를 만들려면 이메일을 입력해 주세요.",
+        variant: "white",
+      });
+      return;
+    }
+
+    if (!isValidEmail(trimmedEmail)) {
+      showToast({
+        message: "유효한 이메일을 입력해 주세요.",
+        variant: "white",
+      });
+      return;
+    }
+
+    setSharePending(true);
+
+    try {
+      const { url } = await createTalentNetworkReferralLink({
+        email: trimmedEmail,
+        name: trimmedName || null,
+        pagePath: window.location.pathname,
+        sharerLocalId: landingId || null,
+        source: TALENT_NETWORK_REFERRAL_SOURCE_ONBOARDING_STEP6,
+      });
+
+      await copyTextToClipboard(url);
+      void addLandingLog("talent_network_click_onboarding_share_copy");
+      setHasCopiedShareLink(true);
+      showToast({
+        message: "공유 링크가 복사되었습니다.",
+        variant: "white",
+      });
+    } catch (error) {
+      console.error("Failed to copy onboarding share link", error);
+      showToast({
+        message: "공유 링크 생성에 실패했습니다.",
+        variant: "error",
+      });
+    } finally {
+      setSharePending(false);
+    }
+  }, [addLandingLog, email, landingId, name, sharePending]);
+
   const { step, submitLoading, handleNext, handlePrev, isNextRef } =
     useOnboarding({
       save: onSave,
@@ -747,6 +839,8 @@ export const Onboarding2Content = ({
     step === 0 ? "Start" : `${questionProgressStep}/${QUESTION_STEP_COUNT}`;
   const dreamTeamsLeadCopy = getDreamTeamsLeadCopy(selectedLocations);
   const isTextareaStep = step === 2 || step === 5;
+  const hasCompletedProfileIdentity =
+    name.trim().length > 0 && email.trim().length > 0;
 
   useEffect(() => {
     if (!landingId || !abtestType) return;
@@ -756,6 +850,29 @@ export const Onboarding2Content = ({
 
     void addLandingLog(eventType);
   }, [abtestType, addLandingLog, landingId, step]);
+
+  useEffect(() => {
+    if (!hasCompletedProfileIdentity) return;
+    setHasUnlockedProfileLinks(true);
+  }, [hasCompletedProfileIdentity]);
+
+  useEffect(() => {
+    if (!hasCopiedShareLink) return;
+
+    const timeout = window.setTimeout(() => {
+      setHasCopiedShareLink(false);
+    }, 1800);
+
+    return () => window.clearTimeout(timeout);
+  }, [hasCopiedShareLink]);
+
+  useEffect(() => {
+    if (!hasCompletedProfileIdentity || !landingId || !abtestType) return;
+    if (hasLoggedProfileIdentityCompletedRef.current) return;
+
+    hasLoggedProfileIdentityCompletedRef.current = true;
+    void addLandingLog(TALENT_NETWORK_PROFILE_IDENTITY_COMPLETED_EVENT);
+  }, [abtestType, addLandingLog, hasCompletedProfileIdentity, landingId]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -900,8 +1017,8 @@ export const Onboarding2Content = ({
                     confidential roles at Series B+ Unicorns and Stealth
                     Startups.
                     <br />
-                    <div className="mt-4 md:mt-1 flex flex-col items-start md:items-center md:flex-row gap-1.5">
-                      <Shield className="w-5 h-5" />
+                    <div className="mt-4 md:mt-2 flex flex-col items-start md:items-center md:flex-row gap-1.5">
+                      <Shield className="w-6 h-6" />
                       입력하신 정보는 추천을 위해 내부적으로만 사용되며, 허락
                       없이 절대로 회사 측에 공개되지 않습니다.
                     </div>
@@ -1010,151 +1127,181 @@ export const Onboarding2Content = ({
                         setIsDirty(true);
                       }}
                     />
-                    <div className="h-1" />
-                    <div className="mb-1">
-                      <div className="text-lg font-medium tracking-[-0.03em] text-beige900">
-                        Drop your links. Let your work speak for itself.
-                      </div>
-                      <div className="mt-1 text-sm leading-6 text-beige900/65">
-                        (링크드인이 없다면 다른 정보만 주셔도 괜찮습니다.)
-                      </div>
-                    </div>
-                    {selectedProfileInputs.includes("linkedin") && (
-                      <BeigeLinkInput
-                        label={
-                          <div className="flex flex-row items-center gap-1.5 w-full mb-0">
-                            <Image
-                              src="/images/logos/linkedin.svg"
-                              alt="LinkedIn"
-                              width={20}
-                              height={20}
-                            />
-                            <div>LinkedIn Profile</div>
-                            <div
-                              className="ml-1 hover:font-medium flex flex-row items-center gap-1 text-sm font-normal text-beige900/70 cursor-pointer transition-all duration-200 hover:text-beige900"
-                              onClick={() =>
-                                window.open(
-                                  "https://www.linkedin.com/in/",
-                                  "_blank"
-                                )
-                              }
-                            >
-                              (내 링크드인 열기){" "}
-                              <ArrowUpRight className="w-3 h-3" />
+                    <AnimatePresence initial={false}>
+                      {hasUnlockedProfileLinks && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0, y: 12 }}
+                          animate={{ opacity: 1, height: "auto", y: 0 }}
+                          exit={{ opacity: 0, height: 0, y: -8 }}
+                          transition={{ duration: 0.3, ease: "easeOut" }}
+                          className="overflow-hidden"
+                        >
+                          <div className="flex flex-col gap-4 pt-2">
+                            <div className="mb-1">
+                              <div className="text-lg font-medium tracking-[-0.03em] text-beige900">
+                                대표 프로필을 알려주세요.
+                              </div>
+                              <div className="mt-1 text-sm leading-6 text-beige900/65">
+                                (링크드인이 없다면 다른 정보를 주셔도
+                                괜찮습니다.)
+                              </div>
                             </div>
+                            {selectedProfileInputs.includes("linkedin") && (
+                              <BeigeLinkInput
+                                label={
+                                  <div className="flex flex-row items-center gap-1.5 w-full mb-0">
+                                    <Image
+                                      src="/images/logos/linkedin.svg"
+                                      alt="LinkedIn"
+                                      width={20}
+                                      height={20}
+                                    />
+                                    <div>LinkedIn Profile</div>
+                                    <div
+                                      className="ml-1 hover:font-medium flex flex-row items-center gap-1 text-sm font-normal text-beige900/70 cursor-pointer transition-all duration-200 hover:text-beige900"
+                                      onClick={() =>
+                                        window.open(
+                                          "https://www.linkedin.com/in/",
+                                          "_blank"
+                                        )
+                                      }
+                                    >
+                                      (내 링크드인 열기){" "}
+                                      <ArrowUpRight className="w-3 h-3" />
+                                    </div>
+                                  </div>
+                                }
+                                value={linkedin}
+                                isLineClamp={true}
+                                onChange={(e) => {
+                                  setLinkedin(e.target.value);
+                                  setIsDirty(true);
+                                }}
+                                placeholder="https://linkedin.com/in/username"
+                              />
+                            )}
+
+                            <div>
+                              <div className="mt-2 text-sm font-normal text-beige900">
+                                Select the profile links you want to share.
+                              </div>
+
+                              <div className="flex flex-wrap gap-2 pt-2">
+                                <ProfileInputToggleButton
+                                  label="LinkedIn"
+                                  active={selectedProfileInputs.includes(
+                                    "linkedin"
+                                  )}
+                                  onClick={() =>
+                                    handleProfileInputChange("linkedin")
+                                  }
+                                />
+                                <ProfileInputToggleButton
+                                  label="GitHub"
+                                  active={selectedProfileInputs.includes(
+                                    "github"
+                                  )}
+                                  onClick={() =>
+                                    handleProfileInputChange("github")
+                                  }
+                                />
+                                <ProfileInputToggleButton
+                                  label="Google Scholar"
+                                  active={selectedProfileInputs.includes(
+                                    "scholar"
+                                  )}
+                                  onClick={() =>
+                                    handleProfileInputChange("scholar")
+                                  }
+                                />
+                                <ProfileInputToggleButton
+                                  label="Personal Homepage"
+                                  active={selectedProfileInputs.includes(
+                                    "website"
+                                  )}
+                                  onClick={() =>
+                                    handleProfileInputChange("website")
+                                  }
+                                />
+                                <ProfileInputToggleButton
+                                  label="Resume / CV"
+                                  active={selectedProfileInputs.includes("cv")}
+                                  onClick={() => handleProfileInputChange("cv")}
+                                />
+                              </div>
+                            </div>
+
+                            {selectedProfileInputs.includes("github") && (
+                              <BeigeLinkInput
+                                label={
+                                  <div className="flex flex-row items-center gap-1.5">
+                                    <Image
+                                      src="/images/logos/github.svg"
+                                      alt="Github"
+                                      width={20}
+                                      height={20}
+                                    />
+                                    <div>Github </div>
+                                  </div>
+                                }
+                                value={github}
+                                onChange={(e) => {
+                                  setGithub(e.target.value);
+                                  setIsDirty(true);
+                                }}
+                                placeholder="https://github.com/"
+                              />
+                            )}
+
+                            {selectedProfileInputs.includes("scholar") && (
+                              <BeigeLinkInput
+                                label={
+                                  <div className="flex flex-row items-center gap-1.5">
+                                    <Image
+                                      src="/images/logos/scholar.png"
+                                      alt="Google Scholar"
+                                      width={16}
+                                      height={16}
+                                    />
+                                    <div>Google Scholar</div>
+                                  </div>
+                                }
+                                value={scholar}
+                                onChange={(e) => {
+                                  setScholar(e.target.value);
+                                  setIsDirty(true);
+                                }}
+                                placeholder="https://scholar.google.com/citations?user="
+                              />
+                            )}
+
+                            {selectedProfileInputs.includes("website") && (
+                              <BeigeLinkInput
+                                label={<div>Personal Homepage</div>}
+                                value={website}
+                                onChange={(e) => {
+                                  setWebsite(e.target.value);
+                                  setIsDirty(true);
+                                }}
+                                placeholder="https://yourname.com"
+                              />
+                            )}
+
+                            {selectedProfileInputs.includes("cv") && (
+                              <BeigeFileUploadInput
+                                fileName={cvFileName}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  setCvFile(file ?? null);
+                                  setCvFileName(file?.name || "");
+                                  setIsDirty(true);
+                                }}
+                              />
+                            )}
                           </div>
-                        }
-                        value={linkedin}
-                        isLineClamp={true}
-                        onChange={(e) => {
-                          setLinkedin(e.target.value);
-                          setIsDirty(true);
-                        }}
-                        placeholder="https://linkedin.com/in/username"
-                      />
-                    )}
-
-                    <div>
-                      <div className="mt-2 text-sm font-normal text-beige900">
-                        Select the profile links you want to share.
-                      </div>
-
-                      <div className="flex flex-wrap gap-2 pt-2">
-                        <ProfileInputToggleButton
-                          label="LinkedIn"
-                          active={selectedProfileInputs.includes("linkedin")}
-                          onClick={() => handleProfileInputChange("linkedin")}
-                        />
-                        <ProfileInputToggleButton
-                          label="GitHub"
-                          active={selectedProfileInputs.includes("github")}
-                          onClick={() => handleProfileInputChange("github")}
-                        />
-                        <ProfileInputToggleButton
-                          label="Google Scholar"
-                          active={selectedProfileInputs.includes("scholar")}
-                          onClick={() => handleProfileInputChange("scholar")}
-                        />
-                        <ProfileInputToggleButton
-                          label="Personal Homepage"
-                          active={selectedProfileInputs.includes("website")}
-                          onClick={() => handleProfileInputChange("website")}
-                        />
-                        <ProfileInputToggleButton
-                          label="Resume / CV"
-                          active={selectedProfileInputs.includes("cv")}
-                          onClick={() => handleProfileInputChange("cv")}
-                        />
-                      </div>
-                    </div>
-
-                    {selectedProfileInputs.includes("github") && (
-                      <BeigeLinkInput
-                        label={
-                          <div className="flex flex-row items-center gap-1.5">
-                            <Image
-                              src="/images/logos/github.svg"
-                              alt="Github"
-                              width={20}
-                              height={20}
-                            />
-                            <div>Github </div>
-                          </div>
-                        }
-                        value={github}
-                        onChange={(e) => {
-                          setGithub(e.target.value);
-                          setIsDirty(true);
-                        }}
-                        placeholder="https://github.com/"
-                      />
-                    )}
-
-                    {selectedProfileInputs.includes("scholar") && (
-                      <BeigeLinkInput
-                        label={
-                          <div className="flex flex-row items-center gap-1.5">
-                            <Image
-                              src="/images/logos/scholar.png"
-                              alt="Google Scholar"
-                              width={16}
-                              height={16}
-                            />
-                            <div>Google Scholar</div>
-                          </div>
-                        }
-                        value={scholar}
-                        onChange={(e) => {
-                          setScholar(e.target.value);
-                          setIsDirty(true);
-                        }}
-                        placeholder="https://scholar.google.com/citations?user="
-                      />
-                    )}
-
-                    {selectedProfileInputs.includes("website") && (
-                      <BeigeLinkInput
-                        label={<div>Personal Homepage</div>}
-                        value={website}
-                        onChange={(e) => {
-                          setWebsite(e.target.value);
-                          setIsDirty(true);
-                        }}
-                        placeholder="https://yourname.com"
-                      />
-                    )}
-
-                    {selectedProfileInputs.includes("cv") && (
-                      <BeigeFileUploadInput
-                        fileName={cvFileName}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          setCvFile(file ?? null);
-                          setCvFileName(file?.name || "");
-                          setIsDirty(true);
-                        }}
-                      />
-                    )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 )}
 
@@ -1272,6 +1419,30 @@ export const Onboarding2Content = ({
                     ) : null}
                   </span>
                 </div>
+
+                {step === TOTAL_STEPS - 1 && (
+                  <div className="mt-6 flex w-full max-w-[560px] flex-col gap-3">
+                    <p className="text-sm leading-6 tracking-[-0.02em] text-beige900/70">
+                      주변에 Harper를 공유해주세요. 링크를 공유받은 사람이
+                      Harper를 통해 채용되면 감사의 의미로 양쪽에 300만원 상당의
+                      허먼밀러 의자를 보내드립니다.
+                    </p>
+                    <NetworkButton
+                      label={
+                        sharePending
+                          ? "링크 생성 중..."
+                          : hasCopiedShareLink
+                            ? "복사되었어요"
+                            : "Harper 공유하기"
+                      }
+                      variant="secondary"
+                      showArrow={false}
+                      className="h-11 w-[180px]"
+                      disabled={sharePending}
+                      onClick={() => void handleCopyShareLink()}
+                    />
+                  </div>
+                )}
               </motion.div>
             </AnimatePresence>
           </div>

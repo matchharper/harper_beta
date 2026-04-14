@@ -56,6 +56,7 @@ import {
   TALENT_NETWORK_ANALYTICS_ABTEST_TYPES,
   TALENT_NETWORK_CLICK_EVENT_PREFIX,
   TALENT_NETWORK_LEGACY_ABTEST_TYPE,
+  TALENT_NETWORK_ONBOARDING_COMPARISON_STEPS,
   TALENT_NETWORK_ONBOARDING_STEPS,
   TALENT_NETWORK_SUBMIT_COMPLETED_EVENT,
   getTalentNetworkVariantLabel,
@@ -165,17 +166,22 @@ function buildTalentNetworkFunnelSummary(
 ): TalentNetworkFunnelSummary | null {
   if (groups.length === 0) return null;
 
-  const steps = TALENT_NETWORK_ONBOARDING_STEPS.map((item) => ({
+  const steps = TALENT_NETWORK_ONBOARDING_COMPARISON_STEPS.map((item) => ({
+    key: item.key,
     step: item.step,
     label: item.label,
+    eventType: item.eventType,
     userCount: groups.filter((group) =>
       group.logs.some((log) => log.type === item.eventType)
     ).length,
   }));
+  const onboardingStartEventType = TALENT_NETWORK_ONBOARDING_STEPS[0]?.eventType;
 
   return {
     totalUsers: groups.length,
-    onboardingStartUsers: steps[0]?.userCount ?? 0,
+    onboardingStartUsers:
+      steps.find((item) => item.eventType === onboardingStartEventType)
+        ?.userCount ?? 0,
     submittedUsers: groups.filter((group) =>
       group.logs.some(
         (log) => log.type === TALENT_NETWORK_SUBMIT_COMPLETED_EVENT
@@ -1309,9 +1315,11 @@ const AdminPage = () => {
         totalUsers: 0,
         onboardingStartUsers: 0,
         submittedUsers: 0,
-        steps: TALENT_NETWORK_ONBOARDING_STEPS.map((item) => ({
+        steps: TALENT_NETWORK_ONBOARDING_COMPARISON_STEPS.map((item) => ({
+          key: item.key,
           step: item.step,
           label: item.label,
+          eventType: item.eventType,
           userCount: 0,
         })),
       };

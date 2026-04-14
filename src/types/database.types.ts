@@ -3366,6 +3366,81 @@ export type Database = {
           },
         ]
       }
+      talent_network_referral_links: {
+        Row: {
+          conversion_count: number
+          created_at: string
+          created_from_path: string | null
+          first_converted_at: string | null
+          first_visited_at: string | null
+          first_visitor_local_id: string | null
+          id: string
+          last_converted_at: string | null
+          last_converted_email: string | null
+          last_converted_local_id: string | null
+          last_converted_name: string | null
+          last_converted_role: string | null
+          last_visited_at: string | null
+          last_visited_path: string | null
+          last_visitor_local_id: string | null
+          sharer_email: string
+          sharer_local_id: string | null
+          sharer_name: string | null
+          source: string
+          token: string
+          updated_at: string
+          visit_count: number
+        }
+        Insert: {
+          conversion_count?: number
+          created_at?: string
+          created_from_path?: string | null
+          first_converted_at?: string | null
+          first_visited_at?: string | null
+          first_visitor_local_id?: string | null
+          id?: string
+          last_converted_at?: string | null
+          last_converted_email?: string | null
+          last_converted_local_id?: string | null
+          last_converted_name?: string | null
+          last_converted_role?: string | null
+          last_visited_at?: string | null
+          last_visited_path?: string | null
+          last_visitor_local_id?: string | null
+          sharer_email: string
+          sharer_local_id?: string | null
+          sharer_name?: string | null
+          source: string
+          token: string
+          updated_at?: string
+          visit_count?: number
+        }
+        Update: {
+          conversion_count?: number
+          created_at?: string
+          created_from_path?: string | null
+          first_converted_at?: string | null
+          first_visited_at?: string | null
+          first_visitor_local_id?: string | null
+          id?: string
+          last_converted_at?: string | null
+          last_converted_email?: string | null
+          last_converted_local_id?: string | null
+          last_converted_name?: string | null
+          last_converted_role?: string | null
+          last_visited_at?: string | null
+          last_visited_path?: string | null
+          last_visitor_local_id?: string | null
+          sharer_email?: string
+          sharer_local_id?: string | null
+          sharer_name?: string | null
+          source?: string
+          token?: string
+          updated_at?: string
+          visit_count?: number
+        }
+        Relationships: []
+      }
       talent_notification: {
         Row: {
           created_at: string

@@ -5,10 +5,13 @@ import {
   getNetworkTalentId,
   hasStructuredTalentProfile,
   type NetworkLeadDetailResponse,
+  type NetworkLeadMessagesPageResponse,
   type NetworkLeadLatestExperience,
   type NetworkLeadListFilters,
   type NetworkLeadListResponse,
   type NetworkLeadListStats,
+  type NetworkLeadProgress,
+  type NetworkLeadProgressStep,
   type NetworkLeadRecentMemo,
   type NetworkLeadSummary,
   type TalentInternalEntry,
@@ -21,6 +24,7 @@ import {
 } from "@/lib/networkOps";
 import { supabaseServer } from "@/lib/supabaseServer";
 import {
+  TALENT_PENDING_QUESTION_PREFIX,
   fetchTalentInsights,
   fetchTalentSetting,
   fetchTalentStructuredProfile,
@@ -57,6 +61,8 @@ const DEFAULT_LIMIT = 40;
 const MAX_LIMIT = 100;
 const MAX_SCAN_LIMIT = 5_000;
 const MAX_RESUME_TEXT_CHARS = 20_000;
+const DEFAULT_NETWORK_MESSAGE_LIMIT = 20;
+const MAX_NETWORK_MESSAGE_LIMIT = 50;
 const EDITABLE_INTERNAL_TYPES = new Set<TalentInternalType>([
   "conversation",
   "memo",
@@ -118,6 +124,21 @@ export function parseLeadBoolean(value: string | null) {
     .toLowerCase();
 
   return normalized === "1" || normalized === "true";
+}
+
+export function parseNetworkMessageLimit(value: string | null) {
+  const numeric = Number(value ?? DEFAULT_NETWORK_MESSAGE_LIMIT);
+  if (!Number.isFinite(numeric)) return DEFAULT_NETWORK_MESSAGE_LIMIT;
+  return Math.max(
+    1,
+    Math.min(MAX_NETWORK_MESSAGE_LIMIT, Math.floor(numeric))
+  );
+}
+
+export function parseNetworkBeforeMessageId(value: string | null) {
+  const numeric = Number(value ?? "");
+  if (!Number.isInteger(numeric) || numeric <= 0) return null;
+  return numeric;
 }
 
 function profileHasStructuredData(
@@ -309,6 +330,38 @@ function toRecentMemoSummary(
   };
 }
 
+function resolveLeadProgressCurrentStep(
+  progress: Omit<NetworkLeadProgress, "currentStep">
+): NetworkLeadProgressStep | null {
+  if (progress.roleRecommended) return "roleRecommended";
+  if (progress.conversationCompleted) return "conversationCompleted";
+  if (progress.conversationStarted) return "conversationStarted";
+  if (progress.signedUp) return "signedUp";
+  if (progress.emailSent) return "emailSent";
+  return null;
+}
+
+function buildNetworkLeadProgress(args: {
+  conversationCompleted: boolean;
+  conversationStarted: boolean;
+  emailSent: boolean;
+  roleRecommended: boolean;
+  signedUp: boolean;
+}): NetworkLeadProgress {
+  const progress = {
+    conversationCompleted: args.conversationCompleted,
+    conversationStarted: args.conversationStarted,
+    emailSent: args.emailSent,
+    roleRecommended: args.roleRecommended,
+    signedUp: args.signedUp,
+  };
+
+  return {
+    ...progress,
+    currentStep: resolveLeadProgressCurrentStep(progress),
+  };
+}
+
 export async function fetchNetworkLeadById(leadId: number) {
   const { data, error } = await supabaseServer
     .from("harper_waitlist")
@@ -339,6 +392,7 @@ async function fetchLeadSummaryDecorations(leads: NetworkLead[]) {
         NetworkLeadLatestExperience
       >(),
       lastActivityAtByLeadId: new Map<number, string | null>(),
+      progressByLeadId: new Map<number, NetworkLeadProgress>(),
       recentMemosByLeadId: new Map<number, NetworkLeadRecentMemo[]>(),
       resolvedTalentIdByLeadId: new Map<number, string>(),
       structuredTalentIds: new Set<string>(),
@@ -388,9 +442,20 @@ async function fetchLeadSummaryDecorations(leads: NetworkLead[]) {
   const resolvedTalentIds = Array.from(
     new Set(Array.from(resolvedTalentIdByLeadId.values()))
   );
+  const candidateTalentIds = dedupeStrings([
+    ...Array.from(sourceTalentIdByLeadId.values()),
+    ...resolvedTalentIds,
+  ]);
 
-  const [profileRes, experienceRes, educationRes, extrasRes] =
-    resolvedTalentIds.length > 0
+  const [
+    profileRes,
+    experienceRes,
+    educationRes,
+    extrasRes,
+    conversationRes,
+    recommendationRes,
+  ] =
+    candidateTalentIds.length > 0
       ? await Promise.all([
           admin
             .from("talent_users")
@@ -412,8 +477,17 @@ async function fetchLeadSummaryDecorations(leads: NetworkLead[]) {
             .from("talent_extras")
             .select("talent_id")
             .in("talent_id", resolvedTalentIds),
+          admin
+            .from("talent_conversations")
+            .select("user_id, stage")
+            .in("user_id", candidateTalentIds),
+          (admin.from("talent_opportunity_recommendation" as any) as any)
+            .select("talent_id")
+            .in("talent_id", candidateTalentIds),
         ])
       : [
+          { data: [], error: null },
+          { data: [], error: null },
           { data: [], error: null },
           { data: [], error: null },
           { data: [], error: null },
@@ -435,6 +509,17 @@ async function fetchLeadSummaryDecorations(leads: NetworkLead[]) {
   }
   if (extrasRes.error) {
     throw new Error(extrasRes.error.message ?? "Failed to load talent_extras");
+  }
+  if (conversationRes.error) {
+    throw new Error(
+      conversationRes.error.message ?? "Failed to load talent_conversations"
+    );
+  }
+  if (recommendationRes.error) {
+    throw new Error(
+      recommendationRes.error.message ??
+        "Failed to load talent_opportunity_recommendation"
+    );
   }
 
   const structuredTalentIds = new Set<string>();
@@ -466,9 +551,14 @@ async function fetchLeadSummaryDecorations(leads: NetworkLead[]) {
 
   const lastActivityAtByLeadId = new Map<number, string | null>();
   const recentMemosByLeadId = new Map<number, NetworkLeadRecentMemo[]>();
+  const emailSentLeadIds = new Set<number>();
   for (const row of internalRes.data ?? []) {
     if (!lastActivityAtByLeadId.has(row.waitlist_id)) {
       lastActivityAtByLeadId.set(row.waitlist_id, row.created_at);
+    }
+
+    if (row.type === "mail") {
+      emailSentLeadIds.add(row.waitlist_id);
     }
 
     if (row.type !== "memo") continue;
@@ -480,9 +570,68 @@ async function fetchLeadSummaryDecorations(leads: NetworkLead[]) {
     recentMemosByLeadId.set(row.waitlist_id, [...current, recentMemo]);
   }
 
+  const signedUpLeadIds = new Set<number>();
+  for (const row of claimedTalentRes.data ?? []) {
+    if (!row.network_waitlist_id) continue;
+    signedUpLeadIds.add(row.network_waitlist_id);
+  }
+
+  const conversationStateByTalentId = new Map<
+    string,
+    { completed: boolean; started: boolean }
+  >();
+  for (const row of conversationRes.data ?? []) {
+    const current = conversationStateByTalentId.get(row.user_id) ?? {
+      completed: false,
+      started: false,
+    };
+
+    current.started =
+      current.started || row.stage === "chat" || row.stage === "completed";
+    current.completed = current.completed || row.stage === "completed";
+    conversationStateByTalentId.set(row.user_id, current);
+  }
+
+  const recommendedTalentIds = new Set<string>();
+  for (const row of recommendationRes.data ?? []) {
+    const talentId = String(row?.talent_id ?? "").trim();
+    if (!talentId) continue;
+    recommendedTalentIds.add(talentId);
+  }
+
+  const progressByLeadId = new Map<number, NetworkLeadProgress>();
+  for (const lead of leads) {
+    const talentIds = dedupeStrings([
+      resolvedTalentIdByLeadId.get(lead.id),
+      sourceTalentIdByLeadId.get(lead.id),
+    ]);
+    const conversationStarted = talentIds.some(
+      (talentId) => conversationStateByTalentId.get(talentId)?.started === true
+    );
+    const conversationCompleted = talentIds.some(
+      (talentId) =>
+        conversationStateByTalentId.get(talentId)?.completed === true
+    );
+    const roleRecommended = talentIds.some((talentId) =>
+      recommendedTalentIds.has(talentId)
+    );
+
+    progressByLeadId.set(
+      lead.id,
+      buildNetworkLeadProgress({
+        conversationCompleted,
+        conversationStarted,
+        emailSent: emailSentLeadIds.has(lead.id),
+        roleRecommended,
+        signedUp: signedUpLeadIds.has(lead.id),
+      })
+    );
+  }
+
   return {
     latestExperienceByTalentId,
     lastActivityAtByLeadId,
+    progressByLeadId,
     recentMemosByLeadId,
     resolvedTalentIdByLeadId,
     structuredTalentIds,
@@ -493,6 +642,7 @@ function toLeadSummary(args: {
   lead: NetworkLead;
   latestExperienceByTalentId: Map<string, NetworkLeadLatestExperience>;
   lastActivityAt: string | null;
+  progressByLeadId: Map<number, NetworkLeadProgress>;
   recentMemosByLeadId: Map<number, NetworkLeadRecentMemo[]>;
   resolvedTalentId: string;
   structuredTalentIds: Set<string>;
@@ -504,6 +654,15 @@ function toLeadSummary(args: {
     lastInternalActivityAt: args.lastActivityAt,
     latestExperience:
       args.latestExperienceByTalentId.get(args.resolvedTalentId) ?? null,
+    progress:
+      args.progressByLeadId.get(args.lead.id) ??
+      buildNetworkLeadProgress({
+        conversationCompleted: false,
+        conversationStarted: false,
+        emailSent: false,
+        roleRecommended: false,
+        signedUp: false,
+      }),
     recentMemos: args.recentMemosByLeadId.get(args.lead.id) ?? [],
   } satisfies NetworkLeadSummary;
 }
@@ -536,6 +695,7 @@ export async function fetchNetworkLeadPage(args: {
   const {
     latestExperienceByTalentId,
     lastActivityAtByLeadId,
+    progressByLeadId,
     recentMemosByLeadId,
     resolvedTalentIdByLeadId,
     structuredTalentIds,
@@ -546,6 +706,7 @@ export async function fetchNetworkLeadPage(args: {
       lead,
       latestExperienceByTalentId,
       lastActivityAt: lastActivityAtByLeadId.get(lead.id) ?? null,
+      progressByLeadId,
       recentMemosByLeadId,
       resolvedTalentId:
         resolvedTalentIdByLeadId.get(lead.id) ?? getNetworkTalentId(lead.id),
@@ -738,6 +899,7 @@ export async function fetchNetworkLeadDetail(
     waitlistId: lead.id,
   });
   const resolvedTalentId = claimedTalentUser?.user_id ?? sourceTalentId;
+  const progressTalentIds = dedupeStrings([resolvedTalentId, sourceTalentId]);
 
   const [
     resolvedTalentProfile,
@@ -745,6 +907,8 @@ export async function fetchNetworkLeadDetail(
     internalEntries,
     latestTalentSetting,
     latestTalentInsightsRow,
+    conversationRes,
+    recommendationRes,
   ] = await Promise.all([
     claimedTalentUser
       ? Promise.resolve(claimedTalentUser)
@@ -766,7 +930,26 @@ export async function fetchNetworkLeadDetail(
       admin,
       userId: resolvedTalentId,
     }),
+    admin
+      .from("talent_conversations")
+      .select("user_id, stage")
+      .in("user_id", progressTalentIds),
+    (admin.from("talent_opportunity_recommendation" as any) as any)
+      .select("talent_id")
+      .in("talent_id", progressTalentIds),
   ]);
+
+  if (conversationRes.error) {
+    throw new Error(
+      conversationRes.error.message ?? "Failed to load talent_conversations"
+    );
+  }
+  if (recommendationRes.error) {
+    throw new Error(
+      recommendationRes.error.message ??
+        "Failed to load talent_opportunity_recommendation"
+    );
+  }
 
   const hasStructuredProfile = hasStructuredTalentProfile({
     profile: resolvedTalentProfile,
@@ -781,6 +964,23 @@ export async function fetchNetworkLeadDetail(
     .map((entry) => toRecentMemoSummary(entry))
     .filter((entry): entry is NetworkLeadRecentMemo => Boolean(entry))
     .slice(0, 2);
+  const conversationStarted = (conversationRes.data ?? []).some(
+    (row) => row.stage === "chat" || row.stage === "completed"
+  );
+  const conversationCompleted = (conversationRes.data ?? []).some(
+    (row) => row.stage === "completed"
+  );
+  const roleRecommended = (recommendationRes.data ?? []).some(
+    (row: { talent_id?: string | null }) =>
+      progressTalentIds.includes(String(row?.talent_id ?? "").trim())
+  );
+  const progress = buildNetworkLeadProgress({
+    conversationCompleted,
+    conversationStarted,
+    emailSent: internalEntries.some((entry) => entry.type === "mail"),
+    roleRecommended,
+    signedUp: Boolean(claimedTalentUser?.user_id),
+  });
 
   return {
     claimedTalentId: claimedTalentUser?.user_id ?? null,
@@ -798,6 +998,7 @@ export async function fetchNetworkLeadDetail(
       hasStructuredProfile,
       lastInternalActivityAt,
       latestExperience,
+      progress,
       recentMemos,
     },
     latestNetworkApplication: normalizeTalentNetworkApplication(
@@ -819,6 +1020,64 @@ export async function fetchNetworkLeadDetail(
     structuredProfile,
     talentId: resolvedTalentId,
     talentProfile: resolvedTalentProfile,
+  };
+}
+
+export async function fetchNetworkLeadMessagesPage(args: {
+  leadId: number;
+  beforeMessageId?: number | null;
+  limit?: number;
+}): Promise<NetworkLeadMessagesPageResponse> {
+  const admin = getTalentSupabaseAdmin();
+  const lead = await fetchNetworkLeadById(args.leadId);
+  const sourceTalentId = getNetworkTalentId(lead.id);
+  const claimedTalentUser = await findClaimedTalentUserByWaitlistId({
+    admin,
+    waitlistId: lead.id,
+  });
+  const resolvedTalentId = claimedTalentUser?.user_id ?? sourceTalentId;
+  const talentIds = dedupeStrings([resolvedTalentId, sourceTalentId]);
+  const pageSize = parseNetworkMessageLimit(String(args.limit ?? ""));
+
+  let query = admin
+    .from("talent_messages")
+    .select("id, role, content, message_type, created_at")
+    .in("user_id", talentIds)
+    .not("content", "like", `${TALENT_PENDING_QUESTION_PREFIX}%`)
+    .order("id", { ascending: false })
+    .limit(pageSize + 1);
+
+  if (args.beforeMessageId) {
+    query = query.lt("id", args.beforeMessageId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load talent messages");
+  }
+
+  const rows = ((data ?? []) as Array<{
+    id: number;
+    role: "user" | "assistant";
+    content: string;
+    message_type: string | null;
+    created_at: string;
+  }>).filter((row) => row.content.trim().length > 0);
+
+  const hasMore = rows.length > pageSize;
+  const pageRows = hasMore ? rows.slice(0, pageSize) : rows;
+  const oldestRow = pageRows[pageRows.length - 1] ?? null;
+
+  return {
+    messages: pageRows.reverse().map((row) => ({
+      id: row.id,
+      role: row.role,
+      content: row.content,
+      messageType: row.message_type,
+      createdAt: row.created_at,
+    })),
+    nextBeforeMessageId: hasMore && oldestRow ? oldestRow.id : null,
   };
 }
 
