@@ -14,14 +14,23 @@ import {
   type TalentMessageRow,
 } from "@/lib/talentOnboarding/server";
 import { TALENT_INTERVIEW_FINAL_STEP, TALENT_INTERVIEW_MIN_COVERAGE } from "@/lib/talentOnboarding/progress";
-import { buildRealtimeStepGuides, INTERRUPT_HANDLING_INSTRUCTION } from "@/lib/talentOnboarding/interviewSteps";
+import { buildRealtimeStepGuides } from "@/lib/talentOnboarding/interviewSteps";
+import { warmCache, getTestFlagSlugs, getContentForUser } from "@/lib/talentOnboarding/prompts/promptCache";
 import {
   getUncoveredChecklistItems,
   INSIGHT_CHECKLIST,
   type InsightChecklistItem,
 } from "@/lib/talentOnboarding/insightChecklist";
 import { normalizeExtractedInsights } from "@/lib/talentOnboarding/insights";
+import {
+  loadPrompt,
+  extractSection,
+  fillPlaceholders,
+  validatePromptFile,
+} from "@/lib/talentOnboarding/prompts";
 import { logger } from "@/utils/logger";
+
+validatePromptFile("insight-extraction.md");
 
 type Body = {
   conversationId: string;
@@ -34,7 +43,8 @@ function buildInsightExtractionOnlyPrompt(
   uncoveredItems: InsightChecklistItem[],
   coveredCount: number,
   totalCount: number,
-  currentInsightContent: Record<string, string> | null
+  currentInsightContent: Record<string, string> | null,
+  insightMdOverride?: string
 ): string {
   const checklistLines = uncoveredItems
     .map((item) => `- "${item.key}": ${item.promptHint}`)
@@ -54,30 +64,13 @@ function buildInsightExtractionOnlyPrompt(
         .join("\n");
   }
 
-  return `You are an insight extraction assistant. Given a conversation turn between a user and Harper (an AI career counselor), extract structured career insights.
-
-Insight coverage: ${coveredCount}/${totalCount} items covered.
-${existingSection}
-
-## Checklist (extract when mentioned)
-${checklistLines}
-
-You may also extract free-form insights as snake_case keys with Korean values.
-
-## Response Format
-Return a valid JSON object:
-{
-  "extracted_insights": {
-    "key_name": { "value": "extracted value in Korean", "action": "new" | "update" }
-  },
-  "step_transition": null | { "next_step": <number> }
-}
-
-- "new": key has no existing value
-- "update": user corrected or enriched a previously known insight (value = final integrated text)
-- If nothing to extract, return: { "extracted_insights": {} }
-- Only include keys where the user provided clear information.
-- "step_transition": If based on the conversation content, the current interview step's goals have been met and it's time to move to the next step, set this to { "next_step": <next step number 1-5> }. Otherwise null.`;
+  const md = insightMdOverride ?? loadPrompt("insight-extraction.md");
+  return fillPlaceholders(extractSection(md, "extractionOnly"), {
+    coveredCount,
+    totalCount,
+    checklistLines,
+    existingInsightsSection: existingSection,
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -86,6 +79,8 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    await warmCache();
+    const testSlugs = await getTestFlagSlugs(user.id);
 
     const body = (await req.json()) as Body;
     const conversationId = body.conversationId?.trim();
@@ -181,11 +176,13 @@ export async function POST(req: NextRequest) {
     let newKeysCount = 0;
     let rawExtraction = "";
     try {
+      const draftInsightMd = getContentForUser("insight-extraction", testSlugs) ?? undefined;
       const extractionPrompt = buildInsightExtractionOnlyPrompt(
         uncoveredItems,
         coveredCount,
         INSIGHT_CHECKLIST.length,
-        currentInsightContent
+        currentInsightContent,
+        draftInsightMd
       );
 
       const extractionResponse = await client.chat.completions.create({

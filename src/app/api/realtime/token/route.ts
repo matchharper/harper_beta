@@ -13,7 +13,11 @@ import {
   getUncoveredChecklistItems,
   INSIGHT_CHECKLIST,
 } from "@/lib/talentOnboarding/insightChecklist";
-import { buildRealtimeStepGuides, INTERRUPT_HANDLING_INSTRUCTION, CALL_END_INSTRUCTION } from "@/lib/talentOnboarding/interviewSteps";
+import { buildRealtimeStepGuides, getInterruptHandling, getCallEndInstruction } from "@/lib/talentOnboarding/interviewSteps";
+import { loadPrompt, extractSection, validatePromptFile } from "@/lib/talentOnboarding/prompts";
+import { warmCache, getTestFlagSlugs, getContentForUser } from "@/lib/talentOnboarding/prompts/promptCache";
+
+validatePromptFile("system.md");
 
 /**
  * Build Realtime session instructions with Harper persona + user profile context.
@@ -23,6 +27,9 @@ async function buildRealtimeInstructions(
   userId: string,
   conversationId: string
 ): Promise<string> {
+  await warmCache();
+  const testSlugs = await getTestFlagSlugs(userId);
+
   const admin = getTalentSupabaseAdmin();
 
   const [profile, currentInsights] = await Promise.all([
@@ -89,22 +96,17 @@ async function buildRealtimeInstructions(
     existingInsightsSection = section;
   }
 
+  const systemMd = getContentForUser("system", testSlugs) ?? loadPrompt("system.md");
+  const persona = extractSection(systemMd, "persona");
+
   return [
-    "You are Harper, a Korean AI talent agent for candidate onboarding.",
-    "",
-    "Always answer in Korean.",
-    "Be concise, clear, and warm.",
-    "Given the conversation, do all of the following:",
-    "1) brief acknowledgement",
-    "2) short guidance or summary",
-    "3) one next question (if needed).",
-    "Avoid markdown tables and long bullet dumps. Your output will be used as a voice script for TTS.",
+    persona,
     "",
     buildRealtimeStepGuides(currentStep),
     "",
-    INTERRUPT_HANDLING_INSTRUCTION,
+    getInterruptHandling(),
     "",
-    CALL_END_INSTRUCTION,
+    getCallEndInstruction(),
     "",
     existingInsightsSection,
     "",
@@ -118,13 +120,8 @@ async function buildRealtimeInstructions(
     structuredProfileText || "[Structured Talent Profile]\n(none)",
     "",
     shouldSendReliefNudge
-      ? [
-          "IMPORTANT: Include this exact nudge once in your response:",
-          "지금은 여기까지 해도 됩니다.",
-          "지금 정보만으로도 매칭을 시작할 수 있습니다.",
-          "After that, optionally ask one lightweight follow-up question.",
-        ].join("\n")
-      : "Keep the flow moving with one high-signal follow-up question when useful.",
+      ? extractSection(systemMd, "reliefNudge")
+      : extractSection(systemMd, "defaultGuidance"),
   ].join("\n");
 }
 

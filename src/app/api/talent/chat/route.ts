@@ -16,7 +16,8 @@ import {
   upsertTalentInsights,
 } from "@/lib/talentOnboarding/server";
 import { TALENT_INTERVIEW_FINAL_STEP, TALENT_INTERVIEW_MIN_COVERAGE } from "@/lib/talentOnboarding/progress";
-import { getStepGuideForPrompt, INTERRUPT_HANDLING_INSTRUCTION } from "@/lib/talentOnboarding/interviewSteps";
+import { getStepGuideForPrompt, getInterruptHandling } from "@/lib/talentOnboarding/interviewSteps";
+import { warmCache, getTestFlagSlugs, getContentForUser } from "@/lib/talentOnboarding/prompts/promptCache";
 import {
   getUncoveredChecklistItems,
   INSIGHT_CHECKLIST,
@@ -26,7 +27,16 @@ import {
   normalizeExtractedInsights,
   type ExtractedInsightValue,
 } from "@/lib/talentOnboarding/insights";
+import {
+  loadPrompt,
+  extractSection,
+  fillPlaceholders,
+  validatePromptFile,
+} from "@/lib/talentOnboarding/prompts";
 import { logger } from "@/utils/logger";
+
+validatePromptFile("system.md");
+validatePromptFile("insight-extraction.md");
 
 type Body = {
   conversationId?: string;
@@ -119,7 +129,8 @@ function buildInsightExtractionPrompt(
   uncoveredItems: InsightChecklistItem[],
   coveredCount: number,
   totalCount: number,
-  currentInsightContent: Record<string, string> | null
+  currentInsightContent: Record<string, string> | null,
+  insightMd?: string
 ): string {
   const checklistLines = uncoveredItems
     .map((item) => `- "${item.key}": ${item.promptHint}`)
@@ -132,43 +143,25 @@ function buildInsightExtractionPrompt(
 
   const existingInsightsSection = buildExistingInsightsSection(currentInsightContent);
 
-  return `
-## Response Format
-You MUST return a valid JSON object with exactly these fields:
-{
-  "reply": "your Korean conversational reply here",
-  "extracted_insights": {
-    "key_name": { "value": "extracted value", "action": "new" | "update" }
-  },
-  "step_transition": null | { "next_step": <number> }
-}
+  const md = insightMd ?? loadPrompt("insight-extraction.md");
+  const vars: Record<string, string | number> = {
+    coveredCount,
+    totalCount,
+    checklistLines,
+    topUncovered,
+    existingInsightsSection,
+  };
 
-## Step Transition
-If the current step's transition condition (described in the interview step guide above) is met, set "step_transition" to { "next_step": <next step number> }.
-Otherwise set it to null. Do NOT skip steps — always transition to the immediately next step.
-
-## Insight Extraction Rules
-Insight coverage: ${coveredCount}/${totalCount} items covered.
-
-### Action Types
-- "new": Use when filling a key for the first time (the key has no existing value).
-- "update": Use when the user corrects, enriches, or contradicts a previously known insight. The "value" must be the final integrated text combining old and new information, not just the new part.
-
-When using "update", naturally acknowledge the change in your reply (e.g. "그럼 연봉과 문화 둘 다 중요하시다는 거죠?"). Do NOT ask an explicit confirmation question — weave it into the conversation naturally.
-If unsure whether something is new or an update, default to "new".
-${existingInsightsSection}
-### Uncovered Topics (extract when mentioned)
-${checklistLines}
-
-Beyond the checklist above, you may also extract any other meaningful career insights you discover in the conversation as free-form keys (e.g. "leadership_experience", "side_project_interests", "industry_network"). Use descriptive snake_case keys and Korean values. Both checklist and free-form keys support "update" if the user revises them.
-
-Only include keys where the user provided clear information. Use Korean for values.
-If the conversation naturally covers a topic, extract it. Do NOT ask about all topics at once.
-
-## Conversation Guidance
-Prioritize naturally asking about these uncovered topics (one at a time):
-${topUncovered}
-`;
+  return [
+    "\n## Response Format",
+    extractSection(md, "responseFormat"),
+    "\n## Step Transition",
+    extractSection(md, "stepTransition"),
+    "\n## Insight Extraction Rules",
+    fillPlaceholders(extractSection(md, "insightExtractionRules"), vars),
+    "\n## Conversation Guidance",
+    fillPlaceholders(extractSection(md, "conversationGuidance"), vars),
+  ].join("\n");
 }
 
 function buildSystemPrompt(args: {
@@ -178,6 +171,7 @@ function buildSystemPrompt(args: {
   userTurnCount: number;
   insightExtractionPrompt: string;
   currentStep: number;
+  systemMdOverride?: string;
 }) {
   const {
     profile,
@@ -186,41 +180,40 @@ function buildSystemPrompt(args: {
     userTurnCount,
     insightExtractionPrompt,
     currentStep,
+    systemMdOverride,
   } = args;
   const linkText = (profile?.resume_links ?? []).join(", ");
 
   const stepGuide = getStepGuideForPrompt(currentStep);
 
+  const systemMd = systemMdOverride ?? loadPrompt("system.md");
+  const persona = extractSection(systemMd, "persona");
+  const contextText = fillPlaceholders(
+    extractSection(systemMd, "contextTemplate"),
+    {
+      userTurnCount,
+      resumeFileName: profile?.resume_file_name ?? "(none)",
+      resumeLinks: linkText || "(none)",
+      structuredProfileText:
+        structuredProfileText || "[Structured Talent Profile]\n(none)",
+    }
+  );
+  const guidance = shouldSendReliefNudge
+    ? extractSection(systemMd, "reliefNudge")
+    : extractSection(systemMd, "defaultGuidance");
+
   return [
-    "You are Harper, a Korean AI talent agent for candidate onboarding.",
-    "",
-    "Always answer in Korean.",
-    "Be concise, clear, and warm.",
-    "Given the conversation, do all of the following:",
-    "1) brief acknowledgement",
-    "2) short guidance or summary",
-    "3) one next question (if needed).",
-    "Avoid markdown tables and long bullet dumps. Your output will be used as a voice script for TTS.",
+    persona,
     "",
     stepGuide,
     "",
-    INTERRUPT_HANDLING_INSTRUCTION,
+    getInterruptHandling(),
     "",
     insightExtractionPrompt,
     "",
-    `Current user turn count: ${userTurnCount}`,
-    `Resume file: ${profile?.resume_file_name ?? "(none)"}`,
-    `Resume links: ${linkText || "(none)"}`,
-    structuredProfileText || "[Structured Talent Profile]\n(none)",
+    contextText,
     "",
-    shouldSendReliefNudge
-      ? [
-          "IMPORTANT: Include this exact nudge once in your response:",
-          "지금은 여기까지 해도 됩니다.",
-          "지금 정보만으로도 매칭을 시작할 수 있습니다.",
-          "After that, optionally ask one lightweight follow-up question.",
-        ].join("\n")
-      : "Keep the flow moving with one high-signal follow-up question when useful.",
+    guidance,
   ].join("\n");
 }
 
@@ -230,6 +223,8 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    await warmCache();
+    const testSlugs = await getTestFlagSlugs(user.id);
 
     const body = (await req.json()) as Body;
     const conversationId = body.conversationId?.trim();
@@ -288,11 +283,14 @@ export async function POST(req: NextRequest) {
     const currentInsightContent = (currentInsights?.content ?? null) as Record<string, string> | null;
     const uncoveredItems = getUncoveredChecklistItems(currentInsightContent);
     const coveredCount = (INSIGHT_CHECKLIST.length - uncoveredItems.length);
+    const draftInsightMd = getContentForUser("insight-extraction", testSlugs);
+    const draftSystemMd = getContentForUser("system", testSlugs);
     const insightExtractionPrompt = buildInsightExtractionPrompt(
       uncoveredItems,
       coveredCount,
       INSIGHT_CHECKLIST.length,
-      currentInsightContent
+      currentInsightContent,
+      draftInsightMd ?? undefined
     );
 
     const normalizedContent = link
@@ -351,6 +349,7 @@ export async function POST(req: NextRequest) {
             userTurnCount,
             insightExtractionPrompt,
             currentStep,
+            systemMdOverride: draftSystemMd ?? undefined,
           }),
         },
         ...llmMessages,
