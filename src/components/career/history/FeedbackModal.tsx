@@ -1,5 +1,5 @@
-import React, { useRef } from "react";
-import { Loader2 } from "lucide-react";
+import React, { useEffect, useMemo, useRef } from "react";
+import { CornerDownLeft, Loader2 } from "lucide-react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import type { CareerHistoryOpportunity } from "../types";
 import {
@@ -17,6 +17,26 @@ import {
 } from "../ui/CareerPrimitives";
 
 const NEGATIVE_FEEDBACK_REASON_SEPARATOR = " | ";
+
+const isInteractiveTarget = (target: EventTarget | null) => {
+  if (!(target instanceof HTMLElement)) return false;
+
+  const tagName = target.tagName.toLowerCase();
+  return (
+    target.isContentEditable ||
+    tagName === "input" ||
+    tagName === "textarea" ||
+    tagName === "select" ||
+    Boolean(target.closest("[contenteditable='true']"))
+  );
+};
+
+const EnterShortcutHint = () => (
+  <span className="ml-2 inline-flex items-center gap-1 rounded-md bg-white/5 px-1.5 py-0.5 text-[12px] font-normal text-current">
+    <span>Enter</span>
+    <CornerDownLeft className="h-3 w-3" strokeWidth={2} />
+  </span>
+);
 
 export type NegativeFeedbackSelectionState = {
   customReason: string;
@@ -153,13 +173,14 @@ export const HistoryPositiveFeedbackModal = ({
           </CareerSecondaryButton>
           <CareerPrimaryButton
             onClick={onSubmit}
-            disabled={pending || !draft.trim()}
+            disabled={pending}
             className={getCareerPositiveFeedbackSubmitButtonClassName(
               item.opportunityType
             )}
           >
             {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             제출
+            <EnterShortcutHint />
           </CareerPrimaryButton>
         </div>
       }
@@ -171,6 +192,15 @@ export const HistoryPositiveFeedbackModal = ({
           ref={textareaRef}
           value={draft}
           onChange={(event) => onChangeDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing) return;
+            if (event.key !== "Enter" || event.shiftKey) return;
+
+            event.preventDefault();
+            if (!pending) {
+              onSubmit();
+            }
+          }}
           placeholder={positiveFeedbackModalCopy.placeholder}
           className={careerCx(careerTextareaClassName, "min-h-[148px]")}
         />
@@ -198,12 +228,52 @@ export const HistoryNegativeFeedbackModal = ({
   onClose: () => void;
   onSubmit: () => void;
 }) => {
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const options = useMemo(
+    () => (item ? getCareerNegativeFeedbackOptions(item.opportunityType) : []),
+    [item]
+  );
+
+  useEffect(() => {
+    if (!item) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.isComposing) return;
+
+      if (event.key === "Enter" && !event.shiftKey) {
+        if (isInteractiveTarget(event.target)) return;
+        event.preventDefault();
+        if (!pending) {
+          onSubmit();
+        }
+        return;
+      }
+
+      if (isInteractiveTarget(event.target)) return;
+
+      const numeric = Number.parseInt(event.key, 10);
+      if (
+        !Number.isFinite(numeric) ||
+        numeric < 1 ||
+        numeric > options.length
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      onToggleOption(options[numeric - 1].value);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [item, onSubmit, onToggleOption, options, pending]);
+
   if (!item) return null;
 
   const negativeFeedbackModalCopy = getCareerNegativeFeedbackModalCopy(
     item.opportunityType
   );
-  const options = getCareerNegativeFeedbackOptions(item.opportunityType);
   const requiresTextInput = requiresNegativeFeedbackTextInput(
     item,
     selectedOptions
@@ -225,10 +295,12 @@ export const HistoryNegativeFeedbackModal = ({
           <CareerPrimaryButton onClick={onSubmit} disabled={pending}>
             {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             제출
+            <EnterShortcutHint />
           </CareerPrimaryButton>
         </div>
       }
       closeButtonClassName="font-geist right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-beige900/10 bg-white/70 text-beige900/70 transition-colors hover:border-beige900/25 hover:text-beige900"
+      initialFocusRef={textareaRef}
     >
       <div className="space-y-4">
         <div className="grid gap-2 sm:grid-cols-2">
@@ -262,9 +334,19 @@ export const HistoryNegativeFeedbackModal = ({
 
         {requiresTextInput && (
           <textarea
+            ref={textareaRef}
             autoFocus
             value={customReason}
             onChange={(event) => onChangeCustomReason(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.nativeEvent.isComposing) return;
+              if (event.key !== "Enter" || event.shiftKey) return;
+
+              event.preventDefault();
+              if (!pending) {
+                onSubmit();
+              }
+            }}
             placeholder={negativeFeedbackModalCopy.placeholder}
             className={careerCx(careerTextareaClassName, "min-h-[120px]")}
           />

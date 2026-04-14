@@ -25,6 +25,7 @@ export type CareerSidebarContextValue = {
   onLogout: () => void | Promise<void>;
   recentOpportunities: CareerRecentOpportunity[];
   historyOpportunities: CareerHistoryOpportunity[];
+  historyLoading: boolean;
   historyUpdatingOpportunityIds: string[];
   historyUpdateError: string;
   onUpdateHistoryOpportunityFeedback: (

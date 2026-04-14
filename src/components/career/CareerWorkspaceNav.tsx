@@ -45,7 +45,7 @@ const NAV_ITEMS: Array<{
   },
   {
     id: "history",
-    label: "Jobs",
+    label: "Opportunities",
     icon: GalleryVerticalEnd,
   },
 ];

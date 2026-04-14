@@ -162,6 +162,7 @@ export const CareerFlowProvider = ({
   const [historyOpportunities, setHistoryOpportunities] = useState<
     CareerHistoryOpportunity[]
   >([]);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const [historyUpdatingOpportunityIds, setHistoryUpdatingOpportunityIds] =
     useState<string[]>([]);
   const [historyUpdateError, setHistoryUpdateError] = useState("");
@@ -762,6 +763,10 @@ export const CareerFlowProvider = ({
   );
 
   useEffect(() => {
+    setHistoryLoaded(false);
+  }, [userId]);
+
+  useEffect(() => {
     if (authLoading) return;
 
     if (!userId) {
@@ -784,8 +789,10 @@ export const CareerFlowProvider = ({
 
     void (async () => {
       const payload = await loadSession();
-      if (!payload) return;
-      hydrateSession(payload);
+      if (payload) {
+        hydrateSession(payload);
+      }
+      setHistoryLoaded(true);
     })();
   }, [
     authLoading,
@@ -800,6 +807,9 @@ export const CareerFlowProvider = ({
     resetSessionState,
     userId,
   ]);
+
+  const historyLoading =
+    historyOpportunities.length === 0 && (!historyLoaded || sessionPending);
 
   const initialScrollConversationRef = useRef<string | null>(null);
 
@@ -960,6 +970,7 @@ export const CareerFlowProvider = ({
       onLogout: handleLogout,
       recentOpportunities,
       historyOpportunities,
+      historyLoading,
       historyUpdatingOpportunityIds,
       historyUpdateError,
       onUpdateHistoryOpportunityFeedback,
@@ -1071,6 +1082,7 @@ export const CareerFlowProvider = ({
       markNotificationsRead,
       onSaveNetworkApplication,
       handleSaveTalentProfile,
+      historyLoading,
       historyOpportunities,
       historyUpdateError,
       historyUpdatingOpportunityIds,
