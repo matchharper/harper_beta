@@ -16,10 +16,13 @@ import { loadPrompt, extractSection, validatePromptFile } from "./prompts";
 
 validatePromptFile("misc.md");
 
-export const TALENT_FIRST_VISIT_TEXT = extractSection(
-  loadPrompt("misc.md"),
-  "firstVisitText"
-);
+/** Get first-visit text from misc.md. Lazy-evaluated for DB cache support. */
+export function getTalentFirstVisitText(): string {
+  return extractSection(loadPrompt("misc.md"), "firstVisitText");
+}
+
+/** @deprecated Use getTalentFirstVisitText() */
+export const TALENT_FIRST_VISIT_TEXT = getTalentFirstVisitText();
 
 export type TalentConversationRow = {
   id: string;

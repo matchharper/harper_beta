@@ -1,22 +1,25 @@
 import fs from "fs";
 import path from "path";
+import { getCached } from "./promptCache";
 
 const PROMPTS_DIR = path.join(
   process.cwd(),
   "src/lib/talentOnboarding/prompts"
 );
-const isDev = process.env.NODE_ENV !== "production";
 
-// Production: module-level cache (read once per cold start)
-// Dev: no cache (re-read on every call for instant .md editing feedback)
-const cache = new Map<string, string>();
-
-/** Read a .md prompt file. Cached in production, fresh in dev. */
+/**
+ * Read a .md prompt file.
+ * Priority: DB cache (populated by warmCache) → filesystem fallback.
+ * Stays sync for module-level compatibility; DB data is pre-loaded by warmCache().
+ */
 export function loadPrompt(filename: string): string {
-  if (!isDev && cache.has(filename)) return cache.get(filename)!;
-  const content = fs.readFileSync(path.join(PROMPTS_DIR, filename), "utf-8");
-  if (!isDev) cache.set(filename, content);
-  return content;
+  // Try DB cache first (populated by warmCache in request handlers)
+  const slug = filename.replace(/\.md$/, "");
+  const cached = getCached(slug);
+  if (cached) return cached;
+
+  // Fallback: read from filesystem (cold start or DB unavailable)
+  return fs.readFileSync(path.join(PROMPTS_DIR, filename), "utf-8");
 }
 
 /** Replace {{key}} placeholders with values. Unmatched placeholders are left as-is. */
@@ -82,6 +85,11 @@ const REQUIRED_SECTIONS: Record<string, string[]> = {
   "misc.md": ["firstVisitText", "Interrupt 처리", "통화 종료 시그널"],
 };
 
+/** Get required sections for a given slug (without .md extension). */
+export function getRequiredSections(slug: string): string[] {
+  return REQUIRED_SECTIONS[`${slug}.md`] ?? [];
+}
+
 const validated = new Set<string>();
 
 /** Validate that all required sections exist and are non-empty. Throws on failure. */
@@ -100,4 +108,19 @@ export function validatePromptFile(filename: string): void {
     }
   }
   validated.add(filename);
+}
+
+/** Validate content string against required sections for a slug. Returns missing section names. */
+export function validateSections(
+  content: string,
+  slug: string
+): string[] {
+  const required = REQUIRED_SECTIONS[`${slug}.md`] ?? [];
+  const missing: string[] = [];
+  for (const section of required) {
+    if (!extractSection(content, section)) {
+      missing.push(section);
+    }
+  }
+  return missing;
 }

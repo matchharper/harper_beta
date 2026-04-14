@@ -16,7 +16,8 @@ import {
   upsertTalentInsights,
 } from "@/lib/talentOnboarding/server";
 import { TALENT_INTERVIEW_FINAL_STEP, TALENT_INTERVIEW_MIN_COVERAGE } from "@/lib/talentOnboarding/progress";
-import { getStepGuideForPrompt, INTERRUPT_HANDLING_INSTRUCTION } from "@/lib/talentOnboarding/interviewSteps";
+import { getStepGuideForPrompt, getInterruptHandling } from "@/lib/talentOnboarding/interviewSteps";
+import { warmCache, getTestFlagSlugs, getContentForUser } from "@/lib/talentOnboarding/prompts/promptCache";
 import {
   getUncoveredChecklistItems,
   INSIGHT_CHECKLIST,
@@ -128,7 +129,8 @@ function buildInsightExtractionPrompt(
   uncoveredItems: InsightChecklistItem[],
   coveredCount: number,
   totalCount: number,
-  currentInsightContent: Record<string, string> | null
+  currentInsightContent: Record<string, string> | null,
+  insightMd?: string
 ): string {
   const checklistLines = uncoveredItems
     .map((item) => `- "${item.key}": ${item.promptHint}`)
@@ -141,7 +143,7 @@ function buildInsightExtractionPrompt(
 
   const existingInsightsSection = buildExistingInsightsSection(currentInsightContent);
 
-  const md = loadPrompt("insight-extraction.md");
+  const md = insightMd ?? loadPrompt("insight-extraction.md");
   const vars: Record<string, string | number> = {
     coveredCount,
     totalCount,
@@ -169,6 +171,7 @@ function buildSystemPrompt(args: {
   userTurnCount: number;
   insightExtractionPrompt: string;
   currentStep: number;
+  systemMdOverride?: string;
 }) {
   const {
     profile,
@@ -177,12 +180,13 @@ function buildSystemPrompt(args: {
     userTurnCount,
     insightExtractionPrompt,
     currentStep,
+    systemMdOverride,
   } = args;
   const linkText = (profile?.resume_links ?? []).join(", ");
 
   const stepGuide = getStepGuideForPrompt(currentStep);
 
-  const systemMd = loadPrompt("system.md");
+  const systemMd = systemMdOverride ?? loadPrompt("system.md");
   const persona = extractSection(systemMd, "persona");
   const contextText = fillPlaceholders(
     extractSection(systemMd, "contextTemplate"),
@@ -203,7 +207,7 @@ function buildSystemPrompt(args: {
     "",
     stepGuide,
     "",
-    INTERRUPT_HANDLING_INSTRUCTION,
+    getInterruptHandling(),
     "",
     insightExtractionPrompt,
     "",
@@ -219,6 +223,8 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    await warmCache();
+    const testSlugs = await getTestFlagSlugs(user.id);
 
     const body = (await req.json()) as Body;
     const conversationId = body.conversationId?.trim();
@@ -277,11 +283,14 @@ export async function POST(req: NextRequest) {
     const currentInsightContent = (currentInsights?.content ?? null) as Record<string, string> | null;
     const uncoveredItems = getUncoveredChecklistItems(currentInsightContent);
     const coveredCount = (INSIGHT_CHECKLIST.length - uncoveredItems.length);
+    const draftInsightMd = getContentForUser("insight-extraction", testSlugs);
+    const draftSystemMd = getContentForUser("system", testSlugs);
     const insightExtractionPrompt = buildInsightExtractionPrompt(
       uncoveredItems,
       coveredCount,
       INSIGHT_CHECKLIST.length,
-      currentInsightContent
+      currentInsightContent,
+      draftInsightMd ?? undefined
     );
 
     const normalizedContent = link
@@ -340,6 +349,7 @@ export async function POST(req: NextRequest) {
             userTurnCount,
             insightExtractionPrompt,
             currentStep,
+            systemMdOverride: draftSystemMd ?? undefined,
           }),
         },
         ...llmMessages,

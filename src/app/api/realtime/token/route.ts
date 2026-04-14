@@ -13,8 +13,9 @@ import {
   getUncoveredChecklistItems,
   INSIGHT_CHECKLIST,
 } from "@/lib/talentOnboarding/insightChecklist";
-import { buildRealtimeStepGuides, INTERRUPT_HANDLING_INSTRUCTION, CALL_END_INSTRUCTION } from "@/lib/talentOnboarding/interviewSteps";
+import { buildRealtimeStepGuides, getInterruptHandling, getCallEndInstruction } from "@/lib/talentOnboarding/interviewSteps";
 import { loadPrompt, extractSection, validatePromptFile } from "@/lib/talentOnboarding/prompts";
+import { warmCache, getTestFlagSlugs, getContentForUser } from "@/lib/talentOnboarding/prompts/promptCache";
 
 validatePromptFile("system.md");
 
@@ -26,6 +27,9 @@ async function buildRealtimeInstructions(
   userId: string,
   conversationId: string
 ): Promise<string> {
+  await warmCache();
+  const testSlugs = await getTestFlagSlugs(userId);
+
   const admin = getTalentSupabaseAdmin();
 
   const [profile, currentInsights] = await Promise.all([
@@ -92,16 +96,17 @@ async function buildRealtimeInstructions(
     existingInsightsSection = section;
   }
 
-  const persona = extractSection(loadPrompt("system.md"), "persona");
+  const systemMd = getContentForUser("system", testSlugs) ?? loadPrompt("system.md");
+  const persona = extractSection(systemMd, "persona");
 
   return [
     persona,
     "",
     buildRealtimeStepGuides(currentStep),
     "",
-    INTERRUPT_HANDLING_INSTRUCTION,
+    getInterruptHandling(),
     "",
-    CALL_END_INSTRUCTION,
+    getCallEndInstruction(),
     "",
     existingInsightsSection,
     "",
@@ -115,8 +120,8 @@ async function buildRealtimeInstructions(
     structuredProfileText || "[Structured Talent Profile]\n(none)",
     "",
     shouldSendReliefNudge
-      ? extractSection(loadPrompt("system.md"), "reliefNudge")
-      : extractSection(loadPrompt("system.md"), "defaultGuidance"),
+      ? extractSection(systemMd, "reliefNudge")
+      : extractSection(systemMd, "defaultGuidance"),
   ].join("\n");
 }
 
