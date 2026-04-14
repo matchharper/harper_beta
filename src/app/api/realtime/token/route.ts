@@ -13,16 +13,19 @@ import {
   getUncoveredChecklistItems,
   INSIGHT_CHECKLIST,
 } from "@/lib/talentOnboarding/insightChecklist";
-import { buildRealtimeStepGuides, INTERRUPT_HANDLING_INSTRUCTION, CALL_END_INSTRUCTION } from "@/lib/talentOnboarding/interviewSteps";
+import { getInterruptHandling, getCallEndInstruction } from "@/lib/talentOnboarding/interviewSteps";
+import { warmCache, getTestFlagSlugs, getContentForUser } from "@/lib/talentOnboarding/prompts/promptCache";
 
 /**
- * Build Realtime session instructions with Harper persona + user profile context.
- * Excludes insight extraction format (handled by separate save endpoint).
+ * Load the flat career-chat prompt from DB and inject channel_type + dynamic context.
  */
 async function buildRealtimeInstructions(
   userId: string,
   conversationId: string
 ): Promise<string> {
+  await warmCache();
+  const testSlugs = await getTestFlagSlugs(userId);
+
   const admin = getTalentSupabaseAdmin();
 
   const [profile, currentInsights] = await Promise.all([
@@ -63,15 +66,7 @@ async function buildRealtimeInstructions(
     .map((item) => `- ${item.promptHint}`)
     .join("\n");
 
-  const shouldSendReliefNudge =
-    userTurnCount >= 5 &&
-    !Boolean((conversation as TalentConversationRow | null)?.relief_nudge_sent);
-
   const linkText = (profile?.resume_links ?? []).join(", ");
-
-  const currentStep: number =
-    (conversation as TalentConversationRow & { current_step?: number })
-      ?.current_step ?? 1;
 
   // Build existing insights section (capped at 1500 chars for Realtime context budget)
   let existingInsightsSection = "";
@@ -89,22 +84,16 @@ async function buildRealtimeInstructions(
     existingInsightsSection = section;
   }
 
+  // Load flat prompt from DB and inject channel type
+  const flatPrompt = getContentForUser("career-chat", testSlugs) ?? "";
+  const prompt = flatPrompt.replace(/\{channel_type\}/g, "Voice");
+
   return [
-    "You are Harper, a Korean AI talent agent for candidate onboarding.",
+    prompt,
     "",
-    "Always answer in Korean.",
-    "Be concise, clear, and warm.",
-    "Given the conversation, do all of the following:",
-    "1) brief acknowledgement",
-    "2) short guidance or summary",
-    "3) one next question (if needed).",
-    "Avoid markdown tables and long bullet dumps. Your output will be used as a voice script for TTS.",
+    getInterruptHandling(),
     "",
-    buildRealtimeStepGuides(currentStep),
-    "",
-    INTERRUPT_HANDLING_INSTRUCTION,
-    "",
-    CALL_END_INSTRUCTION,
+    getCallEndInstruction(),
     "",
     existingInsightsSection,
     "",
@@ -116,15 +105,6 @@ async function buildRealtimeInstructions(
     `Resume file: ${profile?.resume_file_name ?? "(none)"}`,
     `Resume links: ${linkText || "(none)"}`,
     structuredProfileText || "[Structured Talent Profile]\n(none)",
-    "",
-    shouldSendReliefNudge
-      ? [
-          "IMPORTANT: Include this exact nudge once in your response:",
-          "지금은 여기까지 해도 됩니다.",
-          "지금 정보만으로도 매칭을 시작할 수 있습니다.",
-          "After that, optionally ask one lightweight follow-up question.",
-        ].join("\n")
-      : "Keep the flow moving with one high-signal follow-up question when useful.",
   ].join("\n");
 }
 

@@ -2,11 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import { client } from "@/lib/llm/llm";
 import {
-  buildTalentProfileContext,
   countUserChatTurns,
   fetchTalentInsights,
-  fetchTalentStructuredProfile,
-  fetchTalentUserProfile,
   getTalentSupabaseAdmin,
   normalizeTalentInsightKey,
   upsertTalentInsights,
@@ -14,13 +11,18 @@ import {
   type TalentMessageRow,
 } from "@/lib/talentOnboarding/server";
 import { TALENT_INTERVIEW_FINAL_STEP, TALENT_INTERVIEW_MIN_COVERAGE } from "@/lib/talentOnboarding/progress";
-import { buildRealtimeStepGuides, INTERRUPT_HANDLING_INSTRUCTION } from "@/lib/talentOnboarding/interviewSteps";
+import { warmCache, getTestFlagSlugs, getContentForUser } from "@/lib/talentOnboarding/prompts/promptCache";
 import {
   getUncoveredChecklistItems,
   INSIGHT_CHECKLIST,
   type InsightChecklistItem,
 } from "@/lib/talentOnboarding/insightChecklist";
 import { normalizeExtractedInsights } from "@/lib/talentOnboarding/insights";
+import {
+  loadPrompt,
+  extractSection,
+  fillPlaceholders,
+} from "@/lib/talentOnboarding/prompts";
 import { logger } from "@/utils/logger";
 
 type Body = {
@@ -34,7 +36,8 @@ function buildInsightExtractionOnlyPrompt(
   uncoveredItems: InsightChecklistItem[],
   coveredCount: number,
   totalCount: number,
-  currentInsightContent: Record<string, string> | null
+  currentInsightContent: Record<string, string> | null,
+  insightMdOverride?: string
 ): string {
   const checklistLines = uncoveredItems
     .map((item) => `- "${item.key}": ${item.promptHint}`)
@@ -54,30 +57,13 @@ function buildInsightExtractionOnlyPrompt(
         .join("\n");
   }
 
-  return `You are an insight extraction assistant. Given a conversation turn between a user and Harper (an AI career counselor), extract structured career insights.
-
-Insight coverage: ${coveredCount}/${totalCount} items covered.
-${existingSection}
-
-## Checklist (extract when mentioned)
-${checklistLines}
-
-You may also extract free-form insights as snake_case keys with Korean values.
-
-## Response Format
-Return a valid JSON object:
-{
-  "extracted_insights": {
-    "key_name": { "value": "extracted value in Korean", "action": "new" | "update" }
-  },
-  "step_transition": null | { "next_step": <number> }
-}
-
-- "new": key has no existing value
-- "update": user corrected or enriched a previously known insight (value = final integrated text)
-- If nothing to extract, return: { "extracted_insights": {} }
-- Only include keys where the user provided clear information.
-- "step_transition": If based on the conversation content, the current interview step's goals have been met and it's time to move to the next step, set this to { "next_step": <next step number 1-5> }. Otherwise null.`;
+  const md = insightMdOverride ?? loadPrompt("insight-extraction.md");
+  return fillPlaceholders(extractSection(md, "extractionOnly"), {
+    coveredCount,
+    totalCount,
+    checklistLines,
+    existingInsightsSection: existingSection,
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -86,6 +72,8 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    await warmCache();
+    const testSlugs = await getTestFlagSlugs(user.id);
 
     const body = (await req.json()) as Body;
     const conversationId = body.conversationId?.trim();
@@ -177,15 +165,16 @@ export async function POST(req: NextRequest) {
     const uncoveredItems = getUncoveredChecklistItems(currentInsightContent);
     const coveredCount = INSIGHT_CHECKLIST.length - uncoveredItems.length;
 
-    // Run insight extraction synchronously (needed for accurate coverage calc)
+    // Run insight extraction
     let newKeysCount = 0;
-    let rawExtraction = "";
     try {
+      const draftInsightMd = getContentForUser("insight-extraction", testSlugs) ?? undefined;
       const extractionPrompt = buildInsightExtractionOnlyPrompt(
         uncoveredItems,
         coveredCount,
         INSIGHT_CHECKLIST.length,
-        currentInsightContent
+        currentInsightContent,
+        draftInsightMd
       );
 
       const extractionResponse = await client.chat.completions.create({
@@ -198,7 +187,7 @@ export async function POST(req: NextRequest) {
         temperature: 0.1,
         response_format: { type: "json_object" },
       });
-      rawExtraction = (
+      const rawExtraction = (
         extractionResponse.choices[0]?.message?.content ?? ""
       ).replace(/^```json\s*/i, "").replace(/\s*```$/i, "").trim();
 
@@ -265,65 +254,24 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Step transition detection from extraction response
-    let detectedNextStep: number | null = null;
-    if (rawExtraction) {
-      const stMatch = rawExtraction.match(/"step_transition"\s*:\s*\{[^}]*"next_step"\s*:\s*(\d)/);
-      if (stMatch) {
-        const ns = parseInt(stMatch[1], 10);
-        if (ns >= 1 && ns <= 5) detectedNextStep = ns;
-      }
-    }
-
-    const currentStep: number =
-      (conversation as TalentConversationRow & { current_step?: number })
-        .current_step ?? 1;
-    const effectiveStep =
-      detectedNextStep && detectedNextStep > currentStep && detectedNextStep <= TALENT_INTERVIEW_FINAL_STEP
-        ? detectedNextStep
-        : currentStep;
-
-    // Check completion: Step 5 + coverage >= 60%
+    // Completion check: coverage-based
     const userTurnCount = await countUserChatTurns({ admin, conversationId });
     const insightsCoveredAfter = coveredCount + newKeysCount;
     const coverageRatio =
       INSIGHT_CHECKLIST.length > 0
         ? insightsCoveredAfter / INSIGHT_CHECKLIST.length
         : 1;
-    const isCompleted =
-      effectiveStep >= TALENT_INTERVIEW_FINAL_STEP &&
-      coverageRatio >= TALENT_INTERVIEW_MIN_COVERAGE;
-    // Step 6 = post-interview update mode
-    const finalStep = isCompleted ? 6 : effectiveStep;
-
-    // Update relief nudge + stage + step
-    const shouldSendReliefNudge =
-      userTurnCount >= 5 &&
-      !Boolean(
-        (conversation as TalentConversationRow).relief_nudge_sent
-      );
+    const isCompleted = coverageRatio >= TALENT_INTERVIEW_MIN_COVERAGE;
 
     const now = new Date().toISOString();
     await admin
       .from("talent_conversations")
       .update({
         stage: isCompleted ? "completed" : "chat",
-        current_step: finalStep,
-        relief_nudge_sent: shouldSendReliefNudge
-          ? true
-          : Boolean(
-              (conversation as TalentConversationRow).relief_nudge_sent
-            ),
         updated_at: now,
       })
       .eq("id", conversationId)
       .eq("user_id", user.id);
-
-    // Build next step instructions for Realtime session.update (only when step changed)
-    const nextStepInstructions =
-      effectiveStep !== currentStep
-        ? buildRealtimeStepGuides(effectiveStep)
-        : null;
 
     const toResponseMessage = (item: TalentMessageRow) => ({
       id: item.id,
@@ -343,11 +291,8 @@ export async function POST(req: NextRequest) {
         answeredCount: userTurnCount,
         targetCount: TALENT_INTERVIEW_FINAL_STEP,
         completed: isCompleted,
-        currentStep: effectiveStep,
+        currentStep: insightsCoveredAfter,
       },
-      ...(nextStepInstructions
-        ? { nextStep: effectiveStep, nextStepInstructions }
-        : {}),
     });
   } catch (error) {
     const message =
