@@ -15,6 +15,7 @@ export const TALENT_NETWORK_ABTEST_TYPES = [
   TALENT_NETWORK_ABTEST_TYPE_A,
   TALENT_NETWORK_ABTEST_TYPE_B,
 ] as const;
+
 // v2 A/B experiment is active. Switch this to "rollout" after selecting a winner.
 export const TALENT_NETWORK_ACTIVE_MODE = "experiment" as const;
 export const TALENT_NETWORK_ACTIVE_ROLLOUT_TYPE =
@@ -118,11 +119,7 @@ export const isTalentNetworkAbtestType = (
 export const resolveTalentNetworkAssignmentType = (
   value: string | null | undefined
 ): TalentNetworkAssignmentType =>
-  TALENT_NETWORK_ACTIVE_MODE === "rollout"
-    ? TALENT_NETWORK_ACTIVE_ROLLOUT_TYPE
-    : isTalentNetworkAbtestType(value)
-      ? value
-      : getRandomTalentNetworkAbtestType();
+  isTalentNetworkAbtestType(value) ? value : getRandomTalentNetworkAbtestType();
 
 export const getRandomTalentNetworkAbtestType = (): TalentNetworkAbtestType =>
   Math.random() < 0.5
@@ -142,7 +139,9 @@ export const usesTalentNetworkBExperience = (
   value === TALENT_NETWORK_ABTEST_TYPE_B_V1_ROLLOUT ||
   value === TALENT_NETWORK_ABTEST_TYPE_B;
 
-export const getTalentNetworkVariantLabel = (value: string | null | undefined) =>
+export const getTalentNetworkVariantLabel = (
+  value: string | null | undefined
+) =>
   value === TALENT_NETWORK_ABTEST_TYPE_A_V1
     ? "A v1"
     : value === TALENT_NETWORK_ABTEST_TYPE_B_V1
