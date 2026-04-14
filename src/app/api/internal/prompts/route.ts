@@ -9,6 +9,7 @@ export async function GET(req: NextRequest) {
     const { data: templates, error } = await (supabaseServer as any)
       .from("prompt_templates")
       .select("id, slug, name, updated_at, published_at, draft_content")
+      .in("slug", ["career-chat"])
       .order("slug");
 
     if (error) throw error;

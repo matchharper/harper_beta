@@ -13,15 +13,11 @@ import {
   getUncoveredChecklistItems,
   INSIGHT_CHECKLIST,
 } from "@/lib/talentOnboarding/insightChecklist";
-import { buildRealtimeStepGuides, getInterruptHandling, getCallEndInstruction } from "@/lib/talentOnboarding/interviewSteps";
-import { loadPrompt, extractSection, validatePromptFile } from "@/lib/talentOnboarding/prompts";
+import { getInterruptHandling, getCallEndInstruction } from "@/lib/talentOnboarding/interviewSteps";
 import { warmCache, getTestFlagSlugs, getContentForUser } from "@/lib/talentOnboarding/prompts/promptCache";
 
-validatePromptFile("system.md");
-
 /**
- * Build Realtime session instructions with Harper persona + user profile context.
- * Excludes insight extraction format (handled by separate save endpoint).
+ * Load the flat career-chat prompt from DB and inject channel_type + dynamic context.
  */
 async function buildRealtimeInstructions(
   userId: string,
@@ -70,15 +66,7 @@ async function buildRealtimeInstructions(
     .map((item) => `- ${item.promptHint}`)
     .join("\n");
 
-  const shouldSendReliefNudge =
-    userTurnCount >= 5 &&
-    !Boolean((conversation as TalentConversationRow | null)?.relief_nudge_sent);
-
   const linkText = (profile?.resume_links ?? []).join(", ");
-
-  const currentStep: number =
-    (conversation as TalentConversationRow & { current_step?: number })
-      ?.current_step ?? 1;
 
   // Build existing insights section (capped at 1500 chars for Realtime context budget)
   let existingInsightsSection = "";
@@ -96,13 +84,12 @@ async function buildRealtimeInstructions(
     existingInsightsSection = section;
   }
 
-  const systemMd = getContentForUser("system", testSlugs) ?? loadPrompt("system.md");
-  const persona = extractSection(systemMd, "persona");
+  // Load flat prompt from DB and inject channel type
+  const flatPrompt = getContentForUser("career-chat", testSlugs) ?? "";
+  const prompt = flatPrompt.replace(/\{channel_type\}/g, "Voice");
 
   return [
-    persona,
-    "",
-    buildRealtimeStepGuides(currentStep),
+    prompt,
     "",
     getInterruptHandling(),
     "",
@@ -118,10 +105,6 @@ async function buildRealtimeInstructions(
     `Resume file: ${profile?.resume_file_name ?? "(none)"}`,
     `Resume links: ${linkText || "(none)"}`,
     structuredProfileText || "[Structured Talent Profile]\n(none)",
-    "",
-    shouldSendReliefNudge
-      ? extractSection(systemMd, "reliefNudge")
-      : extractSection(systemMd, "defaultGuidance"),
   ].join("\n");
 }
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
+import { client } from "@/lib/llm/llm";
 import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
 import {
   buildTalentProfileContext,
@@ -10,13 +11,11 @@ import {
   normalizeTalentInsightKey,
   TalentConversationRow,
   TalentMessageRow,
-  TalentUserProfileRow,
   fetchTalentUserProfile,
   getTalentSupabaseAdmin,
   upsertTalentInsights,
 } from "@/lib/talentOnboarding/server";
 import { TALENT_INTERVIEW_FINAL_STEP, TALENT_INTERVIEW_MIN_COVERAGE } from "@/lib/talentOnboarding/progress";
-import { getStepGuideForPrompt, getInterruptHandling } from "@/lib/talentOnboarding/interviewSteps";
 import { warmCache, getTestFlagSlugs, getContentForUser } from "@/lib/talentOnboarding/prompts/promptCache";
 import {
   getUncoveredChecklistItems,
@@ -25,18 +24,8 @@ import {
 } from "@/lib/talentOnboarding/insightChecklist";
 import {
   normalizeExtractedInsights,
-  type ExtractedInsightValue,
 } from "@/lib/talentOnboarding/insights";
-import {
-  loadPrompt,
-  extractSection,
-  fillPlaceholders,
-  validatePromptFile,
-} from "@/lib/talentOnboarding/prompts";
 import { logger } from "@/utils/logger";
-
-validatePromptFile("system.md");
-validatePromptFile("insight-extraction.md");
 
 type Body = {
   conversationId?: string;
@@ -44,75 +33,15 @@ type Body = {
   link?: string;
 };
 
-type StepTransition = { next_step: number } | null;
+// ---------------------------------------------------------------------------
+// System prompt builder: flat prompt from DB + dynamic context
+// ---------------------------------------------------------------------------
 
-type ParsedAssistantResponse = {
-  reply: string;
-  extractedInsights: Record<string, ExtractedInsightValue> | null;
-  stepTransition: StepTransition;
-};
-
-function parseStepTransition(parsed: Record<string, unknown>): StepTransition {
-  const st = parsed.step_transition;
-  if (st && typeof st === "object" && !Array.isArray(st)) {
-    const nextStep = (st as Record<string, unknown>).next_step;
-    if (typeof nextStep === "number" && nextStep >= 1 && nextStep <= 5) {
-      return { next_step: nextStep };
-    }
-  }
-  return null;
-}
-
-function parseAssistantResponse(raw: string): ParsedAssistantResponse {
-  // Attempt 1: direct JSON parse
-  try {
-    const parsed = JSON.parse(raw);
-    const reply = typeof parsed.reply === "string" ? parsed.reply.trim() : "";
-    const insights = parsed.extracted_insights;
-    if (!reply) throw new Error("empty reply");
-    return {
-      reply,
-      extractedInsights:
-        insights && typeof insights === "object"
-          ? normalizeExtractedInsights(insights)
-          : null,
-      stepTransition: parseStepTransition(parsed),
-    };
-  } catch {
-    // Attempt 2: regex extraction (handles LLM wrapping JSON in prose)
-    const match = raw.match(/\{[\s\S]*\}/);
-    if (match) {
-      try {
-        const parsed = JSON.parse(match[0]);
-        const reply =
-          typeof parsed.reply === "string" ? parsed.reply.trim() : "";
-        const insights = parsed.extracted_insights;
-        if (reply) {
-          return {
-            reply,
-            extractedInsights:
-              insights && typeof insights === "object"
-                ? normalizeExtractedInsights(insights)
-                : null,
-            stepTransition: parseStepTransition(parsed),
-          };
-        }
-      } catch {
-        logger.log("[TalentChat] JSON regex fallback parse failed");
-      }
-    }
-    // Final fallback: treat entire raw text as reply, skip extraction
-    logger.log("[TalentChat] Using raw text fallback, no extraction this turn");
-    return { reply: raw, extractedInsights: null, stepTransition: null };
-  }
-}
-
-/** Build bounded "Currently known insights" section for the prompt */
 function buildExistingInsightsSection(content: Record<string, string> | null): string {
   if (!content || Object.keys(content).length === 0) return "";
   const MAX_TOTAL = 2000;
   const MAX_PER_VALUE = 150;
-  let section = "\n## Currently Known Insights (do NOT re-extract unless user corrects or enriches)\n";
+  let section = "\n## 이미 알고 있는 정보 (재질문 금지, 더 깊은 질문에 활용)\n";
   let totalLen = section.length;
   const sortedEntries = Object.entries(content).sort(([a], [b]) => a.localeCompare(b));
   for (const [key, value] of sortedEntries) {
@@ -125,97 +54,103 @@ function buildExistingInsightsSection(content: Record<string, string> | null): s
   return section;
 }
 
-function buildInsightExtractionPrompt(
-  uncoveredItems: InsightChecklistItem[],
-  coveredCount: number,
-  totalCount: number,
-  currentInsightContent: Record<string, string> | null,
-  insightMd?: string
-): string {
-  const checklistLines = uncoveredItems
-    .map((item) => `- "${item.key}": ${item.promptHint}`)
-    .join("\n");
+function buildSystemPrompt(args: {
+  flatPrompt: string;
+  profile: { resume_file_name?: string | null; resume_links?: string[] | null } | null;
+  structuredProfileText: string;
+  userTurnCount: number;
+  currentInsightContent: Record<string, string> | null;
+  uncoveredItems: InsightChecklistItem[];
+  coveredCount: number;
+}) {
+  const {
+    flatPrompt,
+    profile,
+    structuredProfileText,
+    userTurnCount,
+    currentInsightContent,
+    uncoveredItems,
+    coveredCount,
+  } = args;
 
+  const linkText = (profile?.resume_links ?? []).join(", ");
+  const existingInsightsSection = buildExistingInsightsSection(currentInsightContent);
   const topUncovered = uncoveredItems
     .slice(0, 3)
     .map((item) => `- ${item.promptHint}`)
     .join("\n");
 
-  const existingInsightsSection = buildExistingInsightsSection(currentInsightContent);
-
-  const md = insightMd ?? loadPrompt("insight-extraction.md");
-  const vars: Record<string, string | number> = {
-    coveredCount,
-    totalCount,
-    checklistLines,
-    topUncovered,
+  return [
+    flatPrompt,
+    "",
     existingInsightsSection,
-  };
-
-  return [
-    "\n## Response Format",
-    extractSection(md, "responseFormat"),
-    "\n## Step Transition",
-    extractSection(md, "stepTransition"),
-    "\n## Insight Extraction Rules",
-    fillPlaceholders(extractSection(md, "insightExtractionRules"), vars),
-    "\n## Conversation Guidance",
-    fillPlaceholders(extractSection(md, "conversationGuidance"), vars),
+    "",
+    `Insight coverage: ${coveredCount}/${INSIGHT_CHECKLIST.length} items covered.`,
+    "Prioritize naturally asking about these uncovered topics (one at a time):",
+    topUncovered,
+    "",
+    `Current user turn count: ${userTurnCount}`,
+    `Resume file: ${profile?.resume_file_name ?? "(none)"}`,
+    `Resume links: ${linkText || "(none)"}`,
+    structuredProfileText || "[Structured Talent Profile]\n(none)",
   ].join("\n");
 }
 
-function buildSystemPrompt(args: {
-  profile: TalentUserProfileRow | null;
-  structuredProfileText: string;
-  shouldSendReliefNudge: boolean;
-  userTurnCount: number;
-  insightExtractionPrompt: string;
-  currentStep: number;
-  systemMdOverride?: string;
-}) {
-  const {
-    profile,
-    structuredProfileText,
-    shouldSendReliefNudge,
-    userTurnCount,
-    insightExtractionPrompt,
-    currentStep,
-    systemMdOverride,
-  } = args;
-  const linkText = (profile?.resume_links ?? []).join(", ");
+// ---------------------------------------------------------------------------
+// Separate insight extraction (same approach as chat/save)
+// ---------------------------------------------------------------------------
 
-  const stepGuide = getStepGuideForPrompt(currentStep);
+function buildInsightExtractionPrompt(
+  uncoveredItems: InsightChecklistItem[],
+  coveredCount: number,
+  totalCount: number,
+  currentInsightContent: Record<string, string> | null
+): string {
+  const checklistLines = uncoveredItems
+    .map((item) => `- "${item.key}": ${item.promptHint}`)
+    .join("\n");
 
-  const systemMd = systemMdOverride ?? loadPrompt("system.md");
-  const persona = extractSection(systemMd, "persona");
-  const contextText = fillPlaceholders(
-    extractSection(systemMd, "contextTemplate"),
-    {
-      userTurnCount,
-      resumeFileName: profile?.resume_file_name ?? "(none)",
-      resumeLinks: linkText || "(none)",
-      structuredProfileText:
-        structuredProfileText || "[Structured Talent Profile]\n(none)",
-    }
-  );
-  const guidance = shouldSendReliefNudge
-    ? extractSection(systemMd, "reliefNudge")
-    : extractSection(systemMd, "defaultGuidance");
+  let existingSection = "";
+  if (currentInsightContent && Object.keys(currentInsightContent).length > 0) {
+    existingSection =
+      "\n## Currently Known Insights\n" +
+      Object.entries(currentInsightContent)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .slice(0, 20)
+        .map(
+          ([k, v]) =>
+            `- "${k}": "${v.length > 150 ? v.slice(0, 150) + "..." : v}"`
+        )
+        .join("\n");
+  }
 
-  return [
-    persona,
-    "",
-    stepGuide,
-    "",
-    getInterruptHandling(),
-    "",
-    insightExtractionPrompt,
-    "",
-    contextText,
-    "",
-    guidance,
-  ].join("\n");
+  return `You are an insight extraction assistant. Given a conversation turn between a user and Harper (an AI career counselor), extract structured career insights.
+
+Insight coverage: ${coveredCount}/${totalCount} items covered.
+${existingSection}
+
+## Checklist (extract when mentioned)
+${checklistLines}
+
+You may also extract free-form insights as snake_case keys with Korean values.
+
+## Response Format
+Return a valid JSON object:
+{
+  "extracted_insights": {
+    "key_name": { "value": "extracted value in Korean", "action": "new" | "update" }
+  }
 }
+
+- "new": key has no existing value
+- "update": user corrected or enriched a previously known insight (value = final integrated text)
+- If nothing to extract, return: { "extracted_insights": {} }
+- Only include keys where the user provided clear information.`;
+}
+
+// ---------------------------------------------------------------------------
+// POST handler
+// ---------------------------------------------------------------------------
 
 export async function POST(req: NextRequest) {
   try {
@@ -282,16 +217,7 @@ export async function POST(req: NextRequest) {
 
     const currentInsightContent = (currentInsights?.content ?? null) as Record<string, string> | null;
     const uncoveredItems = getUncoveredChecklistItems(currentInsightContent);
-    const coveredCount = (INSIGHT_CHECKLIST.length - uncoveredItems.length);
-    const draftInsightMd = getContentForUser("insight-extraction", testSlugs);
-    const draftSystemMd = getContentForUser("system", testSlugs);
-    const insightExtractionPrompt = buildInsightExtractionPrompt(
-      uncoveredItems,
-      coveredCount,
-      INSIGHT_CHECKLIST.length,
-      currentInsightContent,
-      draftInsightMd ?? undefined
-    );
+    const coveredCount = INSIGHT_CHECKLIST.length - uncoveredItems.length;
 
     const normalizedContent = link
       ? `${message}\n\n참고 링크: ${link}`
@@ -323,10 +249,6 @@ export async function POST(req: NextRequest) {
       limit: 24,
     });
 
-    const shouldSendReliefNudge =
-      userTurnCount >= 5 &&
-      !Boolean((conversation as TalentConversationRow).relief_nudge_sent);
-
     const llmMessages = recentMessages
       .map((item) => ({
         role: item.role as "user" | "assistant",
@@ -334,95 +256,34 @@ export async function POST(req: NextRequest) {
       }))
       .filter((item) => item.content.trim().length > 0);
 
-    const currentStep: number =
-      (conversation as TalentConversationRow & { current_step?: number })
-        .current_step ?? 1;
+    // Load flat prompt from DB, inject channel type
+    const flatPrompt = (getContentForUser("career-chat", testSlugs) ?? "")
+      .replace(/\{channel_type\}/g, "Chat");
 
-    const rawAssistantText = await runTalentAssistantCompletion({
+    const systemPrompt = buildSystemPrompt({
+      flatPrompt,
+      profile,
+      structuredProfileText,
+      userTurnCount,
+      currentInsightContent,
+      uncoveredItems,
+      coveredCount,
+    });
+
+    // --- Conversation LLM call (natural language, no JSON mode) ---
+    const assistantText = await runTalentAssistantCompletion({
       messages: [
-        {
-          role: "system",
-          content: buildSystemPrompt({
-            profile,
-            structuredProfileText,
-            shouldSendReliefNudge,
-            userTurnCount,
-            insightExtractionPrompt,
-            currentStep,
-            systemMdOverride: draftSystemMd ?? undefined,
-          }),
-        },
+        { role: "system", content: systemPrompt },
         ...llmMessages,
       ],
       temperature: 0.55,
-      jsonMode: true,
     });
 
-    const parsedResponse = parseAssistantResponse(rawAssistantText);
-
     const safeAssistantText =
-      parsedResponse.reply.trim() ||
+      assistantText.trim() ||
       "좋은 정보 감사합니다. 이어서 가장 우선순위인 조건을 하나만 더 알려주세요.";
 
-    // Persist extracted insights with action-aware merge (never blocks chat response)
-    if (parsedResponse.extractedInsights) {
-      try {
-        // Step A: Convert {value, action} objects to plain Record<string, string>.
-        // IMPORTANT: Must produce plain strings before upsertTalentInsights,
-        // because normalizeTalentInsightText (server.ts:212) rejects non-strings.
-        const processedInsights: Record<string, string> = {};
-
-        for (const [rawKey, extracted] of Object.entries(parsedResponse.extractedInsights)) {
-          const key = normalizeTalentInsightKey(rawKey);
-          if (!key || !extracted.value) continue;
-
-          const existingValue = currentInsightContent?.[key]?.trim();
-
-          if (extracted.action === "update") {
-            // Update: always write (upsert — works even if key doesn't exist yet)
-            if (existingValue && extracted.value.length < existingValue.length * 0.3) {
-              logger.log("[TalentChat] Insight update suspiciously shorter", {
-                key, existingLen: existingValue.length, newLen: extracted.value.length,
-              });
-            }
-            processedInsights[key] = extracted.value;
-            logger.log("[TalentChat] Insight updated", { key, action: "update" });
-          } else {
-            // New: only write if key is empty/missing
-            if (!existingValue) {
-              processedInsights[key] = extracted.value;
-              logger.log("[TalentChat] Insight created", { key, action: "new" });
-            }
-          }
-        }
-
-        if (Object.keys(processedInsights).length > 0) {
-          // Step B: Merge — processedInsights last so "update" keys overwrite existing.
-          // Safe because Step A already filtered "new" actions for existing keys.
-          const finalContent: Record<string, string> = {
-            ...(currentInsightContent ?? {}),
-            ...processedInsights,
-          };
-
-          // Step C: Upsert — finalContent is Record<string, string>,
-          // safe for normalizeTalentInsightContent inside upsertTalentInsights.
-          await upsertTalentInsights({
-            admin,
-            userId: user.id,
-            content: finalContent,
-          });
-        }
-      } catch (insightError) {
-        logger.log("[TalentChat] Failed to persist insights", {
-          userId: user.id,
-          error:
-            insightError instanceof Error
-              ? insightError.message
-              : "Unknown error",
-        });
-      }
-    }
-
+    // --- Save assistant message ---
     const { data: insertedAssistantMessage, error: assistantError } =
       await admin
         .from("talent_messages")
@@ -445,53 +306,106 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Step transition: if LLM signals a step change, update current_step
-    const nextStep = parsedResponse.stepTransition?.next_step ?? null;
-    const effectiveStep =
-      nextStep && nextStep > currentStep && nextStep <= TALENT_INTERVIEW_FINAL_STEP
-        ? nextStep
-        : currentStep;
+    // --- Separate insight extraction call ---
+    let newKeysCount = 0;
+    try {
+      const extractionPrompt = buildInsightExtractionPrompt(
+        uncoveredItems,
+        coveredCount,
+        INSIGHT_CHECKLIST.length,
+        currentInsightContent
+      );
 
-    // Completed when Step 5 reached AND at least 60% of checklist covered
-    const newKeysCount = parsedResponse.extractedInsights
-      ? Object.entries(parsedResponse.extractedInsights).filter(
-          ([key]) =>
-            !currentInsightContent?.[normalizeTalentInsightKey(key) ?? ""]?.trim()
-        ).length
-      : 0;
+      const extractionResponse = await client.chat.completions.create({
+        model: "gpt-4.1-mini",
+        messages: [
+          { role: "system", content: extractionPrompt },
+          { role: "user", content: normalizedContent },
+          { role: "assistant", content: safeAssistantText },
+        ],
+        temperature: 0.1,
+        response_format: { type: "json_object" },
+      });
+
+      const rawExtraction = (
+        extractionResponse.choices[0]?.message?.content ?? ""
+      ).replace(/^```json\s*/i, "").replace(/\s*```$/i, "").trim();
+
+      let parsed: { extracted_insights?: Record<string, unknown> } = {};
+      try {
+        parsed = JSON.parse(rawExtraction);
+      } catch {
+        const match = rawExtraction.match(/\{[\s\S]*\}/);
+        if (match) {
+          try { parsed = JSON.parse(match[0]); } catch { /* skip */ }
+        }
+      }
+
+      const extractedInsights = normalizeExtractedInsights(
+        (parsed.extracted_insights as Record<string, unknown>) ?? null
+      );
+
+      if (extractedInsights) {
+        const processedInsights: Record<string, string> = {};
+
+        for (const [rawKey, extracted] of Object.entries(extractedInsights)) {
+          const key = normalizeTalentInsightKey(rawKey);
+          if (!key || !extracted.value) continue;
+
+          const existingValue = currentInsightContent?.[key]?.trim();
+
+          if (extracted.action === "update") {
+            processedInsights[key] = extracted.value;
+          } else {
+            if (!existingValue) {
+              processedInsights[key] = extracted.value;
+            }
+          }
+        }
+
+        if (Object.keys(processedInsights).length > 0) {
+          newKeysCount = Object.keys(processedInsights).filter(
+            (k) => !currentInsightContent?.[k]?.trim()
+          ).length;
+
+          const finalContent: Record<string, string> = {
+            ...(currentInsightContent ?? {}),
+            ...processedInsights,
+          };
+
+          await upsertTalentInsights({
+            admin,
+            userId: user.id,
+            content: finalContent,
+          });
+        }
+      }
+    } catch (insightError) {
+      logger.log("[TalentChat] Failed to extract insights", {
+        userId: user.id,
+        error:
+          insightError instanceof Error
+            ? insightError.message
+            : "Unknown error",
+      });
+    }
+
+    // --- Completion check: coverage-based ---
     const insightsCoveredAfter = coveredCount + newKeysCount;
     const coverageRatio = INSIGHT_CHECKLIST.length > 0
       ? insightsCoveredAfter / INSIGHT_CHECKLIST.length
       : 1;
-    const isCompleted =
-      effectiveStep >= TALENT_INTERVIEW_FINAL_STEP &&
-      coverageRatio >= TALENT_INTERVIEW_MIN_COVERAGE;
-    // Step 6 = post-interview update mode
-    const finalStep = isCompleted ? 6 : effectiveStep;
+    const isCompleted = coverageRatio >= TALENT_INTERVIEW_MIN_COVERAGE;
+
     const now = new Date().toISOString();
-    const { error: conversationUpdateError } = await admin
+    await admin
       .from("talent_conversations")
       .update({
         stage: isCompleted ? "completed" : "chat",
-        current_step: finalStep,
-        relief_nudge_sent: shouldSendReliefNudge
-          ? true
-          : Boolean((conversation as TalentConversationRow).relief_nudge_sent),
         updated_at: now,
       })
       .eq("id", conversationId)
       .eq("user_id", user.id);
-
-    if (conversationUpdateError) {
-      return NextResponse.json(
-        {
-          error:
-            conversationUpdateError.message ??
-            "Failed to update conversation progress",
-        },
-        { status: 500 }
-      );
-    }
 
     const toResponseMessage = (item: TalentMessageRow) => ({
       id: item.id,
@@ -511,7 +425,7 @@ export async function POST(req: NextRequest) {
         answeredCount: userTurnCount,
         targetCount: TALENT_INTERVIEW_FINAL_STEP,
         completed: isCompleted,
-        currentStep: effectiveStep,
+        currentStep: insightsCoveredAfter,
       },
     });
   } catch (error) {
