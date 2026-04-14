@@ -428,6 +428,7 @@ const CareerPreviewPage = () => {
       onLogout: () => undefined,
       recentOpportunities: initialRecentOpportunities,
       historyOpportunities,
+      historyLoading: false,
       historyUpdatingOpportunityIds: [],
       historyUpdateError: "",
       onUpdateHistoryOpportunityFeedback: (
