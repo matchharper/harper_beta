@@ -82,6 +82,7 @@ export const useCareerChat = ({
   const [chatPending, setChatPending] = useState(false);
   const [chatError, setChatError] = useState("");
   const [assistantTyping, setAssistantTyping] = useState(false);
+  const [scrollTick, setScrollTick] = useState(0);
 
   const typingQueueRef = useRef<Promise<void>>(Promise.resolve());
   const mountedRef = useRef(true);
@@ -222,6 +223,7 @@ export const useCareerChat = ({
           toUiMessage(payload.userMessage),
         ]);
         await enqueueAssistantTypewriter(toUiMessage(payload.assistantMessage));
+        setScrollTick((t) => t + 1);
         await onMessagesChanged?.([
           payload.userMessage as CareerMessagePayload,
           payload.assistantMessage as CareerMessagePayload,
@@ -272,6 +274,7 @@ export const useCareerChat = ({
     stage,
     setStage,
     messages,
+    scrollTick,
     appendMessage,
     chatPending,
     chatError,
