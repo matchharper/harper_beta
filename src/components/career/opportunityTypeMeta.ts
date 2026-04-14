@@ -1,9 +1,4 @@
-import {
-  ExternalLink,
-  Handshake,
-  Sparkles,
-  type LucideIcon,
-} from "lucide-react";
+import { ExternalLink, Handshake, Zap, type LucideIcon } from "lucide-react";
 import { OpportunityType } from "@/lib/opportunityType";
 import type { CareerOpportunitySavedStage } from "./types";
 
@@ -62,7 +57,7 @@ export const CAREER_OPPORTUNITY_TYPE_META: Record<
     defaultSavedStage: "saved",
     info: {
       description:
-        "Harper가 외부에 공개된 JD를 선별해 추천한 기회입니다. Positive를 선택하면 저장함으로 이동하고, 지원은 후보자가 직접 진행합니다.",
+        "Harper가 외부에 공개된 커리어 기회들을 선별해 추천한 기회입니다.",
       title: "하퍼가 발견한 기회",
     },
     infoTag: {
@@ -75,7 +70,7 @@ export const CAREER_OPPORTUNITY_TYPE_META: Record<
     negativeFeedback: {
       modal: {
         description:
-          "이 메모는 Harper가 다음 추천 방향을 조정할 때 참고합니다.",
+          "이 메모는 Harper가 다음 추천 방향을 조정할 때 참고합니다. 선택하지 않고 바로 제출하실 수 있습니다.",
         placeholder:
           "부담스럽거나 지금 방향과 맞지 않는 이유를 간단히 적어주세요.",
         title: "다음에는 더 좋은 기회를 제공해드리겠습니다.",
@@ -123,11 +118,11 @@ export const CAREER_OPPORTUNITY_TYPE_META: Record<
       title: "Harper 추천 기회",
     },
     infoTag: {
-      icon: Sparkles,
+      icon: Zap,
       interactive: true,
       showHelpIcon: true,
     },
-    label: "Harper의 연결 제안",
+    label: "하퍼의 제안",
     negativeActionLabel: "선호하지 않음",
     negativeFeedback: {
       modal: {
@@ -166,10 +161,10 @@ export const CAREER_OPPORTUNITY_TYPE_META: Record<
     positiveFeedback: {
       modal: {
         description:
-          "이 메모는 Harper가 프로필 전달 전 다음 단계를 준비할 때 참고합니다.",
+          "이 메모는 Harper가 프로필 전달 전 다음 단계를 준비할 때 참고합니다. 바로 제출하셔도 됩니다.",
         placeholder:
-          "어떤 점이 괜찮게 느껴졌는지, Harper가 다음 단계에서 참고할 포인트를 적어주세요.",
-        title: "관심 표시 전에 한 줄만 남겨주세요",
+          "(Optional) 어떤 점이 괜찮게 느껴졌는지, Harper가 다음 단계에서 참고할 포인트를 적어주세요.",
+        title: "다음 단계로 진행을 도와드리겠습니다.",
       },
       requiresComment: true,
     },
@@ -231,8 +226,8 @@ export const CAREER_OPPORTUNITY_TYPE_META: Record<
     positiveFeedback: {
       modal: {
         description:
-          "연결을 수락하는 이유 혹은 기대되는 점, 먼저 확인하고 싶은 조건 등을 간단히 적어주세요.",
-        placeholder: "",
+          "연결을 수락하는 이유나 먼저 확인하고 싶은 조건이 있다면 간단히 남겨주세요. 바로 제출하셔도 됩니다.",
+        placeholder: "(Optional) 전달하고 싶은 메모가 있으면 적어주세요.",
         title: "채용 담당자와 연결됩니다.",
       },
       requiresComment: true,

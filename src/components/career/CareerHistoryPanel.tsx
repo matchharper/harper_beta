@@ -1,12 +1,4 @@
-import {
-  ArrowLeft,
-  ArrowRight,
-  ChevronRight,
-  Loader2,
-  MessageSquare,
-  ThumbsDown,
-  ThumbsUp,
-} from "lucide-react";
+import { ChevronRight, Loader2 } from "lucide-react";
 import {
   Fragment,
   useCallback,
@@ -16,7 +8,6 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/router";
-import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { showToast } from "@/components/toast/toast";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
 import CareerInPageTabs from "./CareerInPageTabs";
@@ -34,8 +25,6 @@ import {
 import {
   getCareerAppliedSavedStageLabel,
   getCareerDefaultSavedStage,
-  getCareerDefaultFeedbackButtonClassName,
-  getCareerFeedbackButtonClassName,
   getCareerNegativeActionLabel,
   getCareerOpportunityInfoCopy,
   getCareerOpportunityPanelToneClassName,
@@ -49,12 +38,15 @@ import {
   HistoryPositiveFeedbackModal,
   HistoryQuestionModal,
   parseNegativeFeedbackReason,
-  requiresNegativeFeedbackTextInput,
   serializeNegativeFeedbackReason,
 } from "./history/FeedbackModal";
 import OpportunityListCard from "./history/OpportunityListCard";
 import HistoryOpportunityDetailContent from "./history/HistoryOpportunityDetailContent";
 import HistoryOpportunityInfoModal from "./history/HistoryOppotunityInfoModal";
+import OpportunityDetailModal from "./history/OpportunityDetailModal";
+import HistoryShortcutPanel from "./history/HistoryShortcutPanel";
+import BeigeButton from "../ui/career/BeigeButton";
+import CandidateCarousel from "../chat/LoadingComponent";
 
 type HistoryTabId = "new" | "saved" | "archived";
 type SavedTabId = CareerOpportunitySavedStage;
@@ -82,22 +74,22 @@ const HISTORY_TABS: Array<{
 }> = [
   {
     id: "new",
-    label: "새로 받은 기회",
-    title: "새로 받은 기회",
-    description: ["아직 평가하지 않은 기회를 한 장씩 검토합니다."],
+    label: "새롭게 제안된 기회",
+    title: "새롭게 제안된 기회",
+    description: ["아직 평가하지 않은 기회들입니다."],
   },
   {
     id: "saved",
     label: "저장함",
     title: "저장함",
-    description: ["저장한 기회를 단계별로 관리합니다."],
+    description: ["제안된 기회를 저장하고, 단계별로 관리합니다."],
   },
   {
     id: "archived",
     label: "보관됨",
     title: "보관됨",
     description: [
-      "Negative를 선택한 기회들입니다.",
+      "거절 혹은 보류한 기회들입니다.",
       "리스트에서 다시 상세 내용을 확인하거나 복구할 수 있습니다.",
     ],
   },
@@ -149,10 +141,10 @@ const isSavedOpportunity = (item: CareerHistoryOpportunity) =>
 const isArchivedOpportunity = (item: CareerHistoryOpportunity) =>
   item.feedback === "negative";
 
-const getPositiveActionLabel = (item: CareerHistoryOpportunity) =>
+export const getPositiveActionLabel = (item: CareerHistoryOpportunity) =>
   getCareerPositiveActionLabel(item.opportunityType);
 
-const getNegativeActionLabel = (item: CareerHistoryOpportunity) =>
+export const getNegativeActionLabel = (item: CareerHistoryOpportunity) =>
   getCareerNegativeActionLabel(item.opportunityType);
 
 export const getOpportunityTypeLabel = (item: CareerHistoryOpportunity) =>
@@ -206,7 +198,8 @@ const isInteractiveTarget = (target: EventTarget | null) => {
     Boolean(target.closest("[contenteditable='true']"))
   );
 };
-const HistoryFeedbackButton = ({
+
+export const HistoryFeedbackButton = ({
   className,
   disabled,
   hint,
@@ -282,179 +275,11 @@ const HistorySavedStageTabs = ({
   </div>
 );
 
-const HistoryShortcutPanel = ({
-  activeIndex,
-  totalCount,
-  onNext,
-  onPrev,
-  item,
-  pending,
-  onPositive,
-  onNegative,
-  onQuestion,
-}: {
-  activeIndex: number;
-  totalCount: number;
-  onNext: () => void;
-  onPrev: () => void;
-  item: CareerHistoryOpportunity;
-  pending: boolean;
-  onPositive: () => void;
-  onNegative: () => void;
-  onQuestion: () => void;
-}) => (
-  <CareerInlinePanel className="rounded-[8px] border border-beige200 bg-beige100 px-4 py-4">
-    <div className="space-y-3">
-      <div className="text-[13px] leading-5 text-beige900">
-        <div className="mb-2 flex flex-row items-center justify-center gap-2">
-          <div className="flex flex-row items-center gap-2">
-            <ArrowLeft className="h-3 w-3" /> 이전 기회
-          </div>
-          <span>·</span>
-          <div className="flex flex-row items-center gap-2">
-            다음 기회
-            <ArrowRight className="h-3 w-3" />
-          </div>
-        </div>
-
-        <div className="mt-4 space-y-2">
-          <HistoryFeedbackButton
-            className={getCareerFeedbackButtonClassName(
-              item.opportunityType,
-              item.feedback === "positive"
-            )}
-            disabled={pending}
-            hint="T"
-            icon={<ThumbsUp className="h-4 w-4" />}
-            label={getPositiveActionLabel(item)}
-            onClick={onPositive}
-          />
-          <HistoryFeedbackButton
-            className={getCareerDefaultFeedbackButtonClassName(
-              item.feedback === "negative"
-            )}
-            disabled={pending}
-            hint="S"
-            icon={<ThumbsDown className="h-4 w-4" />}
-            label={getNegativeActionLabel(item)}
-            onClick={onNegative}
-          />
-          <HistoryFeedbackButton
-            className={getCareerDefaultFeedbackButtonClassName(false)}
-            disabled={pending}
-            hint="A"
-            icon={<MessageSquare className="h-4 w-4" />}
-            label="질문하기"
-            onClick={onQuestion}
-          />
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2 pt-1">
-        <CareerSecondaryButton
-          onClick={onPrev}
-          disabled={activeIndex <= 0}
-          className="h-9 flex-1 gap-2 px-3"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Prev
-        </CareerSecondaryButton>
-        <CareerSecondaryButton
-          onClick={onNext}
-          disabled={activeIndex >= totalCount - 1}
-          className="h-9 flex-1 gap-2 px-3"
-        >
-          Next
-          <ArrowRight className="h-4 w-4" />
-        </CareerSecondaryButton>
-      </div>
-    </div>
-  </CareerInlinePanel>
-);
-
-const HistoryOpportunityModal = ({
-  item,
-  open,
-  pending,
-  onClose,
-  onOpenLink,
-  onOpenOpportunityInfo,
-  onPositive,
-  onNegative,
-  onQuestion,
-}: {
-  item: CareerHistoryOpportunity | null;
-  open: boolean;
-  pending: boolean;
-  onClose: () => void;
-  onOpenLink: (url: string) => void;
-  onOpenOpportunityInfo: (type: CareerOpportunityType) => void;
-  onPositive: () => void;
-  onNegative: () => void;
-  onQuestion: () => void;
-}) => {
-  if (!open || !item) return null;
-
-  return (
-    <TalentCareerModal
-      open={open}
-      onClose={onClose}
-      ariaLabel={`${item.title} 상세`}
-      overlayClassName="items-start pt-10"
-      panelClassName="w-[min(960px,50vw)] max-w-none border border-beige900/10 bg-beige50"
-      bodyClassName="max-h-[82vh] overflow-y-auto bg-beige50 px-5 pb-5 pt-14"
-      closeButtonClassName="font-geist right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-beige900/10 bg-white/70 text-beige900/70 transition-colors hover:border-beige900/25 hover:text-beige900"
-    >
-      <div className="space-y-4">
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <div className="flex-1">
-            <HistoryFeedbackButton
-              className={getCareerFeedbackButtonClassName(
-                item.opportunityType,
-                item.feedback === "positive"
-              )}
-              disabled={pending}
-              icon={<ThumbsUp className="h-4 w-4" />}
-              label={getPositiveActionLabel(item)}
-              onClick={onPositive}
-            />
-          </div>
-          <div className="flex-1">
-            <HistoryFeedbackButton
-              className={getCareerDefaultFeedbackButtonClassName(
-                item.feedback === "negative"
-              )}
-              disabled={pending}
-              icon={<ThumbsDown className="h-4 w-4" />}
-              label={getNegativeActionLabel(item)}
-              onClick={onNegative}
-            />
-          </div>
-          <div className="flex-1">
-            <HistoryFeedbackButton
-              className={getCareerDefaultFeedbackButtonClassName(false)}
-              disabled={pending}
-              icon={<MessageSquare className="h-4 w-4" />}
-              label="질문하기"
-              onClick={onQuestion}
-            />
-          </div>
-        </div>
-
-        <HistoryOpportunityDetailContent
-          item={item}
-          onOpenLink={onOpenLink}
-          onOpenOpportunityInfo={onOpenOpportunityInfo}
-        />
-      </div>
-    </TalentCareerModal>
-  );
-};
-
 const CareerHistoryPanel = () => {
   const router = useRouter();
   const {
     historyOpportunities,
+    historyLoading,
     historyUpdatingOpportunityIds,
     historyUpdateError,
     onMarkHistoryOpportunityClicked,
@@ -867,10 +692,12 @@ const CareerHistoryPanel = () => {
   );
 
   const handleSubmitPositivePrompt = useCallback(() => {
-    if (!positivePromptOpportunity || !positivePromptDraft.trim()) return;
+    if (!positivePromptOpportunity) return;
+
+    const feedbackReason = positivePromptDraft.trim();
 
     updateFeedbackForItem(positivePromptOpportunity, "positive", {
-      feedbackReason: positivePromptDraft.trim(),
+      feedbackReason: feedbackReason || null,
       savedStage: getDefaultSavedStage(
         positivePromptOpportunity.opportunityType
       ),
@@ -1009,13 +836,70 @@ const CareerHistoryPanel = () => {
 
   const listItems = activeTab === "saved" ? filteredSavedItems : archivedItems;
 
+  const OuterBox = ({ children }: { children: ReactNode }) => {
+    return (
+      <div>
+        <div className="w-[280px] flex flex-col gap-2 pr-8 mt-2 mb-8">
+          <h3 className="text-[28px] text-black font-normal font-halant leading-5">
+            Opportunities
+          </h3>
+        </div>
+        {children}
+      </div>
+    );
+  };
+
+  if (historyLoading) {
+    return (
+      <OuterBox>
+        <section className="px-5 py-6">
+          <div className="flex items-center gap-2 text-[15px] leading-6 text-beige900/55">
+            <Loader2 className="h-4 w-4 animate-spin text-beige900" />
+            저장된 정보를 불러오는 중입니다...
+          </div>
+        </section>
+      </OuterBox>
+    );
+  }
+
   if (sortedOpportunities.length === 0) {
     return (
-      <section className="border border-beige900/10 bg-white/40 px-5 py-6">
-        <div className="text-[15px] leading-6 text-beige900/45">
-          아직 표시할 기회가 없습니다.
-        </div>
-      </section>
+      <OuterBox>
+        <section className="text-[15px] py-6 flex flex-row items-start justify-between">
+          <div>
+            <div className="leading-7 text-beige900/80">
+              아직 맞는 기회를 찾는 중입니다.
+              <br />
+              Harper는 회원님의 활동을 기반으로
+              <br />
+              지속적으로 새로운 기회를 탐색하고 있습니다.
+              <br />
+              <br />
+              모든 기회는 실제 검토를 거쳐 도착합니다. 의미없는 대량의 추천은
+              없습니다.
+            </div>
+            <div className="mt-6 flex flex-col items-start justify-start gap-8">
+              <div>
+                더 빠르게 더 많은 기회를 받아보고 싶다면 하퍼에게 알려주세요.
+              </div>
+              <BeigeButton
+                label="대화하러 가기"
+                size="md"
+                className="text-beige50"
+                variant="primary"
+                onClick={() => {
+                  router.push("/career/chat");
+                }}
+              />
+            </div>
+          </div>
+          <div>
+            <div className="text-beige900 text-2xl font-semibold font-hedvig">
+              Matching in Progess...
+            </div>
+          </div>
+        </section>
+      </OuterBox>
     );
   }
 
@@ -1163,7 +1047,7 @@ const CareerHistoryPanel = () => {
         </div>
       </div>
 
-      <HistoryOpportunityModal
+      <OpportunityDetailModal
         open={Boolean(modalOpportunity && activeTab !== "new")}
         item={modalOpportunity}
         pending={

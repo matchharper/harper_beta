@@ -5,16 +5,25 @@ import { useCountryLang } from "@/hooks/useCountryLang";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { supabase } from "@/lib/supabase";
 import {
-  TALENT_NETWORK_ACTIVE_ROLLOUT_TYPE,
   TALENT_NETWORK_ABTEST_TYPE_KEY,
   TALENT_NETWORK_LAST_VISIT_AT_KEY,
   TALENT_NETWORK_LOCAL_ID_KEY,
   createTalentNetworkLocalId,
   resolveTalentNetworkAssignmentType,
-  usesTalentNetworkAExperience,
   usesTalentNetworkBExperience,
   type TalentNetworkAssignmentType,
+  TALENT_NETWORK_ABTEST_TYPE_B,
 } from "@/lib/talentNetwork";
+import {
+  captureTalentNetworkReferralVisit,
+  copyTextToClipboard,
+  createTalentNetworkReferralLink,
+  isTalentNetworkReferralSource,
+  readTalentNetworkStoredReferral,
+  TALENT_NETWORK_REFERRAL_QUERY_KEY,
+  TALENT_NETWORK_REFERRAL_SOURCE_LANDING_FOOTER,
+  writeTalentNetworkStoredReferral,
+} from "@/lib/talentNetworkReferral";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowUpRight,
@@ -30,6 +39,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Onboarding2Content } from "./onboarding2";
+import { logger } from "@/utils/logger";
 
 type CompanyRequest = {
   id: string;
@@ -74,7 +84,7 @@ const companyRequests: CompanyRequest[] = [
     requirements:
       "Strong engineering fundamentals with experience shipping products, familiarity with LLMs or AI tooling, and the ability to translate real-world problems into working systems. Experience in product thinking, data, or system design is a plus.",
     engagement: "Full-time<br />Part-time (4~12 hours/week)<br />Intern",
-    compensation: "Average salary : 100k+",
+    compensation: "Average salary : $ 120k+",
   },
   {
     id: "fde",
@@ -90,21 +100,6 @@ const companyRequests: CompanyRequest[] = [
     engagement: "Full-time",
     compensation: "Worldwide competitive salary + Equity",
   },
-  // {
-  //   id: "deployment-strategist",
-  //   title: "Deployment Strategist",
-  //   role: "Deployment Strategist",
-  //   company: "Confidential AI Unicorn (Series B)",
-  //   summary: "Full-Time",
-  //   intro:
-  //     "Harper is partnered with a <i>Confidential Global AI Unicorn (Series B)</i>.",
-  //   about:
-  //     "You will own the business impact of AI deployments. Working alongside FDEs, you will design the rollout strategy, manage enterprise stakeholders, and ensure our AI solutions deliver measurable ROI for clients.",
-  //   requirements:
-  //     "Exceptional strategic thinking, background in tech consulting, PM, or operational leadership, and strong business acumen.",
-  //   engagement: "Full-time",
-  //   compensation: "Worldwide competitive salary + Equity",
-  // },
   {
     id: "aiml-engineer-researcher",
     title: "AI/ML Engineer & Researcher",
@@ -284,24 +279,15 @@ type NetworkSectionKey =
   | "faq"
   | "footer";
 
-async function copyToClipboard(text: string) {
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text);
-    return;
-  }
-
-  const ta = document.createElement("textarea");
-  ta.value = text;
-  ta.style.position = "fixed";
-  ta.style.left = "-9999px";
-  document.body.appendChild(ta);
-  ta.select();
-  document.execCommand("copy");
-  document.body.removeChild(ta);
-}
-
 const isValidEmail = (value: string) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
+function getClientSearchParam(key: string) {
+  if (typeof window === "undefined") return null;
+  const value = new URLSearchParams(window.location.search).get(key);
+  const normalized = String(value ?? "").trim();
+  return normalized.length > 0 ? normalized : null;
+}
 
 const SectionTag = ({ children }: { children: React.ReactNode }) => (
   <div className={sectionTagClassName}>{children}</div>
@@ -322,11 +308,13 @@ const schoolLogos = [
   },
 ];
 
-const NetworkButton = ({
+export const NetworkButton = ({
   label,
   size = "md",
   variant = "primary",
   showArrow = true,
+  highlighted = false,
+  disabled = false,
   onClick,
   className = "",
 }: {
@@ -334,6 +322,8 @@ const NetworkButton = ({
   size?: "sm" | "md";
   variant?: "primary" | "secondary";
   showArrow?: boolean;
+  highlighted?: boolean;
+  disabled?: boolean;
   onClick?: () => void;
   className?: string;
 }) => {
@@ -343,6 +333,7 @@ const NetworkButton = ({
   return (
     <motion.button
       type="button"
+      disabled={disabled}
       onClick={onClick}
       whileHover={{ y: -1 }}
       whileTap={{ scale: 0.985 }}
@@ -356,6 +347,12 @@ const NetworkButton = ({
             ? "h-[44px] px-5 text-[14px]"
             : "h-[42px] px-4 text-[15px]"
           : "h-[50px] px-5 text-base"
+      } ${
+        highlighted
+          ? isPrimary
+            ? "ring-4 ring-[#D9C1A0] ring-offset-2 ring-offset-beige200 shadow-[0_18px_44px_rgba(46,23,6,0.2)]"
+            : "ring-2 ring-[#D9C1A0]/90 ring-offset-2 ring-offset-beige200"
+          : ""
       } ${className}`}
     >
       {!isPrimary && (
@@ -445,12 +442,14 @@ const RequestDetailModal = ({
   onGetMatched,
   onShare,
   shareButtonLabel,
+  highlightPrimaryCta = false,
 }: {
   request: CompanyRequest | null;
   onClose: () => void;
   onGetMatched: () => void;
   onShare: () => void;
   shareButtonLabel: string;
+  highlightPrimaryCta?: boolean;
 }) => {
   if (!request) return null;
 
@@ -572,6 +571,7 @@ const RequestDetailModal = ({
             <NetworkButton
               label="Get matched"
               showArrow={false}
+              highlighted={highlightPrimaryCta}
               onClick={onGetMatched}
               className="h-11 w-full rounded-xl sm:flex-1"
             />
@@ -706,8 +706,105 @@ const InquiryModal = ({
   );
 };
 
+const ReferralShareModal = ({
+  email,
+  isSubmitting,
+  onClose,
+  onEmailChange,
+  onSubmit,
+}: {
+  email: string;
+  isSubmitting: boolean;
+  onClose: () => void;
+  onEmailChange: (value: string) => void;
+  onSubmit: () => void;
+}) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[146] flex items-center justify-center p-4"
+    >
+      <motion.button
+        type="button"
+        aria-label="공유 모달 닫기"
+        onClick={onClose}
+        className="absolute inset-0 bg-black/10 backdrop-blur-[2px]"
+      />
+
+      <motion.div
+        initial={{ opacity: 0, y: 12, scale: 0.985 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 10, scale: 0.985 }}
+        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+        className="relative z-10 w-[96%] max-w-[420px] rounded-2xl border border-beige900/8 bg-beige100 p-5 shadow-[0_20px_60px_rgba(37,20,6,0.14)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={isSubmitting}
+          className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-beige900/55 transition hover:bg-beige900/[0.03] hover:text-beige900/80 disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label="공유 모달 닫기"
+        >
+          <X className="h-4 w-4" />
+        </button>
+
+        <div className="pr-7">
+          <h2 className="text-base font-medium tracking-[-0.03em] text-beige900">
+            공유 링크 생성
+          </h2>
+        </div>
+
+        <div className="mt-5">
+          <label className="mb-2 block text-sm font-medium tracking-[-0.02em] text-beige900/70">
+            이메일
+          </label>
+          <input
+            type="email"
+            value={email}
+            onChange={(event) => onEmailChange(event.target.value)}
+            placeholder="example@example.com"
+            className="h-11 w-full rounded-md border border-beige900/12 bg-white/75 px-4 text-[15px] text-beige900 outline-none transition focus:border-beige900/30 focus:ring-1 focus:ring-beige900/20 placeholder:text-beige900/30"
+          />
+        </div>
+
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="inline-flex h-10 items-center justify-center rounded-xl border border-beige900/12 bg-white/60 px-4 text-sm font-medium text-beige900/80 transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            닫기
+          </button>
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={isSubmitting}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-beige900 px-4 text-sm font-medium text-beige100 transition hover:opacity-92 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {isSubmitting ? (
+              <>
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+                생성 중...
+              </>
+            ) : (
+              "공유 링크 생성"
+            )}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
+
 const NetworkPage = () => {
   const router = useRouter();
+  const isRouterReady = router.isReady;
+  const routerAsPath = router.asPath;
+  const routerQuery = router.query;
   const countryLang = useCountryLang();
   const isMobile = useIsMobile();
   const [openFaqIndex, setOpenFaqIndex] = useState(0);
@@ -729,18 +826,24 @@ const NetworkPage = () => {
   >(null);
   const [copiedRequestId, setCopiedRequestId] = useState<string | null>(null);
   const [isInquiryOpen, setIsInquiryOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [shareEmail, setShareEmail] = useState("");
   const [inquiryEmail, setInquiryEmail] = useState("");
   const [inquiryContent, setInquiryContent] = useState("");
   const [isInquirySubmitting, setIsInquirySubmitting] = useState(false);
+  const [isShareSubmitting, setIsShareSubmitting] = useState(false);
   const [landingId, setLandingId] = useState("");
   const [abtestType, setAbtestType] =
     useState<TalentNetworkAssignmentType | null>(null);
+  const [hasReferralHighlight, setHasReferralHighlight] = useState(false);
+
   const heroSectionRef = useRef<HTMLElement | null>(null);
   const socialProofSectionRef = useRef<HTMLElement | null>(null);
   const opportunitiesSectionRef = useRef<HTMLElement | null>(null);
   const faqSectionRef = useRef<HTMLElement | null>(null);
   const footerSectionRef = useRef<HTMLDivElement | null>(null);
   const requestCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const processedReferralTokenRef = useRef<string | null>(null);
   const hasLoggedFirstScrollRef = useRef(false);
   const sectionLastLoggedAtRef = useRef<Record<NetworkSectionKey, number>>({
     hero: 0,
@@ -757,8 +860,6 @@ const NetworkPage = () => {
     mobilePositionPage * MOBILE_POSITION_PAGE_SIZE,
     (mobilePositionPage + 1) * MOBILE_POSITION_PAGE_SIZE
   );
-  const usesAExperience = usesTalentNetworkAExperience(abtestType);
-  const usesBExperience = usesTalentNetworkBExperience(abtestType);
 
   const addLandingLog = useCallback(
     async (
@@ -795,6 +896,12 @@ const NetworkPage = () => {
     },
     [addLandingLog]
   );
+
+  const openShareModal = useCallback(() => {
+    void addLandingLog("talent_network_click_footer_share_open");
+    setShareEmail("");
+    setIsShareModalOpen(true);
+  }, [addLandingLog]);
 
   const handleOpenRequest = useCallback(
     (request: CompanyRequest) => {
@@ -863,6 +970,76 @@ const NetworkPage = () => {
       });
     }
   }, [addLandingLog]);
+
+  useEffect(() => {
+    const queryReferral = routerQuery[TALENT_NETWORK_REFERRAL_QUERY_KEY];
+    const queryToken = Array.isArray(queryReferral)
+      ? queryReferral[0]
+      : queryReferral;
+    const urlToken = getClientSearchParam(TALENT_NETWORK_REFERRAL_QUERY_KEY);
+    const storedReferral = readTalentNetworkStoredReferral();
+    const activeReferralToken = urlToken || queryToken || storedReferral?.token;
+
+    logger.log(
+      "referralToken",
+      activeReferralToken,
+      "urlToken",
+      urlToken,
+      "queryToken",
+      queryToken,
+      queryReferral,
+      Boolean(activeReferralToken)
+    );
+
+    setHasReferralHighlight(Boolean(activeReferralToken));
+  }, [routerAsPath, routerQuery]);
+
+  useEffect(() => {
+    if (!landingId) return;
+
+    const referralParam = routerQuery[TALENT_NETWORK_REFERRAL_QUERY_KEY];
+    const queryToken = Array.isArray(referralParam)
+      ? referralParam[0]
+      : referralParam;
+    const urlToken = getClientSearchParam(TALENT_NETWORK_REFERRAL_QUERY_KEY);
+    const referralToken = urlToken || queryToken;
+
+    if (!referralToken || processedReferralTokenRef.current === referralToken) {
+      return;
+    }
+
+    processedReferralTokenRef.current = referralToken;
+
+    const captureReferral = async () => {
+      try {
+        const result = await captureTalentNetworkReferralVisit({
+          pagePath: window.location.pathname,
+          token: referralToken,
+          visitorLocalId: landingId,
+        });
+
+        if (
+          !result.isSelfVisit &&
+          result.sharerEmail &&
+          isTalentNetworkReferralSource(result.source)
+        ) {
+          setHasReferralHighlight(true);
+          writeTalentNetworkStoredReferral({
+            capturedAt: new Date().toISOString(),
+            sharerEmail: result.sharerEmail,
+            sharerName: result.sharerName,
+            source: result.source,
+            token: referralToken,
+          });
+        }
+      } catch (error) {
+        processedReferralTokenRef.current = null;
+        console.error("Failed to capture talent network referral", error);
+      }
+    };
+
+    void captureReferral();
+  }, [landingId, routerAsPath, routerQuery]);
 
   useEffect(() => {
     if (!landingId || !abtestType) return;
@@ -1130,7 +1307,7 @@ const NetworkPage = () => {
       );
       shareUrl.searchParams.set(SHARE_REQUEST_QUERY_KEY, request.id);
 
-      await copyToClipboard(shareUrl.toString());
+      await copyTextToClipboard(shareUrl.toString());
       setCopiedRequestId(request.id);
       showToast({
         message: "공유 링크가 복사되었습니다.",
@@ -1142,6 +1319,55 @@ const NetworkPage = () => {
         message: "링크 복사에 실패했습니다.",
         variant: "error",
       });
+    }
+  };
+
+  const handleCreateFooterShare = async () => {
+    const trimmedEmail = shareEmail.trim().toLowerCase();
+    if (isShareSubmitting) return;
+
+    if (!trimmedEmail) {
+      showToast({
+        message: "이메일을 입력해 주세요.",
+        variant: "white",
+      });
+      return;
+    }
+
+    if (!isValidEmail(trimmedEmail)) {
+      showToast({
+        message: "유효한 이메일을 입력해 주세요.",
+        variant: "white",
+      });
+      return;
+    }
+
+    setIsShareSubmitting(true);
+
+    try {
+      const { url } = await createTalentNetworkReferralLink({
+        email: trimmedEmail,
+        pagePath: window.location.pathname,
+        sharerLocalId: landingId || null,
+        source: TALENT_NETWORK_REFERRAL_SOURCE_LANDING_FOOTER,
+      });
+
+      await copyTextToClipboard(url);
+      void addLandingLog("talent_network_click_footer_share_copy");
+      setIsShareModalOpen(false);
+      setShareEmail("");
+      showToast({
+        message: "공유 링크가 복사되었습니다.",
+        variant: "white",
+      });
+    } catch (error) {
+      console.error("Failed to create footer share link", error);
+      showToast({
+        message: "공유 링크 생성에 실패했습니다.",
+        variant: "error",
+      });
+    } finally {
+      setIsShareSubmitting(false);
     }
   };
 
@@ -1336,22 +1562,63 @@ const NetworkPage = () => {
                 className={`${titleTextClassName} text-beige900 text-4xl md:text-5xl`}
               >
                 {/* GET MATCHED TO TOP AI STARTUPS */}
-                <span className="block">
-                  <StaggerText text="Access the World's" />
-                </span>
-                <span className="block mt-3">
-                  <StaggerText text="Most Elite AI Positions." delay={0.14} />
-                </span>
+                {abtestType === TALENT_NETWORK_ABTEST_TYPE_B ? (
+                  <>
+                    <span className="block">
+                      <StaggerText text="Access the World's" />
+                    </span>
+                    <span className="block mt-3">
+                      <StaggerText
+                        text="Most Elite AI Positions."
+                        delay={0.14}
+                      />
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="block">
+                      <StaggerText text="We Handle Your Profile with Care." />
+                    </span>
+                    <span className="block md:hidden mt-3">
+                      <StaggerText
+                        text="You Get the Right Roles."
+                        delay={0.14}
+                      />
+                    </span>
+                    <span className="hidden md:block mt-3">
+                      <StaggerText
+                        text="You Get the Right Roles."
+                        delay={0.14}
+                      />
+                    </span>
+                  </>
+                )}
               </h2>
             </Reveal>
 
             <Reveal once delay={0.18}>
               <div className="mt-8 flex flex-col justify-center items-center text-lg tracking-[-0.03em] text-beige900/70">
-                <div>
-                  Direct backdoor to confidential AI unicorns backed by top-tier
-                  Global VCs.
-                </div>
-                <div>Skip the HR screen and match directly with founders.</div>
+                {abtestType === TALENT_NETWORK_ABTEST_TYPE_B ? (
+                  <>
+                    <div>
+                      Direct backdoor to confidential AI unicorns backed by
+                      top-tier Global VCs.
+                    </div>
+                    <div>
+                      Skip the HR screen and match directly with founders.
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      We handle your profile carefully and connect you to top
+                      opportunities.
+                    </div>
+                    <div>
+                      No spam, no public exposure, no irrelevant outreach.
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="mt-8 flex flex-row items-center justify-center gap-2 text-base tracking-[-0.03em] text-beige900/50 flex-wrap">
@@ -1363,21 +1630,17 @@ const NetworkPage = () => {
 
             <Reveal once delay={0.24} className="mt-12">
               <NetworkButton
-                label="Initiate Match"
+                label={
+                  abtestType === TALENT_NETWORK_ABTEST_TYPE_B
+                    ? "Initiate Match"
+                    : "Start with Harper"
+                }
+                highlighted={hasReferralHighlight}
                 onClick={() =>
                   openOnboarding("talent_network_click_hero_initiate_match")
                 }
               />
             </Reveal>
-
-            {/* <Reveal
-              once
-              delay={0.3}
-              className="mt-2 inline-flex items-center gap-2 text-base tracking-[-0.03em] text-beige900/55"
-            >
-              <ShieldCheck className="h-5 w-5" />
-              <span>Your info is private. Not shared without consent</span>
-            </Reveal> */}
           </section>
 
           <section
@@ -1416,9 +1679,7 @@ const NetworkPage = () => {
               </p> */}
             </Reveal>
 
-            <VCLogos
-              abtestType={abtestType ?? TALENT_NETWORK_ACTIVE_ROLLOUT_TYPE}
-            />
+            <VCLogos abtestType={abtestType} />
           </section>
 
           <section
@@ -1510,50 +1771,48 @@ const NetworkPage = () => {
             </div>
           </section>
 
-          {usesBExperience && (
-            <Reveal once className="text-center mt-24 md:mt-32">
-              <SectionTag>Our value</SectionTag>
+          <Reveal once className="text-center mt-24 md:mt-32">
+            <SectionTag>Our value</SectionTag>
 
-              <h2
-                className={`mx-auto mt-8 max-w-[860px] font-halant text-3xl md:text-4xl leading-[0.98] tracking-[-0.08em] text-beige900`}
-              >
-                Highly Curated
-              </h2>
-              {/* <p className="mx-auto mt-6 max-w-[680px] text-[20px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
+            <h2
+              className={`mx-auto mt-8 max-w-[860px] font-halant text-3xl md:text-4xl leading-[0.98] tracking-[-0.08em] text-beige900`}
+            >
+              Highly Curated
+            </h2>
+            {/* <p className="mx-auto mt-6 max-w-[680px] text-[20px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
                 Tell us who you need. We find, shortlist, and deliver candidates
                 you can review and interview right away.
               </p> */}
 
-              <div className="mt-8 md:mt-16 flex flex-col md:flex-row gap-6 items-start justify-between">
-                {valueCards.map((item, index) => (
-                  <Reveal
-                    key={item.number}
-                    once
-                    direction="right"
-                    delay={index * 0.08}
-                    className="w-full"
-                  >
-                    <div className="grid grid-cols-[42px_1fr] gap-4 text-left">
-                      <div className="pt-1 font-geist text-2xl font-medium leading-none tracking-[-0.08em] text-beige900/60 max-[809px]:pt-2">
-                        {item.number}
-                      </div>
-                      <div>
-                        <div className="flex items-start gap-3 max-[809px]:flex-col-reverse max-[809px]:gap-2">
-                          <h3 className="text-xl font-medium leading-[1.12] tracking-[-0.05em] text-beige900 max-[809px]:mt-2">
-                            {item.title}
-                          </h3>
-                        </div>
-                        <p
-                          className="mt-2 text-base md:text-[18px] leading-[1.5] tracking-[-0.03em] text-beige900/50"
-                          dangerouslySetInnerHTML={{ __html: item.description }}
-                        />
-                      </div>
+            <div className="mt-8 md:mt-16 flex flex-col md:flex-row gap-6 items-start justify-between">
+              {valueCards.map((item, index) => (
+                <Reveal
+                  key={item.number}
+                  once
+                  direction="right"
+                  delay={index * 0.08}
+                  className="w-full"
+                >
+                  <div className="grid grid-cols-[42px_1fr] gap-4 text-left">
+                    <div className="pt-1 font-geist text-2xl font-medium leading-none tracking-[-0.08em] text-beige900/60 max-[809px]:pt-2">
+                      {item.number}
                     </div>
-                  </Reveal>
-                ))}
-              </div>
-            </Reveal>
-          )}
+                    <div>
+                      <div className="flex items-start gap-3 max-[809px]:flex-col-reverse max-[809px]:gap-2">
+                        <h3 className="text-xl font-medium leading-[1.12] tracking-[-0.05em] text-beige900 max-[809px]:mt-2">
+                          {item.title}
+                        </h3>
+                      </div>
+                      <p
+                        className="mt-2 text-base md:text-[18px] leading-[1.5] tracking-[-0.03em] text-beige900/50"
+                        dangerouslySetInnerHTML={{ __html: item.description }}
+                      />
+                    </div>
+                  </div>
+                </Reveal>
+              ))}
+            </div>
+          </Reveal>
 
           <section
             id="faq"
@@ -1568,10 +1827,6 @@ const NetworkPage = () => {
             <div className="mx-auto mt-12 max-w-[860px] space-y-4 text-left">
               {faqs.map((faq, index) => {
                 const isOpen = openFaqIndex === index;
-
-                if (usesAExperience && index === 0) {
-                  return null;
-                }
 
                 return (
                   <Reveal key={faq.question} once delay={index * 0.04}>
@@ -1653,12 +1908,32 @@ const NetworkPage = () => {
                 height={256}
                 className="w-44 sm:w-52 md:w-64"
               />
-              <NetworkButton
-                label="Initiate Match"
-                onClick={() =>
-                  openOnboarding("talent_network_click_last_initiate_match")
-                }
-              />
+              <div className="flex flex-col items-center gap-3">
+                <NetworkButton
+                  label={
+                    abtestType === TALENT_NETWORK_ABTEST_TYPE_B
+                      ? "Initiate Match"
+                      : "Start with Harper"
+                  }
+                  highlighted={hasReferralHighlight}
+                  onClick={() =>
+                    openOnboarding("talent_network_click_last_initiate_match")
+                  }
+                />
+                <div className="flex flex-col items-center gap-2 w-[360px]">
+                  <NetworkButton
+                    label="Harper 공유하기"
+                    variant="secondary"
+                    showArrow={false}
+                    className="h-11 w-[180px]"
+                    onClick={openShareModal}
+                  />
+                  <div className="whitespace-pre-wrap break-words px-1 py-0.5 leading-[1.2] w-full text-sm text-center rounded-sm mt-1 text-beige900/80">
+                    링크를 공유받은 사람이 Harper를 통해 채용되면 감사의 의미로
+                    양쪽에 300만원 상당의 허먼밀러 의자를 보내드립니다.
+                  </div>
+                </div>
+              </div>
             </div>
           </Reveal>
 
@@ -1697,6 +1972,7 @@ const NetworkPage = () => {
               request={selectedRequest}
               onClose={() => setSelectedRequest(null)}
               onShare={() => void handleShareRequest(selectedRequest)}
+              highlightPrimaryCta={hasReferralHighlight}
               shareButtonLabel={
                 copiedRequestId === selectedRequest.id
                   ? "링크 복사됨"
@@ -1726,6 +2002,18 @@ const NetworkPage = () => {
               onSubmit={() => void handleSubmitInquiry()}
               onEmailChange={setInquiryEmail}
               onContentChange={setInquiryContent}
+            />
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {isShareModalOpen && (
+            <ReferralShareModal
+              email={shareEmail}
+              isSubmitting={isShareSubmitting}
+              onClose={() => setIsShareModalOpen(false)}
+              onEmailChange={setShareEmail}
+              onSubmit={() => void handleCreateFooterShare()}
             />
           )}
         </AnimatePresence>
@@ -1766,12 +2054,12 @@ export default NetworkPage;
 const vcLogos = [
   { key: "a16z2", src: "/svgs/a16z2.svg", width: 100 },
   { key: "yc2", src: "/svgs/yc.svg", width: 152 },
-  { key: "sequoia2", src: "/svgs/sequoia.svg", width: 146 },
-  { key: "index2", src: "/svgs/index.svg", width: 136 },
-  { key: "besemmer2", src: "/svgs/bessemer.svg", width: 118 },
+  { key: "sequoia2", src: "/images/wonderful.png", width: 154 },
+  { key: "mistral", src: "/images/mistral.png", width: 142 },
+  { key: "cohere", src: "/svgs/cohere.svg", width: 124 },
 ];
 
-function VCLogos({ abtestType }: { abtestType: string }) {
+function VCLogos({ abtestType }: { abtestType: string | null }) {
   const items = [...vcLogos];
   const showsBMessaging = usesTalentNetworkBExperience(abtestType);
 
@@ -1783,11 +2071,9 @@ function VCLogos({ abtestType }: { abtestType: string }) {
           <span className="text-beige900/50">Most Exciting Tech companies</span>{" "}
           funded by the world&apos;s elite.
         </div>
-        {showsBMessaging && (
-          <div className="w-full text-center text-beige900 text-base md:text-lg leading-[1.55] tracking-[-0.03em] font-medium mt-2">
-            It&apos;s worth joining even if you&apos;re not actively looking.
-          </div>
-        )}
+        <div className="w-full text-center text-beige900 text-base md:text-lg leading-[1.55] tracking-[-0.03em] font-medium mt-2">
+          It&apos;s worth joining even if you&apos;re not actively looking.
+        </div>
       </Reveal>
       <Reveal once delay={0.14} className="w-full text-center">
         <div className="w-full flex-row items-center justify-center gap-16 hidden md:flex">

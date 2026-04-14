@@ -134,4 +134,4 @@ const OpportunityListCard = ({
   );
 };
 
-export default OpportunityListCard;
+export default React.memo(OpportunityListCard);

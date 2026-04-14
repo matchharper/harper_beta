@@ -2,11 +2,13 @@ import React from "react";
 
 type CandidateCarouselProps = {
   className?: string;
+  styleType?: "default" | "beige";
 };
 
 const pattern = [0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1];
 
 export default function CandidateCarousel({
+  styleType = "default",
   className = "",
 }: CandidateCarouselProps) {
   return (
@@ -64,8 +66,12 @@ export default function CandidateCarousel({
       </style>
 
       <div className={`relative w-[480px] overflow-hidden ${className}`}>
-        <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-[140px] bg-gradient-to-r from-[#212121] to-transparent" />
-        <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-[140px] bg-gradient-to-l from-[#212121] to-transparent" />
+        <div
+          className={`pointer-events-none absolute inset-y-0 left-0 z-10 w-[140px] bg-gradient-to-r ${styleType === "beige" ? "from-beige50" : "from-[#212121]"} to-transparent`}
+        />
+        <div
+          className={`pointer-events-none absolute inset-y-0 right-0 z-10 w-[140px] bg-gradient-to-l ${styleType === "beige" ? "from-beige50" : "from-[#212121]"} to-transparent`}
+        />
 
         <div className="harper-track flex gap-3">
           {pattern.map((isMatch, idx) => {
