@@ -7,22 +7,29 @@ import {
   fetchTalentStructuredProfile,
   fetchTalentUserProfile,
   getTalentSupabaseAdmin,
+  type TalentConversationRow,
 } from "@/lib/talentOnboarding/server";
 import {
   getUncoveredChecklistItems,
   INSIGHT_CHECKLIST,
 } from "@/lib/talentOnboarding/insightChecklist";
-import { buildCareerSystemPrompt, INTERRUPT_HANDLING_INSTRUCTION, CALL_END_INSTRUCTION } from "@/lib/talentOnboarding/interviewSteps";
+import { buildRealtimeStepGuides, getInterruptHandling, getCallEndInstruction } from "@/lib/talentOnboarding/interviewSteps";
+import { loadPrompt, extractSection, validatePromptFile } from "@/lib/talentOnboarding/prompts";
+import { warmCache, getTestFlagSlugs, getContentForUser } from "@/lib/talentOnboarding/prompts/promptCache";
+
+validatePromptFile("system.md");
 
 /**
  * Build Realtime session instructions with Harper persona + user profile context.
- * Uses unified system prompt with Voice channel + interrupt/call-end instructions.
- * Insight extraction is handled by the separate /api/talent/chat/save endpoint.
+ * Excludes insight extraction format (handled by separate save endpoint).
  */
 async function buildRealtimeInstructions(
   userId: string,
   conversationId: string
 ): Promise<string> {
+  await warmCache();
+  const testSlugs = await getTestFlagSlugs(userId);
+
   const admin = getTalentSupabaseAdmin();
 
   const [profile, currentInsights] = await Promise.all([
@@ -42,6 +49,13 @@ async function buildRealtimeInstructions(
     maxResumeChars: 3000,
   });
 
+  const { data: conversation } = await admin
+    .from("talent_conversations")
+    .select("*")
+    .eq("id", conversationId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
   const userTurnCount = await countUserChatTurns({ admin, conversationId });
 
   const currentInsightContent = (currentInsights?.content ?? null) as Record<
@@ -51,11 +65,26 @@ async function buildRealtimeInstructions(
   const uncoveredItems = getUncoveredChecklistItems(currentInsightContent);
   const coveredCount = INSIGHT_CHECKLIST.length - uncoveredItems.length;
 
+  const topUncovered = uncoveredItems
+    .slice(0, 3)
+    .map((item) => `- ${item.promptHint}`)
+    .join("\n");
+
+  const shouldSendReliefNudge =
+    userTurnCount >= 5 &&
+    !Boolean((conversation as TalentConversationRow | null)?.relief_nudge_sent);
+
+  const linkText = (profile?.resume_links ?? []).join(", ");
+
+  const currentStep: number =
+    (conversation as TalentConversationRow & { current_step?: number })
+      ?.current_step ?? 1;
+
   // Build existing insights section (capped at 1500 chars for Realtime context budget)
   let existingInsightsSection = "";
   if (currentInsightContent && Object.keys(currentInsightContent).length > 0) {
     const MAX_TOTAL = 1500;
-    let section = "\n이미 수집된 정보 (재질문 금지, 더 깊은 질문에 활용):\n";
+    let section = "\n## 이미 알고 있는 정보 (재질문 금지, 더 깊은 질문에 활용)\n";
     let totalLen = section.length;
     for (const [key, value] of Object.entries(currentInsightContent).sort(([a], [b]) => a.localeCompare(b))) {
       const truncated = value.length > 120 ? value.slice(0, 120) + "..." : value;
@@ -67,26 +96,32 @@ async function buildRealtimeInstructions(
     existingInsightsSection = section;
   }
 
-  const uncoveredSlotsSection = uncoveredItems.length > 0
-    ? "우선 수집할 슬롯:\n" + uncoveredItems.slice(0, 3).map((item) => `- ${item.label}: ${item.promptHint}`).join("\n")
-    : "";
+  const systemMd = getContentForUser("system", testSlugs) ?? loadPrompt("system.md");
+  const persona = extractSection(systemMd, "persona");
 
   return [
-    buildCareerSystemPrompt({
-      channelType: "Voice",
-      candidateName: profile?.name ?? "",
-      structuredProfileText,
-      resumeFileName: profile?.resume_file_name ?? null,
-      resumeLinks: (profile?.resume_links ?? []) as string[],
-      userTurnCount,
-      existingInsightsSection,
-      uncoveredSlotsSection,
-      slotCoverage: `${coveredCount}/${INSIGHT_CHECKLIST.length} 슬롯 수집 완료.`,
-    }),
+    persona,
     "",
-    INTERRUPT_HANDLING_INSTRUCTION,
+    buildRealtimeStepGuides(currentStep),
     "",
-    CALL_END_INSTRUCTION,
+    getInterruptHandling(),
+    "",
+    getCallEndInstruction(),
+    "",
+    existingInsightsSection,
+    "",
+    `Insight coverage: ${coveredCount}/${INSIGHT_CHECKLIST.length} items covered.`,
+    "Prioritize naturally asking about these uncovered topics (one at a time):",
+    topUncovered,
+    "",
+    `Current user turn count: ${userTurnCount}`,
+    `Resume file: ${profile?.resume_file_name ?? "(none)"}`,
+    `Resume links: ${linkText || "(none)"}`,
+    structuredProfileText || "[Structured Talent Profile]\n(none)",
+    "",
+    shouldSendReliefNudge
+      ? extractSection(systemMd, "reliefNudge")
+      : extractSection(systemMd, "defaultGuidance"),
   ].join("\n");
 }
 

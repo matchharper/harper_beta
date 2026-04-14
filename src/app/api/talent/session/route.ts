@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
+import { warmCache } from "@/lib/talentOnboarding/prompts/promptCache";
 import {
-  TALENT_FIRST_VISIT_TEXT,
+  getTalentFirstVisitText,
   TalentConversationRow,
   ensureTalentUserRecord,
   fetchTalentInsights,
@@ -45,6 +46,7 @@ export async function GET(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    await warmCache();
 
     const admin = getTalentSupabaseAdmin();
     await ensureTalentUserRecord({ admin, user });
@@ -95,7 +97,7 @@ export async function GET(req: NextRequest) {
           conversation_id: conversation.id,
           user_id: user.id,
           role: "assistant",
-          content: TALENT_FIRST_VISIT_TEXT,
+          content: getTalentFirstVisitText(),
           message_type: "system",
         });
 
