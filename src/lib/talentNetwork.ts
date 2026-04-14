@@ -15,8 +15,9 @@ export const TALENT_NETWORK_ABTEST_TYPES = [
   TALENT_NETWORK_ABTEST_TYPE_A,
   TALENT_NETWORK_ABTEST_TYPE_B,
 ] as const;
-// v1 is closed. When the next experiment is ready, switch this to "experiment".
-export const TALENT_NETWORK_ACTIVE_MODE = "rollout" as const;
+
+// v2 A/B experiment is active. Switch this to "rollout" after selecting a winner.
+export const TALENT_NETWORK_ACTIVE_MODE = "experiment" as const;
 export const TALENT_NETWORK_ACTIVE_ROLLOUT_TYPE =
   TALENT_NETWORK_ABTEST_TYPE_B_V1_ROLLOUT;
 export const TALENT_NETWORK_ANALYTICS_ABTEST_TYPES = [
@@ -33,6 +34,8 @@ export type TalentNetworkAssignmentType =
 export const TALENT_NETWORK_CLICK_EVENT_PREFIX = "talent_network_click_";
 export const TALENT_NETWORK_SUBMIT_COMPLETED_EVENT =
   "talent_network_submit_completed";
+export const TALENT_NETWORK_PROFILE_IDENTITY_COMPLETED_EVENT =
+  "talent_network_onboarding_step_1_name_email_completed";
 
 export const TALENT_NETWORK_ONBOARDING_STEPS = [
   {
@@ -72,6 +75,38 @@ export const TALENT_NETWORK_ONBOARDING_STEPS = [
   },
 ] as const;
 
+export const TALENT_NETWORK_ONBOARDING_COMPARISON_STEPS: Array<{
+  key: string;
+  step: number;
+  label: string;
+  eventType: string;
+}> = [
+  {
+    key: TALENT_NETWORK_ONBOARDING_STEPS[0].eventType,
+    step: TALENT_NETWORK_ONBOARDING_STEPS[0].step,
+    label: TALENT_NETWORK_ONBOARDING_STEPS[0].label,
+    eventType: TALENT_NETWORK_ONBOARDING_STEPS[0].eventType,
+  },
+  {
+    key: TALENT_NETWORK_ONBOARDING_STEPS[1].eventType,
+    step: TALENT_NETWORK_ONBOARDING_STEPS[1].step,
+    label: TALENT_NETWORK_ONBOARDING_STEPS[1].label,
+    eventType: TALENT_NETWORK_ONBOARDING_STEPS[1].eventType,
+  },
+  {
+    key: TALENT_NETWORK_PROFILE_IDENTITY_COMPLETED_EVENT,
+    step: 1,
+    label: "이름 / 이메일 입력 완료",
+    eventType: TALENT_NETWORK_PROFILE_IDENTITY_COMPLETED_EVENT,
+  },
+  ...TALENT_NETWORK_ONBOARDING_STEPS.slice(2).map((item) => ({
+    key: item.eventType,
+    step: item.step,
+    label: item.label,
+    eventType: item.eventType,
+  })),
+];
+
 export const getTalentNetworkOnboardingStepEventType = (step: number) =>
   TALENT_NETWORK_ONBOARDING_STEPS.find((item) => item.step === step)?.eventType;
 
@@ -84,11 +119,7 @@ export const isTalentNetworkAbtestType = (
 export const resolveTalentNetworkAssignmentType = (
   value: string | null | undefined
 ): TalentNetworkAssignmentType =>
-  TALENT_NETWORK_ACTIVE_MODE === "rollout"
-    ? TALENT_NETWORK_ACTIVE_ROLLOUT_TYPE
-    : isTalentNetworkAbtestType(value)
-      ? value
-      : getRandomTalentNetworkAbtestType();
+  isTalentNetworkAbtestType(value) ? value : getRandomTalentNetworkAbtestType();
 
 export const getRandomTalentNetworkAbtestType = (): TalentNetworkAbtestType =>
   Math.random() < 0.5
@@ -108,7 +139,9 @@ export const usesTalentNetworkBExperience = (
   value === TALENT_NETWORK_ABTEST_TYPE_B_V1_ROLLOUT ||
   value === TALENT_NETWORK_ABTEST_TYPE_B;
 
-export const getTalentNetworkVariantLabel = (value: string | null | undefined) =>
+export const getTalentNetworkVariantLabel = (
+  value: string | null | undefined
+) =>
   value === TALENT_NETWORK_ABTEST_TYPE_A_V1
     ? "A v1"
     : value === TALENT_NETWORK_ABTEST_TYPE_B_V1

@@ -46,8 +46,10 @@ export type TalentNetworkFunnelSummary = {
   onboardingStartUsers: number;
   submittedUsers: number;
   steps: Array<{
+    key: string;
     step: number;
     label: string;
+    eventType: string;
     userCount: number;
   }>;
 };

@@ -1,7 +1,16 @@
 import type { Json } from "@/types/database.types";
+import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
+import {
+  DEFAULT_OPS_TALENT_RECOMMENDATION_PROMPT,
+  renderOpsTalentRecommendationPrompt,
+} from "@/lib/opsOpportunityRecommendationPrompt";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { normalizeTalentNetworkApplication } from "@/lib/talentNetworkApplication";
-import { OpportunityType, isOpportunityType } from "@/lib/opportunityType";
+import {
+  OPPORTUNITY_TYPE_LABEL,
+  OpportunityType,
+  isOpportunityType,
+} from "@/lib/opportunityType";
 
 type AdminClient = ReturnType<typeof getSupabaseAdmin>;
 
@@ -53,6 +62,26 @@ type CandidateRow = {
   user_id: string;
 };
 
+type TalentExperiencePromptRow = {
+  company_location: string | null;
+  company_name: string | null;
+  description: string | null;
+  end_date: string | null;
+  memo: string | null;
+  months: number | null;
+  role: string | null;
+  start_date: string | null;
+};
+
+type TalentEducationPromptRow = {
+  degree: string | null;
+  end_date: string | null;
+  field: string | null;
+  memo: string | null;
+  school: string | null;
+  start_date: string | null;
+};
+
 type MatchRow = {
   candid?: {
     headline: string | null;
@@ -94,6 +123,28 @@ type RecommendationRow = {
   saved_stage: string | null;
   talent_id: string;
   updated_at: string;
+};
+
+type RecommendationDraftRoleRow = {
+  company_workspace: {
+    company_description: string | null;
+    company_name: string | null;
+    homepage_url: string | null;
+    linkedin_url: string | null;
+  } | null;
+  description: string | null;
+  expires_at: string | null;
+  external_jd_url: string | null;
+  location_text: string | null;
+  name: string | null;
+  posted_at: string | null;
+  role_id: string;
+  source_job_id: string | null;
+  source_provider: string | null;
+  source_type: string | null;
+  status: string | null;
+  type: string[] | null;
+  work_mode: string | null;
 };
 
 type CompanyDbRow = {
@@ -474,6 +525,35 @@ function normalizeRecommendationReasons(value: Json): string[] {
   return [];
 }
 
+function sanitizeRecommendationReason(value: unknown) {
+  const normalized = String(value ?? "")
+    .replace(/\r/g, "")
+    .trim();
+  if (!normalized) return "";
+
+  return normalized
+    .replace(/^[-*•]+\s*/, "")
+    .replace(/^\d+[\].)\-:]+\s*/, "")
+    .trim();
+}
+
+function splitRecommendationMemoIntoReasons(memo: string | null) {
+  if (!memo) return [];
+
+  const seen = new Set<string>();
+  const items: string[] = [];
+
+  for (const line of memo.replace(/\r/g, "").split("\n")) {
+    const normalized = sanitizeRecommendationReason(line);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    items.push(normalized);
+    if (items.length >= 8) break;
+  }
+
+  return items;
+}
+
 function escapeHtml(value: string) {
   return value
     .replace(/&/g, "&amp;")
@@ -527,7 +607,7 @@ async function insertTalentOpportunityNotification(args: {
 }
 
 function buildRecommendationReasons(memo: string | null) {
-  return memo ? [memo] : [];
+  return splitRecommendationMemoIntoReasons(memo);
 }
 
 function mapRecommendationRecord(
@@ -550,7 +630,10 @@ function mapRecommendationRecord(
     opportunityType: normalizeOpportunityType(row.opportunity_type),
     postedAt: role.posted_at ?? null,
     recommendationId: String(row.id ?? ""),
-    recommendationMemo: recommendationReasons[0] ?? null,
+    recommendationMemo:
+      recommendationReasons.length > 0
+        ? recommendationReasons.join("\n")
+        : null,
     recommendationReasons,
     recommendedAt: String(row.recommended_at ?? ""),
     roleId: String(row.role_id ?? ""),
@@ -560,6 +643,193 @@ function mapRecommendationRecord(
     talentId: String(row.talent_id ?? ""),
     updatedAt: String(row.updated_at ?? row.created_at ?? ""),
   };
+}
+
+function clampPromptText(value: string | null | undefined, maxLength: number) {
+  if (typeof value !== "string") return "";
+  const normalized = value.replace(/\r/g, "").trim();
+  if (!normalized) return "";
+  return normalized.slice(0, maxLength);
+}
+
+function formatPromptDateRange(
+  startDate: string | null | undefined,
+  endDate: string | null | undefined
+) {
+  const start = String(startDate ?? "").trim();
+  const end = String(endDate ?? "").trim();
+  if (!start && !end) return "";
+  if (start && end) return `${start} ~ ${end}`;
+  if (start) return `${start} ~ Present`;
+  return end;
+}
+
+function stringifyPromptJson(value: unknown, maxLength: number) {
+  if (!value || typeof value !== "object") return "";
+
+  try {
+    return JSON.stringify(value, null, 2).slice(0, maxLength).trim();
+  } catch {
+    return "";
+  }
+}
+
+function buildRecommendationTalentProfileContext(args: {
+  candidate: CandidateRow;
+  educations: TalentEducationPromptRow[];
+  experiences: TalentExperiencePromptRow[];
+}) {
+  const { candidate, educations, experiences } = args;
+  const lines: string[] = [];
+  const resumeLinks = (candidate.resume_links ?? []).filter(
+    (link): link is string => typeof link === "string" && link.trim().length > 0
+  );
+
+  lines.push("Basic");
+  if (candidate.name) lines.push(`- Name: ${candidate.name}`);
+  if (candidate.headline) lines.push(`- Headline: ${candidate.headline}`);
+  if (candidate.location) lines.push(`- Location: ${candidate.location}`);
+  if (candidate.email) lines.push(`- Email: ${candidate.email}`);
+
+  const bio = clampPromptText(candidate.bio, 1200);
+  if (bio) lines.push(`- Bio: ${bio}`);
+
+  if (resumeLinks.length > 0) {
+    lines.push("Resume Links");
+    resumeLinks.slice(0, 8).forEach((link, index) => {
+      lines.push(`${index + 1}. ${link}`);
+    });
+  }
+
+  const careerProfile = stringifyPromptJson(candidate.career_profile, 2000);
+  if (careerProfile) {
+    lines.push("Career Profile JSON");
+    lines.push(careerProfile);
+  }
+
+  const networkApplication = stringifyPromptJson(
+    candidate.network_application,
+    1200
+  );
+  if (networkApplication) {
+    lines.push("Network Application JSON");
+    lines.push(networkApplication);
+  }
+
+  if (experiences.length > 0) {
+    lines.push("Experiences");
+    experiences.slice(0, 8).forEach((experience, index) => {
+      const parts = [
+        `Role: ${experience.role ?? "(unknown)"}`,
+        `Company: ${experience.company_name ?? "(unknown)"}`,
+      ];
+      const dateRange = formatPromptDateRange(
+        experience.start_date,
+        experience.end_date
+      );
+      if (dateRange) parts.push(`Dates: ${dateRange}`);
+      if (experience.months && experience.months > 0) {
+        parts.push(`Months: ${experience.months}`);
+      }
+      if (experience.company_location) {
+        parts.push(`Location: ${experience.company_location}`);
+      }
+
+      let itemText = `${index + 1}. ${parts.join(", ")}`;
+      const description = clampPromptText(experience.description, 500);
+      if (description) itemText += `\n   Description: ${description}`;
+      const memo = clampPromptText(experience.memo, 240);
+      if (memo) itemText += `\n   Memo: ${memo}`;
+      lines.push(itemText);
+    });
+  }
+
+  if (educations.length > 0) {
+    lines.push("Educations");
+    educations.slice(0, 5).forEach((education, index) => {
+      const parts = [
+        `School: ${education.school ?? "(unknown)"}`,
+        `Degree: ${education.degree ?? "(unknown)"}`,
+      ];
+      if (education.field) parts.push(`Field: ${education.field}`);
+      const dateRange = formatPromptDateRange(
+        education.start_date,
+        education.end_date
+      );
+      if (dateRange) parts.push(`Dates: ${dateRange}`);
+
+      let itemText = `${index + 1}. ${parts.join(", ")}`;
+      const memo = clampPromptText(education.memo, 240);
+      if (memo) itemText += `\n   Memo: ${memo}`;
+      lines.push(itemText);
+    });
+  }
+
+  const resumeText = clampPromptText(candidate.resume_text, 4000);
+  if (resumeText) {
+    lines.push("Resume Text Snippet");
+    lines.push(resumeText);
+  }
+
+  return lines.join("\n");
+}
+
+function buildRecommendationRoleContext(args: {
+  opportunityType: OpportunityType;
+  role: RecommendationDraftRoleRow;
+}) {
+  const { opportunityType, role } = args;
+  const workspace = role.company_workspace;
+  const lines: string[] = [];
+
+  lines.push("Role");
+  lines.push(`- Opportunity Type: ${OPPORTUNITY_TYPE_LABEL[opportunityType]}`);
+  lines.push(`- Role: ${role.name ?? "(unknown)"}`);
+  lines.push(`- Company: ${workspace?.company_name ?? "(unknown)"}`);
+  lines.push(`- Source: ${normalizeOpportunitySourceType(role.source_type)}`);
+  lines.push(`- Status: ${normalizeOpportunityStatus(role.status)}`);
+
+  if (role.location_text) lines.push(`- Location: ${role.location_text}`);
+  if (role.work_mode) {
+    lines.push(
+      `- Work Mode: ${normalizeOpportunityWorkMode(role.work_mode) ?? role.work_mode}`
+    );
+  }
+  if (Array.isArray(role.type) && role.type.length > 0) {
+    lines.push(`- Employment Types: ${role.type.join(", ")}`);
+  }
+  if (role.posted_at) lines.push(`- Posted At: ${role.posted_at}`);
+  if (role.expires_at) lines.push(`- Expires At: ${role.expires_at}`);
+  if (role.source_provider) {
+    lines.push(`- Source Provider: ${role.source_provider}`);
+  }
+  if (role.source_job_id) lines.push(`- Source Job ID: ${role.source_job_id}`);
+  if (role.external_jd_url) {
+    lines.push(`- External JD URL: ${role.external_jd_url}`);
+  }
+  if (workspace?.homepage_url) {
+    lines.push(`- Company Homepage: ${workspace.homepage_url}`);
+  }
+  if (workspace?.linkedin_url) {
+    lines.push(`- Company LinkedIn: ${workspace.linkedin_url}`);
+  }
+
+  const description = clampPromptText(role.description, 4000);
+  if (description) {
+    lines.push("Role Description");
+    lines.push(description);
+  }
+
+  const companyDescription = clampPromptText(
+    workspace?.company_description,
+    2000
+  );
+  if (companyDescription) {
+    lines.push("Company Description");
+    lines.push(companyDescription);
+  }
+
+  return lines.join("\n");
 }
 
 async function resolveCompanyDbRecord(args: {
@@ -1447,6 +1717,148 @@ export async function saveOpsOpportunityRecommendation(args: {
   }
 
   return fetchOpsOpportunityRecommendations({ talentId });
+}
+
+export async function generateOpsOpportunityRecommendationDraft(args: {
+  opportunityType: OpportunityType;
+  promptTemplate?: string | null;
+  roleId: string;
+  talentId: string;
+}) {
+  const admin = getSupabaseAdmin();
+  const talentId = ensureNonEmptyString(args.talentId, "talentId");
+  const roleId = ensureNonEmptyString(args.roleId, "roleId");
+  const opportunityType = normalizeOpportunityType(args.opportunityType);
+  const promptTemplate =
+    String(args.promptTemplate ?? "").trim() ||
+    DEFAULT_OPS_TALENT_RECOMMENDATION_PROMPT;
+
+  const [
+    candidateResponse,
+    roleResponse,
+    experienceResponse,
+    educationResponse,
+  ] = await Promise.all([
+    ((admin.from("talent_users" as any) as any)
+      .select(
+        "user_id, name, headline, location, profile_picture, email, bio, resume_text, resume_links, career_profile, network_application, updated_at"
+      )
+      .eq("user_id", talentId)
+      .maybeSingle() as any),
+    ((admin.from("company_roles" as any) as any)
+      .select(
+        `
+          role_id,
+          name,
+          description,
+          external_jd_url,
+          source_type,
+          source_provider,
+          source_job_id,
+          posted_at,
+          expires_at,
+          location_text,
+          work_mode,
+          status,
+          type,
+          company_workspace:company_workspace (
+            company_name,
+            company_description,
+            homepage_url,
+            linkedin_url
+          )
+        `
+      )
+      .eq("role_id", roleId)
+      .maybeSingle() as any),
+    ((admin.from("talent_experiences" as any) as any)
+      .select(
+        "role, description, start_date, end_date, months, company_name, company_location, memo"
+      )
+      .eq("talent_id", talentId)
+      .order("start_date", { ascending: false, nullsFirst: false })
+      .order("id", { ascending: false }) as any),
+    ((admin.from("talent_educations" as any) as any)
+      .select("school, degree, field, start_date, end_date, memo")
+      .eq("talent_id", talentId)
+      .order("start_date", { ascending: false, nullsFirst: false })
+      .order("id", { ascending: false }) as any),
+  ]);
+
+  if (candidateResponse.error) {
+    throw new Error(candidateResponse.error.message ?? "Failed to load talent");
+  }
+  if (roleResponse.error) {
+    throw new Error(roleResponse.error.message ?? "Failed to load role");
+  }
+  if (experienceResponse.error) {
+    throw new Error(
+      experienceResponse.error.message ?? "Failed to load talent experiences"
+    );
+  }
+  if (educationResponse.error) {
+    throw new Error(
+      educationResponse.error.message ?? "Failed to load talent educations"
+    );
+  }
+
+  const candidate = (candidateResponse.data ?? null) as CandidateRow | null;
+  const role = (roleResponse.data ?? null) as RecommendationDraftRoleRow | null;
+  const experiences = coerceJsonArray<TalentExperiencePromptRow>(
+    experienceResponse.data
+  );
+  const educations = coerceJsonArray<TalentEducationPromptRow>(
+    educationResponse.data
+  );
+
+  if (!candidate) {
+    throw new Error("추천할 후보자 프로필을 찾지 못했습니다.");
+  }
+  if (!role?.company_workspace) {
+    throw new Error("추천할 role 정보를 찾지 못했습니다.");
+  }
+
+  const renderedPrompt = renderOpsTalentRecommendationPrompt(promptTemplate, {
+    opportunity_type_label: OPPORTUNITY_TYPE_LABEL[opportunityType],
+    candidate_name: String(candidate.name ?? "").trim() || "Unknown Candidate",
+    company_name:
+      String(role.company_workspace.company_name ?? "").trim() ||
+      "Unknown Company",
+    role_name: String(role.name ?? "").trim() || "Unknown Role",
+    candidate_profile: buildRecommendationTalentProfileContext({
+      candidate,
+      educations,
+      experiences,
+    }),
+    role_summary: buildRecommendationRoleContext({
+      opportunityType,
+      role,
+    }),
+  });
+
+  const response = await runTalentAssistantCompletion({
+    messages: [
+      {
+        role: "system",
+        content: renderedPrompt,
+      },
+      {
+        role: "user",
+        content:
+          "후보자에게 전달할 추천 메모를 작성해줘. 각 추천 포인트는 줄바꿈으로 구분해.",
+      },
+    ],
+    temperature: 0.35,
+  });
+
+  const draft = splitRecommendationMemoIntoReasons(response).join("\n");
+  if (!draft) {
+    throw new Error("추천 메모를 생성하지 못했습니다.");
+  }
+
+  return {
+    draft,
+  };
 }
 
 export async function deleteOpsOpportunityRecommendation(args: {
