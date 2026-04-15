@@ -8,11 +8,13 @@ type SessionPayload = SessionResponse & { error?: string };
 type UseCareerSessionArgs = {
   fetchWithAuth: FetchWithAuth;
   inviteToken?: string | null;
+  mail?: string | null;
 };
 
 export const useCareerSession = ({
   fetchWithAuth,
   inviteToken,
+  mail,
 }: UseCareerSessionArgs) => {
   const [sessionPending, setSessionPending] = useState(false);
   const [sessionError, setSessionError] = useState("");
@@ -29,6 +31,7 @@ export const useCareerSession = ({
         method: "POST",
         body: JSON.stringify({
           inviteToken: inviteToken?.trim() || undefined,
+          mail: mail?.trim() || undefined,
         }),
       });
       if (!bootstrapRes.ok) {
@@ -63,7 +66,7 @@ export const useCareerSession = ({
     } finally {
       setSessionPending(false);
     }
-  }, [fetchWithAuth, inviteToken]);
+  }, [fetchWithAuth, inviteToken, mail]);
 
   const resetSessionState = useCallback(() => {
     setConversationId(null);

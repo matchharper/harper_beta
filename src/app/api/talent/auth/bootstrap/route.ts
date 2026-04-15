@@ -3,11 +3,13 @@ import { getRequestUser } from "@/lib/supabaseServer";
 import {
   ensureTalentUserRecord,
   getTalentSupabaseAdmin,
+  markTalentUserLoggedIn,
 } from "@/lib/talentOnboarding/server";
 import { claimTalentNetworkInvite } from "@/lib/talentOnboarding/networkClaim";
 
 type Body = {
   inviteToken?: string;
+  mail?: string;
 };
 
 export async function POST(req: NextRequest) {
@@ -19,8 +21,13 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json().catch(() => ({}))) as Body;
     const inviteToken = String(body?.inviteToken ?? "").trim();
+    const mail = String(body?.mail ?? "").trim();
     const admin = getTalentSupabaseAdmin();
-    await ensureTalentUserRecord({ admin, user });
+    await ensureTalentUserRecord({
+      admin,
+      user,
+      mail: mail || null,
+    });
     const claim =
       inviteToken.length > 0
         ? await claimTalentNetworkInvite({
@@ -29,6 +36,10 @@ export async function POST(req: NextRequest) {
             user,
           })
         : null;
+    await markTalentUserLoggedIn({
+      admin,
+      userId: user.id,
+    });
 
     return NextResponse.json({
       claim,

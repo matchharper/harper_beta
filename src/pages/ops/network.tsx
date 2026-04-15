@@ -34,6 +34,30 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
+const DEFAULT_FIRST_MAIL_SUBJECT =
+  "Harper와 함께 하시게된 것을 환영합니다. Harper에서 더 좋은 기회를 받으려면";
+
+const DEFAULT_FIRST_MAIL_CONTENT = `안녕하세요 {{name}}님, 등록해주셔서 감사합니다.
+
+앞으로 다른 곳에서 찾기힘든 좋은 기회들만 찾아서 연결시켜드리겠습니다.
+
+다만 {{name}}님이 실제로 고려할 만한 기회만 선별하기 위해,
+몇 가지 선호를 더 알고 싶습니다.
+
+아래 링크로 접속한 뒤 5분 정도의 대화를 통해 선호하시는 기회를 알려주세요.
+
+👉  {{invite_url}}
+
+(등록하신 내용 혹은 조건도 위 링크에서 수정 가능합니다.)
+
+
+현재 Harper는 다수의 특별한 회사들과 협업하고 있으며 핏이 맞다고 판단된다면 채용담당자와 바로 연결되실 수 있게 제안드리고, 중간에서 Harper가 필요한 것들을 조율합니다.
+
+또한 인터넷의 모든 커리어 기회 뿐만 아니라 웹상에 공개되지 않은 정보들도 내부적으로 관리하고, 가장 선호하실만한 기회들만 선별해서 추천해드려요. (파트타임, Advisor, 인턴 등 포함)
+
+감사합니다.
+Harper 드림`;
+
 export default function NetworkOpsPage() {
   const router = useRouter();
   const { user } = useAuthStore();
@@ -65,6 +89,9 @@ export default function NetworkOpsPage() {
   const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
   const [editingEntryContent, setEditingEntryContent] = useState("");
   const [isOpeningCv, setIsOpeningCv] = useState<number | null>(null);
+  const [mailDraftInitializedLeadId, setMailDraftInitializedLeadId] = useState<
+    number | null
+  >(null);
   const [quickMemoLead, setQuickMemoLead] = useState<NetworkLeadSummary | null>(
     null
   );
@@ -261,6 +288,7 @@ export default function NetworkOpsPage() {
     setConversationContent("");
     setMailSubject("");
     setMailContent("");
+    setMailDraftInitializedLeadId(null);
     setEditingEntryId(null);
     setEditingEntryContent("");
     setNotificationContent("");
@@ -288,6 +316,22 @@ export default function NetworkOpsPage() {
     detailQuery.error instanceof Error ? detailQuery.error.message : null;
   const messagesError =
     messagesQuery.error instanceof Error ? messagesQuery.error.message : null;
+  const hasSentMail = useMemo(() => {
+    if (detail?.internalEntries) {
+      return detail.internalEntries.some((entry) => entry.type === "mail");
+    }
+
+    return Boolean(displayedLead?.progress.emailSent);
+  }, [detail?.internalEntries, displayedLead?.progress.emailSent]);
+
+  useEffect(() => {
+    if (!selectedLeadId || hasSentMail) return;
+    if (mailDraftInitializedLeadId === selectedLeadId) return;
+
+    setMailSubject(DEFAULT_FIRST_MAIL_SUBJECT);
+    setMailContent(DEFAULT_FIRST_MAIL_CONTENT);
+    setMailDraftInitializedLeadId(selectedLeadId);
+  }, [hasSentMail, mailDraftInitializedLeadId, selectedLeadId]);
 
   const handleCopy = useCallback(async (value: string, label: string) => {
     try {
@@ -332,7 +376,9 @@ export default function NetworkOpsPage() {
         };
 
         if (!response.ok || !payload.url) {
-          throw new Error(payload.error ?? "이력서 링크를 생성하지 못했습니다.");
+          throw new Error(
+            payload.error ?? "이력서 링크를 생성하지 못했습니다."
+          );
         }
 
         window.open(payload.url, "_blank", "noopener,noreferrer");

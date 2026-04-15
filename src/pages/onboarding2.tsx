@@ -1158,7 +1158,7 @@ export const Onboarding2Content = ({
                                     />
                                     <div>LinkedIn Profile</div>
                                     <div
-                                      className="ml-1 hover:font-medium flex flex-row items-center gap-1 text-sm font-normal text-beige900/70 cursor-pointer transition-all duration-200 hover:text-beige900"
+                                      className="ml-1 hover:font-medium hidden md:flex flex-row items-center gap-1 text-sm font-normal text-beige900/70 cursor-pointer transition-all duration-200 hover:text-beige900"
                                       onClick={() =>
                                         window.open(
                                           "https://www.linkedin.com/in/",

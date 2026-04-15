@@ -16,6 +16,7 @@ export const runtime = "nodejs";
 type RoleBody = {
   companyWorkspaceId?: string | null;
   description?: string | null;
+  descriptionSummary?: string | null;
   employmentTypes?: OpportunityEmploymentType[];
   expiresAt?: string | null;
   externalJdUrl?: string | null;
@@ -37,6 +38,7 @@ async function handleSave(req: NextRequest) {
   const role = await saveOpsOpportunityRole({
     companyWorkspaceId: body.companyWorkspaceId,
     description: body.description,
+    descriptionSummary: body.descriptionSummary,
     employmentTypes: body.employmentTypes,
     expiresAt: body.expiresAt,
     externalJdUrl: body.externalJdUrl,

@@ -33,11 +33,14 @@ const CareerLogin = () => {
     if (authLoading || !user) return;
     const inviteToken =
       typeof router.query.invite === "string" ? router.query.invite : "";
+    const mail = typeof router.query.mail === "string" ? router.query.mail : "";
     const nextUrl = inviteToken
-      ? `/career?invite=${encodeURIComponent(inviteToken)}`
+      ? `/career?invite=${encodeURIComponent(inviteToken)}${mail ? `&mail=${encodeURIComponent(mail)}` : ""}`
+      : mail
+        ? `/career?mail=${encodeURIComponent(mail)}`
       : "/career";
     void router.replace(nextUrl);
-  }, [authLoading, router, router.query.invite, user]);
+  }, [authLoading, router, router.query.invite, router.query.mail, user]);
 
   if (authLoading || user) {
     return <CareerLoginLoadingState />;

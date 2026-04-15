@@ -213,60 +213,6 @@ const CareerProfileSettingsSection = () => {
       </div>
 
       <div>
-        {networkApplication && (
-          <CareerField label="원하는 역할">
-            <CareerTextInput
-              value={networkApplication.selectedRole ?? ""}
-              onChange={(event) =>
-                onNetworkApplicationChange((current) =>
-                  current
-                    ? {
-                        ...current,
-                        selectedRole: event.target.value,
-                      }
-                    : current
-                )
-              }
-              placeholder="예: Applied AI Engineer"
-            />
-          </CareerField>
-        )}
-
-        {networkApplication && (
-          <CareerField label="프로필 자료">
-            <div className="flex flex-wrap gap-2">
-              {TALENT_NETWORK_PROFILE_INPUT_OPTIONS.map((option) => {
-                const active = networkApplication.profileInputTypes.includes(
-                  option.id
-                );
-
-                return (
-                  <CareerToggleButton
-                    key={option.id}
-                    active={active}
-                    onClick={() =>
-                      onNetworkApplicationChange((current) =>
-                        current
-                          ? {
-                              ...current,
-                              profileInputTypes: active
-                                ? current.profileInputTypes.filter(
-                                    (item) => item !== option.id
-                                  )
-                                : [...current.profileInputTypes, option.id],
-                            }
-                          : current
-                      )
-                    }
-                  >
-                    {option.label}
-                  </CareerToggleButton>
-                );
-              })}
-            </div>
-          </CareerField>
-        )}
-
         {talentPreferences && (
           <CareerField
             label="선호하는 형태"

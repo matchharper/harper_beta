@@ -1,0 +1,33 @@
+{
+  "apply": false,
+  "generatedAt": "2026-04-15T07:25:46.318Z",
+  "input": "docs/list.md",
+  "results": [
+    {
+      "action": "insert",
+      "companyDbId": 75656332,
+      "companyDbMatchedBy": "linkedin_url",
+      "companyName": "모요",
+      "error": null,
+      "existingWorkspaceId": null,
+      "fieldDiff": {},
+      "finalWorkspaceId": null,
+      "inputCareerUrl": "https://moyo.career.greetinghr.com/ko/home",
+      "inputLinkedinUrl": "https://www.linkedin.com/company/%EB%AA%A8%EC%9A%94%EF%BD%9C%EB%AA%A8%EB%91%90%EC%9D%98%EC%9A%94%EA%B8%88%EC%A0%9C/",
+      "lineNumber": 72,
+      "matchedWorkspaceBy": "none",
+      "normalizedLinkedinUrl": "https://www.linkedin.com/company/모요｜모두의요금제",
+      "warning": null
+    }
+  ],
+  "summary": {
+    "companyDbMatched": 1,
+    "companyDbUnmatched": 0,
+    "errors": 0,
+    "insert": 1,
+    "noop": 0,
+    "total": 1,
+    "update": 0,
+    "warnings": 0
+  }
+}

@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/router";
 import { CareerFlowProvider } from "@/components/career/CareerFlowProvider";
+import CareerLoginGate from "@/components/career/CareerLoginGate";
 import CareerSettingsModal from "@/components/career/CareerSettingsModal";
 import CareerWorkspaceScreen, {
   CareerLoadingState,
@@ -9,7 +10,7 @@ import {
   getCareerWorkspaceHref,
   type CareerWorkspaceTab,
 } from "@/components/career/CareerWorkspaceNav";
-import { useAuthStore } from "@/store/useAuthStore";
+import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 
 const CareerWorkspacePage = ({
   activeTab,
@@ -17,22 +18,34 @@ const CareerWorkspacePage = ({
   activeTab: CareerWorkspaceTab;
 }) => {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuthStore();
+  const { user, authLoading, authPending, authError, handleGoogleLogin } =
+    useCareerAuth();
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const isRouterReady = router.isReady;
   const inviteToken =
-    typeof router.query.invite === "string" ? router.query.invite : null;
+    isRouterReady && typeof router.query.invite === "string"
+      ? router.query.invite
+      : null;
+  const mail =
+    isRouterReady && typeof router.query.mail === "string"
+      ? router.query.mail
+      : null;
 
-  useEffect(() => {
-    if (authLoading || user) return;
-
-    const nextUrl = inviteToken
-      ? `/career_login?invite=${encodeURIComponent(inviteToken)}`
-      : "/career_login";
-    void router.replace(nextUrl);
-  }, [authLoading, inviteToken, router, user]);
-
-  if (authLoading || !user) {
+  if (authLoading || !isRouterReady) {
     return <CareerLoadingState />;
+  }
+
+  if (!user) {
+    return (
+      <CareerWorkspaceScreen>
+        <CareerLoginGate
+          activeTab={activeTab}
+          authPending={authPending}
+          authError={authError}
+          onGoogleLogin={handleGoogleLogin}
+        />
+      </CareerWorkspaceScreen>
+    );
   }
 
   const handleChangeTab = (nextTab: CareerWorkspaceTab) => {
@@ -51,6 +64,7 @@ const CareerWorkspacePage = ({
   return (
     <CareerFlowProvider
       inviteToken={inviteToken}
+      mail={mail}
       onOpenSettings={() => setIsSettingsModalOpen(true)}
     >
       <CareerWorkspaceScreen

@@ -1,0 +1,121 @@
+{
+  "apply": false,
+  "generatedAt": "2026-04-15T06:44:17.868Z",
+  "input": "docs/list.md",
+  "results": [
+    {
+      "action": "insert",
+      "companyDbId": 6598158,
+      "companyDbMatchedBy": "linkedin_url",
+      "companyName": "Moloco",
+      "error": null,
+      "existingWorkspaceId": null,
+      "fieldDiff": {},
+      "finalWorkspaceId": null,
+      "inputCareerUrl": "https://job-boards.greenhouse.io/moloco",
+      "inputLinkedinUrl": "https://www.linkedin.com/company/moloco/",
+      "lineNumber": 1,
+      "matchedWorkspaceBy": "none",
+      "normalizedLinkedinUrl": "https://www.linkedin.com/company/moloco",
+      "warning": null
+    },
+    {
+      "action": "update",
+      "companyDbId": 102062410,
+      "companyDbMatchedBy": "linkedin_url",
+      "companyName": "ZETIC",
+      "error": null,
+      "existingWorkspaceId": "7589297f-11f2-481b-afab-2c2eaeb20fe6",
+      "fieldDiff": {
+        "career_url": {
+          "after": "https://www.linkedin.com/company/zetic-ai/jobs/",
+          "before": null
+        },
+        "company_name": {
+          "after": "ZETIC",
+          "before": "ZETIC.ai"
+        }
+      },
+      "finalWorkspaceId": "7589297f-11f2-481b-afab-2c2eaeb20fe6",
+      "inputCareerUrl": "https://www.linkedin.com/company/zetic-ai/jobs/",
+      "inputLinkedinUrl": "https://www.linkedin.com/company/zetic-ai/",
+      "lineNumber": 2,
+      "matchedWorkspaceBy": "company_db_id",
+      "normalizedLinkedinUrl": "https://www.linkedin.com/company/zetic-ai",
+      "warning": null
+    },
+    {
+      "action": "update",
+      "companyDbId": 31569165,
+      "companyDbMatchedBy": "linkedin_url",
+      "companyName": "VESSL AI",
+      "error": null,
+      "existingWorkspaceId": "25a52240-255a-47f0-9daf-3a0c78549118",
+      "fieldDiff": {
+        "career_url": {
+          "after": "https://vessl.recruit.roundhr.com/positions",
+          "before": "https://vessl.recruit.roundhr.com/"
+        }
+      },
+      "finalWorkspaceId": "25a52240-255a-47f0-9daf-3a0c78549118",
+      "inputCareerUrl": "https://vessl.recruit.roundhr.com/positions",
+      "inputLinkedinUrl": "https://www.linkedin.com/company/vesslai/",
+      "lineNumber": 3,
+      "matchedWorkspaceBy": "company_db_id",
+      "normalizedLinkedinUrl": "https://www.linkedin.com/company/vesslai",
+      "warning": null
+    },
+    {
+      "action": "update",
+      "companyDbId": 70493369,
+      "companyDbMatchedBy": "linkedin_url",
+      "companyName": "Rebellions",
+      "error": null,
+      "existingWorkspaceId": "8325821e-a802-4e2d-afff-a2bb9175730e",
+      "fieldDiff": {
+        "career_url": {
+          "after": "https://rebellions.career.greetinghr.com/ko/accelerate-your-career",
+          "before": "https://rebellions.career.greetinghr.com/ko/accelerate-your-career#409e13bf-0988-49cf-855f-2ac129bd00c9"
+        }
+      },
+      "finalWorkspaceId": "8325821e-a802-4e2d-afff-a2bb9175730e",
+      "inputCareerUrl": "https://rebellions.career.greetinghr.com/ko/accelerate-your-career",
+      "inputLinkedinUrl": "https://www.linkedin.com/company/rebellions-ai/",
+      "lineNumber": 4,
+      "matchedWorkspaceBy": "company_db_id",
+      "normalizedLinkedinUrl": "https://www.linkedin.com/company/rebellions-ai",
+      "warning": null
+    },
+    {
+      "action": "update",
+      "companyDbId": 71606105,
+      "companyDbMatchedBy": "linkedin_url",
+      "companyName": "TwelveLabs",
+      "error": null,
+      "existingWorkspaceId": "7b772183-f3cc-4c34-bb26-f5603e37b17c",
+      "fieldDiff": {
+        "career_url": {
+          "after": "https://jobs.ashbyhq.com/twelve-labs",
+          "before": "https://www.linkedin.com/jobs/search/?currentJobId=4378020127&f_C=71606105&geoId=92000000&origin=COMPANY_PAGE_JOBS_CLUSTER_EXPANSION&originToLandingJobPostings=4378020127%2C4395347073%2C4365461213%2C4387807088%2C4367677593%2C4365140222%2C4365136427%2C4367664725%2C4374701531"
+        }
+      },
+      "finalWorkspaceId": "7b772183-f3cc-4c34-bb26-f5603e37b17c",
+      "inputCareerUrl": "https://jobs.ashbyhq.com/twelve-labs",
+      "inputLinkedinUrl": "https://www.linkedin.com/company/twelvelabs/",
+      "lineNumber": 5,
+      "matchedWorkspaceBy": "company_db_id",
+      "normalizedLinkedinUrl": "https://www.linkedin.com/company/twelvelabs",
+      "warning": null
+    }
+  ],
+  "summary": {
+    "companyDbMatched": 5,
+    "companyDbUnmatched": 0,
+    "errors": 0,
+    "insert": 1,
+    "noop": 0,
+    "total": 5,
+    "update": 4,
+    "warnings": 0
+  }
+}

@@ -12,6 +12,7 @@ import {
   buildTalentNetworkInviteToken,
   buildTalentNetworkInviteUrl,
 } from "@/lib/talentNetworkInvite";
+import { renderOpsNetworkMailTemplate } from "@/lib/opsNetworkMailTemplate";
 
 export const runtime = "nodejs";
 
@@ -61,14 +62,21 @@ export async function POST(req: NextRequest) {
       );
     }
     if (!subject) {
-      return NextResponse.json({ error: "Subject is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Subject is required" },
+        { status: 400 }
+      );
     }
     if (!content) {
-      return NextResponse.json({ error: "Content is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Content is required" },
+        { status: 400 }
+      );
     }
 
     const lead = await fetchNetworkLeadById(leadId);
-    const normalizedEmail = String(lead.email ?? "").trim().toLowerCase();
+    const recipientMail = String(lead.email ?? "").trim();
+    const normalizedEmail = recipientMail.toLowerCase();
     const inviteUrl =
       normalizedEmail.length > 0
         ? buildTalentNetworkInviteUrl({
@@ -79,9 +87,24 @@ export async function POST(req: NextRequest) {
             }),
           })
         : null;
+    const contentIncludesInviteUrlPlaceholder = /\{\{\s*invite_url\s*\}\}/i.test(
+      content
+    );
+    const renderedSubject = renderOpsNetworkMailTemplate(subject, {
+      inviteUrl,
+      mail: recipientMail || lead.email,
+      name: lead.name,
+    });
+    const renderedContent = renderOpsNetworkMailTemplate(content, {
+      inviteUrl,
+      mail: recipientMail || lead.email,
+      name: lead.name,
+    });
     const finalContent = inviteUrl
-      ? `${content.trim()}\n\n지원 정보를 확인하려면 아래 링크로 들어와 로그인해 주세요.\n${inviteUrl}`
-      : content;
+      ? contentIncludesInviteUrlPlaceholder
+        ? renderedContent
+        : `${renderedContent.trim()}\n\n\n지원 정보를 확인하려면 아래 링크로 들어와 로그인해 주세요.\n${inviteUrl}\n\n<span style="font-size: 12px; color: #666;">If you would like to change how often Harper emails you or stop receiving emails from it entirely, just let us know via email.</span>`
+      : renderedContent;
 
     const entry = await sendCandidateMailAndLog({
       content: finalContent,
@@ -89,7 +112,7 @@ export async function POST(req: NextRequest) {
       fromEmail,
       leadId,
       sendEmail: sendInternalEmail,
-      subject,
+      subject: renderedSubject,
     });
 
     return NextResponse.json({ entry, ok: true });

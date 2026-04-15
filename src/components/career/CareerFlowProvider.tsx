@@ -136,10 +136,12 @@ const normalizeNotifications = (
 export const CareerFlowProvider = ({
   children,
   inviteToken,
+  mail,
   onOpenSettings,
 }: {
   children: React.ReactNode;
   inviteToken?: string | null;
+  mail?: string | null;
   onOpenSettings: () => void;
 }) => {
   const {
@@ -180,7 +182,7 @@ export const CareerFlowProvider = ({
     sessionError,
     loadSession,
     resetSessionState,
-  } = useCareerSession({ fetchWithAuth, inviteToken });
+  } = useCareerSession({ fetchWithAuth, inviteToken, mail });
 
   const {
     messages: persistedMessages,
