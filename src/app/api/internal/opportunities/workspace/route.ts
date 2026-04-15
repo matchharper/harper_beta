@@ -8,6 +8,7 @@ import { saveOpsOpportunityWorkspace } from "@/lib/opsOpportunity";
 export const runtime = "nodejs";
 
 type WorkspaceBody = {
+  careerUrl?: string | null;
   companyDescription?: string | null;
   companyName?: string;
   homepageUrl?: string | null;
@@ -20,6 +21,7 @@ async function handleSave(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as WorkspaceBody;
 
   const workspace = await saveOpsOpportunityWorkspace({
+    careerUrl: body.careerUrl,
     companyDescription: body.companyDescription,
     companyName: String(body.companyName ?? ""),
     homepageUrl: body.homepageUrl,

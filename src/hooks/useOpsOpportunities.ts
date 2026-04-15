@@ -6,7 +6,9 @@ import type {
   OpsOpportunityCatalogResponse,
   OpsOpportunityMatchListResponse,
   OpsOpportunityRecommendationListResponse,
+  OpsOpportunityRoleSyncResult,
   OpsOpportunityType,
+  OpsOpportunityWorkspaceExtraction,
   OpportunityEmploymentType,
   OpportunitySourceType,
   OpportunityStatus,
@@ -14,6 +16,7 @@ import type {
 } from "@/lib/opsOpportunity";
 
 type SaveWorkspaceInput = {
+  careerUrl?: string | null;
   companyDescription?: string | null;
   companyName?: string;
   homepageUrl?: string | null;
@@ -21,9 +24,19 @@ type SaveWorkspaceInput = {
   workspaceId?: string | null;
 };
 
+type ExtractWorkspaceInput = {
+  linkedinUrl?: string | null;
+};
+
+type SyncRolesInput = {
+  careerUrl?: string | null;
+  workspaceId: string;
+};
+
 type SaveRoleInput = {
   companyWorkspaceId?: string | null;
   description?: string | null;
+  descriptionSummary?: string | null;
   employmentTypes?: OpportunityEmploymentType[];
   expiresAt?: string | null;
   externalJdUrl?: string | null;
@@ -98,6 +111,43 @@ export function useSaveOpsOpportunityWorkspace() {
         workspace: OpsOpportunityCatalogResponse["workspaces"][number];
       }>("/api/internal/opportunities/workspace", {
         method: input.workspaceId ? "PATCH" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(input),
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.opsOpportunity.all,
+      });
+    },
+  });
+}
+
+export function useExtractOpsOpportunityWorkspace() {
+  return useMutation({
+    mutationFn: (input: ExtractWorkspaceInput) =>
+      fetchWithInternalAuth<{
+        workspace: OpsOpportunityWorkspaceExtraction;
+      }>("/api/internal/opportunities/workspace/extract", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(input),
+      }),
+  });
+}
+
+export function useSyncOpsOpportunityRoles() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: SyncRolesInput) =>
+      fetchWithInternalAuth<{
+        result: OpsOpportunityRoleSyncResult;
+      }>("/api/internal/opportunities/role/sync", {
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
         },

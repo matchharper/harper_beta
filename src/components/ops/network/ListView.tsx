@@ -75,12 +75,18 @@ export default function ListView({
   return (
     <>
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard value={String(stats.totalCount)} hint="현재 waitlist 전체 수" />
+        <StatCard
+          value={String(stats.totalCount)}
+          hint="현재 waitlist 전체 수"
+        />
         <StatCard
           value={String(stats.readyNowCount)}
           hint="좋은 기회면 바로 이직 가능"
         />
-        <StatCard value={String(stats.withCvCount)} hint="CV 또는 이력서 파일 포함" />
+        <StatCard
+          value={String(stats.withCvCount)}
+          hint="CV 또는 이력서 파일 포함"
+        />
         <StatCard value={String(stats.recentCount)} hint="최근 7일 신규 제출" />
       </section>
 
@@ -165,14 +171,17 @@ export default function ListView({
           </div>
         </div>
 
-        {listError ? <div className={opsTheme.errorNotice}>{listError}</div> : null}
+        {listError ? (
+          <div className={opsTheme.errorNotice}>{listError}</div>
+        ) : null}
 
         <div className={cx(opsTheme.panel, "overflow-hidden")}>
           <div className="flex flex-col gap-3 border-b border-beige900/10 px-4 py-4 md:flex-row md:items-end md:justify-between">
             <div>
               <div className={opsTheme.eyebrow}>Candidates</div>
               <div className="mt-1 font-geist text-sm text-beige900/70">
-                필터 결과 {list?.filteredCount ?? 0}명 / 전체 {list?.allCount ?? 0}명
+                필터 결과 {list?.filteredCount ?? 0}명 / 전체{" "}
+                {list?.allCount ?? 0}명
               </div>
             </div>
             <div className="font-geist text-sm text-beige900/55">
@@ -191,7 +200,9 @@ export default function ListView({
                   <th className="w-[320px] px-4 py-3 font-medium">선택한 값</th>
                   <th className="w-[360px] px-4 py-3 font-medium">메모</th>
                   <th className="w-[160px] px-4 py-3 font-medium">가입일</th>
-                  <th className="w-[320px] px-4 py-3 font-medium">진행 상태</th>
+                  <th className="w-[320px] px-4 py-3 font-medium">
+                    온보딩 단계
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -241,19 +252,25 @@ export default function ListView({
                             <div
                               className={cx(
                                 "mt-1 truncate font-geist text-sm",
-                                isSelected ? "text-beige100/72" : "text-beige900/55"
+                                isSelected
+                                  ? "text-beige100/72"
+                                  : "text-beige900/55"
                               )}
                             >
                               {lead.email ?? "이메일 없음"}
                             </div>
                             <div className="mt-3 flex flex-wrap items-center gap-2">
                               {lead.hasCv ? (
-                                <Badge tone={isSelected ? "inverse" : "default"}>
+                                <Badge
+                                  tone={isSelected ? "inverse" : "default"}
+                                >
                                   CV
                                 </Badge>
                               ) : null}
                               {lead.hasStructuredProfile ? (
-                                <Badge tone={isSelected ? "inverse" : "default"}>
+                                <Badge
+                                  tone={isSelected ? "inverse" : "default"}
+                                >
                                   Structured
                                 </Badge>
                               ) : null}
@@ -267,7 +284,9 @@ export default function ListView({
                           <div
                             className={cx(
                               "mt-2 font-geist text-xs",
-                              isSelected ? "text-beige100/65" : "text-beige900/55"
+                              isSelected
+                                ? "text-beige100/65"
+                                : "text-beige900/55"
                             )}
                           >
                             {latestExperience.meta ?? "세부 경력 정보 없음"}
@@ -302,7 +321,9 @@ export default function ListView({
                               <span
                                 className={cx(
                                   "font-geist text-sm",
-                                  isSelected ? "text-beige100/65" : "text-beige900/50"
+                                  isSelected
+                                    ? "text-beige100/65"
+                                    : "text-beige900/50"
                                 )}
                               >
                                 저장된 선택 값 없음
@@ -329,7 +350,9 @@ export default function ListView({
                                     <div
                                       className={cx(
                                         "font-geist text-xs",
-                                        isSelected ? "text-beige100/60" : "text-beige900/45"
+                                        isSelected
+                                          ? "text-beige100/60"
+                                          : "text-beige900/45"
                                       )}
                                     >
                                       {formatKstDate(memo.createdAt)}
@@ -344,7 +367,9 @@ export default function ListView({
                               <div
                                 className={cx(
                                   "font-geist text-sm",
-                                  isSelected ? "text-beige100/65" : "text-beige900/50"
+                                  isSelected
+                                    ? "text-beige100/65"
+                                    : "text-beige900/50"
                                 )}
                               >
                                 최근 메모 없음
@@ -359,7 +384,9 @@ export default function ListView({
                           <div
                             className={cx(
                               "mt-2 font-geist text-xs",
-                              isSelected ? "text-beige100/60" : "text-beige900/45"
+                              isSelected
+                                ? "text-beige100/60"
+                                : "text-beige900/45"
                             )}
                           >
                             {submittedDaysAgo !== null
@@ -371,6 +398,7 @@ export default function ListView({
                           <NetworkLeadProgressTrack
                             progress={lead.progress}
                             selected={isSelected}
+                            structuredReady={lead.hasStructuredProfile}
                           />
                         </td>
                       </tr>

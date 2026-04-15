@@ -12,11 +12,19 @@ export const useCareerAuth = () => {
   const buildCareerRedirectPath = useCallback(() => {
     if (typeof window === "undefined") return undefined;
 
-    const nextUrl = new URL("/career", window.location.origin);
     const currentUrl = new URL(window.location.href);
+    const nextPath =
+      currentUrl.pathname === "/career" || currentUrl.pathname.startsWith("/career/")
+        ? currentUrl.pathname
+        : "/career";
+    const nextUrl = new URL(nextPath, window.location.origin);
     const inviteToken = currentUrl.searchParams.get("invite");
+    const mail = currentUrl.searchParams.get("mail");
     if (inviteToken) {
       nextUrl.searchParams.set("invite", inviteToken);
+    }
+    if (mail) {
+      nextUrl.searchParams.set("mail", mail);
     }
 
     return nextUrl.toString();

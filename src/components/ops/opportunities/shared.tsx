@@ -18,6 +18,7 @@ export type SourceFilter = "all" | OpportunitySourceType;
 export type DraftMode = "edit" | "new";
 
 export type WorkspaceDraft = {
+  careerUrl: string;
   companyDescription: string;
   companyName: string;
   homepageUrl: string;
@@ -26,6 +27,7 @@ export type WorkspaceDraft = {
 
 export type RoleDraft = {
   description: string;
+  descriptionSummary: string;
   employmentTypes: OpportunityEmploymentType[];
   expiresAt: string;
   externalJdUrl: string;
@@ -46,6 +48,7 @@ export type CandidateMailDraft = {
 };
 
 export const EMPTY_WORKSPACE_DRAFT: WorkspaceDraft = {
+  careerUrl: "",
   companyDescription: "",
   companyName: "",
   homepageUrl: "",
@@ -54,6 +57,7 @@ export const EMPTY_WORKSPACE_DRAFT: WorkspaceDraft = {
 
 export const EMPTY_ROLE_DRAFT: RoleDraft = {
   description: "",
+  descriptionSummary: "",
   employmentTypes: [],
   expiresAt: "",
   externalJdUrl: "",
@@ -159,6 +163,7 @@ export const formatUpdatedAt = (value: string | null | undefined) => {
 export const workspaceToDraft = (
   workspace?: OpsOpportunityWorkspaceRecord | null
 ): WorkspaceDraft => ({
+  careerUrl: workspace?.careerUrl ?? "",
   companyDescription: workspace?.companyDescription ?? "",
   companyName: workspace?.companyName ?? "",
   homepageUrl: workspace?.homepageUrl ?? "",
@@ -169,6 +174,7 @@ export const roleToDraft = (
   role?: OpsOpportunityRoleRecord | null
 ): RoleDraft => ({
   description: role?.description ?? "",
+  descriptionSummary: role?.descriptionSummary ?? "",
   employmentTypes: role?.employmentTypes ?? [],
   expiresAt: formatDateValue(role?.expiresAt),
   externalJdUrl: role?.externalJdUrl ?? "",
@@ -190,6 +196,7 @@ export const matchesWorkspaceQuery = (
   const haystack = [
     workspace.companyName,
     workspace.companyDescription,
+    workspace.careerUrl,
     workspace.homepageUrl,
     workspace.linkedinUrl,
   ]
@@ -207,6 +214,7 @@ export const matchesRoleQuery = (
     role.name,
     role.companyName,
     role.description,
+    role.descriptionSummary,
     role.locationText,
     role.sourceProvider,
     role.externalJdUrl,

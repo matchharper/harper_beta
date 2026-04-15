@@ -243,15 +243,19 @@ export function RecommendationPromptModal({
 
 export function WorkspaceCreateModal({
   draft,
+  extractPending,
   onChange,
   onClose,
+  onExtract,
   onSubmit,
   open,
   pending,
 }: {
   draft: WorkspaceDraft;
+  extractPending: boolean;
   onChange: (next: WorkspaceDraft) => void;
   onClose: () => void;
+  onExtract: () => void;
   onSubmit: () => void;
   open: boolean;
   pending: boolean;
@@ -271,7 +275,7 @@ export function WorkspaceCreateModal({
           <button
             type="button"
             onClick={onClose}
-            disabled={pending}
+            disabled={pending || extractPending}
             className={cx(opsTheme.buttonSecondary, "h-10 px-4")}
           >
             취소
@@ -279,7 +283,7 @@ export function WorkspaceCreateModal({
           <button
             type="button"
             onClick={onSubmit}
-            disabled={pending || !draft.companyName.trim()}
+            disabled={pending || extractPending || !draft.companyName.trim()}
             className={cx(opsTheme.buttonPrimary, "h-10 px-4")}
           >
             {pending ? (
@@ -324,15 +328,42 @@ export function WorkspaceCreateModal({
         </div>
         <div className="space-y-2">
           <div className={opsTheme.eyebrow}>LinkedIn</div>
+          <div className="flex gap-2">
+            <input
+              value={draft.linkedinUrl}
+              onChange={(event) =>
+                onChange({
+                  ...draft,
+                  linkedinUrl: event.target.value,
+                })
+              }
+              placeholder="linkedin company url"
+              className={cx(opsTheme.input, "flex-1")}
+            />
+            <button
+              type="button"
+              onClick={onExtract}
+              disabled={extractPending || !draft.linkedinUrl.trim()}
+              className={cx(opsTheme.buttonSecondary, "h-10 shrink-0 px-4")}
+            >
+              {extractPending ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : null}
+              추출하기
+            </button>
+          </div>
+        </div>
+        <div className="space-y-2">
+          <div className={opsTheme.eyebrow}>Career</div>
           <input
-            value={draft.linkedinUrl}
+            value={draft.careerUrl}
             onChange={(event) =>
               onChange({
                 ...draft,
-                linkedinUrl: event.target.value,
+                careerUrl: event.target.value,
               })
             }
-            placeholder="linkedin company url"
+            placeholder="career url"
             className={opsTheme.input}
           />
         </div>
@@ -623,6 +654,20 @@ export function RoleCreateModal({
               className={opsTheme.input}
             />
           </div>
+        </div>
+        <div className="space-y-2">
+          <div className={opsTheme.eyebrow}>Description Summary</div>
+          <textarea
+            value={draft.descriptionSummary}
+            onChange={(event) =>
+              onChange({
+                ...draft,
+                descriptionSummary: event.target.value,
+              })
+            }
+            placeholder="role description summary"
+            className={cx(opsTheme.textarea, "min-h-[120px]")}
+          />
         </div>
         <div className="space-y-2">
           <div className={opsTheme.eyebrow}>Description</div>

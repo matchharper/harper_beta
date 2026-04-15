@@ -36,14 +36,19 @@ export default function WaitlistView({
             <Badge tone="strong">{displayedLead.careerMoveIntentLabel}</Badge>
           ) : null}
           <Badge>{displayedLead.hasCv ? "CV 있음" : "CV 없음"}</Badge>
-          {displayedLead.selectedRole ? <Badge>{displayedLead.selectedRole}</Badge> : null}
+          {displayedLead.selectedRole ? (
+            <Badge>{displayedLead.selectedRole}</Badge>
+          ) : null}
         </div>
       </div>
 
       <div className={cx(opsTheme.panelSoft, "p-4")}>
-        <div className={opsTheme.eyebrow}>진행 상태</div>
+        <div className={opsTheme.eyebrow}>온보딩 단계</div>
         <div className="mt-3">
-          <NetworkLeadProgressTrack progress={displayedLead.progress} />
+          <NetworkLeadProgressTrack
+            progress={displayedLead.progress}
+            structuredReady={displayedLead.hasStructuredProfile}
+          />
         </div>
       </div>
 
@@ -62,8 +67,14 @@ export default function WaitlistView({
               )
             }
           />
-          <InfoRow label="제출 시각" value={formatKst(displayedLead.submittedAt)} />
-          <InfoRow label="생성 시각" value={formatKst(displayedLead.createdAt)} />
+          <InfoRow
+            label="제출 시각"
+            value={formatKst(displayedLead.submittedAt)}
+          />
+          <InfoRow
+            label="생성 시각"
+            value={formatKst(displayedLead.createdAt)}
+          />
           <InfoRow
             label="Engagement"
             value={
@@ -88,18 +99,29 @@ export default function WaitlistView({
                 : "-"
             }
           />
-          <InfoRow label="LinkedIn" value={externalLinkValue(displayedLead.linkedinProfileUrl)} />
+          <InfoRow
+            label="LinkedIn"
+            value={externalLinkValue(displayedLead.linkedinProfileUrl)}
+          />
           <InfoRow
             label="Personal Website"
             value={externalLinkValue(displayedLead.personalWebsiteUrl)}
           />
-          <InfoRow label="GitHub / HF" value={externalLinkValue(displayedLead.githubProfileUrl)} />
-          <InfoRow label="Scholar" value={externalLinkValue(displayedLead.scholarProfileUrl)} />
+          <InfoRow
+            label="GitHub / HF"
+            value={externalLinkValue(displayedLead.githubProfileUrl)}
+          />
+          <InfoRow
+            label="Scholar"
+            value={externalLinkValue(displayedLead.scholarProfileUrl)}
+          />
           <InfoRow
             label="Impact Summary"
             value={
               displayedLead.impactSummary ? (
-                <div className="whitespace-pre-wrap">{displayedLead.impactSummary}</div>
+                <div className="whitespace-pre-wrap">
+                  {displayedLead.impactSummary}
+                </div>
               ) : (
                 "-"
               )
@@ -109,7 +131,9 @@ export default function WaitlistView({
             label="Dream Teams"
             value={
               displayedLead.dreamTeams ? (
-                <div className="whitespace-pre-wrap">{displayedLead.dreamTeams}</div>
+                <div className="whitespace-pre-wrap">
+                  {displayedLead.dreamTeams}
+                </div>
               ) : (
                 "-"
               )

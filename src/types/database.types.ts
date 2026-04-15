@@ -894,6 +894,7 @@ export type Database = {
           company_workspace_id: string
           created_at: string
           description: string | null
+          description_summary: string | null
           expires_at: string | null
           external_jd_url: string | null
           information: Json | null
@@ -902,6 +903,8 @@ export type Database = {
           posted_at: string | null
           priority: number | null
           role_id: string
+          salary_range: string | null
+          seniority_level: string | null
           source_job_id: string | null
           source_provider: string | null
           source_type: string
@@ -914,6 +917,7 @@ export type Database = {
           company_workspace_id: string
           created_at?: string
           description?: string | null
+          description_summary?: string | null
           expires_at?: string | null
           external_jd_url?: string | null
           information?: Json | null
@@ -922,6 +926,8 @@ export type Database = {
           posted_at?: string | null
           priority?: number | null
           role_id?: string
+          salary_range?: string | null
+          seniority_level?: string | null
           source_job_id?: string | null
           source_provider?: string | null
           source_type?: string
@@ -934,6 +940,7 @@ export type Database = {
           company_workspace_id?: string
           created_at?: string
           description?: string | null
+          description_summary?: string | null
           expires_at?: string | null
           external_jd_url?: string | null
           information?: Json | null
@@ -942,6 +949,8 @@ export type Database = {
           posted_at?: string | null
           priority?: number | null
           role_id?: string
+          salary_range?: string | null
+          seniority_level?: string | null
           source_job_id?: string | null
           source_provider?: string | null
           source_type?: string
@@ -1046,6 +1055,7 @@ export type Database = {
       }
       company_workspace: {
         Row: {
+          career_url: string | null
           company_db_id: number | null
           company_description: string | null
           company_name: string
@@ -1058,6 +1068,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          career_url?: string | null
           company_db_id?: number | null
           company_description?: string | null
           company_name: string
@@ -1070,6 +1081,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          career_url?: string | null
           company_db_id?: number | null
           company_description?: string | null
           company_name?: string
@@ -2512,6 +2524,103 @@ export type Database = {
         }
         Relationships: []
       }
+      prompt_templates: {
+        Row: {
+          content: string
+          draft_content: string | null
+          id: string
+          name: string
+          published_at: string | null
+          required_sections: string[]
+          slug: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          content: string
+          draft_content?: string | null
+          id?: string
+          name: string
+          published_at?: string | null
+          required_sections?: string[]
+          slug: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          content?: string
+          draft_content?: string | null
+          id?: string
+          name?: string
+          published_at?: string | null
+          required_sections?: string[]
+          slug?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      prompt_test_flags: {
+        Row: {
+          enabled_at: string
+          template_slug: string
+          user_id: string
+        }
+        Insert: {
+          enabled_at?: string
+          template_slug: string
+          user_id: string
+        }
+        Update: {
+          enabled_at?: string
+          template_slug?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prompt_test_flags_template_slug_fkey"
+            columns: ["template_slug"]
+            isOneToOne: false
+            referencedRelation: "prompt_templates"
+            referencedColumns: ["slug"]
+          },
+        ]
+      }
+      prompt_versions: {
+        Row: {
+          content: string
+          id: string
+          published_at: string
+          published_by: string | null
+          template_id: string
+          version_number: number
+        }
+        Insert: {
+          content: string
+          id?: string
+          published_at?: string
+          published_by?: string | null
+          template_id: string
+          version_number: number
+        }
+        Update: {
+          content?: string
+          id?: string
+          published_at?: string
+          published_by?: string | null
+          template_id?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prompt_versions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "prompt_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       publications: {
         Row: {
           abstract: string | null
@@ -3647,6 +3756,7 @@ export type Database = {
           created_at: string
           email: string | null
           headline: string | null
+          last_logined_at: string | null
           location: string | null
           name: string | null
           network_application: Json
@@ -3668,6 +3778,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           headline?: string | null
+          last_logined_at?: string | null
           location?: string | null
           name?: string | null
           network_application?: Json
@@ -3689,6 +3800,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           headline?: string | null
+          last_logined_at?: string | null
           location?: string | null
           name?: string | null
           network_application?: Json
@@ -3815,6 +3927,16 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      claim_talent_user_email_alias: {
+        Args: {
+          source_email: string
+          target_email?: string
+          target_name?: string
+          target_profile_picture?: string
+          target_user_id: string
+        }
+        Returns: boolean
       }
       deduct_user_credits: {
         Args: { amount_to_deduct: number }
