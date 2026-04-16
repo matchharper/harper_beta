@@ -44,3 +44,6 @@
 
 13. 프로필 화면 안에서는 상단에 content tabs를 둔다.
 탭은 스크롤 이동용 anchor가 아니라, 선택된 탭의 내용만 보이게 전환하는 방식으로 구현한다. 탭 디자인은 과장된 pill이 아니라 얇은 underline 기반의 단정한 horizontal nav를 우선한다.
+
+14. `/career`에서는 uppercase와 tracking을 조합한 라벨을 쓰지 않는다.
+예: all caps 섹션 태그, 작은 영문 eyebrow에 자간을 강하게 벌리는 표현은 금지. 강조가 필요하면 weight, color, spacing으로 해결한다.

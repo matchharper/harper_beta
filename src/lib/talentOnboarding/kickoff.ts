@@ -9,7 +9,9 @@ import type {
 import {
   fetchTalentInsights,
   fetchTalentSetting,
+  getTalentProfileVisibilityLabel,
   TALENT_PENDING_QUESTION_PREFIX,
+  normalizeTalentBlockedCompanies,
   normalizeTalentEngagementTypes,
   normalizeTalentInsightContent,
   normalizeTalentPreferredLocations,
@@ -30,13 +32,14 @@ type AdminClient = ReturnType<typeof getTalentSupabaseAdmin>;
 type LlmKickoff = {
   acknowledgement: string;
   insight: string;
-  firstQuestion: string;
 };
 
 type TalentKickoffPreferences = {
+  profileVisibilityLabel: string;
   engagementTypes: string[];
   preferredLocations: string[];
   careerMoveIntentLabel: string | null;
+  blockedCompanies: string[];
   insightContent: TalentInsightContent | null;
 };
 
@@ -44,7 +47,17 @@ const FALLBACK_KICKOFF: LlmKickoff = {
   acknowledgement: "정보를 알려주셔서 감사합니다.",
   insight:
     "제출해주신 이력서/링크 기반으로 볼 때 강점이 분명해서 하퍼가 찾을 수 있는 기회 폭이 넓습니다.",
-  firstQuestion: "가장 선호하는 역할과 포지션 레벨은 무엇인가요?",
+};
+
+const normalizeKickoffDisplayName = (value: string) => {
+  const normalized = String(value ?? "").trim().replace(/\s*님$/, "");
+  return normalized || "회원";
+};
+
+export const buildTalentKickoffOpeningMessage = (displayName: string) => {
+  const normalizedName = normalizeKickoffDisplayName(displayName);
+  return `${normalizedName}님이 실제로 만족할만한 기회를 찾기위해서, 몇 가지만 먼저 여쭤보고 싶어요.
+현재 상황에 대한 간단한 소개나 어떤 기회를 찾고계신지 알려주실 수 있나요?`;
 };
 
 function parseKickoffPayload(raw: string): LlmKickoff | null {
@@ -62,13 +75,9 @@ function parseKickoffPayload(raw: string): LlmKickoff | null {
         : "";
     const insight =
       typeof parsed.insight === "string" ? parsed.insight.trim() : "";
-    const firstQuestion =
-      typeof parsed.firstQuestion === "string"
-        ? parsed.firstQuestion.trim()
-        : "";
 
-    if (!acknowledgement || !insight || !firstQuestion) return null;
-    return { acknowledgement, insight, firstQuestion };
+    if (!acknowledgement || !insight) return null;
+    return { acknowledgement, insight };
   } catch {
     return null;
   }
@@ -134,15 +143,23 @@ function describeTalentPreferences(
   }
 
   return [
-    preferences.careerMoveIntentLabel
-      ? `이직 의향: ${preferences.careerMoveIntentLabel}`
-      : null,
-    preferences.engagementTypes.length > 0
-      ? `선호 형태: ${preferences.engagementTypes.join(", ")}`
-      : null,
-    preferences.preferredLocations.length > 0
-      ? `선호 지역: ${preferences.preferredLocations.join(", ")}`
-      : null,
+    `프로필 공개: ${preferences.profileVisibilityLabel}`,
+    `선호 형태: ${
+      preferences.engagementTypes.length > 0
+        ? preferences.engagementTypes.join(", ")
+        : "(없음)"
+    }`,
+    `이직 의향: ${preferences.careerMoveIntentLabel ?? "(미입력)"}`,
+    `선호 지역: ${
+      preferences.preferredLocations.length > 0
+        ? preferences.preferredLocations.join(", ")
+        : "(없음)"
+    }`,
+    `차단 기업: ${
+      preferences.blockedCompanies.length > 0
+        ? preferences.blockedCompanies.join(", ")
+        : "(없음)"
+    }`,
     ...insightLines,
   ]
     .filter(Boolean)
@@ -168,13 +185,11 @@ export async function generateTalentKickoff(args: {
           "JSON format:",
           "{",
           '  "acknowledgement": "...",',
-          '  "insight": "...",',
-          '  "firstQuestion": "..."',
+          '  "insight": "..."',
           "}",
           "Rules:",
           '- acknowledgement should greet user naturally (e.g. "안녕하세요 OO님.") and thank for sharing.',
-          '- insight should mention one impressive point using << >> wrapping style.',
-          "- firstQuestion should be one concrete recruiting question.",
+          "- insight should mention one promising point from the submitted information in 1-2 natural Korean sentences.",
         ].join("\n"),
       },
       {
@@ -251,6 +266,12 @@ export async function autoStartClaimedTalentConversation(args: {
   const careerMoveIntentLabel = getTalentCareerMoveIntentLabel(
     sanitizeTalentCareerMoveIntent(talentSetting?.career_move_intent)
   );
+  const profileVisibilityLabel = getTalentProfileVisibilityLabel(
+    talentSetting?.profile_visibility
+  );
+  const blockedCompanies = normalizeTalentBlockedCompanies(
+    talentSetting?.blocked_companies ?? []
+  );
 
   const links = dedupeLinks([
     ...(profile?.resume_links ?? []),
@@ -264,9 +285,11 @@ export async function autoStartClaimedTalentConversation(args: {
     links,
     networkApplication,
     talentPreferences: {
+      profileVisibilityLabel,
       engagementTypes: engagementLabels,
       preferredLocations: locationLabels,
       careerMoveIntentLabel,
+      blockedCompanies,
       insightContent: normalizedInsights,
     },
     resumeFileName: profile?.resume_file_name,
@@ -286,14 +309,16 @@ export async function autoStartClaimedTalentConversation(args: {
       conversation_id: conversation.id,
       user_id: user.id,
       role: "assistant",
-      content: `${kickoff.acknowledgement}\n\n<< ${kickoff.insight} >>`,
+      content: `${kickoff.acknowledgement}\n\n${kickoff.insight}`,
       message_type: "system",
     },
     {
       conversation_id: conversation.id,
       user_id: user.id,
       role: "assistant",
-      content: `${TALENT_PENDING_QUESTION_PREFIX}질문 1. ${kickoff.firstQuestion}`,
+      content: `${TALENT_PENDING_QUESTION_PREFIX}${buildTalentKickoffOpeningMessage(
+        toTalentDisplayName(user)
+      )}`,
       message_type: "system",
     },
   ];

@@ -64,6 +64,7 @@ import {
 
 const PAGE_SIZE = 50;
 const BLOG_METRIC_FETCH_BATCH_SIZE = 1000;
+type AdminDeviceFilter = "all" | "desktop" | "mobile";
 
 const ADMIN_TAB_META: Record<
   AdminTab,
@@ -219,6 +220,15 @@ function extractSlugFromEventType(type: string, prefix: string) {
   return slug.length > 0 ? slug : null;
 }
 
+function matchesAdminDeviceFilter(
+  isMobile: boolean | null,
+  deviceFilter: AdminDeviceFilter
+) {
+  if (deviceFilter === "all") return true;
+  if (deviceFilter === "mobile") return isMobile === true;
+  return isMobile === false;
+}
+
 function groupLandingLogsByUser(logItems: LandingLog[]) {
   if (logItems.length === 0) return [] as GroupedLogs[];
 
@@ -275,6 +285,7 @@ const AdminPage = () => {
   const [password, setPassword] = useState("");
   const [isPassed, setIsPassed] = useState(false);
   const [activeTab, setActiveTab] = useState<AdminTab>("landingLogs");
+  const [deviceFilter, setDeviceFilter] = useState<AdminDeviceFilter>("all");
 
   const [logs, setLogs] = useState<LandingLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1143,8 +1154,11 @@ const AdminPage = () => {
     () =>
       canShowFilteredLandingLogs
         ? filterLandingLogsByExcludedLocalIds(logs, excludedLandingLocalIds)
+            .filter((log) =>
+              matchesAdminDeviceFilter(log.is_mobile, deviceFilter)
+            )
         : [],
-    [canShowFilteredLandingLogs, excludedLandingLocalIds, logs]
+    [canShowFilteredLandingLogs, deviceFilter, excludedLandingLocalIds, logs]
   );
   const filteredNetworkAnalyticsLogs = useMemo(
     () =>
@@ -1152,9 +1166,14 @@ const AdminPage = () => {
         ? filterLandingLogsByExcludedLocalIds(
             networkAnalyticsLogs,
             excludedLandingLocalIds
-          )
+          ).filter((log) => matchesAdminDeviceFilter(log.is_mobile, deviceFilter))
         : [],
-    [canShowFilteredLandingLogs, excludedLandingLocalIds, networkAnalyticsLogs]
+    [
+      canShowFilteredLandingLogs,
+      deviceFilter,
+      excludedLandingLocalIds,
+      networkAnalyticsLogs,
+    ]
   );
   const grouped = useMemo<GroupedLogs[]>(
     () => groupLandingLogsByUser(filteredLogs),
@@ -1448,6 +1467,12 @@ const AdminPage = () => {
   const activeTabMeta = ADMIN_TAB_META[activeTab];
   const pageTitle = activeTabMeta.title;
   const pageSubTitle = activeTabMeta.subtitle;
+  const deviceFilterLabel =
+    deviceFilter === "all"
+      ? "All"
+      : deviceFilter === "desktop"
+        ? "Desktop"
+        : "Mobile";
   const landingTabLoading =
     loading || loadingMore || excludedLandingLocalIdsLoading;
   const networkTabLoading =
@@ -1561,6 +1586,34 @@ const AdminPage = () => {
           </div>
 
           <div className="ml-auto flex items-center gap-2">
+            {(isLandingTab || isNetworkAnalyticsTab) && (
+              <div className="flex items-center gap-1">
+                {(
+                  [
+                    { key: "all", label: "전체" },
+                    { key: "desktop", label: "desktop" },
+                    { key: "mobile", label: "mobile" },
+                  ] as const
+                ).map((item) => {
+                  const isActive = deviceFilter === item.key;
+
+                  return (
+                    <button
+                      key={item.key}
+                      onClick={() => setDeviceFilter(item.key)}
+                      className={`h-9 px-3 text-[12px] border ${
+                        isActive
+                          ? "border-black bg-black text-white"
+                          : "border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
+                      }`}
+                      style={{ borderRadius: 0 }}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             <button
               onClick={() => setIsExcludedEmailsModalOpen(true)}
               className="h-9 px-3 text-[13px] border border-black/15 hover:border-black/30 hover:bg-black/[0.03] active:bg-black/[0.06]"
@@ -1583,6 +1636,7 @@ const AdminPage = () => {
       <div className="mx-auto max-w-[1100px] px-6 py-6 w-full">
         {isLandingTab ? (
           <AdminLandingLogsTab
+            deviceFilterLabel={deviceFilterLabel}
             canAccessAdminData={canAccessAdminData}
             excludedLocalIds={excludedLandingLocalIds}
             excludedLocalIdsError={excludedLandingLocalIdsError}
@@ -1603,6 +1657,7 @@ const AdminPage = () => {
           />
         ) : isNetworkAnalyticsTab ? (
           <AdminNetworkAnalyticsTab
+            deviceFilterLabel={deviceFilterLabel}
             logs={filteredNetworkAnalyticsLogs}
             grouped={networkGrouped}
             loading={networkTabLoading}

@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import { client } from "@/lib/llm/llm";
-import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
+import {
+  runTalentAssistantCompletion,
+  runTalentAssistantToolLoop,
+} from "@/lib/talentOnboarding/llm";
 import {
   buildTalentProfileContext,
   countUserChatTurns,
   fetchRecentMessages,
   fetchTalentInsights,
+  fetchTalentSetting,
   fetchTalentStructuredProfile,
   normalizeTalentInsightKey,
   TalentConversationRow,
@@ -15,16 +19,26 @@ import {
   getTalentSupabaseAdmin,
   upsertTalentInsights,
 } from "@/lib/talentOnboarding/server";
-import { TALENT_INTERVIEW_FINAL_STEP, TALENT_INTERVIEW_MIN_COVERAGE } from "@/lib/talentOnboarding/progress";
-import { warmCache, getTestFlagSlugs, getContentForUser } from "@/lib/talentOnboarding/prompts/promptCache";
+import {
+  TALENT_INTERVIEW_FINAL_STEP,
+  TALENT_INTERVIEW_MIN_COVERAGE,
+} from "@/lib/talentOnboarding/progress";
+import {
+  warmCache,
+  getTestFlagSlugs,
+  getContentForUser,
+} from "@/lib/talentOnboarding/prompts/promptCache";
 import {
   getUncoveredChecklistItems,
   INSIGHT_CHECKLIST,
   type InsightChecklistItem,
 } from "@/lib/talentOnboarding/insightChecklist";
+import { normalizeExtractedInsights } from "@/lib/talentOnboarding/insights";
 import {
-  normalizeExtractedInsights,
-} from "@/lib/talentOnboarding/insights";
+  buildTalentToolPolicy,
+  executeTalentTool,
+  getOpenAIChatTools,
+} from "@/lib/talentOnboarding/tools";
 import { logger } from "@/utils/logger";
 
 type Body = {
@@ -37,15 +51,22 @@ type Body = {
 // System prompt builder: flat prompt from DB + dynamic context
 // ---------------------------------------------------------------------------
 
-function buildExistingInsightsSection(content: Record<string, string> | null): string {
+function buildExistingInsightsSection(
+  content: Record<string, string> | null
+): string {
   if (!content || Object.keys(content).length === 0) return "";
   const MAX_TOTAL = 2000;
   const MAX_PER_VALUE = 150;
   let section = "\n## 이미 알고 있는 정보 (재질문 금지, 더 깊은 질문에 활용)\n";
   let totalLen = section.length;
-  const sortedEntries = Object.entries(content).sort(([a], [b]) => a.localeCompare(b));
+  const sortedEntries = Object.entries(content).sort(([a], [b]) =>
+    a.localeCompare(b)
+  );
   for (const [key, value] of sortedEntries) {
-    const truncated = value.length > MAX_PER_VALUE ? value.slice(0, MAX_PER_VALUE) + "..." : value;
+    const truncated =
+      value.length > MAX_PER_VALUE
+        ? value.slice(0, MAX_PER_VALUE) + "..."
+        : value;
     const line = `- "${key}": "${truncated}"\n`;
     if (totalLen + line.length > MAX_TOTAL) break;
     section += line;
@@ -56,7 +77,10 @@ function buildExistingInsightsSection(content: Record<string, string> | null): s
 
 function buildSystemPrompt(args: {
   flatPrompt: string;
-  profile: { resume_file_name?: string | null; resume_links?: string[] | null } | null;
+  profile: {
+    resume_file_name?: string | null;
+    resume_links?: string[] | null;
+  } | null;
   structuredProfileText: string;
   userTurnCount: number;
   currentInsightContent: Record<string, string> | null;
@@ -74,7 +98,9 @@ function buildSystemPrompt(args: {
   } = args;
 
   const linkText = (profile?.resume_links ?? []).join(", ");
-  const existingInsightsSection = buildExistingInsightsSection(currentInsightContent);
+  const existingInsightsSection = buildExistingInsightsSection(
+    currentInsightContent
+  );
   const topUncovered = uncoveredItems
     .slice(0, 3)
     .map((item) => `- ${item.promptHint}`)
@@ -200,9 +226,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const [profile, currentInsights] = await Promise.all([
+    const [profile, currentInsights, talentSetting] = await Promise.all([
       fetchTalentUserProfile({ admin, userId: user.id }),
       fetchTalentInsights({ admin, userId: user.id }),
+      fetchTalentSetting({ admin, userId: user.id }),
     ]);
     const structuredProfile = await fetchTalentStructuredProfile({
       admin,
@@ -212,10 +239,14 @@ export async function POST(req: NextRequest) {
     const structuredProfileText = buildTalentProfileContext({
       profile,
       structuredProfile,
+      setting: talentSetting,
       maxResumeChars: 3000,
     });
 
-    const currentInsightContent = (currentInsights?.content ?? null) as Record<string, string> | null;
+    const currentInsightContent = (currentInsights?.content ?? null) as Record<
+      string,
+      string
+    > | null;
     const uncoveredItems = getUncoveredChecklistItems(currentInsightContent);
     const coveredCount = INSIGHT_CHECKLIST.length - uncoveredItems.length;
 
@@ -257,10 +288,11 @@ export async function POST(req: NextRequest) {
       .filter((item) => item.content.trim().length > 0);
 
     // Load flat prompt from DB, inject channel type
-    const flatPrompt = (getContentForUser("career-chat", testSlugs) ?? "")
-      .replace(/\{channel_type\}/g, "Chat");
+    const flatPrompt = (
+      getContentForUser("career-chat", testSlugs) ?? ""
+    ).replace(/\{channel_type\}/g, "Chat");
 
-    const systemPrompt = buildSystemPrompt({
+    const baseSystemPrompt = buildSystemPrompt({
       flatPrompt,
       profile,
       structuredProfileText,
@@ -269,15 +301,31 @@ export async function POST(req: NextRequest) {
       uncoveredItems,
       coveredCount,
     });
+    const toolDefinitions = getOpenAIChatTools("chat");
+    const toolPolicy = buildTalentToolPolicy("chat");
+    const systemPrompt = toolPolicy
+      ? `${baseSystemPrompt}\n\n${toolPolicy}`
+      : baseSystemPrompt;
+
+    logger.log("[TalentChat] System prompt", { systemPrompt });
 
     // --- Conversation LLM call (natural language, no JSON mode) ---
-    const assistantText = await runTalentAssistantCompletion({
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...llmMessages,
-      ],
-      temperature: 0.55,
-    });
+    const assistantText =
+      toolDefinitions.length > 0
+        ? await runTalentAssistantToolLoop({
+            messages: [{ role: "system", content: systemPrompt }, ...llmMessages],
+            temperature: 0.55,
+            tools: toolDefinitions,
+            executeTool: ({ name, input }) =>
+              executeTalentTool({
+                name,
+                input,
+              }),
+          })
+        : await runTalentAssistantCompletion({
+            messages: [{ role: "system", content: systemPrompt }, ...llmMessages],
+            temperature: 0.55,
+          });
 
     const safeAssistantText =
       assistantText.trim() ||
@@ -329,7 +377,10 @@ export async function POST(req: NextRequest) {
 
       const rawExtraction = (
         extractionResponse.choices[0]?.message?.content ?? ""
-      ).replace(/^```json\s*/i, "").replace(/\s*```$/i, "").trim();
+      )
+        .replace(/^```json\s*/i, "")
+        .replace(/\s*```$/i, "")
+        .trim();
 
       let parsed: { extracted_insights?: Record<string, unknown> } = {};
       try {
@@ -337,7 +388,11 @@ export async function POST(req: NextRequest) {
       } catch {
         const match = rawExtraction.match(/\{[\s\S]*\}/);
         if (match) {
-          try { parsed = JSON.parse(match[0]); } catch { /* skip */ }
+          try {
+            parsed = JSON.parse(match[0]);
+          } catch {
+            /* skip */
+          }
         }
       }
 
@@ -392,9 +447,10 @@ export async function POST(req: NextRequest) {
 
     // --- Completion check: coverage-based ---
     const insightsCoveredAfter = coveredCount + newKeysCount;
-    const coverageRatio = INSIGHT_CHECKLIST.length > 0
-      ? insightsCoveredAfter / INSIGHT_CHECKLIST.length
-      : 1;
+    const coverageRatio =
+      INSIGHT_CHECKLIST.length > 0
+        ? insightsCoveredAfter / INSIGHT_CHECKLIST.length
+        : 1;
     const isCompleted = coverageRatio >= TALENT_INTERVIEW_MIN_COVERAGE;
 
     const now = new Date().toISOString();

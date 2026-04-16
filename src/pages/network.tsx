@@ -6,12 +6,15 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { supabase } from "@/lib/supabase";
 import {
   TALENT_NETWORK_ABTEST_TYPE_KEY,
+  TALENT_NETWORK_CTA_EXPERIMENT_TYPE_A,
+  TALENT_NETWORK_CTA_EXPERIMENT_TYPE_B,
+  TALENT_NETWORK_CTA_EXPERIMENT_TYPE_KEY,
   TALENT_NETWORK_LAST_VISIT_AT_KEY,
   TALENT_NETWORK_LOCAL_ID_KEY,
   createTalentNetworkLocalId,
-  resolveTalentNetworkAssignmentType,
-  usesTalentNetworkBExperience,
   type TalentNetworkAssignmentType,
+  type TalentNetworkCtaExperimentType,
+  resolveTalentNetworkCtaExperimentType,
   TALENT_NETWORK_ABTEST_TYPE_B,
 } from "@/lib/talentNetwork";
 import {
@@ -29,8 +32,11 @@ import {
   ArrowUpRight,
   ChevronLeft,
   ChevronRight,
+  FileText,
   LoaderCircle,
   Plus,
+  Shield,
+  Upload,
   X,
 } from "lucide-react";
 import Head from "next/head";
@@ -40,6 +46,7 @@ import { useRouter } from "next/router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Onboarding2Content } from "./onboarding2";
 import { logger } from "@/utils/logger";
+import { BeigeCheckbox } from "@/components/ui/BeigeCheckbox";
 
 type CompanyRequest = {
   id: string;
@@ -276,15 +283,38 @@ type NetworkSectionKey =
   | "opportunities"
   | "faq"
   | "footer";
+type NetworkQuickApplyCampaign = "default" | "wonderful";
 
 const isValidEmail = (value: string) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
+const isValidLinkedinUrl = (value: string) => {
+  try {
+    const parsed = new URL(value);
+    return parsed.hostname.toLowerCase().includes("linkedin.com");
+  } catch {
+    return false;
+  }
+};
 
 function getClientSearchParam(key: string) {
   if (typeof window === "undefined") return null;
   const value = new URLSearchParams(window.location.search).get(key);
   const normalized = String(value ?? "").trim();
   return normalized.length > 0 ? normalized : null;
+}
+
+function resolveNetworkCtaOverrideFromUrl() {
+  const value = getClientSearchParam("cta")?.toLowerCase();
+  if (value === "modal") return TALENT_NETWORK_CTA_EXPERIMENT_TYPE_B;
+  if (value === "wonderful") return TALENT_NETWORK_CTA_EXPERIMENT_TYPE_B;
+  if (value === "onboarding") return TALENT_NETWORK_CTA_EXPERIMENT_TYPE_A;
+  return null;
+}
+
+function resolveNetworkQuickApplyCampaignFromUrl(): NetworkQuickApplyCampaign {
+  const value = getClientSearchParam("cta")?.toLowerCase();
+  return value === "wonderful" ? "wonderful" : "default";
 }
 
 const SectionTag = ({ children }: { children: React.ReactNode }) => (
@@ -798,6 +828,230 @@ const ReferralShareModal = ({
   );
 };
 
+const QuickApplyTextInput = ({
+  type = "text",
+  value,
+  onChange,
+  placeholder,
+}: {
+  type?: "text" | "email" | "url";
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+}) => {
+  return (
+    <input
+      type={type}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      placeholder={placeholder}
+      className="h-10 px-2.5 text-sm w-full rounded-md border border-beige900/12 bg-white/75 text-[15px] text-beige900 outline-none transition focus:border-beige900/30 focus:ring-1 focus:ring-beige900/20 placeholder:text-beige900/30"
+    />
+  );
+};
+
+const QuickApplyModal = ({
+  roleLabel,
+  campaign,
+  name,
+  email,
+  linkedinUrl,
+  resumeFileName,
+  contactConsent,
+  isSubmitting,
+  onClose,
+  onSubmit,
+  onNameChange,
+  onEmailChange,
+  onLinkedinUrlChange,
+  onResumeChange,
+  onContactConsentChange,
+}: {
+  roleLabel: string;
+  campaign: NetworkQuickApplyCampaign;
+  name: string;
+  email: string;
+  linkedinUrl: string;
+  resumeFileName: string;
+  contactConsent: boolean;
+  isSubmitting: boolean;
+  onClose: () => void;
+  onSubmit: () => void;
+  onNameChange: (value: string) => void;
+  onEmailChange: (value: string) => void;
+  onLinkedinUrlChange: (value: string) => void;
+  onResumeChange: (file: File | null) => void;
+  onContactConsentChange: (value: boolean) => void;
+}) => {
+  const isWonderfulCampaign = campaign === "wonderful";
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[146] flex items-center justify-center md:p-4"
+    >
+      <motion.button
+        type="button"
+        aria-label="지원 모달 닫기"
+        onClick={onClose}
+        className="absolute inset-0 bg-black/10 backdrop-blur-[2px]"
+      />
+
+      <motion.div
+        initial={{ opacity: 0, y: 14, scale: 0.985 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 10, scale: 0.985 }}
+        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+        className="relative z-10 w-full min-h-screen md:min-h-fit md:max-w-[460px] md:rounded-lg border border-beige900/10 bg-beige100 p-4 shadow-[0_20px_60px_rgba(37,20,6,0.14)] md:p-5"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={isSubmitting}
+          className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-beige900/55 transition hover:bg-beige900/[0.03] hover:text-beige900/80 disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label="지원 모달 닫기"
+        >
+          <X className="h-4 w-4" />
+        </button>
+
+        <div className="">
+          <div className="flex items-center gap-2">
+            {isWonderfulCampaign ? (
+              <Image
+                src="/images/wonderful.png"
+                alt="Wonderful"
+                width={144}
+                height={48}
+                className="h-12 w-auto object-contain"
+              />
+            ) : (
+              <h2 className="text-lg font-medium tracking-[-0.03em] text-beige900">
+                {roleLabel}
+              </h2>
+            )}
+          </div>
+          <p className="flex flex-row items-center gap-1 mt-1 text-sm leading-[1.65] tracking-[-0.02em] text-beige900/60">
+            <Shield className="h-3.5 w-3.5" /> 입력하신 정보는 절대로 허락 없이
+            외부에 공개되지 않습니다.
+          </p>
+        </div>
+
+        <div className="mt-3 space-y-3">
+          <div>
+            <label className="mb-1 block text-sm font-medium tracking-[-0.02em] text-beige900/70">
+              이름
+            </label>
+            <QuickApplyTextInput
+              value={name}
+              onChange={(value) => onNameChange(value)}
+              placeholder="이름"
+              type="text"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium tracking-[-0.02em] text-beige900/70">
+              이메일
+            </label>
+            <QuickApplyTextInput
+              value={email}
+              onChange={(value) => onEmailChange(value)}
+              placeholder="example@example.com"
+              type="email"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium tracking-[-0.02em] text-beige900/70">
+              링크드인 링크
+            </label>
+            <QuickApplyTextInput
+              value={linkedinUrl}
+              onChange={(value) => onLinkedinUrlChange(value)}
+              placeholder="https://www.linkedin.com/in/..."
+              type="url"
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium tracking-[-0.02em] text-beige900/70">
+              이력서 업로드 (optional)
+            </label>
+            <label className="flex cursor-pointer items-center justify-between rounded-md border border-dashed border-beige900/20 bg-beige200/65 px-3 py-2 transition hover:border-beige900/32 hover:bg-beige200">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-beige900/10 bg-white/80 text-beige900/70">
+                  {resumeFileName ? (
+                    <FileText className="h-4 w-4" />
+                  ) : (
+                    <Upload className="h-4 w-4" />
+                  )}
+                </span>
+                <div className="min-w-0">
+                  <div className="truncate text-[13px] font-medium text-beige900/78">
+                    {resumeFileName || "파일 선택"}
+                  </div>
+                  <div className="text-xs text-beige900/45">
+                    PDF, DOC, DOCX 중 하나를 올릴 수 있습니다.
+                  </div>
+                </div>
+              </div>
+              <span className="ml-3 shrink-0 text-xs font-medium text-beige900/55">
+                선택
+              </span>
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx"
+                className="hidden"
+                onChange={(event) =>
+                  onResumeChange(event.target.files?.[0] ?? null)
+                }
+              />
+            </label>
+          </div>
+
+          <div className="h-1" />
+
+          <label className="flex flex-row items-center gap-1 cursor-pointer group">
+            <BeigeCheckbox
+              checked={contactConsent}
+              onChange={(event) => onContactConsentChange(event.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-beige900/25 text-beige900 focus:ring-beige900/30"
+            />
+            <div className="group-hover:text-beige900/75 mt-1 w-full text-sm tracking-[-0.02em] text-beige900/90">
+              기재한 이메일로{" "}
+              {isWonderfulCampaign
+                ? "Wonderful에 대해 안내하는 것에"
+                : "관련 기회에 대해 안내하는 것에"}{" "}
+              동의합니다.
+            </div>
+          </label>
+        </div>
+
+        <div className="mt-3 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={isSubmitting}
+            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-beige900 px-4 text-sm font-medium text-beige100 transition hover:opacity-92 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {isSubmitting ? (
+              <>
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+                제출 중...
+              </>
+            ) : (
+              "지원하기"
+            )}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
+
 const NetworkPage = () => {
   const router = useRouter();
   const isRouterReady = router.isReady;
@@ -823,12 +1077,25 @@ const NetworkPage = () => {
     string | null
   >(null);
   const [copiedRequestId, setCopiedRequestId] = useState<string | null>(null);
+  const [ctaExperimentType, setCtaExperimentType] =
+    useState<TalentNetworkCtaExperimentType | null>(null);
+  const [quickApplyCampaign, setQuickApplyCampaign] =
+    useState<NetworkQuickApplyCampaign>("default");
   const [isInquiryOpen, setIsInquiryOpen] = useState(false);
+  const [isQuickApplyOpen, setIsQuickApplyOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [shareEmail, setShareEmail] = useState("");
   const [inquiryEmail, setInquiryEmail] = useState("");
   const [inquiryContent, setInquiryContent] = useState("");
+  const [quickApplyName, setQuickApplyName] = useState("");
+  const [quickApplyEmail, setQuickApplyEmail] = useState("");
+  const [quickApplyLinkedinUrl, setQuickApplyLinkedinUrl] = useState("");
+  const [quickApplyResumeFile, setQuickApplyResumeFile] = useState<File | null>(
+    null
+  );
+  const [hasQuickApplyConsent, setHasQuickApplyConsent] = useState(false);
   const [isInquirySubmitting, setIsInquirySubmitting] = useState(false);
+  const [isQuickApplySubmitting, setIsQuickApplySubmitting] = useState(false);
   const [isShareSubmitting, setIsShareSubmitting] = useState(false);
   const [landingId, setLandingId] = useState("");
   const [abtestType, setAbtestType] =
@@ -843,6 +1110,8 @@ const NetworkPage = () => {
   const requestCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const processedReferralTokenRef = useRef<string | null>(null);
   const hasLoggedFirstScrollRef = useRef(false);
+  const hasLoggedCtaExperimentRef = useRef(false);
+  const hasAutoOpenedCampaignRef = useRef(false);
   const sectionLastLoggedAtRef = useRef<Record<NetworkSectionKey, number>>({
     hero: 0,
     social_proof: 0,
@@ -886,13 +1155,30 @@ const NetworkPage = () => {
     [abtestType, countryLang, isMobile, landingId]
   );
 
-  const openOnboarding = useCallback(
+  const resetQuickApplyForm = useCallback(() => {
+    setQuickApplyName("");
+    setQuickApplyEmail("");
+    setQuickApplyLinkedinUrl("");
+    setQuickApplyResumeFile(null);
+    setHasQuickApplyConsent(false);
+  }, []);
+
+  const openNetworkCta = useCallback(
     (eventType: string, role?: string) => {
       void addLandingLog(eventType);
       setSelectedOnboardingRole(role);
+
+      if (ctaExperimentType === TALENT_NETWORK_CTA_EXPERIMENT_TYPE_B) {
+        void addLandingLog("talent_network_cta_flow_v1_modal_open");
+        resetQuickApplyForm();
+        setIsQuickApplyOpen(true);
+        return;
+      }
+
+      void addLandingLog("talent_network_cta_flow_v1_onboarding_open");
       setIsOnboardingOpen(true);
     },
-    [addLandingLog]
+    [addLandingLog, ctaExperimentType, resetQuickApplyForm]
   );
 
   const openShareModal = useCallback(() => {
@@ -937,17 +1223,32 @@ const NetworkPage = () => {
 
     setLandingId(resolvedLandingId);
 
-    const savedAbtestType = localStorage.getItem(
-      TALENT_NETWORK_ABTEST_TYPE_KEY
-    );
-    const resolvedAbtestType =
-      resolveTalentNetworkAssignmentType(savedAbtestType);
+    const resolvedAbtestType = TALENT_NETWORK_ABTEST_TYPE_B;
+    localStorage.setItem(TALENT_NETWORK_ABTEST_TYPE_KEY, resolvedAbtestType);
+    setAbtestType(resolvedAbtestType);
 
-    if (savedAbtestType !== resolvedAbtestType) {
-      localStorage.setItem(TALENT_NETWORK_ABTEST_TYPE_KEY, resolvedAbtestType);
+    const savedCtaExperimentType = localStorage.getItem(
+      TALENT_NETWORK_CTA_EXPERIMENT_TYPE_KEY
+    );
+    const ctaOverrideType = resolveNetworkCtaOverrideFromUrl();
+    const quickApplyCampaignFromUrl = resolveNetworkQuickApplyCampaignFromUrl();
+    const resolvedCtaExperimentType =
+      ctaOverrideType ||
+      resolveTalentNetworkCtaExperimentType(savedCtaExperimentType);
+
+    if (savedCtaExperimentType !== resolvedCtaExperimentType) {
+      localStorage.setItem(
+        TALENT_NETWORK_CTA_EXPERIMENT_TYPE_KEY,
+        resolvedCtaExperimentType
+      );
     }
 
-    setAbtestType(resolvedAbtestType);
+    setCtaExperimentType(resolvedCtaExperimentType);
+    setQuickApplyCampaign(quickApplyCampaignFromUrl);
+
+    if (quickApplyCampaignFromUrl === "wonderful") {
+      setSelectedOnboardingRole("Wonderful");
+    }
 
     if (!savedId) {
       void addLandingLog("new_visit", {
@@ -956,18 +1257,19 @@ const NetworkPage = () => {
       });
       return;
     }
-
-    if (savedAbtestType !== resolvedAbtestType) {
-      localStorage.setItem(
-        TALENT_NETWORK_LAST_VISIT_AT_KEY,
-        String(Date.now())
-      );
-      void addLandingLog("new_session", {
-        localId: resolvedLandingId,
-        abtestType: resolvedAbtestType,
-      });
-    }
   }, [addLandingLog]);
+
+  useEffect(() => {
+    if (showPreloader) return;
+    if (quickApplyCampaign !== "wonderful") return;
+    if (hasAutoOpenedCampaignRef.current) return;
+
+    hasAutoOpenedCampaignRef.current = true;
+    resetQuickApplyForm();
+    setSelectedOnboardingRole("Wonderful");
+    setIsQuickApplyOpen(true);
+    void addLandingLog("talent_network_cta_flow_v1_wonderful_auto_open");
+  }, [addLandingLog, quickApplyCampaign, resetQuickApplyForm, showPreloader]);
 
   useEffect(() => {
     const queryReferral = routerQuery[TALENT_NETWORK_REFERRAL_QUERY_KEY];
@@ -1058,6 +1360,16 @@ const NetworkPage = () => {
   }, [abtestType, addLandingLog, landingId]);
 
   useEffect(() => {
+    if (!landingId || !abtestType || !ctaExperimentType) return;
+    if (hasLoggedCtaExperimentRef.current) return;
+
+    hasLoggedCtaExperimentRef.current = true;
+    void addLandingLog(
+      `talent_network_cta_experiment_assigned:${ctaExperimentType}`
+    );
+  }, [abtestType, addLandingLog, ctaExperimentType, landingId]);
+
+  useEffect(() => {
     if (!landingId || !abtestType) return;
 
     const handleScroll = () => {
@@ -1135,6 +1447,13 @@ const NetworkPage = () => {
     setInquiryContent("");
   }, []);
 
+  const closeQuickApplyModal = React.useCallback(() => {
+    if (isQuickApplySubmitting) return;
+    void addLandingLog("talent_network_click_quick_apply_close");
+    setIsQuickApplyOpen(false);
+    resetQuickApplyForm();
+  }, [addLandingLog, isQuickApplySubmitting, resetQuickApplyForm]);
+
   const closeInquiryModal = React.useCallback(() => {
     if (isInquirySubmitting) return;
     setIsInquiryOpen(false);
@@ -1143,7 +1462,11 @@ const NetworkPage = () => {
 
   useEffect(() => {
     const isOverlayOpen =
-      isOnboardingOpen || selectedRequest !== null || isInquiryOpen;
+      isOnboardingOpen ||
+      selectedRequest !== null ||
+      isInquiryOpen ||
+      isShareModalOpen ||
+      isQuickApplyOpen;
 
     if (!isOverlayOpen) return;
 
@@ -1163,8 +1486,18 @@ const NetworkPage = () => {
         return;
       }
 
+      if (isQuickApplyOpen) {
+        closeQuickApplyModal();
+        return;
+      }
+
       if (isInquiryOpen) {
         closeInquiryModal();
+        return;
+      }
+
+      if (isShareModalOpen) {
+        setIsShareModalOpen(false);
         return;
       }
 
@@ -1178,7 +1511,15 @@ const NetworkPage = () => {
       document.documentElement.style.overflow = previousHtmlOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [closeInquiryModal, isInquiryOpen, isOnboardingOpen, selectedRequest]);
+  }, [
+    closeInquiryModal,
+    closeQuickApplyModal,
+    isInquiryOpen,
+    isOnboardingOpen,
+    isQuickApplyOpen,
+    isShareModalOpen,
+    selectedRequest,
+  ]);
 
   useEffect(() => {
     if (!copiedRequestId) return;
@@ -1444,6 +1785,138 @@ const NetworkPage = () => {
     }
   };
 
+  const handleSubmitQuickApply = async () => {
+    const trimmedName = quickApplyName.trim();
+    const trimmedEmail = quickApplyEmail.trim().toLowerCase();
+    const trimmedLinkedinUrl = quickApplyLinkedinUrl.trim();
+    const selectedRoleLabel =
+      quickApplyCampaign === "wonderful"
+        ? "Wonderful"
+        : selectedOnboardingRole || "Talent Network";
+
+    if (isQuickApplySubmitting) return;
+
+    if (!trimmedName) {
+      showToast({
+        message: "이름을 입력해 주세요.",
+        variant: "white",
+      });
+      return;
+    }
+
+    if (!trimmedEmail) {
+      showToast({
+        message: "이메일을 입력해 주세요.",
+        variant: "white",
+      });
+      return;
+    }
+
+    if (!isValidEmail(trimmedEmail)) {
+      showToast({
+        message: "올바른 이메일 형식으로 입력해 주세요.",
+        variant: "white",
+      });
+      return;
+    }
+
+    if (!trimmedLinkedinUrl && !quickApplyResumeFile) {
+      showToast({
+        message: "링크드인 링크 또는 이력서 파일 중 하나는 필요합니다.",
+        variant: "white",
+      });
+      return;
+    }
+
+    if (trimmedLinkedinUrl && !isValidLinkedinUrl(trimmedLinkedinUrl)) {
+      showToast({
+        message: "올바른 링크드인 URL을 입력해 주세요.",
+        variant: "white",
+      });
+      return;
+    }
+
+    if (quickApplyResumeFile && quickApplyResumeFile.size > 10 * 1024 * 1024) {
+      showToast({
+        message: "이력서 파일은 10MB 이하로 업로드해 주세요.",
+        variant: "white",
+      });
+      return;
+    }
+
+    if (!hasQuickApplyConsent) {
+      showToast({
+        message: "연락 동의가 필요합니다.",
+        variant: "white",
+      });
+      return;
+    }
+
+    const resolvedLandingId =
+      landingId ||
+      localStorage.getItem(TALENT_NETWORK_LOCAL_ID_KEY) ||
+      createTalentNetworkLocalId();
+
+    localStorage.setItem(TALENT_NETWORK_LOCAL_ID_KEY, resolvedLandingId);
+    if (!landingId) {
+      setLandingId(resolvedLandingId);
+    }
+
+    setIsQuickApplySubmitting(true);
+    void addLandingLog("talent_network_click_quick_apply_submit");
+
+    try {
+      const formData = new FormData();
+      formData.set("name", trimmedName);
+      formData.set("email", trimmedEmail);
+      formData.set("linkedinUrl", trimmedLinkedinUrl);
+      formData.set("contactConsent", String(hasQuickApplyConsent));
+      formData.set("ctaExperimentType", ctaExperimentType || "");
+      formData.set(
+        "landingAbtestType",
+        abtestType || TALENT_NETWORK_ABTEST_TYPE_B
+      );
+      formData.set("isMobile", String(Boolean(isMobile)));
+      formData.set("localId", resolvedLandingId);
+      formData.set("pagePath", window.location.pathname);
+      formData.set("selectedRole", selectedRoleLabel);
+      formData.set("campaign", quickApplyCampaign);
+
+      if (quickApplyResumeFile) {
+        formData.set("resume", quickApplyResumeFile);
+      }
+
+      const response = await fetch("/api/talent/network/apply", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await response.json();
+
+      if (!response.ok || data?.error) {
+        throw new Error(data?.error ?? "제출에 실패했습니다.");
+      }
+
+      void addLandingLog("talent_network_quick_apply_submit_completed");
+      setIsQuickApplyOpen(false);
+      resetQuickApplyForm();
+      showToast({
+        message: "제출이 완료되었습니다.",
+        variant: "white",
+      });
+    } catch (error) {
+      console.error("network quick apply submit failed:", error);
+      showToast({
+        message:
+          error instanceof Error
+            ? error.message
+            : "제출 중 오류가 발생했습니다.",
+        variant: "error",
+      });
+    } finally {
+      setIsQuickApplySubmitting(false);
+    }
+  };
+
   const Pill = ({ label }: { label: string }) => {
     return (
       <div className="inline-flex items-center gap-1 rounded-md bg-beige500 px-3 py-1 text-[13px] md:text-sm font-medium tracking-[-0.03em] text-beige900/90 transition-colors duration-200">
@@ -1540,7 +2013,7 @@ const NetworkPage = () => {
               size="sm"
               variant="secondary"
               showArrow={false}
-              onClick={() => openOnboarding("talent_network_click_nav_join")}
+              onClick={() => openNetworkCta("talent_network_click_nav_join")}
               className="inline-flex"
             />
           </div>
@@ -1559,64 +2032,22 @@ const NetworkPage = () => {
               <h2
                 className={`${titleTextClassName} text-beige900 text-4xl md:text-5xl`}
               >
-                {/* GET MATCHED TO TOP AI STARTUPS */}
-                {abtestType === TALENT_NETWORK_ABTEST_TYPE_B ? (
-                  <>
-                    <span className="block">
-                      <StaggerText text="Access the World's" />
-                    </span>
-                    <span className="block mt-3">
-                      <StaggerText
-                        text="Most Elite AI Positions."
-                        delay={0.14}
-                      />
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span className="block">
-                      <StaggerText text="We Handle Your Profile with Care." />
-                    </span>
-                    <span className="block md:hidden mt-3">
-                      <StaggerText
-                        text="You Get the Right Roles."
-                        delay={0.14}
-                      />
-                    </span>
-                    <span className="hidden md:block mt-3">
-                      <StaggerText
-                        text="You Get the Right Roles."
-                        delay={0.14}
-                      />
-                    </span>
-                  </>
-                )}
+                <span className="block">
+                  <StaggerText text="Access the World's" />
+                </span>
+                <span className="block mt-3">
+                  <StaggerText text="Most Elite AI Positions." delay={0.14} />
+                </span>
               </h2>
             </Reveal>
 
             <Reveal once delay={0.18}>
               <div className="mt-8 flex flex-col justify-center items-center text-lg tracking-[-0.03em] text-beige900/70">
-                {abtestType === TALENT_NETWORK_ABTEST_TYPE_B ? (
-                  <>
-                    <div>
-                      Direct backdoor to confidential AI unicorns backed by
-                      top-tier Global VCs.
-                    </div>
-                    <div>
-                      Skip the HR screen and match directly with founders.
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div>
-                      We handle your profile carefully and connect you to top
-                      opportunities.
-                    </div>
-                    <div>
-                      No spam, no public exposure, no irrelevant outreach.
-                    </div>
-                  </>
-                )}
+                <div>
+                  Direct backdoor to confidential AI unicorns backed by top-tier
+                  Global VCs.
+                </div>
+                <div>Skip the HR screen and match directly with founders.</div>
               </div>
 
               <div className="mt-8 flex flex-row items-center justify-center gap-2 text-base tracking-[-0.03em] text-beige900/50 flex-wrap">
@@ -1628,14 +2059,10 @@ const NetworkPage = () => {
 
             <Reveal once delay={0.24} className="mt-12">
               <NetworkButton
-                label={
-                  abtestType === TALENT_NETWORK_ABTEST_TYPE_B
-                    ? "Initiate Match"
-                    : "Start with Harper"
-                }
+                label="Initiate Match"
                 highlighted={hasReferralHighlight}
                 onClick={() =>
-                  openOnboarding("talent_network_click_hero_initiate_match")
+                  openNetworkCta("talent_network_click_hero_initiate_match")
                 }
               />
             </Reveal>
@@ -1677,7 +2104,7 @@ const NetworkPage = () => {
               </p> */}
             </Reveal>
 
-            <VCLogos abtestType={abtestType} />
+            <VCLogos />
           </section>
 
           <section
@@ -1908,14 +2335,10 @@ const NetworkPage = () => {
               />
               <div className="flex flex-col items-center gap-3">
                 <NetworkButton
-                  label={
-                    abtestType === TALENT_NETWORK_ABTEST_TYPE_B
-                      ? "Initiate Match"
-                      : "Start with Harper"
-                  }
+                  label="Initiate Match"
                   highlighted={hasReferralHighlight}
                   onClick={() =>
-                    openOnboarding("talent_network_click_last_initiate_match")
+                    openNetworkCta("talent_network_click_last_initiate_match")
                   }
                 />
                 <div className="flex flex-col items-center gap-2 w-[360px]">
@@ -1981,7 +2404,7 @@ const NetworkPage = () => {
                   `talent_network_click_request_get_matched:${selectedRequest.id}`
                 );
                 setSelectedRequest(null);
-                openOnboarding(
+                openNetworkCta(
                   `talent_network_click_request_modal_open_onboarding:${selectedRequest.id}`,
                   selectedRequest.role
                 );
@@ -2012,6 +2435,32 @@ const NetworkPage = () => {
               onClose={() => setIsShareModalOpen(false)}
               onEmailChange={setShareEmail}
               onSubmit={() => void handleCreateFooterShare()}
+            />
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {isQuickApplyOpen && (
+            <QuickApplyModal
+              roleLabel={
+                quickApplyCampaign === "wonderful"
+                  ? "Wonderful"
+                  : selectedOnboardingRole || "Talent Network"
+              }
+              campaign={quickApplyCampaign}
+              name={quickApplyName}
+              email={quickApplyEmail}
+              linkedinUrl={quickApplyLinkedinUrl}
+              resumeFileName={quickApplyResumeFile?.name || ""}
+              contactConsent={hasQuickApplyConsent}
+              isSubmitting={isQuickApplySubmitting}
+              onClose={closeQuickApplyModal}
+              onSubmit={() => void handleSubmitQuickApply()}
+              onNameChange={setQuickApplyName}
+              onEmailChange={setQuickApplyEmail}
+              onLinkedinUrlChange={setQuickApplyLinkedinUrl}
+              onResumeChange={setQuickApplyResumeFile}
+              onContactConsentChange={setHasQuickApplyConsent}
             />
           )}
         </AnimatePresence>
@@ -2057,9 +2506,8 @@ const vcLogos = [
   { key: "cohere", src: "/svgs/cohere.svg", width: 124 },
 ];
 
-function VCLogos({ abtestType }: { abtestType: string | null }) {
+function VCLogos() {
   const items = [...vcLogos];
-  const showsBMessaging = usesTalentNetworkBExperience(abtestType);
 
   return (
     <div className="relative w-[90%] mx-auto overflow-hidden mt-16">
