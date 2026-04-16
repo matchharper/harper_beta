@@ -436,7 +436,7 @@ const CareerTimelineSection = () => {
             const isUser = message.role === "user";
             return (
               <div
-                key={`${message.id}-${index}`}
+                key={String(message.id)}
                 className={careerCx(
                   "flex flex-col gap-2",
                   isVoiceMode &&
