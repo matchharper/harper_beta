@@ -84,25 +84,48 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date().toISOString();
-    const { data: activatedMessage, error: activateError } = await admin
-      .from("talent_messages")
-      .update({
-        message_type: "chat",
-        content: stripPendingQuestionPrefix(
-          (pendingMessage as TalentMessageRow).content
-        ),
-      })
-      .eq("id", (pendingMessage as TalentMessageRow).id)
-      .eq("conversation_id", conversationId)
-      .eq("user_id", user.id)
-      .select("*")
-      .single();
+    const pendingRow = pendingMessage as TalentMessageRow;
+    const activatedContent = stripPendingQuestionPrefix(pendingRow.content);
 
-    if (activateError) {
+    // Delete the old pending message and insert a new row so the new message
+    // receives a higher ID than any messages created during the defer flow.
+    // Without this, the reused low ID would sort before the PAUSE_CLOSE
+    // message and `shouldShowContinueConversationAction` would keep showing
+    // the "continue conversation" button.
+    const { error: deleteError } = await admin
+      .from("talent_messages")
+      .delete()
+      .eq("id", pendingRow.id)
+      .eq("conversation_id", conversationId)
+      .eq("user_id", user.id);
+
+    if (deleteError) {
       return NextResponse.json(
         {
           error:
-            activateError.message ?? "Failed to activate onboarding question",
+            deleteError.message ?? "Failed to remove pending onboarding question",
+        },
+        { status: 500 }
+      );
+    }
+
+    const { data: activatedMessage, error: insertError } = await admin
+      .from("talent_messages")
+      .insert({
+        conversation_id: conversationId,
+        user_id: user.id,
+        role: pendingRow.role,
+        content: activatedContent,
+        message_type: "chat",
+      })
+      .select("*")
+      .single();
+
+    if (insertError) {
+      return NextResponse.json(
+        {
+          error:
+            insertError.message ?? "Failed to activate onboarding question",
         },
         { status: 500 }
       );

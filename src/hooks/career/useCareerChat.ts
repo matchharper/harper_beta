@@ -69,6 +69,25 @@ const mergeMessages = (
   return merged;
 };
 
+const replaceMessageById = (
+  messages: CareerMessage[],
+  targetId: string | number,
+  nextMessage: CareerMessage
+) => {
+  const targetKey = String(targetId);
+  const nextIndex = messages.findIndex(
+    (message) => String(message.id) === targetKey
+  );
+
+  if (nextIndex < 0) {
+    return [...messages, nextMessage];
+  }
+
+  const nextMessages = [...messages];
+  nextMessages[nextIndex] = nextMessage;
+  return nextMessages;
+};
+
 export const useCareerChat = ({
   user,
   conversationId,
@@ -218,10 +237,9 @@ export const useCareerChat = ({
           throw new Error(getErrorMessage(payload, "메시지 전송에 실패했습니다."));
         }
 
-        setLocalMessages((prev) => [
-          ...prev.filter((item) => item.id !== tempId),
-          toUiMessage(payload.userMessage),
-        ]);
+        setLocalMessages((prev) =>
+          replaceMessageById(prev, tempId, toUiMessage(payload.userMessage))
+        );
         await enqueueAssistantTypewriter(toUiMessage(payload.assistantMessage));
         setScrollTick((t) => t + 1);
         await onMessagesChanged?.([

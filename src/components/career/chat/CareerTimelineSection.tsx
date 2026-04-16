@@ -127,6 +127,7 @@ const CareerTimelineSection = () => {
     onLoadOlderMessages,
     showVoiceStartPrompt,
     onStartVoiceCall,
+    onStartCallMode,
     onUseChatOnly,
     onPauseOnboarding,
     onSubmitOnboardingInterest,
@@ -436,7 +437,7 @@ const CareerTimelineSection = () => {
             const isUser = message.role === "user";
             return (
               <div
-                key={`${message.id}-${index}`}
+                key={String(message.id)}
                 className={careerCx(
                   "flex flex-col gap-2",
                   isVoiceMode &&
@@ -610,18 +611,11 @@ const CareerTimelineSection = () => {
             </div>
             <div className="mt-5 grid gap-2">
               <CareerPrimaryButton
-                onClick={() => onStartVoiceCall(5)}
+                onClick={() => onStartCallMode?.()}
                 disabled={onboardingBeginPending}
                 className="w-full justify-center"
               >
                 {onboardingBeginPending ? "준비 중..." : "5분 통화 시작"}
-              </CareerPrimaryButton>
-              <CareerPrimaryButton
-                onClick={() => onStartVoiceCall(10)}
-                disabled={onboardingBeginPending}
-                className="w-full justify-center"
-              >
-                {onboardingBeginPending ? "준비 중..." : "10분 통화 시작"}
               </CareerPrimaryButton>
               <CareerSecondaryButton
                 onClick={onUseChatOnly}
