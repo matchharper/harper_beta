@@ -5,14 +5,30 @@ import {
   TalentConversationRow,
   TalentMessageRow,
   ensureTalentUserRecord,
+  fetchTalentSetting,
   fetchTalentStructuredProfile,
   fetchTalentUserProfile,
   getTalentResumeSignedUrl,
   getTalentSupabaseAdmin,
   toTalentDisplayName,
 } from "@/lib/talentOnboarding/server";
+import {
+  getTalentCareerMoveIntentLabel,
+  getTalentEngagementLabels,
+  getTalentLocationLabels,
+} from "@/lib/talentNetworkApplication";
+import {
+  getTalentProfileVisibilityLabel,
+  normalizeTalentBlockedCompanies,
+  normalizeTalentEngagementTypes,
+  normalizeTalentPreferredLocations,
+  sanitizeTalentCareerMoveIntent,
+} from "@/lib/talentOnboarding/server";
 import { ingestTalentProfileFromLinkedin } from "@/lib/talentOnboarding/profileIngestion";
-import { generateTalentKickoff } from "@/lib/talentOnboarding/kickoff";
+import {
+  buildTalentKickoffOpeningMessage,
+  generateTalentKickoff,
+} from "@/lib/talentOnboarding/kickoff";
 import { logger } from "@/utils/logger";
 
 type Body = {
@@ -100,15 +116,39 @@ export async function POST(req: NextRequest) {
 
     if (profileUpdateError) {
       return NextResponse.json(
-        { error: profileUpdateError.message ?? "Failed to update talent profile" },
+        {
+          error:
+            profileUpdateError.message ?? "Failed to update talent profile",
+        },
         { status: 500 }
       );
     }
 
     const displayName = toTalentDisplayName(user);
+    const talentSetting = await fetchTalentSetting({ admin, userId: user.id });
     const kickoffLlmPromise = generateTalentKickoff({
       displayName,
       links,
+      talentPreferences: {
+        profileVisibilityLabel: getTalentProfileVisibilityLabel(
+          talentSetting?.profile_visibility
+        ),
+        engagementTypes: getTalentEngagementLabels(
+          normalizeTalentEngagementTypes(talentSetting?.engagement_types ?? [])
+        ),
+        preferredLocations: getTalentLocationLabels(
+          normalizeTalentPreferredLocations(
+            talentSetting?.preferred_locations ?? []
+          )
+        ),
+        careerMoveIntentLabel: getTalentCareerMoveIntentLabel(
+          sanitizeTalentCareerMoveIntent(talentSetting?.career_move_intent)
+        ),
+        blockedCompanies: normalizeTalentBlockedCompanies(
+          talentSetting?.blocked_companies ?? []
+        ),
+        insightContent: null,
+      },
       resumeFileName,
       resumeText,
     });
@@ -168,14 +208,16 @@ export async function POST(req: NextRequest) {
         conversation_id: conversationId,
         user_id: user.id,
         role: "assistant",
-        content: `${kickoff.acknowledgement}\n\n<< ${kickoff.insight} >>`,
+        content: `${kickoff.acknowledgement}\n\n${kickoff.insight}`,
         message_type: "system",
       },
       {
         conversation_id: conversationId,
         user_id: user.id,
         role: "assistant",
-        content: `${TALENT_PENDING_QUESTION_PREFIX}질문 1. ${kickoff.firstQuestion}`,
+        content: `${TALENT_PENDING_QUESTION_PREFIX}${buildTalentKickoffOpeningMessage(
+          displayName
+        )}`,
         message_type: "system",
       },
     ];
@@ -189,7 +231,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error:
-            messageInsertError.message ?? "Failed to insert onboarding messages",
+            messageInsertError.message ??
+            "Failed to insert onboarding messages",
         },
         { status: 500 }
       );
@@ -197,16 +240,17 @@ export async function POST(req: NextRequest) {
 
     const insertedRows = (insertedMessages ?? []) as TalentMessageRow[];
 
-    const { data: updatedConversation, error: conversationUpdateError } = await admin
-      .from("talent_conversations")
-      .update({
-        stage: "chat",
-        updated_at: now,
-      })
-      .eq("id", conversationId)
-      .eq("user_id", user.id)
-      .select("*")
-      .single();
+    const { data: updatedConversation, error: conversationUpdateError } =
+      await admin
+        .from("talent_conversations")
+        .update({
+          stage: "chat",
+          updated_at: now,
+        })
+        .eq("id", conversationId)
+        .eq("user_id", user.id)
+        .select("*")
+        .single();
 
     if (conversationUpdateError) {
       const insertedIds = insertedRows.map((item) => item.id);
@@ -240,7 +284,9 @@ export async function POST(req: NextRequest) {
       admin,
       storagePath: profile?.resume_storage_path,
     });
-    const insertedUserMessage = insertedRows.find((item) => item.role === "user");
+    const insertedUserMessage = insertedRows.find(
+      (item) => item.role === "user"
+    );
     if (!insertedUserMessage) {
       return NextResponse.json(
         { error: "Failed to create profile submit message" },

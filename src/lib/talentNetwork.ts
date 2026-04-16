@@ -4,6 +4,8 @@ export const TALENT_NETWORK_LAST_VISIT_AT_KEY =
 // Use a fresh storage key so the closed v1 assignment does not bleed into v2.
 export const TALENT_NETWORK_ABTEST_TYPE_KEY =
   "harper_talent_network_abtest_type_v2";
+export const TALENT_NETWORK_CTA_EXPERIMENT_TYPE_KEY =
+  "harper_talent_network_cta_experiment_type_v1";
 export const TALENT_NETWORK_LEGACY_ABTEST_TYPE = "talent_network_v1";
 export const TALENT_NETWORK_ABTEST_TYPE_A_V1 = "talent_network_a_v1";
 export const TALENT_NETWORK_ABTEST_TYPE_B_V1 = "talent_network_b_v1";
@@ -11,9 +13,17 @@ export const TALENT_NETWORK_ABTEST_TYPE_B_V1_ROLLOUT =
   "talent_network_b_v1_rollout";
 export const TALENT_NETWORK_ABTEST_TYPE_A = "talent_network_a_v2";
 export const TALENT_NETWORK_ABTEST_TYPE_B = "talent_network_b_v2";
+export const TALENT_NETWORK_CTA_EXPERIMENT_TYPE_A =
+  "talent_network_cta_onboarding_v1";
+export const TALENT_NETWORK_CTA_EXPERIMENT_TYPE_B =
+  "talent_network_cta_modal_v1";
 export const TALENT_NETWORK_ABTEST_TYPES = [
   TALENT_NETWORK_ABTEST_TYPE_A,
   TALENT_NETWORK_ABTEST_TYPE_B,
+] as const;
+export const TALENT_NETWORK_CTA_EXPERIMENT_TYPES = [
+  TALENT_NETWORK_CTA_EXPERIMENT_TYPE_A,
+  TALENT_NETWORK_CTA_EXPERIMENT_TYPE_B,
 ] as const;
 
 // v2 A/B experiment is active. Switch this to "rollout" after selecting a winner.
@@ -31,6 +41,8 @@ export type TalentNetworkAbtestType =
   (typeof TALENT_NETWORK_ABTEST_TYPES)[number];
 export type TalentNetworkAssignmentType =
   (typeof TALENT_NETWORK_ANALYTICS_ABTEST_TYPES)[number];
+export type TalentNetworkCtaExperimentType =
+  (typeof TALENT_NETWORK_CTA_EXPERIMENT_TYPES)[number];
 export const TALENT_NETWORK_CLICK_EVENT_PREFIX = "talent_network_click_";
 export const TALENT_NETWORK_SUBMIT_COMPLETED_EVENT =
   "talent_network_submit_completed";
@@ -125,6 +137,25 @@ export const getRandomTalentNetworkAbtestType = (): TalentNetworkAbtestType =>
   Math.random() < 0.5
     ? TALENT_NETWORK_ABTEST_TYPE_A
     : TALENT_NETWORK_ABTEST_TYPE_B;
+
+export const isTalentNetworkCtaExperimentType = (
+  value: string | null | undefined
+): value is TalentNetworkCtaExperimentType =>
+  value === TALENT_NETWORK_CTA_EXPERIMENT_TYPE_A ||
+  value === TALENT_NETWORK_CTA_EXPERIMENT_TYPE_B;
+
+export const getRandomTalentNetworkCtaExperimentType =
+  (): TalentNetworkCtaExperimentType =>
+    Math.random() < 0.5
+      ? TALENT_NETWORK_CTA_EXPERIMENT_TYPE_A
+      : TALENT_NETWORK_CTA_EXPERIMENT_TYPE_B;
+
+export const resolveTalentNetworkCtaExperimentType = (
+  value: string | null | undefined
+): TalentNetworkCtaExperimentType =>
+  isTalentNetworkCtaExperimentType(value)
+    ? value
+    : getRandomTalentNetworkCtaExperimentType();
 
 export const usesTalentNetworkAExperience = (
   value: string | null | undefined

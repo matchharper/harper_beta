@@ -4,6 +4,7 @@ import { warmCache } from "@/lib/talentOnboarding/prompts/promptCache";
 import {
   getTalentFirstVisitText,
   TalentConversationRow,
+  TalentMessageRow,
   ensureTalentUserRecord,
   fetchTalentInsights,
   fetchTalentSetting,
@@ -18,11 +19,14 @@ import {
   sanitizeTalentCareerMoveIntent,
 } from "@/lib/talentOnboarding/server";
 import { autoStartClaimedTalentConversation } from "@/lib/talentOnboarding/kickoff";
+import { generateTalentReengagementMessage } from "@/lib/talentOnboarding/reengagement";
 import {
   getTalentCareerMoveIntentLabel,
   normalizeTalentNetworkApplication,
 } from "@/lib/talentNetworkApplication";
 import { fetchTalentOpportunityHistory } from "@/lib/talentOpportunity";
+
+const REENGAGEMENT_IDLE_MS = 24 * 60 * 60 * 1000;
 
 const getLatestUpdatedAt = (...values: Array<string | null | undefined>) => {
   const timestamps = values
@@ -32,7 +36,9 @@ const getLatestUpdatedAt = (...values: Array<string | null | undefined>) => {
       if (Number.isNaN(time)) return null;
       return { time, value };
     })
-    .filter((entry): entry is { time: number; value: string } => entry !== null);
+    .filter(
+      (entry): entry is { time: number; value: string } => entry !== null
+    );
 
   if (timestamps.length === 0) return null;
 
@@ -61,7 +67,9 @@ export async function GET(req: NextRequest) {
 
     if (existingError) {
       return NextResponse.json(
-        { error: existingError.message ?? "Failed to read talent_conversations" },
+        {
+          error: existingError.message ?? "Failed to read talent_conversations",
+        },
         { status: 500 }
       );
     }
@@ -133,7 +141,9 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const rawLimit = Number(req.nextUrl.searchParams.get("messageLimit") ?? "20");
+    const rawLimit = Number(
+      req.nextUrl.searchParams.get("messageLimit") ?? "20"
+    );
     const messageLimit = Number.isFinite(rawLimit)
       ? Math.max(1, Math.min(Math.floor(rawLimit), 100))
       : 20;
@@ -142,6 +152,108 @@ export async function GET(req: NextRequest) {
       rawBeforeMessageId && /^\d+$/.test(rawBeforeMessageId)
         ? Number(rawBeforeMessageId)
         : null;
+    const allowReengagement =
+      !beforeMessageId &&
+      req.nextUrl.searchParams.get("allowReengagement") === "1";
+
+    if (allowReengagement && conversation.stage !== "profile") {
+      try {
+        const { data: latestChatMessage, error: latestChatError } = await admin
+          .from("talent_messages")
+          .select(
+            "id, conversation_id, user_id, role, content, message_type, created_at"
+          )
+          .eq("conversation_id", conversation.id)
+          .eq("message_type", "chat")
+          .order("id", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (latestChatError) {
+          throw new Error(
+            latestChatError.message ?? "Failed to read latest chat message"
+          );
+        }
+
+        const latestChatAt = latestChatMessage?.created_at
+          ? Date.parse(latestChatMessage.created_at)
+          : Number.NaN;
+        const idleMs =
+          Number.isNaN(latestChatAt) || latestChatAt <= 0
+            ? 0
+            : Date.now() - latestChatAt;
+
+        if (idleMs >= REENGAGEMENT_IDLE_MS) {
+          const { messages: recentVisibleMessages } =
+            await fetchVisibleMessagesPage({
+              admin,
+              conversationId: conversation.id,
+              limit: 8,
+            });
+
+          const assistantContent = await generateTalentReengagementMessage({
+            displayName:
+              user.user_metadata?.full_name ??
+              user.user_metadata?.name ??
+              (typeof user.email === "string"
+                ? user.email.split("@")[0]
+                : "회원"),
+            hoursSinceLastChat: Math.max(
+              24,
+              Math.floor(idleMs / (60 * 60 * 1000))
+            ),
+            profile,
+            recentMessages: recentVisibleMessages as TalentMessageRow[],
+          });
+
+          const now = new Date().toISOString();
+          const { error: insertReengagementError } = await admin
+            .from("talent_messages")
+            .insert({
+              conversation_id: conversation.id,
+              user_id: user.id,
+              role: "assistant",
+              content: assistantContent,
+              message_type: "chat",
+              created_at: now,
+            });
+
+          if (insertReengagementError) {
+            throw new Error(
+              insertReengagementError.message ??
+                "Failed to insert re-engagement message"
+            );
+          }
+
+          const { data: updatedConversation, error: updateConversationError } =
+            await admin
+              .from("talent_conversations")
+              .update({ updated_at: now })
+              .eq("id", conversation.id)
+              .eq("user_id", user.id)
+              .select("*")
+              .single();
+
+          if (updateConversationError) {
+            throw new Error(
+              updateConversationError.message ??
+                "Failed to update conversation timestamp"
+            );
+          }
+
+          conversation = updatedConversation as TalentConversationRow;
+        }
+      } catch (reengagementError) {
+        console.error("[TalentSession] re-engagement skipped", {
+          userId: user.id,
+          conversationId: conversation.id,
+          error:
+            reengagementError instanceof Error
+              ? reengagementError.message
+              : "Unknown error",
+        });
+      }
+    }
 
     const { messages, nextBeforeMessageId } = await fetchVisibleMessagesPage({
       admin,
@@ -157,33 +269,33 @@ export async function GET(req: NextRequest) {
       talentNotificationsResponse,
       historyOpportunities,
     ] = await Promise.all([
-        fetchTalentStructuredProfile({
-          admin,
-          userId: user.id,
-          talentUser: profile,
-        }),
-        getTalentResumeSignedUrl({
-          admin,
-          storagePath: profile?.resume_storage_path,
-        }),
-        fetchTalentSetting({
-          admin,
-          userId: user.id,
-        }),
-        fetchTalentInsights({
-          admin,
-          userId: user.id,
-        }),
-        admin
-          .from("talent_notification")
-          .select("id, message, is_read, created_at")
-          .eq("talent_id", user.id)
-          .order("created_at", { ascending: false }),
-        fetchTalentOpportunityHistory({
-          admin,
-          userId: user.id,
-        }),
-      ]);
+      fetchTalentStructuredProfile({
+        admin,
+        userId: user.id,
+        talentUser: profile,
+      }),
+      getTalentResumeSignedUrl({
+        admin,
+        storagePath: profile?.resume_storage_path,
+      }),
+      fetchTalentSetting({
+        admin,
+        userId: user.id,
+      }),
+      fetchTalentInsights({
+        admin,
+        userId: user.id,
+      }),
+      admin
+        .from("talent_notification")
+        .select("id, message, is_read, created_at")
+        .eq("talent_id", user.id)
+        .order("created_at", { ascending: false }),
+      fetchTalentOpportunityHistory({
+        admin,
+        userId: user.id,
+      }),
+    ]);
     const normalizedInsights = normalizeTalentInsightContent(
       talentInsights?.content
     );
@@ -212,9 +324,7 @@ export async function GET(req: NextRequest) {
         companyName: item.companyName,
         summary: item.description ?? item.companyDescription ?? null,
         location:
-          [item.location, item.workMode]
-            .filter(Boolean)
-            .join(" / ") || null,
+          [item.location, item.workMode].filter(Boolean).join(" / ") || null,
         engagementType:
           item.employmentTypes.length > 0
             ? item.employmentTypes.join(" / ")

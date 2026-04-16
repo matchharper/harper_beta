@@ -43,6 +43,8 @@ const LOADING_EXAMPLES = [
 
 const VOICE_TRANSCRIPT_PREVIEW_LIMIT = 120;
 const BOTTOM_THRESHOLD_PX = 120;
+const CLAIMED_WORKSPACE_BOOTSTRAP_MESSAGE =
+  "기존에 제출한 정보로 커리어 워크스페이스를 시작했습니다.";
 
 const TimelinePanel = ({
   children,
@@ -201,11 +203,20 @@ const CareerTimelineSection = () => {
   }, [onLoadOlderMessages, scrollRef, syncScrollState]);
 
   const isVoiceMode = inputMode === "voice";
+  const timelineMessages = messages.filter(
+    (message) =>
+      message.messageType !== "call_transcript" &&
+      !(
+        message.role === "user" &&
+        message.messageType === "profile_submit" &&
+        message.content.trim() === CLAIMED_WORKSPACE_BOOTSTRAP_MESSAGE
+      )
+  );
   let lastSpokenAssistantMessageIndex = -1;
 
   if (assistantAudioBusy) {
-    for (let index = messages.length - 1; index >= 0; index -= 1) {
-      const message = messages[index];
+    for (let index = timelineMessages.length - 1; index >= 0; index -= 1) {
+      const message = timelineMessages[index];
       if (
         message.role === "assistant" &&
         !message.typing &&
@@ -432,7 +443,7 @@ const CareerTimelineSection = () => {
 
         {user &&
           !sessionPending &&
-          messages.filter((m) => m.messageType !== "call_transcript").map((message, index) => {
+          timelineMessages.map((message, index) => {
             const isUser = message.role === "user";
             return (
               <div

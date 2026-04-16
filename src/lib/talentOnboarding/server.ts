@@ -6,6 +6,9 @@ import {
   TALENT_NETWORK_CAREER_MOVE_INTENT_OPTIONS,
   TALENT_NETWORK_ENGAGEMENT_OPTIONS,
   TALENT_NETWORK_LOCATION_OPTIONS,
+  getTalentCareerMoveIntentLabel,
+  getTalentEngagementLabels,
+  getTalentLocationLabels,
   type TalentNetworkApplication,
   type TalentNetworkCareerMoveIntentOptionId,
   type TalentNetworkEngagementOptionId,
@@ -103,6 +106,15 @@ export type TalentProfileVisibility =
 
 export const DEFAULT_TALENT_PROFILE_VISIBILITY: TalentProfileVisibility =
   "exceptional_only";
+
+const TALENT_PROFILE_VISIBILITY_LABELS: Record<
+  TalentProfileVisibility,
+  string
+> = {
+  open_to_matches: "Open to matches",
+  exceptional_only: "Exceptional only",
+  dont_share: "Don't share",
+};
 
 export type TalentSettingRow = {
   user_id: string;
@@ -273,11 +285,15 @@ export function mergeTalentInsightContent(args: {
 
 export function mergeTalentSettingSeed(args: {
   currentSetting: TalentSettingRow | null;
+  blockedCompanies?: unknown;
   engagementTypes: unknown;
   preferredLocations: unknown;
   careerMoveIntent: unknown;
 }) {
   const { currentSetting } = args;
+  const currentBlockedCompanies = normalizeTalentBlockedCompanies(
+    currentSetting?.blocked_companies ?? []
+  );
   const currentEngagementTypes = normalizeTalentEngagementTypes(
     currentSetting?.engagement_types ?? []
   );
@@ -292,9 +308,10 @@ export function mergeTalentSettingSeed(args: {
     profileVisibility: sanitizeTalentProfileVisibility(
       currentSetting?.profile_visibility ?? DEFAULT_TALENT_PROFILE_VISIBILITY
     ),
-    blockedCompanies: normalizeTalentBlockedCompanies(
-      currentSetting?.blocked_companies ?? []
-    ),
+    blockedCompanies:
+      currentBlockedCompanies.length > 0
+        ? currentBlockedCompanies
+        : normalizeTalentBlockedCompanies(args.blockedCompanies ?? []),
     engagementTypes:
       currentEngagementTypes.length > 0
         ? currentEngagementTypes
@@ -317,6 +334,10 @@ export function sanitizeTalentProfileVisibility(
     return normalized;
   }
   return DEFAULT_TALENT_PROFILE_VISIBILITY;
+}
+
+export function getTalentProfileVisibilityLabel(value: unknown) {
+  return TALENT_PROFILE_VISIBILITY_LABELS[sanitizeTalentProfileVisibility(value)];
 }
 
 export function isPendingQuestionContent(content: string | null | undefined) {
@@ -560,6 +581,7 @@ export async function fetchVisibleMessagesPage(args: {
       "id, conversation_id, user_id, role, content, message_type, created_at"
     )
     .eq("conversation_id", conversationId)
+    .or("message_type.is.null,message_type.neq.call_wrapup")
     .not("content", "like", `${TALENT_PENDING_QUESTION_PREFIX}%`)
     .order("id", { ascending: false })
     .limit(pageSize + 1);
@@ -806,9 +828,10 @@ function formatDateRange(
 export function buildTalentProfileContext(args: {
   profile: TalentUserProfileRow | null;
   structuredProfile?: TalentStructuredProfile | null;
+  setting?: TalentSettingRow | null;
   maxResumeChars?: number;
 }) {
-  const { profile, structuredProfile, maxResumeChars = 3000 } = args;
+  const { profile, structuredProfile, setting, maxResumeChars = 3000 } = args;
   const lines: string[] = [];
   const talentUser = structuredProfile?.talentUser ?? profile;
   const resumeLinks = (profile?.resume_links ?? []).filter(
@@ -817,6 +840,18 @@ export function buildTalentProfileContext(args: {
   const experiences = structuredProfile?.talentExperiences ?? [];
   const educations = structuredProfile?.talentEducations ?? [];
   const extras = structuredProfile?.talentExtras ?? [];
+  const engagementLabels = getTalentEngagementLabels(
+    normalizeTalentEngagementTypes(setting?.engagement_types ?? [])
+  );
+  const locationLabels = getTalentLocationLabels(
+    normalizeTalentPreferredLocations(setting?.preferred_locations ?? [])
+  );
+  const careerMoveIntentLabel = getTalentCareerMoveIntentLabel(
+    sanitizeTalentCareerMoveIntent(setting?.career_move_intent)
+  );
+  const blockedCompanies = normalizeTalentBlockedCompanies(
+    setting?.blocked_companies ?? []
+  ).slice(0, 20);
 
   lines.push("[Structured Talent Profile]");
 
@@ -839,6 +874,31 @@ export function buildTalentProfileContext(args: {
       lines.push(`${index + 1}. ${link}`);
     });
   }
+
+  lines.push("Talent Settings");
+  lines.push(
+    `- Profile visibility: ${getTalentProfileVisibilityLabel(
+      setting?.profile_visibility
+    )}`
+  );
+  lines.push(
+    `- Preferred engagement types: ${
+      engagementLabels.length > 0 ? engagementLabels.join(", ") : "(none)"
+    }`
+  );
+  lines.push(
+    `- Career move intent: ${careerMoveIntentLabel ?? "(not set)"}`
+  );
+  lines.push(
+    `- Preferred locations: ${
+      locationLabels.length > 0 ? locationLabels.join(", ") : "(none)"
+    }`
+  );
+  lines.push(
+    `- Blocked companies: ${
+      blockedCompanies.length > 0 ? blockedCompanies.join(", ") : "(none)"
+    }`
+  );
 
   if (experiences.length > 0) {
     lines.push("Experiences");

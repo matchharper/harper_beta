@@ -13,6 +13,7 @@ import { Loading } from "@/components/ui/loading";
 const ENTRY_TYPES = new Set(["new_visit", "new_session"]);
 
 type AdminLandingLogsTabProps = {
+  deviceFilterLabel: string;
   canAccessAdminData: boolean;
   excludedLocalIds: string[];
   excludedLocalIdsError: string | null;
@@ -33,6 +34,7 @@ type AdminLandingLogsTabProps = {
 };
 
 export default function AdminLandingLogsTab({
+  deviceFilterLabel,
   canAccessAdminData,
   excludedLocalIds,
   excludedLocalIdsError,
@@ -70,6 +72,8 @@ export default function AdminLandingLogsTab({
         <div className="leading-6">
           전체 유저:{" "}
           <span className="text-black font-medium">{landingSummary.totalUsers}</span>{" "}
+          · 디바이스:{" "}
+          <span className="text-black font-medium">{deviceFilterLabel}</span>{" "}
           · 스크롤 다운:{" "}
           <span className="text-black font-medium">
             {landingSummary.scrolledUsers}
@@ -190,7 +194,8 @@ export default function AdminLandingLogsTab({
       <div className="mb-4 flex items-center justify-between w-full">
         <div className="text-[12px] text-black/55">
           Loaded logs: <span className="text-black">{logs.length}</span> · Users:{" "}
-          <span className="text-black">{grouped.length}</span>
+          <span className="text-black">{grouped.length}</span> · Device:{" "}
+          <span className="text-black">{deviceFilterLabel}</span>
         </div>
 
         {(loadingMore || loading) && (

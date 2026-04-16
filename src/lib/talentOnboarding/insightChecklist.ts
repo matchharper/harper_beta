@@ -29,7 +29,6 @@ export const INSIGHT_CHECKLIST: InsightChecklistItem[] = [
       "The sharpest problem they can solve within the first month at a new team, based on their expertise",
     priority: 2,
   },
-  // Part 2: Reality Fit
   {
     key: "managing_vs_ic",
     label: "매니징 vs 실무",
@@ -117,7 +116,5 @@ export function getInsightLabel(key: string): string {
 
 /** Format a snake_case key as a readable label (fallback for non-checklist keys) */
 function formatInsightKeyLabel(key: string): string {
-  return key
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+  return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }

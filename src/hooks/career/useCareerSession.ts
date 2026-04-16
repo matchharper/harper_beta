@@ -41,7 +41,9 @@ export const useCareerSession = ({
         );
       }
 
-      const sessionRes = await fetchWithAuth("/api/talent/session?messageLimit=20");
+      const sessionRes = await fetchWithAuth(
+        "/api/talent/session?messageLimit=20&allowReengagement=1"
+      );
       const payload = (await sessionRes
         .json()
         .catch(() => ({}))) as SessionPayload;

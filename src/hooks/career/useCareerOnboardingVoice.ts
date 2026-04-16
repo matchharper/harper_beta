@@ -29,6 +29,11 @@ type SendChatArgs = {
   onError?: () => void;
 };
 
+type BeginOnboardingResult = {
+  ok: boolean;
+  assistantMessage: CareerMessage | null;
+};
+
 type UseCareerOnboardingVoiceArgs = {
   user: User | null;
   userId: string | null;
@@ -66,56 +71,67 @@ export const useCareerOnboardingVoice = ({
   const [onboardingBeginPending, setOnboardingBeginPending] = useState(false);
   const [onboardingPausePending, setOnboardingPausePending] = useState(false);
 
-  const beginOnboardingConversation = useCallback(async () => {
-    if (!user || !conversationId) return false;
-    if (onboardingBeginPending) return false;
-
-    setOnboardingBeginPending(true);
-    setChatError("");
-    try {
-      const response = await fetchWithAuth("/api/talent/onboarding/begin", {
-        method: "POST",
-        body: JSON.stringify({
-          conversationId,
-        }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(
-          getErrorMessage(payload, "대화 시작 준비에 실패했습니다.")
-        );
+  const beginOnboardingConversation = useCallback(
+    async (): Promise<BeginOnboardingResult> => {
+      if (!user || !conversationId) {
+        return { ok: false, assistantMessage: null };
+      }
+      if (onboardingBeginPending) {
+        return { ok: false, assistantMessage: null };
       }
 
-      if (payload?.assistantMessage) {
-        await enqueueAssistantTypewriter(toUiMessage(payload.assistantMessage));
-        await onMessagesChanged?.([
-          payload.assistantMessage as CareerMessagePayload,
-        ]);
+      setOnboardingBeginPending(true);
+      setChatError("");
+      try {
+        const response = await fetchWithAuth("/api/talent/onboarding/begin", {
+          method: "POST",
+          body: JSON.stringify({
+            conversationId,
+          }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(
+            getErrorMessage(payload, "대화 시작 준비에 실패했습니다.")
+          );
+        }
+
+        const assistantMessage = payload?.assistantMessage
+          ? toUiMessage(payload.assistantMessage)
+          : null;
+
+        if (assistantMessage) {
+          await enqueueAssistantTypewriter(assistantMessage);
+          await onMessagesChanged?.([
+            payload.assistantMessage as CareerMessagePayload,
+          ]);
+        }
+        if (payload?.conversation?.stage) {
+          setStage(payload.conversation.stage as CareerStage);
+        }
+        return { ok: true, assistantMessage };
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "대화 시작 준비 중 오류가 발생했습니다.";
+        setChatError(message);
+        return { ok: false, assistantMessage: null };
+      } finally {
+        setOnboardingBeginPending(false);
       }
-      if (payload?.conversation?.stage) {
-        setStage(payload.conversation.stage as CareerStage);
-      }
-      return true;
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "대화 시작 준비 중 오류가 발생했습니다.";
-      setChatError(message);
-      return false;
-    } finally {
-      setOnboardingBeginPending(false);
-    }
-  }, [
-    conversationId,
-    enqueueAssistantTypewriter,
-    fetchWithAuth,
-    onboardingBeginPending,
-    onMessagesChanged,
-    setChatError,
-    setStage,
-    user,
-  ]);
+    },
+    [
+      conversationId,
+      enqueueAssistantTypewriter,
+      fetchWithAuth,
+      onboardingBeginPending,
+      onMessagesChanged,
+      setChatError,
+      setStage,
+      user,
+    ]
+  );
 
   // Track the last user transcript from Realtime STT for turn-by-turn save
   const lastRealtimeUserTextRef = useRef("");
@@ -126,6 +142,8 @@ export const useCareerOnboardingVoice = ({
   const endCallModeRef = useRef<(() => void) | null>(null);
   const pendingCallEndRef = useRef(false);
   const isAssistantSpeakingRef = useRef(false);
+  const callStartedAtRef = useRef<number | null>(null);
+  const callWrapUpPendingRef = useRef(false);
 
   const saveRealtimeTurn = useCallback(
     async (userText: string, assistantText: string) => {
@@ -144,6 +162,12 @@ export const useCareerOnboardingVoice = ({
         const payload = await response.json().catch(() => ({}));
         if (response.ok && payload?.progress?.completed) {
           setStage("completed" as CareerStage);
+          if (inputModeRef.current === "call" && !pendingCallEndRef.current) {
+            pendingCallEndRef.current = true;
+            generateSpeechRef.current?.(
+              "좋은 이야기 들려주셔서 감사합니다. 말씀해주신 내용을 바탕으로 잘 맞는 기회를 찾아볼게요. 오늘 대화는 여기까지 할게요."
+            );
+          }
         }
         // Handle step transition: update Realtime session instructions
         if (response.ok && payload?.nextStepInstructions) {
@@ -397,8 +421,8 @@ export const useCareerOnboardingVoice = ({
     if (!shouldBeginOnboarding) return;
 
     void (async () => {
-      const ready = await beginOnboardingConversation();
-      if (!ready) {
+      const beginResult = await beginOnboardingConversation();
+      if (!beginResult.ok) {
         clearAutoResumeAfterAssistant();
         setShowVoiceStartPrompt(true);
       }
@@ -421,8 +445,8 @@ export const useCareerOnboardingVoice = ({
 
     setShowVoiceStartPrompt(false);
     void (async () => {
-      const ready = await beginOnboardingConversation();
-      if (!ready) {
+      const beginResult = await beginOnboardingConversation();
+      if (!beginResult.ok) {
         setShowVoiceStartPrompt(true);
         return;
       }
@@ -575,22 +599,30 @@ export const useCareerOnboardingVoice = ({
     if (onboardingBeginPending) return;
 
     const shouldBeginOnboarding = showVoiceStartPrompt;
+    let openingAssistantMessage: CareerMessage | null = null;
     if (shouldBeginOnboarding) {
       setShowVoiceStartPrompt(false);
-      // AWAIT onboarding initialization before connecting realtime
-      const ready = await beginOnboardingConversation();
-      if (!ready) {
+      const beginResult = await beginOnboardingConversation();
+      if (!beginResult.ok) {
         setShowVoiceStartPrompt(true);
         return;
       }
+      openingAssistantMessage = beginResult.assistantMessage;
     }
 
     await startCallMode();
+    callStartedAtRef.current = Date.now();
 
-    // Generate greeting via OpenAI Realtime native audio (no ElevenLabs round-trip)
+    if (!shouldBeginOnboarding) return;
+
     const greetingText =
       "안녕하세요, 하퍼입니다. 오늘 커리어에 대해 이야기 나눠볼게요. 편하게 말씀해 주세요!";
-    generateSpeechRef.current?.(greetingText);
+    const followUpText = openingAssistantMessage?.content.trim();
+    const openingText = followUpText
+      ? `${greetingText}\n\n${followUpText}`
+      : greetingText;
+
+    generateSpeechRef.current?.(openingText);
   }, [
     beginOnboardingConversation,
     onboardingBeginPending,
@@ -599,70 +631,67 @@ export const useCareerOnboardingVoice = ({
   ]);
 
   const handleEndCallMode = useCallback(() => {
+    if (callWrapUpPendingRef.current) return;
+
     // Capture transcript before ending (endCallMode doesn't clear it)
     const transcript = callTranscriptEntries;
+    const startedAt = callStartedAtRef.current;
+    const durationSeconds = startedAt
+      ? Math.max(0, Math.round((Date.now() - startedAt) / 1000))
+      : 0;
+    callStartedAtRef.current = null;
     endCallMode();
 
-    if (conversationId && transcript.length > 0) {
-      // Lock composer while generating wrap-up so user can't send messages before it
-      setOnboardingBeginPending(true);
-
-      void (async () => {
-        try {
-          const response = await fetchWithAuth(
-            "/api/talent/chat/call-wrapup",
-            {
-              method: "POST",
-              body: JSON.stringify({
-                conversationId,
-                transcript: transcript.map((e) => ({
-                  role: e.role,
-                  text: e.text,
-                })),
-                durationSeconds: 0,
-              }),
-            }
-          );
-          const payload = await response.json().catch(() => ({}));
-          if (!response.ok) {
-            console.error("[CareerOnboardingVoice] Wrap-up failed:", payload);
-            setChatError("통화 요약 생성에 실패했습니다.");
-            return;
-          }
-
-          // Append wrap-up card
-          if (payload?.wrapUpMessage) {
-            const wrapMsg = payload.wrapUpMessage;
-            appendMessage({
-              id: wrapMsg.id ?? `wrapup-${Date.now()}`,
-              role: "assistant",
-              content: wrapMsg.content,
-              messageType: wrapMsg.message_type ?? wrapMsg.messageType ?? "call_wrapup",
-              createdAt: wrapMsg.created_at ?? wrapMsg.createdAt ?? new Date().toISOString(),
-            });
-          }
-
-          // Append follow-up message with typewriter
-          if (payload?.followUpMessage) {
-            const followMsg = payload.followUpMessage;
-            await enqueueAssistantTypewriter({
-              id: followMsg.id ?? `followup-${Date.now()}`,
-              role: "assistant",
-              content: followMsg.content,
-              messageType: followMsg.message_type ?? followMsg.messageType ?? "chat",
-              createdAt: followMsg.created_at ?? followMsg.createdAt ?? new Date().toISOString(),
-            });
-          }
-        } catch (error) {
-          console.error("[CareerOnboardingVoice] Wrap-up error:", error);
-          setChatError("통화 요약 생성에 실패했습니다.");
-        } finally {
-          setOnboardingBeginPending(false);
-        }
-      })();
+    if (!conversationId) {
+      return;
     }
+
+    callWrapUpPendingRef.current = true;
+    // Lock composer while generating follow-up so user can't send messages before it
+    setOnboardingBeginPending(true);
+
+    void (async () => {
+      try {
+        const response = await fetchWithAuth("/api/talent/chat/call-wrapup", {
+          method: "POST",
+          body: JSON.stringify({
+            conversationId,
+            transcript: transcript.map((e) => ({
+              role: e.role,
+              text: e.text,
+            })),
+            durationSeconds,
+          }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          console.error("[CareerOnboardingVoice] Follow-up failed:", payload);
+          setChatError("종료 메시지 생성에 실패했습니다.");
+          return;
+        }
+
+        if (payload?.followUpMessage) {
+          const followMsg = payload.followUpMessage;
+          await enqueueAssistantTypewriter({
+            id: followMsg.id ?? `followup-${Date.now()}`,
+            role: "assistant",
+            content: followMsg.content,
+            messageType: followMsg.message_type ?? followMsg.messageType ?? "chat",
+            createdAt:
+              followMsg.created_at ??
+              followMsg.createdAt ??
+              new Date().toISOString(),
+          });
+        }
+      } catch (error) {
+        console.error("[CareerOnboardingVoice] Follow-up error:", error);
+        setChatError("종료 메시지 생성에 실패했습니다.");
+      } finally {
+        setOnboardingBeginPending(false);
+        callWrapUpPendingRef.current = false;
+      }
+    })();
   }, [
-    appendMessage,
     callTranscriptEntries,
     conversationId,
     endCallMode,
@@ -693,6 +722,8 @@ export const useCareerOnboardingVoice = ({
     setShowVoiceStartPrompt(false);
     setOnboardingBeginPending(false);
     setOnboardingPausePending(false);
+    callStartedAtRef.current = null;
+    callWrapUpPendingRef.current = false;
   }, []);
 
   return {

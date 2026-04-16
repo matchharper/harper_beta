@@ -1157,7 +1157,7 @@ export const Onboarding2Content = ({
                                       height={20}
                                     />
                                     <div>LinkedIn Profile</div>
-                                    <div
+                                    {/* <div
                                       className="ml-1 hover:font-medium hidden md:flex flex-row items-center gap-1 text-sm font-normal text-beige900/70 cursor-pointer transition-all duration-200 hover:text-beige900"
                                       onClick={() =>
                                         window.open(
@@ -1168,7 +1168,7 @@ export const Onboarding2Content = ({
                                     >
                                       (내 링크드인 열기){" "}
                                       <ArrowUpRight className="w-3 h-3" />
-                                    </div>
+                                    </div> */}
                                   </div>
                                 }
                                 value={linkedin}

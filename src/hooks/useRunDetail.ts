@@ -52,8 +52,21 @@ export function useRunDetail(runId?: string) {
   useEffect(() => {
     if (!runId) return;
 
+    // Clean up any legacy static topic left behind by StrictMode or hot reload
+    // before registering this hook instance on a unique channel.
+    supabase.getChannels?.().forEach((ch: any) => {
+      if (ch.topic === `realtime:runs:${runId}`) {
+        supabase.removeChannel(ch);
+      }
+    });
+
+    const channelSuffix =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : Math.random().toString(36).slice(2);
+
     const channel = supabase
-      .channel(`runs:${runId}`)
+      .channel(`runs:${runId}:${channelSuffix}`)
       .on(
         "postgres_changes",
         {

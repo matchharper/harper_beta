@@ -112,27 +112,6 @@ const CareerComposerSection = () => {
   return (
     <div className="sticky bottom-0 px-5 py-4">
       <div className="mx-auto w-full max-w-[1120px]">
-        {!isVoiceMode && showLinkInput ? (
-          <div className="mb-3 flex items-center gap-2 rounded-[8px] border border-beige900/10 bg-white/45 px-4 py-3">
-            <input
-              value={chatLinkDraft}
-              onChange={(event) => setChatLinkDraft(event.target.value)}
-              placeholder="대화에 포함할 링크를 입력하세요."
-              className="h-[36px] flex-1 rounded-[8px] border border-beige900/15 bg-white/60 px-3 text-sm text-beige900 outline-none placeholder:text-beige900/30"
-            />
-            <button
-              type="button"
-              onClick={() => {
-                setChatLinkDraft("");
-                setShowLinkInput(false);
-              }}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-beige900/15 bg-white/45 text-beige900/50 transition-colors hover:border-beige900/30 hover:text-beige900"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        ) : null}
-
         {isVoiceMode ? (
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <button
@@ -215,14 +194,6 @@ const CareerComposerSection = () => {
             />
             {!isVoiceMode && (
               <div className="absolute bottom-1 right-0 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowLinkInput((prev) => !prev)}
-                  disabled={!user || isComposerLocked || isVoiceMode}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-beige900/15 bg-white/45 text-beige900/50 transition-colors hover:border-beige900/30 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
                 {showCallQuickAction && (
                   <>
                     <button
@@ -238,10 +209,11 @@ const CareerComposerSection = () => {
                       type="button"
                       onClick={() => onStartCallMode?.()}
                       disabled={isComposerLocked || onboardingBeginPending}
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-beige900/15 bg-white/45 text-beige900/50 transition-colors hover:border-beige900/30 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex h-9 px-3 gap-2 text-sm items-center justify-center rounded-[8px] border border-beige900/50 bg-beige900 text-beige50 transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                       aria-label="통화 모드"
                     >
                       <Phone className="h-3.5 w-3.5" />
+                      전화 하기
                     </button>
                   </>
                 )}

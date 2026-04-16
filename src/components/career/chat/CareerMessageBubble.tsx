@@ -1,6 +1,5 @@
 import React, { type ReactNode } from "react";
-import type { CareerCallWrapUp, CareerMessage } from "@/components/career/types";
-import CareerCallWrapUpCard from "./CareerCallWrapUpCard";
+import type { CareerMessage } from "@/components/career/types";
 
 // User bubble 색상을 바꾸려면 이 클래스를 수정하세요.
 export const USER_BUBBLE_CLASS =
@@ -55,34 +54,23 @@ const CareerMessageBubble = ({
   message,
   isUser,
   isAssistantSpeaking = false,
-}: Props) => {
-  if (message.messageType === "call_wrapup") {
-    try {
-      const data = JSON.parse(message.content) as CareerCallWrapUp;
-      return <CareerCallWrapUpCard data={data} />;
-    } catch {
-      // Fall through to regular rendering if JSON parse fails
-    }
-  }
-
-  return (
-    <article
-      className={[
-        "max-w-[92%] text-[14px] leading-7 transition-colors duration-300",
-        isUser ? USER_BUBBLE_CLASS : ASSISTANT_BUBBLE_CLASS,
-        !isUser && isAssistantSpeaking ? "bg-white/20" : "",
-      ].join(" ")}
-    >
-      <p className="whitespace-pre-wrap break-words">
-        {renderHighlightedContent(message.content)}
-      </p>
-      {message.typing && (
-        <span className="inline-block w-2 animate-pulse align-baseline text-beige900">
-          ▍
-        </span>
-      )}
-    </article>
-  );
-};
+}: Props) => (
+  <article
+    className={[
+      "max-w-[92%] text-[14px] leading-7 transition-colors duration-300",
+      isUser ? USER_BUBBLE_CLASS : ASSISTANT_BUBBLE_CLASS,
+      !isUser && isAssistantSpeaking ? "bg-white/20" : "",
+    ].join(" ")}
+  >
+    <p className="whitespace-pre-wrap break-words">
+      {renderHighlightedContent(message.content)}
+    </p>
+    {message.typing && (
+      <span className="inline-block w-2 animate-pulse align-baseline text-beige900">
+        ▍
+      </span>
+    )}
+  </article>
+);
 
 export default React.memo(CareerMessageBubble);
