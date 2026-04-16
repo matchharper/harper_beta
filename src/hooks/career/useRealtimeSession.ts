@@ -6,6 +6,7 @@ import type { FetchWithAuth } from "./useCareerApi";
 type UseRealtimeSessionArgs = {
   conversationId: string | null;
   enabled: boolean;
+  useElevenLabsTts?: boolean;
   fetchWithAuth: FetchWithAuth;
   onTranscript: (text: string) => void;
   onAssistantDelta: (delta: string) => void;
@@ -77,6 +78,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   const {
     conversationId,
     enabled,
+    useElevenLabsTts = false,
     fetchWithAuth,
     onTranscript,
     onAssistantDelta,
@@ -109,6 +111,15 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   const nextPlayTimeRef = useRef(0);
   const hasAudioInResponseRef = useRef(false);
   const interruptTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // TTFT measurement: speech_stopped → first audio playback
+  const speechStoppedAtRef = useRef<number>(0);
+
+  // Stable value refs
+  const useElevenLabsTtsRef = useRef(useElevenLabsTts);
+  useEffect(() => {
+    useElevenLabsTtsRef.current = useElevenLabsTts;
+  }, [useElevenLabsTts]);
 
   // Stable callback refs
   const onTranscriptRef = useRef(onTranscript);
@@ -155,7 +166,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     try {
       const res = await fetchWithAuth("/api/realtime/token", {
         method: "POST",
-        body: JSON.stringify({ conversationId }),
+        body: JSON.stringify({ conversationId, useElevenLabsTts }),
       });
       if (!res.ok) {
         const errText = await res.text().catch(() => "");
@@ -175,7 +186,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
       console.error("[RealtimeSession] Token fetch error:", err);
       return null;
     }
-  }, [conversationId, fetchWithAuth]);
+  }, [conversationId, fetchWithAuth, useElevenLabsTts]);
 
   const sendEvent = useCallback((event: Record<string, unknown>) => {
     const socket = socketRef.current;
@@ -208,6 +219,12 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
         }
 
         case "response.audio.delta": {
+          if (useElevenLabsTtsRef.current) break;
+          if (!hasAudioInResponseRef.current && speechStoppedAtRef.current > 0) {
+            const ttft = performance.now() - speechStoppedAtRef.current;
+            console.log(`[TTFT] Realtime native audio: ${ttft.toFixed(0)}ms`);
+            speechStoppedAtRef.current = 0;
+          }
           hasAudioInResponseRef.current = true;
           setIsAssistantSpeaking(true);
           const audioData = typeof msg.delta === "string" ? msg.delta : "";
@@ -238,6 +255,10 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
           break;
 
         case "response.done": {
+          if (useElevenLabsTtsRef.current && speechStoppedAtRef.current > 0) {
+            const ttft = performance.now() - speechStoppedAtRef.current;
+            console.log(`[TTFT] Realtime text response: ${ttft.toFixed(0)}ms (ElevenLabs fetch starts now)`);
+          }
           const fullText = responseTextRef.current;
           responseTextRef.current = "";
           hasAudioInResponseRef.current = false;
@@ -290,6 +311,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
         }
 
         case "input_audio_buffer.speech_stopped": {
+          speechStoppedAtRef.current = performance.now();
           // TODO: Re-enable with speech_started interrupt detection
           // if (interruptTimerRef.current) {
           //   clearTimeout(interruptTimerRef.current);
@@ -674,5 +696,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     generateSpeech,
     updateSessionInstructions,
     getMediaStream,
+    sendEvent,
   };
 }
