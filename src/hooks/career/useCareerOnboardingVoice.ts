@@ -23,6 +23,9 @@ import {
 } from "./careerHelpers";
 import type { FetchWithAuth } from "./useCareerApi";
 
+/** Toggle: true = ElevenLabs TTS via /api/tts, false = Realtime native audio */
+const USE_ELEVENLABS_TTS = true;
+
 type SendChatArgs = {
   text: string;
   link?: string;
@@ -70,9 +73,13 @@ export const useCareerOnboardingVoice = ({
   const [showVoiceStartPrompt, setShowVoiceStartPrompt] = useState(false);
   const [onboardingBeginPending, setOnboardingBeginPending] = useState(false);
   const [onboardingPausePending, setOnboardingPausePending] = useState(false);
+  const [isElevenLabsPlaying, setIsElevenLabsPlaying] = useState(false);
+  const elevenLabsAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const beginOnboardingConversation = useCallback(
-    async (): Promise<BeginOnboardingResult> => {
+    async (
+      options?: { skipTypewriter?: boolean }
+    ): Promise<BeginOnboardingResult> => {
       if (!user || !conversationId) {
         return { ok: false, assistantMessage: null };
       }
@@ -100,7 +107,7 @@ export const useCareerOnboardingVoice = ({
           ? toUiMessage(payload.assistantMessage)
           : null;
 
-        if (assistantMessage) {
+        if (assistantMessage && !options?.skipTypewriter) {
           await enqueueAssistantTypewriter(assistantMessage);
           await onMessagesChanged?.([
             payload.assistantMessage as CareerMessagePayload,
@@ -182,6 +189,52 @@ export const useCareerOnboardingVoice = ({
     [conversationId, fetchWithAuth, setStage]
   );
 
+  const playElevenLabsTts = useCallback(async (text: string) => {
+    if (elevenLabsAudioRef.current) {
+      const old = elevenLabsAudioRef.current;
+      old.onended = null;
+      old.onerror = null;
+      old.pause();
+      if (old.src.startsWith("blob:")) URL.revokeObjectURL(old.src);
+      elevenLabsAudioRef.current = null;
+    }
+    setIsElevenLabsPlaying(true);
+    const ttsStartTime = performance.now();
+    try {
+      const ttsRes = await fetchWithAuthRef.current("/api/tts", {
+        method: "POST",
+        body: JSON.stringify({ text }),
+      });
+      if (ttsRes.ok) {
+        const fetchDone = performance.now();
+        console.log(`[TTFT] ElevenLabs fetch: ${(fetchDone - ttsStartTime).toFixed(0)}ms`);
+        const blob = await ttsRes.blob();
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        elevenLabsAudioRef.current = audio;
+        audio.onplay = () => {
+          const totalTtft = performance.now() - ttsStartTime;
+          console.log(`[TTFT] ElevenLabs total (fetch+decode+play): ${totalTtft.toFixed(0)}ms`);
+        };
+        audio.onended = () => {
+          setIsElevenLabsPlaying(false);
+          elevenLabsAudioRef.current = null;
+          URL.revokeObjectURL(url);
+        };
+        audio.onerror = () => {
+          setIsElevenLabsPlaying(false);
+          elevenLabsAudioRef.current = null;
+          URL.revokeObjectURL(url);
+        };
+        await audio.play();
+      } else {
+        setIsElevenLabsPlaying(false);
+      }
+    } catch {
+      setIsElevenLabsPlaying(false);
+    }
+  }, []);
+
   const addCallTranscriptEntryRef = useRef<
     ((role: "user" | "assistant", text: string) => void) | null
   >(null);
@@ -232,6 +285,12 @@ export const useCareerOnboardingVoice = ({
         clearVoiceBufferRef.current?.();
         void saveRealtimeTurn(userText, cleanText);
         lastRealtimeUserTextRef.current = "";
+
+        // ElevenLabs TTS playback when enabled
+        if (USE_ELEVENLABS_TTS) {
+          void playElevenLabsTts(cleanText);
+        }
+
         // AI signaled end of interview — wait for audio then end call
         if (hasEndMarker) {
           pendingCallEndRef.current = true;
@@ -270,28 +329,8 @@ export const useCareerOnboardingVoice = ({
       void saveRealtimeTurn(userText, fullText);
       lastRealtimeUserTextRef.current = "";
 
-      // ElevenLabs TTS playback — skipped in call mode (native Realtime audio handles it)
-      if (inputModeRef.current === "call" && false) {
-        void (async () => {
-          try {
-            const ttsRes = await fetchWithAuthRef.current("/api/tts", {
-              method: "POST",
-              body: JSON.stringify({ text: fullText }),
-            });
-            if (ttsRes.ok) {
-              const blob = await ttsRes.blob();
-              const url = URL.createObjectURL(blob);
-              const audio = new Audio(url);
-              audio.onended = () => URL.revokeObjectURL(url);
-              await audio.play();
-            }
-          } catch {
-            // TTS failure is non-critical during call
-          }
-        })();
-      }
     },
-    [appendMessage, onMessagesChanged, saveRealtimeTurn]
+    [appendMessage, onMessagesChanged, playElevenLabsTts, saveRealtimeTurn]
   );
 
   const handleRealtimeError = useCallback(
@@ -314,6 +353,7 @@ export const useCareerOnboardingVoice = ({
   const realtimeSession = useRealtimeSession({
     conversationId,
     enabled: Boolean(user && conversationId),
+    useElevenLabsTts: USE_ELEVENLABS_TTS,
     fetchWithAuth,
     onTranscript: handleRealtimeTranscript,
     onAssistantDelta: () => {}, // Could be used for streaming UI in future
@@ -321,6 +361,7 @@ export const useCareerOnboardingVoice = ({
     onError: handleRealtimeError,
     onConnectionChange: handleRealtimeConnectionChange,
   });
+  const sendRealtimeEvent = realtimeSession.sendEvent;
 
   const {
     inputMode,
@@ -602,7 +643,9 @@ export const useCareerOnboardingVoice = ({
     let openingAssistantMessage: CareerMessage | null = null;
     if (shouldBeginOnboarding) {
       setShowVoiceStartPrompt(false);
-      const beginResult = await beginOnboardingConversation();
+      const beginResult = await beginOnboardingConversation({
+        skipTypewriter: true,
+      });
       if (!beginResult.ok) {
         setShowVoiceStartPrompt(true);
         return;
@@ -622,10 +665,24 @@ export const useCareerOnboardingVoice = ({
       ? `${greetingText}\n\n${followUpText}`
       : greetingText;
 
-    generateSpeechRef.current?.(openingText);
+    if (USE_ELEVENLABS_TTS) {
+      void playElevenLabsTts(openingText);
+      sendRealtimeEvent({
+        type: "conversation.item.create",
+        item: {
+          type: "message",
+          role: "assistant",
+          content: [{ type: "text", text: openingText }],
+        },
+      });
+    } else {
+      generateSpeechRef.current?.(openingText);
+    }
   }, [
     beginOnboardingConversation,
     onboardingBeginPending,
+    playElevenLabsTts,
+    sendRealtimeEvent,
     showVoiceStartPrompt,
     startCallMode,
   ]);
@@ -633,6 +690,16 @@ export const useCareerOnboardingVoice = ({
   const handleEndCallMode = useCallback(() => {
     if (callWrapUpPendingRef.current) return;
 
+    if (elevenLabsAudioRef.current) {
+      elevenLabsAudioRef.current.onended = null;
+      elevenLabsAudioRef.current.onerror = null;
+      elevenLabsAudioRef.current.pause();
+      if (elevenLabsAudioRef.current.src.startsWith("blob:")) {
+        URL.revokeObjectURL(elevenLabsAudioRef.current.src);
+      }
+      elevenLabsAudioRef.current = null;
+      setIsElevenLabsPlaying(false);
+    }
     // Capture transcript before ending (endCallMode doesn't clear it)
     const transcript = callTranscriptEntries;
     const startedAt = callStartedAtRef.current;
@@ -707,16 +774,27 @@ export const useCareerOnboardingVoice = ({
 
   // Track isAssistantSpeaking in ref for use in callbacks
   useEffect(() => {
-    isAssistantSpeakingRef.current = realtimeSession.isAssistantSpeaking;
-  }, [realtimeSession.isAssistantSpeaking]);
+    isAssistantSpeakingRef.current = realtimeSession.isAssistantSpeaking || isElevenLabsPlaying;
+  }, [realtimeSession.isAssistantSpeaking, isElevenLabsPlaying]);
 
   // Auto-end call after AI finishes speaking when interview is completed
   useEffect(() => {
-    if (pendingCallEndRef.current && !realtimeSession.isAssistantSpeaking) {
+    const isSpeaking = realtimeSession.isAssistantSpeaking || isElevenLabsPlaying;
+    if (pendingCallEndRef.current && !isSpeaking) {
       pendingCallEndRef.current = false;
       endCallModeRef.current?.();
     }
-  }, [realtimeSession.isAssistantSpeaking]);
+  }, [realtimeSession.isAssistantSpeaking, isElevenLabsPlaying]);
+
+  // Cleanup ElevenLabs audio on unmount
+  useEffect(() => {
+    return () => {
+      if (elevenLabsAudioRef.current) {
+        elevenLabsAudioRef.current.pause();
+        elevenLabsAudioRef.current = null;
+      }
+    };
+  }, []);
 
   const resetOnboardingState = useCallback(() => {
     setShowVoiceStartPrompt(false);
@@ -753,6 +831,6 @@ export const useCareerOnboardingVoice = ({
     applySessionPrompt,
     handleProfileSubmitSuccess,
     resetOnboardingState,
-    isAssistantSpeaking: realtimeSession.isAssistantSpeaking,
+    isAssistantSpeaking: realtimeSession.isAssistantSpeaking || isElevenLabsPlaying,
   };
 };

@@ -208,8 +208,11 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const conversationId = (body as { conversationId?: string })
-      .conversationId?.trim();
+    const { conversationId: rawConversationId, useElevenLabsTts } = body as {
+      conversationId?: string;
+      useElevenLabsTts?: boolean;
+    };
+    const conversationId = rawConversationId?.trim();
 
     if (!conversationId) {
       return NextResponse.json(
@@ -235,8 +238,8 @@ export async function POST(req: NextRequest) {
         },
         body: JSON.stringify({
           model: "gpt-realtime-1.5",
-          modalities: ["text", "audio"],
-          voice: "coral",
+          modalities: useElevenLabsTts ? ["text"] : ["text", "audio"],
+          ...(useElevenLabsTts ? {} : { voice: "coral" }),
           input_audio_transcription: {
             model: "gpt-4o-mini-transcribe",
           },
