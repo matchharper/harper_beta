@@ -38,8 +38,6 @@ type UseCareerChatArgs = {
   onMessagesChanged?: (messages: CareerMessagePayload[]) => void | Promise<void>;
 };
 
-const TYPEWRITER_SCROLL_INTERVAL = 20;
-
 const mergeMessages = (
   persistedMessages: CareerMessage[],
   localMessages: CareerMessage[]
@@ -69,6 +67,25 @@ const mergeMessages = (
   }
 
   return merged;
+};
+
+const replaceMessageById = (
+  messages: CareerMessage[],
+  targetId: string | number,
+  nextMessage: CareerMessage
+) => {
+  const targetKey = String(targetId);
+  const nextIndex = messages.findIndex(
+    (message) => String(message.id) === targetKey
+  );
+
+  if (nextIndex < 0) {
+    return [...messages, nextMessage];
+  }
+
+  const nextMessages = [...messages];
+  nextMessages[nextIndex] = nextMessage;
+  return nextMessages;
 };
 
 export const useCareerChat = ({
@@ -110,10 +127,6 @@ export const useCareerChat = ({
     );
   }, [persistedMessages]);
 
-  const bumpScrollTick = useCallback(() => {
-    setScrollTick((prev) => prev + 1);
-  }, []);
-
   const enqueueAssistantTypewriter = useCallback((message: CareerMessage) => {
     typingQueueRef.current = typingQueueRef.current.then(async () => {
       if (!mountedRef.current) return;
@@ -128,7 +141,6 @@ export const useCareerChat = ({
           typing: true,
         },
       ]);
-      bumpScrollTick();
 
       const fullText = message.content;
       const delay = Math.max(
@@ -148,10 +160,6 @@ export const useCareerChat = ({
               : item
           )
         );
-
-        if (index % TYPEWRITER_SCROLL_INTERVAL === 0 || index === fullText.length) {
-          bumpScrollTick();
-        }
       }
 
       setLocalMessages((prev) =>
@@ -166,11 +174,10 @@ export const useCareerChat = ({
         )
       );
       setAssistantTyping(false);
-      bumpScrollTick();
     });
 
     return typingQueueRef.current;
-  }, [bumpScrollTick]);
+  }, []);
 
   const applySessionConversation = useCallback((payload: SessionResponse) => {
     setStage(payload.conversation.stage);
@@ -179,8 +186,7 @@ export const useCareerChat = ({
 
   const appendMessage = useCallback((message: CareerMessage) => {
     setLocalMessages((prev) => [...prev, message]);
-    bumpScrollTick();
-  }, [bumpScrollTick]);
+  }, []);
 
   const sendChatMessage = useCallback(
     async (args: SendChatArgs, options?: SendChatOptions) => {
@@ -216,7 +222,6 @@ export const useCareerChat = ({
           createdAt: nowIso,
         },
       ]);
-      bumpScrollTick();
 
       try {
         const response = await fetchWithAuth("/api/talent/chat", {
@@ -232,12 +237,11 @@ export const useCareerChat = ({
           throw new Error(getErrorMessage(payload, "메시지 전송에 실패했습니다."));
         }
 
-        setLocalMessages((prev) => [
-          ...prev.filter((item) => item.id !== tempId),
-          toUiMessage(payload.userMessage),
-        ]);
-        bumpScrollTick();
+        setLocalMessages((prev) =>
+          replaceMessageById(prev, tempId, toUiMessage(payload.userMessage))
+        );
         await enqueueAssistantTypewriter(toUiMessage(payload.assistantMessage));
+        setScrollTick((t) => t + 1);
         await onMessagesChanged?.([
           payload.userMessage as CareerMessagePayload,
           payload.assistantMessage as CareerMessagePayload,
@@ -260,7 +264,6 @@ export const useCareerChat = ({
     },
     [
       assistantTyping,
-      bumpScrollTick,
       chatPending,
       conversationId,
       enqueueAssistantTypewriter,

@@ -18,6 +18,7 @@ import {
 } from "@/lib/talentNetwork";
 
 type AdminNetworkAnalyticsTabProps = {
+  deviceFilterLabel: string;
   logs: LandingLog[];
   grouped: GroupedLogs[];
   loading: boolean;
@@ -31,6 +32,7 @@ type AdminNetworkAnalyticsTabProps = {
 };
 
 export default function AdminNetworkAnalyticsTab({
+  deviceFilterLabel,
   logs,
   grouped,
   loading,
@@ -47,7 +49,8 @@ export default function AdminNetworkAnalyticsTab({
       <div className="mb-4 flex items-center justify-between w-full">
         <div className="text-[12px] text-black/55">
           Loaded logs: <span className="text-black">{logs.length}</span> · Users:{" "}
-          <span className="text-black">{grouped.length}</span>
+          <span className="text-black">{grouped.length}</span> · Device:{" "}
+          <span className="text-black">{deviceFilterLabel}</span>
         </div>
 
         {loading && (
@@ -96,6 +99,8 @@ export default function AdminNetworkAnalyticsTab({
             <div className="leading-6">
               유입 유저:{" "}
               <span className="font-medium text-black">{funnelSummary.totalUsers}</span>{" "}
+              · 디바이스:{" "}
+              <span className="font-medium text-black">{deviceFilterLabel}</span>{" "}
               · 시작 화면 도달:{" "}
               <span className="font-medium text-black">
                 {funnelSummary.onboardingStartUsers}

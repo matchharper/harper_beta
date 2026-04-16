@@ -33,6 +33,7 @@ import {
   useSendOpsOpportunityCandidateMail,
   useDeleteOpsOpportunityMatch,
   useDeleteOpsOpportunityRecommendation,
+  useExtractOpsOpportunityWorkspace,
   useOpsOpportunityCandidates,
   useOpsOpportunityCatalog,
   useOpsOpportunityMatches,
@@ -41,6 +42,7 @@ import {
   useSaveOpsOpportunityRecommendation,
   useSaveOpsOpportunityRole,
   useSaveOpsOpportunityWorkspace,
+  useSyncOpsOpportunityRoles,
 } from "@/hooks/useOpsOpportunities";
 import type {
   OpsOpportunityCandidateRecord,
@@ -163,7 +165,9 @@ export default function OpsOpportunitiesPage() {
   );
 
   const catalogQuery = useOpsOpportunityCatalog();
+  const extractWorkspace = useExtractOpsOpportunityWorkspace();
   const saveWorkspace = useSaveOpsOpportunityWorkspace();
+  const syncRoles = useSyncOpsOpportunityRoles();
   const saveRole = useSaveOpsOpportunityRole();
   const saveMatch = useSaveOpsOpportunityMatch();
   const deleteMatch = useDeleteOpsOpportunityMatch();
@@ -449,6 +453,41 @@ export default function OpsOpportunitiesPage() {
     }
   };
 
+  const handleWorkspaceExtract = async () => {
+    const linkedinUrl = workspaceDraft.linkedinUrl.trim();
+    if (!linkedinUrl) {
+      showToast({
+        message: "LinkedIn 회사 URL을 먼저 입력해 주세요.",
+        variant: "white",
+      });
+      return;
+    }
+
+    try {
+      const response = await extractWorkspace.mutateAsync({
+        linkedinUrl,
+      });
+      setWorkspaceDraft((current) => ({
+        ...current,
+        companyDescription:
+          response.workspace.companyDescription || current.companyDescription,
+        companyName: response.workspace.companyName || current.companyName,
+        homepageUrl: response.workspace.homepageUrl || current.homepageUrl,
+        linkedinUrl: response.workspace.linkedinUrl,
+      }));
+      showToast({
+        message: "company_db에서 회사 정보를 채웠습니다.",
+        variant: "white",
+      });
+    } catch (error) {
+      showToast({
+        message:
+          error instanceof Error ? error.message : "회사 정보 추출에 실패했습니다.",
+        variant: "white",
+      });
+    }
+  };
+
   const handleRoleSave = async () => {
     try {
       const response = await saveRole.mutateAsync({
@@ -481,6 +520,43 @@ export default function OpsOpportunitiesPage() {
     }
   };
 
+  const handleRoleSync = async () => {
+    if (!selectedWorkspaceId) {
+      showToast({
+        message: "먼저 회사를 선택해 주세요.",
+        variant: "white",
+      });
+      return;
+    }
+
+    const careerUrl =
+      workspaceDraft.careerUrl.trim() || selectedWorkspace?.careerUrl || "";
+    if (!careerUrl.trim()) {
+      showToast({
+        message: "career url이 없습니다. 회사 정보에 먼저 입력해 주세요.",
+        variant: "white",
+      });
+      return;
+    }
+
+    try {
+      const response = await syncRoles.mutateAsync({
+        careerUrl,
+        workspaceId: selectedWorkspaceId,
+      });
+      showToast({
+        message: `${response.result.provider}에서 ${response.result.insertedCount}개 role을 sync했습니다.`,
+        variant: "white",
+      });
+    } catch (error) {
+      showToast({
+        message:
+          error instanceof Error ? error.message : "role sync에 실패했습니다.",
+        variant: "white",
+      });
+    }
+  };
+
   const openWorkspaceCreateModal = () => {
     setWorkspaceDraftMode("new");
     setWorkspaceDraft(EMPTY_WORKSPACE_DRAFT);
@@ -488,7 +564,7 @@ export default function OpsOpportunitiesPage() {
   };
 
   const closeWorkspaceCreateModal = () => {
-    if (saveWorkspace.isPending) return;
+    if (saveWorkspace.isPending || extractWorkspace.isPending) return;
     setIsWorkspaceCreateModalOpen(false);
     setWorkspaceDraftMode("edit");
     setWorkspaceDraft(workspaceToDraft(selectedWorkspace));
@@ -766,7 +842,9 @@ export default function OpsOpportunitiesPage() {
               setRoleDraftMode("edit");
               setSelectedRoleId(roleId);
             }}
+            onRoleSync={() => void handleRoleSync()}
             onRoleSourceFilterChange={setRoleSourceFilter}
+            onWorkspaceExtract={() => void handleWorkspaceExtract()}
             onWorkspaceSave={() => void handleWorkspaceSave()}
             onWorkspaceSearchChange={setWorkspaceSearch}
             onWorkspaceSelect={(workspaceId) => {
@@ -777,6 +855,8 @@ export default function OpsOpportunitiesPage() {
             roleDraftMode={roleDraftMode}
             roleSearch={roleSearch}
             roleSourceFilter={roleSourceFilter}
+            extractWorkspacePending={extractWorkspace.isPending}
+            syncRolePending={syncRoles.isPending}
             saveRolePending={saveRole.isPending}
             saveWorkspacePending={saveWorkspace.isPending}
             selectedRole={selectedRole}
@@ -884,8 +964,10 @@ export default function OpsOpportunitiesPage() {
       <WorkspaceCreateModal
         open={isWorkspaceCreateModalOpen}
         draft={workspaceDraft}
+        extractPending={extractWorkspace.isPending}
         onChange={setWorkspaceDraft}
         onClose={closeWorkspaceCreateModal}
+        onExtract={() => void handleWorkspaceExtract()}
         onSubmit={() => void handleWorkspaceSave()}
         pending={saveWorkspace.isPending}
       />

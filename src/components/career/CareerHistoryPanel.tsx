@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useRouter } from "next/router";
 import { showToast } from "@/components/toast/toast";
+import { TALENT_INTERVIEW_FINAL_STEP } from "@/lib/talentOnboarding/progress";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
 import CareerInPageTabs from "./CareerInPageTabs";
 import {
@@ -278,6 +279,8 @@ const HistorySavedStageTabs = ({
 const CareerHistoryPanel = () => {
   const router = useRouter();
   const {
+    stage,
+    userChatCount,
     historyOpportunities,
     historyLoading,
     historyUpdatingOpportunityIds,
@@ -835,6 +838,41 @@ const CareerHistoryPanel = () => {
   );
 
   const listItems = activeTab === "saved" ? filteredSavedItems : archivedItems;
+  const isConversationCompleted =
+    stage === "completed" || userChatCount >= TALENT_INTERVIEW_FINAL_STEP;
+  const emptyStateCopy = isConversationCompleted
+    ? {
+        body: (
+          <>
+            <div className="leading-7 text-beige900/80">
+              대화해주셔서 감사합니다.
+              <br />
+              지금 내용을 바탕으로 맞는 팀과 포지션을 확인하고 있습니다.
+              <br />
+              연결이 진행되면 메일로 바로 안내드릴게요.
+            </div>
+          </>
+        ),
+        ctaLabel: null,
+        heading: "Mathing in Progress...",
+      }
+    : {
+        body: (
+          <>
+            <div className="leading-7 text-beige900/80">
+              아직 맞는 기회를 추리는 중입니다.
+              <br />
+              몇 가지만 더 이야기해주시면 더 잘 맞는 포지션을
+              <br />더 빠르게 찾을 수 있어요.
+            </div>
+            <div className="mt-6">
+              대화를 이어주시면 내용을 바탕으로 순서대로 정리해 보여드릴게요.
+            </div>
+          </>
+        ),
+        ctaLabel: "대화 이어가기",
+        heading: "Mathing in Progress...",
+      };
 
   const OuterBox = ({ children }: { children: ReactNode }) => {
     return (
@@ -867,35 +905,27 @@ const CareerHistoryPanel = () => {
       <OuterBox>
         <section className="text-[15px] py-6 flex flex-row items-start justify-between">
           <div>
-            <div className="leading-7 text-beige900/80">
-              아직 맞는 기회를 찾는 중입니다.
-              <br />
-              Harper는 회원님의 활동을 기반으로
-              <br />
-              지속적으로 새로운 기회를 탐색하고 있습니다.
-              <br />
-              <br />
-              모든 기회는 실제 검토를 거쳐 도착합니다. 의미없는 대량의 추천은
-              없습니다.
-            </div>
+            {emptyStateCopy.body}
             <div className="mt-6 flex flex-col items-start justify-start gap-8">
-              <div>
-                더 빠르게 더 많은 기회를 받아보고 싶다면 하퍼에게 알려주세요.
-              </div>
-              <BeigeButton
-                label="대화하러 가기"
-                size="md"
-                className="text-beige50"
-                variant="primary"
-                onClick={() => {
-                  router.push("/career/chat");
-                }}
-              />
+              {emptyStateCopy.ctaLabel ? (
+                <>
+                  <div>원하는 방향이 있다면 지금 이어서 알려주세요.</div>
+                  <BeigeButton
+                    label={emptyStateCopy.ctaLabel}
+                    size="md"
+                    className="text-beige50"
+                    variant="primary"
+                    onClick={() => {
+                      router.push("/career/chat");
+                    }}
+                  />
+                </>
+              ) : null}
             </div>
           </div>
           <div>
             <div className="text-beige900 text-2xl font-semibold font-hedvig">
-              Matching in Progess...
+              {emptyStateCopy.heading}
             </div>
           </div>
         </section>

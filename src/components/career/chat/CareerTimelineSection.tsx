@@ -1,5 +1,11 @@
 import { Loader2, Phone, Plus, Upload, X } from "lucide-react";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { CAREER_LINK_LABELS } from "@/components/career/constants";
 import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
 import {
@@ -36,6 +42,9 @@ const LOADING_EXAMPLES = [
 ];
 
 const VOICE_TRANSCRIPT_PREVIEW_LIMIT = 120;
+const BOTTOM_THRESHOLD_PX = 120;
+const CLAIMED_WORKSPACE_BOOTSTRAP_MESSAGE =
+  "기존에 제출한 정보로 커리어 워크스페이스를 시작했습니다.";
 
 const TimelinePanel = ({
   children,
@@ -90,6 +99,7 @@ const InterestChoiceButton = ({
 const CareerTimelineSection = () => {
   const {
     user,
+    conversationId,
     stage,
     messages,
     scrollRef,
@@ -119,6 +129,7 @@ const CareerTimelineSection = () => {
     onLoadOlderMessages,
     showVoiceStartPrompt,
     onStartVoiceCall,
+    onStartCallMode,
     onUseChatOnly,
     onPauseOnboarding,
     onSubmitOnboardingInterest,
@@ -132,9 +143,11 @@ const CareerTimelineSection = () => {
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [showLoadOlderButton, setShowLoadOlderButton] = useState(false);
+  const [stickToBottom, setStickToBottom] = useState(true);
   const [selectedInterestOptions, setSelectedInterestOptions] = useState<
     TalentOnboardingInterestOptionId[]
   >([]);
+  const initialBottomSyncDoneRef = useRef(false);
 
   const handleEmailAuthSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -149,19 +162,30 @@ const CareerTimelineSection = () => {
     setAuthMode("signin");
   };
 
-  const syncLoadOlderButtonVisibility = useCallback(() => {
+  const scrollToBottom = useCallback(
+    (behavior: ScrollBehavior = "smooth") => {
+      const el = scrollRef.current;
+      if (!el) return;
+      el.scrollTo({ top: el.scrollHeight, behavior });
+    },
+    [scrollRef]
+  );
+
+  const syncScrollState = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
     setShowLoadOlderButton(el.scrollTop <= 24);
+    const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setStickToBottom(distanceToBottom <= BOTTOM_THRESHOLD_PX);
   }, [scrollRef]);
 
   useEffect(() => {
-    syncLoadOlderButtonVisibility();
-  }, [messages.length, syncLoadOlderButtonVisibility]);
+    syncScrollState();
+  }, [messages.length, syncScrollState]);
 
   const handleTimelineScroll = useCallback(() => {
-    syncLoadOlderButtonVisibility();
-  }, [syncLoadOlderButtonVisibility]);
+    syncScrollState();
+  }, [syncScrollState]);
 
   const handleLoadOlderMessages = useCallback(async () => {
     const el = scrollRef.current;
@@ -175,16 +199,25 @@ const CareerTimelineSection = () => {
     window.requestAnimationFrame(() => {
       const scrollHeightDelta = el.scrollHeight - previousScrollHeight;
       el.scrollTop = previousScrollTop + scrollHeightDelta;
-      syncLoadOlderButtonVisibility();
+      syncScrollState();
     });
-  }, [onLoadOlderMessages, scrollRef, syncLoadOlderButtonVisibility]);
+  }, [onLoadOlderMessages, scrollRef, syncScrollState]);
 
   const isVoiceMode = inputMode === "voice";
+  const timelineMessages = messages.filter(
+    (message) =>
+      message.messageType !== "call_transcript" &&
+      !(
+        message.role === "user" &&
+        message.messageType === "profile_submit" &&
+        message.content.trim() === CLAIMED_WORKSPACE_BOOTSTRAP_MESSAGE
+      )
+  );
   let lastSpokenAssistantMessageIndex = -1;
 
   if (assistantAudioBusy) {
-    for (let index = messages.length - 1; index >= 0; index -= 1) {
-      const message = messages[index];
+    for (let index = timelineMessages.length - 1; index >= 0; index -= 1) {
+      const message = timelineMessages[index];
       if (
         message.role === "assistant" &&
         !message.typing &&
@@ -217,6 +250,49 @@ const CareerTimelineSection = () => {
     }
   }, [showInterestSelector]);
 
+  useEffect(() => {
+    initialBottomSyncDoneRef.current = false;
+  }, [conversationId, inputMode]);
+
+  useEffect(() => {
+    if (initialBottomSyncDoneRef.current) return;
+    if (!conversationId || sessionPending || inputMode === "call") return;
+    if (messages.length === 0) return;
+
+    initialBottomSyncDoneRef.current = true;
+    const id = window.requestAnimationFrame(() => {
+      scrollToBottom("auto");
+      syncScrollState();
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [
+    conversationId,
+    inputMode,
+    messages.length,
+    scrollToBottom,
+    sessionPending,
+    syncScrollState,
+  ]);
+
+  useEffect(() => {
+    if (!stickToBottom || inputMode === "call") return;
+    if (messages.length === 0) return;
+
+    const id = window.requestAnimationFrame(() => {
+      scrollToBottom(assistantTyping || chatPending ? "auto" : "smooth");
+      syncScrollState();
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [
+    assistantTyping,
+    chatPending,
+    inputMode,
+    messages,
+    scrollToBottom,
+    stickToBottom,
+    syncScrollState,
+  ]);
+
   const handleToggleInterestOption = useCallback(
     (optionId: TalentOnboardingInterestOptionId) => {
       setSelectedInterestOptions((prev) =>
@@ -238,7 +314,7 @@ const CareerTimelineSection = () => {
     <div
       ref={scrollRef}
       onScroll={handleTimelineScroll}
-      className="flex-1 overflow-y-auto px-0 py-4 pb-28 scrollbar-thin scrollbar-thumb-[rgba(92,61,34,0.16)] scrollbar-track-transparent"
+      className="min-h-0 flex-1 overflow-y-auto px-0 py-4 pb-28 scrollbar-thin scrollbar-thumb-[rgba(92,61,34,0.16)] scrollbar-track-transparent"
     >
       <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-4 px-5 py-1">
         {user && showLoadOlderButton && hasOlderMessages && (
@@ -368,11 +444,11 @@ const CareerTimelineSection = () => {
 
         {user &&
           !sessionPending &&
-          messages.filter((m) => m.messageType !== "call_transcript").map((message, index) => {
+          timelineMessages.map((message, index) => {
             const isUser = message.role === "user";
             return (
               <div
-                key={`${message.id}-${index}`}
+                key={String(message.id)}
                 className={careerCx(
                   "flex flex-col gap-2",
                   isVoiceMode &&
@@ -546,18 +622,11 @@ const CareerTimelineSection = () => {
             </div>
             <div className="mt-5 grid gap-2">
               <CareerPrimaryButton
-                onClick={() => onStartVoiceCall(5)}
+                onClick={() => onStartCallMode?.()}
                 disabled={onboardingBeginPending}
                 className="w-full justify-center"
               >
                 {onboardingBeginPending ? "준비 중..." : "5분 통화 시작"}
-              </CareerPrimaryButton>
-              <CareerPrimaryButton
-                onClick={() => onStartVoiceCall(10)}
-                disabled={onboardingBeginPending}
-                className="w-full justify-center"
-              >
-                {onboardingBeginPending ? "준비 중..." : "10분 통화 시작"}
               </CareerPrimaryButton>
               <CareerSecondaryButton
                 onClick={onUseChatOnly}

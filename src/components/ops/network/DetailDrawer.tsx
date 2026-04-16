@@ -6,13 +6,7 @@ import type {
   TalentInternalEntry,
 } from "@/lib/opsNetwork";
 import { motion } from "framer-motion";
-import {
-  Copy,
-  FileText,
-  LoaderCircle,
-  X,
-  Sparkles,
-} from "lucide-react";
+import { Copy, FileText, LoaderCircle, X, Sparkles } from "lucide-react";
 import InternalView from "./InternalView";
 import MessagesView from "./MessagesView";
 import ProfileView from "./ProfileView";
@@ -154,7 +148,6 @@ export default function DetailDrawer({
               <div className="px-5 py-5">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                   <div>
-                    <div className={opsTheme.eyebrow}>Candidate</div>
                     <h2 className={cx(opsTheme.titleSm, "mt-1")}>
                       {displayedLead.name ?? "이름 없음"}
                     </h2>
@@ -164,11 +157,24 @@ export default function DetailDrawer({
                           {displayedLead.careerMoveIntentLabel}
                         </Badge>
                       ) : null}
-                      <Badge>진행: {getLeadProgressLabel(displayedLead.progress.currentStep)}</Badge>
+                      <Badge>
+                        진행:{" "}
+                        {getLeadProgressLabel(
+                          displayedLead.progress.currentStep,
+                          detail?.hasStructuredProfile ??
+                            displayedLead.hasStructuredProfile
+                        )}
+                      </Badge>
                       {displayedLead.hasCv ? <Badge>CV 업로드</Badge> : null}
-                      {detail?.hasStructuredProfile ? <Badge>구조화 완료</Badge> : null}
-                      {detail?.claimedTalentId ? <Badge>후보자 계정 연결됨</Badge> : null}
-                      {displayedLead.selectedRole ? <Badge>{displayedLead.selectedRole}</Badge> : null}
+                      {detail?.hasStructuredProfile ? (
+                        <Badge>구조화 완료</Badge>
+                      ) : null}
+                      {detail?.claimedTalentId ? (
+                        <Badge>후보자 계정 연결됨</Badge>
+                      ) : null}
+                      {displayedLead.selectedRole ? (
+                        <Badge>{displayedLead.selectedRole}</Badge>
+                      ) : null}
                     </div>
                     <div className="mt-3 font-geist text-sm text-beige900/65">
                       {displayedLead.email ?? "이메일 없음"}
@@ -187,7 +193,9 @@ export default function DetailDrawer({
                     {displayedLead.email ? (
                       <button
                         type="button"
-                        onClick={() => onCopy(displayedLead.email ?? "", "이메일")}
+                        onClick={() =>
+                          onCopy(displayedLead.email ?? "", "이메일")
+                        }
                         className={cx(opsTheme.buttonSoft, "h-10 px-3")}
                       >
                         <Copy className="h-4 w-4" />
@@ -261,7 +269,10 @@ export default function DetailDrawer({
                   ) : null}
 
                   {detailTab === "waitlist" ? (
-                    <WaitlistView detail={detail} displayedLead={displayedLead} />
+                    <WaitlistView
+                      detail={detail}
+                      displayedLead={displayedLead}
+                    />
                   ) : null}
 
                   {detailTab === "messages" ? (

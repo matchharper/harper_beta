@@ -50,6 +50,8 @@ export const NETWORK_PROGRESS_STEP_LABELS: Record<
   roleRecommended: "Role 추천함",
 };
 
+const NETWORK_STRUCTURED_PROGRESS_LABEL = "구조화 완료";
+
 export const formatKst = (value: string | null | undefined) => {
   if (!value) return "-";
   const date = new Date(value);
@@ -168,9 +170,14 @@ export function getLeadPreferenceLabels(lead: NetworkLeadSummary) {
 }
 
 export function getLeadProgressLabel(
-  currentStep: NetworkLeadProgress["currentStep"]
+  currentStep: NetworkLeadProgress["currentStep"],
+  structuredReady = false
 ) {
-  return currentStep ? NETWORK_PROGRESS_STEP_LABELS[currentStep] : "접수됨";
+  if (currentStep) {
+    return NETWORK_PROGRESS_STEP_LABELS[currentStep];
+  }
+
+  return structuredReady ? NETWORK_STRUCTURED_PROGRESS_LABEL : "접수됨";
 }
 
 export function formatEntryType(type: TalentInternalEntry["type"]) {
@@ -343,11 +350,25 @@ export function NetworkLeadProgressTrack({
   progress,
   selected = false,
   showCurrent = true,
+  structuredReady = false,
 }: {
   progress: NetworkLeadProgress;
   selected?: boolean;
   showCurrent?: boolean;
+  structuredReady?: boolean;
 }) {
+  const getStepClassName = (done: boolean) =>
+    cx(
+      "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 font-geist text-[11px] transition",
+      done
+        ? selected
+          ? "border-beige100/18 bg-beige100/12 text-beige100"
+          : "border-[#E8D4BC] bg-[#EEDFCC] text-beige900"
+        : selected
+          ? "border-beige100/12 bg-transparent text-beige100/42"
+          : "border-beige900/10 bg-white/55 text-beige900/42"
+    );
+
   return (
     <div className="space-y-2">
       {showCurrent ? (
@@ -357,32 +378,28 @@ export function NetworkLeadProgressTrack({
             selected ? "text-beige100/82" : "text-beige900/60"
           )}
         >
-          현재 {getLeadProgressLabel(progress.currentStep)}
+          현재 {getLeadProgressLabel(progress.currentStep, structuredReady)}
         </div>
       ) : null}
       <div className="flex flex-wrap gap-1.5">
+        <span className={getStepClassName(structuredReady)}>
+          {structuredReady ? (
+            <Check className="h-3 w-3 shrink-0" />
+          ) : (
+            <span
+              className={cx(
+                "h-1.5 w-1.5 shrink-0 rounded-full",
+                selected ? "bg-beige100/40" : "bg-beige900/25"
+              )}
+            />
+          )}
+          {NETWORK_STRUCTURED_PROGRESS_LABEL}
+        </span>
         {NETWORK_LEAD_PROGRESS_STEP_ORDER.map((step) => {
           const done = progress[step];
-          const current = progress.currentStep === step;
 
           return (
-            <span
-              key={step}
-              className={cx(
-                "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 font-geist text-[11px] transition",
-                current
-                  ? selected
-                    ? "border-beige100 bg-beige100 text-beige900"
-                    : "border-beige900 bg-beige900 text-beige100"
-                  : done
-                    ? selected
-                      ? "border-beige100/18 bg-beige100/12 text-beige100"
-                      : "border-[#E8D4BC] bg-[#EEDFCC] text-beige900"
-                    : selected
-                      ? "border-beige100/12 bg-transparent text-beige100/42"
-                      : "border-beige900/10 bg-white/55 text-beige900/42"
-              )}
-            >
+            <span key={step} className={getStepClassName(done)}>
               {done ? (
                 <Check className="h-3 w-3 shrink-0" />
               ) : (

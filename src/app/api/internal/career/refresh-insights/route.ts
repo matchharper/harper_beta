@@ -6,6 +6,7 @@ import {
 import {
   getTalentSupabaseAdmin,
   fetchTalentInsights,
+  fetchTalentSetting,
   fetchTalentUserProfile,
   fetchTalentStructuredProfile,
   fetchMessages,
@@ -111,9 +112,11 @@ export async function POST(req: NextRequest) {
     }
 
     // Fetch insights, profile, and merged checklist in parallel
-    const [currentInsights, profile, mergedChecklist] = await Promise.all([
+    const [currentInsights, profile, talentSetting, mergedChecklist] =
+      await Promise.all([
       fetchTalentInsights({ admin, userId }),
       fetchTalentUserProfile({ admin, userId }),
+      fetchTalentSetting({ admin, userId }),
       getMergedChecklist({ admin }),
     ]);
 
@@ -129,6 +132,7 @@ export async function POST(req: NextRequest) {
     const profileContext = buildTalentProfileContext({
       profile,
       structuredProfile,
+      setting: talentSetting,
       maxResumeChars: 6000,
     });
 

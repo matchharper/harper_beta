@@ -1,5 +1,6 @@
 const UNDERLINE_OPEN_TOKEN = "ATS_UNDERLINE_OPEN_TOKEN";
 const UNDERLINE_CLOSE_TOKEN = "ATS_UNDERLINE_CLOSE_TOKEN";
+const SAFE_SPAN_TOKEN_PREFIX = "ATS_SAFE_SPAN_TOKEN_";
 
 function normalizeSource(value: string) {
   return value.replace(/\r/g, "").trim();
@@ -23,6 +24,57 @@ function preserveUnderlineTags(value: string) {
     /<u>([\s\S]*?)<\/u>/gi,
     `${UNDERLINE_OPEN_TOKEN}$1${UNDERLINE_CLOSE_TOKEN}`
   );
+}
+
+function getSafeInlineSpanColor(style: string) {
+  const declarations = style.split(";");
+
+  for (const declaration of declarations) {
+    const [rawName, ...rawValueParts] = declaration.split(":");
+    const name = String(rawName ?? "").trim().toLowerCase();
+    if (name !== "color") continue;
+
+    const value = rawValueParts.join(":").trim();
+    if (!value) return null;
+
+    if (/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value)) {
+      return value;
+    }
+
+    if (
+      /^rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}(?:\s*,\s*(?:0|1|0?\.\d+))?\s*\)$/i.test(
+        value
+      )
+    ) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function tokenizeSafeInlineSpans(value: string) {
+  const spans: Array<{ color: string; content: string; token: string }> = [];
+  const text = value.replace(
+    /<span\b[^>]*style\s*=\s*(['"])([\s\S]*?)\1[^>]*>([\s\S]*?)<\/span>/gi,
+    (_, _quote, rawStyle, rawContent) => {
+      const color = getSafeInlineSpanColor(String(rawStyle ?? ""));
+      const content = String(rawContent ?? "");
+
+      if (!color) {
+        return content;
+      }
+
+      const token = `${SAFE_SPAN_TOKEN_PREFIX}${spans.length}__`;
+      spans.push({ color, content, token });
+      return token;
+    }
+  );
+
+  return {
+    spans,
+    text,
+  };
 }
 
 function isSafeUrl(value: string) {
@@ -65,12 +117,24 @@ function formatEmphasis(value: string) {
 
 function formatInlineWithoutLinks(value: string) {
   const withUnderlineTokens = preserveUnderlineTags(value);
-  let formatted = escapeHtml(withUnderlineTokens);
+  const { spans, text } = tokenizeSafeInlineSpans(withUnderlineTokens);
+  let formatted = escapeHtml(text);
   formatted = formatStrong(formatted);
   formatted = formatEmphasis(formatted);
-  return formatted
+  formatted = formatted
     .replaceAll(UNDERLINE_OPEN_TOKEN, "<u>")
     .replaceAll(UNDERLINE_CLOSE_TOKEN, "</u>");
+
+  for (const span of spans) {
+    formatted = formatted.replaceAll(
+      span.token,
+      `<span style="color: ${escapeAttribute(
+        span.color
+      )};">${formatInlineWithoutLinks(span.content)}</span>`
+    );
+  }
+
+  return formatted;
 }
 
 function formatInline(value: string) {
@@ -211,6 +275,7 @@ export function renderEmailBodyText(value: string) {
 
   return normalized
     .replace(/<u>([\s\S]*?)<\/u>/gi, "$1")
+    .replace(/<span\b[^>]*>([\s\S]*?)<\/span>/gi, "$1")
     .replace(/\[([^\]\n]+)\]\(([^)\n]+)\)/g, "$1 ($2)")
     .replace(/\*\*([\s\S]+?)\*\*/g, "$1")
     .replace(/__([\s\S]+?)__/g, "$1")

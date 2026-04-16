@@ -1,5 +1,6 @@
 import { cx, opsTheme } from "@/components/ops/theme";
 import type { NetworkLeadDetailResponse, TalentInternalEntry } from "@/lib/opsNetwork";
+import { OPS_NETWORK_MAIL_TEMPLATE_VARIABLES } from "@/lib/opsNetworkMailTemplate";
 import {
   FileText,
   LoaderCircle,
@@ -76,6 +77,10 @@ export default function InternalView({
   onSendMail,
   updatePendingEntryId,
 }: InternalViewProps) {
+  const supportedMailVariables = OPS_NETWORK_MAIL_TEMPLATE_VARIABLES.map(
+    ({ label }) => label
+  ).join(", ");
+
   return (
     <div className="space-y-4">
       {detailError ? <div className={opsTheme.errorNotice}>{detailError}</div> : null}
@@ -125,6 +130,10 @@ export default function InternalView({
               className={cx(opsTheme.textarea, "mt-2 min-h-[180px]")}
               placeholder="후보자에게 보낼 메일 내용을 작성하세요."
             />
+            <p className="mt-2 font-geist text-xs leading-5 text-beige900/60">
+              제목과 본문에서 {supportedMailVariables} 을 사용할 수 있고, 발송 시
+              후보자 정보로 치환됩니다.
+            </p>
           </div>
 
           <button

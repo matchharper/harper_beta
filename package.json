@@ -7,7 +7,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "ops:workspace:sync-list": "node scripts/syncCompanyWorkspacesFromList.mjs"
   },
   "dependencies": {
     "@deepgram/sdk": "^4.11.2",

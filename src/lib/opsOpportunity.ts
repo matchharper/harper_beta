@@ -1,4 +1,5 @@
 import type { Json } from "@/types/database.types";
+import { ApifyClient } from "apify-client";
 import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
 import {
   DEFAULT_OPS_TALENT_RECOMMENDATION_PROMPT,
@@ -15,6 +16,7 @@ import {
 type AdminClient = ReturnType<typeof getSupabaseAdmin>;
 
 type WorkspaceRow = {
+  career_url: string | null;
   company_db_id?: number | null;
   company_description: string | null;
   company_name: string;
@@ -31,6 +33,7 @@ type RoleRow = {
   company_workspace_id: string;
   created_at: string;
   description: string | null;
+  description_summary?: string | null;
   expires_at?: string | null;
   external_jd_url: string | null;
   information: Record<string, unknown> | null;
@@ -148,10 +151,31 @@ type RecommendationDraftRoleRow = {
 };
 
 type CompanyDbRow = {
+  description: string | null;
   id: number;
+  last_updated_at: string;
   linkedin_url: string | null;
   logo: string | null;
   name: string | null;
+  short_description: string | null;
+  website_url: string | null;
+};
+
+type SupportedExternalRoleProvider = "lever" | "linkedin_jobs";
+
+type SyncedExternalRoleSeed = {
+  description: string | null;
+  descriptionSummary: string | null;
+  employmentTypes: OpportunityEmploymentType[];
+  expiresAt: string | null;
+  externalJdUrl: string | null;
+  locationText: string | null;
+  name: string;
+  postedAt: string | null;
+  sourceJobId: string;
+  sourceProvider: SupportedExternalRoleProvider;
+  status: OpportunityStatus;
+  workMode: OpportunityWorkMode | null;
 };
 
 export type OpportunitySourceType = "internal" | "external";
@@ -165,6 +189,7 @@ export type OpportunityWorkMode = "onsite" | "hybrid" | "remote";
 
 export type OpsOpportunityWorkspaceRecord = {
   activeRoleCount: number;
+  careerUrl: string | null;
   companyDbId: number | null;
   companyDescription: string | null;
   companyName: string;
@@ -180,11 +205,28 @@ export type OpsOpportunityWorkspaceRecord = {
   updatedAt: string;
 };
 
+export type OpsOpportunityWorkspaceExtraction = {
+  companyDbId: number;
+  companyDescription: string;
+  companyName: string;
+  homepageUrl: string;
+  linkedinUrl: string;
+  logoUrl: string | null;
+};
+
+export type OpsOpportunityRoleSyncResult = {
+  deletedCount: number;
+  insertedCount: number;
+  provider: SupportedExternalRoleProvider;
+  workspaceId: string;
+};
+
 export type OpsOpportunityRoleRecord = {
   companyName: string;
   companyWorkspaceId: string;
   createdAt: string;
   description: string | null;
+  descriptionSummary: string | null;
   employmentTypes: OpportunityEmploymentType[];
   expiresAt: string | null;
   externalJdUrl: string | null;
@@ -410,6 +452,516 @@ function normalizeLinkedinCompanyUrl(raw: string): string | null {
   } catch {
     return null;
   }
+}
+
+const DEFAULT_APIFY_LEVER_JOBS_ACTOR_ID = "RyuY39MwHKAvdAZdg";
+const DEFAULT_APIFY_LINKEDIN_JOBS_ACTOR_ID = "hKByXkMQaC5Qt9UMN";
+const COMPANY_DB_LOOKUP_SELECT =
+  "id, name, linkedin_url, logo, website_url, description, short_description, last_updated_at";
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  timeoutMessage: string
+): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(new Error(timeoutMessage));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
+function decodeHtmlEntities(value: string) {
+  return value
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'");
+}
+
+function htmlToPlainText(value: string | null | undefined) {
+  const normalized = String(value ?? "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(div|p|li|h[1-6]|ul|ol|section|article)>/gi, "\n")
+    .replace(/<li[^>]*>/gi, "- ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\u0000/g, "")
+    .trim();
+
+  return decodeHtmlEntities(normalized).replace(/[ \t]+\n/g, "\n").replace(
+    /\n{3,}/g,
+    "\n\n"
+  );
+}
+
+function normalizeScrapedDate(value: unknown) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const numericValue =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && /^\d+$/.test(value.trim())
+        ? Number(value.trim())
+        : null;
+
+  const parsed =
+    numericValue !== null
+      ? new Date(numericValue)
+      : new Date(String(value).trim());
+
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed.toISOString();
+}
+
+function inferEmploymentTypesFromLabel(
+  value: string | null | undefined
+): OpportunityEmploymentType[] {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (!normalized) return [];
+  if (normalized.includes("intern")) return ["internship"];
+  if (
+    normalized.includes("part time") ||
+    normalized.includes("part-time") ||
+    normalized.includes("parttime")
+  ) {
+    return ["part_time"];
+  }
+  if (
+    normalized.includes("contract") ||
+    normalized.includes("contractor") ||
+    normalized.includes("temporary")
+  ) {
+    return ["contract"];
+  }
+  if (
+    normalized.includes("full time") ||
+    normalized.includes("full-time") ||
+    normalized.includes("fulltime") ||
+    normalized.includes("permanent")
+  ) {
+    return ["full_time"];
+  }
+  return [];
+}
+
+function inferWorkModeFromLabels(values: unknown[]): OpportunityWorkMode | null {
+  const normalizedValues = values
+    .map((item) => String(item ?? "").trim().toLowerCase())
+    .filter(Boolean);
+
+  if (
+    normalizedValues.some((item) =>
+      item.includes("hybrid") || item.includes("하이브리드")
+    )
+  ) {
+    return "hybrid";
+  }
+  if (
+    normalizedValues.some((item) =>
+      item.includes("remote") ||
+      item.includes("remotely") ||
+      item.includes("리모트")
+    )
+  ) {
+    return "remote";
+  }
+  if (
+    normalizedValues.some((item) =>
+      item.includes("on-site") ||
+      item.includes("onsite") ||
+      item.includes("on site") ||
+      item.includes("상주")
+    )
+  ) {
+    return "onsite";
+  }
+  return null;
+}
+
+function normalizeExternalRoleStatus(args: { expiresAt?: string | null }) {
+  const expiresAt = normalizeScrapedDate(args.expiresAt);
+  if (expiresAt && new Date(expiresAt).getTime() < Date.now()) {
+    return "ended" satisfies OpportunityStatus;
+  }
+  return "active" satisfies OpportunityStatus;
+}
+
+function dedupeSyncedExternalRoles(items: SyncedExternalRoleSeed[]) {
+  const seen = new Set<string>();
+  const deduped: SyncedExternalRoleSeed[] = [];
+
+  for (const item of items) {
+    const key = `${item.sourceProvider}:${item.sourceJobId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(item);
+  }
+
+  return deduped;
+}
+
+function getApifyClient() {
+  const token = String(process.env.APIFY_CLIENT_KEY ?? "").trim();
+  if (!token) {
+    throw new Error("APIFY_CLIENT_KEY is not configured");
+  }
+  return new ApifyClient({ token });
+}
+
+function normalizeCareerUrl(raw: string) {
+  const normalized = normalizeLink(raw).trim();
+  if (!normalized) return null;
+  try {
+    return new URL(normalized).toString();
+  } catch {
+    return null;
+  }
+}
+
+function detectExternalRoleProvider(
+  careerUrl: string
+): SupportedExternalRoleProvider | null {
+  try {
+    const parsed = new URL(careerUrl);
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
+    const path = parsed.pathname.toLowerCase();
+
+    if (host === "jobs.lever.co" || host.endsWith(".lever.co") || host === "lever.co") {
+      return "lever";
+    }
+
+    if (
+      (host === "linkedin.com" || host.endsWith(".linkedin.com")) &&
+      path.includes("/jobs")
+    ) {
+      return "linkedin_jobs";
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function buildFallbackDescriptionSummary(args: {
+  companyName: string;
+  description: string | null;
+  locationText: string | null;
+  roleName: string;
+}) {
+  const body = clampPromptText(htmlToPlainText(args.description), 280);
+  const prefix = [args.companyName, args.roleName].filter(Boolean).join(" ");
+  const location = String(args.locationText ?? "").trim();
+  if (body) {
+    return [prefix, location ? `(${location})` : "", body]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+  }
+  return [prefix, location ? `(${location})` : ""].filter(Boolean).join(" ").trim();
+}
+
+async function summarizeExternalRoleDescription(args: {
+  companyDescription: string | null;
+  companyName: string;
+  role: SyncedExternalRoleSeed;
+}) {
+  const roleDescriptionText = clampPromptText(htmlToPlainText(args.role.description), 5000);
+  const companyDescription = clampPromptText(args.companyDescription, 1500);
+  const fallback = buildFallbackDescriptionSummary({
+    companyName: args.companyName,
+    description: args.role.description,
+    locationText: args.role.locationText,
+    roleName: args.role.name,
+  });
+
+  if (!roleDescriptionText && !companyDescription) {
+    return fallback || null;
+  }
+
+  try {
+    const summary = await runTalentAssistantCompletion({
+      messages: [
+        {
+          role: "system",
+          content:
+            "You summarize job descriptions for an internal recruiting database. Return one short plain-text paragraph in Korean. Mention what the company does, what the role owns, and the strongest qualification or domain signal. Do not use markdown or bullets. Keep it under 420 characters.",
+        },
+        {
+          role: "user",
+          content: [
+            `Company: ${args.companyName}`,
+            companyDescription ? `Company Description: ${companyDescription}` : "",
+            `Role: ${args.role.name}`,
+            args.role.locationText ? `Location: ${args.role.locationText}` : "",
+            args.role.workMode ? `Work Mode: ${args.role.workMode}` : "",
+            args.role.employmentTypes.length > 0
+              ? `Employment Type: ${args.role.employmentTypes.join(", ")}`
+              : "",
+            roleDescriptionText ? `Job Description:\n${roleDescriptionText}` : "",
+          ]
+            .filter(Boolean)
+            .join("\n\n"),
+        },
+      ],
+      temperature: 0.2,
+    });
+
+    const cleaned = summary.replace(/\s+/g, " ").trim();
+    return clampPromptText(cleaned, 420) ?? fallback ?? null;
+  } catch {
+    return fallback || null;
+  }
+}
+
+async function summarizeExternalRoleSeeds(args: {
+  companyDescription: string | null;
+  companyName: string;
+  roles: SyncedExternalRoleSeed[];
+}) {
+  const summarized: SyncedExternalRoleSeed[] = [];
+  const chunkSize = 4;
+
+  for (let index = 0; index < args.roles.length; index += chunkSize) {
+    const chunk = args.roles.slice(index, index + chunkSize);
+    const chunkResults = await Promise.all(
+      chunk.map(async (role) => ({
+        ...role,
+        descriptionSummary: await summarizeExternalRoleDescription({
+          companyDescription: args.companyDescription,
+          companyName: args.companyName,
+          role,
+        }),
+      }))
+    );
+    summarized.push(...chunkResults);
+  }
+
+  return summarized;
+}
+
+function mapLeverRoleItem(item: Record<string, unknown>): SyncedExternalRoleSeed | null {
+  const title = String(item.title ?? "").trim();
+  const sourceJobId = String(item.id ?? "").trim();
+  if (!title || !sourceJobId) return null;
+
+  const description = String(item.description ?? "").trim() || null;
+  const locations = Array.isArray(item.locations)
+    ? item.locations
+        .map((value) => String(value ?? "").trim())
+        .filter(Boolean)
+        .join(", ")
+    : "";
+  const expiresAt = normalizeScrapedDate(item.expiredAt ?? item.expiresAt);
+
+  return {
+    description,
+    descriptionSummary: null,
+    employmentTypes: inferEmploymentTypesFromLabel(String(item.type ?? "")),
+    expiresAt,
+    externalJdUrl:
+      String(item.postingUrl ?? item.applyUrl ?? "").trim() || null,
+    locationText: locations || null,
+    name: title,
+    postedAt: normalizeScrapedDate(item.publishedAt ?? item.createdAt),
+    sourceJobId,
+    sourceProvider: "lever",
+    status: normalizeExternalRoleStatus({ expiresAt }),
+    workMode: null,
+  };
+}
+
+function mapLinkedinJobsItem(
+  item: Record<string, unknown>
+): SyncedExternalRoleSeed | null {
+  const title = String(item.title ?? "").trim();
+  const sourceJobId = String(item.id ?? "").trim();
+  if (!title || !sourceJobId) return null;
+
+  const workplaceTypes = Array.isArray(item.workplaceTypes)
+    ? item.workplaceTypes
+    : [];
+  const descriptionHtml = String(
+    item.descriptionHtml ?? item.description ?? item.descriptionText ?? ""
+  ).trim();
+  const expiresAt = normalizeScrapedDate(item.expireAt ?? item.expiredAt);
+
+  return {
+    description: descriptionHtml || null,
+    descriptionSummary: null,
+    employmentTypes: inferEmploymentTypesFromLabel(
+      String(item.employmentType ?? item.formattedEmploymentStatus ?? "")
+    ),
+    expiresAt,
+    externalJdUrl:
+      String(item.link ?? item.applyUrl ?? item.inputUrl ?? "").trim() || null,
+    locationText: String(item.location ?? "").trim() || null,
+    name: title,
+    postedAt: normalizeScrapedDate(item.postedAt ?? item.postedAtTimestamp),
+    sourceJobId,
+    sourceProvider: "linkedin_jobs",
+    status: normalizeExternalRoleStatus({ expiresAt }),
+    workMode:
+      inferWorkModeFromLabels(workplaceTypes) ??
+      (item.workRemoteAllowed === true ? "remote" : null),
+  };
+}
+
+async function fetchExternalRolesFromApify(args: {
+  careerUrl: string;
+  provider: SupportedExternalRoleProvider;
+}) {
+  const client = getApifyClient();
+
+  if (args.provider === "lever") {
+    const actorId =
+      String(process.env.APIFY_LEVER_JOBS_ACTOR_ID ?? "").trim() ||
+      DEFAULT_APIFY_LEVER_JOBS_ACTOR_ID;
+    const run = await withTimeout(
+      client.actor(actorId).call({
+        urls: [{ url: args.careerUrl }],
+        proxy: { useApifyProxy: true },
+      }),
+      120_000,
+      "Lever Apify crawl timed out"
+    );
+
+    if (!run.defaultDatasetId) {
+      throw new Error("Lever Apify actor returned no dataset");
+    }
+
+    const { items } = await withTimeout(
+      client.dataset(run.defaultDatasetId).listItems({ limit: 500 }),
+      60_000,
+      "Lever Apify dataset fetch timed out"
+    );
+
+    return dedupeSyncedExternalRoles(
+      coerceJsonArray<Record<string, unknown>>(items)
+        .map(mapLeverRoleItem)
+        .filter((item): item is SyncedExternalRoleSeed => item !== null)
+    );
+  }
+
+  const actorId =
+    String(process.env.APIFY_LINKEDIN_JOBS_ACTOR_ID ?? "").trim() ||
+    DEFAULT_APIFY_LINKEDIN_JOBS_ACTOR_ID;
+  const run = await withTimeout(
+    client.actor(actorId).call({
+      urls: [args.careerUrl],
+      scrapeCompany: true,
+      count: 100,
+      splitByLocation: false,
+    }),
+    120_000,
+    "LinkedIn Jobs Apify crawl timed out"
+  );
+
+  if (!run.defaultDatasetId) {
+    throw new Error("LinkedIn Jobs Apify actor returned no dataset");
+  }
+
+  const { items } = await withTimeout(
+    client.dataset(run.defaultDatasetId).listItems({ limit: 500 }),
+    60_000,
+    "LinkedIn Jobs Apify dataset fetch timed out"
+  );
+
+  return dedupeSyncedExternalRoles(
+    coerceJsonArray<Record<string, unknown>>(items)
+      .map(mapLinkedinJobsItem)
+      .filter((item): item is SyncedExternalRoleSeed => item !== null)
+  );
+}
+
+function pickCompanyDbDescription(row: {
+  description?: string | null;
+  short_description?: string | null;
+}) {
+  const shortDescription = String(row.short_description ?? "").trim();
+  if (shortDescription) {
+    return shortDescription;
+  }
+
+  const description = String(row.description ?? "").trim();
+  return description || null;
+}
+
+async function findCompanyDbByLinkedinUrl(args: {
+  admin: AdminClient;
+  linkedinUrl?: string | null;
+}) {
+  const rawLinkedinUrl = String(args.linkedinUrl ?? "").trim();
+  const normalizedLinkedinUrl = rawLinkedinUrl
+    ? normalizeLinkedinCompanyUrl(rawLinkedinUrl)
+    : null;
+  const linkedinSlug =
+    normalizedLinkedinUrl?.split("/").filter(Boolean).at(-1) ?? null;
+
+  if (!normalizedLinkedinUrl || !linkedinSlug) {
+    return {
+      match: null as CompanyDbRow | null,
+      normalizedLinkedinUrl,
+      rawLinkedinUrl,
+    };
+  }
+
+  const linkedinCandidates = [
+    normalizedLinkedinUrl,
+    `${normalizedLinkedinUrl}/`,
+    normalizedLinkedinUrl.replace("https://www.", "https://"),
+    `${normalizedLinkedinUrl.replace("https://www.", "https://")}/`,
+  ];
+
+  const exactResponse = await (args.admin.from("company_db" as any) as any)
+    .select(COMPANY_DB_LOOKUP_SELECT)
+    .in("linkedin_url", linkedinCandidates)
+    .order("last_updated_at", { ascending: false, nullsFirst: false })
+    .limit(1);
+
+  if (exactResponse.error) {
+    throw new Error(exactResponse.error.message ?? "Failed to resolve company");
+  }
+
+  const exactMatch = coerceJsonArray<CompanyDbRow>(exactResponse.data)[0];
+  if (exactMatch) {
+    return {
+      match: exactMatch,
+      normalizedLinkedinUrl,
+      rawLinkedinUrl,
+    };
+  }
+
+  const fuzzyResponse = await (args.admin.from("company_db" as any) as any)
+    .select(COMPANY_DB_LOOKUP_SELECT)
+    .ilike("linkedin_url", `%/company/${linkedinSlug}%`)
+    .order("last_updated_at", { ascending: false, nullsFirst: false })
+    .limit(1);
+
+  if (fuzzyResponse.error) {
+    throw new Error(fuzzyResponse.error.message ?? "Failed to resolve company");
+  }
+
+  return {
+    match: coerceJsonArray<CompanyDbRow>(fuzzyResponse.data)[0] ?? null,
+    normalizedLinkedinUrl,
+    rawLinkedinUrl,
+  };
 }
 
 function normalizeOpportunitySourceType(value: unknown): OpportunitySourceType {
@@ -837,43 +1389,26 @@ async function resolveCompanyDbRecord(args: {
   companyName?: string | null;
   linkedinUrl?: string | null;
 }) {
-  const rawLinkedinUrl = String(args.linkedinUrl ?? "").trim();
-  const normalizedLinkedinUrl = rawLinkedinUrl
-    ? normalizeLinkedinCompanyUrl(rawLinkedinUrl)
-    : null;
+  const { match: linkedinMatch, normalizedLinkedinUrl, rawLinkedinUrl } =
+    await findCompanyDbByLinkedinUrl({
+      admin: args.admin,
+      linkedinUrl: args.linkedinUrl,
+    });
   const normalizedCompanyName = String(args.companyName ?? "").trim();
 
-  if (normalizedLinkedinUrl) {
-    const linkedinCandidates = [
-      normalizedLinkedinUrl,
-      `${normalizedLinkedinUrl}/`,
-      normalizedLinkedinUrl.replace("https://www.", "https://"),
-      `${normalizedLinkedinUrl.replace("https://www.", "https://")}/`,
-    ];
-
-    const { data, error } = await (args.admin.from("company_db" as any) as any)
-      .select("id, name, linkedin_url, logo")
-      .in("linkedin_url", linkedinCandidates)
-      .limit(1);
-
-    if (error) {
-      throw new Error(error.message ?? "Failed to resolve company");
-    }
-
-    const match = coerceJsonArray<CompanyDbRow>(data)[0];
-    if (match) {
-      return {
-        companyDbId: Number(match.id),
-        linkedinUrl: normalizedLinkedinUrl,
-        logoUrl: match.logo ?? null,
-      };
-    }
+  if (linkedinMatch) {
+    return {
+      companyDbId: Number(linkedinMatch.id),
+      linkedinUrl: normalizedLinkedinUrl,
+      logoUrl: linkedinMatch.logo ?? null,
+    };
   }
 
   if (normalizedCompanyName) {
     const { data, error } = await (args.admin.from("company_db" as any) as any)
-      .select("id, name, linkedin_url, logo")
+      .select(COMPANY_DB_LOOKUP_SELECT)
       .ilike("name", normalizedCompanyName)
+      .order("last_updated_at", { ascending: false, nullsFirst: false })
       .limit(1);
 
     if (error) {
@@ -897,6 +1432,34 @@ async function resolveCompanyDbRecord(args: {
   };
 }
 
+export async function extractOpsOpportunityWorkspace(args: {
+  linkedinUrl: string;
+}): Promise<OpsOpportunityWorkspaceExtraction> {
+  const admin = getSupabaseAdmin();
+  const linkedinUrl = ensureNonEmptyString(args.linkedinUrl, "linkedinUrl");
+  const { match, normalizedLinkedinUrl } = await findCompanyDbByLinkedinUrl({
+    admin,
+    linkedinUrl,
+  });
+
+  if (!normalizedLinkedinUrl) {
+    throw new Error("유효한 LinkedIn company URL을 입력해 주세요.");
+  }
+
+  if (!match) {
+    throw new Error("company_db에서 해당 LinkedIn 회사 정보를 찾지 못했습니다.");
+  }
+
+  return {
+    companyDbId: Number(match.id),
+    companyDescription: pickCompanyDbDescription(match) ?? "",
+    companyName: String(match.name ?? "").trim(),
+    homepageUrl: String(match.website_url ?? "").trim(),
+    linkedinUrl: normalizedLinkedinUrl,
+    logoUrl: match.logo ?? null,
+  };
+}
+
 function mapWorkspaceRecord(args: {
   activeRoleCount: number;
   externalRoleCount: number;
@@ -906,6 +1469,7 @@ function mapWorkspaceRecord(args: {
 }): OpsOpportunityWorkspaceRecord {
   return {
     activeRoleCount: args.activeRoleCount,
+    careerUrl: args.row.career_url ?? null,
     companyDbId:
       typeof args.row.company_db_id === "number"
         ? args.row.company_db_id
@@ -935,6 +1499,7 @@ function mapRoleRecord(args: {
     companyWorkspaceId: String(args.row.company_workspace_id ?? ""),
     createdAt: String(args.row.created_at ?? ""),
     description: args.row.description ?? null,
+    descriptionSummary: args.row.description_summary ?? null,
     employmentTypes: normalizeOpportunityEmploymentTypes(args.row.type),
     expiresAt: args.row.expires_at ?? null,
     externalJdUrl: args.row.external_jd_url ?? null,
@@ -983,12 +1548,12 @@ export async function fetchOpsOpportunityCatalog(): Promise<OpsOpportunityCatalo
   const [workspaceResponse, roleResponse] = await Promise.all([
     (admin.from("company_workspace" as any) as any)
       .select(
-        "company_workspace_id, company_name, homepage_url, linkedin_url, logo_url, logo_storage_path, company_description, company_db_id, created_at, updated_at"
+        "company_workspace_id, company_name, homepage_url, career_url, linkedin_url, logo_url, logo_storage_path, company_description, company_db_id, created_at, updated_at"
       )
       .order("updated_at", { ascending: false }) as any,
     (admin.from("company_roles" as any) as any)
       .select(
-        "role_id, company_workspace_id, name, external_jd_url, description, information, type, status, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode"
+        "role_id, company_workspace_id, name, external_jd_url, description, description_summary, information, type, status, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode"
       )
       .order("updated_at", { ascending: false }) as any,
   ]);
@@ -1084,6 +1649,7 @@ export async function fetchOpsOpportunityCatalog(): Promise<OpsOpportunityCatalo
 }
 
 export async function saveOpsOpportunityWorkspace(args: {
+  careerUrl?: string | null;
   companyDescription?: string | null;
   companyName: string;
   homepageUrl?: string | null;
@@ -1100,6 +1666,7 @@ export async function saveOpsOpportunityWorkspace(args: {
   });
 
   const payload = {
+    career_url: String(args.careerUrl ?? "").trim() || null,
     company_db_id: companyDbRecord.companyDbId,
     company_description: String(args.companyDescription ?? "").trim() || null,
     company_name: companyName,
@@ -1122,7 +1689,7 @@ export async function saveOpsOpportunityWorkspace(args: {
 
   const { data, error } = await query
     .select(
-      "company_workspace_id, company_name, homepage_url, linkedin_url, logo_url, logo_storage_path, company_description, company_db_id, created_at, updated_at"
+      "company_workspace_id, company_name, homepage_url, career_url, linkedin_url, logo_url, logo_storage_path, company_description, company_db_id, created_at, updated_at"
     )
     .single();
 
@@ -1142,6 +1709,7 @@ export async function saveOpsOpportunityWorkspace(args: {
 export async function saveOpsOpportunityRole(args: {
   companyWorkspaceId?: string | null;
   description?: string | null;
+  descriptionSummary?: string | null;
   employmentTypes?: OpportunityEmploymentType[];
   expiresAt?: string | null;
   externalJdUrl?: string | null;
@@ -1176,6 +1744,7 @@ export async function saveOpsOpportunityRole(args: {
   const payload = {
     company_workspace_id: workspaceId,
     description: String(args.description ?? "").trim() || null,
+    description_summary: String(args.descriptionSummary ?? "").trim() || null,
     expires_at: parseDateString(args.expiresAt, "expiresAt"),
     external_jd_url: String(args.externalJdUrl ?? "").trim() || null,
     information: null,
@@ -1204,7 +1773,7 @@ export async function saveOpsOpportunityRole(args: {
 
   const { data, error } = await query
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, information, type, status, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode"
+      "role_id, company_workspace_id, name, external_jd_url, description, description_summary, information, type, status, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode"
     )
     .single();
 
@@ -1225,6 +1794,103 @@ export async function saveOpsOpportunityRole(args: {
       matchedCounts.get(String(savedRole.role_id ?? "")) ?? 0,
     row: savedRole,
   });
+}
+
+export async function syncOpsOpportunityRoles(args: {
+  careerUrl?: string | null;
+  workspaceId: string;
+}): Promise<OpsOpportunityRoleSyncResult> {
+  const admin = getSupabaseAdmin();
+  const workspaceId = ensureNonEmptyString(args.workspaceId, "workspaceId");
+  const { data: workspaceData, error: workspaceError } = await (
+    admin.from("company_workspace" as any) as any
+  )
+    .select(
+      "company_workspace_id, company_name, company_description, career_url"
+    )
+    .eq("company_workspace_id", workspaceId)
+    .single();
+
+  if (workspaceError || !workspaceData) {
+    throw new Error(workspaceError?.message ?? "Workspace not found");
+  }
+
+  const workspace = workspaceData as Pick<
+    WorkspaceRow,
+    "career_url" | "company_description" | "company_name" | "company_workspace_id"
+  >;
+  const careerUrl = normalizeCareerUrl(
+    String(args.careerUrl ?? "").trim() || String(workspace.career_url ?? "").trim()
+  );
+
+  if (!careerUrl) {
+    throw new Error("career url이 필요합니다. 회사 정보에 먼저 저장해 주세요.");
+  }
+
+  const provider = detectExternalRoleProvider(careerUrl);
+  if (!provider) {
+    throw new Error("현재는 Lever 또는 LinkedIn Jobs career url만 sync할 수 있습니다.");
+  }
+
+  const scrapedRoles = await fetchExternalRolesFromApify({
+    careerUrl,
+    provider,
+  });
+  const summarizedRoles = await summarizeExternalRoleSeeds({
+    companyDescription: workspace.company_description ?? null,
+    companyName: String(workspace.company_name ?? "").trim(),
+    roles: scrapedRoles,
+  });
+
+  const { data: deletedRows, error: deleteError } = await (
+    admin.from("company_roles" as any) as any
+  )
+    .delete()
+    .eq("company_workspace_id", workspaceId)
+    .neq("source_type", "internal")
+    .select("role_id");
+
+  if (deleteError) {
+    throw new Error(deleteError.message ?? "Failed to delete external roles");
+  }
+
+  if (summarizedRoles.length > 0) {
+    const now = new Date().toISOString();
+    const payload = summarizedRoles.map((role) => ({
+      company_workspace_id: workspaceId,
+      created_at: now,
+      description: role.description,
+      description_summary: role.descriptionSummary,
+      expires_at: role.expiresAt,
+      external_jd_url: role.externalJdUrl,
+      information: null,
+      location_text: role.locationText,
+      name: role.name,
+      posted_at: role.postedAt,
+      source_job_id: role.sourceJobId,
+      source_provider: role.sourceProvider,
+      source_type: "external",
+      status: role.status,
+      type: role.employmentTypes,
+      updated_at: now,
+      work_mode: role.workMode,
+    }));
+
+    const { error: insertError } = await (admin.from("company_roles" as any) as any)
+      .insert(payload)
+      .select("role_id");
+
+    if (insertError) {
+      throw new Error(insertError.message ?? "Failed to insert synced roles");
+    }
+  }
+
+  return {
+    deletedCount: coerceJsonArray<{ role_id?: string | null }>(deletedRows).length,
+    insertedCount: summarizedRoles.length,
+    provider,
+    workspaceId,
+  };
 }
 
 export async function searchOpsOpportunityCandidates(args: {
@@ -1385,7 +2051,7 @@ async function fetchRoleLookupByIds(admin: AdminClient, roleIds: string[]) {
 
   const { data, error } = await (admin.from("company_roles" as any) as any)
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, information, type, status, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode"
+      "role_id, company_workspace_id, name, external_jd_url, description, description_summary, information, type, status, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode"
     )
     .in("role_id", roleIds);
 

@@ -29,6 +29,7 @@ import {
 
 type CatalogViewProps = {
   catalogLoading: boolean;
+  extractWorkspacePending: boolean;
   filteredRoles: OpsOpportunityRoleRecord[];
   filteredWorkspaces: OpsOpportunityWorkspaceRecord[];
   onOpenRoleCreateModal: () => void;
@@ -39,7 +40,9 @@ type CatalogViewProps = {
   onRoleSave: () => void;
   onRoleSearchChange: (value: string) => void;
   onRoleSelect: (roleId: string) => void;
+  onRoleSync: () => void;
   onRoleSourceFilterChange: (filter: SourceFilter) => void;
+  onWorkspaceExtract: () => void;
   onWorkspaceSave: () => void;
   onWorkspaceSearchChange: (value: string) => void;
   onWorkspaceSelect: (workspaceId: string) => void;
@@ -55,6 +58,7 @@ type CatalogViewProps = {
   selectedWorkspaceId: string | null;
   setRoleDraft: Dispatch<SetStateAction<RoleDraft>>;
   setWorkspaceDraft: Dispatch<SetStateAction<WorkspaceDraft>>;
+  syncRolePending: boolean;
   workspaceDraft: WorkspaceDraft;
   workspaceDraftMode: DraftMode;
   workspaceSearch: string;
@@ -62,6 +66,7 @@ type CatalogViewProps = {
 
 export default function CatalogView({
   catalogLoading,
+  extractWorkspacePending,
   filteredRoles,
   filteredWorkspaces,
   onOpenRoleCreateModal,
@@ -72,7 +77,9 @@ export default function CatalogView({
   onRoleSave,
   onRoleSearchChange,
   onRoleSelect,
+  onRoleSync,
   onRoleSourceFilterChange,
+  onWorkspaceExtract,
   onWorkspaceSave,
   onWorkspaceSearchChange,
   onWorkspaceSelect,
@@ -88,12 +95,13 @@ export default function CatalogView({
   selectedWorkspaceId,
   setRoleDraft,
   setWorkspaceDraft,
+  syncRolePending,
   workspaceDraft,
   workspaceDraftMode,
   workspaceSearch,
 }: CatalogViewProps) {
   return (
-    <section className="grid gap-4 xl:grid-cols-[300px_1fr_420px]">
+    <section className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)_600px]">
       <div className={cx(opsTheme.panel, "space-y-3 p-4")}>
         <PanelHeader
           title="회사"
@@ -131,7 +139,9 @@ export default function CatalogView({
                 <button
                   key={workspace.companyWorkspaceId}
                   type="button"
-                  onClick={() => onWorkspaceSelect(workspace.companyWorkspaceId)}
+                  onClick={() =>
+                    onWorkspaceSelect(workspace.companyWorkspaceId)
+                  }
                   className={cx(
                     "w-full rounded-md px-3 py-3 text-left transition",
                     active
@@ -154,7 +164,8 @@ export default function CatalogView({
                       </div>
                     </div>
                     <Token active={active}>
-                      {workspace.internalRoleCount}/{workspace.externalRoleCount}
+                      {workspace.internalRoleCount}/
+                      {workspace.externalRoleCount}
                     </Token>
                   </div>
                   {workspace.companyDescription ? (
@@ -178,15 +189,38 @@ export default function CatalogView({
         <PanelHeader
           title="기회"
           action={
-            <button
-              type="button"
-              disabled={!selectedWorkspaceId}
-              onClick={onOpenRoleCreateModal}
-              className={cx(opsTheme.buttonSecondary, "h-9 px-3")}
-            >
-              <Plus className="h-4 w-4" />
-              추가
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={
+                  !selectedWorkspaceId ||
+                  syncRolePending ||
+                  !(
+                    workspaceDraft.careerUrl.trim() ||
+                    String(selectedWorkspace?.careerUrl ?? "").trim()
+                  )
+                }
+                onClick={onRoleSync}
+                className={cx(opsTheme.buttonSecondary, "h-9 px-3")}
+              >
+                <RefreshCw
+                  className={cx(
+                    "h-4 w-4",
+                    syncRolePending ? "animate-spin" : ""
+                  )}
+                />
+                Sync
+              </button>
+              <button
+                type="button"
+                disabled={!selectedWorkspaceId || syncRolePending}
+                onClick={onOpenRoleCreateModal}
+                className={cx(opsTheme.buttonSecondary, "h-9 px-3")}
+              >
+                <Plus className="h-4 w-4" />
+                추가
+              </button>
+            </div>
           }
         />
         <div className="grid gap-2 lg:grid-cols-[1fr_auto]">
@@ -230,7 +264,9 @@ export default function CatalogView({
               <RoleOptionCard
                 key={role.roleId}
                 role={role}
-                active={role.roleId === selectedRoleId && roleDraftMode === "edit"}
+                active={
+                  role.roleId === selectedRoleId && roleDraftMode === "edit"
+                }
                 onSelect={() => onRoleSelect(role.roleId)}
                 action={
                   <button
@@ -302,6 +338,33 @@ export default function CatalogView({
             placeholder="linkedin company url"
             className={opsTheme.input}
           />
+          <button
+            type="button"
+            onClick={onWorkspaceExtract}
+            disabled={
+              extractWorkspacePending || !workspaceDraft.linkedinUrl.trim()
+            }
+            className={cx(opsTheme.buttonSecondary, "h-10 w-full")}
+          >
+            <RefreshCw
+              className={cx(
+                "h-4 w-4",
+                extractWorkspacePending ? "animate-spin" : ""
+              )}
+            />
+            추출하기
+          </button>
+          <input
+            value={workspaceDraft.careerUrl}
+            onChange={(event) =>
+              setWorkspaceDraft((current) => ({
+                ...current,
+                careerUrl: event.target.value,
+              }))
+            }
+            placeholder="career url"
+            className={opsTheme.input}
+          />
           <textarea
             value={workspaceDraft.companyDescription}
             onChange={(event) =>
@@ -321,7 +384,7 @@ export default function CatalogView({
           <button
             type="button"
             onClick={onWorkspaceSave}
-            disabled={saveWorkspacePending}
+            disabled={saveWorkspacePending || extractWorkspacePending}
             className={cx(opsTheme.buttonPrimary, "h-10 w-full")}
           >
             {saveWorkspacePending ? (
@@ -407,25 +470,25 @@ export default function CatalogView({
                 )}
               </ToggleGrid>
               <ToggleGrid>
-                {(Object.keys(EMPLOYMENT_LABEL) as OpportunityEmploymentType[]).map(
-                  (type) => (
-                    <ActionButton
-                      key={type}
-                      active={roleDraft.employmentTypes.includes(type)}
-                      onClick={() =>
-                        setRoleDraft((current) => ({
-                          ...current,
-                          employmentTypes: toggleEmploymentType(
-                            current.employmentTypes,
-                            type
-                          ),
-                        }))
-                      }
-                    >
-                      {EMPLOYMENT_LABEL[type]}
-                    </ActionButton>
-                  )
-                )}
+                {(
+                  Object.keys(EMPLOYMENT_LABEL) as OpportunityEmploymentType[]
+                ).map((type) => (
+                  <ActionButton
+                    key={type}
+                    active={roleDraft.employmentTypes.includes(type)}
+                    onClick={() =>
+                      setRoleDraft((current) => ({
+                        ...current,
+                        employmentTypes: toggleEmploymentType(
+                          current.employmentTypes,
+                          type
+                        ),
+                      }))
+                    }
+                  >
+                    {EMPLOYMENT_LABEL[type]}
+                  </ActionButton>
+                ))}
               </ToggleGrid>
               <ToggleGrid>
                 <ActionButton
@@ -526,6 +589,17 @@ export default function CatalogView({
                   className={opsTheme.input}
                 />
               </div>
+              <textarea
+                value={roleDraft.descriptionSummary}
+                onChange={(event) =>
+                  setRoleDraft((current) => ({
+                    ...current,
+                    descriptionSummary: event.target.value,
+                  }))
+                }
+                placeholder="role description summary"
+                className={cx(opsTheme.textarea, "min-h-[110px] px-3 py-3")}
+              />
               <textarea
                 value={roleDraft.description}
                 onChange={(event) =>

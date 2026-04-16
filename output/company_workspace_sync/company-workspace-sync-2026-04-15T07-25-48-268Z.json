@@ -1,0 +1,33 @@
+{
+  "apply": false,
+  "generatedAt": "2026-04-15T07:25:46.320Z",
+  "input": "docs/list.md",
+  "results": [
+    {
+      "action": "insert",
+      "companyDbId": 81869047,
+      "companyDbMatchedBy": "linkedin_url",
+      "companyName": "두잇",
+      "error": null,
+      "existingWorkspaceId": null,
+      "fieldDiff": {},
+      "finalWorkspaceId": null,
+      "inputCareerUrl": "https://teamdoeat.career.greetinghr.com/ko/jobposting#323ea93b-ce52-45c9-bbbf-0b85ad135508",
+      "inputLinkedinUrl": "https://www.linkedin.com/company/doeat-%EB%91%90%EC%9E%87/",
+      "lineNumber": 68,
+      "matchedWorkspaceBy": "none",
+      "normalizedLinkedinUrl": "https://www.linkedin.com/company/doeat-두잇",
+      "warning": null
+    }
+  ],
+  "summary": {
+    "companyDbMatched": 1,
+    "companyDbUnmatched": 0,
+    "errors": 0,
+    "insert": 1,
+    "noop": 0,
+    "total": 1,
+    "update": 0,
+    "warnings": 0
+  }
+}

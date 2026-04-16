@@ -12,13 +12,6 @@ export type CallTranscriptEntry = {
   timestamp: string;
 };
 
-export type CareerCallWrapUp = {
-  duration: string;
-  whatWeCovered: string[];
-  keyLearnings: string[];
-  nextSteps: string[];
-};
-
 export type CareerTalentUser = {
   user_id: string;
   name: string | null;

@@ -71,8 +71,10 @@ const CareerWorkspaceContent = ({
 
   if (activeTab === "chat") {
     return (
-      <CareerCanvas>
-        <CareerWorkspaceHeader title="대화" />
+      <CareerCanvas className="flex h-full min-h-0 flex-col">
+        <div className="flex-none">
+          <CareerWorkspaceHeader title="대화" />
+        </div>
         <div className="min-h-0 flex-1">
           <CareerChatPanel />
         </div>
@@ -135,7 +137,7 @@ const CareerWorkspaceRoot = ({
     <div className="flex min-h-screen w-full flex-col bg-beige50 lg:flex-row">
       <CareerWorkspaceNav activeTab={activeTab} onChange={handleChangeTab} />
       <div className="min-w-0 flex-1">
-        <div className="overflow-y-auto h-[100vh] mx-auto w-full max-w-[1380px] px-4 py-4 sm:px-6 lg:px-8 lg:py-6">
+        <div className="mx-auto h-[100vh] min-h-0 w-full max-w-[1380px] overflow-y-auto px-4 py-4 sm:px-6 lg:px-8 lg:py-6">
           <CareerWorkspaceContent
             activeTab={activeTab}
             onChangeTab={handleChangeTab}

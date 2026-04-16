@@ -6,6 +6,9 @@ import {
   TALENT_NETWORK_CAREER_MOVE_INTENT_OPTIONS,
   TALENT_NETWORK_ENGAGEMENT_OPTIONS,
   TALENT_NETWORK_LOCATION_OPTIONS,
+  getTalentCareerMoveIntentLabel,
+  getTalentEngagementLabels,
+  getTalentLocationLabels,
   type TalentNetworkApplication,
   type TalentNetworkCareerMoveIntentOptionId,
   type TalentNetworkEngagementOptionId,
@@ -45,11 +48,8 @@ export type TalentUserProfileRow = {
   headline: string | null;
   bio: string | null;
   location: string | null;
-  career_profile:
-    | TalentNetworkApplication
-    | Record<string, unknown>
-    | null;
-  career_profile_initialized_at: string | null;
+  career_profile: TalentNetworkApplication | Record<string, unknown> | null;
+  last_logined_at: string | null;
   network_waitlist_id: number | null;
   network_claimed_at: string | null;
   network_source_talent_id: string | null;
@@ -107,6 +107,15 @@ export type TalentProfileVisibility =
 export const DEFAULT_TALENT_PROFILE_VISIBILITY: TalentProfileVisibility =
   "exceptional_only";
 
+const TALENT_PROFILE_VISIBILITY_LABELS: Record<
+  TalentProfileVisibility,
+  string
+> = {
+  open_to_matches: "Open to matches",
+  exceptional_only: "Exceptional only",
+  dont_share: "Don't share",
+};
+
 export type TalentSettingRow = {
   user_id: string;
   profile_visibility: TalentProfileVisibility;
@@ -135,9 +144,10 @@ const TALENT_ALLOWED_PROFILE_VISIBILITY = new Set<TalentProfileVisibility>([
   "exceptional_only",
   "dont_share",
 ]);
-const TALENT_ALLOWED_ENGAGEMENT_TYPES = new Set<TalentNetworkEngagementOptionId>(
-  TALENT_NETWORK_ENGAGEMENT_OPTIONS.map((option) => option.id)
-);
+const TALENT_ALLOWED_ENGAGEMENT_TYPES =
+  new Set<TalentNetworkEngagementOptionId>(
+    TALENT_NETWORK_ENGAGEMENT_OPTIONS.map((option) => option.id)
+  );
 const TALENT_ALLOWED_PREFERRED_LOCATIONS =
   new Set<TalentNetworkLocationOptionId>(
     TALENT_NETWORK_LOCATION_OPTIONS.map((option) => option.id)
@@ -202,7 +212,9 @@ export function normalizeTalentPreferredLocations(
 export function sanitizeTalentCareerMoveIntent(
   value: unknown
 ): TalentNetworkCareerMoveIntentOptionId | null {
-  const normalized = String(value ?? "").trim() as TalentNetworkCareerMoveIntentOptionId;
+  const normalized = String(
+    value ?? ""
+  ).trim() as TalentNetworkCareerMoveIntentOptionId;
   if (TALENT_ALLOWED_CAREER_MOVE_INTENTS.has(normalized)) {
     return normalized;
   }
@@ -273,11 +285,15 @@ export function mergeTalentInsightContent(args: {
 
 export function mergeTalentSettingSeed(args: {
   currentSetting: TalentSettingRow | null;
+  blockedCompanies?: unknown;
   engagementTypes: unknown;
   preferredLocations: unknown;
   careerMoveIntent: unknown;
 }) {
   const { currentSetting } = args;
+  const currentBlockedCompanies = normalizeTalentBlockedCompanies(
+    currentSetting?.blocked_companies ?? []
+  );
   const currentEngagementTypes = normalizeTalentEngagementTypes(
     currentSetting?.engagement_types ?? []
   );
@@ -292,9 +308,10 @@ export function mergeTalentSettingSeed(args: {
     profileVisibility: sanitizeTalentProfileVisibility(
       currentSetting?.profile_visibility ?? DEFAULT_TALENT_PROFILE_VISIBILITY
     ),
-    blockedCompanies: normalizeTalentBlockedCompanies(
-      currentSetting?.blocked_companies ?? []
-    ),
+    blockedCompanies:
+      currentBlockedCompanies.length > 0
+        ? currentBlockedCompanies
+        : normalizeTalentBlockedCompanies(args.blockedCompanies ?? []),
     engagementTypes:
       currentEngagementTypes.length > 0
         ? currentEngagementTypes
@@ -317,6 +334,10 @@ export function sanitizeTalentProfileVisibility(
     return normalized;
   }
   return DEFAULT_TALENT_PROFILE_VISIBILITY;
+}
+
+export function getTalentProfileVisibilityLabel(value: unknown) {
+  return TALENT_PROFILE_VISIBILITY_LABELS[sanitizeTalentProfileVisibility(value)];
 }
 
 export function isPendingQuestionContent(content: string | null | undefined) {
@@ -352,6 +373,8 @@ export function getTalentSupabaseAdmin() {
   });
 }
 
+type TalentAdminClient = ReturnType<typeof getTalentSupabaseAdmin>;
+
 export function toTalentDisplayName(user: User) {
   return (
     user.user_metadata?.full_name ??
@@ -366,11 +389,70 @@ function normalizeComparableString(value: string | null | undefined) {
   return normalized.length > 0 ? normalized : null;
 }
 
-export async function ensureTalentUserRecord(args: {
-  admin: ReturnType<typeof getTalentSupabaseAdmin>;
+function normalizeComparableEmail(value: string | null | undefined) {
+  const normalized = normalizeComparableString(value);
+  return normalized ? normalized.toLowerCase() : null;
+}
+
+async function claimTalentUserFromMailAlias(args: {
+  admin: TalentAdminClient;
   user: User;
+  mail: string | null | undefined;
 }) {
-  const { admin, user } = args;
+  const mail = normalizeComparableEmail(args.mail);
+  if (!mail) {
+    return false;
+  }
+
+  const { data: matches, error: matchesError } = await args.admin
+    .from("talent_users")
+    .select("user_id")
+    .ilike("email", mail)
+    .limit(2);
+
+  if (matchesError) {
+    throw new Error(matchesError.message ?? "Failed to read talent_users");
+  }
+
+  if (!matches || matches.length === 0) {
+    return false;
+  }
+
+  if (matches.length > 1) {
+    throw new Error(
+      "Multiple talent_users rows matched the provided mail value"
+    );
+  }
+
+  const { data, error } = await args.admin.rpc(
+    "claim_talent_user_email_alias",
+    {
+      source_email: mail,
+      target_email: normalizeComparableString(args.user.email) ?? undefined,
+      target_name:
+        normalizeComparableString(toTalentDisplayName(args.user)) ?? undefined,
+      target_profile_picture:
+        normalizeComparableString(args.user.user_metadata?.avatar_url) ??
+        undefined,
+      target_user_id: args.user.id,
+    }
+  );
+
+  if (error) {
+    throw new Error(
+      error.message ?? "Failed to claim existing talent_users profile"
+    );
+  }
+
+  return Boolean(data);
+}
+
+export async function ensureTalentUserRecord(args: {
+  admin: TalentAdminClient;
+  user: User;
+  mail?: string | null;
+}) {
+  const { admin, user, mail } = args;
   const email = normalizeComparableString(user.email);
   const name = normalizeComparableString(toTalentDisplayName(user));
   const profilePicture = normalizeComparableString(
@@ -387,6 +469,15 @@ export async function ensureTalentUserRecord(args: {
   }
 
   if (!existing) {
+    const claimed = await claimTalentUserFromMailAlias({
+      admin,
+      user,
+      mail,
+    });
+    if (claimed) {
+      return;
+    }
+
     const { error: insertError } = await admin.from("talent_users").insert({
       user_id: user.id,
       email,
@@ -401,7 +492,8 @@ export async function ensureTalentUserRecord(args: {
     return;
   }
 
-  const nextPayload: Database["public"]["Tables"]["talent_users"]["Update"] = {};
+  const nextPayload: Database["public"]["Tables"]["talent_users"]["Update"] =
+    {};
 
   if (normalizeComparableString(existing.email) !== email) {
     nextPayload.email = email;
@@ -409,7 +501,10 @@ export async function ensureTalentUserRecord(args: {
   if (normalizeComparableString(existing.name) !== name) {
     nextPayload.name = name;
   }
-  if (normalizeComparableString(existing.profile_picture) !== profilePicture) {
+  if (
+    !normalizeComparableString(existing.profile_picture) &&
+    normalizeComparableString(profilePicture)
+  ) {
     nextPayload.profile_picture = profilePicture;
   }
 
@@ -486,6 +581,7 @@ export async function fetchVisibleMessagesPage(args: {
       "id, conversation_id, user_id, role, content, message_type, created_at"
     )
     .eq("conversation_id", conversationId)
+    .or("message_type.is.null,message_type.neq.call_wrapup")
     .not("content", "like", `${TALENT_PENDING_QUESTION_PREFIX}%`)
     .order("id", { ascending: false })
     .limit(pageSize + 1);
@@ -538,7 +634,7 @@ export async function fetchTalentUserProfile(args: {
   const { data, error } = await admin
     .from("talent_users")
     .select(
-      "user_id, email, name, profile_picture, headline, bio, location, career_profile, career_profile_initialized_at, network_waitlist_id, network_claimed_at, network_source_talent_id, network_application, resume_file_name, resume_storage_path, resume_text, resume_links, created_at, updated_at"
+      "user_id, email, name, profile_picture, headline, bio, location, career_profile, last_logined_at, network_waitlist_id, network_claimed_at, network_source_talent_id, network_application, resume_file_name, resume_storage_path, resume_text, resume_links, created_at, updated_at"
     )
     .eq("user_id", userId)
     .maybeSingle();
@@ -548,6 +644,24 @@ export async function fetchTalentUserProfile(args: {
   }
 
   return (data ?? null) as TalentUserProfileRow | null;
+}
+
+export async function markTalentUserLoggedIn(args: {
+  admin: ReturnType<typeof getTalentSupabaseAdmin>;
+  userId: string;
+}) {
+  const { admin, userId } = args;
+  const now = new Date().toISOString();
+  const { error } = await admin
+    .from("talent_users")
+    .update({
+      last_logined_at: now,
+    })
+    .eq("user_id", userId);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to update talent login timestamp");
+  }
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -714,9 +828,10 @@ function formatDateRange(
 export function buildTalentProfileContext(args: {
   profile: TalentUserProfileRow | null;
   structuredProfile?: TalentStructuredProfile | null;
+  setting?: TalentSettingRow | null;
   maxResumeChars?: number;
 }) {
-  const { profile, structuredProfile, maxResumeChars = 3000 } = args;
+  const { profile, structuredProfile, setting, maxResumeChars = 3000 } = args;
   const lines: string[] = [];
   const talentUser = structuredProfile?.talentUser ?? profile;
   const resumeLinks = (profile?.resume_links ?? []).filter(
@@ -725,6 +840,18 @@ export function buildTalentProfileContext(args: {
   const experiences = structuredProfile?.talentExperiences ?? [];
   const educations = structuredProfile?.talentEducations ?? [];
   const extras = structuredProfile?.talentExtras ?? [];
+  const engagementLabels = getTalentEngagementLabels(
+    normalizeTalentEngagementTypes(setting?.engagement_types ?? [])
+  );
+  const locationLabels = getTalentLocationLabels(
+    normalizeTalentPreferredLocations(setting?.preferred_locations ?? [])
+  );
+  const careerMoveIntentLabel = getTalentCareerMoveIntentLabel(
+    sanitizeTalentCareerMoveIntent(setting?.career_move_intent)
+  );
+  const blockedCompanies = normalizeTalentBlockedCompanies(
+    setting?.blocked_companies ?? []
+  ).slice(0, 20);
 
   lines.push("[Structured Talent Profile]");
 
@@ -747,6 +874,31 @@ export function buildTalentProfileContext(args: {
       lines.push(`${index + 1}. ${link}`);
     });
   }
+
+  lines.push("Talent Settings");
+  lines.push(
+    `- Profile visibility: ${getTalentProfileVisibilityLabel(
+      setting?.profile_visibility
+    )}`
+  );
+  lines.push(
+    `- Preferred engagement types: ${
+      engagementLabels.length > 0 ? engagementLabels.join(", ") : "(none)"
+    }`
+  );
+  lines.push(
+    `- Career move intent: ${careerMoveIntentLabel ?? "(not set)"}`
+  );
+  lines.push(
+    `- Preferred locations: ${
+      locationLabels.length > 0 ? locationLabels.join(", ") : "(none)"
+    }`
+  );
+  lines.push(
+    `- Blocked companies: ${
+      blockedCompanies.length > 0 ? blockedCompanies.join(", ") : "(none)"
+    }`
+  );
 
   if (experiences.length > 0) {
     lines.push("Experiences");
@@ -869,9 +1021,8 @@ export async function upsertTalentSetting(args: {
         profile_visibility: profileVisibility,
         blocked_companies: blockedCompanies,
         engagement_types: normalizeTalentEngagementTypes(engagementTypes),
-        preferred_locations: normalizeTalentPreferredLocations(
-          preferredLocations
-        ),
+        preferred_locations:
+          normalizeTalentPreferredLocations(preferredLocations),
         career_move_intent: sanitizeTalentCareerMoveIntent(careerMoveIntent),
         updated_at: now,
       },
@@ -982,7 +1133,9 @@ export async function fetchCustomChecklistItems(args: {
   const { admin } = args;
   const { data, error } = await admin
     .from("insight_checklist_items")
-    .select("id, key, label, prompt_hint, priority, is_active, created_at, created_by")
+    .select(
+      "id, key, label, prompt_hint, priority, is_active, created_at, created_by"
+    )
     .eq("is_active", true)
     .order("priority", { ascending: true });
 
@@ -1010,10 +1163,13 @@ export async function addCustomChecklistItem(args: {
       is_active: true,
       created_by: createdBy ?? null,
     })
-    .select("id, key, label, prompt_hint, priority, is_active, created_at, created_by")
+    .select(
+      "id, key, label, prompt_hint, priority, is_active, created_at, created_by"
+    )
     .single();
 
-  if (error) throw new Error(error.message ?? "Failed to insert checklist item");
+  if (error)
+    throw new Error(error.message ?? "Failed to insert checklist item");
   return data;
 }
 
@@ -1027,7 +1183,8 @@ export async function deleteCustomChecklistItem(args: {
     .update({ is_active: false })
     .eq("key", key);
 
-  if (error) throw new Error(error.message ?? "Failed to delete checklist item");
+  if (error)
+    throw new Error(error.message ?? "Failed to delete checklist item");
 }
 
 export type MergedChecklistItem = {
@@ -1067,7 +1224,10 @@ export async function getMergedChecklist(args: {
   }));
 
   const codeKeySet = new Set(codeItems.map((i) => i.key));
-  const deduped = [...codeItems, ...dbMapped.filter((i) => !codeKeySet.has(i.key))];
+  const deduped = [
+    ...codeItems,
+    ...dbMapped.filter((i) => !codeKeySet.has(i.key)),
+  ];
 
   return deduped.sort((a, b) => a.priority - b.priority);
 }

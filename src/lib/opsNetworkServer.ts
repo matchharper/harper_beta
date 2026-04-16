@@ -1097,12 +1097,20 @@ export async function ingestNetworkLeadProfile(args: { leadId: number }) {
   });
   const talentId =
     claimedTalentUser?.user_id ?? (await upsertWaitlistLeadTalentUser(lead));
-  const [existingTalentSetting, existingTalentInsights] = await Promise.all([
+  const [
+    existingTalentSetting,
+    existingTalentInsights,
+    existingStructuredProfile,
+  ] = await Promise.all([
     fetchTalentSetting({
       admin,
       userId: talentId,
     }),
     fetchTalentInsights({
+      admin,
+      userId: talentId,
+    }),
+    fetchTalentStructuredProfile({
       admin,
       userId: talentId,
     }),
@@ -1125,6 +1133,10 @@ export async function ingestNetworkLeadProfile(args: { leadId: number }) {
     resumeStoragePath: lead.cvStoragePath,
     resumeText,
   });
+  // Only seed on the first structured ingest so manual removals stay cleared.
+  const shouldSeedBlockedCompanies =
+    (existingTalentSetting?.blocked_companies?.length ?? 0) === 0 &&
+    (existingStructuredProfile?.talentExperiences?.length ?? 0) === 0;
 
   await Promise.all([
     upsertTalentSetting({
@@ -1132,6 +1144,9 @@ export async function ingestNetworkLeadProfile(args: { leadId: number }) {
       userId: talentId,
       ...mergeTalentSettingSeed({
         currentSetting: existingTalentSetting,
+        blockedCompanies: shouldSeedBlockedCompanies
+          ? ingestion.experiences.map((experience) => experience.company_name)
+          : [],
         engagementTypes: lead.engagementTypes,
         preferredLocations: lead.preferredLocations,
         careerMoveIntent: lead.careerMoveIntent,

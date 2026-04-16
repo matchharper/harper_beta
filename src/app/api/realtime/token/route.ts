@@ -3,25 +3,62 @@ import { getRequestUser } from "@/lib/supabaseServer";
 import {
   buildTalentProfileContext,
   countUserChatTurns,
+  fetchVisibleMessagesPage,
   fetchTalentInsights,
+  fetchTalentSetting,
   fetchTalentStructuredProfile,
   fetchTalentUserProfile,
   getTalentSupabaseAdmin,
-  type TalentConversationRow,
 } from "@/lib/talentOnboarding/server";
 import {
   getUncoveredChecklistItems,
   INSIGHT_CHECKLIST,
 } from "@/lib/talentOnboarding/insightChecklist";
-import { buildRealtimeStepGuides, getInterruptHandling, getCallEndInstruction } from "@/lib/talentOnboarding/interviewSteps";
-import { loadPrompt, extractSection, validatePromptFile } from "@/lib/talentOnboarding/prompts";
+import { TALENT_INTERVIEW_MIN_COVERAGE } from "@/lib/talentOnboarding/progress";
+import { getInterruptHandling, getCallEndInstruction } from "@/lib/talentOnboarding/interviewSteps";
 import { warmCache, getTestFlagSlugs, getContentForUser } from "@/lib/talentOnboarding/prompts/promptCache";
+import {
+  buildTalentToolPolicy,
+  getTalentToolVoicePreambles,
+  getRealtimeTools,
+} from "@/lib/talentOnboarding/tools";
 
-validatePromptFile("system.md");
+function buildRecentConversationSection(
+  messages: Array<{
+    role: string;
+    content: string;
+  }>
+) {
+  const recentMessages = messages.filter((message) => message.content.trim());
+  if (recentMessages.length === 0) return "";
+
+  const MAX_TOTAL = 2200;
+  const MAX_PER_MESSAGE = 280;
+  let section =
+    "\n## 최근 대화 내역 (이전 흐름을 이어서 자연스럽게 대화)\n";
+  let totalLength = section.length;
+
+  for (const message of recentMessages) {
+    const roleLabel = message.role === "assistant" ? "Harper" : "사용자";
+    const normalizedContent = message.content.replace(/\s+/g, " ").trim();
+    const truncatedContent =
+      normalizedContent.length > MAX_PER_MESSAGE
+        ? `${normalizedContent.slice(0, MAX_PER_MESSAGE)}...`
+        : normalizedContent;
+    const line = `- ${roleLabel}: ${truncatedContent}\n`;
+
+    if (totalLength + line.length > MAX_TOTAL) break;
+    section += line;
+    totalLength += line.length;
+  }
+
+  section +=
+    "위 대화의 마지막 맥락에서 이어서 말하고, 이미 한 소개나 질문을 처음부터 반복하지 마라.";
+  return section;
+}
 
 /**
- * Build Realtime session instructions with Harper persona + user profile context.
- * Excludes insight extraction format (handled by separate save endpoint).
+ * Load the flat career-chat prompt from DB and inject channel_type + dynamic context.
  */
 async function buildRealtimeInstructions(
   userId: string,
@@ -32,9 +69,10 @@ async function buildRealtimeInstructions(
 
   const admin = getTalentSupabaseAdmin();
 
-  const [profile, currentInsights] = await Promise.all([
+  const [profile, currentInsights, talentSetting] = await Promise.all([
     fetchTalentUserProfile({ admin, userId }),
     fetchTalentInsights({ admin, userId }),
+    fetchTalentSetting({ admin, userId }),
   ]);
 
   const structuredProfile = await fetchTalentStructuredProfile({
@@ -46,17 +84,16 @@ async function buildRealtimeInstructions(
   const structuredProfileText = buildTalentProfileContext({
     profile,
     structuredProfile,
+    setting: talentSetting,
     maxResumeChars: 3000,
   });
 
-  const { data: conversation } = await admin
-    .from("talent_conversations")
-    .select("*")
-    .eq("id", conversationId)
-    .eq("user_id", userId)
-    .maybeSingle();
-
   const userTurnCount = await countUserChatTurns({ admin, conversationId });
+  const { messages: visibleMessages } = await fetchVisibleMessagesPage({
+    admin,
+    conversationId,
+    limit: 12,
+  });
 
   const currentInsightContent = (currentInsights?.content ?? null) as Record<
     string,
@@ -64,21 +101,24 @@ async function buildRealtimeInstructions(
   > | null;
   const uncoveredItems = getUncoveredChecklistItems(currentInsightContent);
   const coveredCount = INSIGHT_CHECKLIST.length - uncoveredItems.length;
+  const coverageRatio =
+    INSIGHT_CHECKLIST.length > 0 ? coveredCount / INSIGHT_CHECKLIST.length : 1;
+  const thresholdPercent = Math.round(TALENT_INTERVIEW_MIN_COVERAGE * 100);
+  const shouldWrapUpNow = coverageRatio >= TALENT_INTERVIEW_MIN_COVERAGE;
 
   const topUncovered = uncoveredItems
     .slice(0, 3)
     .map((item) => `- ${item.promptHint}`)
     .join("\n");
 
-  const shouldSendReliefNudge =
-    userTurnCount >= 5 &&
-    !Boolean((conversation as TalentConversationRow | null)?.relief_nudge_sent);
-
   const linkText = (profile?.resume_links ?? []).join(", ");
-
-  const currentStep: number =
-    (conversation as TalentConversationRow & { current_step?: number })
-      ?.current_step ?? 1;
+  const recentConversationSection = buildRecentConversationSection(
+    visibleMessages.map((message) => ({
+      role: message.role,
+      content: message.content,
+    }))
+  );
+  const toolPolicy = buildTalentToolPolicy("voice");
 
   // Build existing insights section (capped at 1500 chars for Realtime context budget)
   let existingInsightsSection = "";
@@ -96,32 +136,34 @@ async function buildRealtimeInstructions(
     existingInsightsSection = section;
   }
 
-  const systemMd = getContentForUser("system", testSlugs) ?? loadPrompt("system.md");
-  const persona = extractSection(systemMd, "persona");
+  // Load flat prompt from DB and inject channel type
+  const flatPrompt = getContentForUser("career-chat", testSlugs) ?? "";
+  const prompt = flatPrompt.replace(/\{channel_type\}/g, "Voice");
 
   return [
-    persona,
-    "",
-    buildRealtimeStepGuides(currentStep),
+    prompt,
     "",
     getInterruptHandling(),
     "",
     getCallEndInstruction(),
     "",
+    toolPolicy,
+    "",
     existingInsightsSection,
     "",
+    recentConversationSection,
+    "",
     `Insight coverage: ${coveredCount}/${INSIGHT_CHECKLIST.length} items covered.`,
-    "Prioritize naturally asking about these uncovered topics (one at a time):",
-    topUncovered,
+    `Completion threshold: ${thresholdPercent}% coverage.`,
+    shouldWrapUpNow
+      ? `Coverage threshold is met. Stop asking new exploratory questions, briefly wrap up the call, give a warm closing, and then finish the call using the end marker rule above.`
+      : "Coverage threshold is not met yet. Keep the call going and prioritize naturally asking about these uncovered topics (one at a time):",
+    shouldWrapUpNow ? "(no more exploratory questions needed)" : topUncovered,
     "",
     `Current user turn count: ${userTurnCount}`,
     `Resume file: ${profile?.resume_file_name ?? "(none)"}`,
     `Resume links: ${linkText || "(none)"}`,
     structuredProfileText || "[Structured Talent Profile]\n(none)",
-    "",
-    shouldSendReliefNudge
-      ? extractSection(systemMd, "reliefNudge")
-      : extractSection(systemMd, "defaultGuidance"),
   ].join("\n");
 }
 
@@ -166,8 +208,11 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const conversationId = (body as { conversationId?: string })
-      .conversationId?.trim();
+    const { conversationId: rawConversationId, useElevenLabsTts } = body as {
+      conversationId?: string;
+      useElevenLabsTts?: boolean;
+    };
+    const conversationId = rawConversationId?.trim();
 
     if (!conversationId) {
       return NextResponse.json(
@@ -180,6 +225,8 @@ export async function POST(req: NextRequest) {
       user.id,
       conversationId
     );
+    const tools = getRealtimeTools("voice");
+    const toolVoicePreambles = getTalentToolVoicePreambles("voice");
 
     const response = await fetch(
       "https://api.openai.com/v1/realtime/sessions",
@@ -191,12 +238,18 @@ export async function POST(req: NextRequest) {
         },
         body: JSON.stringify({
           model: "gpt-realtime-1.5",
-          modalities: ["text", "audio"],
-          voice: "coral",
+          modalities: useElevenLabsTts ? ["text"] : ["text", "audio"],
+          ...(useElevenLabsTts ? {} : { voice: "coral" }),
           input_audio_transcription: {
             model: "gpt-4o-mini-transcribe",
           },
           instructions,
+          ...(tools.length > 0
+            ? {
+                tools,
+                tool_choice: "auto" as const,
+              }
+            : {}),
           turn_detection: {
             type: "server_vad",
             threshold: 0.7,
@@ -223,6 +276,7 @@ export async function POST(req: NextRequest) {
       token: data.client_secret.value,
       expiresAt: data.client_secret.expires_at,
       sessionId: data.id,
+      toolVoicePreambles,
     });
   } catch (error) {
     console.error("[RealtimeToken] Error:", error);

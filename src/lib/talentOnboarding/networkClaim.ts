@@ -480,8 +480,6 @@ function buildTalentUserMergePayload(args: {
   const now = new Date().toISOString();
   const payload: Database["public"]["Tables"]["talent_users"]["Update"] = {
     career_profile: nextApplication,
-    career_profile_initialized_at:
-      currentProfile?.career_profile_initialized_at ?? now,
     email: user.email ?? currentProfile?.email ?? lead.email ?? null,
     network_claimed_at: currentProfile?.network_claimed_at ?? now,
     network_source_talent_id: sourceTalentId,
@@ -537,7 +535,7 @@ export async function findClaimedTalentUserByWaitlistId(args: {
   const { data, error } = await args.admin
     .from("talent_users")
     .select(
-      "user_id, email, name, profile_picture, headline, bio, location, career_profile, career_profile_initialized_at, network_waitlist_id, network_claimed_at, network_source_talent_id, network_application, resume_file_name, resume_storage_path, resume_text, resume_links, created_at, updated_at"
+      "user_id, email, name, profile_picture, headline, bio, location, career_profile, last_logined_at, network_waitlist_id, network_claimed_at, network_source_talent_id, network_application, resume_file_name, resume_storage_path, resume_text, resume_links, created_at, updated_at"
     )
     .eq("network_waitlist_id", args.waitlistId)
     .maybeSingle();
