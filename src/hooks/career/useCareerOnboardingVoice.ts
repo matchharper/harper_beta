@@ -66,7 +66,7 @@ export const useCareerOnboardingVoice = ({
   const [onboardingBeginPending, setOnboardingBeginPending] = useState(false);
   const [onboardingPausePending, setOnboardingPausePending] = useState(false);
 
-  const beginOnboardingConversation = useCallback(async () => {
+  const beginOnboardingConversation = useCallback(async (options?: { skipTypewriter?: boolean }) => {
     if (!user || !conversationId) return false;
     if (onboardingBeginPending) return false;
 
@@ -86,7 +86,7 @@ export const useCareerOnboardingVoice = ({
         );
       }
 
-      if (payload?.assistantMessage) {
+      if (payload?.assistantMessage && !options?.skipTypewriter) {
         await enqueueAssistantTypewriter(toUiMessage(payload.assistantMessage));
         await onMessagesChanged?.([
           payload.assistantMessage as CareerMessagePayload,
@@ -578,7 +578,7 @@ export const useCareerOnboardingVoice = ({
     if (shouldBeginOnboarding) {
       setShowVoiceStartPrompt(false);
       // AWAIT onboarding initialization before connecting realtime
-      const ready = await beginOnboardingConversation();
+      const ready = await beginOnboardingConversation({ skipTypewriter: true });
       if (!ready) {
         setShowVoiceStartPrompt(true);
         return;
