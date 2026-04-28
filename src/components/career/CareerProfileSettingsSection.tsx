@@ -17,8 +17,11 @@ import {
   TALENT_NETWORK_CAREER_MOVE_INTENT_OPTIONS,
   TALENT_NETWORK_ENGAGEMENT_OPTIONS,
   TALENT_NETWORK_LOCATION_OPTIONS,
-  TALENT_NETWORK_PROFILE_INPUT_OPTIONS,
 } from "@/lib/talentNetworkApplication";
+import {
+  normalizeTalentPeriodicIntervalDays,
+  normalizeTalentRecommendationBatchSize,
+} from "@/lib/talentOnboarding/recommendationSettings";
 import type { CareerProfileVisibility } from "@/hooks/career/useCareerTalentSettings";
 import {
   CareerField,
@@ -201,6 +204,27 @@ const CareerProfileSettingsSection = () => {
     if (event.key !== "Enter") return;
     event.preventDefault();
     handleAddBlockedCompany();
+  };
+
+  const handleRecommendationSettingChange = (
+    field: "periodicIntervalDays" | "recommendationBatchSize",
+    rawValue: string
+  ) => {
+    if (!rawValue.trim()) return;
+
+    onTalentPreferencesChange((current) => {
+      if (!current) return current;
+
+      const nextValue =
+        field === "periodicIntervalDays"
+          ? normalizeTalentPeriodicIntervalDays(rawValue)
+          : normalizeTalentRecommendationBatchSize(rawValue);
+
+      return {
+        ...current,
+        [field]: nextValue,
+      };
+    });
   };
 
   return (
@@ -423,6 +447,62 @@ const CareerProfileSettingsSection = () => {
             )}
           </div>
         </CareerField>
+
+        {talentPreferences && (
+          <CareerField
+            label="추가 추천 설정"
+            icon={<RefreshCcw className="h-4 w-4" />}
+            hint="온보딩 이후 Harper가 external 공고를 몇 일마다 몇 개씩 더 찾을지 정합니다."
+          >
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="block">
+                <div className="mb-2 text-sm text-beige900/60">몇 일마다</div>
+                <CareerTextInput
+                  type="number"
+                  min={1}
+                  max={30}
+                  step={1}
+                  inputMode="numeric"
+                  value={talentPreferences.periodicIntervalDays}
+                  onChange={(event) =>
+                    handleRecommendationSettingChange(
+                      "periodicIntervalDays",
+                      event.target.value
+                    )
+                  }
+                  disabled={settingsLoading || isSavePending}
+                />
+              </label>
+
+              <label className="block">
+                <div className="mb-2 text-sm text-beige900/60">
+                  한 번에 몇 개
+                </div>
+                <CareerTextInput
+                  type="number"
+                  min={1}
+                  max={20}
+                  step={1}
+                  inputMode="numeric"
+                  value={talentPreferences.recommendationBatchSize}
+                  onChange={(event) =>
+                    handleRecommendationSettingChange(
+                      "recommendationBatchSize",
+                      event.target.value
+                    )
+                  }
+                  disabled={settingsLoading || isSavePending}
+                />
+              </label>
+            </div>
+
+            <div className="mt-3 text-[13px] leading-5 text-beige900/60">
+              현재 {talentPreferences.periodicIntervalDays}일마다 external 공고
+              {` ${talentPreferences.recommendationBatchSize}개`}를 추가로
+              찾습니다.
+            </div>
+          </CareerField>
+        )}
       </div>
 
       {saveError && (

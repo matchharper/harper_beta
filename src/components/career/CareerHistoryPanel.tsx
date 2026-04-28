@@ -46,7 +46,7 @@ import HistoryOpportunityDetailContent from "./history/HistoryOpportunityDetailC
 import HistoryOpportunityInfoModal from "./history/HistoryOppotunityInfoModal";
 import OpportunityDetailModal from "./history/OpportunityDetailModal";
 import HistoryShortcutPanel from "./history/HistoryShortcutPanel";
-import BeigeButton from "../ui/career/BeigeButton";
+import { BeigeButton } from "@/components/ui/beige/button";
 import CandidateCarousel from "../chat/LoadingComponent";
 
 type HistoryTabId = "new" | "saved" | "archived";
@@ -261,7 +261,7 @@ const HistorySavedStageTabs = ({
                 "inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] leading-none",
                 activeStage === tab.id
                   ? "bg-beige100 text-beige900"
-                  : "bg-beige900/8 text-beige900/55"
+                  : "bg-beige900/10 text-beige900/55"
               )}
             >
               {counts[tab.id]}
@@ -290,6 +290,7 @@ const CareerHistoryPanel = () => {
     onUpdateHistoryOpportunityFeedback,
     onUpdateHistoryOpportunitySavedStage,
     onSendHistoryOpportunityQuestion,
+    onPrepareMockInterview,
   } = useCareerSidebarContext();
   const [activeTab, setActiveTab] = useState<HistoryTabId>("new");
   const [activeSavedTab, setActiveSavedTab] = useState<SavedTabId>("saved");
@@ -315,6 +316,19 @@ const CareerHistoryPanel = () => {
   const [questionPromptDraft, setQuestionPromptDraft] = useState("");
   const currentHistoryTabQuery = router.query[HISTORY_TAB_QUERY_KEY];
   const currentSavedStageQuery = router.query[HISTORY_SAVED_STAGE_QUERY_KEY];
+
+  const openChatTab = useCallback(() => {
+    const query: Record<string, string> = {};
+    const invite = getQueryValue(router.query.invite);
+    const mail = getQueryValue(router.query.mail);
+    if (invite) query.invite = invite;
+    if (mail) query.mail = mail;
+
+    void router.push({
+      pathname: "/career/chat",
+      query: Object.keys(query).length > 0 ? query : undefined,
+    });
+  }, [router]);
 
   const updateHistoryLocation = useCallback(
     (nextTab: HistoryTabId, nextSavedStage: SavedTabId) => {
@@ -915,9 +929,7 @@ const CareerHistoryPanel = () => {
                     size="md"
                     className="text-beige50"
                     variant="primary"
-                    onClick={() => {
-                      router.push("/career/chat");
-                    }}
+                    onClick={openChatTab}
                   />
                 </>
               ) : null}
@@ -943,36 +955,7 @@ const CareerHistoryPanel = () => {
         />
       </div>
 
-      <div className="mt-6 flex flex-row gap-6 py-6">
-        <div className="w-[264px] shrink-0 pr-4">
-          <div className="flex flex-col gap-2">
-            <h3 className="text-lg font-medium leading-5">
-              {activeSection.title}
-            </h3>
-            {activeSection.description.map((item, index) => (
-              <p key={index} className="mt-1 text-sm font-normal text-black/70">
-                {item}
-              </p>
-            ))}
-          </div>
-
-          <div className="mt-5 space-y-3">
-            {activeTab === "new" && activeOpportunity && (
-              <HistoryShortcutPanel
-                item={activeOpportunity}
-                pending={pendingOpportunityIds.has(activeOpportunity.id)}
-                onPositive={() => handlePositiveAction(activeOpportunity)}
-                onNegative={() => handleNegativeAction(activeOpportunity)}
-                onQuestion={() => handleQuestionAction(activeOpportunity)}
-                activeIndex={activeIndex}
-                totalCount={newItems.length}
-                onNext={() => moveActiveOpportunity(1)}
-                onPrev={() => moveActiveOpportunity(-1)}
-              />
-            )}
-          </div>
-        </div>
-
+      <div className="mt-6 flex flex-col gap-6 py-6">
         <div className="min-w-0 flex-1">
           {historyUpdateError && (
             <div className="mb-4 rounded-[8px] border border-[#7c2d12]/15 bg-[#7c2d12]/5 px-4 py-3 text-sm text-[#7c2d12]">
@@ -1075,6 +1058,34 @@ const CareerHistoryPanel = () => {
             </CareerInlinePanel>
           )}
         </div>
+        <div className="w-[264px] shrink-0 pr-4">
+          <div className="flex flex-col gap-2">
+            <h3 className="text-lg font-medium leading-5">
+              {activeSection.title}
+            </h3>
+            {activeSection.description.map((item, index) => (
+              <p key={index} className="mt-1 text-sm font-normal text-black/70">
+                {item}
+              </p>
+            ))}
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {activeTab === "new" && activeOpportunity && (
+              <HistoryShortcutPanel
+                item={activeOpportunity}
+                pending={pendingOpportunityIds.has(activeOpportunity.id)}
+                onPositive={() => handlePositiveAction(activeOpportunity)}
+                onNegative={() => handleNegativeAction(activeOpportunity)}
+                onQuestion={() => handleQuestionAction(activeOpportunity)}
+                activeIndex={activeIndex}
+                totalCount={newItems.length}
+                onNext={() => moveActiveOpportunity(1)}
+                onPrev={() => moveActiveOpportunity(-1)}
+              />
+            )}
+          </div>
+        </div>
       </div>
 
       <OpportunityDetailModal
@@ -1102,6 +1113,13 @@ const CareerHistoryPanel = () => {
         onQuestion={() => {
           if (!modalOpportunity) return;
           handleModalQuestionAction(modalOpportunity);
+        }}
+        onMockInterview={() => {
+          if (!modalOpportunity) return;
+          const opportunityId = modalOpportunity.id;
+          setModalOpportunityId(null);
+          openChatTab();
+          void onPrepareMockInterview(opportunityId);
         }}
       />
 

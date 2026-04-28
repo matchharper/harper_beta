@@ -112,7 +112,7 @@ const TalentCareerModal = ({
         aria-describedby={hasDescription ? descriptionId : undefined}
         aria-label={!hasTitle ? ariaLabel : undefined}
         className={cn(
-          "relative z-[1] w-full max-w-[720px] overflow-hidden rounded-xl border border-hblack200 bg-hblack000 shadow-[0_24px_80px_rgba(17,24,39,0.18)]",
+          "relative z-[1] w-full max-w-[720px] overflow-hidden rounded-xl border border-hblack200 bg-hblack000 shadow-[0_24px_80px_rgba(17,24,39,0.2)]",
           panelClassName
         )}
       >

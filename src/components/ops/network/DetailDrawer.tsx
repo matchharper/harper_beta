@@ -121,7 +121,7 @@ export default function DetailDrawer({
       <motion.button
         type="button"
         aria-label="Close candidate drawer"
-        className="absolute inset-0 bg-beige900/28 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-beige900/30 backdrop-blur-[2px]"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -132,7 +132,7 @@ export default function DetailDrawer({
         animate={{ opacity: 1, x: 0 }}
         exit={{ opacity: 0, x: "100%" }}
         transition={{ duration: 0.2, ease: "easeOut" }}
-        className="absolute inset-y-0 right-0 w-full max-w-[min(1080px,94vw)] overflow-hidden border-l border-beige900/10 bg-[#F4E8D8] shadow-[-24px_0_80px_rgba(46,23,6,0.18)]"
+        className="absolute inset-y-0 right-0 w-full max-w-[min(1080px,94vw)] overflow-hidden border-l border-beige900/10 bg-[#F4E8D8] shadow-[-24px_0_80px_rgba(46,23,6,0.2)]"
       >
         <div className="h-full overflow-y-auto">
           {!displayedLead ? (

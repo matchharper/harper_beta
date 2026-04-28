@@ -793,7 +793,7 @@ const CandidateViews = ({
       )}
 
       {sortedItems.length > 0 && filteredItems.length === 0 && (
-        <div className="mx-auto mt-8 flex w-full max-w-[720px] flex-col items-center justify-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-6 py-10 text-center">
+        <div className="mx-auto mt-8 flex w-full max-w-[720px] flex-col items-center justify-center gap-3 rounded-2xl border border-white/10 bg-white/[0.05] px-6 py-10 text-center">
           <div className="text-sm text-white/75">
             현재 필터 조건에 맞는 후보가 없습니다.
           </div>

@@ -1,6 +1,7 @@
 export const CAREER_LINK_LABELS = [
-  "LinkedIn",
+  "링크드인",
   "Github",
   "Google Scholar",
-  "개인 블로그/사이트",
+  "개인 웹사이트",
+  "X.com",
 ];

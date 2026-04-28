@@ -1,4 +1,8 @@
-import { client, xaiClient } from "@/lib/llm/llm";
+import {
+  getChatClientForModel,
+  supportsResponseFormatForModel,
+} from "@/lib/llm/llm";
+import { logLlmTokenUsage } from "@/lib/llm/usageLogging";
 
 export type TalentChatMessage = {
   content: string;
@@ -23,6 +27,14 @@ export type TalentChatTool = {
   };
   type: "function";
 };
+
+type TalentAssistantModelConfig = {
+  fallbackModel?: string;
+  primaryModel?: string;
+};
+
+const DEFAULT_TALENT_PRIMARY_MODEL = "grok-4-1-fast-non-reasoning";
+const DEFAULT_TALENT_FALLBACK_MODEL = "gpt-4.1-mini";
 
 function cleanModelText(raw: string) {
   return raw
@@ -51,57 +63,111 @@ function getMessageContent(message: any) {
 }
 
 async function createTalentChatCompletion(args: {
+  fallbackModel?: string;
   messages: TalentChatMessage[];
+  primaryModel?: string;
   temperature: number;
   tools?: TalentChatTool[];
+  usageLabel?: string;
 }) {
-  const { messages, temperature, tools } = args;
+  const {
+    fallbackModel = DEFAULT_TALENT_FALLBACK_MODEL,
+    messages,
+    primaryModel = DEFAULT_TALENT_PRIMARY_MODEL,
+    temperature,
+    tools,
+    usageLabel,
+  } = args;
+
   const toolPayload =
     tools && tools.length > 0
       ? ({ tools: tools as any, tool_choice: "auto" as const } as const)
       : undefined;
 
   try {
-    return await xaiClient.chat.completions.create({
-      model: "grok-4-1-fast-non-reasoning",
+    const primaryClient = getChatClientForModel(primaryModel);
+    const response = await primaryClient.chat.completions.create({
+      model: primaryModel,
       messages: messages as any,
       temperature,
       ...(toolPayload ?? {}),
+    } as any);
+    logLlmTokenUsage({
+      label: usageLabel,
+      model: primaryModel,
+      response,
     });
+    return response;
   } catch {
-    return client.chat.completions.create({
-      model: "gpt-4.1-mini",
+    const fallbackClient = getChatClientForModel(fallbackModel);
+    const response = await fallbackClient.chat.completions.create({
+      model: fallbackModel,
       messages: messages as any,
       temperature,
       ...(toolPayload ?? {}),
+    } as any);
+    logLlmTokenUsage({
+      label: usageLabel,
+      model: fallbackModel,
+      response,
     });
+    return response;
   }
 }
 
 export async function runTalentAssistantCompletion(args: {
+  fallbackModel?: string;
+  primaryModel?: string;
   messages: TalentChatMessage[];
   temperature?: number;
   jsonMode?: boolean;
+  usageLabel?: string;
 }) {
-  const { messages, temperature = 0.35, jsonMode = false } = args;
-  const responseFormat = jsonMode
-    ? ({ type: "json_object" } as const)
-    : undefined;
+  const {
+    fallbackModel = DEFAULT_TALENT_FALLBACK_MODEL,
+    messages,
+    primaryModel = DEFAULT_TALENT_PRIMARY_MODEL,
+    temperature = 0.35,
+    jsonMode = false,
+    usageLabel,
+  } = args;
+  const primaryResponseFormat =
+    jsonMode && supportsResponseFormatForModel(primaryModel)
+      ? ({ type: "json_object" } as const)
+      : undefined;
+  const fallbackResponseFormat =
+    jsonMode && supportsResponseFormatForModel(fallbackModel)
+      ? ({ type: "json_object" } as const)
+      : undefined;
 
   try {
-    const response = await xaiClient.chat.completions.create({
-      model: "grok-4-1-fast-non-reasoning",
+    const primaryClient = getChatClientForModel(primaryModel);
+    const response = await primaryClient.chat.completions.create({
+      model: primaryModel,
       messages: messages as any,
       temperature,
-      ...(responseFormat && { response_format: responseFormat }),
+      ...(primaryResponseFormat && { response_format: primaryResponseFormat }),
+    } as any);
+    logLlmTokenUsage({
+      label: usageLabel,
+      model: primaryModel,
+      response,
     });
     return cleanModelText(getMessageContent(response.choices[0]?.message));
   } catch {
-    const fallback = await client.chat.completions.create({
-      model: "gpt-4.1-mini",
+    const fallbackClient = getChatClientForModel(fallbackModel);
+    const fallback = await fallbackClient.chat.completions.create({
+      model: fallbackModel,
       messages: messages as any,
       temperature,
-      ...(responseFormat && { response_format: responseFormat }),
+      ...(fallbackResponseFormat && {
+        response_format: fallbackResponseFormat,
+      }),
+    } as any);
+    logLlmTokenUsage({
+      label: usageLabel,
+      model: fallbackModel,
+      response: fallback,
     });
     return cleanModelText(getMessageContent(fallback.choices[0]?.message));
   }
@@ -114,39 +180,54 @@ export async function runTalentAssistantToolLoop(args: {
   }) => Promise<unknown>;
   maxToolLoops?: number;
   maxTotalToolCalls?: number;
+  modelConfig?: TalentAssistantModelConfig;
   messages: TalentChatMessage[];
+  stopAfterToolNames?: string[];
   temperature?: number;
   tools: TalentChatTool[];
+  usageLabel?: string;
 }) {
   const {
     executeTool,
     maxToolLoops = 3,
     maxTotalToolCalls = 4,
+    modelConfig,
     messages,
+    stopAfterToolNames = [],
     temperature = 0.35,
     tools,
+    usageLabel,
   } = args;
 
   if (tools.length === 0) {
     return runTalentAssistantCompletion({
+      fallbackModel: modelConfig?.fallbackModel,
       messages,
+      primaryModel: modelConfig?.primaryModel,
       temperature,
+      usageLabel,
     });
   }
 
   const workingMessages = [...messages];
+  const stopAfterToolNameSet = new Set(stopAfterToolNames);
   let totalToolCalls = 0;
 
   for (let loop = 0; loop < maxToolLoops; loop += 1) {
     const response = await createTalentChatCompletion({
+      fallbackModel: modelConfig?.fallbackModel,
       messages: workingMessages,
+      primaryModel: modelConfig?.primaryModel,
       temperature,
       tools,
+      usageLabel,
     });
 
     const message = response.choices[0]?.message as any;
     const assistantContent = cleanModelText(getMessageContent(message));
-    const toolCalls = Array.isArray(message?.tool_calls) ? message.tool_calls : [];
+    const toolCalls = Array.isArray(message?.tool_calls)
+      ? message.tool_calls
+      : [];
 
     if (toolCalls.length === 0) {
       return assistantContent;
@@ -209,6 +290,9 @@ export async function runTalentAssistantToolLoop(args: {
           name: toolName,
           content: JSON.stringify(result),
         });
+        if (stopAfterToolNameSet.has(toolName)) {
+          return "";
+        }
       } catch (error) {
         workingMessages.push({
           role: "tool",
@@ -224,8 +308,11 @@ export async function runTalentAssistantToolLoop(args: {
   }
 
   const fallback = await createTalentChatCompletion({
+    fallbackModel: modelConfig?.fallbackModel,
     messages: workingMessages,
+    primaryModel: modelConfig?.primaryModel,
     temperature,
+    usageLabel,
   });
 
   return cleanModelText(getMessageContent(fallback.choices[0]?.message));

@@ -30,7 +30,6 @@ export type MatchWorkspaceRecord = {
   createdAt: string;
   homepageUrl: string | null;
   linkedinUrl: string | null;
-  logoStoragePath: string | null;
   logoUrl: string | null;
   memberRole: string | null;
   updatedAt: string;

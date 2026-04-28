@@ -24,13 +24,19 @@ export const toUiMessage = (message: {
   role: MessageRole;
   content: string;
   messageType?: string;
+  companySnapshotSetup?: CareerMessage["companySnapshotSetup"];
   createdAt?: string;
+  mockInterviewSetup?: CareerMessage["mockInterviewSetup"];
+  opportunityPreview?: CareerMessage["opportunityPreview"];
 }): CareerMessage => ({
   id: message.id,
   role: message.role,
   content: message.content,
   messageType: message.messageType ?? "chat",
+  companySnapshotSetup: message.companySnapshotSetup,
   createdAt: message.createdAt ?? new Date().toISOString(),
+  mockInterviewSetup: message.mockInterviewSetup,
+  opportunityPreview: message.opportunityPreview,
 });
 
 export const getErrorMessage = (payload: unknown, fallback: string) => {
@@ -50,7 +56,9 @@ export const toProfileLinks = (links: string[] = []) => [
   links[0] ?? "",
   links[1] ?? "",
   links[2] ?? "",
-  ...links.slice(3),
+  links[3] ?? "",
+  links[4] ?? "",
+  ...links.slice(5),
 ];
 
 const findLastMessageTypeIndex = (
@@ -83,8 +91,7 @@ export const shouldShowVoiceStartPrompt = (
   );
   const hasAssistantQuestion = messages.some(
     (message) =>
-      message.role === "assistant" &&
-      (message.messageType ?? "chat") === "chat"
+      message.role === "assistant" && (message.messageType ?? "chat") === "chat"
   );
   const hasDeferredFlow = messages.some((message) =>
     [

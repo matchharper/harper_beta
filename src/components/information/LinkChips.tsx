@@ -1,6 +1,7 @@
 import React from "react";
 import { Tooltips } from "../ui/tooltip";
 import { getLinkChipMeta } from "@/utils/linkChip";
+import { cn } from "@/lib/cn";
 
 type Props = {
   links: string[];
@@ -62,9 +63,11 @@ export default React.memo(LinkChips);
 export const LinkChip = ({
   raw,
   size = "default",
+  className,
 }: {
   raw: string;
   size?: "default" | "sm" | "md";
+  className?: string;
 }) => {
   const { url, brand, icon, label } = getLinkChipMeta(raw);
 
@@ -79,14 +82,17 @@ export const LinkChip = ({
       href={url}
       target="_blank"
       rel="noreferrer"
-      className={`mt-2 inline-flex items-center justify-center rounded-md transition-all duration-200
+      className={cn(
+        `mt-2 inline-flex items-center justify-center rounded-md transition-all duration-200
         ${
           isSm
             ? "bg-white/0 p-0 hover:bg-white/0"
             : isMd
               ? "bg-white/5 px-2 py-1 text-xs text-white hover:bg-white/10"
               : "bg-white/5 px-2.5 py-1.5 text-sm text-white hover:bg-white/20"
-        }`}
+        } `,
+        className
+      )}
     >
       <Tooltips text={isSm ? label : ""}>
         <img

@@ -26,6 +26,23 @@ import Script from "next/script";
 import { useRouter } from "next/router";
 
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
+const CRISP_WEBSITE_ID = process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID;
+const CRISP_BOOTSTRAP_SCRIPT = CRISP_WEBSITE_ID
+  ? `
+      window.$crisp = window.$crisp || [];
+      window.CRISP_WEBSITE_ID = ${JSON.stringify(CRISP_WEBSITE_ID)};
+      var CRISP_WEBSITE_ID = window.CRISP_WEBSITE_ID;
+      (function () {
+        if (document.getElementById("crisp-loader")) return;
+        var d = document;
+        var s = d.createElement("script");
+        s.id = "crisp-loader";
+        s.src = "https://client.crisp.chat/l.js";
+        s.async = 1;
+        d.getElementsByTagName("head")[0].appendChild(s);
+      })();
+    `
+  : null;
 
 export default function App({ Component, pageProps }: AppProps) {
   const init = useAuthStore((s) => s.init);
@@ -117,6 +134,11 @@ export default function App({ Component, pageProps }: AppProps) {
             `}
           </Script>
         </>
+      )}
+      {CRISP_BOOTSTRAP_SCRIPT && (
+        <Script id="crisp-chat" strategy="afterInteractive">
+          {CRISP_BOOTSTRAP_SCRIPT}
+        </Script>
       )}
       <div className="font-sans">
         <CompanyModalRoot />

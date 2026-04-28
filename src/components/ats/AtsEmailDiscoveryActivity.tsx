@@ -211,7 +211,7 @@ function renderTraceMeta(
   if (!serialized) return null;
 
   return (
-    <pre className="mt-2 max-w-full whitespace-pre-wrap break-words rounded-md border border-white/10 bg-white/[0.03] p-2 text-xs leading-5 text-white/45 [overflow-wrap:anywhere]">
+    <pre className="mt-2 max-w-full whitespace-pre-wrap break-words rounded-md border border-white/10 bg-white/[0.05] p-2 text-xs leading-5 text-white/45 [overflow-wrap:anywhere]">
       {renderLinkedText(serialized, `${key}-meta`)}
     </pre>
   );

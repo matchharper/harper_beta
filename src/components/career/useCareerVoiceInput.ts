@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { CallTranscriptEntry, CareerInputMode, CareerMessage } from "./types";
+import type {
+  CallTranscriptEntry,
+  CareerInputMode,
+  CareerMessage,
+} from "./types";
 import { useCareerVoiceInputStore } from "@/store/useCareerVoiceInputStore";
 
 type SpeechRecognitionLike = {
@@ -31,6 +35,7 @@ type RealtimeControls = {
   sendTextMessage: (text: string) => void;
   triggerResponse: () => void;
   cancelResponse: () => void;
+  primePlayback?: () => void;
   getMediaStream: () => MediaStream | null;
 };
 
@@ -42,6 +47,7 @@ type UseCareerVoiceInputArgs = {
   realtimeControls?: RealtimeControls | null;
 };
 
+const CALL_END_MARKER = "##END##";
 const getSpeechRecognitionCtor = () => {
   if (typeof window === "undefined") return null;
   return (
@@ -51,7 +57,23 @@ const getSpeechRecognitionCtor = () => {
 
 const notAllowedVoiceErrors = new Set(["not-allowed", "service-not-allowed"]);
 const AUTO_RESUME_RETRY_DELAYS_MS = [180, 260, 360, 520, 760, 1000];
+const VOICE_DEBUG_STORAGE_KEY = "careerVoiceDebug";
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
+
+const isCareerVoiceDebugEnabled = () => {
+  if (process.env.NODE_ENV !== "production") return true;
+  if (typeof window === "undefined") return false;
+
+  try {
+    const searchParams = new URLSearchParams(window.location.search);
+    return (
+      searchParams.get("voiceDebug") === "1" ||
+      window.localStorage.getItem(VOICE_DEBUG_STORAGE_KEY) === "1"
+    );
+  } catch {
+    return false;
+  }
+};
 
 const isEditableTarget = (target: EventTarget | null) => {
   if (!(target instanceof HTMLElement)) return false;
@@ -71,7 +93,13 @@ const isEditableTarget = (target: EventTarget | null) => {
 };
 
 export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
-  const { canInteract, messages, onSendMessage, onUnsupported, realtimeControls } = args;
+  const {
+    canInteract,
+    messages,
+    onSendMessage,
+    onUnsupported,
+    realtimeControls,
+  } = args;
   const [inputMode, setInputMode] = useState<CareerInputMode>("text");
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [voiceListening, setVoiceListening] = useState(false);
@@ -107,6 +135,8 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   const voiceLevelFloorRef = useRef(0.008);
   const voiceLevelPeakRef = useRef(0.08);
   const voiceLevelSmoothedRef = useRef(0);
+  const voiceLevelLastLogAtRef = useRef(0);
+  const callAssistantTranscriptStreamingRef = useRef(false);
 
   const logVoiceDebug = useCallback(
     (phase: string, payload?: Record<string, unknown>) => {
@@ -119,7 +149,9 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
         canInteract,
       };
       const data = payload ? { ...base, ...payload } : base;
-      console.log("[career-voice]", data);
+      if (isCareerVoiceDebugEnabled()) {
+        console.log("[career-voice]", data);
+      }
     },
     [canInteract, inputMode]
   );
@@ -195,7 +227,10 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
 
   // Sync Realtime partial transcript to input field display
   useEffect(() => {
-    if (voiceEngine === "realtime" && realtimeControls?.partialTranscript != null) {
+    if (
+      voiceEngine === "realtime" &&
+      realtimeControls?.partialTranscript != null
+    ) {
       setVoiceTranscript(realtimeControls.partialTranscript);
       voiceDraftTextRef.current = realtimeControls.partialTranscript;
     }
@@ -230,8 +265,13 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
 
       // Only stop tracks if we own the stream (not shared from Realtime)
       const realtimeStream = realtimeControls?.getMediaStream?.() ?? null;
-      if (voiceLevelStreamRef.current && voiceLevelStreamRef.current !== realtimeStream) {
-        voiceLevelStreamRef.current.getTracks().forEach((track) => track.stop());
+      if (
+        voiceLevelStreamRef.current &&
+        voiceLevelStreamRef.current !== realtimeStream
+      ) {
+        voiceLevelStreamRef.current
+          .getTracks()
+          .forEach((track) => track.stop());
       }
       voiceLevelStreamRef.current = null;
 
@@ -243,7 +283,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
         resetVoiceInputLevel();
       }
     },
-    [resetVoiceInputLevel]
+    [realtimeControls, resetVoiceInputLevel]
   );
 
   const startVoiceLevelMonitor = useCallback(async () => {
@@ -269,15 +309,17 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     try {
       // Use Realtime session's shared MediaStream if available
       const realtimeStream = realtimeControls?.getMediaStream?.() ?? null;
-      const stream = realtimeStream ?? await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-        video: false,
-      });
+      const stream =
+        realtimeStream ??
+        (await navigator.mediaDevices.getUserMedia({
+          audio: {
+            channelCount: 1,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+          video: false,
+        }));
 
       const AudioContextCtor =
         window.AudioContext || (window as any).webkitAudioContext;
@@ -345,6 +387,16 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
 
         voiceLevelSmoothedRef.current = smoothed;
         useCareerVoiceInputStore.getState().setVoiceInputLevel(smoothed);
+
+        const now = performance.now();
+        if (smoothed > 0.08 && now - voiceLevelLastLogAtRef.current > 500) {
+          voiceLevelLastLogAtRef.current = now;
+          logVoiceDebug("mic-level", {
+            level: Number(smoothed.toFixed(3)),
+            rms: Number(rms.toFixed(4)),
+          });
+        }
+
         voiceLevelAnimationFrameRef.current =
           window.requestAnimationFrame(tick);
       };
@@ -358,7 +410,12 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
       stopVoiceLevelMonitor();
       return false;
     }
-  }, [logVoiceDebug, resetVoiceInputLevel, stopVoiceLevelMonitor]);
+  }, [
+    logVoiceDebug,
+    realtimeControls,
+    resetVoiceInputLevel,
+    stopVoiceLevelMonitor,
+  ]);
 
   const releaseAssistantAudioUrl = useCallback(() => {
     if (!assistantAudioUrlRef.current) return;
@@ -448,7 +505,10 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
         .filter((message) => message.role === "assistant")
         .map((message) => String(message.id));
       spokenAssistantIdsRef.current = new Set(existingAssistantIds);
-    } else if (previousInputModeRef.current === "voice" || previousInputModeRef.current === "call") {
+    } else if (
+      previousInputModeRef.current === "voice" ||
+      previousInputModeRef.current === "call"
+    ) {
       stopAssistantAudio();
     }
 
@@ -456,7 +516,11 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   }, [inputMode, messages, stopAssistantAudio]);
 
   useEffect(() => {
-    if ((inputMode !== "voice" && inputMode !== "call") || voiceMuted || !voiceListening) {
+    if (
+      (inputMode !== "voice" && inputMode !== "call") ||
+      voiceMuted ||
+      !voiceListening
+    ) {
       stopVoiceLevelMonitor();
       return;
     }
@@ -483,7 +547,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   ]);
 
   useEffect(() => {
-    if (inputMode !== "voice" && inputMode !== "call") return;
+    if (inputMode !== "voice") return;
     if (typeof window === "undefined") return;
 
     const latestAssistantMessage = [...messages]
@@ -594,7 +658,13 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
         });
       }
     })();
-  }, [cleanupAssistantAudio, inputMode, logVoiceDebug, messages, stopAssistantAudio]);
+  }, [
+    cleanupAssistantAudio,
+    inputMode,
+    logVoiceDebug,
+    messages,
+    stopAssistantAudio,
+  ]);
 
   const ensureSpeechRecognition = useCallback(() => {
     if (recognitionRef.current) return recognitionRef.current;
@@ -1035,6 +1105,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   ]);
 
   const switchToTextMode = useCallback(() => {
+    voiceEngineRef.current = "webspeech";
     commitOnEndRef.current = false;
     autoResumeAfterResponseRef.current = false;
     spacebarPressActiveRef.current = false;
@@ -1062,6 +1133,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   }, []);
 
   const resetVoice = useCallback(() => {
+    voiceEngineRef.current = "webspeech";
     recognitionRef.current?.abort();
     recognitionRef.current = null;
     autoResumeAfterResponseRef.current = false;
@@ -1071,6 +1143,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     stopAssistantAudio();
     // Disconnect Realtime session on full reset
     realtimeControls?.disconnect();
+    callAssistantTranscriptStreamingRef.current = false;
     setVoiceEngine("webspeech");
     setVoiceListening(false);
     setVoiceMuted(false);
@@ -1086,23 +1159,21 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     stopVoiceLevelMonitor,
   ]);
 
+  // Opens the call UI only after Realtime is connected, so the user does not
+  // land on a dead call screen.
   const startCallMode = useCallback(async () => {
-    if (!isSpeechSupported) {
-      onUnsupported(
-        "이 브라우저는 음성 인식을 지원하지 않습니다. 현재 채팅으로 계속 진행해 주세요."
-      );
-      return;
-    }
-
     void logEnvironmentSnapshot();
     logVoiceDebug("start-call-mode");
     setVoiceError("");
     setVoiceMuted(false);
     stopAssistantAudio();
+    recognitionRef.current?.abort();
     clearVoiceBuffer();
     setCallTranscriptEntries([]);
+    callAssistantTranscriptStreamingRef.current = false;
 
     if (realtimeControls) {
+      realtimeControls.disconnect();
       const connected = await realtimeControls.connect();
       if (connected) {
         setVoiceEngine("realtime");
@@ -1111,33 +1182,29 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
         inputModeRef.current = "call";
         logVoiceDebug("call-mode-connected");
 
-        // Start voice level monitor for waveform visualization
         void startVoiceLevelMonitor();
-
-        // Start Web Speech for display transcript
-        if (getSpeechRecognitionCtor()) {
-          startVoiceListening({ suppressError: true });
-        }
-        return;
+        return true;
       }
     }
 
     // Fallback: can't connect realtime, stay in text mode
     onUnsupported("실시간 연결에 실패했습니다. 채팅으로 진행해 주세요.");
+    return false;
   }, [
     clearVoiceBuffer,
-    isSpeechSupported,
     logEnvironmentSnapshot,
     logVoiceDebug,
     onUnsupported,
     realtimeControls,
-    startVoiceListening,
     startVoiceLevelMonitor,
     stopAssistantAudio,
   ]);
 
+  // Leaves call mode, closes Realtime/mic resources, and keeps the transcript
+  // in memory for the wrap-up request.
   const endCallMode = useCallback(() => {
     logVoiceDebug("end-call-mode");
+    voiceEngineRef.current = "webspeech";
     commitOnEndRef.current = false;
     autoResumeAfterResponseRef.current = false;
     spacebarPressActiveRef.current = false;
@@ -1151,26 +1218,122 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     setVoiceMuted(false);
     setInputMode("text");
     inputModeRef.current = "text";
+    callAssistantTranscriptStreamingRef.current = false;
     // Don't clear callTranscriptEntries — needed for wrap-up generation
-  }, [logVoiceDebug, realtimeControls, stopAssistantAudio, stopVoiceLevelMonitor]);
+  }, [
+    logVoiceDebug,
+    realtimeControls,
+    stopAssistantAudio,
+    stopVoiceLevelMonitor,
+  ]);
 
-  // Accumulate transcript entries only during call mode
+  // Accumulate transcript entries only during call mode. Realtime can stream
+  // Harper's answer before the final user transcript arrives, so a delayed user
+  // entry is inserted before the currently streaming assistant entry.
   const inputModeRef = useRef(inputMode);
   useEffect(() => {
     inputModeRef.current = inputMode;
   }, [inputMode]);
 
   const addCallTranscriptEntry = useCallback(
-    (role: "user" | "assistant", text: string) => {
+    (
+      role: "user" | "assistant",
+      text: string,
+      options?: { beforeCurrentAssistant?: boolean }
+    ) => {
       if (inputModeRef.current !== "call") return;
       if (!text.trim()) return;
-      setCallTranscriptEntries((prev) => [
-        ...prev,
-        { role, text: text.trim(), timestamp: new Date().toISOString() },
-      ]);
+      if (role === "assistant") {
+        callAssistantTranscriptStreamingRef.current = false;
+      }
+      setCallTranscriptEntries((prev) => {
+        const entry = {
+          role,
+          text: text.trim(),
+          timestamp: new Date().toISOString(),
+        };
+        const lastIndex = prev.length - 1;
+        const last = prev[lastIndex];
+
+        const shouldInsertBeforeCurrentAssistant =
+          role === "user" &&
+          last?.role === "assistant" &&
+          (options?.beforeCurrentAssistant ||
+            callAssistantTranscriptStreamingRef.current);
+
+        if (shouldInsertBeforeCurrentAssistant) {
+          return [...prev.slice(0, lastIndex), entry, last];
+        }
+
+        return [...prev, entry];
+      });
     },
     []
   );
+
+  const appendCallAssistantTranscriptDelta = useCallback((delta: string) => {
+    if (inputModeRef.current !== "call") return;
+
+    const displayDelta = delta.replace(CALL_END_MARKER, "");
+    if (!displayDelta) return;
+
+    setCallTranscriptEntries((prev) => {
+      const now = new Date().toISOString();
+      const lastIndex = prev.length - 1;
+      const last = prev[lastIndex];
+
+      if (
+        callAssistantTranscriptStreamingRef.current &&
+        last?.role === "assistant"
+      ) {
+        const next = [...prev];
+        next[lastIndex] = {
+          ...last,
+          text: `${last.text}${displayDelta}`.replace(/\s+/g, " ").trimStart(),
+          timestamp: now,
+        };
+        return next;
+      }
+
+      if (!displayDelta.trim()) return prev;
+      callAssistantTranscriptStreamingRef.current = true;
+      return [
+        ...prev,
+        {
+          role: "assistant",
+          text: displayDelta.trimStart(),
+          timestamp: now,
+        },
+      ];
+    });
+  }, []);
+
+  const finalizeCallAssistantTranscript = useCallback((text: string) => {
+    if (inputModeRef.current !== "call") return;
+
+    const cleanText = text.replace(CALL_END_MARKER, "").trim();
+    const wasStreaming = callAssistantTranscriptStreamingRef.current;
+    callAssistantTranscriptStreamingRef.current = false;
+    if (!cleanText) return;
+
+    setCallTranscriptEntries((prev) => {
+      const now = new Date().toISOString();
+      const lastIndex = prev.length - 1;
+      const last = prev[lastIndex];
+
+      if (wasStreaming && last?.role === "assistant") {
+        const next = [...prev];
+        next[lastIndex] = {
+          ...last,
+          text: cleanText,
+          timestamp: now,
+        };
+        return next;
+      }
+
+      return [...prev, { role: "assistant", text: cleanText, timestamp: now }];
+    });
+  }, []);
 
   return {
     inputMode,
@@ -1183,11 +1346,14 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     voiceEngine,
     onboardingVoiceSupported: isSpeechSupported,
     callTranscriptEntries,
-    connectionStatus: realtimeControls?.connectionStatus ?? ("disconnected" as const),
+    connectionStatus:
+      realtimeControls?.connectionStatus ?? ("disconnected" as const),
     startVoiceCall,
     startCallMode,
     endCallMode,
     addCallTranscriptEntry,
+    appendCallAssistantTranscriptDelta,
+    finalizeCallAssistantTranscript,
     switchToChatOnly,
     handleVoicePrimaryAction,
     toggleVoiceMute,

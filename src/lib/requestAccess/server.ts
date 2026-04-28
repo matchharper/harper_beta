@@ -436,12 +436,14 @@ async function sendRequestAccessApprovedEmail(args: {
 }) {
   const { apiKey, defaultFrom } = getMailerConfig();
   const from = normalizeText(args.from) || defaultFrom;
+  const userAgent = "harper/0.1.0 request-access-mailer";
 
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
+      "User-Agent": userAgent,
     },
     body: JSON.stringify({
       from,
@@ -454,7 +456,9 @@ async function sendRequestAccessApprovedEmail(args: {
 
   if (!response.ok) {
     const payload = await response.text();
-    throw new Error(`Failed to send approval email: ${payload}`);
+    throw new Error(
+      `Failed to send approval email: HTTP ${response.status} ${payload}`
+    );
   }
 }
 

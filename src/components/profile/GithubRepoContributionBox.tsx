@@ -297,7 +297,7 @@ const GithubRepoContributionBox = ({
 
   if (!contribution) {
     return (
-      <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-hgray700">
+      <div className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-hgray700">
         GitHub repository data is unavailable.
       </div>
     );
@@ -348,8 +348,8 @@ const GithubRepoContributionBox = ({
         "group w-full rounded-2xl border text-left transition-all duration-200 flex flex-col items-start justify-start",
         "px-5 py-4",
         role.isOwner
-          ? "border-white/0 bg-white/[0.04] hover:bg-white/[0.06] hover:border-white/10"
-          : "border-white/0 bg-white/[0.02] hover:bg-white/5 hover:border-white/5"
+          ? "border-white/0 bg-white/[0.05] hover:bg-white/[0.05] hover:border-white/10"
+          : "border-white/0 bg-white/[0.05] hover:bg-white/5 hover:border-white/5"
       )}
     >
       <div className="flex items-start justify-between gap-4 w-full">
@@ -380,7 +380,7 @@ const GithubRepoContributionBox = ({
           className={cn(
             "mt-4 rounded-xl px-3.5 py-3 text-sm leading-6 w-full",
             role.isOwner
-              ? "bg-white/6 text-hgray850"
+              ? "bg-white/5 text-hgray850"
               : "bg-white/5 text-hgray800"
           )}
         >

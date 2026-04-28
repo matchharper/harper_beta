@@ -1574,7 +1574,7 @@ const AdminPage = () => {
                     className={`h-8 px-3 text-[12px] border ${
                       isActive
                         ? "border-black bg-black text-white"
-                        : "border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
+                        : "border-black/15 hover:border-black/30 hover:bg-black/[0.05]"
                     }`}
                     style={{ borderRadius: 0 }}
                   >
@@ -1604,7 +1604,7 @@ const AdminPage = () => {
                       className={`h-9 px-3 text-[12px] border ${
                         isActive
                           ? "border-black bg-black text-white"
-                          : "border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
+                          : "border-black/15 hover:border-black/30 hover:bg-black/[0.05]"
                       }`}
                       style={{ borderRadius: 0 }}
                     >
@@ -1616,14 +1616,14 @@ const AdminPage = () => {
             )}
             <button
               onClick={() => setIsExcludedEmailsModalOpen(true)}
-              className="h-9 px-3 text-[13px] border border-black/15 hover:border-black/30 hover:bg-black/[0.03] active:bg-black/[0.06]"
+              className="h-9 px-3 text-[13px] border border-black/15 hover:border-black/30 hover:bg-black/[0.05] active:bg-black/[0.05]"
               style={{ borderRadius: 0 }}
             >
               Excluded emails ({excludedEmails.length})
             </button>
             <button
               onClick={onRefresh}
-              className="h-9 px-3 text-[13px] border border-black/15 hover:border-black/30 hover:bg-black/[0.03] active:bg-black/[0.06]"
+              className="h-9 px-3 text-[13px] border border-black/15 hover:border-black/30 hover:bg-black/[0.05] active:bg-black/[0.05]"
               style={{ borderRadius: 0 }}
               disabled={isLoading}
             >
@@ -1772,7 +1772,7 @@ const AdminPage = () => {
               <button
                 type="button"
                 onClick={() => setIsExcludedEmailsModalOpen(false)}
-                className="h-9 px-3 text-[12px] border border-black/15 text-black hover:border-black/30 hover:bg-black/[0.03]"
+                className="h-9 px-3 text-[12px] border border-black/15 text-black hover:border-black/30 hover:bg-black/[0.05]"
                 style={{ borderRadius: 0 }}
               >
                 Close

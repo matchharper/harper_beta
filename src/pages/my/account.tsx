@@ -171,7 +171,7 @@ const InputLabel = ({
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-[14px] text-white/90 placeholder:text-white/30 outline-none
+        className="w-full rounded-xl border border-white/[0.1] bg-white/[0.05] px-4 py-3 text-[14px] text-white/90 placeholder:text-white/30 outline-none
                    focus:border-white/20 transition"
       />
     </div>
@@ -197,7 +197,7 @@ const TextAreaLabel = ({
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
         rows={5}
-        className="w-full resize-none rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-[14px] text-white/90 placeholder:text-white/30 outline-none
+        className="w-full resize-none rounded-xl border border-white/[0.1] bg-white/[0.05] px-4 py-3 text-[14px] text-white/90 placeholder:text-white/30 outline-none
                    focus:border-white/20 transition leading-relaxed"
       />
       <div className="text-xs text-white/40">

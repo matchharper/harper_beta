@@ -31,10 +31,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!name) {
-      return NextResponse.json(
-        { error: "name is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "name is required" }, { status: 400 });
     }
 
     const admin = getTalentSupabaseAdmin();
@@ -61,6 +58,11 @@ export async function POST(req: NextRequest) {
 
     const output = await executeTalentTool({
       name,
+      context: {
+        admin,
+        conversationId,
+        userId: user.id,
+      },
       input:
         body.arguments && typeof body.arguments === "object"
           ? body.arguments

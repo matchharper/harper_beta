@@ -185,7 +185,7 @@ const TalentIdentifierModal = ({
       }}
       title="하퍼 시작하기"
       description="아래 중 하나를 알려주시면 바로 시작할 수 있어요."
-      panelClassName="max-w-[520px] shadow-[0_24px_72px_rgba(17,24,39,0.18)]"
+      panelClassName="max-w-[520px] shadow-[0_24px_72px_rgba(17,24,39,0.2)]"
       headerClassName="border-none px-3 py-4"
       bodyClassName="px-4 py-4 pb-8"
       closeButtonClassName="right-4 top-4 h-8 w-8 rounded-md"

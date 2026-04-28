@@ -731,7 +731,7 @@ function CandidateRow({
                   candidId={candidId}
                   overlay
                   overlayClassName="z-[80] group-hover:border-accenta1/40 group-hover:bg-black/15 justify-end pr-4"
-                  className="px-4 py-1.5 text-xs font-medium shadow-[0_8px_24px_rgba(0,0,0,0.32)]"
+                  className="px-4 py-1.5 text-xs font-medium shadow-[0_8px_24px_rgba(0,0,0,0.3)]"
                 />
               ) : null}
               <div className="shrink-0 rounded-full border border-transparent hover:border-accenta1/80 transition-colors">

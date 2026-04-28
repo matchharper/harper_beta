@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
-import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
+import {
+  buildCareerOnboardingDeferCloseSystemPrompt,
+  CAREER_ONBOARDING_DEFER_FALLBACK_CLOSE_TEXT,
+  CAREER_ONBOARDING_DEFER_PROMPT_TEXT,
+} from "@/lib/career/prompts";
+import { runCareerOnboardingDeferClose } from "@/lib/career/llm";
 import {
   TALENT_MESSAGE_TYPE_ONBOARDING_INTEREST_PROMPT,
   TALENT_MESSAGE_TYPE_ONBOARDING_PAUSE_CLOSE,
@@ -23,20 +28,6 @@ type Body = {
 const INTEREST_OPTION_LABELS = new Map(
   TALENT_ONBOARDING_INTEREST_OPTIONS.map((option) => [option.id, option.label])
 );
-
-const DEFER_PROMPT_TEXT = [
-  "알겠습니다. 지금은 우선 등록만 마쳐둘게요. 나중에 다시 들어와 주세요.",
-  "",
-  "대신 기본적인 상황만 먼저 알려주시면, 필요할 때 더 빠르게 이어갈 수 있습니다.",
-  "",
-  "현재 어떤 기회를 찾고 있는지 선택해 주세요. 여러 개 선택하셔도 됩니다.",
-].join("\n");
-
-const FALLBACK_CLOSE_TEXT = [
-  "알겠습니다. 지금 말씀해주신 상황으로 우선 등록을 마쳐둘게요.",
-  "나중에 다시 들어오시면 이어서 더 자세히 도와드리겠습니다.",
-  "원하시면 아래 버튼으로 지금 바로 계속 대화하셔도 됩니다.",
-].join(" ");
 
 const normalizeSelectedOptions = (raw: unknown) => {
   if (!Array.isArray(raw)) return [];
@@ -120,7 +111,7 @@ export async function POST(req: NextRequest) {
           conversation_id: conversationId,
           user_id: user.id,
           role: "assistant",
-          content: DEFER_PROMPT_TEXT,
+          content: CAREER_ONBOARDING_DEFER_PROMPT_TEXT,
           message_type: TALENT_MESSAGE_TYPE_ONBOARDING_INTEREST_PROMPT,
         })
         .select("*")
@@ -182,35 +173,25 @@ export async function POST(req: NextRequest) {
 
     let assistantContent = "";
     try {
-      assistantContent = await runTalentAssistantCompletion({
+      assistantContent = await runCareerOnboardingDeferClose({
         messages: [
           {
             role: "system",
-            content: [
-              "You are Harper, an AI talent agent for career onboarding.",
-              "Always answer in Korean.",
-              "The user chose to postpone the main conversation and only shared their current opportunity preferences.",
-              "Write a short closing message in 2-3 sentences.",
-              "Rules:",
-              "- Acknowledge the selected preferences.",
-              "- Say that Harper will save the registration for now.",
-              "- Say the user can come back later or continue now.",
-              "- Do not ask a follow-up question.",
-              "- Do not use bullet points.",
-            ].join("\n"),
+            content: buildCareerOnboardingDeferCloseSystemPrompt(),
           },
           {
             role: "user",
             content: selectedLabels.join("\n"),
           },
         ],
-        temperature: 0.3,
       });
     } catch {
       assistantContent = "";
     }
 
-    const safeAssistantContent = assistantContent.trim() || FALLBACK_CLOSE_TEXT;
+    const safeAssistantContent =
+      assistantContent.trim() ||
+      CAREER_ONBOARDING_DEFER_FALLBACK_CLOSE_TEXT;
 
     const { data: insertedMessages, error: insertError } = await admin
       .from("talent_messages")

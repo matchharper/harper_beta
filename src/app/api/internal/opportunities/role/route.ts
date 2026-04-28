@@ -23,6 +23,7 @@ type RoleBody = {
   locationText?: string | null;
   name?: string;
   postedAt?: string | null;
+  request?: string | null;
   roleId?: string | null;
   sourceJobId?: string | null;
   sourceProvider?: string | null;
@@ -45,6 +46,7 @@ async function handleSave(req: NextRequest) {
     locationText: body.locationText,
     name: String(body.name ?? ""),
     postedAt: body.postedAt,
+    request: body.request,
     roleId: body.roleId,
     sourceJobId: body.sourceJobId,
     sourceProvider: body.sourceProvider,

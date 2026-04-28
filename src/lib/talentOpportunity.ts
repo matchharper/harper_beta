@@ -10,6 +10,7 @@ type RawRecommendationRow = {
   feedback: string | null;
   feedback_at: string | null;
   feedback_reason: string | null;
+  fit_summary: string | null;
   id: string;
   kind: string;
   opportunity_type: string | null;
@@ -17,6 +18,7 @@ type RawRecommendationRow = {
   recommendation_reasons: Json;
   role_id: string;
   saved_stage: string | null;
+  tradeoffs: Json;
   viewed_at: string | null;
   company_role: {
     company_workspace: {
@@ -74,7 +76,9 @@ export type TalentOpportunityHistoryItem = {
   opportunityType: OpportunityType;
   postedAt: string | null;
   recommendedAt: string;
+  recommendationConcerns: string[];
   recommendationReasons: string[];
+  recommendationSummary: string | null;
   roleId: string;
   savedStage: TalentOpportunitySavedStage | null;
   sourceJobId: string | null;
@@ -141,19 +145,19 @@ export function toDatabaseFeedback(
   return null;
 }
 
-function normalizeRecommendationReasons(value: Json): string[] {
+function normalizeTextList(value: Json, limit = 8): string[] {
   if (Array.isArray(value)) {
     return value
       .map((item) => String(item ?? "").trim())
       .filter(Boolean)
-      .slice(0, 8);
+      .slice(0, limit);
   }
 
   if (value && typeof value === "object") {
     return Object.values(value)
       .map((item) => String(item ?? "").trim())
       .filter(Boolean)
-      .slice(0, 8);
+      .slice(0, limit);
   }
 
   return [];
@@ -201,9 +205,11 @@ function mapRecommendationRow(
     opportunityType,
     postedAt: role.posted_at ?? null,
     recommendedAt: row.recommended_at,
-    recommendationReasons: normalizeRecommendationReasons(
+    recommendationConcerns: normalizeTextList(row.tradeoffs, 3),
+    recommendationReasons: normalizeTextList(
       row.recommendation_reasons
     ),
+    recommendationSummary: row.fit_summary ?? null,
     roleId: String(row.role_id ?? ""),
     savedStage: normalizeSavedStage(row.saved_stage),
     sourceJobId: role.source_job_id ?? null,
@@ -229,8 +235,10 @@ export async function fetchTalentOpportunityHistory(args: {
         role_id,
         kind,
         opportunity_type,
+        fit_summary,
         recommended_at,
         recommendation_reasons,
+        tradeoffs,
         feedback,
         feedback_at,
         feedback_reason,
