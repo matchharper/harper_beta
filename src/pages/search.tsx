@@ -1123,7 +1123,7 @@ export default function RadarLandingPage() {
               className="pointer-events-none absolute inset-0"
               style={HERO_DOT_BACKGROUND_STYLE}
             />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(180,255,120,0.12),transparent_15%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(180,255,120,0.1),transparent_15%)]" />
           </div>
 
           <Reveal delay={0.08} className="w-full max-w-[980px]">

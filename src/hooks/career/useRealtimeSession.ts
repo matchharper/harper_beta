@@ -13,6 +13,7 @@ type UseRealtimeSessionArgs = {
   onAssistantDone: (fullText: string) => void;
   onError: (error: string) => void;
   onConnectionChange: (connected: boolean) => void;
+  onUserSpeechStarted?: () => void;
 };
 
 type TokenInfo = {
@@ -28,8 +29,34 @@ type PendingFunctionCallOutput = {
 };
 
 const REFRESH_BUFFER_MS = 10_000;
-const MAX_RECONNECT_ATTEMPTS = 3;
-const RECONNECT_DELAYS = [1000, 2000, 4000];
+const VOICE_DEBUG_STORAGE_KEY = "careerVoiceDebug";
+
+function isCareerVoiceDebugEnabled(): boolean {
+  if (process.env.NODE_ENV !== "production") return true;
+  if (typeof window === "undefined") return false;
+
+  try {
+    const searchParams = new URLSearchParams(window.location.search);
+    return (
+      searchParams.get("voiceDebug") === "1" ||
+      window.localStorage.getItem(VOICE_DEBUG_STORAGE_KEY) === "1"
+    );
+  } catch {
+    return false;
+  }
+}
+
+function logCareerVoiceDebug(
+  phase: string,
+  payload?: Record<string, unknown>
+): void {
+  if (!isCareerVoiceDebugEnabled()) return;
+  console.log("[career-voice]", {
+    phase,
+    timestamp: new Date().toISOString(),
+    ...payload,
+  });
+}
 
 function pcm16ToBase64(int16Array: Int16Array): string {
   const bytes = new Uint8Array(int16Array.buffer);
@@ -100,6 +127,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     onAssistantDone,
     onError,
     onConnectionChange,
+    onUserSpeechStarted,
   } = args;
 
   const [isConnected, setIsConnected] = useState(false);
@@ -119,8 +147,9 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   const workletNodeRef = useRef<AudioWorkletNode | ScriptProcessorNode | null>(
     null
   );
-  const reconnectAttemptRef = useRef(0);
   const connectRef = useRef<(() => Promise<boolean>) | null>(null);
+  const connectPromiseRef = useRef<Promise<boolean> | null>(null);
+  const connectAttemptIdRef = useRef(0);
 
   // Audio playback refs (native Realtime audio output)
   const playbackCtxRef = useRef<AudioContext | null>(null);
@@ -129,6 +158,10 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   const interruptTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const internalResponseModeRef = useRef<"tool_preamble" | null>(null);
   const pendingToolContinuationRef = useRef<(() => void) | null>(null);
+  const responseInProgressRef = useRef(false);
+  const responseCancelRequestedRef = useRef(false);
+  const suppressCurrentResponseOutputRef = useRef(false);
+  const suppressCancelledResponseDoneRef = useRef(false);
 
   // TTFT measurement: speech_stopped → first audio playback
   const speechStoppedAtRef = useRef<number>(0);
@@ -145,6 +178,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   const onAssistantDoneRef = useRef(onAssistantDone);
   const onErrorRef = useRef(onError);
   const onConnectionChangeRef = useRef(onConnectionChange);
+  const onUserSpeechStartedRef = useRef(onUserSpeechStarted);
 
   useEffect(() => {
     onTranscriptRef.current = onTranscript;
@@ -161,6 +195,9 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   useEffect(() => {
     onConnectionChangeRef.current = onConnectionChange;
   }, [onConnectionChange]);
+  useEffect(() => {
+    onUserSpeechStartedRef.current = onUserSpeechStarted;
+  }, [onUserSpeechStarted]);
 
   const cleanupAudio = useCallback(() => {
     workletNodeRef.current?.disconnect();
@@ -236,6 +273,36 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     if (!ctx || ctx.state === "closed") return 0;
     return Math.max(0, (nextPlayTimeRef.current - ctx.currentTime) * 1000);
   }, []);
+
+  const stopNativePlayback = useCallback(() => {
+    const ctx = playbackCtxRef.current;
+    if (ctx && ctx.state !== "closed") {
+      void ctx.close().catch(() => undefined);
+    }
+    playbackCtxRef.current = null;
+    nextPlayTimeRef.current = 0;
+    hasAudioInResponseRef.current = false;
+    setIsAssistantSpeaking(false);
+  }, []);
+
+  const cancelActiveResponse = useCallback(() => {
+    suppressCurrentResponseOutputRef.current = true;
+    suppressCancelledResponseDoneRef.current = true;
+
+    if (
+      responseInProgressRef.current &&
+      !responseCancelRequestedRef.current
+    ) {
+      responseCancelRequestedRef.current = true;
+      sendEvent({ type: "response.cancel" });
+    }
+
+    responseTextRef.current = "";
+    internalResponseModeRef.current = null;
+    pendingToolContinuationRef.current = null;
+    speechStoppedAtRef.current = 0;
+    stopNativePlayback();
+  }, [sendEvent, stopNativePlayback]);
 
   const runAfterCurrentPlayback = useCallback(
     (callback: () => void) => {
@@ -394,14 +461,16 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
           case "session.updated":
             break;
 
+          case "response.created":
+            responseInProgressRef.current = true;
+            responseCancelRequestedRef.current = false;
+            suppressCurrentResponseOutputRef.current = false;
+            suppressCancelledResponseDoneRef.current = false;
+            break;
+
           case "conversation.item.input_audio_transcription.delta": {
             const delta = typeof msg.delta === "string" ? msg.delta : "";
-            console.log(
-              "[RealtimeSession] transcription.delta:",
-              JSON.stringify(delta),
-              "at:",
-              new Date().toISOString()
-            );
+            logCareerVoiceDebug("transcription.delta", { delta });
             setPartialTranscript((prev) => prev + delta);
             break;
           }
@@ -409,14 +478,19 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
           case "conversation.item.input_audio_transcription.completed": {
             const transcript =
               typeof msg.transcript === "string" ? msg.transcript : "";
+            logCareerVoiceDebug("transcription.completed", { transcript });
             setPartialTranscript("");
             onTranscriptRef.current(transcript);
             break;
           }
 
           case "response.audio.delta": {
+            if (suppressCurrentResponseOutputRef.current) break;
             if (useElevenLabsTtsRef.current) break;
-            if (!hasAudioInResponseRef.current && speechStoppedAtRef.current > 0) {
+            if (
+              !hasAudioInResponseRef.current &&
+              speechStoppedAtRef.current > 0
+            ) {
               const ttft = performance.now() - speechStoppedAtRef.current;
               console.log(`[TTFT] Realtime native audio: ${ttft.toFixed(0)}ms`);
               speechStoppedAtRef.current = 0;
@@ -431,6 +505,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
           }
 
           case "response.audio_transcript.delta": {
+            if (suppressCurrentResponseOutputRef.current) break;
             const delta = typeof msg.delta === "string" ? msg.delta : "";
             responseTextRef.current += delta;
             onAssistantDeltaRef.current(delta);
@@ -438,9 +513,11 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
           }
 
           case "response.text.delta": {
+            if (suppressCurrentResponseOutputRef.current) break;
             const delta = typeof msg.delta === "string" ? msg.delta : "";
-            // Skip when native audio is active (audio_transcript.delta handles text)
-            if (!hasAudioInResponseRef.current) {
+            // Text-only sessions feed ElevenLabs. Native Realtime audio uses
+            // response.audio_transcript.delta for display text.
+            if (useElevenLabsTtsRef.current) {
               responseTextRef.current += delta;
               onAssistantDeltaRef.current(delta);
             }
@@ -451,6 +528,8 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
             break;
 
           case "response.done": {
+            responseInProgressRef.current = false;
+            responseCancelRequestedRef.current = false;
             if (useElevenLabsTtsRef.current && speechStoppedAtRef.current > 0) {
               const ttft = performance.now() - speechStoppedAtRef.current;
               console.log(
@@ -469,6 +548,17 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
               typeof response?.status === "string"
                 ? response.status
                 : "completed";
+
+            if (
+              status === "cancelled" &&
+              suppressCancelledResponseDoneRef.current
+            ) {
+              suppressCurrentResponseOutputRef.current = false;
+              suppressCancelledResponseDoneRef.current = false;
+              stopNativePlayback();
+              break;
+            }
+
             const outputItems = Array.isArray(response?.output)
               ? (response.output as Array<Record<string, unknown>>)
               : [];
@@ -509,13 +599,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
 
             if (status === "cancelled") {
               // User interrupted — stop audio immediately
-              const ctx = playbackCtxRef.current;
-              if (ctx && ctx.state !== "closed") {
-                void ctx.close().catch(() => undefined);
-                playbackCtxRef.current = null;
-                nextPlayTimeRef.current = 0;
-              }
-              setIsAssistantSpeaking(false);
+              stopNativePlayback();
             } else {
               // Natural end — wait for buffered audio to finish playing
               const ctx = playbackCtxRef.current;
@@ -542,37 +626,47 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
           }
 
           case "input_audio_buffer.speech_started": {
-            // TODO: Interrupt detection disabled — revisit with better noise filtering
-            // if (hasAudioInResponseRef.current && !interruptTimerRef.current) {
-            //   interruptTimerRef.current = setTimeout(() => {
-            //     interruptTimerRef.current = null;
-            //     const ctx = playbackCtxRef.current;
-            //     if (ctx && ctx.state !== "closed") {
-            //       void ctx.close().catch(() => undefined);
-            //       playbackCtxRef.current = null;
-            //       nextPlayTimeRef.current = 0;
-            //     }
-            //   }, 500);
-            // }
+            logCareerVoiceDebug("speech.started");
+            if (interruptTimerRef.current) {
+              clearTimeout(interruptTimerRef.current);
+              interruptTimerRef.current = null;
+            }
+
+            const shouldInterrupt =
+              responseInProgressRef.current ||
+              hasAudioInResponseRef.current ||
+              responseTextRef.current.trim().length > 0 ||
+              getRemainingPlaybackMs() > 50;
+
+            if (shouldInterrupt) {
+              cancelActiveResponse();
+            }
+            onUserSpeechStartedRef.current?.();
             break;
           }
 
           case "input_audio_buffer.speech_stopped": {
             speechStoppedAtRef.current = performance.now();
-            // TODO: Re-enable with speech_started interrupt detection
-            // if (interruptTimerRef.current) {
-            //   clearTimeout(interruptTimerRef.current);
-            //   interruptTimerRef.current = null;
-            // }
+            logCareerVoiceDebug("speech.stopped");
+            if (interruptTimerRef.current) {
+              clearTimeout(interruptTimerRef.current);
+              interruptTimerRef.current = null;
+            }
             break;
           }
 
           case "error": {
             const error = msg.error as Record<string, unknown> | undefined;
+            const errorCode =
+              typeof error?.code === "string" ? error.code : "";
             const errorMessage =
               typeof error?.message === "string"
                 ? error.message
                 : "Realtime session error";
+            if (errorCode === "response_cancel_not_active") {
+              responseCancelRequestedRef.current = false;
+              break;
+            }
             console.error("[RealtimeSession] Server error:", error);
             onErrorRef.current(errorMessage);
             break;
@@ -585,7 +679,13 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
         console.error("[RealtimeSession] Failed to parse message:", e);
       }
     },
-    [handleFunctionCalls, runAfterCurrentPlayback]
+    [
+      cancelActiveResponse,
+      getRemainingPlaybackMs,
+      handleFunctionCalls,
+      runAfterCurrentPlayback,
+      stopNativePlayback,
+    ]
   );
 
   const startAudioCapture = useCallback(async (): Promise<boolean> => {
@@ -645,6 +745,8 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   }, [cleanupAudio, sendEvent]);
 
   const disconnect = useCallback(() => {
+    connectAttemptIdRef.current += 1;
+    connectPromiseRef.current = null;
     clearRefreshTimer();
     cleanupAudio();
     // Clean up native audio playback context
@@ -674,7 +776,10 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     responseTextRef.current = "";
     internalResponseModeRef.current = null;
     pendingToolContinuationRef.current = null;
-    reconnectAttemptRef.current = 0;
+    responseInProgressRef.current = false;
+    responseCancelRequestedRef.current = false;
+    suppressCurrentResponseOutputRef.current = false;
+    suppressCancelledResponseDoneRef.current = false;
     setIsConnected(false);
     setIsConnecting(false);
     setConnectionStatus("disconnected");
@@ -723,17 +828,30 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     }, msUntilRefresh);
   }, [clearRefreshTimer, disconnect, fetchToken]);
 
-  const connect = useCallback(async (): Promise<boolean> => {
-    if (socketRef.current?.readyState === WebSocket.OPEN) return true;
-    if (isConnecting) return false;
+  const connect = useCallback((): Promise<boolean> => {
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      return Promise.resolve(true);
+    }
+    if (connectPromiseRef.current) return connectPromiseRef.current;
 
     setIsConnecting(true);
-    reconnectAttemptRef.current = 0;
+    const attemptId = connectAttemptIdRef.current + 1;
+    connectAttemptIdRef.current = attemptId;
 
-    try {
+    const clearPendingConnect = () => {
+      if (connectAttemptIdRef.current !== attemptId) return;
+      connectPromiseRef.current = null;
+      setIsConnecting(false);
+    };
+
+    const connectPromise = (async (): Promise<boolean> => {
       const tokenInfo = await fetchToken();
       if (!tokenInfo) {
-        setIsConnecting(false);
+        clearPendingConnect();
+        return false;
+      }
+      if (connectAttemptIdRef.current !== attemptId) {
+        clearPendingConnect();
         return false;
       }
       tokenInfoRef.current = tokenInfo;
@@ -748,17 +866,43 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
 
         const socket = new WebSocket(wsUrl, protocols);
         socketRef.current = socket;
+        let opened = false;
+        let settled = false;
+        let timeout: ReturnType<typeof setTimeout>;
 
-        const timeout = setTimeout(() => {
-          if (socket.readyState !== WebSocket.OPEN) {
-            socket.close();
+        const settle = (ok: boolean) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
+          if (connectAttemptIdRef.current === attemptId) {
+            connectPromiseRef.current = null;
             setIsConnecting(false);
-            resolve(false);
+          }
+          resolve(ok);
+        };
+
+        timeout = setTimeout(() => {
+          if (socket.readyState !== WebSocket.OPEN) {
+            socket.onclose = null;
+            socket.onerror = null;
+            socket.onmessage = null;
+            socket.close();
+            if (socketRef.current === socket) socketRef.current = null;
+            cleanupAudio();
+            setIsConnected(false);
+            setConnectionStatus("disconnected");
+            onConnectionChangeRef.current(false);
+            settle(false);
           }
         }, 10_000);
 
         socket.onopen = async () => {
-          clearTimeout(timeout);
+          if (connectAttemptIdRef.current !== attemptId) {
+            socket.close();
+            settle(false);
+            return;
+          }
+          opened = true;
 
           // Enable server-side VAD for automatic turn detection
           socket.send(
@@ -766,10 +910,10 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
               type: "session.update",
               session: {
                 turn_detection: {
-                  type: "server_vad",
-                  threshold: 0.7,
-                  prefix_padding_ms: 300,
-                  silence_duration_ms: 800,
+                  type: "semantic_vad",
+                  create_response: true,
+                  interrupt_response: true,
+                  eagerness: "auto",
                 },
                 input_audio_transcription: {
                   model: "whisper-1",
@@ -783,76 +927,74 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
           // Start audio capture
           const audioOk = await startAudioCapture();
           if (!audioOk) {
-            console.warn(
-              "[RealtimeSession] Audio capture failed, text-only mode"
-            );
+            console.warn("[RealtimeSession] Audio capture failed");
+            socket.onclose = null;
+            socket.onerror = null;
+            socket.onmessage = null;
+            socket.close();
+            if (socketRef.current === socket) socketRef.current = null;
+            cleanupAudio();
+            setIsConnected(false);
+            setConnectionStatus("disconnected");
+            onConnectionChangeRef.current(false);
+            settle(false);
+            return;
+          }
+
+          if (connectAttemptIdRef.current !== attemptId) {
+            socket.close();
+            settle(false);
+            return;
           }
 
           setIsConnected(true);
-          setIsConnecting(false);
           setConnectionStatus("connected");
-          reconnectAttemptRef.current = 0;
           onConnectionChangeRef.current(true);
           scheduleTokenRefresh();
-          resolve(true);
+          settle(true);
         };
 
         socket.onmessage = handleMessage;
 
         socket.onerror = () => {
-          clearTimeout(timeout);
           console.error("[RealtimeSession] WebSocket error");
+          if (!opened) {
+            socket.close();
+          }
         };
 
         socket.onclose = () => {
-          clearTimeout(timeout);
+          if (connectAttemptIdRef.current !== attemptId) {
+            settle(false);
+            return;
+          }
           setIsConnected(false);
-          setIsConnecting(false);
           cleanupAudio();
           clearRefreshTimer();
           onConnectionChangeRef.current(false);
+          setConnectionStatus("disconnected");
 
-          // Attempt reconnect with exponential backoff
-          const attempt = reconnectAttemptRef.current;
-          if (attempt < MAX_RECONNECT_ATTEMPTS) {
-            reconnectAttemptRef.current = attempt + 1;
-            setConnectionStatus("reconnecting");
-            const delay = RECONNECT_DELAYS[attempt] ?? 4000;
-            console.log(
-              `[RealtimeSession] Reconnect attempt ${attempt + 1}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms...`
-            );
-            setTimeout(() => {
-              void connect().then((ok) => {
-                if (
-                  !ok &&
-                  reconnectAttemptRef.current >= MAX_RECONNECT_ATTEMPTS
-                ) {
-                  setConnectionStatus("disconnected");
-                  onErrorRef.current(
-                    "Realtime connection lost. Falling back to text mode."
-                  );
-                }
-              });
-            }, delay);
-          } else {
-            setConnectionStatus("disconnected");
+          if (opened) {
             onErrorRef.current(
               "Realtime connection lost. Falling back to text mode."
             );
           }
+          settle(false);
         };
       });
-    } catch (err) {
+    })().catch((err) => {
       console.error("[RealtimeSession] Connect error:", err);
-      setIsConnecting(false);
+      clearPendingConnect();
       return false;
-    }
+    });
+
+    connectPromiseRef.current = connectPromise;
+    return connectPromise;
   }, [
     cleanupAudio,
     clearRefreshTimer,
     fetchToken,
     handleMessage,
-    isConnecting,
     scheduleTokenRefresh,
     startAudioCapture,
   ]);
@@ -894,17 +1036,32 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   }, [sendEvent]);
 
   const cancelResponse = useCallback(() => {
-    sendEvent({ type: "response.cancel" });
-    responseTextRef.current = "";
-    hasAudioInResponseRef.current = false;
-    // Stop current audio playback by closing context (will be recreated on next response)
-    const ctx = playbackCtxRef.current;
-    if (ctx && ctx.state !== "closed") {
-      void ctx.close().catch(() => undefined);
-      playbackCtxRef.current = null;
-      nextPlayTimeRef.current = 0;
+    cancelActiveResponse();
+  }, [cancelActiveResponse]);
+
+  const primePlayback = useCallback(() => {
+    if (typeof window === "undefined") return;
+
+    try {
+      if (
+        !playbackCtxRef.current ||
+        playbackCtxRef.current.state === "closed"
+      ) {
+        const AudioCtx =
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext })
+            .webkitAudioContext;
+        playbackCtxRef.current = new AudioCtx({ sampleRate: 24000 });
+        nextPlayTimeRef.current = playbackCtxRef.current.currentTime;
+      }
+
+      void playbackCtxRef.current.resume().catch((error) => {
+        console.warn("[RealtimeSession] Audio playback unlock failed:", error);
+      });
+    } catch (error) {
+      console.warn("[RealtimeSession] Audio playback prime failed:", error);
     }
-  }, [sendEvent]);
+  }, []);
 
   /** Update the Realtime session instructions (e.g., on interview step transition) */
   const updateSessionInstructions = useCallback(
@@ -950,6 +1107,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     sendTextMessage,
     triggerResponse,
     cancelResponse,
+    primePlayback,
     generateSpeech,
     updateSessionInstructions,
     getMediaStream,

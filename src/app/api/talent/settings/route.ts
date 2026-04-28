@@ -83,26 +83,15 @@ export async function POST(req: NextRequest) {
       body.blockedCompanies ?? existing?.blocked_companies ?? []
     );
 
-    const now = new Date().toISOString();
-    const { data: saved, error: saveError } = await admin
-      .from("talent_setting")
-      .upsert(
-        {
-          user_id: user.id,
-          profile_visibility: profileVisibility,
-          blocked_companies: blockedCompanies,
-          updated_at: now,
-        },
-        { onConflict: "user_id" }
-      )
-      .select(
-        "user_id, profile_visibility, blocked_companies, created_at, updated_at"
-      )
-      .single();
-
-    if (saveError) {
-      throw new Error(saveError.message ?? "Failed to save settings");
-    }
+    const saved = await upsertTalentSetting({
+      admin,
+      userId: user.id,
+      profileVisibility,
+      blockedCompanies,
+      engagementTypes: existing?.engagement_types ?? [],
+      preferredLocations: existing?.preferred_locations ?? [],
+      careerMoveIntent: existing?.career_move_intent ?? null,
+    });
 
     return NextResponse.json({
       ok: true,

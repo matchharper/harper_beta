@@ -433,9 +433,18 @@ export const ko = {
   chat: {
     composerPlaceholder:
       "무엇이든 질문하세요 (Enter 전송 / Shift+Enter 줄바꿈)",
+    addAttachment: "첨부 추가",
     attachFile: "파일 첨부",
+    attachLink: "링크 입력",
+    addLink: "링크 추가",
+    linkPlaceholder: "https://example.com",
+    invalidLink: "유효한 링크를 입력해주세요.",
+    attachedFileLabel: "첨부 파일",
+    attachedLinkLabel: "첨부 링크",
     fileReading: "파일을 읽는 중...",
     fileReadFail: "파일을 읽지 못했습니다. 다시 시도해주세요.",
+    removeAttachment: "첨부 제거",
+    send: "보내기",
     candidSuggestions: [
       "이 사람이 이직 의사가 있을까?",
       "이 사람이 우리 팀에 적합한지, 근거와 함께 평가해줘.",

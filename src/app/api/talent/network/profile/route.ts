@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
+  ensureTalentUserRecord,
   getTalentSupabaseAdmin,
-  fetchTalentUserProfile,
 } from "@/lib/talentOnboarding/server";
 import {
   normalizeTalentNetworkApplication,
@@ -33,13 +33,7 @@ export async function POST(req: NextRequest) {
     }
 
     const admin = getTalentSupabaseAdmin();
-    const profile = await fetchTalentUserProfile({ admin, userId: user.id });
-    if (!profile?.network_waitlist_id) {
-      return NextResponse.json(
-        { error: "No claimed network application found" },
-        { status: 400 }
-      );
-    }
+    await ensureTalentUserRecord({ admin, user });
 
     const { data: updatedProfile, error: updateError } = await admin
       .from("talent_users")
@@ -54,8 +48,7 @@ export async function POST(req: NextRequest) {
     if (updateError) {
       return NextResponse.json(
         {
-          error:
-            updateError.message ?? "Failed to update network application",
+          error: updateError.message ?? "Failed to update network application",
         },
         { status: 500 }
       );

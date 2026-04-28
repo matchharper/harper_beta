@@ -9,6 +9,12 @@ import React, {
 import ChatMessageList from "@/components/chat/ChatMessageList";
 import ChatComposer from "@/components/chat/ChatComposer";
 import {
+  dedupeDraftAttachments,
+  MAX_CHAT_ATTACHMENT_FILE_BYTES,
+  readDraftAttachments,
+  type DraftChatAttachment,
+} from "@/lib/chatAttachmentClient";
+import {
   UI_END,
   UI_START,
   useChatSessionDB,
@@ -36,11 +42,10 @@ import {
 } from "@/lib/searchParallelLimit";
 import { showToast } from "../toast/toast";
 import { usePlanStore } from "@/store/usePlanStore";
-import type { FileAttachmentPayload } from "@/types/chat";
 import { notifyUsageToSlack } from "@/lib/slack";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { SearchSource, normalizeSearchSources } from "@/lib/searchSource";
-import type { SearchStartBlock } from "@/types/chat";
+import type { ChatAttachmentPayload, SearchStartBlock } from "@/types/chat";
 
 export type ChatScope =
   | { type: "query"; queryId: string }
@@ -120,7 +125,7 @@ export default function ChatPanel({
   const [stickToBottom, setStickToBottom] = useState(true);
   const [showJumpToBottom, setShowJumpToBottom] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [attachments, setAttachments] = useState<DraftChatAttachment[]>([]);
   const [isReadingFile, setIsReadingFile] = useState(false);
   const { companyUser } = useCompanyUserStore();
 
@@ -130,7 +135,7 @@ export default function ChatPanel({
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const chat = useChatSessionDB({
-    model: "grok-4-1-fast-reasoning",
+    model: "grok-4-fast-reasoning",
     scope,
     userId,
     candidDoc,
@@ -150,49 +155,6 @@ export default function ChatPanel({
   const isQueryScope = scope?.type === "query";
 
   const allowAttachments = memoryMode === "automation";
-  const MAX_FILE_BYTES = 10 * 1024 * 1024;
-
-  const normalizeText = useCallback((text: string) => {
-    return text
-      .replace(/\r/g, "")
-      .replace(/[ \t]+\n/g, "\n")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
-  }, []);
-
-  const readFileContent = useCallback(
-    async (file: File): Promise<{ text: string; truncated: boolean }> => {
-      const MAX_CHARS = 12000;
-      let text = "";
-
-      if (
-        file.type === "application/pdf" ||
-        file.name.toLowerCase().endsWith(".pdf")
-      ) {
-        const formData = new FormData();
-        formData.append("file", file);
-        const res = await fetch("/api/pdf", { method: "POST", body: formData });
-        if (!res.ok) {
-          throw new Error("PDF read failed");
-        }
-        const data = await res.json();
-        text = String(data?.text ?? "");
-      } else {
-        text = await file.text();
-      }
-
-      const normalized = normalizeText(text);
-      if (!normalized) {
-        throw new Error("Empty file content");
-      }
-      const truncated = normalized.length > MAX_CHARS;
-      return {
-        text: truncated ? normalized.slice(0, MAX_CHARS) : normalized,
-        truncated,
-      };
-    },
-    [normalizeText]
-  );
 
   useEffect(() => {
     if (!finishedTick) return;
@@ -549,27 +511,16 @@ export default function ChatPanel({
   const handleSend = useCallback(async () => {
     if (isReadingFile) return;
 
-    let attachments: FileAttachmentPayload[] | undefined;
+    let nextAttachments: ChatAttachmentPayload[] | undefined;
 
-    if (allowAttachments && attachedFile) {
+    if (allowAttachments && attachments.length > 0) {
       setIsReadingFile(true);
       try {
-        const { text, truncated } = await readFileContent(attachedFile);
-        const excerpt = text.slice(0, 600);
-        attachments = [
-          {
-            name: attachedFile.name,
-            size: attachedFile.size,
-            mime: attachedFile.type,
-            text,
-            excerpt,
-            truncated,
-          },
-        ];
-        setAttachedFile(null);
+        nextAttachments = await readDraftAttachments(attachments);
+        setAttachments([]);
       } catch (error) {
         showToast({
-          message: "파일을 읽지 못했습니다. 다시 시도해주세요.",
+          message: "첨부 자료를 읽지 못했습니다. 다시 시도해주세요.",
           variant: "white",
         });
         setIsReadingFile(false);
@@ -579,8 +530,8 @@ export default function ChatPanel({
       }
     }
 
-    void chat.send(undefined, { attachments });
-  }, [allowAttachments, attachedFile, chat, isReadingFile, readFileContent]);
+    void chat.send(undefined, { attachments: nextAttachments });
+  }, [allowAttachments, attachments, chat, isReadingFile]);
 
   const handleApplyCriteriaSuggestion = useCallback(
     (suggestion: string) => {
@@ -594,23 +545,26 @@ export default function ChatPanel({
     [chat, isQueryScope]
   );
 
-  const handleAttach = useCallback(
-    (file: File | null) => {
-      if (!file) {
-        setAttachedFile(null);
-        return;
-      }
-      if (file.size > MAX_FILE_BYTES) {
-        showToast({
-          message: "파일 용량이 너무 큽니다. 10MB 이하로 업로드해주세요.",
-          variant: "white",
-        });
-        return;
-      }
-      setAttachedFile(file);
-    },
-    [MAX_FILE_BYTES]
-  );
+  const handleAddAttachment = useCallback((attachment: DraftChatAttachment) => {
+    if (
+      attachment.kind === "file" &&
+      attachment.size > MAX_CHAT_ATTACHMENT_FILE_BYTES
+    ) {
+      showToast({
+        message: "파일 용량이 너무 큽니다. 10MB 이하로 업로드해주세요.",
+        variant: "white",
+      });
+      return;
+    }
+
+    setAttachments((prev) => dedupeDraftAttachments(prev, attachment));
+  }, []);
+
+  const handleRemoveAttachment = useCallback((attachmentId: string) => {
+    setAttachments((prev) =>
+      prev.filter((attachment) => attachment.id !== attachmentId)
+    );
+  }, []);
 
   return (
     <div className="w-full flex flex-col min-h-0 h-screen">
@@ -726,15 +680,16 @@ export default function ChatPanel({
         onStop={chat.stop}
         onRetry={() => void chat.reload()}
         disabledSend={
-          (!chat.canSend && !(allowAttachments && attachedFile)) ||
+          (!chat.canSend && !(allowAttachments && attachments.length > 0)) ||
           disabled ||
           isSearchSyncing ||
           isReadingFile
         }
         isStreaming={chat.isStreaming}
         allowAttachments={allowAttachments}
-        attachment={attachedFile}
-        onAttach={handleAttach}
+        attachments={attachments}
+        onAddAttachment={handleAddAttachment}
+        onRemoveAttachment={handleRemoveAttachment}
         isPreparing={isReadingFile}
       />
 

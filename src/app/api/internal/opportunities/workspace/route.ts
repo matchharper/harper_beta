@@ -12,7 +12,10 @@ type WorkspaceBody = {
   companyDescription?: string | null;
   companyName?: string;
   homepageUrl?: string | null;
+  isInternal?: boolean | null;
   linkedinUrl?: string | null;
+  pitch?: string | null;
+  request?: string | null;
   workspaceId?: string | null;
 };
 
@@ -25,7 +28,10 @@ async function handleSave(req: NextRequest) {
     companyDescription: body.companyDescription,
     companyName: String(body.companyName ?? ""),
     homepageUrl: body.homepageUrl,
+    isInternal: body.isInternal === true,
     linkedinUrl: body.linkedinUrl,
+    pitch: body.pitch,
+    request: body.request,
     workspaceId: body.workspaceId,
   });
 

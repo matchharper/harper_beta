@@ -1,10 +1,11 @@
 // hooks/chat/useChatSession.ts
 import { useCallback, useMemo, useRef, useState, useEffect } from "react";
-import type {
-  ChatMessage,
-  FileAttachmentPayload,
-  FileContextBlock,
-} from "@/types/chat";
+import type { ChatMessage, FileAttachmentPayload } from "@/types/chat";
+import {
+  buildUserMessageContent,
+  extractAttachmentPayloads,
+  stripSerializedAttachmentBlocks,
+} from "@/lib/chatAttachments";
 import {
   fetchMessages,
   insertMessage,
@@ -196,6 +197,32 @@ export function buildConversationText(messages: ChatMessage[]) {
     .join("\n");
 }
 
+function toModelMessageContent(message: ChatMessage) {
+  const rawContent = (message as any).rawContent ?? message.content ?? "";
+  if (message.role !== "user") return rawContent;
+
+  const attachments = extractAttachmentPayloads(rawContent);
+  if (attachments.length === 0) return rawContent;
+
+  const plainText = stripSerializedAttachmentBlocks(rawContent);
+  const attachmentSummary = attachments
+    .map((attachment, index) => {
+      const label =
+        attachment.kind === "link"
+          ? `Attached link ${index + 1}: ${attachment.name}`
+          : `Attached file ${index + 1}: ${attachment.name}`;
+      const meta = attachment.url ? `URL: ${attachment.url}` : "";
+      const excerpt = (attachment.excerpt ?? attachment.text)
+        .trim()
+        .slice(0, 800);
+
+      return [label, meta, excerpt].filter(Boolean).join("\n");
+    })
+    .join("\n\n");
+
+  return [plainText, attachmentSummary].filter(Boolean).join("\n\n");
+}
+
 function scopeToDbArgs(scope: ChatScope) {
   return scope.type === "query"
     ? ({ queryId: scope.queryId } as const)
@@ -294,8 +321,17 @@ export function useChatSessionDB(args: {
 
       if (!ready) return;
 
-      const trimmed = content ? content.trim() : input.trim();
-      const attachments = options?.attachments ?? [];
+      const rawContent = content != null ? content.trim() : input.trim();
+      const serializedAttachments =
+        content != null ? extractAttachmentPayloads(rawContent) : [];
+      const attachments = [
+        ...serializedAttachments,
+        ...(options?.attachments ?? []),
+      ];
+      const trimmed =
+        content != null
+          ? stripSerializedAttachmentBlocks(rawContent)
+          : input.trim();
       const showUserMessage = options?.showUserMessage === true;
       const hasAttachments = attachments.length > 0;
       if (!trimmed && !hasAttachments) return;
@@ -308,39 +344,23 @@ export function useChatSessionDB(args: {
       try {
         const baseDbArgs = scopeToDbArgs(scope!);
         const existingUserMsg =
-          content != null && !hasAttachments
+          content != null && (options?.attachments ?? []).length === 0
             ? [...messagesRef.current]
                 .reverse()
                 .find(
                   (m) =>
                     m.role === "user" &&
-                    ((m as any).rawContent ?? m.content ?? "") === trimmed
+                    ((m as any).rawContent ?? m.content ?? "") === rawContent
                 )
             : null;
 
         let userMsg: ChatMessage;
 
         if (!existingUserMsg) {
-          const attachmentBlocks: FileContextBlock[] = attachments.map((a) => ({
-            type: "file_context",
-            name: a.name,
-            size: a.size,
-            mime: a.mime,
-            excerpt: a.excerpt,
-            truncated: a.truncated,
-          }));
-          const attachmentUi =
-            attachmentBlocks.length > 0
-              ? attachmentBlocks
-                  .map(
-                    (block) =>
-                      `${UI_START}\n${JSON.stringify(block)}\n${UI_END}`
-                  )
-                  .join("\n")
-              : "";
-          const userContentForDb = [trimmed, attachmentUi]
-            .filter((v) => v && v.length > 0)
-            .join("\n\n");
+          const userContentForDb = buildUserMessageContent({
+            text: trimmed,
+            attachments,
+          });
 
           // 1) insert user message
           userMsg = await insertMessage({
@@ -384,11 +404,10 @@ export function useChatSessionDB(args: {
         // ✅ 최신 messages를 기준으로 모델 대화 구성
         const historyForModel = [...messagesRef.current].map((m) => ({
           role: m.role,
-          content: (m as any).rawContent ?? m.content ?? "",
+          content: toModelMessageContent(m),
         }));
         if (!existingUserMsg) {
-          const latestContent =
-            (userMsg as any)?.rawContent ?? userMsg.content ?? "";
+          const latestContent = toModelMessageContent(userMsg);
           if (latestContent) {
             historyForModel.push({
               role: "user",

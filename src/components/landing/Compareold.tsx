@@ -21,7 +21,7 @@ export default function CompareSection() {
 
         <Reveal>
           <div className="mt-14 grid w-full grid-cols-1 gap-5 md:grid-cols-2 md:gap-6">
-            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 md:p-7">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.05] p-5 md:p-7">
               <div className="flex items-center justify-between">
                 <div className="text-sm font-medium text-white/90 md:text-base">
                   LinkedIn world
@@ -43,7 +43,7 @@ export default function CompareSection() {
                   ].map(([label, value]) => (
                     <div
                       key={label}
-                      className="flex flex-col items-start gap-1 rounded-xl border border-white/5 bg-white/[0.02] px-4 py-3 md:flex-row md:items-center md:justify-between"
+                      className="flex flex-col items-start gap-1 rounded-xl border border-white/5 bg-white/[0.05] px-4 py-3 md:flex-row md:items-center md:justify-between"
                     >
                       <span className="text-sm text-white/45">{label}</span>
                       <span className="text-sm text-white/80">{value}</span>
@@ -53,13 +53,13 @@ export default function CompareSection() {
 
                 <div className="border-t border-white/10 px-4 py-4">
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <div className="rounded-xl border border-white/5 bg-white/[0.02] px-4 py-3 text-center">
+                    <div className="rounded-xl border border-white/5 bg-white/[0.05] px-4 py-3 text-center">
                       <div className="text-[11px] text-white/40">Signals</div>
                       <div className="mt-1 text-sm text-white/80">
                         title, brand
                       </div>
                     </div>
-                    <div className="rounded-xl border border-white/5 bg-white/[0.02] px-4 py-3 text-center">
+                    <div className="rounded-xl border border-white/5 bg-white/[0.05] px-4 py-3 text-center">
                       <div className="text-[11px] text-white/40">Bias risk</div>
                       <div className="mt-1 text-sm text-white/80">
                         polished copy
@@ -82,7 +82,7 @@ export default function CompareSection() {
               </div>
             </div>
 
-            <div className="rounded-3xl border border-[#B4FF78]/20 bg-[#B4FF78]/[0.04] p-5 md:p-7">
+            <div className="rounded-3xl border border-[#B4FF78]/20 bg-[#B4FF78]/[0.05] p-5 md:p-7">
               <div className="flex items-center justify-between">
                 <div className="text-sm font-medium text-white md:text-base">
                   Builder world
@@ -124,7 +124,7 @@ export default function CompareSection() {
                     ].map((item) => (
                       <div
                         key={item}
-                        className="rounded-xl border border-[#B4FF78]/10 bg-[#B4FF78]/[0.03] px-4 py-3 text-sm text-white/80"
+                        className="rounded-xl border border-[#B4FF78]/10 bg-[#B4FF78]/[0.05] px-4 py-3 text-sm text-white/80"
                       >
                         {item}
                       </div>
@@ -134,13 +134,13 @@ export default function CompareSection() {
 
                 <div className="border-t border-[#B4FF78]/10 px-4 py-4">
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <div className="rounded-xl border border-[#B4FF78]/10 bg-[#B4FF78]/[0.03] px-4 py-3 text-center">
+                    <div className="rounded-xl border border-[#B4FF78]/10 bg-[#B4FF78]/[0.05] px-4 py-3 text-center">
                       <div className="text-[11px] text-white/40">Signals</div>
                       <div className="mt-1 text-sm text-white">
                         repos, commits
                       </div>
                     </div>
-                    <div className="rounded-xl border border-[#B4FF78]/10 bg-[#B4FF78]/[0.03] px-4 py-3 text-center">
+                    <div className="rounded-xl border border-[#B4FF78]/10 bg-[#B4FF78]/[0.05] px-4 py-3 text-center">
                       <div className="text-[11px] text-white/40">Signals</div>
                       <div className="mt-1 text-sm text-white">
                         papers, impact
@@ -165,7 +165,7 @@ export default function CompareSection() {
           </div>
         </Reveal>
 
-        <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 text-center text-sm leading-7 text-white/65 md:px-6 md:text-base">
+        <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-4 text-center text-sm leading-7 text-white/65 md:px-6 md:text-base">
           LinkedIn shows careers. GitHub and Scholar show ability.
         </div>
       </div>

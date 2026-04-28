@@ -200,9 +200,13 @@ function readPendingPayload(): PendingTalentCapturePayload | null {
       source: parsed.source,
       link: typeof parsed.link === "string" ? parsed.link : null,
       resumeFileName:
-        typeof parsed.resumeFileName === "string" ? parsed.resumeFileName : null,
+        typeof parsed.resumeFileName === "string"
+          ? parsed.resumeFileName
+          : null,
       resumeFileType:
-        typeof parsed.resumeFileType === "string" ? parsed.resumeFileType : null,
+        typeof parsed.resumeFileType === "string"
+          ? parsed.resumeFileType
+          : null,
       updatedAt:
         typeof parsed.updatedAt === "string"
           ? parsed.updatedAt
@@ -302,7 +306,9 @@ async function parseResumeText(accessToken: string, file: File) {
   }
 
   const payload = await response.json().catch(() => ({}));
-  return typeof payload?.text === "string" ? payload.text.trim().slice(0, 20000) : "";
+  return typeof payload?.text === "string"
+    ? payload.text.trim().slice(0, 20000)
+    : "";
 }
 
 async function uploadResume(accessToken: string, file: File) {
@@ -325,9 +331,13 @@ async function uploadResume(accessToken: string, file: File) {
 
   return {
     resumeFileName:
-      typeof payload?.resumeFileName === "string" ? payload.resumeFileName : file.name,
+      typeof payload?.resumeFileName === "string"
+        ? payload.resumeFileName
+        : file.name,
     resumeStoragePath:
-      typeof payload?.resumeStoragePath === "string" ? payload.resumeStoragePath : "",
+      typeof payload?.resumeStoragePath === "string"
+        ? payload.resumeStoragePath
+        : "",
   };
 }
 

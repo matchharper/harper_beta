@@ -234,7 +234,7 @@ export default function BlogListPage({ posts, categories }: BlogListPageProps) {
                     <Link
                       key={post.slug}
                       href={`/blog/${post.slug}`}
-                      className="group flex gap-4 bg-white/[0.04] ring-1 ring-white/10 transition-colors hover:bg-white/[0.06]"
+                      className="group flex gap-4 bg-white/[0.05] ring-1 ring-white/10 transition-colors hover:bg-white/[0.05]"
                       aria-label={`Read ${post.title}`}
                     >
                       <div className="relative h-[112px] w-[112px] flex-none overflow-hidden bg-white/5 ring-1 ring-white/10">

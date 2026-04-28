@@ -3,13 +3,15 @@
 이 폴더의 `.md` 파일을 수정하면 Harper 인터뷰 프롬프트가 변경됩니다.
 TypeScript 코드를 건드릴 필요 없습니다.
 
+단, 인사이트 추출 프롬프트는 이 폴더가 아니라 `src/lib/career/insights.md`에 있습니다.
+
 ## 파일 구조
 
 | 파일 | 역할 | 자주 수정하는 내용 |
 |------|------|------------------|
 | `interview-steps.md` | 인터뷰 6단계의 질문 가이드 | 질문 문구, 전환 조건, 스텝 목표 |
 | `system.md` | Harper 페르소나와 기본 지시 | 말투, 톤, relief nudge 문구 |
-| `insight-extraction.md` | LLM 응답 포맷 및 인사이트 추출 룰 | 추출 규칙, JSON 포맷 지시 |
+| `../career/insights.md` | LLM 응답 포맷 및 인사이트 추출 룰 | 추출 규칙, JSON 포맷 지시 |
 | `misc.md` | 첫 방문 안내, 인터럽트 처리, 통화 종료 | 첫 인사말, 음성 안내 문구 |
 
 ## 편집 방법
@@ -103,7 +105,7 @@ IMPORTANT: Include this exact nudge once in your response:
 | `system.md` | `{{userTurnCount}}` | 사용자 발화 횟수 |
 | | `{{resumeFileName}}`, `{{resumeLinks}}` | 이력서 정보 |
 | | `{{structuredProfileText}}` | 구조화된 프로필 |
-| `insight-extraction.md` | `{{coveredCount}}`, `{{totalCount}}` | 인사이트 커버리지 |
+| `../career/insights.md` | `{{coveredCount}}`, `{{totalCount}}` | 인사이트 커버리지 |
 | | `{{checklistLines}}`, `{{topUncovered}}` | 체크리스트 항목 |
 | | `{{existingInsightsSection}}` | 기존 인사이트 목록 |
 | `misc.md` | `{{CALL_END_MARKER}}` | 통화 종료 마커 (##END##) |

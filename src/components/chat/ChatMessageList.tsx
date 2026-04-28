@@ -1,6 +1,7 @@
 // components/chat/ChatMessageList.tsx
 import React, { useMemo } from "react";
 import type {
+  AttachmentContextBlock,
   ChatMessage,
   CriteriaCardBlock,
   ToolStatusBlock,
@@ -20,6 +21,7 @@ import {
   ToolStatusCard,
   ToolStatusToggle,
   DocumentCard,
+  AttachmentContextCard,
   FileContextCard,
   SettingsCtaCard,
   SearchResultCard,
@@ -262,6 +264,14 @@ function ChatMessageList({
                         <FileContextCard
                           key={`block-${idx}-${si}`}
                           block={s.content as FileContextBlock}
+                        />
+                      );
+                    }
+                    if (s.content.type === "attachment_context") {
+                      return (
+                        <AttachmentContextCard
+                          key={`block-${idx}-${si}`}
+                          block={s.content as AttachmentContextBlock}
                         />
                       );
                     }

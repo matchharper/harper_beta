@@ -66,7 +66,7 @@ const CareerOnboardingChecklist = () => {
   if (checklistState.isCompleted) {
     return (
       <div className="pointer-events-none fixed bottom-24 right-4 z-50 w-[min(320px,calc(100vw-2rem))] lg:bottom-6">
-        <section className="pointer-events-auto rounded-2xl border border-hblack200 bg-hblack000/95 px-5 py-4 shadow-[0_16px_40px_rgba(17,24,39,0.16)] backdrop-blur">
+        <section className="pointer-events-auto rounded-2xl border border-hblack200 bg-hblack000/95 px-5 py-4 shadow-[0_16px_40px_rgba(17,24,39,0.15)] backdrop-blur">
           <p className="text-sm font-medium text-hblack1000">완료!</p>
         </section>
       </div>

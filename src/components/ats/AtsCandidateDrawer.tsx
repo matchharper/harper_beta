@@ -947,7 +947,7 @@ export default function AtsCandidateDrawer({
                                     (suggestion, index) => (
                                       <div
                                         key={`${suggestion.url}-${index}`}
-                                        className="rounded-md border border-white/10 bg-white/[0.03] p-3"
+                                        className="rounded-md border border-white/10 bg-white/[0.05] p-3"
                                       >
                                         <div className="flex flex-wrap items-center gap-2">
                                           <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/60">

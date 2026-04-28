@@ -6,14 +6,12 @@ import React, {
   useState,
 } from "react";
 import type {
-  CareerHistoryOpportunity,
-  CareerHistoryOpportunityFeedback,
-  CareerOpportunitySavedStage,
+  CareerMockInterviewSession,
+  CareerOpportunityRun,
   CareerRecentOpportunity,
   CareerTalentNotification,
   SessionResponse,
 } from "@/components/career/types";
-import { isOpportunityType } from "@/lib/opportunityType";
 import {
   CareerChatPanelProvider,
   type CareerChatPanelContextValue,
@@ -33,105 +31,14 @@ import { useCareerTalentInsights } from "@/hooks/career/useCareerTalentInsights"
 import { useCareerTalentPreferences } from "@/hooks/career/useCareerTalentPreferences";
 import { useCareerTalentSettings } from "@/hooks/career/useCareerTalentSettings";
 import { useCareerSession } from "@/hooks/career/useCareerSession";
-import { getErrorMessage } from "@/hooks/career/careerHelpers";
+import { getErrorMessage, toUiMessage } from "@/hooks/career/careerHelpers";
+import {
+  normalizeNotifications,
+  normalizeRecentOpportunities,
+} from "@/hooks/career/careerSessionData";
+import { useCareerHistoryState } from "@/hooks/career/useCareerHistoryState";
+import { useCareerRuntimeActions } from "@/hooks/career/useCareerRuntimeActions";
 import { TALENT_INTERVIEW_FINAL_STEP } from "@/lib/talentOnboarding/progress";
-import { getCareerDefaultSavedStage } from "./opportunityTypeMeta";
-
-const getDefaultSavedStage = (
-  item: CareerHistoryOpportunity
-): CareerOpportunitySavedStage =>
-  getCareerDefaultSavedStage(item.opportunityType);
-
-const normalizeRecentOpportunities = (
-  value: SessionResponse["recentOpportunities"]
-): CareerRecentOpportunity[] => {
-  if (!Array.isArray(value)) return [];
-
-  return value.filter((item): item is CareerRecentOpportunity => {
-    if (!item || typeof item !== "object") return false;
-    if (typeof item.id !== "string" || !item.id.trim()) return false;
-    if (typeof item.title !== "string" || !item.title.trim()) return false;
-    if (typeof item.companyName !== "string" || !item.companyName.trim()) {
-      return false;
-    }
-    if (item.kind !== "match" && item.kind !== "recommendation") return false;
-    if (!isOpportunityType(item.opportunityType)) {
-      return false;
-    }
-    if (
-      typeof item.matchedAt !== "string" ||
-      Number.isNaN(Date.parse(item.matchedAt))
-    ) {
-      return false;
-    }
-    return true;
-  });
-};
-
-const normalizeHistoryOpportunities = (
-  value: SessionResponse["historyOpportunities"]
-): CareerHistoryOpportunity[] => {
-  if (!Array.isArray(value)) return [];
-
-  return value.filter((item): item is CareerHistoryOpportunity => {
-    if (!item || typeof item !== "object") return false;
-    if (typeof item.id !== "string" || !item.id.trim()) return false;
-    if (typeof item.roleId !== "string" || !item.roleId.trim()) return false;
-    if (typeof item.title !== "string" || !item.title.trim()) return false;
-    if (typeof item.companyName !== "string" || !item.companyName.trim()) {
-      return false;
-    }
-    if (item.kind !== "match" && item.kind !== "recommendation") return false;
-    if (item.sourceType !== "internal" && item.sourceType !== "external") {
-      return false;
-    }
-    if (typeof item.recommendedAt !== "string") return false;
-    if (Number.isNaN(Date.parse(item.recommendedAt))) return false;
-    if (!Array.isArray(item.employmentTypes)) return false;
-    if (!Array.isArray(item.recommendationReasons)) return false;
-    if (typeof item.isAccepted !== "boolean") return false;
-    if (typeof item.isInternal !== "boolean") return false;
-    if (!isOpportunityType(item.opportunityType)) {
-      return false;
-    }
-    if (
-      item.feedback !== null &&
-      item.feedback !== "positive" &&
-      item.feedback !== "negative"
-    ) {
-      return false;
-    }
-    if (
-      item.savedStage !== null &&
-      item.savedStage !== "saved" &&
-      item.savedStage !== "applied" &&
-      item.savedStage !== "connected" &&
-      item.savedStage !== "closed"
-    ) {
-      return false;
-    }
-    return true;
-  });
-};
-
-const normalizeNotifications = (
-  value: SessionResponse["notifications"]
-): CareerTalentNotification[] => {
-  if (!Array.isArray(value)) return [];
-
-  return value.filter((item): item is CareerTalentNotification => {
-    if (!item || typeof item !== "object") return false;
-    if (typeof item.id !== "number" || !Number.isFinite(item.id)) return false;
-    if (
-      typeof item.createdAt !== "string" ||
-      Number.isNaN(Date.parse(item.createdAt))
-    ) {
-      return false;
-    }
-    if (item.message !== null && typeof item.message !== "string") return false;
-    return typeof item.isRead === "boolean";
-  });
-};
 
 export const CareerFlowProvider = ({
   children,
@@ -158,19 +65,25 @@ export const CareerFlowProvider = ({
   const userId = user?.id ?? null;
   const { fetchWithAuth } = useCareerApi();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const startCallModeRef = useRef<(openingText?: string) => Promise<boolean>>(
+    async () => false
+  );
+  const primeCallAudioPlaybackRef = useRef<() => void>(() => {});
+  const [activeCompanyRoleCount, setActiveCompanyRoleCount] = useState(0);
   const [recentOpportunities, setRecentOpportunities] = useState<
     CareerRecentOpportunity[]
   >([]);
-  const [historyOpportunities, setHistoryOpportunities] = useState<
-    CareerHistoryOpportunity[]
-  >([]);
-  const [historyLoaded, setHistoryLoaded] = useState(false);
-  const [historyUpdatingOpportunityIds, setHistoryUpdatingOpportunityIds] =
-    useState<string[]>([]);
-  const [historyUpdateError, setHistoryUpdateError] = useState("");
   const [notifications, setNotifications] = useState<
     CareerTalentNotification[]
   >([]);
+  const [opportunityRun, setOpportunityRun] =
+    useState<CareerOpportunityRun | null>(null);
+  const [opportunityRunTriggerPending, setOpportunityRunTriggerPending] =
+    useState(false);
+  const [mockInterviewSession, setMockInterviewSession] =
+    useState<CareerMockInterviewSession | null>(null);
+  const [mockInterviewPending, setMockInterviewPending] = useState(false);
+  const [companySnapshotPending, setCompanySnapshotPending] = useState(false);
   const [notificationsMarkingAsRead, setNotificationsMarkingAsRead] =
     useState(false);
   const [notificationsError, setNotificationsError] = useState("");
@@ -217,7 +130,26 @@ export const CareerFlowProvider = ({
     sessionPending,
     fetchWithAuth,
     persistedMessages,
+    onMockInterviewSessionChanged: setMockInterviewSession,
+    onOpportunityRunChanged: setOpportunityRun,
     onMessagesChanged: appendLatestMessagesToCache,
+  });
+
+  const {
+    historyLoaded,
+    setHistoryLoaded,
+    historyOpportunities,
+    historyUpdateError,
+    historyUpdatingOpportunityIds,
+    hydrateHistoryOpportunities,
+    onMarkHistoryOpportunityClicked,
+    onMarkHistoryOpportunityViewed,
+    onSendHistoryOpportunityQuestion,
+    onUpdateHistoryOpportunityFeedback,
+    onUpdateHistoryOpportunitySavedStage,
+    resetHistoryState,
+  } = useCareerHistoryState({
+    fetchWithAuth,
   });
 
   const {
@@ -332,24 +264,86 @@ export const CareerFlowProvider = ({
     !conversationId ||
     sessionPending ||
     stage === "profile" ||
-    profilePending;
+    profilePending ||
+    Boolean(opportunityRun?.inputLocked);
 
   const sendChatMessage = useCallback(
     async (args: { text: string; link?: string; onError?: () => void }) => {
+      if (opportunityRun?.inputLocked) return;
       await sendChatMessageBase(args, {
         profilePending,
       });
     },
-    [profilePending, sendChatMessageBase]
+    [opportunityRun?.inputLocked, profilePending, sendChatMessageBase]
   );
 
   const handleLoadOlderMessages = useCallback(async () => {
     await loadOlderMessages();
   }, [loadOlderMessages]);
 
+  const enqueueAssistantMessages = useCallback(
+    async (rawMessages: unknown[]) => {
+      const messagesToAdd = rawMessages
+        .filter((item): item is SessionResponse["messages"][number] => {
+          if (!item || typeof item !== "object") return false;
+          return "id" in item && "role" in item && "content" in item;
+        })
+        .map((item) => item);
+
+      for (const message of messagesToAdd) {
+        await enqueueAssistantTypewriter(toUiMessage(message));
+      }
+      appendLatestMessagesToCache(messagesToAdd);
+    },
+    [appendLatestMessagesToCache, enqueueAssistantTypewriter]
+  );
+
+  const cacheAssistantMessages = useCallback(
+    (rawMessages: unknown[]) => {
+      const messagesToAdd = rawMessages.filter(
+        (item): item is SessionResponse["messages"][number] => {
+          if (!item || typeof item !== "object") return false;
+          return "id" in item && "role" in item && "content" in item;
+        }
+      );
+
+      appendLatestMessagesToCache(messagesToAdd);
+    },
+    [appendLatestMessagesToCache]
+  );
+
+  const {
+    handleEndMockInterview,
+    handlePrepareMockInterview,
+    handleRunOpportunityDiscoveryTest,
+    handleStartCompanySnapshot,
+    handleStartMockInterview,
+    resetRuntimeActionsState,
+  } = useCareerRuntimeActions({
+    cacheAssistantMessages,
+    companySnapshotPending,
+    conversationId,
+    enqueueAssistantMessages,
+    fetchWithAuth,
+    handleStartCallMode: (openingText?: string) =>
+      startCallModeRef.current(openingText),
+    mockInterviewPending,
+    mockInterviewSession,
+    opportunityRun,
+    opportunityRunTriggerPending,
+    primeCallAudioPlayback: () => primeCallAudioPlaybackRef.current(),
+    setCompanySnapshotPending,
+    setChatError,
+    setMockInterviewPending,
+    setMockInterviewSession,
+    setOpportunityRun,
+    setOpportunityRunTriggerPending,
+  });
+
   const {
     showVoiceStartPrompt,
     onboardingBeginPending,
+    callStartPending,
     onboardingPausePending,
     inputMode,
     voiceTranscript,
@@ -363,6 +357,7 @@ export const CareerFlowProvider = ({
     handleStartVoiceCall,
     handleStartCallMode,
     handleEndCallMode,
+    primeCallAudioPlayback,
     callTranscriptEntries,
     connectionStatus,
     handleUseChatOnly,
@@ -383,12 +378,19 @@ export const CareerFlowProvider = ({
     fetchWithAuth,
     isVoiceInteractionLocked,
     onSendChatMessage: sendChatMessage,
+    onOpportunityRunChanged: setOpportunityRun,
+    onMockInterviewSessionChanged: setMockInterviewSession,
     appendMessage,
     setChatError,
     setStage,
     enqueueAssistantTypewriter,
     onMessagesChanged: appendLatestMessagesToCache,
   });
+
+  useEffect(() => {
+    startCallModeRef.current = handleStartCallMode;
+    primeCallAudioPlaybackRef.current = primeCallAudioPlayback;
+  }, [handleStartCallMode, primeCallAudioPlayback]);
 
   const handleProfileSubmit = useCallback(async () => {
     await handleProfileSubmitBase(handleProfileSubmitSuccess);
@@ -397,295 +399,6 @@ export const CareerFlowProvider = ({
   const unreadNotificationCount = useMemo(
     () => notifications.filter((notification) => !notification.isRead).length,
     [notifications]
-  );
-  const historyOpportunityById = useMemo(
-    () =>
-      new Map(
-        historyOpportunities.map((opportunity) => [opportunity.id, opportunity])
-      ),
-    [historyOpportunities]
-  );
-
-  const updateHistoryOpportunityLocally = useCallback(
-    (
-      opportunityId: string,
-      updater: (current: CareerHistoryOpportunity) => CareerHistoryOpportunity
-    ) => {
-      setHistoryOpportunities((current) =>
-        current.map((item) =>
-          item.id === opportunityId ? updater(item) : item
-        )
-      );
-    },
-    []
-  );
-
-  const restoreHistoryOpportunity = useCallback(
-    (opportunityId: string, previousItem: CareerHistoryOpportunity) => {
-      setHistoryOpportunities((current) =>
-        current.map((item) => (item.id === opportunityId ? previousItem : item))
-      );
-    },
-    []
-  );
-
-  const beginHistoryUpdate = useCallback((opportunityId: string) => {
-    setHistoryUpdateError("");
-    setHistoryUpdatingOpportunityIds((current) =>
-      current.includes(opportunityId) ? current : [...current, opportunityId]
-    );
-  }, []);
-
-  const endHistoryUpdate = useCallback((opportunityId: string) => {
-    setHistoryUpdatingOpportunityIds((current) =>
-      current.filter((item) => item !== opportunityId)
-    );
-  }, []);
-
-  const patchHistoryOpportunity = useCallback(
-    async (body: {
-      action: "feedback" | "saved_stage" | "view" | "click";
-      feedback?: CareerHistoryOpportunityFeedback | null;
-      feedbackReason?: string | null;
-      opportunityId: string;
-      savedStage?: CareerOpportunitySavedStage | null;
-    }) => {
-      const response = await fetchWithAuth("/api/talent/opportunities", {
-        method: "PATCH",
-        body: JSON.stringify(body),
-      });
-      const payload = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(
-          getErrorMessage(payload, "기회 상태를 업데이트하지 못했습니다.")
-        );
-      }
-    },
-    [fetchWithAuth]
-  );
-
-  const onUpdateHistoryOpportunityFeedback = useCallback(
-    async (
-      opportunityId: string,
-      feedback: CareerHistoryOpportunityFeedback | null,
-      options?: {
-        feedbackReason?: string | null;
-        savedStage?: CareerOpportunitySavedStage | null;
-      }
-    ) => {
-      const normalizedOpportunityId = opportunityId.trim();
-      if (!normalizedOpportunityId) return;
-
-      const previousItem = historyOpportunityById.get(normalizedOpportunityId);
-      if (!previousItem) return;
-      const now = new Date().toISOString();
-      const nextSavedStage =
-        feedback === "positive"
-          ? (options?.savedStage ??
-            previousItem.savedStage ??
-            getDefaultSavedStage(previousItem))
-          : null;
-
-      beginHistoryUpdate(normalizedOpportunityId);
-      updateHistoryOpportunityLocally(normalizedOpportunityId, (item) => ({
-        ...item,
-        dismissedAt: feedback === "negative" ? now : null,
-        feedback,
-        feedbackAt: feedback ? now : null,
-        feedbackReason: feedback ? (options?.feedbackReason ?? null) : null,
-        savedStage: nextSavedStage,
-      }));
-
-      try {
-        await patchHistoryOpportunity({
-          action: "feedback",
-          feedback,
-          feedbackReason: options?.feedbackReason ?? null,
-          opportunityId: normalizedOpportunityId,
-          savedStage: nextSavedStage,
-        });
-      } catch (error) {
-        restoreHistoryOpportunity(normalizedOpportunityId, previousItem);
-        setHistoryUpdateError(
-          error instanceof Error
-            ? error.message
-            : "기회 상태를 업데이트하지 못했습니다."
-        );
-      } finally {
-        endHistoryUpdate(normalizedOpportunityId);
-      }
-    },
-    [
-      beginHistoryUpdate,
-      endHistoryUpdate,
-      historyOpportunityById,
-      patchHistoryOpportunity,
-      restoreHistoryOpportunity,
-      updateHistoryOpportunityLocally,
-    ]
-  );
-
-  const onUpdateHistoryOpportunitySavedStage = useCallback(
-    async (opportunityId: string, savedStage: CareerOpportunitySavedStage) => {
-      const normalizedOpportunityId = opportunityId.trim();
-      if (!normalizedOpportunityId) return;
-
-      const previousItem = historyOpportunityById.get(normalizedOpportunityId);
-      if (!previousItem) return;
-
-      beginHistoryUpdate(normalizedOpportunityId);
-      updateHistoryOpportunityLocally(normalizedOpportunityId, (item) => ({
-        ...item,
-        feedback: "positive",
-        savedStage,
-      }));
-
-      try {
-        await patchHistoryOpportunity({
-          action: "saved_stage",
-          opportunityId: normalizedOpportunityId,
-          savedStage,
-        });
-      } catch (error) {
-        restoreHistoryOpportunity(normalizedOpportunityId, previousItem);
-        setHistoryUpdateError(
-          error instanceof Error
-            ? error.message
-            : "기회 상태를 업데이트하지 못했습니다."
-        );
-      } finally {
-        endHistoryUpdate(normalizedOpportunityId);
-      }
-    },
-    [
-      beginHistoryUpdate,
-      endHistoryUpdate,
-      historyOpportunityById,
-      patchHistoryOpportunity,
-      restoreHistoryOpportunity,
-      updateHistoryOpportunityLocally,
-    ]
-  );
-
-  const onMarkHistoryOpportunityViewed = useCallback(
-    async (opportunityId: string) => {
-      const normalizedOpportunityId = opportunityId.trim();
-      if (!normalizedOpportunityId) return;
-
-      const currentItem = historyOpportunityById.get(normalizedOpportunityId);
-      if (!currentItem || currentItem.viewedAt) return;
-      const now = new Date().toISOString();
-
-      updateHistoryOpportunityLocally(normalizedOpportunityId, (item) => ({
-        ...item,
-        viewedAt: now,
-      }));
-
-      try {
-        await patchHistoryOpportunity({
-          action: "view",
-          opportunityId: normalizedOpportunityId,
-        });
-      } catch (error) {
-        restoreHistoryOpportunity(normalizedOpportunityId, currentItem);
-        setHistoryUpdateError(
-          error instanceof Error
-            ? error.message
-            : "기회 상태를 업데이트하지 못했습니다."
-        );
-      }
-    },
-    [
-      historyOpportunityById,
-      patchHistoryOpportunity,
-      restoreHistoryOpportunity,
-      updateHistoryOpportunityLocally,
-    ]
-  );
-
-  const onMarkHistoryOpportunityClicked = useCallback(
-    async (opportunityId: string) => {
-      const normalizedOpportunityId = opportunityId.trim();
-      if (!normalizedOpportunityId) return;
-
-      const currentItem = historyOpportunityById.get(normalizedOpportunityId);
-      if (!currentItem || currentItem.clickedAt) return;
-      const now = new Date().toISOString();
-
-      updateHistoryOpportunityLocally(normalizedOpportunityId, (item) => ({
-        ...item,
-        clickedAt: now,
-      }));
-
-      try {
-        await patchHistoryOpportunity({
-          action: "click",
-          opportunityId: normalizedOpportunityId,
-        });
-      } catch (error) {
-        restoreHistoryOpportunity(normalizedOpportunityId, currentItem);
-        setHistoryUpdateError(
-          error instanceof Error
-            ? error.message
-            : "기회 상태를 업데이트하지 못했습니다."
-        );
-      }
-    },
-    [
-      historyOpportunityById,
-      patchHistoryOpportunity,
-      restoreHistoryOpportunity,
-      updateHistoryOpportunityLocally,
-    ]
-  );
-
-  const onSendHistoryOpportunityQuestion = useCallback(
-    async (opportunityId: string, question: string) => {
-      const normalizedOpportunityId = opportunityId.trim();
-      const normalizedQuestion = question.trim();
-
-      if (!normalizedOpportunityId || !normalizedQuestion) {
-        return false;
-      }
-
-      const currentItem = historyOpportunityById.get(normalizedOpportunityId);
-      if (!currentItem) return false;
-
-      beginHistoryUpdate(normalizedOpportunityId);
-
-      try {
-        const response = await fetchWithAuth("/api/talent/opportunities/question", {
-          method: "POST",
-          body: JSON.stringify({
-            opportunityId: normalizedOpportunityId,
-            question: normalizedQuestion,
-          }),
-        });
-        const payload = await response.json().catch(() => ({}));
-
-        if (!response.ok) {
-          throw new Error(
-            getErrorMessage(payload, "질문을 전송하지 못했습니다.")
-          );
-        }
-
-        return true;
-      } catch (error) {
-        setHistoryUpdateError(
-          error instanceof Error ? error.message : "질문을 전송하지 못했습니다."
-        );
-        return false;
-      } finally {
-        endHistoryUpdate(normalizedOpportunityId);
-      }
-    },
-    [
-      beginHistoryUpdate,
-      endHistoryUpdate,
-      fetchWithAuth,
-      historyOpportunityById,
-    ]
   );
 
   const markNotificationsRead = useCallback(async () => {
@@ -738,21 +451,23 @@ export const CareerFlowProvider = ({
   const hydrateSession = useCallback(
     (payload: SessionResponse) => {
       applySessionConversation(payload);
+      appendLatestMessagesToCache(payload.messages ?? []);
       applySessionProfile(payload);
       applySessionNetworkState(payload);
       applySessionTalentPreferences(payload);
       applySessionTalentInsights(payload);
       applySessionPrompt(payload);
-      setHistoryOpportunities(
-        normalizeHistoryOpportunities(payload.historyOpportunities)
-      );
-      setHistoryUpdatingOpportunityIds([]);
-      setHistoryUpdateError("");
+      hydrateHistoryOpportunities(payload.historyOpportunities);
       setRecentOpportunities(
         normalizeRecentOpportunities(payload.recentOpportunities)
       );
+      setActiveCompanyRoleCount(
+        Math.max(0, Number(payload.activeCompanyRoleCount ?? 0) || 0)
+      );
       setNotifications(normalizeNotifications(payload.notifications));
       setNotificationsError("");
+      setOpportunityRun(payload.opportunityRun ?? null);
+      setMockInterviewSession(payload.mockInterviewSession ?? null);
     },
     [
       applySessionConversation,
@@ -761,6 +476,8 @@ export const CareerFlowProvider = ({
       applySessionTalentInsights,
       applySessionTalentPreferences,
       applySessionPrompt,
+      appendLatestMessagesToCache,
+      hydrateHistoryOpportunities,
     ]
   );
 
@@ -779,10 +496,10 @@ export const CareerFlowProvider = ({
       resetTalentPreferencesState();
       resetTalentInsightsState();
       resetOnboardingState();
+      resetHistoryState();
+      resetRuntimeActionsState();
       setRecentOpportunities([]);
-      setHistoryOpportunities([]);
-      setHistoryUpdatingOpportunityIds([]);
-      setHistoryUpdateError("");
+      setActiveCompanyRoleCount(0);
       setNotifications([]);
       setNotificationsMarkingAsRead(false);
       setNotificationsError("");
@@ -804,9 +521,55 @@ export const CareerFlowProvider = ({
     resetNetworkApplicationState,
     resetOnboardingState,
     resetProfileState,
+    resetRuntimeActionsState,
     resetTalentInsightsState,
     resetTalentPreferencesState,
     resetSessionState,
+    resetHistoryState,
+    userId,
+  ]);
+
+  useEffect(() => {
+    if (!userId || !opportunityRun?.inputLocked) return;
+
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const response = await fetchWithAuth(
+          "/api/talent/opportunity-runs/latest"
+        );
+        const payload = (await response.json().catch(() => ({}))) as {
+          run?: CareerOpportunityRun | null;
+        };
+        if (!response.ok || cancelled) return;
+
+        const nextRun = payload.run ?? null;
+        setOpportunityRun(nextRun);
+        if (nextRun && !nextRun.inputLocked) {
+          const sessionPayload = await loadSession();
+          if (!cancelled && sessionPayload) {
+            hydrateSession(sessionPayload);
+          }
+        }
+      } catch {
+        // Keep the current lock state; the next poll can recover.
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      void poll();
+    }, 4000);
+    void poll();
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [
+    fetchWithAuth,
+    hydrateSession,
+    loadSession,
+    opportunityRun?.inputLocked,
     userId,
   ]);
 
@@ -872,7 +635,14 @@ export const CareerFlowProvider = ({
       chatError,
       assistantTyping,
       chatPending,
+      companySnapshotPending,
+      opportunityRun,
+      opportunitySearchLocked: Boolean(opportunityRun?.inputLocked),
+      mockInterviewSession,
+      mockInterviewPending,
+      historyUpdatingOpportunityIds,
       onboardingBeginPending,
+      callStartPending,
       onboardingPausePending,
       onGoogleLogin: handleGoogleLogin,
       onEmailAuth: handleEmailAuth,
@@ -882,6 +652,11 @@ export const CareerFlowProvider = ({
       onAddProfileLink: handleAddProfileLink,
       onProfileSubmit: handleProfileSubmit,
       onSendChatMessage: sendChatMessage,
+      onUpdateHistoryOpportunityFeedback,
+      onPrepareMockInterview: handlePrepareMockInterview,
+      onStartMockInterview: handleStartMockInterview,
+      onEndMockInterview: handleEndMockInterview,
+      onStartCompanySnapshot: handleStartCompanySnapshot,
       onLoadOlderMessages: handleLoadOlderMessages,
       showVoiceStartPrompt,
       onStartVoiceCall: handleStartVoiceCall,
@@ -913,13 +688,19 @@ export const CareerFlowProvider = ({
       authPending,
       chatError,
       chatPending,
+      companySnapshotPending,
       conversationId,
       handleAddProfileLink,
       handleEmailAuth,
+      handleEndMockInterview,
+      handleStartCompanySnapshot,
       handleGoogleLogin,
       handleProfileLinkChange,
       handleProfileSubmit,
+      handlePrepareMockInterview,
       handleRemoveProfileLink,
+      handleStartMockInterview,
+      historyUpdatingOpportunityIds,
       handleLoadOlderMessages,
       hasOlderMessages,
       handleContinueOnboardingConversation,
@@ -936,9 +717,14 @@ export const CareerFlowProvider = ({
       handleVoicePrimaryAction,
       inputMode,
       messages,
+      mockInterviewPending,
+      mockInterviewSession,
       loadingOlderMessages,
+      onUpdateHistoryOpportunityFeedback,
       onboardingBeginPending,
+      callStartPending,
       onboardingPausePending,
+      opportunityRun,
       profileError,
       profileLinks,
       profilePending,
@@ -970,6 +756,10 @@ export const CareerFlowProvider = ({
       progressPercent,
       onOpenSettings,
       onLogout: handleLogout,
+      activeCompanyRoleCount,
+      opportunityRun,
+      opportunityRunTriggerPending,
+      onRunOpportunityDiscoveryTest: handleRunOpportunityDiscoveryTest,
       recentOpportunities,
       historyOpportunities,
       historyLoading,
@@ -980,6 +770,7 @@ export const CareerFlowProvider = ({
       onMarkHistoryOpportunityViewed,
       onMarkHistoryOpportunityClicked,
       onSendHistoryOpportunityQuestion,
+      onPrepareMockInterview: handlePrepareMockInterview,
       notifications,
       unreadNotificationCount,
       notificationsMarkingAsRead,
@@ -1049,8 +840,10 @@ export const CareerFlowProvider = ({
     }),
     [
       answeredCount,
+      activeCompanyRoleCount,
       blockedCompanies,
       handleAddProfileLink,
+      handleRunOpportunityDiscoveryTest,
       onAddBlockedCompany,
       hasUnsavedNetworkApplicationChanges,
       hasUnsavedTalentInsightsChanges,
@@ -1084,6 +877,7 @@ export const CareerFlowProvider = ({
       markNotificationsRead,
       onSaveNetworkApplication,
       handleSaveTalentProfile,
+      handlePrepareMockInterview,
       historyLoading,
       historyOpportunities,
       historyUpdateError,
@@ -1124,6 +918,8 @@ export const CareerFlowProvider = ({
       onSendHistoryOpportunityQuestion,
       onUpdateHistoryOpportunityFeedback,
       onUpdateHistoryOpportunitySavedStage,
+      opportunityRun,
+      opportunityRunTriggerPending,
       talentEducations,
       talentExperiences,
       talentExtras,

@@ -1,10 +1,20 @@
 import type { Json } from "@/types/database.types";
 import { ApifyClient } from "apify-client";
-import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
+import {
+  getOpsCompanyManagementEmployeeCountRangeExactJsonValues,
+  OPS_COMPANY_MANAGEMENT_EMPLOYEE_COUNT_RANGE_OPTIONS,
+  type OpsCompanyManagementEmployeeCountRangeFilter,
+} from "@/lib/opsOpportunityCompanyManagement";
 import {
   DEFAULT_OPS_TALENT_RECOMMENDATION_PROMPT,
+  buildOpsRoleDescriptionSummarySystemPrompt,
+  buildOpsRoleDescriptionSummaryUserPrompt,
   renderOpsTalentRecommendationPrompt,
 } from "@/lib/opsOpportunityRecommendationPrompt";
+import {
+  runOpsRoleDescriptionSummary,
+  runOpsTalentRecommendation,
+} from "@/lib/career/llm";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { normalizeTalentNetworkApplication } from "@/lib/talentNetworkApplication";
 import {
@@ -14,6 +24,7 @@ import {
 } from "@/lib/opportunityType";
 
 type AdminClient = ReturnType<typeof getSupabaseAdmin>;
+const MATCH_COUNT_ROLE_ID_BATCH_SIZE = 200;
 
 type WorkspaceRow = {
   career_url: string | null;
@@ -23,9 +34,11 @@ type WorkspaceRow = {
   company_workspace_id: string;
   created_at: string;
   homepage_url: string | null;
+  is_internal?: boolean | null;
   linkedin_url: string | null;
-  logo_storage_path: string | null;
   logo_url: string | null;
+  pitch?: string | null;
+  request?: string | null;
   updated_at: string;
 };
 
@@ -41,6 +54,7 @@ type RoleRow = {
   name: string;
   posted_at?: string | null;
   role_id: string;
+  request?: string | null;
   source_job_id?: string | null;
   source_provider?: string | null;
   source_type?: string | null;
@@ -134,6 +148,8 @@ type RecommendationDraftRoleRow = {
     company_name: string | null;
     homepage_url: string | null;
     linkedin_url: string | null;
+    pitch?: string | null;
+    request?: string | null;
   } | null;
   description: string | null;
   expires_at: string | null;
@@ -141,6 +157,7 @@ type RecommendationDraftRoleRow = {
   location_text: string | null;
   name: string | null;
   posted_at: string | null;
+  request?: string | null;
   role_id: string;
   source_job_id: string | null;
   source_provider: string | null;
@@ -152,13 +169,38 @@ type RecommendationDraftRoleRow = {
 
 type CompanyDbRow = {
   description: string | null;
+  employee_count_range?: Json | null;
+  founded_year?: number | null;
   id: number;
   last_updated_at: string;
   linkedin_url: string | null;
+  location?: string | null;
   logo: string | null;
   name: string | null;
   short_description: string | null;
   website_url: string | null;
+};
+
+type CompanyManagementCompanyDbRow = {
+  description: string | null;
+  employee_count_range: Json | null;
+  founded_year: number | null;
+  id: number;
+  investors: string | null;
+  linkedin_url: string | null;
+  location: string | null;
+  logo: string | null;
+  name: string | null;
+  short_description: string | null;
+  website_url: string | null;
+};
+
+type CompanyManagementWorkspaceRow = WorkspaceRow & {
+  company_db?:
+    | CompanyManagementCompanyDbRow
+    | CompanyManagementCompanyDbRow[]
+    | null;
+  is_scrape_original?: boolean | null;
 };
 
 type SupportedExternalRoleProvider = "lever" | "linkedin_jobs";
@@ -198,9 +240,11 @@ export type OpsOpportunityWorkspaceRecord = {
   externalRoleCount: number;
   homepageUrl: string | null;
   internalRoleCount: number;
+  isInternal: boolean;
   linkedinUrl: string | null;
-  logoStoragePath: string | null;
   logoUrl: string | null;
+  pitch: string | null;
+  request: string | null;
   totalRoleCount: number;
   updatedAt: string;
 };
@@ -234,6 +278,7 @@ export type OpsOpportunityRoleRecord = {
   matchedCandidateCount: number;
   name: string;
   postedAt: string | null;
+  request: string | null;
   roleId: string;
   sourceJobId: string | null;
   sourceProvider: string | null;
@@ -246,6 +291,52 @@ export type OpsOpportunityRoleRecord = {
 export type OpsOpportunityCatalogResponse = {
   roles: OpsOpportunityRoleRecord[];
   workspaces: OpsOpportunityWorkspaceRecord[];
+};
+
+export type OpsCompanyManagementCompanyDbRecord = {
+  description: string | null;
+  employeeCountRange: Json | null;
+  foundedYear: number | null;
+  id: number | null;
+  linkedinUrl: string | null;
+  location: string | null;
+  logoUrl: string | null;
+  name: string | null;
+  shortDescription: string | null;
+  websiteUrl: string | null;
+};
+
+export type OpsCompanyManagementRecord = {
+  companyDb: OpsCompanyManagementCompanyDbRecord | null;
+  companyDbId: number | null;
+  companyDescription: string | null;
+  companyName: string;
+  companyWorkspaceId: string;
+  employeeCountRange: Json | null;
+  foundedYear: number | null;
+  homepageUrl: string | null;
+  isScrapeOriginal: boolean;
+  linkedinUrl: string | null;
+  location: string | null;
+  logoUrl: string | null;
+  recentJoinCount: number;
+  updatedAt: string;
+};
+
+export type OpsCompanyManagementPageResponse = {
+  filters: {
+    companyName: string;
+    employeeCountRange: OpsCompanyManagementEmployeeCountRangeFilter;
+    foundedYearMin: number | null;
+    hasCareerUrlOnly: boolean;
+    investors: string;
+    location: string;
+  };
+  items: OpsCompanyManagementRecord[];
+  limit: number;
+  nextOffset: number | null;
+  offset: number;
+  query: string;
 };
 
 export type OpsOpportunityCandidateRecord = {
@@ -498,10 +589,9 @@ function htmlToPlainText(value: string | null | undefined) {
     .replace(/\u0000/g, "")
     .trim();
 
-  return decodeHtmlEntities(normalized).replace(/[ \t]+\n/g, "\n").replace(
-    /\n{3,}/g,
-    "\n\n"
-  );
+  return decodeHtmlEntities(normalized)
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n");
 }
 
 function normalizeScrapedDate(value: unknown) {
@@ -531,7 +621,9 @@ function normalizeScrapedDate(value: unknown) {
 function inferEmploymentTypesFromLabel(
   value: string | null | undefined
 ): OpportunityEmploymentType[] {
-  const normalized = String(value ?? "").trim().toLowerCase();
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase();
   if (!normalized) return [];
   if (normalized.includes("intern")) return ["internship"];
   if (
@@ -559,33 +651,41 @@ function inferEmploymentTypesFromLabel(
   return [];
 }
 
-function inferWorkModeFromLabels(values: unknown[]): OpportunityWorkMode | null {
+function inferWorkModeFromLabels(
+  values: unknown[]
+): OpportunityWorkMode | null {
   const normalizedValues = values
-    .map((item) => String(item ?? "").trim().toLowerCase())
+    .map((item) =>
+      String(item ?? "")
+        .trim()
+        .toLowerCase()
+    )
     .filter(Boolean);
 
   if (
-    normalizedValues.some((item) =>
-      item.includes("hybrid") || item.includes("하이브리드")
+    normalizedValues.some(
+      (item) => item.includes("hybrid") || item.includes("하이브리드")
     )
   ) {
     return "hybrid";
   }
   if (
-    normalizedValues.some((item) =>
-      item.includes("remote") ||
-      item.includes("remotely") ||
-      item.includes("리모트")
+    normalizedValues.some(
+      (item) =>
+        item.includes("remote") ||
+        item.includes("remotely") ||
+        item.includes("리모트")
     )
   ) {
     return "remote";
   }
   if (
-    normalizedValues.some((item) =>
-      item.includes("on-site") ||
-      item.includes("onsite") ||
-      item.includes("on site") ||
-      item.includes("상주")
+    normalizedValues.some(
+      (item) =>
+        item.includes("on-site") ||
+        item.includes("onsite") ||
+        item.includes("on site") ||
+        item.includes("상주")
     )
   ) {
     return "onsite";
@@ -641,7 +741,11 @@ function detectExternalRoleProvider(
     const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
     const path = parsed.pathname.toLowerCase();
 
-    if (host === "jobs.lever.co" || host.endsWith(".lever.co") || host === "lever.co") {
+    if (
+      host === "jobs.lever.co" ||
+      host.endsWith(".lever.co") ||
+      host === "lever.co"
+    ) {
       return "lever";
     }
 
@@ -673,7 +777,10 @@ function buildFallbackDescriptionSummary(args: {
       .join(" ")
       .trim();
   }
-  return [prefix, location ? `(${location})` : ""].filter(Boolean).join(" ").trim();
+  return [prefix, location ? `(${location})` : ""]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
 }
 
 async function summarizeExternalRoleDescription(args: {
@@ -681,7 +788,10 @@ async function summarizeExternalRoleDescription(args: {
   companyName: string;
   role: SyncedExternalRoleSeed;
 }) {
-  const roleDescriptionText = clampPromptText(htmlToPlainText(args.role.description), 5000);
+  const roleDescriptionText = clampPromptText(
+    htmlToPlainText(args.role.description),
+    5000
+  );
   const companyDescription = clampPromptText(args.companyDescription, 1500);
   const fallback = buildFallbackDescriptionSummary({
     companyName: args.companyName,
@@ -695,31 +805,25 @@ async function summarizeExternalRoleDescription(args: {
   }
 
   try {
-    const summary = await runTalentAssistantCompletion({
+    const summary = await runOpsRoleDescriptionSummary({
       messages: [
         {
           role: "system",
-          content:
-            "You summarize job descriptions for an internal recruiting database. Return one short plain-text paragraph in Korean. Mention what the company does, what the role owns, and the strongest qualification or domain signal. Do not use markdown or bullets. Keep it under 420 characters.",
+          content: buildOpsRoleDescriptionSummarySystemPrompt(),
         },
         {
           role: "user",
-          content: [
-            `Company: ${args.companyName}`,
-            companyDescription ? `Company Description: ${companyDescription}` : "",
-            `Role: ${args.role.name}`,
-            args.role.locationText ? `Location: ${args.role.locationText}` : "",
-            args.role.workMode ? `Work Mode: ${args.role.workMode}` : "",
-            args.role.employmentTypes.length > 0
-              ? `Employment Type: ${args.role.employmentTypes.join(", ")}`
-              : "",
-            roleDescriptionText ? `Job Description:\n${roleDescriptionText}` : "",
-          ]
-            .filter(Boolean)
-            .join("\n\n"),
+          content: buildOpsRoleDescriptionSummaryUserPrompt({
+            companyDescription,
+            companyName: args.companyName,
+            employmentTypes: args.role.employmentTypes,
+            jobDescription: roleDescriptionText,
+            locationText: args.role.locationText,
+            roleName: args.role.name,
+            workMode: args.role.workMode,
+          }),
         },
       ],
-      temperature: 0.2,
     });
 
     const cleaned = summary.replace(/\s+/g, " ").trim();
@@ -755,7 +859,9 @@ async function summarizeExternalRoleSeeds(args: {
   return summarized;
 }
 
-function mapLeverRoleItem(item: Record<string, unknown>): SyncedExternalRoleSeed | null {
+function mapLeverRoleItem(
+  item: Record<string, unknown>
+): SyncedExternalRoleSeed | null {
   const title = String(item.title ?? "").trim();
   const sourceJobId = String(item.id ?? "").trim();
   if (!title || !sourceJobId) return null;
@@ -1145,13 +1251,14 @@ async function insertTalentOpportunityNotification(args: {
     throw new Error("Notification message is required");
   }
 
-  const { error } = await (args.admin.from("talent_notification" as any) as any)
-    .insert({
-      created_at: now,
-      is_read: false,
-      message,
-      talent_id: args.talentId,
-    } as any);
+  const { error } = await (
+    args.admin.from("talent_notification" as any) as any
+  ).insert({
+    created_at: now,
+    is_read: false,
+    message,
+    talent_id: args.talentId,
+  } as any);
 
   if (error) {
     throw new Error(error.message ?? "Failed to insert talent notification");
@@ -1352,6 +1459,7 @@ function buildRecommendationRoleContext(args: {
   }
   if (role.posted_at) lines.push(`- Posted At: ${role.posted_at}`);
   if (role.expires_at) lines.push(`- Expires At: ${role.expires_at}`);
+  if (role.request) lines.push(`- Role Request: ${role.request}`);
   if (role.source_provider) {
     lines.push(`- Source Provider: ${role.source_provider}`);
   }
@@ -1364,6 +1472,14 @@ function buildRecommendationRoleContext(args: {
   }
   if (workspace?.linkedin_url) {
     lines.push(`- Company LinkedIn: ${workspace.linkedin_url}`);
+  }
+  if (workspace?.pitch) {
+    lines.push("Company Pitch");
+    lines.push(clampPromptText(workspace.pitch, 1200));
+  }
+  if (workspace?.request) {
+    lines.push("Company Request");
+    lines.push(clampPromptText(workspace.request, 1200));
   }
 
   const description = clampPromptText(role.description, 4000);
@@ -1389,11 +1505,14 @@ async function resolveCompanyDbRecord(args: {
   companyName?: string | null;
   linkedinUrl?: string | null;
 }) {
-  const { match: linkedinMatch, normalizedLinkedinUrl, rawLinkedinUrl } =
-    await findCompanyDbByLinkedinUrl({
-      admin: args.admin,
-      linkedinUrl: args.linkedinUrl,
-    });
+  const {
+    match: linkedinMatch,
+    normalizedLinkedinUrl,
+    rawLinkedinUrl,
+  } = await findCompanyDbByLinkedinUrl({
+    admin: args.admin,
+    linkedinUrl: args.linkedinUrl,
+  });
   const normalizedCompanyName = String(args.companyName ?? "").trim();
 
   if (linkedinMatch) {
@@ -1447,7 +1566,9 @@ export async function extractOpsOpportunityWorkspace(args: {
   }
 
   if (!match) {
-    throw new Error("company_db에서 해당 LinkedIn 회사 정보를 찾지 못했습니다.");
+    throw new Error(
+      "company_db에서 해당 LinkedIn 회사 정보를 찾지 못했습니다."
+    );
   }
 
   return {
@@ -1481,9 +1602,11 @@ function mapWorkspaceRecord(args: {
     externalRoleCount: args.externalRoleCount,
     homepageUrl: args.row.homepage_url ?? null,
     internalRoleCount: args.internalRoleCount,
+    isInternal: Boolean(args.row.is_internal),
     linkedinUrl: args.row.linkedin_url ?? null,
-    logoStoragePath: args.row.logo_storage_path ?? null,
     logoUrl: args.row.logo_url ?? null,
+    pitch: args.row.pitch ?? null,
+    request: args.row.request ?? null,
     totalRoleCount: args.totalRoleCount,
     updatedAt: String(args.row.updated_at ?? args.row.created_at ?? ""),
   };
@@ -1507,6 +1630,7 @@ function mapRoleRecord(args: {
     matchedCandidateCount: args.matchedCandidateCount,
     name: String(args.row.name ?? ""),
     postedAt: args.row.posted_at ?? null,
+    request: args.row.request ?? null,
     roleId: String(args.row.role_id ?? ""),
     sourceJobId: args.row.source_job_id ?? null,
     sourceProvider: args.row.source_provider ?? null,
@@ -1522,22 +1646,37 @@ async function fetchMatchedCandidateCountByRoleId(
   roleIds: string[]
 ) {
   const counts = new Map<string, number>();
-  if (roleIds.length === 0) return counts;
+  const uniqueRoleIds = Array.from(new Set(roleIds.filter(Boolean)));
+  if (uniqueRoleIds.length === 0) return counts;
 
-  const { data, error } = await (
-    admin.from("company_role_matched" as any) as any
-  )
-    .select("role_id")
-    .in("role_id", roleIds);
+  for (
+    let index = 0;
+    index < uniqueRoleIds.length;
+    index += MATCH_COUNT_ROLE_ID_BATCH_SIZE
+  ) {
+    const roleIdBatch = uniqueRoleIds.slice(
+      index,
+      index + MATCH_COUNT_ROLE_ID_BATCH_SIZE
+    );
+    const { data, error, status, statusText } = await (
+      admin.from("company_role_matched" as any) as any
+    )
+      .select("role_id")
+      .in("role_id", roleIdBatch);
 
-  if (error) {
-    throw new Error(error.message ?? "Failed to load match counts");
-  }
+    if (error) {
+      throw new Error(
+        error.message ||
+          statusText ||
+          `Failed to load match counts (${status ?? "unknown status"})`
+      );
+    }
 
-  for (const row of coerceJsonArray<{ role_id?: string | null }>(data)) {
-    const roleId = String(row.role_id ?? "").trim();
-    if (!roleId) continue;
-    counts.set(roleId, (counts.get(roleId) ?? 0) + 1);
+    for (const row of coerceJsonArray<{ role_id?: string | null }>(data)) {
+      const roleId = String(row.role_id ?? "").trim();
+      if (!roleId) continue;
+      counts.set(roleId, (counts.get(roleId) ?? 0) + 1);
+    }
   }
 
   return counts;
@@ -1548,12 +1687,12 @@ export async function fetchOpsOpportunityCatalog(): Promise<OpsOpportunityCatalo
   const [workspaceResponse, roleResponse] = await Promise.all([
     (admin.from("company_workspace" as any) as any)
       .select(
-        "company_workspace_id, company_name, homepage_url, career_url, linkedin_url, logo_url, logo_storage_path, company_description, company_db_id, created_at, updated_at"
+        "company_workspace_id, company_name, homepage_url, career_url, linkedin_url, logo_url, company_description, company_db_id, is_internal, pitch, request, created_at, updated_at"
       )
       .order("updated_at", { ascending: false }) as any,
     (admin.from("company_roles" as any) as any)
       .select(
-        "role_id, company_workspace_id, name, external_jd_url, description, description_summary, information, type, status, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode"
+        "role_id, company_workspace_id, name, external_jd_url, description, description_summary, information, type, status, request, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode"
       )
       .order("updated_at", { ascending: false }) as any,
   ]);
@@ -1648,12 +1787,406 @@ export async function fetchOpsOpportunityCatalog(): Promise<OpsOpportunityCatalo
   };
 }
 
+const COMPANY_MANAGEMENT_SELECT = `
+  company_workspace_id,
+  company_name,
+  homepage_url,
+  career_url,
+  linkedin_url,
+  logo_url,
+  company_description,
+  company_db_id,
+  is_scrape_original,
+  created_at,
+  updated_at,
+  company_db:company_db (
+    id,
+    name,
+    logo,
+    short_description,
+    description,
+    employee_count_range,
+    investors,
+    location,
+    founded_year,
+    website_url,
+    linkedin_url
+  )
+`;
+
+const COMPANY_MANAGEMENT_SELECT_WITH_COMPANY_DB_FILTER =
+  COMPANY_MANAGEMENT_SELECT.replace(
+    "company_db:company_db (",
+    "company_db:company_db!inner ("
+  );
+const MAX_COMPANY_DB_IDS_IN_WORKSPACE_FILTER = 500;
+
+function sanitizeCompanyManagementFilterText(value: string) {
+  return value
+    .replace(/[%(),]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeCompanyManagementFoundedYearMin(value: unknown) {
+  const year = Math.floor(Number(value ?? 0));
+  return Number.isFinite(year) && year > 0 ? year : null;
+}
+
+function normalizeCompanyManagementEmployeeCountRangeFilter(
+  value: unknown
+): OpsCompanyManagementEmployeeCountRangeFilter {
+  return OPS_COMPANY_MANAGEMENT_EMPLOYEE_COUNT_RANGE_OPTIONS.some(
+    (option) => option.value === value
+  )
+    ? (value as OpsCompanyManagementEmployeeCountRangeFilter)
+    : "";
+}
+
+function getEmbeddedCompanyDb(
+  value: CompanyManagementWorkspaceRow["company_db"]
+): CompanyManagementCompanyDbRow | null {
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
+  }
+  return value ?? null;
+}
+
+async function fetchCompanyDbIdsForCompanyManagementFilters(
+  admin: AdminClient,
+  filters: {
+    companyName?: string | null;
+    foundedYearMin?: number | null;
+    investors?: string | null;
+    location?: string | null;
+  }
+) {
+  const companyName = sanitizeCompanyManagementFilterText(
+    String(filters.companyName ?? "")
+  );
+  const location = sanitizeCompanyManagementFilterText(
+    String(filters.location ?? "")
+  );
+  const foundedYearMin = normalizeCompanyManagementFoundedYearMin(
+    filters.foundedYearMin
+  );
+  const investors = sanitizeCompanyManagementFilterText(
+    String(filters.investors ?? "")
+  );
+  if (!companyName && !location && !foundedYearMin && !investors) {
+    return [];
+  }
+
+  let companyDbQuery = (admin.from("company_db" as any) as any).select("id");
+  if (companyName) {
+    companyDbQuery = companyDbQuery.ilike("name", `%${companyName}%`);
+  }
+  if (location) {
+    companyDbQuery = companyDbQuery.ilike("location", `%${location}%`);
+  }
+  if (investors) {
+    companyDbQuery = companyDbQuery.ilike("investors", `%${investors}%`);
+  }
+  if (foundedYearMin) {
+    companyDbQuery = companyDbQuery.gte("founded_year", foundedYearMin);
+  }
+
+  const { data, error } = await companyDbQuery.limit(5000);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to search company_db");
+  }
+
+  return coerceJsonArray<{ id?: number | null }>(data)
+    .map((row) => row.id)
+    .filter((id): id is number => typeof id === "number");
+}
+
+async function fetchRecentJoinCountByCompanyDbId(
+  admin: AdminClient,
+  companyDbIds: number[]
+) {
+  const counts = new Map<number, number>();
+  const uniqueCompanyDbIds = Array.from(new Set(companyDbIds)).filter(
+    (id) => Number.isFinite(id) && id > 0
+  );
+  if (uniqueCompanyDbIds.length === 0) return counts;
+
+  const oneYearAgo = new Date();
+  oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+  const startDate = oneYearAgo.toISOString().slice(0, 10);
+
+  const { data, error } = await (admin.from("experience_user" as any) as any)
+    .select("company_id, candid_id")
+    .in("company_id", uniqueCompanyDbIds)
+    .gte("start_date", startDate);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load recent join counts");
+  }
+
+  const peopleByCompanyDbId = new Map<number, Set<string>>();
+  for (const row of coerceJsonArray<{
+    candid_id?: string | null;
+    company_id?: number | null;
+  }>(data)) {
+    if (typeof row.company_id !== "number") continue;
+    const candidId = String(row.candid_id ?? "").trim();
+    if (!candidId) continue;
+
+    const people = peopleByCompanyDbId.get(row.company_id) ?? new Set<string>();
+    people.add(candidId);
+    peopleByCompanyDbId.set(row.company_id, people);
+  }
+
+  for (const [companyDbId, people] of Array.from(peopleByCompanyDbId)) {
+    counts.set(companyDbId, people.size);
+  }
+
+  return counts;
+}
+
+function mapCompanyManagementRecord(args: {
+  recentJoinCount: number;
+  row: CompanyManagementWorkspaceRow;
+}): OpsCompanyManagementRecord {
+  const companyDb = getEmbeddedCompanyDb(args.row.company_db);
+  const companyDbRecord: OpsCompanyManagementCompanyDbRecord | null = companyDb
+    ? {
+        description: companyDb.description ?? null,
+        employeeCountRange: companyDb.employee_count_range ?? null,
+        foundedYear:
+          typeof companyDb.founded_year === "number"
+            ? companyDb.founded_year
+            : null,
+        id: typeof companyDb.id === "number" ? companyDb.id : null,
+        linkedinUrl: companyDb.linkedin_url ?? null,
+        location: companyDb.location ?? null,
+        logoUrl: companyDb.logo ?? null,
+        name: companyDb.name ?? null,
+        shortDescription: companyDb.short_description ?? null,
+        websiteUrl: companyDb.website_url ?? null,
+      }
+    : null;
+
+  return {
+    companyDb: companyDbRecord,
+    companyDbId:
+      typeof args.row.company_db_id === "number"
+        ? args.row.company_db_id
+        : null,
+    companyDescription:
+      args.row.company_description ??
+      companyDbRecord?.shortDescription ??
+      companyDbRecord?.description ??
+      null,
+    companyName:
+      String(args.row.company_name ?? "").trim() ||
+      String(companyDbRecord?.name ?? "").trim(),
+    companyWorkspaceId: String(args.row.company_workspace_id ?? ""),
+    employeeCountRange: companyDbRecord?.employeeCountRange ?? null,
+    foundedYear: companyDbRecord?.foundedYear ?? null,
+    homepageUrl: args.row.homepage_url ?? companyDbRecord?.websiteUrl ?? null,
+    isScrapeOriginal: Boolean(args.row.is_scrape_original),
+    linkedinUrl: args.row.linkedin_url ?? companyDbRecord?.linkedinUrl ?? null,
+    location: companyDbRecord?.location ?? null,
+    logoUrl: args.row.logo_url ?? companyDbRecord?.logoUrl ?? null,
+    recentJoinCount: args.recentJoinCount,
+    updatedAt: String(args.row.updated_at ?? args.row.created_at ?? ""),
+  };
+}
+
+export async function fetchOpsCompanyManagementPage(args: {
+  companyName?: string | null;
+  employeeCountRange?: OpsCompanyManagementEmployeeCountRangeFilter | null;
+  foundedYearMin?: number | string | null;
+  hasCareerUrlOnly?: boolean | null;
+  investors?: string | null;
+  limit?: number;
+  location?: string | null;
+  offset?: number;
+  query?: string | null;
+}): Promise<OpsCompanyManagementPageResponse> {
+  const admin = getSupabaseAdmin();
+  const limit = Math.max(1, Math.min(Number(args.limit ?? 30) || 30, 80));
+  const offset = Math.max(0, Number(args.offset ?? 0) || 0);
+  const companyName = sanitizeCompanyManagementFilterText(
+    String(args.companyName ?? args.query ?? "")
+  );
+  const location = sanitizeCompanyManagementFilterText(
+    String(args.location ?? "")
+  );
+  const investors = sanitizeCompanyManagementFilterText(
+    String(args.investors ?? "")
+  );
+  const foundedYearMin = normalizeCompanyManagementFoundedYearMin(
+    args.foundedYearMin
+  );
+  const employeeCountRange = normalizeCompanyManagementEmployeeCountRangeFilter(
+    args.employeeCountRange
+  );
+  const employeeCountRangeExactJsonValues =
+    getOpsCompanyManagementEmployeeCountRangeExactJsonValues(
+      employeeCountRange
+    );
+  const hasCareerUrlOnly = Boolean(args.hasCareerUrlOnly);
+  const hasCompanyDbFilters = Boolean(
+    employeeCountRange || location || foundedYearMin || investors
+  );
+  const companyNameCompanyDbIds = companyName
+    ? await fetchCompanyDbIdsForCompanyManagementFilters(admin, {
+        companyName,
+      })
+    : [];
+  const shouldFilterByCompanyNameCompanyDbIds =
+    companyNameCompanyDbIds.length > 0 &&
+    companyNameCompanyDbIds.length <= MAX_COMPANY_DB_IDS_IN_WORKSPACE_FILTER;
+
+  let workspaceQuery = (admin.from("company_workspace" as any) as any)
+    .select(
+      hasCompanyDbFilters
+        ? COMPANY_MANAGEMENT_SELECT_WITH_COMPANY_DB_FILTER
+        : COMPANY_MANAGEMENT_SELECT
+    )
+    .order("is_scrape_original", {
+      ascending: false,
+      nullsFirst: false,
+    })
+    .order("updated_at", { ascending: false, nullsFirst: false })
+    .order("company_workspace_id", { ascending: true })
+    .range(offset, offset + limit);
+
+  if (hasCareerUrlOnly) {
+    workspaceQuery = workspaceQuery
+      .not("career_url", "is", null)
+      .neq("career_url", "");
+  } else {
+    workspaceQuery = workspaceQuery.is("career_url", null);
+  }
+
+  if (employeeCountRangeExactJsonValues.length === 1) {
+    workspaceQuery = workspaceQuery.eq(
+      "company_db.employee_count_range",
+      employeeCountRangeExactJsonValues[0]
+    );
+  } else if (employeeCountRangeExactJsonValues.length > 1) {
+    workspaceQuery = workspaceQuery.or(
+      employeeCountRangeExactJsonValues
+        .map((value) => `employee_count_range.eq.${value}`)
+        .join(","),
+      { foreignTable: "company_db" }
+    );
+  }
+
+  if (location) {
+    workspaceQuery = workspaceQuery.ilike(
+      "company_db.location",
+      `%${location}%`
+    );
+  }
+
+  if (investors) {
+    workspaceQuery = workspaceQuery.ilike(
+      "company_db.investors",
+      `%${investors}%`
+    );
+  }
+
+  if (foundedYearMin) {
+    workspaceQuery = workspaceQuery.gte(
+      "company_db.founded_year",
+      foundedYearMin
+    );
+  }
+
+  if (companyName) {
+    const workspaceNameFilters = [
+      `company_name.ilike.%${companyName}%`,
+      ...(shouldFilterByCompanyNameCompanyDbIds
+        ? [`company_db_id.in.(${companyNameCompanyDbIds.join(",")})`]
+        : []),
+    ];
+    workspaceQuery = workspaceQuery.or(workspaceNameFilters.join(","));
+  }
+
+  const { data, error } = await workspaceQuery;
+  if (error) {
+    throw new Error(error.message ?? "Failed to load companies");
+  }
+
+  const rows = coerceJsonArray<CompanyManagementWorkspaceRow>(data);
+  const pageRows = rows.slice(0, limit);
+  const pageCompanyDbIds = pageRows
+    .map((row) => row.company_db_id)
+    .filter((id): id is number => typeof id === "number");
+  const recentJoinCountByCompanyDbId = await fetchRecentJoinCountByCompanyDbId(
+    admin,
+    pageCompanyDbIds
+  );
+
+  return {
+    filters: {
+      companyName,
+      employeeCountRange,
+      foundedYearMin,
+      hasCareerUrlOnly,
+      investors,
+      location,
+    },
+    items: pageRows
+      .map((row) =>
+        mapCompanyManagementRecord({
+          recentJoinCount:
+            typeof row.company_db_id === "number"
+              ? (recentJoinCountByCompanyDbId.get(row.company_db_id) ?? 0)
+              : 0,
+          row,
+        })
+      )
+      .filter((row) => row.companyWorkspaceId),
+    limit,
+    nextOffset: rows.length > limit ? offset + limit : null,
+    offset,
+    query: companyName,
+  };
+}
+
+export async function updateOpsCompanyScrapeOriginal(args: {
+  isScrapeOriginal: boolean;
+  workspaceId: string;
+}) {
+  const admin = getSupabaseAdmin();
+  const workspaceId = ensureNonEmptyString(args.workspaceId, "workspaceId");
+  const isScrapeOriginal = Boolean(args.isScrapeOriginal);
+
+  const { data, error } = await (admin.from("company_workspace" as any) as any)
+    .update({
+      is_scrape_original: isScrapeOriginal,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("company_workspace_id", workspaceId)
+    .select("company_workspace_id, is_scrape_original")
+    .single();
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to update is_scrape_original");
+  }
+
+  return {
+    isScrapeOriginal: Boolean(data?.is_scrape_original),
+    workspaceId: String(data?.company_workspace_id ?? workspaceId),
+  };
+}
+
 export async function saveOpsOpportunityWorkspace(args: {
   careerUrl?: string | null;
   companyDescription?: string | null;
   companyName: string;
   homepageUrl?: string | null;
+  isInternal: boolean;
   linkedinUrl?: string | null;
+  pitch?: string | null;
+  request?: string | null;
   workspaceId?: string | null;
 }) {
   const admin = getSupabaseAdmin();
@@ -1671,9 +2204,11 @@ export async function saveOpsOpportunityWorkspace(args: {
     company_description: String(args.companyDescription ?? "").trim() || null,
     company_name: companyName,
     homepage_url: String(args.homepageUrl ?? "").trim() || null,
+    is_internal: args.isInternal,
     linkedin_url: companyDbRecord.linkedinUrl,
-    logo_storage_path: null,
     logo_url: companyDbRecord.logoUrl,
+    pitch: String(args.pitch ?? "").trim() || null,
+    request: String(args.request ?? "").trim() || null,
     updated_at: now,
   };
 
@@ -1689,7 +2224,7 @@ export async function saveOpsOpportunityWorkspace(args: {
 
   const { data, error } = await query
     .select(
-      "company_workspace_id, company_name, homepage_url, career_url, linkedin_url, logo_url, logo_storage_path, company_description, company_db_id, created_at, updated_at"
+      "company_workspace_id, company_name, homepage_url, career_url, linkedin_url, logo_url, company_description, company_db_id, is_internal, pitch, request, created_at, updated_at"
     )
     .single();
 
@@ -1716,6 +2251,7 @@ export async function saveOpsOpportunityRole(args: {
   locationText?: string | null;
   name: string;
   postedAt?: string | null;
+  request?: string | null;
   roleId?: string | null;
   sourceJobId?: string | null;
   sourceProvider?: string | null;
@@ -1751,6 +2287,7 @@ export async function saveOpsOpportunityRole(args: {
     location_text: String(args.locationText ?? "").trim() || null,
     name: ensureNonEmptyString(args.name, "name"),
     posted_at: parseDateString(args.postedAt, "postedAt"),
+    request: String(args.request ?? "").trim() || null,
     source_job_id: String(args.sourceJobId ?? "").trim() || null,
     source_provider: String(args.sourceProvider ?? "").trim() || null,
     source_type: normalizeOpportunitySourceType(args.sourceType),
@@ -1773,7 +2310,7 @@ export async function saveOpsOpportunityRole(args: {
 
   const { data, error } = await query
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, description_summary, information, type, status, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode"
+      "role_id, company_workspace_id, name, external_jd_url, description, description_summary, information, type, status, request, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode"
     )
     .single();
 
@@ -1817,10 +2354,14 @@ export async function syncOpsOpportunityRoles(args: {
 
   const workspace = workspaceData as Pick<
     WorkspaceRow,
-    "career_url" | "company_description" | "company_name" | "company_workspace_id"
+    | "career_url"
+    | "company_description"
+    | "company_name"
+    | "company_workspace_id"
   >;
   const careerUrl = normalizeCareerUrl(
-    String(args.careerUrl ?? "").trim() || String(workspace.career_url ?? "").trim()
+    String(args.careerUrl ?? "").trim() ||
+      String(workspace.career_url ?? "").trim()
   );
 
   if (!careerUrl) {
@@ -1829,7 +2370,9 @@ export async function syncOpsOpportunityRoles(args: {
 
   const provider = detectExternalRoleProvider(careerUrl);
   if (!provider) {
-    throw new Error("현재는 Lever 또는 LinkedIn Jobs career url만 sync할 수 있습니다.");
+    throw new Error(
+      "현재는 Lever 또는 LinkedIn Jobs career url만 sync할 수 있습니다."
+    );
   }
 
   const scrapedRoles = await fetchExternalRolesFromApify({
@@ -1876,7 +2419,9 @@ export async function syncOpsOpportunityRoles(args: {
       work_mode: role.workMode,
     }));
 
-    const { error: insertError } = await (admin.from("company_roles" as any) as any)
+    const { error: insertError } = await (
+      admin.from("company_roles" as any) as any
+    )
       .insert(payload)
       .select("role_id");
 
@@ -1886,7 +2431,8 @@ export async function syncOpsOpportunityRoles(args: {
   }
 
   return {
-    deletedCount: coerceJsonArray<{ role_id?: string | null }>(deletedRows).length,
+    deletedCount: coerceJsonArray<{ role_id?: string | null }>(deletedRows)
+      .length,
     insertedCount: summarizedRoles.length,
     provider,
     workspaceId,
@@ -2051,7 +2597,7 @@ async function fetchRoleLookupByIds(admin: AdminClient, roleIds: string[]) {
 
   const { data, error } = await (admin.from("company_roles" as any) as any)
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, description_summary, information, type, status, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode"
+      "role_id, company_workspace_id, name, external_jd_url, description, description_summary, information, type, status, request, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode"
     )
     .in("role_id", roleIds);
 
@@ -2106,7 +2652,9 @@ async function fetchRoleNotificationContext(args: {
   admin: AdminClient;
   roleId: string;
 }) {
-  const { data, error } = await ((args.admin.from("company_roles" as any) as any)
+  const { data, error } = await ((
+    args.admin.from("company_roles" as any) as any
+  )
     .select(
       `
         role_id,
@@ -2120,11 +2668,15 @@ async function fetchRoleNotificationContext(args: {
     .maybeSingle() as any);
 
   if (error) {
-    throw new Error(error.message ?? "Failed to load role notification context");
+    throw new Error(
+      error.message ?? "Failed to load role notification context"
+    );
   }
 
   const roleName = String(data?.name ?? "").trim();
-  const companyName = String(data?.company_workspace?.company_name ?? "").trim();
+  const companyName = String(
+    data?.company_workspace?.company_name ?? ""
+  ).trim();
 
   if (!roleName || !companyName) {
     throw new Error("Failed to load role notification context");
@@ -2339,11 +2891,13 @@ export async function saveOpsOpportunityRecommendation(args: {
       : "recommendation";
   const role = await fetchRoleNotificationContext({ admin, roleId });
 
-  const notificationMessage = buildOpportunityRecommendationNotificationMessage({
-    companyName: role.companyName,
-    opportunityType,
-    roleName: role.roleName,
-  });
+  const notificationMessage = buildOpportunityRecommendationNotificationMessage(
+    {
+      companyName: role.companyName,
+      opportunityType,
+      roleName: role.roleName,
+    }
+  );
 
   const { data, error } = await (
     admin.from("talent_opportunity_recommendation" as any) as any
@@ -2405,19 +2959,20 @@ export async function generateOpsOpportunityRecommendationDraft(args: {
     experienceResponse,
     educationResponse,
   ] = await Promise.all([
-    ((admin.from("talent_users" as any) as any)
+    (admin.from("talent_users" as any) as any)
       .select(
         "user_id, name, headline, location, profile_picture, email, bio, resume_text, resume_links, career_profile, network_application, updated_at"
       )
       .eq("user_id", talentId)
-      .maybeSingle() as any),
-    ((admin.from("company_roles" as any) as any)
+      .maybeSingle() as any,
+    (admin.from("company_roles" as any) as any)
       .select(
         `
           role_id,
           name,
           description,
           external_jd_url,
+          request,
           source_type,
           source_provider,
           source_job_id,
@@ -2431,24 +2986,26 @@ export async function generateOpsOpportunityRecommendationDraft(args: {
             company_name,
             company_description,
             homepage_url,
-            linkedin_url
+            linkedin_url,
+            pitch,
+            request
           )
         `
       )
       .eq("role_id", roleId)
-      .maybeSingle() as any),
-    ((admin.from("talent_experiences" as any) as any)
+      .maybeSingle() as any,
+    (admin.from("talent_experiences" as any) as any)
       .select(
         "role, description, start_date, end_date, months, company_name, company_location, memo"
       )
       .eq("talent_id", talentId)
       .order("start_date", { ascending: false, nullsFirst: false })
-      .order("id", { ascending: false }) as any),
-    ((admin.from("talent_educations" as any) as any)
+      .order("id", { ascending: false }) as any,
+    (admin.from("talent_educations" as any) as any)
       .select("school, degree, field, start_date, end_date, memo")
       .eq("talent_id", talentId)
       .order("start_date", { ascending: false, nullsFirst: false })
-      .order("id", { ascending: false }) as any),
+      .order("id", { ascending: false }) as any,
   ]);
 
   if (candidateResponse.error) {
@@ -2502,7 +3059,7 @@ export async function generateOpsOpportunityRecommendationDraft(args: {
     }),
   });
 
-  const response = await runTalentAssistantCompletion({
+  const response = await runOpsTalentRecommendation({
     messages: [
       {
         role: "system",
@@ -2514,7 +3071,6 @@ export async function generateOpsOpportunityRecommendationDraft(args: {
           "후보자에게 전달할 추천 메모를 작성해줘. 각 추천 포인트는 줄바꿈으로 구분해.",
       },
     ],
-    temperature: 0.35,
   });
 
   const draft = splitRecommendationMemoIntoReasons(response).join("\n");

@@ -11,9 +11,15 @@ import type {
   OpportunityWorkMode,
 } from "@/lib/opsOpportunity";
 import { LoaderCircle, Mail, Save } from "lucide-react";
+import type { ClipboardEvent } from "react";
+import ReactMarkdown from "react-markdown";
+import rehypeSanitize from "rehype-sanitize";
+import remarkGfm from "remark-gfm";
+import TurndownService from "turndown";
 import {
   ActionButton,
   type CandidateMailDraft,
+  type DraftMode,
   EMPLOYMENT_LABEL,
   type RoleDraft,
   STATUS_LABEL,
@@ -22,6 +28,137 @@ import {
   WORK_MODE_LABEL,
   type WorkspaceDraft,
 } from "./shared";
+
+function convertHtmlPasteToMarkdown(html: string) {
+  const trimmedHtml = html.trim();
+  if (!trimmedHtml) return "";
+
+  const turndown = new TurndownService({
+    bulletListMarker: "-",
+    codeBlockStyle: "fenced",
+    headingStyle: "atx",
+    hr: "---",
+    strongDelimiter: "**",
+  });
+
+  turndown.remove(["script", "style"]);
+
+  return turndown.turndown(trimmedHtml).replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function buildNextTextareaValue(args: {
+  currentValue: string;
+  insertedText: string;
+  selectionEnd: number;
+  selectionStart: number;
+}) {
+  return [
+    args.currentValue.slice(0, args.selectionStart),
+    args.insertedText,
+    args.currentValue.slice(args.selectionEnd),
+  ].join("");
+}
+
+function handleMarkdownRichPaste(args: {
+  currentValue: string;
+  event: ClipboardEvent<HTMLTextAreaElement>;
+  onChange: (nextValue: string) => void;
+}) {
+  const target = args.event.currentTarget;
+  const html = args.event.clipboardData.getData("text/html");
+  if (!html.trim()) return;
+
+  const markdown = convertHtmlPasteToMarkdown(html);
+  if (!markdown) return;
+
+  args.event.preventDefault();
+
+  const selectionStart = target.selectionStart ?? 0;
+  const selectionEnd = target.selectionEnd ?? selectionStart;
+  const nextValue = buildNextTextareaValue({
+    currentValue: args.currentValue,
+    insertedText: markdown,
+    selectionEnd,
+    selectionStart,
+  });
+
+  args.onChange(nextValue);
+
+  const caret = selectionStart + markdown.length;
+  requestAnimationFrame(() => {
+    target.setSelectionRange(caret, caret);
+  });
+}
+
+function RoleDescriptionMarkdownPreview({ markdown }: { markdown: string }) {
+  const trimmedMarkdown = markdown.trim();
+
+  return (
+    <div className="space-y-2">
+      <div className={opsTheme.eyebrow}>Markdown Preview</div>
+      <div
+        className={cx(
+          opsTheme.panelSoft,
+          "overflow-hidden px-4 py-4 text-sm leading-6 text-beige900"
+        )}
+      >
+        {trimmedMarkdown ? (
+          <div className="space-y-3">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              rehypePlugins={[rehypeSanitize]}
+              components={{
+                h1: ({ children }) => (
+                  <h1 className="font-halant text-[1.7rem] leading-[1] tracking-[-0.05em] text-beige900">
+                    {children}
+                  </h1>
+                ),
+                h2: ({ children }) => (
+                  <h2 className="font-halant text-[1.35rem] leading-[1.05] tracking-[-0.04em] text-beige900">
+                    {children}
+                  </h2>
+                ),
+                h3: ({ children }) => (
+                  <h3 className="font-geist text-base font-semibold text-beige900">
+                    {children}
+                  </h3>
+                ),
+                hr: () => <hr className="my-4 border-0 border-t border-beige900/15" />,
+                p: ({ children }) => (
+                  <p className="whitespace-pre-wrap text-sm leading-6 text-beige900/75">
+                    {children}
+                  </p>
+                ),
+                ul: ({ children }) => (
+                  <ul className="list-disc space-y-1 pl-5 text-sm leading-6 text-beige900/75">
+                    {children}
+                  </ul>
+                ),
+                ol: ({ children }) => (
+                  <ol className="list-decimal space-y-1 pl-5 text-sm leading-6 text-beige900/75">
+                    {children}
+                  </ol>
+                ),
+                li: ({ children }) => <li className="pl-1">{children}</li>,
+                strong: ({ children }) => (
+                  <strong className="font-semibold text-beige900">
+                    {children}
+                  </strong>
+                ),
+              }}
+            >
+              {trimmedMarkdown}
+            </ReactMarkdown>
+          </div>
+        ) : (
+          <div className="font-geist text-sm text-beige900/45">
+            Description에 markdown을 입력하면 여기서 미리보기로 렌더링됩니다.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function CandidateMailModal({
   draft,
@@ -244,6 +381,7 @@ export function RecommendationPromptModal({
 export function WorkspaceCreateModal({
   draft,
   extractPending,
+  mode,
   onChange,
   onClose,
   onExtract,
@@ -253,6 +391,7 @@ export function WorkspaceCreateModal({
 }: {
   draft: WorkspaceDraft;
   extractPending: boolean;
+  mode: DraftMode;
   onChange: (next: WorkspaceDraft) => void;
   onClose: () => void;
   onExtract: () => void;
@@ -266,8 +405,9 @@ export function WorkspaceCreateModal({
     <TalentCareerModal
       open={open}
       onClose={onClose}
-      title="회사 추가"
+      title={mode === "edit" ? "회사 수정" : "회사 추가"}
       description=""
+      overlayClassName="items-start overflow-y-auto px-4 py-10 sm:px-6 sm:py-14 lg:py-16"
       panelClassName="max-w-[720px] border border-beige900/10 bg-beige50"
       bodyClassName="bg-beige50 px-5 py-5"
       footer={
@@ -367,6 +507,20 @@ export function WorkspaceCreateModal({
             className={opsTheme.input}
           />
         </div>
+        <label className="flex items-center gap-3 rounded-md border border-beige900/10 bg-white/70 px-3 py-3 font-geist text-sm text-beige900">
+          <input
+            type="checkbox"
+            checked={draft.isInternal}
+            onChange={(event) =>
+              onChange({
+                ...draft,
+                isInternal: event.target.checked,
+              })
+            }
+            className="h-4 w-4 rounded border-beige900/20 accent-beige900"
+          />
+          <span>is_internal</span>
+        </label>
         <div className="space-y-2">
           <div className={opsTheme.eyebrow}>소개</div>
           <textarea
@@ -381,6 +535,34 @@ export function WorkspaceCreateModal({
             className={cx(opsTheme.textarea, "min-h-[140px] px-3 py-3")}
           />
         </div>
+        <div className="space-y-2">
+          <div className={opsTheme.eyebrow}>Pitch</div>
+          <textarea
+            value={draft.pitch}
+            onChange={(event) =>
+              onChange({
+                ...draft,
+                pitch: event.target.value,
+              })
+            }
+            placeholder="회사/기회 pitch"
+            className={cx(opsTheme.textarea, "min-h-[120px] px-3 py-3")}
+          />
+        </div>
+        <div className="space-y-2">
+          <div className={opsTheme.eyebrow}>Request</div>
+          <textarea
+            value={draft.request}
+            onChange={(event) =>
+              onChange({
+                ...draft,
+                request: event.target.value,
+              })
+            }
+            placeholder="회사 요청사항"
+            className={cx(opsTheme.textarea, "min-h-[120px] px-3 py-3")}
+          />
+        </div>
       </div>
     </TalentCareerModal>
   );
@@ -388,6 +570,7 @@ export function WorkspaceCreateModal({
 
 export function RoleCreateModal({
   draft,
+  mode,
   onChange,
   onClose,
   onSubmit,
@@ -396,6 +579,7 @@ export function RoleCreateModal({
   workspaceName,
 }: {
   draft: RoleDraft;
+  mode: DraftMode;
   onChange: (next: RoleDraft) => void;
   onClose: () => void;
   onSubmit: () => void;
@@ -409,8 +593,9 @@ export function RoleCreateModal({
     <TalentCareerModal
       open={open}
       onClose={onClose}
-      title="기회 추가"
+      title={mode === "edit" ? "기회 수정" : "기회 추가"}
       description=""
+      overlayClassName="items-start overflow-y-auto px-4 py-10 sm:px-6 sm:py-14 lg:py-16"
       panelClassName="max-w-[860px] border border-beige900/10 bg-beige50"
       bodyClassName="bg-beige50 px-5 py-5"
       footer={
@@ -670,6 +855,20 @@ export function RoleCreateModal({
           />
         </div>
         <div className="space-y-2">
+          <div className={opsTheme.eyebrow}>Request</div>
+          <textarea
+            value={draft.request}
+            onChange={(event) =>
+              onChange({
+                ...draft,
+                request: event.target.value,
+              })
+            }
+            placeholder="기회 요청사항"
+            className={cx(opsTheme.textarea, "min-h-[120px]")}
+          />
+        </div>
+        <div className="space-y-2">
           <div className={opsTheme.eyebrow}>Description</div>
           <textarea
             value={draft.description}
@@ -679,10 +878,26 @@ export function RoleCreateModal({
                 description: event.target.value,
               })
             }
+            onPaste={(event) =>
+              handleMarkdownRichPaste({
+                currentValue: draft.description,
+                event,
+                onChange: (nextValue) =>
+                  onChange({
+                    ...draft,
+                    description: nextValue,
+                  }),
+              })
+            }
             placeholder="role description"
             className={cx(opsTheme.textarea, "min-h-[220px] px-3 py-3")}
           />
+          <div className="font-geist text-xs leading-5 text-beige900/45">
+            노션이나 웹 문서에서 붙여 넣으면 가능한 범위에서 markdown으로
+            변환합니다.
+          </div>
         </div>
+        <RoleDescriptionMarkdownPreview markdown={draft.description} />
       </div>
     </TalentCareerModal>
   );

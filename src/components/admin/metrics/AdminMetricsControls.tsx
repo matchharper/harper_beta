@@ -59,7 +59,7 @@ export default function AdminMetricsControls({
                 className={`flex cursor-pointer items-center gap-2 border px-3 py-2 text-[12px] transition ${
                   isSelected
                     ? "border-black bg-black text-white"
-                    : "border-black/15 bg-white text-black hover:border-black/30 hover:bg-black/[0.03]"
+                    : "border-black/15 bg-white text-black hover:border-black/30 hover:bg-black/[0.05]"
                 }`}
                 style={{ borderRadius: 0 }}
               >
@@ -104,7 +104,7 @@ export default function AdminMetricsControls({
                     className={`h-9 px-3 text-[12px] border transition ${
                       isActive
                         ? "border-black bg-black text-white"
-                        : "border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
+                        : "border-black/15 hover:border-black/30 hover:bg-black/[0.05]"
                     }`}
                     style={{ borderRadius: 0 }}
                   >

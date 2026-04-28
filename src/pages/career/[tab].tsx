@@ -38,6 +38,15 @@ export const getServerSideProps: GetServerSideProps<CareerTabPageProps> = async 
     };
   }
 
+  if (rawTab === "chat") {
+    return {
+      redirect: {
+        destination: "/career",
+        permanent: false,
+      },
+    };
+  }
+
   if (!isCareerWorkspaceTab(rawTab)) {
     return {
       notFound: true,

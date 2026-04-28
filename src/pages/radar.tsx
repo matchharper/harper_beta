@@ -578,7 +578,7 @@ export default function RadarLandingPage() {
               className="pointer-events-none absolute inset-0"
               style={HERO_DOT_BACKGROUND_STYLE}
             />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(180,255,120,0.12),transparent_34%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(180,255,120,0.1),transparent_34%)]" />
           </div>
 
           <Reveal delay={0.08} className="w-full max-w-[980px]">
@@ -599,7 +599,7 @@ export default function RadarLandingPage() {
               </p>
 
               <div className="mt-12 w-full max-w-[820px] md:mt-16">
-                <div className="w-full overflow-hidden rounded-[30px] bg-gradpastel2 p-4 shadow-[0_40px_120px_rgba(0,0,0,0.38)]">
+                <div className="w-full overflow-hidden rounded-[30px] bg-gradpastel2 p-4 shadow-[0_40px_120px_rgba(0,0,0,0.4)]">
                   <SearchInputPanel
                     query={query}
                     onQueryChange={setQuery}

@@ -54,7 +54,7 @@ const ROLE_STATUS_SURFACE_CLASSNAME: Record<MatchRoleRecord["status"], string> =
     active:
       "border-green-700/20 bg-green-700/10 text-green-600 hover:bg-green-700/15",
     ended:
-      "border-white/10 bg-white/[0.04] text-white/45 hover:bg-white/[0.08]",
+      "border-white/10 bg-white/[0.05] text-white/45 hover:bg-white/[0.1]",
     paused:
       "border-amber-300/20 bg-amber-300/10 text-amber-100 hover:bg-amber-300/15",
     top_priority:
@@ -321,7 +321,7 @@ export default function MatchPage() {
               trigger={
                 <button
                   type="button"
-                  className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.02] px-3 py-2.5 text-xs font-medium text-white transition hover:bg-white/10"
+                  className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.05] px-3 py-2.5 text-xs font-medium text-white transition hover:bg-white/10"
                 >
                   <div className="flex flex-row items-center gap-2">
                     {workspace.logoUrl ? (
@@ -635,10 +635,10 @@ export default function MatchPage() {
                         >
                           <div
                             className={cn(
-                              "border-b border-white/5 py-3 bg-white/[0.01] px-3 hover:bg-white/[0.03] transition-colors",
+                              "border-b border-white/5 py-3 bg-white/[0.05] px-3 hover:bg-white/[0.05] transition-colors",
                               isActive
                                 ? "border-white/10 bg-white/5"
-                                : "hover:border-white/12 hover:bg-white/[0.03]"
+                                : "hover:border-white/10 hover:bg-white/[0.05]"
                             )}
                           >
                             <div className="flex gap-4 flex-row items-start justify-between">
@@ -680,7 +680,7 @@ export default function MatchPage() {
                                       {/* {role.employmentTypes.map((item) => (
                                         <span
                                           key={item}
-                                          className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1"
+                                          className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1"
                                         >
                                           {TYPE_LABEL[item]}
                                         </span>

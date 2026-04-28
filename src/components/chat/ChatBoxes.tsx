@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import type {
+  AttachmentContextBlock,
   CriteriaCardBlock,
   ToolStatusBlock,
   FileContextBlock,
@@ -16,6 +17,7 @@ import {
   ChevronDown,
   ChevronUp,
   FileSpreadsheet,
+  Link2,
   Loader2,
   Plus,
   Pin,
@@ -41,6 +43,7 @@ import {
 } from "@/lib/searchSource";
 import { useRunDetail } from "@/hooks/useRunDetail";
 import { Tooltips } from "../ui/tooltip";
+import { useMessages } from "@/i18n/useMessage";
 
 const DEFAULT_CRITERIA_CARD_SOURCES: EnabledSearchSource[] = ["linkedin"];
 
@@ -665,14 +668,14 @@ export const ToolStatusToggle = React.memo(function ToolStatusToggle({
   );
 });
 
-export const formatBytes = React.memo(function formatBytes(bytes?: number) {
+export function formatBytes(bytes?: number) {
   if (!bytes || Number.isNaN(bytes)) return "";
   if (bytes < 1024) return `${bytes} B`;
   const kb = bytes / 1024;
   if (kb < 1024) return `${kb.toFixed(1)} KB`;
   const mb = kb / 1024;
   return `${mb.toFixed(1)} MB`;
-});
+}
 
 export const DocumentCard = React.memo(function DocumentCard({
   title,
@@ -722,23 +725,31 @@ export const DocumentCard = React.memo(function DocumentCard({
   );
 });
 
-export const FileContextCard = React.memo(function FileContextCard({
+export const AttachmentContextCard = React.memo(function AttachmentContextCard({
   block,
 }: {
-  block: FileContextBlock;
+  block: AttachmentContextBlock;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const { m } = useMessages();
   const excerpt = block.excerpt ?? "";
   const hasExcerpt = excerpt.trim().length > 0;
+  const isLink = block.kind === "link";
 
   return (
-    <div className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-      <div className="text-xs text-hgray600 flex items-center gap-1.5">
-        <Paperclip className="w-3 h-3" />
-        첨부 파일
+    <div className="mt-2 w-full rounded-[14px] bg-white/[0.05] px-4 py-3">
+      <div className="flex items-center gap-1.5 text-xs text-hgray600">
+        {isLink ? (
+          <LinkChip raw={block.url ?? ""} size="md" className="mt-0" />
+        ) : (
+          <>
+            <Paperclip className="h-3 w-3" />
+            <span>{m.chat.attachedFileLabel ?? "첨부 파일"}</span>
+          </>
+        )}
       </div>
       <div className="mt-2 text-sm text-hgray900 font-medium">{block.name}</div>
-      <div className="text-[11px] text-hgray600">
+      <div className="mt-1 text-[11px] text-hgray600">
         {[block.mime, formatBytes(block.size)].filter(Boolean).join(" · ")}
       </div>
       {hasExcerpt && (
@@ -762,6 +773,27 @@ export const FileContextCard = React.memo(function FileContextCard({
   );
 });
 
+export const FileContextCard = React.memo(function FileContextCard({
+  block,
+}: {
+  block: FileContextBlock;
+}) {
+  return (
+    <AttachmentContextCard
+      block={{
+        type: "attachment_context",
+        kind: "file",
+        name: block.name,
+        text: block.text,
+        size: block.size,
+        mime: block.mime,
+        excerpt: block.excerpt,
+        truncated: block.truncated,
+      }}
+    />
+  );
+});
+
 export const SettingsCtaCard = React.memo(function SettingsCtaCard({
   block,
 }: {
@@ -773,7 +805,7 @@ export const SettingsCtaCard = React.memo(function SettingsCtaCard({
 
   return (
     <div className="w-full">
-      <div className="inline-flex flex-col rounded-xl bg-white/[0.03] px-4 py-3 text-[13px] backdrop-blur-sm">
+      <div className="inline-flex flex-col rounded-xl bg-white/[0.05] px-4 py-3 text-[13px] backdrop-blur-sm">
         <div
           className="text-white/70 leading-relaxed whitespace-pre-wrap"
           dangerouslySetInnerHTML={{ __html: block.text }}
@@ -782,7 +814,7 @@ export const SettingsCtaCard = React.memo(function SettingsCtaCard({
         <button
           type="button"
           onClick={() => router.push(href)}
-          className="mt-4 inline-flex w-fit items-center gap-1.5 rounded-md bg-white/[0.04] px-3 py-1.5 text-white/80 hover:bg-white/[0.08] transition"
+          className="mt-4 inline-flex w-fit items-center gap-1.5 rounded-md bg-white/[0.05] px-3 py-1.5 text-white/80 hover:bg-white/[0.1] transition"
         >
           {buttonLabel}
           <ArrowRight className="w-3.5 h-3.5 opacity-70" />
@@ -886,7 +918,7 @@ export const SearchResultCard = React.memo(function SearchResultCard({
   if (!fullCount || fullCount <= 0) {
     return (
       <div className="w-full mt-4">
-        <div className="w-full rounded-2xl border border-white/10 bg-white/[0.03] text-hgray900 overflow-hidden">
+        <div className="w-full rounded-2xl border border-white/10 bg-white/[0.05] text-hgray900 overflow-hidden">
           <div className="flex text-[13px] items-center gap-2 px-4 py-3">
             <FileSpreadsheet className="w-3 h-3 text-green-500" />
             <span className="font-medium">
@@ -960,7 +992,7 @@ export const SearchResultCard = React.memo(function SearchResultCard({
 
   return (
     <div className="w-full mt-4">
-      <div className="w-full rounded-2xl border border-white/10 bg-white/[0.03] text-hgray900 overflow-hidden">
+      <div className="w-full rounded-2xl border border-white/10 bg-white/[0.05] text-hgray900 overflow-hidden">
         <div className="flex text-[13px] items-center justify-between gap-2 border-b border-white/10 px-4 py-3">
           <div className="flex items-center gap-2">
             <FileSpreadsheet className="w-3 h-3 text-green-500" />

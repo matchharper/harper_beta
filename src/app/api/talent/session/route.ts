@@ -18,6 +18,10 @@ import {
   normalizeTalentPreferredLocations,
   sanitizeTalentCareerMoveIntent,
 } from "@/lib/talentOnboarding/server";
+import {
+  normalizeTalentPeriodicIntervalDays,
+  normalizeTalentRecommendationBatchSize,
+} from "@/lib/talentOnboarding/recommendationSettings";
 import { autoStartClaimedTalentConversation } from "@/lib/talentOnboarding/kickoff";
 import { generateTalentReengagementMessage } from "@/lib/talentOnboarding/reengagement";
 import {
@@ -25,6 +29,21 @@ import {
   normalizeTalentNetworkApplication,
 } from "@/lib/talentNetworkApplication";
 import { fetchTalentOpportunityHistory } from "@/lib/talentOpportunity";
+import {
+  fetchLatestOpportunityRun,
+  serializeOpportunityRun,
+} from "@/lib/opportunityDiscovery/store";
+import {
+  fetchActiveMockInterviewSession,
+  serializeMockInterviewSession,
+  toMockInterviewResponseMessage,
+  MOCK_INTERVIEW_PREPARING_MESSAGE_TYPE,
+  MOCK_INTERVIEW_SETUP_MESSAGE_TYPE,
+} from "@/lib/mockInterview/server";
+import {
+  COMPANY_SNAPSHOT_SETUP_MESSAGE_TYPE,
+  toCompanySnapshotResponseMessage,
+} from "@/lib/career/companySnapshot";
 
 const REENGAGEMENT_IDLE_MS = 24 * 60 * 60 * 1000;
 
@@ -261,6 +280,10 @@ export async function GET(req: NextRequest) {
       limit: messageLimit,
       beforeMessageId,
     });
+    const visibleMessages = messages.filter(
+      (message) =>
+        message.message_type !== MOCK_INTERVIEW_PREPARING_MESSAGE_TYPE
+    );
     const [
       talentProfile,
       resumeDownloadUrl,
@@ -268,6 +291,9 @@ export async function GET(req: NextRequest) {
       talentInsights,
       talentNotificationsResponse,
       historyOpportunities,
+      latestOpportunityRun,
+      activeMockInterview,
+      activeCompanyRolesResponse,
     ] = await Promise.all([
       fetchTalentStructuredProfile({
         admin,
@@ -295,6 +321,21 @@ export async function GET(req: NextRequest) {
         admin,
         userId: user.id,
       }),
+      fetchLatestOpportunityRun({
+        admin,
+        userId: user.id,
+      }),
+      fetchActiveMockInterviewSession({
+        admin,
+        conversationId: conversation.id,
+        userId: user.id,
+      }),
+      admin
+        .from("company_roles")
+        .select("role_id", { count: "exact", head: true })
+        .eq("status", "active")
+        .not("is_expired", "is", true)
+        .or(`expires_at.is.null,expires_at.gte.${new Date().toISOString()}`),
     ]);
     const normalizedInsights = normalizeTalentInsightContent(
       talentInsights?.content
@@ -307,6 +348,9 @@ export async function GET(req: NextRequest) {
           isRead: Boolean(notification.is_read),
           createdAt: notification.created_at,
         }));
+    const activeCompanyRoleCount = activeCompanyRolesResponse.error
+      ? 0
+      : activeCompanyRolesResponse.count ?? 0;
     const careerMoveIntent = sanitizeTalentCareerMoveIntent(
       talentSetting?.career_move_intent
     );
@@ -332,9 +376,38 @@ export async function GET(req: NextRequest) {
         matchedAt: item.recommendedAt,
         href: item.href,
       }));
+    const messageIds = visibleMessages
+      .map((message) => message.id)
+      .filter((id): id is number => typeof id === "number");
+    const previewByMessageId = new Map<number, typeof historyOpportunities>();
+
+    if (messageIds.length > 0) {
+      const { data: previewRows, error: previewError } = await ((
+        admin.from("talent_opportunity_chat_preview" as any) as any
+      )
+        .select("assistant_message_id, recommendation_id, rank")
+        .in("assistant_message_id", messageIds)
+        .order("rank", { ascending: true }) as any);
+
+      if (!previewError && Array.isArray(previewRows)) {
+        const opportunityById = new Map(
+          historyOpportunities.map((item) => [item.id, item])
+        );
+
+        for (const row of previewRows) {
+          const messageId = Number(row.assistant_message_id);
+          const item = opportunityById.get(String(row.recommendation_id));
+          if (!Number.isFinite(messageId) || !item) continue;
+          const current = previewByMessageId.get(messageId) ?? [];
+          current.push(item);
+          previewByMessageId.set(messageId, current);
+        }
+      }
+    }
 
     return NextResponse.json({
       ok: true,
+      activeCompanyRoleCount,
       conversation: {
         id: conversation.id,
         stage: conversation.stage,
@@ -360,6 +433,12 @@ export async function GET(req: NextRequest) {
         ),
         careerMoveIntent,
         careerMoveIntentLabel: getTalentCareerMoveIntentLabel(careerMoveIntent),
+        periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
+          talentSetting?.periodic_interval_days
+        ),
+        recommendationBatchSize: normalizeTalentRecommendationBatchSize(
+          talentSetting?.recommendation_batch_size
+        ),
       },
       talentInsights: normalizedInsights,
       recentOpportunities,
@@ -376,13 +455,22 @@ export async function GET(req: NextRequest) {
         ),
       },
       talentProfile,
-      messages: messages.map((message) => ({
-        id: message.id,
-        role: message.role,
-        content: message.content,
-        messageType: message.message_type ?? "chat",
-        createdAt: message.created_at,
+      opportunityRun: serializeOpportunityRun(latestOpportunityRun),
+      messages: visibleMessages.map((message) => ({
+        ...(message.message_type === MOCK_INTERVIEW_SETUP_MESSAGE_TYPE
+          ? toMockInterviewResponseMessage(message as TalentMessageRow)
+          : message.message_type === COMPANY_SNAPSHOT_SETUP_MESSAGE_TYPE
+            ? toCompanySnapshotResponseMessage(message as TalentMessageRow)
+            : {
+                id: message.id,
+                role: message.role,
+                content: message.content,
+                messageType: message.message_type ?? "chat",
+                createdAt: message.created_at,
+              }),
+        opportunityPreview: previewByMessageId.get(message.id) ?? [],
       })),
+      mockInterviewSession: serializeMockInterviewSession(activeMockInterview),
       nextBeforeMessageId,
     });
   } catch (error) {

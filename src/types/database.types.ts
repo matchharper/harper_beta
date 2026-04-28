@@ -898,10 +898,13 @@ export type Database = {
           expires_at: string | null
           external_jd_url: string | null
           information: Json | null
+          is_expired: boolean
           location_text: string | null
           name: string
+          opportunity_search_tsv: unknown | null
           posted_at: string | null
           priority: number | null
+          request: string | null
           role_id: string
           salary_range: string | null
           seniority_level: string | null
@@ -921,10 +924,13 @@ export type Database = {
           expires_at?: string | null
           external_jd_url?: string | null
           information?: Json | null
+          is_expired?: boolean
           location_text?: string | null
           name: string
+          opportunity_search_tsv?: never
           posted_at?: string | null
           priority?: number | null
+          request?: string | null
           role_id?: string
           salary_range?: string | null
           seniority_level?: string | null
@@ -944,10 +950,13 @@ export type Database = {
           expires_at?: string | null
           external_jd_url?: string | null
           information?: Json | null
+          is_expired?: boolean
           location_text?: string | null
           name?: string
+          opportunity_search_tsv?: never
           posted_at?: string | null
           priority?: number | null
+          request?: string | null
           role_id?: string
           salary_range?: string | null
           seniority_level?: string | null
@@ -966,6 +975,50 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "company_workspace"
             referencedColumns: ["company_workspace_id"]
+          },
+        ]
+      }
+      company_snapshot: {
+        Row: {
+          company_db_id: number | null
+          company_name: string
+          content: Json
+          created_at: string
+          id: string
+          normalized_company_name: string
+          source_urls: Json
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          company_db_id?: number | null
+          company_name: string
+          content?: Json
+          created_at?: string
+          id?: string
+          normalized_company_name: string
+          source_urls?: Json
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          company_db_id?: number | null
+          company_name?: string
+          content?: Json
+          created_at?: string
+          id?: string
+          normalized_company_name?: string
+          source_urls?: Json
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_snapshot_company_db_id_fkey"
+            columns: ["company_db_id"]
+            isOneToOne: false
+            referencedRelation: "company_db"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -1055,42 +1108,57 @@ export type Database = {
       }
       company_workspace: {
         Row: {
+          brief: string | null
           career_url: string | null
           company_db_id: number | null
           company_description: string | null
           company_name: string
           company_workspace_id: string
           created_at: string
+          has_career_page: boolean
           homepage_url: string | null
+          is_internal: boolean
+          is_scrape_original: boolean
           linkedin_url: string | null
-          logo_storage_path: string | null
           logo_url: string | null
+          pitch: string | null
+          request: string | null
           updated_at: string
         }
         Insert: {
+          brief?: string | null
           career_url?: string | null
           company_db_id?: number | null
           company_description?: string | null
           company_name: string
           company_workspace_id?: string
           created_at?: string
+          has_career_page?: boolean
           homepage_url?: string | null
+          is_internal?: boolean
+          is_scrape_original?: boolean
           linkedin_url?: string | null
-          logo_storage_path?: string | null
           logo_url?: string | null
+          pitch?: string | null
+          request?: string | null
           updated_at?: string
         }
         Update: {
+          brief?: string | null
           career_url?: string | null
           company_db_id?: number | null
           company_description?: string | null
           company_name?: string
           company_workspace_id?: string
           created_at?: string
+          has_career_page?: boolean
           homepage_url?: string | null
+          is_internal?: boolean
+          is_scrape_original?: boolean
           linkedin_url?: string | null
-          logo_storage_path?: string | null
           logo_url?: string | null
+          pitch?: string | null
+          request?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -2073,6 +2141,263 @@ export type Database = {
         }
         Relationships: []
       }
+      jobposting_company_identity: {
+        Row: {
+          company_db_id: number | null
+          company_name: string | null
+          company_workspace_id: string
+          confidence: number
+          created_at: string
+          evidence: Json
+          first_seen_at: string
+          id: number
+          last_seen_at: string
+          provider: string
+          provider_company_id: string | null
+          provider_company_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_db_id?: number | null
+          company_name?: string | null
+          company_workspace_id: string
+          confidence?: number
+          created_at?: string
+          evidence?: Json
+          first_seen_at?: string
+          id?: number
+          last_seen_at?: string
+          provider: string
+          provider_company_id?: string | null
+          provider_company_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_db_id?: number | null
+          company_name?: string | null
+          company_workspace_id?: string
+          confidence?: number
+          created_at?: string
+          evidence?: Json
+          first_seen_at?: string
+          id?: number
+          last_seen_at?: string
+          provider?: string
+          provider_company_id?: string | null
+          provider_company_url?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobposting_company_identity_company_db_id_fkey"
+            columns: ["company_db_id"]
+            isOneToOne: false
+            referencedRelation: "company_db"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobposting_company_identity_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "company_workspace"
+            referencedColumns: ["company_workspace_id"]
+          },
+        ]
+      }
+      jobposting_company_status: {
+        Row: {
+          company_db_id: number | null
+          company_workspace_id: string | null
+          created_at: string
+          evidence: Json
+          hiring_status: string
+          id: number
+          last_checked_at: string
+          lifecycle_status: string
+          updated_at: string
+        }
+        Insert: {
+          company_db_id?: number | null
+          company_workspace_id?: string | null
+          created_at?: string
+          evidence?: Json
+          hiring_status?: string
+          id?: number
+          last_checked_at?: string
+          lifecycle_status?: string
+          updated_at?: string
+        }
+        Update: {
+          company_db_id?: number | null
+          company_workspace_id?: string | null
+          created_at?: string
+          evidence?: Json
+          hiring_status?: string
+          id?: number
+          last_checked_at?: string
+          lifecycle_status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobposting_company_status_company_db_id_fkey"
+            columns: ["company_db_id"]
+            isOneToOne: false
+            referencedRelation: "company_db"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobposting_company_status_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "company_workspace"
+            referencedColumns: ["company_workspace_id"]
+          },
+        ]
+      }
+      jobposting_crawl_log: {
+        Row: {
+          company_db_id: number | null
+          company_workspace_id: string | null
+          created_at: string
+          discovered_role_count: number
+          error_message: string | null
+          fetched_at: string
+          final_url: string | null
+          http_status: number | null
+          id: number
+          metadata: Json
+          page_alive: boolean | null
+          role_inserted_count: number
+          role_updated_count: number
+          run_type: string
+          source_kind: string
+          source_url: string
+          status: string
+        }
+        Insert: {
+          company_db_id?: number | null
+          company_workspace_id?: string | null
+          created_at?: string
+          discovered_role_count?: number
+          error_message?: string | null
+          fetched_at?: string
+          final_url?: string | null
+          http_status?: number | null
+          id?: number
+          metadata?: Json
+          page_alive?: boolean | null
+          role_inserted_count?: number
+          role_updated_count?: number
+          run_type: string
+          source_kind: string
+          source_url: string
+          status: string
+        }
+        Update: {
+          company_db_id?: number | null
+          company_workspace_id?: string | null
+          created_at?: string
+          discovered_role_count?: number
+          error_message?: string | null
+          fetched_at?: string
+          final_url?: string | null
+          http_status?: number | null
+          id?: number
+          metadata?: Json
+          page_alive?: boolean | null
+          role_inserted_count?: number
+          role_updated_count?: number
+          run_type?: string
+          source_kind?: string
+          source_url?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobposting_crawl_log_company_db_id_fkey"
+            columns: ["company_db_id"]
+            isOneToOne: false
+            referencedRelation: "company_db"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobposting_crawl_log_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "company_workspace"
+            referencedColumns: ["company_workspace_id"]
+          },
+        ]
+      }
+      jobs_companies_sources: {
+        Row: {
+          company_workspace_id: string | null
+          created_at: string
+          first_seen_at: string
+          groupby_company_name: string | null
+          groupby_company_url: string | null
+          id: number
+          jobkorea_company_name: string | null
+          jobkorea_company_url: string | null
+          last_seen_at: string
+          linkedin_name: string | null
+          linkedin_url: string | null
+          source_metadata: Json
+          updated_at: string
+          wanted_company_name: string | null
+          wanted_company_url: string | null
+          zighang_company_name: string | null
+          zighang_company_url: string | null
+        }
+        Insert: {
+          company_workspace_id?: string | null
+          created_at?: string
+          first_seen_at?: string
+          groupby_company_name?: string | null
+          groupby_company_url?: string | null
+          id?: number
+          jobkorea_company_name?: string | null
+          jobkorea_company_url?: string | null
+          last_seen_at?: string
+          linkedin_name?: string | null
+          linkedin_url?: string | null
+          source_metadata?: Json
+          updated_at?: string
+          wanted_company_name?: string | null
+          wanted_company_url?: string | null
+          zighang_company_name?: string | null
+          zighang_company_url?: string | null
+        }
+        Update: {
+          company_workspace_id?: string | null
+          created_at?: string
+          first_seen_at?: string
+          groupby_company_name?: string | null
+          groupby_company_url?: string | null
+          id?: number
+          jobkorea_company_name?: string | null
+          jobkorea_company_url?: string | null
+          last_seen_at?: string
+          linkedin_name?: string | null
+          linkedin_url?: string | null
+          source_metadata?: Json
+          updated_at?: string
+          wanted_company_name?: string | null
+          wanted_company_url?: string | null
+          zighang_company_name?: string | null
+          zighang_company_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobs_companies_sources_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "company_workspace"
+            referencedColumns: ["company_workspace_id"]
+          },
+        ]
+      }
       landing_logs: {
         Row: {
           abtest_type: string | null
@@ -2232,6 +2557,410 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "company_users"
             referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      opportunity_discovery_run: {
+        Row: {
+          chat_preview_count: number
+          completed_at: string | null
+          conversation_id: string | null
+          coverage: Json
+          created_at: string
+          error_message: string | null
+          id: string
+          query_plan: Json
+          run_mode: string
+          settings_snapshot: Json
+          started_at: string | null
+          status: string
+          talent_id: string | null
+          target_recommendation_count: number
+          trigger: string
+          trigger_payload: Json
+          updated_at: string
+          user_brief: Json
+        }
+        Insert: {
+          chat_preview_count?: number
+          completed_at?: string | null
+          conversation_id?: string | null
+          coverage?: Json
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          query_plan?: Json
+          run_mode?: string
+          settings_snapshot?: Json
+          started_at?: string | null
+          status?: string
+          talent_id?: string | null
+          target_recommendation_count?: number
+          trigger: string
+          trigger_payload?: Json
+          updated_at?: string
+          user_brief?: Json
+        }
+        Update: {
+          chat_preview_count?: number
+          completed_at?: string | null
+          conversation_id?: string | null
+          coverage?: Json
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          query_plan?: Json
+          run_mode?: string
+          settings_snapshot?: Json
+          started_at?: string | null
+          status?: string
+          talent_id?: string | null
+          target_recommendation_count?: number
+          trigger?: string
+          trigger_payload?: Json
+          updated_at?: string
+          user_brief?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opportunity_discovery_run_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "talent_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "opportunity_discovery_run_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      opportunity_ingestion_run: {
+        Row: {
+          completed_at: string | null
+          coverage: Json
+          created_at: string
+          error_message: string | null
+          id: string
+          source_scope: Json
+          started_at: string | null
+          status: string
+          trigger: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          coverage?: Json
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          source_scope?: Json
+          started_at?: string | null
+          status?: string
+          trigger?: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          coverage?: Json
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          source_scope?: Json
+          started_at?: string | null
+          status?: string
+          trigger?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      opportunity_market_scan_scope: {
+        Row: {
+          allowed_access_mode: string
+          company_archetype: string | null
+          created_at: string
+          created_from: string
+          created_from_run_id: string | null
+          demand_score: number
+          enabled: boolean
+          excluded_role_family: string | null
+          id: string
+          keyword_tags: string[]
+          last_checked_at: string | null
+          last_error: string | null
+          last_success_at: string | null
+          location: string | null
+          next_refresh_at: string | null
+          priority: number
+          provider: string
+          query: string
+          refresh_interval_hours: number
+          role_family: string | null
+          updated_at: string
+        }
+        Insert: {
+          allowed_access_mode?: string
+          company_archetype?: string | null
+          created_at?: string
+          created_from?: string
+          created_from_run_id?: string | null
+          demand_score?: number
+          enabled?: boolean
+          excluded_role_family?: string | null
+          id?: string
+          keyword_tags?: string[]
+          last_checked_at?: string | null
+          last_error?: string | null
+          last_success_at?: string | null
+          location?: string | null
+          next_refresh_at?: string | null
+          priority?: number
+          provider: string
+          query: string
+          refresh_interval_hours?: number
+          role_family?: string | null
+          updated_at?: string
+        }
+        Update: {
+          allowed_access_mode?: string
+          company_archetype?: string | null
+          created_at?: string
+          created_from?: string
+          created_from_run_id?: string | null
+          demand_score?: number
+          enabled?: boolean
+          excluded_role_family?: string | null
+          id?: string
+          keyword_tags?: string[]
+          last_checked_at?: string | null
+          last_error?: string | null
+          last_success_at?: string | null
+          location?: string | null
+          next_refresh_at?: string | null
+          priority?: number
+          provider?: string
+          query?: string
+          refresh_interval_hours?: number
+          role_family?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opportunity_market_scan_scope_created_from_run_id_fkey"
+            columns: ["created_from_run_id"]
+            isOneToOne: false
+            referencedRelation: "opportunity_discovery_run"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      opportunity_role_match_index: {
+        Row: {
+          company_workspace_id: string
+          created_at: string
+          embedding: Json | null
+          embedding_dim: number | null
+          embedding_model: string | null
+          freshness_score: number
+          match_text: string
+          quality_score: number
+          role_id: string
+          role_updated_at: string | null
+          source_type: string
+          updated_at: string
+          workspace_updated_at: string | null
+        }
+        Insert: {
+          company_workspace_id: string
+          created_at?: string
+          embedding?: Json | null
+          embedding_dim?: number | null
+          embedding_model?: string | null
+          freshness_score?: number
+          match_text?: string
+          quality_score?: number
+          role_id: string
+          role_updated_at?: string | null
+          source_type: string
+          updated_at?: string
+          workspace_updated_at?: string | null
+        }
+        Update: {
+          company_workspace_id?: string
+          created_at?: string
+          embedding?: Json | null
+          embedding_dim?: number | null
+          embedding_model?: string | null
+          freshness_score?: number
+          match_text?: string
+          quality_score?: number
+          role_id?: string
+          role_updated_at?: string | null
+          source_type?: string
+          updated_at?: string
+          workspace_updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opportunity_role_match_index_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "company_workspace"
+            referencedColumns: ["company_workspace_id"]
+          },
+          {
+            foreignKeyName: "opportunity_role_match_index_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: true
+            referencedRelation: "company_roles"
+            referencedColumns: ["role_id"]
+          },
+        ]
+      }
+      opportunity_source_document: {
+        Row: {
+          content_hash: string | null
+          created_at: string
+          expires_at: string | null
+          fetched_at: string
+          id: string
+          metadata: Json
+          provider: string
+          raw_text_summary: string | null
+          raw_title: string | null
+          source_type: string
+          source_url: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          content_hash?: string | null
+          created_at?: string
+          expires_at?: string | null
+          fetched_at?: string
+          id?: string
+          metadata?: Json
+          provider: string
+          raw_text_summary?: string | null
+          raw_title?: string | null
+          source_type?: string
+          source_url: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          content_hash?: string | null
+          created_at?: string
+          expires_at?: string | null
+          fetched_at?: string
+          id?: string
+          metadata?: Json
+          provider?: string
+          raw_text_summary?: string | null
+          raw_title?: string | null
+          source_type?: string
+          source_url?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      opportunity_source_registry: {
+        Row: {
+          allowed_access_mode: string
+          base_url: string
+          company_archetype_tags: string[]
+          company_workspace_id: string | null
+          created_at: string
+          created_from_run_id: string | null
+          default_ttl_hours: number
+          demand_score: number
+          enabled: boolean
+          id: string
+          keyword_tags: string[]
+          last_checked_at: string | null
+          last_error: string | null
+          last_success_at: string | null
+          location_tags: string[]
+          next_refresh_at: string | null
+          parser_type: string | null
+          priority: number
+          provider: string
+          rate_limit_per_minute: number | null
+          refresh_interval_hours: number
+          role_family_tags: string[]
+          search_url_template: string | null
+          updated_at: string
+        }
+        Insert: {
+          allowed_access_mode?: string
+          base_url: string
+          company_archetype_tags?: string[]
+          company_workspace_id?: string | null
+          created_at?: string
+          created_from_run_id?: string | null
+          default_ttl_hours?: number
+          demand_score?: number
+          enabled?: boolean
+          id?: string
+          keyword_tags?: string[]
+          last_checked_at?: string | null
+          last_error?: string | null
+          last_success_at?: string | null
+          location_tags?: string[]
+          next_refresh_at?: string | null
+          parser_type?: string | null
+          priority?: number
+          provider: string
+          rate_limit_per_minute?: number | null
+          refresh_interval_hours?: number
+          role_family_tags?: string[]
+          search_url_template?: string | null
+          updated_at?: string
+        }
+        Update: {
+          allowed_access_mode?: string
+          base_url?: string
+          company_archetype_tags?: string[]
+          company_workspace_id?: string | null
+          created_at?: string
+          created_from_run_id?: string | null
+          default_ttl_hours?: number
+          demand_score?: number
+          enabled?: boolean
+          id?: string
+          keyword_tags?: string[]
+          last_checked_at?: string | null
+          last_error?: string | null
+          last_success_at?: string | null
+          location_tags?: string[]
+          next_refresh_at?: string | null
+          parser_type?: string | null
+          priority?: number
+          provider?: string
+          rate_limit_per_minute?: number | null
+          refresh_interval_hours?: number
+          role_family_tags?: string[]
+          search_url_template?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opportunity_source_registry_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "company_workspace"
+            referencedColumns: ["company_workspace_id"]
+          },
+          {
+            foreignKeyName: "opportunity_source_registry_created_from_run_id_fkey"
+            columns: ["created_from_run_id"]
+            isOneToOne: false
+            referencedRelation: "opportunity_discovery_run"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -3475,6 +4204,95 @@ export type Database = {
           },
         ]
       }
+      talent_mock_interview_session: {
+        Row: {
+          company_name: string
+          completed_at: string | null
+          conversation_id: string
+          created_at: string
+          duration_minutes: number
+          feedback_payload: Json
+          id: string
+          interview_type: string
+          opportunity_recommendation_id: string | null
+          research_payload: Json
+          role_id: string | null
+          role_title: string
+          setup_payload: Json
+          started_at: string | null
+          status: string
+          talent_id: string
+          updated_at: string
+        }
+        Insert: {
+          company_name: string
+          completed_at?: string | null
+          conversation_id: string
+          created_at?: string
+          duration_minutes?: number
+          feedback_payload?: Json
+          id?: string
+          interview_type?: string
+          opportunity_recommendation_id?: string | null
+          research_payload?: Json
+          role_id?: string | null
+          role_title: string
+          setup_payload?: Json
+          started_at?: string | null
+          status?: string
+          talent_id: string
+          updated_at?: string
+        }
+        Update: {
+          company_name?: string
+          completed_at?: string | null
+          conversation_id?: string
+          created_at?: string
+          duration_minutes?: number
+          feedback_payload?: Json
+          id?: string
+          interview_type?: string
+          opportunity_recommendation_id?: string | null
+          research_payload?: Json
+          role_id?: string | null
+          role_title?: string
+          setup_payload?: Json
+          started_at?: string | null
+          status?: string
+          talent_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_mock_interview_session_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "talent_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_mock_interview_session_opportunity_recommendation_i_fkey"
+            columns: ["opportunity_recommendation_id"]
+            isOneToOne: false
+            referencedRelation: "talent_opportunity_recommendation"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_mock_interview_session_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "company_roles"
+            referencedColumns: ["role_id"]
+          },
+          {
+            foreignKeyName: "talent_mock_interview_session_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       talent_network_referral_links: {
         Row: {
           conversion_count: number
@@ -3582,71 +4400,272 @@ export type Database = {
           },
         ]
       }
+      talent_opportunity_chat_preview: {
+        Row: {
+          assistant_message_id: number
+          conversation_id: string
+          created_at: string
+          discovery_run_id: string
+          id: string
+          rank: number
+          recommendation_id: string
+        }
+        Insert: {
+          assistant_message_id: number
+          conversation_id: string
+          created_at?: string
+          discovery_run_id: string
+          id?: string
+          rank: number
+          recommendation_id: string
+        }
+        Update: {
+          assistant_message_id?: number
+          conversation_id?: string
+          created_at?: string
+          discovery_run_id?: string
+          id?: string
+          rank?: number
+          recommendation_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_opportunity_chat_preview_assistant_message_id_fkey"
+            columns: ["assistant_message_id"]
+            isOneToOne: false
+            referencedRelation: "talent_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_opportunity_chat_preview_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "talent_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_opportunity_chat_preview_discovery_run_id_fkey"
+            columns: ["discovery_run_id"]
+            isOneToOne: false
+            referencedRelation: "opportunity_discovery_run"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_opportunity_chat_preview_recommendation_id_fkey"
+            columns: ["recommendation_id"]
+            isOneToOne: false
+            referencedRelation: "talent_opportunity_recommendation"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      talent_opportunity_delivery: {
+        Row: {
+          channel: string
+          created_at: string
+          discovery_run_id: string
+          error_message: string | null
+          id: string
+          payload: Json
+          sent_at: string | null
+          status: string
+          talent_id: string
+          updated_at: string
+        }
+        Insert: {
+          channel: string
+          created_at?: string
+          discovery_run_id: string
+          error_message?: string | null
+          id?: string
+          payload?: Json
+          sent_at?: string | null
+          status?: string
+          talent_id: string
+          updated_at?: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          discovery_run_id?: string
+          error_message?: string | null
+          id?: string
+          payload?: Json
+          sent_at?: string | null
+          status?: string
+          talent_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_opportunity_delivery_discovery_run_id_fkey"
+            columns: ["discovery_run_id"]
+            isOneToOne: false
+            referencedRelation: "opportunity_discovery_run"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_opportunity_delivery_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      talent_opportunity_profile_snapshot: {
+        Row: {
+          created_at: string
+          embedding_model: string | null
+          id: string
+          preference_profile_json: Json
+          raw_signals_json: Json
+          retrieval_query_text: string
+          snapshot_embedding: Json | null
+          snapshot_hash: string
+          snapshot_text: string
+          source_conversation_id: string | null
+          talent_id: string
+        }
+        Insert: {
+          created_at?: string
+          embedding_model?: string | null
+          id?: string
+          preference_profile_json?: Json
+          raw_signals_json?: Json
+          retrieval_query_text?: string
+          snapshot_embedding?: Json | null
+          snapshot_hash: string
+          snapshot_text?: string
+          source_conversation_id?: string | null
+          talent_id: string
+        }
+        Update: {
+          created_at?: string
+          embedding_model?: string | null
+          id?: string
+          preference_profile_json?: Json
+          raw_signals_json?: Json
+          retrieval_query_text?: string
+          snapshot_embedding?: Json | null
+          snapshot_hash?: string
+          snapshot_text?: string
+          source_conversation_id?: string | null
+          talent_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_opportunity_profile_snapshot_source_conversation_id_fkey"
+            columns: ["source_conversation_id"]
+            isOneToOne: false
+            referencedRelation: "talent_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_opportunity_profile_snapshot_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       talent_opportunity_recommendation: {
         Row: {
           clicked_at: string | null
+          confidence: number | null
           created_at: string
+          discovery_run_id: string | null
           dismissed_at: string | null
+          evidence: Json
           feedback: string | null
           feedback_at: string | null
           feedback_reason: string | null
+          fit_reasons: Json
+          fit_summary: string | null
           id: string
           kind: string
           model_version: string | null
           opportunity_type: string
           rank: number | null
+          ranking_notes: string | null
           recommendation_reasons: Json
+          recommendation_status: string
           recommended_at: string
           role_id: string
           saved_stage: string | null
           score: number | null
           talent_id: string
+          tradeoffs: Json
           updated_at: string
           viewed_at: string | null
         }
         Insert: {
           clicked_at?: string | null
+          confidence?: number | null
           created_at?: string
+          discovery_run_id?: string | null
           dismissed_at?: string | null
+          evidence?: Json
           feedback?: string | null
           feedback_at?: string | null
           feedback_reason?: string | null
+          fit_reasons?: Json
+          fit_summary?: string | null
           id?: string
           kind?: string
           model_version?: string | null
           opportunity_type?: string
           rank?: number | null
+          ranking_notes?: string | null
           recommendation_reasons?: Json
+          recommendation_status?: string
           recommended_at?: string
           role_id: string
           saved_stage?: string | null
           score?: number | null
           talent_id: string
+          tradeoffs?: Json
           updated_at?: string
           viewed_at?: string | null
         }
         Update: {
           clicked_at?: string | null
+          confidence?: number | null
           created_at?: string
+          discovery_run_id?: string | null
           dismissed_at?: string | null
+          evidence?: Json
           feedback?: string | null
           feedback_at?: string | null
           feedback_reason?: string | null
+          fit_reasons?: Json
+          fit_summary?: string | null
           id?: string
           kind?: string
           model_version?: string | null
           opportunity_type?: string
           rank?: number | null
+          ranking_notes?: string | null
           recommendation_reasons?: Json
+          recommendation_status?: string
           recommended_at?: string
           role_id?: string
           saved_stage?: string | null
           score?: number | null
           talent_id?: string
+          tradeoffs?: Json
           updated_at?: string
           viewed_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "talent_opportunity_recommendation_discovery_run_fkey"
+            columns: ["discovery_run_id"]
+            isOneToOne: false
+            referencedRelation: "opportunity_discovery_run"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "talent_opportunity_recommendation_role_id_fkey"
             columns: ["role_id"]
@@ -3713,8 +4732,15 @@ export type Database = {
           career_move_intent: string | null
           created_at: string
           engagement_types: string[]
+          is_onboarding_done: boolean
+          last_periodic_run_at: string | null
+          periodic_enabled: boolean
+          periodic_interval_days: number
           preferred_locations: string[]
           profile_visibility: string
+          recommendation_batch_size: number
+          recommendation_settings_updated_by: string
+          recommendation_source_conversation_id: string | null
           updated_at: string
           user_id: string
         }
@@ -3723,8 +4749,15 @@ export type Database = {
           career_move_intent?: string | null
           created_at?: string
           engagement_types?: string[]
+          is_onboarding_done?: boolean
+          last_periodic_run_at?: string | null
+          periodic_enabled?: boolean
+          periodic_interval_days?: number
           preferred_locations?: string[]
           profile_visibility?: string
+          recommendation_batch_size?: number
+          recommendation_settings_updated_by?: string
+          recommendation_source_conversation_id?: string | null
           updated_at?: string
           user_id: string
         }
@@ -3733,12 +4766,26 @@ export type Database = {
           career_move_intent?: string | null
           created_at?: string
           engagement_types?: string[]
+          is_onboarding_done?: boolean
+          last_periodic_run_at?: string | null
+          periodic_enabled?: boolean
+          periodic_interval_days?: number
           preferred_locations?: string[]
           profile_visibility?: string
+          recommendation_batch_size?: number
+          recommendation_settings_updated_by?: string
+          recommendation_source_conversation_id?: string | null
           updated_at?: string
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "talent_setting_recommendation_source_conversation_id_fkey"
+            columns: ["recommendation_source_conversation_id"]
+            isOneToOne: false
+            referencedRelation: "talent_conversations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "talent_setting_user_id_fkey"
             columns: ["user_id"]

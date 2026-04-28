@@ -1,11 +1,13 @@
-import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
+import {
+  buildCareerReengagementSystemPrompt,
+  buildCareerReengagementUserPrompt,
+  CAREER_REENGAGEMENT_FALLBACK_MESSAGE,
+} from "@/lib/career/prompts";
+import { runCareerReengagementMessage } from "@/lib/career/llm";
 import type {
   TalentMessageRow,
   TalentUserProfileRow,
 } from "@/lib/talentOnboarding/server";
-
-const FALLBACK_REENGAGEMENT_MESSAGE =
-  "다시 이어서 이야기해볼게요. 지금 기준으로 가장 우선순위가 높은 커리어 조건이나 달라진 점이 있다면 알려주실 수 있을까요?";
 
 function clampText(value: string | null | undefined, maxLength = 240) {
   const normalized = String(value ?? "")
@@ -73,37 +75,22 @@ export async function generateTalentReengagementMessage(args: {
   const { displayName, hoursSinceLastChat, profile, recentMessages } = args;
 
   try {
-    const message = await runTalentAssistantCompletion({
+    const message = await runCareerReengagementMessage({
       messages: [
         {
           role: "system",
-          content: [
-            "You are Harper, an AI career agent for talent users.",
-            "Always answer in Korean.",
-            "The user reopened the chat after a long pause.",
-            "Write one proactive assistant message that appears before the user speaks.",
-            "Rules:",
-            "- Write 2-3 natural Korean sentences.",
-            "- Keep it concise, warm, and specific.",
-            "- Use the recent conversation and profile context if helpful.",
-            "- Ask exactly one focused follow-up question.",
-            "- Do not use bullet points, markdown, or quotes.",
-            '- Do not mention internal mechanics like "자동 메시지", "시스템", or "24시간 이상".',
-            "- Do not sound like a first-visit greeting.",
-            "- If prior context is weak, ask what changed most recently in the user's priorities.",
-          ].join("\n"),
+          content: buildCareerReengagementSystemPrompt(),
         },
         {
           role: "user",
-          content: [
-            `사용자 이름: ${displayName}`,
-            `직전 chat 이후 경과 시간(시간): ${hoursSinceLastChat}`,
-            `프로필 요약:\n${buildProfileSummary(profile)}`,
-            `최근 대화:\n${buildRecentConversation(recentMessages)}`,
-          ].join("\n\n"),
+          content: buildCareerReengagementUserPrompt({
+            displayName,
+            hoursSinceLastChat,
+            profileSummary: buildProfileSummary(profile),
+            recentConversation: buildRecentConversation(recentMessages),
+          }),
         },
       ],
-      temperature: 0.45,
     });
 
     const normalized = normalizeReengagementMessage(message);
@@ -114,5 +101,5 @@ export async function generateTalentReengagementMessage(args: {
     // Fall through to a deterministic fallback.
   }
 
-  return FALLBACK_REENGAGEMENT_MESSAGE;
+  return CAREER_REENGAGEMENT_FALLBACK_MESSAGE;
 }

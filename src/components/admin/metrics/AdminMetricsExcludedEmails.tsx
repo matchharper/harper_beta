@@ -63,7 +63,7 @@ export default function AdminMetricsExcludedEmails({
         <button
           type="button"
           onClick={onReset}
-          className="h-9 px-3 text-[12px] border border-black/15 text-black hover:border-black/30 hover:bg-black/[0.03]"
+          className="h-9 px-3 text-[12px] border border-black/15 text-black hover:border-black/30 hover:bg-black/[0.05]"
           style={{ borderRadius: 0 }}
         >
           Reset defaults

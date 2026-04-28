@@ -302,7 +302,7 @@ export const GeometricAnimatedGraphics = () => {
             ].map((face, i) => (
               <div
                 key={i}
-                className="absolute w-20 h-20 rounded-[18px] border border-white/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_8px_30px_rgba(15,23,42,0.08)] backdrop-blur-md ga-noise"
+                className="absolute w-20 h-20 rounded-[18px] border border-white/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_8px_30px_rgba(15,23,42,0.1)] backdrop-blur-md ga-noise"
                 style={{
                   transform: face.transform,
                   backfaceVisibility: "hidden",
@@ -468,7 +468,7 @@ export const GeometricAnimatedGraphics = () => {
 
           {/* core */}
           <div
-            className="absolute w-7 h-7 rounded-full bg-slate-800 shadow-[0_0_35px_rgba(51,65,85,0.22)]"
+            className="absolute w-7 h-7 rounded-full bg-slate-800 shadow-[0_0_35px_rgba(51,65,85,0.2)]"
             style={{ animation: "core-pulse 2.8s ease-in-out infinite" }}
           />
         </div>

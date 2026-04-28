@@ -12,13 +12,20 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { queryText, type } = body as {
+  const { queryText, type, messageContent } = body as {
     queryText?: string;
     type?: string | number;
+    messageContent?: string;
   };
-  if (!queryText?.trim())
+  const normalizedQueryText = queryText?.trim() ?? "";
+  const normalizedMessageContent =
+    typeof messageContent === "string" && messageContent.trim().length > 0
+      ? messageContent.trim()
+      : normalizedQueryText;
+
+  if (!normalizedMessageContent)
     return NextResponse.json(
-      { error: "Missing queryText" },
+      { error: "Missing initial message content" },
       { status: 400 }
     );
 
@@ -49,7 +56,7 @@ export async function POST(req: NextRequest) {
     .from("queries")
     .insert({
       user_id: user.id,
-      raw_input_text: queryText.trim(),
+      raw_input_text: normalizedQueryText || "첨부 자료 기반 검색",
       query_keyword: "",
       type: searchSourceToQueryType(type),
     })
@@ -66,7 +73,7 @@ export async function POST(req: NextRequest) {
     query_id: data.query_id,
     user_id: user.id,
     role: 0,
-    content: queryText.trim(),
+    content: normalizedMessageContent,
   });
 
   if (messageError)

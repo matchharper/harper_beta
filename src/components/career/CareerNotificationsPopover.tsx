@@ -23,12 +23,22 @@ const CareerNotificationsPopover = ({
   notificationsMarkingAsRead,
   notificationsError,
   onMarkNotificationsRead,
+  showLabel = true,
+  align = "start",
+  side = "right",
+  sideOffset = 18,
+  buttonClassName,
 }: {
   notifications: CareerTalentNotification[];
   unreadNotificationCount: number;
   notificationsMarkingAsRead: boolean;
   notificationsError: string;
   onMarkNotificationsRead: () => void | Promise<void>;
+  showLabel?: boolean;
+  align?: "start" | "center" | "end";
+  side?: "top" | "right" | "bottom" | "left";
+  sideOffset?: number;
+  buttonClassName?: string;
 }) => {
   const [open, setOpen] = useState(false);
 
@@ -67,35 +77,54 @@ const CareerNotificationsPopover = ({
       <Popover.Trigger asChild>
         <button
           type="button"
-          aria-label="Notification"
+          aria-label="알림"
           className={careerCx(
-            "mt-1 inline-flex h-11 w-full items-center gap-2 rounded-md px-3 text-sm transition-colors hover:bg-beige200",
-            open && "bg-beige200"
+            "inline-flex items-center gap-2 text-sm transition-colors",
+            showLabel
+              ? "mt-1 h-11 w-full rounded-md px-3 hover:bg-beige200"
+              : "items-center justify-center",
+            open && showLabel && "bg-beige200",
+            buttonClassName
           )}
         >
-          <Bell className="h-4 w-4" />
-          <span className="flex-1 text-left">Notification</span>
-          <span className="flex h-5 w-5 items-center justify-center">
+          <span className="relative flex h-5 w-5 items-center justify-center">
+            <Bell className="h-4 w-4" />
             {unreadNotificationCount > 0 && (
-              <span className="h-2.5 w-2.5 rounded-full bg-beige900" />
+              <>
+                <span
+                  className={careerCx(
+                    "absolute h-2.5 w-2.5 rounded-full bg-beige900",
+                    !showLabel && "absolute right-0 top-0"
+                  )}
+                />
+                {!showLabel && (
+                  <span className="sr-only">
+                    읽지 않은 알림 {unreadNotificationCount}개
+                  </span>
+                )}
+              </>
             )}
           </span>
+          {showLabel ? (
+            <span className="flex-1 text-left">알림</span>
+          ) : (
+            <span className="sr-only">알림</span>
+          )}
+          {showLabel ? <span className="h-5 w-5" aria-hidden="true" /> : null}
         </button>
       </Popover.Trigger>
 
       <Popover.Portal>
         <Popover.Content
-          side="right"
-          align="start"
-          sideOffset={18}
+          side={side}
+          align={align}
+          sideOffset={sideOffset}
           collisionPadding={16}
-          className="z-[60] w-[380px] max-w-[calc(100vw-2rem)] rounded-[16px] border border-beige900/10 bg-[#f7f1e6]/95 p-4 text-beige900 shadow-[0_18px_60px_rgba(59,46,37,0.18)] backdrop-blur"
+          className="z-[60] w-[380px] max-w-[calc(100vw-2rem)] rounded-[16px] border border-beige900/10 bg-[#f7f1e6]/95 p-4 text-beige900 shadow-[0_18px_60px_rgba(59,46,37,0.2)] backdrop-blur"
         >
           <div className="flex items-start justify-between gap-4 border-b border-beige900/10 pb-3">
             <div>
-              <div className="text-[15px] font-medium leading-5">
-                Notifications
-              </div>
+              <div className="text-[15px] font-medium leading-5">알림</div>
               <div className="mt-1 text-[13px] leading-5 text-beige900/55">
                 {summaryText}
               </div>
@@ -113,9 +142,7 @@ const CareerNotificationsPopover = ({
           )}
 
           <div className="mt-3 max-h-[420px] space-y-2 overflow-y-auto pr-1">
-            {notifications.length === 0 ? (
-              <></>
-            ) : (
+            {notifications.length === 0 ? null : (
               notifications.map((notification) => (
                 <div
                   key={notification.id}

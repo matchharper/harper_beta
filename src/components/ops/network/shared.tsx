@@ -250,7 +250,7 @@ export function ProfileChip({
   onClick?: () => void;
 }) {
   const className =
-    "inline-flex items-center gap-2 rounded-md bg-beige500/70 px-3 py-2 font-geist text-sm text-beige900 shadow-[inset_0_1px_0_rgba(255,255,255,0.76)] transition hover:bg-beige500/90";
+    "inline-flex items-center gap-2 rounded-md bg-beige500/70 px-3 py-2 font-geist text-sm text-beige900 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] transition hover:bg-beige500/90";
 
   if (href) {
     return (
@@ -362,11 +362,11 @@ export function NetworkLeadProgressTrack({
       "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 font-geist text-[11px] transition",
       done
         ? selected
-          ? "border-beige100/18 bg-beige100/12 text-beige100"
+          ? "border-beige100/20 bg-beige100/10 text-beige100"
           : "border-[#E8D4BC] bg-[#EEDFCC] text-beige900"
         : selected
-          ? "border-beige100/12 bg-transparent text-beige100/42"
-          : "border-beige900/10 bg-white/55 text-beige900/42"
+          ? "border-beige100/10 bg-transparent text-beige100/40"
+          : "border-beige900/10 bg-white/55 text-beige900/40"
     );
 
   return (
@@ -375,7 +375,7 @@ export function NetworkLeadProgressTrack({
         <div
           className={cx(
             "font-geist text-xs font-medium",
-            selected ? "text-beige100/82" : "text-beige900/60"
+            selected ? "text-beige100/80" : "text-beige900/60"
           )}
         >
           현재 {getLeadProgressLabel(progress.currentStep, structuredReady)}
