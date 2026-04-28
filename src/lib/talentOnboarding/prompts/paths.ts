@@ -1,11 +1,18 @@
 import path from "path";
 
-const PROMPTS_DIR = path.join(
-  process.cwd(),
-  "src/lib/talentOnboarding/prompts"
-);
-
 const PROMPT_PATH_OVERRIDES: Record<string, string> = {
+  "system.md": path.join(
+    process.cwd(),
+    "src/lib/talentOnboarding/prompts/system.md"
+  ),
+  "interview-steps.md": path.join(
+    process.cwd(),
+    "src/lib/talentOnboarding/prompts/interview-steps.md"
+  ),
+  "misc.md": path.join(
+    process.cwd(),
+    "src/lib/talentOnboarding/prompts/misc.md"
+  ),
   "insight-extraction.md": path.join(
     process.cwd(),
     "src/lib/career/insights.md"
@@ -13,5 +20,9 @@ const PROMPT_PATH_OVERRIDES: Record<string, string> = {
 };
 
 export function resolvePromptPath(filename: string): string {
-  return PROMPT_PATH_OVERRIDES[filename] ?? path.join(PROMPTS_DIR, filename);
+  const promptPath = PROMPT_PATH_OVERRIDES[filename];
+  if (!promptPath) {
+    throw new Error(`Unknown prompt file: ${filename}`);
+  }
+  return promptPath;
 }
