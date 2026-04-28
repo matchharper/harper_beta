@@ -253,7 +253,7 @@ export default function ListView({
                               className={cx(
                                 "mt-1 truncate font-geist text-sm",
                                 isSelected
-                                  ? "text-beige100/72"
+                                  ? "text-beige100/70"
                                   : "text-beige900/55"
                               )}
                             >

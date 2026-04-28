@@ -407,9 +407,18 @@ export const en = {
   chat: {
     composerPlaceholder:
       "Ask anything (Enter to send / Shift+Enter for newline)",
+    addAttachment: "Add attachment",
     attachFile: "Attach file",
+    attachLink: "Add link",
+    addLink: "Add link",
+    linkPlaceholder: "https://example.com",
+    invalidLink: "Please enter a valid link.",
+    attachedFileLabel: "Attached file",
+    attachedLinkLabel: "Attached link",
     fileReading: "Reading file...",
     fileReadFail: "Could not read the file. Please try again.",
+    removeAttachment: "Remove attachment",
+    send: "Send",
     candidSuggestions: [
       "Is this person open to a job change?",
       "Evaluate whether this person is a good fit for our team, with reasons.",

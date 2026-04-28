@@ -11,7 +11,7 @@ import { Building2, ChevronDown } from "lucide-react";
 import {
   BeigeActionDropdown,
   BeigeActionDropdownItem,
-} from "@/components/ui/beige-action-dropdown";
+} from "@/components/ui/beige/action-dropdown";
 import {
   getResolvedSavedStage,
   getSavedStageLabel,
@@ -75,6 +75,8 @@ const OpportunityListCard = ({
   onSavedStageChange?: (stage: CareerOpportunitySavedStage) => void;
 }) => {
   const recommendationReasons = item.recommendationReasons.slice(0, 2);
+  const recommendationSummary = item.recommendationSummary?.trim() ?? "";
+  const recommendationConcerns = (item.recommendationConcerns ?? []).slice(0, 1);
   const hasActionArea = Boolean(
     action || (showSavedStageSelect && onSavedStageChange)
   );
@@ -87,10 +89,23 @@ const OpportunityListCard = ({
       )}
     >
       <div className="flex items-start justify-between gap-4">
-        <button
-          type="button"
-          onClick={onOpenDetail}
-          className="min-w-0 flex-1 text-left p-2"
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={(event) => {
+            const interactiveTarget = (event.target as HTMLElement).closest(
+              "a,button,input,select,textarea"
+            );
+            if (interactiveTarget) return;
+            onOpenDetail();
+          }}
+          onKeyDown={(event) => {
+            if (event.currentTarget !== event.target) return;
+            if (event.key !== "Enter" && event.key !== " ") return;
+            event.preventDefault();
+            onOpenDetail();
+          }}
+          className="min-w-0 flex-1 cursor-pointer p-2 text-left focus:outline-none"
         >
           <OpportunityHeader
             item={item}
@@ -114,11 +129,16 @@ const OpportunityListCard = ({
           />
 
           <div className="mt-4 space-y-2">
+            {recommendationSummary ? (
+              <div className="rounded-[8px] border border-beige900/10 bg-white/65 px-3 py-2 text-[14px] leading-6 text-beige900/90">
+                {recommendationSummary}
+              </div>
+            ) : null}
             {recommendationReasons.length > 0 &&
               recommendationReasons.map((reason, index) => (
                 <div
                   key={`${item.id}-reason-${index}`}
-                  className="flex items-start gap-2 text-[14px] leading-6 text-beige900/72"
+                  className="flex items-start gap-2 text-[14px] leading-6 text-beige900/70"
                 >
                   <span className="mt-[10px] h-1 w-1 shrink-0 rounded-full bg-beige900/40" />
                   <div
@@ -127,8 +147,18 @@ const OpportunityListCard = ({
                   />
                 </div>
               ))}
+            {recommendationConcerns.length > 0 &&
+              recommendationConcerns.map((concern, index) => (
+                <div
+                  key={`${item.id}-concern-${index}`}
+                  className="flex items-start gap-2 rounded-[8px] border border-[#d6c6a4] bg-[#fbf4e8] px-3 py-2 text-[13px] leading-6 text-beige900/70"
+                >
+                  <span className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-[#9a7b39]" />
+                  <div className="min-w-0">{concern}</div>
+                </div>
+              ))}
           </div>
-        </button>
+        </div>
       </div>
     </CareerInlinePanel>
   );

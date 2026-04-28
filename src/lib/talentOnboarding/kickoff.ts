@@ -1,5 +1,11 @@
 import type { User } from "@supabase/supabase-js";
-import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
+import {
+  buildCareerKickoffOpeningMessage,
+  buildCareerKickoffSystemPrompt,
+  buildCareerKickoffUserPrompt,
+  CAREER_KICKOFF_FALLBACK,
+} from "@/lib/career/prompts";
+import { runCareerKickoff } from "@/lib/career/llm";
 import type {
   TalentConversationRow,
   TalentInsightContent,
@@ -43,22 +49,8 @@ type TalentKickoffPreferences = {
   insightContent: TalentInsightContent | null;
 };
 
-const FALLBACK_KICKOFF: LlmKickoff = {
-  acknowledgement: "정보를 알려주셔서 감사합니다.",
-  insight:
-    "제출해주신 이력서/링크 기반으로 볼 때 강점이 분명해서 하퍼가 찾을 수 있는 기회 폭이 넓습니다.",
-};
-
-const normalizeKickoffDisplayName = (value: string) => {
-  const normalized = String(value ?? "").trim().replace(/\s*님$/, "");
-  return normalized || "회원";
-};
-
-export const buildTalentKickoffOpeningMessage = (displayName: string) => {
-  const normalizedName = normalizeKickoffDisplayName(displayName);
-  return `${normalizedName}님이 실제로 만족할만한 기회를 찾기위해서, 몇 가지만 먼저 여쭤보고 싶어요.
-현재 상황에 대한 간단한 소개나 어떤 기회를 찾고계신지 알려주실 수 있나요?`;
-};
+export const buildTalentKickoffOpeningMessage =
+  buildCareerKickoffOpeningMessage;
 
 function parseKickoffPayload(raw: string): LlmKickoff | null {
   const normalized = raw
@@ -174,44 +166,31 @@ export async function generateTalentKickoff(args: {
   resumeFileName?: string | null;
   resumeText?: string | null;
 }) {
-  const llmRaw = await runTalentAssistantCompletion({
+  const llmRaw = await runCareerKickoff({
     messages: [
       {
         role: "system",
-        content: [
-          "You are Harper, an AI talent agent onboarding assistant.",
-          "Always write in Korean.",
-          "Return JSON only.",
-          "JSON format:",
-          "{",
-          '  "acknowledgement": "...",',
-          '  "insight": "..."',
-          "}",
-          "Rules:",
-          '- acknowledgement should greet user naturally (e.g. "안녕하세요 OO님.") and thank for sharing.',
-          "- insight should mention one promising point from the submitted information in 1-2 natural Korean sentences.",
-        ].join("\n"),
+        content: buildCareerKickoffSystemPrompt(),
       },
       {
         role: "user",
-        content: [
-          `이름: ${args.displayName}`,
-          `이력서 파일명: ${args.resumeFileName || "(없음)"}`,
-          `링크: ${args.links.join(", ") || "(없음)"}`,
-          `network 신청 정보: ${
-            describeNetworkApplication(args.networkApplication ?? null) || "(없음)"
-          }`,
-          `현재 선호 정보: ${
-            describeTalentPreferences(args.talentPreferences ?? null) || "(없음)"
-          }`,
-          `이력서 텍스트(일부): ${normalizeText(args.resumeText, 8000) || "(없음)"}`,
-        ].join("\n"),
+        content: buildCareerKickoffUserPrompt({
+          displayName: args.displayName,
+          links: args.links,
+          networkApplicationDescription: describeNetworkApplication(
+            args.networkApplication ?? null
+          ),
+          preferencesDescription: describeTalentPreferences(
+            args.talentPreferences ?? null
+          ),
+          resumeFileName: args.resumeFileName,
+          resumeTextPreview: normalizeText(args.resumeText, 8000),
+        }),
       },
     ],
-    temperature: 0.25,
   });
 
-  return parseKickoffPayload(llmRaw) ?? FALLBACK_KICKOFF;
+  return parseKickoffPayload(llmRaw) ?? CAREER_KICKOFF_FALLBACK;
 }
 
 export async function autoStartClaimedTalentConversation(args: {

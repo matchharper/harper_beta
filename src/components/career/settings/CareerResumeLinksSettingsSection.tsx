@@ -2,21 +2,68 @@ import {
   Cable,
   ExternalLink,
   FileText,
+  Globe2,
   Plus,
   Save,
   Upload,
   X,
 } from "lucide-react";
+import Image from "next/image";
 import React, { useMemo } from "react";
-import { CAREER_LINK_LABELS } from "@/components/career/constants";
 import { useCareerSidebarContext } from "@/components/career/CareerSidebarContext";
+import { CAREER_LINK_LABELS } from "@/components/career/constants";
 import {
   CareerField,
   CareerFieldLabel,
-  CareerPrimaryButton,
   CareerSecondaryButton,
   CareerTextInput,
 } from "../ui/CareerPrimitives";
+
+const CAREER_LINK_ITEMS = [
+  {
+    alt: "LinkedIn",
+    iconSrc: "/images/logos/linkedin.svg",
+    placeholder: "https://linkedin.com/in/username",
+  },
+  {
+    alt: "Github",
+    iconSrc: "/images/logos/github.svg",
+    placeholder: "https://github.com/username",
+  },
+  {
+    alt: "Google Scholar",
+    iconSrc: "/images/logos/scholar.png",
+    placeholder: "https://scholar.google.com/citations?user=",
+  },
+  {
+    alt: "개인 웹사이트",
+    iconSrc: null,
+    placeholder: "https://yourname.com",
+  },
+  {
+    alt: "X.com",
+    iconSrc: "/images/logos/xcom.png",
+    placeholder: "https://x.com/username",
+  },
+] as const;
+
+const LinkItemIcon = ({ index }: { index: number }) => {
+  const item = CAREER_LINK_ITEMS[index];
+
+  if (item?.iconSrc) {
+    return (
+      <Image
+        src={item.iconSrc}
+        alt={item.alt}
+        width={16}
+        height={16}
+        className="h-4 w-4 rounded-[4px] object-contain"
+      />
+    );
+  }
+
+  return <Globe2 className="h-4 w-4 text-[#2563eb]" aria-hidden="true" />;
+};
 
 const CareerResumeLinksSettingsSection = () => {
   const {
@@ -122,18 +169,21 @@ const CareerResumeLinksSettingsSection = () => {
               key={`settings-profile-link-${index}`}
               className="flex items-center gap-2"
             >
-              <div className="w-28 text-sm text-beige900/60">
-                {CAREER_LINK_LABELS[index] ?? "추가 링크"}
+              <div className="flex w-36 shrink-0 items-center gap-2 text-sm text-beige900/60">
+                <LinkItemIcon index={index} />
+                <span className="truncate">
+                  {CAREER_LINK_LABELS[index] ?? "추가 링크"}
+                </span>
               </div>
               <CareerTextInput
                 value={link}
                 onChange={(event) =>
                   onProfileLinkChange(index, event.target.value)
                 }
-                placeholder="https://"
+                placeholder={CAREER_LINK_ITEMS[index]?.placeholder ?? "https://"}
                 className="h-9 flex-1 rounded-lg border border-hblack300 bg-hblack000 px-2 text-sm text-hblack900 outline-none transition-colors focus:border-beige900"
               />
-              {index >= 3 && (
+              {index >= CAREER_LINK_ITEMS.length && (
                 <button
                   type="button"
                   onClick={() => onRemoveProfileLink(index)}

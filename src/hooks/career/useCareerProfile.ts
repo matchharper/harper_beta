@@ -12,6 +12,7 @@ import type {
   CareerTalentEducation,
   CareerTalentExperience,
   CareerTalentExtra,
+  CareerTalentProfile,
   CareerTalentUser,
   SessionResponse,
 } from "@/components/career/types";
@@ -47,12 +48,11 @@ export const useCareerProfile = ({
   onMessagesChanged,
 }: UseCareerProfileArgs) => {
   const [resumeFile, setResumeFile] = useState<File | null>(null);
-  const [profileLinks, setProfileLinks] = useState<string[]>(["", "", ""]);
-  const [savedProfileLinks, setSavedProfileLinks] = useState<string[]>([
-    "",
-    "",
-    "",
-  ]);
+  const [profileLinks, setProfileLinks] = useState<string[]>(() =>
+    toProfileLinks()
+  );
+  const [savedProfileLinks, setSavedProfileLinks] =
+    useState<string[]>(() => toProfileLinks());
   const [profilePending, setProfilePending] = useState(false);
   const [profileError, setProfileError] = useState("");
   const [savedResumeFileName, setSavedResumeFileName] = useState<string | null>(
@@ -311,88 +311,125 @@ export const useCareerProfile = ({
     setProfileLinks((prev) => [...prev, ""]);
   }, []);
 
-  const handleSaveTalentProfile = useCallback(async () => {
-    if (!user || profileSavePending) return;
+  const handleSaveTalentProfile = useCallback(
+    async (args?: { structuredProfile?: CareerTalentProfile | null }) => {
+      if (!user || profileSavePending) return false;
 
-    const cleanedLinks = profileLinks
-      .map((link) => link.trim())
-      .filter(Boolean);
+      const structuredProfile = args?.structuredProfile ?? null;
 
-    setProfileSavePending(true);
-    setProfileSaveError("");
-    setProfileSaveInfo("");
-
-    try {
-      let nextResumeFileName = savedResumeFileName;
-      let nextResumeStoragePath = savedResumeStoragePath;
-      let nextResumeDownloadUrl = savedResumeDownloadUrl;
-      let nextResumeText: string | undefined;
-
-      if (resumeFile) {
-        const uploadResult = await uploadResumeFile(resumeFile);
-        nextResumeText = await readResumeText(resumeFile);
-        nextResumeFileName = uploadResult.resumeFileName;
-        nextResumeStoragePath = uploadResult.resumeStoragePath;
-        nextResumeDownloadUrl = uploadResult.resumeDownloadUrl;
-      }
-
-      const response = await fetchWithAuth("/api/talent/profile/update", {
-        method: "POST",
-        body: JSON.stringify({
-          resumeFileName: nextResumeFileName,
-          resumeStoragePath: nextResumeStoragePath,
-          resumeText: nextResumeText,
-          links: cleanedLinks,
-        }),
-      });
-
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(
-          getErrorMessage(payload, "프로필 저장에 실패했습니다.")
+      const cleanedLinks = profileLinks
+        .map((link) => link.trim())
+        .filter(Boolean);
+      const hasUnsavedLinkChanges =
+        cleanedLinks.length !== savedProfileLinks.length ||
+        cleanedLinks.some(
+          (link, index) => link !== (savedProfileLinks[index] ?? "").trim()
         );
-      }
 
-      const returnedLinks =
-        (payload?.profile?.resumeLinks as string[] | undefined) ?? cleanedLinks;
-      const normalizedLinks = toProfileLinks(returnedLinks);
-      setSavedResumeFileName(
-        payload?.profile?.resumeFileName ?? nextResumeFileName ?? null
-      );
-      setSavedResumeStoragePath(
-        payload?.profile?.resumeStoragePath ?? nextResumeStoragePath ?? null
-      );
-      setSavedResumeDownloadUrl(
-        payload?.profile?.resumeDownloadUrl ?? nextResumeDownloadUrl ?? null
-      );
-      setSavedProfileLinks(normalizedLinks);
-      setProfileLinks(normalizedLinks);
-      setResumeFile(null);
-      setProfileSaveInfo("이력서/링크 정보를 저장했습니다.");
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "프로필 저장에 실패했습니다.";
-      setProfileSaveError(message);
-    } finally {
-      setProfileSavePending(false);
-    }
-  }, [
-    fetchWithAuth,
-    profileLinks,
-    profileSavePending,
-    readResumeText,
-    resumeFile,
-    savedResumeDownloadUrl,
-    savedResumeFileName,
-    savedResumeStoragePath,
-    uploadResumeFile,
-    user,
-  ]);
+      setProfileSavePending(true);
+      setProfileSaveError("");
+      setProfileSaveInfo("");
+
+      try {
+        let nextResumeFileName = savedResumeFileName;
+        let nextResumeStoragePath = savedResumeStoragePath;
+        let nextResumeDownloadUrl = savedResumeDownloadUrl;
+        let nextResumeText: string | undefined;
+
+        if (resumeFile) {
+          const uploadResult = await uploadResumeFile(resumeFile);
+          nextResumeText = await readResumeText(resumeFile);
+          nextResumeFileName = uploadResult.resumeFileName;
+          nextResumeStoragePath = uploadResult.resumeStoragePath;
+          nextResumeDownloadUrl = uploadResult.resumeDownloadUrl;
+        }
+
+        const response = await fetchWithAuth("/api/talent/profile/update", {
+          method: "POST",
+          body: JSON.stringify({
+            resumeFileName: nextResumeFileName,
+            resumeStoragePath: nextResumeStoragePath,
+            resumeText: nextResumeText,
+            links: cleanedLinks,
+            structuredProfile,
+          }),
+        });
+
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(
+            getErrorMessage(payload, "프로필 저장에 실패했습니다.")
+          );
+        }
+
+        const returnedLinks =
+          (payload?.profile?.resumeLinks as string[] | undefined) ?? cleanedLinks;
+        const normalizedLinks = toProfileLinks(returnedLinks);
+        setSavedResumeFileName(
+          payload?.profile?.resumeFileName ?? nextResumeFileName ?? null
+        );
+        setSavedResumeStoragePath(
+          payload?.profile?.resumeStoragePath ?? nextResumeStoragePath ?? null
+        );
+        setSavedResumeDownloadUrl(
+          payload?.profile?.resumeDownloadUrl ?? nextResumeDownloadUrl ?? null
+        );
+        setSavedProfileLinks(normalizedLinks);
+        setProfileLinks(normalizedLinks);
+        setResumeFile(null);
+
+        if (payload?.talentProfile) {
+          applyTalentProfileSnapshot(
+            payload.talentProfile as SessionResponse["talentProfile"]
+          );
+        } else if (structuredProfile) {
+          setTalentUser(structuredProfile.talentUser);
+          setTalentExperiences(structuredProfile.talentExperiences);
+          setTalentEducations(structuredProfile.talentEducations);
+          setTalentExtras(structuredProfile.talentExtras);
+        }
+
+        const savedStructuredProfile = Boolean(structuredProfile);
+        const savedResumeOrLinks = Boolean(resumeFile) || hasUnsavedLinkChanges;
+        setProfileSaveInfo(
+          savedStructuredProfile && savedResumeOrLinks
+            ? "프로필과 이력서/링크 정보를 저장했습니다."
+            : savedStructuredProfile
+              ? "프로필을 저장했습니다."
+              : "이력서/링크 정보를 저장했습니다."
+        );
+
+        return true;
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "프로필 저장에 실패했습니다.";
+        setProfileSaveError(message);
+        return false;
+      } finally {
+        setProfileSavePending(false);
+      }
+    },
+    [
+      applyTalentProfileSnapshot,
+      fetchWithAuth,
+      profileLinks,
+      profileSavePending,
+      readResumeText,
+      resumeFile,
+      savedProfileLinks,
+      savedResumeDownloadUrl,
+      savedResumeFileName,
+      savedResumeStoragePath,
+      uploadResumeFile,
+      user,
+    ]
+  );
 
   const resetProfileState = useCallback(() => {
+    setProfileLinks(toProfileLinks());
     setProfilePending(false);
     setProfileError("");
-    setSavedProfileLinks(["", "", ""]);
+    setSavedProfileLinks(toProfileLinks());
     setSavedResumeFileName(null);
     setSavedResumeStoragePath(null);
     setSavedResumeDownloadUrl(null);

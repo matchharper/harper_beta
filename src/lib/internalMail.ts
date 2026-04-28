@@ -18,12 +18,14 @@ export async function sendInternalEmail(args: {
   to: string;
 }) {
   const resendApiKey = readEnv("RESEND_API_KEY");
+  const userAgent = "harper/0.1.0 internal-mailer";
 
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${resendApiKey}`,
       "Content-Type": "application/json",
+      "User-Agent": userAgent,
     },
     body: JSON.stringify({
       from: args.from,
@@ -36,7 +38,9 @@ export async function sendInternalEmail(args: {
 
   if (!response.ok) {
     const payload = await response.text().catch(() => "");
-    throw new Error(`Failed to send email: ${payload || response.status}`);
+    throw new Error(
+      `Failed to send email: HTTP ${response.status} ${payload || ""}`.trim()
+    );
   }
 
   return response.json().catch(() => ({}));

@@ -6,7 +6,6 @@ create table if not exists public.company_workspace (
   homepage_url text null,
   linkedin_url text null,
   logo_url text null,
-  logo_storage_path text null,
   company_description text null,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())

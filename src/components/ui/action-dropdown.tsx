@@ -42,7 +42,7 @@ export function ActionDropdown({
         side={side}
         sideOffset={sideOffset}
         className={cn(
-          "rounded-[10px] border border-white/5 bg-[#2A2A2E]/95 p-1 text-white shadow-[0_18px_40px_rgba(0,0,0,0.28)] backdrop-blur-md",
+          "rounded-[10px] border border-white/5 bg-[#2A2A2E]/95 p-1 text-white shadow-[0_18px_40px_rgba(0,0,0,0.3)] backdrop-blur-md",
           contentClassName
         )}
       >

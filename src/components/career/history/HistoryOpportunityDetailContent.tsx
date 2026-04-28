@@ -11,6 +11,7 @@ import {
   getCareerOpportunityInfoTagMeta,
 } from "../opportunityTypeMeta";
 import { formatRelativeTime } from "@/lib/utils";
+import CareerRichText from "../ui/CareerRichText";
 import {
   ArrowLeft,
   ArrowRight,
@@ -142,7 +143,7 @@ const HistoryDetailArrowButton = ({
     aria-label={direction === "prev" ? "이전 기회" : "다음 기회"}
     onClick={onClick}
     className={careerCx(
-      "absolute top-1/2 z-10 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-beige900/15 bg-white/85 text-beige900/70 shadow-[0_8px_24px_rgba(37,20,6,0.08)] transition-colors hover:border-beige900/30 hover:text-beige900",
+      "absolute top-1/2 z-10 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-beige900/15 bg-white/85 text-beige900/70 shadow-[0_8px_24px_rgba(37,20,6,0.1)] transition-colors hover:border-beige900/30 hover:text-beige900",
       direction === "prev" ? "left-4" : "right-4"
     )}
   >
@@ -170,6 +171,8 @@ const HistoryOpportunityDetailContent = ({
 }) => {
   const companyInfoLink = item.companyHomepageUrl ?? item.companyLinkedinUrl;
   const roleLink = item.href;
+  const recommendationSummary = item.recommendationSummary?.trim() ?? "";
+  const recommendationConcerns = item.recommendationConcerns ?? [];
 
   return (
     <div className="space-y-4">
@@ -192,6 +195,12 @@ const HistoryOpportunityDetailContent = ({
               onOpenOpportunityInfo={onOpenOpportunityInfo}
             />
 
+            {recommendationSummary ? (
+              <div className="mt-4 w-full rounded-[8px] border border-beige900/10 bg-white/65 px-4 py-3 text-sm leading-6 text-beige900/90">
+                {recommendationSummary}
+              </div>
+            ) : null}
+
             {item.recommendationReasons.length > 0 && (
               <div className="mt-4 w-full space-y-2">
                 {item.recommendationReasons.map((reason, index) => (
@@ -204,6 +213,22 @@ const HistoryOpportunityDetailContent = ({
                       className="text-sm text-beige900"
                       dangerouslySetInnerHTML={{ __html: reason }}
                     />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {recommendationConcerns.length > 0 && (
+              <div className="mt-4 w-full space-y-2">
+                {recommendationConcerns.map((concern, index) => (
+                  <div
+                    key={`${item.id}-concern-${index}`}
+                    className="flex w-full flex-row items-start justify-start gap-2 rounded-[8px] border border-[#d6c6a4] bg-[#fbf4e8] px-3 py-3"
+                  >
+                    <Dot className="mt-[2px] h-4 w-4 text-[#9a7b39]" />
+                    <div className="text-sm leading-6 text-beige900/80">
+                      {concern}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -237,10 +262,13 @@ const HistoryOpportunityDetailContent = ({
                 onClick={roleLink ? () => onOpenLink(roleLink) : undefined}
               />
               <div className="h-[1px] w-full bg-beige900/10" />
-              <div className="text-sm leading-6">
-                {item.description?.trim() ||
-                  "아직 상세 역할 설명이 정리되지 않았습니다."}
-              </div>
+              {item.description?.trim() ? (
+                <CareerRichText content={item.description} />
+              ) : (
+                <div className="text-sm leading-6">
+                  아직 상세 역할 설명이 정리되지 않았습니다.
+                </div>
+              )}
             </div>
           </div>
         </CareerInlinePanel>

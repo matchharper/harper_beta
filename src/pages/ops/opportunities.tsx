@@ -1,5 +1,6 @@
 import OpsShell from "@/components/ops/OpsShell";
 import CatalogView from "@/components/ops/opportunities/CatalogView";
+import CompanyManagementView from "@/components/ops/opportunities/CompanyManagementView";
 import CompanyMatchView from "@/components/ops/opportunities/CompanyMatchView";
 import {
   CandidateMailModal,
@@ -36,6 +37,7 @@ import {
   useExtractOpsOpportunityWorkspace,
   useOpsOpportunityCandidates,
   useOpsOpportunityCatalog,
+  useOpsOpportunityCompanies,
   useOpsOpportunityMatches,
   useOpsOpportunityRecommendations,
   useSaveOpsOpportunityMatch,
@@ -43,8 +45,11 @@ import {
   useSaveOpsOpportunityRole,
   useSaveOpsOpportunityWorkspace,
   useSyncOpsOpportunityRoles,
+  useUpdateOpsCompanyScrapeOriginal,
 } from "@/hooks/useOpsOpportunities";
+import type { OpsCompanyManagementEmployeeCountRangeFilter } from "@/lib/opsOpportunityCompanyManagement";
 import type {
+  OpsCompanyManagementRecord,
   OpsOpportunityCandidateRecord,
   OpsOpportunityRoleRecord,
   OpsOpportunityType,
@@ -56,13 +61,22 @@ import { useOpsOpportunityRecommendationPromptStore } from "@/store/useOpsOpport
 import {
   ArrowLeftRight,
   Building2,
+  Database,
   LoaderCircle,
   RefreshCw,
   Sparkles,
 } from "lucide-react";
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
+const CATALOG_PAGE_SIZE = 10;
 
 export default function OpsOpportunitiesPage() {
   const router = useRouter();
@@ -79,8 +93,38 @@ export default function OpsOpportunitiesPage() {
     );
   const [view, setView] = useState<PageView>("catalog");
   const [workspaceSearch, setWorkspaceSearch] = useState("");
+  const [appliedWorkspaceSearch, setAppliedWorkspaceSearch] = useState("");
+  const [visibleWorkspaceCount, setVisibleWorkspaceCount] =
+    useState(CATALOG_PAGE_SIZE);
   const [roleSearch, setRoleSearch] = useState("");
+  const [appliedRoleSearch, setAppliedRoleSearch] = useState("");
+  const [visibleRoleCount, setVisibleRoleCount] = useState(CATALOG_PAGE_SIZE);
   const [roleSourceFilter, setRoleSourceFilter] = useState<SourceFilter>("all");
+  const [companyManagementCompanyName, setCompanyManagementCompanyName] =
+    useState("");
+  const [companyManagementLocation, setCompanyManagementLocation] =
+    useState("");
+  const [companyManagementInvestors, setCompanyManagementInvestors] =
+    useState("");
+  const [
+    companyManagementEmployeeCountRange,
+    setCompanyManagementEmployeeCountRange,
+  ] = useState<OpsCompanyManagementEmployeeCountRangeFilter>("");
+  const [companyManagementFoundedYearMin, setCompanyManagementFoundedYearMin] =
+    useState("");
+  const [
+    companyManagementHasCareerUrlOnly,
+    setCompanyManagementHasCareerUrlOnly,
+  ] = useState(false);
+  const [companyManagementAppliedFilters, setCompanyManagementAppliedFilters] =
+    useState({
+      companyName: "",
+      employeeCountRange: "" as OpsCompanyManagementEmployeeCountRangeFilter,
+      foundedYearMin: "",
+      hasCareerUrlOnly: false,
+      investors: "",
+      location: "",
+    });
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
     null
   );
@@ -127,6 +171,9 @@ export default function OpsOpportunitiesPage() {
     useState<OpsOpportunityCandidateRecord | null>(null);
   const [candidateMailDraft, setCandidateMailDraft] =
     useState<CandidateMailDraft>(EMPTY_CANDIDATE_MAIL_DRAFT);
+  const [updatingScrapeOriginalIds, setUpdatingScrapeOriginalIds] = useState(
+    () => new Set<string>()
+  );
   const currentViewQuery = router.query[PAGE_VIEW_QUERY_KEY];
 
   const setViewWithUrl = useCallback(
@@ -154,9 +201,11 @@ export default function OpsOpportunitiesPage() {
   );
 
   const deferredWorkspaceSearch = useDeferredValue(
-    workspaceSearch.trim().toLowerCase()
+    appliedWorkspaceSearch.trim().toLowerCase()
   );
-  const deferredRoleSearch = useDeferredValue(roleSearch.trim().toLowerCase());
+  const deferredRoleSearch = useDeferredValue(
+    appliedRoleSearch.trim().toLowerCase()
+  );
   const deferredCompanyRoleSearch = useDeferredValue(
     companyRoleSearch.trim().toLowerCase()
   );
@@ -165,6 +214,20 @@ export default function OpsOpportunitiesPage() {
   );
 
   const catalogQuery = useOpsOpportunityCatalog();
+  const companyManagementQuery = useOpsOpportunityCompanies({
+    companyName: companyManagementAppliedFilters.companyName,
+    enabled: view === "company_management",
+    employeeCountRange: companyManagementAppliedFilters.employeeCountRange,
+    foundedYearMin: companyManagementAppliedFilters.foundedYearMin,
+    hasCareerUrlOnly: companyManagementAppliedFilters.hasCareerUrlOnly,
+    investors: companyManagementAppliedFilters.investors,
+    limit: 30,
+    location: companyManagementAppliedFilters.location,
+  });
+  const refetchCatalog = catalogQuery.refetch;
+  const fetchNextCompanyManagementQueryPage =
+    companyManagementQuery.fetchNextPage;
+  const refetchCompanyManagement = companyManagementQuery.refetch;
   const extractWorkspace = useExtractOpsOpportunityWorkspace();
   const saveWorkspace = useSaveOpsOpportunityWorkspace();
   const syncRoles = useSyncOpsOpportunityRoles();
@@ -176,6 +239,7 @@ export default function OpsOpportunitiesPage() {
     useGenerateOpsOpportunityRecommendationDraft();
   const deleteRecommendation = useDeleteOpsOpportunityRecommendation();
   const sendCandidateMail = useSendOpsOpportunityCandidateMail();
+  const updateCompanyScrapeOriginal = useUpdateOpsCompanyScrapeOriginal();
 
   const workspaces = useMemo(
     () => catalogQuery.data?.workspaces ?? [],
@@ -185,6 +249,15 @@ export default function OpsOpportunitiesPage() {
     () => catalogQuery.data?.roles ?? [],
     [catalogQuery.data?.roles]
   );
+  const companyManagementRows = useMemo(() => {
+    const rows =
+      companyManagementQuery.data?.pages.flatMap((page) => page.items) ?? [];
+    const rowByWorkspaceId = new Map<string, OpsCompanyManagementRecord>();
+    for (const row of rows) {
+      rowByWorkspaceId.set(row.companyWorkspaceId, row);
+    }
+    return Array.from(rowByWorkspaceId.values());
+  }, [companyManagementQuery.data?.pages]);
 
   const filteredWorkspaces = useMemo(
     () =>
@@ -192,6 +265,11 @@ export default function OpsOpportunitiesPage() {
         matchesWorkspaceQuery(workspace, deferredWorkspaceSearch)
       ),
     [deferredWorkspaceSearch, workspaces]
+  );
+
+  const visibleWorkspaces = useMemo(
+    () => filteredWorkspaces.slice(0, visibleWorkspaceCount),
+    [filteredWorkspaces, visibleWorkspaceCount]
   );
 
   const selectedWorkspace = useMemo(
@@ -224,6 +302,11 @@ export default function OpsOpportunitiesPage() {
         return matchesRoleQuery(role, deferredRoleSearch);
       }),
     [deferredRoleSearch, roleSourceFilter, scopedRoles]
+  );
+
+  const visibleRoles = useMemo(
+    () => filteredRoles.slice(0, visibleRoleCount),
+    [filteredRoles, visibleRoleCount]
   );
 
   const selectedRole = useMemo(
@@ -292,32 +375,40 @@ export default function OpsOpportunitiesPage() {
   });
 
   useEffect(() => {
-    if (
-      selectedWorkspaceId &&
-      workspaces.some((item) => item.companyWorkspaceId === selectedWorkspaceId)
-    ) {
+    if (visibleWorkspaces.length === 0) {
+      setSelectedWorkspaceId(null);
       return;
     }
-    setSelectedWorkspaceId(workspaces[0]?.companyWorkspaceId ?? null);
-  }, [selectedWorkspaceId, workspaces]);
-
-  useEffect(() => {
     if (
-      selectedRoleId &&
-      roles.some(
-        (role) =>
-          role.roleId === selectedRoleId &&
-          (!selectedWorkspaceId ||
-            role.companyWorkspaceId === selectedWorkspaceId)
+      selectedWorkspaceId &&
+      visibleWorkspaces.some(
+        (item) => item.companyWorkspaceId === selectedWorkspaceId
       )
     ) {
       return;
     }
-    const nextRole =
-      roles.find((role) => role.companyWorkspaceId === selectedWorkspaceId) ??
-      null;
+    setSelectedWorkspaceId(visibleWorkspaces[0]?.companyWorkspaceId ?? null);
+  }, [selectedWorkspaceId, visibleWorkspaces]);
+
+  useEffect(() => {
+    if (!selectedWorkspaceId) {
+      setSelectedRoleId(null);
+      return;
+    }
+
+    if (
+      selectedRoleId &&
+      visibleRoles.some((role) => role.roleId === selectedRoleId)
+    ) {
+      return;
+    }
+    const nextRole = visibleRoles[0] ?? null;
     setSelectedRoleId(nextRole?.roleId ?? null);
-  }, [roles, selectedRoleId, selectedWorkspaceId]);
+  }, [selectedRoleId, selectedWorkspaceId, visibleRoles]);
+
+  useEffect(() => {
+    setVisibleRoleCount(CATALOG_PAGE_SIZE);
+  }, [selectedWorkspaceId]);
 
   useEffect(() => {
     if (
@@ -482,7 +573,9 @@ export default function OpsOpportunitiesPage() {
     } catch (error) {
       showToast({
         message:
-          error instanceof Error ? error.message : "회사 정보 추출에 실패했습니다.",
+          error instanceof Error
+            ? error.message
+            : "회사 정보 추출에 실패했습니다.",
         variant: "white",
       });
     }
@@ -557,9 +650,49 @@ export default function OpsOpportunitiesPage() {
     }
   };
 
+  const handleWorkspaceSearchSubmit = useCallback(() => {
+    setAppliedWorkspaceSearch(workspaceSearch.trim());
+    setVisibleWorkspaceCount(CATALOG_PAGE_SIZE);
+  }, [workspaceSearch]);
+
+  const handleRoleSearchSubmit = useCallback(() => {
+    setAppliedRoleSearch(roleSearch.trim());
+    setVisibleRoleCount(CATALOG_PAGE_SIZE);
+  }, [roleSearch]);
+
+  const handleRoleSourceFilterChange = useCallback((filter: SourceFilter) => {
+    setRoleSourceFilter(filter);
+    setVisibleRoleCount(CATALOG_PAGE_SIZE);
+  }, []);
+
+  const handleLoadMoreWorkspaces = useCallback(() => {
+    setVisibleWorkspaceCount((current) =>
+      Math.min(current + CATALOG_PAGE_SIZE, filteredWorkspaces.length)
+    );
+  }, [filteredWorkspaces.length]);
+
+  const handleLoadMoreRoles = useCallback(() => {
+    setVisibleRoleCount((current) =>
+      Math.min(current + CATALOG_PAGE_SIZE, filteredRoles.length)
+    );
+  }, [filteredRoles.length]);
+
   const openWorkspaceCreateModal = () => {
     setWorkspaceDraftMode("new");
     setWorkspaceDraft(EMPTY_WORKSPACE_DRAFT);
+    setIsWorkspaceCreateModalOpen(true);
+  };
+
+  const openWorkspaceEditModal = () => {
+    if (!selectedWorkspace) {
+      showToast({
+        message: "수정할 회사를 먼저 선택해 주세요.",
+        variant: "white",
+      });
+      return;
+    }
+    setWorkspaceDraftMode("edit");
+    setWorkspaceDraft(workspaceToDraft(selectedWorkspace));
     setIsWorkspaceCreateModalOpen(true);
   };
 
@@ -574,6 +707,19 @@ export default function OpsOpportunitiesPage() {
     if (!selectedWorkspaceId) return;
     setRoleDraftMode("new");
     setRoleDraft(EMPTY_ROLE_DRAFT);
+    setIsRoleCreateModalOpen(true);
+  };
+
+  const openRoleEditModal = () => {
+    if (!selectedRole) {
+      showToast({
+        message: "수정할 기회를 먼저 선택해 주세요.",
+        variant: "white",
+      });
+      return;
+    }
+    setRoleDraftMode("edit");
+    setRoleDraft(roleToDraft(selectedRole));
     setIsRoleCreateModalOpen(true);
   };
 
@@ -767,6 +913,100 @@ export default function OpsOpportunitiesPage() {
     setSelectedRecommendationRoleId(role.roleId);
   };
 
+  const handleRefresh = useCallback(() => {
+    if (view === "company_management") {
+      void refetchCompanyManagement();
+      return;
+    }
+    void refetchCatalog();
+  }, [refetchCatalog, refetchCompanyManagement, view]);
+
+  const fetchNextCompanyManagementPage = useCallback(() => {
+    void fetchNextCompanyManagementQueryPage();
+  }, [fetchNextCompanyManagementQueryPage]);
+
+  const handleCompanyManagementSearch = useCallback(() => {
+    const nextFilters = {
+      companyName: companyManagementCompanyName.trim(),
+      employeeCountRange: companyManagementEmployeeCountRange,
+      foundedYearMin: companyManagementFoundedYearMin.trim(),
+      hasCareerUrlOnly: companyManagementHasCareerUrlOnly,
+      investors: companyManagementInvestors.trim(),
+      location: companyManagementLocation.trim(),
+    };
+    const filtersUnchanged =
+      nextFilters.companyName === companyManagementAppliedFilters.companyName &&
+      nextFilters.employeeCountRange ===
+        companyManagementAppliedFilters.employeeCountRange &&
+      nextFilters.foundedYearMin ===
+        companyManagementAppliedFilters.foundedYearMin &&
+      nextFilters.hasCareerUrlOnly ===
+        companyManagementAppliedFilters.hasCareerUrlOnly &&
+      nextFilters.investors === companyManagementAppliedFilters.investors &&
+      nextFilters.location === companyManagementAppliedFilters.location;
+
+    if (filtersUnchanged) {
+      void refetchCompanyManagement();
+      return;
+    }
+
+    setCompanyManagementAppliedFilters(nextFilters);
+  }, [
+    companyManagementAppliedFilters.companyName,
+    companyManagementAppliedFilters.employeeCountRange,
+    companyManagementAppliedFilters.foundedYearMin,
+    companyManagementAppliedFilters.hasCareerUrlOnly,
+    companyManagementAppliedFilters.investors,
+    companyManagementAppliedFilters.location,
+    companyManagementCompanyName,
+    companyManagementEmployeeCountRange,
+    companyManagementFoundedYearMin,
+    companyManagementHasCareerUrlOnly,
+    companyManagementInvestors,
+    companyManagementLocation,
+    refetchCompanyManagement,
+  ]);
+
+  const handleCompanyScrapeOriginalChange = useCallback(
+    async (company: OpsCompanyManagementRecord, nextValue: boolean) => {
+      const workspaceId = company.companyWorkspaceId;
+      if (!workspaceId) return;
+
+      setUpdatingScrapeOriginalIds((current) => {
+        const next = new Set(current);
+        next.add(workspaceId);
+        return next;
+      });
+
+      try {
+        await updateCompanyScrapeOriginal.mutateAsync({
+          isScrapeOriginal: nextValue,
+          workspaceId,
+        });
+      } catch (error) {
+        showToast({
+          message:
+            error instanceof Error
+              ? error.message
+              : "is_scrape_original 업데이트에 실패했습니다.",
+          variant: "white",
+        });
+      } finally {
+        setUpdatingScrapeOriginalIds((current) => {
+          const next = new Set(current);
+          next.delete(workspaceId);
+          return next;
+        });
+      }
+    },
+    [updateCompanyScrapeOriginal]
+  );
+
+  const refreshPending =
+    view === "company_management"
+      ? companyManagementQuery.isFetching
+      : catalogQuery.isFetching;
+
   return (
     <>
       <Head>
@@ -784,10 +1024,10 @@ export default function OpsOpportunitiesPage() {
         actions={
           <button
             type="button"
-            onClick={() => void catalogQuery.refetch()}
+            onClick={handleRefresh}
             className={cx(opsTheme.buttonSecondary, "h-10 px-3")}
           >
-            {catalogQuery.isFetching ? (
+            {refreshPending ? (
               <LoaderCircle className="h-4 w-4 animate-spin" />
             ) : (
               <RefreshCw className="h-4 w-4" />
@@ -803,6 +1043,13 @@ export default function OpsOpportunitiesPage() {
           >
             <Building2 className="mr-2 inline-flex h-3.5 w-3.5" />
             Role 목록 관리
+          </ActionButton>
+          <ActionButton
+            active={view === "company_management"}
+            onClick={() => setViewWithUrl("company_management")}
+          >
+            <Database className="mr-2 inline-flex h-3.5 w-3.5" />
+            회사 관리
           </ActionButton>
           <ActionButton
             active={view === "company_match"}
@@ -822,52 +1069,74 @@ export default function OpsOpportunitiesPage() {
 
         {view === "catalog" ? (
           <CatalogView
+            catalogErrorMessage={
+              catalogQuery.error instanceof Error
+                ? catalogQuery.error.message
+                : null
+            }
             catalogLoading={catalogQuery.isLoading}
-            filteredRoles={filteredRoles}
-            filteredWorkspaces={filteredWorkspaces}
+            filteredRoles={visibleRoles}
+            filteredWorkspaces={visibleWorkspaces}
+            onLoadMoreRoles={handleLoadMoreRoles}
+            onLoadMoreWorkspaces={handleLoadMoreWorkspaces}
             onOpenRoleCreateModal={openRoleCreateModal}
+            onOpenRoleEditModal={openRoleEditModal}
             onOpenRoleFlow={openRoleFlow}
             onOpenWorkspaceCreateModal={openWorkspaceCreateModal}
-            onResetRoleDraft={() => {
-              setRoleDraftMode("edit");
-              setRoleDraft(roleToDraft(selectedRole));
-            }}
-            onResetWorkspaceDraft={() => {
-              setWorkspaceDraftMode("edit");
-              setWorkspaceDraft(workspaceToDraft(selectedWorkspace));
-            }}
-            onRoleSave={() => void handleRoleSave()}
+            onOpenWorkspaceEditModal={openWorkspaceEditModal}
             onRoleSearchChange={setRoleSearch}
+            onRoleSearchSubmit={handleRoleSearchSubmit}
             onRoleSelect={(roleId) => {
               setRoleDraftMode("edit");
               setSelectedRoleId(roleId);
             }}
             onRoleSync={() => void handleRoleSync()}
-            onRoleSourceFilterChange={setRoleSourceFilter}
-            onWorkspaceExtract={() => void handleWorkspaceExtract()}
-            onWorkspaceSave={() => void handleWorkspaceSave()}
+            onRoleSourceFilterChange={handleRoleSourceFilterChange}
             onWorkspaceSearchChange={setWorkspaceSearch}
+            onWorkspaceSearchSubmit={handleWorkspaceSearchSubmit}
             onWorkspaceSelect={(workspaceId) => {
               setWorkspaceDraftMode("edit");
+              setVisibleRoleCount(CATALOG_PAGE_SIZE);
               setSelectedWorkspaceId(workspaceId);
             }}
-            roleDraft={roleDraft}
-            roleDraftMode={roleDraftMode}
             roleSearch={roleSearch}
             roleSourceFilter={roleSourceFilter}
-            extractWorkspacePending={extractWorkspace.isPending}
+            roleTotalCount={filteredRoles.length}
             syncRolePending={syncRoles.isPending}
-            saveRolePending={saveRole.isPending}
-            saveWorkspacePending={saveWorkspace.isPending}
-            selectedRole={selectedRole}
             selectedRoleId={selectedRoleId}
             selectedWorkspace={selectedWorkspace}
             selectedWorkspaceId={selectedWorkspaceId}
-            setRoleDraft={setRoleDraft}
-            setWorkspaceDraft={setWorkspaceDraft}
-            workspaceDraft={workspaceDraft}
-            workspaceDraftMode={workspaceDraftMode}
             workspaceSearch={workspaceSearch}
+            workspaceTotalCount={filteredWorkspaces.length}
+          />
+        ) : view === "company_management" ? (
+          <CompanyManagementView
+            companies={companyManagementRows}
+            companyNameSearch={companyManagementCompanyName}
+            employeeCountRange={companyManagementEmployeeCountRange}
+            error={companyManagementQuery.error}
+            foundedYearMin={companyManagementFoundedYearMin}
+            hasCareerUrlOnly={companyManagementHasCareerUrlOnly}
+            hasNextPage={Boolean(companyManagementQuery.hasNextPage)}
+            investorsSearch={companyManagementInvestors}
+            isFetching={companyManagementQuery.isFetching}
+            isFetchingNextPage={companyManagementQuery.isFetchingNextPage}
+            isLoading={companyManagementQuery.isLoading}
+            locationSearch={companyManagementLocation}
+            onCompanyNameSearchChange={setCompanyManagementCompanyName}
+            onEmployeeCountRangeChange={setCompanyManagementEmployeeCountRange}
+            onFetchNextPage={fetchNextCompanyManagementPage}
+            onFoundedYearMinChange={(value) =>
+              setCompanyManagementFoundedYearMin(
+                value.replace(/[^\d]/g, "").slice(0, 4)
+              )
+            }
+            onHasCareerUrlOnlyChange={setCompanyManagementHasCareerUrlOnly}
+            onInvestorsSearchChange={setCompanyManagementInvestors}
+            onLocationSearchChange={setCompanyManagementLocation}
+            onSearch={handleCompanyManagementSearch}
+            onScrapeOriginalChange={handleCompanyScrapeOriginalChange}
+            updatingScrapeOriginalIds={updatingScrapeOriginalIds}
           />
         ) : view === "company_match" ? (
           <CompanyMatchView
@@ -945,9 +1214,7 @@ export default function OpsOpportunitiesPage() {
             selectedRecommendationRole={selectedRecommendationRole}
             selectedRecommendationRoleId={selectedRecommendationRoleId}
             selectedRecommendationTalent={selectedRecommendationTalent}
-            talentRecommendations={
-              talentRecommendationsQuery.data?.items ?? []
-            }
+            talentRecommendations={talentRecommendationsQuery.data?.items ?? []}
             talentRecommendationsLoading={talentRecommendationsQuery.isLoading}
           />
         )}
@@ -965,6 +1232,7 @@ export default function OpsOpportunitiesPage() {
         open={isWorkspaceCreateModalOpen}
         draft={workspaceDraft}
         extractPending={extractWorkspace.isPending}
+        mode={workspaceDraftMode}
         onChange={setWorkspaceDraft}
         onClose={closeWorkspaceCreateModal}
         onExtract={() => void handleWorkspaceExtract()}
@@ -974,6 +1242,7 @@ export default function OpsOpportunitiesPage() {
       <RoleCreateModal
         open={isRoleCreateModalOpen}
         draft={roleDraft}
+        mode={roleDraftMode}
         onChange={setRoleDraft}
         onClose={closeRoleCreateModal}
         onSubmit={() => void handleRoleSave()}

@@ -1,7 +1,15 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  type InfiniteData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
+import type { OpsCompanyManagementEmployeeCountRangeFilter } from "@/lib/opsOpportunityCompanyManagement";
 import { queryKeys } from "@/lib/queryKeys";
 import type {
+  OpsCompanyManagementPageResponse,
   OpsOpportunityCandidateSearchResponse,
   OpsOpportunityCatalogResponse,
   OpsOpportunityMatchListResponse,
@@ -20,7 +28,10 @@ type SaveWorkspaceInput = {
   companyDescription?: string | null;
   companyName?: string;
   homepageUrl?: string | null;
+  isInternal?: boolean;
   linkedinUrl?: string | null;
+  pitch?: string | null;
+  request?: string | null;
   workspaceId?: string | null;
 };
 
@@ -43,6 +54,7 @@ type SaveRoleInput = {
   locationText?: string | null;
   name?: string;
   postedAt?: string | null;
+  request?: string | null;
   roleId?: string | null;
   sourceJobId?: string | null;
   sourceProvider?: string | null;
@@ -91,6 +103,11 @@ type SendCandidateMailInput = {
   talentId: string;
 };
 
+type UpdateCompanyScrapeOriginalInput = {
+  isScrapeOriginal: boolean;
+  workspaceId: string;
+};
+
 export function useOpsOpportunityCatalog() {
   return useQuery({
     queryKey: queryKeys.opsOpportunity.catalog,
@@ -99,6 +116,132 @@ export function useOpsOpportunityCatalog() {
         "/api/internal/opportunities/catalog"
       ),
     staleTime: 15_000,
+  });
+}
+
+export function useOpsOpportunityCompanies(args: {
+  companyName?: string | null;
+  enabled?: boolean;
+  employeeCountRange?: OpsCompanyManagementEmployeeCountRangeFilter | null;
+  foundedYearMin?: number | string | null;
+  hasCareerUrlOnly?: boolean;
+  investors?: string | null;
+  limit?: number;
+  location?: string | null;
+}) {
+  const limit = Math.max(1, Math.min(Number(args.limit ?? 30) || 30, 80));
+  const companyName = String(args.companyName ?? "").trim();
+  const employeeCountRange = String(args.employeeCountRange ?? "").trim();
+  const investors = String(args.investors ?? "").trim();
+  const location = String(args.location ?? "").trim();
+  const hasCareerUrlOnly = Boolean(args.hasCareerUrlOnly);
+  const foundedYearMinNumber = Number(args.foundedYearMin ?? "");
+  const foundedYearMin =
+    Number.isFinite(foundedYearMinNumber) && foundedYearMinNumber > 0
+      ? Math.floor(foundedYearMinNumber)
+      : null;
+
+  return useInfiniteQuery({
+    queryKey: queryKeys.opsOpportunity.companies({
+      companyName,
+      employeeCountRange,
+      foundedYearMin,
+      hasCareerUrlOnly,
+      investors,
+      limit,
+      location,
+    }),
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams();
+      params.set("limit", String(limit));
+      params.set("offset", String(pageParam));
+      if (companyName) {
+        params.set("companyName", companyName);
+      }
+      if (employeeCountRange) {
+        params.set("employeeCountRange", employeeCountRange);
+      }
+      if (location) {
+        params.set("location", location);
+      }
+      if (investors) {
+        params.set("investors", investors);
+      }
+      if (foundedYearMin) {
+        params.set("foundedYearMin", String(foundedYearMin));
+      }
+      if (hasCareerUrlOnly) {
+        params.set("hasCareerUrlOnly", "true");
+      }
+
+      return fetchWithInternalAuth<OpsCompanyManagementPageResponse>(
+        `/api/internal/opportunities/companies?${params.toString()}`
+      );
+    },
+    getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
+    enabled: args.enabled ?? true,
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useUpdateOpsCompanyScrapeOriginal() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: UpdateCompanyScrapeOriginalInput) =>
+      fetchWithInternalAuth<{
+        isScrapeOriginal: boolean;
+        workspaceId: string;
+      }>("/api/internal/opportunities/companies", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(input),
+      }),
+    onMutate: async (input) => {
+      await queryClient.cancelQueries({
+        queryKey: queryKeys.opsOpportunity.companiesAll,
+      });
+
+      queryClient.setQueriesData<
+        InfiniteData<OpsCompanyManagementPageResponse>
+      >(
+        {
+          queryKey: queryKeys.opsOpportunity.companiesAll,
+        },
+        (current) => {
+          if (!current) return current;
+          return {
+            ...current,
+            pages: current.pages.map((page) => ({
+              ...page,
+              items: page.items.map((item) =>
+                item.companyWorkspaceId === input.workspaceId
+                  ? {
+                      ...item,
+                      isScrapeOriginal: input.isScrapeOriginal,
+                    }
+                  : item
+              ),
+            })),
+          };
+        }
+      );
+    },
+    onError: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.opsOpportunity.companiesAll,
+      });
+    },
+    onSettled: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.opsOpportunity.companiesAll,
+      });
+    },
   });
 }
 
@@ -116,10 +259,42 @@ export function useSaveOpsOpportunityWorkspace() {
         },
         body: JSON.stringify(input),
       }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.opsOpportunity.all,
-      });
+    onSuccess: (data, input) => {
+      queryClient.setQueryData<OpsOpportunityCatalogResponse | undefined>(
+        queryKeys.opsOpportunity.catalog,
+        (current) => {
+          if (!current) return current;
+
+          const savedWorkspace = data.workspace;
+          const existingWorkspace = current.workspaces.find(
+            (workspace) =>
+              workspace.companyWorkspaceId === savedWorkspace.companyWorkspaceId
+          );
+          const nextWorkspace = existingWorkspace
+            ? {
+                ...existingWorkspace,
+                ...savedWorkspace,
+              }
+            : savedWorkspace;
+
+          const remainingWorkspaces = current.workspaces.filter(
+            (workspace) =>
+              workspace.companyWorkspaceId !== savedWorkspace.companyWorkspaceId
+          );
+          const nextWorkspaces = input.workspaceId
+            ? current.workspaces.map((workspace) =>
+                workspace.companyWorkspaceId === savedWorkspace.companyWorkspaceId
+                  ? nextWorkspace
+                  : workspace
+              )
+            : [nextWorkspace, ...remainingWorkspaces];
+
+          return {
+            ...current,
+            workspaces: nextWorkspaces,
+          };
+        }
+      );
     },
   });
 }
@@ -226,7 +401,9 @@ export function useOpsOpportunityMatches(args: {
     },
     enabled:
       (args.enabled ?? true) &&
-      Boolean(String(args.roleId ?? "").trim() || String(args.candidId ?? "").trim()),
+      Boolean(
+        String(args.roleId ?? "").trim() || String(args.candidId ?? "").trim()
+      ),
     staleTime: 10_000,
   });
 }
@@ -283,7 +460,10 @@ export function useOpsOpportunityRecommendations(args: {
   talentId?: string | null;
 }) {
   return useQuery({
-    queryKey: queryKeys.opsOpportunity.recommendations(args.roleId, args.talentId),
+    queryKey: queryKeys.opsOpportunity.recommendations(
+      args.roleId,
+      args.talentId
+    ),
     queryFn: () => {
       const params = new URLSearchParams();
       if (args.roleId) {
@@ -298,7 +478,9 @@ export function useOpsOpportunityRecommendations(args: {
     },
     enabled:
       (args.enabled ?? true) &&
-      Boolean(String(args.roleId ?? "").trim() || String(args.talentId ?? "").trim()),
+      Boolean(
+        String(args.roleId ?? "").trim() || String(args.talentId ?? "").trim()
+      ),
     staleTime: 10_000,
   });
 }

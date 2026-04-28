@@ -40,7 +40,7 @@ const CareerInPageTabs = <T extends string>({
                       "inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] leading-none",
                       active
                         ? "bg-beige900 text-beige100"
-                        : "bg-beige900/8 text-beige900/55"
+                        : "bg-beige900/10 text-beige900/55"
                     )}
                   >
                     {item.count}

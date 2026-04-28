@@ -5,7 +5,7 @@ import {
   getPositiveActionLabel,
   getNegativeActionLabel,
 } from "../CareerHistoryPanel";
-import { ThumbsUp, ThumbsDown, MessageSquare } from "lucide-react";
+import { Mic, ThumbsDown, ThumbsUp, MessageSquare } from "lucide-react";
 import {
   getCareerFeedbackButtonClassName,
   getCareerDefaultFeedbackButtonClassName,
@@ -23,6 +23,7 @@ const OpportunityDetailModal = ({
   onPositive,
   onNegative,
   onQuestion,
+  onMockInterview,
 }: {
   item: CareerHistoryOpportunity | null;
   open: boolean;
@@ -33,6 +34,7 @@ const OpportunityDetailModal = ({
   onPositive: () => void;
   onNegative: () => void;
   onQuestion: () => void;
+  onMockInterview: () => void;
 }) => {
   if (!open || !item) return null;
 
@@ -78,6 +80,15 @@ const OpportunityDetailModal = ({
               icon={<MessageSquare className="h-4 w-4" />}
               label="질문하기"
               onClick={onQuestion}
+            />
+          </div>
+          <div className="flex-1">
+            <HistoryFeedbackButton
+              className={getCareerDefaultFeedbackButtonClassName(false)}
+              disabled={pending}
+              icon={<Mic className="h-4 w-4" />}
+              label="모의 인터뷰"
+              onClick={onMockInterview}
             />
           </div>
         </div>

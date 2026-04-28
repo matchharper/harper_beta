@@ -11,6 +11,7 @@ import type {
   CareerTalentInsights,
   CareerTalentPreferences,
   CareerTalentProfile,
+  CareerOpportunityRun,
 } from "./types";
 import type { CareerProfileVisibility } from "@/hooks/career/useCareerTalentSettings";
 
@@ -23,6 +24,10 @@ export type CareerSidebarContextValue = {
   progressPercent: number;
   onOpenSettings: () => void;
   onLogout: () => void | Promise<void>;
+  activeCompanyRoleCount: number;
+  opportunityRun: CareerOpportunityRun | null;
+  opportunityRunTriggerPending: boolean;
+  onRunOpportunityDiscoveryTest: () => void | Promise<void>;
   recentOpportunities: CareerRecentOpportunity[];
   historyOpportunities: CareerHistoryOpportunity[];
   historyLoading: boolean;
@@ -50,6 +55,9 @@ export type CareerSidebarContextValue = {
     opportunityId: string,
     question: string
   ) => boolean | Promise<boolean>;
+  onPrepareMockInterview: (
+    opportunityId?: string | null
+  ) => void | Promise<void>;
   notifications: CareerTalentNotification[];
   unreadNotificationCount: number;
   notificationsMarkingAsRead: boolean;
@@ -69,7 +77,9 @@ export type CareerSidebarContextValue = {
   onProfileLinkChange: (index: number, value: string) => void;
   onAddProfileLink: () => void;
   onRemoveProfileLink: (index: number) => void;
-  onSaveTalentProfile: () => void | Promise<void>;
+  onSaveTalentProfile: (
+    args?: { structuredProfile?: CareerTalentProfile | null }
+  ) => boolean | Promise<boolean>;
   talentProfile: CareerTalentProfile;
   networkApplication: CareerNetworkApplication | null;
   talentPreferences: CareerTalentPreferences | null;

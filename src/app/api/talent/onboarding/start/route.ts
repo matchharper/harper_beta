@@ -33,6 +33,8 @@ import { logger } from "@/utils/logger";
 
 type Body = {
   conversationId?: string;
+  email?: string;
+  name?: string;
   resumeFileName?: string;
   resumeStoragePath?: string;
   resumeText?: string;
@@ -42,6 +44,8 @@ type Body = {
 type TalentProfileUpdatePayload = {
   resume_links: string[];
   updated_at: string;
+  email?: string;
+  name?: string;
   resume_text?: string;
   resume_file_name?: string;
   resume_storage_path?: string;
@@ -56,6 +60,8 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json()) as Body;
     const conversationId = body.conversationId?.trim();
+    const submittedName = body.name?.trim();
+    const submittedEmail = body.email?.trim().toLowerCase();
     const resumeFileName = body.resumeFileName?.trim();
     const resumeStoragePath = body.resumeStoragePath?.trim();
     const resumeText = body.resumeText?.trim() ?? "";
@@ -108,6 +114,12 @@ export async function POST(req: NextRequest) {
     if (resumeStoragePath) {
       profileUpdatePayload.resume_storage_path = resumeStoragePath;
     }
+    if (submittedName) {
+      profileUpdatePayload.name = submittedName.slice(0, 240);
+    }
+    if (submittedEmail) {
+      profileUpdatePayload.email = submittedEmail.slice(0, 320);
+    }
 
     const { error: profileUpdateError } = await admin
       .from("talent_users")
@@ -124,7 +136,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const displayName = toTalentDisplayName(user);
+    const displayName = submittedName || toTalentDisplayName(user);
     const talentSetting = await fetchTalentSetting({ admin, userId: user.id });
     const kickoffLlmPromise = generateTalentKickoff({
       displayName,

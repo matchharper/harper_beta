@@ -11,7 +11,7 @@ const COMPANY_DB_LOOKUP_SELECT =
 const DEFAULT_FETCH_RETRIES = 2;
 const DEFAULT_FETCH_TIMEOUT_MS = 20_000;
 const WORKSPACE_SELECT =
-  "company_workspace_id, company_name, homepage_url, career_url, linkedin_url, logo_url, logo_storage_path, company_description, company_db_id, created_at, updated_at";
+  "company_workspace_id, company_name, homepage_url, career_url, linkedin_url, logo_url, company_description, company_db_id, created_at, updated_at";
 const WORKSPACE_MUTABLE_FIELDS = [
   "career_url",
   "company_db_id",
@@ -19,7 +19,6 @@ const WORKSPACE_MUTABLE_FIELDS = [
   "company_name",
   "homepage_url",
   "linkedin_url",
-  "logo_storage_path",
   "logo_url",
 ];
 
@@ -487,7 +486,6 @@ function buildWorkspacePayload(entry, resolvedRecord, existingWorkspace) {
       resolvedRecord.linkedinUrl,
       existingWorkspace?.linkedin_url
     ),
-    logo_storage_path: pickString(existingWorkspace?.logo_storage_path),
     logo_url: pickString(resolvedRecord.logoUrl, existingWorkspace?.logo_url),
     updated_at: now,
   };

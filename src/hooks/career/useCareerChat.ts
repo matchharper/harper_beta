@@ -1,22 +1,14 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import type {
   CareerMessage,
   CareerMessagePayload,
+  CareerMockInterviewSession,
+  CareerOpportunityRun,
   CareerStage,
   SessionResponse,
 } from "@/components/career/types";
-import {
-  getErrorMessage,
-  sleep,
-  toUiMessage,
-} from "./careerHelpers";
+import { getErrorMessage, sleep, toUiMessage } from "./careerHelpers";
 import type { FetchWithAuth } from "./useCareerApi";
 
 type SendChatArgs = {
@@ -34,8 +26,14 @@ type UseCareerChatArgs = {
   conversationId: string | null;
   sessionPending: boolean;
   fetchWithAuth: FetchWithAuth;
+  onMockInterviewSessionChanged?: (
+    session: CareerMockInterviewSession | null
+  ) => void;
+  onOpportunityRunChanged?: (run: CareerOpportunityRun | null) => void;
   persistedMessages: CareerMessage[];
-  onMessagesChanged?: (messages: CareerMessagePayload[]) => void | Promise<void>;
+  onMessagesChanged?: (
+    messages: CareerMessagePayload[]
+  ) => void | Promise<void>;
 };
 
 const mergeMessages = (
@@ -66,7 +64,25 @@ const mergeMessages = (
     merged.push(message);
   }
 
-  return merged;
+  return merged.sort(compareCareerMessages);
+};
+
+const compareCareerMessages = (left: CareerMessage, right: CareerMessage) => {
+  const leftTime = Date.parse(left.createdAt);
+  const rightTime = Date.parse(right.createdAt);
+
+  if (Number.isFinite(leftTime) && Number.isFinite(rightTime)) {
+    if (leftTime !== rightTime) return leftTime - rightTime;
+  }
+
+  const leftId = typeof left.id === "number" ? left.id : Number(left.id);
+  const rightId = typeof right.id === "number" ? right.id : Number(right.id);
+
+  if (Number.isFinite(leftId) && Number.isFinite(rightId)) {
+    return leftId - rightId;
+  }
+
+  return 0;
 };
 
 const replaceMessageById = (
@@ -93,6 +109,8 @@ export const useCareerChat = ({
   conversationId,
   sessionPending,
   fetchWithAuth,
+  onMockInterviewSessionChanged,
+  onOpportunityRunChanged,
   persistedMessages,
   onMessagesChanged,
 }: UseCareerChatArgs) => {
@@ -233,18 +251,38 @@ export const useCareerChat = ({
           }),
         });
         const payload = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          throw new Error(getErrorMessage(payload, "메시지 전송에 실패했습니다."));
+        if (payload?.opportunityRun) {
+          onOpportunityRunChanged?.(
+            payload.opportunityRun as CareerOpportunityRun
+          );
         }
+        if (payload?.mockInterviewSession !== undefined) {
+          onMockInterviewSessionChanged?.(
+            payload.mockInterviewSession as CareerMockInterviewSession | null
+          );
+        }
+        if (!response.ok) {
+          throw new Error(
+            getErrorMessage(payload, "메시지 전송에 실패했습니다.")
+          );
+        }
+
+        const assistantPayloads = Array.isArray(payload.assistantMessages)
+          ? (payload.assistantMessages as CareerMessagePayload[])
+          : payload.assistantMessage
+            ? [payload.assistantMessage as CareerMessagePayload]
+            : [];
 
         setLocalMessages((prev) =>
           replaceMessageById(prev, tempId, toUiMessage(payload.userMessage))
         );
-        await enqueueAssistantTypewriter(toUiMessage(payload.assistantMessage));
+        for (const assistantPayload of assistantPayloads) {
+          await enqueueAssistantTypewriter(toUiMessage(assistantPayload));
+        }
         setScrollTick((t) => t + 1);
         await onMessagesChanged?.([
           payload.userMessage as CareerMessagePayload,
-          payload.assistantMessage as CareerMessagePayload,
+          ...assistantPayloads,
         ]);
 
         if (payload?.progress?.completed) {
@@ -272,6 +310,8 @@ export const useCareerChat = ({
       stage,
       user,
       onMessagesChanged,
+      onMockInterviewSessionChanged,
+      onOpportunityRunChanged,
     ]
   );
 

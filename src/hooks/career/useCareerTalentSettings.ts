@@ -83,7 +83,10 @@ export const useCareerTalentSettings = ({
 
   const applyPersistedSettings = useCallback(
     (
-      settings: { profileVisibility?: unknown; blockedCompanies?: unknown },
+      settings: {
+        profileVisibility?: unknown;
+        blockedCompanies?: unknown;
+      },
       updatedAt?: unknown
     ) => {
       const nextVisibility = normalizeProfileVisibility(settings.profileVisibility);

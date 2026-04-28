@@ -1,13 +1,32 @@
-import { Loader2, Phone, Plus, Upload, X } from "lucide-react";
+import {
+  ExternalLink,
+  Loader2,
+  MessageSquare,
+  Phone,
+  Plus,
+  Search,
+  Upload,
+  X,
+} from "lucide-react";
 import {
   FormEvent,
+  Fragment,
+  memo,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
 import { CAREER_LINK_LABELS } from "@/components/career/constants";
 import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
+import type {
+  CareerCompanySnapshotSetup,
+  CareerMessage,
+  CareerHistoryOpportunity,
+  CareerMockInterviewSetup,
+  CareerMockInterviewType,
+} from "@/components/career/types";
 import {
   TALENT_MESSAGE_TYPE_ONBOARDING_PAUSE_CLOSE,
   TALENT_ONBOARDING_INTEREST_OPTIONS,
@@ -45,6 +64,43 @@ const VOICE_TRANSCRIPT_PREVIEW_LIMIT = 120;
 const BOTTOM_THRESHOLD_PX = 120;
 const CLAIMED_WORKSPACE_BOOTSTRAP_MESSAGE =
   "기존에 제출한 정보로 커리어 워크스페이스를 시작했습니다.";
+const MESSAGE_DATE_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
+  day: "numeric",
+  month: "long",
+  weekday: "short",
+  year: "numeric",
+});
+
+const parseMessageDate = (createdAt: string) => {
+  if (!createdAt) return null;
+  const date = new Date(createdAt);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const getMessageDateKey = (createdAt: string) => {
+  const date = parseMessageDate(createdAt);
+  if (!date) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const getPreviousMessageDateKey = (
+  messages: CareerMessage[],
+  currentIndex: number
+) => {
+  for (let index = currentIndex - 1; index >= 0; index -= 1) {
+    const dateKey = getMessageDateKey(messages[index].createdAt);
+    if (dateKey) return dateKey;
+  }
+  return "";
+};
+
+const formatMessageDateLabel = (createdAt: string) => {
+  const date = parseMessageDate(createdAt);
+  return date ? MESSAGE_DATE_FORMATTER.format(date) : "";
+};
 
 const TimelinePanel = ({
   children,
@@ -60,6 +116,18 @@ const TimelinePanel = ({
 
 const AssistantLabel = ({ children }: { children: React.ReactNode }) => (
   <div className="text-[12px] font-medium text-beige900/90">{children}</div>
+);
+
+const TimelineDateDivider = ({ label }: { label: string }) => (
+  <div
+    role="separator"
+    className="flex justify-center py-2"
+    aria-label={`대화 날짜 ${label}`}
+  >
+    <span className="rounded-full border border-beige900/10 bg-white/55 px-3 py-1 text-[12px] font-medium text-beige900/45">
+      {label}
+    </span>
+  </div>
 );
 
 const StatusMessage = ({
@@ -96,6 +164,332 @@ const InterestChoiceButton = ({
   </button>
 );
 
+const OpportunityPreviewCards = memo(function OpportunityPreviewCards({
+  items,
+  onFeedback,
+  updatingIds,
+}: {
+  items: CareerHistoryOpportunity[];
+  onFeedback: (
+    opportunityId: string,
+    feedback: "positive" | "negative"
+  ) => void | Promise<void>;
+  updatingIds: string[];
+}) {
+  if (items.length === 0) return null;
+
+  return (
+    <div className="grid gap-3 md:grid-cols-3">
+      {items.map((item) => {
+        const isUpdating = updatingIds.includes(item.id);
+        const summary =
+          item.recommendationReasons[0] ??
+          item.description ??
+          item.companyDescription ??
+          null;
+
+        return (
+          <CareerInlinePanel
+            key={item.id}
+            className="flex min-h-[220px] flex-col border border-beige900/10 bg-white/45"
+          >
+            <div className="text-[12px] font-medium text-beige900/45">
+              {item.companyName}
+            </div>
+            <div className="mt-2 text-[15px] font-medium leading-6 text-beige900">
+              {item.title}
+            </div>
+            {item.location || item.workMode ? (
+              <div className="mt-2 text-[12px] leading-5 text-beige900/45">
+                {[item.location, item.workMode].filter(Boolean).join(" / ")}
+              </div>
+            ) : null}
+            {summary ? (
+              <div className="mt-3 max-h-24 overflow-hidden text-[13px] leading-6 text-beige900/60">
+                {summary}
+              </div>
+            ) : null}
+            <div className="mt-auto flex flex-wrap items-center gap-2 pt-4">
+              {item.href ? (
+                <a
+                  href={item.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-beige900/15 bg-white/45 px-3 text-xs text-beige900 transition-colors hover:border-beige900/30"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  공고 보기
+                </a>
+              ) : null}
+              <CareerPrimaryButton
+                onClick={() => void onFeedback(item.id, "positive")}
+                disabled={isUpdating}
+                className="h-9 px-3 text-xs"
+              >
+                관심 있음
+              </CareerPrimaryButton>
+              <CareerSecondaryButton
+                onClick={() => void onFeedback(item.id, "negative")}
+                disabled={isUpdating}
+                className="h-9 px-3 text-xs"
+              >
+                맞지 않음
+              </CareerSecondaryButton>
+            </div>
+          </CareerInlinePanel>
+        );
+      })}
+    </div>
+  );
+});
+
+const MockInterviewSetupPanel = memo(function MockInterviewSetupPanel({
+  pending,
+  setup,
+  onStart,
+}: {
+  pending: boolean;
+  setup: CareerMockInterviewSetup;
+  onStart: (args: {
+    channel: "call" | "chat";
+    interviewType: CareerMockInterviewType;
+    sessionId: string;
+  }) => void | Promise<void>;
+}) {
+  return (
+    <TimelinePanel className="max-w-[760px] border border-beige900/10 bg-beige50">
+      <div className="text-[18px] font-medium text-beige900">{setup.title}</div>
+      <div className="mt-2 text-[14px] leading-6 text-beige900/60">
+        {setup.subtitle}
+      </div>
+
+      <div className="mt-5 space-y-3 text-[14px] leading-6 text-beige900/75">
+        <div>
+          <span className="font-medium text-beige900">목표</span>: {setup.goal}
+        </div>
+        <div>
+          <span className="font-medium text-beige900">중점</span>: {setup.focus}
+        </div>
+        <div>
+          <span className="font-medium text-beige900">피드백</span>:{" "}
+          {setup.feedback}
+        </div>
+      </div>
+
+      <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+        <CareerPrimaryButton
+          onClick={() =>
+            void onStart({
+              channel: "call",
+              interviewType: "mixed",
+              sessionId: setup.sessionId,
+            })
+          }
+          disabled={pending}
+          className="flex-1 gap-2"
+        >
+          <Phone className="h-4 w-4" />
+          전화로 시작하기 (~{setup.durationMinutes}분)
+        </CareerPrimaryButton>
+        <CareerSecondaryButton
+          onClick={() =>
+            void onStart({
+              channel: "chat",
+              interviewType: "mixed",
+              sessionId: setup.sessionId,
+            })
+          }
+          disabled={pending}
+          className="flex-1 gap-2"
+        >
+          <MessageSquare className="h-4 w-4" />
+          채팅으로 진행하기
+        </CareerSecondaryButton>
+      </div>
+    </TimelinePanel>
+  );
+});
+
+const CompanySnapshotSetupPanel = memo(function CompanySnapshotSetupPanel({
+  pending,
+  setup,
+  onStart,
+}: {
+  pending: boolean;
+  setup: CareerCompanySnapshotSetup;
+  onStart: (args: {
+    companyName: string;
+    reason?: string | null;
+  }) => void | Promise<void>;
+}) {
+  return (
+    <TimelinePanel className="max-w-[760px] border border-beige900/10 bg-white/60">
+      <div className="text-[18px] font-medium text-beige900">{setup.title}</div>
+      <div className="mt-2 text-[14px] leading-6 text-beige900/60">
+        {setup.subtitle}
+      </div>
+      {setup.reason ? (
+        <div className="mt-4 rounded-[8px] border border-beige900/10 bg-beige50 px-4 py-3 text-[13px] leading-6 text-beige900/65">
+          {setup.reason}
+        </div>
+      ) : null}
+      {setup.cachedAvailable ? (
+        <div className="mt-3 text-[12px] leading-5 text-beige900/45">
+          최근 {setup.cacheWindowDays}일 안에 저장된 결과가 있으면 재사용합니다.
+        </div>
+      ) : null}
+      <div className="mt-5">
+        <CareerPrimaryButton
+          onClick={() =>
+            void onStart({
+              companyName: setup.companyName,
+              reason: setup.reason,
+            })
+          }
+          disabled={pending}
+          className="w-full gap-2 sm:w-auto"
+        >
+          {pending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Search className="h-4 w-4" />
+          )}
+          {setup.buttonLabel}
+        </CareerPrimaryButton>
+      </div>
+    </TimelinePanel>
+  );
+});
+
+const TimelineMessageList = memo(function TimelineMessageList({
+  messages,
+  isVoiceMode,
+  lastSpokenAssistantMessageIndex,
+  companySnapshotPending,
+  mockInterviewPending,
+  historyUpdatingOpportunityIds,
+  onStartCompanySnapshot,
+  onStartMockInterview,
+  onOpportunityFeedback,
+}: {
+  messages: CareerMessage[];
+  isVoiceMode: boolean;
+  lastSpokenAssistantMessageIndex: number;
+  companySnapshotPending: boolean;
+  mockInterviewPending: boolean;
+  historyUpdatingOpportunityIds: string[];
+  onStartCompanySnapshot: (args: {
+    companyName: string;
+    reason?: string | null;
+  }) => void | Promise<void>;
+  onStartMockInterview: (args: {
+    channel: "call" | "chat";
+    interviewType: CareerMockInterviewType;
+    sessionId: string;
+  }) => void | Promise<void>;
+  onOpportunityFeedback: (
+    opportunityId: string,
+    feedback: "positive" | "negative"
+  ) => void | Promise<void>;
+}) {
+  return (
+    <>
+      {messages.map((message, index) => {
+        const isUser = message.role === "user";
+        const messageDateKey = getMessageDateKey(message.createdAt);
+        const previousMessageDateKey = getPreviousMessageDateKey(
+          messages,
+          index
+        );
+        const dateLabel =
+          messageDateKey !== previousMessageDateKey
+            ? formatMessageDateLabel(message.createdAt)
+            : "";
+        let messageNode: React.ReactNode;
+
+        if (
+          message.messageType === "mock_interview_preparing" &&
+          !message.typing
+        ) {
+          messageNode = (
+            <div className="flex flex-col gap-2">
+              <AssistantLabel>Harper</AssistantLabel>
+              <TimelinePanel className="max-w-[760px]">
+                <div className="flex items-center gap-2 text-sm text-beige900/60">
+                  <Loader2 className="h-4 w-4 animate-spin text-beige900" />
+                  인터뷰 준비 중...
+                </div>
+              </TimelinePanel>
+            </div>
+          );
+        } else if (
+          message.messageType === "mock_interview_setup" &&
+          message.mockInterviewSetup
+        ) {
+          messageNode = (
+            <div className="flex flex-col gap-2">
+              <AssistantLabel>Harper</AssistantLabel>
+              <MockInterviewSetupPanel
+                setup={message.mockInterviewSetup}
+                pending={mockInterviewPending}
+                onStart={onStartMockInterview}
+              />
+            </div>
+          );
+        } else if (
+          message.messageType === "company_snapshot_setup" &&
+          message.companySnapshotSetup
+        ) {
+          messageNode = (
+            <div className="flex flex-col gap-2">
+              <AssistantLabel>Harper</AssistantLabel>
+              <CompanySnapshotSetupPanel
+                setup={message.companySnapshotSetup}
+                pending={companySnapshotPending}
+                onStart={onStartCompanySnapshot}
+              />
+            </div>
+          );
+        } else {
+          messageNode = (
+            <div
+              className={careerCx(
+                "flex flex-col gap-2",
+                isVoiceMode &&
+                  index !== lastSpokenAssistantMessageIndex &&
+                  "opacity-70"
+              )}
+            >
+              {!isUser && <AssistantLabel>Harper</AssistantLabel>}
+              <CareerMessageBubble
+                message={message}
+                isUser={isUser}
+                isAssistantSpeaking={
+                  !isUser && index === lastSpokenAssistantMessageIndex
+                }
+              />
+              {!isUser && (message.opportunityPreview?.length ?? 0) > 0 && (
+                <OpportunityPreviewCards
+                  items={message.opportunityPreview ?? []}
+                  updatingIds={historyUpdatingOpportunityIds}
+                  onFeedback={onOpportunityFeedback}
+                />
+              )}
+            </div>
+          );
+        }
+
+        return (
+          <Fragment key={String(message.id)}>
+            {dateLabel && <TimelineDateDivider label={dateLabel} />}
+            {messageNode}
+          </Fragment>
+        );
+      })}
+    </>
+  );
+});
+
 const CareerTimelineSection = () => {
   const {
     user,
@@ -117,7 +511,13 @@ const CareerTimelineSection = () => {
     chatError,
     assistantTyping,
     chatPending,
+    companySnapshotPending,
+    opportunitySearchLocked,
+    mockInterviewSession,
+    mockInterviewPending,
+    historyUpdatingOpportunityIds,
     onboardingBeginPending,
+    callStartPending = false,
     onboardingPausePending,
     onGoogleLogin,
     onEmailAuth,
@@ -127,8 +527,11 @@ const CareerTimelineSection = () => {
     onAddProfileLink,
     onProfileSubmit,
     onLoadOlderMessages,
+    onUpdateHistoryOpportunityFeedback,
+    onStartCompanySnapshot,
+    onStartMockInterview,
+    onEndMockInterview,
     showVoiceStartPrompt,
-    onStartVoiceCall,
     onStartCallMode,
     onUseChatOnly,
     onPauseOnboarding,
@@ -147,6 +550,7 @@ const CareerTimelineSection = () => {
   const [selectedInterestOptions, setSelectedInterestOptions] = useState<
     TalentOnboardingInterestOptionId[]
   >([]);
+  const isStartingCall = onboardingBeginPending || callStartPending;
   const initialBottomSyncDoneRef = useRef(false);
 
   const handleEmailAuthSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -174,9 +578,15 @@ const CareerTimelineSection = () => {
   const syncScrollState = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
-    setShowLoadOlderButton(el.scrollTop <= 24);
+    const nextShowLoadOlderButton = el.scrollTop <= 24;
+    setShowLoadOlderButton((prev) =>
+      prev === nextShowLoadOlderButton ? prev : nextShowLoadOlderButton
+    );
     const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    setStickToBottom(distanceToBottom <= BOTTOM_THRESHOLD_PX);
+    const nextStickToBottom = distanceToBottom <= BOTTOM_THRESHOLD_PX;
+    setStickToBottom((prev) =>
+      prev === nextStickToBottom ? prev : nextStickToBottom
+    );
   }, [scrollRef]);
 
   useEffect(() => {
@@ -204,18 +614,32 @@ const CareerTimelineSection = () => {
   }, [onLoadOlderMessages, scrollRef, syncScrollState]);
 
   const isVoiceMode = inputMode === "voice";
-  const timelineMessages = messages.filter(
-    (message) =>
-      message.messageType !== "call_transcript" &&
-      !(
-        message.role === "user" &&
-        message.messageType === "profile_submit" &&
-        message.content.trim() === CLAIMED_WORKSPACE_BOOTSTRAP_MESSAGE
-      )
+  const timelineMessages = useMemo(
+    () =>
+      messages.filter(
+        (message) =>
+          !(
+            message.role === "user" &&
+            message.messageType === "profile_submit" &&
+            message.content.trim() === CLAIMED_WORKSPACE_BOOTSTRAP_MESSAGE
+          )
+      ),
+    [messages]
   );
-  let lastSpokenAssistantMessageIndex = -1;
+  const hasTimelineMessages = timelineMessages.length > 0;
+  const latestTimelineMessage = timelineMessages[timelineMessages.length - 1];
+  const latestTimelineMessageKey = latestTimelineMessage
+    ? [
+        latestTimelineMessage.id,
+        latestTimelineMessage.role,
+        latestTimelineMessage.messageType,
+        latestTimelineMessage.content.length,
+        latestTimelineMessage.typing ? "typing" : "settled",
+      ].join(":")
+    : "";
+  const lastSpokenAssistantMessageIndex = useMemo(() => {
+    if (!assistantAudioBusy) return -1;
 
-  if (assistantAudioBusy) {
     for (let index = timelineMessages.length - 1; index >= 0; index -= 1) {
       const message = timelineMessages[index];
       if (
@@ -224,25 +648,36 @@ const CareerTimelineSection = () => {
         Boolean(message.content.trim()) &&
         (message.messageType ?? "chat") === "chat"
       ) {
-        lastSpokenAssistantMessageIndex = index;
-        break;
+        return index;
       }
     }
-  }
 
-  const transcriptPreview = voiceTranscript.trim();
-  const compactTranscriptPreview =
-    transcriptPreview.length > VOICE_TRANSCRIPT_PREVIEW_LIMIT
+    return -1;
+  }, [assistantAudioBusy, timelineMessages]);
+
+  const compactTranscriptPreview = useMemo(() => {
+    const transcriptPreview = voiceTranscript.trim();
+    return transcriptPreview.length > VOICE_TRANSCRIPT_PREVIEW_LIMIT
       ? `${transcriptPreview.slice(0, VOICE_TRANSCRIPT_PREVIEW_LIMIT - 1)}...`
       : transcriptPreview;
-  const pauseCloseTyping = messages.some(
-    (message) =>
-      message.messageType === TALENT_MESSAGE_TYPE_ONBOARDING_PAUSE_CLOSE &&
-      Boolean(message.typing)
+  }, [voiceTranscript]);
+  const pauseCloseTyping = useMemo(
+    () =>
+      messages.some(
+        (message) =>
+          message.messageType === TALENT_MESSAGE_TYPE_ONBOARDING_PAUSE_CLOSE &&
+          Boolean(message.typing)
+      ),
+    [messages]
   );
-  const showInterestSelector = shouldShowOnboardingInterestSelector(messages);
-  const showContinueConversation =
-    shouldShowContinueConversationAction(messages) && !pauseCloseTyping;
+  const showInterestSelector = useMemo(
+    () => shouldShowOnboardingInterestSelector(messages),
+    [messages]
+  );
+  const showContinueConversation = useMemo(
+    () => shouldShowContinueConversationAction(messages) && !pauseCloseTyping,
+    [messages, pauseCloseTyping]
+  );
 
   useEffect(() => {
     if (!showInterestSelector) {
@@ -257,7 +692,7 @@ const CareerTimelineSection = () => {
   useEffect(() => {
     if (initialBottomSyncDoneRef.current) return;
     if (!conversationId || sessionPending || inputMode === "call") return;
-    if (messages.length === 0) return;
+    if (!hasTimelineMessages) return;
 
     initialBottomSyncDoneRef.current = true;
     const id = window.requestAnimationFrame(() => {
@@ -268,7 +703,7 @@ const CareerTimelineSection = () => {
   }, [
     conversationId,
     inputMode,
-    messages.length,
+    hasTimelineMessages,
     scrollToBottom,
     sessionPending,
     syncScrollState,
@@ -276,7 +711,7 @@ const CareerTimelineSection = () => {
 
   useEffect(() => {
     if (!stickToBottom || inputMode === "call") return;
-    if (messages.length === 0) return;
+    if (!hasTimelineMessages) return;
 
     const id = window.requestAnimationFrame(() => {
       scrollToBottom(assistantTyping || chatPending ? "auto" : "smooth");
@@ -286,8 +721,9 @@ const CareerTimelineSection = () => {
   }, [
     assistantTyping,
     chatPending,
+    hasTimelineMessages,
     inputMode,
-    messages,
+    latestTimelineMessageKey,
     scrollToBottom,
     stickToBottom,
     syncScrollState,
@@ -310,11 +746,17 @@ const CareerTimelineSection = () => {
     setSelectedInterestOptions([]);
   }, [onSubmitOnboardingInterest, selectedInterestOptions]);
 
+  const handleOpportunityFeedback = useCallback(
+    (opportunityId: string, feedback: "positive" | "negative") =>
+      onUpdateHistoryOpportunityFeedback(opportunityId, feedback),
+    [onUpdateHistoryOpportunityFeedback]
+  );
+
   return (
     <div
       ref={scrollRef}
       onScroll={handleTimelineScroll}
-      className="min-h-0 flex-1 overflow-y-auto px-0 py-4 pb-28 scrollbar-thin scrollbar-thumb-[rgba(92,61,34,0.16)] scrollbar-track-transparent"
+      className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-0 py-4 pb-28 scrollbar-thin scrollbar-thumb-[rgba(92,61,34,0.15)] scrollbar-track-transparent"
     >
       <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-4 px-5 py-1">
         {user && showLoadOlderButton && hasOlderMessages && (
@@ -433,40 +875,64 @@ const CareerTimelineSection = () => {
           </div>
         ) : null}
 
-        {user && sessionPending ? (
-          <div className="flex min-h-[52vh] items-center justify-center">
-            <div className="flex items-center gap-2 text-sm text-beige900/60">
-              <Loader2 className="h-4 w-4 animate-spin text-beige900" />
-              저장된 대화를 불러오는 중입니다...
+        {user && mockInterviewSession?.status === "in_progress" ? (
+          <div className="sticky top-0 z-20 flex justify-center">
+            <div className="inline-flex flex-wrap items-center justify-center gap-3 rounded-[8px] border border-beige900/15 bg-white/85 px-4 py-2 text-sm text-beige900">
+              <span className="font-medium">모의 인터뷰 모드</span>
+              <span className="text-beige900/55">
+                {mockInterviewSession.companyName} ·{" "}
+                {mockInterviewSession.roleTitle}
+              </span>
+              <button
+                type="button"
+                onClick={() => void onEndMockInterview(mockInterviewSession.id)}
+                disabled={mockInterviewPending}
+                className="rounded-[8px] border border-beige900/15 bg-white/45 px-3 py-1 text-xs text-beige900/70 transition-colors hover:border-beige900/30 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                인터뷰 종료
+              </button>
             </div>
           </div>
         ) : null}
 
         {user &&
-          !sessionPending &&
-          timelineMessages.map((message, index) => {
-            const isUser = message.role === "user";
-            return (
-              <div
-                key={String(message.id)}
-                className={careerCx(
-                  "flex flex-col gap-2",
-                  isVoiceMode &&
-                    index !== lastSpokenAssistantMessageIndex &&
-                    "opacity-70"
-                )}
-              >
-                {!isUser && <AssistantLabel>Harper</AssistantLabel>}
-                <CareerMessageBubble
-                  message={message}
-                  isUser={isUser}
-                  isAssistantSpeaking={
-                    !isUser && index === lastSpokenAssistantMessageIndex
-                  }
-                />
+        !sessionPending &&
+        mockInterviewPending &&
+        mockInterviewSession?.status !== "ready" &&
+        mockInterviewSession?.status !== "in_progress" ? (
+          <div className="flex flex-col gap-2">
+            <AssistantLabel>Harper</AssistantLabel>
+            <TimelinePanel className="max-w-[760px]">
+              <div className="flex items-center gap-2 text-sm text-beige900/60">
+                <Loader2 className="h-4 w-4 animate-spin text-beige900" />
+                인터뷰 준비 중...
               </div>
-            );
-          })}
+            </TimelinePanel>
+          </div>
+        ) : null}
+
+        {user && sessionPending && !hasTimelineMessages ? (
+          <div className="flex min-h-[52vh] items-center justify-center">
+            <div className="flex items-center gap-2 text-sm text-beige900/60">
+              <Loader2 className="h-4 w-4 animate-spin text-beige900" />
+              하퍼가 들어오고 있습니다...
+            </div>
+          </div>
+        ) : null}
+
+        {user && hasTimelineMessages ? (
+          <TimelineMessageList
+            messages={timelineMessages}
+            isVoiceMode={isVoiceMode}
+            lastSpokenAssistantMessageIndex={lastSpokenAssistantMessageIndex}
+            companySnapshotPending={companySnapshotPending}
+            mockInterviewPending={mockInterviewPending}
+            historyUpdatingOpportunityIds={historyUpdatingOpportunityIds}
+            onStartCompanySnapshot={onStartCompanySnapshot}
+            onStartMockInterview={onStartMockInterview}
+            onOpportunityFeedback={handleOpportunityFeedback}
+          />
+        ) : null}
 
         {user &&
           !sessionPending &&
@@ -480,6 +946,19 @@ const CareerTimelineSection = () => {
               </span>
             </StatusMessage>
           )}
+
+        {user && !sessionPending && opportunitySearchLocked && (
+          <TimelinePanel>
+            <div className="flex items-center gap-2 text-sm font-medium text-beige900">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              검색중...
+            </div>
+            <StatusMessage className="mt-3">
+              Harper가 기회를 찾고, 추천 결과를 보여드리고 이어서 대화를
+              진행합니다.
+            </StatusMessage>
+          </TimelinePanel>
+        )}
 
         {user && profilePending && (
           <TimelinePanel className="max-w-[980px]">
@@ -554,7 +1033,7 @@ const CareerTimelineSection = () => {
                         }
                         placeholder="https://"
                       />
-                      {index >= 3 ? (
+                      {index >= CAREER_LINK_LABELS.length ? (
                         <button
                           type="button"
                           onClick={() => onRemoveProfileLink(index)}
@@ -623,17 +1102,17 @@ const CareerTimelineSection = () => {
             <div className="mt-5 grid gap-2">
               <CareerPrimaryButton
                 onClick={() => onStartCallMode?.()}
-                disabled={onboardingBeginPending}
+                disabled={isStartingCall}
                 className="w-full justify-center"
               >
-                {onboardingBeginPending ? "준비 중..." : "5분 통화 시작"}
+                {isStartingCall ? "통화 연결 중..." : "5분 통화 시작"}
               </CareerPrimaryButton>
               <CareerSecondaryButton
                 onClick={onUseChatOnly}
-                disabled={onboardingBeginPending}
+                disabled={isStartingCall}
                 className="w-full justify-center"
               >
-                {onboardingBeginPending ? "준비 중..." : "텍스트로 시작"}
+                {isStartingCall ? "준비 중..." : "텍스트로 시작"}
               </CareerSecondaryButton>
               <CareerSecondaryButton
                 onClick={() => void onPauseOnboarding()}

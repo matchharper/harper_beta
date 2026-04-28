@@ -32,9 +32,9 @@
   - welcome, 대화 시작 CTA, preference 요약, 최근 추천 기회 섹션을 얇게 보여줍니다.
   - 추천 기회는 `recentOpportunities` payload 를 받아 최근 7일 이내 항목 최대 4개만 렌더링합니다.
 
-- `CareerProfileWorkspace.tsx`
+- `profile/CareerProfileWorkspace.tsx`
   - profile 탭 내부의 in-page tab shell.
-  - `Preference / Profile / Harper's insight / Links` 네 섹션을 전환합니다.
+  - `선호 조건 / 프로필 / 하퍼 인사이트 / 이력서·링크` 네 섹션을 전환합니다.
 
 - `CareerSettingsModal.tsx`
   - 우측 상단 설정 버튼으로 여는 모달.
@@ -69,11 +69,11 @@
 - `settings/CareerResumeLinksSettingsSection.tsx`
   - 이력서 파일/링크 저장 전용 섹션.
 
-- `CareerTalentProfilePanel.tsx`
+- `profile/CareerTalentProfilePanel.tsx`
   - talent structured profile 렌더러.
   - 경험/학력/extra 등 읽기 중심 패널입니다.
 
-- `CareerHarperInsightsSection.tsx`
+- `profile/CareerHarperInsightsSection.tsx`
   - insight 탭 전용 편집 UI.
   - `talent_insights.content` 의 현재 key-value 를 그대로 렌더링합니다.
   - 고정 필드 목록을 갖지 않고, 내부 구조화 결과나 대화 흐름으로 생성된 key 를 그대로 편집합니다.
@@ -81,7 +81,7 @@
 
 - `CareerNetworkApplicationSection.tsx`
   - 이전 형태의 combined profile form 성격이 강한 파일입니다.
-  - 현재 `CareerProfileWorkspace` 나 `CareerSettingsModal` 의 주 렌더 경로에는 연결되어 있지 않습니다.
+  - 현재 `profile/CareerProfileWorkspace` 나 `CareerSettingsModal` 의 주 렌더 경로에는 연결되어 있지 않습니다.
   - 수정이 필요하면 실제 사용 여부를 먼저 확인한 뒤 유지/삭제를 결정하세요.
 
 ### Chat

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { NextPage } from "next";
 import { motion } from "framer-motion";
 import {
@@ -9,21 +9,33 @@ import {
   Loader2,
   MessageSquareIcon,
 } from "lucide-react";
+import ChatAttachmentActionMenu from "@/components/chat/ChatAttachmentActionMenu";
+import ChatAttachmentDraftList from "@/components/chat/ChatAttachmentDraftList";
 import AppLayout from "@/components/layout/app";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { useRouter } from "next/router";
 import { useQueryClient } from "@tanstack/react-query";
 import { refreshQueriesHistory } from "@/hooks/useSearchHistory";
+import {
+  buildAttachmentFallbackPrompt,
+  buildAttachmentKeywordSource,
+  createDraftFileAttachment,
+  createDraftLinkAttachment,
+  dedupeDraftAttachments,
+  MAX_CHAT_ATTACHMENT_FILE_BYTES,
+  readDraftAttachments,
+  type DraftChatAttachment,
+} from "@/lib/chatAttachmentClient";
+import { buildUserMessageContent } from "@/lib/chatAttachments";
 import { supabase } from "@/lib/supabase";
 import { useMessages } from "@/i18n/useMessage";
 import { ensureGroupBy } from "@/utils/textprocess";
 import { firstSqlPrompt } from "@/lib/prompt";
 import { useFeedbackModalStore } from "@/store/useFeedbackModalStore";
-import {
-  SearchSource,
-  isEnabledSearchSource,
-} from "@/lib/searchSource";
+import { showToast } from "@/components/toast/toast";
+import { SearchSource, isEnabledSearchSource } from "@/lib/searchSource";
 import { Tooltips } from "@/components/ui/tooltip";
+import type { ChatAttachmentPayload } from "@/types/chat";
 
 const PLACEHOLDER_SWITCH_MS = 4500;
 const PLACEHOLDER_SLIDE_MS = 500;
@@ -52,6 +64,8 @@ const Home: NextPage = () => {
   );
   const [isPlaceholderAnimating, setIsPlaceholderAnimating] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [attachments, setAttachments] = useState<DraftChatAttachment[]>([]);
+  const [isPreparingAttachments, setIsPreparingAttachments] = useState(false);
   const [hasHydratedSourcePreference, setHasHydratedSourcePreference] =
     useState(false);
   const { locale, m } = useMessages();
@@ -60,7 +74,10 @@ const Home: NextPage = () => {
   const { open: openFeedbackModal } = useFeedbackModalStore();
   const router = useRouter();
   const isQueryEmpty = query.trim().length === 0;
-  const canSend = query.trim().length > 0 && !isLoading;
+  const canSend =
+    (query.trim().length > 0 || attachments.length > 0) &&
+    !isLoading &&
+    !isPreparingAttachments;
   const searchSourceConfigs = useMemo<
     Record<SearchSource, SearchSourceConfig>
   >(() => {
@@ -308,6 +325,27 @@ const Home: NextPage = () => {
     return () => window.clearTimeout(timer);
   }, [isPlaceholderAnimating, nextPlaceholderIdx]);
 
+  const handleAddAttachment = useCallback((attachment: DraftChatAttachment) => {
+    if (
+      attachment.kind === "file" &&
+      attachment.size > MAX_CHAT_ATTACHMENT_FILE_BYTES
+    ) {
+      showToast({
+        message: "파일 용량이 너무 큽니다. 10MB 이하로 업로드해주세요.",
+        variant: "white",
+      });
+      return;
+    }
+
+    setAttachments((prev) => dedupeDraftAttachments(prev, attachment));
+  }, []);
+
+  const handleRemoveAttachment = useCallback((attachmentId: string) => {
+    setAttachments((prev) =>
+      prev.filter((attachment) => attachment.id !== attachmentId)
+    );
+  }, []);
+
   const onSubmit = async (e?: React.FormEvent) => {
     setIsLoading(true);
     e?.preventDefault();
@@ -326,6 +364,36 @@ const Home: NextPage = () => {
       return;
     }
 
+    let resolvedAttachments: ChatAttachmentPayload[] = [];
+    if (attachments.length > 0) {
+      setIsPreparingAttachments(true);
+      try {
+        resolvedAttachments = await readDraftAttachments(attachments);
+      } catch (error) {
+        showToast({
+          message: "첨부 자료를 읽지 못했습니다. 다시 시도해주세요.",
+          variant: "white",
+        });
+        setIsPreparingAttachments(false);
+        setIsLoading(false);
+        return;
+      } finally {
+        setIsPreparingAttachments(false);
+      }
+    }
+
+    const fallbackPrompt = buildAttachmentFallbackPrompt(attachments, locale);
+    const displayQueryText = query.trim() || fallbackPrompt;
+    const messageContent = buildUserMessageContent({
+      text: query.trim(),
+      attachments: resolvedAttachments,
+    });
+    const keywordSource =
+      buildAttachmentKeywordSource({
+        text: query.trim(),
+        attachments: resolvedAttachments,
+      }) || displayQueryText;
+
     const authHeaders = {
       "Content-Type": "application/json",
       Authorization: `Bearer ${accessToken}`,
@@ -335,7 +403,11 @@ const Home: NextPage = () => {
     const response = await fetch("/api/search/create", {
       method: "POST",
       headers: authHeaders,
-      body: JSON.stringify({ queryText: query, type: selectedSource }),
+      body: JSON.stringify({
+        queryText: displayQueryText,
+        messageContent,
+        type: selectedSource,
+      }),
     });
     const data = await response.json();
 
@@ -348,11 +420,12 @@ const Home: NextPage = () => {
     fetch("/api/search/keyword", {
       method: "POST",
       headers: authHeaders,
-      body: JSON.stringify({ queryId, queryText: query }),
+      body: JSON.stringify({ queryId, queryText: keywordSource }),
     }).catch((err) => console.error("keyword enqueue failed", err));
     refreshQueriesHistory(qc, companyUser.user_id);
     setIsLoading(false);
     setQuery("");
+    setAttachments([]);
     router.push(`/my/c/${queryId}`);
   };
 
@@ -420,12 +493,15 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
           </h1>
 
           <form className="mt-8 w-full max-w-[640px]">
-            <div
-              className={[
-                "w-full relative rounded-3xl p-1 bg-white/5 border border-white/10",
-              ].join(" ")}
-            >
-              <div className="relative rounded-2xl backdrop-blur-xl">
+            <div className="w-full relative rounded-3xl p-2 bg-white/5 border border-white/10">
+              <ChatAttachmentDraftList
+                attachments={attachments}
+                className="mb-2"
+                isPreparing={isPreparingAttachments}
+                onRemove={handleRemoveAttachment}
+              />
+
+              <div className="relative backdrop-blur-xl">
                 {isQueryEmpty && (
                   <div
                     className="pointer-events-none absolute left-4 right-20 top-4 h-6 overflow-hidden text-[15px] leading-6 text-hgray600"
@@ -474,21 +550,32 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
                   ].join(" ")}
                 />
               </div>
-              <div className="flex flex-row items-center justify-center gap-2 absolute right-3 bottom-3">
+
+              <div className="absolute bottom-3 right-3 flex flex-row items-center justify-center gap-2">
+                <ChatAttachmentActionMenu
+                  disabled={isLoading || isPreparingAttachments}
+                  onAddFile={(file) =>
+                    handleAddAttachment(createDraftFileAttachment(file))
+                  }
+                  onAddLink={(url) =>
+                    handleAddAttachment(createDraftLinkAttachment(url))
+                  }
+                />
                 <button
+                  type="button"
                   onClick={onSubmit}
                   disabled={!canSend}
                   className={[
-                    "inline-flex items-center justify-center rounded-full cursor-pointer hover:opacity-90",
+                    "inline-flex items-center justify-center rounded-[12px] cursor-pointer hover:opacity-90",
                     "h-9 w-9",
                     canSend
-                      ? "bg-accenta1 text-black cursor-not-allowed"
+                      ? "bg-accenta1 text-black"
                       : "bg-accenta1/50 text-black",
                     "transition active:scale-[0.98]",
                   ].join(" ")}
                   aria-label="Send"
                 >
-                  {isLoading ? (
+                  {isLoading || isPreparingAttachments ? (
                     <Loader2 size={20} className="animate-spin" />
                   ) : (
                     <ArrowUp size={18} strokeWidth={2} />
@@ -526,7 +613,7 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
                       {checked && (
                         <motion.span
                           layoutId="search-source-indicator"
-                          className="absolute inset-0 rounded-full bg-white shadow-[0_10px_30px_rgba(255,255,255,0.12)]"
+                          className="absolute inset-0 rounded-full bg-white shadow-[0_10px_30px_rgba(255,255,255,0.1)]"
                           transition={{
                             type: "spring",
                             stiffness: 380,

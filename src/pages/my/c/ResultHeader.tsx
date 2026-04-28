@@ -142,7 +142,7 @@ export default function ResultHeader({
             aria-pressed={isLikeActive}
             className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors duration-150 ${
               isLikeActive
-                ? "bg-accenta1/14 text-accenta1"
+                ? "bg-accenta1/15 text-accenta1"
                 : "hover:bg-white/10 hover:text-white"
             } ${pendingAction ? "cursor-wait" : "cursor-pointer"}`}
           >
@@ -163,7 +163,7 @@ export default function ResultHeader({
             aria-pressed={isDislikeActive}
             className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors duration-150 ${
               isDislikeActive
-                ? "bg-sky-500/12 text-white/90"
+                ? "bg-sky-500/10 text-white/90"
                 : "hover:bg-white/10 hover:text-white"
             } ${pendingAction ? "cursor-wait" : "cursor-pointer"}`}
           >

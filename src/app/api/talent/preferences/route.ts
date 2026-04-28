@@ -15,7 +15,12 @@ import {
   upsertTalentInsights,
   upsertTalentSetting,
 } from "@/lib/talentOnboarding/server";
+import {
+  normalizeTalentPeriodicIntervalDays,
+  normalizeTalentRecommendationBatchSize,
+} from "@/lib/talentOnboarding/recommendationSettings";
 import { getTalentCareerMoveIntentLabel } from "@/lib/talentNetworkApplication";
+import { createOpportunityDiscoveryRun } from "@/lib/opportunityDiscovery/store";
 
 const getLatestUpdatedAt = (...values: Array<string | null | undefined>) => {
   const timestamps = values
@@ -25,7 +30,9 @@ const getLatestUpdatedAt = (...values: Array<string | null | undefined>) => {
       if (Number.isNaN(time)) return null;
       return { time, value };
     })
-    .filter((entry): entry is { time: number; value: string } => entry !== null);
+    .filter(
+      (entry): entry is { time: number; value: string } => entry !== null
+    );
 
   if (timestamps.length === 0) return null;
 
@@ -37,14 +44,20 @@ type Body = {
   engagementTypes?: string[];
   preferredLocations?: string[];
   careerMoveIntent?: string | null;
+  periodicIntervalDays?: number;
+  recommendationBatchSize?: number;
   insightContent?: Record<string, unknown> | null;
 };
 
-const toResponsePreferences = (setting?: {
-  engagement_types?: string[] | null;
-  preferred_locations?: string[] | null;
-  career_move_intent?: string | null;
-} | null) => {
+const toResponsePreferences = (
+  setting?: {
+    engagement_types?: string[] | null;
+    preferred_locations?: string[] | null;
+    career_move_intent?: string | null;
+    periodic_interval_days?: number | null;
+    recommendation_batch_size?: number | null;
+  } | null
+) => {
   const careerMoveIntent = sanitizeTalentCareerMoveIntent(
     setting?.career_move_intent
   );
@@ -58,11 +71,32 @@ const toResponsePreferences = (setting?: {
     ),
     careerMoveIntent,
     careerMoveIntentLabel: getTalentCareerMoveIntentLabel(careerMoveIntent),
+    periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
+      setting?.periodic_interval_days
+    ),
+    recommendationBatchSize: normalizeTalentRecommendationBatchSize(
+      setting?.recommendation_batch_size
+    ),
   };
 };
 
 const toResponseInsights = (insights?: { content?: unknown } | null) =>
   normalizeTalentInsightContent(insights?.content);
+
+const CAREER_MOVE_INTENT_RANK: Record<string, number> = {
+  advisor_or_part_time_only: 1,
+  open_to_explore: 2,
+  ready_to_move: 3,
+};
+
+const getIntentRank = (value: unknown) =>
+  CAREER_MOVE_INTENT_RANK[sanitizeTalentCareerMoveIntent(value) ?? ""] ?? 0;
+
+function startOpportunityDiscoveryInBackground(runId: string) {
+  console.info("[opportunity-discovery] queued for harper_worker", {
+    runId,
+  });
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -116,7 +150,9 @@ export async function POST(req: NextRequest) {
     const hasPreferenceUpdate =
       body.engagementTypes !== undefined ||
       body.preferredLocations !== undefined ||
-      body.careerMoveIntent !== undefined;
+      body.careerMoveIntent !== undefined ||
+      body.periodicIntervalDays !== undefined ||
+      body.recommendationBatchSize !== undefined;
     const hasInsightUpdate = body.insightContent !== undefined;
 
     const savedSetting = hasPreferenceUpdate
@@ -134,10 +170,20 @@ export async function POST(req: NextRequest) {
             body.engagementTypes ?? existingSetting?.engagement_types ?? []
           ),
           preferredLocations: normalizeTalentPreferredLocations(
-            body.preferredLocations ?? existingSetting?.preferred_locations ?? []
+            body.preferredLocations ??
+              existingSetting?.preferred_locations ??
+              []
           ),
           careerMoveIntent: sanitizeTalentCareerMoveIntent(
             body.careerMoveIntent ?? existingSetting?.career_move_intent
+          ),
+          periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
+            body.periodicIntervalDays ??
+              existingSetting?.periodic_interval_days
+          ),
+          recommendationBatchSize: normalizeTalentRecommendationBatchSize(
+            body.recommendationBatchSize ??
+              existingSetting?.recommendation_batch_size
           ),
         })
       : existingSetting;
@@ -150,8 +196,32 @@ export async function POST(req: NextRequest) {
         })
       : existingInsights;
 
+    const careerMoveIntentBecameMoreActive =
+      body.careerMoveIntent !== undefined &&
+      getIntentRank(savedSetting?.career_move_intent) >
+        getIntentRank(existingSetting?.career_move_intent);
+    let opportunityRunId: string | null = null;
+
+    if (careerMoveIntentBecameMoreActive) {
+      const run = await createOpportunityDiscoveryRun({
+        admin,
+        chatPreviewCount: 0,
+        talentId: user.id,
+        trigger: "preference_became_more_active",
+        triggerPayload: {
+          from: sanitizeTalentCareerMoveIntent(
+            existingSetting?.career_move_intent
+          ),
+          to: sanitizeTalentCareerMoveIntent(savedSetting?.career_move_intent),
+        },
+      });
+      opportunityRunId = run.id;
+      startOpportunityDiscoveryInBackground(run.id);
+    }
+
     return NextResponse.json({
       ok: true,
+      opportunityRunId,
       preferences: toResponsePreferences(savedSetting),
       talentInsights: toResponseInsights(savedInsights),
       preferencesUpdatedAt: savedSetting?.updated_at ?? null,

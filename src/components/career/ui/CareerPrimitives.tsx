@@ -1,6 +1,11 @@
 import { type ClassValue } from "clsx";
 import { cn } from "@/lib/utils";
 import React from "react";
+import { BeigeInput, beigeInputClassName } from "@/components/ui/beige/input";
+import {
+  BeigeTextarea,
+  beigeTextareaClassName,
+} from "@/components/ui/beige/textarea";
 
 export function careerCx(...values: ClassValue[]) {
   return cn(...values);
@@ -10,11 +15,9 @@ export const careerSurfaceClassName = "";
 
 export const careerInlinePanelClassName = "";
 
-export const careerInputClassName =
-  "h-[36px] w-full rounded-[8px] border border-beige900/15 bg-white/60 px-3 py-2 text-[14px] font-normal leading-5 text-beige900 outline-none transition focus:ring-1 focus:ring-beige900/30 placeholder:text-beige900/30";
+export const careerInputClassName = beigeInputClassName;
 
-export const careerTextareaClassName =
-  "w-full rounded-[8px] border border-beige900/15 bg-white/60 px-3 py-2 text-[14px] font-normal leading-6 text-beige900 outline-none transition focus:ring-1 focus:ring-beige900/30 placeholder:text-beige900/30";
+export const careerTextareaClassName = beigeTextareaClassName;
 
 export const CareerInlinePanel = ({
   children,
@@ -113,26 +116,14 @@ export const CareerTextInput = React.forwardRef<
   HTMLInputElement,
   React.InputHTMLAttributes<HTMLInputElement>
 >(function CareerTextInput({ className, ...props }, ref) {
-  return (
-    <input
-      ref={ref}
-      {...props}
-      className={careerCx(careerInputClassName, className)}
-    />
-  );
+  return <BeigeInput ref={ref} className={className} {...props} />;
 });
 
 export const CareerTextarea = React.forwardRef<
   HTMLTextAreaElement,
   React.TextareaHTMLAttributes<HTMLTextAreaElement>
 >(function CareerTextarea({ className, ...props }, ref) {
-  return (
-    <textarea
-      ref={ref}
-      {...props}
-      className={careerCx(careerTextareaClassName, "resize-none", className)}
-    />
-  );
+  return <BeigeTextarea ref={ref} className={className} {...props} />;
 });
 
 export const CareerToggleButton = ({
