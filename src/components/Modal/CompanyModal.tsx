@@ -224,9 +224,9 @@ export default function CompanyModalRoot() {
             className={[
               "absolute right-0 top-0 h-full px-8 overflow-y-scroll pb-20",
               "w-[min(560px,92vw)]",
-              "bg-hgray200 text-hgray900",
+              "bg-beige50 text-beige900",
               "shadow-2xl",
-              "border-l border-hgray200",
+              "border-l border-beige900/8",
             ].join(" ")}
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
@@ -237,7 +237,7 @@ export default function CompanyModalRoot() {
               <button
                 type="button"
                 onClick={requestClose}
-                className="rounded-sm bg-white/0 px-1 py-1 text-sm hover:bg-white/5 cursor-pointer"
+                className="rounded-sm bg-transparent px-1 py-1 text-sm hover:bg-beige50/80 cursor-pointer"
               >
                 <XIcon className="w-6 h-6" strokeWidth={1} />
               </button>
@@ -266,14 +266,14 @@ export default function CompanyModalRoot() {
             <div className="flex flex-col gap-8">
               {company.short_description && (
                 <div>
-                  <div className="text-accenta1 text-sm">한 줄 설명</div>
-                  <div className="mt-2 text-base text-hgray900">
+                  <div className="text-accentBronze text-sm">한 줄 설명</div>
+                  <div className="mt-2 text-base text-beige900">
                     {company.short_description}
                   </div>
                 </div>
               )}
               <Section title={`${company.name} 정보`}>
-                <div className="px-4 text-sm flex flex-col gap-4 bg-white/5 py-4 rounded-lg">
+                <div className="px-4 text-sm flex flex-col gap-4 bg-beige100 py-4 rounded-lg">
                   <ColRow
                     label="본사 위치"
                     // label={m.company.hq}
@@ -294,7 +294,7 @@ export default function CompanyModalRoot() {
                   {tags.map((t) => (
                     <span
                       key={t}
-                      className="rounded-md bg-white/5 px-3 py-2 text-xs"
+                      className="rounded-md bg-beige500/55 px-3 py-2 text-xs"
                     >
                       {t}
                     </span>
@@ -304,7 +304,7 @@ export default function CompanyModalRoot() {
 
               {crunchbaseStatusRows.length > 0 && (
                 <Section title="상태">
-                  <div className="grid grid-cols-1 gap-4 rounded-lg bg-white/5 px-4 py-4 text-sm sm:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-4 rounded-lg bg-beige100 px-4 py-4 text-sm sm:grid-cols-3">
                     {crunchbaseStatusRows.map((row) => (
                       <ColRow
                         key={row.label}
@@ -378,7 +378,7 @@ export default function CompanyModalRoot() {
                 {/* <Section title={m.company.information}>
                 <div className="space-y-2 text-sm w-full">
                   <Row
-                    label={<MapPinHouse className="w-4 h-4 text-hgray700" />}
+                    label={<MapPinHouse className="w-4 h-4 text-beige900/55" />}
                     // label={m.company.hq}
                     value={countryEnToKo(company.location ?? "")}
                   />
@@ -386,19 +386,19 @@ export default function CompanyModalRoot() {
                     company.founded_year !== undefined &&
                     company.founded_year > 1000 && (
                       <Row
-                        label={<Calendar className="w-4 h-4 text-hgray700" />}
+                        label={<Calendar className="w-4 h-4 text-beige900/55" />}
                         value={company.founded_year}
                       />
                     )}
                   {company.website_url && (
                     <Row
-                      label={<Globe className="w-4 h-4 text-hgray700" />}
+                      label={<Globe className="w-4 h-4 text-beige900/55" />}
                       value={company.website_url}
                       isLink
                     />
                   )}
                   <Row
-                    label={<Linkedin className="w-4 h-4 text-hgray700" />}
+                    label={<Linkedin className="w-4 h-4 text-beige900/55" />}
                     value={company.linkedin_url}
                     isLink
                   />
@@ -419,7 +419,7 @@ export default function CompanyModalRoot() {
                       {company.investors.split(",").map((i: string) => (
                         <span
                           key={i}
-                          className="rounded-md bg-white/5 px-3 py-2 text-xs"
+                          className="rounded-md bg-beige500/55 px-3 py-2 text-xs"
                         >
                           {i}
                         </span>
@@ -461,7 +461,7 @@ function ColRow({
 
   return (
     <div className="flex flex-col items-start justify-start gap-0">
-      <div className="text-left text-hgray900 text-base font-medium">
+      <div className="text-left text-beige900 text-base font-medium">
         {isLink && v !== "—" ? (
           <a
             href={v}
@@ -475,7 +475,7 @@ function ColRow({
           v
         )}
       </div>
-      <div className="text-left text-[13px] text-hgray700 font-light">
+      <div className="text-left text-[13px] text-beige900/55 font-light">
         {label}
       </div>
     </div>
@@ -522,7 +522,7 @@ const Section = ({
   children: React.ReactNode;
 }) => {
   return (
-    <div className="flex flex-col text-hgray900 gap-2 w-full max-w-full">
+    <div className="flex flex-col text-beige900 gap-2 w-full max-w-full">
       <div className="text-base font-medium">{title}</div>
       <div className="max-w-full overflow-x-hidden">{children}</div>
     </div>
@@ -540,15 +540,15 @@ function MetricCard({
 }) {
   return (
     <Tooltips text={tooltip ?? ""} side="bottom">
-      <div className="rounded-lg bg-white/5 px-4 py-4">
-        <div className="text-left text-xl font-medium text-hgray900">
+      <div className="rounded-lg bg-beige100 px-4 py-4">
+        <div className="text-left text-xl font-medium text-beige900">
           {value}
         </div>
-        <div className="mt-1 flex items-center gap-1.5 text-left text-[13px] font-light text-hgray700">
+        <div className="mt-1 flex items-center gap-1.5 text-left text-[13px] font-light text-beige900/55">
           <span>{label}</span>
           <div
             aria-label={`${label} 설명`}
-            className="text-hgray700/80 transition-colors hover:text-hgray900"
+            className="text-beige900/45 transition-colors hover:text-beige900"
           >
             <CircleHelp className="h-3.5 w-3.5" />
           </div>
@@ -579,17 +579,17 @@ function TrendSparklineCard({
     tone === "growth" ? "rgba(27, 127, 107, 0.12)" : "rgba(194, 122, 26, 0.12)";
 
   return (
-    <div className="rounded-lg bg-white/5 px-4 py-4">
+    <div className="rounded-lg bg-beige100 px-4 py-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-1.5 text-[13px] font-light text-hgray700">
+          <div className="flex items-center gap-1.5 text-[13px] font-light text-beige900/55">
             <span className="truncate">{label}</span>
             {tooltip && (
               <Tooltips text={tooltip}>
                 <button
                   type="button"
                   aria-label={`${label} 설명`}
-                  className="cursor-help text-hgray700/80 transition-colors hover:text-hgray900"
+                  className="cursor-help text-beige900/45 transition-colors hover:text-beige900"
                 >
                   <CircleHelp className="h-3.5 w-3.5" />
                 </button>
@@ -597,26 +597,26 @@ function TrendSparklineCard({
             )}
           </div>
           {interval && (
-            <div className="mt-1 text-[11px] font-light text-hgray700">
+            <div className="mt-1 text-[11px] font-light text-beige900/55">
               {interval}
             </div>
           )}
         </div>
         <div className="text-right">
-          <div className="text-lg font-medium text-hgray900">
+          <div className="text-lg font-medium text-beige900">
             {formatCrunchbaseMetricValue(lastValue)}
           </div>
-          <div className="text-[11px] font-light text-hgray700">최근 값</div>
+          <div className="text-[11px] font-light text-beige900/55">최근 값</div>
         </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-between text-[11px] font-light text-hgray700">
+      <div className="mt-3 flex items-center justify-between text-[11px] font-light text-beige900/55">
         <span>시작 {formatCrunchbaseMetricValue(firstValue)}</span>
         <span></span>
         <span>최근 {formatCrunchbaseMetricValue(lastValue)}</span>
       </div>
 
-      <div className="mt-2 overflow-hidden rounded-md border border-white/5 bg-white/5">
+      <div className="mt-2 overflow-hidden rounded-md border border-beige900/8 bg-beige100">
         <svg
           viewBox="0 0 100 44"
           className="h-16 w-full"
@@ -646,12 +646,12 @@ function TrendSparklineCard({
 function TagCluster({ label, items }: { label: string; items: string[] }) {
   return (
     <div className="flex flex-col gap-2">
-      <div className="text-[13px] font-light text-hgray700">{label}</div>
+      <div className="text-[13px] font-light text-beige900/55">{label}</div>
       <div className="flex flex-wrap gap-2">
         {items.map((item) => (
           <span
             key={`${label}-${item}`}
-            className="rounded-md bg-white/5 px-3 py-2 text-xs"
+            className="rounded-md bg-beige500/55 px-3 py-2 text-xs"
           >
             {item}
           </span>

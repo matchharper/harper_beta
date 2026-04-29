@@ -77,15 +77,15 @@ import {
   getPreviewCandidate,
 } from "@/components/ats/utils";
 
-const PANEL_CLASS = "rounded-md border border-white/5 bg-white/5";
+const PANEL_CLASS = "rounded-md border border-beige900/8 bg-beige50 shadow-sm";
 const BUTTON_PRIMARY =
-  "inline-flex items-center justify-center gap-2 rounded-sm bg-white px-3 py-2 text-sm font-medium text-black transition hover:bg-white/90 disabled:cursor-not-allowed disabled:bg-white/40";
+  "inline-flex items-center justify-center gap-2 rounded-sm bg-beige900 px-3 py-2 text-sm font-medium text-beige100 transition hover:bg-beige900/90 disabled:cursor-not-allowed disabled:bg-beige900/40";
 const BUTTON_SECONDARY =
-  "inline-flex items-center justify-center gap-2 rounded-sm border border-white/5 bg-white/5 px-3 py-2 text-sm text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40";
+  "inline-flex items-center justify-center gap-2 rounded-sm border border-beige900/8 bg-beige500/55 px-3 py-2 text-sm text-beige900 transition hover:bg-beige500/70 disabled:cursor-not-allowed disabled:opacity-40";
 const INPUT_CLASS =
-  "w-full rounded-sm border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-white/40 focus:border-white/20";
+  "w-full rounded-sm border border-beige900/10 bg-beige500/55 px-3 py-2 text-sm text-beige900 outline-none placeholder:text-beige900/40 focus:border-beige900/20";
 const TEXTAREA_CLASS =
-  "w-full rounded-sm border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-white/40 focus:border-white/20";
+  "w-full rounded-sm border border-beige900/10 bg-beige500/55 px-3 py-2 text-sm text-beige900 outline-none placeholder:text-beige900/40 focus:border-beige900/20";
 
 const ATS_TABLE_LAYOUT = {
   bodyCell: "px-3 py-3 align-top",
@@ -243,7 +243,7 @@ function mergeSequenceDraftState(args: {
 function getStageBadge(outreach: AtsOutreachRecord | null) {
   if (!outreach) {
     return {
-      className: "border-white/10 bg-white/5 text-white/70",
+      className: "border-beige900/10 bg-beige500/55 text-beige900/70",
       label: "Stage 0/4",
     };
   }
@@ -257,7 +257,7 @@ function getStageBadge(outreach: AtsOutreachRecord | null) {
 
   if (outreach.sequenceStatus === "paused") {
     return {
-      className: "border-amber-400/20 bg-amber-400/10 text-amber-100",
+      className: "border-amber-700/30 bg-amber-300/15 text-amber-700",
       label: `Paused · ${outreach.activeStep}/4`,
     };
   }
@@ -270,7 +270,7 @@ function getStageBadge(outreach: AtsOutreachRecord | null) {
   }
 
   return {
-    className: "border-white/10 bg-white/5 text-white/70",
+    className: "border-beige900/10 bg-beige500/55 text-beige900/70",
     label: `Stage ${outreach.activeStep}/4`,
   };
 }
@@ -303,13 +303,13 @@ function getEmailBadge(candidate: AtsCandidateSummary) {
 
   if (candidate.outreach?.emailDiscoveryStatus === "canceled") {
     return {
-      className: "border-white/10 bg-white/5 text-white/75",
+      className: "border-beige900/10 bg-beige500/55 text-beige900/75",
       label: "탐색 중단",
     };
   }
 
   return {
-    className: "border-white/10 bg-white/5 text-white/70",
+    className: "border-beige900/10 bg-beige500/55 text-beige900/70",
     label: "이메일 발견 실패",
   };
 }
@@ -379,7 +379,7 @@ function IconLinkButton({
       target="_blank"
       rel="noreferrer"
       onClick={(event) => event.stopPropagation()}
-      className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-white/10 bg-white/5 text-white/60 transition hover:bg-white/10 hover:text-white"
+      className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-beige900/10 bg-beige500/55 text-beige900/60 transition hover:bg-beige500/70 hover:text-beige900"
       aria-label={label}
       title={label}
     >
@@ -434,19 +434,19 @@ function AtsEmailRecipientNameField({
       onClick={(event) => event.stopPropagation()}
       onMouseDown={(event) => event.stopPropagation()}
     >
-      <div className="text-[11px] text-white/35">메일에 사용할 이름</div>
+      <div className="text-[11px] text-beige900/35">메일에 사용할 이름</div>
       <div className="flex items-center gap-2">
         <input
           value={value}
           onChange={(event) => setValue(event.target.value)}
           placeholder={String(defaultName ?? "") || "이름"}
-          className="h-8 min-w-0 flex-1 rounded-sm border border-white/10 bg-white/5 px-2.5 text-xs text-white outline-none placeholder:text-white/35 focus:border-white/20"
+          className="h-8 min-w-0 flex-1 rounded-sm border border-beige900/10 bg-beige500/55 px-2.5 text-xs text-beige900 outline-none placeholder:text-beige900/35 focus:border-beige900/20"
         />
         <button
           type="button"
           onClick={() => void handleSave()}
           disabled={saveEmailRecipientName.isPending}
-          className="inline-flex h-8 items-center gap-1.5 rounded-sm border border-white/10 bg-white/5 px-2.5 text-xs text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex h-8 items-center gap-1.5 rounded-sm border border-beige900/10 bg-beige500/55 px-2.5 text-xs text-beige900 transition hover:bg-beige500/70 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {saveEmailRecipientName.isPending ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -508,7 +508,7 @@ function AtsMemoCell({
           type="button"
           onClick={() => void handleSave()}
           disabled={saveMemo.isPending}
-          className="inline-flex items-center gap-2 rounded-sm border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex items-center gap-2 rounded-sm border border-beige900/10 bg-beige500/55 px-2.5 py-1.5 text-xs text-beige900 transition hover:bg-beige500/70 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {saveMemo.isPending ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -584,7 +584,7 @@ function ContactHistoryCell({
       <button
         type="button"
         onClick={() => setIsComposerOpen((prev) => !prev)}
-        className="inline-flex items-center gap-2 rounded-md bg-white px-2 py-1 text-xs text-black transition hover:bg-white/90 hover:text-black"
+        className="inline-flex items-center gap-2 rounded-md bg-beige900 px-2 py-1 text-xs text-beige100 transition hover:bg-beige900/90 hover:text-beige100"
       >
         <Plus className="h-3.5 w-3.5" />
         연락 기록
@@ -640,25 +640,25 @@ function ContactHistoryCell({
 
       <div className="space-y-1.5">
         {history.length === 0 && (
-          <div className="text-xs text-white/35">기록 없음</div>
+          <div className="text-xs text-beige900/35">기록 없음</div>
         )}
         {history.map((item) => (
           <div
             key={item.id}
-            className="rounded-md border border-white/10 bg-black/10 px-2.5 py-2"
+            className="rounded-md border border-beige900/10 bg-beige500/55 px-2.5 py-2"
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 text-[11px] text-white/60">
+                  <span className="rounded-md border border-beige900/10 bg-beige500/55 px-1.5 py-0.5 text-[11px] text-beige900/60">
                     {item.channel}
                   </span>
-                  <span className="text-[11px] text-white/40">
+                  <span className="text-[11px] text-beige900/40">
                     {formatDateTime(item.contactedAt)}
                   </span>
                 </div>
                 {item.note && (
-                  <div className="mt-1.5 break-words text-xs leading-5 text-white/60">
+                  <div className="mt-1.5 break-words text-xs leading-5 text-beige900/60">
                     {item.note}
                   </div>
                 )}
@@ -666,7 +666,7 @@ function ContactHistoryCell({
               <button
                 type="button"
                 onClick={() => void handleDelete(item.id)}
-                className="text-white/35 transition hover:text-white/75"
+                className="text-beige900/35 transition hover:text-beige900/75"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -1966,7 +1966,7 @@ export default function AtsPage() {
     return (
       <AppLayout initialCollapse={false}>
         <div className="flex min-h-screen items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-white" />
+          <Loader2 className="h-5 w-5 animate-spin text-beige900" />
         </div>
       </AppLayout>
     );
@@ -1977,11 +1977,11 @@ export default function AtsPage() {
       <AppLayout initialCollapse={false}>
         <div className="mx-auto flex min-h-screen max-w-3xl items-center px-6">
           <div className={`${PANEL_CLASS} w-full p-6`}>
-            <div className="flex items-center gap-3 text-white">
+            <div className="flex items-center gap-3 text-beige900">
               <AlertCircle className="h-5 w-5" />
               <div className="text-lg font-medium">Internal only</div>
             </div>
-            <div className="mt-3 text-sm leading-6 text-white/65">
+            <div className="mt-3 text-sm leading-6 text-beige900/80">
               ATS 화면은 `matchharper.com` 계정 또는 허용된 ATS 계정으로
               로그인했을 때만 접근할 수 있습니다.
             </div>
@@ -2029,11 +2029,11 @@ export default function AtsPage() {
     <>
       {profileDetailQuery.isLoading && (
         <div className="flex min-h-[720px] items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-white" />
+          <Loader2 className="h-5 w-5 animate-spin text-beige900" />
         </div>
       )}
       {!profileDetailQuery.isLoading && profileDetailQuery.error && (
-        <div className="flex min-h-[720px] items-center justify-center text-sm text-white/50">
+        <div className="flex min-h-[720px] items-center justify-center text-sm text-beige900/50">
           프로필을 불러오지 못했습니다.
         </div>
       )}
@@ -2054,7 +2054,7 @@ export default function AtsPage() {
 
   const PanelCard = ({ children }: { children: React.ReactNode }) => {
     return (
-      <div className="flex flex-row items-center justify-between rounded-md bg-white/5 text-white p-3">
+      <div className="flex flex-row items-center justify-between rounded-md bg-beige50 border border-beige900/8 shadow-sm text-beige900 p-3">
         {children}
       </div>
     );
@@ -2105,10 +2105,10 @@ export default function AtsPage() {
 
           <div className="flex flex-col gap-4">
             <div className={`${PANEL_CLASS} overflow-hidden`}>
-              <div className="border-b border-white/10 px-4 py-4">
+              <div className="border-b border-beige900/10 px-4 py-4">
                 <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
                   <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-beige900/40" />
                     <input
                       value={query}
                       onChange={(event) => setQuery(event.target.value)}
@@ -2133,8 +2133,8 @@ export default function AtsPage() {
                         onClick={() => setFilter(value)}
                         className={`rounded-md border min-w-[60px] px-3 py-1.5 text-xs transition ${
                           filter === value
-                            ? "border-white/0 bg-accenta1 text-black"
-                            : "border-white/10 bg-white/5 text-white/55 hover:bg-white/10"
+                            ? "border-beige900/0 bg-accentBronze/10 text-accentBronze"
+                            : "border-beige900/10 bg-beige500/55 text-beige900/55 hover:bg-beige500/70"
                         }`}
                       >
                         {label}
@@ -2160,7 +2160,7 @@ export default function AtsPage() {
                       type="button"
                       onClick={handleQueueSelectedEmailDiscoveries}
                       disabled={selectedIds.length === 0}
-                      className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="inline-flex items-center gap-2 rounded-md border border-beige900/10 bg-beige500/55 px-3 py-1.5 text-xs text-beige900/80 transition hover:bg-beige500/70 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       <Sparkles className="h-3.5 w-3.5" />
                       선택 후보 이메일 찾기
@@ -2172,16 +2172,16 @@ export default function AtsPage() {
               <div className="overflow-x-auto">
                 {workspaceQuery.isLoading ? (
                   <div className="flex min-h-[640px] items-center justify-center">
-                    <Loader2 className="h-5 w-5 animate-spin text-white" />
+                    <Loader2 className="h-5 w-5 animate-spin text-beige900" />
                   </div>
                 ) : filteredCandidates.length === 0 ? (
-                  <div className="flex min-h-[640px] items-center justify-center text-sm text-white/50">
+                  <div className="flex min-h-[640px] items-center justify-center text-sm text-beige900/50">
                     후보자가 없습니다.
                   </div>
                 ) : (
                   <table className={ATS_TABLE_LAYOUT.table}>
                     <thead>
-                      <tr className="border-b border-white/10 text-left text-xs text-white/45">
+                      <tr className="border-b border-beige900/10 text-left text-xs text-beige900/45">
                         <th
                           className={`${ATS_TABLE_LAYOUT.widths.select} ${ATS_TABLE_LAYOUT.headerCell}`}
                         >
@@ -2252,10 +2252,10 @@ export default function AtsPage() {
                               setSelectedCandidateId(candidate.id);
                               setIsCandidateDrawerOpen(true);
                             }}
-                            className={`cursor-pointer border-b border-white/5 transition ${
+                            className={`cursor-pointer border-b border-beige900/8 transition ${
                               selectedCandidateId === candidate.id
-                                ? "bg-white/10"
-                                : "hover:bg-white/5"
+                                ? "bg-beige500/70"
+                                : "hover:bg-beige500/55"
                             }`}
                           >
                             <td className={ATS_TABLE_LAYOUT.bodyCell}>
@@ -2266,7 +2266,7 @@ export default function AtsPage() {
                                   toggleCandidateSelection(candidate.id)
                                 }
                                 onClick={(event) => event.stopPropagation()}
-                                className="mt-0.5 h-4 w-4 rounded border-white/20 bg-transparent"
+                                className="mt-0.5 h-4 w-4 rounded border-beige900/20 bg-transparent"
                               />
                             </td>
                             <td className={ATS_TABLE_LAYOUT.bodyCell}>
@@ -2280,13 +2280,13 @@ export default function AtsPage() {
                                   />
                                 ) : (
                                   <div
-                                    className={`flex ${ATS_TABLE_LAYOUT.profileImage} items-center justify-center rounded-md bg-white/10 text-white/70`}
+                                    className={`flex ${ATS_TABLE_LAYOUT.profileImage} items-center justify-center rounded-md bg-beige500/70 text-beige900/70`}
                                   >
                                     <UserSquare2 className="h-4 w-4" />
                                   </div>
                                 )}
                                 <div className="min-w-0">
-                                  <div className="text-sm font-medium text-white">
+                                  <div className="text-sm font-medium text-beige900">
                                     {candidate.name ?? "Unknown"}
                                   </div>
                                   <div className="flex items-start gap-2 mt-2">
@@ -2297,20 +2297,20 @@ export default function AtsPage() {
                                         alt={
                                           candidate.currentCompany ?? "company"
                                         }
-                                        className={`${ATS_TABLE_LAYOUT.companyLogo} rounded-md border border-white/10 bg-white object-contain p-1`}
+                                        className={`${ATS_TABLE_LAYOUT.companyLogo} rounded-md border border-beige900/10 bg-beige100 object-contain p-1`}
                                       />
                                     ) : (
                                       <div
-                                        className={`flex ${ATS_TABLE_LAYOUT.companyLogo} items-center justify-center rounded-md border border-white/10 bg-white/5 text-white/45`}
+                                        className={`flex ${ATS_TABLE_LAYOUT.companyLogo} items-center justify-center rounded-md border border-beige900/10 bg-beige500/55 text-beige900/45`}
                                       >
                                         <Building2 className="h-4 w-4" />
                                       </div>
                                     )}
                                     <div className="min-w-0">
-                                      <div className="text-sm text-white/90">
+                                      <div className="text-sm text-beige900">
                                         {candidate.currentCompany ?? "-"}
                                       </div>
-                                      <div className="mt-0 text-sm text-accenta1">
+                                      <div className="mt-0 text-sm text-accentBronze">
                                         {candidate.currentRole ?? "-"}
                                       </div>
                                     </div>
@@ -2370,7 +2370,7 @@ export default function AtsPage() {
                               >
                                 {emailBadge.label}
                               </div>
-                              <div className="mt-2 text-xs text-white/55">
+                              <div className="mt-2 text-xs text-beige900/55">
                                 {resolveTargetEmail(candidate) ?? "-"}
                               </div>
                               <div className="mt-2 flex flex-wrap gap-1.5">
@@ -2405,7 +2405,7 @@ export default function AtsPage() {
                                         candidate.id
                                       );
                                     }}
-                                    className="inline-flex items-center gap-1.5 rounded-sm border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/80 transition hover:bg-white/10"
+                                    className="inline-flex items-center gap-1.5 rounded-sm border border-beige900/10 bg-beige500/55 px-2 py-1 text-[11px] text-beige900/80 transition hover:bg-beige500/70"
                                   >
                                     <Sparkles className="h-3 w-3" />
                                     {rowEmailActionLabel}
@@ -2425,7 +2425,7 @@ export default function AtsPage() {
                                       isRowEmailDiscoverySearching ||
                                       isRowEmailDiscoveryStopping
                                     }
-                                    className="inline-flex items-center gap-1.5 rounded-sm border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/70 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                                    className="inline-flex items-center gap-1.5 rounded-sm border border-beige900/10 bg-beige500/55 px-2 py-1 text-[11px] text-beige900/70 transition hover:bg-beige500/70 disabled:cursor-not-allowed disabled:opacity-40"
                                   >
                                     {clearEmailTrace.isPending ? (
                                       <Loader2 className="h-3 w-3 animate-spin" />

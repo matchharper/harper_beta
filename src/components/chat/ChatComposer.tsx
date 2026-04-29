@@ -70,18 +70,18 @@ export default function ChatComposer({
   return (
     <div className="flex flex-col gap-2 px-2 pb-2">
       {allowAttachments && attachment && (
-        <div className="mx-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-hgray700 flex items-center justify-between">
+        <div className="mx-2 rounded-2xl border border-beige900/8 bg-beige50 px-3 py-2 text-xs text-beige900/65 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Paperclip className="w-3 h-3" />
-            <span className="text-hgray900">{attachment.name}</span>
-            <span className="text-hgray600">
+            <span className="text-beige900">{attachment.name}</span>
+            <span className="text-beige900/55">
               {formatBytes(attachment.size)}
             </span>
           </div>
           <button
             type="button"
             onClick={() => onAttach?.(null)}
-            className="text-hgray600 hover:text-hgray900"
+            className="text-beige900/55 hover:text-beige900"
             aria-label="Remove attachment"
           >
             <X className="w-3.5 h-3.5" />
@@ -89,7 +89,7 @@ export default function ChatComposer({
         </div>
       )}
       {allowAttachments && isPreparing && (
-        <div className="mx-2 text-xs text-hgray600">
+        <div className="mx-2 text-xs text-beige900/55">
           {m.chat.fileReading ?? "파일을 읽는 중..."}
         </div>
       )}
@@ -101,7 +101,7 @@ export default function ChatComposer({
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={onKeyDown}
           placeholder={m.chat.composerPlaceholder}
-          className={`w-full min-h-[94px] max-h-[140px] resize-none rounded-[20px] bg-white/5 py-2.5 text-[13px] text-hgray900 outline-none border border-white/10 focus:border-white/20 px-4`}
+          className={`w-full min-h-[94px] max-h-[140px] resize-none rounded-[20px] bg-beige50 py-2.5 text-[13px] text-beige900 outline-none border border-beige900/8 focus:border-beige900/20 px-4`}
         />
 
         <div className="absolute right-2 bottom-2 flex flex-row items-center justify-center gap-2">
@@ -121,7 +121,7 @@ export default function ChatComposer({
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="h-8 w-8 rounded-2xl flex items-center justify-center text-hgray700 hover:text-hgray900 bg-white/10 hover:bg-white/20"
+                className="h-8 w-8 rounded-2xl flex items-center justify-center text-beige900/65 hover:text-beige900 bg-beige500/55 hover:bg-beige500/70"
                 aria-label={m.chat.attachFile ?? "파일 첨부"}
               >
                 <Plus size={16} />
@@ -133,8 +133,8 @@ export default function ChatComposer({
             onClick={handleSendClick}
             className={`h-8 w-8 rounded-2xl flex items-center justify-center cursor-pointer hover:opacity-90 ${
               isStreaming
-                ? "bg-hgray700 text-hgray100"
-                : "bg-accenta1 text-black disabled:opacity-50"
+                ? "bg-beige900/70 text-beige100"
+                : "bg-beige900 text-beige100 disabled:opacity-50"
             }`}
             disabled={!isStreaming && disabledSend}
             aria-label="Send"

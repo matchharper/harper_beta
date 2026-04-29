@@ -40,7 +40,7 @@ export default function MyPage() {
         <div className="w-full backdrop-blur">
           <div className="mx-auto w-full px-4 pt-6 pb-2">
             <div className="flex items-end justify-between gap-4">
-              <div className="text-3xl font-hedvig font-light tracking-tight text-white">
+              <div className="text-3xl font-hedvig font-light tracking-tight text-beige900">
                 {title}
               </div>
 

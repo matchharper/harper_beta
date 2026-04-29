@@ -98,7 +98,7 @@ export default function CandidateMarkButton({
         compact ? "h-[32px] px-2 text-sm" : "h-[32px] px-2 text-sm",
         meta
           ? `${meta.borderClassName} ${meta.bgClassName} ${meta.textClassName} hover:brightness-110`
-          : "border-white/10 bg-black/20 text-hgray900 hover:bg-white/10 hover:text-white",
+          : "border-beige900/8 bg-beige500/55 text-beige900 hover:bg-beige50/80 hover:text-beige900",
       ].join(" ")}
     >
       {meta ? (
@@ -150,7 +150,7 @@ export default function CandidateMarkButton({
                   <span>{option.label}</span>
                 </div>
                 {isSelected && (
-                  <Check className="h-4 w-4 text-accenta1" strokeWidth={1.8} />
+                  <Check className="h-4 w-4 text-accentBronze" strokeWidth={1.8} />
                 )}
               </ActionDropdownItem>
             );
@@ -164,7 +164,7 @@ export default function CandidateMarkButton({
                 onSelect={() => {
                   void handleSelect(null);
                 }}
-                className="text-white/70"
+                className="text-beige900/55"
               >
                 태그 해제
               </ActionDropdownItem>

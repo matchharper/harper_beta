@@ -209,7 +209,7 @@ const CareerTalentProfilePanel = ({
           </div>
 
           <div className="min-w-0 flex flex-col gap-1.5">
-            <div className="font-halant font-medium text-2xl leading-[1] text-beige900">
+            <div className="font-hedvig font-medium text-2xl leading-[1] text-beige900">
               {talentUser?.name ?? "Unknown"}
             </div>
 

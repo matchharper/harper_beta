@@ -30,24 +30,24 @@ export default function PickedPage() {
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  if (isLoading) return <Loading className="text-hgray600" />;
+  if (isLoading) return <Loading className="text-beige900/55" />;
   if (error) return <div>Error</div>;
 
   return (
     <div className="w-full">
       {/* Pagination Header */}
       <div className="flex items-center justify-between gap-3 mb-4">
-        <div className="text-sm text-hgray700">
+        <div className="text-sm text-beige900/55">
           Page <span className="font-medium">{pageIdx + 1}</span> /{" "}
           <span className="font-medium">{pageCount}</span>{" "}
-          <span className="ml-2 text-hgray600">(전체 {total}개)</span>
-          {isFetching && <span className="ml-2 text-hgray500">Syncing…</span>}
+          <span className="ml-2 text-beige900/55">(전체 {total}개)</span>
+          {isFetching && <span className="ml-2 text-beige900/45">Syncing…</span>}
         </div>
 
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className="px-3 py-1.5 rounded-lg border border-white/10 bg-hgray200 text-sm disabled:opacity-50"
+            className="px-3 py-1.5 rounded-lg border border-beige900/8 bg-beige100 text-sm disabled:opacity-50"
             onClick={() => setPageIdx((p) => Math.max(0, p - 1))}
             disabled={!hasPrev || isFetching}
           >
@@ -56,7 +56,7 @@ export default function PickedPage() {
 
           <button
             type="button"
-            className="px-3 py-1.5 rounded-lg border border-white/10 text-black bg-accenta1 text-sm disabled:opacity-50"
+            className="px-3 py-1.5 rounded-lg border border-beige900/10 text-beige100 bg-beige900 text-sm disabled:opacity-50"
             onClick={() => {
               if (!hasNext) return;
               setPageIdx((p) => p + 1);

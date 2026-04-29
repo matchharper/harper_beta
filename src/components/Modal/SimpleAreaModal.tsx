@@ -88,7 +88,7 @@ const SimpleAreaModal = ({
       confirmLabel={
         isLike ? (
           <div className="flex items-center gap-2">
-            <CheckIcon className="w-4 h-4 text-hgray100" />
+            <CheckIcon className="w-4 h-4 text-beige100" />
             저장하기
           </div>
         ) : (
@@ -100,15 +100,15 @@ const SimpleAreaModal = ({
     >
       <div className="flex flex-col gap-3">
         {/* 제목 */}
-        <div className="text-lg font-normal text-white">{title}</div>
+        <div className="text-lg font-normal text-beige900">{title}</div>
         {isLike ? (
-          <div className="text-sm mt-0 font-light text-hgray800 leading-relaxed">
-            <span className="text-white">어떤 점이 마음에 드셨나요?</span>
+          <div className="text-sm mt-0 font-light text-beige900/80 leading-relaxed">
+            <span className="text-beige900">어떤 점이 마음에 드셨나요?</span>
             <br />
             선호 이유를 알려주시면, 다음 추천에 반영됩니다.
           </div>
         ) : (
-          <div className="text-sm mt-0 font-light text-hgray800">
+          <div className="text-sm mt-0 font-light text-beige900/80">
             아쉬운 점을 짧게 남겨주시면, 다음 추천에 반영됩니다.
           </div>
         )}
@@ -120,7 +120,7 @@ const SimpleAreaModal = ({
           placeholder={placeholder}
           disabled={isLoading}
           rows={4}
-          className="w-full mt-2 placeholder:text-sm resize-none rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-hgray900 outline-none disabled:bg-hgray50 disabled:text-hgray500"
+          className="w-full mt-2 placeholder:text-sm resize-none rounded-xl border border-beige900/8 bg-beige50 px-3 py-2 text-sm text-beige900 outline-none disabled:bg-beige100 disabled:text-beige900/35"
         />
       </div>
     </BaseModal>

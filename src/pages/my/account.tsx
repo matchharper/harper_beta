@@ -82,7 +82,7 @@ const Account = () => {
         {/* Header */}
         <div className="mx-auto w-full px-4 pt-6 pb-2 flex flex-col items-center justify-start">
           <div className="flex items-end justify-between gap-4 w-full">
-            <div className="text-3xl font-hedvig font-light tracking-tight text-white">
+            <div className="text-3xl font-hedvig font-light tracking-tight text-beige900">
               Profile
             </div>
           </div>
@@ -118,16 +118,16 @@ const Account = () => {
               onChange={setCountry}
             />
             {isModified && (
-              <div className="sticky bottom-0 bg-black/10 backdrop-blur-md">
+              <div className="sticky bottom-0 bg-beige50 border-t border-beige900/8 backdrop-blur-md">
                 <div className="px-6 py-4 flex items-center justify-between gap-8">
-                  <div className="text-sm text-white/60">
+                  <div className="text-sm text-beige900/80">
                     You have unsaved changes.
                   </div>
 
                   <div className="flex items-center gap-2">
                     <button
                       onClick={handleCancel}
-                      className="rounded-lg px-4 py-2 text-sm text-white/70 hover:bg-white/[0.05] transition"
+                      className="rounded-lg px-4 py-2 text-sm text-beige900/70 hover:bg-beige500/55 transition"
                     >
                       Cancel
                     </button>
@@ -135,7 +135,7 @@ const Account = () => {
                     <button
                       onClick={handleSave}
                       disabled={isLoading}
-                      className="rounded-lg px-4 py-2 text-sm font-medium text-black bg-accenta1 hover:opacity-90 disabled:opacity-70 transition inline-flex items-center gap-2"
+                      className="rounded-lg px-4 py-2 text-sm font-medium text-beige100 bg-beige900 hover:opacity-90 disabled:opacity-70 transition inline-flex items-center gap-2"
                     >
                       {isLoading && (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -166,13 +166,13 @@ const InputLabel = ({
 }) => {
   return (
     <div className="flex flex-col gap-1.5 w-full">
-      <div className="text-sm text-white/60">{label}</div>
+      <div className="text-sm text-beige900/55">{label}</div>
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-[14px] text-white/90 placeholder:text-white/30 outline-none
-                   focus:border-white/20 transition"
+        className="w-full rounded-xl border border-beige900/10 bg-beige500/55 px-4 py-3 text-[14px] text-beige900 placeholder:text-beige900/30 outline-none
+                   focus:border-beige900/20 transition"
       />
     </div>
   );
@@ -191,16 +191,16 @@ const TextAreaLabel = ({
 }) => {
   return (
     <div className="flex flex-col gap-1.5 w-full mt-4">
-      <div className="text-sm text-white/60">{label}</div>
+      <div className="text-sm text-beige900/55">{label}</div>
       <textarea
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
         rows={5}
-        className="w-full resize-none rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-[14px] text-white/90 placeholder:text-white/30 outline-none
-                   focus:border-white/20 transition leading-relaxed"
+        className="w-full resize-none rounded-xl border border-beige900/10 bg-beige500/55 px-4 py-3 text-[14px] text-beige900 placeholder:text-beige900/30 outline-none
+                   focus:border-beige900/20 transition leading-relaxed"
       />
-      <div className="text-xs text-white/40">
+      <div className="text-xs text-beige900/40">
         Optional — helps improve recommendations.
       </div>
     </div>

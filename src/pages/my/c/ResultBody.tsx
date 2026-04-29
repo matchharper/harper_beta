@@ -46,7 +46,7 @@ export default function ResultBody(props: Props) {
 
   if (!searchEnabled) {
     return (
-      <div className="w-full px-4 py-12 text-sm text-hgray600">
+      <div className="w-full px-4 py-12 text-sm text-beige900/55">
         {m.search.resultBody.emptyPrompt}
       </div>
     );
@@ -78,9 +78,9 @@ export default function ResultBody(props: Props) {
             <div className="flex rounded-2xl pl-1 bg-black/0 backdrop-blur-md">
               <div className="flex flex-col gap-4 px-2 py-0 md:flex-row md:items-center md:justify-between">
                 {/* Left: page label (small, muted) */}
-                <div className="flex items-center gap-2 text-sm text-white/70">
+                <div className="flex items-center gap-2 text-sm text-beige900/55">
                   <span className="inline-flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-white/40" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-beige900/40" />
                     {m.search.resultBody.page.replace(
                       "{page}",
                       String(pageIdx + 1)
@@ -88,13 +88,13 @@ export default function ResultBody(props: Props) {
                   </span>
 
                   {isFetchingNextPage ? (
-                    <span className="text-white/50">
+                    <span className="text-beige900/50">
                       {m.search.resultBody.loadingSuffix}
                     </span>
                   ) : null}
 
                   {pageIdxRaw > maxPrefetchPages ? (
-                    <span className="ml-2 text-white/35">
+                    <span className="ml-2 text-beige900/35">
                       {m.search.resultBody.capped.replace(
                         "{cap}",
                         String(maxPrefetchPages + 1)
@@ -112,19 +112,19 @@ export default function ResultBody(props: Props) {
                     className={[
                       "inline-flex items-center justify-center",
                       "h-11 px-4 md:px-5 rounded-xl",
-                      "border border-white/10 bg-white/5",
-                      " text-white/80",
+                      "border border-beige900/8 bg-beige500/55",
+                      " text-beige900/80",
                       "transition",
                       canPrev
-                        ? "hover:bg-white/10 hover:border-white/15 active:scale-[0.99]"
+                        ? "hover:bg-beige500/70 hover:border-beige900/15 active:scale-[0.99]"
                         : "opacity-40 cursor-not-allowed",
                     ].join(" ")}
                   >
-                    <span className="mr-2 text-white/60">←</span>
+                    <span className="mr-2 text-beige900/60">←</span>
                     {m.search.resultBody.previous}
                   </button>
 
-                  <div className="hidden md:block w-px h-8 bg-white/10" />
+                  <div className="hidden md:block w-px h-8 bg-beige900/10" />
 
                   <button
                     type="button"
@@ -133,7 +133,7 @@ export default function ResultBody(props: Props) {
                     className={[
                       "inline-flex items-center justify-center",
                       "h-11 px-4 md:px-5 rounded-xl",
-                      "bg-accenta1 text-black",
+                      "bg-beige900 text-beige100",
                       "font-medium",
                       "transition",
                       canNext && !isFetchingNextPage
@@ -142,7 +142,7 @@ export default function ResultBody(props: Props) {
                     ].join(" ")}
                   >
                     {m.search.resultBody.next}
-                    <span className="ml-2 text-black/60">→</span>
+                    <span className="ml-2 text-beige100/60">→</span>
                   </button>
                 </div>
               </div>

@@ -154,7 +154,7 @@ export default function AtsEmailBodyEditor({
   };
 
   const toolbarButtonClass =
-    "inline-flex h-8 items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2.5 text-xs text-white/70 transition hover:bg-white/10 hover:text-white";
+    "inline-flex h-8 items-center gap-1 rounded-md border border-beige900/8 bg-beige500/55 px-2.5 text-xs text-beige900/80 transition hover:bg-beige500/70 hover:text-beige900";
 
   return (
     <div className="space-y-3">
@@ -205,7 +205,7 @@ export default function AtsEmailBodyEditor({
           List
         </button>
       </div>
-      <div className="text-xs text-white/40">
+      <div className="text-xs text-beige900/45">
         `**bold**`, `*italic*`, `<u>underline</u>`, `[label](https://...)`,
         `- list` 를 지원합니다.
       </div>

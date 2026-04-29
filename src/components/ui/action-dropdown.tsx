@@ -42,7 +42,7 @@ export function ActionDropdown({
         side={side}
         sideOffset={sideOffset}
         className={cn(
-          "rounded-[10px] border border-white/5 bg-[#2A2A2E]/95 p-1 text-white shadow-[0_18px_40px_rgba(0,0,0,0.28)] backdrop-blur-md",
+          "rounded-[10px] border border-beige900/8 bg-beige50/95 p-1 text-beige900 shadow-[0_18px_40px_rgba(0,0,0,0.12)] backdrop-blur-md",
           contentClassName
         )}
       >
@@ -76,8 +76,8 @@ export const ActionDropdownItem = React.forwardRef<
         onSelect?.(event);
       }}
       className={cn(
-        "cursor-pointer rounded-[10px] px-3 py-2 text-sm text-white focus:bg-white/10 focus:text-white",
-        tone === "danger" && "text-red-400 focus:bg-red-400/15 focus:text-red-300",
+        "cursor-pointer rounded-[10px] px-3 py-2 text-sm text-beige900 focus:bg-beige500/55 focus:text-beige900",
+        tone === "danger" && "text-red-600 focus:bg-red-400/15 focus:text-red-700",
         className
       )}
       {...props}
@@ -92,7 +92,7 @@ export const ActionDropdownSeparator = React.forwardRef<
   return (
     <DropdownMenuSeparator
       ref={ref}
-      className={cn("my-1 bg-white/10", className)}
+      className={cn("my-1 bg-beige900/8", className)}
       {...props}
     />
   );

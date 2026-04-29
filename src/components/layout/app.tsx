@@ -130,14 +130,14 @@ const AppLayout = ({
     : null;
 
   return (
-    <div className="flex h-screen font-sans w-full bg-hgray200 text-neutral-900 overflow-hidden">
+    <div className="flex h-screen font-sans w-full bg-beige100 text-beige900 overflow-hidden">
       {/* Sidebar */}
       <aside
         className={[
-          "relative bg-bgDark900 text-white",
-          "shadow-sm h-screen flex flex-col", // flex-col 추가
+          "relative bg-beige100 text-beige900",
+          "border-r border-beige900/8 h-screen flex flex-col",
           collapsed ? "w-[66px]" : "w-[260px]",
-          "transition-all duration-300 ease-out flex-shrink-0", // flex-shrink-0 추가
+          "transition-all duration-300 ease-out flex-shrink-0",
         ].join(" ")}
       >
         <div className="flex items-center justify-between px-3 pt-4 flex-shrink-0">
@@ -157,7 +157,7 @@ const AppLayout = ({
             <button
               type="button"
               onClick={() => setCollapsed((v) => !v)}
-              className="inline-flex items-center justify-center rounded-[6px] active:scale-[0.99] transition px-3 py-2 hover:bg-bgDark500"
+              className="inline-flex items-center justify-center rounded-[6px] active:scale-[0.99] transition px-3 py-2 hover:bg-beige900/8"
             >
               {collapsed ? (
                 <PanelLeftOpen size={18} />
@@ -225,7 +225,7 @@ const AppLayout = ({
         </div>
 
         {/* 3. Bottom Section: 고정 */}
-        <div className="p-3 gap-2 flex flex-col flex-shrink-0 border-t border-white/5 bg-hgray100 absolute bottom-0 left-0 min-w-full">
+        <div className="p-3 gap-2 flex flex-col flex-shrink-0 border-t border-beige900/8 bg-beige100 absolute bottom-0 left-0 min-w-full">
           {!collapsed && (
             <>
               <Link
@@ -233,13 +233,13 @@ const AppLayout = ({
                 className="cursor-pointer"
                 onClick={() => logEvent("enter_billing")}
               >
-                <div className="rounded-lg p-3 flex flex-col gap-2 border border-white/5 transition-colors duration-300 ease-out hover:bg-white/10">
+                <div className="rounded-lg p-3 flex flex-col gap-2 border border-beige900/8 transition-colors duration-300 ease-out hover:bg-beige900/5">
                   <div className="w-full flex flex-row items-center justify-between text-[15px]">
                     {/* <Zap fill="#fff" size={14} /> */}
-                    <div className="w-[68%] text-xs text-hgray700">
+                    <div className="w-[68%] text-xs text-beige900/55">
                       이번 달 남은 열람 횟수
                     </div>
-                    <div className="w-[20%] text-right text-xs text-accenta1/80">
+                    <div className="w-[20%] text-right text-xs text-beige900">
                       {credits?.remain_credit ?? 0}
                     </div>
                   </div>
@@ -253,8 +253,8 @@ const AppLayout = ({
               className="cursor-pointer"
               onClick={() => logEvent("enter_billing")}
             >
-              <div className="rounded-lg p-1 py-2 flex flex-col gap-2 transition-colors duration-300 ease-out hover:bg-white/10">
-                <div className="w-full text-center text-[15px] text-xs text-hgray700">
+              <div className="rounded-lg p-1 py-2 flex flex-col gap-2 transition-colors duration-300 ease-out hover:bg-beige900/5">
+                <div className="w-full text-center text-[15px] text-xs text-beige900">
                   {credits?.remain_credit ?? 0}
                 </div>
               </div>
@@ -267,7 +267,7 @@ const AppLayout = ({
               <button
                 className={[
                   "w-full flex text-base font-extralight items-center gap-3 rounded-[6px] px-2.5 py-2",
-                  "transition duration-200 text-white bg-transparent hover:bg-white/10",
+                  "transition duration-200 text-beige900 bg-transparent hover:bg-beige900/8",
                 ].join(" ")}
               >
                 <div className="shrink-0">
@@ -341,7 +341,7 @@ const AppLayout = ({
       {/* Main Content Area */}
       <main
         id="app-scroll"
-        className="flex-1 h-screen overflow-y-auto bg-hgray200 text-white scroll-smooth"
+        className="flex-1 h-screen overflow-y-auto bg-beige100 text-beige900 scroll-smooth"
       >
         {/* overflow-scroll 대신 overflow-y-auto 사용 (필요할 때만 스크롤바 생성) */}
         <div className="font-sans mx-auto pb-24 min-h-full flex flex-col items-center h-full">

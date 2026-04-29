@@ -37,7 +37,7 @@ const CareerLoginGate = ({
     <div className="relative flex min-h-screen w-full flex-col bg-beige50 lg:flex-row">
       <aside className="w-full border-r border-black/5 bg-beige50 text-beige900 lg:sticky lg:top-0 lg:h-screen lg:w-[264px] lg:shrink-0 lg:self-start lg:border-b-0 lg:border-r lg:border-r-black/5">
         <div className="flex h-full flex-col px-3 py-5">
-          <div className="font-halant text-3xl leading-none">Harper</div>
+          <div className="font-hedvig text-3xl leading-none">Harper</div>
 
           <nav className="mt-6 space-y-2">
             {GUEST_NAV_ITEMS.map((item) => {
@@ -87,7 +87,7 @@ const CareerLoginGate = ({
           aria-labelledby="career-login-gate-title"
           className="w-full max-w-[420px] rounded-xl border border-beige900/10 bg-[rgba(250,243,231,0.96)] p-6 text-beige900 shadow-[0_32px_90px_-32px_rgba(52,39,24,0.45)] backdrop-blur"
         >
-          <div className="font-halant text-3xl leading-none flex flex-col items-start gap-4">
+          <div className="font-hedvig text-3xl leading-none flex flex-col items-start gap-4">
             <Image
               src="/images/logos/harper_beige.png"
               alt="Harper"

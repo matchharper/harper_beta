@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { ChevronDown } from "lucide-react";
 
 type Variant = "large" | "small";
+type Theme = "dark" | "cream";
 
 function QuestionAnswer({
   question,
@@ -11,6 +12,7 @@ function QuestionAnswer({
   onOpen,
   variant = "large",
   length = 4,
+  theme = "dark",
 }: {
   question: string;
   answer: string;
@@ -18,8 +20,10 @@ function QuestionAnswer({
   onOpen?: () => void;
   variant?: Variant;
   length?: number;
+  theme?: Theme;
 }) {
   const [open, setOpen] = useState(false);
+  const isDark = theme === "dark";
 
   const size = {
     large: {
@@ -38,9 +42,9 @@ function QuestionAnswer({
 
   return (
     <div
-      className={`border-b border-white/20 w-full gap-4 ${
-        size.wrapper
-      } ${index === length - 1 ? "border-b-0" : ""}`}
+      className={`border-b w-full gap-4 ${
+        isDark ? "border-white/20" : "border-beige900/15"
+      } ${size.wrapper} ${index === length - 1 ? "border-b-0" : ""}`}
     >
       <button
         type="button"
@@ -54,8 +58,10 @@ function QuestionAnswer({
         className="flex w-full items-center justify-between md:justify-start text-left font-light"
       >
         <span
-          className={`${size.question} transition-colors hover:text-white ${
-            open ? "text-white" : "text-hgray700"
+          className={`${size.question} transition-colors ${
+            isDark
+              ? `hover:text-white ${open ? "text-white" : "text-hgray700"}`
+              : `hover:text-beige900 ${open ? "text-beige900" : "text-beige900/65"}`
           }`}
         >
           {question}
@@ -66,7 +72,11 @@ function QuestionAnswer({
             open ? "rotate-180" : ""
           }`}
         >
-          <ChevronDown size={16} strokeWidth={1.5} className="text-hgray700" />
+          <ChevronDown
+            size={16}
+            strokeWidth={1.5}
+            className={isDark ? "text-hgray700" : "text-beige900/65"}
+          />
         </span>
       </button>
 
@@ -80,7 +90,7 @@ function QuestionAnswer({
             transition={{ duration: 0.22, ease: "easeInOut" }}
             className="overflow-hidden"
           >
-            <div className={`${size.answer} text-white/70 text-left`}>
+            <div className={`${size.answer} ${isDark ? "text-white/70" : "text-beige900/70"} text-left`}>
               {answer}
             </div>
           </motion.div>

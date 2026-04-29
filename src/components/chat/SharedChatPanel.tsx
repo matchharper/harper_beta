@@ -75,6 +75,7 @@ const SharedChatPanel = ({
             messages={hydrated}
             isStreaming={false}
             error={null}
+            theme="dark"
             onConfirmCriteriaCard={() => {}}
             onChangeCriteriaCard={() => {}}
           />

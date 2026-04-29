@@ -166,6 +166,7 @@ function CandidateRow({
   onToggleSelection,
   onMarkChange,
   sharedFolderContext = null,
+  theme = "cream",
 }: {
   c: CandidateTypeWithConnection;
   userId?: string;
@@ -188,7 +189,9 @@ function CandidateRow({
     token: string;
     viewer: SharedFolderViewerIdentity | null;
   } | null;
+  theme?: "dark" | "cream";
 }) {
+  const isDark = theme === "dark";
   const router = useRouter();
   const candidId = c.id;
   const logEvent = useLogEvent();
@@ -337,7 +340,7 @@ function CandidateRow({
           key={columnId}
           className="min-w-0 h-full flex items-center justify-center"
         >
-          <SummaryCell criteria={criteria} item={synthList[idx]} />
+          <SummaryCell criteria={criteria} item={synthList[idx]} theme={theme} />
         </div>
       );
     }
@@ -356,6 +359,7 @@ function CandidateRow({
                 }
                 description=""
                 multiline
+                isDark={isDark}
               />
             </div>
           </Tooltips>
@@ -375,6 +379,7 @@ function CandidateRow({
                 }
                 description=""
                 multiline
+                isDark={isDark}
               />
             </div>
           </Tooltips>
@@ -394,6 +399,7 @@ function CandidateRow({
                 }
                 description=""
                 multiline
+                isDark={isDark}
               />
             </div>
           </Tooltips>
@@ -414,7 +420,7 @@ function CandidateRow({
                         alt={latestCompany.company_db.name}
                       />
                     ) : null}
-                    <span className="text-hgray800 font-normal break-words">
+                    <span className={`font-normal break-words ${isDark ? "text-hgray800" : "text-beige900/80"}`}>
                       {companyEnToKo(latestCompany.company_db.name)}
                     </span>
                   </div>
@@ -423,6 +429,7 @@ function CandidateRow({
                 )
               }
               description={latestCompany?.role ?? "-"}
+              isDark={isDark}
             />
           </div>
         </Tooltips>
@@ -445,6 +452,7 @@ function CandidateRow({
               }
               description={evidencePaper?.title ? evidencePaperMeta : ""}
               multiline
+              isDark={isDark}
             />
           </div>
         </Tooltips>
@@ -473,6 +481,7 @@ function CandidateRow({
                     ? formatGithubFollowerCount(githubPreview.followers)
                     : "-"
                 }
+                isDark={isDark}
               />
             </div>
           </Tooltips>
@@ -498,6 +507,7 @@ function CandidateRow({
                     ? formatScholarCitationCount(scholarPreview.citationCount)
                     : "-"
                 }
+                isDark={isDark}
               />
             </div>
           </Tooltips>
@@ -523,6 +533,7 @@ function CandidateRow({
                     ? formatScholarCitationCount(scholarPreview.citationCount)
                     : "-"
                 }
+                isDark={isDark}
               />
             </div>
           </Tooltips>
@@ -544,7 +555,7 @@ function CandidateRow({
                         className="w-4 h-4 rounded-full object-cover"
                       />
                     )}
-                    <span className="text-hgray800 font-normal break-words">
+                    <span className={`font-normal break-words ${isDark ? "text-hgray800" : "text-beige900/80"}`}>
                       {koreaUniversityEnToKo(latestEdu.school)}
                     </span>
                   </div>
@@ -559,6 +570,7 @@ function CandidateRow({
               }
                 ${latestEdu?.field_of_study && latestEdu?.degree ? " • " : ""}
                 ${latestEdu?.degree ? degreeEnToKo(latestEdu.degree) : ""}`}
+              isDark={isDark}
             />
           </div>
         </Tooltips>
@@ -571,7 +583,7 @@ function CandidateRow({
           key={columnId}
           className="px-4 py-3 min-w-0 h-full flex items-center"
         >
-          <div className="text-[13px] font-normal text-hgray900 leading-5 whitespace-pre-wrap break-words line-clamp-3">
+          <div className={`text-[13px] font-normal leading-5 whitespace-pre-wrap break-words line-clamp-3 ${isDark ? "text-hgray900" : "text-beige900"}`}>
             {shortlistSummaryText}
           </div>
         </div>
@@ -604,7 +616,7 @@ function CandidateRow({
       return (
         <div
           key={columnId}
-          className="flex h-full min-w-0 items-center border-l border-white/5 px-4 py-3"
+          className={`flex h-full min-w-0 items-center px-4 py-3 border-l ${isDark ? "border-white/5" : "border-beige900/15"}`}
         >
           <div className="flex w-full items-center justify-between gap-3">
             {sharedFolderContext.viewer ? (
@@ -615,7 +627,7 @@ function CandidateRow({
                   event.stopPropagation();
                   setSharedNoteCreateRequestKey((current) => current + 1);
                 }}
-                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-white/10 bg-white/5 px-3 text-[12px] text-hgray900 transition-colors hover:bg-white/10"
+                className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-3 text-[12px] transition-colors ${isDark ? "border border-white/10 bg-white/5 text-hgray900 hover:bg-white/10" : "border border-beige900/8 bg-beige50 text-beige900 hover:bg-beige50/80"}`}
               >
                 <Plus className="h-3.5 w-3.5" />
                 공유 메모 추가
@@ -640,7 +652,7 @@ function CandidateRow({
               rows={2}
             />
           ) : shortlistMemo ? (
-            <div className="w-full whitespace-pre-wrap break-words px-2 py-2 text-[13px] leading-5 text-hgray900">
+            <div className={`w-full whitespace-pre-wrap break-words px-2 py-2 text-[13px] leading-5 ${isDark ? "text-hgray900" : "text-beige900"}`}>
               {shortlistMemo}
             </div>
           ) : null}
@@ -673,17 +685,19 @@ function CandidateRow({
         }}
       >
         <div
-          className={`group relative w-full border-b border-white/5 transition-colors ${
+          className={`group relative w-full border-b transition-colors ${isDark ? "border-white/5" : "border-beige900/15"} ${
             isProfileRevealed
-              ? "cursor-pointer hover:bg-[#242424]"
+              ? isDark
+                ? "cursor-pointer hover:bg-[#242424]"
+                : "cursor-pointer hover:bg-beige50/80"
               : "cursor-default"
           }`}
         >
           <div
-            className="inline-grid items-center border-b border-white/5"
+            className={`inline-grid items-center border-b ${isDark ? "border-white/5" : "border-beige900/15"}`}
             style={{ gridTemplateColumns }}
           >
-            <div className="sticky left-0 z-30 h-full px-3 flex items-center justify-center text-xs text-hgray700 bg-hgray200 group-hover:bg-[#242424] transition-colors">
+            <div className={`sticky left-0 z-30 h-full px-3 flex items-center justify-center text-xs transition-colors ${isDark ? "text-hgray700 bg-hgray200 group-hover:bg-[#242424]" : "text-beige900/65 bg-beige100 group-hover:bg-beige50/80"}`}>
               {canSelectRow ? (
                 <div className="relative flex w-full items-center justify-center">
                   <div
@@ -717,7 +731,7 @@ function CandidateRow({
                       }}
                       disabled={selectionDisabled}
                       aria-label={`${c.name ?? "candidate"} 선택`}
-                      className="h-5 w-5 rounded-[4px] border-white/50 bg-black/20"
+                      className={isDark ? "h-5 w-5 rounded-[4px] border-white/50 bg-black/20" : "h-5 w-5 rounded-[4px] border-beige900/30 bg-beige900/10"}
                     />
                   </div>
                 </div>
@@ -725,16 +739,16 @@ function CandidateRow({
                 leadingContent
               )}
             </div>
-            <div className="sticky left-14 z-20 h-full px-4 py-3 flex items-center gap-3 min-w-0 bg-hgray200 border-r border-white/5 group-hover:bg-[#242424] transition-colors">
+            <div className={`sticky left-14 z-20 h-full px-4 py-3 flex items-center gap-3 min-w-0 transition-colors border-r ${isDark ? "bg-hgray200 border-white/5 group-hover:bg-[#242424]" : "bg-beige100 border-beige900/15 group-hover:bg-beige50/80"}`}>
               {!isProfileRevealed && !sharedFolderContext?.token ? (
                 <RevealProfileButton
                   candidId={candidId}
                   overlay
-                  overlayClassName="z-[80] group-hover:border-accenta1/40 group-hover:bg-black/15 justify-end pr-4"
+                  overlayClassName={`z-[80] justify-end pr-4 ${isDark ? "group-hover:border-accenta1/40 group-hover:bg-black/15" : "group-hover:border-accentBronze/40 group-hover:bg-beige900/8"}`}
                   className="px-4 py-1.5 text-xs font-medium shadow-[0_8px_24px_rgba(0,0,0,0.32)]"
                 />
               ) : null}
-              <div className="shrink-0 rounded-full border border-transparent hover:border-accenta1/80 transition-colors">
+              <div className={`shrink-0 rounded-full border border-transparent transition-colors ${isDark ? "hover:border-accenta1/80" : "hover:border-accentBronze/60"}`}>
                 <Avatar
                   url={c.profile_picture}
                   name={c.name}
@@ -744,10 +758,10 @@ function CandidateRow({
               </div>
 
               <div className="min-w-0 flex-1 self-center">
-                <div className="text-[14px] text-white font-normal truncate">
+                <div className={`text-[14px] font-normal truncate ${isDark ? "text-white" : "text-beige900"}`}>
                   {c.name}
                 </div>
-                <div className="text-xs text-hgray700 truncate">
+                <div className={`text-xs truncate ${isDark ? "text-hgray700" : "text-beige900/65"}`}>
                   {isOnlyScholar ? (
                     <div className="inline-flex w-fit items-center justify-center gap-1 text-xs rounded text-blue-500">
                       <div>Scholar Profile</div>
@@ -827,17 +841,19 @@ const Cell = ({
   title,
   description,
   multiline = false,
+  isDark = false,
 }: {
   title: string | React.ReactNode;
   description: string;
   multiline?: boolean;
+  isDark?: boolean;
 }) => {
   return (
     <div className="min-w-0 cell1">
       <div className="flex items-center min-w-0  w-full">
         <div
           className={[
-            "flex-1 min-w-0 text-[13px] text-hgray800",
+            `flex-1 min-w-0 text-[13px] ${isDark ? "text-hgray800" : "text-beige900/80"}`,
             multiline ? "whitespace-normal break-words" : "truncate",
           ].join(" ")}
         >
@@ -846,7 +862,7 @@ const Cell = ({
       </div>
       <div
         className={[
-          "text-[13px] text-hgray600 mt-0.5 max-w-full",
+          `text-[13px] mt-0.5 max-w-full ${isDark ? "text-hgray600" : "text-beige900/55"}`,
           multiline ? "whitespace-normal break-words" : "truncate",
         ].join(" ")}
       >
@@ -865,6 +881,7 @@ export const RoleBox = ({
   endDate,
   tooltipText,
   tooltipSide = "bottom",
+  theme = "cream",
 }: {
   company: string;
   role: string;
@@ -874,7 +891,9 @@ export const RoleBox = ({
   endDate?: string;
   tooltipText?: string;
   tooltipSide?: "bottom" | "top" | "left" | "right";
+  theme?: "dark" | "cream";
 }) => {
+  const isDark = theme === "dark";
   const defaultTooltipText = `${startDate ? startDate : ""} ${
     startDate ? " - " : ""
   } ${endDate && endDate} ${!endDate && startDate && "현재"}`.trim();
@@ -892,14 +911,14 @@ export const RoleBox = ({
               className=""
             />
           ) : (
-            <BriefcaseBusiness className="w-4 h-4 text-hgray800" />
+            <BriefcaseBusiness className={`w-4 h-4 ${isDark ? "text-hgray800" : "text-beige900/80"}`} />
           )}
-          <span className="text-hgray800 font-normal break-words">
+          <span className={`font-normal break-words ${isDark ? "text-hgray800" : "text-beige900/80"}`}>
             {company && companyEnToKo(company)}
           </span>
         </div>
       </Tooltips>
-      <div className="text-hgray600 font-normal">{role}</div>
+      <div className={`font-normal ${isDark ? "text-hgray600" : "text-beige900/55"}`}>{role}</div>
     </div>
   );
 };
@@ -911,6 +930,7 @@ export const SchoolBox = ({
   schoolUrl,
   tooltipText,
   tooltipSide = "bottom",
+  theme = "cream",
 }: {
   school: string;
   role: string;
@@ -918,7 +938,9 @@ export const SchoolBox = ({
   schoolUrl?: string;
   tooltipText?: string;
   tooltipSide?: "bottom" | "top" | "left" | "right";
+  theme?: "dark" | "cream";
 }) => {
+  const isDark = theme === "dark";
   const schoolLogoUrl = getSchoolLogo(schoolUrl);
 
   return (
@@ -932,20 +954,20 @@ export const SchoolBox = ({
               className="w-4 h-4 rounded-full object-cover"
             />
           ) : (
-            <GraduationCap className="w-4 h-4 text-hgray800" />
+            <GraduationCap className={`w-4 h-4 ${isDark ? "text-hgray800" : "text-beige900/80"}`} />
           )}
-          <span className="text-hgray800 font-normal break-words">
+          <span className={`font-normal break-words ${isDark ? "text-hgray800" : "text-beige900/80"}`}>
             {school && koreaUniversityEnToKo(school)}
           </span>
         </div>
       </Tooltips>
       <div className="flex flex-row items-start justify-start gap-x-1 min-w-0 relative">
         {field && (
-          <div className="text-hgray600 font-normal">{majorEnToKo(field)}</div>
+          <div className={`font-normal ${isDark ? "text-hgray600" : "text-beige900/55"}`}>{majorEnToKo(field)}</div>
         )}
-        {field && role && <div className="text-hgray600 font-normal">•</div>}
+        {field && role && <div className={`font-normal ${isDark ? "text-hgray600" : "text-beige900/55"}`}>•</div>}
         {role && (
-          <div className="text-hgray600 font-normal">{degreeEnToKo(role)}</div>
+          <div className={`font-normal ${isDark ? "text-hgray600" : "text-beige900/55"}`}>{degreeEnToKo(role)}</div>
         )}
       </div>
     </div>
@@ -959,6 +981,7 @@ export const ScholarSignalBox = ({
   icon = "affiliation",
   tooltipSide = "bottom",
   hideDescriptionWhenEmpty = false,
+  theme = "cream",
 }: {
   title: React.ReactNode;
   description?: React.ReactNode;
@@ -966,7 +989,9 @@ export const ScholarSignalBox = ({
   icon?: "affiliation" | "research";
   tooltipSide?: "bottom" | "top" | "left" | "right";
   hideDescriptionWhenEmpty?: boolean;
+  theme?: "dark" | "cream";
 }) => {
+  const isDark = theme === "dark";
   const Icon = icon === "research" ? FileText : GraduationCap;
   const hasDescription =
     description !== undefined && description !== null && description !== "";
@@ -978,15 +1003,15 @@ export const ScholarSignalBox = ({
         side={tooltipSide}
       >
         <div className="flex flex-row items-start justify-start gap-x-2 min-w-0 relative">
-          <Icon className="absolute left-0 top-[2px] w-4 h-4 text-hgray800" />
-          <span className="text-hgray800 font-normal break-words">
+          <Icon className={`absolute left-0 top-[2px] w-4 h-4 ${isDark ? "text-hgray800" : "text-beige900/80"}`} />
+          <span className={`font-normal break-words ${isDark ? "text-hgray800" : "text-beige900/80"}`}>
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             {title || "-"}
           </span>
         </div>
       </Tooltips>
       {hasDescription || !hideDescriptionWhenEmpty ? (
-        <div className="text-hgray600 font-normal">
+        <div className={`font-normal ${isDark ? "text-hgray600" : "text-beige900/55"}`}>
           {hasDescription ? description : "-"}
         </div>
       ) : null}
@@ -1000,13 +1025,16 @@ export const GithubSignalBox = ({
   tooltipText,
   icon = "company",
   tooltipSide = "bottom",
+  theme = "cream",
 }: {
   title: React.ReactNode;
   description?: React.ReactNode;
   tooltipText?: string;
   icon?: "company" | "repos";
   tooltipSide?: "bottom" | "top" | "left" | "right";
+  theme?: "dark" | "cream";
 }) => {
+  const isDark = theme === "dark";
   const Icon = icon === "repos" ? StarIcon : Github;
   const hasDescription =
     description !== undefined && description !== null && description !== "";
@@ -1018,15 +1046,15 @@ export const GithubSignalBox = ({
         side={tooltipSide}
       >
         <div className="flex flex-row items-start justify-start gap-x-2 min-w-0 relative">
-          <Icon className="absolute left-0 top-[2px] w-4 h-4 text-hgray800" />
-          <span className="text-hgray800 font-normal break-words">
+          <Icon className={`absolute left-0 top-[2px] w-4 h-4 ${isDark ? "text-hgray800" : "text-beige900/80"}`} />
+          <span className={`font-normal break-words ${isDark ? "text-hgray800" : "text-beige900/80"}`}>
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             {title || "-"}
           </span>
         </div>
       </Tooltips>
       {hasDescription ? (
-        <div className="text-hgray600 font-normal">{description}</div>
+        <div className={`font-normal ${isDark ? "text-hgray600" : "text-beige900/55"}`}>{description}</div>
       ) : null}
     </div>
   );

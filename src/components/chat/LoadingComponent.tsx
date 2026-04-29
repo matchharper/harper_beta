@@ -11,6 +11,11 @@ export default function CandidateCarousel({
   styleType = "default",
   className = "",
 }: CandidateCarouselProps) {
+  const isBeige = styleType === "beige";
+  const matchedStroke = isBeige ? "#B5835A" : "#454E0E";
+  const unmatchedStroke = isBeige ? "#5C4A3D" : "#393D46";
+  const matchedFill = isBeige ? "rgba(181,131,90,0.35)" : "rgba(69,78,14,0.5)";
+  const unmatchedFill = isBeige ? "rgba(92,74,61,0.3)" : "rgba(57,61,70,0.5)";
   return (
     <>
       <style>
@@ -97,7 +102,7 @@ export default function CandidateCarousel({
                     rx="16"
                     ry="16"
                     fill="none"
-                    stroke={matched ? "#454E0E" : "#393D46"}
+                    stroke={matched ? matchedStroke : unmatchedStroke}
                     strokeOpacity="0.5"
                     strokeWidth="1.5"
                     strokeDasharray="6 3"
@@ -110,26 +115,19 @@ export default function CandidateCarousel({
                   <div
                     className={[
                       "harper-shimmer relative h-14 w-14 overflow-hidden rounded-full",
-                      matched
-                        ? "harper-shimmer-accent bg-[#454E0E]/50"
-                        : "harper-shimmer-gray bg-[#393D46]/50",
+                      matched ? "harper-shimmer-accent" : "harper-shimmer-gray",
                     ].join(" ")}
+                    style={{ backgroundColor: matched ? matchedFill : unmatchedFill }}
                   />
 
                   <div className="relative z-[1] flex flex-col items-center gap-1.5">
                     <div
-                      className={
-                        matched
-                          ? "h-3 w-16 rounded-[5px] bg-[#454E0E]/50"
-                          : "h-3 w-16 rounded-[5px] bg-[#393D46]/50"
-                      }
+                      className="h-3 w-16 rounded-[5px]"
+                      style={{ backgroundColor: matched ? matchedFill : unmatchedFill }}
                     />
                     <div
-                      className={
-                        matched
-                          ? "h-2.5 w-11 rounded-[5px] bg-[#454E0E]/50"
-                          : "h-2.5 w-11 rounded-[5px] bg-[#393D46]/50"
-                      }
+                      className="h-2.5 w-11 rounded-[5px]"
+                      style={{ backgroundColor: matched ? matchedFill : unmatchedFill }}
                     />
                   </div>
                 </div>

@@ -67,6 +67,7 @@ module.exports = {
 
         brightnavy: "#0624A8",
         accenta1: "#EFFF3F",
+        accentBronze: "#B5835A",
         accenta2: "#C0CE2B",
         xgray800: "#8A8B9D",
         bgDark900: "#121212",

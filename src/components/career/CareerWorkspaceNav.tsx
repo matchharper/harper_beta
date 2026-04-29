@@ -95,7 +95,7 @@ const CareerWorkspaceNav = ({
           onClick={() => onChange("home")}
           className="text-left"
         >
-          <div className="font-halant text-3xl leading-none">Harper</div>
+          <div className="font-hedvig text-3xl leading-none">Harper</div>
         </button>
 
         <nav className="mt-6 space-y-2">

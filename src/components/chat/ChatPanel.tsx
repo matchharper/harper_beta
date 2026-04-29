@@ -615,7 +615,7 @@ export default function ChatPanel({
   return (
     <div className="w-full flex flex-col min-h-0 h-screen">
       {/* Header (fixed) */}
-      <div className="flex items-center justify-between flex-none h-14 px-4 text-hgray900">
+      <div className="flex items-center justify-between flex-none h-14 px-4 text-beige900">
         <div
           onClick={() => {
             if (onBack) {
@@ -624,12 +624,12 @@ export default function ChatPanel({
               router.back();
             }
           }}
-          className="text-sm font-medium flex items-center gap-1.5 hover:gap-2 cursor-pointer hover:text-hgray900 transition-all duration-200"
+          className="text-sm font-medium flex items-center gap-1.5 hover:gap-2 cursor-pointer hover:text-beige900 transition-all duration-200"
         >
-          <ArrowLeft className="w-3.5 h-3.5 text-hgray600" />
+          <ArrowLeft className="w-3.5 h-3.5 text-beige900/55" />
           <div>{title === "" ? <Skeleton className="w-20 h-5" /> : title}</div>
         </div>
-        <div className="flex flex-row justify-center items-center gap-2 text-hgray700">
+        <div className="flex flex-row justify-center items-center gap-2 text-beige900/65">
           {!systemPromptOverride && (
             <>
               {isQueryScope && (
@@ -642,7 +642,7 @@ export default function ChatPanel({
                   <Settings className="w-3.5 h-3.5" strokeWidth={1.4} />
                   {settings.is_korean && (
                     <Check
-                      className="absolute -right-1 -top-1 h-3.5 w-3.5 text-accenta1"
+                      className="absolute -right-1 -top-1 h-3.5 w-3.5 text-accentBronze"
                       strokeWidth={2.2}
                     />
                   )}
@@ -673,10 +673,10 @@ export default function ChatPanel({
       <div className="flex-1 min-h-0 relative">
         <div
           ref={scrollRef}
-          className="h-full overflow-y-auto px-4 pt-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent hover:scrollbar-thumb-white/20"
+          className="h-full overflow-y-auto px-4 pt-4 scrollbar-thin scrollbar-thumb-beige900/10 scrollbar-track-transparent hover:scrollbar-thumb-beige900/20"
         >
           {chat.isLoadingHistory && (
-            <div className="text-xs text-hgray600 flex items-center gap-2 py-2">
+            <div className="text-xs text-beige900/55 flex items-center gap-2 py-2">
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
               대화 기록 불러오는 중...
             </div>
@@ -711,7 +711,7 @@ export default function ChatPanel({
               setStickToBottom(true);
               setShowJumpToBottom(false);
             }}
-            className="absolute bottom-3 right-3 flex items-center gap-1 cursor-pointer rounded-full bg-white/5 hover:bg-white/10 px-2 py-2 text-xs text-hgray900"
+            className="absolute bottom-3 right-3 flex items-center gap-1 cursor-pointer rounded-full bg-beige500/55 hover:bg-beige500/70 px-2 py-2 text-xs text-beige900"
           >
             <ArrowDown className="w-4 h-4" />
           </button>

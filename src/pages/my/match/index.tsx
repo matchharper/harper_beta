@@ -54,11 +54,11 @@ const ROLE_STATUS_SURFACE_CLASSNAME: Record<MatchRoleRecord["status"], string> =
     active:
       "border-green-700/20 bg-green-700/10 text-green-600 hover:bg-green-700/15",
     ended:
-      "border-white/10 bg-white/[0.04] text-white/45 hover:bg-white/[0.08]",
+      "border-beige900/10 bg-beige500/55 text-beige900/45 hover:bg-beige500/70",
     paused:
-      "border-amber-300/20 bg-amber-300/10 text-amber-100 hover:bg-amber-300/15",
+      "border-amber-700/20 bg-amber-300/15 text-amber-700 hover:bg-amber-300/25",
     top_priority:
-      "border-accenta1/40 bg-accenta1/15 text-accenta1 hover:bg-accenta1/20",
+      "border-accentBronze/40 bg-accentBronze/15 text-accentBronze hover:bg-accentBronze/20",
   };
 
 function MatchEmptyState({
@@ -69,12 +69,12 @@ function MatchEmptyState({
   title: string;
 }) {
   return (
-    <div className="border-y border-white/5 py-8 text-center">
-      <div className="mx-auto flex items-center justify-center text-white/80">
+    <div className="border-y border-beige900/8 py-8 text-center">
+      <div className="mx-auto flex items-center justify-center text-beige900/80">
         <Box size={20} />
       </div>
-      <div className="mt-5 text-base text-white">{title}</div>
-      <div className="mx-auto mt-3 max-w-[560px] text-sm leading-7 text-white/55">
+      <div className="mt-5 text-base text-beige900">{title}</div>
+      <div className="mx-auto mt-3 max-w-[560px] text-sm leading-7 text-beige900/55">
         {description}
       </div>
     </div>
@@ -89,9 +89,9 @@ function SummaryMetric({
   value: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-row items-center justify-between w-full gap-5 py-4 px-4 rounded-md bg-white/5 h-14">
-      <div className="text-sm text-white/50">{label}</div>
-      <div className="text-right text-white">{value}</div>
+    <div className="flex flex-row items-center justify-between w-full gap-5 py-4 px-4 rounded-md bg-beige50 border border-beige900/8 shadow-sm h-14">
+      <div className="text-sm text-beige900/55">{label}</div>
+      <div className="text-right text-beige900">{value}</div>
     </div>
   );
 }
@@ -285,7 +285,7 @@ export default function MatchPage() {
         <Loading
           isFullScreen={true}
           label="로딩 중입니다"
-          className="text-white/70"
+          className="text-beige900/55"
         />
       </AppLayout>
     );
@@ -311,7 +311,7 @@ export default function MatchPage() {
 
   return (
     <AppLayout initialCollapse={false}>
-      <div className="w-full border-b border-white/5 px-4 py-2.5 flex flex-row items-center justify-between">
+      <div className="w-full border-b border-beige900/8 px-4 py-2.5 flex flex-row items-center justify-between">
         <div className="text-xl font-medium">Workspace</div>
         <div>
           {workspace ? (
@@ -321,7 +321,7 @@ export default function MatchPage() {
               trigger={
                 <button
                   type="button"
-                  className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.02] px-3 py-2.5 text-xs font-medium text-white transition hover:bg-white/10"
+                  className="inline-flex items-center gap-2 rounded-md border border-beige900/10 bg-beige500/55 px-3 py-2.5 text-xs font-medium text-beige900 transition hover:bg-beige500/70"
                 >
                   <div className="flex flex-row items-center gap-2">
                     {workspace.logoUrl ? (
@@ -331,13 +331,13 @@ export default function MatchPage() {
                         className="h-4 w-4 rounded-full"
                       />
                     ) : (
-                      <Building2 size={14} className="text-white/45" />
+                      <Building2 size={14} className="text-beige900/45" />
                     )}
                     <span className="max-w-[180px] truncate">
                       {workspace.companyName}
                     </span>
                   </div>
-                  <ChevronDown size={14} className="text-white/55" />
+                  <ChevronDown size={14} className="text-beige900/55" />
                 </button>
               }
             >
@@ -359,12 +359,12 @@ export default function MatchPage() {
                         className="h-4 w-4 rounded-full"
                       />
                     ) : (
-                      <Building2 size={14} className="text-white/45" />
+                      <Building2 size={14} className="text-beige900/45" />
                     )}
                     <span className="truncate">{item.companyName}</span>
                   </div>
                   {workspace.companyWorkspaceId === item.companyWorkspaceId ? (
-                    <span className="text-xs text-white/45">선택됨</span>
+                    <span className="text-xs text-beige900/45">선택됨</span>
                   ) : null}
                 </ActionDropdownItem>
               ))}
@@ -381,14 +381,14 @@ export default function MatchPage() {
             <button
               type="button"
               onClick={() => setShowCreateForm(true)}
-              className="inline-flex items-center gap-2 rounded-md bg-accenta1 px-3 py-2.5 text-xs font-medium text-black transition hover:bg-aceenta1/90"
+              className="inline-flex items-center gap-2 rounded-md bg-beige900 px-3 py-2.5 text-xs font-medium text-beige100 transition hover:bg-beige900/90"
             >
               <Plus size={14} />새 Workspace
             </button>
           )}
         </div>
       </div>
-      <div className="relative font-inter w-full px-4 py-6 sm:px-6">
+      <div className="relative font-geist w-full px-4 py-6 sm:px-6">
         {!workspace ? (
           <motion.div
             key="match-intro"
@@ -407,12 +407,12 @@ export default function MatchPage() {
                 />
               </Reveal>
               <Reveal delay={0.04}>
-                <div className="mt-2 font-hedvig text-2xl leading-none text-white">
-                  Harper <span className="text-white/65">Scout</span>
+                <div className="mt-2 font-hedvig text-2xl leading-none text-beige900">
+                  Harper <span className="text-beige900/55">Scout</span>
                 </div>
               </Reveal>
               <Reveal delay={0.08}>
-                <p className="mx-auto flex flex-col gap-0 font-normal mt-6 max-w-[720px] text-[15px] text-white">
+                <p className="mx-auto flex flex-col gap-0 font-normal mt-6 max-w-[720px] text-[15px] text-beige900">
                   <div>
                     하퍼는 검색 이외에도, 내부적으로 확보한 인재풀을 통해 직접
                   </div>
@@ -443,14 +443,14 @@ export default function MatchPage() {
                     href={data?.bookingUrl ?? "#"}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex flex-col min-w-[232px] items-center justify-center rounded-[12px] bg-[#f1ff5c] px-6 py-2.5 text-sm font-semibold text-black transition hover:brightness-95"
+                    className="inline-flex flex-col min-w-[232px] items-center justify-center rounded-[12px] bg-beige900 px-6 py-2.5 text-sm font-semibold text-beige100 transition hover:brightness-95"
                   >
                     <div>이용 신청하기</div>
-                    <div className="font-normal text-[13px] text-hgray500 mt-0">
+                    <div className="font-normal text-[13px] text-beige100/65 mt-0">
                       스케줄 선택으로 이동합니다.
                     </div>
                   </a>
-                  <div className="mt-6 text-xs text-hgray500">
+                  <div className="mt-6 text-xs text-beige900/45">
                     이미 신청을 완료하셨다면?
                   </div>
                   <Image
@@ -480,7 +480,7 @@ export default function MatchPage() {
                   <div className="flex flex-row w-full items-end justify-between">
                     <div className="w-64"></div>
                     <div className="flex flex-row w-full justify-center items-center gap-4">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[14px] bg-white/5">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[14px] bg-beige500/55">
                         {workspace.logoUrl ? (
                           <img
                             src={workspace.logoUrl}
@@ -488,10 +488,10 @@ export default function MatchPage() {
                             className="h-full w-full object-cover"
                           />
                         ) : (
-                          <Building2 size={20} className="text-white/45" />
+                          <Building2 size={20} className="text-beige900/45" />
                         )}
                       </div>
-                      <h1 className="text-4xl font-semibold leading-[1.05] text-white">
+                      <h1 className="text-4xl font-semibold leading-[1.05] text-beige900">
                         {workspace.companyName}
                       </h1>
                     </div>
@@ -500,20 +500,20 @@ export default function MatchPage() {
                       <button
                         type="button"
                         onClick={() => setIsEditingWorkspace(true)}
-                        className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full px-4 py-2 text-xs bg-white/80 text-black transition hover:bg-white/90"
+                        className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full px-4 py-2 text-xs bg-beige900 text-beige100 transition hover:bg-beige900/90"
                       >
                         <Pencil size={14} />
                         Workspace 수정
                       </button>
                     </div>
                   </div>
-                  <div className="flex flex-row items-center justify-center w-full gap-4 text-sm text-white/55">
+                  <div className="flex flex-row items-center justify-center w-full gap-4 text-sm text-beige900/55">
                     {workspace.homepageUrl && (
                       <a
                         href={workspace.homepageUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1 transition hover:text-white bg-white/5 py-1.5 px-3 rounded-full"
+                        className="inline-flex items-center gap-1 transition hover:text-beige900 bg-beige500/55 py-1.5 px-3 rounded-full"
                       >
                         <Globe size={14} />
                         홈페이지
@@ -525,7 +525,7 @@ export default function MatchPage() {
                         href={workspace.linkedinUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1 transition hover:text-white bg-white/5 py-1.5 px-3 rounded-full"
+                        className="inline-flex items-center gap-1 transition hover:text-beige900 bg-beige500/55 py-1.5 px-3 rounded-full"
                       >
                         <Link2 size={14} />
                         LinkedIn
@@ -535,7 +535,7 @@ export default function MatchPage() {
                   </div>
                 </div>
 
-                <div className="mt-8 max-w-[760px] text-[15px] leading-8 text-white/60">
+                <div className="mt-8 max-w-[760px] text-[15px] leading-8 text-beige900/80">
                   {workspace.companyDescription?.trim() ||
                     "아직 회사 설명이 없습니다. 우측 수정 버튼으로 context를 추가해 주세요."}
                 </div>
@@ -557,7 +557,7 @@ export default function MatchPage() {
                 <SummaryMetric
                   label="Focused role"
                   value={
-                    <span className="text-sm text-white/80">
+                    <span className="text-sm text-beige900/80">
                       {selectedRole?.name ?? "All Roles"}
                     </span>
                   }
@@ -595,7 +595,7 @@ export default function MatchPage() {
 
             <section className="mt-16">
               <div className="flex flex-row items-center justify-between gap-5">
-                <div className="text-lg font-medium text-white">Roles</div>
+                <div className="text-lg font-medium text-beige900">Roles</div>
                 <button
                   type="button"
                   onClick={() =>
@@ -605,7 +605,7 @@ export default function MatchPage() {
                       workspaceId: workspace.companyWorkspaceId,
                     })
                   }
-                  className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-3 py-2 text-xs font-medium text-black transition hover:bg-white/90"
+                  className="inline-flex items-center justify-center gap-2 rounded-md bg-beige900 px-3 py-2 text-xs font-medium text-beige100 transition hover:bg-beige900/90"
                 >
                   <Plus size={15} />
                   Role 추가하기
@@ -635,10 +635,10 @@ export default function MatchPage() {
                         >
                           <div
                             className={cn(
-                              "border-b border-white/5 py-3 bg-white/[0.01] px-3 hover:bg-white/[0.03] transition-colors",
+                              "border-b border-beige900/8 py-3 bg-beige500/[0.01] px-3 hover:bg-beige500/[0.03] transition-colors",
                               isActive
-                                ? "border-white/10 bg-white/5"
-                                : "hover:border-white/12 hover:bg-white/[0.03]"
+                                ? "border-beige900/8 bg-beige50"
+                                : "hover:border-beige900/12 hover:bg-beige500/[0.03]"
                             )}
                           >
                             <div className="flex gap-4 flex-row items-start justify-between">
@@ -654,12 +654,12 @@ export default function MatchPage() {
                                             workspace.companyWorkspaceId,
                                         })
                                       }
-                                      className="text-left text-base font-medium leading-tight text-white transition hover:text-white/80"
+                                      className="text-left text-base font-medium leading-tight text-beige900 transition hover:text-beige900/80"
                                     >
                                       {role.name}
                                     </button>
 
-                                    <div className="mt-2 max-w-[760px] text-[13px] leading-5 text-white/60 line-clamp-2">
+                                    <div className="mt-2 max-w-[760px] text-[13px] leading-5 text-beige900/80 line-clamp-2">
                                       {role.description?.trim() ||
                                         "아직 role description이 없습니다."}
                                     </div>
@@ -669,23 +669,23 @@ export default function MatchPage() {
                                         href={role.externalJdUrl}
                                         target="_blank"
                                         rel="noreferrer"
-                                        className="mt-4 inline-flex items-center gap-1 text-sm text-white/55 transition hover:text-white"
+                                        className="mt-4 inline-flex items-center gap-1 text-sm text-beige900/55 transition hover:text-beige900"
                                       >
                                         JD 보기
                                         <ArrowUpRight size={13} />
                                       </a>
                                     )}
 
-                                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-white/55">
+                                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-beige900/55">
                                       {/* {role.employmentTypes.map((item) => (
                                         <span
                                           key={item}
-                                          className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1"
+                                          className="inline-flex items-center rounded-full border border-beige900/10 bg-beige500/55 px-2.5 py-1"
                                         >
                                           {TYPE_LABEL[item]}
                                         </span>
                                       ))} */}
-                                      <span className="inline-flex text-[13px] items-center text-hgray900">
+                                      <span className="inline-flex text-[13px] items-center text-beige900">
                                         {role.matchedCandidateCount} 매칭됨 ᐧ{" "}
                                         {formatDateInputValue(
                                           new Date(role.createdAt)
@@ -703,7 +703,7 @@ export default function MatchPage() {
                                   onClick={() => {
                                     setEditingRole(role);
                                   }}
-                                  className="inline-flex flex-row gap-2 items-center justify-center bg-white/5 hover:bg-white/10 rounded-md px-3 py-2 text-xs text-white transition"
+                                  className="inline-flex flex-row gap-2 items-center justify-center bg-beige500/55 hover:bg-beige500/70 rounded-md px-3 py-2 text-xs text-beige900 transition"
                                 >
                                   <Edit size={14} />
                                   수정
@@ -746,7 +746,7 @@ export default function MatchPage() {
                                     >
                                       <span>{ROLE_STATUS_LABEL[item]}</span>
                                       {role.status === item && (
-                                        <span className="text-xs text-white/45">
+                                        <span className="text-xs text-beige900/45">
                                           선택됨
                                         </span>
                                       )}
@@ -766,13 +766,13 @@ export default function MatchPage() {
 
             <section className="mt-16">
               <div className="flex flex-col justify-between gap-2 md:flex-row md:items-end">
-                <div className="mt-2 text-lg font-medium text-white">
+                <div className="mt-2 text-lg font-medium text-beige900">
                   현재까지 추천된 후보자
                 </div>
-                <div className="flex flex-wrap items-center gap-3 text-sm text-white/50">
+                <div className="flex flex-wrap items-center gap-3 text-sm text-beige900/55">
                   {selectedRole ? (
                     <>
-                      <span className="text-white/80">{selectedRole.name}</span>
+                      <span className="text-beige900/80">{selectedRole.name}</span>
                       <button
                         type="button"
                         onClick={() =>
@@ -780,7 +780,7 @@ export default function MatchPage() {
                             workspaceId: workspace.companyWorkspaceId,
                           })
                         }
-                        className="text-white/50 transition hover:text-white"
+                        className="text-beige900/55 transition hover:text-beige900"
                       >
                         필터 해제
                       </button>
@@ -803,8 +803,8 @@ export default function MatchPage() {
                     }
                   />
                 ) : candidatesQuery.isLoading ? (
-                  <div className="border-y border-white/10 py-12">
-                    <Loading inline={true} className="text-white/55" />
+                  <div className="border-y border-beige900/10 py-12">
+                    <Loading inline={true} className="text-beige900/55" />
                   </div>
                 ) : (candidatesQuery.data?.items?.length ?? 0) === 0 ? (
                   <MatchEmptyState

@@ -29,7 +29,7 @@ const CareerWorkspaceHeader = ({
   description?: string;
 }) => (
   <div className="py-5">
-    <h1 className="font-halant text-[28px] leading-[1] text-beige900">
+    <h1 className="font-hedvig text-[28px] leading-[1] text-beige900">
       {title}
     </h1>
     {description && (

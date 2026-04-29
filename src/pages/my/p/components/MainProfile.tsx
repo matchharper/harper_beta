@@ -33,7 +33,7 @@ const MainProfile = ({
   return (
     <div className="items-start w-[100%] grid grid-cols-7">
       <div className="col-span-1">
-        <div className="w-24 h-24 rounded-full overflow-hidden bg-hgray900 border border-hgray1000/5 shrink-0">
+        <div className="w-24 h-24 rounded-full overflow-hidden bg-beige900 border border-beige900/5 shrink-0">
           {profile_picture && !profile_picture.includes("media.licdn.com") ? (
             <img
               src={profile_picture}
@@ -43,7 +43,7 @@ const MainProfile = ({
               className={`w-24 h-24 object-cover ${profileRevealed ? "" : "scale-110 blur-2xl"}`}
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-hgray1000 bg-gradblack font-normal text-2xl">
+            <div className="w-full h-full flex items-center justify-center text-beige900 bg-beige500 font-normal text-2xl">
               {initials(name)}
             </div>
           )}
@@ -51,10 +51,10 @@ const MainProfile = ({
       </div>
 
       <div className="col-span-6 flex flex-col flex-1 min-w-0 gap-2">
-        <div className="text-2xl font-normal text-hgray1000">{name}</div>
-        <div className="text-base text-hgray900 font-light">{headline}</div>
+        <div className="text-2xl font-normal text-beige900">{name}</div>
+        <div className="text-base text-beige900 font-light">{headline}</div>
 
-        <div className="flex flex-wrap items-center gap-1 text-sm text-ngray600 font-normal">
+        <div className="flex flex-wrap items-center gap-1 text-sm text-beige900/55 font-normal">
           {resolvedMetaLabel && (
             <div className="flex flex-row items-center gap-1">
               <MetaIcon className="w-4 h-4" />
@@ -68,7 +68,7 @@ const MainProfile = ({
         {/* Links */}
         <div className="mt-1">
           {!hasLinks ? (
-            <div className="text-sm text-xgray600">No links</div>
+            <div className="text-sm text-beige900/55">No links</div>
           ) : (
             <LinkChips
               links={links}

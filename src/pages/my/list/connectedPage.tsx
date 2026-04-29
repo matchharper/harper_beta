@@ -11,12 +11,12 @@ const ConnectedPage = () => {
 
   const { data, isLoading, error } = useConnectedCandidates(userId);
 
-  if (isLoading) return <Loading className="text-hgray600" />;
+  if (isLoading) return <Loading className="text-beige900/55" />;
   if (error) return <div>Error</div>;
 
   return (
     <div>
-      <div className="w-full space-y-2 text-white">
+      <div className="w-full space-y-2 text-beige900">
         {data?.items && (
           <div className="space-y-3">
             {data.items.map((c) => (
@@ -25,7 +25,7 @@ const ConnectedPage = () => {
           </div>
         )}
         {!isLoading && data?.items?.length === 0 && (
-          <div className="text-center text-hgray600">No data</div>
+          <div className="text-center text-beige900/55">No data</div>
         )}
       </div>
       <PrevNextButtons />
