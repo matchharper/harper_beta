@@ -15,6 +15,7 @@ module.exports = {
         beige50: "#FDFAF3",
         beige100: "#FDF6EE",
         beige200: "#F7F0E8",
+        beige700: "#AC7850",
         beige500: "#F2E7DC",
         beige900: "#2E1706",
 

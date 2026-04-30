@@ -22,22 +22,20 @@ export const normalizeText = (raw: string) =>
 export const toUiMessage = (message: {
   id: string | number;
   role: MessageRole;
-  content: string;
-  messageType?: string;
-  companySnapshotSetup?: CareerMessage["companySnapshotSetup"];
-  createdAt?: string;
-  mockInterviewSetup?: CareerMessage["mockInterviewSetup"];
-  opportunityPreview?: CareerMessage["opportunityPreview"];
-}): CareerMessage => ({
-  id: message.id,
-  role: message.role,
-  content: message.content,
-  messageType: message.messageType ?? "chat",
-  companySnapshotSetup: message.companySnapshotSetup,
-  createdAt: message.createdAt ?? new Date().toISOString(),
-  mockInterviewSetup: message.mockInterviewSetup,
-  opportunityPreview: message.opportunityPreview,
-});
+	  content: string;
+	  messageType?: string;
+	  companySnapshotSetup?: CareerMessage["companySnapshotSetup"];
+	  createdAt?: string;
+	  opportunityPreview?: CareerMessage["opportunityPreview"];
+	}): CareerMessage => ({
+	  id: message.id,
+	  role: message.role,
+	  content: message.content,
+	  messageType: message.messageType ?? "chat",
+	  companySnapshotSetup: message.companySnapshotSetup,
+	  createdAt: message.createdAt ?? new Date().toISOString(),
+	  opportunityPreview: message.opportunityPreview,
+	});
 
 export const getErrorMessage = (payload: unknown, fallback: string) => {
   if (typeof payload === "string" && payload.trim()) return payload;

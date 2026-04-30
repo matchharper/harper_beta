@@ -23,10 +23,6 @@ import {
   getActiveOpportunityRun,
   serializeOpportunityRun,
 } from "@/lib/opportunityDiscovery/store";
-import {
-  fetchActiveMockInterviewSession,
-  serializeMockInterviewSession,
-} from "@/lib/mockInterview/server";
 import { extractAndPersistChatInsights } from "@/lib/talentOnboarding/chatInsights";
 import {
   hasTalentOnboardingCompletionMarker,
@@ -138,74 +134,6 @@ export async function POST(req: NextRequest) {
         uncoveredItems,
         userId: user.id,
       });
-
-    const activeMockInterview = await fetchActiveMockInterviewSession({
-      admin,
-      conversationId,
-      statuses: ["in_progress"],
-      userId: user.id,
-    });
-    if (activeMockInterview) {
-      const { data: insertedUserMessage, error: userMsgError } = await admin
-        .from("talent_messages")
-        .insert({
-          conversation_id: conversationId,
-          user_id: user.id,
-          role: "user",
-          content: userMessageText,
-          message_type: messageType,
-        })
-        .select("*")
-        .single();
-
-      if (userMsgError) {
-        return NextResponse.json(
-          { error: userMsgError.message ?? "Failed to insert user message" },
-          { status: 500 }
-        );
-      }
-
-      const { data: insertedAssistantMessage, error: assistantMsgError } =
-        await admin
-          .from("talent_messages")
-          .insert({
-            conversation_id: conversationId,
-            user_id: user.id,
-            role: "assistant",
-            content: assistantMessageText,
-            message_type: messageType,
-          })
-          .select("*")
-          .single();
-
-      if (assistantMsgError) {
-        return NextResponse.json(
-          {
-            error:
-              assistantMsgError.message ?? "Failed to insert assistant message",
-          },
-          { status: 500 }
-        );
-      }
-
-      const newKeysCount = await extractTurnInsights();
-
-      return NextResponse.json({
-        ok: true,
-        assistantMessage: toResponseMessage(
-          insertedAssistantMessage as TalentMessageRow
-        ),
-        mockInterviewSession:
-          serializeMockInterviewSession(activeMockInterview),
-        progress: {
-          answeredCount: 0,
-          completed: false,
-          currentStep: coveredCount + newKeysCount,
-          targetCount: TALENT_INTERVIEW_FINAL_STEP,
-        },
-        userMessage: toResponseMessage(insertedUserMessage as TalentMessageRow),
-      });
-    }
 
     const activeRun = await getActiveOpportunityRun({
       admin,

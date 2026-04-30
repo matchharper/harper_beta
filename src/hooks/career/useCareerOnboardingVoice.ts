@@ -13,7 +13,6 @@ import { useRealtimeSession } from "@/hooks/career/useRealtimeSession";
 import type {
   CareerMessage,
   CareerMessagePayload,
-  CareerMockInterviewSession,
   CareerOpportunityRun,
   CareerStage,
   SessionResponse,
@@ -58,9 +57,6 @@ type UseCareerOnboardingVoiceArgs = {
   isVoiceInteractionLocked: boolean;
   onSendChatMessage: (args: SendChatArgs) => void | Promise<void>;
   onOpportunityRunChanged?: (run: CareerOpportunityRun | null) => void;
-  onMockInterviewSessionChanged?: (
-    session: CareerMockInterviewSession | null
-  ) => void;
   appendMessage: (message: CareerMessage) => void;
   setChatError: Dispatch<SetStateAction<string>>;
   setStage: Dispatch<SetStateAction<CareerStage>>;
@@ -80,7 +76,6 @@ export const useCareerOnboardingVoice = ({
   isVoiceInteractionLocked,
   onSendChatMessage,
   onOpportunityRunChanged,
-  onMockInterviewSessionChanged,
   appendMessage,
   setChatError,
   setStage,
@@ -236,11 +231,6 @@ export const useCareerOnboardingVoice = ({
               payload.opportunityRun as CareerOpportunityRun
             );
           }
-          if (response.ok && payload?.mockInterviewSession !== undefined) {
-            onMockInterviewSessionChanged?.(
-              payload.mockInterviewSession as CareerMockInterviewSession | null
-            );
-          }
           if (response.ok && payload?.searchStatusMessage) {
             appendMessage(toUiMessage(payload.searchStatusMessage));
           }
@@ -272,7 +262,6 @@ export const useCareerOnboardingVoice = ({
       fetchWithAuth,
       onMessagesChanged,
       onOpportunityRunChanged,
-      onMockInterviewSessionChanged,
       setStage,
     ]
   );
@@ -1184,11 +1173,6 @@ export const useCareerOnboardingVoice = ({
             ]);
           }
         }
-        if (payload?.mockInterviewSession !== undefined) {
-          onMockInterviewSessionChanged?.(
-            payload.mockInterviewSession as CareerMockInterviewSession | null
-          );
-        }
       } catch (error) {
         console.error("[CareerOnboardingVoice] Follow-up error:", error);
         setChatError("종료 메시지 생성에 실패했습니다.");
@@ -1203,7 +1187,6 @@ export const useCareerOnboardingVoice = ({
     endCallMode,
     enqueueAssistantTypewriter,
     fetchWithAuth,
-    onMockInterviewSessionChanged,
     onMessagesChanged,
     setChatError,
     stopElevenLabsTts,

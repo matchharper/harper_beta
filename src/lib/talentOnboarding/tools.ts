@@ -1,5 +1,4 @@
 import { runWebSearch } from "@/lib/tools/webSearch";
-import { buildCareerToolPolicyPrompt } from "@/lib/career/prompts";
 import { fetchTalentOpportunityHistory } from "@/lib/talentOpportunity";
 import { runCareerJobPostingRecommendations } from "./jobPostingRecommendations";
 
@@ -37,7 +36,6 @@ export class TalentToolError extends Error {
 export const TALENT_TOOL_NAMES = {
   RECOMMEND_JOB_POSTINGS: "recommend_job_postings",
   PREPARE_COMPANY_SNAPSHOT: "prepare_company_snapshot",
-  PREPARE_MOCK_INTERVIEW: "prepare_mock_interview",
   READ_RECOMMENDED_OPPORTUNITIES: "read_recommended_opportunities",
   WEB_SEARCH: "web_search",
 } as const;
@@ -48,7 +46,6 @@ export type TalentToolName =
 export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   TALENT_TOOL_NAMES.WEB_SEARCH,
   TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS,
-  TALENT_TOOL_NAMES.PREPARE_MOCK_INTERVIEW,
   TALENT_TOOL_NAMES.PREPARE_COMPANY_SNAPSHOT,
   TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES,
 ] as const;
@@ -123,29 +120,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         })),
       };
     },
-  },
-  [TALENT_TOOL_NAMES.PREPARE_MOCK_INTERVIEW]: {
-    name: TALENT_TOOL_NAMES.PREPARE_MOCK_INTERVIEW,
-    description:
-      "Prepare the mock interview setup UI when the user asks to practice or start a mock interview. This does not start the interview; it only creates the setup card with call/chat start buttons.",
-    parameters: {
-      type: "object",
-      properties: {
-        companyName: {
-          type: "string",
-          description:
-            "Company name explicitly requested by the user, if any. Omit if the user did not specify one.",
-        },
-        roleTitle: {
-          type: "string",
-          description:
-            "Role title explicitly requested by the user, if any. Omit if unknown.",
-        },
-      },
-      additionalProperties: false,
-    },
-    channels: ["chat"],
-    stopAfterExecution: true,
   },
   [TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS]: {
     name: TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS,
@@ -340,14 +314,6 @@ export function getRealtimeTools(channel: TalentToolChannel) {
     description: tool.description,
     parameters: tool.parameters,
   }));
-}
-
-export function buildTalentToolPolicy(channel: TalentToolChannel) {
-  const tools = getEnabledTalentTools(channel);
-  if (tools.length === 0) return "";
-
-  const toolNames = tools.map((tool) => tool.name).join(", ");
-  return buildCareerToolPolicyPrompt({ channel, toolNames });
 }
 
 export async function executeTalentTool(args: {

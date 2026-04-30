@@ -14,8 +14,6 @@ import {
   CareerOpportunityType,
   type CareerHistoryOpportunity,
   type CareerMessage,
-  type CareerMockInterviewSession,
-  type CareerMockInterviewType,
   type CareerNetworkApplication,
   type CareerRecentOpportunity,
   type CareerTalentInsights,
@@ -24,6 +22,7 @@ import {
   type CareerTalentProfile,
 } from "@/components/career/types";
 import { getCareerDefaultSavedStage } from "@/components/career/opportunityTypeMeta";
+import { deriveHistoryOpportunityCounts } from "@/hooks/career/careerSessionData";
 import {
   DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS,
   DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
@@ -37,38 +36,6 @@ const previewDaysAgo = (days: number) =>
 const previewHoursAgo = (hours: number) => previewDate(-hours * 60 * 60 * 1000);
 const previewMinutesAgo = (minutes: number) =>
   previewDate(-minutes * 60 * 1000);
-const previewInterviewTypes: Array<{
-  id: CareerMockInterviewType;
-  label: string;
-}> = [
-  { id: "technical", label: "Technical interview" },
-  { id: "fit", label: "Fit interview" },
-  { id: "mixed", label: "Mixed interview" },
-];
-
-const buildPreviewMockInterviewSetup = (
-  item?: CareerHistoryOpportunity | null,
-  sessionId = "preview-mock-interview"
-) => {
-  const companyName = item?.companyName ?? "TwelveLabs";
-  const roleTitle = item?.title ?? "Senior ML Research Engineer";
-
-  return {
-    companyName,
-    durationMinutes: 15,
-    feedback:
-      "You'll get direct feedback on your narrative and technical clarity.",
-    focus: item
-      ? `We'll cover your relevant background, role expectations, and why ${companyName} could be a fit.`
-      : "We'll cover your OptimizerAI background, multimodal embedding research, and distributed training at scale.",
-    goal: `Practice your pitch, technical deep dives, and motivations for the ${roleTitle} role.`,
-    interviewTypes: previewInterviewTypes,
-    roleTitle,
-    sessionId,
-    subtitle: `Let's prepare for your ${companyName} interview.`,
-    title: "Take a mock interview",
-  };
-};
 
 const mockUser = {
   id: "career-preview-user",
@@ -219,10 +186,10 @@ const initialMessages: CareerMessage[] = [
   {
     id: 4,
     role: "assistant",
-    content: "Take a mock interview",
-    messageType: "mock_interview_setup",
+    content:
+      "필요하면 관심 있는 회사나 포지션을 기준으로 더 자세한 질문을 남겨주세요. 확인해서 답변을 준비해둘게요.",
+    messageType: "chat",
     createdAt: previewDate(),
-    mockInterviewSetup: buildPreviewMockInterviewSetup(),
   },
 ];
 
@@ -415,10 +382,8 @@ const CareerPreviewPage = () => {
   const [activeTab, setActiveTab] = useState<
     "home" | "chat" | "profile" | "history"
   >("chat");
+  const workspaceActiveTab = activeTab === "chat" ? "home" : activeTab;
   const [messages, setMessages] = useState<CareerMessage[]>(initialMessages);
-  const [mockInterviewSession, setMockInterviewSession] =
-    useState<CareerMockInterviewSession | null>(null);
-  const [mockInterviewPending, setMockInterviewPending] = useState(false);
   const [profileLinks, setProfileLinks] = useState<string[]>([
     "https://linkedin.com/in/preview-candidate",
     "https://github.com/preview-candidate",
@@ -485,109 +450,6 @@ const CareerPreviewPage = () => {
   );
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const handlePreviewPrepareMockInterview = useCallback(
-    async (opportunityId?: string | null) => {
-      const item =
-        historyOpportunities.find(
-          (opportunity) => opportunity.id === opportunityId
-        ) ??
-        historyOpportunities[0] ??
-        null;
-      const sessionId = `preview-mock-${Date.now()}`;
-      const createdAt = new Date().toISOString();
-      const setup = buildPreviewMockInterviewSetup(item, sessionId);
-
-      setActiveTab("chat");
-      setMockInterviewPending(false);
-      setMockInterviewSession({
-        companyName: setup.companyName,
-        completedAt: null,
-        conversationId: "preview-conversation",
-        createdAt,
-        durationMinutes: setup.durationMinutes,
-        id: sessionId,
-        interviewType: "mixed",
-        opportunityId: item?.id ?? null,
-        roleId: item?.roleId ?? null,
-        roleTitle: setup.roleTitle,
-        setup,
-        startedAt: null,
-        status: "ready",
-      });
-      setMessages((current) => [
-        ...current,
-        {
-          id: `${sessionId}-setup`,
-          role: "assistant",
-          content: setup.title,
-          messageType: "mock_interview_setup",
-          createdAt,
-          mockInterviewSetup: setup,
-        },
-      ]);
-    },
-    [historyOpportunities]
-  );
-
-  const handlePreviewStartMockInterview = useCallback(
-    async ({
-      interviewType,
-      sessionId,
-    }: {
-      channel: "call" | "chat";
-      interviewType: CareerMockInterviewType;
-      sessionId: string;
-    }) => {
-      const createdAt = new Date().toISOString();
-      setMockInterviewSession((current) =>
-        current
-          ? {
-              ...current,
-              interviewType,
-              startedAt: current.startedAt ?? createdAt,
-              status: "in_progress",
-            }
-          : current
-      );
-      setMessages((current) => [
-        ...current,
-        {
-          id: `${sessionId}-opening-${Date.now()}`,
-          role: "assistant",
-          content:
-            "좋습니다. 지금부터 실제 인터뷰처럼 진행하겠습니다. 먼저 60초 정도로 본인 소개와 이 역할에 관심을 갖게 된 이유를 말해 주세요.",
-          messageType: "mock_interview",
-          createdAt,
-        },
-      ]);
-    },
-    []
-  );
-
-  const handlePreviewEndMockInterview = useCallback(async () => {
-    const createdAt = new Date().toISOString();
-    setMockInterviewSession((current) =>
-      current
-        ? {
-            ...current,
-            completedAt: createdAt,
-            status: "completed",
-          }
-        : current
-    );
-    setMessages((current) => [
-      ...current,
-      {
-        id: `preview-mock-feedback-${Date.now()}`,
-        role: "assistant",
-        content:
-          "미리보기에서는 짧게 종료했습니다. 실제 인터뷰에서는 답변 내용과 길이에 따라 강점, 보완점, 다음 연습 방향을 정리합니다.",
-        messageType: "mock_interview_feedback",
-        createdAt,
-      },
-    ]);
-  }, []);
-
   const sidebarContextValue: CareerSidebarContextValue = useMemo(
     () => ({
       user: mockUser,
@@ -603,10 +465,16 @@ const CareerPreviewPage = () => {
       opportunityRunTriggerPending: false,
       onRunOpportunityDiscoveryTest: () => undefined,
       recentOpportunities: initialRecentOpportunities,
+      historyOpportunityCounts: deriveHistoryOpportunityCounts(
+        historyOpportunities
+      ),
       historyOpportunities,
       historyLoading: false,
+      historyLoadingMore: false,
+      hasMoreHistoryOpportunities: false,
       historyUpdatingOpportunityIds: [],
       historyUpdateError: "",
+      onLoadMoreHistoryOpportunities: () => undefined,
       onUpdateHistoryOpportunityFeedback: (
         opportunityId,
         feedback,
@@ -662,7 +530,6 @@ const CareerPreviewPage = () => {
         );
       },
       onSendHistoryOpportunityQuestion: async () => true,
-      onPrepareMockInterview: handlePreviewPrepareMockInterview,
       notifications: initialNotifications,
       unreadNotificationCount: initialNotifications.filter(
         (notification) => !notification.isRead
@@ -854,7 +721,6 @@ const CareerPreviewPage = () => {
       talentPreferencesUpdatedAt,
       talentPreferencesSaveInfo,
       savedTalentInsights,
-      handlePreviewPrepareMockInterview,
       historyOpportunities,
     ]
   );
@@ -884,8 +750,6 @@ const CareerPreviewPage = () => {
       companySnapshotPending: false,
       opportunityRun: null,
       opportunitySearchLocked: false,
-      mockInterviewSession,
-      mockInterviewPending,
       historyUpdatingOpportunityIds: [],
       onboardingBeginPending: false,
       onboardingPausePending: false,
@@ -925,9 +789,6 @@ const CareerPreviewPage = () => {
         ]);
       },
       onUpdateHistoryOpportunityFeedback: async () => undefined,
-      onPrepareMockInterview: handlePreviewPrepareMockInterview,
-      onStartMockInterview: handlePreviewStartMockInterview,
-      onEndMockInterview: handlePreviewEndMockInterview,
       onStartCompanySnapshot: async () => undefined,
       onLoadOlderMessages: async () => undefined,
       showVoiceStartPrompt: false,
@@ -948,12 +809,7 @@ const CareerPreviewPage = () => {
       onSwitchToTextMode: () => undefined,
     }),
     [
-      handlePreviewEndMockInterview,
-      handlePreviewPrepareMockInterview,
-      handlePreviewStartMockInterview,
       messages,
-      mockInterviewPending,
-      mockInterviewSession,
       profileLinks,
       resumeFile,
     ]
@@ -962,7 +818,10 @@ const CareerPreviewPage = () => {
   return (
     <CareerChatPanelProvider value={chatContextValue}>
       <CareerSidebarProvider value={sidebarContextValue}>
-        <CareerWorkspaceScreen onChangeTab={setActiveTab} />
+        <CareerWorkspaceScreen
+          activeTab={workspaceActiveTab}
+          onChangeTab={setActiveTab}
+        />
         <CareerSettingsModal
           open={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}

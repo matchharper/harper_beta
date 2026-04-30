@@ -1,7 +1,6 @@
 import {
   ExternalLink,
   Loader2,
-  MessageSquare,
   Phone,
   Plus,
   Search,
@@ -24,8 +23,6 @@ import type {
   CareerCompanySnapshotSetup,
   CareerMessage,
   CareerHistoryOpportunity,
-  CareerMockInterviewSetup,
-  CareerMockInterviewType,
 } from "@/components/career/types";
 import {
   TALENT_MESSAGE_TYPE_ONBOARDING_PAUSE_CLOSE,
@@ -179,7 +176,7 @@ const OpportunityPreviewCards = memo(function OpportunityPreviewCards({
   if (items.length === 0) return null;
 
   return (
-    <div className="grid gap-3 md:grid-cols-3">
+    <div className="flex w-full max-w-[980px] flex-col gap-3">
       {items.map((item) => {
         const isUpdating = updatingIds.includes(item.id);
         const summary =
@@ -191,31 +188,33 @@ const OpportunityPreviewCards = memo(function OpportunityPreviewCards({
         return (
           <CareerInlinePanel
             key={item.id}
-            className="flex min-h-[220px] flex-col border border-beige900/10 bg-white/45"
+            className="flex min-h-[156px] flex-col gap-4 border border-beige900/10 bg-white/45 md:flex-row md:items-stretch"
           >
-            <div className="text-[12px] font-medium text-beige900/45">
-              {item.companyName}
-            </div>
-            <div className="mt-2 text-[15px] font-medium leading-6 text-beige900">
-              {item.title}
-            </div>
-            {item.location || item.workMode ? (
-              <div className="mt-2 text-[12px] leading-5 text-beige900/45">
-                {[item.location, item.workMode].filter(Boolean).join(" / ")}
+            <div className="min-w-0 flex-1">
+              <div className="text-[12px] font-medium text-beige900/45">
+                {item.companyName}
               </div>
-            ) : null}
-            {summary ? (
-              <div className="mt-3 max-h-24 overflow-hidden text-[13px] leading-6 text-beige900/60">
-                {summary}
+              <div className="mt-2 break-words text-[15px] font-medium leading-6 text-beige900">
+                {item.title}
               </div>
-            ) : null}
-            <div className="mt-auto flex flex-wrap items-center gap-2 pt-4">
+              {item.location || item.workMode ? (
+                <div className="mt-2 text-[12px] leading-5 text-beige900/45">
+                  {[item.location, item.workMode].filter(Boolean).join(" / ")}
+                </div>
+              ) : null}
+              {summary ? (
+                <div className="mt-3 max-h-24 overflow-hidden text-[13px] leading-6 text-beige900/60">
+                  {summary}
+                </div>
+              ) : null}
+            </div>
+            <div className="flex w-full flex-col gap-2 md:w-[132px] md:justify-end">
               {item.href ? (
                 <a
                   href={item.href}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-beige900/15 bg-white/45 px-3 text-xs text-beige900 transition-colors hover:border-beige900/30"
+                  className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-[8px] border border-beige900/15 bg-white/45 px-3 text-xs text-beige900 transition-colors hover:border-beige900/30"
                 >
                   <ExternalLink className="h-3.5 w-3.5" />
                   공고 보기
@@ -224,14 +223,14 @@ const OpportunityPreviewCards = memo(function OpportunityPreviewCards({
               <CareerPrimaryButton
                 onClick={() => void onFeedback(item.id, "positive")}
                 disabled={isUpdating}
-                className="h-9 px-3 text-xs"
+                className="h-9 w-full px-3 text-xs"
               >
                 관심 있음
               </CareerPrimaryButton>
               <CareerSecondaryButton
                 onClick={() => void onFeedback(item.id, "negative")}
                 disabled={isUpdating}
-                className="h-9 px-3 text-xs"
+                className="h-9 w-full px-3 text-xs"
               >
                 맞지 않음
               </CareerSecondaryButton>
@@ -240,73 +239,6 @@ const OpportunityPreviewCards = memo(function OpportunityPreviewCards({
         );
       })}
     </div>
-  );
-});
-
-const MockInterviewSetupPanel = memo(function MockInterviewSetupPanel({
-  pending,
-  setup,
-  onStart,
-}: {
-  pending: boolean;
-  setup: CareerMockInterviewSetup;
-  onStart: (args: {
-    channel: "call" | "chat";
-    interviewType: CareerMockInterviewType;
-    sessionId: string;
-  }) => void | Promise<void>;
-}) {
-  return (
-    <TimelinePanel className="max-w-[760px] border border-beige900/10 bg-beige50">
-      <div className="text-[18px] font-medium text-beige900">{setup.title}</div>
-      <div className="mt-2 text-[14px] leading-6 text-beige900/60">
-        {setup.subtitle}
-      </div>
-
-      <div className="mt-5 space-y-3 text-[14px] leading-6 text-beige900/75">
-        <div>
-          <span className="font-medium text-beige900">목표</span>: {setup.goal}
-        </div>
-        <div>
-          <span className="font-medium text-beige900">중점</span>: {setup.focus}
-        </div>
-        <div>
-          <span className="font-medium text-beige900">피드백</span>:{" "}
-          {setup.feedback}
-        </div>
-      </div>
-
-      <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-        <CareerPrimaryButton
-          onClick={() =>
-            void onStart({
-              channel: "call",
-              interviewType: "mixed",
-              sessionId: setup.sessionId,
-            })
-          }
-          disabled={pending}
-          className="flex-1 gap-2"
-        >
-          <Phone className="h-4 w-4" />
-          전화로 시작하기 (~{setup.durationMinutes}분)
-        </CareerPrimaryButton>
-        <CareerSecondaryButton
-          onClick={() =>
-            void onStart({
-              channel: "chat",
-              interviewType: "mixed",
-              sessionId: setup.sessionId,
-            })
-          }
-          disabled={pending}
-          className="flex-1 gap-2"
-        >
-          <MessageSquare className="h-4 w-4" />
-          채팅으로 진행하기
-        </CareerSecondaryButton>
-      </div>
-    </TimelinePanel>
   );
 });
 
@@ -366,26 +298,18 @@ const TimelineMessageList = memo(function TimelineMessageList({
   isVoiceMode,
   lastSpokenAssistantMessageIndex,
   companySnapshotPending,
-  mockInterviewPending,
   historyUpdatingOpportunityIds,
   onStartCompanySnapshot,
-  onStartMockInterview,
   onOpportunityFeedback,
 }: {
   messages: CareerMessage[];
   isVoiceMode: boolean;
   lastSpokenAssistantMessageIndex: number;
   companySnapshotPending: boolean;
-  mockInterviewPending: boolean;
   historyUpdatingOpportunityIds: string[];
   onStartCompanySnapshot: (args: {
     companyName: string;
     reason?: string | null;
-  }) => void | Promise<void>;
-  onStartMockInterview: (args: {
-    channel: "call" | "chat";
-    interviewType: CareerMockInterviewType;
-    sessionId: string;
   }) => void | Promise<void>;
   onOpportunityFeedback: (
     opportunityId: string,
@@ -408,35 +332,6 @@ const TimelineMessageList = memo(function TimelineMessageList({
         let messageNode: React.ReactNode;
 
         if (
-          message.messageType === "mock_interview_preparing" &&
-          !message.typing
-        ) {
-          messageNode = (
-            <div className="flex flex-col gap-2">
-              <AssistantLabel>Harper</AssistantLabel>
-              <TimelinePanel className="max-w-[760px]">
-                <div className="flex items-center gap-2 text-sm text-beige900/60">
-                  <Loader2 className="h-4 w-4 animate-spin text-beige900" />
-                  인터뷰 준비 중...
-                </div>
-              </TimelinePanel>
-            </div>
-          );
-        } else if (
-          message.messageType === "mock_interview_setup" &&
-          message.mockInterviewSetup
-        ) {
-          messageNode = (
-            <div className="flex flex-col gap-2">
-              <AssistantLabel>Harper</AssistantLabel>
-              <MockInterviewSetupPanel
-                setup={message.mockInterviewSetup}
-                pending={mockInterviewPending}
-                onStart={onStartMockInterview}
-              />
-            </div>
-          );
-        } else if (
           message.messageType === "company_snapshot_setup" &&
           message.companySnapshotSetup
         ) {
@@ -513,8 +408,6 @@ const CareerTimelineSection = () => {
     chatPending,
     companySnapshotPending,
     opportunitySearchLocked,
-    mockInterviewSession,
-    mockInterviewPending,
     historyUpdatingOpportunityIds,
     onboardingBeginPending,
     callStartPending = false,
@@ -529,8 +422,6 @@ const CareerTimelineSection = () => {
     onLoadOlderMessages,
     onUpdateHistoryOpportunityFeedback,
     onStartCompanySnapshot,
-    onStartMockInterview,
-    onEndMockInterview,
     showVoiceStartPrompt,
     onStartCallMode,
     onUseChatOnly,
@@ -875,42 +766,6 @@ const CareerTimelineSection = () => {
           </div>
         ) : null}
 
-        {user && mockInterviewSession?.status === "in_progress" ? (
-          <div className="sticky top-0 z-20 flex justify-center">
-            <div className="inline-flex flex-wrap items-center justify-center gap-3 rounded-[8px] border border-beige900/15 bg-white/85 px-4 py-2 text-sm text-beige900">
-              <span className="font-medium">모의 인터뷰 모드</span>
-              <span className="text-beige900/55">
-                {mockInterviewSession.companyName} ·{" "}
-                {mockInterviewSession.roleTitle}
-              </span>
-              <button
-                type="button"
-                onClick={() => void onEndMockInterview(mockInterviewSession.id)}
-                disabled={mockInterviewPending}
-                className="rounded-[8px] border border-beige900/15 bg-white/45 px-3 py-1 text-xs text-beige900/70 transition-colors hover:border-beige900/30 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                인터뷰 종료
-              </button>
-            </div>
-          </div>
-        ) : null}
-
-        {user &&
-        !sessionPending &&
-        mockInterviewPending &&
-        mockInterviewSession?.status !== "ready" &&
-        mockInterviewSession?.status !== "in_progress" ? (
-          <div className="flex flex-col gap-2">
-            <AssistantLabel>Harper</AssistantLabel>
-            <TimelinePanel className="max-w-[760px]">
-              <div className="flex items-center gap-2 text-sm text-beige900/60">
-                <Loader2 className="h-4 w-4 animate-spin text-beige900" />
-                인터뷰 준비 중...
-              </div>
-            </TimelinePanel>
-          </div>
-        ) : null}
-
         {user && sessionPending && !hasTimelineMessages ? (
           <div className="flex min-h-[52vh] items-center justify-center">
             <div className="flex items-center gap-2 text-sm text-beige900/60">
@@ -926,10 +781,8 @@ const CareerTimelineSection = () => {
             isVoiceMode={isVoiceMode}
             lastSpokenAssistantMessageIndex={lastSpokenAssistantMessageIndex}
             companySnapshotPending={companySnapshotPending}
-            mockInterviewPending={mockInterviewPending}
             historyUpdatingOpportunityIds={historyUpdatingOpportunityIds}
             onStartCompanySnapshot={onStartCompanySnapshot}
-            onStartMockInterview={onStartMockInterview}
             onOpportunityFeedback={handleOpportunityFeedback}
           />
         ) : null}
@@ -940,9 +793,8 @@ const CareerTimelineSection = () => {
           chatPending &&
           !assistantTyping && (
             <StatusMessage>
-              <span className="inline-flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin text-beige900" />
-                채팅을 작성중입니다...
+              <span className="career-thinking-shimmer inline-block text-sm font-medium">
+                Thinking...
               </span>
             </StatusMessage>
           )}

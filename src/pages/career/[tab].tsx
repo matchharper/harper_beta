@@ -13,9 +13,9 @@ const CareerTabPage = ({ activeTab }: CareerTabPageProps) => (
   <CareerWorkspacePage activeTab={activeTab} />
 );
 
-export const getServerSideProps: GetServerSideProps<CareerTabPageProps> = async (
-  context
-) => {
+export const getServerSideProps: GetServerSideProps<
+  CareerTabPageProps
+> = async (context) => {
   const rawTab = Array.isArray(context.params?.tab)
     ? context.params?.tab[0]
     : context.params?.tab;

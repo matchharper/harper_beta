@@ -33,14 +33,14 @@ export const NAV_ITEMS: Array<{
     icon: House,
   },
   {
+    id: "history",
+    label: "포지션",
+    icon: GalleryVerticalEnd,
+  },
+  {
     id: "profile",
     label: "프로필",
     icon: UserRoundCog,
-  },
-  {
-    id: "history",
-    label: "발견한 기회",
-    icon: GalleryVerticalEnd,
   },
 ];
 const CareerCanvas = ({
@@ -49,25 +49,8 @@ const CareerCanvas = ({
 }: {
   children: React.ReactNode;
   className?: string;
-}) => <section className={careerCx("min-w-0", className)}>{children}</section>;
-
-const CareerWorkspaceHeader = ({
-  title,
-  description,
-}: {
-  title: string;
-  description?: string;
 }) => (
-  <div className="py-5">
-    <h1 className="font-hedvig text-[28px] leading-[1] text-beige900">
-      {title}
-    </h1>
-    {description && (
-      <p className="mt-3 text-[14px] leading-6 text-beige900/50">
-        {description}
-      </p>
-    )}
-  </div>
+  <section className={careerCx("min-w-0 px-4", className)}>{children}</section>
 );
 
 const CareerWorkspaceContent = ({
@@ -94,10 +77,6 @@ const CareerWorkspaceContent = ({
   if (activeTab === "history") {
     return (
       <CareerCanvas>
-        <CareerWorkspaceHeader
-          title="발견한 기회"
-          description="Harper가 추천한 기회를 저장하고 단계별로 관리합니다."
-        />
         <CareerHistoryPanel />
       </CareerCanvas>
     );
@@ -105,7 +84,6 @@ const CareerWorkspaceContent = ({
 
   return (
     <CareerCanvas>
-      <CareerWorkspaceHeader title="프로필" />
       <CareerProfileWorkspace />
     </CareerCanvas>
   );
@@ -272,14 +250,14 @@ const CareerWorkspaceRoot = ({
       <CareerWorkspaceNav />
       <div
         ref={workspaceRef}
-        className="flex w-full flex-col bg-[radial-gradient(circle_at_top_left,rgba(255,250,242,0.95),rgba(245,235,220,0.9))] lg:min-h-0 lg:flex-1 lg:flex-row lg:overflow-hidden"
+        className="flex w-full flex-col lg:min-h-0 lg:flex-1 lg:flex-row lg:overflow-hidden"
       >
         <section
           id="career-chat-panel"
           className="flex h-[55vh] min-h-0 min-w-0 flex-col border-b border-beige900/10 bg-beige50 lg:h-auto lg:flex-none lg:border-b-0"
           style={isDesktop ? { flexBasis: `${chatPanelWidth}%` } : undefined}
         >
-          <div className="min-h-0 flex-1 p-1">
+          <div className="min-h-0 flex-1 p-1 bg-beige200">
             <CareerChatPanel />
           </div>
         </section>
@@ -294,17 +272,17 @@ const CareerWorkspaceRoot = ({
             handleResizeStart(event.clientX);
           }}
           onKeyDown={handleResizeKeyDown}
-          className="hidden cursor-col-resize items-center justify-center bg-beige50/70 outline-none transition-colors hover:bg-beige100/80 focus:bg-beige100/80 lg:flex lg:w-4 lg:shrink-0"
+          className="hidden cursor-col-resize items-center justify-center outline-none transition-colors bg-beige50 hover:bg-beige100/80 focus:bg-beige100/80 lg:flex lg:w-2 lg:shrink-0"
         >
-          <div className="flex h-16 w-2 items-center justify-center rounded-full bg-beige900/10">
+          <div className="flex h-16 w-1 items-center justify-center rounded-full">
             <div className="h-10 w-[3px] rounded-full bg-beige900/20" />
           </div>
         </div>
 
-        <section className="min-w-0 flex-1 bg-beige200/50 lg:min-h-0">
+        <section className="min-w-0 flex-1 lg:min-h-0 bg-beige50">
           <div className="flex h-full min-h-[45vh] flex-col lg:min-h-0">
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-8 pt-5">
-              <nav className="flex items-center gap-2 overflow-x-auto pb-4">
+            <div className="min-h-0 flex-1 overflow-y-auto pb-8">
+              <nav className="flex items-center justify-center gap-2 overflow-x-auto py-3 border-y border-y-black/5">
                 {NAV_ITEMS.map((item) => {
                   const Icon = item.icon;
                   const active = item.id === activeTab;
@@ -315,10 +293,10 @@ const CareerWorkspaceRoot = ({
                       type="button"
                       onClick={() => handleChangeTab(item.id)}
                       className={careerCx(
-                        "inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium transition-all",
+                        "inline-flex items-center gap-2 rounded-full border px-6 py-2 text-sm font-medium transition-all",
                         active
-                          ? "border-beige900 bg-beige900 text-beige50"
-                          : "border-beige900/10 bg-white/55 text-beige900/60 hover:border-beige900/20 hover:bg-white/80 hover:text-beige900"
+                          ? "border-beige700 bg-white text-beige700"
+                          : "text-beige900 hover:bg-beige500 border-transparent"
                       )}
                     >
                       <Icon className="h-4 w-4" />

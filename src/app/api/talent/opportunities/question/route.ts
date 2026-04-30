@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
-import { createTalentOpportunityQuestion } from "@/lib/talentOpportunity";
+import {
+  createTalentOpportunityQuestion,
+  fetchTalentOpportunityHistoryByIds,
+} from "@/lib/talentOpportunity";
+import { createTalentOpportunityActionReply } from "@/lib/career/historyActionReply";
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,6 +15,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json().catch(() => ({}))) as {
+      conversationId?: string | null;
       opportunityId?: string;
       question?: string;
     };
@@ -39,7 +44,38 @@ export async function POST(req: NextRequest) {
       userId: user.id,
     });
 
-    return NextResponse.json(result);
+    let assistantMessage: Awaited<
+      ReturnType<typeof createTalentOpportunityActionReply>
+    > | null = null;
+    const conversationId = String(body.conversationId ?? "").trim() || null;
+    if (conversationId) {
+      try {
+        const [opportunity] = await fetchTalentOpportunityHistoryByIds({
+          admin,
+          ids: [opportunityId],
+          userId: user.id,
+        });
+        assistantMessage = await createTalentOpportunityActionReply({
+          action: "question",
+          admin,
+          conversationId,
+          opportunity: opportunity ?? null,
+          userId: user.id,
+          userQuestion: question,
+        });
+      } catch (replyError) {
+        console.error("[career-history:question-reply]", {
+          error:
+            replyError instanceof Error
+              ? replyError.message
+              : String(replyError),
+          opportunityId,
+          userId: user.id,
+        });
+      }
+    }
+
+    return NextResponse.json({ ...result, assistantMessage });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to send question";
