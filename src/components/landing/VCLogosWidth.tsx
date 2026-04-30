@@ -2,15 +2,15 @@ import React from "react";
 import Image from "next/image";
 
 const vcLogos = [
-  { key: "google", src: "/svgs/google.svg", width: 128 },
-  { key: "anthropic", src: "/svgs/anthropic.svg", width: 152 },
-  { key: "metalogo", src: "/svgs/metalogo.svg", width: 152 },
-  { key: "stanford", src: "/svgs/Logo1.svg", width: 146 },
-  { key: "l2", src: "/svgs/Logo2.svg", width: 152 },
-  { key: "l1", src: "/svgs/Logo3.svg", width: 152 },
-  { key: "mit", src: "/svgs/mit.svg", width: 152 },
-  { key: "a16z", src: "/svgs/a16z.svg", width: 136 },
-  { key: "nvidia", src: "/svgs/nvidia.svg", width: 136 },
+  { key: "google", src: "/svgs/google.svg", width: 128, height: 43 },
+  { key: "anthropic", src: "/svgs/anthropic.svg", width: 152, height: 17 },
+  { key: "metalogo", src: "/svgs/metalogo.svg", width: 152, height: 66 },
+  { key: "stanford", src: "/svgs/Logo1.svg", width: 146, height: 56 },
+  { key: "l2", src: "/svgs/Logo2.svg", width: 152, height: 83 },
+  { key: "l1", src: "/svgs/Logo3.svg", width: 152, height: 59 },
+  { key: "mit", src: "/svgs/mit.svg", width: 152, height: 35 },
+  { key: "a16z", src: "/svgs/a16z.svg", width: 136, height: 76 },
+  { key: "nvidia", src: "/svgs/nvidia.svg", width: 136, height: 25 },
 ];
 
 function VCLogos() {
@@ -32,9 +32,8 @@ function VCLogos() {
               src={vc.src}
               alt={vc.key}
               width={vc.width}
-              height={100}
-              className="object-contain opacity-90"
-              priority={i < vcLogos.length}
+              height={vc.height}
+              className="h-auto object-contain opacity-90"
             />
           </div>
         ))}
@@ -49,9 +48,8 @@ function VCLogos() {
               src={vc.src}
               alt={vc.key}
               width={vc.width - 20}
-              height={100}
-              className="object-contain max-w-[36vw] opacity-90"
-              priority={i < vcLogos.length}
+              height={Math.round((vc.height * (vc.width - 20)) / vc.width)}
+              className="h-auto object-contain max-w-[36vw] opacity-90"
             />
           </div>
         ))}

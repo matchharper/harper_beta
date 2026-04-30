@@ -154,6 +154,9 @@ module.exports = {
         shake: "shake 0.3s ease-in-out",
         textGlow: "textGlow 3s ease-in-out infinite",
       },
+      transitionTimingFunction: {
+        "out-expo": "cubic-bezier(.22,1,.36,1)",
+      },
       fontFamily: {
         sans: ["PretendardVariable", "system-ui", "sans-serif"],
         geist: ["Geist", "sans-serif"],

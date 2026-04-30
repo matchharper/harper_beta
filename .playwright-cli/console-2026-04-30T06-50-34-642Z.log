@@ -1,0 +1,68 @@
+[    6641ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ webpack-internal:///./node_modules/react-dom/cjs/react-dom.development.js:29889
+[    6726ms] [LOG] [HMR] connected @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/websocket.js:45
+[    6751ms] [ERROR] Warning: React does not recognize the `%s` prop on a DOM element. If you intentionally want it to appear in the DOM as a custom attribute, spell it as lowercase `%s` instead. If you accidentally passed it from a parent component, remove it from the DOM element.%s fetchPriority fetchpriority 
+    at img
+    at eval (webpack-internal:///./node_modules/next/dist/client/image-component.js:129:11)
+    at eval (webpack-internal:///./node_modules/next/dist/client/image-component.js:238:47)
+    at div
+    at div
+    at div
+    at div
+    at MotionComponent (webpack-internal:///./node_modules/framer-motion/dist/es/motion/index.mjs:54:65)
+    at Reveal (webpack-internal:///./src/components/landing/Animation/Reveal.tsx:42:11)
+    at section
+    at SocialProofSection
+    at main
+    at div
+    at LandingKoVfPage (webpack-internal:///./src/pages/landing-ko-vf.tsx:2243:86)
+    at div
+    at QueryClientProvider (webpack-internal:///./node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js:28:3)
+    at ReactQueryProvider (webpack-internal:///./src/components/Provider.tsx:15:11)
+    at App (webpack-internal:///./src/pages/_app.tsx:71:11)
+    at PathnameContextProviderAdapter (webpack-internal:///./node_modules/next/dist/shared/lib/router/adapters.js:79:11)
+    at ErrorBoundary (webpack-internal:///./node_modules/next/dist/compiled/@next/react-dev-overlay/dist/client.js:2:5389)
+    at ReactDevOverlay (webpack-internal:///./node_modules/next/dist/compiled/@next/react-dev-overlay/dist/client.js:2:7785)
+    at Container (webpack-internal:///./node_modules/next/dist/client/index.js:78:1)
+    at AppContainer (webpack-internal:///./node_modules/next/dist/client/index.js:182:11)
+    at Root (webpack-internal:///./node_modules/next/dist/client/index.js:396:11) @ webpack-internal:///./node_modules/next/dist/compiled/@next/react-dev-overlay/dist/client.js:1
+[    6761ms] [WARNING] Image with src "http://localhost:3001/svgs/a16z2.svg" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: "auto"' or 'height: "auto"' to maintain the aspect ratio. @ webpack-internal:///./node_modules/next/dist/shared/lib/utils/warn-once.js:15
+[    6761ms] [WARNING] Image with src "http://localhost:3001/svgs/yc2.svg" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: "auto"' or 'height: "auto"' to maintain the aspect ratio. @ webpack-internal:///./node_modules/next/dist/shared/lib/utils/warn-once.js:15
+[    6761ms] [WARNING] Image with src "http://localhost:3001/svgs/sequoia2.svg" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: "auto"' or 'height: "auto"' to maintain the aspect ratio. @ webpack-internal:///./node_modules/next/dist/shared/lib/utils/warn-once.js:15
+[    6761ms] [WARNING] Image with src "http://localhost:3001/svgs/cohere.svg" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: "auto"' or 'height: "auto"' to maintain the aspect ratio. @ webpack-internal:///./node_modules/next/dist/shared/lib/utils/warn-once.js:15
+[    6762ms] [WARNING] Image with src "/images/mistral.png" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: "auto"' or 'height: "auto"' to maintain the aspect ratio. @ webpack-internal:///./node_modules/next/dist/shared/lib/utils/warn-once.js:15
+[    6847ms] [LOG] %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit @ https://va.vercel-scripts.com/v1/script.debug.js:0
+[    6847ms] [LOG] %c[Vercel Web Analytics]%c [view] http://localhost:3001/landing-ko-vf color: rgb(120, 120, 120) color: inherit {o: http://localhost:3001/landing-ko-vf, sv: 0.1.3, sdkn: @vercel/analytics/react, sdkv: 1.6.1, ts: 1777531841488} /_vercel/insights/view @ https://va.vercel-scripts.com/v1/script.debug.js:0
+[   99827ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:196
+[  101766ms] [LOG] [Fast Refresh] done in 1939ms @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:165
+[  101783ms] [WARNING] Image with src "http://localhost:3001/svgs/yc.svg" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: "auto"' or 'height: "auto"' to maintain the aspect ratio. @ webpack-internal:///./node_modules/next/dist/shared/lib/utils/warn-once.js:15
+[  101791ms] [WARNING] Image with src "/images/wonderful.png" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: "auto"' or 'height: "auto"' to maintain the aspect ratio. @ webpack-internal:///./node_modules/next/dist/shared/lib/utils/warn-once.js:15
+[  130970ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:196
+[  132248ms] [LOG] [Fast Refresh] done in 1277ms @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:165
+[  159146ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:196
+[  160976ms] [LOG] [Fast Refresh] done in 1829ms @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:165
+[  174976ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:196
+[  176409ms] [LOG] [Fast Refresh] done in 1432ms @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:165
+[  357619ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:196
+[  360312ms] [LOG] [Fast Refresh] done in 2694ms @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:165
+[  361182ms] [WARNING] Image with src "/images/career_screen.png" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: "auto"' or 'height: "auto"' to maintain the aspect ratio. @ webpack-internal:///./node_modules/next/dist/shared/lib/utils/warn-once.js:15
+[  361212ms] [WARNING] Image with src "/images/career_screen.png" was detected as the Largest Contentful Paint (LCP). Please add the "priority" property if this image is above the fold.
+Read more: https://nextjs.org/docs/api-reference/next/image#priority @ webpack-internal:///./node_modules/next/dist/shared/lib/utils/warn-once.js:15
+[  379704ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:196
+[  381511ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:196
+[  381791ms] [LOG] [Fast Refresh] done in 280ms @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:165
+[  407352ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:196
+[  409131ms] [LOG] [Fast Refresh] done in 1780ms @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:165
+[  411851ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:196
+[  413633ms] [LOG] [Fast Refresh] done in 1783ms @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:165
+[  416543ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:196
+[  417810ms] [LOG] [Fast Refresh] done in 1267ms @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:165
+[  570144ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:196
+[  572776ms] [LOG] [Fast Refresh] done in 2633ms @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:165
+[  575089ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:196
+[  576151ms] [LOG] [Fast Refresh] done in 1061ms @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:165
+[  633963ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:196
+[  635184ms] [LOG] [Fast Refresh] done in 1222ms @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:165
+[  721561ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:196
+[  722540ms] [LOG] [Fast Refresh] done in 980ms @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:165
+[  858039ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:196
+[  860644ms] [LOG] [Fast Refresh] done in 2606ms @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:165

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import Head from "next/head";
+import Image from "next/image";
 import { useRouter } from "next/router";
 import { Loader2, Mail } from "lucide-react";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
@@ -12,10 +13,10 @@ const schoolLogos = [
 ];
 
 const companyLogos = [
-  { src: "/svgs/a16z2.svg", name: "a16z", width: 72 },
-  { src: "/svgs/yc.svg", name: "YC", width: 78 },
-  { src: "/images/mistral.png", name: "Mistral", width: 82 },
-  { src: "/svgs/cohere.svg", name: "Cohere", width: 56 },
+  { src: "/svgs/a16z2.svg", name: "a16z", width: 68 },
+  { src: "/svgs/yc.svg", name: "YC", width: 128 },
+  { src: "/images/mistral.png", name: "Mistral", width: 122 },
+  { src: "/svgs/cohere.svg", name: "Cohere", width: 122 },
 ];
 
 const resolveSafeNextPath = (value: string | string[] | undefined) => {
@@ -45,7 +46,9 @@ const CareerLogin = () => {
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
   const [emailMode, setEmailMode] = useState<"signin" | "signup">("signin");
+  const [formError, setFormError] = useState("");
 
   const nextPath = useMemo(
     () => resolveSafeNextPath(router.query.next) ?? "/career",
@@ -75,6 +78,13 @@ const CareerLogin = () => {
 
   const handleSubmitEmailAuth = async (event: FormEvent) => {
     event.preventDefault();
+    setFormError("");
+
+    if (emailMode === "signup" && password !== passwordConfirm) {
+      setFormError("비밀번호가 일치하지 않습니다.");
+      return;
+    }
+
     const ok = await handleEmailAuth({
       mode: emailMode,
       email,
@@ -117,16 +127,22 @@ const CareerLogin = () => {
               variant="primary"
               onClick={() => void handleGoogleLogin()}
               disabled={authPending}
+              icon={
+                authPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Image
+                    src="/svgs/google.svg"
+                    alt=""
+                    width={18}
+                    height={18}
+                    aria-hidden="true"
+                  />
+                )
+              }
               className="w-full"
             >
-              {authPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  처리 중...
-                </>
-              ) : (
-                "구글 로그인"
-              )}
+              {authPending ? "처리 중..." : "구글 로그인"}
             </BeigeButton>
 
             <BeigeButton
@@ -160,13 +176,30 @@ const CareerLogin = () => {
                 type="password"
                 placeholder="Password"
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  setFormError("");
+                }}
                 autoComplete={
                   emailMode === "signin" ? "current-password" : "new-password"
                 }
                 disabled={authPending}
                 className="h-11"
               />
+              {emailMode === "signup" ? (
+                <BeigeInput
+                  type="password"
+                  placeholder="Password check"
+                  value={passwordConfirm}
+                  onChange={(event) => {
+                    setPasswordConfirm(event.target.value);
+                    setFormError("");
+                  }}
+                  autoComplete="new-password"
+                  disabled={authPending}
+                  className="h-11"
+                />
+              ) : null}
               <BeigeButton
                 type="submit"
                 size="lg"
@@ -187,11 +220,13 @@ const CareerLogin = () => {
               </BeigeButton>
               <button
                 type="button"
-                onClick={() =>
+                onClick={() => {
+                  setFormError("");
+                  setPasswordConfirm("");
                   setEmailMode((current) =>
                     current === "signin" ? "signup" : "signin"
-                  )
-                }
+                  );
+                }}
                 className="w-full text-center text-sm text-beige900/60 underline underline-offset-4 transition hover:text-beige900"
               >
                 {emailMode === "signin"
@@ -201,9 +236,9 @@ const CareerLogin = () => {
             </form>
           ) : null}
 
-          {authError ? (
+          {formError || authError ? (
             <p className="mt-4 border border-xprimary/30 bg-white/45 px-3 py-2 text-sm leading-6 text-xprimary">
-              {authError}
+              {formError || authError}
             </p>
           ) : null}
           {authInfo ? (
@@ -231,15 +266,17 @@ const CareerLogin = () => {
               ))}
             </span>
           </div>
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-x-8 gap-y-4 opacity-80">
+          <div className="mt-4 flex flex-wrap items-center justify-center text-sm font-medium text-beige900/65">
+            <span>Companies from</span>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-x-8 gap-y-4 opacity-80">
             {companyLogos.map((logo) => (
               <img
                 key={logo.name}
                 src={logo.src}
                 alt={logo.name}
-                width={logo.width}
-                height={32}
-                className="h-7 w-auto object-contain"
+                className="object-contain"
+                style={{ width: logo.width }}
               />
             ))}
           </div>

@@ -2469,11 +2469,11 @@ const NetworkPage = () => {
 export default NetworkPage;
 
 const vcLogos = [
-  { key: "a16z2", src: "/svgs/a16z2.svg", width: 100 },
-  { key: "yc2", src: "/svgs/yc.svg", width: 152 },
-  { key: "sequoia2", src: "/images/wonderful.png", width: 154 },
-  { key: "mistral", src: "/images/mistral.png", width: 142 },
-  { key: "cohere", src: "/svgs/cohere.svg", width: 124 },
+  { key: "a16z2", src: "/svgs/a16z2.svg", width: 100, height: 56 },
+  { key: "yc2", src: "/svgs/yc.svg", width: 152, height: 31 },
+  { key: "sequoia2", src: "/images/wonderful.png", width: 154, height: 55 },
+  { key: "mistral", src: "/images/mistral.png", width: 142, height: 40 },
+  { key: "cohere", src: "/svgs/cohere.svg", width: 124, height: 21 },
 ];
 
 function VCLogos() {
@@ -2502,9 +2502,8 @@ function VCLogos() {
                 src={vc.src}
                 alt={vc.key}
                 width={vc.width}
-                height={100}
-                className="object-contain opacity-90"
-                priority={i < vcLogos.length}
+                height={vc.height}
+                className="h-auto object-contain opacity-90"
               />
             </div>
           ))}
@@ -2519,9 +2518,8 @@ function VCLogos() {
                 src={vc.src}
                 alt={vc.key}
                 width={vc.width - 20}
-                height={100}
-                className="object-contain max-w-[36vw] opacity-90"
-                priority={i < vcLogos.length}
+                height={Math.round((vc.height * (vc.width - 20)) / vc.width)}
+                className="h-auto object-contain max-w-[36vw] opacity-90"
               />
             </div>
           ))}

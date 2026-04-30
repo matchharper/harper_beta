@@ -224,7 +224,7 @@ const CalendlyButton = ({
     >
       <span className="absolute inset-0 bg-white/10 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
       <span className="relative flex h-full items-start overflow-hidden">
-        <span className="flex flex-col transition-transform duration-500 ease-[cubic-bezier(.22,1,.36,1)] group-hover:-translate-y-1/2">
+        <span className="flex flex-col transition-transform duration-500 ease-out-expo group-hover:-translate-y-1/2">
           <span
             className={`flex items-center leading-none ${
               isSmall ? "h-[42px]" : "h-[58px]"
