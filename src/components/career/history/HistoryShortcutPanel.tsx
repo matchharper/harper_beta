@@ -1,29 +1,73 @@
 import React from "react";
-import {
-  CareerInlinePanel,
-  CareerSecondaryButton,
-} from "../ui/CareerPrimitives";
+import { careerCx } from "../ui/CareerPrimitives";
 import {
   ArrowLeft,
   ArrowRight,
+  Loader2,
   MessageSquare,
   ThumbsDown,
   ThumbsUp,
 } from "lucide-react";
-import {
-  getCareerDefaultFeedbackButtonClassName,
-  getCareerFeedbackButtonClassName,
-} from "../opportunityTypeMeta";
 import { CareerHistoryOpportunity } from "../types";
 import {
   getNegativeActionLabel,
   getPositiveActionLabel,
-  HistoryFeedbackButton,
 } from "../CareerHistoryPanel";
+
+const ShortcutKey = ({ children }: { children: React.ReactNode }) => (
+  <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded-[4px] border border-beige900/10 bg-beige500 px-1.5 text-[10.5px] font-medium leading-none text-beige900/70 shadow-[0_1px_0_rgba(46,23,6,0.05)]">
+    {children}
+  </kbd>
+);
+
+const ShortcutActionButton = ({
+  children,
+  className,
+  disabled,
+  onClick,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  disabled?: boolean;
+  onClick: () => void;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    disabled={disabled}
+    className={careerCx(
+      "inline-flex h-10 min-w-[120px] flex-1 items-center justify-center gap-2 rounded-[10px] px-3 text-[13.5px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-55",
+      className
+    )}
+  >
+    {children}
+  </button>
+);
+
+const ShortcutNavButton = ({
+  children,
+  disabled,
+  label,
+  onClick,
+}: {
+  children: React.ReactNode;
+  disabled?: boolean;
+  label: string;
+  onClick: () => void;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    disabled={disabled}
+    aria-label={label}
+    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-beige900/10 bg-transparent text-beige900/60 transition-colors hover:bg-beige500 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-40"
+  >
+    {children}
+  </button>
+);
 
 const HistoryShortcutPanel = ({
   activeIndex,
-  totalCount,
   onNext,
   onPrev,
   item,
@@ -31,84 +75,94 @@ const HistoryShortcutPanel = ({
   onPositive,
   onNegative,
   onQuestion,
+  canMoveNext,
+  nextPending,
 }: {
   activeIndex: number;
-  totalCount: number;
+  canMoveNext: boolean;
   onNext: () => void;
   onPrev: () => void;
   item: CareerHistoryOpportunity;
+  nextPending: boolean;
   pending: boolean;
   onPositive: () => void;
   onNegative: () => void;
   onQuestion: () => void;
 }) => (
-  <CareerInlinePanel className="rounded-[8px] border border-beige200 bg-beige100 px-4 py-4">
-    <div className="space-y-3">
-      <div className="text-[13px] leading-5 text-beige900">
-        <div className="mb-2 flex flex-row items-center justify-center gap-2">
-          <div className="flex flex-row items-center gap-2">
-            <ArrowLeft className="h-3 w-3" /> 이전 기회
-          </div>
-          <span>·</span>
-          <div className="flex flex-row items-center gap-2">
-            다음 기회
-            <ArrowRight className="h-3 w-3" />
-          </div>
-        </div>
+  <div className="space-y-2.5">
+    <div className="flex flex-wrap items-center gap-2 rounded-[14px] border border-beige900/10 bg-white/75 p-2 shadow-[0_1px_2px_rgba(46,23,6,0.04)] sm:flex-nowrap">
+      <ShortcutNavButton
+        onClick={onPrev}
+        disabled={activeIndex <= 0}
+        label="이전 포지션"
+      >
+        <ArrowLeft className="h-4 w-4" />
+      </ShortcutNavButton>
 
-        <div className="mt-4 space-y-2">
-          <HistoryFeedbackButton
-            className={getCareerFeedbackButtonClassName(
-              item.opportunityType,
-              item.feedback === "positive"
-            )}
-            disabled={pending}
-            hint="T"
-            icon={<ThumbsUp className="h-4 w-4" />}
-            label={getPositiveActionLabel(item)}
-            onClick={onPositive}
-          />
-          <HistoryFeedbackButton
-            className={getCareerDefaultFeedbackButtonClassName(
-              item.feedback === "negative"
-            )}
-            disabled={pending}
-            hint="S"
-            icon={<ThumbsDown className="h-4 w-4" />}
-            label={getNegativeActionLabel(item)}
-            onClick={onNegative}
-          />
-          <HistoryFeedbackButton
-            className={getCareerDefaultFeedbackButtonClassName(false)}
-            disabled={pending}
-            hint="A"
-            icon={<MessageSquare className="h-4 w-4" />}
-            label="질문하기"
-            onClick={onQuestion}
-          />
-        </div>
-      </div>
+      <ShortcutActionButton
+        onClick={onNegative}
+        disabled={pending}
+        className="bg-beige500 text-beige900/70 hover:bg-beige200 hover:text-beige900"
+      >
+        <ThumbsDown className="h-4 w-4" />
+        {getNegativeActionLabel(item)}
+      </ShortcutActionButton>
 
-      <div className="flex items-center gap-2 pt-1">
-        <CareerSecondaryButton
-          onClick={onPrev}
-          disabled={activeIndex <= 0}
-          className="h-9 flex-1 gap-2 px-3"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Prev
-        </CareerSecondaryButton>
-        <CareerSecondaryButton
-          onClick={onNext}
-          disabled={activeIndex >= totalCount - 1}
-          className="h-9 flex-1 gap-2 px-3"
-        >
-          Next
+      <ShortcutActionButton
+        onClick={onQuestion}
+        disabled={pending}
+        className="border border-beige900/10 bg-white/45 text-beige900/70 hover:border-beige900/20 hover:text-beige900 sm:max-w-[148px]"
+      >
+        <MessageSquare className="h-4 w-4" />
+        질문하기
+      </ShortcutActionButton>
+
+      <ShortcutActionButton
+        onClick={onPositive}
+        disabled={pending}
+        className="bg-beige700 text-beige50 hover:bg-beige900"
+      >
+        <ThumbsUp className="h-4 w-4" />
+        {getPositiveActionLabel(item)}
+      </ShortcutActionButton>
+
+      <ShortcutNavButton
+        onClick={onNext}
+        disabled={!canMoveNext || nextPending}
+        label="다음 포지션"
+      >
+        {nextPending ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
           <ArrowRight className="h-4 w-4" />
-        </CareerSecondaryButton>
-      </div>
+        )}
+      </ShortcutNavButton>
     </div>
-  </CareerInlinePanel>
+
+    <div className="flex flex-wrap items-center justify-center gap-2.5 text-[11.5px] leading-5 text-beige900/50">
+      <span className="text-[13px] opacity-60">⌨</span>
+      <span className="inline-flex items-center gap-1.5">
+        <ShortcutKey>←</ShortcutKey>
+        <ShortcutKey>→</ShortcutKey>
+        이동
+      </span>
+      <span className="text-beige900/20">·</span>
+      <span className="inline-flex items-center gap-1.5">
+        <ShortcutKey>S</ShortcutKey>
+        {getNegativeActionLabel(item)}
+      </span>
+      <span className="text-beige900/20">·</span>
+      <span className="inline-flex items-center gap-1.5">
+        <ShortcutKey>T</ShortcutKey>
+        {getPositiveActionLabel(item)}
+      </span>
+      <span className="text-beige900/20">·</span>
+      <span className="inline-flex items-center gap-1.5">
+        <ShortcutKey>A</ShortcutKey>
+        질문하기
+      </span>
+    </div>
+  </div>
 );
 
 export default React.memo(HistoryShortcutPanel);

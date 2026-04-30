@@ -1,9 +1,9 @@
-import { ChevronRight, Loader2 } from "lucide-react";
+import { Loader2, RotateCcw } from "lucide-react";
 import {
-  Fragment,
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -50,6 +50,7 @@ import { BeigeButton } from "@/components/ui/beige/button";
 import CandidateCarousel from "../chat/LoadingComponent";
 
 type HistoryTabId = "new" | "saved" | "archived";
+type HistoryDisplayTabId = "new" | "tracking" | "applied" | "archived";
 type SavedTabId = CareerOpportunitySavedStage;
 
 const HISTORY_TAB_QUERY_KEY = "historyTab";
@@ -67,33 +68,14 @@ const isSavedTabId = (value: unknown): value is SavedTabId =>
 const getQueryValue = (value: string | string[] | undefined) =>
   Array.isArray(value) ? value[0] : value;
 
-const HISTORY_TABS: Array<{
-  id: HistoryTabId;
+const HISTORY_DISPLAY_TABS: Array<{
+  id: HistoryDisplayTabId;
   label: string;
-  title: string;
-  description: string[];
 }> = [
-  {
-    id: "new",
-    label: "새롭게 제안된 기회",
-    title: "새롭게 제안된 기회",
-    description: ["아직 평가하지 않은 기회들입니다."],
-  },
-  {
-    id: "saved",
-    label: "저장함",
-    title: "저장함",
-    description: ["제안된 기회를 저장하고, 단계별로 관리합니다."],
-  },
-  {
-    id: "archived",
-    label: "보관됨",
-    title: "보관됨",
-    description: [
-      "거절 혹은 보류한 기회들입니다.",
-      "리스트에서 다시 상세 내용을 확인하거나 복구할 수 있습니다.",
-    ],
-  },
+  { id: "new", label: "새 포지션" },
+  { id: "tracking", label: "추적 중" },
+  { id: "applied", label: "지원함" },
+  { id: "archived", label: "보관함" },
 ];
 
 const compareRecommendedAtDesc = (
@@ -232,71 +214,36 @@ export const HistoryFeedbackButton = ({
   </button>
 );
 
-const HistorySavedStageTabs = ({
-  activeStage,
-  counts,
-  onChange,
-}: {
-  activeStage: SavedTabId;
-  counts: Record<SavedTabId, number>;
-  onChange: (stage: SavedTabId) => void;
-}) => (
-  <div className="flex flex-wrap items-center gap-2">
-    {SAVED_TABS.map((tab, index) => (
-      <Fragment key={tab.id}>
-        <button
-          type="button"
-          onClick={() => onChange(tab.id)}
-          className={careerCx(
-            "rounded-full border px-3 py-1.5 text-sm transition-colors",
-            activeStage === tab.id
-              ? "border-beige900 bg-beige900 text-beige100"
-              : "border-beige900/15 bg-white/55 text-beige900/65 hover:border-beige900/30 hover:text-beige900"
-          )}
-        >
-          <span className="flex items-center gap-2">
-            <span>{tab.label}</span>
-            <span
-              className={careerCx(
-                "inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] leading-none",
-                activeStage === tab.id
-                  ? "bg-beige100 text-beige900"
-                  : "bg-beige900/10 text-beige900/55"
-              )}
-            >
-              {counts[tab.id]}
-            </span>
-          </span>
-        </button>
-        {index < SAVED_TABS.length - 1 && (
-          <ChevronRight className="h-4 w-4 text-beige900/35" />
-        )}
-      </Fragment>
-    ))}
-  </div>
-);
-
 const CareerHistoryPanel = () => {
   const router = useRouter();
   const {
     stage,
     userChatCount,
+    historyOpportunityCounts,
     historyOpportunities,
     historyLoading,
+    historyLoadingMore,
+    hasMoreHistoryOpportunities,
     historyUpdatingOpportunityIds,
     historyUpdateError,
+    onLoadMoreHistoryOpportunities,
     onMarkHistoryOpportunityClicked,
     onMarkHistoryOpportunityViewed,
     onUpdateHistoryOpportunityFeedback,
     onUpdateHistoryOpportunitySavedStage,
     onSendHistoryOpportunityQuestion,
-    onPrepareMockInterview,
   } = useCareerSidebarContext();
   const [activeTab, setActiveTab] = useState<HistoryTabId>("new");
   const [activeSavedTab, setActiveSavedTab] = useState<SavedTabId>("saved");
   const [activeOpportunityId, setActiveOpportunityId] = useState<string | null>(
     null
   );
+  const [autoAdvanceTargetIndex, setAutoAdvanceTargetIndex] = useState<
+    number | null
+  >(null);
+  const feedbackAdvanceTargetIndexRef = useRef<number | null>(null);
+  const autoAdvanceRequestedRef = useRef(false);
+  const wasHistoryLoadingMoreRef = useRef(false);
   const [modalOpportunityId, setModalOpportunityId] = useState<string | null>(
     null
   );
@@ -367,15 +314,8 @@ const CareerHistoryPanel = () => {
     () => [...historyOpportunities].sort(compareRecommendedAtDesc),
     [historyOpportunities]
   );
-  const {
-    archivedItems,
-    newItems,
-    savedItems,
-    savedItemsByStage,
-    savedStageCounts,
-  } = useMemo(() => {
+  const { archivedItems, newItems, savedItemsByStage } = useMemo(() => {
     const nextNewItems: CareerHistoryOpportunity[] = [];
-    const nextSavedItems: CareerHistoryOpportunity[] = [];
     const nextArchivedItems: CareerHistoryOpportunity[] = [];
     const nextSavedItemsByStage: Record<
       SavedTabId,
@@ -386,12 +326,6 @@ const CareerHistoryPanel = () => {
       connected: [],
       closed: [],
     };
-    const nextSavedStageCounts: Record<SavedTabId, number> = {
-      saved: 0,
-      applied: 0,
-      connected: 0,
-      closed: 0,
-    };
 
     for (const item of sortedOpportunities) {
       if (isNewOpportunity(item)) {
@@ -401,9 +335,7 @@ const CareerHistoryPanel = () => {
 
       if (isSavedOpportunity(item)) {
         const stage = getResolvedSavedStage(item);
-        nextSavedItems.push(item);
         nextSavedItemsByStage[stage].push(item);
-        nextSavedStageCounts[stage] += 1;
         continue;
       }
 
@@ -414,6 +346,7 @@ const CareerHistoryPanel = () => {
 
     nextNewItems.sort(
       (left, right) =>
+        Number(right.isInternal) - Number(left.isInternal) ||
         getCareerOpportunitySortPriority(left.opportunityType) -
           getCareerOpportunitySortPriority(right.opportunityType) ||
         compareRecommendedAtDesc(left, right)
@@ -422,9 +355,7 @@ const CareerHistoryPanel = () => {
     return {
       archivedItems: nextArchivedItems,
       newItems: nextNewItems,
-      savedItems: nextSavedItems,
       savedItemsByStage: nextSavedItemsByStage,
-      savedStageCounts: nextSavedStageCounts,
     };
   }, [sortedOpportunities]);
   const filteredSavedItems = savedItemsByStage[activeSavedTab];
@@ -450,17 +381,6 @@ const CareerHistoryPanel = () => {
     setActiveTab(isHistoryTabId(nextActiveTab) ? nextActiveTab : "new");
     setActiveSavedTab(isSavedTabId(nextSavedTab) ? nextSavedTab : "saved");
   }, [currentHistoryTabQuery, currentSavedStageQuery, router.isReady]);
-
-  useEffect(() => {
-    if (newItems.length === 0) {
-      setActiveOpportunityId(null);
-      return;
-    }
-
-    if (!activeOpportunityId || !newItemIndexById.has(activeOpportunityId)) {
-      setActiveOpportunityId(newItems[0]?.id ?? null);
-    }
-  }, [activeOpportunityId, newItemIndexById, newItems]);
 
   useEffect(() => {
     if (!modalOpportunityId) return;
@@ -505,6 +425,11 @@ const CareerHistoryPanel = () => {
     : -1;
 
   const activeOpportunity = activeIndex >= 0 ? newItems[activeIndex] : null;
+  const canMoveNextOpportunity =
+    activeIndex >= 0 &&
+    (activeIndex < newItems.length - 1 || hasMoreHistoryOpportunities);
+  const nextOpportunityPending =
+    activeTab === "new" && autoAdvanceTargetIndex !== null;
 
   const modalOpportunity = useMemo(
     () =>
@@ -576,6 +501,119 @@ const CareerHistoryPanel = () => {
     [activeIndex, newItems]
   );
 
+  const loadNextOpportunityPage = useCallback(() => {
+    if (
+      !hasMoreHistoryOpportunities ||
+      historyLoadingMore ||
+      autoAdvanceRequestedRef.current
+    ) {
+      return;
+    }
+    autoAdvanceRequestedRef.current = true;
+    setAutoAdvanceTargetIndex(newItems.length);
+    void onLoadMoreHistoryOpportunities();
+  }, [
+    hasMoreHistoryOpportunities,
+    historyLoadingMore,
+    newItems.length,
+    onLoadMoreHistoryOpportunities,
+  ]);
+
+  const handleMoveNextOpportunity = useCallback(() => {
+    if (activeIndex < newItems.length - 1) {
+      moveActiveOpportunity(1);
+      return;
+    }
+
+    loadNextOpportunityPage();
+  }, [
+    activeIndex,
+    loadNextOpportunityPage,
+    moveActiveOpportunity,
+    newItems.length,
+  ]);
+
+  useEffect(() => {
+    if (newItems.length === 0) {
+      setActiveOpportunityId(null);
+      return;
+    }
+
+    if (activeOpportunityId && newItemIndexById.has(activeOpportunityId)) {
+      return;
+    }
+
+    const feedbackAdvanceTargetIndex = feedbackAdvanceTargetIndexRef.current;
+    feedbackAdvanceTargetIndexRef.current = null;
+
+    if (feedbackAdvanceTargetIndex !== null) {
+      if (feedbackAdvanceTargetIndex < newItems.length) {
+        setActiveOpportunityId(
+          newItems[feedbackAdvanceTargetIndex]?.id ?? null
+        );
+        return;
+      }
+
+      if (hasMoreHistoryOpportunities) {
+        setAutoAdvanceTargetIndex(feedbackAdvanceTargetIndex);
+        return;
+      }
+
+      setActiveOpportunityId(newItems[newItems.length - 1]?.id ?? null);
+      return;
+    }
+
+    setActiveOpportunityId(newItems[0]?.id ?? null);
+  }, [
+    activeOpportunityId,
+    hasMoreHistoryOpportunities,
+    newItemIndexById,
+    newItems,
+  ]);
+
+  useEffect(() => {
+    const completedPageLoad =
+      wasHistoryLoadingMoreRef.current && !historyLoadingMore;
+    wasHistoryLoadingMoreRef.current = historyLoadingMore;
+
+    if (autoAdvanceTargetIndex === null) return;
+
+    if (newItems.length > autoAdvanceTargetIndex) {
+      setActiveOpportunityId(newItems[autoAdvanceTargetIndex]?.id ?? null);
+      setAutoAdvanceTargetIndex(null);
+      autoAdvanceRequestedRef.current = false;
+      return;
+    }
+
+    if (historyLoadingMore) return;
+
+    if (hasMoreHistoryOpportunities) {
+      if (autoAdvanceRequestedRef.current && !completedPageLoad) {
+        return;
+      }
+
+      autoAdvanceRequestedRef.current = false;
+      loadNextOpportunityPage();
+      return;
+    }
+
+    setAutoAdvanceTargetIndex(null);
+    autoAdvanceRequestedRef.current = false;
+  }, [
+    autoAdvanceTargetIndex,
+    hasMoreHistoryOpportunities,
+    historyLoadingMore,
+    loadNextOpportunityPage,
+    newItems,
+  ]);
+
+  useEffect(() => {
+    feedbackAdvanceTargetIndexRef.current = null;
+    setAutoAdvanceTargetIndex(null);
+    autoAdvanceRequestedRef.current = false;
+    wasHistoryLoadingMoreRef.current = false;
+  }, [activeTab]);
+
   const openUrl = useCallback((url: string | null | undefined) => {
     if (!url) return;
     window.open(url, "_blank", "noopener,noreferrer");
@@ -624,6 +662,18 @@ const CareerHistoryPanel = () => {
     []
   );
 
+  const rememberFeedbackAdvanceTarget = useCallback(
+    (item: CareerHistoryOpportunity) => {
+      if (activeTab !== "new") return;
+
+      const itemIndex = newItemIndexById.get(item.id);
+      if (typeof itemIndex === "number") {
+        feedbackAdvanceTargetIndexRef.current = itemIndex;
+      }
+    },
+    [activeTab, newItemIndexById]
+  );
+
   const updateFeedbackForItem = useCallback(
     (
       item: CareerHistoryOpportunity,
@@ -648,10 +698,10 @@ const CareerHistoryPanel = () => {
     (item: CareerHistoryOpportunity) => {
       setModalOpportunityId(null);
       setActiveOpportunityId(item.id);
-      setActiveTab("new");
+      updateHistoryLocation("new", activeSavedTab);
       updateFeedbackForItem(item, null);
     },
-    [updateFeedbackForItem]
+    [activeSavedTab, updateFeedbackForItem, updateHistoryLocation]
   );
 
   const handlePositiveAction = useCallback(
@@ -661,11 +711,16 @@ const CareerHistoryPanel = () => {
         return;
       }
 
+      rememberFeedbackAdvanceTarget(item);
       updateFeedbackForItem(item, "positive", {
         savedStage: getDefaultSavedStage(item.opportunityType),
       });
     },
-    [requestPositiveFeedback, updateFeedbackForItem]
+    [
+      rememberFeedbackAdvanceTarget,
+      requestPositiveFeedback,
+      updateFeedbackForItem,
+    ]
   );
 
   const handleModalPositiveAction = useCallback(
@@ -713,6 +768,7 @@ const CareerHistoryPanel = () => {
 
     const feedbackReason = positivePromptDraft.trim();
 
+    rememberFeedbackAdvanceTarget(positivePromptOpportunity);
     updateFeedbackForItem(positivePromptOpportunity, "positive", {
       feedbackReason: feedbackReason || null,
       savedStage: getDefaultSavedStage(
@@ -721,7 +777,12 @@ const CareerHistoryPanel = () => {
     });
     setPositivePromptOpportunityId(null);
     setPositivePromptDraft("");
-  }, [positivePromptDraft, positivePromptOpportunity, updateFeedbackForItem]);
+  }, [
+    positivePromptDraft,
+    positivePromptOpportunity,
+    rememberFeedbackAdvanceTarget,
+    updateFeedbackForItem,
+  ]);
 
   const handleSubmitNegativePrompt = useCallback(() => {
     if (!negativePromptOpportunity) return;
@@ -732,6 +793,7 @@ const CareerHistoryPanel = () => {
       selectedOptions: negativePromptSelectedOptions,
     });
 
+    rememberFeedbackAdvanceTarget(negativePromptOpportunity);
     updateFeedbackForItem(negativePromptOpportunity, "negative", {
       feedbackReason,
     });
@@ -742,6 +804,7 @@ const CareerHistoryPanel = () => {
     negativePromptCustomReason,
     negativePromptOpportunity,
     negativePromptSelectedOptions,
+    rememberFeedbackAdvanceTarget,
     updateFeedbackForItem,
   ]);
 
@@ -793,7 +856,7 @@ const CareerHistoryPanel = () => {
 
       if (key === "arrowright") {
         event.preventDefault();
-        moveActiveOpportunity(1);
+        handleMoveNextOpportunity();
         return;
       }
 
@@ -821,6 +884,7 @@ const CareerHistoryPanel = () => {
     activeOpportunity,
     activeTab,
     handleNegativeAction,
+    handleMoveNextOpportunity,
     handlePositiveAction,
     infoOpportunityType,
     handleQuestionAction,
@@ -832,20 +896,51 @@ const CareerHistoryPanel = () => {
 
   const tabs = useMemo(
     () =>
-      HISTORY_TABS.map(({ id, label }) => ({
+      HISTORY_DISPLAY_TABS.map(({ id, label }) => ({
         id,
         label,
-        count:
-          id === "new"
-            ? newItems.length
-            : id === "saved"
-              ? savedItems.length
-              : archivedItems.length,
+        count: (() => {
+          if (id === "new") return historyOpportunityCounts.new;
+          if (id === "tracking") {
+            return historyOpportunityCounts.savedStages.saved;
+          }
+          if (id === "applied") {
+            return historyOpportunityCounts.savedStages.applied;
+          }
+          return historyOpportunityCounts.archived;
+        })(),
       })),
-    [archivedItems.length, newItems.length, savedItems.length]
+    [
+      historyOpportunityCounts.archived,
+      historyOpportunityCounts.new,
+      historyOpportunityCounts.savedStages.applied,
+      historyOpportunityCounts.savedStages.saved,
+    ]
   );
-  const activeSection =
-    HISTORY_TABS.find((section) => section.id === activeTab) ?? HISTORY_TABS[0];
+  const activeDisplayTab: HistoryDisplayTabId =
+    activeTab === "saved"
+      ? activeSavedTab === "applied"
+        ? "applied"
+        : "tracking"
+      : activeTab;
+  const handleDisplayTabChange = useCallback(
+    (nextTab: HistoryDisplayTabId) => {
+      if (nextTab === "new") {
+        updateHistoryLocation("new", activeSavedTab);
+        return;
+      }
+      if (nextTab === "tracking") {
+        updateHistoryLocation("saved", "saved");
+        return;
+      }
+      if (nextTab === "applied") {
+        updateHistoryLocation("saved", "applied");
+        return;
+      }
+      updateHistoryLocation("archived", activeSavedTab);
+    },
+    [activeSavedTab, updateHistoryLocation]
+  );
   const pendingOpportunityIds = useMemo(
     () => new Set(historyUpdatingOpportunityIds),
     [historyUpdatingOpportunityIds]
@@ -947,15 +1042,15 @@ const CareerHistoryPanel = () => {
 
   return (
     <>
-      <div className="mt-8 backdrop-blur">
+      <div className="my-4">
         <CareerInPageTabs
           items={tabs}
-          activeId={activeTab}
-          onChange={(nextTab) => updateHistoryLocation(nextTab, activeSavedTab)}
+          activeId={activeDisplayTab}
+          onChange={handleDisplayTabChange}
         />
       </div>
 
-      <div className="mt-6 flex flex-col gap-6 py-6">
+      <div className="flex flex-col gap-6">
         <div className="min-w-0 flex-1">
           {historyUpdateError && (
             <div className="mb-4 rounded-[8px] border border-[#7c2d12]/15 bg-[#7c2d12]/5 px-4 py-3 text-sm text-[#7c2d12]">
@@ -964,15 +1059,17 @@ const CareerHistoryPanel = () => {
           )}
 
           {activeTab === "new" && activeOpportunity && (
-            <HistoryOpportunityDetailContent
-              item={activeOpportunity}
-              canMovePrev={activeIndex > 0}
-              canMoveNext={activeIndex < newItems.length - 1}
-              onOpenLink={(url) => openHistoryLink(activeOpportunity.id, url)}
-              onOpenOpportunityInfo={setInfoOpportunityType}
-              onMovePrev={() => moveActiveOpportunity(-1)}
-              onMoveNext={() => moveActiveOpportunity(1)}
-            />
+            <>
+              <HistoryOpportunityDetailContent
+                item={activeOpportunity}
+                canMovePrev={activeIndex > 0}
+                canMoveNext={canMoveNextOpportunity}
+                onOpenLink={(url) => openHistoryLink(activeOpportunity.id, url)}
+                onOpenOpportunityInfo={setInfoOpportunityType}
+                onMovePrev={() => moveActiveOpportunity(-1)}
+                onMoveNext={handleMoveNextOpportunity}
+              />
+            </>
           )}
 
           {activeTab === "new" && !activeOpportunity && (
@@ -985,14 +1082,6 @@ const CareerHistoryPanel = () => {
 
           {activeTab === "saved" && (
             <div className="space-y-4">
-              <HistorySavedStageTabs
-                activeStage={activeSavedTab}
-                counts={savedStageCounts}
-                onChange={(nextStage) =>
-                  updateHistoryLocation("saved", nextStage)
-                }
-              />
-
               {listItems.length > 0 && (
                 <div className="max-h-[calc(100vh-300px)] space-y-3 overflow-y-auto pr-1">
                   {listItems.map((item) => (
@@ -1001,6 +1090,20 @@ const CareerHistoryPanel = () => {
                       item={item}
                       pending={pendingOpportunityIds.has(item.id)}
                       showSavedStageSelect
+                      action={
+                        <CareerSecondaryButton
+                          onClick={() => handleRestoreAction(item)}
+                          disabled={pendingOpportunityIds.has(item.id)}
+                          className="h-9 gap-2 px-3"
+                        >
+                          {pendingOpportunityIds.has(item.id) ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <RotateCcw className="h-4 w-4" />
+                          )}
+                          새 기회로 되돌리기
+                        </CareerSecondaryButton>
+                      }
                       onOpenOpportunityInfo={setInfoOpportunityType}
                       onSavedStageChange={(stage) => {
                         void onUpdateHistoryOpportunitySavedStage(
@@ -1025,67 +1128,57 @@ const CareerHistoryPanel = () => {
           )}
 
           {activeTab === "archived" && listItems.length > 0 && (
-            <div className="max-h-[calc(100vh-260px)] space-y-3 overflow-y-auto pr-1">
-              {listItems.map((item) => (
-                <OpportunityListCard
-                  key={item.id}
-                  item={item}
-                  pending={pendingOpportunityIds.has(item.id)}
-                  action={
-                    <CareerSecondaryButton
-                      onClick={() => handleRestoreAction(item)}
-                      disabled={pendingOpportunityIds.has(item.id)}
-                      className="h-9 gap-2 px-3"
-                    >
-                      {pendingOpportunityIds.has(item.id) && (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      )}
-                      복구하기
-                    </CareerSecondaryButton>
-                  }
-                  onOpenOpportunityInfo={setInfoOpportunityType}
-                  onOpenDetail={() => setModalOpportunityId(item.id)}
-                />
-              ))}
+            <div className="space-y-3">
+              <div className="max-h-[calc(100vh-260px)] space-y-3 overflow-y-auto pr-1">
+                {listItems.map((item) => (
+                  <OpportunityListCard
+                    key={item.id}
+                    item={item}
+                    pending={pendingOpportunityIds.has(item.id)}
+                    action={
+                      <CareerSecondaryButton
+                        onClick={() => handleRestoreAction(item)}
+                        disabled={pendingOpportunityIds.has(item.id)}
+                        className="h-9 gap-2 px-3"
+                      >
+                        {pendingOpportunityIds.has(item.id) && (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        )}
+                        복구하기
+                      </CareerSecondaryButton>
+                    }
+                    onOpenOpportunityInfo={setInfoOpportunityType}
+                    onOpenDetail={() => setModalOpportunityId(item.id)}
+                  />
+                ))}
+              </div>
             </div>
           )}
 
           {activeTab === "archived" && listItems.length === 0 && (
-            <CareerInlinePanel className="px-5 py-5">
-              <div className="text-[14px] leading-6 text-beige900/50">
-                이 탭에 해당하는 기회가 아직 없습니다.
-              </div>
-            </CareerInlinePanel>
+            <div className="space-y-3">
+              <CareerInlinePanel className="px-5 py-5">
+                <div className="text-[14px] leading-6 text-beige900/50">
+                  이 탭에 해당하는 기회가 아직 없습니다.
+                </div>
+              </CareerInlinePanel>
+            </div>
           )}
         </div>
-        <div className="w-[264px] shrink-0 pr-4">
-          <div className="flex flex-col gap-2">
-            <h3 className="text-lg font-medium leading-5">
-              {activeSection.title}
-            </h3>
-            {activeSection.description.map((item, index) => (
-              <p key={index} className="mt-1 text-sm font-normal text-black/70">
-                {item}
-              </p>
-            ))}
-          </div>
-
-          <div className="mt-5 space-y-3">
-            {activeTab === "new" && activeOpportunity && (
-              <HistoryShortcutPanel
-                item={activeOpportunity}
-                pending={pendingOpportunityIds.has(activeOpportunity.id)}
-                onPositive={() => handlePositiveAction(activeOpportunity)}
-                onNegative={() => handleNegativeAction(activeOpportunity)}
-                onQuestion={() => handleQuestionAction(activeOpportunity)}
-                activeIndex={activeIndex}
-                totalCount={newItems.length}
-                onNext={() => moveActiveOpportunity(1)}
-                onPrev={() => moveActiveOpportunity(-1)}
-              />
-            )}
-          </div>
-        </div>
+        {activeTab === "new" && activeOpportunity && (
+          <HistoryShortcutPanel
+            item={activeOpportunity}
+            pending={pendingOpportunityIds.has(activeOpportunity.id)}
+            onPositive={() => handlePositiveAction(activeOpportunity)}
+            onNegative={() => handleNegativeAction(activeOpportunity)}
+            onQuestion={() => handleQuestionAction(activeOpportunity)}
+            activeIndex={activeIndex}
+            canMoveNext={canMoveNextOpportunity}
+            nextPending={nextOpportunityPending}
+            onNext={handleMoveNextOpportunity}
+            onPrev={() => moveActiveOpportunity(-1)}
+          />
+        )}
       </div>
 
       <OpportunityDetailModal
@@ -1114,13 +1207,11 @@ const CareerHistoryPanel = () => {
           if (!modalOpportunity) return;
           handleModalQuestionAction(modalOpportunity);
         }}
-        onMockInterview={() => {
-          if (!modalOpportunity) return;
-          const opportunityId = modalOpportunity.id;
-          setModalOpportunityId(null);
-          openChatTab();
-          void onPrepareMockInterview(opportunityId);
-        }}
+        onRestore={
+          modalOpportunity?.feedback === "positive"
+            ? () => handleRestoreAction(modalOpportunity)
+            : undefined
+        }
       />
 
       <HistoryOpportunityInfoModal

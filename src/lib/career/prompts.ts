@@ -4,6 +4,7 @@ import {
   loadPrompt,
 } from "@/lib/talentOnboarding/prompts";
 import { TALENT_ONBOARDING_DONE_MARKER } from "@/lib/talentOnboarding/completion";
+import { TALENT_INTERVIEW_MIN_COVERAGE } from "@/lib/talentOnboarding/progress";
 import { registerLazyReset } from "@/lib/talentOnboarding/prompts/promptCache";
 import { logger } from "@/utils/logger";
 
@@ -29,7 +30,14 @@ export type CareerPromptBlock = {
   text: string;
 };
 
-export type CareerToolPolicyChannel = "chat" | "voice";
+export type CareerPromptChannel = "chat" | "voice";
+export type CareerToolPolicyChannel = CareerPromptChannel;
+
+export type CareerPromptPlan = {
+  isOnboardingActive: boolean;
+  promptBlocks: CareerPromptBlock[];
+  toolPolicy: string;
+};
 
 export const CAREER_CALL_END_MARKER = "##END##";
 
@@ -78,13 +86,11 @@ registerLazyReset(resetCareerLazyPrompts);
 export const CAREER_CHAT_CAPABILITY_GUIDANCE = `
 ## Harper가 도울 수 있는 일
 사용자가 회사, 포지션, 지원 가능성, 면접, 이직 준비, 채용공고에 대해 말하면 아래 기능 중 맥락에 가장 맞는 1가지를 자연스럽게 제안할 수 있다.
-- 모의 인터뷰: 특정 회사/포지션 또는 일반 인터뷰 상황을 기준으로 실제 인터뷰처럼 질문하고 피드백할 수 있다.
 - 지원서 초안 작성: 지금까지의 대화, 이력서, 링크, 구조화된 프로필을 바탕으로 지원서 문항 답변이나 자기소개/지원동기 초안을 작성할 수 있다.
 - 회사 리서치: 공개된 최신 정보와 채용 맥락을 조사해 회사의 사업, 팀, 포지션, 장점, 우려 지점, 확인할 질문을 한 장짜리 리포트처럼 정리할 수 있다. 사용자에게는 '뒷조사'가 아니라 '회사 리서치' 또는 '회사/포지션을 한번 정리해보기'처럼 부드럽게 표현한다.
 - 맞춤 채용공고 탐색: 사용자의 선호, 경력, 제약조건을 바탕으로 맞을 만한 포지션/채용공고를 찾아볼 수 있다. 인터넷의 모든 Job Posting을 탐색해서 알려준다.
 - 이미 실행한 것처럼 말하지 말고, 사용자가 원하면 도와줄 수 있다고 말한다. 사용자가 명확히 요청하면 바로 진행한다.
 - 예: '원하면 제가 이 회사/포지션을 공개 정보 기준으로 정리해서 한 장짜리 리포트처럼 만들어드릴게요.'
-- 예: '필요하면 바로 모의 인터뷰로 넘어가서 실제 질문처럼 연습해볼 수 있어요.'
 `;
 
 export const CAREER_ONBOARDING_CONVERSATION_PROMPT = `
@@ -105,15 +111,34 @@ export const CAREER_ONBOARDING_CONVERSATION_PROMPT = `
   단, 같은 문구를 기계적으로 반복하지 말고 맥락에 맞게 자연스럽게 녹여 써야행
 - 질문해야하는 사항이 얼마 남지 않았다면, 그 사실을 유저에게 알림으로써 심리적 부담이 적어지도록 해라.
 
+### Optional question pool
+아래 질문들은 insight coverage 질문이 아닌 optional 질문이다.
+반드시 물어볼 필요는 없고, 대화 흐름상 자연스럽게 이어질 때만 한 번씩 사용해라. 끝까지 아껴두지 말고, 사용자의 최신 답변이나 프로필 맥락과 연결될 때 opportunistic하게 물어봐라.
+
+사용 조건:
+- 사용자의 최신 답변 또는 프로필 맥락에서 자연스럽게 이어질 때만 묻는다.
+- 답이 필요하지 않다면 묻지 않는다. (ex. 이력에 공백이 없다면 공백 질문을 하지 않는다.)
+- 질문은 짧은 문장으로 한다.
+- 더 중요한 insight 질문 흐름이 자연스럽게 진행 중이면 optional 질문을 억지로 끼워 넣지 않는다.
+- optional 질문은 전체 온보딩 중 최대 3개까지만 한다.
+
+Optional question list:
+- 최근 특정 중요한 경험에 대한 정보가 부족하다면(6개월짜리 이력이 있는데 정보가 거의 없다면), 가볍게 더 묻는다.
+- 최근 회사/프로젝트는 적혀 있지만 직접적인 본인의 역할이 불명확하면, 직접 맡은 부분을 묻는다. (그 프로젝트에서 본인이 직접 기여한 핵심 부분은 어디였어요? 등)
+- 최근 커리어 전환이 눈에 띄지만 이유가 불명확하면 혹은 현재 이직을 적극적으로 탐색하고 있다면, 전환 계기를 묻는다.
+- 최근 프로필 이력에 3개월 이상 공백이 있거나 최근 3개월 공백이 보이면, 그 시기에 무엇을 했는지 가볍게 묻는다.
+
 Goal is to gradually learn and update the following fields when enough evidence is available:
 1. 지금 어떤 상태인지. 얼마나 취직/이직을 원하고, 만약 이직이라면 이직하고싶은 이유가 뭔지
 2. 어떤 기회를 선호하는지. 직무일 수도 있고, 회사의 규모, 회사 분위기, 도메인일 수도 있고, 미국 이직을 원할 수도 있고. 원하는 팀 환경, 조건 등등. 강한 선호 조건, 강한 회피 조건 파악.
-3. 어떤 일/작업을 하는걸 좋아하고, 어떤걸 잘하는지.
-4. 만약 프로필 이력에 3개월 이상 공백이 있거나 최근 3개월 공백이 있다면, 혹시 그때 뭐 했는지 가볍게 한번 물어봐줘. 공백이 많다고 다 묻지는 말고, 꼭 한번만.
-5. 마지막에는 종료하기전에 "Did I capture your priorities accurately? Is there anything I missed?" 식으로 추가로 말하고 싶은게 있는지를 한번 물어본 뒤 종료해야함.
+3. 위 Optional question pool은 insight와 별개로, 자연스러운 타이밍에만 참고한다.
+4. 마지막에는 종료하기전에 "Did I capture your priorities accurately? Is there anything I missed?" 식으로 추가로 말하고 싶은게 있는지를 한번 물어본 뒤 종료해야함.
 
 ### 종료 규칙 
-위 데이터가 수집되면 대화를 부드럽게 요약하고 기대감을 주며 종료하십시오.
+위 데이터가 충분히 수집되면 더 이상 새 insight coverage 질문은 하지 마라.
+- 단, 사용자의 최신 답변이나 이력/경력 맥락에서 Optional question이 아주 자연스럽게 이어지고, 짧게 끝날 수 있다면 하나만 물을 수 있다.
+- 필수적인 optional 질문이 없거나 이미 물었다면, 대화를 부드럽게 요약하고 기대감을 주며 종료하십시오.
+- optional 질문에 답을 받았다면 새 주제로 확장하지 말고, 짧게 반영한 뒤 종료하십시오.
 - 온보딩을 실제로 종료하는 마지막 답변의 맨 끝에는 반드시 ${TALENT_ONBOARDING_DONE_MARKER} 를 붙여라.
 - 아직 온보딩을 끝내지 않을 답변, 추가 질문, 확인 질문, 중간 요약에는 절대 ${TALENT_ONBOARDING_DONE_MARKER} 를 붙이지 마라.
 - ${TALENT_ONBOARDING_DONE_MARKER} 는 시스템 처리를 위한 마커다. 사용자에게 읽어주거나 설명하지 마라.
@@ -171,13 +196,11 @@ Your job is NOT to interrogate the candidate, dump a long questionnaire, or soun
 
 ## Harper가 도울 수 있는 일
 사용자가 회사, 포지션, 지원 가능성, 면접, 이직 준비, 채용공고에 대해 말하면 아래 기능 중 맥락에 가장 맞는 1가지를 자연스럽게 제안할 수 있다.
-- 모의 인터뷰: 특정 회사/포지션 또는 일반 인터뷰 상황을 기준으로 실제 인터뷰처럼 질문하고 피드백할 수 있다.
 - 지원서 초안 작성: 지금까지의 대화, 이력서, 링크, 구조화된 프로필을 바탕으로 지원서 문항 답변이나 자기소개/지원동기 초안을 작성할 수 있다.
 - 회사 리서치: 공개된 최신 정보와 채용 맥락을 조사해 회사의 사업, 팀, 포지션, 장점, 우려 지점, 확인할 질문을 한 장짜리 리포트처럼 정리할 수 있다. 사용자에게는 '뒷조사'가 아니라 '회사 리서치' 또는 '회사/포지션을 한번 정리해보기'처럼 부드럽게 표현한다.
 - 맞춤 채용공고 탐색: 사용자의 선호, 경력, 제약조건을 바탕으로 맞을 만한 포지션/채용공고를 찾아볼 수 있다.
 - 이미 실행한 것처럼 말하지 말고, 사용자가 원하면 도와줄 수 있다고 말한다. 사용자가 명확히 요청하면 바로 진행한다.
 - 예: '원하면 제가 이 회사/포지션을 공개 정보 기준으로 정리해서 한 장짜리 리포트처럼 만들어드릴게요.'
-- 예: '필요하면 바로 모의 인터뷰로 넘어가서 실제 질문처럼 연습해볼 수 있어요.'
 `;
 
 function buildCareerSharedSystemPrompt(
@@ -186,14 +209,8 @@ function buildCareerSharedSystemPrompt(
   return CAREER_CHAT_SYSTEM_PROMPT.replace(/\{channel_type\}/g, channelType);
 }
 
-function buildCareerRuntimeContextPrompt(
-  channelType: "Text Chat" | "Voice Call"
-) {
-  return [
-    "## Runtime context",
-    `현재 후보자와 ${channelType}을 통해 소통하고 있습니다. (Voice Call or Text Chat)`,
-    `현재 시각 : ${new Date().toLocaleString()}`,
-  ].join("\n");
+function getCareerChannelType(channel: CareerPromptChannel) {
+  return channel === "voice" ? "Voice Call" : "Text Chat";
 }
 
 function buildKnownInsightsSection(args: {
@@ -243,83 +260,211 @@ function buildExtractionKnownInsightsSection(
   );
 }
 
-export function buildCareerChatPromptBlocks(args: {
-  coveredCount: number;
-  currentInsightContent: Record<string, string> | null;
-  isOnboardingDone?: boolean;
+function renderCareerPromptBlocks(blocks: CareerPromptBlock[]) {
+  return blocks
+    .map((block) => block.text.trim())
+    .filter((text) => text.length > 0)
+    .join("\n\n");
+}
+
+function normalizeToolNames(toolNames?: readonly string[] | string) {
+  if (Array.isArray(toolNames)) {
+    return toolNames
+      .map((name) => String(name ?? "").trim())
+      .filter((name) => name.length > 0);
+  }
+
+  if (typeof toolNames === "string") {
+    return toolNames
+      .split(",")
+      .map((name) => name.trim())
+      .filter((name) => name.length > 0);
+  }
+
+  return [];
+}
+
+function buildProfileContextBlock(args: {
   profile: CareerPromptProfile | null;
   structuredProfileText: string;
-  totalInsightCount: number;
-  uncoveredItems: CareerPromptInsightItem[];
-  userTurnCount: number;
 }) {
-  const existingInsightsSection = buildKnownInsightsSection({
-    content: args.currentInsightContent,
-    maxPerValue: 150,
-    maxTotal: 2000,
-    quoteKeys: true,
-  });
-  const topUncovered = args.uncoveredItems
-    .slice(0, 5)
-    .map((item) => `- ${item.promptHint}`)
-    .join("\n");
-
-  const isOnboardingDone =
-    Boolean(args.isOnboardingDone) || args.uncoveredItems.length === 0;
-  const isOnboardingActive = !isOnboardingDone;
-
-  logger.log("\n\n topUncovered : ", args.uncoveredItems);
-  logger.log("\n\n existingInsightsSection : ", existingInsightsSection);
-
-  const profileContextBlock = [
+  return [
     `Resume file: ${args.profile?.resume_file_name ?? "(none) - 유저에 대한 정보가 더 필요하지만 Resume가 없는 경우, 이력서를 올려달라고 가볍게 부탁해라."}`,
     "",
     args.structuredProfileText || "[Structured Talent Profile]\n(none)",
   ].join("\n");
+}
+
+function buildUncoveredInsightSection(args: {
+  coverageRatio: number;
+  isOnboardingActive: boolean;
+  topUncovered: string;
+}) {
+  if (!args.isOnboardingActive) {
+    return [
+      "Onboarding is already completed. Do not restart the onboarding checklist.",
+    ].join("\n");
+  }
+
+  if (args.topUncovered && args.coverageRatio < TALENT_INTERVIEW_MIN_COVERAGE) {
+    return [
+      "Prioritize naturally asking about these uncovered topics (one at a time):",
+      args.topUncovered,
+    ].join("\n");
+  }
+
+  return [
+    "Insight coverage is sufficient. Stop asking new insight-coverage questions.",
+    "Closing is allowed now, but do not force an immediate ending if one lightweight optional question naturally follows from the latest answer or career context.",
+    "If no optional question clearly fits now, close the onboarding politely using the end marker rule above.",
+  ].join("\n");
+}
+
+function buildCareerConversationPromptPlan(args: {
+  callEndInstruction?: string;
+  channel: CareerPromptChannel;
+  coveredCount: number;
+  currentInsightContent: Record<string, string> | null;
+  interruptHandling?: string;
+  isOnboardingDone?: boolean;
+  profile: CareerPromptProfile | null;
+  recentConversationSection?: string;
+  structuredProfileText: string;
+  toolNames?: readonly string[] | string;
+  totalInsightCount: number;
+  uncoveredItems: CareerPromptInsightItem[];
+  userTurnCount: number;
+}): CareerPromptPlan {
+  const channelType = getCareerChannelType(args.channel);
+  const coverageRatio =
+    args.totalInsightCount > 0 ? args.coveredCount / args.totalInsightCount : 1;
+  const coverageThresholdPercent = Math.round(
+    TALENT_INTERVIEW_MIN_COVERAGE * 100
+  );
+  const existingInsightsSection = buildKnownInsightsSection({
+    content: args.currentInsightContent,
+    maxPerValue: args.channel === "voice" ? 120 : 150,
+    maxTotal: args.channel === "voice" ? 1500 : 2000,
+    quoteKeys: args.channel === "chat",
+  });
+  const topUncovered = args.uncoveredItems
+    .slice(0, 10)
+    .map((item) => `- ${item.promptHint}`)
+    .join("\n");
+  const isOnboardingActive = !Boolean(args.isOnboardingDone);
+  const profileContextBlock = buildProfileContextBlock({
+    profile: args.profile,
+    structuredProfileText: args.structuredProfileText,
+  });
+  const toolPolicy = isOnboardingActive
+    ? ""
+    : buildCareerToolPolicyPrompt({
+        channel: args.channel,
+        toolNames: normalizeToolNames(args.toolNames),
+      });
 
   const dynamicStateLines = [
-    buildCareerRuntimeContextPrompt("Text Chat"),
+    `## Runtime context \n현재 후보자와 ${channelType}을 통해 소통하고 있습니다. (Voice Call or Text Chat) \n현재 시각 : ${new Date().toLocaleString()}`,
     `Insight coverage: ${args.coveredCount}/${args.totalInsightCount} items covered.`,
+    `Completion threshold: ${coverageThresholdPercent}% coverage.`,
     existingInsightsSection,
-    topUncovered
-      ? [
-          "Prioritize naturally asking about these uncovered topics (one at a time):",
-          topUncovered,
-        ].join("\n")
-      : "",
+    args.recentConversationSection ?? "", // voice 일 때만 들어감
+    buildUncoveredInsightSection({
+      coverageRatio,
+      isOnboardingActive,
+      topUncovered,
+    }),
     `Current user turn count: ${args.userTurnCount}.`,
   ].filter((value) => value && value.trim().length > 0);
 
   const promptBlocks: CareerPromptBlock[] = [
     {
       key: "chat_core",
-      text: buildCareerSharedSystemPrompt("Text Chat"),
+      text: buildCareerSharedSystemPrompt(channelType),
       cacheable: true,
-    },
-    ...(isOnboardingActive
-      ? [
-          {
-            key: "onboarding_rules",
-            text: CAREER_ONBOARDING_CONVERSATION_PROMPT,
-            cacheable: true,
-          } satisfies CareerPromptBlock,
-        ]
-      : []),
-    {
-      key: "profile_context",
-      text: profileContextBlock,
-      cacheable: true,
-    },
-    {
-      key: "dynamic_state",
-      text: dynamicStateLines.join("\n\n"),
     },
   ];
+
+  if (isOnboardingActive) {
+    promptBlocks.push({
+      key: "onboarding_rules",
+      text: CAREER_ONBOARDING_CONVERSATION_PROMPT,
+      cacheable: true,
+    });
+  }
+
+  if (args.channel === "voice") {
+    const voiceRules = [
+      args.interruptHandling,
+      args.callEndInstruction,
+      "## Voice Call Style\n질문은 짧게 하나씩만 하고, 사용자가 듣고 바로 답할 수 있는 자연스러운 구어체로 말하라. Markdown 문법, 긴 목록, 표 형식은 사용하지 마라.",
+    ]
+      .filter((value) => value && value.trim().length > 0)
+      .join("\n\n");
+
+    if (voiceRules) {
+      promptBlocks.push({
+        key: "voice_call_rules",
+        text: voiceRules,
+        cacheable: true,
+      });
+    }
+  }
+
+  if (toolPolicy) {
+    promptBlocks.push({
+      key: "tool_policy",
+      text: toolPolicy,
+      cacheable: true,
+    });
+  }
+
+  promptBlocks.push({
+    key: "profile_context",
+    text: profileContextBlock,
+    cacheable: true,
+  });
+
+  promptBlocks.push({
+    key: "dynamic_state",
+    text: dynamicStateLines.join("\n\n"),
+  });
 
   return {
     isOnboardingActive,
     promptBlocks,
+    toolPolicy,
   };
+}
+
+export function buildCareerChatPromptBlocks(args: {
+  coveredCount: number;
+  currentInsightContent: Record<string, string> | null;
+  isOnboardingDone?: boolean;
+  profile: CareerPromptProfile | null;
+  structuredProfileText: string;
+  toolNames?: readonly string[] | string;
+  totalInsightCount: number;
+  uncoveredItems: CareerPromptInsightItem[];
+  userTurnCount: number;
+}): CareerPromptPlan {
+  const plan = buildCareerConversationPromptPlan({
+    ...args,
+    channel: "chat",
+  });
+
+  logger.log("\n\n topUncovered : ", args.uncoveredItems);
+  logger.log(
+    "\n\n existingInsightsSection : ",
+    buildKnownInsightsSection({
+      content: args.currentInsightContent,
+      maxPerValue: 150,
+      maxTotal: 2000,
+      quoteKeys: true,
+    })
+  );
+
+  return plan;
 }
 
 export function buildCareerRealtimeRecentConversationSection(
@@ -352,87 +497,61 @@ export function buildCareerRealtimeRecentConversationSection(
   return section;
 }
 
-export function buildCareerRealtimeInstructionsPrompt(args: {
+export function buildCareerRealtimePromptPlan(args: {
   coveredCount: number;
   currentInsightContent: Record<string, string> | null;
   interruptHandling: string;
   isOnboardingDone?: boolean;
   callEndInstruction: string;
   recentConversationSection: string;
-  shouldWrapUpNow: boolean;
   structuredProfileText: string;
-  thresholdPercent: number;
-  toolPolicy: string;
+  toolNames?: readonly string[] | string;
   totalInsightCount: number;
   uncoveredItems: CareerPromptInsightItem[];
   userTurnCount: number;
   profile: CareerPromptProfile | null;
 }) {
-  const topUncovered = args.uncoveredItems
-    .slice(0, 5)
-    .map((item) => `- ${item.promptHint}`)
-    .join("\n");
-
-  const existingInsightsSection = buildKnownInsightsSection({
-    content: args.currentInsightContent,
-    maxPerValue: 120,
-    maxTotal: 1500,
+  const plan = buildCareerConversationPromptPlan({
+    callEndInstruction: args.callEndInstruction,
+    channel: "voice",
+    coveredCount: args.coveredCount,
+    currentInsightContent: args.currentInsightContent,
+    interruptHandling: args.interruptHandling,
+    isOnboardingDone: args.isOnboardingDone,
+    profile: args.profile,
+    recentConversationSection: args.recentConversationSection,
+    structuredProfileText: args.structuredProfileText,
+    toolNames: args.toolNames,
+    totalInsightCount: args.totalInsightCount,
+    uncoveredItems: args.uncoveredItems,
+    userTurnCount: args.userTurnCount,
   });
-  const isOnboardingDone =
-    Boolean(args.isOnboardingDone) || args.uncoveredItems.length === 0;
 
-  const onboardingConversationPrompt = isOnboardingDone
-    ? ""
-    : CAREER_ONBOARDING_CONVERSATION_PROMPT;
+  return {
+    ...plan,
+    instructions: renderCareerPromptBlocks(plan.promptBlocks),
+  };
+}
 
-  return [
-    buildCareerSharedSystemPrompt("Voice Call"),
-    "",
-    buildCareerRuntimeContextPrompt("Voice Call"),
-    "",
-    args.interruptHandling,
-    "",
-    args.callEndInstruction,
-    "",
-    args.toolPolicy,
-    onboardingConversationPrompt,
-    "",
-    existingInsightsSection,
-    "",
-    args.recentConversationSection,
-    "",
-    `Insight coverage: ${args.coveredCount}/${args.totalInsightCount} items covered.`,
-    `Completion threshold: ${args.thresholdPercent}% coverage.`,
-    args.shouldWrapUpNow
-      ? "Coverage threshold is met. Stop asking new exploratory questions, briefly wrap up the call, give a warm closing, and then finish the call using the end marker rule above."
-      : "Coverage threshold is not met yet. Keep the call going and prioritize naturally asking about these uncovered topics (one at a time):",
-    args.shouldWrapUpNow
-      ? "A final goodbye is allowed now."
-      : "Do not give a final goodbye, do not imply the call is ending, and do not append the end marker until the coverage threshold is met.",
-    args.shouldWrapUpNow
-      ? "(no more exploratory questions needed)"
-      : topUncovered,
-    "",
-    `Current user turn count: ${args.userTurnCount}`,
-    `Resume file: ${args.profile?.resume_file_name ?? "(none)"}`,
-    args.structuredProfileText || "[Structured Talent Profile]\n(none)",
-  ].join("\n");
+export function buildCareerRealtimeInstructionsPrompt(
+  args: Parameters<typeof buildCareerRealtimePromptPlan>[0]
+) {
+  return buildCareerRealtimePromptPlan(args).instructions;
 }
 
 export function buildCareerToolPolicyPrompt(args: {
   channel: CareerToolPolicyChannel;
-  toolNames: string;
+  toolNames: readonly string[] | string;
 }) {
-  const hasCompanySnapshotTool = args.toolNames.includes(
-    "prepare_company_snapshot"
-  );
-  const hasMockInterviewTool = args.toolNames.includes(
-    "prepare_mock_interview"
-  );
-  const hasRecommendedOpportunitiesTool = args.toolNames.includes(
+  const toolNames = normalizeToolNames(args.toolNames);
+  if (toolNames.length === 0) return "";
+
+  const toolNameText = toolNames.join(", ");
+  const hasCompanySnapshotTool = toolNames.includes("prepare_company_snapshot");
+  const hasRecommendedOpportunitiesTool = toolNames.includes(
     "read_recommended_opportunities"
   );
-  const hasJobPostingRecommendationTool = args.toolNames.includes(
+  const hasJobPostingRecommendationTool = toolNames.includes(
     "recommend_job_postings"
   );
   const channelRule =
@@ -442,17 +561,11 @@ export function buildCareerToolPolicyPrompt(args: {
 
   return [
     "## Tool Use Policy",
-    `Available tools: ${args.toolNames}`,
+    `Available tools: ${toolNameText}`,
     ...(args.channel === "voice"
       ? [
           "- Voice call limitation: UI-card tools are not available during a live voice call. Do not claim that you can show buttons or cards inside the call.",
-          "- If the user asks for mock-interview setup or full company snapshot/research during voice, explain in Korean that you can help after ending the call in text chat, where Harper can create the relevant setup card and button.",
-        ]
-      : []),
-    ...(hasMockInterviewTool
-      ? [
-          "- If the user asks to prepare, practice, or start a mock interview, call `prepare_mock_interview`. This tool prepares the mock-interview setup UI; do not start the interview yourself.",
-          "- For `prepare_mock_interview`, pass the company name and role title only when the user explicitly gave them or they are clearly available from the conversation context.",
+          "- If the user asks for full company snapshot/research during voice, explain in Korean that you can help after ending the call in text chat, where Harper can create the relevant setup card and button.",
         ]
       : []),
     ...(hasCompanySnapshotTool
@@ -703,133 +816,6 @@ export function buildCareerOnboardingDeferCloseSystemPrompt() {
     "- Do not ask a follow-up question.",
     "- Do not use bullet points.",
   ].join("\n");
-}
-
-export function buildCareerMockInterviewSetupPrompt(args: {
-  companyName: string;
-  description: string | null;
-  profileText: string;
-  recommendationReasons: string[];
-  research: Record<string, unknown>;
-  roleTitle: string;
-}) {
-  return `Create a concise mock interview setup card.
-
-Return JSON only:
-{
-  "goal": "one sentence",
-  "focus": "one sentence",
-  "feedback": "one sentence"
-}
-
-Company: ${args.companyName}
-Role: ${args.roleTitle}
-JD:
-${args.description ?? "(no JD available)"}
-
-Recommendation reasons:
-${args.recommendationReasons.join("\n") || "(none)"}
-
-Candidate profile:
-${args.profileText || "(none)"}
-
-Search notes:
-${JSON.stringify(args.research).slice(0, 2500)}
-
-Write in Korean. Be specific, but do not claim facts that are not in the context.`;
-}
-
-export function buildCareerMockInterviewInstructionsPrompt(args: {
-  candidateProfileText: string;
-  companyName: string;
-  durationMinutes: number;
-  feedbackPromise: string;
-  focus: string;
-  goal: string;
-  researchPayload: Record<string, unknown>;
-  roleTitle: string;
-  typeLabel: string;
-  voice?: boolean;
-}) {
-  return `You are Harper running a ${args.typeLabel} mock interview.
-
-Company: ${args.companyName}
-Role: ${args.roleTitle}
-Duration target: ${args.durationMinutes} minutes
-
-Setup:
-- Goal: ${args.goal}
-- Focus: ${args.focus}
-- Feedback promise: ${args.feedbackPromise}
-
-Research notes:
-${JSON.stringify(args.researchPayload ?? {}).slice(0, 2500)}
-
-Candidate context:
-${args.candidateProfileText}
-
-Rules:
-- Interview the user. Do not explain your system.
-- Speak in Korean unless the user explicitly asks for another language.
-- Start with a brief framing only if this is the first turn.
-- Ask exactly one question at a time.
-- If the user's latest reply chose technical, fit, or mixed interview practice, briefly acknowledge that choice and start the first question in that mode.
-- Use follow-up questions when the answer is shallow.
-- For technical interviews, probe implementation, scale, tradeoffs, metrics, and failure modes.
-- For fit interviews, probe motivation, collaboration, ownership, failures, and company fit.
-- For mixed interviews, alternate pitch, technical depth, and motivation.
-- Do not give long feedback after every answer.
-- Keep responses concise.
-- If the user asks to end, tell them you will wrap up and stop asking questions.
-${args.voice ? "- This is voice. Keep questions natural and short." : ""}`;
-}
-
-export function buildCareerMockInterviewOpeningQuestion(args: {
-  companyName: string;
-  roleTitle: string;
-}) {
-  return [
-    `좋습니다. 지금부터 ${args.companyName} ${args.roleTitle} 역할 기준으로 모의 인터뷰를 시작하겠습니다.`,
-    "먼저 어떤 단계의 인터뷰를 연습하고 싶은지 알려주세요. 테크니컬 인터뷰, 핏 인터뷰, 혹은 둘 다 중에서 고르면 됩니다.",
-    "답변해주시면 그 방식에 맞춰 바로 첫 질문부터 시작하고, 필요한 지점은 더 파고들어 질문하겠습니다.",
-    "",
-    "어떤 인터뷰를 연습해볼까요?",
-  ].join("\n");
-}
-
-export const CAREER_MOCK_INTERVIEW_SHORT_FEEDBACK_TEXT =
-  "오늘은 짧게 진행해서 구체적인 피드백을 드리기에는 아직 정보가 부족합니다. 다음에는 2~3개 질문만 더 답해주시면 답변 구조와 기술 설명을 더 정확히 봐드릴게요.";
-
-export const CAREER_MOCK_INTERVIEW_FALLBACK_FEEDBACK_TEXT =
-  "인터뷰 답변을 확인했습니다. 다음 연습에서는 답변 첫 문장에 결론을 더 분명히 두고, 기술 선택의 이유와 트레이드오프를 함께 말하는 방식으로 다듬어보면 좋겠습니다.";
-
-export function buildCareerMockInterviewFeedbackPrompt(args: {
-  companyName: string;
-  roleTitle: string;
-  transcriptText: string;
-}) {
-  return `Give direct mock interview feedback in Korean.
-
-Company: ${args.companyName}
-Role: ${args.roleTitle}
-
-Transcript:
-${args.transcriptText}
-
-Format:
-잘한 점:
-- ...
-
-보완할 점:
-- ...
-
-다음 연습:
-- ...
-
-Rules:
-- Be specific to the transcript.
-- If evidence is weak, say so.
-- Keep it under 220 Korean words.`;
 }
 
 export function buildCareerProfileIngestionSystemPrompt() {

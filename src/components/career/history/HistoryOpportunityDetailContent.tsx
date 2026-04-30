@@ -22,23 +22,32 @@ import {
 } from "lucide-react";
 import { careerCx, CareerInlinePanel } from "../ui/CareerPrimitives";
 import { OpportunityType } from "@/lib/opportunityType";
+import OpportunityPreferenceFit from "./OpportunityPreferenceFit";
 
 export const OpportunityHeader = ({
   item,
+  layout = "responsive",
   onOpenOpportunityInfo,
   extraComponent,
 }: {
   item: CareerHistoryOpportunity;
+  layout?: "responsive" | "stacked";
   onOpenOpportunityInfo: (type: CareerOpportunityType) => void;
   extraComponent?: ReactNode;
 }) => {
   const postedAgo = formatRelativeTime(item.postedAt);
   const companyInfoLink = item.companyHomepageUrl ?? item.companyLinkedinUrl;
   const metaItems = getMetaItems(item);
+  const stacked = layout === "stacked";
 
   return (
-    <div className="flex flex-row items-start justify-between w-full">
-      <div className="flex flex-row items-start gap-4">
+    <div
+      className={careerCx(
+        "flex w-full flex-col gap-3",
+        !stacked && "sm:flex-row sm:items-start sm:justify-between"
+      )}
+    >
+      <div className="flex min-w-0 flex-row items-start gap-3 sm:gap-4">
         {item.companyLogoUrl ? (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -54,21 +63,21 @@ export const OpportunityHeader = ({
           </div>
         )}
 
-        <div className="flex flex-col items-start">
-          <div className="text-[18px] font-medium text-beige900">
+        <div className="flex min-w-0 flex-col items-start">
+          <div className="break-words text-[18px] font-medium leading-6 text-beige900">
             {item.title}
           </div>
-          <div className="mt-1 flex flex-row items-center gap-2 text-[14px] text-beige900/80">
+          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[14px] text-beige900/80">
             {companyInfoLink ? (
               <button
                 type="button"
                 onClick={() => window.open(companyInfoLink, "_blank")}
-                className="decoration-dotted underline underline-offset-2 transition-colors hover:text-beige900"
+                className="min-w-0 break-words text-left decoration-dotted underline underline-offset-2 transition-colors hover:text-beige900"
               >
                 {item.companyName}
               </button>
             ) : (
-              <span>{item.companyName}</span>
+              <span className="min-w-0 break-words">{item.companyName}</span>
             )}
             {item.location && <span>· {item.location}</span>}
           </div>
@@ -80,8 +89,18 @@ export const OpportunityHeader = ({
         </div>
       </div>
 
-      <div className="flex self-stretch flex-col items-end justify-between gap-4">
-        <div className="flex flex-wrap items-center justify-end gap-2">
+      <div
+        className={careerCx(
+          "flex w-full flex-col items-start gap-3",
+          !stacked && "sm:w-auto sm:shrink-0 sm:items-end sm:justify-between"
+        )}
+      >
+        <div
+          className={careerCx(
+            "flex flex-wrap items-center justify-start gap-2",
+            !stacked && "sm:justify-end"
+          )}
+        >
           {metaItems.map((meta) => (
             <HistoryMetaPill key={`${item.id}-${meta}`}>{meta}</HistoryMetaPill>
           ))}
@@ -195,11 +214,17 @@ const HistoryOpportunityDetailContent = ({
               onOpenOpportunityInfo={onOpenOpportunityInfo}
             />
 
-            {recommendationSummary ? (
-              <div className="mt-4 w-full rounded-[8px] border border-beige900/10 bg-white/65 px-4 py-3 text-sm leading-6 text-beige900/90">
+            {recommendationSummary && (
+              <div className="mt-4 w-full rounded-[6px] border border-beige900/10 bg-white/65 px-3 py-2 text-sm leading-6 text-beige900/90">
                 {recommendationSummary}
               </div>
-            ) : null}
+            )}
+
+            <OpportunityPreferenceFit
+              className="mt-4"
+              items={item.preferenceFit}
+              variant="detail"
+            />
 
             {item.recommendationReasons.length > 0 && (
               <div className="mt-4 w-full space-y-2">
@@ -219,15 +244,15 @@ const HistoryOpportunityDetailContent = ({
             )}
 
             {recommendationConcerns.length > 0 && (
-              <div className="mt-4 w-full space-y-2">
+              <div className="mt-2 w-full space-y-2">
                 {recommendationConcerns.map((concern, index) => (
                   <div
                     key={`${item.id}-concern-${index}`}
-                    className="flex w-full flex-row items-start justify-start gap-2 rounded-[8px] border border-[#d6c6a4] bg-[#fbf4e8] px-3 py-3"
+                    className="flex w-full flex-row items-center justify-start gap-1"
                   >
-                    <Dot className="mt-[2px] h-4 w-4 text-[#9a7b39]" />
+                    <Dot className="h-5 w-5 text-[#9a7b39]" />
                     <div className="text-sm leading-6 text-beige900/80">
-                      {concern}
+                      불안 요소 : {concern}
                     </div>
                   </div>
                 ))}
@@ -236,6 +261,17 @@ const HistoryOpportunityDetailContent = ({
           </div>
 
           <div className="flex flex-col gap-8 px-5 py-5 font-inter text-[15px] font-normal text-black/80">
+            {roleLink && (
+              <button
+                type="button"
+                onClick={() => onOpenLink(roleLink)}
+                className="flex min-h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-beige900 bg-beige900 px-4 py-3 text-sm font-medium text-[#f5ecdd] transition-opacity hover:opacity-95"
+              >
+                JD 확인하기
+                <ArrowUpRight className="h-4 w-4" />
+              </button>
+            )}
+
             <div className="space-y-2">
               <HistorySectionTitle
                 icon={<Building2 className="h-4 w-4" />}
@@ -255,12 +291,7 @@ const HistoryOpportunityDetailContent = ({
             </div>
 
             <div className="space-y-2">
-              <HistorySectionTitle
-                icon={<></>}
-                title="역할 설명"
-                openText={roleLink ? "JD 열기" : undefined}
-                onClick={roleLink ? () => onOpenLink(roleLink) : undefined}
-              />
+              <HistorySectionTitle icon={<></>} title="역할 설명" />
               <div className="h-[1px] w-full bg-beige900/10" />
               {item.description?.trim() ? (
                 <CareerRichText content={item.description} />
@@ -311,7 +342,7 @@ export const HistoryOpportunityInfoTag = ({
     >
       <LeadingIcon className="h-3.5 w-3.5" />
       <span>{label}</span>
-      {infoTagMeta.showHelpIcon ? <CircleHelp className="h-3.5 w-3.5" /> : null}
+      {infoTagMeta.showHelpIcon && <CircleHelp className="h-3.5 w-3.5" />}
     </button>
   );
 };

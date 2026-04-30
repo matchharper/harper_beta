@@ -2,6 +2,7 @@ import type { User } from "@supabase/supabase-js";
 import React, { createContext, useContext } from "react";
 import type {
   CareerHistoryOpportunity,
+  CareerHistoryOpportunityCounts,
   CareerHistoryOpportunityFeedback,
   CareerNetworkApplication,
   CareerOpportunitySavedStage,
@@ -29,10 +30,14 @@ export type CareerSidebarContextValue = {
   opportunityRunTriggerPending: boolean;
   onRunOpportunityDiscoveryTest: () => void | Promise<void>;
   recentOpportunities: CareerRecentOpportunity[];
+  historyOpportunityCounts: CareerHistoryOpportunityCounts;
   historyOpportunities: CareerHistoryOpportunity[];
   historyLoading: boolean;
+  historyLoadingMore: boolean;
+  hasMoreHistoryOpportunities: boolean;
   historyUpdatingOpportunityIds: string[];
   historyUpdateError: string;
+  onLoadMoreHistoryOpportunities: () => void | Promise<void>;
   onUpdateHistoryOpportunityFeedback: (
     opportunityId: string,
     feedback: CareerHistoryOpportunityFeedback | null,
@@ -55,9 +60,6 @@ export type CareerSidebarContextValue = {
     opportunityId: string,
     question: string
   ) => boolean | Promise<boolean>;
-  onPrepareMockInterview: (
-    opportunityId?: string | null
-  ) => void | Promise<void>;
   notifications: CareerTalentNotification[];
   unreadNotificationCount: number;
   notificationsMarkingAsRead: boolean;
@@ -77,9 +79,9 @@ export type CareerSidebarContextValue = {
   onProfileLinkChange: (index: number, value: string) => void;
   onAddProfileLink: () => void;
   onRemoveProfileLink: (index: number) => void;
-  onSaveTalentProfile: (
-    args?: { structuredProfile?: CareerTalentProfile | null }
-  ) => boolean | Promise<boolean>;
+  onSaveTalentProfile: (args?: {
+    structuredProfile?: CareerTalentProfile | null;
+  }) => boolean | Promise<boolean>;
   talentProfile: CareerTalentProfile;
   networkApplication: CareerNetworkApplication | null;
   talentPreferences: CareerTalentPreferences | null;

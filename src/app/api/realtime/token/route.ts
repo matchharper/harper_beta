@@ -14,18 +14,15 @@ import {
   getUncoveredChecklistItems,
   INSIGHT_CHECKLIST,
 } from "@/lib/talentOnboarding/insightChecklist";
-import { TALENT_INTERVIEW_MIN_COVERAGE } from "@/lib/talentOnboarding/progress";
 import { warmCache } from "@/lib/talentOnboarding/prompts/promptCache";
 import {
-  buildTalentToolPolicy,
   getTalentToolVoicePreambles,
   getRealtimeTools,
 } from "@/lib/talentOnboarding/tools";
-import { buildRealtimeMockInterviewInstructions } from "@/lib/mockInterview/server";
 import {
   getCareerCallEndInstructionPrompt,
   getCareerInterruptHandlingPrompt,
-  buildCareerRealtimeInstructionsPrompt,
+  buildCareerRealtimePromptPlan,
   buildCareerRealtimeRecentConversationSection,
 } from "@/lib/career/prompts";
 import { getCareerRealtimeSessionConfig } from "@/lib/career/llm";
@@ -36,8 +33,9 @@ import { getCareerRealtimeSessionConfig } from "@/lib/career/llm";
  */
 async function buildRealtimeInstructions(
   userId: string,
-  conversationId: string
-): Promise<string> {
+  conversationId: string,
+  toolNames: string[]
+) {
   await warmCache();
 
   const admin = getTalentSupabaseAdmin();
@@ -74,10 +72,6 @@ async function buildRealtimeInstructions(
   > | null;
   const uncoveredItems = getUncoveredChecklistItems(currentInsightContent);
   const coveredCount = INSIGHT_CHECKLIST.length - uncoveredItems.length;
-  const coverageRatio =
-    INSIGHT_CHECKLIST.length > 0 ? coveredCount / INSIGHT_CHECKLIST.length : 1;
-  const thresholdPercent = Math.round(TALENT_INTERVIEW_MIN_COVERAGE * 100);
-  const shouldWrapUpNow = coverageRatio >= TALENT_INTERVIEW_MIN_COVERAGE;
 
   const recentConversationSection =
     buildCareerRealtimeRecentConversationSection(
@@ -86,9 +80,7 @@ async function buildRealtimeInstructions(
         content: message.content,
       }))
     );
-  const toolPolicy = buildTalentToolPolicy("voice");
-
-  return buildCareerRealtimeInstructionsPrompt({
+  return buildCareerRealtimePromptPlan({
     callEndInstruction: getCareerCallEndInstructionPrompt(),
     coveredCount,
     currentInsightContent,
@@ -96,10 +88,8 @@ async function buildRealtimeInstructions(
     isOnboardingDone: talentSetting?.is_onboarding_done,
     profile,
     recentConversationSection,
-    shouldWrapUpNow,
     structuredProfileText,
-    thresholdPercent,
-    toolPolicy,
+    toolNames,
     totalInsightCount: INSIGHT_CHECKLIST.length,
     uncoveredItems,
     userTurnCount,
@@ -160,19 +150,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const mockInterviewInstructions =
-      await buildRealtimeMockInterviewInstructions({
-        admin: getTalentSupabaseAdmin(),
-        conversationId,
-        userId: user.id,
-      });
-    const instructions =
-      mockInterviewInstructions ??
-      (await buildRealtimeInstructions(user.id, conversationId));
-    const tools = mockInterviewInstructions ? [] : getRealtimeTools("voice");
-    const toolVoicePreambles = mockInterviewInstructions
-      ? {}
-      : getTalentToolVoicePreambles("voice");
+    const realtimeTools = getRealtimeTools("voice");
+    const realtimePromptPlan = await buildRealtimeInstructions(
+      user.id,
+      conversationId,
+      realtimeTools.map((tool) => tool.name)
+    );
+    const instructions = realtimePromptPlan.instructions;
+    const tools = realtimePromptPlan.isOnboardingActive ? [] : realtimeTools;
+    const toolVoicePreambles =
+      tools.length > 0 ? getTalentToolVoicePreambles("voice") : {};
     const realtimeConfig = getCareerRealtimeSessionConfig(
       Boolean(useElevenLabsTts)
     );

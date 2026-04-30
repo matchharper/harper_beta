@@ -3,7 +3,6 @@ import type { User } from "@supabase/supabase-js";
 import type {
   CareerMessage,
   CareerMessagePayload,
-  CareerMockInterviewSession,
   CareerOpportunityRun,
   CareerStage,
   SessionResponse,
@@ -21,14 +20,16 @@ type SendChatOptions = {
   profilePending?: boolean;
 };
 
+type CareerChatStreamEvent = {
+  data: unknown;
+  event: string;
+};
+
 type UseCareerChatArgs = {
   user: User | null;
   conversationId: string | null;
   sessionPending: boolean;
   fetchWithAuth: FetchWithAuth;
-  onMockInterviewSessionChanged?: (
-    session: CareerMockInterviewSession | null
-  ) => void;
   onOpportunityRunChanged?: (run: CareerOpportunityRun | null) => void;
   persistedMessages: CareerMessage[];
   onMessagesChanged?: (
@@ -104,12 +105,53 @@ const replaceMessageById = (
   return nextMessages;
 };
 
+const parseSseEvent = (rawEvent: string): CareerChatStreamEvent | null => {
+  let event = "message";
+  const dataLines: string[] = [];
+
+  for (const line of rawEvent.split("\n")) {
+    if (line.startsWith("event:")) {
+      event = line.slice("event:".length).trim();
+      continue;
+    }
+    if (line.startsWith("data:")) {
+      dataLines.push(line.slice("data:".length).trimStart());
+    }
+  }
+
+  const rawData = dataLines.join("\n").trim();
+  if (!rawData) return { event, data: null };
+
+  try {
+    return { event, data: JSON.parse(rawData) };
+  } catch {
+    return { event, data: rawData };
+  }
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === "object";
+
+const isCareerMessagePayload = (
+  value: unknown
+): value is CareerMessagePayload =>
+  isRecord(value) &&
+  typeof value.id === "number" &&
+  (value.role === "user" || value.role === "assistant") &&
+  typeof value.content === "string";
+
+const toStreamMessagePayload = (
+  value: unknown
+): CareerMessagePayload | null => {
+  if (!isCareerMessagePayload(value)) return null;
+  return value;
+};
+
 export const useCareerChat = ({
   user,
   conversationId,
   sessionPending,
   fetchWithAuth,
-  onMockInterviewSessionChanged,
   onOpportunityRunChanged,
   persistedMessages,
   onMessagesChanged,
@@ -241,24 +283,229 @@ export const useCareerChat = ({
         },
       ]);
 
+      let pendingAssistantMessageId: string | null = null;
+
       try {
         const response = await fetchWithAuth("/api/talent/chat", {
           method: "POST",
+          headers: {
+            Accept: "text/event-stream",
+          },
           body: JSON.stringify({
             conversationId,
             message: text,
             link,
           }),
         });
+
+        const contentType = response.headers.get("content-type") ?? "";
+        if (
+          response.ok &&
+          response.body &&
+          contentType.includes("text/event-stream")
+        ) {
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          const streamAssistantId = `stream-assistant-${Date.now()}`;
+          pendingAssistantMessageId = streamAssistantId;
+          let buffer = "";
+          let realUserMessage: CareerMessagePayload | null = null;
+          let assistantPayloads: CareerMessagePayload[] = [];
+          let streamAssistantVisible = false;
+          let streamDone = false;
+
+          const ensureStreamAssistant = () => {
+            if (streamAssistantVisible) return;
+            streamAssistantVisible = true;
+            setAssistantTyping(true);
+            setLocalMessages((prev) => [
+              ...prev,
+              {
+                id: streamAssistantId,
+                role: "assistant",
+                content: "",
+                messageType: "chat",
+                createdAt: new Date().toISOString(),
+                typing: true,
+              },
+            ]);
+          };
+
+          const appendStreamDelta = (delta: string) => {
+            if (!delta) return;
+            ensureStreamAssistant();
+            setLocalMessages((prev) =>
+              prev.map((item) =>
+                String(item.id) === streamAssistantId
+                  ? {
+                      ...item,
+                      content: `${item.content}${delta}`,
+                      typing: true,
+                    }
+                  : item
+              )
+            );
+            setScrollTick((t) => t + 1);
+          };
+
+          const settleAssistantMessage = (payload: CareerMessagePayload) => {
+            const nextMessage = toUiMessage(payload);
+            setLocalMessages((prev) =>
+              streamAssistantVisible
+                ? replaceMessageById(prev, streamAssistantId, nextMessage)
+                : [...prev, nextMessage]
+            );
+            streamAssistantVisible = false;
+            pendingAssistantMessageId = null;
+            setAssistantTyping(false);
+            setScrollTick((t) => t + 1);
+          };
+
+          const handleStreamEvent = async ({
+            data,
+            event,
+          }: CareerChatStreamEvent) => {
+            if (event === "user_message") {
+              const payload = isRecord(data)
+                ? toStreamMessagePayload(data.message)
+                : null;
+              if (!payload) return;
+              realUserMessage = payload;
+              setLocalMessages((prev) =>
+                replaceMessageById(prev, tempId, toUiMessage(payload))
+              );
+              return;
+            }
+
+            if (event === "text_delta") {
+              const delta =
+                isRecord(data) && typeof data.delta === "string"
+                  ? data.delta
+                  : "";
+              appendStreamDelta(delta);
+              return;
+            }
+
+            if (event === "assistant_message") {
+              const payload = isRecord(data)
+                ? toStreamMessagePayload(data.message)
+                : null;
+              if (!payload) return;
+              assistantPayloads = [payload];
+              settleAssistantMessage(payload);
+              return;
+            }
+
+            if (event === "assistant_messages") {
+              const payloads =
+                isRecord(data) && Array.isArray(data.messages)
+                  ? data.messages
+                      .map(toStreamMessagePayload)
+                      .filter(
+                        (item): item is CareerMessagePayload => item !== null
+                      )
+                  : [];
+              if (payloads.length === 0) return;
+              assistantPayloads = payloads;
+              setLocalMessages((prev) => {
+                let nextMessages = [...prev];
+                for (let index = 0; index < payloads.length; index += 1) {
+                  const payload = payloads[index];
+                  const nextMessage = toUiMessage(payload);
+                  if (index === 0 && streamAssistantVisible) {
+                    nextMessages = replaceMessageById(
+                      nextMessages,
+                      streamAssistantId,
+                      nextMessage
+                    );
+                    continue;
+                  }
+                  nextMessages.push(nextMessage);
+                }
+                return nextMessages;
+              });
+              streamAssistantVisible = false;
+              pendingAssistantMessageId = null;
+              setAssistantTyping(false);
+              setScrollTick((t) => t + 1);
+              return;
+            }
+
+            if (event === "opportunity_run") {
+              const run = isRecord(data)
+                ? (data.opportunityRun as CareerOpportunityRun | null)
+                : null;
+              onOpportunityRunChanged?.(run ?? null);
+              return;
+            }
+
+            if (event === "progress") {
+              const progress = isRecord(data) ? data.progress : null;
+              if (isRecord(progress) && progress.completed) {
+                setStage("completed");
+              }
+              return;
+            }
+
+            if (event === "error") {
+              throw new Error(
+                isRecord(data) && typeof data.error === "string"
+                  ? data.error
+                  : "메시지 전송에 실패했습니다."
+              );
+            }
+
+            if (event === "done") {
+              streamDone = true;
+              if (realUserMessage || assistantPayloads.length > 0) {
+                await onMessagesChanged?.([
+                  ...(realUserMessage ? [realUserMessage] : []),
+                  ...assistantPayloads,
+                ]);
+              }
+              setChatPending(false);
+              setAssistantTyping(false);
+            }
+          };
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder
+              .decode(value, { stream: true })
+              .replace(/\r\n/g, "\n");
+            let boundaryIndex = buffer.indexOf("\n\n");
+            while (boundaryIndex >= 0) {
+              const rawEvent = buffer.slice(0, boundaryIndex);
+              buffer = buffer.slice(boundaryIndex + 2);
+              const parsedEvent = parseSseEvent(rawEvent);
+              if (parsedEvent) {
+                await handleStreamEvent(parsedEvent);
+              }
+              boundaryIndex = buffer.indexOf("\n\n");
+            }
+          }
+
+          const tail = buffer.trim();
+          if (tail) {
+            const parsedEvent = parseSseEvent(tail);
+            if (parsedEvent) {
+              await handleStreamEvent(parsedEvent);
+            }
+          }
+
+          if (!streamDone) {
+            throw new Error("메시지 스트림이 완료되기 전에 종료되었습니다.");
+          }
+
+          return;
+        }
+
         const payload = await response.json().catch(() => ({}));
         if (payload?.opportunityRun) {
           onOpportunityRunChanged?.(
             payload.opportunityRun as CareerOpportunityRun
-          );
-        }
-        if (payload?.mockInterviewSession !== undefined) {
-          onMockInterviewSessionChanged?.(
-            payload.mockInterviewSession as CareerMockInterviewSession | null
           );
         }
         if (!response.ok) {
@@ -293,7 +540,14 @@ export const useCareerChat = ({
           error instanceof Error
             ? error.message
             : "메시지 전송 중 오류가 발생했습니다.";
-        setLocalMessages((prev) => prev.filter((item) => item.id !== tempId));
+        setLocalMessages((prev) =>
+          prev.filter(
+            (item) =>
+              item.id !== tempId &&
+              (!pendingAssistantMessageId ||
+                String(item.id) !== pendingAssistantMessageId)
+          )
+        );
         setChatError(message);
         args.onError?.();
       } finally {
@@ -310,7 +564,6 @@ export const useCareerChat = ({
       stage,
       user,
       onMessagesChanged,
-      onMockInterviewSessionChanged,
       onOpportunityRunChanged,
     ]
   );

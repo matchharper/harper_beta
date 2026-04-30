@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 import {
-  fetchTalentOpportunityHistory,
+  fetchTalentOpportunityHistoryByIds,
+  fetchTalentOpportunityHistoryPage,
   type TalentOpportunitySavedStage,
   updateTalentOpportunityHistoryItem,
   type TalentOpportunityFeedback,
@@ -11,12 +12,29 @@ import {
   createOpportunityDiscoveryRun,
   getActiveOpportunityRun,
 } from "@/lib/opportunityDiscovery/store";
+import { createTalentOpportunityActionReply } from "@/lib/career/historyActionReply";
 
 function startOpportunityDiscoveryInBackground(runId: string) {
   console.info("[opportunity-discovery] queued for harper_worker", {
     runId,
   });
 }
+
+const parsePositiveIntegerParam = (
+  value: string | null,
+  fallback: number,
+  max: number
+) => {
+  const parsed = Number(value ?? fallback);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(1, Math.min(Math.floor(parsed), max));
+};
+
+const parseOffsetParam = (value: string | null) => {
+  const parsed = Number(value ?? 0);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.max(0, Math.floor(parsed));
+};
 
 export async function GET(req: NextRequest) {
   try {
@@ -26,12 +44,20 @@ export async function GET(req: NextRequest) {
     }
 
     const admin = getTalentSupabaseAdmin();
-    const items = await fetchTalentOpportunityHistory({
+    const limit = parsePositiveIntegerParam(
+      req.nextUrl.searchParams.get("limit"),
+      20,
+      100
+    );
+    const offset = parseOffsetParam(req.nextUrl.searchParams.get("offset"));
+    const page = await fetchTalentOpportunityHistoryPage({
       admin,
+      limit,
+      offset,
       userId: user.id,
     });
 
-    return NextResponse.json({ items, ok: true });
+    return NextResponse.json({ ...page, ok: true });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to load opportunities";
@@ -50,6 +76,7 @@ export async function PATCH(req: NextRequest) {
       action?: "feedback" | "saved_stage" | "view" | "click";
       feedback?: TalentOpportunityFeedback | null;
       feedbackReason?: string | null;
+      conversationId?: string | null;
       opportunityId?: string;
       savedStage?: TalentOpportunitySavedStage | null;
     };
@@ -104,6 +131,41 @@ export async function PATCH(req: NextRequest) {
       savedStage: body.savedStage,
       userId: user.id,
     });
+
+    let assistantMessage: Awaited<
+      ReturnType<typeof createTalentOpportunityActionReply>
+    > | null = null;
+    const conversationId = String(body.conversationId ?? "").trim() || null;
+    if (
+      action === "feedback" &&
+      (body.feedback === "positive" || body.feedback === "negative") &&
+      conversationId
+    ) {
+      try {
+        const [opportunity] = await fetchTalentOpportunityHistoryByIds({
+          admin,
+          ids: [opportunityId],
+          userId: user.id,
+        });
+        assistantMessage = await createTalentOpportunityActionReply({
+          action: body.feedback,
+          admin,
+          conversationId,
+          feedbackReason: body.feedbackReason ?? null,
+          opportunity: opportunity ?? null,
+          userId: user.id,
+        });
+      } catch (replyError) {
+        console.error("[career-history:action-reply]", {
+          error:
+            replyError instanceof Error
+              ? replyError.message
+              : String(replyError),
+          opportunityId,
+          userId: user.id,
+        });
+      }
+    }
 
     let followUpRunId: string | null = null;
     if (action === "feedback" && body.feedback) {
@@ -167,7 +229,7 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ...result, followUpRunId });
+    return NextResponse.json({ ...result, assistantMessage, followUpRunId });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to update opportunity";

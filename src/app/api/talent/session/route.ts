@@ -28,24 +28,21 @@ import {
   getTalentCareerMoveIntentLabel,
   normalizeTalentNetworkApplication,
 } from "@/lib/talentNetworkApplication";
-import { fetchTalentOpportunityHistory } from "@/lib/talentOpportunity";
+import {
+  fetchTalentOpportunityHistoryByIds,
+  fetchTalentOpportunityHistoryPage,
+} from "@/lib/talentOpportunity";
 import {
   fetchLatestOpportunityRun,
   serializeOpportunityRun,
 } from "@/lib/opportunityDiscovery/store";
-import {
-  fetchActiveMockInterviewSession,
-  serializeMockInterviewSession,
-  toMockInterviewResponseMessage,
-  MOCK_INTERVIEW_PREPARING_MESSAGE_TYPE,
-  MOCK_INTERVIEW_SETUP_MESSAGE_TYPE,
-} from "@/lib/mockInterview/server";
 import {
   COMPANY_SNAPSHOT_SETUP_MESSAGE_TYPE,
   toCompanySnapshotResponseMessage,
 } from "@/lib/career/companySnapshot";
 
 const REENGAGEMENT_IDLE_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_OPPORTUNITY_LIMIT = 20;
 
 const getLatestUpdatedAt = (...values: Array<string | null | undefined>) => {
   const timestamps = values
@@ -63,6 +60,22 @@ const getLatestUpdatedAt = (...values: Array<string | null | undefined>) => {
 
   timestamps.sort((left, right) => right.time - left.time);
   return timestamps[0]?.value ?? null;
+};
+
+const parsePositiveIntegerParam = (
+  value: string | null,
+  fallback: number,
+  max: number
+) => {
+  const parsed = Number(value ?? fallback);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(1, Math.min(Math.floor(parsed), max));
+};
+
+const parseOffsetParam = (value: string | null) => {
+  const parsed = Number(value ?? 0);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.max(0, Math.floor(parsed));
 };
 
 export async function GET(req: NextRequest) {
@@ -171,6 +184,14 @@ export async function GET(req: NextRequest) {
       rawBeforeMessageId && /^\d+$/.test(rawBeforeMessageId)
         ? Number(rawBeforeMessageId)
         : null;
+    const opportunityLimit = parsePositiveIntegerParam(
+      req.nextUrl.searchParams.get("opportunityLimit"),
+      DEFAULT_OPPORTUNITY_LIMIT,
+      100
+    );
+    const opportunityOffset = parseOffsetParam(
+      req.nextUrl.searchParams.get("opportunityOffset")
+    );
     const allowReengagement =
       !beforeMessageId &&
       req.nextUrl.searchParams.get("allowReengagement") === "1";
@@ -281,8 +302,7 @@ export async function GET(req: NextRequest) {
       beforeMessageId,
     });
     const visibleMessages = messages.filter(
-      (message) =>
-        message.message_type !== MOCK_INTERVIEW_PREPARING_MESSAGE_TYPE
+      (message) => !(message.message_type ?? "").startsWith("mock_interview")
     );
     const [
       talentProfile,
@@ -290,9 +310,8 @@ export async function GET(req: NextRequest) {
       talentSetting,
       talentInsights,
       talentNotificationsResponse,
-      historyOpportunities,
+      historyOpportunitiesPage,
       latestOpportunityRun,
-      activeMockInterview,
       activeCompanyRolesResponse,
     ] = await Promise.all([
       fetchTalentStructuredProfile({
@@ -317,17 +336,14 @@ export async function GET(req: NextRequest) {
         .select("id, message, is_read, created_at")
         .eq("talent_id", user.id)
         .order("created_at", { ascending: false }),
-      fetchTalentOpportunityHistory({
+      fetchTalentOpportunityHistoryPage({
         admin,
+        limit: opportunityLimit,
+        offset: opportunityOffset,
         userId: user.id,
       }),
       fetchLatestOpportunityRun({
         admin,
-        userId: user.id,
-      }),
-      fetchActiveMockInterviewSession({
-        admin,
-        conversationId: conversation.id,
         userId: user.id,
       }),
       admin
@@ -350,7 +366,8 @@ export async function GET(req: NextRequest) {
         }));
     const activeCompanyRoleCount = activeCompanyRolesResponse.error
       ? 0
-      : activeCompanyRolesResponse.count ?? 0;
+      : (activeCompanyRolesResponse.count ?? 0);
+    const historyOpportunities = historyOpportunitiesPage.items;
     const careerMoveIntent = sanitizeTalentCareerMoveIntent(
       talentSetting?.career_move_intent
     );
@@ -393,6 +410,23 @@ export async function GET(req: NextRequest) {
         const opportunityById = new Map(
           historyOpportunities.map((item) => [item.id, item])
         );
+        const missingRecommendationIds = previewRows
+          .map((row) => String(row.recommendation_id ?? "").trim())
+          .filter((id) => id && !opportunityById.has(id));
+
+        if (missingRecommendationIds.length > 0) {
+          const previewOpportunities = await fetchTalentOpportunityHistoryByIds(
+            {
+              admin,
+              ids: missingRecommendationIds,
+              userId: user.id,
+            }
+          );
+
+          for (const item of previewOpportunities) {
+            opportunityById.set(item.id, item);
+          }
+        }
 
         for (const row of previewRows) {
           const messageId = Number(row.assistant_message_id);
@@ -419,7 +453,9 @@ export async function GET(req: NextRequest) {
         reliefNudgeSent: Boolean(conversation.relief_nudge_sent),
       },
       historyItems: [],
+      historyOpportunityCounts: historyOpportunitiesPage.counts,
       historyOpportunities,
+      nextOpportunityOffset: historyOpportunitiesPage.nextOffset,
       notifications,
       networkApplication: normalizeTalentNetworkApplication(
         profile?.career_profile ?? profile?.network_application
@@ -457,9 +493,7 @@ export async function GET(req: NextRequest) {
       talentProfile,
       opportunityRun: serializeOpportunityRun(latestOpportunityRun),
       messages: visibleMessages.map((message) => ({
-        ...(message.message_type === MOCK_INTERVIEW_SETUP_MESSAGE_TYPE
-          ? toMockInterviewResponseMessage(message as TalentMessageRow)
-          : message.message_type === COMPANY_SNAPSHOT_SETUP_MESSAGE_TYPE
+        ...(message.message_type === COMPANY_SNAPSHOT_SETUP_MESSAGE_TYPE
             ? toCompanySnapshotResponseMessage(message as TalentMessageRow)
             : {
                 id: message.id,
@@ -470,7 +504,6 @@ export async function GET(req: NextRequest) {
               }),
         opportunityPreview: previewByMessageId.get(message.id) ?? [],
       })),
-      mockInterviewSession: serializeMockInterviewSession(activeMockInterview),
       nextBeforeMessageId,
     });
   } catch (error) {

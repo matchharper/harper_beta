@@ -54,6 +54,11 @@ export default function App({ Component, pageProps }: AppProps) {
   } = useCompanyUserStore();
   const lastFreeRefreshUserId = useRef<string | null>(null);
   const router = useRouter();
+  const isCareerPage =
+    router.pathname === "/career" ||
+    router.pathname.startsWith("/career/") ||
+    router.pathname === "/career_login";
+  const shouldLoadCrisp = Boolean(CRISP_BOOTSTRAP_SCRIPT) && !isCareerPage;
 
   useEffect(() => {
     if (!GA_ID) return;
@@ -82,6 +87,22 @@ export default function App({ Component, pageProps }: AppProps) {
       load(user.id);
     }
   }, [loading, user, load, companyUser, companyUserLoading]);
+
+  useEffect(() => {
+    if (!CRISP_WEBSITE_ID) return;
+    if (typeof window === "undefined") return;
+
+    const crispWindow = window as Window & {
+      $crisp?: Array<unknown[]>;
+    };
+
+    if (!crispWindow.$crisp) {
+      if (isCareerPage) return;
+      crispWindow.$crisp = [];
+    }
+
+    crispWindow.$crisp.push(["do", isCareerPage ? "chat:hide" : "chat:show"]);
+  }, [isCareerPage]);
 
   useEffect(() => {
     init();
@@ -135,7 +156,7 @@ export default function App({ Component, pageProps }: AppProps) {
           </Script>
         </>
       )}
-      {CRISP_BOOTSTRAP_SCRIPT && (
+      {shouldLoadCrisp && (
         <Script id="crisp-chat" strategy="afterInteractive">
           {CRISP_BOOTSTRAP_SCRIPT}
         </Script>

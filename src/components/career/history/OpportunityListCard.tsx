@@ -7,7 +7,7 @@ import {
 import { careerCx, CareerInlinePanel } from "../ui/CareerPrimitives";
 import { SAVED_TABS } from "../CareerHistoryPanel";
 import { getOpportunityPanelTone } from "../CareerHistoryPanel";
-import { Building2, ChevronDown } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import {
   BeigeActionDropdown,
   BeigeActionDropdownItem,
@@ -17,6 +17,7 @@ import {
   getSavedStageLabel,
 } from "../CareerHistoryPanel";
 import { OpportunityHeader } from "./HistoryOpportunityDetailContent";
+import OpportunityPreferenceFit from "./OpportunityPreferenceFit";
 
 const HistorySavedStageDropdown = ({
   disabled,
@@ -76,7 +77,10 @@ const OpportunityListCard = ({
 }) => {
   const recommendationReasons = item.recommendationReasons.slice(0, 2);
   const recommendationSummary = item.recommendationSummary?.trim() ?? "";
-  const recommendationConcerns = (item.recommendationConcerns ?? []).slice(0, 1);
+  const recommendationConcerns = (item.recommendationConcerns ?? []).slice(
+    0,
+    1
+  );
   const hasActionArea = Boolean(
     action || (showSavedStageSelect && onSavedStageChange)
   );
@@ -109,6 +113,7 @@ const OpportunityListCard = ({
         >
           <OpportunityHeader
             item={item}
+            layout="stacked"
             onOpenOpportunityInfo={onOpenOpportunityInfo}
             extraComponent={
               <>
@@ -129,6 +134,7 @@ const OpportunityListCard = ({
           />
 
           <div className="mt-4 space-y-2">
+            <OpportunityPreferenceFit items={item.preferenceFit} />
             {recommendationSummary ? (
               <div className="rounded-[8px] border border-beige900/10 bg-white/65 px-3 py-2 text-[14px] leading-6 text-beige900/90">
                 {recommendationSummary}

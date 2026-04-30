@@ -2,7 +2,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   AwardIcon,
   Building2,
+  Eye,
+  FileText,
   MapPin,
+  MessageSquare,
   Pencil,
   Plus,
   Save,
@@ -39,6 +42,14 @@ type EditableTalentProfile = {
   talentExtras: EditableExtra[];
 };
 
+const PROFILE_RERANKING_INSIGHTS = [
+  { key: "next_scope", label: "다음 역할" },
+  { key: "location", label: "근무 지역" },
+  { key: "compensation", label: "보상" },
+  { key: "must_haves", label: "필수 조건" },
+  { key: "deal_breakers", label: "회피 조건" },
+] as const;
+
 const parseDate = (value: string | null | undefined) => {
   if (!value) return null;
   const date = new Date(value);
@@ -59,6 +70,18 @@ const formatMonth = (months?: number | null) => {
   const years = Math.floor(months / 12);
   const remain = months % 12;
   return `${years > 0 ? `${years}년 ` : ""}${remain}개월`;
+};
+
+const formatLastUpdated = (value: string | null) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(date);
 };
 
 const createClientKey = (prefix: string) =>
@@ -211,8 +234,10 @@ const TimelineBlock = ({
   memo,
   meta,
   icon,
+  kind = "work",
   logoUrl,
   logoAlt,
+  logoText,
   isLast,
 }: {
   title: string;
@@ -221,51 +246,97 @@ const TimelineBlock = ({
   memo?: string;
   meta?: string;
   icon: React.ReactNode;
+  kind?: "work" | "education" | "extra";
   logoUrl?: string | null;
   logoAlt?: string;
+  logoText?: string;
   isLast?: boolean;
-}) => (
-  <div className={careerCx("relative pl-11", !isLast && "pb-6")}>
-    {!isLast && (
-      <div className="absolute bottom-0 left-[14px] top-[30px] w-px bg-beige900/10" />
-    )}
-    <div className="absolute left-0 top-1 flex h-7 w-7 items-center justify-center overflow-hidden rounded-[8px] border border-beige900/15 bg-white/45 text-beige900/70">
-      <span className="absolute inset-0 flex items-center justify-center">
-        {icon}
-      </span>
-      {logoUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={logoUrl}
-          alt={logoAlt ?? title}
-          className="relative h-full w-full object-cover"
-          onError={(event) => {
-            event.currentTarget.style.display = "none";
-          }}
-        />
-      ) : null}
-    </div>
-    <div>
-      <div className="text-[16px] font-medium leading-6 text-beige900">
-        {title}
+}) => {
+  const badgeClassName =
+    kind === "education"
+      ? "bg-beige900/10 text-beige900/60"
+      : kind === "extra"
+        ? "bg-beige200 text-beige900/60"
+        : "bg-beige700/10 text-beige700";
+  const badgeLabel =
+    kind === "education" ? "Education" : kind === "extra" ? "Extra" : "Work";
+  const fallbackLogoText = (logoText ?? logoAlt ?? title)
+    .trim()
+    .slice(0, 1)
+    .toUpperCase();
+
+  return (
+    <div
+      className={careerCx(
+        "relative grid grid-cols-[40px_minmax(0,1fr)] gap-4 py-3 first:pt-0 last:pb-0",
+        !isLast && "pb-5"
+      )}
+    >
+      {!isLast && (
+        <div className="absolute bottom-[-8px] left-[19px] top-[46px] w-px bg-gradient-to-b from-beige900/15 via-beige900/10 to-transparent" />
+      )}
+      <div className="relative z-[1] flex h-10 w-10 items-center justify-center overflow-hidden rounded-[10px] border-2 border-white bg-beige500 text-[17px] font-semibold leading-none text-beige900/65 shadow-[0_1px_2px_rgba(46,23,6,0.05)]">
+        <span className="absolute inset-0 flex items-center justify-center">
+          {fallbackLogoText || icon}
+        </span>
+        {logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={logoUrl}
+            alt={logoAlt ?? title}
+            className="relative h-full w-full object-cover"
+            onError={(event) => {
+              event.currentTarget.style.display = "none";
+            }}
+          />
+        ) : null}
       </div>
-      {subtitle && (
-        <div className="mt-1 text-[14px] text-beige900/55">{subtitle}</div>
-      )}
-      {meta && <div className="mt-1 text-[13px] text-beige900/40">{meta}</div>}
-      {description && (
-        <div className="mt-2 whitespace-pre-wrap text-[14px] leading-6 text-beige900/65">
-          {description}
+      <div className="min-w-0">
+        <div className="mb-1 flex flex-wrap items-center gap-2">
+          <span
+            className={careerCx(
+              "rounded-[4px] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em]",
+              badgeClassName
+            )}
+          >
+            {badgeLabel}
+          </span>
+          {meta && (
+            <span className="text-[11.5px] leading-5 text-beige900/40">
+              {meta}
+            </span>
+          )}
         </div>
-      )}
-      {memo && (
-        <div className="mt-2 border-l border-beige900/20 pl-3 text-[13px] leading-6 text-beige900/70">
-          {memo}
+        <div className="text-[14px] font-medium leading-[1.35] text-beige900">
+          {title}
         </div>
-      )}
+        {subtitle && (
+          <div className="mt-1 text-[12.5px] leading-5 text-beige900/65">
+            {subtitle}
+          </div>
+        )}
+        {description && (
+          <div className="mt-2 whitespace-pre-wrap text-[13px] leading-6 text-beige900/65">
+            {description}
+          </div>
+        )}
+        {memo && (
+          <div className="mt-3 flex items-start gap-2.5 rounded-[10px] border border-beige700/15 bg-beige100 px-3.5 py-3">
+            <MessageSquare className="mt-1 h-3.5 w-3.5 shrink-0 text-beige700" />
+            <div className="min-w-0">
+              <div className="mb-1 text-[10.5px] font-semibold uppercase tracking-[0.16em] text-beige700">
+                Harper의 메모
+              </div>
+              <div className="font-halant text-[15px] leading-6 text-beige900">
+                {memo}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const ProfileSection = ({
   title,
@@ -280,6 +351,29 @@ const ProfileSection = ({
     ) : null}
     <div className={title ? "mt-3" : ""}>{children}</div>
   </section>
+);
+
+const ProfileSectionHeader = ({
+  count,
+  icon,
+  label,
+}: {
+  count?: number;
+  icon: React.ReactNode;
+  label: string;
+}) => (
+  <div className="flex items-center gap-3 px-1 pt-1">
+    <span className="flex h-5 w-5 shrink-0 items-center justify-center text-beige900/65">
+      {icon}
+    </span>
+    <span className="font-halant text-[24px] leading-none text-beige900">
+      {label}
+    </span>
+    {typeof count === "number" ? (
+      <span className="text-[13px] leading-none text-beige900/45">{count}</span>
+    ) : null}
+    <span className="h-px min-w-8 flex-1 bg-beige900/10" />
+  </div>
 );
 
 const EditSectionHeader = ({
@@ -327,7 +421,10 @@ const CareerTalentProfilePanel = ({
   className?: string;
 }) => {
   const {
+    savedResumeDownloadUrl,
     talentProfile,
+    talentInsights,
+    talentInsightsUpdatedAt,
     profileSavePending,
     profileSaveError,
     profileSaveInfo,
@@ -413,6 +510,20 @@ const CareerTalentProfilePanel = ({
     ) ||
     mergedExperience.length > 0 ||
     talentExtras.length > 0;
+  const profileDisplayName = talentUser?.name?.trim() || "Unknown";
+  const recruiterProfileCopy = talentUser?.name?.trim()
+    ? `채용 담당자가 보는 ${talentUser.name.trim()}의 프로필`
+    : "채용 담당자가 보는 프로필";
+  const profileUpdatedText = formatLastUpdated(talentInsightsUpdatedAt);
+  const lookingForItems = useMemo(
+    () =>
+      PROFILE_RERANKING_INSIGHTS.map((item) => ({
+        ...item,
+        value: talentInsights?.[item.key]?.trim() ?? "",
+      })),
+    [talentInsights]
+  );
+  const backgroundCount = mergedExperience.length + talentExtras.length;
 
   const hasUnsavedChanges = useMemo(() => {
     return (
@@ -593,38 +704,27 @@ const CareerTalentProfilePanel = ({
 
   return (
     <div className={careerCx("space-y-5", className)}>
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        {isEditing ? (
-          <>
-            <CareerSecondaryButton
-              type="button"
-              onClick={cancelEditing}
-              disabled={profileSavePending}
-              className="gap-1.5"
-            >
-              취소
-            </CareerSecondaryButton>
-            <CareerPrimaryButton
-              type="button"
-              onClick={() => void handleSave()}
-              disabled={profileSavePending || !hasUnsavedChanges}
-              className="gap-1.5"
-            >
-              <Save className="h-4 w-4" />
-              {profileSavePending ? "저장 중..." : "저장하기"}
-            </CareerPrimaryButton>
-          </>
-        ) : (
+      {isEditing ? (
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <CareerSecondaryButton
             type="button"
-            onClick={beginEditing}
+            onClick={cancelEditing}
+            disabled={profileSavePending}
             className="gap-1.5"
           >
-            <Pencil className="h-4 w-4" />
-            수정하기
+            취소
           </CareerSecondaryButton>
-        )}
-      </div>
+          <CareerPrimaryButton
+            type="button"
+            onClick={() => void handleSave()}
+            disabled={profileSavePending || !hasUnsavedChanges}
+            className="gap-1.5"
+          >
+            <Save className="h-4 w-4" />
+            {profileSavePending ? "저장 중..." : "저장하기"}
+          </CareerPrimaryButton>
+        </div>
+      ) : null}
 
       {profileSaveError ? (
         <p className="rounded-lg border border-beige900/20 bg-beige900/10 px-3 py-2 text-sm text-beige900">
@@ -1003,126 +1103,212 @@ const CareerTalentProfilePanel = ({
         </>
       ) : hasAnyProfileData ? (
         <>
-          <ProfileSection title="">
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
-              <div className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-[8px] border border-beige900/10 bg-white/45 text-[24px] text-beige900/70">
-                {talentUser?.profile_picture &&
-                !talentUser.profile_picture.includes("media.licdn.com") ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={talentUser.profile_picture}
-                    alt={talentUser?.name ?? "profile"}
-                    className="h-[72px] w-[72px] rounded-[8px] object-cover"
-                  />
-                ) : (
-                  initials(talentUser?.name)
-                )}
-              </div>
-
-              <div className="min-w-0 flex flex-col gap-1.5">
-                <div className="font-halant text-2xl font-medium leading-[1] text-beige900">
-                  {talentUser?.name ?? "Unknown"}
-                </div>
-
-                {talentUser?.headline && (
-                  <div className="text-base leading-6">
-                    {talentUser.headline}
-                  </div>
-                )}
-
-                {talentUser?.location && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <MapPin className="h-4 w-4" />
-                    <span>{locationEnToKo(talentUser.location)}</span>
-                  </div>
-                )}
-              </div>
+          <div className="flex items-center gap-2.5 rounded-[14px] border border-beige900/10 bg-gradient-to-br from-beige100 to-white/80 px-4 py-3 text-[12.5px] leading-5 text-beige900/65">
+            <Eye className="h-3.5 w-3.5 shrink-0 text-beige700" />
+            <div>
+              <strong className="font-medium text-beige900">
+                {recruiterProfileCopy}
+              </strong>
+              <span> · 포지션 성사된 회사에만 공유돼요</span>
             </div>
-          </ProfileSection>
+          </div>
 
-          {talentUser?.bio && (
-            <ProfileSection title="bio">
-              <div className="whitespace-pre-wrap text-[14px] leading-6 text-beige900/60">
-                {talentUser.bio}
+          <section className="flex flex-col gap-4 px-1 pt-1 sm:flex-row sm:items-center">
+            <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-beige700 to-beige900 text-[26px] text-beige50">
+              <span className="font-halant italic leading-none">
+                {initials(profileDisplayName)}
+              </span>
+              {talentUser?.profile_picture &&
+              !talentUser.profile_picture.includes("media.licdn.com") ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={talentUser.profile_picture}
+                  alt={talentUser?.name ?? "profile"}
+                  className="absolute h-14 w-14 rounded-full object-cover"
+                />
+              ) : null}
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+                <h2 className="font-halant text-[30px] leading-none text-beige900">
+                  {profileDisplayName}
+                </h2>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-beige700/10 px-2.5 py-1 text-[11px] font-medium tracking-[0.02em] text-beige700">
+                  <span className="h-1.5 w-1.5 rounded-full bg-beige700" />
+                  Active
+                </span>
               </div>
-            </ProfileSection>
-          )}
 
-          {mergedExperience.length > 0 && (
-            <ProfileSection title="경력 및 학력">
-              <div>
-                {mergedExperience.map((entry, index) => {
-                  if (entry.kind === "exp") {
-                    const exp = entry.item;
-                    const subtitle = [exp.company_name, exp.company_location]
-                      .filter(Boolean)
-                      .join(" · ");
-                    const meta = [
-                      formatRange(exp.start_date, exp.end_date),
-                      formatMonth(exp.months),
-                    ]
-                      .filter(Boolean)
-                      .join(" · ");
+              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13.5px] leading-5 text-beige900/65">
+                {talentUser?.headline ? (
+                  <span>{talentUser.headline}</span>
+                ) : null}
+                {talentUser?.headline && talentUser?.location ? (
+                  <span className="text-beige900/25">|</span>
+                ) : null}
+                {talentUser?.location ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <MapPin className="h-3.5 w-3.5" />
+                    {locationEnToKo(talentUser.location)}
+                  </span>
+                ) : null}
+              </div>
+
+              {profileUpdatedText ? (
+                <div className="mt-1 text-[11.5px] leading-5 tracking-[0.02em] text-beige900/45">
+                  Last updated · {profileUpdatedText}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="flex shrink-0 flex-wrap gap-2">
+              {savedResumeDownloadUrl ? (
+                <a
+                  href={savedResumeDownloadUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[8px] border border-beige900/15 bg-white/70 px-3.5 text-[12.5px] font-medium text-beige900 transition-colors hover:border-beige900/30 hover:bg-beige100"
+                >
+                  <FileText className="h-3.5 w-3.5 text-beige900/60" />
+                  View CV
+                </a>
+              ) : null}
+              <CareerSecondaryButton
+                type="button"
+                onClick={beginEditing}
+                className="h-9 gap-1.5 px-3.5 text-[12.5px]"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                수정하기
+              </CareerSecondaryButton>
+            </div>
+          </section>
+
+          <ProfileSectionHeader
+            icon={<Eye className="h-4 w-4" />}
+            label="Overview"
+          />
+
+          <section className="px-1">
+            <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-beige900/45">
+              What they are looking for
+            </div>
+            <dl className="mt-3 grid gap-x-4 gap-y-3 sm:grid-cols-[112px_minmax(0,1fr)]">
+              {lookingForItems.map((item) => (
+                <React.Fragment key={item.key}>
+                  <dt className="pt-0.5 text-[11px] font-medium uppercase tracking-[0.14em] text-beige900/45">
+                    {item.label}
+                  </dt>
+                  <dd
+                    className={careerCx(
+                      "m-0 text-[14px] leading-6",
+                      item.value ? "text-beige900" : "text-beige900/40"
+                    )}
+                  >
+                    {item.value || "아직 확인 중"}
+                  </dd>
+                </React.Fragment>
+              ))}
+            </dl>
+          </section>
+
+          {backgroundCount > 0 ? (
+            <>
+              <ProfileSectionHeader
+                count={backgroundCount}
+                icon={<Building2 className="h-4 w-4" />}
+                label="Background"
+              />
+              <section className="px-1">
+                <div className="relative">
+                  {mergedExperience.map((entry, index) => {
+                    const isLast =
+                      index ===
+                      mergedExperience.length + talentExtras.length - 1;
+
+                    if (entry.kind === "exp") {
+                      const exp = entry.item;
+                      const subtitle = [exp.company_name, exp.company_location]
+                        .filter(Boolean)
+                        .join(" · ");
+                      const meta = [
+                        formatRange(exp.start_date, exp.end_date),
+                        formatMonth(exp.months),
+                      ]
+                        .filter(Boolean)
+                        .join(" · ");
+
+                      return (
+                        <TimelineBlock
+                          key={`exp-${exp.id}-${index}`}
+                          title={exp.role ?? "Employee"}
+                          subtitle={subtitle}
+                          meta={meta}
+                          description={exp.description ?? ""}
+                          memo={exp.memo ?? ""}
+                          icon={<Building2 className="h-4 w-4" />}
+                          kind="work"
+                          logoUrl={exp.company_logo}
+                          logoAlt={exp.company_name ?? exp.role ?? "Company"}
+                          logoText={exp.company_name ?? exp.role ?? ""}
+                          isLast={isLast}
+                        />
+                      );
+                    }
+
+                    const edu = entry.item;
 
                     return (
                       <TimelineBlock
-                        key={`exp-${exp.id}-${index}`}
-                        title={exp.role ?? "Employee"}
-                        subtitle={subtitle}
-                        meta={meta}
-                        description={exp.description ?? ""}
-                        memo={exp.memo ?? ""}
-                        icon={<Building2 className="h-4 w-4" />}
-                        logoUrl={exp.company_logo}
-                        logoAlt={exp.company_name ?? exp.role ?? "Company"}
-                        isLast={index === mergedExperience.length - 1}
+                        key={`edu-${edu.id}-${index}`}
+                        title={edu.school ?? "Student"}
+                        subtitle={[edu.field, edu.degree]
+                          .filter(Boolean)
+                          .join(" · ")}
+                        meta={formatRange(edu.start_date, edu.end_date)}
+                        description={edu.description ?? ""}
+                        memo={edu.memo ?? ""}
+                        icon={<SchoolIcon className="h-4 w-4" />}
+                        kind="education"
+                        logoText={edu.school ?? "Education"}
+                        isLast={isLast}
                       />
                     );
-                  }
+                  })}
 
-                  const edu = entry.item;
-
-                  return (
+                  {talentExtras.map((extra, extraIndex) => (
                     <TimelineBlock
-                      key={`edu-${edu.id}-${index}`}
-                      title={edu.school ?? "Student"}
-                      subtitle={[edu.field, edu.degree]
-                        .filter(Boolean)
-                        .join(" · ")}
-                      meta={formatRange(edu.start_date, edu.end_date)}
-                      description={edu.description ?? ""}
-                      memo={edu.memo ?? ""}
-                      icon={<SchoolIcon className="h-4 w-4" />}
-                      isLast={index === mergedExperience.length - 1}
+                      key={`extra-${extraIndex}-${extra.title ?? "untitled"}`}
+                      title={extra.title ?? "기타"}
+                      subtitle={extra.date ?? ""}
+                      description={extra.description ?? ""}
+                      memo={extra.memo ?? ""}
+                      icon={<AwardIcon className="h-4 w-4" />}
+                      kind="extra"
+                      logoText={extra.title ?? "Extra"}
+                      isLast={extraIndex === talentExtras.length - 1}
                     />
-                  );
-                })}
-              </div>
-            </ProfileSection>
-          )}
-
-          {talentExtras.length > 0 && (
-            <ProfileSection title="추가 정보">
-              <div>
-                {talentExtras.map((extra, index) => (
-                  <TimelineBlock
-                    key={`extra-${index}-${extra.title ?? "untitled"}`}
-                    title={extra.title ?? "기타"}
-                    subtitle={extra.date ?? ""}
-                    description={extra.description ?? ""}
-                    memo={extra.memo ?? ""}
-                    icon={<AwardIcon className="h-4 w-4" />}
-                    isLast={index === talentExtras.length - 1}
-                  />
-                ))}
-              </div>
-            </ProfileSection>
-          )}
+                  ))}
+                </div>
+              </section>
+            </>
+          ) : null}
         </>
       ) : (
         <div className="rounded-[12px] border border-dashed border-beige900/20 bg-white/35 px-5 py-6 text-sm leading-6 text-beige900/60">
-          아직 저장된 프로필 내용이 없습니다. 수정하기를 눌러 직접 입력할 수
-          있습니다.
+          <div>
+            아직 저장된 프로필 내용이 없습니다. 수정하기를 눌러 직접 입력할 수
+            있습니다.
+          </div>
+          <CareerSecondaryButton
+            type="button"
+            onClick={beginEditing}
+            className="mt-4 h-9 gap-1.5 px-3.5 text-[12.5px]"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            수정하기
+          </CareerSecondaryButton>
         </div>
       )}
     </div>

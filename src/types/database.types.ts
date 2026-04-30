@@ -4587,6 +4587,7 @@ export type Database = {
           kind: string
           model_version: string | null
           opportunity_type: string
+          preference_fit: Json
           rank: number | null
           ranking_notes: string | null
           recommendation_reasons: Json
@@ -4616,6 +4617,7 @@ export type Database = {
           kind?: string
           model_version?: string | null
           opportunity_type?: string
+          preference_fit?: Json
           rank?: number | null
           ranking_notes?: string | null
           recommendation_reasons?: Json
@@ -4645,6 +4647,7 @@ export type Database = {
           kind?: string
           model_version?: string | null
           opportunity_type?: string
+          preference_fit?: Json
           rank?: number | null
           ranking_notes?: string | null
           recommendation_reasons?: Json
