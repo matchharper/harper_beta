@@ -92,17 +92,9 @@ const CareerProfileWorkspace = () => {
     return <CareerResumeLinksSettingsSection />;
   }, [activeSection]);
 
-  const title = useMemo(() => {
-    return tabs.find((tab) => tab.id === activeSection)?.title ?? "";
-  }, [activeSection, tabs]);
-
-  const description = useMemo(() => {
-    return tabs.find((tab) => tab.id === activeSection)?.description ?? [];
-  }, [activeSection, tabs]);
-
   return (
     <>
-      <div className="sticky top-0 z-20 backdrop-blur">
+      <div className="">
         <CareerInPageTabs
           items={tabs}
           activeId={activeSection}
@@ -110,15 +102,7 @@ const CareerProfileWorkspace = () => {
         />
       </div>
 
-      <div className="flex flex-col gap-4 py-0 mt-6">
-        {/* <div className="flex flex-col gap-2">
-          <h3 className="text-lg font-medium leading-5">{title}</h3>
-          {description.map((item, index) => (
-            <p key={index} className="mt-1 text-sm text-black/70 font-normal">
-              {item}
-            </p>
-          ))}
-        </div> */}
+      <div className="flex flex-col gap-4 pt-4">
         <div className="w-full">{activeContent}</div>
       </div>
     </>

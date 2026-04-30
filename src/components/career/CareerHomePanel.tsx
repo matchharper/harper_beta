@@ -258,7 +258,7 @@ const CareerHomePanel = ({
         </div>
 
         {recentWeeklyOpportunities.length > 0 ? (
-          <div className="mt-2 grid gap-4 lg:grid-cols-2">
+          <div className="mt-2 grid grid-cols-1 gap-4">
             {recentWeeklyOpportunities.map((item) => (
               <OpportunityListCard
                 key={item.id}

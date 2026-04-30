@@ -14,6 +14,7 @@ type RawRecommendationRow = {
   id: string;
   kind: string;
   opportunity_type: string | null;
+  preference_fit: Json | null;
   recommended_at: string;
   recommendation_reasons: Json;
   role_id: string;
@@ -42,6 +43,46 @@ type RawRecommendationRow = {
     work_mode: string | null;
   } | null;
 };
+
+const TALENT_OPPORTUNITY_HISTORY_SELECT = `
+  id,
+  role_id,
+  kind,
+  opportunity_type,
+  preference_fit,
+  fit_summary,
+  recommended_at,
+  recommendation_reasons,
+  tradeoffs,
+  feedback,
+  feedback_at,
+  feedback_reason,
+  saved_stage,
+  viewed_at,
+  clicked_at,
+  dismissed_at,
+  company_role:company_roles!inner (
+    role_id,
+    name,
+    description,
+    external_jd_url,
+    location_text,
+    posted_at,
+    type,
+    work_mode,
+    status,
+    source_type,
+    source_provider,
+    source_job_id,
+    company_workspace:company_workspace!inner (
+      company_name,
+      company_description,
+      homepage_url,
+      linkedin_url,
+      logo_url
+    )
+  )
+`;
 
 export type TalentOpportunityFeedback = "positive" | "negative";
 
@@ -75,6 +116,7 @@ export type TalentOpportunityHistoryItem = {
   location: string | null;
   opportunityType: OpportunityType;
   postedAt: string | null;
+  preferenceFit: TalentOpportunityPreferenceFitItem[];
   recommendedAt: string;
   recommendationConcerns: string[];
   recommendationReasons: string[];
@@ -88,6 +130,51 @@ export type TalentOpportunityHistoryItem = {
   title: string;
   viewedAt: string | null;
   workMode: string | null;
+};
+
+export type TalentOpportunityPreferenceFitStatus =
+  | "Satisfied"
+  | "Neutral"
+  | "Dissatisfied";
+
+export type TalentOpportunityPreferenceFitKey =
+  | "next_scope"
+  | "location"
+  | "compensation"
+  | "deal_breakers"
+  | "must_haves";
+
+export type TalentOpportunityPreferenceFitItem = {
+  key: TalentOpportunityPreferenceFitKey;
+  label: string;
+  note: string;
+  status: TalentOpportunityPreferenceFitStatus;
+};
+
+export type TalentOpportunityHistoryPage = {
+  counts: TalentOpportunityHistoryCounts;
+  items: TalentOpportunityHistoryItem[];
+  limit: number;
+  nextOffset: number | null;
+  offset: number;
+};
+
+export type TalentOpportunityHistoryCounts = {
+  archived: number;
+  new: number;
+  saved: number;
+  savedStages: Record<TalentOpportunitySavedStage, number>;
+  total: number;
+};
+
+type TalentOpportunitySourceType = "internal" | "external";
+
+type RawSavedStageFallbackRow = {
+  kind: string;
+  opportunity_type: string | null;
+  company_role: {
+    source_type: string;
+  } | null;
 };
 
 function coerceJsonArray<T>(value: unknown) {
@@ -163,6 +250,248 @@ function normalizeTextList(value: Json, limit = 8): string[] {
   return [];
 }
 
+const PREFERENCE_FIT_LABELS: Record<TalentOpportunityPreferenceFitKey, string> =
+  {
+    next_scope: "다음 역할",
+    location: "근무 지역",
+    compensation: "보상",
+    deal_breakers: "회피 조건",
+    must_haves: "필수 조건",
+  };
+
+const PREFERENCE_FIT_KEYS = Object.keys(
+  PREFERENCE_FIT_LABELS
+) as TalentOpportunityPreferenceFitKey[];
+
+function normalizePreferenceFitStatus(
+  value: unknown
+): TalentOpportunityPreferenceFitStatus | null {
+  if (
+    value === "Satisfied" ||
+    value === "Neutral" ||
+    value === "Dissatisfied"
+  ) {
+    return value;
+  }
+  return null;
+}
+
+function normalizePreferenceFit(
+  value: Json | null
+): TalentOpportunityPreferenceFitItem[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  const record = value as Record<string, unknown>;
+
+  return PREFERENCE_FIT_KEYS.map((key) => {
+    const rawItem = record[key];
+    if (!rawItem || typeof rawItem !== "object" || Array.isArray(rawItem)) {
+      return null;
+    }
+    const item = rawItem as Record<string, unknown>;
+    const status = normalizePreferenceFitStatus(item.status);
+    const note = String(item.note ?? "").trim();
+    if (!status || !note) return null;
+    return {
+      key,
+      label: PREFERENCE_FIT_LABELS[key],
+      note,
+      status,
+    } satisfies TalentOpportunityPreferenceFitItem;
+  }).filter(
+    (item): item is TalentOpportunityPreferenceFitItem => item !== null
+  );
+}
+
+const createEmptyHistoryCounts = (): TalentOpportunityHistoryCounts => ({
+  archived: 0,
+  new: 0,
+  saved: 0,
+  savedStages: {
+    saved: 0,
+    applied: 0,
+    connected: 0,
+    closed: 0,
+  },
+  total: 0,
+});
+
+const getDefaultSavedStageForOpportunityType = (
+  opportunityType: OpportunityType
+): TalentOpportunitySavedStage => {
+  if (opportunityType === OpportunityType.IntroRequest) return "connected";
+  if (opportunityType === OpportunityType.InternalRecommendation) {
+    return "applied";
+  }
+  return "saved";
+};
+
+function buildTalentOpportunityHistoryQuery(args: {
+  admin: AdminClient;
+  sourceType?: TalentOpportunitySourceType;
+  userId: string;
+}) {
+  let query = (
+    args.admin.from("talent_opportunity_recommendation" as any) as any
+  )
+    .select(TALENT_OPPORTUNITY_HISTORY_SELECT)
+    .eq("talent_id", args.userId)
+    .order("recommended_at", { ascending: false }) as any;
+
+  if (args.sourceType) {
+    query = query.eq("company_role.source_type", args.sourceType);
+  }
+
+  return query;
+}
+
+async function countTalentOpportunityRecommendations(args: {
+  admin: AdminClient;
+  feedback: "like" | "dislike" | null;
+  savedStage?: TalentOpportunitySavedStage;
+  userId: string;
+}) {
+  let query = (
+    args.admin.from("talent_opportunity_recommendation" as any) as any
+  )
+    .select(
+      "id, company_role:company_roles!inner(source_type, company_workspace:company_workspace!inner(company_name))",
+      { count: "exact", head: true }
+    )
+    .eq("talent_id", args.userId) as any;
+
+  query =
+    args.feedback === null
+      ? query.is("feedback", null)
+      : query.eq("feedback", args.feedback);
+
+  if (args.savedStage) {
+    query = query.eq("saved_stage", args.savedStage);
+  }
+
+  const { count, error } = await query;
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to count talent opportunities");
+  }
+
+  return Math.max(0, count ?? 0);
+}
+
+async function fetchSavedRowsMissingStage(args: {
+  admin: AdminClient;
+  userId: string;
+}) {
+  const { data, error } = await ((
+    args.admin.from("talent_opportunity_recommendation" as any) as any
+  )
+    .select(
+      `
+        kind,
+        opportunity_type,
+        company_role:company_roles!inner (
+          source_type,
+          company_workspace:company_workspace!inner (
+            company_name
+          )
+        )
+      `
+    )
+    .eq("talent_id", args.userId)
+    .eq("feedback", "like")
+    .is("saved_stage", null) as any);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to count saved opportunities");
+  }
+
+  return coerceJsonArray<RawSavedStageFallbackRow>(data);
+}
+
+export async function fetchTalentOpportunityHistoryCounts(args: {
+  admin: AdminClient;
+  userId: string;
+}): Promise<TalentOpportunityHistoryCounts> {
+  const [
+    newCount,
+    savedCount,
+    archivedCount,
+    savedStageCount,
+    appliedStageCount,
+    connectedStageCount,
+    closedStageCount,
+    savedRowsMissingStage,
+  ] = await Promise.all([
+    countTalentOpportunityRecommendations({
+      admin: args.admin,
+      feedback: null,
+      userId: args.userId,
+    }),
+    countTalentOpportunityRecommendations({
+      admin: args.admin,
+      feedback: "like",
+      userId: args.userId,
+    }),
+    countTalentOpportunityRecommendations({
+      admin: args.admin,
+      feedback: "dislike",
+      userId: args.userId,
+    }),
+    countTalentOpportunityRecommendations({
+      admin: args.admin,
+      feedback: "like",
+      savedStage: "saved",
+      userId: args.userId,
+    }),
+    countTalentOpportunityRecommendations({
+      admin: args.admin,
+      feedback: "like",
+      savedStage: "applied",
+      userId: args.userId,
+    }),
+    countTalentOpportunityRecommendations({
+      admin: args.admin,
+      feedback: "like",
+      savedStage: "connected",
+      userId: args.userId,
+    }),
+    countTalentOpportunityRecommendations({
+      admin: args.admin,
+      feedback: "like",
+      savedStage: "closed",
+      userId: args.userId,
+    }),
+    fetchSavedRowsMissingStage({
+      admin: args.admin,
+      userId: args.userId,
+    }),
+  ]);
+
+  const counts = createEmptyHistoryCounts();
+  counts.new = newCount;
+  counts.saved = savedCount;
+  counts.archived = archivedCount;
+  counts.total = newCount + savedCount + archivedCount;
+  counts.savedStages.saved = savedStageCount;
+  counts.savedStages.applied = appliedStageCount;
+  counts.savedStages.connected = connectedStageCount;
+  counts.savedStages.closed = closedStageCount;
+
+  for (const row of savedRowsMissingStage) {
+    const kind = normalizeRecommendationKind(row.kind);
+    const sourceType = normalizeSourceType(row.company_role?.source_type);
+    const opportunityType = normalizeOpportunityType({
+      kind,
+      sourceType,
+      value: row.opportunity_type,
+    });
+    const defaultStage =
+      getDefaultSavedStageForOpportunityType(opportunityType);
+    counts.savedStages[defaultStage] += 1;
+  }
+
+  return counts;
+}
+
 function mapRecommendationRow(
   row: RawRecommendationRow
 ): TalentOpportunityHistoryItem | null {
@@ -204,11 +533,10 @@ function mapRecommendationRow(
     location: role.location_text ?? null,
     opportunityType,
     postedAt: role.posted_at ?? null,
+    preferenceFit: normalizePreferenceFit(row.preference_fit ?? null),
     recommendedAt: row.recommended_at,
     recommendationConcerns: normalizeTextList(row.tradeoffs, 3),
-    recommendationReasons: normalizeTextList(
-      row.recommendation_reasons
-    ),
+    recommendationReasons: normalizeTextList(row.recommendation_reasons),
     recommendationSummary: row.fit_summary ?? null,
     roleId: String(row.role_id ?? ""),
     savedStage: normalizeSavedStage(row.saved_stage),
@@ -224,53 +552,108 @@ function mapRecommendationRow(
 
 export async function fetchTalentOpportunityHistory(args: {
   admin: AdminClient;
+  limit?: number;
+  offset?: number;
+  sourceType?: TalentOpportunitySourceType;
   userId: string;
 }) {
+  const limit =
+    typeof args.limit === "number" && Number.isFinite(args.limit)
+      ? Math.max(1, Math.min(Math.floor(args.limit), 100))
+      : null;
+  const offset =
+    typeof args.offset === "number" && Number.isFinite(args.offset)
+      ? Math.max(0, Math.floor(args.offset))
+      : 0;
+
+  let query = buildTalentOpportunityHistoryQuery({
+    admin: args.admin,
+    sourceType: args.sourceType,
+    userId: args.userId,
+  });
+
+  if (limit !== null) {
+    query = query.range(offset, offset + limit - 1);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load talent opportunities");
+  }
+
+  return coerceJsonArray<RawRecommendationRow>(data)
+    .map(mapRecommendationRow)
+    .filter((item): item is TalentOpportunityHistoryItem => item !== null);
+}
+
+export async function fetchTalentOpportunityHistoryPage(args: {
+  admin: AdminClient;
+  limit?: number;
+  offset?: number;
+  userId: string;
+}): Promise<TalentOpportunityHistoryPage> {
+  const limit =
+    typeof args.limit === "number" && Number.isFinite(args.limit)
+      ? Math.max(1, Math.min(Math.floor(args.limit), 100))
+      : 20;
+  const offset =
+    typeof args.offset === "number" && Number.isFinite(args.offset)
+      ? Math.max(0, Math.floor(args.offset))
+      : 0;
+  const [externalItems, internalItems, counts] = await Promise.all([
+    fetchTalentOpportunityHistory({
+      admin: args.admin,
+      limit,
+      offset,
+      sourceType: "external",
+      userId: args.userId,
+    }),
+    offset === 0
+      ? fetchTalentOpportunityHistory({
+          admin: args.admin,
+          sourceType: "internal",
+          userId: args.userId,
+        })
+      : Promise.resolve([]),
+    fetchTalentOpportunityHistoryCounts({
+      admin: args.admin,
+      userId: args.userId,
+    }),
+  ]);
+  const seen = new Set<string>();
+  const items = [...internalItems, ...externalItems].filter((item) => {
+    if (seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
+
+  return {
+    counts,
+    items,
+    limit,
+    nextOffset:
+      externalItems.length === limit ? offset + externalItems.length : null,
+    offset,
+  };
+}
+
+export async function fetchTalentOpportunityHistoryByIds(args: {
+  admin: AdminClient;
+  ids: string[];
+  userId: string;
+}) {
+  const ids = Array.from(
+    new Set(args.ids.map((id) => String(id ?? "").trim()).filter(Boolean))
+  );
+  if (ids.length === 0) return [];
+
   const { data, error } = await ((
     args.admin.from("talent_opportunity_recommendation" as any) as any
   )
-    .select(
-      `
-        id,
-        role_id,
-        kind,
-        opportunity_type,
-        fit_summary,
-        recommended_at,
-        recommendation_reasons,
-        tradeoffs,
-        feedback,
-        feedback_at,
-        feedback_reason,
-        saved_stage,
-        viewed_at,
-        clicked_at,
-        dismissed_at,
-        company_role:company_roles (
-          role_id,
-          name,
-          description,
-          external_jd_url,
-          location_text,
-          posted_at,
-          type,
-          work_mode,
-          status,
-          source_type,
-          source_provider,
-          source_job_id,
-          company_workspace:company_workspace (
-            company_name,
-            company_description,
-            homepage_url,
-            linkedin_url,
-            logo_url
-          )
-        )
-      `
-    )
+    .select(TALENT_OPPORTUNITY_HISTORY_SELECT)
     .eq("talent_id", args.userId)
-    .order("recommended_at", { ascending: false }) as any);
+    .in("id", ids) as any);
 
   if (error) {
     throw new Error(error.message ?? "Failed to load talent opportunities");

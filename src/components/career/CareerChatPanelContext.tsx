@@ -2,15 +2,13 @@ import type { User } from "@supabase/supabase-js";
 import React, { createContext, useContext } from "react";
 import type {
   CallTranscriptEntry,
-  CareerInputMode,
-  CareerHistoryOpportunityFeedback,
-  CareerMessage,
-  CareerMockInterviewSession,
-  CareerMockInterviewType,
-  CareerOpportunityRun,
-  CareerOpportunitySavedStage,
-  CareerStage,
-} from "./types";
+	  CareerInputMode,
+	  CareerHistoryOpportunityFeedback,
+	  CareerMessage,
+	  CareerOpportunityRun,
+	  CareerOpportunitySavedStage,
+	  CareerStage,
+	} from "./types";
 import type { TalentOnboardingInterestOptionId } from "@/lib/talentOnboarding/onboarding";
 
 export type CareerChatPanelContextValue = {
@@ -37,15 +35,13 @@ export type CareerChatPanelContextValue = {
 
   chatError: string;
   assistantTyping: boolean;
-  chatPending: boolean;
-  companySnapshotPending: boolean;
-  opportunityRun: CareerOpportunityRun | null;
-  opportunitySearchLocked: boolean;
-  mockInterviewSession: CareerMockInterviewSession | null;
-  mockInterviewPending: boolean;
-  historyUpdatingOpportunityIds: string[];
-  onboardingBeginPending: boolean;
-  callStartPending?: boolean;
+	  chatPending: boolean;
+	  companySnapshotPending: boolean;
+	  opportunityRun: CareerOpportunityRun | null;
+	  opportunitySearchLocked: boolean;
+	  historyUpdatingOpportunityIds: string[];
+	  onboardingBeginPending: boolean;
+	  callStartPending?: boolean;
   onboardingPausePending: boolean;
 
   onGoogleLogin: () => void | Promise<void>;
@@ -71,21 +67,12 @@ export type CareerChatPanelContextValue = {
     feedback: CareerHistoryOpportunityFeedback | null,
     options?: {
       feedbackReason?: string | null;
-      savedStage?: CareerOpportunitySavedStage | null;
-    }
-  ) => void | Promise<void>;
-  onPrepareMockInterview: (
-    opportunityId?: string | null
-  ) => void | Promise<void>;
-  onStartMockInterview: (args: {
-    channel: "call" | "chat";
-    interviewType: CareerMockInterviewType;
-    sessionId: string;
-  }) => void | Promise<void>;
-  onEndMockInterview: (sessionId?: string | null) => void | Promise<void>;
-  onStartCompanySnapshot: (args: {
-    companyName: string;
-    reason?: string | null;
+	      savedStage?: CareerOpportunitySavedStage | null;
+	    }
+	  ) => void | Promise<void>;
+	  onStartCompanySnapshot: (args: {
+	    companyName: string;
+	    reason?: string | null;
   }) => void | Promise<void>;
   onLoadOlderMessages: () => void | Promise<void>;
 

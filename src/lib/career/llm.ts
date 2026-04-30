@@ -38,24 +38,6 @@ export const CAREER_LLM_CONFIG = {
     model: "grok-4-fast-reasoning",
     temperature: 0.2,
   },
-  // 모의 인터뷰 종료 후 전체 transcript 기반 피드백을 생성할 때.
-  // 사용처: src/lib/mockInterview/server.ts 의 feedback 생성 경로.
-  mockInterviewFeedback: {
-    model: "grok-4-fast-reasoning",
-    temperature: 0.4,
-  },
-  // 진행 중인 텍스트 모의 인터뷰에서 다음 interviewer 발화를 생성할 때.
-  // 사용처: active mock interview session에 유저가 답변한 직후.
-  mockInterviewReply: {
-    model: "gpt-4.1-mini",
-    temperature: 0.55,
-  },
-  // 모의 인터뷰 시작 전 setup card/payload(JSON)를 만들 때.
-  // 사용처: prepareMockInterview 내부의 setup_payload 생성.
-  mockInterviewSetup: {
-    model: "gpt-4.1-mini",
-    temperature: 0.3,
-  },
   // 온보딩을 지금 끝내지 않고 나중으로 미룰 때 닫는 응답을 생성한다.
   // 모델은 assistant.primary/fallback을 쓰고 여기서는 온도만 조정한다.
   // 사용처: /api/talent/onboarding/defer.
@@ -93,6 +75,12 @@ export const CAREER_LLM_CONFIG = {
   // 사용처: src/lib/talentOnboarding/reengagement.ts.
   reengagement: {
     temperature: 0.45,
+  },
+  // 히스토리의 internal recommendation 액션 이후 채팅창에 보여줄 짧은 응답.
+  // 모델은 assistant.primary/fallback을 쓴다.
+  // 사용처: /api/talent/opportunities, /api/talent/opportunities/question.
+  historyActionReply: {
+    temperature: 0.5,
   },
   // 기존 프로필/대화에서 비어 있는 insight key만 채우는 내부 refresh 작업.
   // 모델은 assistant.primary/fallback을 쓰고 JSON 응답을 기대한다.
@@ -143,11 +131,16 @@ type AnthropicToolResultBlock = {
   type: "tool_result";
 };
 
-type AnthropicAssistantContentBlock = AnthropicTextBlock | AnthropicToolUseBlock;
+type AnthropicAssistantContentBlock =
+  | AnthropicTextBlock
+  | AnthropicToolUseBlock;
 type AnthropicUserContentBlock = AnthropicTextBlock | AnthropicToolResultBlock;
 
 type AnthropicMessage = {
-  content: string | AnthropicAssistantContentBlock[] | AnthropicUserContentBlock[];
+  content:
+    | string
+    | AnthropicAssistantContentBlock[]
+    | AnthropicUserContentBlock[];
   role: "assistant" | "user";
 };
 
@@ -163,6 +156,22 @@ type AnthropicMessageResponse = {
   id?: string;
   model?: string;
   stop_reason?: string | null;
+  usage?: Record<string, unknown>;
+};
+
+type AnthropicStreamEvent = {
+  delta?: {
+    text?: string;
+    type?: string;
+  };
+  error?: {
+    message?: string;
+    type?: string;
+  };
+  message?: {
+    usage?: Record<string, unknown>;
+  };
+  type?: string;
   usage?: Record<string, unknown>;
 };
 
@@ -182,10 +191,11 @@ function flattenCareerSystemBlocks(blocks: CareerChatSystemBlock[]) {
 }
 
 function buildAnthropicSystemBlocks(blocks: CareerChatSystemBlock[]) {
-  const normalizedBlocks = blocks.filter((block) => block.text.trim().length > 0);
+  const normalizedBlocks = blocks.filter(
+    (block) => block.text.trim().length > 0
+  );
   const lastCacheableIndex = normalizedBlocks.reduce(
-    (index, block, currentIndex) =>
-      block.cacheable ? currentIndex : index,
+    (index, block, currentIndex) => (block.cacheable ? currentIndex : index),
     -1
   );
 
@@ -214,7 +224,9 @@ function buildAnthropicTools(tools: TalentChatTool[]) {
   })) as AnthropicTool[];
 }
 
-function extractAnthropicText(blocks: AnthropicAssistantContentBlock[] | undefined) {
+function extractAnthropicText(
+  blocks: AnthropicAssistantContentBlock[] | undefined
+) {
   if (!Array.isArray(blocks)) return "";
 
   return blocks
@@ -229,7 +241,10 @@ function serializeToolResult(result: unknown) {
   try {
     return JSON.stringify(result);
   } catch {
-    return JSON.stringify({ ok: false, error: "Failed to serialize tool result" });
+    return JSON.stringify({
+      ok: false,
+      error: "Failed to serialize tool result",
+    });
   }
 }
 
@@ -305,6 +320,137 @@ async function createAnthropicMessage(args: {
   });
 
   return json;
+}
+
+async function createAnthropicMessageStream(args: {
+  messages: AnthropicMessage[];
+  model: string;
+  onTextDelta: (delta: string) => void | Promise<void>;
+  systemBlocks: CareerChatSystemBlock[];
+  temperature: number;
+  usageLabel?: string;
+}) {
+  const apiKey = (process.env.ANTHROPIC_API_KEY ?? "").trim();
+  if (!apiKey) {
+    throw new Error("ANTHROPIC_API_KEY is required for Anthropic Messages API");
+  }
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: args.model,
+      max_tokens: CAREER_LLM_CONFIG.chat.maxTokens,
+      system: buildAnthropicSystemBlocks(args.systemBlocks),
+      messages: args.messages,
+      temperature: args.temperature,
+      stream: true,
+    }),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(
+      `Anthropic Messages API stream failed (${response.status}): ${errorText}`
+    );
+  }
+  if (!response.body) {
+    throw new Error("Anthropic Messages API stream returned an empty body");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let content = "";
+  let usage: Record<string, unknown> = {};
+
+  const handleRawEvent = async (rawEvent: string) => {
+    const lines = rawEvent.split("\n");
+    const data = lines
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice("data:".length).trimStart())
+      .join("\n")
+      .trim();
+
+    if (!data || data === "[DONE]") return;
+
+    let parsed: AnthropicStreamEvent;
+    try {
+      parsed = JSON.parse(data) as AnthropicStreamEvent;
+    } catch {
+      return;
+    }
+
+    if (parsed.type === "error") {
+      throw new Error(
+        parsed.error?.message ??
+          parsed.error?.type ??
+          "Anthropic Messages API stream error"
+      );
+    }
+
+    if (parsed.type === "message_start" && parsed.message?.usage) {
+      usage = { ...usage, ...parsed.message.usage };
+      return;
+    }
+
+    if (parsed.type === "message_delta" && parsed.usage) {
+      usage = { ...usage, ...parsed.usage };
+      return;
+    }
+
+    if (
+      parsed.type === "content_block_delta" &&
+      parsed.delta?.type === "text_delta" &&
+      typeof parsed.delta.text === "string" &&
+      parsed.delta.text
+    ) {
+      content += parsed.delta.text;
+      await args.onTextDelta(parsed.delta.text);
+    }
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+    let boundaryIndex = buffer.indexOf("\n\n");
+    while (boundaryIndex >= 0) {
+      const rawEvent = buffer.slice(0, boundaryIndex);
+      buffer = buffer.slice(boundaryIndex + 2);
+      await handleRawEvent(rawEvent);
+      boundaryIndex = buffer.indexOf("\n\n");
+    }
+  }
+
+  const tail = buffer.trim();
+  if (tail) {
+    await handleRawEvent(tail);
+  }
+
+  logLlmTokenUsage({
+    label: args.usageLabel,
+    model: args.model,
+    response: { usage },
+  });
+
+  console.info("[career-chat:anthropic-stream]", {
+    label: args.usageLabel,
+    messageCount: args.messages.length,
+    model: args.model,
+    systemBlockCount: args.systemBlocks.length,
+    systemCacheableKeys: args.systemBlocks
+      .filter((block) => block.cacheable)
+      .map((block) => block.key ?? "system"),
+  });
+
+  return cleanModelText(content);
 }
 
 async function runDirectTextCompletion(args: {
@@ -416,7 +562,9 @@ export async function runCareerChatAssistant(args: {
         usageLabel: "career/chat:assistant",
       });
 
-      const assistantBlocks = Array.isArray(response.content) ? response.content : [];
+      const assistantBlocks = Array.isArray(response.content)
+        ? response.content
+        : [];
       const toolUseBlocks = assistantBlocks.filter(
         (block): block is AnthropicToolUseBlock => block.type === "tool_use"
       );
@@ -511,6 +659,80 @@ export async function runCareerChatAssistant(args: {
   }
 }
 
+export async function runCareerChatAssistantStream(args: {
+  executeTool: (args: {
+    input: Record<string, unknown>;
+    name: string;
+  }) => Promise<unknown>;
+  messages: Array<{
+    content: string;
+    role: "user" | "assistant";
+  }>;
+  onTextDelta: (delta: string) => void | Promise<void>;
+  stopAfterToolNames?: string[];
+  systemBlocks: CareerChatSystemBlock[];
+  tools: TalentChatTool[];
+}) {
+  if (
+    args.tools.length > 0 ||
+    !shouldUseAnthropicNativeMessages(assistantModelConfig().primaryModel)
+  ) {
+    const text = await runCareerChatAssistant({
+      executeTool: args.executeTool,
+      messages: args.messages,
+      stopAfterToolNames: args.stopAfterToolNames,
+      systemBlocks: args.systemBlocks,
+      tools: args.tools,
+    });
+    if (text) {
+      await args.onTextDelta(text);
+    }
+    return text;
+  }
+
+  const workingMessages: AnthropicMessage[] = args.messages
+    .filter((message) => message.content.trim().length > 0)
+    .map((message) => ({
+      role: message.role,
+      content: message.content,
+    }));
+
+  let streamedAnyText = false;
+  try {
+    return await createAnthropicMessageStream({
+      messages: workingMessages,
+      model: assistantModelConfig().primaryModel,
+      onTextDelta: async (delta) => {
+        streamedAnyText = true;
+        await args.onTextDelta(delta);
+      },
+      systemBlocks: args.systemBlocks,
+      temperature: CAREER_LLM_CONFIG.chat.temperature,
+      usageLabel: "career/chat:assistant",
+    });
+  } catch (error) {
+    if (streamedAnyText) {
+      throw error;
+    }
+
+    console.error("[career-chat:anthropic-stream-fallback]", {
+      error: error instanceof Error ? error.message : String(error),
+      model: assistantModelConfig().primaryModel,
+    });
+    const text = await runCareerChatAssistant({
+      executeTool: args.executeTool,
+      messages: args.messages,
+      stopAfterToolNames: args.stopAfterToolNames,
+      systemBlocks: args.systemBlocks,
+      tools: args.tools,
+    });
+    if (text) {
+      await args.onTextDelta(text);
+    }
+    return text;
+  }
+}
+
 export async function runCareerInsightExtraction(args: {
   conversationMessages: Array<{
     content: string;
@@ -520,7 +742,10 @@ export async function runCareerInsightExtraction(args: {
 }) {
   return runDirectTextCompletion({
     jsonMode: true,
-    messages: [{ role: "system", content: args.systemPrompt }, ...args.conversationMessages],
+    messages: [
+      { role: "system", content: args.systemPrompt },
+      ...args.conversationMessages,
+    ],
     model: CAREER_LLM_CONFIG.insightExtraction.model,
     temperature: CAREER_LLM_CONFIG.insightExtraction.temperature,
     usageLabel: "career/chat:insight_extraction",
@@ -546,6 +771,17 @@ export async function runCareerReengagementMessage(args: {
   });
 }
 
+export async function runCareerHistoryActionReply(args: {
+  messages: TalentChatMessage[];
+}) {
+  return runTalentAssistantCompletion({
+    ...assistantModelConfig(),
+    messages: args.messages,
+    temperature: CAREER_LLM_CONFIG.historyActionReply.temperature,
+    usageLabel: "career/history:action_reply",
+  });
+}
+
 export async function runCareerKickoff(args: {
   messages: TalentChatMessage[];
 }) {
@@ -563,36 +799,6 @@ export async function runCareerOnboardingDeferClose(args: {
     ...assistantModelConfig(),
     messages: args.messages,
     temperature: CAREER_LLM_CONFIG.onboardingDeferClose.temperature,
-  });
-}
-
-export async function runCareerMockInterviewReply(args: {
-  messages: DirectOpenAIMessage[];
-}) {
-  return runDirectTextCompletion({
-    messages: args.messages,
-    model: CAREER_LLM_CONFIG.mockInterviewReply.model,
-    temperature: CAREER_LLM_CONFIG.mockInterviewReply.temperature,
-    usageLabel: "career/chat:mock_interview_reply",
-  });
-}
-
-export async function runCareerMockInterviewSetup(args: { prompt: string }) {
-  return runDirectTextCompletion({
-    jsonMode: true,
-    messages: [{ role: "user", content: args.prompt }],
-    model: CAREER_LLM_CONFIG.mockInterviewSetup.model,
-    temperature: CAREER_LLM_CONFIG.mockInterviewSetup.temperature,
-    usageLabel: "career/chat:mock_interview_setup",
-  });
-}
-
-export async function runCareerMockInterviewFeedback(args: { prompt: string }) {
-  return runDirectTextCompletion({
-    messages: [{ role: "user", content: args.prompt }],
-    model: CAREER_LLM_CONFIG.mockInterviewFeedback.model,
-    temperature: CAREER_LLM_CONFIG.mockInterviewFeedback.temperature,
-    usageLabel: "career/chat:mock_interview_feedback",
   });
 }
 

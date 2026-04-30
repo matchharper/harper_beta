@@ -7,7 +7,6 @@ import {
 } from "@/lib/talentOnboarding/server";
 import { INSIGHT_CHECKLIST } from "@/lib/talentOnboarding/insightChecklist";
 import { TALENT_INTERVIEW_MIN_COVERAGE } from "@/lib/talentOnboarding/progress";
-import { completeMockInterview } from "@/lib/mockInterview/server";
 import {
   buildCareerCallWrapupFallbackFollowUp,
   buildCareerCallWrapupPrompt,
@@ -98,20 +97,6 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = getTalentSupabaseAdmin();
-    const mockInterviewResult = await completeMockInterview({
-      admin: supabase,
-      conversationId,
-      extraTranscript: transcript,
-      userId: user.id,
-    });
-
-    if (mockInterviewResult) {
-      return NextResponse.json({
-        followUpMessage: mockInterviewResult.message,
-        mockInterviewSession: mockInterviewResult.session,
-      });
-    }
-
     const safeDurationSeconds = Math.max(0, Math.floor(durationSeconds ?? 0));
     const durationLabel =
       safeDurationSeconds > 0 ? formatDuration(safeDurationSeconds) : null;

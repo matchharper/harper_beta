@@ -7,6 +7,8 @@ export type InsightChecklistItem = {
   promptHint: string;
   /** Lower = ask earlier in conversation (1-10) */
   priority: number;
+  /** Whether the item is a ranking item */
+  isRanking?: boolean;
 };
 
 /**
@@ -105,24 +107,24 @@ export const INSIGHT_CHECKLIST: InsightChecklistItem[] = [
     priority: 2,
   },
   {
-    key: "overseas_openness",
-    label: "해외 이직/스타트업 개방성",
+    key: "location",
+    label: "선호 근무 지역",
     promptHint:
-      "Whether the user is open to overseas opportunities or overseas startup roles, and what conditions would make those options realistic or attractive",
+      "The user's preferred work location or region, while gently also checking whether they are open to or considering overseas opportunities",
     priority: 3,
   },
   {
     key: "next_scope",
-    label: "다음 역할 범위",
+    label: "다음 역할",
     promptHint:
-      "The scope the user wants in the next role, such as hands-on IC work, people leadership, 0-to-1 building, or scaling and operations",
+      "The Role the user wants in the next role, such as current-past role, people leadership(Team manager or C-level), other role if possible, opened to any role",
     priority: 4,
   },
   {
-    key: "ideal_opportunity",
-    label: "원하는 기회 자유서술",
+    key: "compensation",
+    label: "기대 보상 조건",
     promptHint:
-      "A free-form description of the kind of opportunity the user wants, including role, team, domain, product, and working style",
+      "Whether the user has a minimum acceptable compensation level or 'this much would make sense' expectation for the next opportunity",
     priority: 5,
   },
   {

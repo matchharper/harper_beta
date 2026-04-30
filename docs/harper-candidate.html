@@ -1,0 +1,4280 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Harper · 홈</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream: #F4EBE3;
+    --cream-light: #FAF5F0;
+    --cream-deep: #EADFD3;
+    --brown-dark: #2D1810;
+    --brown-mid: #5C4A3D;
+    --brown-muted: #8B7968;
+    --accent: #B5835A;
+    --accent-dark: #95693F;
+    --accent-soft: rgba(181,131,90,0.12);
+    --green: #4A7C59;
+    --green-soft: rgba(74,124,89,0.12);
+    --rule: rgba(45,24,16,0.08);
+    --rule-strong: rgba(45,24,16,0.16);
+    --shadow-card: 0 1px 2px rgba(45,24,16,0.04), 0 4px 16px -4px rgba(45,24,16,0.08);
+    --font-serif: 'Instrument Serif', Georgia, serif;
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: var(--font-sans);
+    background: var(--cream-light);
+    color: var(--brown-dark);
+    font-size: 14px;
+    line-height: 1.55;
+    overflow: hidden;
+  }
+  button { font-family: inherit; cursor: pointer; }
+
+  .app {
+    height: 100vh;
+    display: grid;
+    grid-template-rows: 60px 1fr;
+  }
+
+  /* ============ TOP NAV ============ */
+  .nav {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    padding: 0 24px;
+    background: var(--cream-light);
+    border-bottom: 0.5px solid var(--rule);
+  }
+  .nav-left { display: flex; align-items: center; gap: 14px; }
+  .nav-logo {
+    font-family: var(--font-serif);
+    font-size: 24px;
+    letter-spacing: -0.01em;
+  }
+  .nav-logo .dot { color: var(--accent); }
+  .nav-status {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--brown-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: var(--cream);
+    border-radius: 999px;
+  }
+  .nav-status .pulse {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+  .nav-center { display: flex; }
+  .nav-right {
+    justify-self: end;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .nav-icon-btn {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    border: 0.5px solid var(--rule-strong);
+    background: transparent;
+    color: var(--brown-mid);
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s ease;
+  }
+  .nav-icon-btn:hover {
+    background: var(--cream);
+    color: var(--brown-dark);
+  }
+  .nav-icon-btn svg { width: 16px; height: 16px; }
+  .user-avatar {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    background: var(--brown-dark);
+    color: var(--cream-light);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 15px;
+  }
+
+  /* ============ MAIN LAYOUT ============ */
+  .main {
+    display: grid;
+    grid-template-columns: minmax(460px, 45%) 1fr;
+    overflow: hidden;
+  }
+
+  /* ============ CHAT PANEL (LEFT) ============ */
+  .chat-panel {
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    background: var(--cream);
+    border-right: 0.5px solid var(--rule-strong);
+    position: relative;
+  }
+  .chat-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 28px 28px 20px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--rule-strong) transparent;
+  }
+  .chat-scroll::-webkit-scrollbar { width: 6px; }
+  .chat-scroll::-webkit-scrollbar-thumb {
+    background: var(--rule-strong);
+    border-radius: 3px;
+  }
+  .chat-inner {
+    display: flex; flex-direction: column; gap: 14px;
+  }
+
+  .date-sep {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: var(--brown-muted);
+    text-align: center;
+    position: relative;
+    padding: 8px 0 4px;
+  }
+  .date-sep::before, .date-sep::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    width: 60px;
+    height: 0.5px;
+    background: var(--rule);
+  }
+  .date-sep::before { left: calc(50% - 120px); }
+  .date-sep::after { right: calc(50% - 120px); }
+
+  .msg {
+    display: flex;
+    gap: 12px;
+    opacity: 0;
+    transform: translateY(8px);
+    animation: msgIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  @keyframes msgIn { to { opacity: 1; transform: translateY(0); } }
+
+  .msg .avatar {
+    flex-shrink: 0;
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 15px;
+    margin-top: 2px;
+  }
+  .msg.harper .avatar {
+    background: var(--accent);
+    color: var(--cream-light);
+  }
+  .msg.user { flex-direction: row-reverse; }
+  .msg.user .avatar {
+    background: var(--brown-dark);
+    color: var(--cream-light);
+  }
+
+  .msg .bubble {
+    max-width: 420px;
+    padding: 12px 16px;
+    border-radius: 18px;
+    font-size: 14px;
+    line-height: 1.55;
+  }
+  .msg.harper .bubble {
+    background: #fff;
+    border: 0.5px solid var(--rule);
+    border-top-left-radius: 6px;
+    color: var(--brown-dark);
+  }
+  .msg.user .bubble {
+    background: var(--brown-dark);
+    color: var(--cream-light);
+    border-top-right-radius: 6px;
+  }
+  .msg .bubble p { margin: 0; }
+  .msg .bubble p + p { margin-top: 8px; }
+  .msg .bubble em {
+    color: var(--accent);
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 1.08em;
+  }
+
+  /* In-chat profile freshness nudge */
+  .in-chat-nudge {
+    margin-top: 10px;
+    background: linear-gradient(135deg, var(--cream-light) 0%, rgba(181, 131, 90, 0.08) 100%);
+    border: 0.5px solid var(--rule);
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .in-chat-nudge-meta {
+    font-size: 11px;
+    color: var(--text-muted, #8B7563);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+  .in-chat-nudge-meta .dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #B5683A;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  .in-chat-nudge-text {
+    font-size: 13px;
+    color: var(--brown-dark);
+    line-height: 1.5;
+  }
+  .in-chat-nudge-text em {
+    color: var(--accent);
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 1.08em;
+  }
+  .in-chat-nudge-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  /* In-chat company card (watchlist proactive recs) */
+  .in-chat-card {
+    margin-top: 10px;
+    background: var(--cream-light);
+    border: 0.5px solid var(--rule);
+    border-radius: 12px;
+    padding: 12px 14px 10px;
+  }
+  .in-chat-card-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .in-chat-card-logo {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 15px;
+    flex-shrink: 0;
+  }
+  .in-chat-card-info { min-width: 0; flex: 1; }
+  .in-chat-card-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--brown-dark);
+    line-height: 1.3;
+  }
+  .in-chat-card-meta {
+    font-size: 11px;
+    color: var(--text-muted, #8B7563);
+    line-height: 1.4;
+    margin-top: 2px;
+  }
+  .in-chat-card-pill {
+    display: inline-block;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(181, 131, 90, 0.12);
+    color: var(--accent);
+    margin-bottom: 8px;
+    letter-spacing: 0.02em;
+  }
+  .in-chat-card-pill.stealth {
+    background: rgba(99, 102, 241, 0.12);
+    color: #6366F1;
+  }
+  .in-chat-card-pill.hiring-soon {
+    background: rgba(217, 119, 87, 0.12);
+    color: #B5683A;
+  }
+  .in-chat-promise {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 0.5px dashed var(--rule);
+  }
+  .in-chat-promise .icp-title {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .in-chat-promise .icp-item {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    font-size: 12px;
+    color: var(--brown-dark);
+    line-height: 1.4;
+    margin-top: 4px;
+  }
+  .in-chat-promise .icp-item svg {
+    width: 12px; height: 12px;
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+
+  .in-chat-card-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .in-chat-btn {
+    flex: 1;
+    padding: 7px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-family: var(--font-sans);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border: 0.5px solid var(--rule);
+    background: #fff;
+    color: var(--brown-dark);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+  }
+  .in-chat-btn:hover { background: var(--cream); }
+  .in-chat-btn.primary {
+    background: var(--brown-dark);
+    color: var(--cream-light);
+    border-color: var(--brown-dark);
+  }
+  .in-chat-btn.primary:hover { background: #1F0F08; }
+  .in-chat-btn:disabled,
+  .in-chat-btn.added {
+    opacity: 0.7;
+    cursor: default;
+    pointer-events: none;
+  }
+  .in-chat-btn svg { width: 12px; height: 12px; }
+
+  /* Quick action tiles (in-chat) */
+  .quick-actions {
+    background: #fff;
+    border: 0.5px solid var(--accent);
+    border-radius: 18px;
+    padding: 18px;
+    margin: 8px 0 8px 44px;
+    max-width: 520px;
+    opacity: 0;
+    animation: msgIn 0.5s ease 0.1s forwards;
+  }
+  .qa-title {
+    font-size: 13px;
+    color: var(--brown-dark);
+    margin-bottom: 12px;
+    font-weight: 500;
+  }
+  .qa-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+  }
+  .qa-tile {
+    background: var(--cream-light);
+    border: 0.5px solid var(--rule);
+    border-radius: 12px;
+    padding: 14px 10px 12px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s ease;
+    font-family: var(--font-sans);
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+  }
+  .qa-tile:hover {
+    background: #fff;
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-card);
+  }
+  .qa-icon {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    color: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .qa-icon svg { width: 16px; height: 16px; }
+  .qa-label {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--brown-dark);
+    line-height: 1.25;
+  }
+  .qa-sub {
+    font-size: 11px;
+    color: var(--brown-muted);
+    line-height: 1.3;
+  }
+
+  /* Typing indicator */
+  .typing-row {
+    display: flex; gap: 12px; align-items: center;
+    padding: 4px 0;
+    opacity: 0;
+    animation: msgIn 0.3s ease forwards;
+  }
+  .typing-label {
+    font-size: 12px;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 6px 12px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .typing-label .typing-dots { display: flex; gap: 3px; }
+  .typing-label .typing-dots span {
+    width: 4px; height: 4px; border-radius: 50%;
+    background: var(--accent);
+    animation: typingDot 1.1s infinite;
+  }
+  .typing-label .typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+  .typing-label .typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes typingDot {
+    0%, 60%, 100% { opacity: 0.35; transform: translateY(0); }
+    30% { opacity: 1; transform: translateY(-2px); }
+  }
+
+  /* Input wrap */
+  .input-wrap {
+    border-top: 0.5px solid var(--rule);
+    background: var(--cream);
+    padding: 14px 20px 16px;
+  }
+  .input-bar {
+    display: flex; align-items: center; gap: 8px;
+    background: #fff;
+    border: 0.5px solid var(--rule-strong);
+    border-radius: 24px;
+    padding: 4px 4px 4px 6px;
+    transition: border-color 0.2s ease;
+  }
+  .input-bar:focus-within { border-color: var(--accent); }
+  .btn-icon {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: var(--brown-mid);
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+  }
+  .btn-icon:hover { background: var(--cream); color: var(--brown-dark); }
+  .btn-icon svg { width: 18px; height: 18px; }
+  .chat-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    outline: none;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    padding: 7px 4px;
+    color: var(--brown-dark);
+  }
+  .chat-input::placeholder { color: var(--brown-muted); }
+  .btn-send {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    border: none;
+    background: var(--brown-dark);
+    color: var(--cream-light);
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+  }
+  .btn-send:hover { background: #1d100a; }
+  .btn-send:disabled {
+    background: var(--cream-deep);
+    color: var(--brown-muted);
+    cursor: default;
+  }
+  .btn-send svg { width: 16px; height: 16px; }
+
+  .input-meta {
+    display: flex; gap: 10px; margin-top: 8px;
+  }
+  .input-pill {
+    font-size: 11px;
+    color: var(--brown-mid);
+    padding: 3px 10px;
+    background: var(--cream);
+    border: 0.5px solid var(--rule);
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  /* ============ DASHBOARD (RIGHT) ============ */
+  .dashboard {
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .sub-nav {
+    display: flex; align-items: center; justify-content: center;
+    gap: 12px;
+    padding: 10px 20px;
+    border-bottom: 0.5px solid var(--rule);
+  }
+  .sub-nav-tab {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 22px;
+    border-radius: 999px;
+    font-size: 13.5px;
+    color: var(--brown-mid);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border: 0.5px solid transparent;
+    background: transparent;
+    font-family: var(--font-sans);
+  }
+  .sub-nav-tab:hover {
+    background: var(--cream);
+    color: var(--brown-dark);
+  }
+  .sub-nav-tab.active {
+    background: #fff;
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .sub-nav-tab svg { width: 14px; height: 14px; }
+  .sub-nav-tab .badge {
+    background: var(--accent);
+    color: var(--cream-light);
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    font-weight: 600;
+    margin-left: 2px;
+    line-height: 1.4;
+    letter-spacing: 0.02em;
+  }
+  .sub-nav-tab.active .badge {
+    background: var(--accent);
+  }
+  .sub-nav-tab:not(.active) .badge {
+    background: rgba(45,24,16,0.08);
+    color: var(--brown-mid);
+  }
+
+  .dashboard-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px 32px 40px;
+  }
+  .dashboard-inner {
+    max-width: 780px;
+    margin: 0 auto;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+
+  .dash-head {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 18px;
+    padding: 8px 0 12px;
+  }
+  .dash-head h1 {
+    font-family: var(--font-serif);
+    font-size: clamp(40px, 4.5vw, 60px);
+    line-height: 1.05;
+    font-weight: 400;
+    letter-spacing: -0.018em;
+    margin: 0;
+    text-align: center;
+  }
+  .dash-head h1 em {
+    color: var(--accent);
+    font-style: italic;
+  }
+
+  /* Tab panels (Home / Positions / Watchlist / Profile content switching) */
+  .tab-panel { display: none; }
+  .tab-panel.active { display: flex; flex-direction: column; gap: 16px; }
+
+  /* ============ WATCHLIST PANEL ============ */
+  .wl-toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 4px;
+    gap: 12px;
+  }
+  .wl-tabs {
+    display: flex; gap: 4px;
+    background: var(--cream);
+    padding: 3px;
+    border-radius: 999px;
+    border: 0.5px solid var(--rule);
+    width: fit-content;
+  }
+  .wl-tab {
+    background: transparent;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    color: var(--brown-mid);
+    cursor: pointer;
+    font-family: var(--font-sans);
+  }
+  .wl-tab.active {
+    background: #fff;
+    color: var(--brown-dark);
+    font-weight: 500;
+    box-shadow: 0 1px 2px rgba(45,24,16,0.08);
+  }
+  .wl-tab .num {
+    margin-left: 4px;
+    background: rgba(45,24,16,0.08);
+    color: var(--brown-mid);
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 999px;
+  }
+  .wl-tab.active .num { background: var(--accent); color: var(--cream-light); }
+
+  .wl-filters {
+    display: flex; gap: 6px; align-items: center;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    font-size: 12px;
+  }
+  .wl-filter {
+    background: var(--cream);
+    color: var(--brown-mid);
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 0.5px solid var(--rule);
+    cursor: pointer;
+  }
+  .wl-filter.active {
+    background: var(--brown-dark);
+    color: var(--cream-light);
+    border-color: var(--brown-dark);
+  }
+
+  .wl-card {
+    background: #fff;
+    border: 0.5px solid var(--rule);
+    border-radius: 18px;
+    padding: 22px 24px;
+    box-shadow: 0 1px 2px rgba(45,24,16,0.04);
+    position: relative;
+  }
+  .wl-card.followed { border-color: var(--accent-soft); }
+
+  .wl-status-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    color: var(--brown-mid);
+    background: var(--cream);
+    margin-bottom: 10px;
+  }
+  .wl-status-pill::before {
+    content: "";
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--brown-mid);
+  }
+  .wl-status-pill.hiring-soon::before { background: var(--green); animation: wlPulse 1.6s infinite; }
+  .wl-status-pill.hiring-soon { color: var(--green); background: var(--green-soft); }
+  .wl-status-pill.followed-tag::before { background: #B5683A; }
+  .wl-status-pill.followed-tag { color: #B5683A; background: #FBF2E8; }
+  @keyframes wlPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .wl-head {
+    display: grid;
+    grid-template-columns: 56px 1fr;
+    gap: 14px;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .wl-logo {
+    width: 56px; height: 56px;
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--cream-light);
+    font-family: var(--font-sans);
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    flex-shrink: 0;
+  }
+  .wl-info { min-width: 0; }
+  .wl-name {
+    font-family: var(--font-serif);
+    font-size: 22px;
+    color: var(--brown-dark);
+    line-height: 1.15;
+    margin-bottom: 4px;
+  }
+  .wl-meta {
+    font-size: 12.5px;
+    color: var(--brown-mid);
+    line-height: 1.4;
+  }
+
+  /* Modern Harper note — sans body, subtle bg, small uppercase label */
+  .wl-memo {
+    background: rgba(45, 24, 16, 0.025);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-top: 12px;
+  }
+  .wl-memo-label {
+    font-family: var(--font-sans);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--brown-muted);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .wl-memo-label::before {
+    content: '';
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+  }
+  .wl-memo-text {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    color: var(--brown-dark);
+    line-height: 1.6;
+    letter-spacing: -0.005em;
+  }
+  /* Following cards — slightly different accent dot color */
+  .wl-card.followed .wl-memo-label::before { background: #4F8B3F; }
+
+  /* Discover banner — explains follow value once, dismissible */
+  .wl-discover-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 14px 18px;
+    margin-bottom: 14px;
+    background: linear-gradient(135deg, var(--cream) 0%, rgba(181, 131, 90, 0.08) 100%);
+    border: 0.5px solid var(--rule);
+    border-left: 2px solid var(--accent);
+    border-radius: 10px;
+    position: relative;
+  }
+  .wl-discover-banner.hidden { display: none; }
+  .wl-discover-banner .wdb-icon {
+    flex-shrink: 0;
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--cream-light);
+    display: flex; align-items: center; justify-content: center;
+    margin-top: 2px;
+  }
+  .wl-discover-banner .wdb-icon svg { width: 14px; height: 14px; }
+  .wl-discover-banner .wdb-body { flex: 1; min-width: 0; }
+  .wl-discover-banner .wdb-title {
+    font-family: var(--font-serif);
+    font-size: 15px;
+    color: var(--brown-dark);
+    margin-bottom: 4px;
+  }
+  .wl-discover-banner .wdb-text {
+    font-size: 12.5px;
+    color: var(--brown-mid);
+    line-height: 1.55;
+  }
+  .wl-discover-banner .wdb-text strong {
+    color: var(--brown-dark);
+    font-weight: 500;
+  }
+  .wl-discover-banner .wdb-close {
+    background: transparent;
+    border: none;
+    color: var(--brown-muted);
+    cursor: pointer;
+    padding: 4px;
+    margin: -4px -4px 0 0;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .wl-discover-banner .wdb-close:hover { color: var(--brown-dark); background: rgba(45,24,16,0.05); }
+  .wl-discover-banner .wdb-close svg { width: 14px; height: 14px; }
+
+  /* First-follow toast — small celebration on first follow */
+  .wl-follow-toast {
+    position: fixed;
+    bottom: 32px;
+    right: 32px;
+    z-index: 100;
+    background: var(--brown-dark);
+    color: var(--cream-light);
+    border-radius: 14px;
+    padding: 16px 18px 14px;
+    width: 320px;
+    box-shadow: 0 8px 32px rgba(45,24,16,0.18);
+    transform: translateY(20px);
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    pointer-events: none;
+  }
+  .wl-follow-toast.show {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .wl-follow-toast .wft-head {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 8px;
+  }
+  .wl-follow-toast .wft-mark {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--brown-dark);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 12px;
+  }
+  .wl-follow-toast .wft-title {
+    font-family: var(--font-serif);
+    font-size: 14px;
+    color: var(--cream-light);
+  }
+  .wl-follow-toast .wft-list {
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: rgba(244,235,227,0.85);
+  }
+  .wl-follow-toast .wft-list .wft-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-top: 6px;
+  }
+  .wl-follow-toast .wft-list svg {
+    width: 12px; height: 12px;
+    color: var(--accent);
+    flex-shrink: 0;
+    margin-top: 3px;
+  }
+  .wl-follow-toast .wft-close {
+    position: absolute;
+    top: 10px; right: 10px;
+    background: transparent;
+    border: none;
+    color: rgba(244,235,227,0.5);
+    cursor: pointer;
+    padding: 2px;
+  }
+  .wl-follow-toast .wft-close:hover { color: var(--cream-light); }
+  .wl-follow-toast .wft-close svg { width: 12px; height: 12px; }
+
+  /* Follow promise — what user gets by following (Harper's commitment) */
+  .wl-promise {
+    margin-top: 10px;
+    background: var(--cream-light);
+    border: 0.5px solid var(--rule);
+    border-left: 2px solid var(--accent);
+    border-radius: 8px;
+    padding: 11px 14px;
+  }
+  .wl-promise-title {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 600;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .wl-promise-list {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .wl-promise-item {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    font-size: 12.5px;
+    color: var(--brown-dark);
+    line-height: 1.45;
+  }
+  .wl-promise-item .pi-icon {
+    flex-shrink: 0;
+    width: 14px; height: 14px;
+    color: var(--accent);
+    margin-top: 2px;
+  }
+  .wl-promise-item strong {
+    font-weight: 500;
+    color: var(--brown-dark);
+  }
+  .wl-promise-item .pi-sub {
+    color: var(--brown-mid);
+    font-size: 11.5px;
+    margin-top: 1px;
+    display: block;
+  }
+  /* Active (followed) state */
+  .wl-card.followed .wl-promise {
+    background: rgba(79, 139, 63, 0.05);
+    border-color: rgba(79, 139, 63, 0.2);
+    border-left-color: #4F8B3F;
+  }
+  .wl-card.followed .wl-promise-title {
+    color: #4F8B3F;
+  }
+  .wl-card.followed .wl-promise-item .pi-icon { color: #4F8B3F; }
+
+  .wl-actions {
+    display: flex; gap: 8px; align-items: center;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 0.5px solid var(--rule);
+  }
+  .wl-btn {
+    background: transparent;
+    border: 0.5px solid var(--rule-strong);
+    color: var(--brown-dark);
+    padding: 7px 14px;
+    border-radius: 999px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    transition: all 0.15s ease;
+    display: inline-flex; align-items: center; gap: 5px;
+    font-weight: 500;
+  }
+  .wl-btn:hover { background: var(--cream); }
+  .wl-btn.primary {
+    background: var(--accent);
+    color: var(--cream-light);
+    border-color: var(--accent);
+  }
+  .wl-btn.primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+  .wl-btn.followed-state {
+    background: #FBF2E8;
+    color: #B5683A;
+    border-color: #FBF2E8;
+  }
+  .wl-btn svg { width: 12px; height: 12px; }
+  .wl-spacer { flex: 1; }
+  .wl-detail-link {
+    font-size: 12px;
+    color: var(--brown-muted);
+    cursor: pointer;
+  }
+  .wl-detail-link:hover { color: var(--brown-dark); }
+
+  .wl-list { display: flex; flex-direction: column; gap: 14px; }
+
+  /* ============ POSITIONS PANEL ============ */
+
+  .pos-toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 4px;
+    gap: 12px;
+  }
+  .pos-tabs {
+    display: flex; gap: 4px;
+    background: var(--cream);
+    padding: 3px;
+    border-radius: 999px;
+    border: 0.5px solid var(--rule);
+    width: fit-content;
+  }
+  .pos-counter {
+    font-family: var(--font-serif);
+    font-size: 14px;
+    color: var(--brown-mid);
+    letter-spacing: 0.04em;
+  }
+  .pos-counter #posCurrent {
+    color: var(--brown-dark);
+    font-weight: 500;
+  }
+  .pos-tab {
+    background: transparent;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    color: var(--brown-mid);
+    cursor: pointer;
+    font-family: var(--font-sans);
+  }
+  .pos-tab.active {
+    background: #fff;
+    color: var(--brown-dark);
+    font-weight: 500;
+    box-shadow: 0 1px 2px rgba(45,24,16,0.08);
+  }
+  .pos-tab .num {
+    margin-left: 4px;
+    background: rgba(45,24,16,0.08);
+    color: var(--brown-mid);
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 999px;
+  }
+  .pos-tab.active .num { background: var(--accent); color: var(--cream-light); }
+
+  /* Stepper — show one card at a time (J&J pattern) */
+  .pos-stepper { position: relative; }
+  .pos-stepper .pos-list-status { display: none; }
+  .pos-stepper .position-card {
+    display: none;
+  }
+  .pos-stepper .position-card.is-active {
+    display: block;
+    animation: cardIn 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Tracked indicator (just-bookmarked, before action) */
+  .tracked-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 10px;
+    background: #FBF2E8;
+    color: #B5683A;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+    margin-bottom: 10px;
+  }
+  .tracked-badge svg { width: 11px; height: 11px; }
+
+
+  /* Apply button (large, prominent) — top + bottom of card */
+  .pdp-apply-wrap {
+    margin: 18px 0 8px;
+  }
+  .pdp-apply {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    background: var(--accent);
+    color: var(--cream-light);
+    border: none;
+    border-radius: 12px;
+    padding: 15px 20px;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    transition: background 0.18s ease, transform 0.15s ease;
+    letter-spacing: 0.01em;
+  }
+  .pdp-apply:hover {
+    background: #9D7048;
+    transform: translateY(-1px);
+  }
+  .pdp-apply:disabled,
+  .pdp-apply.is-applied {
+    background: var(--cream-deep);
+    color: var(--brown-mid);
+    cursor: default;
+    pointer-events: none;
+  }
+  .pdp-apply:disabled:hover,
+  .pdp-apply.is-applied:hover {
+    background: var(--cream-deep);
+    transform: none;
+  }
+  .pdp-apply svg { width: 16px; height: 16px; }
+  .pdp-apply-sub {
+    font-size: 12px;
+    color: var(--brown-muted);
+    margin-top: 10px;
+    text-align: center;
+    line-height: 1.5;
+  }
+  .pdp-apply-bottom-wrap {
+    margin-top: 28px;
+    padding-top: 22px;
+    border-top: 0.5px solid var(--rule);
+  }
+
+  .pdp-section {
+    margin-top: 24px;
+    padding-top: 22px;
+    border-top: 0.5px solid var(--rule);
+  }
+  .pdp-section-title {
+    font-family: var(--font-serif);
+    font-size: 18px;
+    color: var(--brown-dark);
+    margin: 0 0 12px;
+    line-height: 1;
+    font-weight: 400;
+  }
+
+  /* Memo section in detail */
+  .pdp-memo-block {
+    background: #FBF2E8;
+    border-radius: 12px;
+    padding: 16px 18px;
+  }
+  .pdp-memo-text {
+    font-family: var(--font-serif);
+    font-size: 14px;
+    color: var(--brown-dark);
+    line-height: 1.65;
+  }
+  .pdp-memo-text ul {
+    margin: 0;
+    padding-left: 0;
+    list-style: none;
+  }
+  .pdp-memo-text li {
+    position: relative;
+    padding-left: 16px;
+    margin-bottom: 8px;
+  }
+  .pdp-memo-text li:last-child { margin-bottom: 0; }
+  .pdp-memo-text li::before {
+    content: "·";
+    position: absolute;
+    left: 4px;
+    top: -2px;
+    color: #B5683A;
+    font-weight: 700;
+    font-size: 18px;
+  }
+  .pdp-memo-source {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    color: var(--brown-muted);
+    margin-top: 10px;
+    letter-spacing: 0.02em;
+    padding-top: 10px;
+    border-top: 0.5px solid rgba(181,104,58,0.15);
+  }
+
+  /* Role description */
+  .pdp-role-desc {
+    font-size: 13.5px;
+    color: var(--brown-dark);
+    line-height: 1.7;
+  }
+  .pdp-role-desc h4 {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--brown-muted);
+    margin: 18px 0 8px;
+    font-weight: 500;
+  }
+  .pdp-role-desc h4:first-child { margin-top: 0; }
+  .pdp-role-desc ul {
+    margin: 6px 0 0;
+    padding-left: 18px;
+  }
+  .pdp-role-desc li { margin-bottom: 5px; }
+  .pdp-role-desc p { margin: 0 0 10px; }
+
+
+  /* Empty state for tabs with no cards */
+  .pos-empty {
+    background: #fff;
+    border: 0.5px dashed var(--rule-strong);
+    border-radius: 18px;
+    padding: 60px 30px;
+    text-align: center;
+    display: flex; flex-direction: column;
+    align-items: center; gap: 8px;
+  }
+  .pos-empty[hidden] { display: none; }
+  .pos-empty .pe-icon {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    background: var(--cream);
+    color: var(--brown-muted);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 4px;
+  }
+  .pos-empty .pe-icon svg { width: 20px; height: 20px; }
+  .pos-empty .pe-title {
+    font-family: var(--font-serif);
+    font-size: 18px;
+    color: var(--brown-dark);
+    line-height: 1.3;
+  }
+  .pos-empty .pe-sub {
+    font-size: 12.5px;
+    color: var(--brown-muted);
+    line-height: 1.5;
+    max-width: 360px;
+  }
+
+  /* J&J style bottom action bar (full-width prominent) */
+  .pos-action-bar {
+    display: flex; align-items: center;
+    gap: 8px;
+    margin-top: 16px;
+    padding: 8px;
+    background: #fff;
+    border: 0.5px solid var(--rule);
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(45,24,16,0.04);
+  }
+  .pos-action-bar .pab-nav {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    background: transparent;
+    border: 0.5px solid var(--rule);
+    color: var(--brown-mid);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+  }
+  .pos-action-bar .pab-nav:hover {
+    background: var(--cream);
+    color: var(--brown-dark);
+  }
+  .pos-action-bar .pab-nav svg { width: 16px; height: 16px; }
+  .pos-action-bar .pab-skip,
+  .pos-action-bar .pab-track {
+    flex: 1;
+    height: 40px;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    font-size: 13.5px;
+    font-weight: 500;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    transition: all 0.15s ease;
+  }
+  .pos-action-bar .pab-skip {
+    background: var(--cream);
+    color: var(--brown-mid);
+  }
+  .pos-action-bar .pab-skip:hover {
+    background: var(--cream-deep);
+    color: var(--brown-dark);
+  }
+  .pos-action-bar .pab-track {
+    background: #B5683A;
+    color: var(--cream-light);
+  }
+  .pos-action-bar .pab-track:hover {
+    background: #9F5B30;
+  }
+  .pos-action-bar .pab-skip svg,
+  .pos-action-bar .pab-track svg { width: 15px; height: 15px; }
+
+  /* Keyboard shortcuts hint */
+  .pos-shortcuts {
+    display: flex; align-items: center; justify-content: center;
+    gap: 10px;
+    margin-top: 10px;
+    font-size: 11.5px;
+    color: var(--brown-muted);
+    letter-spacing: 0.02em;
+    flex-wrap: wrap;
+  }
+  .pos-shortcuts .ps-label {
+    font-size: 13px;
+    opacity: 0.6;
+  }
+  .pos-shortcuts .ps-dot { color: var(--rule-strong); }
+  .pos-shortcuts kbd {
+    display: inline-block;
+    background: var(--cream);
+    border: 0.5px solid var(--rule);
+    border-radius: 4px;
+    padding: 2px 6px;
+    margin-right: 2px;
+    font-family: var(--font-sans);
+    font-size: 10.5px;
+    color: var(--brown-mid);
+    box-shadow: 0 1px 0 rgba(45,24,16,0.05);
+  }
+
+  .position-card {
+    background: #fff;
+    border: 0.5px solid var(--rule);
+    border-radius: 18px;
+    padding: 22px 24px;
+    box-shadow: 0 1px 2px rgba(45,24,16,0.04);
+    transition: border-color 0.18s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .position-card.in-network {
+    border-color: var(--accent-soft);
+  }
+  .position-head {
+    display: grid;
+    grid-template-columns: 56px 1fr;
+    gap: 14px;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+  .position-logo {
+    width: 56px; height: 56px;
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--cream-light);
+    font-family: var(--font-sans);
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    flex-shrink: 0;
+  }
+  .position-info { min-width: 0; }
+  .position-role {
+    font-family: var(--font-serif);
+    font-size: 19px;
+    color: var(--brown-dark);
+    line-height: 1.15;
+    margin-bottom: 4px;
+  }
+  .position-meta {
+    font-size: 12.5px;
+    color: var(--brown-mid);
+    line-height: 1.4;
+  }
+
+  /* Founder intro badge (Harper signature — different from J&J) */
+  .founder-intro-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 10px;
+    background: var(--green-soft);
+    color: var(--green);
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    margin-bottom: 10px;
+  }
+  .founder-intro-badge::before {
+    content: "";
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: livePulse 1.6s ease-in-out infinite;
+  }
+  @keyframes livePulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .external-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 10px;
+    background: rgba(74,107,124,0.08);
+    color: var(--blue, #4A6B7C);
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+    margin-bottom: 10px;
+  }
+
+  /* Harper's note (signature warm tone) */
+  .harper-note {
+    background: #FBF2E8;
+    border-radius: 10px;
+    padding: 11px 14px;
+    margin-top: 12px;
+    display: flex; gap: 10px;
+    align-items: flex-start;
+  }
+  .harper-note .hn-icon {
+    color: #B5683A;
+    flex-shrink: 0;
+    padding-top: 1px;
+  }
+  .harper-note .hn-icon svg { width: 13px; height: 13px; }
+  .harper-note .hn-text {
+    font-size: 12.5px;
+    color: var(--brown-dark);
+    line-height: 1.55;
+    font-family: var(--font-serif);
+  }
+  .harper-note .hn-text strong {
+    color: #B5683A;
+    font-weight: 600;
+  }
+
+  /* Position fit section (J&J style structured fit reasoning) */
+  .position-fit {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 0.5px solid var(--rule);
+  }
+  .position-fit .pf-label {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--brown-muted);
+    font-weight: 500;
+    margin-bottom: 14px;
+  }
+  .position-fit .pf-list {
+    display: flex; flex-direction: column;
+    gap: 12px;
+  }
+  .position-fit .pf-item {
+    display: flex; gap: 11px;
+    align-items: flex-start;
+  }
+  .position-fit .pf-icon {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+    background: var(--cream);
+    color: var(--brown-mid);
+  }
+  .position-fit .pf-icon svg { width: 13px; height: 13px; }
+  .position-fit .pf-content { flex: 1; min-width: 0; }
+  .position-fit .pf-row {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 3px;
+  }
+  .position-fit .pf-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--brown-dark);
+  }
+  .position-fit .pf-text {
+    font-size: 12.5px;
+    color: var(--brown-mid);
+    line-height: 1.5;
+  }
+  /* Status mark next to the name (✓ / ⚠ / ✕) */
+  .position-fit .pf-mark {
+    flex-shrink: 0;
+    width: 15px; height: 15px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .position-fit .pf-mark svg { width: 15px; height: 15px; }
+  .position-fit .pf-item.pf-good .pf-mark { color: #5C9472; }
+  .position-fit .pf-item.pf-borderline .pf-mark { color: #D08B3C; }
+  .position-fit .pf-item.pf-mismatch .pf-mark { color: #C84A3A; }
+
+  /* ============ PROFILE PANEL ============ */
+  .profile-banner {
+    background: linear-gradient(135deg, var(--cream-light), #fff);
+    border: 0.5px solid var(--rule);
+    border-radius: 14px;
+    padding: 14px 18px;
+    font-size: 12.5px;
+    color: var(--brown-mid);
+    line-height: 1.55;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .profile-banner svg { width: 14px; height: 14px; color: var(--accent); flex-shrink: 0; }
+  .profile-banner strong { color: var(--brown-dark); font-weight: 500; }
+
+  /* Profile header — J&J style: avatar + name + subtitle + actions, no card */
+  .profile-hero {
+    display: flex; align-items: center; gap: 16px;
+    padding: 4px 4px 0;
+  }
+  .ph-top-row {
+    display: flex; align-items: center; gap: 16px;
+    width: 100%;
+  }
+  .ph-avatar {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--brown-dark));
+    color: var(--cream-light);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-serif);
+    font-size: 26px;
+    font-style: italic;
+    flex-shrink: 0;
+  }
+  .ph-name-block { flex: 1; min-width: 0; }
+  .ph-name {
+    font-family: var(--font-serif);
+    font-size: 28px;
+    color: var(--brown-dark);
+    line-height: 1.1;
+    margin-bottom: 6px;
+    display: flex; align-items: center; gap: 10px;
+    flex-wrap: wrap;
+  }
+  .ph-subtitle {
+    font-size: 13.5px;
+    color: var(--brown-mid);
+    line-height: 1.4;
+    margin-bottom: 5px;
+    display: flex; align-items: center; gap: 8px;
+    flex-wrap: wrap;
+  }
+  .ph-subtitle .ph-pipe {
+    color: var(--rule-strong);
+    user-select: none;
+  }
+  .ph-actions {
+    display: flex; gap: 8px;
+    flex-shrink: 0;
+  }
+  .ph-action-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px;
+    background: #fff;
+    border: 0.5px solid var(--rule-strong);
+    border-radius: 8px;
+    color: var(--brown-dark);
+    font-size: 12.5px;
+    text-decoration: none;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    transition: all 0.15s ease;
+  }
+  .ph-action-btn:hover {
+    border-color: var(--brown-dark);
+    background: var(--cream);
+  }
+  .ph-action-btn svg {
+    width: 13px; height: 13px;
+    color: var(--brown-mid);
+    flex-shrink: 0;
+  }
+
+  /* J&J style section header — icon + label + horizontal rule */
+  .profile-section-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 12px 0 0;
+    padding: 0 4px;
+  }
+  .profile-section-header svg {
+    width: 16px; height: 16px;
+    color: var(--brown-mid);
+    flex-shrink: 0;
+    stroke-width: 1.8;
+  }
+  .profile-section-header .psh-label {
+    font-family: var(--font-serif);
+    font-size: 22px;
+    color: var(--brown-dark);
+    letter-spacing: -0.01em;
+    line-height: 1;
+  }
+  .profile-section-header .psh-count {
+    font-size: 13px;
+    color: var(--brown-muted);
+    font-family: var(--font-sans);
+    margin-left: -6px;
+  }
+  .profile-section-header .psh-rule {
+    flex: 1;
+    height: 0.5px;
+    background: var(--rule);
+  }
+
+  /* Flat section content (no card) — direct typography on cream */
+  .profile-flat-section {
+    padding: 0 4px;
+    margin-bottom: 6px;
+  }
+  .pfs-block + .pfs-block {
+    margin-top: 24px;
+  }
+  .pfs-label {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--brown-muted);
+    margin-bottom: 10px;
+    font-weight: 500;
+  }
+  .pfs-text {
+    font-size: 14.5px;
+    color: var(--brown-dark);
+    line-height: 1.75;
+    margin: 0;
+  }
+  .ph-status-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: var(--green-soft);
+    color: var(--green);
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-family: var(--font-sans);
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+  .ph-status-pill::before {
+    content: "";
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+  }
+  .ph-updated {
+    font-size: 11.5px;
+    color: var(--brown-muted);
+    letter-spacing: 0.02em;
+  }
+
+  /* Match brief — key-value rows for scannable hiring criteria */
+  .match-brief-list {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    row-gap: 12px;
+    column-gap: 16px;
+  }
+  .match-brief-list dt {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--brown-muted);
+    font-weight: 500;
+    padding-top: 2px;
+  }
+  .match-brief-list dd {
+    margin: 0;
+    font-size: 14px;
+    color: var(--brown-dark);
+    line-height: 1.5;
+  }
+  .match-brief-list dd .mb-detail {
+    color: var(--brown-mid);
+    font-size: 12.5px;
+    display: block;
+    margin-top: 2px;
+  }
+
+  /* Harper's note inside experience entry (J&J style — warm peach) */
+  .exp-harper-note {
+    background: #FBF2E8;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-top: 12px;
+    display: flex; gap: 10px;
+    align-items: flex-start;
+  }
+  .exp-harper-note .ehn-icon {
+    color: #B5683A;
+    flex-shrink: 0;
+    padding-top: 2px;
+  }
+  .exp-harper-note .ehn-icon svg { width: 13px; height: 13px; }
+  .exp-harper-note .ehn-content { flex: 1; min-width: 0; }
+  .exp-harper-note .ehn-label {
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #B5683A;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .exp-harper-note .ehn-text {
+    font-family: var(--font-serif);
+    font-size: 14px;
+    color: var(--brown-dark);
+    line-height: 1.55;
+  }
+  .exp-harper-note .ehn-source {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    color: var(--brown-muted);
+    letter-spacing: 0.04em;
+    margin-top: 6px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .exp-harper-note .ehn-source::before {
+    content: "·";
+    color: var(--brown-muted);
+  }
+
+  /* Voice quotes section (Harper signature) — DEPRECATED */
+  .voice-quotes {
+    background: linear-gradient(180deg, #fff 0%, var(--cream-light) 100%);
+    border: 0.5px solid var(--rule);
+    border-radius: 18px;
+    padding: 22px 26px;
+  }
+  .vq-label {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 8px;
+    font-weight: 500;
+  }
+  .vq-title {
+    font-family: var(--font-serif);
+    font-size: 18px;
+    color: var(--brown-dark);
+    line-height: 1.2;
+    margin-bottom: 18px;
+  }
+  .vq-list {
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .vq-item {
+    padding: 12px 16px;
+    background: #fff;
+    border-radius: 12px;
+    border: 0.5px solid var(--rule);
+    border-left: 3px solid var(--accent);
+  }
+  .vq-item .vq-question {
+    font-size: 11.5px;
+    color: var(--brown-muted);
+    margin-bottom: 6px;
+    letter-spacing: 0.04em;
+  }
+  .vq-item .vq-answer {
+    font-family: var(--font-serif);
+    font-size: 16px;
+    line-height: 1.45;
+    color: var(--brown-dark);
+    font-style: italic;
+  }
+  .vq-item .vq-answer::before { content: "\""; color: var(--accent); margin-right: 2px; }
+  .vq-item .vq-answer::after { content: "\""; color: var(--accent); margin-left: 2px; }
+
+  /* Background section — combined Experience + Education timeline */
+  .exp-section {
+    padding: 0 4px;
+  }
+
+  /* Timeline with vertical line connecting entries */
+  .timeline {
+    position: relative;
+    padding-left: 0;
+  }
+  .timeline::before {
+    content: "";
+    position: absolute;
+    left: 19px; top: 22px; bottom: 22px;
+    width: 1.5px;
+    background: linear-gradient(to bottom, var(--rule-strong), var(--rule), transparent);
+  }
+  .exp-item {
+    display: grid;
+    grid-template-columns: 40px 1fr;
+    gap: 16px;
+    padding: 14px 0;
+    position: relative;
+  }
+  .exp-item:first-child { padding-top: 0; }
+  .exp-item:last-child { padding-bottom: 0; }
+  .exp-logo {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    background: var(--cream);
+    color: var(--brown-mid);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-sans);
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    flex-shrink: 0;
+    z-index: 1;
+    border: 2px solid #fff;
+  }
+  .exp-info { min-width: 0; }
+  .exp-header-row {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 3px;
+    flex-wrap: wrap;
+  }
+  .exp-badge {
+    font-size: 9px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+  .exp-badge.work {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .exp-badge.edu {
+    background: rgba(74,107,124,0.1);
+    color: var(--blue, #4A6B7C);
+  }
+  .exp-title {
+    font-size: 14px;
+    color: var(--brown-dark);
+    font-weight: 500;
+    line-height: 1.3;
+  }
+  .exp-company {
+    font-size: 12.5px;
+    color: var(--brown-mid);
+    line-height: 1.4;
+    margin-top: 1px;
+  }
+  .exp-dates {
+    font-size: 11.5px;
+    color: var(--brown-muted);
+    margin-top: 3px;
+  }
+  .exp-desc {
+    font-size: 13px;
+    color: var(--brown-mid);
+    line-height: 1.65;
+    margin-top: 10px;
+  }
+
+  /* Founding Member badge — exclusive, refined */
+  .founding-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px 6px 12px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, var(--cream-light), #fff);
+    border: 0.5px solid var(--accent);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 500;
+    margin-top: 12px;
+    box-shadow: 0 1px 2px rgba(181,131,90,0.08), 0 0 0 3px rgba(181,131,90,0.06);
+  }
+  .founding-badge .fb-icon {
+    width: 14px; height: 14px;
+    color: var(--accent);
+  }
+  .founding-badge .fb-num {
+    font-family: var(--font-serif);
+    font-size: 14px;
+    letter-spacing: -0.01em;
+    text-transform: none;
+    color: var(--brown-dark);
+    font-weight: 400;
+    margin-left: 2px;
+  }
+  .founding-badge .fb-num em {
+    color: var(--accent);
+    font-style: italic;
+  }
+  .founding-sub {
+    font-size: 12px;
+    color: var(--brown-mid);
+    text-align: center;
+    line-height: 1.55;
+    margin-top: 8px;
+    max-width: 420px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .founding-sub strong {
+    color: var(--brown-dark);
+    font-weight: 500;
+  }
+
+  /* About Harper card (Founder + backers) — bottom of dashboard */
+  .about-card {
+    background: linear-gradient(180deg, transparent 0%, rgba(244,235,227,0.4) 100%);
+    border-top: 0.5px solid var(--rule);
+    margin-top: 8px;
+    padding: 22px 4px 8px;
+  }
+  .about-card .ac-label {
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--brown-muted);
+    margin-bottom: 12px;
+    font-weight: 500;
+  }
+  .about-card .ac-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 0;
+    font-size: 12.5px;
+    color: var(--brown-mid);
+    line-height: 1.55;
+  }
+  .about-card .ac-row strong {
+    color: var(--brown-dark);
+    font-weight: 500;
+  }
+  .about-card .ac-row em {
+    color: var(--accent);
+    font-style: italic;
+    font-family: var(--font-serif);
+    font-size: 14px;
+  }
+  .about-card .ac-icon {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    background: var(--cream-light);
+    border: 0.5px solid var(--rule);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    color: var(--brown-mid);
+  }
+  .about-card .ac-icon svg { width: 13px; height: 13px; }
+  .about-card .ac-logo-row {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    margin-top: 8px;
+  }
+  .about-card .ac-logo {
+    font-size: 11px;
+    padding: 4px 10px;
+    background: #fff;
+    border: 0.5px solid var(--rule-strong);
+    border-radius: 999px;
+    color: var(--brown-dark);
+    letter-spacing: 0.02em;
+    font-weight: 500;
+  }
+  .about-card .ac-press {
+    font-size: 11px;
+    color: var(--brown-muted);
+    text-align: center;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 0.5px dashed var(--rule);
+    line-height: 1.6;
+  }
+
+  /* Talk to Harper — simple horizontal card (J&J base + Harper coral) */
+  .talk-card {
+    background: linear-gradient(135deg, var(--cream-light) 0%, #fff 100%);
+    border: 0.5px solid var(--rule);
+    border-radius: 20px;
+    padding: 22px 26px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 20px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(45,24,16,0.04);
+  }
+  .talk-card::before {
+    content: "";
+    position: absolute;
+    top: -50%; right: -10%;
+    width: 280px; height: 280px;
+    background: radial-gradient(circle, rgba(181,131,90,0.10), transparent 60%);
+    pointer-events: none;
+  }
+  .talk-left { display: flex; align-items: center; gap: 16px; position: relative; min-width: 0; }
+  .talk-icon {
+    width: 48px; height: 48px;
+    border-radius: 14px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .talk-icon svg { width: 22px; height: 22px; }
+  .talk-text { min-width: 0; }
+  .talk-text .title {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--brown-dark);
+    margin-bottom: 4px;
+  }
+  .talk-text .sub {
+    font-size: 13px;
+    color: var(--brown-mid);
+    line-height: 1.5;
+    max-width: 440px;
+  }
+  .talk-btn {
+    background: var(--accent);
+    color: var(--cream-light);
+    border: none;
+    padding: 14px 24px;
+    border-radius: 999px;
+    font-size: 14.5px;
+    font-weight: 500;
+    display: inline-flex; align-items: center; gap: 8px;
+    transition: all 0.15s ease;
+    position: relative;
+    box-shadow: 0 4px 14px -4px rgba(181,131,90,0.45), 0 1px 2px rgba(45,24,16,0.05);
+    flex-shrink: 0;
+  }
+  .talk-btn:hover {
+    background: var(--accent-dark);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px -4px rgba(181,131,90,0.55), 0 1px 2px rgba(45,24,16,0.05);
+  }
+  .talk-btn svg { width: 16px; height: 16px; }
+
+  /* Status card grid — J&J style with bigger numbers + prominent action */
+  .status-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  .status-card {
+    background: #fff;
+    border: 0.5px solid var(--rule);
+    border-radius: 18px;
+    padding: 22px 24px;
+    position: relative;
+    transition: all 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+    box-shadow: 0 1px 2px rgba(45,24,16,0.04);
+  }
+  .status-card:hover {
+    border-color: var(--rule-strong);
+    transform: translateY(-2px);
+    box-shadow: 0 1px 2px rgba(45,24,16,0.04), 0 8px 20px -8px rgba(45,24,16,0.12);
+  }
+  .sc-head {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .sc-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--brown-dark);
+    line-height: 1.3;
+  }
+  .sc-sub {
+    font-size: 12px;
+    color: var(--brown-muted);
+    margin-top: 2px;
+  }
+  .sc-badge {
+    width: 32px; height: 32px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .sc-badge svg { width: 16px; height: 16px; }
+  .sc-badge.accent { background: var(--accent-soft); color: var(--accent); }
+  .sc-badge.green { background: var(--green-soft); color: var(--green); }
+  .sc-number {
+    display: flex; align-items: baseline; gap: 8px;
+    margin-top: 14px;
+  }
+  .sc-number .n {
+    font-family: var(--font-serif);
+    font-size: 44px;
+    line-height: 1;
+    color: var(--brown-dark);
+    letter-spacing: -0.02em;
+  }
+  .sc-number .unit {
+    font-size: 12px;
+    color: var(--brown-muted);
+    font-weight: 500;
+  }
+  .sc-action {
+    margin-top: 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    background: var(--cream-light);
+    color: var(--brown-dark);
+    cursor: pointer;
+    font-weight: 500;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 0.5px solid var(--rule-strong);
+    transition: all 0.15s ease;
+  }
+  .sc-action:hover {
+    background: var(--brown-dark);
+    color: var(--cream-light);
+    border-color: var(--brown-dark);
+  }
+  .sc-action svg { width: 12px; height: 12px; }
+
+  /* Profile visibility card */
+  .visibility-card {
+    background: #fff;
+    border: 0.5px solid var(--rule);
+    border-radius: 16px;
+    padding: 20px 22px;
+  }
+  .vis-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .vis-title { font-size: 14px; font-weight: 500; color: var(--brown-dark); }
+  .vis-sub { font-size: 12px; color: var(--brown-muted); margin-top: 2px; }
+  .vis-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    background: var(--cream);
+    padding: 4px;
+    border-radius: 12px;
+  }
+  .vis-option {
+    background: transparent;
+    border: none;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--brown-mid);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: var(--font-sans);
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .vis-option:hover { color: var(--brown-dark); }
+  .vis-option svg { width: 13px; height: 13px; }
+  .vis-option.active {
+    background: #fff;
+    color: var(--brown-dark);
+    font-weight: 500;
+    box-shadow: 0 1px 2px rgba(45,24,16,0.08);
+  }
+  .vis-option.active.open { color: var(--green); }
+  .vis-option.active.exceptional { color: var(--accent); }
+  .vis-hint {
+    margin-top: 10px;
+    font-size: 11.5px;
+    color: var(--brown-muted);
+    line-height: 1.45;
+  }
+
+  /* Harper's Brief card (preview) */
+  .brief-card {
+    background: linear-gradient(180deg, #fff 0%, var(--cream-light) 100%);
+    border: 0.5px solid var(--rule);
+    border-radius: 16px;
+    padding: 20px 22px;
+  }
+  .brief-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .brief-title { font-size: 14px; font-weight: 500; }
+  .brief-sub { font-size: 12px; color: var(--brown-muted); margin-top: 2px; }
+  .brief-view {
+    font-size: 12px;
+    color: var(--accent);
+    cursor: pointer;
+  }
+  .brief-pills {
+    display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .brief-pill {
+    font-size: 12px;
+    padding: 5px 11px;
+    background: var(--cream);
+    color: var(--brown-dark);
+    border-radius: 999px;
+    border: 0.5px solid var(--rule);
+  }
+  .brief-pill strong {
+    color: var(--accent);
+    font-weight: 500;
+    margin-right: 3px;
+  }
+
+  /* Voice call modal */
+  .voice-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(45,24,16,0.4);
+    backdrop-filter: blur(6px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .voice-overlay.active { display: flex; }
+  .voice-card {
+    background: var(--brown-dark);
+    color: var(--cream-light);
+    padding: 36px 40px 32px;
+    border-radius: 28px;
+    display: flex; flex-direction: column; align-items: center; gap: 18px;
+    min-width: 380px;
+    box-shadow: 0 30px 80px -20px rgba(45,24,16,0.5);
+  }
+  .voice-card .avatar-big {
+    width: 68px; height: 68px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--cream-light);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 30px;
+  }
+  .voice-label {
+    font-size: 14px;
+    color: var(--accent);
+  }
+  .voice-name {
+    font-family: var(--font-serif);
+    font-size: 26px;
+    color: var(--cream-light);
+    margin-top: -8px;
+  }
+  .voice-wave {
+    display: flex; gap: 4px; align-items: center; height: 40px;
+  }
+  .voice-wave span {
+    width: 3px; background: var(--accent); border-radius: 2px;
+    animation: voiceBar 1.2s ease-in-out infinite;
+  }
+  .voice-wave span:nth-child(1) { height: 16px; animation-delay: 0s; }
+  .voice-wave span:nth-child(2) { height: 26px; animation-delay: 0.1s; }
+  .voice-wave span:nth-child(3) { height: 34px; animation-delay: 0.2s; }
+  .voice-wave span:nth-child(4) { height: 20px; animation-delay: 0.3s; }
+  .voice-wave span:nth-child(5) { height: 30px; animation-delay: 0.4s; }
+  .voice-wave span:nth-child(6) { height: 38px; animation-delay: 0.5s; }
+  .voice-wave span:nth-child(7) { height: 18px; animation-delay: 0.6s; }
+  .voice-wave span:nth-child(8) { height: 26px; animation-delay: 0.7s; }
+  @keyframes voiceBar {
+    0%, 100% { transform: scaleY(0.45); opacity: 0.6; }
+    50% { transform: scaleY(1); opacity: 1; }
+  }
+  .voice-timer {
+    font-size: 14px; color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.05em;
+  }
+  .voice-actions {
+    display: flex; gap: 10px; margin-top: 8px;
+  }
+  .voice-actions button {
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 500;
+    border: 0.5px solid rgba(250,245,240,0.25);
+    background: transparent;
+    color: var(--cream-light);
+  }
+  .voice-actions button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+
+  /* Responsive */
+  @media (max-width: 1100px) {
+    .main { grid-template-columns: 1fr; }
+    .chat-panel { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- TOP NAV -->
+  <header class="nav">
+    <div class="nav-left">
+      <div class="nav-logo">harper<span class="dot">.</span></div>
+    </div>
+    <div class="nav-center"></div>
+    <div class="nav-right">
+      <button class="nav-icon-btn" title="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
+      <button class="nav-icon-btn" title="Help">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+          <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+      </button>
+      <div class="user-avatar">C</div>
+    </div>
+  </header>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- LEFT: CHAT -->
+    <section class="chat-panel">
+      <div class="chat-scroll" id="chatScroll">
+        <div class="chat-inner" id="chatInner">
+
+          <div class="date-sep">2월 26일</div>
+
+          <div class="msg harper" style="animation-delay: 0ms;">
+            <div class="avatar">H</div>
+            <div class="bubble">
+              <p>다시 오셨네요, <em>Chris</em>.</p>
+              <p>지난 2주 동안 Founder 두 분이 Chris 프로필을 보고 관심을 보였어요. 확인해볼까요? 아니면 오늘 궁금한 거 있으세요?</p>
+            </div>
+          </div>
+
+          <!-- Quick action tiles -->
+          <div class="quick-actions" style="animation-delay: 200ms;">
+            <div class="qa-title">오늘 뭐 해볼까요?</div>
+            <div class="qa-grid">
+              <div class="qa-tile" data-action="new-intros">
+                <div class="qa-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                </div>
+                <div class="qa-label">새 기회 보기</div>
+                <div class="qa-sub">Harper가 가져온 포지션</div>
+              </div>
+              <div class="qa-tile" data-action="market">
+                <div class="qa-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+                </div>
+                <div class="qa-label">시장 인사이트</div>
+                <div class="qa-sub">연봉·트렌드 브리핑</div>
+              </div>
+              <div class="qa-tile" data-action="criteria">
+                <div class="qa-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+                </div>
+                <div class="qa-label">내 기준 수정</div>
+                <div class="qa-sub">선호·연봉 업데이트</div>
+              </div>
+              <div class="qa-tile" data-action="interview">
+                <div class="qa-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                </div>
+                <div class="qa-label">면접 준비</div>
+                <div class="qa-sub">모의 면접·피드백</div>
+              </div>
+              <div class="qa-tile" data-action="negotiation">
+                <div class="qa-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                </div>
+                <div class="qa-label">협상 코칭</div>
+                <div class="qa-sub">오퍼 최적화</div>
+              </div>
+              <div class="qa-tile" data-action="catching-up">
+                <div class="qa-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+                </div>
+                <div class="qa-label">그냥 안부</div>
+                <div class="qa-sub">요즘 어떠신지</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="date-sep">방금 전</div>
+
+          <div class="msg harper" style="animation-delay: 400ms;">
+            <div class="avatar">H</div>
+            <div class="bubble">
+              <p>참고로, Anthropic 쪽에서 Chris한테 관심 있다고 연락 왔어요. Inference Infra 팀 헤드와 Intro 일정 조율 중이에요.</p>
+              <p>언제가 편하세요?</p>
+            </div>
+          </div>
+
+          <!-- Watchlist proactive recommendation -->
+          <div class="msg harper" style="animation-delay: 600ms;">
+            <div class="avatar">H</div>
+            <div class="bubble">
+              <p>그리고 하나 더 — 아직 채용공고는 안 올렸지만 Chris랑 핏이 좋을 것 같은 곳 발견했어요. Co-founder 두 명 다 ex-OpenAI Inference TL이에요.</p>
+              <div class="in-chat-card" data-chat-card="stealth-openai">
+                <span class="in-chat-card-pill stealth">스텔스 모드</span>
+                <div class="in-chat-card-head">
+                  <div class="in-chat-card-logo" style="background: #6366F1;">S</div>
+                  <div class="in-chat-card-info">
+                    <div class="in-chat-card-name">Stealth · ex-OpenAI Founder</div>
+                    <div class="in-chat-card-meta">Inference Infra · Pre-seed · SF · 5 FTE</div>
+                  </div>
+                </div>
+                <div class="in-chat-promise">
+                  <div class="icp-title">팔로우하면 Harper가</div>
+                  <div class="icp-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                    회사 공개 + 첫 채용 시그널 즉시 알림
+                  </div>
+                  <div class="icp-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    두 Founder가 인재 검색 시 Chris 우선 노출 → 즉시 chat
+                  </div>
+                </div>
+                <div class="in-chat-card-actions">
+                  <button class="in-chat-btn primary" data-chat-action="follow" data-target-name="Stealth · ex-OpenAI Founder">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    워치리스트 추가
+                  </button>
+                  <button class="in-chat-btn" data-chat-action="dismiss">지금은 됐어요</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Profile freshness nudge -->
+          <div class="msg harper" style="animation-delay: 800ms;">
+            <div class="avatar">H</div>
+            <div class="bubble">
+              <div class="in-chat-nudge" data-chat-card="profile-update">
+                <div class="in-chat-nudge-meta"><span class="dot"></span>프로필 마지막 업데이트 · 3주 전</div>
+                <div class="in-chat-nudge-text">그동안 큰 변화 있었어요? <em>1분</em>이면 음성으로 빠르게 정리해드릴 수 있어요. 매칭 정확도는 프로필 freshness에 직접 연결돼요.</div>
+                <div class="in-chat-nudge-actions">
+                  <button class="in-chat-btn primary" data-chat-action="profile-voice">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+                    음성으로 1분
+                  </button>
+                  <button class="in-chat-btn" data-chat-action="profile-skip">다음에</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="typing-row" style="animation-delay: 1000ms;">
+            <span class="typing-label">
+              <span class="typing-dots"><span></span><span></span><span></span></span>
+              Harper is thinking…
+            </span>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Input bar -->
+      <div class="input-wrap">
+        <div class="input-bar">
+          <button class="btn-icon" title="파일 첨부" aria-label="첨부">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+            </svg>
+          </button>
+          <button class="btn-icon" id="voiceBtn" title="음성" aria-label="음성">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="2" width="6" height="12" rx="3"/>
+              <path d="M5 10v2a7 7 0 0 0 14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="22"/>
+            </svg>
+          </button>
+          <input type="text" class="chat-input" id="chatInput" placeholder="Harper에게 말해보세요..." autocomplete="off">
+          <button class="btn-send" id="sendBtn" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="5" y1="12" x2="19" y2="12"/>
+              <polyline points="12 5 19 12 12 19"/>
+            </svg>
+          </button>
+        </div>
+        <div class="input-meta">
+          <span class="input-pill">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 15a3 3 0 0 0 3-3V5a3 3 0 1 0-6 0v7a3 3 0 0 0 3 3z"/></svg>
+            음성 대화도 가능
+          </span>
+          <span class="input-pill">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            완전 비공개
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT: DASHBOARD -->
+    <section class="dashboard">
+      <div class="sub-nav">
+        <button class="sub-nav-tab active" data-tab="home">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          홈
+        </button>
+        <button class="sub-nav-tab" data-tab="positions">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          포지션
+          <span class="badge" id="topNavPosCount">3</span>
+        </button>
+        <button class="sub-nav-tab" data-tab="watchlist">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          워치리스트
+          <span class="badge" id="topNavWatchCount">5</span>
+        </button>
+        <button class="sub-nav-tab" data-tab="profile">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          프로필
+        </button>
+      </div>
+
+      <div class="dashboard-scroll">
+        <div class="dashboard-inner">
+
+          <!-- ========== HOME TAB ========== -->
+          <div class="tab-panel active" data-tab-panel="home">
+
+          <div class="dash-head">
+            <h1>Welcome back, <em>Chris</em></h1>
+          </div>
+
+          <!-- TALK TO HARPER — primary CTA -->
+          <div class="talk-card">
+            <div class="talk-left">
+              <div class="talk-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                </svg>
+              </div>
+              <div class="talk-text">
+                <div class="title">Harper와 5분 통화</div>
+                <div class="sub">포지션 검토하거나 다음 단계 정할 때 — 통화하면 빨라요</div>
+              </div>
+            </div>
+            <button class="talk-btn" id="startCallBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+              </svg>
+              통화 시작
+            </button>
+          </div>
+
+          <!-- STATUS GRID — big numbers, clear actions -->
+          <div class="status-grid">
+            <div class="status-card" data-home-target="new">
+              <div class="sc-head">
+                <div>
+                  <div class="sc-title">새 포지션</div>
+                  <div class="sc-sub">검토 대기 중</div>
+                </div>
+                <div class="sc-badge accent">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                </div>
+              </div>
+              <div class="sc-number">
+                <span class="n" id="homeNewCount">3</span>
+                <span class="unit">Founder 직접 소개</span>
+              </div>
+              <div class="sc-action">
+                검토하기
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </div>
+            </div>
+
+            <div class="status-card" data-home-target="tracking">
+              <div class="sc-head">
+                <div>
+                  <div class="sc-title">진행 중</div>
+                  <div class="sc-sub">추적 + 지원</div>
+                </div>
+                <div class="sc-badge green">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
+              </div>
+              <div class="sc-number">
+                <span class="n" id="homeActiveCount">2</span>
+                <span class="unit">Cursor 외 1개 추적 중</span>
+              </div>
+              <div class="sc-action">
+                상세 보기
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </div>
+            </div>
+          </div>
+
+
+
+          <!-- PROFILE VISIBILITY -->
+          <div class="visibility-card">
+            <div class="vis-head">
+              <div>
+                <div class="vis-title">프로필 공개 설정</div>
+                <div class="vis-sub">회사가 내 프로필을 어떻게 볼 수 있는지</div>
+              </div>
+            </div>
+            <div class="vis-options">
+              <button class="vis-option active open" data-vis="open">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                공개 · 포지션 받음
+              </button>
+              <button class="vis-option" data-vis="paused">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                일시 정지
+              </button>
+            </div>
+            <div class="vis-hint" id="visHint">
+              Harper가 확신하는 포지션이 있을 때만 회사에 Chris 프로필이 공유돼요. Chris가 수락하기 전까지는 익명 프로필로만 보입니다.
+            </div>
+          </div>
+
+          </div>
+          <!-- /HOME TAB -->
+
+          <!-- ========== POSITIONS TAB ========== -->
+          <div class="tab-panel" data-tab-panel="positions">
+
+            <div class="pos-toolbar">
+              <div class="pos-tabs">
+                <button class="pos-tab active" data-pos="new">새 포지션 <span class="num">0</span></button>
+                <button class="pos-tab" data-pos="tracking">추적 중 <span class="num">0</span></button>
+                <button class="pos-tab" data-pos="applied">지원함 <span class="num">0</span></button>
+                <button class="pos-tab" data-pos="archived">보관함 <span class="num">0</span></button>
+              </div>
+              <div class="pos-counter"><span id="posCurrent">1</span> / <span id="posTotal">3</span></div>
+            </div>
+
+            <div class="pos-stepper" data-active="0">
+
+            <!-- Position 1: Anthropic (in-network) -->
+            <div class="position-card in-network" data-pos="new">
+              <span class="pos-list-status">In-network</span>
+              <div class="founder-intro-badge">CEO Dario 직접 소개</div>
+              <div class="position-head">
+                <div class="position-logo" style="background: #D97757;">A</div>
+                <div class="position-info">
+                  <div class="position-role">Senior ML Engineer · Inference Infra</div>
+                  <div class="position-meta">Anthropic · SF + remote · $280–360K + equity · H-1B/O-1 가능</div>
+                </div>
+              </div>
+              <div class="harper-note">
+                <span class="hn-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                </span>
+                <div class="hn-text">Inference 인프라를 처음부터 설계할 수 있는 자리. Chris의 분산 서빙·batching layer 경험과 직접 매치. Dario가 직접 응답하며 평균 4시간, 한국인 엔지니어 재직 중, H-1B/O-1 transfer 실적 탄탄.</div>
+              </div>
+
+              <div class="position-fit">
+                <div class="pf-label">Fit</div>
+                <div class="pf-list">
+                  <div class="pf-item pf-good">
+                    <span class="pf-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span>
+                    <div class="pf-content">
+                      <div class="pf-row"><span class="pf-name">역할</span><span class="pf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                      <div class="pf-text">Inference Infra 코어 4명 중 1명 자리 — Chris의 분산 서빙·batching 경험 그대로 활용.</div>
+                    </div>
+                  </div>
+                  <div class="pf-item pf-good">
+                    <span class="pf-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></span>
+                    <div class="pf-content">
+                      <div class="pf-row"><span class="pf-name">단계</span><span class="pf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                      <div class="pf-text">Series G $30B → 최근 라운드 $800B 평가, equity 업사이드 큼.</div>
+                    </div>
+                  </div>
+                  <div class="pf-item pf-good">
+                    <span class="pf-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
+                    <div class="pf-content">
+                      <div class="pf-row"><span class="pf-name">위치</span><span class="pf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                      <div class="pf-text">SF + remote 가능 — Chris의 SF/NYC 이주 의향과 정합.</div>
+                    </div>
+                  </div>
+                  <div class="pf-item pf-good">
+                    <span class="pf-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+                    <div class="pf-content">
+                      <div class="pf-row"><span class="pf-name">비자</span><span class="pf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                      <div class="pf-text">H-1B / O-1 transfer 실적 탄탄, 한국인 엔지니어 이미 재직 중.</div>
+                    </div>
+                  </div>
+                  <div class="pf-item pf-good">
+                    <span class="pf-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg></span>
+                    <div class="pf-content">
+                      <div class="pf-row"><span class="pf-name">연봉</span><span class="pf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                      <div class="pf-text">$280–360K base + equity — 목표 $300K base 충족, 협상 여지 있음.</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Position 2: Perplexity (in-network) -->
+            <div class="position-card in-network" data-pos="new">
+              <span class="pos-list-status">In-network</span>
+              <div class="founder-intro-badge">CTO 직접 소개</div>
+              <div class="position-head">
+                <div class="position-logo" style="background: #21808D;">P</div>
+                <div class="position-info">
+                  <div class="position-role">AI Search Infrastructure Lead</div>
+                  <div class="position-meta">Perplexity · San Francisco · $250–340K + equity · H-1B 가능</div>
+                </div>
+              </div>
+              <div class="harper-note">
+                <span class="hn-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                </span>
+                <div class="hn-text">Search 인프라 리빌드가 핵심 mission. Chris의 분산 서빙 경험이 정확히 needs. IPO 논의 시작 단계, Series C 직후라 equity 업사이드 가장 큰 타이밍. CTO가 직접 1차 면접 진행.</div>
+              </div>
+
+              <div class="position-fit">
+                <div class="pf-label">Fit</div>
+                <div class="pf-list">
+                  <div class="pf-item pf-good">
+                    <span class="pf-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span>
+                    <div class="pf-content">
+                      <div class="pf-row"><span class="pf-name">역할</span><span class="pf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                      <div class="pf-text">Search 인프라 리빌드 핵심 — 분산 서빙 경험이 직접 매치되는 자리.</div>
+                    </div>
+                  </div>
+                  <div class="pf-item pf-good">
+                    <span class="pf-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></span>
+                    <div class="pf-content">
+                      <div class="pf-row"><span class="pf-name">단계</span><span class="pf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                      <div class="pf-text">Series C 직후 + IPO 논의 시작 — equity 업사이드 가장 큰 타이밍.</div>
+                    </div>
+                  </div>
+                  <div class="pf-item pf-good">
+                    <span class="pf-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
+                    <div class="pf-content">
+                      <div class="pf-row"><span class="pf-name">위치</span><span class="pf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                      <div class="pf-text">San Francisco onsite — Chris의 이주 의향과 정합.</div>
+                    </div>
+                  </div>
+                  <div class="pf-item pf-borderline">
+                    <span class="pf-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+                    <div class="pf-content">
+                      <div class="pf-row"><span class="pf-name">비자</span><span class="pf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span></div>
+                      <div class="pf-text">H-1B 가능, O-1은 case-by-case — 직접 확인 필요.</div>
+                    </div>
+                  </div>
+                  <div class="pf-item pf-borderline">
+                    <span class="pf-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg></span>
+                    <div class="pf-content">
+                      <div class="pf-row"><span class="pf-name">연봉</span><span class="pf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span></div>
+                      <div class="pf-text">$250–340K base — 목표 하한선 근처, equity가 보완 가능.</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Position 3: Mistral (out-of-network) -->
+            <div class="position-card" data-pos="new">
+              <span class="pos-list-status external">External</span>
+              <div class="external-badge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:10px;height:10px;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                채용 페이지로 지원
+              </div>
+              <div class="position-head">
+                <div class="position-logo" style="background: #FF6B35;">M</div>
+                <div class="position-info">
+                  <div class="position-role">Senior Inference Engineer</div>
+                  <div class="position-meta">Mistral AI · Paris · €180–250K + equity · EU 워크퍼밋</div>
+                </div>
+              </div>
+              <div class="harper-note">
+                <span class="hn-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                </span>
+                <div class="hn-text">Open-weights inference 최적화 mission. Chris의 분산 서빙 경험 직접 활용. EU 최대 LLM 회사, Paris 베이스. Harper 네트워크 밖이라 채용 페이지로 직접 지원 → 합격 후 협상은 함께 진행 가능.</div>
+              </div>
+
+              <div class="position-fit">
+                <div class="pf-label">Fit</div>
+                <div class="pf-list">
+                  <div class="pf-item pf-good">
+                    <span class="pf-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span>
+                    <div class="pf-content">
+                      <div class="pf-row"><span class="pf-name">역할</span><span class="pf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                      <div class="pf-text">Open-weights inference 최적화 — 분산 서빙·latency 경험 그대로 활용.</div>
+                    </div>
+                  </div>
+                  <div class="pf-item pf-good">
+                    <span class="pf-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></span>
+                    <div class="pf-content">
+                      <div class="pf-row"><span class="pf-name">단계</span><span class="pf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                      <div class="pf-text">EU 최대 LLM 회사, Series A 후 — 글로벌 팽창 단계.</div>
+                    </div>
+                  </div>
+                  <div class="pf-item pf-borderline">
+                    <span class="pf-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
+                    <div class="pf-content">
+                      <div class="pf-row"><span class="pf-name">위치</span><span class="pf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span></div>
+                      <div class="pf-text">Paris onsite — SF/NYC 선호와 차이 있으나 라이프스타일 매력.</div>
+                    </div>
+                  </div>
+                  <div class="pf-item pf-borderline">
+                    <span class="pf-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+                    <div class="pf-content">
+                      <div class="pf-row"><span class="pf-name">비자</span><span class="pf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span></div>
+                      <div class="pf-text">EU 워크퍼밋 필요 — Mistral이 처리, 초기 정착 지원 패키지 있음.</div>
+                    </div>
+                  </div>
+                  <div class="pf-item pf-borderline">
+                    <span class="pf-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg></span>
+                    <div class="pf-content">
+                      <div class="pf-row"><span class="pf-name">연봉</span><span class="pf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span></div>
+                      <div class="pf-text">€180–250K + equity (~$200–270K) — 목표 충족 모호, EU 세제 고려 필요.</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Position 4: Cursor (tracking, in-network) -->
+            <div class="position-card in-network" data-pos="tracking">
+              <span class="pos-list-status">In-network</span>
+              <div class="tracked-badge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                추적 시작 · 4일 전
+              </div>
+              <div class="position-head">
+                <div class="position-logo" style="background: #2D1810;">C</div>
+                <div class="position-info">
+                  <div class="position-role">Senior Inference Infra Engineer</div>
+                  <div class="position-meta">Cursor · SF · $260–340K + equity · H-1B 가능</div>
+                </div>
+              </div>
+              <div class="harper-note">
+                <span class="hn-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                </span>
+                <div class="hn-text">Founder Aman 직접 응답. Cursor가 자체 inference layer 구축 시작했고, Chris의 분산 서빙 전문성이 정확히 fit. 진행 상태: 첫 면접 일정 조율 중.</div>
+              </div>
+
+              <div class="position-fit">
+                <div class="pf-label">Fit</div>
+                <div class="pf-list">
+                  <div class="pf-item pf-good">
+                    <span class="pf-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span>
+                    <div class="pf-content">
+                      <div class="pf-row"><span class="pf-name">역할</span><span class="pf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                      <div class="pf-text">자체 inference layer 구축 — Chris 경험 그대로 활용.</div>
+                    </div>
+                  </div>
+                  <div class="pf-item pf-good">
+                    <span class="pf-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></span>
+                    <div class="pf-content">
+                      <div class="pf-row"><span class="pf-name">단계</span><span class="pf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                      <div class="pf-text">Series C $9B — 빠른 성장 단계, equity 업사이드.</div>
+                    </div>
+                  </div>
+                  <div class="pf-item pf-good">
+                    <span class="pf-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
+                    <div class="pf-content">
+                      <div class="pf-row"><span class="pf-name">위치</span><span class="pf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                      <div class="pf-text">San Francisco onsite — Chris 이주 의향과 정합.</div>
+                    </div>
+                  </div>
+                  <div class="pf-item pf-good">
+                    <span class="pf-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+                    <div class="pf-content">
+                      <div class="pf-row"><span class="pf-name">비자</span><span class="pf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                      <div class="pf-text">H-1B 가능, 외국인 엔지니어 다수 재직 중.</div>
+                    </div>
+                  </div>
+                  <div class="pf-item pf-good">
+                    <span class="pf-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg></span>
+                    <div class="pf-content">
+                      <div class="pf-row"><span class="pf-name">연봉</span><span class="pf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                      <div class="pf-text">$260–340K + equity — 목표 $300K 충족.</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Position 5: Modal (tracking, external) -->
+            <div class="position-card" data-pos="tracking">
+              <span class="pos-list-status external">External</span>
+              <div class="tracked-badge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                추적 시작 · 1주 전
+              </div>
+              <div class="position-head">
+                <div class="position-logo" style="background: #6366F1; font-size: 17px;">Mo</div>
+                <div class="position-info">
+                  <div class="position-role">ML Systems Engineer</div>
+                  <div class="position-meta">Modal · SF · $250–320K + equity · H-1B 가능</div>
+                </div>
+              </div>
+              <div class="harper-note">
+                <span class="hn-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                </span>
+                <div class="hn-text">Serverless GPU infra 회사 — Chris의 분산 서빙·scheduling 경험과 핵심 매치. 채용 페이지로 직접 지원 후 협상은 Harper가 함께 진행. 1주 전 추적 시작.</div>
+              </div>
+
+              <div class="position-fit">
+                <div class="pf-label">Fit</div>
+                <div class="pf-list">
+                  <div class="pf-item pf-good">
+                    <span class="pf-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span>
+                    <div class="pf-content">
+                      <div class="pf-row"><span class="pf-name">역할</span><span class="pf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                      <div class="pf-text">Serverless GPU infra — 분산 서빙·scheduling 경험 직접 활용.</div>
+                    </div>
+                  </div>
+                  <div class="pf-item pf-borderline">
+                    <span class="pf-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></span>
+                    <div class="pf-content">
+                      <div class="pf-row"><span class="pf-name">단계</span><span class="pf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span></div>
+                      <div class="pf-text">Series A $80M — 초기 단계, equity 업사이드 크나 리스크 동반.</div>
+                    </div>
+                  </div>
+                  <div class="pf-item pf-good">
+                    <span class="pf-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
+                    <div class="pf-content">
+                      <div class="pf-row"><span class="pf-name">위치</span><span class="pf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                      <div class="pf-text">SF onsite — Chris 이주 의향 정합.</div>
+                    </div>
+                  </div>
+                  <div class="pf-item pf-good">
+                    <span class="pf-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+                    <div class="pf-content">
+                      <div class="pf-row"><span class="pf-name">비자</span><span class="pf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                      <div class="pf-text">H-1B 가능, transfer 케이스 처리 경험 있음.</div>
+                    </div>
+                  </div>
+                  <div class="pf-item pf-borderline">
+                    <span class="pf-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg></span>
+                    <div class="pf-content">
+                      <div class="pf-row"><span class="pf-name">연봉</span><span class="pf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span></div>
+                      <div class="pf-text">$250–320K base — 하한 근처, equity로 보완 협상 가능.</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            </div>
+            <!-- /pos-stepper -->
+
+            <!-- Empty state (text dynamically set per active tab) -->
+            <div class="pos-empty" id="posEmpty" hidden>
+              <div class="pe-icon" id="peIcon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4"/></svg>
+              </div>
+              <div class="pe-title" id="peTitle"></div>
+              <div class="pe-sub" id="peSub"></div>
+            </div>
+
+            <!-- J&J style bottom action bar (only for stepper mode) -->
+            <div class="pos-action-bar">
+              <button class="pab-nav" id="pabPrev" type="button" aria-label="이전">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <button class="pab-skip" id="pabSkip" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                안 맞아요
+              </button>
+              <button class="pab-track" id="pabTrack" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                더 보고 싶어요
+              </button>
+              <button class="pab-nav" id="pabNext" type="button" aria-label="다음">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
+
+            <div class="pos-shortcuts">
+              <span class="ps-label">⌨</span>
+              <span><kbd>←</kbd> <kbd>→</kbd> 이동</span>
+              <span class="ps-dot">·</span>
+              <span><kbd>S</kbd> 안 맞아요</span>
+              <span class="ps-dot">·</span>
+              <span><kbd>T</kbd> 더 보고 싶어요</span>
+            </div>
+
+          </div>
+          <!-- /POSITIONS TAB -->
+
+          <!-- ========== WATCHLIST TAB ========== -->
+          <div class="tab-panel" data-tab-panel="watchlist">
+
+            <div class="wl-toolbar">
+              <div class="wl-tabs">
+                <button class="wl-tab active" data-wl="discover">Discover <span class="num">3</span></button>
+                <button class="wl-tab" data-wl="following">팔로우 중 <span class="num">2</span></button>
+              </div>
+            </div>
+
+            <div class="wl-filters">
+              <span style="color: var(--brown-muted); margin-right: 4px;">도메인:</span>
+              <span class="wl-filter active">전체</span>
+              <span class="wl-filter">Inference Infra</span>
+              <span class="wl-filter">ML Systems</span>
+              <span class="wl-filter">Search</span>
+            </div>
+
+            <!-- One-time explainer banner (dismissible, shows on Discover only) -->
+            <div class="wl-discover-banner" id="wlDiscoverBanner">
+              <span class="wdb-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+              </span>
+              <div class="wdb-body">
+                <div class="wdb-title">팔로우하면 일어나는 일</div>
+                <div class="wdb-text">
+                  <strong>① 시그널 자동 추적</strong> — 펀딩 / 채용 / Founder 글 / 팀 변화 같은 의미있는 변화만 요약 push.
+                  <strong>② 회사 측 발견 채널 열림</strong> — 그 회사 Founder가 인재 검색 시 1순위 노출 → 즉시 Intro 가능.
+                </div>
+              </div>
+              <button class="wdb-close" id="wlBannerClose" aria-label="닫기">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+
+            <div class="wl-list" id="wlList">
+
+              <!-- DISCOVER section cards -->
+              <div class="wl-card" data-wl-section="discover">
+                <span class="wl-status-pill">현재 채용공고 없음</span>
+                <div class="wl-head">
+                  <div class="wl-logo" style="background: #D97757;">A</div>
+                  <div class="wl-info">
+                    <div class="wl-name">Anthropic</div>
+                    <div class="wl-meta">AI safety · Series G $30B · SF + Remote · 800+ FTE</div>
+                  </div>
+                </div>
+                <div class="wl-memo">
+                  <div class="wl-memo-label">Harper의 한 줄</div>
+                  <div class="wl-memo-text">Inference Infra 팀이 다음 분기 확장 예정 (Founder 직접 확인). Chris의 vLLM·distributed serving 경험 정확 매치.</div>
+                </div>
+                <div class="wl-actions">
+                  <button class="wl-btn primary" data-wl-action="follow">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    팔로우
+                  </button>
+                  <button class="wl-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                    회사 페이지
+                  </button>
+                  <span class="wl-spacer"></span>
+                  <span class="wl-detail-link">상세 →</span>
+                </div>
+              </div>
+
+              <div class="wl-card" data-wl-section="discover">
+                <span class="wl-status-pill hiring-soon">곧 채용 시작 예정</span>
+                <div class="wl-head">
+                  <div class="wl-logo" style="background: #2D1810;">H</div>
+                  <div class="wl-info">
+                    <div class="wl-name">Harvey AI</div>
+                    <div class="wl-meta">Legal AI · Series B $1.5B · SF · 60 FTE</div>
+                  </div>
+                </div>
+                <div class="wl-memo">
+                  <div class="wl-memo-label">Harper의 한 줄</div>
+                  <div class="wl-memo-text">Series B 직후 Inference 팀 0→1 단계. legal LLM 도메인 특성상 latency 핵심 지표 — Chris 강점과 매치. CEO Winston 직접 ML 채용 검토 중.</div>
+                </div>
+                <div class="wl-actions">
+                  <button class="wl-btn primary" data-wl-action="follow">팔로우</button>
+                  <button class="wl-btn">회사 페이지</button>
+                  <span class="wl-spacer"></span>
+                  <span class="wl-detail-link">상세 →</span>
+                </div>
+              </div>
+
+              <div class="wl-card" data-wl-section="discover">
+                <span class="wl-status-pill">스텔스 모드</span>
+                <div class="wl-head">
+                  <div class="wl-logo" style="background: #6366F1;">S</div>
+                  <div class="wl-info">
+                    <div class="wl-name">Stealth · ex-OpenAI Founder</div>
+                    <div class="wl-meta">Inference Infra · Pre-seed · SF · 5 FTE</div>
+                  </div>
+                </div>
+                <div class="wl-memo">
+                  <div class="wl-memo-label">Harper의 한 줄</div>
+                  <div class="wl-memo-text">Co-founder 두 명 (ex-OpenAI Inference TL) 모두 Chris 분야 직접 매치. Founding engineer 1-2명 찾는 중.</div>
+                </div>
+                <div class="wl-actions">
+                  <button class="wl-btn primary" data-wl-action="follow">팔로우</button>
+                  <span class="wl-spacer"></span>
+                  <span class="wl-detail-link">상세 →</span>
+                </div>
+              </div>
+
+              <!-- FOLLOWING section cards -->
+              <div class="wl-card followed" data-wl-section="following" hidden>
+                <span class="wl-status-pill followed-tag">팔로우 중 · 2주 전부터</span>
+                <div class="wl-head">
+                  <div class="wl-logo" style="background: #2D1810;">C</div>
+                  <div class="wl-info">
+                    <div class="wl-name">Cursor</div>
+                    <div class="wl-meta">AI code editor · Series C $9B · SF · 50 FTE</div>
+                  </div>
+                </div>
+                <div class="wl-memo">
+                  <div class="wl-memo-label">Harper가 캐치한 것</div>
+                  <div class="wl-memo-text">4일 전 Senior Inference Engineer 포지션 오픈. 포지션 탭에서 확인하실 수 있어요. 또 다른 자리 (ML Systems) 곧 추가 예정.</div>
+                </div>
+                <div class="wl-promise" data-wl-promise>
+                  <div class="wl-promise-title">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    Harper가 지금 추적 중
+                  </div>
+                  <div class="wl-promise-list">
+                    <div class="wl-promise-item">
+                      <svg class="pi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                      <div>
+                        <strong>시그널 추적 중</strong>
+                        <span class="pi-sub">최근: Senior Inference Eng 채용 시작 (4일 전) · 다음: ML Systems Q2 추가 예정</span>
+                      </div>
+                    </div>
+                    <div class="wl-promise-item">
+                      <svg class="pi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                      <div>
+                        <strong>회사 측 검색 노출 활성</strong>
+                        <span class="pi-sub">Cursor VP Eng 'inference infra' 검색 시 직접 팔로워 1순위 · 지난 주 1회 조회됨</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="wl-actions">
+                  <button class="wl-btn followed-state" data-wl-action="unfollow">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    팔로우 중
+                  </button>
+                  <span class="wl-spacer"></span>
+                  <span class="wl-detail-link">관련 포지션 1개 →</span>
+                </div>
+              </div>
+
+              <div class="wl-card followed" data-wl-section="following" hidden>
+                <span class="wl-status-pill followed-tag">팔로우 중 · 1주 전부터</span>
+                <div class="wl-head">
+                  <div class="wl-logo" style="background: #FF6B35;">M</div>
+                  <div class="wl-info">
+                    <div class="wl-name">Mistral AI</div>
+                    <div class="wl-meta">EU LLM · Series A · Paris · 35 FTE</div>
+                  </div>
+                </div>
+                <div class="wl-memo">
+                  <div class="wl-memo-label">Harper가 캐치한 것</div>
+                  <div class="wl-memo-text">Inference 팀 개발자 2명 추가 채용 예정 (Q2). 현재 외부 채널 비공개 — 팔로우 효과 큼. 1주 전 시리즈 B 예정 발표.</div>
+                </div>
+                <div class="wl-promise" data-wl-promise>
+                  <div class="wl-promise-title">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    Harper가 지금 추적 중
+                  </div>
+                  <div class="wl-promise-list">
+                    <div class="wl-promise-item">
+                      <svg class="pi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                      <div>
+                        <strong>시그널 추적 중</strong>
+                        <span class="pi-sub">최근: Series B 발표 (1주 전) · 다음: Inference 팀 Q2 채용 시작 예정</span>
+                      </div>
+                    </div>
+                    <div class="wl-promise-item">
+                      <svg class="pi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                      <div>
+                        <strong>회사 측 검색 노출 활성</strong>
+                        <span class="pi-sub">Mistral Founder team 검색 시 직접 팔로워 1순위 · 같은 분야 관심 lane도 노출</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="wl-actions">
+                  <button class="wl-btn followed-state" data-wl-action="unfollow">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    팔로우 중
+                  </button>
+                  <span class="wl-spacer"></span>
+                  <span class="wl-detail-link">관련 포지션 1개 →</span>
+                </div>
+              </div>
+
+            </div>
+          </div>
+          <!-- /WATCHLIST TAB -->
+
+          <!-- ========== PROFILE TAB ========== -->
+          <div class="tab-panel" data-tab-panel="profile">
+
+            <div class="profile-banner">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <div><strong>채용 담당자가 보는 Chris의 프로필</strong> · 포지션 성사된 회사에만 공유돼요</div>
+            </div>
+
+            <div class="profile-hero">
+              <div class="ph-top-row">
+                <div class="ph-avatar">C</div>
+                <div class="ph-name-block">
+                  <div class="ph-name">
+                    Chris Heo
+                    <span class="ph-status-pill">Active</span>
+                  </div>
+                  <div class="ph-subtitle">
+                    Senior ML Engineer
+                    <span class="ph-pipe">|</span>
+                    Distributed Inference
+                    <span class="ph-pipe">|</span>
+                    8 yrs IC
+                  </div>
+                  <div class="ph-updated">Last updated · 3일 전 (Mar 12, 2026)</div>
+                </div>
+                <div class="ph-actions">
+                  <a class="ph-action-btn" href="#" onclick="return false;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    View CV
+                  </a>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Overview section — J&J style flat (no card, section header with rule) -->
+            <div class="profile-section-header">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>
+              <span class="psh-label">Overview</span>
+              <span class="psh-rule"></span>
+            </div>
+
+            <div class="profile-flat-section">
+              <div class="pfs-block">
+                <div class="pfs-label">Summary</div>
+                <p class="pfs-text">
+                  Naver와 Kakao에서 8년간 분산 inference 시스템을 설계·운영해온 Senior ML Engineer. 일 평균 10억 query 규모의 vLLM 기반 서빙 인프라를 책임지며 distributed inference, batching·scheduling layer, latency 최적화에 깊이 있는 경험을 쌓음. 현재 미국 AI 스타트업에서 inference 인프라를 처음부터 설계하는 자리로 이동을 모색 중.
+                </p>
+              </div>
+
+              <div class="pfs-block">
+                <div class="pfs-label">What they're looking for</div>
+                <dl class="match-brief-list">
+                  <dt>Role</dt>
+                  <dd>Senior ML / Inference Infra<span class="mb-detail">분산 서빙 경험을 그대로 살릴 수 있는 자리</span></dd>
+
+                  <dt>Stage</dt>
+                  <dd>Series C 이상 AI 회사<span class="mb-detail">스케일·임팩트 큰 환경 우선</span></dd>
+
+                  <dt>Location</dt>
+                  <dd>SF / NYC<span class="mb-detail">서울에서 이주 의향 분명</span></dd>
+
+                  <dt>Visa</dt>
+                  <dd>H-1B / O-1 스폰서 필요</dd>
+
+                  <dt>Comp</dt>
+                  <dd>$300K+ base + meaningful equity</dd>
+                </dl>
+              </div>
+            </div>
+
+            <!-- Background — Experience + Education merged timeline (newest first) -->
+            <div class="profile-section-header">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+              <span class="psh-label">Background</span>
+              <span class="psh-count">5</span>
+              <span class="psh-rule"></span>
+            </div>
+            <div class="exp-section">
+              <div class="timeline">
+
+                <div class="exp-item">
+                  <div class="exp-logo" style="background: #03C75A; color: #FAF5F0;">N</div>
+                  <div class="exp-info">
+                    <div class="exp-title">Senior ML Engineer · Inference Infra</div>
+                    <div class="exp-company">Naver · 서울</div>
+                    <div class="exp-dates">2022 — Present · 3년</div>
+                    <div class="exp-desc">vLLM fork 기반 자체 batching/scheduling layer 설계. 일 평균 10억 query 처리, latency P99 200ms 이하 유지.</div>
+                    <div class="exp-harper-note">
+                      <span class="ehn-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                      </span>
+                      <div class="ehn-content">
+                        <div class="ehn-label">Harper의 메모</div>
+                        <div class="ehn-text">Inference Infra 팀 코어 4인 중 1명. vLLM fork 직접 운영 + 사내 LLM 서빙 표준 정의. Batching/scheduling layer 설계 주도, 일 평균 10억 query 처리 책임.</div>
+                        <div class="ehn-source">voice call · 2026년 3월 12일</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="exp-item">
+                  <div class="exp-logo" style="background: #FFCD00; color: #2D1810;">K</div>
+                  <div class="exp-info">
+                    <div class="exp-title">ML Engineer · Recommendations</div>
+                    <div class="exp-company">Kakao · 서울</div>
+                    <div class="exp-dates">2019 — 2022 · 3년</div>
+                    <div class="exp-desc">추천 시스템 ML pipeline 구축. PyTorch 기반 모델 서빙 인프라, A/B 실험 플랫폼 개발.</div>
+                    <div class="exp-harper-note">
+                      <span class="ehn-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                      </span>
+                      <div class="ehn-content">
+                        <div class="ehn-label">Harper의 메모</div>
+                        <div class="ehn-text">추천 시스템 ML pipeline 첫 풀스택 책임. PyTorch 기반 모델 서빙 + A/B 실험 플랫폼 자체 구축. 일 5억 사용자 추천 트래픽 처리.</div>
+                        <div class="ehn-source">chat · 2026년 2월 28일</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="exp-item">
+                  <div class="exp-logo" style="background: #1428A0; color: #FAF5F0;">S</div>
+                  <div class="exp-info">
+                    <div class="exp-title">Software Engineer Intern</div>
+                    <div class="exp-company">Samsung Research · 서울</div>
+                    <div class="exp-dates">2018 — 2019 · 1년</div>
+                    <div class="exp-desc">On-device ML 연구. Galaxy 시리즈 카메라 이미지 처리 모델 최적화.</div>
+                  </div>
+                </div>
+
+                <div class="exp-item">
+                  <div class="exp-logo" style="background: #00468B; color: #FAF5F0; font-size: 11px; letter-spacing: 0.04em;">SNU</div>
+                  <div class="exp-info">
+                    <div class="exp-title">컴퓨터공학 학사 (BS, Computer Science)</div>
+                    <div class="exp-company">Seoul National University · 서울</div>
+                    <div class="exp-dates">2014 — 2018 · 4년</div>
+                    <div class="exp-desc">분산 시스템 / ML 시스템 연구실 출신. 학부 졸업 논문: "분산 환경에서의 모델 서빙 latency 최적화".</div>
+                    <div class="exp-harper-note">
+                      <span class="ehn-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                      </span>
+                      <div class="ehn-content">
+                        <div class="ehn-label">Harper의 메모</div>
+                        <div class="ehn-text">분산 시스템 연구실 (지도교수: 김OO) 출신. 졸업 논문 KAIA 2018 best paper runner-up — 주제는 현재 Inference Infra 커리어와 직접 연결.</div>
+                        <div class="ehn-source">CV · 보강: voice call</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="exp-item">
+                  <div class="exp-logo" style="background: #76B900; color: #FAF5F0;">N</div>
+                  <div class="exp-info">
+                    <div class="exp-title">Visiting Researcher · ML Systems</div>
+                    <div class="exp-company">NVIDIA Research · Santa Clara</div>
+                    <div class="exp-dates">2017 (Summer) · 3개월</div>
+                    <div class="exp-desc">학부 시절 GPU 기반 ML 추론 최적화 인턴십. CUDA 커널 작성 + 분산 GPU 클러스터 실험.</div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+          </div>
+          <!-- /PROFILE TAB -->
+
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<!-- Voice call modal -->
+<!-- First-follow celebration toast -->
+<div class="wl-follow-toast" id="wlFollowToast" role="status" aria-live="polite">
+  <button class="wft-close" id="wlToastClose" aria-label="닫기">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+  </button>
+  <div class="wft-head">
+    <div class="wft-mark">H</div>
+    <div class="wft-title">여기서부터 Harper가 시작합니다</div>
+  </div>
+  <div class="wft-list">
+    <div class="wft-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      <div><span id="wlToastCompany">이 회사</span> 시그널 추적 시작 — 첫 요약 이번 주 안</div>
+    </div>
+    <div class="wft-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <div>Founder가 인재 검색 시 1순위 노출 — 미팅 요청 즉시 알림</div>
+    </div>
+  </div>
+</div>
+
+<div class="voice-overlay" id="voiceOverlay">
+  <div class="voice-card">
+    <div class="avatar-big">H</div>
+    <div class="voice-label">연결됨</div>
+    <div class="voice-name">Harper</div>
+    <div class="voice-wave">
+      <span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span>
+    </div>
+    <div class="voice-timer" id="voiceTimer">00:00</div>
+    <div class="voice-actions">
+      <button id="voiceMute">음소거</button>
+      <button class="primary" id="voiceEnd">통화 종료</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ========= Chat: input + send =========
+  const chatInput = document.getElementById('chatInput');
+  const sendBtn = document.getElementById('sendBtn');
+  const chatInner = document.getElementById('chatInner');
+  const chatScroll = document.getElementById('chatScroll');
+
+  function scrollToBottom() {
+    requestAnimationFrame(() => chatScroll.scrollTo({ top: chatScroll.scrollHeight, behavior: 'smooth' }));
+  }
+
+  function appendUser(text) {
+    const msg = document.createElement('div');
+    msg.className = 'msg user';
+    msg.innerHTML = `<div class="avatar">C</div><div class="bubble"><p>${escapeHtml(text)}</p></div>`;
+    chatInner.appendChild(msg);
+    scrollToBottom();
+  }
+
+  function appendHarper(text) {
+    const msg = document.createElement('div');
+    msg.className = 'msg harper';
+    msg.innerHTML = `<div class="avatar">H</div><div class="bubble"><p>${text}</p></div>`;
+    chatInner.appendChild(msg);
+    scrollToBottom();
+  }
+
+  function appendThinking() {
+    const row = document.createElement('div');
+    row.className = 'typing-row';
+    row.innerHTML = `<span class="typing-label"><span class="typing-dots"><span></span><span></span><span></span></span>Harper is thinking…</span>`;
+    chatInner.appendChild(row);
+    scrollToBottom();
+    return row;
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[c]));
+  }
+
+  function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  async function harperReply(text) {
+    const t = appendThinking();
+    await wait(900 + text.length * 15);
+    t.remove();
+    appendHarper(text);
+  }
+
+  chatInput.addEventListener('input', () => {
+    sendBtn.disabled = chatInput.value.trim().length === 0;
+  });
+  chatInput.addEventListener('keydown', async e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      const txt = chatInput.value.trim();
+      if (!txt) return;
+      appendUser(txt);
+      chatInput.value = '';
+      sendBtn.disabled = true;
+      await wait(300);
+      harperReply(genericReply(txt));
+    }
+  });
+  sendBtn.addEventListener('click', async () => {
+    const txt = chatInput.value.trim();
+    if (!txt) return;
+    appendUser(txt);
+    chatInput.value = '';
+    sendBtn.disabled = true;
+    await wait(300);
+    harperReply(genericReply(txt));
+  });
+
+  function genericReply(userText) {
+    const t = userText.toLowerCase();
+    if (t.includes('예') || t.includes('네') || t.includes('좋')) {
+      return '좋아요. 바로 일정 조율 시작할게요. 평일 오전 PST로 두 개 슬롯 제안드릴게요 — 내일과 모레 중 편하신 쪽 알려주세요.';
+    }
+    if (t.includes('연봉') || t.includes('협상')) {
+      return '현재 시장 기준으로 보면 Senior ML (Inference) 포지션은 SF 기준 <em>$280-360K base</em> + 2-3% equity 범위예요. Chris 경력이면 상단으로 협상 가능해요.';
+    }
+    if (t.includes('포지션') || t.includes('매치') || t.includes('기회') || t.includes('새')) {
+      return '현재 검토 대기 중인 새 포지션 3건 있어요 — Anthropic, Perplexity, Mistral. 오른쪽 패널에서 포지션 탭 눌러서 보실 수 있어요. 요약부터 드릴까요?';
+    }
+    return '알겠어요. 조금 더 구체적으로 말씀해주시면 바로 움직일게요.';
+  }
+
+  // ========= Quick action tiles =========
+  document.querySelectorAll('.qa-tile').forEach(tile => {
+    tile.addEventListener('click', async () => {
+      const action = tile.dataset.action;
+      const labelText = tile.querySelector('.qa-label').textContent;
+      appendUser(labelText);
+      const responses = {
+        'new-intros': '좋아요, 지금 검토 대기 중인 Founder 직접 소개 <em>3건</em> 있어요. Anthropic·Perplexity·한 곳 더 — 오른쪽 "검토하기"에서 상세 리포트 보실 수 있어요. 먼저 어디부터 볼까요?',
+        'market': '이번 주 ML/Infra 시장 업데이트 — Senior ML 포지션 평균 오퍼가 지난 분기 대비 <em>+8%</em> 올랐어요. H-1B 스폰서 하는 Series C+ 중에서는 Anthropic, Scale, Cohere가 가장 적극적. 자세한 브리핑 PDF로 정리해드릴까요?',
+        'criteria': '현재 설정된 기준은: <em>Series C 이상</em> / H-1B·O-1 스폰서 / $300K+ base + equity / Distributed Inference 중심이에요. 바꾸고 싶은 부분 있으세요?',
+        'interview': '좋아요. Anthropic Head of Inference 면접 기준으로 모의 진행 가능해요. 핵심은 (1) distributed serving 경험 (2) latency 최적화 사례 (3) team growth 관점. 바로 시작해볼까요?',
+        'negotiation': '오퍼 협상이면 저한테 오퍼 메일 붙여주세요. 비교 시장가, 레버리지 포인트, 구체적 카운터 스크립트까지 같이 만들어드릴게요.',
+        'catching-up': '편하게 말씀해주세요. 요즘 일은 어떠세요? 아니면 그냥 궁금한 거 있으시면 뭐든.'
+      };
+      await wait(400);
+      harperReply(responses[action] || '알겠어요, 시작할게요.');
+    });
+  });
+
+  // ========= Voice call modal =========
+  const voiceOverlay = document.getElementById('voiceOverlay');
+  const voiceBtn = document.getElementById('voiceBtn');
+  const startCallBtn = document.getElementById('startCallBtn');
+  const voiceEnd = document.getElementById('voiceEnd');
+  const voiceTimer = document.getElementById('voiceTimer');
+  let voiceInterval = null;
+  let voiceSeconds = 0;
+
+  function openVoice() {
+    voiceOverlay.classList.add('active');
+    voiceSeconds = 0;
+    voiceTimer.textContent = '00:00';
+    voiceInterval = setInterval(() => {
+      voiceSeconds++;
+      const m = String(Math.floor(voiceSeconds / 60)).padStart(2, '0');
+      const s = String(voiceSeconds % 60).padStart(2, '0');
+      voiceTimer.textContent = `${m}:${s}`;
+    }, 1000);
+  }
+  function closeVoice() {
+    voiceOverlay.classList.remove('active');
+    clearInterval(voiceInterval);
+  }
+  voiceBtn.addEventListener('click', openVoice);
+  startCallBtn.addEventListener('click', openVoice);
+  voiceEnd.addEventListener('click', closeVoice);
+
+  // ========= Profile visibility toggle =========
+  const visHints = {
+    open: 'Harper가 확신하는 포지션이 있을 때만 회사에 Chris 프로필이 공유돼요. Chris가 수락하기 전까지는 익명 프로필로만 보입니다.',
+    paused: '아무에게도 프로필이 보이지 않아요. Harper 내부 매칭은 계속 돌아가요.'
+  };
+  document.querySelectorAll('.vis-option').forEach(opt => {
+    opt.addEventListener('click', () => {
+      document.querySelectorAll('.vis-option').forEach(o => o.classList.remove('active', 'open', 'exceptional'));
+      opt.classList.add('active');
+      opt.classList.add(opt.dataset.vis);
+      document.getElementById('visHint').textContent = visHints[opt.dataset.vis];
+    });
+  });
+
+  // ========= Sub-nav tabs — actually switch panel content =========
+  document.querySelectorAll('.sub-nav-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const target = tab.dataset.tab;
+      document.querySelectorAll('.sub-nav-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      document.querySelectorAll('.tab-panel').forEach(p => {
+        p.classList.toggle('active', p.dataset.tabPanel === target);
+      });
+      const ds = document.querySelector('.dashboard-scroll');
+      if (ds) ds.scrollTop = 0;
+    });
+  });
+
+  // Position stepper — J&J one-at-a-time UX with sub-tab filtering
+  const stepper = document.querySelector('.pos-stepper');
+  const allCards = stepper ? Array.from(stepper.querySelectorAll('.position-card')) : [];
+  const totalEl = document.getElementById('posTotal');
+  const currentEl = document.getElementById('posCurrent');
+  const posEmpty = document.getElementById('posEmpty');
+  const posActionBar = document.querySelector('.pos-action-bar');
+  const posShortcuts = document.querySelector('.pos-shortcuts');
+  let activeSubTab = 'new';
+  let filteredCards = [];
+  let stepperIdx = 0;
+
+  const posCounter = document.querySelector('.pos-counter');
+  const peTitle = document.getElementById('peTitle');
+  const peSub = document.getElementById('peSub');
+
+  const emptyMessages = {
+    new: {
+      title: '새 포지션이 없어요',
+      sub: 'Harper가 매칭되는 새 포지션을 찾아 곧 가져올게요.'
+    },
+    tracking: {
+      title: '추적 중인 포지션이 없어요',
+      sub: '"더 보고 싶어요"로 저장한 포지션이 여기 모여요.'
+    },
+    applied: {
+      title: '아직 지원한 포지션이 없어요',
+      sub: '"지원하기"로 행동한 포지션이 여기 모여요. 채용담당자 응답까지 Harper가 추적해드려요.'
+    },
+    archived: {
+      title: '보관된 포지션이 없어요',
+      sub: '"안 맞아요"로 표시한 포지션이 여기 모여요. 언제든 다시 꺼내볼 수 있어요.'
+    }
+  };
+
+  function recomputeCounts() {
+    const counts = { new: 0, tracking: 0, applied: 0, archived: 0 };
+    allCards.forEach(c => {
+      const p = c.dataset.pos;
+      if (counts.hasOwnProperty(p)) counts[p]++;
+    });
+    Object.keys(counts).forEach(k => {
+      const span = document.querySelector(`.pos-tab[data-pos="${k}"] .num`);
+      if (span) span.textContent = counts[k];
+    });
+    // Also sync home grid + top nav badge with new counts
+    if (typeof syncHomeCounts === 'function') syncHomeCounts();
+  }
+
+  function applyVisibility() {
+    allCards.forEach(c => c.classList.remove('is-active'));
+    filteredCards = allCards.filter(c => c.dataset.pos === activeSubTab);
+
+    // Action bar + shortcuts only on tabs where 안 맞아요 / 더 보고 싶어요 make sense
+    const showActions = activeSubTab === 'new' || activeSubTab === 'tracking';
+    const hasCards = filteredCards.length > 0;
+
+    if (stepper) stepper.style.display = hasCards ? '' : 'none';
+    if (posActionBar) posActionBar.style.display = (hasCards && showActions) ? '' : 'none';
+    if (posShortcuts) posShortcuts.style.display = (hasCards && showActions) ? '' : 'none';
+    if (posCounter) posCounter.style.visibility = hasCards ? '' : 'hidden';
+    if (posEmpty) {
+      posEmpty.hidden = hasCards;
+      if (!hasCards) {
+        const msg = emptyMessages[activeSubTab] || emptyMessages.archived;
+        if (peTitle) peTitle.textContent = msg.title;
+        if (peSub) peSub.textContent = msg.sub;
+      }
+    }
+
+    if (hasCards) {
+      stepperIdx = Math.min(stepperIdx, filteredCards.length - 1);
+      filteredCards[stepperIdx].classList.add('is-active');
+      if (currentEl) currentEl.textContent = String(stepperIdx + 1);
+      if (totalEl) totalEl.textContent = String(filteredCards.length);
+      if (typeof updateCardApplyState === 'function') {
+        updateCardApplyState(filteredCards[stepperIdx]);
+      }
+      // Scroll to top of card on transition
+      const ds = document.querySelector('.dashboard-scroll');
+      if (ds) ds.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }
+
+  function stepperNext() {
+    if (stepperIdx < filteredCards.length - 1) {
+      stepperIdx += 1;
+      applyVisibility();
+    }
+  }
+  function stepperPrev() {
+    if (stepperIdx > 0) {
+      stepperIdx -= 1;
+      applyVisibility();
+    }
+  }
+
+  // Sub-tab click — filter cards by data-pos
+  document.querySelectorAll('.pos-tab').forEach(t => {
+    t.addEventListener('click', () => {
+      document.querySelectorAll('.pos-tab').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      activeSubTab = t.dataset.pos;
+      stepperIdx = 0;
+      applyVisibility();
+    });
+  });
+
+  // Initialize on load
+  recomputeCounts();
+  applyVisibility();
+
+  // ========= Position detail page =========
+  const positionDetails = {
+    0: { // Anthropic
+      logoBg: '#D97757', logoLetter: 'A',
+      role: 'Senior ML Engineer · Inference Infra',
+      company: 'Anthropic',
+      meta: 'SF + remote · $280–360K + equity · H-1B/O-1 가능',
+      statuses: [{ kind: 'harper', text: 'Harper · 직접 연결' }],
+      applySub: '내 프로필이 Anthropic 채용팀에 처음 공개되는 단계예요',
+      memo: [
+        'Inference 인프라 처음부터 설계 가능 — Chris 분산 서빙·batching 경험 직접 매치',
+        'CEO Dario 직접 응답 (평균 4시간), 한국인 엔지니어 이미 재직 중',
+        'H-1B / O-1 transfer 실적 탄탄 — 팀 분위기 미리 물어볼 수 있음',
+        '면접 프로세스: system design 1R + coding 2R + behavioral 1R · 총 ~3주'
+      ],
+      memoSource: '채용담당자 직접 통화 · 2026년 4월 12일',
+      roleDesc: {
+        intro: 'Inference 인프라 팀 코어 4명 중 1명을 충원하는 자리. vLLM fork 운영부터 신규 모델 deploy 표준화까지 책임집니다.',
+        responsibilities: [
+          'vLLM fork 운영 및 자체 batching/scheduling layer 설계',
+          '일 평균 ~10억 query 규모 서빙 인프라 책임',
+          '신규 모델 deploy pipeline 표준화',
+          '주니어 엔지니어 멘토링 (1-2명)'
+        ],
+        qualifications: [
+          '분산 시스템 + ML serving 경험 5년 이상',
+          'Python · CUDA · Kubernetes 익숙',
+          '글로벌 팀 협업 가능 (영어)',
+          'Open-source 기여 경험 우대'
+        ]
+      }
+    },
+    1: { // Perplexity
+      logoBg: '#21808D', logoLetter: 'P',
+      role: 'AI Search Infrastructure Lead',
+      company: 'Perplexity',
+      meta: 'San Francisco · $250–340K + equity · H-1B 가능',
+      statuses: [{ kind: 'harper', text: 'Harper · 직접 연결' }],
+      applySub: '내 프로필이 Perplexity 채용팀에 처음 공개되는 단계예요',
+      memo: [
+        'Search 인프라 리빌드 핵심 mission — Chris 분산 서빙 경험 직접 매치',
+        'Series C 직후 + IPO 논의 시작 — equity 업사이드 가장 큰 타이밍',
+        'CTO가 직접 1차 면접 진행',
+        '면접 프로세스: CTO 콜 45분 → system design + coding 120분 → onsite/virtual'
+      ],
+      memoSource: '채용담당자 메일 응답 · 2026년 4월 8일',
+      roleDesc: {
+        intro: 'Search 인프라 전체 리빌드를 리드하는 자리. Inference layer + retrieval pipeline + ranking 모두 포함.',
+        responsibilities: [
+          'Distributed inference layer 재설계',
+          'Retrieval + ranking pipeline 통합',
+          '실시간 search latency 최적화 (현재 P99 1.2s → 목표 600ms)',
+          '시니어 엔지니어 5명 협업 리드'
+        ],
+        qualifications: [
+          'ML serving 또는 search infra 경험 6년 이상',
+          'Distributed systems 깊은 이해',
+          'IC + 협업 리드 둘 다 가능',
+        ]
+      }
+    },
+    2: { // Mistral
+      logoBg: '#FF6B35', logoLetter: 'M',
+      role: 'Senior Inference Engineer',
+      company: 'Mistral AI',
+      meta: 'Paris · €180–250K + equity · EU 워크퍼밋',
+      statuses: [{ kind: 'external', text: 'External · 직접 지원' }],
+      applySub: 'Mistral 채용 페이지로 이동해 직접 지원돼요',
+      memo: [
+        'Open-weights inference 최적화 mission — Chris 분산 서빙 경험 직접 활용',
+        'EU 최대 LLM 회사, Paris 베이스',
+        'Harper 네트워크 밖 → 채용 페이지 직접 지원',
+        '합격 단계 도달 시 협상 + EU 정착 패키지 Harper와 함께 진행 가능'
+      ],
+      memoSource: 'Mistral 채용 공고 + 면접 후기 (Glassdoor)',
+      roleDesc: {
+        intro: 'Open-weights LLM (Mistral 7B/8x7B 등) inference layer 최적화. Latency / throughput / cost 트라이앵글.',
+        responsibilities: [
+          'vLLM·SGLang 기반 inference 최적화',
+          'Multi-GPU sharding 전략',
+          'Quantization (GPTQ, AWQ) production 적용',
+          'Open-source 커뮤니티 기여'
+        ],
+        qualifications: [
+          'ML inference 4년+ 경험',
+          'Open-weights 모델 운영 경험 우대',
+          'EU 또는 EU 비자 가능자',
+        ]
+      }
+    },
+    3: { // Cursor
+      logoBg: '#2D1810', logoLetter: 'C',
+      role: 'Senior Inference Infra Engineer',
+      company: 'Cursor',
+      meta: 'SF · $260–340K + equity · H-1B 가능',
+      statuses: [
+        { kind: 'harper', text: 'Harper · 직접 연결' },
+        { kind: 'tracked', text: '추적 시작 · 4일 전' }
+      ],
+      applySub: '내 프로필이 Cursor 채용팀에 처음 공개되는 단계예요',
+      memo: [
+        'Founder Aman 직접 응답 — Chris 분산 서빙 전문성과 정확 매치',
+        '자체 inference layer 0→1 구축 시작 단계',
+        '첫 면접 조율 중: Aman과 30분 콜 예정 (Harper가 이번 주 안 시간 확정)',
+        'Cursor mission: inference cost 절감 — batching·scheduling 최적화가 cost 직결'
+      ],
+      memoSource: 'Founder Aman 채팅 응답 · 2026년 4월 23일',
+      roleDesc: {
+        intro: 'Cursor 자체 inference infra 첫 시니어 엔지니어. 0→1 단계의 layer 설계.',
+        responsibilities: [
+          'Self-hosted inference layer 설계 (vLLM 기반 또는 fork)',
+          'Cost 최적화 (현재 OpenAI/Anthropic API 의존도 높음)',
+          'Latency 단축 — 코드 자동완성 P99 < 200ms',
+          'Founder Aman과 weekly 1:1'
+        ],
+        qualifications: [
+          'Distributed inference 경험 5년+',
+          '0→1 시스템 설계 경험',
+          'Founder-led 환경 익숙'
+        ]
+      }
+    },
+    4: { // Modal
+      logoBg: '#6366F1', logoLetter: 'Mo',
+      role: 'ML Systems Engineer',
+      company: 'Modal',
+      meta: 'SF · $250–320K + equity · H-1B 가능',
+      statuses: [
+        { kind: 'external', text: 'External · 직접 지원' },
+        { kind: 'tracked', text: '추적 시작 · 1주 전' }
+      ],
+      applySub: 'Modal 채용 페이지로 이동해 직접 지원돼요',
+      memo: [
+        'Serverless GPU infra — Chris 분산 서빙·scheduling 경험 핵심 매치',
+        'Series A (Y Combinator backed) — 빠른 의사결정 + Founder 직접 면접 가능성',
+        'Harper 네트워크 밖 → 채용 페이지 직접 지원',
+        '응답 도달 시 Harper가 협상 단계 함께 진행'
+      ],
+      memoSource: 'Modal 채용 공고 + LinkedIn 직원 프로필 분석',
+      roleDesc: {
+        intro: 'Modal의 serverless GPU scheduler 코어 엔지니어. Multi-tenant 환경에서 GPU resource 최적화.',
+        responsibilities: [
+          'GPU scheduler 설계 (multi-tenant)',
+          'Cold start 최적화 (목표: < 1s)',
+          'Customer infra 디버깅 + 지원',
+          'Open-source 컨트리뷰션 (Modal SDK)'
+        ],
+        qualifications: [
+          'Distributed systems + ML infra 경험 5년+',
+          'Kubernetes 또는 자체 scheduler 경험 우대',
+          '스타트업 환경 적응력'
+        ]
+      }
+    }
+  };
+
+  // ===== Inline card detail rendering (J&J pattern) =====
+  // Each card becomes a full detail view — Background + Role + Apply buttons
+  function renderCardDetail(card, idx) {
+    const data = positionDetails[idx];
+    if (!data) return;
+
+    // Remove redundant compact harper-note (Background section replaces it)
+    const existingNote = card.querySelector('.harper-note');
+    if (existingNote) existingNote.remove();
+
+    const positionHead = card.querySelector('.position-head');
+    const positionFit = card.querySelector('.position-fit');
+    if (!positionHead || !positionFit) return;
+
+    const arrowSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>';
+
+    function makeApplyBlock(position) {
+      const wrap = document.createElement('div');
+      wrap.className = (position === 'top') ? 'pdp-apply-wrap card-apply-top' : 'pdp-apply-bottom-wrap card-apply-bottom';
+      wrap.innerHTML = `
+        <button class="pdp-apply card-apply-btn" type="button">
+          <span class="card-apply-label">지원하기</span>
+          <span class="card-apply-icon">${arrowSvg}</span>
+        </button>
+        <div class="pdp-apply-sub">${data.applySub || ''}</div>
+      `;
+      return wrap;
+    }
+
+    const bgSection = document.createElement('div');
+    bgSection.className = 'pdp-section card-bg-section';
+    bgSection.innerHTML = `
+      <h3 class="pdp-section-title">Background</h3>
+      <div class="pdp-memo-block">
+        <div class="pdp-memo-text"><ul>${data.memo.map(p => `<li>${p}</li>`).join('')}</ul></div>
+        <div class="pdp-memo-source">출처: ${data.memoSource}</div>
+      </div>
+    `;
+
+    const roleSection = document.createElement('div');
+    roleSection.className = 'pdp-section card-role-section';
+    roleSection.innerHTML = `
+      <h3 class="pdp-section-title">Role</h3>
+      <div class="pdp-role-desc">
+        <p>${data.roleDesc.intro}</p>
+        <h4>주요 책임</h4>
+        <ul>${data.roleDesc.responsibilities.map(r => `<li>${r}</li>`).join('')}</ul>
+        <h4>자격 요건</h4>
+        <ul>${data.roleDesc.qualifications.map(q => `<li>${q}</li>`).join('')}</ul>
+      </div>
+    `;
+
+    const applyTop = makeApplyBlock('top');
+    const applyBottom = makeApplyBlock('bottom');
+
+    positionHead.insertAdjacentElement('afterend', applyTop);
+    applyTop.insertAdjacentElement('afterend', bgSection);
+    bgSection.insertAdjacentElement('afterend', roleSection);
+    positionFit.insertAdjacentElement('afterend', applyBottom);
+
+    // Wire Apply button clicks (each card has top + bottom Apply)
+    card.querySelectorAll('.card-apply-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (card.dataset.pos === 'applied') return;
+        card.dataset.pos = 'applied';
+        recomputeCounts();
+        appendUser(`${data.company} 지원하기`);
+        setTimeout(() => harperReply(`<em>${data.company}</em>에 Chris 프로필 공유했어요. 채용담당자 응답 도착하면 chat으로 바로 알려드릴게요.`), 400);
+        const appliedTab = document.querySelector('.pos-tab[data-pos="applied"]');
+        if (appliedTab) appliedTab.click();
+      });
+    });
+  }
+
+  function updateCardApplyState(card) {
+    if (!card) return;
+    const isApplied = card.dataset.pos === 'applied';
+    const checkSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    const arrowSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>';
+    card.querySelectorAll('.card-apply-btn').forEach(btn => {
+      btn.classList.toggle('is-applied', isApplied);
+      btn.disabled = isApplied;
+      const label = btn.querySelector('.card-apply-label');
+      if (label) label.textContent = isApplied ? '지원함' : '지원하기';
+      const iconWrap = btn.querySelector('.card-apply-icon');
+      if (iconWrap) iconWrap.innerHTML = isApplied ? checkSvg : arrowSvg;
+    });
+  }
+
+  // Initial render — populate every card with full detail content
+  allCards.forEach((card, idx) => renderCardDetail(card, idx));
+  // Sync apply state for current active card
+  if (filteredCards.length) updateCardApplyState(filteredCards[stepperIdx]);
+
+  const pabPrev = document.getElementById('pabPrev');
+  const pabNext = document.getElementById('pabNext');
+  const pabSkip = document.getElementById('pabSkip');
+  const pabTrack = document.getElementById('pabTrack');
+
+  if (pabPrev) pabPrev.addEventListener('click', stepperPrev);
+  if (pabNext) pabNext.addEventListener('click', stepperNext);
+
+  function activeCard() {
+    return filteredCards[stepperIdx];
+  }
+  function triggerSkip() {
+    const card = activeCard();
+    if (!card) return;
+    const role = card.querySelector('.position-role').textContent;
+    const company = role.split('·')[0].trim();
+
+    // Move to archived
+    card.dataset.pos = 'archived';
+    recomputeCounts();
+
+    appendUser(`${company} — 안 맞아요`);
+    setTimeout(() => harperReply(`알겠어요. 이런 류는 줄이고 다른 방향으로 찾아볼게요.`), 400);
+
+    applyVisibility();
+  }
+  function triggerTrack() {
+    const card = activeCard();
+    if (!card) return;
+    const role = card.querySelector('.position-role').textContent;
+    const company = role.split('·')[0].trim();
+
+    if (card.dataset.pos === 'new') {
+      card.dataset.pos = 'tracking';
+      recomputeCounts();
+      appendUser(`${company} — 더 보고 싶어요`);
+      setTimeout(() => harperReply(`알겠어요 — <em>${company}</em> 추적 + 비슷한 자리 더 가져올게요.`), 400);
+      applyVisibility();
+    } else {
+      // Already tracking — soft feedback, no move
+      appendUser(`${company} — 더 보고 싶어요`);
+      setTimeout(() => harperReply(`<em>${company}</em>는 이미 추적 중이에요. 지원하시려면 카드 안 '지원하기' 버튼을 눌러주세요.`), 400);
+    }
+  }
+  if (pabSkip) pabSkip.addEventListener('click', triggerSkip);
+  if (pabTrack) pabTrack.addEventListener('click', triggerTrack);
+
+  // Keyboard shortcuts (only when positions tab is active)
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    const positionsTab = document.querySelector('.tab-panel[data-tab-panel="positions"]');
+    if (!positionsTab || !positionsTab.classList.contains('active')) return;
+    const k = e.key.toLowerCase();
+    const isActionableTab = activeSubTab === 'new' || activeSubTab === 'tracking';
+    if (e.key === 'ArrowLeft') { e.preventDefault(); stepperPrev(); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); stepperNext(); }
+    else if (k === 's' && isActionableTab) { e.preventDefault(); triggerSkip(); }
+    else if (k === 't' && isActionableTab) { e.preventDefault(); triggerTrack(); }
+  });
+
+  // Position card feedback buttons (좋아요 / 별로)
+  document.querySelectorAll('.position-card .pa-feedback').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const card = btn.closest('.position-card');
+      const role = card.querySelector('.position-role').textContent;
+      const isTrack = btn.classList.contains('track');
+      if (isTrack) {
+        btn.classList.add('tracked');
+        appendUser(`${role.split('·')[0].trim()} — 더 보고 싶어요`);
+        setTimeout(() => harperReply(`알겠어요 — <em>${role.split('·')[0].trim()}</em> 추적 + 비슷한 자리 더 가져올게요.`), 400);
+      } else {
+        card.style.opacity = '0.4';
+        card.style.pointerEvents = 'none';
+        appendUser(`${role.split('·')[0].trim()} — 안 맞아요`);
+        setTimeout(() => harperReply(`알겠어요. 이런 류는 줄이고 다른 방향으로 찾아볼게요.`), 400);
+      }
+    });
+  });
+
+  // Navigation helper used by Today items
+  function navigateToPositionsTab(subTab) {
+    const positionsNav = document.querySelector('.sub-nav-tab[data-tab="positions"]');
+    if (positionsNav) positionsNav.click();
+    setTimeout(() => {
+      const target = document.querySelector(`.pos-tab[data-pos="${subTab}"]`);
+      if (target) target.click();
+    }, 50);
+  }
+
+  // Sync home counts (status grid) with positions data
+  function syncHomeCounts() {
+    const allPosCards = document.querySelectorAll('.pos-stepper .position-card');
+    let newCount = 0, activeCount = 0;
+    allPosCards.forEach(c => {
+      const p = c.dataset.pos;
+      if (p === 'new') newCount++;
+      if (p === 'tracking' || p === 'applied') activeCount++;
+    });
+    const newEl = document.getElementById('homeNewCount');
+    const activeEl = document.getElementById('homeActiveCount');
+    const topNavEl = document.getElementById('topNavPosCount');
+    if (newEl) newEl.textContent = String(newCount);
+    if (activeEl) activeEl.textContent = String(activeCount);
+    if (topNavEl) topNavEl.textContent = String(newCount);
+  }
+  syncHomeCounts();
+
+  // ========= Watchlist tab =========
+  function syncWatchlistView(activeSection) {
+    document.querySelectorAll('.wl-card').forEach(card => {
+      const section = card.dataset.wlSection;
+      card.hidden = (section !== activeSection);
+    });
+    // Update sub-tab counts
+    const discoverCount = document.querySelectorAll('.wl-card[data-wl-section="discover"]').length;
+    const followingCount = document.querySelectorAll('.wl-card[data-wl-section="following"]').length;
+    const discoverNum = document.querySelector('.wl-tab[data-wl="discover"] .num');
+    const followingNum = document.querySelector('.wl-tab[data-wl="following"] .num');
+    if (discoverNum) discoverNum.textContent = String(discoverCount);
+    if (followingNum) followingNum.textContent = String(followingCount);
+    // Top nav badge = total
+    const topWatch = document.getElementById('topNavWatchCount');
+    if (topWatch) topWatch.textContent = String(discoverCount + followingCount);
+  }
+
+  document.querySelectorAll('.wl-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.wl-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      syncWatchlistView(tab.dataset.wl);
+    });
+  });
+
+  // Initial state: show discover
+  syncWatchlistView('discover');
+
+  // Discover banner — dismissible
+  const wlBannerCloseBtn = document.getElementById('wlBannerClose');
+  if (wlBannerCloseBtn) {
+    wlBannerCloseBtn.addEventListener('click', () => {
+      document.getElementById('wlDiscoverBanner')?.classList.add('hidden');
+    });
+  }
+
+  // First-follow celebration toast
+  let firstFollowShown = false;
+  const wlToast = document.getElementById('wlFollowToast');
+  const wlToastClose = document.getElementById('wlToastClose');
+  const wlToastCompanyEl = document.getElementById('wlToastCompany');
+  function showFirstFollowToast(companyName) {
+    if (firstFollowShown || !wlToast) return;
+    firstFollowShown = true;
+    if (wlToastCompanyEl && companyName) wlToastCompanyEl.textContent = companyName;
+    setTimeout(() => wlToast.classList.add('show'), 700); // delay to let card transition first
+    setTimeout(() => wlToast.classList.remove('show'), 8000); // auto-dismiss after 8s
+  }
+  if (wlToastClose) {
+    wlToastClose.addEventListener('click', () => wlToast?.classList.remove('show'));
+  }
+
+  // Follow / Unfollow actions
+  document.addEventListener('click', (e) => {
+    const followBtn = e.target.closest('[data-wl-action="follow"]');
+    const unfollowBtn = e.target.closest('[data-wl-action="unfollow"]');
+    if (followBtn) {
+      const card = followBtn.closest('.wl-card');
+      if (!card) return;
+      // Move from discover → following
+      card.dataset.wlSection = 'following';
+      card.classList.add('followed');
+      const name = card.querySelector('.wl-name')?.textContent || '회사';
+      // Update card UI: status pill + button
+      const statusPill = card.querySelector('.wl-status-pill');
+      if (statusPill) {
+        statusPill.className = 'wl-status-pill followed-tag';
+        statusPill.textContent = '팔로우 중 · 방금';
+      }
+      // Transform promise block: "팔로우하면" → "Harper가 지금 추적 중"
+      const promise = card.querySelector('[data-wl-promise]');
+      if (promise) {
+        const title = promise.querySelector('.wl-promise-title');
+        if (title) {
+          title.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Harper가 지금 추적 시작`;
+        }
+      }
+      followBtn.outerHTML = `<button class="wl-btn followed-state" data-wl-action="unfollow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>팔로우 중</button>`;
+      appendUser(`${name} 팔로우`);
+      setTimeout(() => harperReply(`좋아요. <em>${name}</em> 추적 시작 — 첫 시그널 요약 이번 주 안에 보내드릴게요. 그리고 <em>${name}</em> Founder가 인재 검색 시 Chris가 '직접 팔로워' 1순위로 노출돼요. 미팅 슬롯 잡히면 바로 제안드릴게요.`), 400);
+      showFirstFollowToast(name);
+      // Switch to following tab to show the moved card
+      setTimeout(() => {
+        document.querySelector('.wl-tab[data-wl="following"]')?.click();
+      }, 600);
+    } else if (unfollowBtn) {
+      const card = unfollowBtn.closest('.wl-card');
+      if (!card) return;
+      const name = card.querySelector('.wl-name')?.textContent || '회사';
+      // Remove from list
+      card.style.opacity = '0.4';
+      card.style.pointerEvents = 'none';
+      setTimeout(() => {
+        card.remove();
+        syncWatchlistView(document.querySelector('.wl-tab.active')?.dataset.wl || 'discover');
+      }, 300);
+      appendUser(`${name} 팔로우 해제`);
+      setTimeout(() => harperReply(`알겠어요. <em>${name}</em> 워치리스트에서 제거했어요.`), 400);
+    }
+  });
+
+  // ========= In-chat watchlist cards + profile nudge (Harper proactive) =========
+  document.addEventListener('click', (e) => {
+    const followInChat = e.target.closest('.in-chat-btn[data-chat-action="follow"]');
+    const dismissInChat = e.target.closest('.in-chat-btn[data-chat-action="dismiss"]');
+    const profileVoiceBtn = e.target.closest('.in-chat-btn[data-chat-action="profile-voice"]');
+    const profileSkipBtn = e.target.closest('.in-chat-btn[data-chat-action="profile-skip"]');
+    if (profileVoiceBtn) {
+      const nudge = profileVoiceBtn.closest('.in-chat-nudge');
+      const actions = nudge?.querySelector('.in-chat-nudge-actions');
+      if (actions) {
+        actions.innerHTML = `<button class="in-chat-btn added" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>음성 콜 시작됨</button>`;
+      }
+      appendUser('음성으로 프로필 업데이트');
+      // Open the voice modal
+      if (typeof openVoice === 'function') openVoice();
+      return;
+    }
+    if (profileSkipBtn) {
+      const nudge = profileSkipBtn.closest('.in-chat-nudge');
+      const actions = nudge?.querySelector('.in-chat-nudge-actions');
+      if (actions) {
+        actions.innerHTML = `<button class="in-chat-btn added" disabled>이번 주말에 다시 알려드릴게요</button>`;
+      }
+      appendUser('프로필 업데이트 — 다음에');
+      setTimeout(() => harperReply('알겠어요. 주말쯤 다시 한번 가볍게 여쭤볼게요. 그동안 변화 생기면 input bar에 그냥 적어주셔도 돼요 — 제가 알아서 프로필에 반영할게요.'), 400);
+      return;
+    }
+    if (followInChat) {
+      const card = followInChat.closest('.in-chat-card');
+      const name = followInChat.dataset.targetName || '';
+      const actions = card?.querySelector('.in-chat-card-actions');
+      // Disable buttons + show "added" state
+      if (actions) {
+        actions.innerHTML = `<button class="in-chat-btn added" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>워치리스트 추가됨</button>`;
+      }
+      // Find the matching wl-card and move to following
+      const targetCard = Array.from(document.querySelectorAll('.wl-card'))
+        .find(c => c.querySelector('.wl-name')?.textContent.trim() === name);
+      if (targetCard) {
+        targetCard.dataset.wlSection = 'following';
+        targetCard.classList.add('followed');
+        const statusPill = targetCard.querySelector('.wl-status-pill');
+        if (statusPill) {
+          statusPill.className = 'wl-status-pill followed-tag';
+          statusPill.textContent = '팔로우 중 · 방금';
+        }
+        // Transform promise block: "팔로우하면" → "Harper가 지금 추적 중"
+        const promise = targetCard.querySelector('[data-wl-promise]');
+        if (promise) {
+          const title = promise.querySelector('.wl-promise-title');
+          if (title) {
+            title.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Harper가 지금 추적 시작`;
+          }
+        }
+        const followBtn = targetCard.querySelector('[data-wl-action="follow"]');
+        if (followBtn) {
+          followBtn.outerHTML = `<button class="wl-btn followed-state" data-wl-action="unfollow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>팔로우 중</button>`;
+        }
+        // Sync sub-tab counts + top-nav badge
+        const activeWlTab = document.querySelector('.wl-tab.active')?.dataset.wl || 'discover';
+        syncWatchlistView(activeWlTab);
+      }
+      appendUser(`${name} 워치리스트에 추가`);
+      setTimeout(() => {
+        harperReply(`좋아요. <em>${name}</em> 추적 시작 — 첫 시그널 요약은 이번 주 안에 보내드릴게요. Founder 측 미팅 슬롯 잡히면 바로 제안드릴게요. <strong>워치리스트 → 팔로우 중</strong>에서 진행 상황 확인 가능해요.`);
+      }, 400);
+      showFirstFollowToast(name);
+    } else if (dismissInChat) {
+      const card = dismissInChat.closest('.in-chat-card');
+      const actions = card?.querySelector('.in-chat-card-actions');
+      const name = card?.querySelector('.in-chat-card-name')?.textContent.trim() || '';
+      if (actions) {
+        actions.innerHTML = `<button class="in-chat-btn added" disabled>다음에 다시 추천드릴게요</button>`;
+      }
+      appendUser(`${name} — 지금은 됐어요`);
+      setTimeout(() => harperReply('알겠어요, 비슷한 류는 잠깐 줄여둘게요. 다음에 더 명확한 시그널 잡히면 다시 가져올게요.'), 400);
+    }
+  });
+
+  // Status cards on home — clickable, navigate to positions tab
+  document.querySelectorAll('.status-card').forEach(card => {
+    card.style.cursor = 'pointer';
+    card.addEventListener('click', () => {
+      const target = card.dataset.homeTarget || 'new';
+      navigateToPositionsTab(target);
+    });
+  });
+
+
+  // ========= Nav icon buttons =========
+  document.querySelectorAll('.nav-icon-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const title = btn.title || '';
+      if (title === 'Settings') {
+        appendUser('설정 열기');
+        setTimeout(() => harperReply('설정 페이지는 곧 별도 화면으로 분리될 예정이에요. 알림 / 이메일 / 데이터 / 개인정보 같은 옵션이 들어가요.'), 500);
+      } else if (title === 'Help') {
+        appendUser('도움말');
+        setTimeout(() => harperReply('Harper 사용법이나 문의는 hello@matchharper.com 으로 보내주세요. 24시간 안에 답변드려요.'), 500);
+      }
+    });
+  });
+
+  // ========= Visibility toggle — also append chat reaction =========
+  document.querySelectorAll('.vis-option').forEach(opt => {
+    opt.addEventListener('click', () => {
+      const label = opt.textContent.trim();
+      appendUser(`프로필: ${label}`);
+      setTimeout(() => harperReply(visHints[opt.dataset.vis]), 400);
+    });
+  });
+
+})();
+</script>
+
+</body>
+</html>
