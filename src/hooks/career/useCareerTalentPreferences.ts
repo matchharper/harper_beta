@@ -5,6 +5,12 @@ import type {
   SessionResponse,
 } from "@/components/career/types";
 import { getTalentCareerMoveIntentLabel } from "@/lib/talentNetworkApplication";
+import {
+  DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS,
+  DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
+  normalizeTalentPeriodicIntervalDays,
+  normalizeTalentRecommendationBatchSize,
+} from "@/lib/talentOnboarding/recommendationSettings";
 import { getErrorMessage } from "./careerHelpers";
 import type { FetchWithAuth } from "./useCareerApi";
 
@@ -24,6 +30,8 @@ const emptyPreferences = (): CareerTalentPreferences => ({
   preferredLocations: [],
   careerMoveIntent: null,
   careerMoveIntentLabel: null,
+  periodicIntervalDays: DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS,
+  recommendationBatchSize: DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
 });
 
 const normalizeUpdatedAt = (value: unknown) => {
@@ -56,6 +64,12 @@ const cloneTalentPreferences = (value: unknown): CareerTalentPreferences => {
       : [],
     careerMoveIntent,
     careerMoveIntentLabel: getTalentCareerMoveIntentLabel(careerMoveIntent),
+    periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
+      record.periodicIntervalDays
+    ),
+    recommendationBatchSize: normalizeTalentRecommendationBatchSize(
+      record.recommendationBatchSize
+    ),
   };
 };
 
@@ -74,7 +88,9 @@ const sameTalentPreferences = (
   return (
     sameStringArray(left.engagementTypes, right.engagementTypes) &&
     sameStringArray(left.preferredLocations, right.preferredLocations) &&
-    left.careerMoveIntent === right.careerMoveIntent
+    left.careerMoveIntent === right.careerMoveIntent &&
+    left.periodicIntervalDays === right.periodicIntervalDays &&
+    left.recommendationBatchSize === right.recommendationBatchSize
   );
 };
 
@@ -151,6 +167,8 @@ export const useCareerTalentPreferences = ({
           engagementTypes: talentPreferences.engagementTypes,
           preferredLocations: talentPreferences.preferredLocations,
           careerMoveIntent: talentPreferences.careerMoveIntent,
+          periodicIntervalDays: talentPreferences.periodicIntervalDays,
+          recommendationBatchSize: talentPreferences.recommendationBatchSize,
         }),
       });
       const payload = (await response

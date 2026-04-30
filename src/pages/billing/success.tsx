@@ -25,7 +25,7 @@ export default function BillingSuccessPage() {
 
   return (
     <main className="min-h-screen w-full bg-black text-white flex items-center justify-center px-6 font-sans">
-      <div className="w-full max-w-xl rounded-xl border border-white/10 bg-white/[0.03] p-8">
+      <div className="w-full max-w-xl rounded-xl border border-white/10 bg-white/[0.05] p-8">
         <h1 className="text-2xl font-semibold tracking-tight">
           Subscription Updated
         </h1>

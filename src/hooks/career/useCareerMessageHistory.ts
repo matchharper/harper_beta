@@ -21,7 +21,10 @@ type UseCareerMessageHistoryArgs = {
   conversationId: string | null;
   fetchWithAuth: FetchWithAuth;
   enabled: boolean;
-  initialSessionPage?: Pick<SessionResponse, "messages" | "nextBeforeMessageId"> | null;
+  initialSessionPage?: Pick<
+    SessionResponse,
+    "messages" | "nextBeforeMessageId"
+  > | null;
 };
 
 export const careerMessageHistoryKey = (conversationId: string | null) =>
@@ -41,7 +44,10 @@ export const useCareerMessageHistory = ({
   initialSessionPage,
 }: UseCareerMessageHistoryArgs) => {
   const queryClient = useQueryClient();
-  const queryKey = careerMessageHistoryKey(conversationId);
+  const queryKey = useMemo(
+    () => careerMessageHistoryKey(conversationId),
+    [conversationId]
+  );
 
   const fetchMessagePage = useCallback(
     async (beforeMessageId?: number | null) => {
@@ -63,7 +69,9 @@ export const useCareerMessageHistory = ({
       const response = await fetchWithAuth(
         `/api/talent/session?${searchParams.toString()}`
       );
-      const payload = (await response.json().catch(() => ({}))) as Partial<SessionResponse> &
+      const payload = (await response
+        .json()
+        .catch(() => ({}))) as Partial<SessionResponse> &
         Record<string, unknown>;
 
       if (!response.ok) {
@@ -122,7 +130,9 @@ export const useCareerMessageHistory = ({
         queryKey,
         (current) => {
           const nextPages = current?.pages ? [...current.pages] : [];
-          const nextPageParams = current?.pageParams ? [...current.pageParams] : [null];
+          const nextPageParams = current?.pageParams
+            ? [...current.pageParams]
+            : [null];
           const latestPage = nextPages[0] ?? {
             messages: [],
             nextBeforeMessageId: null,

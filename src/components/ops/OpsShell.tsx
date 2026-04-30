@@ -253,7 +253,7 @@ export default function OpsShell({
   return (
     <div className={opsTheme.page}>
       <div className={opsTheme.backgroundGlow} />
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-[linear-gradient(180deg,rgba(255,255,255,0.18),transparent)]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-[linear-gradient(180deg,rgba(255,255,255,0.2),transparent)]" />
       <div className="sticky top-0 z-30 border-b border-beige900/10 bg-beige100/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-[1600px] flex-col gap-3 px-4 py-3 lg:px-6">
           <div className="flex items-center justify-between gap-4">

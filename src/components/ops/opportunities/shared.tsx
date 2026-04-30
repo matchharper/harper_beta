@@ -13,7 +13,11 @@ import type {
 import { Mail, Search } from "lucide-react";
 import type { KeyboardEvent, ReactNode } from "react";
 
-export type PageView = "catalog" | "company_match" | "talent_recommendation";
+export type PageView =
+  | "catalog"
+  | "company_management"
+  | "company_match"
+  | "talent_recommendation";
 export type SourceFilter = "all" | OpportunitySourceType;
 export type DraftMode = "edit" | "new";
 
@@ -22,7 +26,10 @@ export type WorkspaceDraft = {
   companyDescription: string;
   companyName: string;
   homepageUrl: string;
+  isInternal: boolean;
   linkedinUrl: string;
+  pitch: string;
+  request: string;
 };
 
 export type RoleDraft = {
@@ -38,6 +45,7 @@ export type RoleDraft = {
   sourceProvider: string;
   sourceType: OpportunitySourceType;
   status: OpportunityStatus;
+  request: string;
   workMode: OpportunityWorkMode | null;
 };
 
@@ -52,7 +60,10 @@ export const EMPTY_WORKSPACE_DRAFT: WorkspaceDraft = {
   companyDescription: "",
   companyName: "",
   homepageUrl: "",
+  isInternal: false,
   linkedinUrl: "",
+  pitch: "",
+  request: "",
 };
 
 export const EMPTY_ROLE_DRAFT: RoleDraft = {
@@ -68,6 +79,7 @@ export const EMPTY_ROLE_DRAFT: RoleDraft = {
   sourceProvider: "",
   sourceType: "internal",
   status: "active",
+  request: "",
   workMode: null,
 };
 
@@ -81,6 +93,7 @@ export const PAGE_VIEW_QUERY_KEY = "view";
 
 export const isPageView = (value: unknown): value is PageView =>
   value === "catalog" ||
+  value === "company_management" ||
   value === "company_match" ||
   value === "talent_recommendation";
 
@@ -167,7 +180,10 @@ export const workspaceToDraft = (
   companyDescription: workspace?.companyDescription ?? "",
   companyName: workspace?.companyName ?? "",
   homepageUrl: workspace?.homepageUrl ?? "",
+  isInternal: workspace?.isInternal ?? false,
   linkedinUrl: workspace?.linkedinUrl ?? "",
+  pitch: workspace?.pitch ?? "",
+  request: workspace?.request ?? "",
 });
 
 export const roleToDraft = (
@@ -185,6 +201,7 @@ export const roleToDraft = (
   sourceProvider: role?.sourceProvider ?? "",
   sourceType: role?.sourceType ?? "internal",
   status: role?.status ?? "active",
+  request: role?.request ?? "",
   workMode: role?.workMode ?? null,
 });
 
@@ -199,6 +216,8 @@ export const matchesWorkspaceQuery = (
     workspace.careerUrl,
     workspace.homepageUrl,
     workspace.linkedinUrl,
+    workspace.pitch,
+    workspace.request,
   ]
     .join(" ")
     .toLowerCase();
@@ -216,6 +235,7 @@ export const matchesRoleQuery = (
     role.description,
     role.descriptionSummary,
     role.locationText,
+    role.request,
     role.sourceProvider,
     role.externalJdUrl,
   ]

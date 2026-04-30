@@ -33,6 +33,21 @@ export type FileContextBlock = {
   mime?: string;
   excerpt?: string;
   truncated?: boolean;
+  text?: string;
+};
+
+export type ChatAttachmentKind = "file" | "link";
+
+export type AttachmentContextBlock = {
+  type: "attachment_context";
+  kind: ChatAttachmentKind;
+  name: string;
+  text?: string;
+  size?: number;
+  mime?: string;
+  excerpt?: string;
+  truncated?: boolean;
+  url?: string;
 };
 
 export type SettingsCtaBlock = {
@@ -66,19 +81,24 @@ export type SearchStartBlock = {
   status?: SearchStartStatus;
 };
 
-export type FileAttachmentPayload = {
+export type ChatAttachmentPayload = {
+  kind: ChatAttachmentKind;
   name: string;
   text: string;
   size?: number;
   mime?: string;
   excerpt?: string;
   truncated?: boolean;
+  url?: string;
 };
+
+export type FileAttachmentPayload = ChatAttachmentPayload;
 
 export type ChatBlock =
   | CriteriaCardBlock
   | ToolStatusBlock
   | ToolResultBlock
+  | AttachmentContextBlock
   | FileContextBlock
   | SettingsCtaBlock
   | SearchResultBlock

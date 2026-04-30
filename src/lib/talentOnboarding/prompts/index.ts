@@ -1,11 +1,6 @@
 import fs from "fs";
-import path from "path";
 import { getCached } from "./promptCache";
-
-const PROMPTS_DIR = path.join(
-  process.cwd(),
-  "src/lib/talentOnboarding/prompts"
-);
+import { resolvePromptPath } from "./paths";
 
 /**
  * Read a .md prompt file.
@@ -19,7 +14,7 @@ export function loadPrompt(filename: string): string {
   if (cached) return cached;
 
   // Fallback: read from filesystem (cold start or DB unavailable)
-  return fs.readFileSync(path.join(PROMPTS_DIR, filename), "utf-8");
+  return fs.readFileSync(resolvePromptPath(filename), "utf-8");
 }
 
 /** Replace {{key}} placeholders with values. Unmatched placeholders are left as-is. */

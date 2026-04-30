@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireInternalApiUser, toInternalApiErrorResponse } from "@/lib/internalApi";
+import { resolvePromptPath } from "@/lib/talentOnboarding/prompts/paths";
 import { supabaseServer } from "@/lib/supabaseServer";
 import fs from "fs";
-import path from "path";
-
-const PROMPTS_DIR = path.join(process.cwd(), "src/lib/talentOnboarding/prompts");
 
 const SEED_DATA = [
   {
@@ -46,7 +44,7 @@ export async function POST(req: NextRequest) {
     const results = [];
 
     for (const seed of SEED_DATA) {
-      const content = fs.readFileSync(path.join(PROMPTS_DIR, seed.file), "utf-8");
+      const content = fs.readFileSync(resolvePromptPath(seed.file), "utf-8");
 
       const { data, error } = await (supabaseServer as any)
         .from("prompt_templates")

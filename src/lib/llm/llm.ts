@@ -47,6 +47,32 @@ export const xaiClient = new OpenAI({
   baseURL: "https://api.x.ai/v1",
 });
 
+export const anthropicClient = new OpenAI({
+  apiKey: process.env.ANTHROPIC_API_KEY ?? "missing-anthropic-api-key",
+  dangerouslyAllowBrowser: true,
+  baseURL: "https://api.anthropic.com/v1/",
+});
+
+export type LlmChatProvider = "anthropic" | "openai" | "xai";
+
+export function getLlmChatProviderForModel(model: string): LlmChatProvider {
+  const normalized = model.trim().toLowerCase();
+  if (normalized.startsWith("grok-")) return "xai";
+  if (normalized.startsWith("claude-")) return "anthropic";
+  return "openai";
+}
+
+export function getChatClientForModel(model: string) {
+  const provider = getLlmChatProviderForModel(model);
+  if (provider === "xai") return xaiClient;
+  if (provider === "anthropic") return anthropicClient;
+  return client;
+}
+
+export function supportsResponseFormatForModel(model: string) {
+  return getLlmChatProviderForModel(model) === "openai";
+}
+
 export type OnToken = (token: string) => void;
 
 const pricingTable = {
@@ -55,6 +81,10 @@ const pricingTable = {
     output: 0.5 / 1_000_000,
   },
   "grok-4-1-fast-reasoning": {
+    input: 0.2 / 1_000_000,
+    output: 0.5 / 1_000_000,
+  },
+  "grok-4-1-fast-non-reasoning": {
     input: 0.2 / 1_000_000,
     output: 0.5 / 1_000_000,
   },
@@ -76,6 +106,7 @@ export const xaiInference = async (
   model:
     | "grok-4-fast-reasoning"
     | "grok-4-1-fast-reasoning"
+    | "grok-4-1-fast-non-reasoning"
     | "grok-4-fast-non-reasoning"
     | "gpt-5-mini",
   systemPrompt: string,
@@ -85,15 +116,21 @@ export const xaiInference = async (
   is_json: boolean = false,
   prompt_cache_key: string = ""
 ): Promise<string> => {
-  const response = await xaiClient.chat.completions.create({
-    model: model,
+  const llmClient = getChatClientForModel(model);
+  const provider = getLlmChatProviderForModel(model);
+  const response = await llmClient.chat.completions.create({
+    model,
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
     ],
-    temperature: temperature,
-    prompt_cache_key: prompt_cache_key,
-  });
+    temperature,
+    ...(is_json &&
+      supportsResponseFormatForModel(model) && {
+        response_format: { type: "json_object" as const },
+      }),
+    ...(provider === "xai" && prompt_cache_key ? { prompt_cache_key } : {}),
+  } as any);
   const content = response.choices[0]?.message?.content;
 
   const usage = response.usage ?? {

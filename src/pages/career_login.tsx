@@ -1,19 +1,32 @@
-import React, { useEffect } from "react";
-import { useCareerAuth } from "@/hooks/career/useCareerAuth";
-import { Loader2, MessageCircle, Send } from "lucide-react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import Head from "next/head";
 import { useRouter } from "next/router";
+import { Loader2, Mail } from "lucide-react";
+import { useCareerAuth } from "@/hooks/career/useCareerAuth";
+import { BeigeButton, BeigeInput } from "@/components/ui/beige";
 
-const CareerLoginTopBar = () => (
-  <div className="fixed z-40 flex h-12 w-full items-center justify-between border-b border-hblack100 bg-hblack000">
-    <div className="w-1/3" />
-    <div className="font-hedvig text-hblack700">Harper</div>
-    <div className="w-1/3" />
-  </div>
-);
+const schoolLogos = [
+  { src: "/images/logos/sn.png", name: "서울대학교" },
+  { src: "/images/logos/kaist.png", name: "KAIST" },
+  { src: "/images/logos/stanford.png", name: "Stanford" },
+];
+
+const companyLogos = [
+  { src: "/svgs/a16z2.svg", name: "a16z", width: 72 },
+  { src: "/svgs/yc.svg", name: "YC", width: 78 },
+  { src: "/images/mistral.png", name: "Mistral", width: 82 },
+  { src: "/svgs/cohere.svg", name: "Cohere", width: 56 },
+];
+
+const resolveSafeNextPath = (value: string | string[] | undefined) => {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return null;
+  return raw;
+};
 
 const CareerLoginLoadingState = () => (
-  <main className="relative flex min-h-screen w-full items-center justify-center bg-hblack000 font-inter text-hblack900">
-    <Loader2 className="h-5 w-5 animate-spin text-hblack400" />
+  <main className="relative flex min-h-screen w-full items-center justify-center bg-beige100 font-geist text-beige900">
+    <Loader2 className="h-5 w-5 animate-spin text-beige900/40" />
     <span className="sr-only">커리어 로그인 페이지 로딩 중</span>
   </main>
 );
@@ -27,108 +40,212 @@ const CareerLogin = () => {
     authError,
     authInfo,
     handleGoogleLogin,
+    handleEmailAuth,
   } = useCareerAuth();
+  const [showEmailForm, setShowEmailForm] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [emailMode, setEmailMode] = useState<"signin" | "signup">("signin");
+
+  const nextPath = useMemo(
+    () => resolveSafeNextPath(router.query.next) ?? "/career",
+    [router.query.next]
+  );
 
   useEffect(() => {
-    if (authLoading || !user) return;
+    if (authLoading || !user || !router.isReady) return;
+
     const inviteToken =
       typeof router.query.invite === "string" ? router.query.invite : "";
     const mail = typeof router.query.mail === "string" ? router.query.mail : "";
-    const nextUrl = inviteToken
-      ? `/career?invite=${encodeURIComponent(inviteToken)}${mail ? `&mail=${encodeURIComponent(mail)}` : ""}`
-      : mail
-        ? `/career?mail=${encodeURIComponent(mail)}`
-      : "/career";
-    void router.replace(nextUrl);
-  }, [authLoading, router, router.query.invite, router.query.mail, user]);
+    const nextUrl = new URL(nextPath, window.location.origin);
+    if (inviteToken) nextUrl.searchParams.set("invite", inviteToken);
+    if (mail) nextUrl.searchParams.set("mail", mail);
 
-  if (authLoading || user) {
+    void router.replace(`${nextUrl.pathname}${nextUrl.search}`);
+  }, [
+    authLoading,
+    nextPath,
+    router,
+    router.isReady,
+    router.query.invite,
+    router.query.mail,
+    user,
+  ]);
+
+  const handleSubmitEmailAuth = async (event: FormEvent) => {
+    event.preventDefault();
+    const ok = await handleEmailAuth({
+      mode: emailMode,
+      email,
+      password,
+    });
+    if (ok) {
+      void router.replace(nextPath);
+    }
+  };
+
+  if (authLoading || user || !router.isReady) {
     return <CareerLoginLoadingState />;
   }
 
   return (
-    <main className="relative min-h-screen w-full bg-hblack000 font-inter text-hblack900">
-      <CareerLoginTopBar />
-      <div className="relative flex min-h-screen items-center justify-center px-4 py-8 pt-20">
-        <section className="w-full max-w-[560px] rounded-[24px] border border-hblack200 bg-hblack000 px-8 py-6">
-          <header className="text-center">
-            <h1 className="text-lg font-semibold">하퍼에서 기회를 발견하세요.</h1>
-            <p className="mt-2 text-base">
-              하퍼는 AI/ML/Engineering 인재를 위한 AI Recruiter입니다.
-            </p>
-          </header>
+    <>
+      <Head>
+        <link rel="icon" href="/images/logo.ico" />
+      </Head>
+      <main className="flex min-h-screen w-full flex-col bg-beige100 px-4 py-5 font-geist text-beige900">
+        <div className="mx-auto flex w-full max-w-[1040px] items-center justify-between">
+          <button
+            type="button"
+            onClick={() => void router.push("/network")}
+            className="font-halant text-[28px] leading-none tracking-[-0.06em] text-beige900"
+          >
+            Harper
+          </button>
+        </div>
 
-          <div className="mt-7 space-y-3">
-            <article className="rounded-2xl bg-hblack50 px-4 py-5">
-              <div className="flex items-start gap-3">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full">
-                  <MessageCircle className="h-5 w-5 text-xprimary" />
-                </div>
-                <div>
-                  <p className="text-base font-semibold text-hblack1000">
-                    대화를 통해 더 나은 매칭
-                  </p>
-                  <p className="mt-1 text-sm text-hblack600">
-                    하퍼와 대화하세요. 더 많은 정보를 알려줄수록, 더 좋은 기회을
-                    얻을 수 있습니다.
-                  </p>
-                </div>
-              </div>
-            </article>
+        <section className="mx-auto flex w-full max-w-[420px] flex-1 flex-col justify-center py-12">
+          <h1 className="text-center text-3xl font-medium tracking-[-0.04em]">
+            Login
+          </h1>
 
-            <article className="rounded-2xl bg-hblack50 px-4 py-4">
-              <div className="flex items-start gap-3">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full">
-                  <Send className="h-5 w-5 text-xprimary" />
-                </div>
-                <div>
-                  <p className="text-base font-semibold text-hblack1000">
-                    바로 채용 담당자에게 추천
-                  </p>
-                  <p className="mt-1 text-sm text-hblack600">
-                    마음에 드는 회사라면, 하퍼가 바로 회사와 연결합니다.
-                    <br />
-                    자기소개서는 필요 없습니다.
-                  </p>
-                </div>
-              </div>
-            </article>
-          </div>
-
-          <div className="mt-10 flex flex-col items-center">
-            <button
+          <div className="mt-8 flex flex-col gap-3">
+            <BeigeButton
               type="button"
+              size="lg"
+              variant="primary"
               onClick={() => void handleGoogleLogin()}
-              disabled={authLoading || authPending}
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border border-xprimary bg-xprimary px-5 text-sm font-medium text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={authPending}
+              className="w-full"
             >
-              {authLoading || authPending ? (
+              {authPending ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  {authLoading ? "로그인 확인 중..." : "처리 중..."}
+                  처리 중...
                 </>
               ) : (
-                "Google 로그인"
+                "구글 로그인"
               )}
-            </button>
-            <p className="mb-1 mt-3 text-sm text-hblack600">
-              첫 가입시, 전체 과정은 5분도 걸리지 않습니다.
-            </p>
+            </BeigeButton>
+
+            <BeigeButton
+              type="button"
+              size="lg"
+              variant="outline"
+              icon={<Mail className="h-4 w-4" />}
+              onClick={() => setShowEmailForm((current) => !current)}
+              disabled={authPending}
+              className="w-full"
+            >
+              이메일로 로그인
+            </BeigeButton>
           </div>
 
+          {showEmailForm ? (
+            <form
+              onSubmit={(event) => void handleSubmitEmailAuth(event)}
+              className="mt-4 space-y-3 border-t border-beige900/10 pt-4"
+            >
+              <BeigeInput
+                type="email"
+                placeholder="email@example.com"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                autoComplete="email"
+                disabled={authPending}
+                className="h-11"
+              />
+              <BeigeInput
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                autoComplete={
+                  emailMode === "signin" ? "current-password" : "new-password"
+                }
+                disabled={authPending}
+                className="h-11"
+              />
+              <BeigeButton
+                type="submit"
+                size="lg"
+                variant="primary"
+                disabled={authPending}
+                className="w-full"
+              >
+                {authPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    처리 중...
+                  </>
+                ) : emailMode === "signin" ? (
+                  "로그인"
+                ) : (
+                  "회원가입"
+                )}
+              </BeigeButton>
+              <button
+                type="button"
+                onClick={() =>
+                  setEmailMode((current) =>
+                    current === "signin" ? "signup" : "signin"
+                  )
+                }
+                className="w-full text-center text-sm text-beige900/60 underline underline-offset-4 transition hover:text-beige900"
+              >
+                {emailMode === "signin"
+                  ? "처음이라면 회원가입"
+                  : "이미 계정이 있다면 로그인"}
+              </button>
+            </form>
+          ) : null}
+
           {authError ? (
-            <p className="mt-4 rounded-lg border border-xprimary/30 bg-xprimary/10 px-3 py-2 text-sm text-xprimary">
+            <p className="mt-4 border border-xprimary/30 bg-white/45 px-3 py-2 text-sm leading-6 text-xprimary">
               {authError}
             </p>
           ) : null}
           {authInfo ? (
-            <p className="mt-3 rounded-lg border border-hblack200 bg-hblack100 px-3 py-2 text-sm text-hblack700">
+            <p className="mt-3 border border-beige900/10 bg-white/45 px-3 py-2 text-sm leading-6 text-beige900/70">
               {authInfo}
             </p>
           ) : null}
         </section>
-      </div>
-    </main>
+
+        <section className="mx-auto w-full max-w-[760px] pb-6 text-center">
+          <div className="flex flex-wrap items-center justify-center gap-2 text-sm font-medium text-beige900/65">
+            <span>100+ engineers and researchers from</span>
+            <span className="flex -space-x-2">
+              {schoolLogos.map((school) => (
+                <span
+                  key={school.name}
+                  className="inline-flex h-8 w-8 overflow-hidden rounded-full border border-beige900/20 bg-beige500"
+                >
+                  <img
+                    src={school.src}
+                    alt={school.name}
+                    className="h-full w-full object-cover"
+                  />
+                </span>
+              ))}
+            </span>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-x-8 gap-y-4 opacity-80">
+            {companyLogos.map((logo) => (
+              <img
+                key={logo.name}
+                src={logo.src}
+                alt={logo.name}
+                width={logo.width}
+                height={32}
+                className="h-7 w-auto object-contain"
+              />
+            ))}
+          </div>
+        </section>
+      </main>
+    </>
   );
 };
 

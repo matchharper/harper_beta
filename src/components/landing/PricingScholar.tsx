@@ -127,9 +127,9 @@ function PlanCard({
     <div
       className={[
         "relative h-full w-full overflow-hidden rounded-xl",
-        "bg-white/[0.06] border border-white/10",
+        "bg-white/[0.05] border border-white/10",
         "px-5 md:px-7 pt-4 md:pt-6 pb-4 md:pb-20",
-        isPrimary ? "bg-white/[0.08]" : "",
+        isPrimary ? "bg-white/[0.1]" : "",
       ].join(" ")}
     >
       <div className="flex h-full flex-col items-start justify-start">

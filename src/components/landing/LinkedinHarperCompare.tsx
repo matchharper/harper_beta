@@ -75,15 +75,15 @@ function PhoneFrame({
   return (
     <div
       className={[
-        "relative rounded-[28px] border border-black/[0.10] bg-[#F7F7F5] px-3 pb-3 pt-[52px]",
-        "shadow-[0_18px_54px_rgba(17,17,17,0.14)] md:rounded-[38px] md:px-[14px] md:pb-[14px] md:pt-[68px]",
+        "relative rounded-[28px] border border-black/[0.1] bg-[#F7F7F5] px-3 pb-3 pt-[52px]",
+        "shadow-[0_18px_54px_rgba(17,17,17,0.15)] md:rounded-[38px] md:px-[14px] md:pb-[14px] md:pt-[68px]",
         className,
       ].join(" ")}
     >
       <div className="absolute left-1/2 top-[15px] h-[20px] w-[92px] -translate-x-1/2 rounded-full bg-black md:top-[19px] md:h-[24px] md:w-[126px]" />
       <div
         className={[
-          "overflow-hidden rounded-[20px] border border-black/[0.10] bg-white md:rounded-[28px]",
+          "overflow-hidden rounded-[20px] border border-black/[0.1] bg-white md:rounded-[28px]",
           bodyClassName,
         ].join(" ")}
       >
@@ -97,7 +97,7 @@ function LinkedinInboxPhone() {
   return (
     <div className="absolute bottom-[-108px] left-1/2 z-10 w-[86%] max-w-[480px] -translate-x-1/2 md:bottom-[-58px] md:w-[70%]">
       <PhoneFrame>
-        <div className="border-b border-black/[0.08] bg-white px-3 py-3.5 md:px-5 md:py-4.5">
+        <div className="border-b border-black/[0.1] bg-white px-3 py-3.5 md:px-5 md:py-4.5">
           <div className="flex items-center gap-2">
             <div className="flex h-7 flex-1 items-center gap-2 rounded-full bg-[#E7EEF7] px-2 text-[#6A7685] md:h-9 md:px-3">
               <Search className="h-3.5 w-3.5 shrink-0 stroke-[2.3] md:h-4 md:w-4" />
@@ -115,7 +115,7 @@ function LinkedinInboxPhone() {
             key={message.sender}
             className={[
               "flex items-start gap-2.5 px-3 py-3.5 md:gap-3 md:px-5 md:py-4.5",
-              index === 0 ? "" : "border-t border-black/[0.08]",
+              index === 0 ? "" : "border-t border-black/[0.1]",
             ].join(" ")}
           >
             <Image
@@ -187,7 +187,7 @@ function HarperEmailPhone() {
             </div>
           </div>
 
-          <div className="border-y border-black/[0.10] px-2 py-2 text-left text-[11px] font-normal text-[#232323] md:px-4 md:py-3 md:text-[13px]">
+          <div className="border-y border-black/[0.1] px-2 py-2 text-left text-[11px] font-normal text-[#232323] md:px-4 md:py-3 md:text-[13px]">
             데이터를 모으는 파이프라인을 설계하신 논문을 봤습니다.
           </div>
           <div className="px-3 py-3.5 text-left text-[11px] leading-[1.55] text-[#1E1E1E] md:px-5 md:py-4.5 md:text-[13px]">

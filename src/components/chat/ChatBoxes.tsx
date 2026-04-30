@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import type {
+  AttachmentContextBlock,
   CriteriaCardBlock,
   ToolStatusBlock,
   FileContextBlock,
@@ -16,6 +17,7 @@ import {
   ChevronDown,
   ChevronUp,
   FileSpreadsheet,
+  Link2,
   Loader2,
   Plus,
   Pin,
@@ -41,6 +43,7 @@ import {
 } from "@/lib/searchSource";
 import { useRunDetail } from "@/hooks/useRunDetail";
 import { Tooltips } from "../ui/tooltip";
+import { useMessages } from "@/i18n/useMessage";
 
 const DEFAULT_CRITERIA_CARD_SOURCES: EnabledSearchSource[] = ["linkedin"];
 
@@ -693,14 +696,14 @@ export const ToolStatusToggle = React.memo(function ToolStatusToggle({
   );
 });
 
-export const formatBytes = React.memo(function formatBytes(bytes?: number) {
+export function formatBytes(bytes?: number) {
   if (!bytes || Number.isNaN(bytes)) return "";
   if (bytes < 1024) return `${bytes} B`;
   const kb = bytes / 1024;
   if (kb < 1024) return `${kb.toFixed(1)} KB`;
   const mb = kb / 1024;
   return `${mb.toFixed(1)} MB`;
-});
+}
 
 export const DocumentCard = React.memo(function DocumentCard({
   title,
@@ -753,26 +756,34 @@ export const DocumentCard = React.memo(function DocumentCard({
   );
 });
 
-export const FileContextCard = React.memo(function FileContextCard({
+export const AttachmentContextCard = React.memo(function AttachmentContextCard({
   block,
   theme = "cream",
 }: {
-  block: FileContextBlock;
+  block: AttachmentContextBlock;
   theme?: ChatTheme;
 }) {
   const isDark = theme === "dark";
   const [expanded, setExpanded] = useState(false);
+  const { m } = useMessages();
   const excerpt = block.excerpt ?? "";
   const hasExcerpt = excerpt.trim().length > 0;
+  const isLink = block.kind === "link";
 
   return (
     <div className={`mt-2 w-full rounded-2xl px-4 py-3 ${isDark ? "border border-white/10 bg-white/5" : "border border-beige900/8 bg-beige50"}`}>
-      <div className={`text-xs flex items-center gap-1.5 ${isDark ? "text-hgray600" : "text-beige900/55"}`}>
-        <Paperclip className="w-3 h-3" />
-        첨부 파일
+      <div className={`flex items-center gap-1.5 text-xs ${isDark ? "text-hgray600" : "text-beige900/55"}`}>
+        {isLink ? (
+          <LinkChip raw={block.url ?? ""} size="md" theme={theme} className="mt-0" />
+        ) : (
+          <>
+            <Paperclip className="h-3 w-3" />
+            <span>{m.chat.attachedFileLabel ?? "첨부 파일"}</span>
+          </>
+        )}
       </div>
       <div className={`mt-2 text-sm font-medium ${isDark ? "text-hgray900" : "text-beige900"}`}>{block.name}</div>
-      <div className={`text-[11px] ${isDark ? "text-hgray600" : "text-beige900/55"}`}>
+      <div className={`mt-1 text-[11px] ${isDark ? "text-hgray600" : "text-beige900/55"}`}>
         {[block.mime, formatBytes(block.size)].filter(Boolean).join(" · ")}
       </div>
       {hasExcerpt && (
@@ -793,6 +804,30 @@ export const FileContextCard = React.memo(function FileContextCard({
         </div>
       )}
     </div>
+  );
+});
+
+export const FileContextCard = React.memo(function FileContextCard({
+  block,
+  theme = "cream",
+}: {
+  block: FileContextBlock;
+  theme?: ChatTheme;
+}) {
+  return (
+    <AttachmentContextCard
+      block={{
+        type: "attachment_context",
+        kind: "file",
+        name: block.name,
+        text: block.text,
+        size: block.size,
+        mime: block.mime,
+        excerpt: block.excerpt,
+        truncated: block.truncated,
+      }}
+      theme={theme}
+    />
   );
 });
 

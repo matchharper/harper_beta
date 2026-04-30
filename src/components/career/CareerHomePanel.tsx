@@ -1,6 +1,7 @@
 import { BriefcaseBusiness, MessageSquareText } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
+import DeliveryCopyPromptTestPanel from "./DeliveryCopyPromptTestPanel";
 import {
   getTalentEngagementLabels,
   getTalentCareerMoveIntentLabel,
@@ -16,8 +17,10 @@ import {
 } from "./types";
 import OpportunityListCard from "./history/OpportunityListCard";
 import HistoryOpportunityInfoModal from "./history/HistoryOppotunityInfoModal";
+import React from "react";
 
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const countFormatter = new Intl.NumberFormat("ko-KR");
 
 const formatMatchedAt = (value: string) => {
   const date = new Date(value);
@@ -53,7 +56,9 @@ const createRecentOpportunityCardItem = ({
     companyName: recentItem.companyName,
     description: recentItem.summary,
     dismissedAt: null,
-    employmentTypes: recentItem.engagementType ? [recentItem.engagementType] : [],
+    employmentTypes: recentItem.engagementType
+      ? [recentItem.engagementType]
+      : [],
     externalJdUrl: recentItem.href ?? null,
     feedback: null,
     feedbackAt: null,
@@ -113,9 +118,12 @@ const CareerHomePanel = ({
   const {
     user,
     userChatCount,
+    activeCompanyRoleCount,
+    opportunityRun,
+    opportunityRunTriggerPending,
+    onRunOpportunityDiscoveryTest,
     talentProfile,
     talentPreferences,
-    networkApplication,
     recentOpportunities,
     historyOpportunities,
   } = useCareerSidebarContext();
@@ -163,23 +171,27 @@ const CareerHomePanel = ({
 
   const startButtonLabel =
     userChatCount > 0 ? "대화 이어가기" : "대화 시작하기";
+  const canRunOpportunityTest =
+    !opportunityRunTriggerPending && !opportunityRun?.inputLocked;
+  const activeOpportunityLabel =
+    activeCompanyRoleCount > 0
+      ? `현재 Harper 네트워크에서 ${countFormatter.format(
+          activeCompanyRoleCount * 2
+        )}개의 기회를 스캔하고 있습니다. 매일매일 더 많은 기회를 발견합니다.`
+      : "현재 Harper는 새로운 기회를 계속 탐색하고 있습니다.";
 
   return (
-    <div className="space-y-16 mt-16">
+    <div className="space-y-12">
       <section className="">
         <div className="max-w-[720px]">
           <h2 className="mt-4 font-hedvig font-semibold text-[1.4rem] leading-none text-beige900 sm:text-[1.8rem]">
             Welcome, {displayName}!
           </h2>
-          <p className="mt-4 max-w-[620px] text-[15px] leading-7 text-beige900/65">
-            Harper와 짧게 대화를 이어가면 지금 보고 싶은 역할, 팀, 이직 타이밍을
-            더 정확하게 정리할 수 있습니다.
+          <p className="mt-4 max-w-[620px] text-[15px] leading-5 text-beige900/65">
+            Harper와 대화를 이어가면 최고의 기회를 추천받을 수 있습니다.
+            <br />
+            {activeOpportunityLabel}
           </p>
-          {networkApplication?.selectedRole ? (
-            <div className="mt-5 inline-flex rounded-full border border-beige900/10 bg-beige100/70 px-3 py-1.5 text-sm text-beige900/70">
-              현재 보고 싶은 역할: {networkApplication.selectedRole}
-            </div>
-          ) : null}
           <div className="mt-6 flex flex-wrap gap-3">
             <CareerPrimaryButton
               onClick={onOpenChat}
@@ -195,9 +207,20 @@ const CareerHomePanel = ({
               <BriefcaseBusiness className="h-4 w-4" />
               Preference 보기
             </CareerSecondaryButton>
+            <CareerSecondaryButton
+              onClick={() => void onRunOpportunityDiscoveryTest()}
+              disabled={!canRunOpportunityTest}
+              className="h-11 px-5"
+            >
+              {opportunityRunTriggerPending || opportunityRun?.inputLocked
+                ? "추천 생성 중..."
+                : "추천 테스트 실행"}
+            </CareerSecondaryButton>
           </div>
         </div>
       </section>
+
+      {/* <DeliveryCopyPromptTestPanel displayName={displayName} /> */}
 
       <section className="mt-6">
         <h3 className="font-hedvig text-[1.6rem] font-medium leading-none text-beige900">
@@ -252,7 +275,7 @@ const CareerHomePanel = ({
             ))}
           </div>
         ) : (
-          <div className="mt-6 rounded-xl border border-dashed border-beige900/12 bg-white/25 px-4 py-4 text-[15px] font-normal leading-7 text-beige900/45">
+          <div className="mt-6 rounded-xl border border-dashed border-beige900/10 bg-white/25 px-4 py-4 text-[15px] font-normal leading-7 text-beige900/45">
             아직 새로 추천된 기회가 아직 없습니다. 새 매칭이 생기면 여기에 최대
             4개까지 표시됩니다.
           </div>
@@ -267,4 +290,4 @@ const CareerHomePanel = ({
   );
 };
 
-export default CareerHomePanel;
+export default React.memo(CareerHomePanel);

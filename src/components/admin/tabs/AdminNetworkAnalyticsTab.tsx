@@ -65,7 +65,7 @@ export default function AdminNetworkAnalyticsTab({
 
       {error ? (
         <div
-          className="mb-4 border border-black/15 bg-black/[0.02] p-4 text-[13px] flex items-start justify-between gap-4"
+          className="mb-4 border border-black/15 bg-black/[0.05] p-4 text-[13px] flex items-start justify-between gap-4"
           style={{ borderRadius: 0 }}
         >
           <div>
@@ -74,7 +74,7 @@ export default function AdminNetworkAnalyticsTab({
           </div>
           <button
             onClick={onRefresh}
-            className="h-9 px-3 text-[13px] border border-black/15 hover:border-black/30 hover:bg-black/[0.03]"
+            className="h-9 px-3 text-[13px] border border-black/15 hover:border-black/30 hover:bg-black/[0.05]"
             style={{ borderRadius: 0 }}
           >
             Retry

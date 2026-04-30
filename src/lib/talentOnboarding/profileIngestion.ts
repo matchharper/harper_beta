@@ -1,6 +1,10 @@
 import { ApifyClient } from "apify-client";
 import { logger } from "@/utils/logger";
-import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
+import {
+  buildCareerProfileIngestionSystemPrompt,
+  buildCareerProfileIngestionUserPrompt,
+} from "@/lib/career/prompts";
+import { runCareerProfileIngestion } from "@/lib/career/llm";
 
 const DEFAULT_LINKEDIN_ACTOR_ID = "LpVuK3Zozwuipa5bp";
 const NULL_CHAR_RE = /\u0000/g;
@@ -917,81 +921,20 @@ async function runResumeEnrichmentLlm(args: {
   };
 
   logger.log("[TalentIngest] LLM enrichment start");
-  const llmRaw = await runTalentAssistantCompletion({
+  const llmRaw = await runCareerProfileIngestion({
     messages: [
       {
         role: "system",
-        content: [
-          "You normalize and enrich a candidate profile from LinkedIn + resume text.",
-          "Return JSON only, with no markdown.",
-          "Never hallucinate uncertain facts. If uncertain, leave field null or skip.",
-          "Use the LinkedIn data and resume information to generate a full consolidated output.",
-          "Do not return only delta/additional rows. Return full arrays for all sections.",
-          "If resume has less information, it is valid to keep LinkedIn-derived values.",
-          "Preserve company_id from the current LinkedIn experience when the final row refers to the same company.",
-          "Preserve company_link from the current LinkedIn experience when the final row refers to the same company.",
-          "Never invent a company_id.",
-          "talentExtras is an array for awards, projects, publications, volunteering, certifications, or other notable details.",
-          "Date format must be YYYY-MM-DD or null.",
-          "Output schema:",
-          "{",
-          '  "talentUserPatch": {',
-          '    "name": string|null,',
-          '    "headline": string|null,',
-          '    "bio": string|null,',
-          '    "location": string|null,',
-          '    "profile_picture": string|null',
-          "  },",
-          '  "talentExperiences": [',
-          "    {",
-          '      "role": string|null,',
-          '      "description": string|null,',
-          '      "start_date": "YYYY-MM-DD"|null,',
-          '      "end_date": "YYYY-MM-DD"|null,',
-          '      "months": number|null,',
-          '      "company_name": string|null,',
-          '      "company_location": string|null,',
-          '      "company_id": number|null,',
-          '      "company_link": string|null,',
-          '      "memo": string|null',
-          "    }",
-          "  ],",
-          '  "talentEducations": [',
-          "    {",
-          '      "school": string|null,',
-          '      "degree": string|null,',
-          '      "description": string|null,',
-          '      "field": string|null,',
-          '      "start_date": "YYYY-MM-DD"|null,',
-          '      "end_date": "YYYY-MM-DD"|null,',
-          '      "url": string|null,',
-          '      "memo": string|null',
-          "    }",
-          "  ],",
-          '  "talentExtras": [',
-          "    {",
-          '      "title": string|null,',
-          '      "description": string|null,',
-          '      "memo": string|null,',
-          '      "date": "YYYY-MM-DD"|null',
-          "    }",
-          "  ],",
-          '  "notes": string|null',
-          "}",
-        ].join("\n"),
+        content: buildCareerProfileIngestionSystemPrompt(),
       },
       {
         role: "user",
-        content: [
-          "[Current Structured LinkedIn Data]",
-          JSON.stringify(profileForPrompt, null, 2),
-          "",
-          "[Resume Text]",
-          resumeText.slice(0, 14000),
-        ].join("\n"),
+        content: buildCareerProfileIngestionUserPrompt({
+          profileForPrompt,
+          resumeText,
+        }),
       },
     ],
-    temperature: 0.1,
   });
 
   logger.log("[TalentIngest] LLM enrichment done");
@@ -1025,84 +968,95 @@ export async function ingestTalentProfileFromLinkedin(
   });
 
   const linkedinUrl = pickLinkedinUrl(links);
-  if (!linkedinUrl) {
-    throw new Error("LinkedIn profile link is required");
+  const scholarLinks = pickScholarLinks(links);
+  const resumeText = cleanMultilineText(args.resumeText, 20000);
+  if (!linkedinUrl && !resumeText) {
+    throw new Error("LinkedIn profile link or resume text is required");
   }
 
-  const scholarLinks = pickScholarLinks(links);
   logger.log("[TalentIngest] selected links", {
     linkedinUrl,
     scholarLinksCount: scholarLinks.length,
   });
 
-  const token = process.env.APIFY_CLIENT_KEY;
-  if (!token) {
-    throw new Error("APIFY_CLIENT_KEY is required");
+  let linkedinProfile: Record<string, any> = {};
+  let experiencesFromLinkedin: TalentExperienceDraft[] = [];
+  let educationsFromLinkedin: TalentEducationDraft[] = [];
+  let extrasFromLinkedin: TalentExtraDraft[] = [];
+
+  if (linkedinUrl) {
+    const token = process.env.APIFY_CLIENT_KEY;
+    if (!token) {
+      throw new Error("APIFY_CLIENT_KEY is required");
+    }
+
+    const actorId =
+      cleanText(process.env.APIFY_LINKEDIN_PROFILE_ACTOR_ID, 80) ??
+      DEFAULT_LINKEDIN_ACTOR_ID;
+    const client = new ApifyClient({ token });
+
+    const input = {
+      profileScraperMode: "Profile details no email ($4 per 1k)",
+      queries: [linkedinUrl],
+    };
+
+    logger.log("[TalentIngest] calling Apify actor", {
+      actorId,
+      linkedinUrl,
+    });
+    const run = await withTimeout(
+      client.actor(actorId).call(input),
+      90_000,
+      "Apify LinkedIn crawl timed out"
+    );
+    logger.log("[TalentIngest] Apify run finished", {
+      runId: run.id,
+      defaultDatasetId: run.defaultDatasetId,
+    });
+
+    const { items } = await withTimeout(
+      client.dataset(run.defaultDatasetId).listItems({
+        limit: 1,
+      }),
+      20_000,
+      "Apify dataset fetch timed out"
+    );
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new Error("Apify returned empty LinkedIn dataset");
+    }
+
+    linkedinProfile = (items[0] ?? {}) as Record<string, any>;
+    logger.log("[TalentIngest] Apify item loaded", {
+      publicIdentifier: cleanText(linkedinProfile.publicIdentifier, 200),
+    });
+
+    const rawExperiences = toArray<unknown>(
+      linkedinProfile.experience ?? linkedinProfile.experiences
+    );
+    const rawEducations = toArray<unknown>(
+      linkedinProfile.education ?? linkedinProfile.educations
+    );
+
+    experiencesFromLinkedin = dedupeByKey(
+      rawExperiences
+        .map((item) => toTalentExperienceDraft(item))
+        .filter((item): item is TalentExperienceDraft => item !== null),
+      experienceKey
+    );
+
+    educationsFromLinkedin = dedupeByKey(
+      rawEducations
+        .map((item) => toTalentEducationDraft(item))
+        .filter((item): item is TalentEducationDraft => item !== null),
+      educationKey
+    );
+
+    extrasFromLinkedin = buildLinkedinTalentExtras(linkedinProfile);
+  } else {
+    logger.log("[TalentIngest] using resume-only ingestion");
   }
-
-  const actorId =
-    cleanText(process.env.APIFY_LINKEDIN_PROFILE_ACTOR_ID, 80) ??
-    DEFAULT_LINKEDIN_ACTOR_ID;
-  const client = new ApifyClient({ token });
-
-  const input = {
-    profileScraperMode: "Profile details no email ($4 per 1k)",
-    queries: [linkedinUrl],
-  };
-
-  logger.log("[TalentIngest] calling Apify actor", {
-    actorId,
-    linkedinUrl,
-  });
-  const run = await withTimeout(
-    client.actor(actorId).call(input),
-    90_000,
-    "Apify LinkedIn crawl timed out"
-  );
-  logger.log("[TalentIngest] Apify run finished", {
-    runId: run.id,
-    defaultDatasetId: run.defaultDatasetId,
-  });
-
-  const { items } = await withTimeout(
-    client.dataset(run.defaultDatasetId).listItems({
-      limit: 1,
-    }),
-    20_000,
-    "Apify dataset fetch timed out"
-  );
-  if (!Array.isArray(items) || items.length === 0) {
-    throw new Error("Apify returned empty LinkedIn dataset");
-  }
-
-  const linkedinProfile = (items[0] ?? {}) as Record<string, any>;
-  logger.log("[TalentIngest] Apify item loaded", {
-    publicIdentifier: cleanText(linkedinProfile.publicIdentifier, 200),
-  });
 
   let talentUser = buildTalentUserDraft(linkedinProfile);
-  const rawExperiences = toArray<unknown>(
-    linkedinProfile.experience ?? linkedinProfile.experiences
-  );
-  const rawEducations = toArray<unknown>(
-    linkedinProfile.education ?? linkedinProfile.educations
-  );
-
-  const experiencesFromLinkedin = dedupeByKey(
-    rawExperiences
-      .map((item) => toTalentExperienceDraft(item))
-      .filter((item): item is TalentExperienceDraft => item !== null),
-    experienceKey
-  );
-
-  const educationsFromLinkedin = dedupeByKey(
-    rawEducations
-      .map((item) => toTalentEducationDraft(item))
-      .filter((item): item is TalentEducationDraft => item !== null),
-    educationKey
-  );
-
-  const extrasFromLinkedin = buildLinkedinTalentExtras(linkedinProfile);
 
   let experiences = experiencesFromLinkedin;
   let educations = educationsFromLinkedin;
@@ -1114,7 +1068,6 @@ export async function ingestTalentProfileFromLinkedin(
     extras: talentExtras.length,
   });
 
-  const resumeText = cleanMultilineText(args.resumeText, 20000);
   let llmNotes: string | null = null;
   let llmRaw: string | null = null;
   let experiencesFromLlm = 0;
@@ -1124,7 +1077,7 @@ export async function ingestTalentProfileFromLinkedin(
   if (resumeText) {
     const llmResult = await withTimeout(
       runResumeEnrichmentLlm({
-        linkedinUrl,
+        linkedinUrl: linkedinUrl ?? "",
         scholarLinks,
         linkedinProfile,
         userDraft: talentUser,
@@ -1310,7 +1263,7 @@ export async function ingestTalentProfileFromLinkedin(
 
   const result: TalentProfileIngestionResult = {
     ok: true,
-    linkedinUrl,
+    linkedinUrl: linkedinUrl ?? "",
     scholarLinks,
     stats: {
       experiencesFromLinkedin: experiencesFromLinkedin.length,

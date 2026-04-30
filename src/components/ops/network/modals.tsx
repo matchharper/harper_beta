@@ -25,7 +25,7 @@ export function QuickMemoModal({
       <motion.button
         type="button"
         aria-label="Close quick memo modal"
-        className="absolute inset-0 bg-beige900/24 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-beige900/25 backdrop-blur-[2px]"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -36,7 +36,7 @@ export function QuickMemoModal({
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 12 }}
         transition={{ duration: 0.18, ease: "easeOut" }}
-        className="absolute left-1/2 top-1/2 w-[min(520px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-beige900/10 bg-[#F4E8D8] p-4 shadow-[0_24px_80px_rgba(46,23,6,0.18)]"
+        className="absolute left-1/2 top-1/2 w-[min(520px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-beige900/10 bg-[#F4E8D8] p-4 shadow-[0_24px_80px_rgba(46,23,6,0.2)]"
       >
         <div className="mb-3 font-geist text-sm text-beige900/65">
           {lead.name ?? "이름 없음"} 메모

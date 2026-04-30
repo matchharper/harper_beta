@@ -29,6 +29,8 @@ export type CareerTalentExperience = {
   start_date: string | null;
   end_date: string | null;
   months: number | null;
+  company_id: string | null;
+  company_link: string | null;
   company_name: string | null;
   company_location: string | null;
   company_logo: string | null;
@@ -79,6 +81,8 @@ export type CareerTalentPreferences = {
   preferredLocations: string[];
   careerMoveIntent: string | null;
   careerMoveIntentLabel: string | null;
+  periodicIntervalDays: number;
+  recommendationBatchSize: number;
 };
 
 export type CareerTalentInsights = Record<string, string>;
@@ -127,7 +131,9 @@ export type CareerHistoryOpportunity = {
   opportunityType: OpportunityType;
   postedAt: string | null;
   recommendedAt: string;
+  recommendationConcerns?: string[];
   recommendationReasons: string[];
+  recommendationSummary?: string | null;
   roleId: string;
   savedStage: CareerOpportunitySavedStage | null;
   sourceJobId: string | null;
@@ -144,6 +150,67 @@ export type CareerTalentNotification = {
   message: string | null;
   isRead: boolean;
   createdAt: string;
+};
+
+export type CareerOpportunityRun = {
+  chatPreviewCount: number;
+  completedAt: string | null;
+  coverage: Record<string, unknown>;
+  createdAt: string;
+  errorMessage: string | null;
+  id: string;
+  inputLocked: boolean;
+  startedAt: string | null;
+  status: string;
+  targetRecommendationCount: number;
+  trigger: string;
+};
+
+export type CareerMockInterviewType = "technical" | "fit" | "mixed";
+
+export type CareerMockInterviewSetup = {
+  companyName: string;
+  durationMinutes: number;
+  feedback: string;
+  focus: string;
+  goal: string;
+  interviewTypes: Array<{ id: CareerMockInterviewType; label: string }>;
+  roleTitle: string;
+  sessionId: string;
+  subtitle: string;
+  title: string;
+};
+
+export type CareerMockInterviewSession = {
+  companyName: string;
+  completedAt: string | null;
+  conversationId: string;
+  createdAt: string;
+  durationMinutes: number;
+  id: string;
+  interviewType: CareerMockInterviewType;
+  opportunityId: string | null;
+  roleId: string | null;
+  roleTitle: string;
+  setup: CareerMockInterviewSetup | null;
+  startedAt: string | null;
+  status:
+    | "preparing"
+    | "ready"
+    | "in_progress"
+    | "completed"
+    | "cancelled"
+    | "failed";
+};
+
+export type CareerCompanySnapshotSetup = {
+  buttonLabel: string;
+  cacheWindowDays: number;
+  cachedAvailable: boolean;
+  companyName: string;
+  reason: string | null;
+  subtitle: string;
+  title: string;
 };
 
 export type CareerHistoryItem = {
@@ -163,7 +230,10 @@ export type CareerMessage = {
   role: MessageRole;
   content: string;
   messageType: string;
+  companySnapshotSetup?: CareerCompanySnapshotSetup | null;
   createdAt: string;
+  mockInterviewSetup?: CareerMockInterviewSetup | null;
+  opportunityPreview?: CareerHistoryOpportunity[];
   typing?: boolean;
 };
 
@@ -172,7 +242,10 @@ export type CareerMessagePayload = {
   role: MessageRole;
   content: string;
   messageType: string;
+  companySnapshotSetup?: CareerCompanySnapshotSetup | null;
   createdAt: string;
+  mockInterviewSetup?: CareerMockInterviewSetup | null;
+  opportunityPreview?: CareerHistoryOpportunity[];
 };
 
 export type CareerProfileSettingsMeta = {
@@ -184,6 +257,7 @@ export type CareerProfileSettingsMeta = {
 };
 
 export type SessionResponse = {
+  activeCompanyRoleCount?: number;
   conversation: {
     id: string;
     stage: CareerStage;
@@ -203,6 +277,8 @@ export type SessionResponse = {
   recentOpportunities?: CareerRecentOpportunity[];
   profileSettingsMeta?: CareerProfileSettingsMeta;
   talentProfile?: CareerTalentProfile;
+  opportunityRun?: CareerOpportunityRun | null;
+  mockInterviewSession?: CareerMockInterviewSession | null;
   messages: CareerMessagePayload[];
   nextBeforeMessageId: number | null;
 };

@@ -44,9 +44,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Onboarding2Content } from "./onboarding2";
 import { logger } from "@/utils/logger";
-import { BeigeCheckbox } from "@/components/ui/BeigeCheckbox";
+import { BeigeCheckbox } from "@/components/ui/beige/checkbox";
 
 type CompanyRequest = {
   id: string;
@@ -367,7 +366,7 @@ export const NetworkButton = ({
       whileTap={{ scale: 0.985 }}
       className={`group relative inline-flex items-center justify-center overflow-hidden font-geist font-medium tracking-[-0.03em] transition-shadow duration-300 ${
         isPrimary
-          ? "rounded-[12px] bg-beige900 text-beige100 shadow-[0_10px_20px_rgba(46,23,6,0.08)] hover:shadow-[0_18px_40px_rgba(46,23,6,0.18)]"
+          ? "rounded-[12px] bg-beige900 text-beige100 shadow-[0_10px_20px_rgba(46,23,6,0.1)] hover:shadow-[0_18px_40px_rgba(46,23,6,0.2)]"
           : "rounded-[12px] bg-beige500/70 text-beige900 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]"
       } ${
         isSmall
@@ -432,7 +431,7 @@ const RequestCard = ({
         onClick={onClick}
         className={`group relative flex h-full min-h-[140px] md:min-h-[148px] w-full flex-col justify-between rounded-md bg-beige100/80 p-4 md:p-5 text-left transition-all duration-200 outline ${
           isHighlighted
-            ? "border border-beige900 outline-2 outline-beige900 shadow-[0_18px_40px_rgba(46,23,6,0.12)]"
+            ? "border border-beige900 outline-2 outline-beige900 shadow-[0_18px_40px_rgba(46,23,6,0.1)]"
             : "border border-beige900/10 outline-1 outline-beige900/0 hover:outline-beige900/90 hover:border-beige900/90"
         }`}
       >
@@ -492,7 +491,7 @@ const RequestDetailModal = ({
       <span className="py-1 px-2 rounded-lg bg-beige500 text-sm font-medium tracking-[-0.01em] text-beige900/90 ml-[-2px]">
         {label}
       </span>
-      <div className="text-[15px] leading-[1.75] tracking-[-0.02em] text-beige900/82">
+      <div className="text-[15px] leading-[1.75] tracking-[-0.02em] text-beige900/80">
         {children}
       </div>
     </section>
@@ -523,7 +522,7 @@ const RequestDetailModal = ({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 12, scale: 0.985 }}
         transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-        className="relative z-10 flex max-h-[calc(100vh-32px)] w-full max-w-[640px] flex-col overflow-hidden rounded-2xl border border-beige900/8 bg-beige100 shadow-[0_20px_60px_rgba(37,20,6,0.14)]"
+        className="relative z-10 flex max-h-[calc(100vh-32px)] w-full max-w-[640px] flex-col overflow-hidden rounded-2xl border border-beige900/10 bg-beige100 shadow-[0_20px_60px_rgba(37,20,6,0.15)]"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="overflow-y-auto px-6 py-6 md:px-7 md:py-7 relative">
@@ -537,7 +536,7 @@ const RequestDetailModal = ({
             <button
               type="button"
               onClick={onClose}
-              className="absolute right-3 top-3 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-beige900/55 transition hover:border-beige900/18 hover:bg-beige900/[0.03] hover:text-beige900/80"
+              className="absolute right-3 top-3 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-beige900/55 transition hover:border-beige900/20 hover:bg-beige900/[0.05] hover:text-beige900/80"
               aria-label="Close request details"
             >
               <X className="h-4 w-4" />
@@ -653,14 +652,14 @@ const InquiryModal = ({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 12, scale: 0.985 }}
         transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-        className="relative z-10 w-full max-w-[560px] rounded-2xl border border-beige900/8 bg-beige200 p-6 shadow-[0_20px_60px_rgba(37,20,6,0.14)] md:p-7"
+        className="relative z-10 w-full max-w-[560px] rounded-2xl border border-beige900/10 bg-beige200 p-6 shadow-[0_20px_60px_rgba(37,20,6,0.15)] md:p-7"
         onClick={(event) => event.stopPropagation()}
       >
         <button
           type="button"
           onClick={onClose}
           disabled={isSubmitting}
-          className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-lg text-beige900/55 transition hover:bg-beige900/[0.03] hover:text-beige900/80 disabled:cursor-not-allowed disabled:opacity-40"
+          className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-lg text-beige900/55 transition hover:bg-beige900/[0.05] hover:text-beige900/80 disabled:cursor-not-allowed disabled:opacity-40"
           aria-label="문의 모달 닫기"
         >
           <X className="h-4 w-4" />
@@ -686,7 +685,7 @@ const InquiryModal = ({
               value={email}
               onChange={(event) => onEmailChange(event.target.value)}
               placeholder="example@example.com"
-              className="h-12 w-full rounded-xl border border-beige900/12 bg-white/70 px-4 text-[15px] text-beige900 outline-none transition focus:border-beige900/30 focus:ring-1 focus:ring-beige900/20 placeholder:text-beige900/30"
+              className="h-12 w-full rounded-xl border border-beige900/10 bg-white/70 px-4 text-[15px] text-beige900 outline-none transition focus:border-beige900/30 focus:ring-1 focus:ring-beige900/20 placeholder:text-beige900/30"
             />
           </div>
 
@@ -699,7 +698,7 @@ const InquiryModal = ({
               onChange={(event) => onContentChange(event.target.value)}
               rows={4}
               placeholder="문의하실 내용을 입력해 주세요."
-              className="w-full rounded-xl border border-beige900/12 bg-white/70 px-4 py-3 text-[15px] leading-[1.6] text-beige900 outline-none transition focus:border-beige900/30 focus:ring-1 focus:ring-beige900/20 placeholder:text-beige900/30 resize-none"
+              className="w-full rounded-xl border border-beige900/10 bg-white/70 px-4 py-3 text-[15px] leading-[1.6] text-beige900 outline-none transition focus:border-beige900/30 focus:ring-1 focus:ring-beige900/20 placeholder:text-beige900/30 resize-none"
             />
           </div>
         </div>
@@ -709,7 +708,7 @@ const InquiryModal = ({
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            className="inline-flex h-11 items-center justify-center rounded-xl border border-beige900/12 bg-white/60 px-4 text-sm font-medium text-beige900/80 transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex h-11 items-center justify-center rounded-xl border border-beige900/10 bg-white/60 px-4 text-sm font-medium text-beige900/80 transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-40"
           >
             닫기
           </button>
@@ -766,14 +765,14 @@ const ReferralShareModal = ({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 10, scale: 0.985 }}
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-        className="relative z-10 w-[96%] max-w-[420px] rounded-2xl border border-beige900/8 bg-beige100 p-5 shadow-[0_20px_60px_rgba(37,20,6,0.14)]"
+        className="relative z-10 w-[96%] max-w-[420px] rounded-2xl border border-beige900/10 bg-beige100 p-5 shadow-[0_20px_60px_rgba(37,20,6,0.15)]"
         onClick={(event) => event.stopPropagation()}
       >
         <button
           type="button"
           onClick={onClose}
           disabled={isSubmitting}
-          className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-beige900/55 transition hover:bg-beige900/[0.03] hover:text-beige900/80 disabled:cursor-not-allowed disabled:opacity-40"
+          className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-beige900/55 transition hover:bg-beige900/[0.05] hover:text-beige900/80 disabled:cursor-not-allowed disabled:opacity-40"
           aria-label="공유 모달 닫기"
         >
           <X className="h-4 w-4" />
@@ -794,7 +793,7 @@ const ReferralShareModal = ({
             value={email}
             onChange={(event) => onEmailChange(event.target.value)}
             placeholder="example@example.com"
-            className="h-11 w-full rounded-md border border-beige900/12 bg-white/75 px-4 text-[15px] text-beige900 outline-none transition focus:border-beige900/30 focus:ring-1 focus:ring-beige900/20 placeholder:text-beige900/30"
+            className="h-11 w-full rounded-md border border-beige900/10 bg-white/75 px-4 text-[15px] text-beige900 outline-none transition focus:border-beige900/30 focus:ring-1 focus:ring-beige900/20 placeholder:text-beige900/30"
           />
         </div>
 
@@ -803,7 +802,7 @@ const ReferralShareModal = ({
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            className="inline-flex h-10 items-center justify-center rounded-xl border border-beige900/12 bg-white/60 px-4 text-sm font-medium text-beige900/80 transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex h-10 items-center justify-center rounded-xl border border-beige900/10 bg-white/60 px-4 text-sm font-medium text-beige900/80 transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-40"
           >
             닫기
           </button>
@@ -845,7 +844,7 @@ const QuickApplyTextInput = ({
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
-      className="h-10 px-2.5 text-sm w-full rounded-md border border-beige900/12 bg-white/75 text-[15px] text-beige900 outline-none transition focus:border-beige900/30 focus:ring-1 focus:ring-beige900/20 placeholder:text-beige900/30"
+      className="h-10 px-2.5 text-sm w-full rounded-md border border-beige900/10 bg-white/75 text-[15px] text-beige900 outline-none transition focus:border-beige900/30 focus:ring-1 focus:ring-beige900/20 placeholder:text-beige900/30"
     />
   );
 };
@@ -904,14 +903,14 @@ const QuickApplyModal = ({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 10, scale: 0.985 }}
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-        className="relative z-10 w-full min-h-screen md:min-h-fit md:max-w-[460px] md:rounded-lg border border-beige900/10 bg-beige100 p-4 shadow-[0_20px_60px_rgba(37,20,6,0.14)] md:p-5"
+        className="relative z-10 w-full min-h-screen md:min-h-fit md:max-w-[460px] md:rounded-lg border border-beige900/10 bg-beige100 p-4 shadow-[0_20px_60px_rgba(37,20,6,0.15)] md:p-5"
         onClick={(event) => event.stopPropagation()}
       >
         <button
           type="button"
           onClick={onClose}
           disabled={isSubmitting}
-          className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-beige900/55 transition hover:bg-beige900/[0.03] hover:text-beige900/80 disabled:cursor-not-allowed disabled:opacity-40"
+          className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-beige900/55 transition hover:bg-beige900/[0.05] hover:text-beige900/80 disabled:cursor-not-allowed disabled:opacity-40"
           aria-label="지원 모달 닫기"
         >
           <X className="h-4 w-4" />
@@ -980,7 +979,7 @@ const QuickApplyModal = ({
             <label className="mb-2 block text-sm font-medium tracking-[-0.02em] text-beige900/70">
               이력서 업로드 (optional)
             </label>
-            <label className="flex cursor-pointer items-center justify-between rounded-md border border-dashed border-beige900/20 bg-beige200/65 px-3 py-2 transition hover:border-beige900/32 hover:bg-beige200">
+            <label className="flex cursor-pointer items-center justify-between rounded-md border border-dashed border-beige900/20 bg-beige200/65 px-3 py-2 transition hover:border-beige900/30 hover:bg-beige200">
               <div className="flex min-w-0 items-center gap-3">
                 <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-beige900/10 bg-white/80 text-beige900/70">
                   {resumeFileName ? (
@@ -990,7 +989,7 @@ const QuickApplyModal = ({
                   )}
                 </span>
                 <div className="min-w-0">
-                  <div className="truncate text-[13px] font-medium text-beige900/78">
+                  <div className="truncate text-[13px] font-medium text-beige900/80">
                     {resumeFileName || "파일 선택"}
                   </div>
                   <div className="text-xs text-beige900/45">
@@ -1061,7 +1060,6 @@ const NetworkPage = () => {
   const isMobile = useIsMobile();
   const [openFaqIndex, setOpenFaqIndex] = useState(0);
   const [showPreloader, setShowPreloader] = useState(true);
-  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [isMobileHeaderVisible, setIsMobileHeaderVisible] = useState(true);
   const [selectedOnboardingRole, setSelectedOnboardingRole] = useState<
     string | undefined
@@ -1167,18 +1165,23 @@ const NetworkPage = () => {
     (eventType: string, role?: string) => {
       void addLandingLog(eventType);
       setSelectedOnboardingRole(role);
+      void addLandingLog("talent_network_cta_flow_v2_login_open");
 
-      if (ctaExperimentType === TALENT_NETWORK_CTA_EXPERIMENT_TYPE_B) {
-        void addLandingLog("talent_network_cta_flow_v1_modal_open");
-        resetQuickApplyForm();
-        setIsQuickApplyOpen(true);
-        return;
+      const nextSearchParams = new URLSearchParams();
+      if (role) {
+        nextSearchParams.set("role", role);
       }
 
-      void addLandingLog("talent_network_cta_flow_v1_onboarding_open");
-      setIsOnboardingOpen(true);
+      const nextQuery = nextSearchParams.toString();
+      const nextPath = `/career/onboarding${nextQuery ? `?${nextQuery}` : ""}`;
+      const loginSearchParams = new URLSearchParams({
+        next: nextPath,
+        source: "network",
+      });
+
+      void router.push(`/career_login?${loginSearchParams.toString()}`);
     },
-    [addLandingLog, ctaExperimentType, resetQuickApplyForm]
+    [addLandingLog, router]
   );
 
   const openShareModal = useCallback(() => {
@@ -1265,11 +1268,12 @@ const NetworkPage = () => {
     if (hasAutoOpenedCampaignRef.current) return;
 
     hasAutoOpenedCampaignRef.current = true;
-    resetQuickApplyForm();
     setSelectedOnboardingRole("Wonderful");
-    setIsQuickApplyOpen(true);
-    void addLandingLog("talent_network_cta_flow_v1_wonderful_auto_open");
-  }, [addLandingLog, quickApplyCampaign, resetQuickApplyForm, showPreloader]);
+    openNetworkCta(
+      "talent_network_cta_flow_v2_wonderful_auto_login",
+      "Wonderful"
+    );
+  }, [openNetworkCta, quickApplyCampaign, showPreloader]);
 
   useEffect(() => {
     const queryReferral = routerQuery[TALENT_NETWORK_REFERRAL_QUERY_KEY];
@@ -1462,7 +1466,6 @@ const NetworkPage = () => {
 
   useEffect(() => {
     const isOverlayOpen =
-      isOnboardingOpen ||
       selectedRequest !== null ||
       isInquiryOpen ||
       isShareModalOpen ||
@@ -1480,11 +1483,6 @@ const NetworkPage = () => {
       if (event.key !== "Escape") return;
 
       event.preventDefault();
-
-      if (isOnboardingOpen) {
-        setIsOnboardingOpen(false);
-        return;
-      }
 
       if (isQuickApplyOpen) {
         closeQuickApplyModal();
@@ -1515,7 +1513,6 @@ const NetworkPage = () => {
     closeInquiryModal,
     closeQuickApplyModal,
     isInquiryOpen,
-    isOnboardingOpen,
     isQuickApplyOpen,
     isShareModalOpen,
     selectedRequest,
@@ -1953,7 +1950,7 @@ const NetworkPage = () => {
           )}
         </AnimatePresence>
 
-        {/* <div className="fixed bottom-4 left-4 z-[170] rounded-xl border border-beige900/15 bg-beige200/95 p-3 shadow-[0_12px_30px_rgba(37,20,6,0.14)] backdrop-blur">
+        {/* <div className="fixed bottom-4 left-4 z-[170] rounded-xl border border-beige900/15 bg-beige200/95 p-3 shadow-[0_12px_30px_rgba(37,20,6,0.15)] backdrop-blur">
           <div className="text-[11px] font-medium tracking-[0.14em] text-beige900/45">
             AB Test Preview
           </div>
@@ -2080,7 +2077,7 @@ const NetworkPage = () => {
             >
               <div className="flex flex-row items-center justify-center gap-2">
                 <div className="relative items-baseline gap-1 font-normal flex text-[15px] md:text-base">
-                  <div>100+ engineers and researchers From </div>
+                  <div>150+ engineers and researchers From </div>
                 </div>
                 <div className="flex -space-x-2">
                   {schoolLogos.map((school) => (
@@ -2259,7 +2256,7 @@ const NetworkPage = () => {
                       type="button"
                       onClick={() => handleFaqToggle(index, isOpen)}
                       aria-expanded={isOpen}
-                      className="w-full rounded-[24px] bg-beige100 px-6 py-6 shadow-[0_14px_30px_rgba(66,38,10,0.06)]"
+                      className="w-full rounded-[24px] bg-beige100 px-6 py-6 shadow-[0_14px_30px_rgba(66,38,10,0.05)]"
                     >
                       <div className="flex items-center justify-between gap-8">
                         <div className="text-left text-sm md:text-base font-medium leading-[1.24] tracking-[-0.04em] text-beige900">
@@ -2462,33 +2459,6 @@ const NetworkPage = () => {
               onResumeChange={setQuickApplyResumeFile}
               onContactConsentChange={setHasQuickApplyConsent}
             />
-          )}
-        </AnimatePresence>
-
-        <AnimatePresence>
-          {isOnboardingOpen && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[140] overflow-y-auto bg-beige200"
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  void addLandingLog("talent_network_click_onboarding_close");
-                  setIsOnboardingOpen(false);
-                }}
-                className="fixed right-4 top-4 z-[150] inline-flex h-10 w-10 items-center justify-center rounded-md text-beige900 transition hover:bg-beige900/10 md:right-8 md:top-6"
-                aria-label="Close onboarding"
-              >
-                <X className="h-5 w-5" />
-              </button>
-              <Onboarding2Content
-                selectedRole={selectedOnboardingRole}
-                onDone={() => setIsOnboardingOpen(false)}
-              />
-            </motion.div>
           )}
         </AnimatePresence>
       </div>

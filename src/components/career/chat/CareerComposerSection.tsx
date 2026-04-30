@@ -1,3 +1,4 @@
+import React from "react";
 import {
   ArrowUp,
   AudioLines,
@@ -6,17 +7,11 @@ import {
   MicOff,
   Phone,
   PhoneOff,
-  Plus,
-  X,
 } from "lucide-react";
 import { KeyboardEvent, useState } from "react";
 import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
 import { isOnboardingPaused } from "@/hooks/career/careerHelpers";
-import {
-  CareerPrimaryButton,
-  CareerSecondaryButton,
-  careerCx,
-} from "../ui/CareerPrimitives";
+import { CareerSecondaryButton, careerCx } from "../ui/CareerPrimitives";
 import CareerVoiceInputLevelFill from "./CareerVoiceInputLevelFill";
 
 const CareerComposerSection = () => {
@@ -29,7 +24,9 @@ const CareerComposerSection = () => {
     profilePending,
     chatPending,
     assistantTyping,
+    opportunitySearchLocked,
     onboardingBeginPending,
+    callStartPending = false,
     onboardingPausePending,
     showVoiceStartPrompt,
     inputMode,
@@ -49,6 +46,7 @@ const CareerComposerSection = () => {
   const [chatLinkDraft, setChatLinkDraft] = useState("");
   const [showLinkInput, setShowLinkInput] = useState(false);
   const onboardingPaused = isOnboardingPaused(messages);
+  const isStartingCall = onboardingBeginPending || callStartPending;
 
   const isComposerLocked =
     !user ||
@@ -57,10 +55,11 @@ const CareerComposerSection = () => {
     stage === "profile" ||
     showVoiceStartPrompt ||
     profilePending ||
-    onboardingBeginPending ||
+    isStartingCall ||
     onboardingPausePending ||
     chatPending ||
-    assistantTyping;
+    assistantTyping ||
+    opportunitySearchLocked;
 
   const composerPlaceholder = !user
     ? "로그인 후 대화를 시작할 수 있습니다."
@@ -70,9 +69,11 @@ const CareerComposerSection = () => {
         ? "아래 시작 버튼으로 대화를 시작해 주세요."
         : onboardingPaused
           ? "바로 입력하면 대화가 이어집니다."
-          : profilePending
-            ? "이력서와 링크를 분석 중입니다."
-            : "Harper에게 답변을 입력하세요.";
+          : opportunitySearchLocked
+            ? "기회를 찾는 중입니다. 검색이 끝나면 다시 입력할 수 있습니다."
+            : profilePending
+              ? "이력서와 링크를 분석 중입니다."
+              : "Harper에게 답변을 입력하세요.";
 
   const showCallQuickAction =
     Boolean(user) &&
@@ -110,7 +111,7 @@ const CareerComposerSection = () => {
   };
 
   return (
-    <div className="sticky bottom-0 px-5 py-4">
+    <div className="sticky bottom-0 shrink-0 px-5 py-4">
       <div className="mx-auto w-full max-w-[1120px]">
         {isVoiceMode ? (
           <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -168,9 +169,10 @@ const CareerComposerSection = () => {
           </div>
         ) : null}
 
-        <div className="rounded-3xl border border-beige900/20 transition-all duration-200 focus-within:border-beige900/40 focus-within:shadow-[0_0_16px_rgba(0,0,0,0.08)] bg-white px-4 py-4 shadow-[0_0_16px_rgba(0,0,0,0.04)]">
-          <div className="relative flex items-end">
+        <div className="rounded-3xl border border-beige900/20 transition-all duration-200 focus-within:border-beige900/40 focus-within:shadow-[0_0_16px_rgba(0,0,0,0.1)] bg-white px-3 py-3 shadow-[0_0_16px_rgba(0,0,0,0.05)]">
+          <div className="relative flex items-end gap-2">
             <textarea
+              id="career-chat-composer"
               value={isVoiceMode ? voiceTranscript : draft}
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={handleComposerKeyDown}
@@ -184,22 +186,18 @@ const CareerComposerSection = () => {
               }
               disabled={isComposerLocked}
               className={careerCx(
-                "w-full resize-none border-none bg-transparent px-0.5 py-1 text-[15px] leading-7 text-beige900 outline-none transition-all placeholder:text-beige900/35 disabled:cursor-not-allowed",
-                isVoiceMode
-                  ? "min-h-[64px] max-h-[120px]"
-                  : "min-h-[88px] max-h-[152px]",
-                !isVoiceMode &&
-                  (showCallQuickAction ? "pr-[176px]" : "pr-[90px]")
+                "min-w-0 flex-1 resize-none border-none px-0.5 py-1 text-[15px] leading-5 text-beige900 outline-none transition-all placeholder:text-beige900/35 disabled:cursor-not-allowed",
+                isVoiceMode ? "min-h-[64px]" : "min-h-[88px]"
               )}
             />
             {!isVoiceMode && (
-              <div className="absolute bottom-1 right-0 flex items-center gap-2">
+              <div className="absolute bottom-0 right-0 flex items-center gap-2">
                 {showCallQuickAction && (
                   <>
                     <button
                       type="button"
                       onClick={() => onStartVoiceCall()}
-                      disabled={isComposerLocked || onboardingBeginPending}
+                      disabled={isComposerLocked || isStartingCall}
                       className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-beige900/15 bg-white/45 text-beige900/50 transition-colors hover:border-beige900/30 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-50"
                       aria-label="음성 모드"
                     >
@@ -208,12 +206,16 @@ const CareerComposerSection = () => {
                     <button
                       type="button"
                       onClick={() => onStartCallMode?.()}
-                      disabled={isComposerLocked || onboardingBeginPending}
+                      disabled={isComposerLocked || isStartingCall}
                       className="inline-flex h-9 px-3 gap-2 text-sm items-center justify-center rounded-[8px] border border-beige900/50 bg-beige900 text-beige50 transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                       aria-label="통화 모드"
                     >
-                      <Phone className="h-3.5 w-3.5" />
-                      전화 하기
+                      {isStartingCall ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Phone className="h-3.5 w-3.5" />
+                      )}
+                      {isStartingCall ? "연결 중..." : "전화 하기"}
                     </button>
                   </>
                 )}
@@ -238,4 +240,4 @@ const CareerComposerSection = () => {
   );
 };
 
-export default CareerComposerSection;
+export default React.memo(CareerComposerSection);

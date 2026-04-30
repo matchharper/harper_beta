@@ -15,57 +15,30 @@ import {
   INSIGHT_CHECKLIST,
 } from "@/lib/talentOnboarding/insightChecklist";
 import { TALENT_INTERVIEW_MIN_COVERAGE } from "@/lib/talentOnboarding/progress";
-import { getInterruptHandling, getCallEndInstruction } from "@/lib/talentOnboarding/interviewSteps";
-import { warmCache, getTestFlagSlugs, getContentForUser } from "@/lib/talentOnboarding/prompts/promptCache";
+import { warmCache } from "@/lib/talentOnboarding/prompts/promptCache";
 import {
   buildTalentToolPolicy,
   getTalentToolVoicePreambles,
   getRealtimeTools,
 } from "@/lib/talentOnboarding/tools";
-
-function buildRecentConversationSection(
-  messages: Array<{
-    role: string;
-    content: string;
-  }>
-) {
-  const recentMessages = messages.filter((message) => message.content.trim());
-  if (recentMessages.length === 0) return "";
-
-  const MAX_TOTAL = 2200;
-  const MAX_PER_MESSAGE = 280;
-  let section =
-    "\n## 최근 대화 내역 (이전 흐름을 이어서 자연스럽게 대화)\n";
-  let totalLength = section.length;
-
-  for (const message of recentMessages) {
-    const roleLabel = message.role === "assistant" ? "Harper" : "사용자";
-    const normalizedContent = message.content.replace(/\s+/g, " ").trim();
-    const truncatedContent =
-      normalizedContent.length > MAX_PER_MESSAGE
-        ? `${normalizedContent.slice(0, MAX_PER_MESSAGE)}...`
-        : normalizedContent;
-    const line = `- ${roleLabel}: ${truncatedContent}\n`;
-
-    if (totalLength + line.length > MAX_TOTAL) break;
-    section += line;
-    totalLength += line.length;
-  }
-
-  section +=
-    "위 대화의 마지막 맥락에서 이어서 말하고, 이미 한 소개나 질문을 처음부터 반복하지 마라.";
-  return section;
-}
+import { buildRealtimeMockInterviewInstructions } from "@/lib/mockInterview/server";
+import {
+  getCareerCallEndInstructionPrompt,
+  getCareerInterruptHandlingPrompt,
+  buildCareerRealtimeInstructionsPrompt,
+  buildCareerRealtimeRecentConversationSection,
+} from "@/lib/career/prompts";
+import { getCareerRealtimeSessionConfig } from "@/lib/career/llm";
 
 /**
- * Load the flat career-chat prompt from DB and inject channel_type + dynamic context.
+ * Build realtime instructions from the shared Harper system prompt plus
+ * voice-only guidance and dynamic context.
  */
 async function buildRealtimeInstructions(
   userId: string,
   conversationId: string
 ): Promise<string> {
   await warmCache();
-  const testSlugs = await getTestFlagSlugs(userId);
 
   const admin = getTalentSupabaseAdmin();
 
@@ -106,65 +79,31 @@ async function buildRealtimeInstructions(
   const thresholdPercent = Math.round(TALENT_INTERVIEW_MIN_COVERAGE * 100);
   const shouldWrapUpNow = coverageRatio >= TALENT_INTERVIEW_MIN_COVERAGE;
 
-  const topUncovered = uncoveredItems
-    .slice(0, 3)
-    .map((item) => `- ${item.promptHint}`)
-    .join("\n");
-
-  const linkText = (profile?.resume_links ?? []).join(", ");
-  const recentConversationSection = buildRecentConversationSection(
-    visibleMessages.map((message) => ({
-      role: message.role,
-      content: message.content,
-    }))
-  );
+  const recentConversationSection =
+    buildCareerRealtimeRecentConversationSection(
+      visibleMessages.map((message) => ({
+        role: message.role,
+        content: message.content,
+      }))
+    );
   const toolPolicy = buildTalentToolPolicy("voice");
 
-  // Build existing insights section (capped at 1500 chars for Realtime context budget)
-  let existingInsightsSection = "";
-  if (currentInsightContent && Object.keys(currentInsightContent).length > 0) {
-    const MAX_TOTAL = 1500;
-    let section = "\n## 이미 알고 있는 정보 (재질문 금지, 더 깊은 질문에 활용)\n";
-    let totalLen = section.length;
-    for (const [key, value] of Object.entries(currentInsightContent).sort(([a], [b]) => a.localeCompare(b))) {
-      const truncated = value.length > 120 ? value.slice(0, 120) + "..." : value;
-      const line = `- ${key}: ${truncated}\n`;
-      if (totalLen + line.length > MAX_TOTAL) break;
-      section += line;
-      totalLen += line.length;
-    }
-    existingInsightsSection = section;
-  }
-
-  // Load flat prompt from DB and inject channel type
-  const flatPrompt = getContentForUser("career-chat", testSlugs) ?? "";
-  const prompt = flatPrompt.replace(/\{channel_type\}/g, "Voice");
-
-  return [
-    prompt,
-    "",
-    getInterruptHandling(),
-    "",
-    getCallEndInstruction(),
-    "",
-    toolPolicy,
-    "",
-    existingInsightsSection,
-    "",
+  return buildCareerRealtimeInstructionsPrompt({
+    callEndInstruction: getCareerCallEndInstructionPrompt(),
+    coveredCount,
+    currentInsightContent,
+    interruptHandling: getCareerInterruptHandlingPrompt(),
+    isOnboardingDone: talentSetting?.is_onboarding_done,
+    profile,
     recentConversationSection,
-    "",
-    `Insight coverage: ${coveredCount}/${INSIGHT_CHECKLIST.length} items covered.`,
-    `Completion threshold: ${thresholdPercent}% coverage.`,
-    shouldWrapUpNow
-      ? `Coverage threshold is met. Stop asking new exploratory questions, briefly wrap up the call, give a warm closing, and then finish the call using the end marker rule above.`
-      : "Coverage threshold is not met yet. Keep the call going and prioritize naturally asking about these uncovered topics (one at a time):",
-    shouldWrapUpNow ? "(no more exploratory questions needed)" : topUncovered,
-    "",
-    `Current user turn count: ${userTurnCount}`,
-    `Resume file: ${profile?.resume_file_name ?? "(none)"}`,
-    `Resume links: ${linkText || "(none)"}`,
-    structuredProfileText || "[Structured Talent Profile]\n(none)",
-  ].join("\n");
+    shouldWrapUpNow,
+    structuredProfileText,
+    thresholdPercent,
+    toolPolicy,
+    totalInsightCount: INSIGHT_CHECKLIST.length,
+    uncoveredItems,
+    userTurnCount,
+  });
 }
 
 const TOKEN_RATE_LIMIT = new Map<string, { count: number; resetAt: number }>();
@@ -221,12 +160,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const instructions = await buildRealtimeInstructions(
-      user.id,
-      conversationId
+    const mockInterviewInstructions =
+      await buildRealtimeMockInterviewInstructions({
+        admin: getTalentSupabaseAdmin(),
+        conversationId,
+        userId: user.id,
+      });
+    const instructions =
+      mockInterviewInstructions ??
+      (await buildRealtimeInstructions(user.id, conversationId));
+    const tools = mockInterviewInstructions ? [] : getRealtimeTools("voice");
+    const toolVoicePreambles = mockInterviewInstructions
+      ? {}
+      : getTalentToolVoicePreambles("voice");
+    const realtimeConfig = getCareerRealtimeSessionConfig(
+      Boolean(useElevenLabsTts)
     );
-    const tools = getRealtimeTools("voice");
-    const toolVoicePreambles = getTalentToolVoicePreambles("voice");
 
     const response = await fetch(
       "https://api.openai.com/v1/realtime/sessions",
@@ -237,11 +186,11 @@ export async function POST(req: NextRequest) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gpt-realtime-1.5",
-          modalities: useElevenLabsTts ? ["text"] : ["text", "audio"],
-          ...(useElevenLabsTts ? {} : { voice: "coral" }),
+          model: realtimeConfig.model,
+          modalities: realtimeConfig.modalities,
+          ...(realtimeConfig.voice ? { voice: realtimeConfig.voice } : {}),
           input_audio_transcription: {
-            model: "gpt-4o-mini-transcribe",
+            model: realtimeConfig.transcriptionModel,
           },
           instructions,
           ...(tools.length > 0
@@ -251,10 +200,10 @@ export async function POST(req: NextRequest) {
               }
             : {}),
           turn_detection: {
-            type: "server_vad",
-            threshold: 0.7,
-            silence_duration_ms: 800,
-            prefix_padding_ms: 300,
+            type: "semantic_vad",
+            create_response: true,
+            interrupt_response: true,
+            eagerness: "auto",
           },
           input_audio_noise_reduction: { type: "near_field" },
         }),

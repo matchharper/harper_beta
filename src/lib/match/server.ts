@@ -34,7 +34,6 @@ type WorkspaceRow = {
   created_at: string;
   homepage_url: string | null;
   linkedin_url: string | null;
-  logo_storage_path: string | null;
   logo_url: string | null;
   updated_at: string;
 };
@@ -217,7 +216,6 @@ function mapWorkspaceRecord(args: {
     createdAt: String(args.row.created_at ?? ""),
     homepageUrl: args.row.homepage_url ?? null,
     linkedinUrl: args.row.linkedin_url ?? null,
-    logoStoragePath: args.row.logo_storage_path ?? null,
     logoUrl: args.row.logo_url ?? null,
     memberRole: args.membershipRole ?? null,
     updatedAt: String(args.row.updated_at ?? args.row.created_at ?? ""),
@@ -284,7 +282,7 @@ async function fetchWorkspaceRowsByIds(
 
   const { data, error } = await ((admin.from("company_workspace" as any) as any)
     .select(
-      "company_workspace_id, company_name, homepage_url, linkedin_url, logo_url, logo_storage_path, company_description, created_at, updated_at"
+      "company_workspace_id, company_name, homepage_url, linkedin_url, logo_url, company_description, created_at, updated_at"
     )
     .in("company_workspace_id", workspaceIds)
     .order("updated_at", { ascending: false }));
@@ -474,14 +472,13 @@ export async function createMatchWorkspace(args: {
     company_name: ensureNonEmptyString(args.companyName, "companyName"),
     homepage_url: String(args.homepageUrl ?? "").trim() || null,
     linkedin_url: resolvedBranding.linkedinUrl,
-    logo_storage_path: null,
     logo_url: resolvedBranding.logoUrl,
   };
 
   const { data, error } = await ((admin.from("company_workspace" as any) as any)
     .insert(payload)
     .select(
-      "company_workspace_id, company_name, homepage_url, linkedin_url, logo_url, logo_storage_path, company_description, created_at, updated_at"
+      "company_workspace_id, company_name, homepage_url, linkedin_url, logo_url, company_description, created_at, updated_at"
     )
     .single());
 
@@ -547,7 +544,6 @@ export async function updateMatchWorkspace(args: {
       args.linkedinUrl
     );
     payload.linkedin_url = resolvedBranding.linkedinUrl;
-    payload.logo_storage_path = null;
     payload.logo_url = resolvedBranding.logoUrl;
   }
 
@@ -555,7 +551,7 @@ export async function updateMatchWorkspace(args: {
     .update(payload)
     .eq("company_workspace_id", resolved.workspace.company_workspace_id)
     .select(
-      "company_workspace_id, company_name, homepage_url, linkedin_url, logo_url, logo_storage_path, company_description, created_at, updated_at"
+      "company_workspace_id, company_name, homepage_url, linkedin_url, logo_url, company_description, created_at, updated_at"
     )
     .single());
 

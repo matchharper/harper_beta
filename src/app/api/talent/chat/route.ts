@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
-import { client } from "@/lib/llm/llm";
-import {
-  runTalentAssistantCompletion,
-  runTalentAssistantToolLoop,
-} from "@/lib/talentOnboarding/llm";
 import {
   buildTalentProfileContext,
   countUserChatTurns,
@@ -12,34 +7,47 @@ import {
   fetchTalentInsights,
   fetchTalentSetting,
   fetchTalentStructuredProfile,
-  normalizeTalentInsightKey,
   TalentConversationRow,
   TalentMessageRow,
   fetchTalentUserProfile,
   getTalentSupabaseAdmin,
-  upsertTalentInsights,
 } from "@/lib/talentOnboarding/server";
-import {
-  TALENT_INTERVIEW_FINAL_STEP,
-  TALENT_INTERVIEW_MIN_COVERAGE,
-} from "@/lib/talentOnboarding/progress";
-import {
-  warmCache,
-  getTestFlagSlugs,
-  getContentForUser,
-} from "@/lib/talentOnboarding/prompts/promptCache";
+import { TALENT_INTERVIEW_FINAL_STEP } from "@/lib/talentOnboarding/progress";
+import { warmCache } from "@/lib/talentOnboarding/prompts/promptCache";
 import {
   getUncoveredChecklistItems,
   INSIGHT_CHECKLIST,
-  type InsightChecklistItem,
 } from "@/lib/talentOnboarding/insightChecklist";
-import { normalizeExtractedInsights } from "@/lib/talentOnboarding/insights";
+import {
+  buildCareerChatPromptBlocks,
+  buildCareerInsightExtractionPrompt,
+} from "@/lib/career/prompts";
+import { runCareerChatAssistant } from "@/lib/career/llm";
 import {
   buildTalentToolPolicy,
   executeTalentTool,
   getOpenAIChatTools,
+  getStopAfterTalentToolNames,
+  TALENT_TOOL_NAMES,
 } from "@/lib/talentOnboarding/tools";
-import { logger } from "@/utils/logger";
+import { extractAndPersistChatInsights } from "@/lib/talentOnboarding/chatInsights";
+import {
+  resolveTalentOnboardingCompletion,
+  stripTalentOnboardingCompletionMarker,
+} from "@/lib/talentOnboarding/completion";
+import {
+  completeOnboardingAndQueueInitialOpportunityRun,
+  getActiveOpportunityRun,
+  serializeOpportunityRun,
+} from "@/lib/opportunityDiscovery/store";
+import {
+  buildMockInterviewReply,
+  fetchActiveMockInterviewSession,
+  MOCK_INTERVIEW_MESSAGE_TYPE,
+  prepareMockInterview,
+  serializeMockInterviewSession,
+} from "@/lib/mockInterview/server";
+import { prepareCompanySnapshot } from "@/lib/career/companySnapshot";
 
 type Body = {
   conversationId?: string;
@@ -47,131 +55,58 @@ type Body = {
   link?: string;
 };
 
-// ---------------------------------------------------------------------------
-// System prompt builder: flat prompt from DB + dynamic context
-// ---------------------------------------------------------------------------
+type PreparedMockInterviewResult = Awaited<
+  ReturnType<typeof prepareMockInterview>
+>;
+type PreparedCompanySnapshotResult = Awaited<
+  ReturnType<typeof prepareCompanySnapshot>
+>;
 
-function buildExistingInsightsSection(
-  content: Record<string, string> | null
-): string {
-  if (!content || Object.keys(content).length === 0) return "";
-  const MAX_TOTAL = 2000;
-  const MAX_PER_VALUE = 150;
-  let section = "\n## 이미 알고 있는 정보 (재질문 금지, 더 깊은 질문에 활용)\n";
-  let totalLen = section.length;
-  const sortedEntries = Object.entries(content).sort(([a], [b]) =>
-    a.localeCompare(b)
+const toResponseMessage = (item: TalentMessageRow) => ({
+  id: item.id,
+  role: item.role,
+  content: item.content,
+  messageType: item.message_type ?? "chat",
+  createdAt: item.created_at,
+});
+
+function startOpportunityDiscoveryInBackground(runId: string) {
+  console.info("[opportunity-discovery] queued for harper_worker", {
+    runId,
+  });
+}
+
+const optionalToolString = (value: unknown) => {
+  const text = typeof value === "string" ? value.trim() : "";
+  return text || null;
+};
+
+function countPromptChars(value: string | null | undefined) {
+  return typeof value === "string" ? value.length : 0;
+}
+
+function countMessageContentChars(
+  messages: Array<{ content: string | null | undefined }>
+) {
+  return messages.reduce(
+    (sum, message) => sum + countPromptChars(message.content),
+    0
   );
-  for (const [key, value] of sortedEntries) {
-    const truncated =
-      value.length > MAX_PER_VALUE
-        ? value.slice(0, MAX_PER_VALUE) + "..."
-        : value;
-    const line = `- "${key}": "${truncated}"\n`;
-    if (totalLen + line.length > MAX_TOTAL) break;
-    section += line;
-    totalLen += line.length;
-  }
-  return section;
 }
 
-function buildSystemPrompt(args: {
-  flatPrompt: string;
-  profile: {
-    resume_file_name?: string | null;
-    resume_links?: string[] | null;
-  } | null;
-  structuredProfileText: string;
-  userTurnCount: number;
-  currentInsightContent: Record<string, string> | null;
-  uncoveredItems: InsightChecklistItem[];
-  coveredCount: number;
-}) {
-  const {
-    flatPrompt,
-    profile,
-    structuredProfileText,
-    userTurnCount,
-    currentInsightContent,
-    uncoveredItems,
-    coveredCount,
-  } = args;
-
-  const linkText = (profile?.resume_links ?? []).join(", ");
-  const existingInsightsSection = buildExistingInsightsSection(
-    currentInsightContent
-  );
-  const topUncovered = uncoveredItems
-    .slice(0, 3)
-    .map((item) => `- ${item.promptHint}`)
-    .join("\n");
-
-  return [
-    flatPrompt,
-    "",
-    existingInsightsSection,
-    "",
-    `Insight coverage: ${coveredCount}/${INSIGHT_CHECKLIST.length} items covered.`,
-    "Prioritize naturally asking about these uncovered topics (one at a time):",
-    topUncovered,
-    "",
-    `Current user turn count: ${userTurnCount}`,
-    `Resume file: ${profile?.resume_file_name ?? "(none)"}`,
-    `Resume links: ${linkText || "(none)"}`,
-    structuredProfileText || "[Structured Talent Profile]\n(none)",
-  ].join("\n");
-}
-
-// ---------------------------------------------------------------------------
-// Separate insight extraction (same approach as chat/save)
-// ---------------------------------------------------------------------------
-
-function buildInsightExtractionPrompt(
-  uncoveredItems: InsightChecklistItem[],
-  coveredCount: number,
-  totalCount: number,
-  currentInsightContent: Record<string, string> | null
-): string {
-  const checklistLines = uncoveredItems
-    .map((item) => `- "${item.key}": ${item.promptHint}`)
-    .join("\n");
-
-  let existingSection = "";
-  if (currentInsightContent && Object.keys(currentInsightContent).length > 0) {
-    existingSection =
-      "\n## Currently Known Insights\n" +
-      Object.entries(currentInsightContent)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .slice(0, 20)
-        .map(
-          ([k, v]) =>
-            `- "${k}": "${v.length > 150 ? v.slice(0, 150) + "..." : v}"`
-        )
-        .join("\n");
-  }
-
-  return `You are an insight extraction assistant. Given a conversation turn between a user and Harper (an AI career counselor), extract structured career insights.
-
-Insight coverage: ${coveredCount}/${totalCount} items covered.
-${existingSection}
-
-## Checklist (extract when mentioned)
-${checklistLines}
-
-You may also extract free-form insights as snake_case keys with Korean values.
-
-## Response Format
-Return a valid JSON object:
-{
-  "extracted_insights": {
-    "key_name": { "value": "extracted value in Korean", "action": "new" | "update" }
+function countSerializedChars(value: unknown) {
+  try {
+    const serialized = JSON.stringify(value);
+    return serialized ? serialized.length : 0;
+  } catch {
+    return 0;
   }
 }
 
-- "new": key has no existing value
-- "update": user corrected or enriched a previously known insight (value = final integrated text)
-- If nothing to extract, return: { "extracted_insights": {} }
-- Only include keys where the user provided clear information.`;
+function countPromptBlockChars(
+  blocks: Array<{ text: string | null | undefined }>
+) {
+  return blocks.reduce((sum, block) => sum + countPromptChars(block.text), 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -185,7 +120,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     await warmCache();
-    const testSlugs = await getTestFlagSlugs(user.id);
 
     const body = (await req.json()) as Body;
     const conversationId = body.conversationId?.trim();
@@ -226,6 +160,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const activeRun = await getActiveOpportunityRun({
+      admin,
+      conversationId,
+      userId: user.id,
+    });
+    if (activeRun) {
+      return NextResponse.json(
+        {
+          error:
+            "기회를 찾는 중입니다. 검색이 끝나면 바로 이어서 대화할 수 있습니다.",
+          opportunityRun: serializeOpportunityRun(activeRun),
+        },
+        { status: 423 }
+      );
+    }
+
     const [profile, currentInsights, talentSetting] = await Promise.all([
       fetchTalentUserProfile({ admin, userId: user.id }),
       fetchTalentInsights({ admin, userId: user.id }),
@@ -249,10 +199,109 @@ export async function POST(req: NextRequest) {
     > | null;
     const uncoveredItems = getUncoveredChecklistItems(currentInsightContent);
     const coveredCount = INSIGHT_CHECKLIST.length - uncoveredItems.length;
+    const extractTurnInsights = (assistantContent: string) =>
+      extractAndPersistChatInsights({
+        admin,
+        assistantContent,
+        buildPrompt: (promptArgs) =>
+          buildCareerInsightExtractionPrompt({
+            coveredCount: promptArgs.coveredCount,
+            currentInsightContent: promptArgs.currentInsightContent,
+            totalCount: promptArgs.totalCount,
+            uncoveredItems: promptArgs.uncoveredItems,
+          }),
+        conversationId,
+        coveredCount,
+        currentInsightContent,
+        logPrefix: "TalentChat",
+        totalCount: INSIGHT_CHECKLIST.length,
+        uncoveredItems,
+        userId: user.id,
+      });
 
     const normalizedContent = link
       ? `${message}\n\n참고 링크: ${link}`
       : message;
+
+    const activeMockInterview = await fetchActiveMockInterviewSession({
+      admin,
+      conversationId,
+      statuses: ["in_progress"],
+      userId: user.id,
+    });
+    if (activeMockInterview) {
+      const assistantText = await buildMockInterviewReply({
+        admin,
+        conversationId,
+        userId: user.id,
+        userMessage: normalizedContent,
+      });
+      const safeAssistantText =
+        assistantText ||
+        "좋습니다. 실제 인터뷰처럼 이어가겠습니다. 방금 답변을 조금 더 구체적으로 설명해 주세요.";
+
+      const { data: insertedUserMessage, error: userMessageError } = await admin
+        .from("talent_messages")
+        .insert({
+          conversation_id: conversationId,
+          user_id: user.id,
+          role: "user",
+          content: normalizedContent,
+          message_type: MOCK_INTERVIEW_MESSAGE_TYPE,
+        })
+        .select("*")
+        .single();
+
+      if (userMessageError) {
+        return NextResponse.json(
+          {
+            error: userMessageError.message ?? "Failed to insert user message",
+          },
+          { status: 500 }
+        );
+      }
+
+      const { data: insertedAssistantMessage, error: assistantError } =
+        await admin
+          .from("talent_messages")
+          .insert({
+            conversation_id: conversationId,
+            user_id: user.id,
+            role: "assistant",
+            content: safeAssistantText,
+            message_type: MOCK_INTERVIEW_MESSAGE_TYPE,
+          })
+          .select("*")
+          .single();
+
+      if (assistantError) {
+        return NextResponse.json(
+          {
+            error:
+              assistantError.message ?? "Failed to insert assistant message",
+          },
+          { status: 500 }
+        );
+      }
+
+      const newKeysCount = await extractTurnInsights(safeAssistantText);
+
+      return NextResponse.json({
+        ok: true,
+        assistantMessage: toResponseMessage(
+          insertedAssistantMessage as TalentMessageRow
+        ),
+        mockInterviewSession:
+          serializeMockInterviewSession(activeMockInterview),
+        progress: {
+          answeredCount: 0,
+          completed: false,
+          currentStep: coveredCount + newKeysCount,
+          targetCount: TALENT_INTERVIEW_FINAL_STEP,
+        },
+        userMessage: toResponseMessage(insertedUserMessage as TalentMessageRow),
+      });
+    }
 
     const { data: insertedUserMessage, error: userMessageError } = await admin
       .from("talent_messages")
@@ -287,48 +336,187 @@ export async function POST(req: NextRequest) {
       }))
       .filter((item) => item.content.trim().length > 0);
 
-    // Load flat prompt from DB, inject channel type
-    const flatPrompt = (
-      getContentForUser("career-chat", testSlugs) ?? ""
-    ).replace(/\{channel_type\}/g, "Chat");
-
-    const baseSystemPrompt = buildSystemPrompt({
-      flatPrompt,
+    const { isOnboardingActive, promptBlocks } = buildCareerChatPromptBlocks({
+      coveredCount,
+      currentInsightContent,
+      isOnboardingDone: talentSetting?.is_onboarding_done,
       profile,
       structuredProfileText,
-      userTurnCount,
-      currentInsightContent,
+      totalInsightCount: INSIGHT_CHECKLIST.length,
       uncoveredItems,
-      coveredCount,
+      userTurnCount,
     });
-    const toolDefinitions = getOpenAIChatTools("chat");
-    const toolPolicy = buildTalentToolPolicy("chat");
-    const systemPrompt = toolPolicy
-      ? `${baseSystemPrompt}\n\n${toolPolicy}`
-      : baseSystemPrompt;
+    const toolDefinitions = isOnboardingActive
+      ? []
+      : getOpenAIChatTools("chat");
+    const toolPolicy = isOnboardingActive ? "" : buildTalentToolPolicy("chat");
+    const dynamicSystemBlock = promptBlocks[promptBlocks.length - 1];
+    const cacheablePromptBlocks = promptBlocks.slice(0, -1);
+    const profileContextBlock =
+      cacheablePromptBlocks.length > 0
+        ? cacheablePromptBlocks[cacheablePromptBlocks.length - 1]
+        : null;
+    const leadingStableBlocks =
+      profileContextBlock && cacheablePromptBlocks.length > 1
+        ? cacheablePromptBlocks.slice(0, -1)
+        : cacheablePromptBlocks;
+    const systemBlocks = toolPolicy
+      ? [
+          ...leadingStableBlocks,
+          {
+            key: "tool_policy",
+            text: toolPolicy,
+            cacheable: true,
+          },
+          ...(profileContextBlock &&
+          profileContextBlock !==
+            leadingStableBlocks[leadingStableBlocks.length - 1]
+            ? [profileContextBlock]
+            : []),
+          dynamicSystemBlock,
+        ]
+      : promptBlocks;
 
-    logger.log("[TalentChat] System prompt", { systemPrompt });
+    console.info("[career-chat:prompt-breakdown]", {
+      cacheableSystemBlockKeys: systemBlocks
+        .filter((block) => block.cacheable)
+        .map((block) => block.key),
+      label: "career/chat:assistant",
+      conversationId,
+      historyChars: countMessageContentChars(llmMessages),
+      historyMessageCount: llmMessages.length,
+      isOnboardingActive,
+      profileChars: countPromptChars(structuredProfileText),
+      systemBlockChars: countPromptBlockChars(systemBlocks),
+      systemBlockCount: systemBlocks.length,
+      toolPolicyChars: countPromptChars(toolPolicy),
+      toolSchemaChars: countSerializedChars(toolDefinitions),
+      userId: user.id,
+    });
+
+    // logger.log("\n\n [toolPolicy] : ", toolPolicy);
 
     // --- Conversation LLM call (natural language, no JSON mode) ---
-    const assistantText =
-      toolDefinitions.length > 0
-        ? await runTalentAssistantToolLoop({
-            messages: [{ role: "system", content: systemPrompt }, ...llmMessages],
-            temperature: 0.55,
-            tools: toolDefinitions,
-            executeTool: ({ name, input }) =>
-              executeTalentTool({
-                name,
-                input,
-              }),
-          })
-        : await runTalentAssistantCompletion({
-            messages: [{ role: "system", content: systemPrompt }, ...llmMessages],
-            temperature: 0.55,
+    const preparedMockInterviewRef: {
+      current: PreparedMockInterviewResult | null;
+    } = { current: null };
+    const preparedCompanySnapshotRef: {
+      current: PreparedCompanySnapshotResult | null;
+    } = { current: null };
+    const assistantText = await runCareerChatAssistant({
+      messages: llmMessages,
+      tools: toolDefinitions,
+      stopAfterToolNames: getStopAfterTalentToolNames("chat"),
+      systemBlocks,
+      executeTool: async ({ name, input }) => {
+        if (name === TALENT_TOOL_NAMES.PREPARE_MOCK_INTERVIEW) {
+          const prepared = await prepareMockInterview({
+            admin,
+            companyName: optionalToolString(input.companyName),
+            conversationId,
+            roleTitle: optionalToolString(input.roleTitle),
+            userId: user.id,
           });
+          preparedMockInterviewRef.current = prepared;
+          return {
+            ok: true,
+            result: "mock_interview_setup_ui_created",
+            session: prepared.session,
+          };
+        }
 
-    const safeAssistantText =
+        if (name === TALENT_TOOL_NAMES.PREPARE_COMPANY_SNAPSHOT) {
+          const companyName = optionalToolString(input.companyName);
+          if (!companyName) {
+            throw new Error("prepare_company_snapshot requires companyName.");
+          }
+
+          const prepared = await prepareCompanySnapshot({
+            admin,
+            companyName,
+            conversationId,
+            reason: optionalToolString(input.reason),
+            userId: user.id,
+          });
+          preparedCompanySnapshotRef.current = prepared;
+          return {
+            ok: true,
+            result: "company_snapshot_setup_ui_created",
+            setup: prepared.setup,
+          };
+        }
+
+        return executeTalentTool({
+          context: {
+            admin,
+            conversationId,
+            userId: user.id,
+          },
+          name,
+          input,
+        });
+      },
+    });
+
+    const preparedMockInterview = preparedMockInterviewRef.current;
+    if (preparedMockInterview) {
+      const preparedAssistantText =
+        preparedMockInterview.messages[
+          preparedMockInterview.messages.length - 1
+        ]?.content ?? "";
+      const newKeysCount = await extractTurnInsights(preparedAssistantText);
+
+      return NextResponse.json({
+        ok: true,
+        assistantMessage:
+          preparedMockInterview.messages[
+            preparedMockInterview.messages.length - 1
+          ],
+        assistantMessages: preparedMockInterview.messages,
+        mockInterviewSession: preparedMockInterview.session,
+        progress: {
+          answeredCount: 0,
+          completed: false,
+          currentStep: coveredCount + newKeysCount,
+          targetCount: TALENT_INTERVIEW_FINAL_STEP,
+        },
+        userMessage: toResponseMessage(insertedUserMessage as TalentMessageRow),
+      });
+    }
+
+    const preparedCompanySnapshot = preparedCompanySnapshotRef.current;
+    if (preparedCompanySnapshot) {
+      const preparedAssistantText =
+        preparedCompanySnapshot.messages[
+          preparedCompanySnapshot.messages.length - 1
+        ]?.content ?? "";
+      const newKeysCount = await extractTurnInsights(preparedAssistantText);
+
+      return NextResponse.json({
+        ok: true,
+        assistantMessage:
+          preparedCompanySnapshot.messages[
+            preparedCompanySnapshot.messages.length - 1
+          ],
+        assistantMessages: preparedCompanySnapshot.messages,
+        progress: {
+          answeredCount: userTurnCount,
+          completed: false,
+          currentStep: coveredCount + newKeysCount,
+          targetCount: TALENT_INTERVIEW_FINAL_STEP,
+        },
+        userMessage: toResponseMessage(insertedUserMessage as TalentMessageRow),
+      });
+    }
+
+    const assistantTextWithMarkers =
       assistantText.trim() ||
+      "좋은 정보 감사합니다. 이어서 가장 우선순위인 조건을 하나만 더 알려주세요.";
+    const completion = resolveTalentOnboardingCompletion({
+      assistantContent: assistantTextWithMarkers,
+    });
+    const safeAssistantText =
+      stripTalentOnboardingCompletionMarker(assistantTextWithMarkers) ||
       "좋은 정보 감사합니다. 이어서 가장 우선순위인 조건을 하나만 더 알려주세요.";
 
     // --- Save assistant message ---
@@ -354,104 +542,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // --- Separate insight extraction call ---
-    let newKeysCount = 0;
-    try {
-      const extractionPrompt = buildInsightExtractionPrompt(
-        uncoveredItems,
-        coveredCount,
-        INSIGHT_CHECKLIST.length,
-        currentInsightContent
-      );
+    const newKeysCount = await extractTurnInsights(safeAssistantText);
 
-      const extractionResponse = await client.chat.completions.create({
-        model: "gpt-4.1-mini",
-        messages: [
-          { role: "system", content: extractionPrompt },
-          { role: "user", content: normalizedContent },
-          { role: "assistant", content: safeAssistantText },
-        ],
-        temperature: 0.1,
-        response_format: { type: "json_object" },
-      });
-
-      const rawExtraction = (
-        extractionResponse.choices[0]?.message?.content ?? ""
-      )
-        .replace(/^```json\s*/i, "")
-        .replace(/\s*```$/i, "")
-        .trim();
-
-      let parsed: { extracted_insights?: Record<string, unknown> } = {};
-      try {
-        parsed = JSON.parse(rawExtraction);
-      } catch {
-        const match = rawExtraction.match(/\{[\s\S]*\}/);
-        if (match) {
-          try {
-            parsed = JSON.parse(match[0]);
-          } catch {
-            /* skip */
-          }
-        }
-      }
-
-      const extractedInsights = normalizeExtractedInsights(
-        (parsed.extracted_insights as Record<string, unknown>) ?? null
-      );
-
-      if (extractedInsights) {
-        const processedInsights: Record<string, string> = {};
-
-        for (const [rawKey, extracted] of Object.entries(extractedInsights)) {
-          const key = normalizeTalentInsightKey(rawKey);
-          if (!key || !extracted.value) continue;
-
-          const existingValue = currentInsightContent?.[key]?.trim();
-
-          if (extracted.action === "update") {
-            processedInsights[key] = extracted.value;
-          } else {
-            if (!existingValue) {
-              processedInsights[key] = extracted.value;
-            }
-          }
-        }
-
-        if (Object.keys(processedInsights).length > 0) {
-          newKeysCount = Object.keys(processedInsights).filter(
-            (k) => !currentInsightContent?.[k]?.trim()
-          ).length;
-
-          const finalContent: Record<string, string> = {
-            ...(currentInsightContent ?? {}),
-            ...processedInsights,
-          };
-
-          await upsertTalentInsights({
-            admin,
-            userId: user.id,
-            content: finalContent,
-          });
-        }
-      }
-    } catch (insightError) {
-      logger.log("[TalentChat] Failed to extract insights", {
-        userId: user.id,
-        error:
-          insightError instanceof Error
-            ? insightError.message
-            : "Unknown error",
-      });
-    }
-
-    // --- Completion check: coverage-based ---
+    // --- Completion check: explicit LLM onboarding-done marker only. ---
     const insightsCoveredAfter = coveredCount + newKeysCount;
-    const coverageRatio =
-      INSIGHT_CHECKLIST.length > 0
-        ? insightsCoveredAfter / INSIGHT_CHECKLIST.length
-        : 1;
-    const isCompleted = coverageRatio >= TALENT_INTERVIEW_MIN_COVERAGE;
+    const isCompleted = completion.completed;
 
     const now = new Date().toISOString();
     await admin
@@ -463,13 +558,19 @@ export async function POST(req: NextRequest) {
       .eq("id", conversationId)
       .eq("user_id", user.id);
 
-    const toResponseMessage = (item: TalentMessageRow) => ({
-      id: item.id,
-      role: item.role,
-      content: item.content,
-      messageType: item.message_type ?? "chat",
-      createdAt: item.created_at,
-    });
+    const completedOpportunityRun =
+      isCompleted && completion.reason
+        ? await completeOnboardingAndQueueInitialOpportunityRun({
+            admin,
+            completionReason: completion.reason,
+            conversationId,
+            source: "career_chat_completion",
+            userId: user.id,
+          })
+        : null;
+    if (completedOpportunityRun) {
+      startOpportunityDiscoveryInBackground(completedOpportunityRun.id);
+    }
 
     return NextResponse.json({
       ok: true,
@@ -477,6 +578,7 @@ export async function POST(req: NextRequest) {
       assistantMessage: toResponseMessage(
         insertedAssistantMessage as TalentMessageRow
       ),
+      opportunityRun: serializeOpportunityRun(completedOpportunityRun),
       progress: {
         answeredCount: userTurnCount,
         targetCount: TALENT_INTERVIEW_FINAL_STEP,

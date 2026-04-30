@@ -1,5 +1,5 @@
 import type { User } from "@supabase/supabase-js";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   CareerChatPanelProvider,
   type CareerChatPanelContextValue,
@@ -14,6 +14,8 @@ import {
   CareerOpportunityType,
   type CareerHistoryOpportunity,
   type CareerMessage,
+  type CareerMockInterviewSession,
+  type CareerMockInterviewType,
   type CareerNetworkApplication,
   type CareerRecentOpportunity,
   type CareerTalentInsights,
@@ -22,6 +24,51 @@ import {
   type CareerTalentProfile,
 } from "@/components/career/types";
 import { getCareerDefaultSavedStage } from "@/components/career/opportunityTypeMeta";
+import {
+  DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS,
+  DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
+} from "@/lib/talentOnboarding/recommendationSettings";
+
+const PREVIEW_NOW = Date.UTC(2026, 3, 20, 9, 0, 0);
+const previewDate = (offsetMs = 0) =>
+  new Date(PREVIEW_NOW + offsetMs).toISOString();
+const previewDaysAgo = (days: number) =>
+  previewDate(-days * 24 * 60 * 60 * 1000);
+const previewHoursAgo = (hours: number) => previewDate(-hours * 60 * 60 * 1000);
+const previewMinutesAgo = (minutes: number) =>
+  previewDate(-minutes * 60 * 1000);
+const previewInterviewTypes: Array<{
+  id: CareerMockInterviewType;
+  label: string;
+}> = [
+  { id: "technical", label: "Technical interview" },
+  { id: "fit", label: "Fit interview" },
+  { id: "mixed", label: "Mixed interview" },
+];
+
+const buildPreviewMockInterviewSetup = (
+  item?: CareerHistoryOpportunity | null,
+  sessionId = "preview-mock-interview"
+) => {
+  const companyName = item?.companyName ?? "TwelveLabs";
+  const roleTitle = item?.title ?? "Senior ML Research Engineer";
+
+  return {
+    companyName,
+    durationMinutes: 15,
+    feedback:
+      "You'll get direct feedback on your narrative and technical clarity.",
+    focus: item
+      ? `We'll cover your relevant background, role expectations, and why ${companyName} could be a fit.`
+      : "We'll cover your OptimizerAI background, multimodal embedding research, and distributed training at scale.",
+    goal: `Practice your pitch, technical deep dives, and motivations for the ${roleTitle} role.`,
+    interviewTypes: previewInterviewTypes,
+    roleTitle,
+    sessionId,
+    subtitle: `Let's prepare for your ${companyName} interview.`,
+    title: "Take a mock interview",
+  };
+};
 
 const mockUser = {
   id: "career-preview-user",
@@ -32,7 +79,7 @@ const mockUser = {
     name: "Preview Candidate",
     full_name: "Preview Candidate",
   },
-  created_at: new Date().toISOString(),
+  created_at: previewDate(),
 } as User;
 
 const initialNetworkApplication: CareerNetworkApplication = {
@@ -42,7 +89,7 @@ const initialNetworkApplication: CareerNetworkApplication = {
   githubProfileUrl: "https://github.com/preview-candidate",
   scholarProfileUrl: null,
   personalWebsiteUrl: "https://previewcandidate.dev",
-  submittedAt: new Date().toISOString(),
+  submittedAt: previewDate(),
 };
 
 const initialTalentPreferences: CareerTalentPreferences = {
@@ -51,6 +98,8 @@ const initialTalentPreferences: CareerTalentPreferences = {
   careerMoveIntent: "open_to_explore",
   careerMoveIntentLabel:
     "아직 이직 생각은 없지만, 기회를 받아보고 결정하고 싶음",
+  periodicIntervalDays: DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS,
+  recommendationBatchSize: DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
 };
 
 const initialTalentInsights: CareerTalentInsights = {
@@ -79,6 +128,8 @@ const initialTalentProfile: CareerTalentProfile = {
       start_date: "2023-01-01",
       end_date: null,
       months: 28,
+      company_id: null,
+      company_link: null,
       company_name: "Applied AI Startup",
       company_location: "Seoul",
       company_logo: null,
@@ -93,6 +144,8 @@ const initialTalentProfile: CareerTalentProfile = {
       start_date: "2020-02-01",
       end_date: "2022-12-01",
       months: 34,
+      company_id: null,
+      company_link: null,
       company_name: "Global SaaS Team",
       company_location: "Remote",
       company_logo: null,
@@ -128,13 +181,13 @@ const initialNotifications: CareerTalentNotification[] = [
     id: 1,
     message: "Harper가 당신의 프로필을 바탕으로 새 매칭 가능성을 찾았습니다.",
     isRead: false,
-    createdAt: new Date().toISOString(),
+    createdAt: previewDate(),
   },
   {
     id: 2,
     message: "프로필 링크가 최신 상태인지 확인해 주세요.",
     isRead: true,
-    createdAt: new Date(Date.now() - 1000 * 60 * 90).toISOString(),
+    createdAt: previewMinutesAgo(90),
   },
 ];
 
@@ -145,7 +198,7 @@ const initialMessages: CareerMessage[] = [
     content:
       "안녕하세요. 현재 프로필을 바탕으로 바로 대화를 이어갈 수 있어요. 지금 어떤 방향의 기회를 우선적으로 보고 싶은지 알려주세요.",
     messageType: "chat",
-    createdAt: new Date().toISOString(),
+    createdAt: previewDate(),
   },
   {
     id: 2,
@@ -153,7 +206,7 @@ const initialMessages: CareerMessage[] = [
     content:
       "정규직과 fractional 둘 다 열려 있고, 제품에 바로 연결되는 applied AI 역할을 우선적으로 보고 싶어요.",
     messageType: "chat",
-    createdAt: new Date().toISOString(),
+    createdAt: previewDate(),
   },
   {
     id: 3,
@@ -161,7 +214,15 @@ const initialMessages: CareerMessage[] = [
     content:
       "좋습니다. <<제품 임팩트가 빠르게 보이는 팀>>과 <<작은 조직에서 기술 의사결정 폭이 큰 역할>>을 우선적으로 보겠습니다.",
     messageType: "chat",
-    createdAt: new Date().toISOString(),
+    createdAt: previewDate(),
+  },
+  {
+    id: 4,
+    role: "assistant",
+    content: "Take a mock interview",
+    messageType: "mock_interview_setup",
+    createdAt: previewDate(),
+    mockInterviewSetup: buildPreviewMockInterviewSetup(),
   },
 ];
 
@@ -175,7 +236,7 @@ const initialRecentOpportunities: CareerRecentOpportunity[] = [
     summary: "작은 팀에서 제품과 모델 품질을 함께 책임질 수 있는 역할입니다.",
     location: "Seoul / Hybrid",
     engagementType: "Full-time",
-    matchedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    matchedAt: previewDaysAgo(2),
   },
   {
     id: "preview-history-2",
@@ -187,7 +248,7 @@ const initialRecentOpportunities: CareerRecentOpportunity[] = [
       "초기 제품 방향과 LLM workflow를 같이 설계할 수 있는 포지션입니다.",
     location: "US / Remote",
     engagementType: "Full-time or Fractional",
-    matchedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+    matchedAt: previewDaysAgo(4),
   },
 ];
 
@@ -217,8 +278,8 @@ const initialHistoryOpportunities: CareerHistoryOpportunity[] = [
     kind: "match",
     location: "Seoul",
     opportunityType: CareerOpportunityType.IntroRequest,
-    postedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-    recommendedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    postedAt: previewDaysAgo(4),
+    recommendedAt: previewDaysAgo(2),
     recommendationReasons: [
       "LLM 제품 론치 경험이 직접적으로 연결됩니다.",
       "작은 팀에서 제품 방향과 기술 의사결정을 함께 가져갈 수 있습니다.",
@@ -246,18 +307,18 @@ const initialHistoryOpportunities: CareerHistoryOpportunity[] = [
     employmentTypes: ["full_time", "contract"],
     externalJdUrl: "https://jobs.example.com/founding-ml",
     feedback: "positive",
-    feedbackAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    feedbackAt: previewDaysAgo(1),
     feedbackReason: null,
     href: "https://jobs.example.com/founding-ml",
-    clickedAt: new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString(),
+    clickedAt: previewHoursAgo(23),
     dismissedAt: null,
     isAccepted: false,
     isInternal: false,
     kind: "recommendation",
     location: "US",
     opportunityType: CareerOpportunityType.ExternalJd,
-    postedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-    recommendedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    postedAt: previewDaysAgo(7),
+    recommendedAt: previewDaysAgo(3),
     recommendationReasons: [
       "Remote 선호와 제품 중심 applied AI 경험이 잘 맞습니다.",
       "초기 시스템 설계와 품질 기준 수립 경험을 바로 활용할 수 있습니다.",
@@ -267,7 +328,7 @@ const initialHistoryOpportunities: CareerHistoryOpportunity[] = [
     sourceProvider: "greenhouse",
     sourceType: "external",
     status: "active",
-    viewedAt: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(),
+    viewedAt: previewHoursAgo(25),
     workMode: "remote",
   },
   {
@@ -295,8 +356,8 @@ const initialHistoryOpportunities: CareerHistoryOpportunity[] = [
     kind: "recommendation",
     location: "Tokyo",
     opportunityType: CareerOpportunityType.ExternalJd,
-    postedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
-    recommendedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+    postedAt: previewDaysAgo(8),
+    recommendedAt: previewDaysAgo(4),
     recommendationReasons: [
       "논문 기반 평가 시스템 경험이 직접적으로 이어집니다.",
       "research와 product의 중간 지점 역할을 선호하는지 확인이 필요한 기회입니다.",
@@ -324,18 +385,18 @@ const initialHistoryOpportunities: CareerHistoryOpportunity[] = [
     employmentTypes: ["full_time"],
     externalJdUrl: null,
     feedback: "negative",
-    feedbackAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+    feedbackAt: previewHoursAgo(6),
     feedbackReason: null,
     href: "https://linkedin.com/company/stealth-commerce-ai",
     clickedAt: null,
-    dismissedAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+    dismissedAt: previewHoursAgo(6),
     isAccepted: false,
     isInternal: true,
     kind: "recommendation",
     location: "Singapore",
     opportunityType: CareerOpportunityType.InternalRecommendation,
-    postedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-    recommendedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    postedAt: previewDaysAgo(10),
+    recommendedAt: previewDaysAgo(5),
     recommendationReasons: [
       "제품 오너십은 높지만 도메인 자체 선호가 갈릴 수 있습니다.",
     ],
@@ -344,23 +405,33 @@ const initialHistoryOpportunities: CareerHistoryOpportunity[] = [
     sourceProvider: null,
     sourceType: "internal",
     status: "active",
-    viewedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    viewedAt: previewDaysAgo(5),
     workMode: "hybrid",
   },
 ];
 
 const CareerPreviewPage = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<
+    "home" | "chat" | "profile" | "history"
+  >("chat");
   const [messages, setMessages] = useState<CareerMessage[]>(initialMessages);
+  const [mockInterviewSession, setMockInterviewSession] =
+    useState<CareerMockInterviewSession | null>(null);
+  const [mockInterviewPending, setMockInterviewPending] = useState(false);
   const [profileLinks, setProfileLinks] = useState<string[]>([
     "https://linkedin.com/in/preview-candidate",
     "https://github.com/preview-candidate",
+    "",
     "https://previewcandidate.dev",
+    "https://x.com/previewcandidate",
   ]);
   const [savedProfileLinks, setSavedProfileLinks] = useState<string[]>([
     "https://linkedin.com/in/preview-candidate",
     "https://github.com/preview-candidate",
+    "",
     "https://previewcandidate.dev",
+    "https://x.com/previewcandidate",
   ]);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [savedResumeFileName, setSavedResumeFileName] =
@@ -372,7 +443,7 @@ const CareerPreviewPage = () => {
     initialNetworkApplication
   );
   const [networkApplicationUpdatedAt, setNetworkApplicationUpdatedAt] =
-    useState(new Date().toISOString());
+    useState(previewDate());
   const [networkSaveInfo, setNetworkSaveInfo] = useState("");
   const [talentPreferences, setTalentPreferences] = useState(
     initialTalentPreferences
@@ -380,9 +451,8 @@ const CareerPreviewPage = () => {
   const [savedTalentPreferences, setSavedTalentPreferences] = useState(
     initialTalentPreferences
   );
-  const [talentPreferencesUpdatedAt, setTalentPreferencesUpdatedAt] = useState(
-    new Date().toISOString()
-  );
+  const [talentPreferencesUpdatedAt, setTalentPreferencesUpdatedAt] =
+    useState(previewDate());
   const [talentPreferencesSaveInfo, setTalentPreferencesSaveInfo] =
     useState("");
   const [talentInsights, setTalentInsights] = useState<CareerTalentInsights>(
@@ -390,9 +460,10 @@ const CareerPreviewPage = () => {
   );
   const [savedTalentInsights, setSavedTalentInsights] =
     useState<CareerTalentInsights>(initialTalentInsights);
-  const [talentInsightsUpdatedAt, setTalentInsightsUpdatedAt] = useState(
-    new Date().toISOString()
-  );
+  const [talentProfile, setTalentProfile] =
+    useState<CareerTalentProfile>(initialTalentProfile);
+  const [talentInsightsUpdatedAt, setTalentInsightsUpdatedAt] =
+    useState(previewDate());
   const [talentInsightsSaveInfo, setTalentInsightsSaveInfo] = useState("");
   const [profileSaveInfo, setProfileSaveInfo] = useState("");
   const [settingsSaveInfo, setSettingsSaveInfo] = useState("");
@@ -408,13 +479,114 @@ const CareerPreviewPage = () => {
   const [savedBlockedCompanies, setSavedBlockedCompanies] = useState<string[]>([
     "Stealth Robotics",
   ]);
-  const [settingsUpdatedAt, setSettingsUpdatedAt] = useState(
-    new Date().toISOString()
-  );
+  const [settingsUpdatedAt, setSettingsUpdatedAt] = useState(previewDate());
   const [historyOpportunities, setHistoryOpportunities] = useState(
     initialHistoryOpportunities
   );
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const handlePreviewPrepareMockInterview = useCallback(
+    async (opportunityId?: string | null) => {
+      const item =
+        historyOpportunities.find(
+          (opportunity) => opportunity.id === opportunityId
+        ) ??
+        historyOpportunities[0] ??
+        null;
+      const sessionId = `preview-mock-${Date.now()}`;
+      const createdAt = new Date().toISOString();
+      const setup = buildPreviewMockInterviewSetup(item, sessionId);
+
+      setActiveTab("chat");
+      setMockInterviewPending(false);
+      setMockInterviewSession({
+        companyName: setup.companyName,
+        completedAt: null,
+        conversationId: "preview-conversation",
+        createdAt,
+        durationMinutes: setup.durationMinutes,
+        id: sessionId,
+        interviewType: "mixed",
+        opportunityId: item?.id ?? null,
+        roleId: item?.roleId ?? null,
+        roleTitle: setup.roleTitle,
+        setup,
+        startedAt: null,
+        status: "ready",
+      });
+      setMessages((current) => [
+        ...current,
+        {
+          id: `${sessionId}-setup`,
+          role: "assistant",
+          content: setup.title,
+          messageType: "mock_interview_setup",
+          createdAt,
+          mockInterviewSetup: setup,
+        },
+      ]);
+    },
+    [historyOpportunities]
+  );
+
+  const handlePreviewStartMockInterview = useCallback(
+    async ({
+      interviewType,
+      sessionId,
+    }: {
+      channel: "call" | "chat";
+      interviewType: CareerMockInterviewType;
+      sessionId: string;
+    }) => {
+      const createdAt = new Date().toISOString();
+      setMockInterviewSession((current) =>
+        current
+          ? {
+              ...current,
+              interviewType,
+              startedAt: current.startedAt ?? createdAt,
+              status: "in_progress",
+            }
+          : current
+      );
+      setMessages((current) => [
+        ...current,
+        {
+          id: `${sessionId}-opening-${Date.now()}`,
+          role: "assistant",
+          content:
+            "좋습니다. 지금부터 실제 인터뷰처럼 진행하겠습니다. 먼저 60초 정도로 본인 소개와 이 역할에 관심을 갖게 된 이유를 말해 주세요.",
+          messageType: "mock_interview",
+          createdAt,
+        },
+      ]);
+    },
+    []
+  );
+
+  const handlePreviewEndMockInterview = useCallback(async () => {
+    const createdAt = new Date().toISOString();
+    setMockInterviewSession((current) =>
+      current
+        ? {
+            ...current,
+            completedAt: createdAt,
+            status: "completed",
+          }
+        : current
+    );
+    setMessages((current) => [
+      ...current,
+      {
+        id: `preview-mock-feedback-${Date.now()}`,
+        role: "assistant",
+        content:
+          "미리보기에서는 짧게 종료했습니다. 실제 인터뷰에서는 답변 내용과 길이에 따라 강점, 보완점, 다음 연습 방향을 정리합니다.",
+        messageType: "mock_interview_feedback",
+        createdAt,
+      },
+    ]);
+  }, []);
 
   const sidebarContextValue: CareerSidebarContextValue = useMemo(
     () => ({
@@ -426,6 +598,10 @@ const CareerPreviewPage = () => {
       progressPercent: 50,
       onOpenSettings: () => setIsSettingsOpen(true),
       onLogout: () => undefined,
+      activeCompanyRoleCount: 1284,
+      opportunityRun: null,
+      opportunityRunTriggerPending: false,
+      onRunOpportunityDiscoveryTest: () => undefined,
       recentOpportunities: initialRecentOpportunities,
       historyOpportunities,
       historyLoading: false,
@@ -486,6 +662,7 @@ const CareerPreviewPage = () => {
         );
       },
       onSendHistoryOpportunityQuestion: async () => true,
+      onPrepareMockInterview: handlePreviewPrepareMockInterview,
       notifications: initialNotifications,
       unreadNotificationCount: initialNotifications.filter(
         (notification) => !notification.isRead
@@ -519,15 +696,21 @@ const CareerPreviewPage = () => {
           current.filter((_, itemIndex) => itemIndex !== index)
         );
       },
-      onSaveTalentProfile: () => {
+      onSaveTalentProfile: (args) => {
         setSavedProfileLinks(profileLinks);
         if (resumeFile) {
           setSavedResumeFileName(resumeFile.name);
           setResumeFile(null);
         }
+        if (args?.structuredProfile) {
+          setTalentProfile(args.structuredProfile);
+          setProfileSaveInfo("프로필을 저장했습니다.");
+          return true;
+        }
         setProfileSaveInfo("이력서와 링크를 저장했습니다.");
+        return true;
       },
-      talentProfile: initialTalentProfile,
+      talentProfile,
       networkApplication,
       networkApplicationUpdatedAt,
       talentPreferences,
@@ -667,9 +850,11 @@ const CareerPreviewPage = () => {
       talentInsights,
       talentInsightsSaveInfo,
       talentInsightsUpdatedAt,
+      talentProfile,
       talentPreferencesUpdatedAt,
       talentPreferencesSaveInfo,
       savedTalentInsights,
+      handlePreviewPrepareMockInterview,
       historyOpportunities,
     ]
   );
@@ -696,6 +881,12 @@ const CareerPreviewPage = () => {
       chatError: "",
       assistantTyping: false,
       chatPending: false,
+      companySnapshotPending: false,
+      opportunityRun: null,
+      opportunitySearchLocked: false,
+      mockInterviewSession,
+      mockInterviewPending,
+      historyUpdatingOpportunityIds: [],
       onboardingBeginPending: false,
       onboardingPausePending: false,
       onGoogleLogin: () => undefined,
@@ -733,6 +924,11 @@ const CareerPreviewPage = () => {
           nextAssistantMessage,
         ]);
       },
+      onUpdateHistoryOpportunityFeedback: async () => undefined,
+      onPrepareMockInterview: handlePreviewPrepareMockInterview,
+      onStartMockInterview: handlePreviewStartMockInterview,
+      onEndMockInterview: handlePreviewEndMockInterview,
+      onStartCompanySnapshot: async () => undefined,
       onLoadOlderMessages: async () => undefined,
       showVoiceStartPrompt: false,
       onStartVoiceCall: () => undefined,
@@ -751,13 +947,22 @@ const CareerPreviewPage = () => {
       onToggleVoiceMute: () => undefined,
       onSwitchToTextMode: () => undefined,
     }),
-    [messages, profileLinks, resumeFile]
+    [
+      handlePreviewEndMockInterview,
+      handlePreviewPrepareMockInterview,
+      handlePreviewStartMockInterview,
+      messages,
+      mockInterviewPending,
+      mockInterviewSession,
+      profileLinks,
+      resumeFile,
+    ]
   );
 
   return (
     <CareerChatPanelProvider value={chatContextValue}>
       <CareerSidebarProvider value={sidebarContextValue}>
-        <CareerWorkspaceScreen />
+        <CareerWorkspaceScreen onChangeTab={setActiveTab} />
         <CareerSettingsModal
           open={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}

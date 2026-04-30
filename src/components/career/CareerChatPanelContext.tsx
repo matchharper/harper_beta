@@ -3,7 +3,12 @@ import React, { createContext, useContext } from "react";
 import type {
   CallTranscriptEntry,
   CareerInputMode,
+  CareerHistoryOpportunityFeedback,
   CareerMessage,
+  CareerMockInterviewSession,
+  CareerMockInterviewType,
+  CareerOpportunityRun,
+  CareerOpportunitySavedStage,
   CareerStage,
 } from "./types";
 import type { TalentOnboardingInterestOptionId } from "@/lib/talentOnboarding/onboarding";
@@ -33,7 +38,14 @@ export type CareerChatPanelContextValue = {
   chatError: string;
   assistantTyping: boolean;
   chatPending: boolean;
+  companySnapshotPending: boolean;
+  opportunityRun: CareerOpportunityRun | null;
+  opportunitySearchLocked: boolean;
+  mockInterviewSession: CareerMockInterviewSession | null;
+  mockInterviewPending: boolean;
+  historyUpdatingOpportunityIds: string[];
   onboardingBeginPending: boolean;
+  callStartPending?: boolean;
   onboardingPausePending: boolean;
 
   onGoogleLogin: () => void | Promise<void>;
@@ -53,6 +65,27 @@ export type CareerChatPanelContextValue = {
     text: string;
     link?: string;
     onError?: () => void;
+  }) => void | Promise<void>;
+  onUpdateHistoryOpportunityFeedback: (
+    opportunityId: string,
+    feedback: CareerHistoryOpportunityFeedback | null,
+    options?: {
+      feedbackReason?: string | null;
+      savedStage?: CareerOpportunitySavedStage | null;
+    }
+  ) => void | Promise<void>;
+  onPrepareMockInterview: (
+    opportunityId?: string | null
+  ) => void | Promise<void>;
+  onStartMockInterview: (args: {
+    channel: "call" | "chat";
+    interviewType: CareerMockInterviewType;
+    sessionId: string;
+  }) => void | Promise<void>;
+  onEndMockInterview: (sessionId?: string | null) => void | Promise<void>;
+  onStartCompanySnapshot: (args: {
+    companyName: string;
+    reason?: string | null;
   }) => void | Promise<void>;
   onLoadOlderMessages: () => void | Promise<void>;
 
@@ -76,7 +109,7 @@ export type CareerChatPanelContextValue = {
   onSwitchToTextMode: () => void;
 
   // Call mode (optional — not provided by preview.tsx)
-  onStartCallMode?: () => void;
+  onStartCallMode?: (openingText?: string) => boolean | Promise<boolean>;
   onEndCallMode?: () => void;
   callTranscriptEntries?: CallTranscriptEntry[];
   callConnectionStatus?: "connected" | "reconnecting" | "disconnected";

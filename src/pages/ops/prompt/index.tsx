@@ -27,7 +27,7 @@ export default function OpsPromptListPage() {
                 href={`/ops/prompt/${p.slug}`}
                 className={cx(
                   opsTheme.panel,
-                  "group p-5 transition hover:-translate-y-0.5 hover:shadow-[0_28px_80px_rgba(89,57,24,0.11)]"
+                  "group p-5 transition hover:-translate-y-0.5 hover:shadow-[0_28px_80px_rgba(89,57,24,0.1)]"
                 )}
               >
                 <div className="flex items-start justify-between gap-4">

@@ -3,6 +3,8 @@ import {
   requireInternalApiUser,
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
+import { buildCareerRefreshExtractionPrompt } from "@/lib/career/prompts";
+import { runCareerRefreshInsights } from "@/lib/career/llm";
 import {
   getTalentSupabaseAdmin,
   fetchTalentInsights,
@@ -16,51 +18,9 @@ import {
   getMergedChecklist,
   getEmptyInsightKeys,
 } from "@/lib/talentOnboarding/server";
-import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
 import type { TalentChatMessage } from "@/lib/talentOnboarding/llm";
 
 export const runtime = "nodejs";
-
-function buildRefreshExtractionPrompt(args: {
-  emptyKeys: Array<{ key: string; label: string; promptHint: string | null }>;
-  profileContext: string;
-}): string {
-  const keyList = args.emptyKeys
-    .map((item) => {
-      const hint = item.promptHint ?? `Information about: ${item.label}`;
-      return `- "${item.key}" (${item.label}): ${hint}`;
-    })
-    .join("\n");
-
-  return `You are an expert talent analyst. Extract career insights from the provided data.
-
-## Data Sources
-You have access to:
-1. The talent's full conversation history (provided as chat messages)
-2. Their structured profile and resume
-
-## Target Keys
-Extract values ONLY for these keys. Return Korean text for values.
-${keyList}
-
-## Rules
-- Only include a key if you found clear, specific information
-- Use Korean for all values
-- If information is ambiguous or not found, omit the key entirely (do NOT guess)
-- Be concise but informative (1-3 sentences per key)
-- Do NOT include keys that are not in the target list above
-
-## Response Format
-Return a valid JSON object with exactly one field:
-{
-  "extracted_insights": {
-    "key_name": "extracted Korean value"
-  }
-}
-
-If no information is found for any key, return:
-{ "extracted_insights": {} }`;
-}
 
 function parseRefreshResponse(raw: string): Record<string, string> {
   try {
@@ -152,7 +112,7 @@ export async function POST(req: NextRequest) {
     const llmMessages: TalentChatMessage[] = [
       {
         role: "system",
-        content: buildRefreshExtractionPrompt({ emptyKeys, profileContext }),
+        content: buildCareerRefreshExtractionPrompt({ emptyKeys }),
       },
       {
         role: "system",
@@ -164,10 +124,8 @@ export async function POST(req: NextRequest) {
       })),
     ];
 
-    const rawResponse = await runTalentAssistantCompletion({
+    const rawResponse = await runCareerRefreshInsights({
       messages: llmMessages,
-      temperature: 0.2,
-      jsonMode: true,
     });
 
     const extracted = parseRefreshResponse(rawResponse);

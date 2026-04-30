@@ -58,7 +58,7 @@ export const WaitlistExtraInfoModal: React.FC<Props> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/2 text-black px-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/5 text-black px-4">
       <Animate className="relative w-full max-w-lg rounded-xl bg-white p-4 shadow-2xl md:p-6">
         {/* Header */}
         <div className="mb-4 flex items-start justify-between gap-4">

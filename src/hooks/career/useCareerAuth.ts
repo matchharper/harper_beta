@@ -2,6 +2,12 @@ import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
 
+const resolveSafeNextPath = (value: string | null) => {
+  if (!value) return null;
+  if (!value.startsWith("/") || value.startsWith("//")) return null;
+  return value;
+};
+
 export const useCareerAuth = () => {
   const { user, loading: authLoading } = useAuthStore();
 
@@ -13,13 +19,21 @@ export const useCareerAuth = () => {
     if (typeof window === "undefined") return undefined;
 
     const currentUrl = new URL(window.location.href);
+    const explicitNextPath = resolveSafeNextPath(
+      currentUrl.searchParams.get("next")
+    );
     const nextPath =
-      currentUrl.pathname === "/career" || currentUrl.pathname.startsWith("/career/")
-        ? currentUrl.pathname
-        : "/career";
+      explicitNextPath ||
+      (currentUrl.pathname === "/career" ||
+      currentUrl.pathname.startsWith("/career/")
+        ? `${currentUrl.pathname}${currentUrl.search}`
+        : "/career");
     const nextUrl = new URL(nextPath, window.location.origin);
-    const inviteToken = currentUrl.searchParams.get("invite");
-    const mail = currentUrl.searchParams.get("mail");
+    const inviteToken =
+      currentUrl.searchParams.get("invite") ||
+      nextUrl.searchParams.get("invite");
+    const mail =
+      currentUrl.searchParams.get("mail") || nextUrl.searchParams.get("mail");
     if (inviteToken) {
       nextUrl.searchParams.set("invite", inviteToken);
     }
@@ -55,7 +69,11 @@ export const useCareerAuth = () => {
   }, [authPending, buildCareerRedirectPath]);
 
   const handleEmailAuth = useCallback(
-    async (args: { mode: "signin" | "signup"; email: string; password: string }) => {
+    async (args: {
+      mode: "signin" | "signup";
+      email: string;
+      password: string;
+    }) => {
       if (authPending) return false;
 
       const email = args.email.trim();
@@ -91,7 +109,9 @@ export const useCareerAuth = () => {
         }
         return true;
       } catch (error) {
-        setAuthError(error instanceof Error ? error.message : "인증에 실패했습니다.");
+        setAuthError(
+          error instanceof Error ? error.message : "인증에 실패했습니다."
+        );
         return false;
       } finally {
         setAuthPending(false);

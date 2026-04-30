@@ -473,7 +473,7 @@ const JoinWaitlistButton = ({
           <input
             type="email"
             className="py-5 px-6 font-light text-sm sm:text-sm border text-white
-                  bg-white/20 border-[rgba(255,255,255,0.04)] rounded-full min-w-[320px] sm:min-w-[380px]
+                  bg-white/20 border-[rgba(255,255,255,0.05)] rounded-full min-w-[320px] sm:min-w-[380px]
                   transition-all duration-300 hover:border-white/30 focus:outline-none focus:ring-1 focus:ring-white/50"
             value={email}
             onChange={(e) => setEmail(e.target.value)}

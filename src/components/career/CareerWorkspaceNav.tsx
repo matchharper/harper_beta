@@ -1,64 +1,30 @@
-import {
-  Check,
-  GalleryVerticalEnd,
-  House,
-  Settings2,
-  UserRoundCog,
-} from "lucide-react";
+import { LifeBuoy, LogOut, Settings2 } from "lucide-react";
+import { useState } from "react";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
 import CareerNotificationsPopover from "./CareerNotificationsPopover";
 import { careerCx } from "./ui/CareerPrimitives";
-import ChatbubblesIcon from "@/assets/icons/chatbubbles.svg";
+import {
+  BeigeActionDropdown,
+  BeigeActionDropdownItem,
+  BeigeActionDropdownSeparator,
+} from "@/components/ui/beige/action-dropdown";
+import { DropdownMenuLabel } from "@/components/ui/beige/dropdown-menu";
+import React from "react";
 
-export type CareerWorkspaceTab = "home" | "profile" | "chat" | "history";
+export type CareerWorkspaceTab = "home" | "profile" | "history";
 
 export const isCareerWorkspaceTab = (
   value: string | null | undefined
 ): value is CareerWorkspaceTab =>
-  value === "home" ||
-  value === "profile" ||
-  value === "chat" ||
-  value === "history";
+  value === "home" || value === "profile" || value === "history";
 
 export const getCareerWorkspaceHref = (tab: CareerWorkspaceTab) =>
   tab === "home" ? "/career" : `/career/${tab}`;
 
-const NAV_ITEMS: Array<{
-  id: CareerWorkspaceTab;
-  label: string;
-  icon: typeof UserRoundCog;
-}> = [
-  {
-    id: "home",
-    label: "Home",
-    icon: House,
-  },
-  {
-    id: "chat",
-    label: "대화",
-    icon: ChatbubblesIcon,
-  },
-  {
-    id: "profile",
-    label: "프로필",
-    icon: UserRoundCog,
-  },
-  {
-    id: "history",
-    label: "Opportunities",
-    icon: GalleryVerticalEnd,
-  },
-];
-
-const CareerWorkspaceNav = ({
-  activeTab,
-  onChange,
-}: {
-  activeTab: CareerWorkspaceTab;
-  onChange: (tab: CareerWorkspaceTab) => void;
-}) => {
+const CareerWorkspaceNav = () => {
   const {
     user,
+    onLogout,
     onOpenSettings,
     talentProfile,
     notifications,
@@ -78,6 +44,7 @@ const CareerWorkspaceNav = ({
     talentProfile.talentUser?.profile_picture ??
     user?.user_metadata?.avatar_url;
   const normalizedProfileName = String(profileName ?? "Candidate");
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
   const profileInitial =
     normalizedProfileName
@@ -87,88 +54,80 @@ const CareerWorkspaceNav = ({
       .map((value) => value[0]?.toUpperCase())
       .join("") || "C";
 
+  const handleOpenSupport = () => {
+    if (typeof window === "undefined") return;
+    const crispWebsiteId = process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID;
+    if (!crispWebsiteId) return;
+
+    const crispWindow = window as Window & {
+      $crisp?: Array<unknown[]>;
+      CRISP_WEBSITE_ID?: string;
+    };
+
+    crispWindow.$crisp = crispWindow.$crisp || [];
+    crispWindow.CRISP_WEBSITE_ID = crispWebsiteId;
+
+    if (!document.getElementById("crisp-loader")) {
+      const script = document.createElement("script");
+      script.id = "crisp-loader";
+      script.src = "https://client.crisp.chat/l.js";
+      script.async = true;
+      document.head.appendChild(script);
+    }
+
+    const openChat = () => {
+      crispWindow.$crisp?.push(["do", "chat:show"]);
+      crispWindow.$crisp?.push(["do", "chat:open"]);
+    };
+
+    openChat();
+    window.setTimeout(openChat, 240);
+    setProfileMenuOpen(false);
+  };
+
   return (
-    <aside className="w-full border-r border-black/5 bg-beige50 text-beige900 lg:sticky lg:top-0 lg:h-screen lg:w-[264px] lg:shrink-0 lg:self-start lg:border-b-0 lg:border-r lg:border-r-black/5">
-      <div className="flex h-full flex-col py-5 px-3">
-        <button
-          type="button"
-          onClick={() => onChange("home")}
-          className="text-left"
-        >
-          <div className="font-hedvig text-3xl leading-none">Harper</div>
-        </button>
-
-        <nav className="mt-6 space-y-2">
-          {NAV_ITEMS.map((item) => {
-            const Icon = item.icon;
-            const active = item.id === activeTab;
-
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => onChange(item.id)}
-                className={careerCx(
-                  "group flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-all duration-200",
-                  active ? "bg-beige200" : "text-hgray200 hover:bg-beige200"
-                )}
-              >
-                <div
-                  className={careerCx(
-                    "flex h-7 w-7 shrink-0 items-center justify-center rounded-[12px] transition-colors"
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <div
-                    className={careerCx("text-[15px] font-medium leading-5")}
-                  >
-                    {item.label}
-                  </div>
-                  {/* <div className="text-[13px] leading-5 text-beige900/50 font-normal">
-                    {item.description}
-                  </div> */}
-                </div>
-
-                <div
-                  className={careerCx(
-                    "flex h-7 w-7 shrink-0 items-center justify-center transition-colors"
-                  )}
-                >
-                  {active && <Check className="h-3.5 w-3.5" />}
-                </div>
-              </button>
-            );
-          })}
-        </nav>
-
-        <div className="mt-6 flex-1" />
-
-        <div className="border-t border-white/10 pt-4">
-          <button
-            type="button"
-            onClick={onOpenSettings}
-            className="inline-flex h-11 w-full items-center gap-2 rounded-md px-3 text-sm transition-colors hover:bg-beige200"
-          >
-            <Settings2 className="h-4 w-4" />
-            설정
-          </button>
+    <header className="sticky top-0 z-20 bg-beige50 text-beige900 backdrop-blur-xl">
+      <div className="flex flex-row items-center justify-between gap-4 px-4 py-2 sm:px-6 lg:px-8">
+        <div className="font-hedvig text-[1.1rem] text-beige900">Harper</div>
+        <div className="flex items-center gap-2">
           <CareerNotificationsPopover
             notifications={notifications}
             unreadNotificationCount={unreadNotificationCount}
             notificationsMarkingAsRead={notificationsMarkingAsRead}
             notificationsError={notificationsError}
             onMarkNotificationsRead={onMarkNotificationsRead}
+            showLabel={false}
+            align="end"
+            side="bottom"
+            sideOffset={12}
+            buttonClassName="h-8 w-8 rounded-xl border border-beige900/10 bg-white/75 px-0 text-beige900 shadow-[0_8px_24px_rgba(37,20,6,0.05)] hover:border-beige900/20 hover:bg-white"
           />
           <button
             type="button"
-            onClick={() => onChange("profile")}
-            className="mt-1 w-full rounded-md border border-white/10 bg-white/[0.04] p-3 text-left transition-colors hover:bg-beige200"
+            onClick={onOpenSettings}
+            aria-label="설정"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-beige900/10 bg-white/75 text-beige900 shadow-[0_8px_24px_rgba(37,20,6,0.05)] transition-colors hover:border-beige900/20 hover:bg-white"
           >
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-hblack50 text-sm font-medium text-hblack400">
+            <Settings2 className="h-4 w-4" />
+          </button>
+          <BeigeActionDropdown
+            open={profileMenuOpen}
+            onOpenChange={setProfileMenuOpen}
+            align="end"
+            side="bottom"
+            sideOffset={12}
+            contentClassName="w-[236px]"
+            trigger={
+              <button
+                type="button"
+                aria-label="프로필 메뉴"
+                className={careerCx(
+                  "flex h-8 w-8 items-center justify-center overflow-hidden rounded-[12px] border bg-white/80 shadow-[0_8px_24px_rgba(37,20,6,0.05)] transition-all",
+                  profileMenuOpen
+                    ? "border-beige900/20 ring-4 ring-white/70"
+                    : "border-beige900/10 hover:border-beige900/20 hover:bg-white"
+                )}
+              >
                 {profileImageUrl &&
                 !profileImageUrl.includes("media.licdn.com") ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -178,24 +137,42 @@ const CareerWorkspaceNav = ({
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  profileInitial
+                  <span className="text-xs font-medium text-beige900">
+                    {profileInitial}
+                  </span>
                 )}
+              </button>
+            }
+          >
+            <DropdownMenuLabel className="px-3 pb-2 pt-2.5">
+              <div className="truncate text-sm font-medium text-beige900">
+                {profileName}
               </div>
-
-              <div className="min-w-0">
-                <div className="truncate text-sm font-medium">
-                  {profileName}
-                </div>
-                <div className="mt-1 truncate text-[13px]">
-                  {profileEmail || "Career profile"}
-                </div>
+              <div className="mt-1 truncate text-[12px] font-normal text-beige900/50">
+                {profileEmail || "Career profile"}
               </div>
-            </div>
-          </button>
+            </DropdownMenuLabel>
+            <BeigeActionDropdownSeparator />
+            <BeigeActionDropdownItem
+              onSelect={handleOpenSupport}
+              className="flex flex-row items-center gap-2.5"
+            >
+              <LifeBuoy className="h-4 w-4" />
+              문의하기
+            </BeigeActionDropdownItem>
+            <BeigeActionDropdownItem
+              onSelect={() => void onLogout()}
+              tone="danger"
+              className="flex flex-row items-center gap-2.5"
+            >
+              <LogOut className="h-4 w-4" />
+              로그아웃
+            </BeigeActionDropdownItem>
+          </BeigeActionDropdown>
         </div>
       </div>
-    </aside>
+    </header>
   );
 };
 
-export default CareerWorkspaceNav;
+export default React.memo(CareerWorkspaceNav);

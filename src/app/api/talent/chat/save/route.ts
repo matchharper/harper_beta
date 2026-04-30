@@ -1,68 +1,58 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
-import { client } from "@/lib/llm/llm";
 import {
   countUserChatTurns,
   fetchTalentInsights,
   getTalentSupabaseAdmin,
-  normalizeTalentInsightKey,
-  upsertTalentInsights,
   type TalentConversationRow,
   type TalentMessageRow,
 } from "@/lib/talentOnboarding/server";
-import { TALENT_INTERVIEW_FINAL_STEP, TALENT_INTERVIEW_MIN_COVERAGE } from "@/lib/talentOnboarding/progress";
-import { warmCache, getTestFlagSlugs, getContentForUser } from "@/lib/talentOnboarding/prompts/promptCache";
+import { TALENT_INTERVIEW_FINAL_STEP } from "@/lib/talentOnboarding/progress";
+import {
+  warmCache,
+  getTestFlagSlugs,
+  getContentForUser,
+} from "@/lib/talentOnboarding/prompts/promptCache";
 import {
   getUncoveredChecklistItems,
   INSIGHT_CHECKLIST,
-  type InsightChecklistItem,
 } from "@/lib/talentOnboarding/insightChecklist";
-import { normalizeExtractedInsights } from "@/lib/talentOnboarding/insights";
+import { buildCareerInsightExtractionOnlyPrompt } from "@/lib/career/prompts";
 import {
-  loadPrompt,
-  extractSection,
-  fillPlaceholders,
-} from "@/lib/talentOnboarding/prompts";
-import { logger } from "@/utils/logger";
+  completeOnboardingAndQueueInitialOpportunityRun,
+  getActiveOpportunityRun,
+  serializeOpportunityRun,
+} from "@/lib/opportunityDiscovery/store";
+import {
+  fetchActiveMockInterviewSession,
+  serializeMockInterviewSession,
+} from "@/lib/mockInterview/server";
+import { extractAndPersistChatInsights } from "@/lib/talentOnboarding/chatInsights";
+import {
+  hasTalentOnboardingCompletionMarker,
+  resolveTalentOnboardingCompletion,
+  stripTalentOnboardingCompletionMarker,
+} from "@/lib/talentOnboarding/completion";
 
 type Body = {
+  assistantEndedOnboarding?: boolean;
   conversationId: string;
   userMessage: string;
   assistantMessage: string;
   isCallMode?: boolean;
 };
 
-function buildInsightExtractionOnlyPrompt(
-  uncoveredItems: InsightChecklistItem[],
-  coveredCount: number,
-  totalCount: number,
-  currentInsightContent: Record<string, string> | null,
-  insightMdOverride?: string
-): string {
-  const checklistLines = uncoveredItems
-    .map((item) => `- "${item.key}": ${item.promptHint}`)
-    .join("\n");
+const toResponseMessage = (item: TalentMessageRow) => ({
+  id: item.id,
+  role: item.role,
+  content: item.content,
+  messageType: item.message_type ?? "chat",
+  createdAt: item.created_at,
+});
 
-  let existingSection = "";
-  if (currentInsightContent && Object.keys(currentInsightContent).length > 0) {
-    existingSection =
-      "\n## Currently Known Insights\n" +
-      Object.entries(currentInsightContent)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .slice(0, 20)
-        .map(
-          ([k, v]) =>
-            `- "${k}": "${v.length > 150 ? v.slice(0, 150) + "..." : v}"`
-        )
-        .join("\n");
-  }
-
-  const md = insightMdOverride ?? loadPrompt("insight-extraction.md");
-  return fillPlaceholders(extractSection(md, "extractionOnly"), {
-    coveredCount,
-    totalCount,
-    checklistLines,
-    existingInsightsSection: existingSection,
+function startOpportunityDiscoveryInBackground(runId: string) {
+  console.info("[opportunity-discovery] queued for harper_worker", {
+    runId,
   });
 }
 
@@ -78,8 +68,14 @@ export async function POST(req: NextRequest) {
     const body = (await req.json()) as Body;
     const conversationId = body.conversationId?.trim();
     const userMessageText = body.userMessage?.trim();
-    const assistantMessageText = body.assistantMessage?.trim();
+    const assistantMessageTextWithMarkers = body.assistantMessage?.trim();
+    const assistantMessageText = stripTalentOnboardingCompletionMarker(
+      assistantMessageTextWithMarkers
+    );
     const isCallMode = Boolean(body.isCallMode);
+    const assistantEndedOnboarding =
+      Boolean(body.assistantEndedOnboarding) ||
+      hasTalentOnboardingCompletionMarker(assistantMessageTextWithMarkers);
     const messageType = isCallMode ? "call_transcript" : "chat";
 
     if (!conversationId || !userMessageText || !assistantMessageText) {
@@ -106,6 +102,124 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "Conversation not found" },
         { status: 404 }
+      );
+    }
+
+    const currentInsights = await fetchTalentInsights({
+      admin,
+      userId: user.id,
+    });
+    const currentInsightContent = (currentInsights?.content ?? null) as Record<
+      string,
+      string
+    > | null;
+    const uncoveredItems = getUncoveredChecklistItems(currentInsightContent);
+    const coveredCount = INSIGHT_CHECKLIST.length - uncoveredItems.length;
+    const extractTurnInsights = () =>
+      extractAndPersistChatInsights({
+        admin,
+        assistantContent: assistantMessageText,
+        buildPrompt: (promptArgs) => {
+          const draftInsightMd =
+            getContentForUser("insight-extraction", testSlugs) ?? undefined;
+          return buildCareerInsightExtractionOnlyPrompt({
+            coveredCount: promptArgs.coveredCount,
+            currentInsightContent: promptArgs.currentInsightContent,
+            insightMdOverride: draftInsightMd,
+            totalCount: promptArgs.totalCount,
+            uncoveredItems: promptArgs.uncoveredItems,
+          });
+        },
+        conversationId,
+        coveredCount,
+        currentInsightContent,
+        logPrefix: "ChatSave",
+        totalCount: INSIGHT_CHECKLIST.length,
+        uncoveredItems,
+        userId: user.id,
+      });
+
+    const activeMockInterview = await fetchActiveMockInterviewSession({
+      admin,
+      conversationId,
+      statuses: ["in_progress"],
+      userId: user.id,
+    });
+    if (activeMockInterview) {
+      const { data: insertedUserMessage, error: userMsgError } = await admin
+        .from("talent_messages")
+        .insert({
+          conversation_id: conversationId,
+          user_id: user.id,
+          role: "user",
+          content: userMessageText,
+          message_type: messageType,
+        })
+        .select("*")
+        .single();
+
+      if (userMsgError) {
+        return NextResponse.json(
+          { error: userMsgError.message ?? "Failed to insert user message" },
+          { status: 500 }
+        );
+      }
+
+      const { data: insertedAssistantMessage, error: assistantMsgError } =
+        await admin
+          .from("talent_messages")
+          .insert({
+            conversation_id: conversationId,
+            user_id: user.id,
+            role: "assistant",
+            content: assistantMessageText,
+            message_type: messageType,
+          })
+          .select("*")
+          .single();
+
+      if (assistantMsgError) {
+        return NextResponse.json(
+          {
+            error:
+              assistantMsgError.message ?? "Failed to insert assistant message",
+          },
+          { status: 500 }
+        );
+      }
+
+      const newKeysCount = await extractTurnInsights();
+
+      return NextResponse.json({
+        ok: true,
+        assistantMessage: toResponseMessage(
+          insertedAssistantMessage as TalentMessageRow
+        ),
+        mockInterviewSession:
+          serializeMockInterviewSession(activeMockInterview),
+        progress: {
+          answeredCount: 0,
+          completed: false,
+          currentStep: coveredCount + newKeysCount,
+          targetCount: TALENT_INTERVIEW_FINAL_STEP,
+        },
+        userMessage: toResponseMessage(insertedUserMessage as TalentMessageRow),
+      });
+    }
+
+    const activeRun = await getActiveOpportunityRun({
+      admin,
+      conversationId,
+      userId: user.id,
+    });
+    if (activeRun) {
+      return NextResponse.json(
+        {
+          error:
+            "기회를 찾는 중입니다. 검색이 끝나면 바로 이어서 대화할 수 있습니다.",
+          opportunityRun: serializeOpportunityRun(activeRun),
+        },
+        { status: 423 }
       );
     }
 
@@ -153,115 +267,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Fetch current insights for extraction context
-    const currentInsights = await fetchTalentInsights({
-      admin,
-      userId: user.id,
-    });
-    const currentInsightContent = (currentInsights?.content ?? null) as Record<
-      string,
-      string
-    > | null;
-    const uncoveredItems = getUncoveredChecklistItems(currentInsightContent);
-    const coveredCount = INSIGHT_CHECKLIST.length - uncoveredItems.length;
+    let opportunityRun: Awaited<
+      ReturnType<typeof completeOnboardingAndQueueInitialOpportunityRun>
+    > | null = null;
 
-    // Run insight extraction
-    let newKeysCount = 0;
-    try {
-      const draftInsightMd = getContentForUser("insight-extraction", testSlugs) ?? undefined;
-      const extractionPrompt = buildInsightExtractionOnlyPrompt(
-        uncoveredItems,
-        coveredCount,
-        INSIGHT_CHECKLIST.length,
-        currentInsightContent,
-        draftInsightMd
-      );
+    const newKeysCount = await extractTurnInsights();
 
-      const extractionResponse = await client.chat.completions.create({
-        model: "gpt-4.1-mini",
-        messages: [
-          { role: "system", content: extractionPrompt },
-          { role: "user", content: userMessageText },
-          { role: "assistant", content: assistantMessageText },
-        ],
-        temperature: 0.1,
-        response_format: { type: "json_object" },
-      });
-      const rawExtraction = (
-        extractionResponse.choices[0]?.message?.content ?? ""
-      ).replace(/^```json\s*/i, "").replace(/\s*```$/i, "").trim();
-
-      let parsed: { extracted_insights?: Record<string, unknown> } = {};
-      try {
-        parsed = JSON.parse(rawExtraction);
-      } catch {
-        const match = rawExtraction.match(/\{[\s\S]*\}/);
-        if (match) {
-          try {
-            parsed = JSON.parse(match[0]);
-          } catch {
-            logger.log("[ChatSave] JSON regex fallback parse failed");
-          }
-        }
-      }
-
-      const extractedInsights = normalizeExtractedInsights(
-        (parsed.extracted_insights as Record<string, unknown>) ?? null
-      );
-
-      if (extractedInsights) {
-        const processedInsights: Record<string, string> = {};
-
-        for (const [rawKey, extracted] of Object.entries(extractedInsights)) {
-          const key = normalizeTalentInsightKey(rawKey);
-          if (!key || !extracted.value) continue;
-
-          const existingValue = currentInsightContent?.[key]?.trim();
-
-          if (extracted.action === "update") {
-            processedInsights[key] = extracted.value;
-          } else {
-            if (!existingValue) {
-              processedInsights[key] = extracted.value;
-            }
-          }
-        }
-
-        if (Object.keys(processedInsights).length > 0) {
-          newKeysCount = Object.keys(processedInsights).filter(
-            (k) => !currentInsightContent?.[k]?.trim()
-          ).length;
-
-          const finalContent: Record<string, string> = {
-            ...(currentInsightContent ?? {}),
-            ...processedInsights,
-          };
-
-          await upsertTalentInsights({
-            admin,
-            userId: user.id,
-            content: finalContent,
-          });
-        }
-      }
-    } catch (insightError) {
-      logger.log("[ChatSave] Failed to extract insights", {
-        userId: user.id,
-        error:
-          insightError instanceof Error
-            ? insightError.message
-            : "Unknown error",
-      });
-    }
-
-    // Completion check: coverage-based
+    // Completion check: explicit LLM onboarding-done marker only.
     const userTurnCount = await countUserChatTurns({ admin, conversationId });
     const insightsCoveredAfter = coveredCount + newKeysCount;
-    const coverageRatio =
-      INSIGHT_CHECKLIST.length > 0
-        ? insightsCoveredAfter / INSIGHT_CHECKLIST.length
-        : 1;
-    const isCompleted = coverageRatio >= TALENT_INTERVIEW_MIN_COVERAGE;
+    const completion = resolveTalentOnboardingCompletion({
+      assistantContent: assistantMessageTextWithMarkers ?? "",
+      assistantEndedOnboarding,
+    });
+    const isCompleted = completion.completed;
 
     const now = new Date().toISOString();
     await admin
@@ -273,13 +292,18 @@ export async function POST(req: NextRequest) {
       .eq("id", conversationId)
       .eq("user_id", user.id);
 
-    const toResponseMessage = (item: TalentMessageRow) => ({
-      id: item.id,
-      role: item.role,
-      content: item.content,
-      messageType: item.message_type ?? "chat",
-      createdAt: item.created_at,
-    });
+    if (!opportunityRun && isCompleted && completion.reason) {
+      opportunityRun = await completeOnboardingAndQueueInitialOpportunityRun({
+        admin,
+        completionReason: completion.reason,
+        conversationId,
+        source: isCallMode ? "career_call_completion" : "career_chat_save",
+        userId: user.id,
+      });
+      if (opportunityRun) {
+        startOpportunityDiscoveryInBackground(opportunityRun.id);
+      }
+    }
 
     return NextResponse.json({
       ok: true,
@@ -287,6 +311,9 @@ export async function POST(req: NextRequest) {
       assistantMessage: toResponseMessage(
         insertedAssistantMessage as TalentMessageRow
       ),
+      opportunityRun: serializeOpportunityRun(opportunityRun),
+      searchStatusMessage: null,
+      shouldEndCall: false,
       progress: {
         answeredCount: userTurnCount,
         targetCount: TALENT_INTERVIEW_FINAL_STEP,
