@@ -42,7 +42,7 @@ const linkedinMessages: LinkedinMessage[] = [
 function LinkedInMark() {
   return (
     <div className="flex items-end justify-center z-20 text-white/90 gap-2 font-inter">
-      <span className="font-halant text-xl tracking-[-0.065em] font-normal md:text-2xl">
+      <span className="font-hedvig text-xl tracking-[-0.065em] font-normal md:text-2xl">
         General Outreach
       </span>
       {/* <span className="mb-1 rounded-[5px] bg-[#0A66C2] px-[5px] py-[2px] text-xl font-bold leading-none tracking-[-0.06em] text-white md:mb-0 md:px-[8px] md:py-[2px] md:text-2xl">
@@ -56,7 +56,7 @@ function HarperMark() {
   return (
     <div className="flex items-center justify-center z-20 gap-2 text-accenta1/90 md:gap-3 font-inter">
       {/* <Image src="/svgs/logo.svg" alt="Harper" width={22} height={22} /> */}
-      <span className="font-halant text-xl tracking-[-0.065em] font-normal md:text-2xl">
+      <span className="font-hedvig text-xl tracking-[-0.065em] font-normal md:text-2xl">
         Activity-based Approach
       </span>
     </div>

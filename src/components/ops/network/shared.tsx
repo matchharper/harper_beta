@@ -274,7 +274,7 @@ export function ProfileChip({
 export function StatCard({ hint, value }: { hint: string; value: string }) {
   return (
     <div className="flex flex-row items-center justify-center gap-2 bg-beige500 p-2">
-      <div className="font-halant text-[1.4rem] leading-none text-beige900">
+      <div className="font-hedvig text-[1.4rem] leading-none text-beige900">
         {value}
       </div>
       <div className="font-geist text-sm text-beige900/60">{hint}</div>

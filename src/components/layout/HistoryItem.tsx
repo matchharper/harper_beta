@@ -28,8 +28,8 @@ const HistoryItem = ({
     <Link
       href={`/my/c/${queryItem.query_id}`}
       className={[
-        "group relative flex flex-row items-center justify-between px-2.5 min-h-10 py-1.5 text-white font-normal cursor-pointer rounded-lg gap-1 hover:bg-white/5",
-        isActive ? "bg-white/10" : "",
+        "group relative flex flex-row items-center justify-between px-2.5 min-h-10 py-1.5 text-beige900 font-normal cursor-pointer rounded-lg gap-1 hover:bg-beige900/8",
+        isActive ? "bg-beige500/55" : "",
       ].join(" ")}
       key={queryItem.query_id}
     >
@@ -53,7 +53,7 @@ const HistoryItem = ({
           ) : null}
         </div>
         {!collapsed && (
-          <div className="flex flex-row w-full items-center justify-start gap-1 text-xs text-hgray600">
+          <div className="flex flex-row w-full items-center justify-start gap-1 text-xs text-beige900/45">
             <span>
               {dateToFormatLong(
                 new Date(queryItem.created_at).toLocaleDateString()
@@ -82,10 +82,10 @@ const HistoryItem = ({
             }}
             className={[
               "rounded-sm h-7 w-7 flex items-center justify-center",
-              "hover:bg-bgDark500 focus:outline-white/5 focus:ring-white/10",
+              "hover:bg-beige900/8 focus:outline-beige900/10 focus:ring-beige900/10",
               "transition-opacity",
               menuOpen
-                ? "opacity-100 ring-2 ring-white/60"
+                ? "opacity-100 ring-2 ring-beige900/30"
                 : "opacity-0 group-hover:opacity-100 ring-0",
               collapsed
                 ? "absolute right-1.5 top-1/2 -translate-y-1/2"
@@ -136,11 +136,11 @@ export function NavItem({
         href={href}
         onClick={onNavigate}
         className={[
-          "w-full flex text-sm font-extralight items-center justify-between gap-2 rounded-[6px] h-10 text-white",
-          shortcut ? "bg-gray-300/5 border border-white/5" : "",
+          "w-full flex text-sm font-extralight items-center justify-between gap-2 rounded-[6px] h-10 text-beige900",
+          shortcut ? "bg-beige900/5 border border-beige900/8" : "",
           active
-            ? "bg-bgDark500  shadow-sm"
-            : "bg-transparent hover:bg-white/10",
+            ? "bg-beige500/55 shadow-sm"
+            : "bg-transparent hover:bg-beige900/8",
           collapsed ? "px-3" : "px-2.5",
         ].join(" ")}
       >
@@ -151,7 +151,7 @@ export function NavItem({
           )}
         </div>
         {!collapsed && shortcut && (
-          <div className="flex flex-row items-center gap-0.5 text-xs text-white/50">
+          <div className="flex flex-row items-center gap-0.5 text-xs text-beige900/45">
             <Command size={10} /> + K
           </div>
         )}

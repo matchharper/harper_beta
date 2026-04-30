@@ -48,7 +48,7 @@ const ProfileBio = ({
         <div className="flex flex-row w-full items-center justify-end gap-2">
           <button
             type="button"
-            className="text-sm text-ngray600 font-normal hover:text-accenta1 transition-all duration-200"
+            className="text-sm text-beige900/55 font-normal hover:text-beige900 transition-all duration-200"
             onClick={() => {
               const nextOpen = !isBioOpen;
               onToggleMore?.(nextOpen);
@@ -60,20 +60,20 @@ const ProfileBio = ({
           </button>
         </div>
       )}
-      <div className="text-hgray900 grid grid-cols-7 mt-2">
+      <div className="text-beige900 grid grid-cols-7 mt-2">
         {/* Header */}
         <div className="col-span-1">
-          <div className="text-base font-normal text-hgray1000">
+          <div className="text-base font-normal text-beige900">
             {m?.data?.summary ?? "요약"}
           </div>
         </div>
-        <div className="text-hgray900 col-span-6 flex flex-col gap-2 mb-2">
+        <div className="text-beige900 col-span-6 flex flex-col gap-2 mb-2">
           {displayLine ? (
             <div className="whitespace-pre-wrap leading-relaxed text-[15px] break-words">
               {displayLine}
             </div>
           ) : !profileRevealed ? (
-            <div className="whitespace-pre-wrap leading-relaxed text-[15px] break-words text-hgray700">
+            <div className="whitespace-pre-wrap leading-relaxed text-[15px] break-words text-beige900/55">
               열람 후 확인할 수 있습니다.
             </div>
           ) : isLoadingOneline ? (
@@ -87,7 +87,7 @@ const ProfileBio = ({
 
           {/* Bio */}
           {hasBio && (
-            <div className="text-[15px] text-hgray700 leading-6 font-light mt-1">
+            <div className="text-[15px] text-beige900/80 leading-6 font-light mt-1">
               {isBioOpen ? (
                 <div className="whitespace-pre-wrap">
                   {replaceName(bio, name)}

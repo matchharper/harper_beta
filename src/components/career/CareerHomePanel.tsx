@@ -184,7 +184,7 @@ const CareerHomePanel = ({
     <div className="space-y-12">
       <section className="">
         <div className="max-w-[720px]">
-          <h2 className="mt-4 font-halant font-semibold text-[1.2rem] leading-none text-beige900 sm:text-[1.4rem]">
+          <h2 className="mt-4 font-hedvig font-semibold text-[1.4rem] leading-none text-beige900 sm:text-[1.8rem]">
             Welcome, {displayName}!
           </h2>
           <p className="mt-4 max-w-[620px] text-[15px] leading-5 text-beige900/65">
@@ -223,7 +223,7 @@ const CareerHomePanel = ({
       {/* <DeliveryCopyPromptTestPanel displayName={displayName} /> */}
 
       <section className="mt-6">
-        <h3 className="font-halant text-[1.6rem] font-medium leading-none text-beige900">
+        <h3 className="font-hedvig text-[1.6rem] font-medium leading-none text-beige900">
           My Preference
         </h3>
         <div className="mt-6">
@@ -252,7 +252,7 @@ const CareerHomePanel = ({
 
       <section className="space-y-2">
         <div className="pb-4">
-          <div className="font-halant text-[1.4rem] font-medium leading-none text-beige900">
+          <div className="font-hedvig text-[1.4rem] font-medium leading-none text-beige900">
             최근 추천된 기회
           </div>
         </div>

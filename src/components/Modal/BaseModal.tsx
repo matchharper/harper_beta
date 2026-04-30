@@ -37,7 +37,7 @@ const BaseModal = ({
       />
 
       <div
-        className={`relative z-50 w-full rounded-[28px] bg-hgray200 p-6 shadow-sm border border-white/10
+        className={`relative z-50 w-full rounded-[28px] bg-beige50 p-6 shadow-sm border border-beige900/8
   transition-[max-width,padding] duration-300 ease-in-out ${isCloseButton ? `${sizeClass}` : "max-w-[520px]"
           }`}
       >
@@ -46,7 +46,7 @@ const BaseModal = ({
         <div className="w-full mt-8 flex flex-row items-end justify-end gap-2">
           {isCloseButton && (
             <button
-              className={`transition-colors duration-200 inline-flex items-center justify-center rounded-xl px-6 py-3 text-sm font-medium text-white hover:bg-white/5 
+              className={`transition-colors duration-200 inline-flex items-center justify-center rounded-xl px-6 py-3 text-sm font-medium text-beige900/55 hover:bg-beige50/80
                 ${isCloseButton
                   ? "opacity-100"
                   : "opacity-0 pointer-events-none"
@@ -58,7 +58,7 @@ const BaseModal = ({
             </button>
           )}
           <button
-            className="transition-colors duration-200 inline-flex items-center justify-center rounded-xl bg-accenta1 px-6 py-3 text-sm font-medium text-black disabled:cursor-not-allowed disabled:opacity-70"
+            className="transition-colors duration-200 inline-flex items-center justify-center rounded-xl bg-beige900 px-6 py-3 text-sm font-medium text-beige100 disabled:cursor-not-allowed disabled:opacity-70"
             onClick={onConfirm}
             disabled={isLoading}
           >

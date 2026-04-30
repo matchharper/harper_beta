@@ -28,6 +28,8 @@ function calcDiscountedMonthly(monthly: number, discountRate: number) {
   return Math.round(monthly * (1 - discountRate));
 }
 
+type Theme = "dark" | "cream";
+
 export default function PricingSection({
   onClick,
   currentPlanKey,
@@ -35,6 +37,7 @@ export default function PricingSection({
   currentLabel,
   changeLabel,
   prices,
+  theme = "dark",
 }: {
   onClick: (plan: string, billing: Billing) => void;
   currentPlanKey?: PlanKey | null;
@@ -45,6 +48,7 @@ export default function PricingSection({
     pro: { monthly: number | null; yearly: number | null };
     max: { monthly: number | null; yearly: number | null };
   } | null;
+  theme?: Theme;
 }) {
   const [billing, setBilling] = useState<Billing>("monthly");
   const { m, locale } = useMessages();
@@ -134,11 +138,13 @@ export default function PricingSection({
   const enterpriseButtonLabel = pricing.plans.enterprise.buttonLabel;
   const shouldShowSubscribe = hasCurrent && currentPlanKey === "free";
 
+  const isDark = theme === "dark";
+
   return (
-    <section id="pricing" className="w-full text-hgray900">
+    <section id="pricing" className={`w-full ${isDark ? "text-hgray900" : "text-beige900"}`}>
       <div className="w-full flex flex-col items-center justify-center text-center px-4 md:px-0">
         <div className="mt-16 md:mt-10">
-          <BillingToggle billing={billing} setBilling={setBilling} />
+          <BillingToggle billing={billing} setBilling={setBilling} theme={theme} />
         </div>
         <div className="mt-4 w-full max-w-[1200px]">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-4">
@@ -182,6 +188,7 @@ export default function PricingSection({
                   disabled={isDisabled}
                   billing={billing}
                   onClick={handleClick}
+                  theme={theme}
                 />
               );
             })}
@@ -195,22 +202,27 @@ export default function PricingSection({
 function BillingToggle({
   billing,
   setBilling,
+  theme = "dark",
 }: {
   billing: Billing;
   setBilling: (b: Billing) => void;
+  theme?: Theme;
 }) {
   const { m } = useMessages();
   const pricing = m.companyLanding.pricing;
   const isYearly = billing === "yearly";
+  const isDark = theme === "dark";
 
   return (
     <div className="relative inline-flex items-center">
-      <div className="relative flex items-center bg-white/10 border border-white/10 rounded-full p-1 backdrop-blur">
+      <div className={`relative flex items-center ${isDark ? "bg-white/10 border border-white/10" : "bg-beige500/55 border border-beige900/8"} rounded-full p-1 backdrop-blur`}>
         <button
           type="button"
           onClick={() => setBilling("monthly")}
           className={`relative z-10 px-6 py-2 rounded-full text-sm md:text-sm transition-colors ${
-            !isYearly ? "text-black" : "text-white/70 hover:text-white"
+            !isYearly
+              ? isDark ? "text-black" : "text-beige100"
+              : isDark ? "text-white/70 hover:text-white" : "text-beige900/70 hover:text-beige900"
           }`}
         >
           {pricing.billing.monthly}
@@ -218,14 +230,18 @@ function BillingToggle({
         <button
           type="button"
           onClick={() => setBilling("yearly")}
-          className={`relative z-10 px-6 py-2 rounded-full text-sm md:text-sm transition-colors ${isYearly ? "text-black" : "text-white/70 hover:text-white"}`}
+          className={`relative z-10 px-6 py-2 rounded-full text-sm md:text-sm transition-colors ${
+            isYearly
+              ? isDark ? "text-black" : "text-beige100"
+              : isDark ? "text-white/70 hover:text-white" : "text-beige900/70 hover:text-beige900"
+          }`}
         >
           {pricing.billing.yearly}
         </button>
 
         {/* sliding pill */}
         <motion.div
-          className="absolute top-1 bottom-1 w-[48%] rounded-full bg-white"
+          className={`absolute top-1 bottom-1 w-[48%] rounded-full ${isDark ? "bg-white" : "bg-beige900"}`}
           initial={false}
           animate={{ x: isYearly ? "100%" : "0%" }}
           transition={{ type: "spring", stiffness: 500, damping: 40 }}
@@ -234,7 +250,7 @@ function BillingToggle({
 
       {/* discount badge */}
       <div className="absolute -right-6 -top-3 md:-right-8 md:-top-3">
-        <div className="px-3 py-1 rounded-full text-[11px] md:text-xs font-semibold bg-accenta1 text-black shadow-sm">
+        <div className={`px-3 py-1 rounded-full text-[11px] md:text-xs font-semibold ${isDark ? "bg-accenta1 text-black" : "bg-accentBronze text-beige100"} shadow-sm`}>
           {pricing.billing.discountLabel}
         </div>
       </div>
@@ -254,6 +270,7 @@ function PlanCard({
   features,
   disabled,
   onClick,
+  theme = "dark",
 }: {
   name: string;
   tagline: string;
@@ -266,10 +283,12 @@ function PlanCard({
   disabled?: boolean;
   billing: Billing;
   onClick: (plan: string, billing: Billing) => void;
+  theme?: Theme;
 }) {
   const { m, locale } = useMessages();
   const pricing = m.companyLanding.pricing;
   const isEnglish = locale === "en";
+  const isDark = theme === "dark";
 
   return (
     <div
@@ -284,7 +303,7 @@ function PlanCard({
         <div className="text-[24px] md:text-[28px] font-medium tracking-tight">
           {name}
         </div>
-        <div className="mt-0 text-left w-full text-sm text-white/55 leading-6 min-h-6">
+        <div className={`mt-0 text-left w-full text-sm ${isDark ? "text-white/55" : "text-beige900/55"} leading-6 min-h-6`}>
           {tagline}
         </div>
 
@@ -300,7 +319,7 @@ function PlanCard({
               <div className="text-[24px] md:text-[32px] font-medium tracking-tight leading-none">
                 {formatPrice(isEnglish, price)}
               </div>
-              <div className="text-base md:text-lg text-white/60 pb-1">
+              <div className={`text-base md:text-lg ${isDark ? "text-white/60" : "text-beige900/65"} pb-1`}>
                 {priceUnit}
               </div>
             </div>
@@ -315,8 +334,12 @@ function PlanCard({
             className={[
               "w-full rounded-full py-2.5 md:py-3 text-sm md:text-sm font-normal transition-colors",
               isPrimary
-                ? "bg-accenta1 text-black hover:opacity-95"
-                : "bg-white/10 text-accenta1 border border-white/0 hover:bg-accenta1/10",
+                ? isDark
+                  ? "bg-accenta1 text-black hover:opacity-95"
+                  : "bg-beige900 text-beige100 hover:opacity-95"
+                : isDark
+                  ? "bg-white/10 text-accenta1 border border-white/0 hover:bg-accenta1/10"
+                  : "bg-beige500/55 text-beige900 border border-beige900/8 hover:bg-beige500/70",
               "disabled:opacity-60 disabled:cursor-not-allowed",
             ].join(" ")}
           >
@@ -324,24 +347,24 @@ function PlanCard({
           </button>
         </div>
 
-        <div className="mt-7 md:mt-8 h-px w-full bg-white/10" />
+        <div className={`mt-7 md:mt-8 h-px w-full ${isDark ? "bg-white/10" : "bg-beige900/10"}`} />
 
         <ul className="mt-6 md:mt-7 flex flex-col gap-4">
           {features.map((f, idx) => (
             <li key={idx} className="flex items-start gap-3 text-sm md:text-sm">
               {f.endsWith("및:") || f.endsWith(":") ? (
                 <>
-                  <span className="mt-[6px] w-2 h-2 rounded-full bg-white/25" />
+                  <span className={`mt-[6px] w-2 h-2 rounded-full ${isDark ? "bg-white/25" : "bg-beige900/25"}`} />
                   <span
-                    className="text-white/80 font-medium"
+                    className={`${isDark ? "text-white/80" : "text-beige900/80"} font-medium`}
                     dangerouslySetInnerHTML={{ __html: f }}
                   />
                 </>
               ) : (
                 <>
-                  <Check className="w-4 h-4 mt-0.5 text-accenta1" />
+                  <Check className={`w-4 h-4 mt-0.5 ${isDark ? "text-accenta1" : "text-accentBronze"}`} />
                   <span
-                    className="text-white/70 text-left"
+                    className={`${isDark ? "text-white/70" : "text-beige900/70"} text-left`}
                     dangerouslySetInnerHTML={{ __html: f }}
                   ></span>
                 </>

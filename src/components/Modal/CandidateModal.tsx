@@ -43,7 +43,7 @@ const CandidateModalRoot = () => {
     <AnimatePresence>
       {isOpen && payload && (
         <motion.div
-          className="absolute top-0 left-0 z-50 min-h-screen h-full px-8 overflow-y-scroll pb-20 font-sans w-full bg-hgray200 text-hgray900 shadow-2xl border-l border-hgray200"
+          className="absolute top-0 left-0 z-50 min-h-screen h-full px-8 overflow-y-scroll pb-20 font-sans w-full bg-beige50 text-beige900 shadow-2xl border-l border-beige900/8"
           initial={{ x: "100%", opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: "100%", opacity: 0 }}
@@ -55,14 +55,14 @@ const CandidateModalRoot = () => {
               onClick={() => {
                 router.replace(`/my/p/${payload.candidId}`);
               }}
-              className="rounded-sm bg-white/0 px-1 py-1 text-sm hover:bg-white/5 cursor-pointer"
+              className="rounded-sm bg-transparent px-1 py-1 text-sm hover:bg-beige50/80 cursor-pointer"
             >
               <ExpandIcon className="w-4 h-4" />
             </button>
             <button
               type="button"
               onClick={requestClose}
-              className="rounded-sm bg-white/0 px-1 py-1 text-sm hover:bg-white/5 cursor-pointer"
+              className="rounded-sm bg-transparent px-1 py-1 text-sm hover:bg-beige50/80 cursor-pointer"
             >
               <XIcon className="w-4 h-4" />
             </button>
@@ -77,7 +77,7 @@ const CandidateModalRoot = () => {
             />
           )}
           {(!payload.candidId || isLoading) && (
-            <Loading label="로딩중입니다." className="text-hgray600" />
+            <Loading label="로딩중입니다." className="text-beige900/55" />
           )}
         </motion.div>
       )}

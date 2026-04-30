@@ -124,15 +124,15 @@ function BookmarkFolderTab({
     <div
       onClick={onSelect}
       className={`group relative inline-flex cursor-pointer items-center gap-1.5 pb-3 pl-3 pr-8 pt-2 text-sm transition-colors ${
-        isActive ? "text-white" : "text-white/65 hover:text-white/90"
+        isActive ? "text-beige900" : "text-beige900/80 hover:text-beige900"
       }`}
     >
       <button type="button" className="cursor-pointer">
         {folder.name}
       </button>
-      {/* {isShared ? <Share2 className="h-3 w-3 text-accenta1" /> : null} */}
+      {/* {isShared ? <Share2 className="h-3 w-3 text-accentBronze" /> : null} */}
       {isActive && (
-        <span className="absolute inset-x-0 bottom-[-1px] h-0.5 rounded-full bg-white" />
+        <span className="absolute inset-x-0 bottom-[-1px] h-0.5 rounded-full bg-beige900" />
       )}
 
       <ActionDropdown
@@ -149,8 +149,8 @@ function BookmarkFolderTab({
             }}
             className={`absolute right-0 top-1/2 -translate-y-1/2 inline-flex h-6 w-6 items-center justify-center rounded-md transition-all duration-200 ${
               menuOpen
-                ? "bg-white/10 text-white opacity-100"
-                : "text-white/60 opacity-0 group-hover:opacity-100 hover:bg-white/10 hover:text-white"
+                ? "bg-beige500/70 text-beige900 opacity-100"
+                : "text-beige900/60 opacity-0 group-hover:opacity-100 hover:bg-beige500/70 hover:text-beige900"
             }`}
           >
             <MoreHorizontal size={14} />
@@ -551,7 +551,7 @@ export default function BookmarksPage() {
   if (isInitialFolderLoading) {
     return (
       <div className="px-4">
-        <Loading className="text-hgray600" />
+        <Loading className="text-beige900/55" />
       </div>
     );
   }
@@ -569,10 +569,10 @@ export default function BookmarksPage() {
       <div
         className={`flex items-center justify-start gap-3 ${isToolbar ? "" : "px-4"}`}
       >
-        <div className="flex flex-row items-center gap-3 text-sm text-hgray900">
+        <div className="flex flex-row items-center gap-3 text-sm text-beige900">
           <button
             type="button"
-            className={`w-8 h-8 flex items-center justify-center rounded-lg bg-white/5 p-1 ${
+            className={`w-8 h-8 flex items-center justify-center rounded-lg bg-beige500/55 p-1 ${
               !hasPrev || isFetching
                 ? "cursor-not-allowed opacity-40"
                 : "cursor-pointer"
@@ -586,15 +586,15 @@ export default function BookmarksPage() {
             }
             disabled={!hasPrev || isFetching}
           >
-            <ChevronLeft size={16} className="text-white" />
+            <ChevronLeft size={16} className="text-beige900" />
           </button>
-          <div className="px-4 h-8 rounded-lg flex flex-row items-center justify-center gap-2 border border-white/5">
+          <div className="px-4 h-8 rounded-lg flex flex-row items-center justify-center gap-2 border border-beige900/8 bg-beige50">
             <span className="font-medium">{pageIdx + 1}</span> /{" "}
             <span className="font-medium">{pageCount}</span>
           </div>
           <button
             type="button"
-            className={`w-8 h-8 flex items-center justify-center rounded-md bg-white/5 p-1 ${
+            className={`w-8 h-8 flex items-center justify-center rounded-md bg-beige500/55 p-1 ${
               !hasNext || isFetching
                 ? "cursor-not-allowed opacity-40"
                 : "cursor-pointer"
@@ -609,9 +609,9 @@ export default function BookmarksPage() {
             }}
             disabled={!hasNext || isFetching}
           >
-            <ChevronRight size={16} className="text-white" />
+            <ChevronRight size={16} className="text-beige900" />
           </button>
-          {isFetching && <span className="ml-2 text-hgray500">Syncing…</span>}
+          {isFetching && <span className="ml-2 text-beige900/45">Syncing…</span>}
         </div>
 
         {isToolbar && (
@@ -621,10 +621,10 @@ export default function BookmarksPage() {
             trigger={
               <button
                 type="button"
-                className="inline-flex items-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-sm text-white transition-colors duration-200 hover:bg-white/10"
+                className="inline-flex items-center gap-2 rounded-lg bg-beige500/55 px-3 py-2 text-sm text-beige900 transition-colors duration-200 hover:bg-beige500/70"
               >
                 <span>{pageSize}명씩 보기</span>
-                <ChevronDown className="h-4 w-4 text-hgray700" />
+                <ChevronDown className="h-4 w-4 text-beige900/55" />
               </button>
             }
           >
@@ -636,7 +636,7 @@ export default function BookmarksPage() {
               >
                 <span>{option}명씩 보기</span>
                 {pageSize === option ? (
-                  <Check className="h-4 w-4 text-accenta1" />
+                  <Check className="h-4 w-4 text-beige900" />
                 ) : null}
               </ActionDropdownItem>
             ))}
@@ -651,7 +651,7 @@ export default function BookmarksPage() {
       <div className="mb-4 px-4">
         <div className="flex items-end justify-between gap-4">
           <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-            <div className="flex min-w-max items-end gap-2 border-b border-white/10">
+            <div className="flex min-w-max items-end gap-2 border-b border-beige900/8">
               {defaultFolder && (
                 <button
                   type="button"
@@ -659,15 +659,15 @@ export default function BookmarksPage() {
                   className={`relative inline-flex items-center gap-1.5 pb-3 pl-1 pr-3 pt-2 text-sm transition-colors ${
                     mode === "folder" &&
                     selectedFolderId === Number(defaultFolder.id)
-                      ? "text-white"
-                      : "text-white/65 hover:text-white/90"
+                      ? "text-beige900"
+                      : "text-beige900/80 hover:text-beige900"
                   }`}
                 >
                   <Bookmark className="h-3.5 w-3.5" fill="currentColor" />
                   <span>{defaultFolder.name}</span>
                   {mode === "folder" &&
                     selectedFolderId === Number(defaultFolder.id) && (
-                      <span className="absolute inset-x-0 bottom-[-1px] h-0.5 rounded-full bg-white" />
+                      <span className="absolute inset-x-0 bottom-[-1px] h-0.5 rounded-full bg-beige900" />
                     )}
                 </button>
               )}
@@ -682,13 +682,13 @@ export default function BookmarksPage() {
                 }}
                 className={`relative inline-flex items-center gap-1 pb-3 px-3 pt-2 text-sm transition-colors ${
                   mode === "requested"
-                    ? "text-white"
-                    : "text-white/65 hover:text-white/90"
+                    ? "text-beige900"
+                    : "text-beige900/80 hover:text-beige900"
                 }`}
               >
                 Intro 요청됨
                 {mode === "requested" && (
-                  <span className="absolute inset-x-0 bottom-[-1px] h-0.5 rounded-full bg-white" />
+                  <span className="absolute inset-x-0 bottom-[-1px] h-0.5 rounded-full bg-beige900" />
                 )}
               </button>
 
@@ -721,8 +721,8 @@ export default function BookmarksPage() {
                 type="button"
                 className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm transition-colors ${
                   currentFolderShare
-                    ? "border-white/35 bg-white text-black hover:bg-white/90"
-                    : "border-white/10 bg-white/5 text-white hover:bg-white/10"
+                    ? "border-beige900/25 bg-beige900 text-beige100 hover:bg-beige900/90"
+                    : "border-beige900/10 bg-beige500/55 text-beige900 hover:bg-beige500/70"
                 }`}
               >
                 <ForwardIcon className="h-5 w-5" />
@@ -766,7 +766,7 @@ export default function BookmarksPage() {
 
       {isLoading ? (
         <div className="px-4 py-10">
-          <Loading className="text-hgray600" />
+          <Loading className="text-beige900/55" />
         </div>
       ) : null}
 
@@ -813,8 +813,8 @@ export default function BookmarksPage() {
           size="sm"
         >
           <div className="flex flex-col gap-3">
-            <div className="text-lg font-normal text-white">폴더 이름 변경</div>
-            <div className="text-sm text-hgray800 leading-relaxed">
+            <div className="text-lg font-normal text-beige900">폴더 이름 변경</div>
+            <div className="text-sm text-beige900/80 leading-relaxed">
               새 폴더 이름을 입력해주세요.
             </div>
             <input
@@ -831,7 +831,7 @@ export default function BookmarksPage() {
                 }
               }}
               placeholder="폴더 이름"
-              className="mt-2 h-11 rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-hgray900 outline-none focus:border-white/20"
+              className="mt-2 h-11 rounded-xl border border-beige900/10 bg-beige500/55 px-3 text-sm text-beige900 outline-none focus:border-beige900/20"
               autoFocus
             />
           </div>
@@ -847,9 +847,9 @@ export default function BookmarksPage() {
           size="sm"
         >
           <div className="flex flex-col gap-3">
-            <div className="text-lg font-normal text-white">폴더 삭제 확인</div>
-            <div className="text-sm text-hgray800 leading-relaxed">
-              <span className="text-white">[{folderToDelete.name}]</span> 폴더를
+            <div className="text-lg font-normal text-beige900">폴더 삭제 확인</div>
+            <div className="text-sm text-beige900/80 leading-relaxed">
+              <span className="text-beige900">[{folderToDelete.name}]</span> 폴더를
               삭제하면, 이 폴더에 담긴 북마크가 모두 제거됩니다.
               <br />이 작업은 되돌릴 수 없습니다.
             </div>

@@ -138,7 +138,7 @@ const CareerWorkspaceNav = () => {
     <>
       <header className="sticky top-0 z-20 bg-beige50 text-beige900 backdrop-blur-xl">
         <div className="flex flex-row items-center justify-between gap-4 px-4 py-2 sm:px-6 lg:px-8">
-          <div className="font-halant text-[1.1rem] text-beige900">Harper</div>
+          <div className="font-hedvig text-[1.1rem] text-beige900">Harper</div>
           <div className="flex items-center gap-2">
             <CareerNotificationsPopover
               notifications={notifications}

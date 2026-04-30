@@ -75,6 +75,7 @@ export default function ChatComposer({
         />
       ) : null}
 
+
       <div className="relative flex items-end">
         <textarea
           ref={inputRef}
@@ -83,7 +84,7 @@ export default function ChatComposer({
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={onKeyDown}
           placeholder={m.chat.composerPlaceholder}
-          className="w-full min-h-[94px] max-h-[140px] resize-none bg-white/[0.05] px-4 py-3 text-[13px] text-hgray900 outline-none transition focus:bg-white/[0.05]"
+          className="w-full min-h-[94px] max-h-[140px] resize-none rounded-[20px] border border-beige900/8 bg-beige50 px-4 py-2.5 text-[13px] text-beige900 outline-none transition focus:border-beige900/20"
         />
 
         <div className="absolute bottom-2 right-2 flex items-center gap-2">
@@ -99,13 +100,14 @@ export default function ChatComposer({
             />
           ) : null}
 
+
           <button
             type="button"
             onClick={handleSendClick}
             className={`flex h-8 w-8 items-center justify-center rounded-[12px] cursor-pointer hover:opacity-90 ${
               isStreaming
-                ? "bg-hgray700 text-hgray100"
-                : "bg-accenta1 text-black disabled:opacity-50"
+                ? "bg-beige900/70 text-beige100"
+                : "bg-beige900 text-beige100 disabled:opacity-50"
             }`}
             disabled={!isStreaming && disabledSend}
             aria-label={m.chat.send ?? "Send"}

@@ -76,13 +76,13 @@ export default function RevealProfileButton({
           }}
           disabled={revealMutation.isPending}
           className={cn(
-            "group-hover:bg-black/10 absolute inset-0 z-40 flex h-full w-full cursor-pointer items-center justify-center border border-transparent transition-all duration-300 disabled:cursor-not-allowed",
+            "group-hover:bg-beige900/8 absolute inset-0 z-40 flex h-full w-full cursor-pointer items-center justify-center border border-transparent transition-all duration-300 disabled:cursor-not-allowed",
             overlayClassName
           )}
         >
           <span
             className={cn(
-              "inline-flex items-center rounded-full border border-white/80 bg-gradient-to-br from-white/85 via-white/75 to-white/70 px-4 py-1.5 text-sm font-normal text-black transition-all duration-300 group-hover:bg-white group-hover:border-white",
+              "inline-flex items-center rounded-full border border-beige900/15 bg-beige50/90 px-4 py-1.5 text-sm font-normal text-black transition-all duration-300 group-hover:bg-beige50 group-hover:border-beige900/25",
               className
             )}
           >
@@ -99,7 +99,7 @@ export default function RevealProfileButton({
           }}
           disabled={revealMutation.isPending}
           className={cn(
-            "inline-flex items-center rounded-lg border border-white/80 bg-gradient-to-br from-white/85 via-white/75 to-white/70 px-4 py-1.5 text-sm font-normal text-black transition-all duration-300 hover:bg-white hover:border-white",
+            "inline-flex items-center rounded-lg border border-beige900/15 bg-beige50/90 px-4 py-1.5 text-sm font-normal text-black transition-all duration-300 hover:bg-beige50 hover:border-beige900/25",
             className
           )}
         >

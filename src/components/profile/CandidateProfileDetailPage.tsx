@@ -767,7 +767,7 @@ function CandidateProfileDetailPage({
               {showConnectionAction && isProfileRevealed ? (
                 <button
                   onClick={() => setIsConnectionModalOpen(true)}
-                  className="inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-sm text-accenta1 hover:bg-accenta1/10"
+                  className="inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-sm text-accentBronze hover:bg-accentBronze/10"
                 >
                   {isIntroRequested ? "Intro 요청됨" : "Intro 요청"}
                 </button>

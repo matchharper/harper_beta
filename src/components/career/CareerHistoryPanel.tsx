@@ -987,7 +987,7 @@ const CareerHistoryPanel = () => {
     return (
       <div>
         <div className="w-[280px] flex flex-col gap-2 pr-8 mt-2 mb-8">
-          <h3 className="text-[28px] text-black font-normal font-halant leading-5">
+          <h3 className="text-[28px] text-black font-normal font-hedvig leading-5">
             Opportunities
           </h3>
         </div>

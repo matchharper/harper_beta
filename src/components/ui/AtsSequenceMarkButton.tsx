@@ -121,7 +121,7 @@ export default function AtsSequenceMarkButton({
         compact ? "h-8 px-2 text-sm" : "h-8 px-2 text-sm",
         meta
           ? `${meta.bgClassName} hover:brightness-110 text-white`
-          : "border border-white/10 bg-white/5 text-white/60 hover:bg-white/10 hover:text-white",
+          : "border border-beige900/8 bg-beige500/55 text-beige900/60 hover:bg-beige50/80 hover:text-beige900",
       ].join(" ")}
     >
       {meta ? (
@@ -168,13 +168,13 @@ export default function AtsSequenceMarkButton({
                   </span>
                   <div className="min-w-0">
                     <div>{option.label}</div>
-                    <div className="text-xs text-white/45">
+                    <div className="text-xs text-beige900/45">
                       {option.description}
                     </div>
                   </div>
                 </div>
                 {isSelected && (
-                  <Check className="h-4 w-4 text-accenta1" strokeWidth={1.8} />
+                  <Check className="h-4 w-4 text-accentBronze" strokeWidth={1.8} />
                 )}
               </ActionDropdownItem>
             );
@@ -188,7 +188,7 @@ export default function AtsSequenceMarkButton({
                 onSelect={() => {
                   void handleSelect(null);
                 }}
-                className="text-white/70"
+                className="text-beige900/55"
               >
                 마크 해제
               </ActionDropdownItem>

@@ -121,6 +121,7 @@ const CandidateViews = ({
   isSelectionDisabled = false,
   sharedFolderContext,
   toolbarLeftContent,
+  theme = "cream",
 }: {
   items: any[];
   userId?: string;
@@ -139,7 +140,9 @@ const CandidateViews = ({
     viewer: SharedFolderViewerIdentity | null;
   } | null;
   toolbarLeftContent?: React.ReactNode;
+  theme?: "dark" | "cream";
 }) => {
+  const isDark = theme === "dark";
   const {
     viewType,
     setViewType,
@@ -625,7 +628,11 @@ const CandidateViews = ({
                         }}
                         disabled={bulkRevealMutation.isPending}
                         aria-label="선택 전체 취소"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-black/10 text-white/75 transition duration-200 hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                        className={`inline-flex h-8 w-8 items-center justify-center rounded-lg transition duration-200 disabled:cursor-not-allowed disabled:opacity-40 ${
+                          isDark
+                            ? "border border-white/10 bg-black/10 text-white/75 hover:bg-white/10 hover:text-white"
+                            : "border border-beige900/8 bg-beige500/55 text-beige900/75 hover:bg-beige500/70 hover:text-beige900"
+                        }`}
                       >
                         <X className="h-3.5 w-3.5" />
                       </button>
@@ -641,9 +648,13 @@ const CandidateViews = ({
                             bulkRevealMutation.isPending || isSelectionDisabled
                           }
                           className={`inline-flex flex-row gap-2 items-center justify-center rounded-lg px-2.5 py-1.5 text-xs font-normal transition duration-200 disabled:cursor-not-allowed disabled:opacity-40 ${
-                            hasCheckedCandidates
-                              ? "border border-accenta1 bg-accenta1 text-black hover:opacity-90"
-                              : "border border-white/80 bg-gradient-to-br from-white/85 via-white/75 to-white/70 text-black hover:bg-white"
+                            isDark
+                              ? hasCheckedCandidates
+                                ? "border border-accenta1 bg-accenta1 text-black hover:opacity-90"
+                                : "border border-white/80 bg-gradient-to-br from-white/85 via-white/75 to-white/70 text-black hover:bg-white"
+                              : hasCheckedCandidates
+                                ? "border border-beige900 bg-beige900 text-beige100 hover:opacity-90"
+                                : "border border-beige900/20 bg-white/80 text-beige900 hover:bg-white"
                           }`}
                         >
                           {hasCheckedCandidates ? (
@@ -671,22 +682,38 @@ const CandidateViews = ({
                 onOpenChange={handleFilterMenuOpenChange}
                 align="end"
                 sideOffset={10}
-                contentClassName="w-[240px] border-white/10 bg-[#101217] text-white shadow-2xl"
+                contentClassName={
+                  isDark
+                    ? "w-[240px] border-white/10 bg-hgray200 text-white shadow-2xl"
+                    : "w-[240px] border-beige900/10 bg-beige100 text-beige900 shadow-2xl"
+                }
                 modal={false}
                 trigger={
                   <button
                     type="button"
-                    className="inline-flex h-8 items-center gap-2 rounded-lg px-3 text-sm bg-black/10 border border-white/5 text-white/80 transition-colors duration-200 hover:border-white/15 hover:bg-black/5 hover:text-white"
+                    className={`inline-flex h-8 items-center gap-2 rounded-lg px-3 text-sm transition-colors duration-200 ${
+                      isDark
+                        ? "bg-black/10 border border-white/5 text-white/80 hover:border-white/15 hover:bg-black/5 hover:text-white"
+                        : "bg-beige500/55 border border-beige900/8 text-beige900/80 hover:border-beige900/15 hover:bg-beige500/40 hover:text-beige900"
+                    }`}
                   >
                     <Filter className="h-3.5 w-3.5" strokeWidth={1.8} />
                     <span className="font-normal">Filter:</span>
-                    <span className="max-w-[180px] truncate text-white/55">
+                    <span
+                      className={`max-w-[180px] truncate ${
+                        isDark ? "text-white/55" : "text-beige900/55"
+                      }`}
+                    >
                       {appliedFilterSummary}
                     </span>
                   </button>
                 }
               >
-                <div className="px-2 py-2 text-xs font-medium text-white/50">
+                <div
+                  className={`px-2 py-2 text-xs font-medium ${
+                    isDark ? "text-white/50" : "text-beige900/50"
+                  }`}
+                >
                   선택한 조건에 해당하는 후보를 결과에서 제외합니다.
                 </div>
                 <ActionDropdownItem
@@ -695,12 +722,16 @@ const CandidateViews = ({
                     setDraftExcludedStatuses([]);
                     setDraftExcludeUnopenedProfiles(false);
                   }}
-                  className="text-white/85"
+                  className={isDark ? "text-white/85" : "text-beige900/85"}
                 >
                   <span>전체보기</span>
                   {draftExcludedStatuses.length === 0 &&
                   !draftExcludeUnopenedProfiles ? (
-                    <span className="ml-auto text-[11px] text-accenta1">
+                    <span
+                      className={`ml-auto text-[11px] ${
+                        isDark ? "text-accenta1" : "text-accentBronze"
+                      }`}
+                    >
                       선택됨
                     </span>
                   ) : null}
@@ -714,7 +745,11 @@ const CandidateViews = ({
                   onCheckedChange={() => {
                     setDraftExcludeUnopenedProfiles((current) => !current);
                   }}
-                  className="cursor-pointer rounded-[10px] py-2 text-white/85 focus:bg-white/10 focus:text-white"
+                  className={`cursor-pointer rounded-[10px] py-2 ${
+                    isDark
+                      ? "text-white/85 focus:bg-white/10 focus:text-white"
+                      : "text-beige900/85 focus:bg-beige500/55 focus:text-beige900"
+                  }`}
                 >
                   열람하지 않은 프로필 제외
                 </DropdownMenuCheckboxItem>
@@ -729,7 +764,11 @@ const CandidateViews = ({
                     onCheckedChange={() => {
                       toggleDraftExcludedStatus(option.value);
                     }}
-                    className="cursor-pointer rounded-[10px] py-2 text-white/85 focus:bg-white/10 focus:text-white"
+                    className={`cursor-pointer rounded-[10px] py-2 ${
+                      isDark
+                        ? "text-white/85 focus:bg-white/10 focus:text-white"
+                        : "text-beige900/85 focus:bg-beige500/55 focus:text-beige900"
+                    }`}
                   >
                     {FILTER_LABEL_BY_STATUS[option.value]}
                   </DropdownMenuCheckboxItem>
@@ -745,7 +784,11 @@ const CandidateViews = ({
                       );
                       setIsFilterMenuOpen(false);
                     }}
-                    className="inline-flex h-8 items-center justify-center rounded-md px-3 text-xs text-white/60 transition-colors duration-200 hover:bg-white/5 hover:text-white"
+                    className={`inline-flex h-8 items-center justify-center rounded-md px-3 text-xs transition-colors duration-200 ${
+                      isDark
+                        ? "text-white/60 hover:bg-white/5 hover:text-white"
+                        : "text-beige900/60 hover:bg-beige500/55 hover:text-beige900"
+                    }`}
                   >
                     취소
                   </button>
@@ -753,17 +796,29 @@ const CandidateViews = ({
                     type="button"
                     onClick={applyExcludedMarkFilter}
                     disabled={!hasPendingFilterChanges}
-                    className="inline-flex h-8 items-center justify-center rounded-md bg-accenta1 px-3 text-xs font-medium text-black transition duration-200 hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
+                    className={`inline-flex h-8 items-center justify-center rounded-md px-3 text-xs font-medium transition duration-200 hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40 ${
+                      isDark
+                        ? "bg-accenta1 text-black"
+                        : "bg-beige900 text-beige100"
+                    }`}
                   >
                     적용
                   </button>
                 </div>
               </ActionDropdown>
             ) : null}
-            <div className="relative inline-flex rounded-lg bg-black/10 border border-white/5">
+            <div
+              className={`relative inline-flex rounded-lg ${
+                isDark
+                  ? "bg-black/10 border border-white/5"
+                  : "bg-beige500/55 border border-beige900/8"
+              }`}
+            >
               <span
                 aria-hidden="true"
-                className="absolute left-0.5 top-0.5 h-7 w-8 rounded-md bg-white/20 transition-transform duration-300 ease-out"
+                className={`absolute left-0.5 top-0.5 h-7 w-8 rounded-md transition-transform duration-300 ease-out ${
+                  isDark ? "bg-white/20" : "bg-beige900/15"
+                }`}
                 style={{
                   transform:
                     viewType === "table" ? "translateX(0)" : "translateX(36px)",
@@ -772,7 +827,11 @@ const CandidateViews = ({
               <Tooltips text="Table view">
                 <button
                   type="button"
-                  className="relative z-10 flex h-8 w-9 items-center justify-center rounded-lg text-white/80 transition-colors duration-200 hover:text-white"
+                  className={`relative z-10 flex h-8 w-9 items-center justify-center rounded-lg transition-colors duration-200 ${
+                    isDark
+                      ? "text-white/80 hover:text-white"
+                      : "text-beige900/80 hover:text-beige900"
+                  }`}
                   onClick={() => changeViewType("table")}
                 >
                   <Table className="h-4 w-4" strokeWidth={1.6} />
@@ -781,7 +840,11 @@ const CandidateViews = ({
               <Tooltips text="Card view">
                 <button
                   type="button"
-                  className="relative z-10 flex h-8 w-9 items-center justify-center rounded-lg text-white/80 transition-colors duration-200 hover:text-white"
+                  className={`relative z-10 flex h-8 w-9 items-center justify-center rounded-lg transition-colors duration-200 ${
+                    isDark
+                      ? "text-white/80 hover:text-white"
+                      : "text-beige900/80 hover:text-beige900"
+                  }`}
                   onClick={() => changeViewType("card")}
                 >
                   <Columns2 className="h-4 w-4" strokeWidth={1.6} />
@@ -793,8 +856,16 @@ const CandidateViews = ({
       )}
 
       {sortedItems.length > 0 && filteredItems.length === 0 && (
-        <div className="mx-auto mt-8 flex w-full max-w-[720px] flex-col items-center justify-center gap-3 rounded-2xl border border-white/10 bg-white/[0.05] px-6 py-10 text-center">
-          <div className="text-sm text-white/75">
+        <div
+          className={`mx-auto mt-8 flex w-full max-w-[720px] flex-col items-center justify-center gap-3 rounded-2xl px-6 py-10 text-center ${
+            isDark
+              ? "border border-white/10 bg-white/[0.03]"
+              : "border border-beige900/10 bg-white/60"
+          }`}
+        >
+          <div
+            className={`text-sm ${isDark ? "text-white/75" : "text-beige900/75"}`}
+          >
             현재 필터 조건에 맞는 후보가 없습니다.
           </div>
           {canUseMarkFilter &&
@@ -803,7 +874,11 @@ const CandidateViews = ({
             <button
               type="button"
               onClick={resetExcludedMarkFilter}
-              className="inline-flex h-9 items-center justify-center rounded-lg border border-white/10 bg-white/5 px-4 text-sm text-white/80 transition-colors duration-200 hover:bg-white/10 hover:text-white"
+              className={`inline-flex h-9 items-center justify-center rounded-lg px-4 text-sm transition-colors duration-200 ${
+                isDark
+                  ? "border border-white/10 bg-white/5 text-white/80 hover:bg-white/10 hover:text-white"
+                  : "border border-beige900/8 bg-beige500/55 text-beige900/80 hover:bg-beige500/70 hover:text-beige900"
+              }`}
             >
               전체보기로 되돌리기
             </button>
@@ -821,11 +896,27 @@ const CandidateViews = ({
           >
             <div className="w-max min-w-full">
               <div
-                className="inline-grid items-center py-2 text-xs text-hgray800 font-light bg-hgray200 border-y border-white/5 w-full relative"
+                className={`inline-grid items-center py-2 text-xs font-light w-full relative ${
+                  isDark
+                    ? "text-hgray800 bg-hgray200 border-y border-white/5"
+                    : "text-beige900/80 bg-beige100 border-y border-beige900/8"
+                }`}
                 style={{ gridTemplateColumns }}
               >
-                <div className="sticky left-0 z-30 bg-hgray200 w-full border-r border-white/5 h-full" />
-                <div className="sticky left-14 z-30 px-4 bg-hgray200 border-r border-white/5">
+                <div
+                  className={`sticky left-0 z-30 w-full h-full ${
+                    isDark
+                      ? "bg-hgray200 border-r border-white/5"
+                      : "bg-beige100 border-r border-beige900/8"
+                  }`}
+                />
+                <div
+                  className={`sticky left-14 z-30 px-4 ${
+                    isDark
+                      ? "bg-hgray200 border-r border-white/5"
+                      : "bg-beige100 border-r border-beige900/8"
+                  }`}
+                >
                   프로필
                 </div>
 
@@ -851,15 +942,27 @@ const CandidateViews = ({
                         className="relative"
                       >
                         {isDragOverTarget && (
-                          <span className="pointer-events-none absolute left-0 top-0 h-full w-[2px] bg-accenta1" />
+                          <span
+                            className={`pointer-events-none absolute left-0 top-0 h-full w-[2px] ${
+                              isDark ? "bg-accenta1" : "bg-beige900"
+                            }`}
+                          />
                         )}
                         <Tooltips text={column.tooltip ?? column.label}>
-                          <div className="w-full pl-2 pr-4 text-left truncate border-r border-white/5">
+                          <div
+                            className={`w-full pl-2 pr-4 text-left truncate border-r ${
+                              isDark ? "border-white/5" : "border-beige900/8"
+                            }`}
+                          >
                             {column.label}
                           </div>
                         </Tooltips>
                         {column.draggable && (
-                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-hgray700/80">
+                          <span
+                            className={`absolute right-2 top-1/2 -translate-y-1/2 ${
+                              isDark ? "text-hgray700/80" : "text-beige900/55"
+                            }`}
+                          >
                             <GripVertical className="w-3 h-3" />
                           </span>
                         )}
@@ -867,7 +970,11 @@ const CandidateViews = ({
                         {!isMyList && columnId === lastCriteriaColumnId && (
                           <div
                             onClick={toggleFold}
-                            className="absolute top-[-8px] right-0 bg-hgray300 p-0.5 rounded-bl-lg cursor-pointer h-4 w-4 hover:bg-hgray400 transition-colors duration-200"
+                            className={`absolute top-[-8px] right-0 p-0.5 rounded-bl-lg cursor-pointer h-4 w-4 transition-colors duration-200 ${
+                              isDark
+                                ? "bg-hgray300 hover:bg-hgray400"
+                                : "bg-beige500/70 hover:bg-beige500/90"
+                            }`}
                           >
                             {isFolded ? (
                               <ChevronRight className="w-3 h-3 absolute top-[1px] right-[1px]" />
@@ -888,16 +995,26 @@ const CandidateViews = ({
                       onDragOver={(e) => onDragOver(e, columnId)}
                       onDrop={(e) => onDrop(e, columnId)}
                       onDragEnd={onDragEnd}
-                      className={`relative px-4 flex items-center justify-between gap-2 border-r border-white/5 ${
+                      className={`relative px-4 flex items-center justify-between gap-2 border-r ${
+                        isDark ? "border-white/5" : "border-beige900/8"
+                      } ${
                         column.draggable ? "cursor-grab" : "cursor-default"
                       }`}
                     >
                       {isDragOverTarget && (
-                        <span className="pointer-events-none absolute left-0 top-0 h-full w-[2px] bg-accenta1" />
+                        <span
+                          className={`pointer-events-none absolute left-0 top-0 h-full w-[2px] ${
+                            isDark ? "bg-accenta1" : "bg-beige900"
+                          }`}
+                        />
                       )}
                       <span>{column.label}</span>
                       {column.draggable && (
-                        <span className="text-hgray900/50">
+                        <span
+                          className={
+                            isDark ? "text-hgray900/50" : "text-beige900/45"
+                          }
+                        >
                           <GripVertical className="w-3 h-3" />
                         </span>
                       )}
@@ -934,6 +1051,7 @@ const CandidateViews = ({
                     }}
                     sharedNotesLayout={sharedNotesLayout}
                     sharedFolderContext={sharedFolderContext ?? null}
+                    theme={theme}
                   />
                 ))}
               </div>
@@ -967,6 +1085,7 @@ const CandidateViews = ({
                   handleCandidateMarkChange(String(c?.id ?? ""), status);
                 }}
                 sharedFolderContext={sharedFolderContext ?? null}
+                theme={theme}
               />
             ))}
           </div>

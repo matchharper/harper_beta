@@ -36,7 +36,7 @@ function getStatusText({
   if (liked) return `${name} · 관심 후보로 저장됨`;
   return (
     <div>
-      <span className="text-accenta1">{name}</span> · 더 좋은 추천을 위해
+      <span className="text-accentBronze">{name}</span> · 더 좋은 추천을 위해
       피드백을 남겨주세요
     </div>
   );
@@ -71,7 +71,7 @@ const FeedbackBar = ({
   return (
     <>
       <div className="sticky top-0 z-40 w-full">
-        <div className="border-b border-white/10 bg-black/10 backdrop-blur-xl text-white/90">
+        <div className="border-b border-beige900/10 bg-beige500/10 backdrop-blur-xl text-beige900/90">
           <div className="mx-auto flex w-full max-w-5xl items-center gap-3 px-2 py-2 pl-4">
             {/* Left: status */}
             <div className="min-w-0 flex-1">
@@ -185,10 +185,10 @@ function ActionButton({
 }: ActionButtonProps) {
   const activeClass =
     kind === "like"
-      ? "bg-accenta1 text-black"
+      ? "bg-accentBronze text-beige100"
       : kind === "connect"
-        ? "text-black"
-        : "text-black";
+        ? "text-beige900"
+        : "text-beige900";
 
   return (
     <button
@@ -199,11 +199,11 @@ function ActionButton({
         "group inline-flex items-center gap-1.5 rounded-md border px-3 py-2",
         "text-[12px] transition",
         active
-          ? "bg-accenta1 text-black border-accenta1/0"
-          : "border-black/0 bg-white/10 hover:bg-white/15",
+          ? "bg-accentBronze text-beige100 border-accentBronze/0"
+          : "border-beige900/0 bg-beige500/70 hover:bg-beige500/80",
         "active:scale-[0.99]",
         active && activeClass,
-        disabled && "opacity-40 cursor-not-allowed hover:bg-white/0"
+        disabled && "opacity-40 cursor-not-allowed hover:bg-beige500/0"
       )}
     >
       <Icon className="h-4 w-4" />

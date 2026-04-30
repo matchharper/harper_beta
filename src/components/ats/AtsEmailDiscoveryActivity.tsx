@@ -54,13 +54,13 @@ function getStatusTone(
 
   if (outreach?.emailDiscoveryStatus === "canceled") {
     return {
-      badgeClassName: "border-white/15 bg-white/5 text-white/75",
+      badgeClassName: "border-beige900/15 bg-beige500/55 text-beige900/80",
       label: "중단됨",
     };
   }
 
   return {
-    badgeClassName: "border-white/10 bg-white/5 text-white/70",
+    badgeClassName: "border-beige900/8 bg-beige500/55 text-beige900/80",
     label: "대기",
   };
 }
@@ -211,7 +211,7 @@ function renderTraceMeta(
   if (!serialized) return null;
 
   return (
-    <pre className="mt-2 max-w-full whitespace-pre-wrap break-words rounded-md border border-white/10 bg-white/[0.05] p-2 text-xs leading-5 text-white/45 [overflow-wrap:anywhere]">
+    <pre className="mt-2 max-w-full whitespace-pre-wrap break-words rounded-md border border-beige900/8 bg-beige50 p-2 text-xs leading-5 text-beige900/45 [overflow-wrap:anywhere]">
       {renderLinkedText(serialized, `${key}-meta`)}
     </pre>
   );
@@ -239,7 +239,7 @@ export default function AtsEmailDiscoveryActivity({
   const statusTone = getStatusTone(outreach, isSearching);
 
   return (
-    <div className="min-w-0 rounded-md border border-white/10 bg-black/10 p-4">
+    <div className="min-w-0 rounded-md border border-beige900/8 bg-beige50 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -249,18 +249,18 @@ export default function AtsEmailDiscoveryActivity({
               {isSearching && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               {statusTone.label}
             </div>
-            <div className="text-xs text-white/40">
+            <div className="text-xs text-beige900/45">
               로그 {trace.length}개
               {lastTrace
                 ? ` · 마지막 업데이트 ${formatDateTime(lastTrace.at)}`
                 : ""}
             </div>
           </div>
-          <div className="mt-3 min-w-0 break-words text-sm leading-6 text-white/75 [overflow-wrap:anywhere]">
+          <div className="mt-3 min-w-0 break-words text-sm leading-6 text-beige900/80 [overflow-wrap:anywhere]">
             {renderLinkedText(summary, "summary")}
           </div>
           {isSearching && (
-            <div className="mt-2 text-xs text-sky-100/75">
+            <div className="mt-2 text-xs text-sky-700/75">
               탐색 중에는 2초 단위로 상태와 로그가 자동 갱신됩니다.
             </div>
           )}
@@ -271,7 +271,7 @@ export default function AtsEmailDiscoveryActivity({
             type="button"
             onClick={onClear}
             disabled={clearPending || isSearching}
-            className="inline-flex items-center gap-2 rounded-sm border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex items-center gap-2 rounded-sm border border-beige900/8 bg-beige500/55 px-2.5 py-1.5 text-xs text-beige900 transition hover:bg-beige500/70 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {clearPending ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -288,17 +288,17 @@ export default function AtsEmailDiscoveryActivity({
           {trace.map((item, index) => (
             <div
               key={`${item.at}-${index}`}
-              className="min-w-0 rounded-md border border-white/10 bg-black/20 px-3 py-2"
+              className="min-w-0 rounded-md border border-beige900/8 bg-beige100 px-3 py-2"
             >
               <div className="flex min-w-0 items-center justify-between gap-3">
-                <span className="text-xs uppercase tracking-[0.18em] text-white/35">
+                <span className="text-xs uppercase tracking-[0.18em] text-beige900/35">
                   {item.kind}
                 </span>
-                <span className="text-xs text-white/35">
+                <span className="text-xs text-beige900/35">
                   {formatDateTime(item.at)}
                 </span>
               </div>
-              <div className="mt-2 min-w-0 break-words text-sm leading-6 text-white/65 [overflow-wrap:anywhere]">
+              <div className="mt-2 min-w-0 break-words text-sm leading-6 text-beige900/55 [overflow-wrap:anywhere]">
                 {renderLinkedText(item.content, `trace-${index}`)}
               </div>
               {renderTraceMeta(item.meta, `trace-${index}`)}

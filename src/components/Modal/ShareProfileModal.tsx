@@ -126,7 +126,7 @@ export default function ShareProfileModal({
         >
             <div className="space-y-4">
                 <div className="text-lg font-normal">프로필 공유</div>
-                <label className="flex items-center gap-2 text-sm text-gray-300">
+                <label className="flex items-center gap-2 text-sm text-beige900/80">
                     {/* <input
                         type="checkbox"
                         checked={includeChat}
@@ -140,7 +140,7 @@ export default function ShareProfileModal({
                     채팅 기록도 함께 공유
                 </label>
 
-                <div className="rounded-xl bg-hgray300 p-3 text-sm text-hgray800">
+                <div className="rounded-xl bg-beige100 p-3 text-sm text-beige900/80">
                     공유 링크를 가진 사람은 이 프로필을 볼 수 있어요.
                     <br />
                     외부 공유 시 주의하세요.
@@ -148,19 +148,19 @@ export default function ShareProfileModal({
 
                 {url && (
                     <div className="space-y-2 mt-1">
-                        <div className="text-xs text-gray-400 flex flex-row items-center justify-between">
+                        <div className="text-xs text-beige900/45 flex flex-row items-center justify-between">
                             <div>
                                 공유 링크
                             </div>
                             <button
                                 onClick={copyUrl}
-                                className="text-xs text-gray-400 hover:text-accenta1"
+                                className="text-xs text-beige900/45 hover:text-accentBronze"
                             >
                                 {isCopying ? "복사 중..." : "복사"}
                             </button>
                         </div>
                         <div className="flex items-center gap-2">
-                            <div className="flex-1 break-all rounded-lg border border-gray-700 bg-gray-900 p-2 text-sm text-gray-300">
+                            <div className="flex-1 break-all rounded-lg border border-beige900/8 bg-beige100 p-2 text-sm text-beige900/80">
                                 {url}
                             </div>
                         </div>
@@ -171,7 +171,7 @@ export default function ShareProfileModal({
                 )}
 
                 {errorMsg && (
-                    <div className="rounded-lg bg-red-900 p-2 text-sm text-red-300">
+                    <div className="rounded-lg bg-rose-50 p-2 text-sm text-rose-700">
                         {errorMsg}
                     </div>
                 )}
