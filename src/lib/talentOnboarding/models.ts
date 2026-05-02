@@ -1,10 +1,9 @@
 import type { Database } from "@/types/database.types";
 import type {
-  TalentNetworkApplication,
   TalentNetworkCareerMoveIntentOptionId,
   TalentNetworkEngagementOptionId,
   TalentNetworkLocationOptionId,
-} from "@/lib/talentNetworkApplication";
+} from "@/lib/talentNetworkOptions";
 import type { TalentRecommendationSettingsUpdateSource } from "@/lib/talentOnboarding/recommendationSettings";
 
 export type TalentConversationRow = {
@@ -28,15 +27,9 @@ export type TalentUserProfileRow = {
   headline: string | null;
   bio: string | null;
   location: string | null;
-  career_profile: TalentNetworkApplication | Record<string, unknown> | null;
   last_logined_at: string | null;
   network_waitlist_id: number | null;
-  network_claimed_at: string | null;
   network_source_talent_id: string | null;
-  network_application:
-    | TalentNetworkApplication
-    | Record<string, unknown>
-    | null;
   resume_file_name: string | null;
   resume_storage_path: string | null;
   resume_text: string | null;

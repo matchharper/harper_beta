@@ -16,7 +16,7 @@ import {
   getTalentCareerMoveIntentLabel,
   getTalentEngagementLabels,
   getTalentLocationLabels,
-} from "@/lib/talentNetworkApplication";
+} from "@/lib/talentNetworkOptions";
 import {
   getTalentProfileVisibilityLabel,
   normalizeTalentBlockedCompanies,

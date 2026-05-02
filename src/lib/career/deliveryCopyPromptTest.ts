@@ -21,20 +21,37 @@ const normalizeWhitespace = (value: unknown) =>
     .replace(/\s+/g, " ")
     .trim();
 
-const normalizeMultilineText = (
+const normalizeDeliveryCopyBody = (
   value: string,
-  maxLines: number,
-  maxLineLength: number
-) =>
-  value
-    .split(/\r?\n/)
-    .map((line) => line.trimEnd().slice(0, maxLineLength))
-    .filter(
-      (line, index, lines) => line || (index > 0 && index < lines.length - 1)
+  maxParagraphs = 12,
+  maxChars = 6000
+) => {
+  const paragraphs = String(value ?? "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .split(/\n\s*\n+/)
+    .map((block) =>
+      block
+        .split("\n")
+        .map(normalizeWhitespace)
+        .filter(Boolean)
+        .join(" ")
     )
-    .slice(0, maxLines)
-    .join("\n")
-    .trim();
+    .filter(Boolean)
+    .slice(0, maxParagraphs);
+
+  const body = paragraphs.join("\n\n").trim();
+  if (body.length <= maxChars) return body;
+
+  const clipped = body.slice(0, maxChars).trimEnd();
+  for (const separator of ["\n\n", "요. ", "다. ", ". ", "\n"]) {
+    const index = clipped.lastIndexOf(separator);
+    if (index >= Math.floor(maxChars * 0.65)) {
+      return clipped.slice(0, index + separator.length).trim();
+    }
+  }
+  return clipped;
+};
 
 export const DELIVERY_COPY_TEST_MODEL = "grok-4-fast-reasoning";
 export const DELIVERY_COPY_TEST_FALLBACK_MODEL =
@@ -52,15 +69,19 @@ Subject: 짧은 한국어 이메일 제목 한 줄 (가능하면 internal 추천
 
 Rules:
 - 본문은 하나의 자연스러운 메시지여야 한다. intro/body/closing 같은 구조화된 섹션으로 나누지 마라.
+- 문단은 읽기 좋게 4-6개 정도로 나누고, 문단 사이에는 반드시 빈 줄 하나를 넣어라.
+- markdown을 사용해서, 읽기 좋은 구조로 작성해라. Heading은 쓰지말고.
 - chat과 email에 같은 본문이 그대로 들어간다고 생각하고 작성한다.
 - Write naturally, not like a template. 진짜 사람이 직접 쓴 것처럼. 딱딱한 운영문구 느낌을 줄이지 마라.
 - Internal opportunities are the important part. Internal roles가 있으면 그 이유를 더 구체적으로 설명한다.
 - External opportunities are supporting context. 길게 나열하지 말고 대략적인 시장 요약 정도로만 다룬다.
 - If there are no strong opportunities, say that clearly and say Harper will keep looking.
 - 이메일용 과한 형식 문구, 과장된 인사말, 군더더기 closing은 피한다.
+- HTML 태그를 쓰지 마라. 강조가 필요하면 \`**강조**\` markdown만 사용한다.
 - \`company_workspace.request\` is private internal context and must never be exposed to the user. Do not quote it, paraphrase it, or hint at confidential internal asks.
 - Use only the facts provided in the input. Do not invent requirements, team details, or company facts.
-- 마지막에는 최대한 많은 기회를 추천받길 원하는지, 정말 완벽하게 핏이 맞는 소수의 기회만 가끔 받길 원하는지 알려주시면 그걸 반영할테니 알려주세요. 라는 말도 넣어.
+- Delivery Context의 resume.hasUploadedResume가 false이면, 문맥상 자연스러울 때만 이력서를 올리면 매칭 정확도에 도움이 된다는 말을 본문 흐름 안에 짧게 녹여라. 별도 안내 블록이나 템플릿 문장처럼 붙이지 마라. true이면 이력서 업로드를 요청하지 마라.
+- Internal 추천의 경우 헤드헌터로써 상대방에게 좋은 기회를 설명한다는 느낌으로 작성해줘. 그리고 좋은 기회로 느껴지도록.
 
 [Example 1]
 안녕하세요 <name>님, 저희가 나눴던 대화를 바탕으로 좋아하실 만한 기회를 먼저 찾아봤어요.
@@ -73,7 +94,7 @@ Rules:
 
 Harper에게 “좋은 분이 있으면 꼭 소개해달라”고 요청해둔 회사들이 있는데, 그중에서 특히 <top_internal_company>가 가장 잘 맞아 보여요. 조금 더 자세히 설명드릴게요.
 
-<strong>Harper note</strong>  
+**Harper note**  
 <top_internal_company>는 지금 <objective_company_context>.  
 특히 <name>님이 중요하게 보셨던 <user_priority_1>, <user_priority_2>와 직접적으로 맞닿아 있고,  
 이 역할에서는 <user_strength_1>, <user_strength_2>가 실제로 강점으로 작용할 가능성이 커 보여요.  
@@ -94,7 +115,7 @@ Harper에게 “좋은 분이 있으면 꼭 소개해달라”고 요청해둔 �
 
 하지만 객관적으로 봤을 때 정말 좋은 기회이고 핏이 맞다고 느껴져서 추천드려요!
 
-<strong>Harper note</strong>
+**Harper note**
 <top_internal_company>는 <objective_company_context>. 이 포지션은 단순히 직무명이 비슷한 수준이 아니라, <name>님이 대화에서 중요하게 말씀하신 <user_priority_1>과 <user_priority_2>에 꽤 잘 맞는 편이에요. 특히 <user_strength_1>, <user_strength_2> 같은 배경은 이 팀이 실제로 필요로 하는 부분과 맞닿아 있어서, 소개가 들어갔을 때 설득력이 높을 것으로 보입니다. 또 <timing_advantage_or_team_context>라는 점에서도 지금 검토할 이유가 분명한 기회라고 판단했어요.
 최근에 3000억을 투자받으면서 빠르게 성장하고 있는 팀이에요.
 
@@ -110,6 +131,10 @@ export type DeliveryCopyPromptInput = {
     externalRecommendations: number;
     externalMinimum: number;
     finalRecommendations: number;
+    resume?: {
+      hasUploadedResume: boolean;
+      uploadLink: string | null;
+    };
   };
   internalOpportunities: Array<{
     companyName: string;
@@ -150,6 +175,10 @@ export const createExampleDeliveryCopyPromptInput = (
     externalRecommendations: 5,
     externalMinimum: 4,
     finalRecommendations: 7,
+    resume: {
+      hasUploadedResume: false,
+      uploadLink: "https://matchharper.com/career/profile?profileSection=links",
+    },
   },
   internalOpportunities: [
     {
@@ -224,12 +253,12 @@ export const parseDeliveryCopyText = (rawText: string) => {
     }
   }
 
-  const body = normalizeMultilineText(bodyLines.join("\n"), 18, 280);
+  const body = normalizeDeliveryCopyBody(bodyLines.join("\n"));
 
   return {
-    chatMessage: body.slice(0, 1500),
+    chatMessage: body,
     emailSubject: subject.slice(0, 200),
-    emailBody: body.slice(0, 6000),
+    emailBody: body,
     rawText: normalizeWhitespace(rawText).slice(0, 8000),
   };
 };

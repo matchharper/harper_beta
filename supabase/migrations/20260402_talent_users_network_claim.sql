@@ -1,7 +1,6 @@
 alter table public.talent_users
   add column if not exists network_waitlist_id bigint null,
-  add column if not exists network_source_talent_id uuid null,
-  add column if not exists network_application jsonb not null default '{}'::jsonb;
+  add column if not exists network_source_talent_id uuid null;
 
 create unique index if not exists talent_users_network_waitlist_uidx
   on public.talent_users (network_waitlist_id)

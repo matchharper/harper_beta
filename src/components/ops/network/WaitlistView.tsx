@@ -7,7 +7,7 @@ import {
   getTalentCareerMoveIntentLabel,
   getTalentEngagementLabels,
   getTalentLocationLabels,
-} from "@/lib/talentNetworkApplication";
+} from "@/lib/talentNetworkOptions";
 import { Mail } from "lucide-react";
 import {
   Badge,
@@ -143,24 +143,9 @@ export default function WaitlistView({
         </div>
       </div>
 
-      {detail?.latestNetworkApplication ||
-      detail?.latestTalentSetting ||
-      detail?.latestTalentInsights ? (
+      {detail?.latestTalentSetting || detail?.latestTalentInsights ? (
         <div className={cx(opsTheme.panelSoft, "px-4 py-2")}>
           <div className="divide-y divide-beige900/10">
-            <InfoRow
-              label="원하는 역할"
-              value={detail?.latestNetworkApplication?.selectedRole ?? "-"}
-            />
-            <InfoRow
-              label="제출 자료"
-              value={
-                detail?.latestNetworkApplication &&
-                detail.latestNetworkApplication.profileInputTypes.length > 0
-                  ? detail.latestNetworkApplication.profileInputTypes.join(", ")
-                  : "-"
-              }
-            />
             <InfoRow
               label="이직 의향"
               value={

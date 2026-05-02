@@ -5,7 +5,7 @@ import DeliveryCopyPromptTestPanel from "./DeliveryCopyPromptTestPanel";
 import {
   getTalentEngagementLabels,
   getTalentCareerMoveIntentLabel,
-} from "@/lib/talentNetworkApplication";
+} from "@/lib/talentNetworkOptions";
 import {
   CareerPrimaryButton,
   CareerSecondaryButton,

@@ -14,7 +14,6 @@ import {
   CareerOpportunityType,
   type CareerHistoryOpportunity,
   type CareerMessage,
-  type CareerNetworkApplication,
   type CareerRecentOpportunity,
   type CareerTalentInsights,
   type CareerTalentNotification,
@@ -48,16 +47,6 @@ const mockUser = {
   },
   created_at: previewDate(),
 } as User;
-
-const initialNetworkApplication: CareerNetworkApplication = {
-  selectedRole: "Applied AI Engineer / Product-minded Builder",
-  profileInputTypes: ["linkedin", "github", "website", "cv"],
-  linkedinProfileUrl: "https://linkedin.com/in/preview-candidate",
-  githubProfileUrl: "https://github.com/preview-candidate",
-  scholarProfileUrl: null,
-  personalWebsiteUrl: "https://previewcandidate.dev",
-  submittedAt: previewDate(),
-};
 
 const initialTalentPreferences: CareerTalentPreferences = {
   engagementTypes: ["full_time", "fractional"],
@@ -401,15 +390,6 @@ const CareerPreviewPage = () => {
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [savedResumeFileName, setSavedResumeFileName] =
     useState("preview_resume.pdf");
-  const [networkApplication, setNetworkApplication] = useState(
-    initialNetworkApplication
-  );
-  const [savedNetworkApplication, setSavedNetworkApplication] = useState(
-    initialNetworkApplication
-  );
-  const [networkApplicationUpdatedAt, setNetworkApplicationUpdatedAt] =
-    useState(previewDate());
-  const [networkSaveInfo, setNetworkSaveInfo] = useState("");
   const [talentPreferences, setTalentPreferences] = useState(
     initialTalentPreferences
   );
@@ -578,18 +558,10 @@ const CareerPreviewPage = () => {
         return true;
       },
       talentProfile,
-      networkApplication,
-      networkApplicationUpdatedAt,
       talentPreferences,
       talentInsights,
       talentPreferencesUpdatedAt,
       talentInsightsUpdatedAt,
-      networkApplicationSavePending: false,
-      networkApplicationSaveError: "",
-      networkApplicationSaveInfo: networkSaveInfo,
-      hasUnsavedNetworkApplicationChanges:
-        JSON.stringify(networkApplication) !==
-        JSON.stringify(savedNetworkApplication),
       talentPreferencesSavePending: false,
       talentPreferencesSaveError: "",
       talentPreferencesSaveInfo,
@@ -601,24 +573,6 @@ const CareerPreviewPage = () => {
       talentInsightsSaveInfo,
       hasUnsavedTalentInsightsChanges:
         JSON.stringify(talentInsights) !== JSON.stringify(savedTalentInsights),
-      onNetworkApplicationChange: (next) => {
-        setNetworkSaveInfo("");
-        setNetworkApplication((current) =>
-          typeof next === "function"
-            ? (next(current) ?? current)
-            : (next ?? current)
-        );
-      },
-      onSaveNetworkApplication: () => {
-        setSavedNetworkApplication(networkApplication);
-        setNetworkApplicationUpdatedAt(new Date().toISOString());
-        setNetworkSaveInfo("프로필 설정을 저장했습니다.");
-        return true;
-      },
-      onResetNetworkApplication: () => {
-        setNetworkSaveInfo("");
-        setNetworkApplication(savedNetworkApplication);
-      },
       onTalentPreferencesChange: (next) => {
         setTalentPreferencesSaveInfo("");
         setTalentPreferences((current) =>
@@ -698,15 +652,11 @@ const CareerPreviewPage = () => {
     }),
     [
       blockedCompanies,
-      networkApplication,
-      networkApplicationUpdatedAt,
-      networkSaveInfo,
       profileLinks,
       profileSaveInfo,
       profileVisibility,
       resumeFile,
       savedBlockedCompanies,
-      savedNetworkApplication,
       savedProfileLinks,
       savedProfileVisibility,
       savedResumeFileName,

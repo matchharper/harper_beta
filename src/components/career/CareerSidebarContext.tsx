@@ -4,7 +4,6 @@ import type {
   CareerHistoryOpportunity,
   CareerHistoryOpportunityCounts,
   CareerHistoryOpportunityFeedback,
-  CareerNetworkApplication,
   CareerOpportunitySavedStage,
   CareerRecentOpportunity,
   CareerStage,
@@ -83,15 +82,8 @@ export type CareerSidebarContextValue = {
     structuredProfile?: CareerTalentProfile | null;
   }) => boolean | Promise<boolean>;
   talentProfile: CareerTalentProfile;
-  networkApplication: CareerNetworkApplication | null;
   talentPreferences: CareerTalentPreferences | null;
   talentInsights: CareerTalentInsights | null;
-  networkApplicationUpdatedAt: string | null;
-  networkApplicationSavePending: boolean;
-  networkApplicationSaveError: string;
-  networkApplicationSaveInfo: string;
-  hasUnsavedNetworkApplicationChanges: boolean;
-  onResetNetworkApplication: () => void;
   talentPreferencesUpdatedAt: string | null;
   talentPreferencesSavePending: boolean;
   talentPreferencesSaveError: string;
@@ -104,15 +96,6 @@ export type CareerSidebarContextValue = {
   talentInsightsSaveInfo: string;
   hasUnsavedTalentInsightsChanges: boolean;
   onResetTalentInsights: () => void;
-  onNetworkApplicationChange: (
-    next:
-      | CareerNetworkApplication
-      | null
-      | ((
-          current: CareerNetworkApplication | null
-        ) => CareerNetworkApplication | null)
-  ) => void;
-  onSaveNetworkApplication: () => boolean | Promise<boolean>;
   onTalentPreferencesChange: (
     next:
       | CareerTalentPreferences

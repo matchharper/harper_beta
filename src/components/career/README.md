@@ -79,11 +79,6 @@
   - 고정 필드 목록을 갖지 않고, 내부 구조화 결과나 대화 흐름으로 생성된 key 를 그대로 편집합니다.
   - 저장은 `useCareerTalentInsights.ts` 를 통해 `/api/talent/preferences` 의 `insightContent` payload 로 분리됩니다.
 
-- `CareerNetworkApplicationSection.tsx`
-  - 이전 형태의 combined profile form 성격이 강한 파일입니다.
-  - 현재 `profile/CareerProfileWorkspace` 나 `CareerSettingsModal` 의 주 렌더 경로에는 연결되어 있지 않습니다.
-  - 수정이 필요하면 실제 사용 여부를 먼저 확인한 뒤 유지/삭제를 결정하세요.
-
 ### Chat
 
 - `CareerChatPanel.tsx`
@@ -126,10 +121,6 @@
 
 실제 저장/dirty 로직은 대부분 `src/hooks/career/*` 에 있습니다.
 
-- `useCareerNetworkApplication.ts`
-  - `networkApplication` draft 와 saved snapshot 을 분리합니다.
-  - `hasUnsavedNetworkApplicationChanges`, `onResetNetworkApplication` 제공.
-
 - `useCareerTalentPreferences.ts`
   - `talentPreferences` draft 와 saved snapshot 을 분리합니다.
   - `hasUnsavedTalentPreferencesChanges`, `onResetTalentPreferences` 제공.
@@ -151,11 +142,7 @@
 
 ## Storage Map
 
-profile settings 는 한 군데가 아니라 세 저장소로 나뉩니다.
-
-- network application
-  - API: `/api/talent/network/profile`
-  - DB: `talent_users.career_profile`
+profile settings 는 한 군데가 아니라 두 저장소로 나뉩니다.
 
 - visibility / blocked companies / engagement / preferred location / career move intent
   - API: `/api/talent/settings`, `/api/talent/preferences`
@@ -196,12 +183,11 @@ profile 설정 필드를 추가하거나 저장 방식을 바꿀 때는 보통 �
 
 1. `src/components/career/types.ts`
 2. `src/components/career/CareerSidebarContext.tsx`
-3. `src/hooks/career/useCareerNetworkApplication.ts`
-4. `src/hooks/career/useCareerTalentPreferences.ts`
-5. `src/hooks/career/useCareerTalentInsights.ts`
-6. `src/hooks/career/useCareerTalentSettings.ts`
-7. `src/app/api/talent/session/route.ts`
-8. 관련 저장 API route (`settings`, `preferences`, `network/profile`)
-9. `src/pages/career/preview.tsx`
+3. `src/hooks/career/useCareerTalentPreferences.ts`
+4. `src/hooks/career/useCareerTalentInsights.ts`
+5. `src/hooks/career/useCareerTalentSettings.ts`
+6. `src/app/api/talent/session/route.ts`
+7. 관련 저장 API route (`settings`, `preferences`)
+8. `src/pages/career/preview.tsx`
 
 이 중 하나라도 빠지면 runtime 에서는 동작해도 preview, hydrate, dirty-state, reset, updated-at 표시가 어긋날 수 있습니다.

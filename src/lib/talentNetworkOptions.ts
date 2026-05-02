@@ -1,33 +1,9 @@
-import type { NetworkLead } from "@/lib/networkOps";
-
 export type TalentNetworkProfileInputType =
   | "linkedin"
   | "github"
   | "scholar"
   | "website"
   | "cv";
-
-export type TalentNetworkApplication = {
-  selectedRole: string | null;
-  profileInputTypes: TalentNetworkProfileInputType[];
-  linkedinProfileUrl: string | null;
-  githubProfileUrl: string | null;
-  scholarProfileUrl: string | null;
-  personalWebsiteUrl: string | null;
-  submittedAt: string | null;
-};
-
-export type TalentNetworkApplicationHistoryItem = {
-  id: string;
-  title: string;
-  description: string;
-  createdAt: string;
-  type:
-    | "network_submission"
-    | "career_workspace_created"
-    | "career_conversation_started"
-    | "profile_updated";
-};
 
 export const TALENT_NETWORK_PROFILE_INPUT_OPTIONS: Array<{
   id: TalentNetworkProfileInputType;
@@ -143,84 +119,4 @@ function normalizeStringArray(value: unknown, maxItems = 12) {
   }
 
   return normalized;
-}
-
-function normalizeProfileInputTypes(
-  value: unknown
-): TalentNetworkProfileInputType[] {
-  const allowed = new Set<TalentNetworkProfileInputType>(
-    TALENT_NETWORK_PROFILE_INPUT_OPTIONS.map((option) => option.id)
-  );
-
-  return normalizeStringArray(value, TALENT_NETWORK_PROFILE_INPUT_OPTIONS.length)
-    .filter((item): item is TalentNetworkProfileInputType =>
-      allowed.has(item as TalentNetworkProfileInputType)
-    );
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  return value as Record<string, unknown>;
-}
-
-export function normalizeTalentNetworkApplication(
-  value: unknown
-): TalentNetworkApplication | null {
-  const record = asRecord(value);
-  if (!record) return null;
-
-  const normalized = {
-    selectedRole: normalizeText(
-      record.selectedRole ?? record.selected_role,
-      240
-    ),
-    profileInputTypes: normalizeProfileInputTypes(
-      record.profileInputTypes ?? record.profile_input_types
-    ),
-    linkedinProfileUrl: normalizeText(
-      record.linkedinProfileUrl ?? record.linkedin_profile_url,
-      500
-    ),
-    githubProfileUrl: normalizeText(
-      record.githubProfileUrl ?? record.github_profile_url,
-      500
-    ),
-    scholarProfileUrl: normalizeText(
-      record.scholarProfileUrl ?? record.scholar_profile_url,
-      500
-    ),
-    personalWebsiteUrl: normalizeText(
-      record.personalWebsiteUrl ?? record.personal_website_url,
-      500
-    ),
-    submittedAt: normalizeText(record.submittedAt ?? record.submitted_at, 64),
-  } satisfies TalentNetworkApplication;
-
-  if (
-    !normalized.selectedRole &&
-    normalized.profileInputTypes.length === 0 &&
-    !normalized.linkedinProfileUrl &&
-    !normalized.githubProfileUrl &&
-    !normalized.scholarProfileUrl &&
-    !normalized.personalWebsiteUrl &&
-    !normalized.submittedAt
-  ) {
-    return null;
-  }
-
-  return normalized;
-}
-
-export function buildTalentNetworkApplicationFromLead(
-  lead: NetworkLead
-): TalentNetworkApplication {
-  return {
-    selectedRole: lead.selectedRole,
-    profileInputTypes: normalizeProfileInputTypes(lead.profileInputTypes),
-    linkedinProfileUrl: lead.linkedinProfileUrl,
-    githubProfileUrl: lead.githubProfileUrl,
-    scholarProfileUrl: lead.scholarProfileUrl,
-    personalWebsiteUrl: lead.personalWebsiteUrl,
-    submittedAt: lead.submittedAt,
-  };
 }

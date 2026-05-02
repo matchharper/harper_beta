@@ -4,7 +4,7 @@ import type {
   CareerTalentPreferences,
   SessionResponse,
 } from "@/components/career/types";
-import { getTalentCareerMoveIntentLabel } from "@/lib/talentNetworkApplication";
+import { getTalentCareerMoveIntentLabel } from "@/lib/talentNetworkOptions";
 import {
   DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS,
   DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,

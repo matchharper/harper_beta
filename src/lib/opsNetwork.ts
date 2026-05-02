@@ -5,7 +5,6 @@ import type {
   TalentStructuredProfile,
   TalentUserProfileRow,
 } from "@/lib/talentOnboarding/server";
-import type { TalentNetworkApplication } from "@/lib/talentNetworkApplication";
 import type { Database } from "@/types/database.types";
 import { v5 as uuidv5 } from "uuid";
 
@@ -99,7 +98,6 @@ export type NetworkLeadDetailResponse = {
   };
   internalEntries: TalentInternalEntry[];
   lead: NetworkLeadSummary;
-  latestNetworkApplication: TalentNetworkApplication | null;
   latestTalentInsights: TalentInsightContent | null;
   latestTalentSetting: Pick<
     TalentSettingRow,

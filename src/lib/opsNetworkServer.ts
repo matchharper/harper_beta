@@ -37,7 +37,6 @@ import {
 } from "@/lib/talentOnboarding/server";
 import { findClaimedTalentUserByWaitlistId } from "@/lib/talentOnboarding/networkClaim";
 import { ingestTalentProfileFromLinkedin } from "@/lib/talentOnboarding/profileIngestion";
-import { normalizeTalentNetworkApplication } from "@/lib/talentNetworkApplication";
 import type { Database } from "@/types/database.types";
 
 type NetworkWaitlistRow = Pick<
@@ -1001,10 +1000,6 @@ export async function fetchNetworkLeadDetail(
       progress,
       recentMemos,
     },
-    latestNetworkApplication: normalizeTalentNetworkApplication(
-      resolvedTalentProfile?.career_profile ??
-        resolvedTalentProfile?.network_application
-    ),
     latestTalentInsights: mergeTalentInsightContent({
       currentContent: latestTalentInsightsRow?.content,
       seedContent: null,

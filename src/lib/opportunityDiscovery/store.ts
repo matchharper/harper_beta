@@ -197,7 +197,7 @@ export async function completeOnboardingAndQueueInitialOpportunityRun(args: {
     conversationId: args.conversationId,
     runMode: "initial",
     talentId: args.userId,
-    targetRecommendationCount: args.targetRecommendationCount ?? 80,
+    targetRecommendationCount: args.targetRecommendationCount ?? 150,
     trigger: "conversation_completed",
     triggerPayload: {
       completionReason: args.completionReason,

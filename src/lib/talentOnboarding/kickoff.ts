@@ -29,9 +29,7 @@ import {
   getTalentCareerMoveIntentLabel,
   getTalentEngagementLabels,
   getTalentLocationLabels,
-  normalizeTalentNetworkApplication,
-  type TalentNetworkApplication,
-} from "@/lib/talentNetworkApplication";
+} from "@/lib/talentNetworkOptions";
 
 type AdminClient = ReturnType<typeof getTalentSupabaseAdmin>;
 
@@ -96,21 +94,6 @@ function dedupeLinks(values: Array<string | null | undefined>) {
   return normalized;
 }
 
-function describeNetworkApplication(application: TalentNetworkApplication | null) {
-  if (!application) return "(없음)";
-
-  return [
-    application.selectedRole
-      ? `선호 역할: ${application.selectedRole}`
-      : null,
-    application.profileInputTypes.length > 0
-      ? `제출 자료: ${application.profileInputTypes.join(", ")}`
-      : null,
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
-
 function describeTalentPreferences(
   preferences: TalentKickoffPreferences | null
 ) {
@@ -161,7 +144,6 @@ function describeTalentPreferences(
 export async function generateTalentKickoff(args: {
   displayName: string;
   links: string[];
-  networkApplication?: TalentNetworkApplication | null;
   talentPreferences?: TalentKickoffPreferences | null;
   resumeFileName?: string | null;
   resumeText?: string | null;
@@ -177,9 +159,6 @@ export async function generateTalentKickoff(args: {
         content: buildCareerKickoffUserPrompt({
           displayName: args.displayName,
           links: args.links,
-          networkApplicationDescription: describeNetworkApplication(
-            args.networkApplication ?? null
-          ),
           preferencesDescription: describeTalentPreferences(
             args.talentPreferences ?? null
           ),
@@ -200,10 +179,6 @@ export async function autoStartClaimedTalentConversation(args: {
   user: User;
 }) {
   const { admin, conversation, profile, user } = args;
-  const networkApplication = normalizeTalentNetworkApplication(
-    profile?.career_profile ?? profile?.network_application
-  );
-
   if (!profile?.network_waitlist_id || conversation.stage !== "profile") {
     return null;
   }
@@ -254,15 +229,10 @@ export async function autoStartClaimedTalentConversation(args: {
 
   const links = dedupeLinks([
     ...(profile?.resume_links ?? []),
-    networkApplication?.linkedinProfileUrl,
-    networkApplication?.githubProfileUrl,
-    networkApplication?.scholarProfileUrl,
-    networkApplication?.personalWebsiteUrl,
   ]);
   const kickoff = await generateTalentKickoff({
     displayName: toTalentDisplayName(user),
     links,
-    networkApplication,
     talentPreferences: {
       profileVisibilityLabel,
       engagementTypes: engagementLabels,

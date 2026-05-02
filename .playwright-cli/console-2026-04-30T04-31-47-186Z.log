@@ -1,7 +1,0 @@
-[    4521ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ webpack-internal:///./node_modules/react-dom/cjs/react-dom.development.js:29889
-[    4846ms] [LOG] [HMR] connected @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/websocket.js:45
-[    4922ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:196
-[    5023ms] [LOG] %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit @ https://va.vercel-scripts.com/v1/script.debug.js:0
-[    5023ms] [LOG] %c[Vercel Web Analytics]%c [view] http://localhost:3001/career/preview color: rgb(120, 120, 120) color: inherit {o: http://localhost:3001/career/preview, sv: 0.1.3, sdkn: @vercel/analytics/react, sdkv: 1.6.1, ts: 1777523512209} /_vercel/insights/view @ https://va.vercel-scripts.com/v1/script.debug.js:0
-[    6524ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3001/favicon.ico:0
-[    6527ms] [LOG] [Fast Refresh] done in 1604ms @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:165

@@ -1163,7 +1163,7 @@ const CareerTalentProfilePanel = ({
             </div>
 
             <div className="flex shrink-0 flex-wrap gap-2">
-              {savedResumeDownloadUrl ? (
+              {savedResumeDownloadUrl && (
                 <a
                   href={savedResumeDownloadUrl}
                   target="_blank"
@@ -1173,15 +1173,15 @@ const CareerTalentProfilePanel = ({
                   <FileText className="h-3.5 w-3.5 text-beige900/60" />
                   View CV
                 </a>
-              ) : null}
-              <CareerSecondaryButton
+              )}
+              {/* <CareerSecondaryButton
                 type="button"
                 onClick={beginEditing}
                 className="h-9 gap-1.5 px-3.5 text-[12.5px]"
               >
                 <Pencil className="h-3.5 w-3.5" />
                 수정하기
-              </CareerSecondaryButton>
+              </CareerSecondaryButton> */}
             </div>
           </section>
 

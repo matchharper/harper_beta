@@ -29,7 +29,7 @@ import {
   type TalentNetworkCareerMoveIntentOptionId,
   type TalentNetworkEngagementOptionId,
   type TalentNetworkProfileInputType,
-} from "@/lib/talentNetworkApplication";
+} from "@/lib/talentNetworkOptions";
 import { cn } from "@/lib/cn";
 
 const TOTAL_STEPS = 3;
@@ -289,11 +289,6 @@ const CareerNetworkOnboardingPage = () => {
   );
   const [submitError, setSubmitError] = useState("");
 
-  const selectedRole =
-    typeof router.query.role === "string" && router.query.role.trim()
-      ? router.query.role.trim()
-      : "Talent Network";
-
   useEffect(() => {
     if (!user) return;
     const nextName =
@@ -525,14 +520,6 @@ const CareerNetworkOnboardingPage = () => {
         resumeText = parsedText;
       }
 
-      const profileInputTypes = selectedProfileInputs.filter((input) => {
-        if (input === "cv") return Boolean(resumeFile);
-        if (input === "linkedin") return Boolean(linkedin.trim());
-        if (input === "github") return Boolean(github.trim());
-        if (input === "scholar") return Boolean(scholar.trim());
-        return Boolean(website.trim());
-      });
-
       const preferencesRes = await fetchWithAuth("/api/talent/preferences", {
         method: "POST",
         body: JSON.stringify({
@@ -544,34 +531,6 @@ const CareerNetworkOnboardingPage = () => {
         const payload = await preferencesRes.json().catch(() => ({}));
         throw new Error(
           getErrorMessage(payload, "선호 정보를 저장하지 못했습니다.")
-        );
-      }
-
-      const networkProfileRes = await fetchWithAuth(
-        "/api/talent/network/profile",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            networkApplication: {
-              selectedRole,
-              profileInputTypes,
-              linkedinProfileUrl: linkedin.trim()
-                ? normalizeLink(linkedin)
-                : null,
-              githubProfileUrl: github.trim() ? normalizeLink(github) : null,
-              scholarProfileUrl: scholar.trim() ? normalizeLink(scholar) : null,
-              personalWebsiteUrl: website.trim()
-                ? normalizeLink(website)
-                : null,
-              submittedAt: new Date().toISOString(),
-            },
-          }),
-        }
-      );
-      if (!networkProfileRes.ok) {
-        const payload = await networkProfileRes.json().catch(() => ({}));
-        throw new Error(
-          getErrorMessage(payload, "지원 정보를 저장하지 못했습니다.")
         );
       }
 
@@ -617,7 +576,6 @@ const CareerNetworkOnboardingPage = () => {
     scholar,
     selectedEngagements,
     selectedProfileInputs,
-    selectedRole,
     submitState,
     uploadResumeFile,
     website,

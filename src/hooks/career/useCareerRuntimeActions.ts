@@ -90,7 +90,7 @@ export function useCareerRuntimeActions(args: {
         body: JSON.stringify({
           chatPreviewCount: 3,
           conversationId: conversationId ?? null,
-          targetRecommendationCount: 80,
+          targetRecommendationCount: 150,
           trigger: "immediate_opportunity_requested",
           triggerPayload: {
             manualTest: true,

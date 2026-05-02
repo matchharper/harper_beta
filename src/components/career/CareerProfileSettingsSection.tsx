@@ -17,7 +17,7 @@ import {
   TALENT_NETWORK_CAREER_MOVE_INTENT_OPTIONS,
   TALENT_NETWORK_ENGAGEMENT_OPTIONS,
   TALENT_NETWORK_LOCATION_OPTIONS,
-} from "@/lib/talentNetworkApplication";
+} from "@/lib/talentNetworkOptions";
 import {
   normalizeTalentPeriodicIntervalDays,
   normalizeTalentRecommendationBatchSize,
@@ -96,23 +96,14 @@ const formatUpdatedAt = (value: string | null) => {
 
 const CareerProfileSettingsSection = () => {
   const {
-    networkApplication,
     talentPreferences,
-    networkApplicationUpdatedAt,
-    networkApplicationSavePending,
-    networkApplicationSaveError,
-    networkApplicationSaveInfo,
-    hasUnsavedNetworkApplicationChanges,
     talentPreferencesSavePending,
     talentPreferencesSaveError,
     talentPreferencesSaveInfo,
     talentPreferencesUpdatedAt,
     talentInsightsUpdatedAt,
     hasUnsavedTalentPreferencesChanges,
-    onNetworkApplicationChange,
     onTalentPreferencesChange,
-    onSaveNetworkApplication,
-    onResetNetworkApplication,
     onSaveTalentPreferences,
     onResetTalentPreferences,
     settingsLoading,
@@ -131,29 +122,21 @@ const CareerProfileSettingsSection = () => {
   } = useCareerSidebarContext();
   const [blockedCompanyDraft, setBlockedCompanyDraft] = useState("");
 
-  const isSavePending =
-    networkApplicationSavePending ||
-    talentPreferencesSavePending ||
-    settingsSaving;
+  const isSavePending = talentPreferencesSavePending || settingsSaving;
   const hasUnsavedChanges =
-    hasUnsavedNetworkApplicationChanges ||
     hasUnsavedTalentPreferencesChanges ||
     hasUnsavedTalentSettingsChanges;
   const canSaveProfileSettings = hasUnsavedChanges && !settingsLoading;
-  const saveError =
-    networkApplicationSaveError || talentPreferencesSaveError || settingsError;
-  const saveInfo =
-    networkApplicationSaveInfo || talentPreferencesSaveInfo || settingsSaveInfo;
+  const saveError = talentPreferencesSaveError || settingsError;
+  const saveInfo = talentPreferencesSaveInfo || settingsSaveInfo;
   const latestUpdatedAt = useMemo(
     () =>
       getLatestUpdatedAt(
-        networkApplicationUpdatedAt,
         talentPreferencesUpdatedAt,
         talentInsightsUpdatedAt,
         settingsUpdatedAt
       ),
     [
-      networkApplicationUpdatedAt,
       settingsUpdatedAt,
       talentInsightsUpdatedAt,
       talentPreferencesUpdatedAt,
@@ -170,9 +153,6 @@ const CareerProfileSettingsSection = () => {
   const handleSave = async () => {
     const tasks: Array<Promise<boolean>> = [];
 
-    if (hasUnsavedNetworkApplicationChanges && networkApplication) {
-      tasks.push(Promise.resolve(onSaveNetworkApplication()));
-    }
     if (hasUnsavedTalentPreferencesChanges && talentPreferences) {
       tasks.push(Promise.resolve(onSaveTalentPreferences()));
     }
@@ -185,7 +165,6 @@ const CareerProfileSettingsSection = () => {
   };
 
   const handleRefresh = () => {
-    onResetNetworkApplication();
     onResetTalentPreferences();
     onResetTalentSettings();
     setBlockedCompanyDraft("");
