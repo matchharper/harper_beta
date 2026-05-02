@@ -99,7 +99,7 @@ const SimpleTextModal = ({
     >
       <div className="flex flex-col gap-3">
         {/* 제목 */}
-        <div className="text-lg font-normal text-white">후보자 추가</div>
+        <div className="text-lg font-normal text-beige900">후보자 추가</div>
         <div></div>
 
         <div>
@@ -107,7 +107,7 @@ const SimpleTextModal = ({
             <div
               key={customList.user_id}
               onClick={() => handleSelectCustomList(customList.user_id)}
-              className={`cursor-pointer p-1 rounded-md ${alreadyAddedList?.includes(customList.user_id) ? "bg-red-500/10 text-red-500" : selectedCustomLists?.includes(customList.user_id) ? "bg-accenta1/50 text-black" : "bg-transparent"}`}
+              className={`cursor-pointer p-1 rounded-md ${alreadyAddedList?.includes(customList.user_id) ? "bg-red-500/10 text-red-500" : selectedCustomLists?.includes(customList.user_id) ? "bg-accentBronze/20 text-beige900" : "bg-transparent"}`}
             >
               <div>
                 {customList.name} - {customList.email} - {customList.company}

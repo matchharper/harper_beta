@@ -347,7 +347,7 @@ const Talent = () => {
   }) => {
     return (
       <div
-        className={`text-3xl/[1.2] font-halant font-semibold tracking-[-0.05em] text-hblack1000 lg:text-4xl/[1.3] ${className ?? ""}`}
+        className={`text-3xl/[1.2] font-hedvig font-semibold tracking-[-0.05em] text-hblack1000 lg:text-4xl/[1.3] ${className ?? ""}`}
       >
         {children}
       </div>
@@ -374,7 +374,7 @@ const Talent = () => {
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-12 lg:items-start">
           <section className="lg:col-span-8">
             <div className="flex flex-col gap-5">
-              <div className="mt-4 max-w-[80ch] font-halant">
+              <div className="mt-4 max-w-[80ch] font-hedvig">
                 {/* 회원님은 일에만 집중하세요. 커리어의 다음 기회는 Harper가 찾겠습니다.
 커리어에도 매니지먼트가 필요합니다.
 좋은 커리어 기회는 직접 찾지 않아도 됩니다.

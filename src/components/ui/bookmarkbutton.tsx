@@ -148,18 +148,18 @@ const Bookmarkbutton = ({
         <button
           onMouseEnter={warmBookmarkMenu}
           onFocus={warmBookmarkMenu}
-          className={`cursor-pointer text-sm rounded-xl text-white flex flex-row items-center gap-2 ${
+          className={`cursor-pointer text-sm rounded-xl text-beige900 flex flex-row items-center gap-2 ${
             size === "sm"
-              ? "h-7 px-1.5 text-xs bg-hgray500/20 hover:bg-hgray500/30"
+              ? "h-7 px-1.5 text-xs bg-beige500/55 hover:bg-beige500/70"
               : size === "lg"
-                ? "h-12 px-6 text-lg bg-white/10 hover:bg-white/5"
-                : "h-8 px-2 text-sm bg-white/0 hover:bg-white/5"
+                ? "h-12 px-6 text-lg bg-beige500/55 hover:bg-beige50/80"
+                : "h-8 px-2 text-sm bg-transparent hover:bg-beige50/80"
           }`}
         >
           {isBookmarkedInUi ? (
-            <Bookmark className="w-4 h-4 text-white" fill="white" />
+            <Bookmark className="w-4 h-4 text-beige900" fill="currentColor" />
           ) : (
-            <Bookmark className="w-4 h-4 text-white" />
+            <Bookmark className="w-4 h-4 text-beige900" />
           )}
           {isText && (
             <span>{isBookmarkedInUi ? m.data.saved : m.data.save}</span>
@@ -168,11 +168,11 @@ const Bookmarkbutton = ({
       }
     >
       {showInitialLoading && (
-        <div className="px-2 py-2 text-xs text-white/45">불러오는 중...</div>
+        <div className="px-2 py-2 text-xs text-beige900/45">불러오는 중...</div>
       )}
 
       {!isFoldersLoading && !isSelectedFoldersLoading && folders.length === 0 && (
-          <div className="px-2 py-2 text-xs text-white/45">
+          <div className="px-2 py-2 text-xs text-beige900/45">
             폴더가 없습니다. 새 폴더를 만들어주세요.
           </div>
         )}
@@ -193,7 +193,7 @@ const Bookmarkbutton = ({
               <div className="relative flex w-full items-center justify-between gap-2">
                 <span className="line-clamp-2">{folder.name}</span>
                 {isChecked && (
-                  <Check className="absolute right-2 h-3.5 w-3.5 text-accenta1" />
+                  <Check className="absolute right-2 h-3.5 w-3.5 text-accentBronze" />
                 )}
               </div>
             </ActionDropdownItem>
@@ -233,12 +233,12 @@ const Bookmarkbutton = ({
               }
             }}
             placeholder="새 폴더 이름"
-            className="h-8 w-full rounded-md border border-white/10 bg-white/5 px-2 text-xs text-white placeholder:text-white/35 outline-none focus:border-white/30"
+            className="h-8 w-full rounded-md border border-beige900/8 bg-beige50 px-2 text-xs text-beige900 placeholder:text-beige900/35 outline-none focus:border-beige900/15"
           />
           <div className="mt-2 flex items-center justify-end gap-1">
             <button
               type="button"
-              className="h-7 rounded px-2 text-xs text-white/45 hover:bg-white/5 hover:text-white"
+              className="h-7 rounded px-2 text-xs text-beige900/45 hover:bg-beige50/80 hover:text-beige900"
               onClick={() => {
                 setIsAddingFolder(false);
                 setNewFolderName("");
@@ -248,7 +248,7 @@ const Bookmarkbutton = ({
             </button>
             <button
               type="button"
-              className="h-7 rounded bg-accenta1 px-2 text-xs text-black disabled:opacity-70"
+              className="h-7 rounded bg-beige900 px-2 text-xs text-beige100 disabled:opacity-70"
               onClick={() => void handleCreateFolder()}
               disabled={isCreatingFolder || isAddingToFolder}
             >

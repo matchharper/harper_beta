@@ -30,14 +30,14 @@ export default function AtsSequenceStageMarks({
         const isCompleted = stepNumber <= completedSteps;
         const isNext = nextStep === stepNumber;
         const tone = isCompleted
-          ? "border-emerald-400/20 bg-emerald-400/15 text-emerald-100"
+          ? "border-emerald-400/20 bg-emerald-400/15 text-emerald-700"
           : isNext && isPaused
-            ? "border-amber-400/20 bg-amber-400/10 text-amber-100"
+            ? "border-amber-400/20 bg-amber-400/10 text-amber-700"
             : isNext && isDue
-              ? "border-sky-400/20 bg-sky-400/10 text-sky-100"
+              ? "border-sky-400/20 bg-sky-400/10 text-sky-700"
               : isNext
-                ? "border-white/15 bg-white/5 text-white/65"
-                : "border-white/10 bg-transparent text-white/25";
+                ? "border-beige900/15 bg-beige500/55 text-beige900/65"
+                : "border-beige900/8 bg-transparent text-beige900/25";
 
         return (
           <React.Fragment key={stepNumber}>
@@ -47,7 +47,7 @@ export default function AtsSequenceStageMarks({
               {stepNumber}
             </div>
             {stepNumber < ATS_SEQUENCE_STEP_COUNT && (
-              <div className="h-px w-3 bg-white/10" />
+              <div className="h-px w-3 bg-beige900/8" />
             )}
           </React.Fragment>
         );

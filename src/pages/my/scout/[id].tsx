@@ -467,24 +467,24 @@ export default function AutomationDetailPage() {
   ]);
 
   const buttonClassName =
-    "rounded-lg bg-white/10 px-3 py-2 text-xs text-white transition hover:bg-white/20 disabled:opacity-60 flex flex-row gap-1 items-center justify-center";
+    "rounded-lg bg-beige500/70 px-3 py-2 text-xs text-beige900 transition hover:bg-beige500/90 disabled:opacity-60 flex flex-row gap-1 items-center justify-center";
 
   const statusBadge = useMemo(() => {
     if (isDraft) {
       return {
         label: "Draft",
-        tone: "bg-white/10 text-white/80 border-white/10",
+        tone: "bg-beige500/70 text-beige900/80 border-beige900/10",
       };
     }
     if (automation?.is_in_progress) {
       return {
         label: "Active",
-        tone: "bg-emerald-500/15 text-emerald-200 border-emerald-500/20",
+        tone: "bg-emerald-500/15 text-emerald-700 border-emerald-500/20",
       };
     }
     return {
       label: "Paused",
-      tone: "bg-yellow-500/15 text-yellow-200 border-yellow-500/20",
+      tone: "bg-amber-300/15 text-amber-700 border-amber-700/30",
     };
   }, [isDraft, automation?.is_in_progress]);
 
@@ -504,7 +504,7 @@ export default function AutomationDetailPage() {
           disabled={isSaving}
           className={cn(
             buttonClassName,
-            "bg-accenta1 font-medium text-black shadow-lg hover:bg-accenta1/90"
+            "bg-beige900 font-medium text-beige100 shadow-lg hover:bg-beige900/90"
           )}
         >
           {isSaving ? (
@@ -524,7 +524,7 @@ export default function AutomationDetailPage() {
               disabled={isSaving}
               className={cn(
                 buttonClassName,
-                "bg-white/70 hover:bg-white/60 text-black"
+                "bg-beige900 hover:bg-beige900/90 text-beige100"
               )}
             >
               <Square fill="currentColor" className="w-3 h-3" />
@@ -537,7 +537,7 @@ export default function AutomationDetailPage() {
               disabled={isSaving}
               className={cn(
                 buttonClassName,
-                "bg-white/70 hover:bg-white/60 text-black"
+                "bg-beige900 hover:bg-beige900/90 text-beige100"
               )}
             >
               <Play fill="currentColor" className="w-3 h-3" />
@@ -576,11 +576,11 @@ export default function AutomationDetailPage() {
             <div className="w-full max-w-[780px] px-3 md:px-0">
               {/* Sticky header: title + status + actions */}
               <div className="absolute top-2 z-30 w-full max-w-[780px] ">
-                <div className="bg-hgray200">
+                <div className="bg-beige100">
                   <div className="flex items-start justify-between gap-3 px-3 py-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <div className="text-sm font-medium text-white">
+                        <div className="text-sm font-medium text-beige900">
                           {automationTitle}
                         </div>
 
@@ -594,7 +594,7 @@ export default function AutomationDetailPage() {
                         </span>
                       </div>
 
-                      <div className="mt-2 text-[13px] text-hgray700">
+                      <div className="mt-2 text-[13px] text-beige900/80">
                         {statusMessage}
                       </div>
                     </div>

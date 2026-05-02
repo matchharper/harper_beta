@@ -72,9 +72,9 @@ function MetaCard({
   icon?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl bg-white/5 px-4 py-3">
-      <div className="text-sm text-hgray600">{label}</div>
-      <div className="mt-2 flex items-center gap-2 text-base text-hgray900">
+    <div className="rounded-2xl bg-beige100 px-4 py-3">
+      <div className="text-sm text-beige900/55">{label}</div>
+      <div className="mt-2 flex items-center gap-2 text-base text-beige900">
         {icon}
         {value}
       </div>
@@ -93,7 +93,7 @@ function Section({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-2 text-sm text-hgray700">
+      <div className="flex items-center gap-2 text-sm text-beige900/55">
         {icon}
         <span>{title}</span>
       </div>
@@ -119,7 +119,7 @@ function CollapsibleMarkdownSection({
 
   return (
     <div className={className}>
-      <div className="[&_.prose]:max-w-none [&_.prose]:text-hgray800 [&_.prose_a]:text-blue-500 [&_.prose_code]:text-hgray900 [&_.prose_headings]:text-hgray1000 [&_.prose_p]:!my-2">
+      <div className="[&_.prose]:max-w-none [&_.prose]:text-beige900/80 [&_.prose_a]:text-blue-600 [&_.prose_code]:text-beige900 [&_.prose_headings]:text-beige900 [&_.prose_p]:!my-2">
         <MarkdownView markdown={displayMarkdown} />
       </div>
       {isLong && (
@@ -255,19 +255,19 @@ export default function RepoModalRoot() {
           <motion.div
             role="dialog"
             aria-modal="true"
-            className="absolute inset-x-0 top-[6vh] mx-auto max-h-[88vh] w-[min(760px,92vw)] overflow-y-auto rounded-[28px] bg-hgray200 px-6 pb-8 text-hgray900 shadow-2xl md:px-8"
+            className="absolute inset-x-0 top-[6vh] mx-auto max-h-[88vh] w-[min(760px,92vw)] overflow-y-auto rounded-[28px] bg-beige50 px-6 pb-8 text-beige900 shadow-2xl md:px-8"
             initial={{ opacity: 0, y: 24, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.98 }}
             transition={{ type: "tween", ease: "easeOut", duration: 0.2 }}
           >
             {/* Header */}
-            <div className="sticky top-0 z-10 -mx-6 mb-6 flex items-start justify-between border-b border-white/5 bg-hgray200/95 px-6 pb-4 backdrop-blur md:-mx-8 md:px-8">
+            <div className="sticky top-0 z-10 -mx-6 mb-6 flex items-start justify-between border-b border-beige900/8 bg-beige50/95 px-6 pb-4 backdrop-blur md:-mx-8 md:px-8">
               <div className="pr-4 pt-6">
-                <div className="text-sm text-accenta1/80">
+                <div className="text-sm text-accentBronze/80">
                   GitHub Repository
                 </div>
-                <div className="mt-2 text-2xl leading-tight text-hgray1000">
+                <div className="mt-2 text-2xl leading-tight text-beige900">
                   {displayTitle}
                 </div>
                 {repoUrl && (
@@ -276,7 +276,7 @@ export default function RepoModalRoot() {
                       href={repoUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-1 rounded-full bg-white/5 px-3 py-1.5 text-sm text-blue-500 transition hover:bg-white/10 hover:underline"
+                      className="inline-flex items-center gap-1 rounded-full bg-beige500/55 px-3 py-1.5 text-sm text-blue-600 transition hover:bg-beige50/80 hover:underline"
                     >
                       GitHub에서 보기
                     </a>
@@ -286,29 +286,29 @@ export default function RepoModalRoot() {
               <button
                 type="button"
                 onClick={requestClose}
-                className="rounded-full p-2 text-hgray700 transition hover:bg-white/5"
+                className="rounded-full p-2 text-beige900/55 transition hover:bg-beige50/80"
               >
                 <XIcon className="h-5 w-5" strokeWidth={1.6} />
               </button>
             </div>
 
             {isLoading ? (
-              <div className="py-16 text-center text-sm text-hgray600">
+              <div className="py-16 text-center text-sm text-beige900/55">
                 Repo 정보를 불러오는 중입니다.
               </div>
             ) : error ? (
-              <div className="rounded-2xl bg-white/5 px-4 py-6 text-sm text-red-300">
+              <div className="rounded-2xl bg-rose-50 px-4 py-6 text-sm text-rose-700">
                 Repo 정보를 불러오지 못했습니다.
               </div>
             ) : !repo ? (
-              <div className="rounded-2xl bg-white/5 px-4 py-6 text-sm text-hgray600">
+              <div className="rounded-2xl bg-beige100 px-4 py-6 text-sm text-beige900/55">
                 해당 Repo 정보를 찾을 수 없습니다.
               </div>
             ) : (
               <div className="flex flex-col gap-8">
                 {/* Description */}
                 {(repo.description || readmeExcerpt) && (
-                  <div className="text-sm leading-7 text-hgray800">
+                  <div className="text-sm leading-7 text-beige900/80">
                     {repo.description || readmeExcerpt}
                   </div>
                 )}
@@ -323,7 +323,7 @@ export default function RepoModalRoot() {
                   <MetaCard
                     label="Forks"
                     value={formatNumber(repo.forks)}
-                    icon={<GitFork size={16} className="text-hgray600" />}
+                    icon={<GitFork size={16} className="text-beige900/45" />}
                   />
                 </div>
 
@@ -336,14 +336,14 @@ export default function RepoModalRoot() {
                         return (
                           <span
                             key={l.name}
-                            className="inline-flex items-center gap-1.5 rounded-full bg-white/5 px-3 py-1.5 text-sm text-hgray800"
+                            className="inline-flex items-center gap-1.5 rounded-full bg-beige500/55 px-3 py-1.5 text-sm text-beige900/80"
                           >
                             <span
                               className="h-2.5 w-2.5 rounded-full"
                               style={{ backgroundColor: color }}
                             />
                             {l.name}
-                            <span className="text-hgray600">
+                            <span className="text-beige900/45">
                               {l.pct.toFixed(1)}%
                             </span>
                           </span>
@@ -359,7 +359,7 @@ export default function RepoModalRoot() {
                       {topics.map((topic) => (
                         <span
                           key={topic}
-                          className="inline-flex items-center rounded-full bg-white/5 px-3 py-1.5 text-sm text-hgray800"
+                          className="inline-flex items-center rounded-full bg-beige500/55 px-3 py-1.5 text-sm text-beige900/80"
                         >
                           {topic}
                         </span>
@@ -375,7 +375,7 @@ export default function RepoModalRoot() {
                   >
                     <CollapsibleMarkdownSection
                       markdown={readmeExcerpt}
-                      className="rounded-2xl bg-white/5 px-4 py-4"
+                      className="rounded-2xl bg-beige100 px-4 py-4"
                     />
                   </Section>
                 )}
@@ -387,7 +387,7 @@ export default function RepoModalRoot() {
                 >
                   <div className="flex flex-col gap-3">
                     {contributors.length === 0 ? (
-                      <div className="rounded-2xl bg-white/5 px-4 py-4 text-sm text-hgray600">
+                      <div className="rounded-2xl bg-beige100 px-4 py-4 text-sm text-beige900/55">
                         기여자 정보가 아직 연결되어 있지 않습니다.
                       </div>
                     ) : (
@@ -405,7 +405,7 @@ export default function RepoModalRoot() {
                         const content = (
                           <>
                             <div className="flex items-start gap-3">
-                              <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/0 bg-white/5">
+                              <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-beige900/8 bg-beige100">
                                 {profile?.avatar_url ? (
                                   <img
                                     src={profile.avatar_url}
@@ -413,35 +413,35 @@ export default function RepoModalRoot() {
                                     className="h-full w-full object-cover"
                                   />
                                 ) : (
-                                  <div className="text-sm text-hgray800">
+                                  <div className="text-sm text-beige900/80">
                                     {initials(contributorName)}
                                   </div>
                                 )}
                               </div>
                               <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <div className="text-base text-hgray1000">
+                                  <div className="text-base text-beige900">
                                     {contributorName}
                                   </div>
                                   {profile?.github_username && (
-                                    <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-hgray600">
+                                    <span className="rounded-full bg-beige500/55 px-2 py-0.5 text-[11px] text-beige900/45">
                                       @{profile.github_username}
                                     </span>
                                   )}
                                   {contributor.role && (
-                                    <span className="rounded-full bg-accenta1/15 px-2 py-0.5 text-[11px] text-accenta1">
+                                    <span className="rounded-full bg-accentBronze/15 px-2 py-0.5 text-[11px] text-accentBronze">
                                       {contributor.role}
                                     </span>
                                   )}
                                 </div>
-                                <div className="mt-1 text-sm text-hgray700">
+                                <div className="mt-1 text-sm text-beige900/55">
                                   {[contributorCompany, contributorLocation]
                                     .filter(Boolean)
                                     .join(" · ")}
                                 </div>
                               </div>
                             </div>
-                            <div className="ml-14 mt-3 flex flex-wrap items-center gap-3 text-sm text-hgray700">
+                            <div className="ml-14 mt-3 flex flex-wrap items-center gap-3 text-sm text-beige900/55">
                               {(contributor.commits ?? 0) > 0 && (
                                 <div className="inline-flex items-center gap-1">
                                   <span>
@@ -467,7 +467,7 @@ export default function RepoModalRoot() {
                               href={`/my/p/${profile.candid_id}`}
                               replace
                               onClick={close}
-                              className="rounded-2xl bg-white/5 px-4 py-4 transition hover:bg-white/10"
+                              className="rounded-2xl bg-beige100 px-4 py-4 transition hover:bg-beige500/55"
                             >
                               {content}
                             </Link>
@@ -477,7 +477,7 @@ export default function RepoModalRoot() {
                         return (
                           <div
                             key={`${contributor.repo_id}-${contributor.github_profile_id}`}
-                            className="rounded-2xl bg-white/5 px-4 py-4"
+                            className="rounded-2xl bg-beige100 px-4 py-4"
                           >
                             {content}
                           </div>

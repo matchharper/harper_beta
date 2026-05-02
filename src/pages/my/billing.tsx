@@ -1111,7 +1111,7 @@ const Billing = () => {
         title="구독을 취소할까요?"
         description={
           freeStartDateLabel
-            ? `현재 결제 주기 종료(<span class="text-accenta1 px-1">${freeStartDateLabel}</span>)후 Free 플랜으로 전환됩니다.`
+            ? `현재 결제 주기 종료(<span class="text-accentBronze px-1">${freeStartDateLabel}</span>)후 Free 플랜으로 전환됩니다.`
             : "현재 결제 주기 종료 후 Free 플랜으로 전환됩니다."
         }
         confirmLabel="구독 취소"
@@ -1129,7 +1129,7 @@ const Billing = () => {
         title="구독 변경"
         description={
           freeStartDateLabel
-            ? `다운그레이드의 경우 우선 구독을 취소하고 기존 구독 갱신 날짜(<span class="text-accenta1 px-1">${freeStartDateLabel}</span>) 이후 새로운 플랜으로 결제하시는 것을 추천드립니다.`
+            ? `다운그레이드의 경우 우선 구독을 취소하고 기존 구독 갱신 날짜(<span class="text-accentBronze px-1">${freeStartDateLabel}</span>) 이후 새로운 플랜으로 결제하시는 것을 추천드립니다.`
             : "다운그레이드의 경우 우선 구독을 취소하고 기존 구독 갱신 날짜 이후 새로운 플랜으로 결제하시는 것을 추천드립니다."
         }
         confirmLabel="구독 취소"
@@ -1171,44 +1171,44 @@ const Billing = () => {
         isLoading={isUpgradeConfirming}
       />
       <div className="px-6 py-8 w-full">
-        <div className="text-3xl font-hedvig font-light tracking-tight text-white">
+        <div className="text-3xl font-hedvig font-light tracking-tight text-beige900">
           {m.system.credits}
         </div>
         {isLoading ? (
-          <div className="mt-2 text-sm text-hgray700">
+          <div className="mt-2 text-sm text-beige900/80">
             결제 정보를 처리하는 중...
           </div>
         ) : null}
 
         <div className="mt-8">
-          <div className="rounded-lg bg-white/5 p-6">
+          <div className="rounded-lg bg-beige50 border border-beige900/8 shadow-sm p-6">
             {isSubscriptionLoading ? (
-              <div className="mt-2 text-sm text-hgray700">
+              <div className="mt-2 text-sm text-beige900/80">
                 구독 정보를 불러오는 중...
               </div>
             ) : subscription ? (
               <div className="flex flex-col gap-5">
                 <div className="flex flex-row items-end justify-between gap-6">
                   <div className="flex flex-col gap-2 text-sm w-[30%]">
-                    <div className="text-sm text-hgray900 font-normal">
+                    <div className="text-sm text-beige900 font-normal">
                       구독 상태
                     </div>
-                    <div className="text-hgray900">
-                      <span className="text-white text-xl font-medium">
+                    <div className="text-beige900">
+                      <span className="text-beige900 text-xl font-medium">
                         {subscriptionPlanLabel}
                       </span>
-                      <span className="text-hgray700">
+                      <span className="text-beige900/80">
                         {" "}
                         · {subscriptionBillingLabel}
                       </span>
                     </div>
                     {currentProviderStatus ? (
-                      <div className="text-xs text-accenta1">
+                      <div className="text-xs text-accentBronze">
                         {currentProviderStatusLabel}
                       </div>
                     ) : null}
                     {subscription.currentPeriodEnd ? (
-                      <div className="text-hgray700 font-light">
+                      <div className="text-beige900/80 font-light">
                         {isTossPastDue
                           ? "결제 재시도 예정"
                           : subscription.cancelAtPeriodEnd
@@ -1228,7 +1228,7 @@ const Billing = () => {
                     {subscription.planKey !== "free" && (
                       <div className="w-full flex flex-row items-start justify-end">
                         {isRevealCardNumber && subscription.cardNumberMasked ? (
-                          <div className="text-sm text-hgray700">
+                          <div className="text-sm text-beige900/80">
                             <Tooltips
                               text={`원본 전체 카드 정보는 저장하지 않고 있습니다.`}
                             >
@@ -1245,7 +1245,7 @@ const Billing = () => {
                           <div className="relative px-4 py-1">
                             ****-****-****-****
                             <div
-                              className="absolute left-0 top-0 text-center bg-white/20 backdrop-blur-sm w-full py-1 rounded-sm text-[15px] text-hgray900 cursor-pointer"
+                              className="absolute left-0 top-0 text-center bg-beige500/90 backdrop-blur-sm w-full py-1 rounded-sm text-[15px] text-beige900 cursor-pointer"
                               onClick={() => setIsRevealCardNumber(true)}
                             >
                               결제 카드 정보 보기
@@ -1256,22 +1256,22 @@ const Billing = () => {
                     )}
                     <div className="w-full flex flex-row items-center justify-end h-full mb-2">
                       <div className="w-[30%] flex flex-col items-start justify-end">
-                        <div className="flex flex-row items-start justify-start gap-2 text-hgray900 text-sm font-normal">
+                        <div className="flex flex-row items-start justify-start gap-2 text-beige900 text-sm font-normal">
                           이번 달 남은 열람 횟수
-                          <span className="text-accenta1">
+                          <span className="text-accentBronze">
                             {credits?.remain_credit}
                           </span>
                           <span className=""> / {credits?.charged_credit}</span>
                         </div>
                         {usageResetDateLabel ? (
-                          <div className="mt-1 text-xs font-light text-hgray700">
+                          <div className="mt-1 text-xs font-light text-beige900/55">
                             (초기화 : {usageResetDateLabel})
                           </div>
                         ) : null}
                       </div>
-                      <div className="w-[70%] flex relative rounded-xl h-1.5 bg-accenta1/20">
+                      <div className="w-[70%] flex relative rounded-xl h-1.5 bg-beige900/15">
                         <div
-                          className="w-full flex absolute left-0 top-0 rounded-xl h-1.5 bg-accenta1 transition-all duration-500 ease-out"
+                          className="w-full flex absolute left-0 top-0 rounded-xl h-1.5 bg-beige900 transition-all duration-500 ease-out"
                           style={{
                             width: `${Math.min(
                               ((credits?.remain_credit ?? 0) /
@@ -1286,7 +1286,7 @@ const Billing = () => {
                   </div>
                 </div>
                 {isTossPastDue ? (
-                  <div className="flex flex-col gap-3 rounded-lg border border-yellow-400/20 bg-yellow-500/10 px-4 py-4 text-sm text-yellow-100">
+                  <div className="flex flex-col gap-3 rounded-lg border border-yellow-700/30 bg-yellow-500/15 px-4 py-4 text-sm text-yellow-900">
                     <div>
                       미납 결제가 있습니다.{" "}
                       {retryDateLabel
@@ -1294,13 +1294,13 @@ const Billing = () => {
                         : "자동 재시도가 예정되어 있습니다."}
                     </div>
                     <div className="flex items-center justify-between gap-4">
-                      <div className="text-xs text-yellow-100/80">
+                      <div className="text-xs text-yellow-900/75">
                         카드 정보를 다시 등록하면 즉시 미납 금액을 결제하고
                         구독을 복구합니다.
                       </div>
                       <button
                         type="button"
-                        className="rounded-xl bg-yellow-300 px-4 py-2 text-xs font-medium text-black"
+                        className="rounded-xl bg-yellow-300 px-4 py-2 text-xs font-medium text-yellow-950 hover:bg-yellow-400"
                         onClick={() => {
                           if (!subscription?.billing || !subscription.planKey) {
                             return;
@@ -1321,14 +1321,14 @@ const Billing = () => {
                 ) : null}
               </div>
             ) : (
-              <div className="mt-2 text-sm text-hgray700">
+              <div className="mt-2 text-sm text-beige900/80">
                 현재 활성 구독이 없습니다.
               </div>
             )}
           </div>
         </div>
         {isTossCancelScheduled && (
-          <div className="mt-4 rounded-lg border border-white/5 bg-white/5 px-4 py-3 text-sm text-hgray800">
+          <div className="mt-4 rounded-lg border border-beige900/8 bg-beige50 px-4 py-3 text-sm text-beige900/80">
             현재 결제 주기가 끝나면 자동으로 Free 플랜으로 전환됩니다.
           </div>
         )}
@@ -1349,7 +1349,7 @@ const Billing = () => {
                   void requestOneTimePayment();
                 }}
                 disabled={isOneTimePaymentLoading}
-                className="inline-flex items-center justify-center rounded-xl border border-accenta1/30 bg-accenta1/10 px-4 py-2 text-sm font-medium text-accenta1 hover:bg-accenta1/15 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center justify-center rounded-xl border border-accentBronze/30 bg-accentBronze/10 px-4 py-2 text-sm font-medium text-accentBronze hover:bg-accentBronze/15 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isOneTimePaymentLoading
                   ? "일회성 결제창 여는 중..."
@@ -1360,6 +1360,7 @@ const Billing = () => {
         </div> */}
 
         <PricingSection
+          theme="cream"
           currentPlanKey={currentPlanKey}
           currentBilling={currentBilling}
           prices={planPrices}
@@ -1410,25 +1411,25 @@ const Billing = () => {
             <button
               type="button"
               aria-label="close toss preview modal"
-              className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"
+              className="absolute inset-0 bg-beige900/60 backdrop-blur-[2px]"
               onClick={closeTossPreview}
             />
-            <div className="relative z-[71] w-full max-w-[560px] rounded-[24px] border border-white/10 bg-hgray200 p-6 shadow-xl">
+            <div className="relative z-[71] w-full max-w-[560px] rounded-[24px] border border-beige900/8 bg-beige100 p-6 shadow-xl">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-sm text-hgray900">
+                  <div className="text-sm text-beige900">
                     {tossPreview.reason === "recover"
                       ? "카드 정보를 다시 등록해주세요"
                       : "Billing Details"}
                   </div>
-                  <div className="mt-1 text-white text-lg font-medium">
+                  <div className="mt-1 text-beige900 text-lg font-medium">
                     {tossPreview.planName} ·{" "}
                     {tossPreview.billing === "yearly" ? "연간" : "월간"}
                   </div>
                 </div>
                 <button
                   type="button"
-                  className="text-sm text-hgray700 hover:text-white transition-colors"
+                  className="text-sm text-beige900/55 hover:text-beige900 transition-colors"
                   onClick={closeTossPreview}
                 >
                   <X className="w-4 h-4" />
@@ -1441,13 +1442,13 @@ const Billing = () => {
                 </div>
               ) : null}
 
-              <div className="mt-5 bg-hgray900/10 px-4 py-4 rounded-md">
-                <div className="text-[15px] text-hgray700">
+              <div className="mt-5 bg-beige900/10 px-4 py-4 rounded-md">
+                <div className="text-[15px] text-beige900/55">
                   {tossPreview.reason === "recover"
                     ? "미납 결제 금액"
                     : "결제 예정 금액"}
                 </div>
-                <div className="mt-1 text-xl font-medium tracking-tight text-accenta1">
+                <div className="mt-1 text-xl font-medium tracking-tight text-accentBronze">
                   {tossPreview.amount.toLocaleString("ko-KR")}원
                 </div>
               </div>
@@ -1459,13 +1460,13 @@ const Billing = () => {
                   onChange={(e) =>
                     setIsBillingAgreementChecked(e.target.checked)
                   }
-                  className="mt-0.5 h-4 w-4 rounded border-white/30 bg-transparent accent-accenta1"
+                  className="mt-0.5 h-4 w-4 rounded border-beige900/25 bg-transparent accent-beige900"
                 />
-                <span className="text-sm text-hgray800">
+                <span className="text-sm text-beige900/80">
                   <a
                     href="https://peat-find-598.notion.site/Refund-policy-2e684af768c6800e8276ccbe16fc8cb4?pvs=74"
                     target="_blank"
-                    className="text-hgray1000 decoration-dotted underline"
+                    className="text-beige900 decoration-dotted underline"
                   >
                     구매 조건 확인
                   </a>{" "}
@@ -1476,7 +1477,7 @@ const Billing = () => {
               <div className="mt-6 flex items-center justify-end gap-2">
                 <button
                   type="button"
-                  className="rounded-xl px-4 py-2 text-sm text-white hover:bg-white/5"
+                  className="rounded-xl px-4 py-2 text-sm text-beige900 hover:bg-beige500/55"
                   onClick={closeTossPreview}
                 >
                   닫기
@@ -1487,7 +1488,7 @@ const Billing = () => {
                   onClick={() => {
                     void requestBillingAuth();
                   }}
-                  className="rounded-xl bg-accenta1 px-4 py-2 text-sm text-black hover:opacity-95 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="rounded-xl bg-beige900 px-4 py-2 text-sm text-beige100 hover:opacity-95 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {isTossBillingLoading
                     ? "카드 등록창 여는 중..."
@@ -1504,7 +1505,7 @@ const Billing = () => {
           <Animate>
             <div className="flex flex-col items-center justify-center w-full pt-4">
               <div className="font-hedvig text-lg mt-20">결제 및 구독 FAQ</div>
-              <div className="flex flex-col items-start justify-start text-white/70 font-light w-full mt-10 px-4 md:px-0">
+              <div className="flex flex-col items-start justify-start text-beige900/80 font-light w-full mt-10 px-4 md:px-0">
                 {m.companyLanding.pricingFaq.items.map((item, index) => (
                   <QuestionAnswer
                     key={item.question}
@@ -1512,6 +1513,7 @@ const Billing = () => {
                     answer={item.answer}
                     index={index}
                     length={m.companyLanding.pricingFaq.items.length}
+                    theme="cream"
                   />
                 ))}
               </div>
@@ -1519,11 +1521,11 @@ const Billing = () => {
           </Animate>
         </section>
         <div>
-          <div className="mt-24 text-white/70 font-light text-center mb-40 flex flex-col items-center justify-center">
+          <div className="mt-24 text-beige900/80 font-light text-center mb-40 flex flex-col items-center justify-center">
             추가 문의 사항이 있으시다면, chris@matchharper.com으로 문의해
             주세요.
             <div
-              className="mt-2 underline decoration-dotted cursor-pointer text-hgray800 hover:text-hgray1000"
+              className="mt-2 underline decoration-dotted cursor-pointer text-beige900/80 hover:text-beige900"
               onClick={() =>
                 window.open(
                   "https://peat-find-598.notion.site/Refund-policy-2e684af768c6800e8276ccbe16fc8cb4?pvs=74",
@@ -1539,7 +1541,7 @@ const Billing = () => {
           <button
             type="button"
             disabled={!canCancelSubscription || isCanceling}
-            className="cursor-pointer text-sm px-4 py-2 rounded-sm hover:bg-red-500 bg-red-500/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="cursor-pointer text-sm px-4 py-2 rounded-sm hover:bg-red-500 bg-red-500/90 text-beige50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             onClick={() => setIsCancelModalOpen(true)}
           >
             {isCanceling ? "취소 중..." : "구독 취소"}

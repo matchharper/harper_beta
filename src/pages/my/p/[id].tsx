@@ -42,7 +42,7 @@ export default function ProfileDetailPage() {
         )}
         {candidId && data && isProfileRevealed && (
           <div
-            className={`flex-shrink-0 border-r w-[30%] min-w-[390px] border-white/10`}
+            className={`flex-shrink-0 border-r w-[30%] min-w-[390px] border-beige900/10`}
           >
             <CandidChatPanel
               title={`${data?.name ?? ""}님`}
@@ -65,7 +65,7 @@ export default function ProfileDetailPage() {
         {(!candidId || isLoading) && (
           <Loading
             label="로딩중입니다"
-            className="text-hgray600"
+            className="text-beige900/55"
             isFullScreen={true}
           />
         )}

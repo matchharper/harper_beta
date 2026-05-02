@@ -157,7 +157,7 @@ const sectionTagClassName =
   "inline-flex items-center rounded-lg bg-beige500/80 px-4 py-2 font-geist text-[15px] md:text-[16px] font-medium tracking-[-0.03em] text-beige900/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] backdrop-blur-xl";
 
 const titleTextClassName =
-  "font-halant text-4xl sm:text-4xl md:text-5xl leading-[0.98] tracking-[-0.08em] text-beige900";
+  "font-hedvig text-4xl sm:text-4xl md:text-5xl leading-[0.98] tracking-[-0.08em] text-beige900";
 
 type ButtonProps = {
   label: string;
@@ -312,7 +312,7 @@ const ResultsPanel = () => (
           key={item.title}
           className="rounded-[28px] bg-white/20 px-9 py-9 text-white backdrop-blur-md"
         >
-          <div className="font-halant text-4xl sm:text-5xl md:text-6xl leading-[0.95] tracking-[-0.06em]">
+          <div className="font-hedvig text-4xl sm:text-5xl md:text-6xl leading-[0.95] tracking-[-0.06em]">
             {item.title}
           </div>
           <p className="w-full mt-4 text-base md:text-lg leading-[1.44] tracking-[-0.03em] text-white/90">
@@ -350,7 +350,7 @@ const ComparisonCard = ({
     </div>
     <div className="relative z-10 flex h-full flex-col justify-between">
       <h3
-        className={`${!isPositive ? "font-halant" : "font-halant "} text-white text-3xl sm:text-3xl md:text-3xl lg:text-4xl leading-[0.96] tracking-[-0.06em]`}
+        className={`${!isPositive ? "font-hedvig" : "font-hedvig "} text-white text-3xl sm:text-3xl md:text-3xl lg:text-4xl leading-[0.96] tracking-[-0.06em]`}
       >
         {title}
       </h3>
@@ -495,7 +495,7 @@ const Beige = () => {
                 }}
                 className="fixed inset-0 z-[120] flex items-center justify-center bg-beige500"
               >
-                <div className="font-halant text-7xl tracking-[-0.08em] text-beige900">
+                <div className="font-hedvig text-7xl tracking-[-0.08em] text-beige900">
                   <StaggerText text="Harper" by="char" delay={0.08} />
                 </div>
               </motion.div>
@@ -506,7 +506,7 @@ const Beige = () => {
             <div className="h-[78px] flex flex-row items-center justify-between px-6 md:px-28">
               <a
                 href="#top"
-                className="font-halant text-[26px] tracking-[-0.06em] text-beige900"
+                className="font-hedvig text-[26px] tracking-[-0.06em] text-beige900"
               >
                 Harper
               </a>
@@ -535,7 +535,7 @@ const Beige = () => {
               </Reveal>
 
               <Reveal once delay={0.06} className="mt-10 max-w-[1040px]">
-                <h1 className="font-halant text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.93] tracking-[-0.08em] text-beige900">
+                <h1 className="font-hedvig text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.93] tracking-[-0.08em] text-beige900">
                   <span className="block">
                     <StaggerText text="Hire the top 1% of AI/ML talent" />
                   </span>
@@ -615,7 +615,7 @@ const Beige = () => {
             >
               <Reveal once direction="left" className="pr-4 max-[1199px]:pr-0">
                 <SectionTag>Our Approach</SectionTag>
-                <h2 className="mt-7 max-w-[520px] font-halant text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.95] tracking-[-0.08em] text-beige900">
+                <h2 className="mt-7 max-w-[520px] font-hedvig text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.95] tracking-[-0.08em] text-beige900">
                   Hire at the speed of AI
                 </h2>
                 <p className="mt-8 max-w-[540px] text-[20px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
@@ -675,7 +675,7 @@ const Beige = () => {
                   <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-16 text-beige100 max-[1199px]:p-12 max-[809px]:p-8">
                     <Quote fill="currentColor" size={64} />
                     <div>
-                      <h2 className="max-w-[920px] font-halant text-[36px] sm:text-[42px] md:text-[50px] lg:text-[58px] leading-[1.04] tracking-[-0.07em]">
+                      <h2 className="max-w-[920px] font-hedvig text-[36px] sm:text-[42px] md:text-[50px] lg:text-[58px] leading-[1.04] tracking-[-0.07em]">
                         Harper isn&apos;t just a tool; it&apos;s our entire
                         hiring infrastructure for AI talent. The speed of
                         matching is simply on another level
@@ -727,7 +727,7 @@ const Beige = () => {
                         }`}
                       >
                         <span
-                          className={`font-halant text-[28px] sm:text-[36px] md:text-[40px] lg:text-[48px] leading-[0.98] tracking-[-0.07em] ${
+                          className={`font-hedvig text-[28px] sm:text-[36px] md:text-[40px] lg:text-[48px] leading-[0.98] tracking-[-0.07em] ${
                             active ? "text-beige900" : "text-beige900/40"
                           }`}
                         >
@@ -789,7 +789,7 @@ const Beige = () => {
             >
               <Reveal once direction="left">
                 <SectionTag>Proven impact</SectionTag>
-                <h2 className="mt-7 max-w-[540px] font-halant text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.97] tracking-[-0.08em] text-beige900">
+                <h2 className="mt-7 max-w-[540px] font-hedvig text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.97] tracking-[-0.08em] text-beige900">
                   From 50 hours of sourcing
                   <br />
                   to 2 hours of interviewing.
@@ -821,7 +821,7 @@ const Beige = () => {
                   ].map((item, index) => (
                     <Reveal key={item.stat} once delay={0.08 * index}>
                       <div className="rounded-3xl bg-beige500/80 p-6">
-                        <div className="font-halant font-medium text-[56px] leading-[0.95] tracking-[-0.06em] text-beige900">
+                        <div className="font-hedvig font-medium text-[56px] leading-[0.95] tracking-[-0.06em] text-beige900">
                           {item.stat}
                         </div>
                         <div className="mt-4 text-[17px] font-medium tracking-[-0.03em] text-beige900">
@@ -912,7 +912,7 @@ const Beige = () => {
                   The Engine
                 </div>
                 <h2
-                  className={`mt-7 text-beige100 font-halant text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.96] tracking-[-0.08em]`}
+                  className={`mt-7 text-beige100 font-hedvig text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.96] tracking-[-0.08em]`}
                 >
                   Autonomous Intelligence. Evidence-First.
                 </h2>
@@ -950,7 +950,7 @@ const Beige = () => {
                           key={value}
                           className="rounded-[20px] bg-white/5 p-4"
                         >
-                          <div className="font-halant text-[32px] leading-none tracking-[-0.06em] text-beige100">
+                          <div className="font-hedvig text-[32px] leading-none tracking-[-0.06em] text-beige100">
                             {value}
                           </div>
                           <div className="mt-2 font-geist text-[13px] leading-[1.45] tracking-[-0.02em] text-white/50">
@@ -1133,7 +1133,7 @@ const Beige = () => {
           <footer className="bg-beige500/350">
             <div className="mx-auto flex max-w-[1160px] flex-col items-center px-4 pb-16 pt-24 text-center max-[809px]:pt-16">
               <Reveal>
-                <h2 className="font-halant text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.97] tracking-[-0.08em] text-beige900">
+                <h2 className="font-hedvig text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.97] tracking-[-0.08em] text-beige900">
                   Harper
                 </h2>
                 <p className="mt-4 text-[22px] leading-[1.45] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
@@ -1176,7 +1176,7 @@ const Footer = ({
   return (
     <div className="mt-10 self-start max-w-[740px] text-sm tracking-[-0.03em] font-geist w-full flex flex-col md:flex-row items-start md:items-stretch justify-between py-10 md:py-8 gap-6 md:gap-0">
       <div className="flex flex-1 flex-col items-start justify-start gap-4 md:gap-6 text-beige900/70">
-        <div className="text-left text-3xl font-semibold font-halant text-beige900">
+        <div className="text-left text-3xl font-semibold font-hedvig text-beige900">
           Harper
         </div>
         <div className="text-[13px]">

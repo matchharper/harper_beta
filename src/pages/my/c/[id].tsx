@@ -475,7 +475,7 @@ export default function ResultPage() {
             isResizing
               ? "transition-none"
               : "transition-all duration-300 ease-in-out"
-          } ${isChatFull ? "w-[50%] border-transparent" : "border-white/10"}`}
+          } ${isChatFull ? "w-[50%] border-transparent" : "border-beige900/10"}`}
         >
           <ChatPanel
             title={queryItem?.query_keyword ?? ""}
@@ -490,7 +490,7 @@ export default function ResultPage() {
             <div
               onMouseDown={handleResizeStart}
               className={`absolute top-0 -right-[3px] z-50 h-full w-[2px] cursor-col-resize ${
-                isResizing ? "bg-white/50" : "bg-transparent hover:bg-white/20"
+                isResizing ? "bg-beige900/50" : "bg-transparent hover:bg-beige900/20"
               }`}
             />
           )}
@@ -505,7 +505,7 @@ export default function ResultPage() {
         >
           <div
             ref={resultScrollRef}
-            className={`w-full max-h-screen min-h-screen py-2 transition-all duration-200 relative overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent hover:scrollbar-thumb-white/20`}
+            className={`w-full max-h-screen min-h-screen py-2 transition-all duration-200 relative overflow-y-auto scrollbar-thin scrollbar-thumb-beige900/10 scrollbar-track-transparent hover:scrollbar-thumb-beige900/20`}
           >
             {queryItem && runId && (
               <ResultHeader

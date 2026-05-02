@@ -99,7 +99,7 @@ export function RequestAccessForm({
         disabled={isSubmitting}
         className={
           submitButtonClassName ??
-          "mt-12 inline-flex w-full items-center justify-center rounded-full bg-white px-5 py-3.5 text-sm font-medium text-black transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-70"
+          "mt-12 inline-flex w-full items-center justify-center rounded-full bg-beige900 px-5 py-3.5 text-sm font-medium text-beige100 transition hover:bg-beige900/90 disabled:cursor-not-allowed disabled:opacity-70"
         }
       >
         {isSubmitting ? (
@@ -125,7 +125,7 @@ function LabeledInput({
 }) {
   return (
     <label className="block">
-      <div className="mb-2 text-left text-sm font-medium text-white">
+      <div className="mb-2 text-left text-sm font-medium text-beige900">
         {label}
       </div>
       <input
@@ -133,7 +133,7 @@ function LabeledInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/35 focus:border-white/30 focus:outline-none"
+        className="w-full rounded-2xl border border-beige900/8 bg-beige50 px-4 py-3 text-sm text-beige900 placeholder:text-beige900/35 focus:border-beige900/15 focus:outline-none"
       />
     </label>
   );
@@ -152,7 +152,7 @@ function LabeledTextarea({
 }) {
   return (
     <label className="block w-full">
-      <div className="mb-2 text-sm text-left w-full font-medium text-white">
+      <div className="mb-2 text-sm text-left w-full font-medium text-beige900">
         {label}
       </div>
       <textarea
@@ -160,7 +160,7 @@ function LabeledTextarea({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         rows={4}
-        className="w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/35 focus:border-white/30 focus:outline-none"
+        className="w-full resize-none rounded-2xl border border-beige900/8 bg-beige50 px-4 py-3 text-sm text-beige900 placeholder:text-beige900/35 focus:border-beige900/15 focus:outline-none"
       />
     </label>
   );

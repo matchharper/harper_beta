@@ -116,15 +116,15 @@ export default function ShortlistMemoEditor({
       className={cn(
         "relative ml-[2px] w-full cursor-pointer rounded-md border border-transparent px-2 pb-1.5 pl-3 pt-1.5 text-[13px] leading-relaxed transition-all duration-200",
         isEditing
-          ? "bg-white/5"
+          ? "bg-beige50"
           : isSmall
-            ? "hover:text-white"
-            : "hover:bg-white/5",
-        hasMemo ? "text-hgray900" : "text-hgray600",
-        !isEditing && hasMemo && "border-white/0 bg-white/5 py-2",
+            ? "hover:text-beige900"
+            : "hover:bg-beige50/80",
+        hasMemo ? "text-beige900" : "text-beige900/55",
+        !isEditing && hasMemo && "border-transparent bg-beige50 py-2",
         !isEditing &&
           !hasMemo &&
-          "w-fit pl-3 pr-4 rounded-md border-white/10 bg-white/5 h-8 flex items-center justify-start hover:bg-white/10",
+          "w-fit pl-3 pr-4 rounded-md border-beige900/8 bg-beige500/55 h-8 flex items-center justify-start hover:bg-beige500/70",
         className
       )}
     >
@@ -137,14 +137,14 @@ export default function ShortlistMemoEditor({
             <div className="group flex items-center justify-between gap-2 whitespace-pre-wrap break-words">
               <span>{memo}</span>
               <PencilLine
-                className="w-3 h-3 mr-1 text-hgray700/70 shrink-0 group-hover:text-white"
+                className="w-3 h-3 mr-1 text-beige900/45 shrink-0 group-hover:text-beige900"
                 strokeWidth={1.6}
               />
             </div>
           ) : (
-            <div className="group flex items-center justify-start gap-2.5 whitespace-pre-wrap break-words text-hgray900">
+            <div className="group flex items-center justify-start gap-2.5 whitespace-pre-wrap break-words text-beige900">
               <PencilLine
-                className="w-2.5 h-2.5 shrink-0 text-hgray900 group-hover:text-white"
+                className="w-2.5 h-2.5 shrink-0 text-beige900 group-hover:text-beige900"
                 strokeWidth={1.6}
               />
               <span>메모 추가</span>
@@ -172,7 +172,7 @@ export default function ShortlistMemoEditor({
                 void commit();
               }
             }}
-            className="w-full resize-none bg-transparent pr-14 text-hgray900 outline-none"
+            className="w-full resize-none bg-transparent pr-14 text-beige900 outline-none"
             placeholder={placeholder}
           />
           <button
@@ -185,7 +185,7 @@ export default function ShortlistMemoEditor({
             disabled={isPending}
             className={cn(
               "absolute bottom-[-1px] right-0.5 text-xs transition-all duration-200 disabled:opacity-60",
-              isChanged ? "text-accenta1" : "text-hgray600"
+              isChanged ? "text-accentBronze" : "text-beige900/45"
             )}
           >
             Confirm

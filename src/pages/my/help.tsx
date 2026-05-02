@@ -58,7 +58,7 @@ const Help = () => {
             <div className="underline cursor-pointer" onClick={handleContactUs}>
               chris@matchharper.com
             </div>
-            <div className="text-hgray800 mt-16 font-normal text-sm">
+            <div className="text-beige900/80 mt-16 font-normal text-sm">
               {m.help.prompt}
             </div>
             <Textarea
@@ -71,7 +71,7 @@ const Help = () => {
             <button
               onClick={handleSubmit}
               disabled={isLoading}
-              className="px-4 py-2 cursor-pointer mt-4 text-sm bg-accenta1 text-black rounded-lg font-normal"
+              className="px-4 py-2 cursor-pointer mt-4 text-sm bg-beige900 text-beige100 rounded-lg font-normal"
             >
               {isLoading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -81,17 +81,17 @@ const Help = () => {
             </button>
           </div>
           <div className="flex items-end justify-end w-full">
-            <div className="flex items-center gap-3 text-sm text-hgray700">
+            <div className="flex items-center gap-3 text-sm text-beige900/55">
               <button
                 onClick={() => setLocaleCookie("ko")}
-                className={`transition hover:text-hgray900 ${locale === "ko" ? "text-hgray900 font-medium" : ""}`}
+                className={`transition hover:text-beige900 ${locale === "ko" ? "text-beige900 font-medium" : ""}`}
               >
                 한국어
               </button>
-              <span className="text-hgray500">|</span>
+              <span className="text-beige900/45">|</span>
               <button
                 onClick={() => setLocaleCookie("en")}
-                className={`transition hover:text-hgray900 ${locale === "en" ? "text-hgray900 font-medium" : ""}`}
+                className={`transition hover:text-beige900 ${locale === "en" ? "text-beige900 font-medium" : ""}`}
               >
                 English
               </button>

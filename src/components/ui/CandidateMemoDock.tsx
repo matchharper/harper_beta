@@ -61,7 +61,7 @@ export default function CandidateMemoDock({
             className={[
               "min-h-[36px] rounded-md px-2 pt-1.5 pb-1.5 text-[13px] leading-relaxed whitespace-pre-wrap break-words",
               editorClassName,
-              initialMemo ? "text-hgray900" : "text-hgray600",
+              initialMemo ? "text-beige900" : "text-beige900/45",
             ].join(" ")}
           >
             {initialMemo || readOnlyPlaceholder}

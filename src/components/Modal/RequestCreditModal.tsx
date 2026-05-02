@@ -72,7 +72,7 @@ const RequestCreditModal = ({
     >
       <div className="flex flex-col items-start justify-center gap-4">
         {sentRequest ? (
-          <div className="text-base text-hgray900 font-light">
+          <div className="text-base text-beige900 font-light">
             <div className="text-lg font-normal mb-2">
               {m.system.credit_request_submitted}
             </div>
@@ -80,7 +80,7 @@ const RequestCreditModal = ({
           </div>
         ) : (
           <>
-            <div className="text-lg text-hgray900 font-normal">
+            <div className="text-lg text-beige900 font-normal">
               {m.system.credit_request}
             </div>
             <DropdownMenu>
@@ -91,8 +91,8 @@ const RequestCreditModal = ({
                     e.stopPropagation();
                   }}
                   className={[
-                    "flex flex-row px-4 transition-all duration-300 text-hgray900 rounded-2xl h-14 w-full bg-white/5 border border-white/10 items-center justify-between",
-                    "hover:bg-white/10 focus:outline-white/5 focus:ring-white/10",
+                    "flex flex-row px-4 transition-all duration-300 text-beige900 rounded-2xl h-14 w-full bg-beige50 border border-beige900/8 items-center justify-between",
+                    "hover:bg-beige50/80 focus:outline-none focus:ring-beige900/8",
                   ].join(" ")}
                 >
                   <div>
@@ -105,13 +105,13 @@ const RequestCreditModal = ({
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="start"
-                className="rounded-2xl w-[var(--radix-popper-anchor-width)] p-1 backdrop-blur-sm bg-ngray300/50"
+                className="rounded-2xl w-[var(--radix-popper-anchor-width)] p-1 backdrop-blur-sm bg-beige50/95"
               >
                 <DropdownMenuGroup>
                   {CREDIT_OPTIONS.map((option) => (
                     <DropdownMenuItem
                       key={option.value}
-                      className="w-full font-light rounded-xl hover:border-none hover:outline-none hover:bg-white/10 cursor-pointer p-3 mt-1"
+                      className="w-full font-light rounded-xl hover:border-none hover:outline-none hover:bg-beige500/55 cursor-pointer p-3 mt-1"
                       onClick={() => {
                         setSelectedCredit(option.value);
                       }}

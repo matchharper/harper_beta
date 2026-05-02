@@ -1131,7 +1131,7 @@ const CareerTalentProfilePanel = ({
 
             <div className="min-w-0 flex-1">
               <div className="flex min-w-0 flex-wrap items-center gap-2.5">
-                <h2 className="font-halant text-[30px] leading-none text-beige900">
+                <h2 className="font-hedvig text-[30px] leading-none text-beige900">
                   {profileDisplayName}
                 </h2>
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-beige700/10 px-2.5 py-1 text-[11px] font-medium tracking-[0.02em] text-beige700">

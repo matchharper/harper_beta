@@ -11,7 +11,7 @@ const RequestedPage = () => {
 
   const { data, isLoading, error } = useRequestedCandidates(userId);
 
-  if (isLoading) return <Loading className="text-hgray600" />;
+  if (isLoading) return <Loading className="text-beige900/55" />;
   if (error) return <div>Error</div>;
 
   return (

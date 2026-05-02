@@ -10,7 +10,7 @@ Use the same warm beige language as the landing page instead of default gray adm
 ## Core Rules
 
 - Base the palette on `beige100`, `beige200`, `beige500`, `beige900`.
-- Use `font-halant` for major headings and `font-geist` for controls, labels, and body copy.
+- Use `font-hedvig` for major headings and `font-geist` for controls, labels, and body copy.
 - Default rounding is `rounded-md` and `rounded-lg`.
 - Do not use `rounded-2xl`, `rounded-3xl`, or pill-heavy styling unless there is a very strong reason.
 - Avoid stacking borders everywhere. Large surfaces should usually be separated by background contrast and shadow, not outlines.

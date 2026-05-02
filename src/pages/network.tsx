@@ -267,7 +267,7 @@ const sectionTagClassName =
   "inline-flex items-center rounded-lg bg-beige500/80 px-4 py-2 font-geist text-[15px] font-medium tracking-[-0.03em] text-beige900/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] backdrop-blur-xl";
 
 const titleTextClassName =
-  "font-halant text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.95] tracking-[-0.08em]";
+  "font-hedvig text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.95] tracking-[-0.08em]";
 
 const MOBILE_POSITION_PAGE_SIZE = 4;
 const SHARE_REQUEST_QUERY_KEY = "recommended";
@@ -1943,7 +1943,7 @@ const NetworkPage = () => {
               }}
               className="fixed inset-0 z-[160] flex items-center justify-center bg-beige500"
             >
-              <div className="font-halant text-5xl md:text-7xl tracking-[-0.08em] text-beige900">
+              <div className="font-hedvig text-5xl md:text-7xl tracking-[-0.08em] text-beige900">
                 <StaggerText text="Harper" by="char" delay={0.08} />
               </div>
             </motion.div>
@@ -2001,7 +2001,7 @@ const NetworkPage = () => {
           <div className="mx-auto flex h-[64px] max-w-[1160px] items-center justify-between px-4">
             <a
               href="#top"
-              className="font-halant text-[28px] tracking-[-0.06em] text-beige900"
+              className="font-hedvig text-[28px] tracking-[-0.06em] text-beige900"
             >
               Harper
             </a>
@@ -2197,7 +2197,7 @@ const NetworkPage = () => {
             <SectionTag>Our value</SectionTag>
 
             <h2
-              className={`mx-auto mt-8 max-w-[860px] font-halant text-3xl md:text-4xl leading-[0.98] tracking-[-0.08em] text-beige900`}
+              className={`mx-auto mt-8 max-w-[860px] font-hedvig text-3xl md:text-4xl leading-[0.98] tracking-[-0.08em] text-beige900`}
             >
               Highly Curated
             </h2>
@@ -2357,7 +2357,7 @@ const NetworkPage = () => {
 
           <footer className="border-t border-beige900/10 py-8">
             <div className="mx-auto flex max-w-[1160px] flex-col items-center justify-between gap-4 px-4 tracking-[-0.03em] text-beige900/60 md:flex-row">
-              <div className="font-halant text-[28px] tracking-[-0.06em] text-beige900">
+              <div className="font-hedvig text-[28px] tracking-[-0.06em] text-beige900">
                 Harper
               </div>
               <div className="flex items-center gap-4 text-base">

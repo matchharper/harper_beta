@@ -59,12 +59,12 @@ const Requestbutton = ({
       {!isRequested ? (
         <div
           onClick={openRequestModal}
-          className="transition-all duration-200 font-normal cursor-pointer items-center justify-center flex h-10 px-4 rounded-xl text-sm bg-accenta1/20 text-accenta1 hover:bg-accenta1/25"
+          className="transition-all duration-200 font-normal cursor-pointer items-center justify-center flex h-10 px-4 rounded-xl text-sm bg-accentBronze/15 text-accentBronze hover:bg-accentBronze/25"
         >
           <div className="flex items-center flex-row">
             <span>{m.data.request}</span>
             {isBeta && (
-              <span className="ml-1 text-[10px] font-light text-hgray900 border border-white/10 rounded-md px-1 py-0.5">
+              <span className="ml-1 text-[10px] font-light text-beige900 border border-beige900/8 rounded-md px-1 py-0.5">
                 BETA
               </span>
             )}
@@ -75,7 +75,7 @@ const Requestbutton = ({
         <div className="flex items-center gap-2">
           <div
             onClick={openCancelModal}
-            className="transition-all duration-200 cursor-pointer items-center justify-center flex h-10 px-4 rounded-xl text-sm bg-accenta1/20 text-accenta1 hover:bg-accenta1/25"
+            className="transition-all duration-200 cursor-pointer items-center justify-center flex h-10 px-4 rounded-xl text-sm bg-accentBronze/15 text-accentBronze hover:bg-accentBronze/25"
             aria-disabled="true"
           >
             {m.data.request_cancel}

@@ -94,7 +94,7 @@ function StatCard({
   return (
     <div className={cx(opsTheme.panelSoft, "px-4 py-4")}>
       <div className={opsTheme.eyebrow}>{label}</div>
-      <div className="mt-3 font-halant text-[2.1rem] leading-none tracking-[-0.07em] text-beige900">
+      <div className="mt-3 font-hedvig text-[2.1rem] leading-none tracking-[-0.07em] text-beige900">
         {value}
       </div>
       <div className="mt-2 font-geist text-sm text-beige900/60">{hint}</div>

@@ -68,8 +68,8 @@ const FeedbackRewardModal = () => {
       isLoading={isSubmitting}
       size="sm"
     >
-      <div className="text-base font-normal text-hgray900">피드백</div>
-      <p className="mt-3 text-sm text-hgray800 font-normal leading-relaxed">
+      <div className="text-base font-normal text-beige900">피드백</div>
+      <p className="mt-3 text-sm text-beige900/80 font-normal leading-relaxed">
         서비스 개선을 위해 피드백을 남겨주세요.
         <br />
         남겨주시는 모든 내용들이 큰 도움이 됩니다.
@@ -79,7 +79,7 @@ const FeedbackRewardModal = () => {
         onChange={(e) => setFeedbackText(e.target.value)}
         rows={4}
         placeholder="피드백을 입력해 주세요."
-        className="w-full mt-4 text-white rounded-lg border font-light border-white/10 bg-white/5 p-4 text-[15px] focus:outline-none focus:ring-2 focus:ring-white/10 resize-none"
+        className="w-full mt-4 text-beige900 rounded-lg border font-light border-beige900/8 bg-beige50 p-4 text-[15px] focus:outline-none focus:ring-2 focus:ring-beige900/8 resize-none"
       />
     </BaseModal>
   );

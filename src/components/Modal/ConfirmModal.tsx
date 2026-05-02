@@ -50,11 +50,11 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
       isCloseButton={true}
       size="sm"
     >
-      {title && <div className="text-base font-normal text-hgray900">{title}</div>}
+      {title && <div className="text-base font-normal text-beige900">{title}</div>}
 
       {description && (
         <p
-          className="mt-4 text-sm text-hgray800 font-normal leading-relaxed"
+          className="mt-4 text-sm text-beige900/80 font-normal leading-relaxed"
           dangerouslySetInnerHTML={{ __html: description }}
         />
       )}

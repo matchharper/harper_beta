@@ -38,7 +38,7 @@ export const opsTheme = {
   textarea:
     "w-full rounded-lg border border-beige900/10 bg-white/80 px-4 py-4 font-geist text-sm leading-6 text-beige900 outline-none transition placeholder:text-beige900/35 focus:border-beige900/25 focus:bg-white",
   title:
-    "font-halant text-[2.55rem] leading-[0.92] tracking-[-0.08em] text-beige900",
+    "font-hedvig text-[2.55rem] leading-[0.92] tracking-[-0.08em] text-beige900",
   titleSm:
-    "font-halant text-[1.6rem] leading-[0.96] tracking-[-0.07em] text-beige900",
+    "font-hedvig text-[1.6rem] leading-[0.96] tracking-[-0.07em] text-beige900",
 } as const;

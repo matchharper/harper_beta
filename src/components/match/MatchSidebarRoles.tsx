@@ -35,7 +35,7 @@ export default function MatchSidebarRoles({
         exit={{ opacity: 0, y: 12 }}
         className="min-h-[20vh]"
       >
-        <div className="ml-3 border-l border-white/0 pl-1">
+        <div className="ml-3 border-l border-beige900/8 pl-1">
           <div className="space-y-1">
             {roles.length === 0 ? (
               <></>
@@ -60,12 +60,12 @@ export default function MatchSidebarRoles({
                       className={[
                         "flex items-center justify-between gap-2 rounded-md px-3 py-2 text-[12px] transition",
                         isActive
-                          ? "bg-white/10 text-white"
-                          : "text-white/55 hover:bg-white/5 hover:text-white/80",
+                          ? "bg-beige500/55 text-beige900"
+                          : "text-beige900/55 hover:bg-beige50/80 hover:text-beige900/80",
                       ].join(" ")}
                     >
                       <span className="truncate">{role.name}</span>
-                      <span className="shrink-0 text-[10px] text-white/40">
+                      <span className="shrink-0 text-[10px] text-beige900/45">
                         {role.matchedCandidateCount}
                       </span>
                     </Link>
@@ -89,7 +89,7 @@ export default function MatchSidebarRoles({
                     )}&composer=role`
                   : "/my/match?composer=workspace"
               }
-              className="flex items-center gap-2 rounded-full px-3 py-2 text-[12px] text-white/50 transition hover:bg-white/5 hover:text-white/80"
+              className="flex items-center gap-2 rounded-full px-3 py-2 text-[12px] text-beige900/45 transition hover:bg-beige50/80 hover:text-beige900/80"
             >
               <Plus size={13} />
               <span>{workspace ? "Role 추가하기" : "Workspace 생성하기"}</span>
