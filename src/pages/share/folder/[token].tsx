@@ -169,6 +169,7 @@ export default function SharedFolderPage() {
                 token,
                 viewer,
               }}
+              theme="dark"
             />
           </div>
         )}

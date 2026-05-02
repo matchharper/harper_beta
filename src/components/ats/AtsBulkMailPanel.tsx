@@ -49,8 +49,8 @@ export default function AtsBulkMailPanel({
     <div className={`${panelClassName} p-5`}>
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <div className="text-sm font-medium text-white">대량 메일 발송</div>
-          <div className="mt-1 text-sm text-white/55">
+          <div className="text-sm font-medium text-beige900">대량 메일 발송</div>
+          <div className="mt-1 text-sm text-beige900/55">
             선택한 후보자 {selectedCount}명에게 직접 메일 발송
           </div>
         </div>
@@ -75,7 +75,7 @@ export default function AtsBulkMailPanel({
             key={variable.key}
             type="button"
             onClick={() => void onCopyVariable(variable.label)}
-            className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/60 transition hover:bg-white/10"
+            className="inline-flex items-center gap-2 rounded-md border border-beige900/8 bg-beige500/55 px-3 py-1.5 text-xs text-beige900/55 transition hover:bg-beige500/55"
           >
             <Copy className="h-3 w-3" />
             {variable.label}
@@ -86,7 +86,7 @@ export default function AtsBulkMailPanel({
       <div className="mt-4 flex flex-col">
         <div className="space-y-3">
           <div>
-            <div className="mb-2 text-sm font-medium text-white">Subject</div>
+            <div className="mb-2 text-sm font-medium text-beige900">Subject</div>
             <input
               value={subject}
               onChange={(event) => onSubjectChange(event.target.value)}
@@ -95,7 +95,7 @@ export default function AtsBulkMailPanel({
             />
           </div>
           <div>
-            <div className="mb-2 text-sm font-medium text-white">Body</div>
+            <div className="mb-2 text-sm font-medium text-beige900">Body</div>
             <AtsEmailBodyEditor
               value={body}
               onChange={onBodyChange}
@@ -106,20 +106,20 @@ export default function AtsBulkMailPanel({
           </div>
         </div>
 
-        <div className="mt-4 rounded-md bg-white/5 p-4">
+        <div className="mt-4 rounded-md bg-beige500/55 p-4">
           <div className="flex items-center justify-between gap-3">
-            <div className="text-sm font-medium text-white">Preview</div>
-            <div className="text-xs text-white/45">{previewCandidateName}</div>
+            <div className="text-sm font-medium text-beige900">Preview</div>
+            <div className="text-xs text-beige900/45">{previewCandidateName}</div>
           </div>
           <div className="mt-4 space-y-3">
             <div>
-              <div className="text-xs text-white/35">Subject</div>
-              <div className="mt-2 text-sm text-white/85">
+              <div className="text-xs text-beige900/35">Subject</div>
+              <div className="mt-2 text-sm text-beige900/80">
                 {previewSubject || "미리보기를 위해 제목을 입력해 주세요."}
               </div>
             </div>
             <div>
-              <div className="text-xs text-white/35">Body</div>
+              <div className="text-xs text-beige900/35">Body</div>
               <div className="mt-2">
                 <AtsEmailBodyContent
                   body={previewBody}
@@ -130,14 +130,14 @@ export default function AtsBulkMailPanel({
             </div>
           </div>
           {previewHasCandidate && (
-            <div className="mt-4 rounded-md bg-black/10 p-3">
-              <div className="mt-3 grid gap-2 text-sm text-white/60">
+            <div className="mt-4 rounded-md bg-beige100 p-3">
+              <div className="mt-3 grid gap-2 text-sm text-beige900/55">
                 {Object.entries(previewVariables).map(([key, value]) => (
                   <div
                     key={key}
                     className="flex items-center justify-between gap-3 w-full"
                   >
-                    <div className="text-white/40">{key}</div>
+                    <div className="text-beige900/45">{key}</div>
                     <div className="truncate text-right max-w-[600px]">
                       {value || "-"}
                     </div>

@@ -37,12 +37,12 @@ export default function AtsWorkspacePanel({
     <div className={`${panelClassName} overflow-hidden`}>
       <div className="flex flex-col px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-3">
-          <div className="rounded-md bg-white/10 p-2 text-white">
+          <div className="rounded-md bg-beige500/55 p-2 text-beige900">
             <Target className="h-4 w-4" />
           </div>
           <div>
-            <div className="text-lg font-medium text-white">ATS Workspace</div>
-            <div className="mt-1 text-xs text-white/45">
+            <div className="text-lg font-medium text-beige900">ATS Workspace</div>
+            <div className="mt-1 text-xs text-beige900/45">
               대상 폴더: {currentAtsFolder?.name ?? "폴더 없음"}
             </div>
           </div>
@@ -79,11 +79,11 @@ export default function AtsWorkspacePanel({
         <div className="flex flex-col gap-4 px-5 pb-5">
           <div className="space-y-3">
             <div>
-              <div className="mb-2 text-sm font-medium text-white">
+              <div className="mb-2 text-sm font-medium text-beige900">
                 ATS Folder
               </div>
               {atsFolders.length === 0 ? (
-                <div className="rounded-md border border-dashed border-white/10 px-3 py-3 text-sm text-white/45">
+                <div className="rounded-md border border-dashed border-beige900/8 px-3 py-3 text-sm text-beige900/45">
                   선택 가능한 북마크 폴더가 없습니다.
                 </div>
               ) : (
@@ -106,13 +106,13 @@ export default function AtsWorkspacePanel({
                   ))}
                 </select>
               )}
-              <div className="mt-2 text-xs text-white/40">
+              <div className="mt-2 text-xs text-beige900/45">
                 ATS 후보 목록은 여기서 선택한 북마크 폴더를 기준으로 불러옵니다.
               </div>
             </div>
 
             <div>
-              <div className="mb-2 text-sm font-medium text-white">
+              <div className="mb-2 text-sm font-medium text-beige900">
                 Sender Email
               </div>
               <input
@@ -127,13 +127,13 @@ export default function AtsWorkspacePanel({
                 placeholder="you@company.com"
                 className={inputClassName}
               />
-              <div className="mt-2 text-xs text-white/40">
+              <div className="mt-2 text-xs text-beige900/45">
                 ATS 수동 메일과 시퀀스 발신 주소로 사용됩니다.
               </div>
             </div>
 
             <div>
-              <div className="mb-2 text-sm font-medium text-white">JD</div>
+              <div className="mb-2 text-sm font-medium text-beige900">JD</div>
               <textarea
                 value={workspaceDraft.jobDescription ?? ""}
                 onChange={(event) =>
@@ -150,7 +150,7 @@ export default function AtsWorkspacePanel({
             </div>
 
             <div>
-              <div className="mb-2 text-sm font-medium text-white">
+              <div className="mb-2 text-sm font-medium text-beige900">
                 Company Pitch
               </div>
               <textarea

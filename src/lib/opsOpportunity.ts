@@ -16,7 +16,6 @@ import {
   runOpsTalentRecommendation,
 } from "@/lib/career/llm";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
-import { normalizeTalentNetworkApplication } from "@/lib/talentNetworkApplication";
 import {
   OPPORTUNITY_TYPE_LABEL,
   OpportunityType,
@@ -66,12 +65,10 @@ type RoleRow = {
 
 type CandidateRow = {
   bio: string | null;
-  career_profile: unknown;
   email: string | null;
   headline: string | null;
   location: string | null;
   name: string | null;
-  network_application: unknown;
   profile_picture: string | null;
   resume_links: string[] | null;
   resume_text: string | null;
@@ -433,13 +430,6 @@ function normalizeLink(raw: string) {
 }
 
 function findTalentLinkedinUrl(row: CandidateRow): string | null {
-  const application =
-    normalizeTalentNetworkApplication(row.career_profile) ??
-    normalizeTalentNetworkApplication(row.network_application);
-  if (application?.linkedinProfileUrl) {
-    return normalizeLink(application.linkedinProfileUrl);
-  }
-
   const resumeLinks = Array.isArray(row.resume_links) ? row.resume_links : [];
   const linkedinLink = resumeLinks.find((item) =>
     /linkedin\.com\/(in|pub)\//i.test(String(item ?? ""))
@@ -1323,16 +1313,6 @@ function formatPromptDateRange(
   return end;
 }
 
-function stringifyPromptJson(value: unknown, maxLength: number) {
-  if (!value || typeof value !== "object") return "";
-
-  try {
-    return JSON.stringify(value, null, 2).slice(0, maxLength).trim();
-  } catch {
-    return "";
-  }
-}
-
 function buildRecommendationTalentProfileContext(args: {
   candidate: CandidateRow;
   educations: TalentEducationPromptRow[];
@@ -1358,21 +1338,6 @@ function buildRecommendationTalentProfileContext(args: {
     resumeLinks.slice(0, 8).forEach((link, index) => {
       lines.push(`${index + 1}. ${link}`);
     });
-  }
-
-  const careerProfile = stringifyPromptJson(candidate.career_profile, 2000);
-  if (careerProfile) {
-    lines.push("Career Profile JSON");
-    lines.push(careerProfile);
-  }
-
-  const networkApplication = stringifyPromptJson(
-    candidate.network_application,
-    1200
-  );
-  if (networkApplication) {
-    lines.push("Network Application JSON");
-    lines.push(networkApplication);
   }
 
   if (experiences.length > 0) {
@@ -2456,7 +2421,7 @@ export async function searchOpsOpportunityCandidates(args: {
 
   const { data, error } = await (admin.from("talent_users" as any) as any)
     .select(
-      "user_id, name, headline, location, profile_picture, email, bio, resume_text, resume_links, career_profile, network_application, updated_at"
+      "user_id, name, headline, location, profile_picture, email, bio, resume_text, resume_links, updated_at"
     )
     .or(
       [
@@ -2961,7 +2926,7 @@ export async function generateOpsOpportunityRecommendationDraft(args: {
   ] = await Promise.all([
     (admin.from("talent_users" as any) as any)
       .select(
-        "user_id, name, headline, location, profile_picture, email, bio, resume_text, resume_links, career_profile, network_application, updated_at"
+        "user_id, name, headline, location, profile_picture, email, bio, resume_text, resume_links, updated_at"
       )
       .eq("user_id", talentId)
       .maybeSingle() as any,

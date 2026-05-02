@@ -249,7 +249,7 @@ function getManualReviewStatusLabel(
 function getStageBadge(outreach: AtsOutreachRecord | null) {
   if (!outreach) {
     return {
-      className: "border-white/10 bg-white/5 text-white/70",
+      className: "border-beige900/8 bg-beige500/55 text-beige900/80",
       label: "Stage 0/4",
     };
   }
@@ -276,7 +276,7 @@ function getStageBadge(outreach: AtsOutreachRecord | null) {
   }
 
   return {
-    className: "border-white/10 bg-white/5 text-white/70",
+    className: "border-beige900/8 bg-beige500/55 text-beige900/80",
     label: `Stage ${outreach.activeStep}/4`,
   };
 }
@@ -338,15 +338,15 @@ function SequenceStepCard({
     : draft.body.trim() || message?.body || "아직 생성되지 않았습니다.";
 
   return (
-    <div className="rounded-md border border-white/10 bg-white/5 p-4 text-white">
-      <div className="mb-4 rounded-md bg-black/10 p-3">
+    <div className="rounded-md border border-beige900/8 bg-beige50 p-4 text-beige900">
+      <div className="mb-4 rounded-md bg-beige100 p-3">
         <div className="flex items-center justify-between gap-3">
-          <div className="text-xs font-medium text-white/75">예약 발송</div>
+          <div className="text-xs font-medium text-beige900/80">예약 발송</div>
           <button
             type="button"
             onClick={onSaveSchedule}
             disabled={saveSchedulePending}
-            className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-xs text-black transition hover:bg-white/90 disabled:opacity-40"
+            className="inline-flex items-center gap-1 rounded-md bg-beige900 px-2 py-1 text-xs text-beige100 transition hover:bg-beige900/90 disabled:opacity-40"
           >
             {saveSchedulePending ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -368,8 +368,8 @@ function SequenceStepCard({
             }
             className={`rounded-md border px-2.5 py-1 text-xs transition ${
               schedule.mode === "date"
-                ? "border-white/0 bg-accenta1 text-black"
-                : "border-white/10 bg-white/5 text-white/60 hover:bg-white/10"
+                ? "border-accentBronze bg-accentBronze text-beige100"
+                : "border-beige900/8 bg-beige500/55 text-beige900/55 hover:bg-beige500/70"
             }`}
           >
             날짜 지정
@@ -379,8 +379,8 @@ function SequenceStepCard({
             onClick={() => onScheduleChange({ mode: "relative" })}
             className={`rounded-md border px-2.5 py-1 text-xs transition ${
               schedule.mode === "relative"
-                ? "border-white/0 bg-accenta1 text-black"
-                : "border-white/10 bg-white/5 text-white/60 hover:bg-white/10"
+                ? "border-accentBronze bg-accentBronze text-beige100"
+                : "border-beige900/8 bg-beige500/55 text-beige900/55 hover:bg-beige500/70"
             }`}
           >
             며칠 뒤
@@ -390,7 +390,7 @@ function SequenceStepCard({
         {schedule.mode === "relative" && (
           <div className="mt-3 grid gap-3 md:grid-cols-[auto_1fr]">
             <div>
-              <div className="mb-1 text-[11px] uppercase tracking-[0.12em] text-white/35">
+              <div className="mb-1 text-[11px] uppercase tracking-[0.12em] text-beige900/35">
                 Days
               </div>
               <div className="flex items-center gap-2">
@@ -401,11 +401,11 @@ function SequenceStepCard({
                       delayDays: Math.max(0, schedule.delayDays - 1),
                     })
                   }
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-white/5 text-white/65 transition hover:bg-white/10"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-beige900/8 bg-beige500/55 text-beige900/65 transition hover:bg-beige500/70"
                 >
                   <Minus className="h-3.5 w-3.5" />
                 </button>
-                <div className="min-w-[48px] text-center text-sm text-white">
+                <div className="min-w-[48px] text-center text-sm text-beige900">
                   {schedule.delayDays}d
                 </div>
                 <button
@@ -413,18 +413,18 @@ function SequenceStepCard({
                   onClick={() =>
                     onScheduleChange({ delayDays: schedule.delayDays + 1 })
                   }
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-white/5 text-white/65 transition hover:bg-white/10"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-beige900/8 bg-beige500/55 text-beige900/65 transition hover:bg-beige500/70"
                 >
                   <Plus className="h-3.5 w-3.5" />
                 </button>
               </div>
             </div>
             <div>
-              <div className="mb-1 text-[11px] uppercase tracking-[0.12em] text-white/35">
+              <div className="mb-1 text-[11px] uppercase tracking-[0.12em] text-beige900/35">
                 Time
               </div>
               <div className="relative">
-                <Clock3 className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/35" />
+                <Clock3 className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-beige900/35" />
                 <input
                   type="time"
                   value={schedule.sendTime}
@@ -441,11 +441,11 @@ function SequenceStepCard({
         {schedule.mode === "date" && (
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             <div>
-              <div className="mb-1 text-[11px] uppercase tracking-[0.12em] text-white/35">
+              <div className="mb-1 text-[11px] uppercase tracking-[0.12em] text-beige900/35">
                 Date
               </div>
               <div className="relative">
-                <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/35" />
+                <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-beige900/35" />
                 <input
                   type="date"
                   value={schedule.date ?? ""}
@@ -457,11 +457,11 @@ function SequenceStepCard({
               </div>
             </div>
             <div>
-              <div className="mb-1 text-[11px] uppercase tracking-[0.12em] text-white/35">
+              <div className="mb-1 text-[11px] uppercase tracking-[0.12em] text-beige900/35">
                 Time
               </div>
               <div className="relative">
-                <Clock3 className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/35" />
+                <Clock3 className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-beige900/35" />
                 <input
                   type="time"
                   value={schedule.sendTime}
@@ -479,7 +479,7 @@ function SequenceStepCard({
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-sm font-medium">Step {stepNumber}</div>
-          <div className="mt-1 text-xs text-white/45">
+          <div className="mt-1 text-xs text-beige900/45">
             {describeSchedule(schedule, stepNumber)}
           </div>
         </div>
@@ -493,7 +493,7 @@ function SequenceStepCard({
             <button
               type="button"
               onClick={onToggleEdit}
-              className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white/70 transition hover:bg-white/10 hover:text-white"
+              className="inline-flex items-center gap-1 rounded-md border border-beige900/8 bg-beige500/55 px-2.5 py-1.5 text-xs text-beige900/80 transition hover:bg-beige500/70 hover:text-beige900"
             >
               <ChevronDown
                 className={`h-3.5 w-3.5 transition ${isEditing ? "rotate-180" : ""}`}
@@ -508,7 +508,7 @@ function SequenceStepCard({
         {isEditing && !isSent ? (
           <div className="space-y-4">
             <div>
-              <div className="mb-2 text-xs text-white/45">Subject</div>
+              <div className="mb-2 text-xs text-beige900/45">Subject</div>
               <input
                 value={draft.subject}
                 onChange={(event) =>
@@ -519,7 +519,7 @@ function SequenceStepCard({
               />
             </div>
             <div>
-              <div className="mb-2 text-xs text-white/45">Body</div>
+              <div className="mb-2 text-xs text-beige900/45">Body</div>
               <AtsEmailBodyEditor
                 value={draft.body}
                 onChange={(body) => onDraftChange({ body })}
@@ -529,7 +529,7 @@ function SequenceStepCard({
               />
             </div>
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="text-xs text-white/45">
+              <div className="text-xs text-beige900/45">
                 템플릿 변수는 발송 시 실제 후보자 값으로 치환됩니다.
               </div>
               <div className="flex flex-wrap gap-2">
@@ -565,19 +565,19 @@ function SequenceStepCard({
         ) : (
           <>
             <div>
-              <div className="text-xs text-white/45">Subject</div>
-              <div className="mt-1 text-sm text-white">{subjectPreview}</div>
+              <div className="text-xs text-beige900/45">Subject</div>
+              <div className="mt-1 text-sm text-beige900">{subjectPreview}</div>
             </div>
             <div>
-              <div className="text-xs text-white/45">Body</div>
-              <div className="mt-1 line-clamp-5 whitespace-pre-wrap text-sm leading-6 text-white/65">
+              <div className="text-xs text-beige900/45">Body</div>
+              <div className="mt-1 line-clamp-5 whitespace-pre-wrap text-sm leading-6 text-beige900/55">
                 {bodyPreview}
               </div>
             </div>
           </>
         )}
         <div className="flex items-center justify-between gap-3">
-          <div className="text-xs text-white/45">
+          <div className="text-xs text-beige900/45">
             {isDraftDirty && !isSent
               ? "저장되지 않은 draft 변경이 있습니다."
               : message?.sentAt
@@ -665,7 +665,7 @@ export default function AtsCandidateDrawer({
           <motion.button
             type="button"
             aria-label="Close ATS candidate drawer"
-            className="absolute inset-0 bg-black/55"
+            className="absolute inset-0 bg-beige900/55"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -676,7 +676,7 @@ export default function AtsCandidateDrawer({
           <motion.aside
             role="dialog"
             aria-modal="true"
-            className="absolute right-0 top-0 h-full w-[92vw] border-l border-white/10 bg-hgray200 shadow-2xl lg:w-[min(60vw,1120px)]"
+            className="absolute right-0 top-0 h-full w-[92vw] border-l border-beige900/8 bg-beige50 shadow-2xl lg:w-[min(60vw,1120px)]"
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
@@ -692,19 +692,19 @@ export default function AtsCandidateDrawer({
                   type="button"
                   onClick={onClose}
                   aria-label="Close candidate drawer"
-                  className="inline-flex items-center justify-center rounded-sm border border-white/10 bg-white/5 p-2 text-white/70 transition hover:bg-white/10 hover:text-white"
+                  className="inline-flex items-center justify-center rounded-sm border border-beige900/8 bg-beige500/55 p-2 text-beige900/80 transition hover:bg-beige500/70 hover:text-beige900"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
 
               {!activeCandidate ? (
-                <div className="flex min-h-[760px] items-center justify-center text-sm text-white/50">
+                <div className="flex min-h-[760px] items-center justify-center text-sm text-beige900/45">
                   후보자를 선택해 주세요.
                 </div>
               ) : detailLoading ? (
                 <div className="flex min-h-[760px] items-center justify-center">
-                  <Loader2 className="h-5 w-5 animate-spin text-white" />
+                  <Loader2 className="h-5 w-5 animate-spin text-beige900" />
                 </div>
               ) : (
                 <div className="space-y-5">
@@ -720,20 +720,20 @@ export default function AtsCandidateDrawer({
                               className="h-11 w-11 rounded-lg object-cover"
                             />
                           ) : (
-                            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 text-white">
+                            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-beige500/55 text-beige900">
                               <UserSquare2 className="h-5 w-5" />
                             </div>
                           )}
                           <div className="min-w-0">
-                            <div className="truncate text-lg font-medium text-white">
+                            <div className="truncate text-lg font-medium text-beige900">
                               {activeCandidate.name ?? "Unknown"}
                             </div>
-                            <div className="mt-1 max-w-[360px] truncate text-sm text-white/60">
+                            <div className="mt-1 max-w-[360px] truncate text-sm text-beige900/55">
                               {activeCandidate.headline ?? "headline 없음"}
                             </div>
                           </div>
                         </div>
-                        <div className="mt-4 flex flex-wrap gap-3 text-sm text-white/55">
+                        <div className="mt-4 flex flex-wrap gap-3 text-sm text-beige900/55">
                           {activeCandidate.currentCompany && (
                             <span>{activeCandidate.currentCompany}</span>
                           )}
@@ -782,7 +782,7 @@ export default function AtsCandidateDrawer({
                             onClick={() => {
                               void emailDiscovery.onDiscover();
                             }}
-                            className="inline-flex items-center justify-center gap-2 rounded-sm bg-accenta1 px-3 py-2 text-sm text-black transition hover:opacity-90"
+                            className="inline-flex items-center justify-center gap-2 rounded-sm bg-accentBronze px-3 py-2 text-sm text-black transition hover:opacity-90"
                           >
                             <Sparkles className="h-4 w-4" />
                             {emailDiscovery.resolvedEmail
@@ -852,7 +852,7 @@ export default function AtsCandidateDrawer({
                       </div>
                     </div>
 
-                    <div className="flex gap-2 border-b border-white/10 pb-3">
+                    <div className="flex gap-2 border-b border-beige900/8 pb-3">
                       {(
                         [
                           ["candidate", "Candidate"],
@@ -867,8 +867,8 @@ export default function AtsCandidateDrawer({
                           onClick={() => onMainPanelTabChange(value)}
                           className={`rounded-md border px-3 py-1.5 text-sm transition ${
                             mainPanelTab === value
-                              ? "border-accenta1/40 bg-accenta1 text-black"
-                              : "border-white/10 bg-white/5 text-white/60 hover:bg-white/10"
+                              ? "border-accentBronze/40 bg-accentBronze text-black"
+                              : "border-beige900/8 bg-beige500/55 text-beige900/55 hover:bg-beige500/70"
                           }`}
                         >
                           {label}
@@ -883,7 +883,7 @@ export default function AtsCandidateDrawer({
                         <div className="min-w-0 space-y-4">
                           <div className="w-full min-w-0">
                             <div className="flex items-center justify-between gap-3">
-                              <div className="text-sm font-medium text-white">
+                              <div className="text-sm font-medium text-beige900">
                                 이메일 찾기
                               </div>
                             </div>
@@ -922,12 +922,12 @@ export default function AtsCandidateDrawer({
                                 clearPending={emailDiscovery.clearPending}
                               />
                             </div>
-                            <div className="mt-4 rounded-md border border-white/10 bg-black/10 p-4">
+                            <div className="mt-4 rounded-md border border-beige900/8 bg-beige100 p-4">
                               <div className="flex items-center justify-between gap-3">
-                                <div className="text-sm font-medium text-white">
+                                <div className="text-sm font-medium text-beige900">
                                   Manual Review URLs
                                 </div>
-                                <div className="text-xs text-white/40">
+                                <div className="text-xs text-beige900/45">
                                   {manualReviewSuggestions.length > 0
                                     ? `${manualReviewSuggestions.length}개 추천`
                                     : emailDiscovery.isSearching
@@ -937,7 +937,7 @@ export default function AtsCandidateDrawer({
                               </div>
                               <div className="mt-3 space-y-3">
                                 {manualReviewSuggestions.length === 0 ? (
-                                  <div className="rounded-md border border-dashed border-white/10 px-3 py-3 text-sm text-white/50">
+                                  <div className="rounded-md border border-dashed border-beige900/8 px-3 py-3 text-sm text-beige900/45">
                                     {emailDiscovery.isSearching
                                       ? "이메일 탐색이 끝나면 수동 확인 추천 URL이 여기에 표시됩니다."
                                       : "추천 URL이 아직 없습니다. 이메일 탐색을 실행하면 후보자와 가장 관련 있는 링크들을 정리합니다."}
@@ -947,18 +947,18 @@ export default function AtsCandidateDrawer({
                                     (suggestion, index) => (
                                       <div
                                         key={`${suggestion.url}-${index}`}
-                                        className="rounded-md border border-white/10 bg-white/[0.05] p-3"
+                                        className="rounded-md border border-beige900/8 bg-beige50 p-3"
                                       >
                                         <div className="flex flex-wrap items-center gap-2">
-                                          <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/60">
+                                          <span className="rounded-md border border-beige900/8 bg-beige500/55 px-2 py-1 text-[11px] text-beige900/55">
                                             {index + 1}
                                           </span>
-                                          <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/60">
+                                          <span className="rounded-md border border-beige900/8 bg-beige500/55 px-2 py-1 text-[11px] text-beige900/55">
                                             {getManualReviewCategoryLabel(
                                               suggestion.category
                                             )}
                                           </span>
-                                          <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/45">
+                                          <span className="rounded-md border border-beige900/8 bg-beige500/55 px-2 py-1 text-[11px] text-beige900/45">
                                             {getManualReviewStatusLabel(
                                               suggestion.scrapeStatus
                                             )}
@@ -968,12 +968,12 @@ export default function AtsCandidateDrawer({
                                           href={suggestion.url}
                                           target="_blank"
                                           rel="noreferrer"
-                                          className="mt-3 inline-flex items-start gap-1 break-all text-sm text-accenta1 transition hover:text-accenta1/90"
+                                          className="mt-3 inline-flex items-start gap-1 break-all text-sm text-accentBronze transition hover:text-accentBronze/90"
                                         >
                                           <span>{suggestion.label}</span>
                                           <ArrowUpRight className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                                         </a>
-                                        <div className="mt-2 break-words text-xs leading-5 text-white/60">
+                                        <div className="mt-2 break-words text-xs leading-5 text-beige900/55">
                                           {suggestion.reason}
                                         </div>
                                       </div>
@@ -987,7 +987,7 @@ export default function AtsCandidateDrawer({
                                 (source) => (
                                   <span
                                     key={`${source.sourceType}-${source.email}`}
-                                    className="break-all rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/60"
+                                    className="break-all rounded-md border border-beige900/8 bg-beige500/55 px-2 py-1 text-xs text-beige900/55"
                                   >
                                     {source.label}: {source.email}
                                   </span>
@@ -997,13 +997,13 @@ export default function AtsCandidateDrawer({
                           </div>
 
                           <div className="w-full min-w-0">
-                            <div className="text-sm font-medium text-white">
+                            <div className="text-sm font-medium text-beige900">
                               Discovery Evidence
                             </div>
                             <div className="mt-4 grid gap-3">
                               {(detailCandidate?.outreach?.emailDiscoveryEvidence ??
                                 []).length === 0 && (
-                                <div className="rounded-md border border-dashed border-white/10 px-4 py-4 text-sm text-white/50">
+                                <div className="rounded-md border border-dashed border-beige900/8 px-4 py-4 text-sm text-beige900/45">
                                   아직 저장된 탐색 근거가 없습니다.
                                 </div>
                               )}
@@ -1013,23 +1013,23 @@ export default function AtsCandidateDrawer({
                               ).map((evidence, index) => (
                                 <div
                                   key={`${evidence.email}-${index}`}
-                                  className="rounded-md border border-white/10 bg-black/10 p-3"
+                                  className="rounded-md border border-beige900/8 bg-beige100 p-3"
                                 >
                                   <div className="flex flex-wrap items-center justify-between gap-3">
-                                    <div className="text-sm font-medium text-white">
+                                    <div className="text-sm font-medium text-beige900">
                                       {evidence.email}
                                     </div>
-                                    <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/55">
+                                    <span className="rounded-md border border-beige900/8 bg-beige500/55 px-2 py-1 text-xs text-beige900/55">
                                       {evidence.confidence}
                                     </span>
                                   </div>
                                   {evidence.title && (
-                                    <div className="mt-2 break-words text-sm text-white/70">
+                                    <div className="mt-2 break-words text-sm text-beige900/80">
                                       {evidence.title}
                                     </div>
                                   )}
                                   {evidence.snippet && (
-                                    <div className="mt-2 break-words text-sm leading-6 text-white/55">
+                                    <div className="mt-2 break-words text-sm leading-6 text-beige900/55">
                                       {evidence.snippet}
                                     </div>
                                   )}
@@ -1038,7 +1038,7 @@ export default function AtsCandidateDrawer({
                                       href={evidence.url}
                                       target="_blank"
                                       rel="noreferrer"
-                                      className="mt-3 inline-flex items-center gap-1 text-xs text-accenta1 transition hover:text-accenta1/90"
+                                      className="mt-3 inline-flex items-center gap-1 text-xs text-accentBronze transition hover:text-accentBronze/90"
                                     >
                                       Open source
                                       <ArrowUpRight className="h-3 w-3" />
@@ -1053,7 +1053,7 @@ export default function AtsCandidateDrawer({
                         <div className="min-w-0 space-y-4">
                           <div className="rounded-md p-4">
                             <div className="flex items-center justify-between gap-3">
-                              <div className="text-sm font-medium text-white">
+                              <div className="text-sm font-medium text-beige900">
                                 노트
                               </div>
                               <button
@@ -1082,40 +1082,40 @@ export default function AtsCandidateDrawer({
                               className={`${textareaClassName} mt-4`}
                             />
                           </div>
-                          <div className="rounded-md bg-white/5 p-4">
-                            <div className="text-sm font-medium text-white">
+                          <div className="rounded-md bg-beige500/55 p-4">
+                            <div className="text-sm font-medium text-beige900">
                               Candidate Snapshot
                             </div>
                             <div className="mt-4 w-full gap-3">
                               <div className="flex w-full flex-row gap-4">
                                 <div>
-                                  <div className="text-xs text-white/45">
+                                  <div className="text-xs text-beige900/45">
                                     Current Company
                                   </div>
-                                  <div className="mt-1 text-sm text-white/75">
+                                  <div className="mt-1 text-sm text-beige900/80">
                                     <span className="font-semibold">
                                       {activeCandidate.currentRole ?? "-"}
                                     </span>{" "}
                                     at{" "}
-                                    <span className="text-accenta1">
+                                    <span className="text-accentBronze">
                                       {activeCandidate.currentCompany ?? "-"}
                                     </span>
                                   </div>
                                 </div>
                                 <div>
-                                  <div className="text-xs text-white/45">
+                                  <div className="text-xs text-beige900/45">
                                     Location
                                   </div>
-                                  <div className="mt-1 text-sm text-white/75">
+                                  <div className="mt-1 text-sm text-beige900/80">
                                     {activeCandidate.location ?? "-"}
                                   </div>
                                 </div>
                               </div>
                               <div>
-                                <div className="text-xs text-white/45">
+                                <div className="text-xs text-beige900/45">
                                   Shortlist Memo
                                 </div>
-                                <div className="mt-1 whitespace-pre-wrap text-sm leading-6 text-white/65">
+                                <div className="mt-1 whitespace-pre-wrap text-sm leading-6 text-beige900/55">
                                   {activeCandidate.shortlistMemo || "-"}
                                 </div>
                               </div>
@@ -1144,24 +1144,24 @@ export default function AtsCandidateDrawer({
                       )}
                       <div className="grid gap-4 xl:grid-cols-[0.5fr_1.5fr]">
                         <div>
-                          <div className="text-sm font-medium text-white">
+                          <div className="text-sm font-medium text-beige900">
                             Sequence Snapshot
                           </div>
                           <div className="mt-4 grid gap-3">
-                            <div className="rounded-md border border-white/10 bg-black/10 p-3">
-                              <div className="text-xs text-white/45">
+                            <div className="rounded-md border border-beige900/8 bg-beige100 p-3">
+                              <div className="text-xs text-beige900/45">
                                 Target Email
                               </div>
-                              <div className="mt-1 text-sm text-white">
+                              <div className="mt-1 text-sm text-beige900">
                                 {sequence.resolvedEmail ?? "이메일 필요"}
                               </div>
                             </div>
-                            <div className="rounded-md border border-white/10 bg-black/10 p-3">
+                            <div className="rounded-md border border-beige900/8 bg-beige100 p-3">
                               <div className="flex items-center justify-between gap-3">
-                                <div className="text-xs text-white/45">
+                                <div className="text-xs text-beige900/45">
                                   Stage Marks
                                 </div>
-                                <div className="text-sm text-white">
+                                <div className="text-sm text-beige900">
                                   {stageBadge.label}
                                 </div>
                               </div>
@@ -1170,7 +1170,7 @@ export default function AtsCandidateDrawer({
                                   outreach={sequence.outreach}
                                 />
                               </div>
-                              <div className="mt-3 text-sm text-white/60">
+                              <div className="mt-3 text-sm text-beige900/55">
                                 {sequence.isCompleted
                                   ? "4-step 시퀀스가 모두 완료되었습니다."
                                   : !sequence.resolvedEmail
@@ -1181,17 +1181,17 @@ export default function AtsCandidateDrawer({
                                       : `다음 액션은 step ${sequence.nextStep ?? 1} 발송입니다.`}
                               </div>
                             </div>
-                            <div className="rounded-md border border-white/10 bg-black/10 p-3">
-                              <div className="text-xs text-white/45">
+                            <div className="rounded-md border border-beige900/8 bg-beige100 p-3">
+                              <div className="text-xs text-beige900/45">
                                 마지막 발송
                               </div>
-                              <div className="mt-1 text-sm text-white">
+                              <div className="mt-1 text-sm text-beige900">
                                 {formatDateTime(sequence.outreach?.lastSentAt)}
                               </div>
-                              <div className="text-xs text-white/45">
+                              <div className="text-xs text-beige900/45">
                                 Next Due
                               </div>
-                              <div className="mt-1 text-sm text-white">
+                              <div className="mt-1 text-sm text-beige900">
                                 {formatDateTime(sequence.outreach?.nextDueAt)}
                               </div>
                             </div>
@@ -1271,7 +1271,7 @@ export default function AtsCandidateDrawer({
                                         }
                                       : {
                                           className:
-                                            "border-white/10 bg-white/5 text-white/60",
+                                            "border-beige900/8 bg-beige500/55 text-beige900/55",
                                           text: draftMessage
                                             ? "Waiting"
                                             : "Draft pending",
@@ -1334,44 +1334,44 @@ export default function AtsCandidateDrawer({
                         </div>
                       </div>
 
-                      <div className="rounded-md border border-white/10 bg-white/5 p-4">
-                        <div className="text-sm font-medium text-white">
+                      <div className="rounded-md border border-beige900/8 bg-beige500/55 p-4">
+                        <div className="text-sm font-medium text-beige900">
                           Mail History
                         </div>
                         <div className="mt-4 space-y-3">
                           {sequence.messages.length === 0 && (
-                            <div className="rounded-md border border-dashed border-white/10 px-4 py-4 text-sm text-white/50">
+                            <div className="rounded-md border border-dashed border-beige900/8 px-4 py-4 text-sm text-beige900/45">
                               아직 생성되거나 발송된 메일이 없습니다.
                             </div>
                           )}
                           {sequence.messages.map((message) => (
                             <div
                               key={message.id}
-                              className="rounded-md border border-white/10 bg-black/10 p-3"
+                              className="rounded-md border border-beige900/8 bg-beige100 p-3"
                             >
                               <div className="flex flex-wrap items-center justify-between gap-3">
                                 <div className="flex items-center gap-2">
-                                  <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/60">
+                                  <span className="rounded-md border border-beige900/8 bg-beige500/55 px-2 py-1 text-xs text-beige900/55">
                                     {message.kind === "manual"
                                       ? "Manual"
                                       : "Sequence"}
                                   </span>
                                   {message.stepNumber && (
-                                    <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/60">
+                                    <span className="rounded-md border border-beige900/8 bg-beige500/55 px-2 py-1 text-xs text-beige900/55">
                                       Step {message.stepNumber}
                                     </span>
                                   )}
-                                  <span className="text-xs text-white/45">
+                                  <span className="text-xs text-beige900/45">
                                     {message.status}
                                   </span>
                                 </div>
-                                <div className="text-xs text-white/45">
+                                <div className="text-xs text-beige900/45">
                                   {formatDateTime(
                                     message.sentAt ?? message.createdAt
                                   )}
                                 </div>
                               </div>
-                              <div className="mt-3 text-sm font-medium text-white">
+                              <div className="mt-3 text-sm font-medium text-beige900">
                                 {message.renderedSubject ?? message.subject}
                               </div>
                               <div className="mt-2">
@@ -1391,7 +1391,7 @@ export default function AtsCandidateDrawer({
                     <div className="space-y-4">
                       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
                         <div className="flex flex-col gap-2">
-                          <div className="text-sm font-medium text-white">
+                          <div className="text-sm font-medium text-beige900">
                             예약 발송
                           </div>
                           <div className="flex flex-col gap-2 sm:flex-row">
@@ -1435,7 +1435,7 @@ export default function AtsCandidateDrawer({
                             disabled={
                               contact.generatePending || saveWorkspacePending
                             }
-                            className="inline-flex items-center justify-center gap-2 rounded-sm bg-accenta1 px-3 py-2 text-sm text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                            className="inline-flex items-center justify-center gap-2 rounded-sm bg-accentBronze px-3 py-2 text-sm text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
                           >
                             {contact.generatePending || saveWorkspacePending ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
@@ -1470,12 +1470,12 @@ export default function AtsCandidateDrawer({
 
                       <div className="grid gap-4 xl:grid-cols-2">
                         <div>
-                          <div className="text-sm font-medium text-white">
+                          <div className="text-sm font-medium text-beige900">
                             메일 작성
                           </div>
                           <div className="mt-4 space-y-4">
                             <div>
-                              <div className="mb-2 text-xs text-white/45">
+                              <div className="mb-2 text-xs text-beige900/45">
                                 To
                               </div>
                               <div className="flex flex-col gap-3 md:flex-row">
@@ -1508,7 +1508,7 @@ export default function AtsCandidateDrawer({
                             </div>
 
                             <div>
-                              <div className="mb-2 text-xs text-white/45">
+                              <div className="mb-2 text-xs text-beige900/45">
                                 Subject
                               </div>
                               <input
@@ -1524,7 +1524,7 @@ export default function AtsCandidateDrawer({
                             </div>
 
                             <div>
-                              <div className="mb-2 text-xs text-white/45">
+                              <div className="mb-2 text-xs text-beige900/45">
                                 Body
                               </div>
                               <AtsEmailBodyEditor
@@ -1540,12 +1540,12 @@ export default function AtsCandidateDrawer({
                           </div>
                         </div>
 
-                        <div className="rounded-md border border-white/10 bg-white/5 p-4">
+                        <div className="rounded-md border border-beige900/8 bg-beige500/55 p-4">
                           <div className="flex items-center justify-between gap-3">
-                            <div className="text-sm font-medium text-white">
+                            <div className="text-sm font-medium text-beige900">
                               Preview
                             </div>
-                            <div className="text-xs text-white/45">
+                            <div className="text-xs text-beige900/45">
                               {activeCandidate.name ?? "후보자 없음"}
                             </div>
                           </div>
@@ -1582,25 +1582,25 @@ export default function AtsCandidateDrawer({
                         </div>
                       </div>
 
-                      <div className="rounded-md border border-white/10 bg-white/5 p-4">
+                      <div className="rounded-md border border-beige900/8 bg-beige500/55 p-4">
                         <div className="flex items-center justify-between gap-3">
-                          <div className="text-sm font-medium text-white">
+                          <div className="text-sm font-medium text-beige900">
                             Scheduled Emails
                           </div>
-                          <div className="text-xs text-white/45">
+                          <div className="text-xs text-beige900/45">
                             {contact.scheduledMessages.length}개 예약됨
                           </div>
                         </div>
                         <div className="mt-4 space-y-3">
                           {contact.scheduledMessages.length === 0 && (
-                            <div className="rounded-md border border-dashed border-white/10 px-4 py-4 text-sm text-white/50">
+                            <div className="rounded-md border border-dashed border-beige900/8 px-4 py-4 text-sm text-beige900/45">
                               아직 예약된 메일이 없습니다.
                             </div>
                           )}
                           {contact.scheduledMessages.map((message) => (
                             <div
                               key={message.id}
-                              className="rounded-md border border-white/10 bg-black/10 p-4"
+                              className="rounded-md border border-beige900/8 bg-beige100 p-4"
                             >
                               <div className="flex flex-wrap items-start justify-between gap-3">
                                 <div className="min-w-0">
@@ -1609,15 +1609,15 @@ export default function AtsCandidateDrawer({
                                       Scheduled
                                     </span>
                                     {message.toEmail && (
-                                      <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/45">
+                                      <span className="rounded-md border border-beige900/8 bg-beige500/55 px-2 py-1 text-xs text-beige900/45">
                                         {message.toEmail}
                                       </span>
                                     )}
                                   </div>
-                                  <div className="mt-2 text-sm font-medium text-white">
+                                  <div className="mt-2 text-sm font-medium text-beige900">
                                     {message.subject}
                                   </div>
-                                  <div className="mt-1 text-xs text-white/45">
+                                  <div className="mt-1 text-xs text-beige900/45">
                                     {formatDateTime(message.scheduledFor)}
                                   </div>
                                 </div>
@@ -1652,46 +1652,46 @@ export default function AtsCandidateDrawer({
                         </div>
                       </div>
 
-                      <div className="rounded-md border border-white/10 bg-white/5 p-4">
-                        <div className="text-sm font-medium text-white">
+                      <div className="rounded-md border border-beige900/8 bg-beige500/55 p-4">
+                        <div className="text-sm font-medium text-beige900">
                           Email History
                         </div>
                         <div className="mt-4 space-y-3">
                           {contact.emailHistory.length === 0 && (
-                            <div className="rounded-md border border-dashed border-white/10 px-4 py-4 text-sm text-white/50">
+                            <div className="rounded-md border border-dashed border-beige900/8 px-4 py-4 text-sm text-beige900/45">
                               아직 발송된 메일이 없습니다.
                             </div>
                           )}
                           {contact.emailHistory.map((message) => (
                             <div
                               key={message.id}
-                              className="rounded-md border border-white/10 bg-black/10 p-4"
+                              className="rounded-md border border-beige900/8 bg-beige100 p-4"
                             >
                               <div className="flex flex-wrap items-center justify-between gap-3">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/60">
+                                  <span className="rounded-md border border-beige900/8 bg-beige500/55 px-2 py-1 text-xs text-beige900/55">
                                     {message.kind === "manual"
                                       ? "Manual"
                                       : "Sequence"}
                                   </span>
                                   {message.stepNumber && (
-                                    <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/60">
+                                    <span className="rounded-md border border-beige900/8 bg-beige500/55 px-2 py-1 text-xs text-beige900/55">
                                       Step {message.stepNumber}
                                     </span>
                                   )}
                                   {message.toEmail && (
-                                    <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/45">
+                                    <span className="rounded-md border border-beige900/8 bg-beige500/55 px-2 py-1 text-xs text-beige900/45">
                                       {message.toEmail}
                                     </span>
                                   )}
                                 </div>
-                                <div className="text-xs text-white/45">
+                                <div className="text-xs text-beige900/45">
                                   {formatDateTime(
                                     message.sentAt ?? message.createdAt
                                   )}
                                 </div>
                               </div>
-                              <div className="mt-3 text-sm font-medium text-white">
+                              <div className="mt-3 text-sm font-medium text-beige900">
                                 {message.renderedSubject ?? message.subject}
                               </div>
                               <div className="mt-2">

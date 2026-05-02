@@ -13,10 +13,6 @@ import {
   upsertTalentSetting,
 } from "@/lib/talentOnboarding/server";
 import { NETWORK_WAITLIST_TYPE, buildNetworkLead } from "@/lib/networkOps";
-import {
-  buildTalentNetworkApplicationFromLead,
-  normalizeTalentNetworkApplication,
-} from "@/lib/talentNetworkApplication";
 import { getNetworkTalentId } from "@/lib/opsNetwork";
 import { parseTalentNetworkInviteToken } from "@/lib/talentNetworkInvite";
 
@@ -469,19 +465,8 @@ function buildTalentUserMergePayload(args: {
     ...(sourceProfile?.resume_links ?? []),
     ...collectLeadLinks(lead),
   ]);
-  const existingApplication = normalizeTalentNetworkApplication(
-    currentProfile?.career_profile ??
-      (currentProfile?.network_waitlist_id === lead.id
-        ? currentProfile?.network_application
-        : null)
-  );
-  const nextApplication =
-    existingApplication ?? buildTalentNetworkApplicationFromLead(lead);
-  const now = new Date().toISOString();
   const payload: Database["public"]["Tables"]["talent_users"]["Update"] = {
-    career_profile: nextApplication,
     email: user.email ?? currentProfile?.email ?? lead.email ?? null,
-    network_claimed_at: currentProfile?.network_claimed_at ?? now,
     network_source_talent_id: sourceTalentId,
     network_waitlist_id: lead.id,
     resume_links: mergedLinks,
@@ -535,7 +520,7 @@ export async function findClaimedTalentUserByWaitlistId(args: {
   const { data, error } = await args.admin
     .from("talent_users")
     .select(
-      "user_id, email, name, profile_picture, headline, bio, location, career_profile, last_logined_at, network_waitlist_id, network_claimed_at, network_source_talent_id, network_application, resume_file_name, resume_storage_path, resume_text, resume_links, created_at, updated_at"
+      "user_id, email, name, profile_picture, headline, bio, location, last_logined_at, network_waitlist_id, network_source_talent_id, resume_file_name, resume_storage_path, resume_text, resume_links, created_at, updated_at"
     )
     .eq("network_waitlist_id", args.waitlistId)
     .maybeSingle();
@@ -667,8 +652,6 @@ export async function claimTalentNetworkInvite(args: {
   ]);
 
   return {
-    networkApplication:
-      normalizeTalentNetworkApplication(payload.career_profile) ?? null,
     sourceTalentId,
     waitlistId: lead.id,
   };

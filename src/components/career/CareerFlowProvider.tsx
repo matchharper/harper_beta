@@ -25,7 +25,6 @@ import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { useCareerChat } from "@/hooks/career/useCareerChat";
 import { useCareerMessageHistory } from "@/hooks/career/useCareerMessageHistory";
 import { useCareerOnboardingVoice } from "@/hooks/career/useCareerOnboardingVoice";
-import { useCareerNetworkApplication } from "@/hooks/career/useCareerNetworkApplication";
 import { useCareerProfile } from "@/hooks/career/useCareerProfile";
 import { useCareerTalentInsights } from "@/hooks/career/useCareerTalentInsights";
 import { useCareerTalentPreferences } from "@/hooks/career/useCareerTalentPreferences";
@@ -210,23 +209,6 @@ export const CareerFlowProvider = ({
     enqueueAssistantTypewriter,
     setChatError,
     onMessagesChanged: appendLatestMessagesToCache,
-  });
-
-  const {
-    networkApplication,
-    networkApplicationUpdatedAt,
-    networkApplicationSavePending,
-    networkApplicationSaveError,
-    networkApplicationSaveInfo,
-    hasUnsavedNetworkApplicationChanges,
-    applySessionNetworkState,
-    onNetworkApplicationChange,
-    onSaveNetworkApplication,
-    onResetNetworkApplication,
-    resetNetworkApplicationState,
-  } = useCareerNetworkApplication({
-    fetchWithAuth,
-    user,
   });
 
   const {
@@ -446,7 +428,6 @@ export const CareerFlowProvider = ({
       applySessionConversation(payload);
       appendLatestMessagesToCache(payload.messages ?? []);
       applySessionProfile(payload);
-      applySessionNetworkState(payload);
       applySessionTalentPreferences(payload);
       applySessionTalentInsights(payload);
       applySessionPrompt(payload);
@@ -467,7 +448,6 @@ export const CareerFlowProvider = ({
     },
     [
       applySessionConversation,
-      applySessionNetworkState,
       applySessionProfile,
       applySessionTalentInsights,
       applySessionTalentPreferences,
@@ -488,7 +468,6 @@ export const CareerFlowProvider = ({
       resetSessionState();
       resetChatState();
       resetProfileState();
-      resetNetworkApplicationState();
       resetTalentPreferencesState();
       resetTalentInsightsState();
       resetOnboardingState();
@@ -503,7 +482,6 @@ export const CareerFlowProvider = ({
   }, [
     authLoading,
     resetChatState,
-    resetNetworkApplicationState,
     resetOnboardingState,
     resetProfileState,
     resetRuntimeActionsState,
@@ -781,16 +759,10 @@ export const CareerFlowProvider = ({
         talentEducations,
         talentExtras,
       },
-      networkApplication,
-      networkApplicationUpdatedAt,
       talentPreferences,
       talentInsights,
       talentPreferencesUpdatedAt,
       talentInsightsUpdatedAt,
-      networkApplicationSavePending,
-      networkApplicationSaveError,
-      networkApplicationSaveInfo,
-      hasUnsavedNetworkApplicationChanges,
       talentPreferencesSavePending,
       talentPreferencesSaveError,
       talentPreferencesSaveInfo,
@@ -799,9 +771,6 @@ export const CareerFlowProvider = ({
       talentInsightsSaveError,
       talentInsightsSaveInfo,
       hasUnsavedTalentInsightsChanges,
-      onNetworkApplicationChange,
-      onSaveNetworkApplication,
-      onResetNetworkApplication,
       onTalentPreferencesChange,
       onSaveTalentPreferences,
       onResetTalentPreferences,
@@ -830,21 +799,14 @@ export const CareerFlowProvider = ({
       handleAddProfileLink,
       handleRunOpportunityDiscoveryTest,
       onAddBlockedCompany,
-      hasUnsavedNetworkApplicationChanges,
       hasUnsavedTalentInsightsChanges,
       hasUnsavedTalentPreferencesChanges,
       hasUnsavedTalentSettingsChanges,
       handleLogout,
       handleProfileLinkChange,
-      networkApplication,
-      networkApplicationUpdatedAt,
-      networkApplicationSaveError,
-      networkApplicationSaveInfo,
-      networkApplicationSavePending,
       notifications,
       notificationsError,
       notificationsMarkingAsRead,
-      onResetNetworkApplication,
       onResetTalentInsights,
       onResetTalentPreferences,
       onResetTalentSettings,
@@ -853,14 +815,12 @@ export const CareerFlowProvider = ({
       onSaveTalentSettings,
       onTalentInsightsChange,
       onTalentPreferencesChange,
-      onNetworkApplicationChange,
       onProfileVisibilityChange,
       onReloadTalentSettings,
       onOpenSettings,
       handleRemoveProfileLink,
       onRemoveBlockedCompany,
       markNotificationsRead,
-      onSaveNetworkApplication,
       handleSaveTalentProfile,
       hasMoreHistoryOpportunities,
       historyOpportunityCounts,

@@ -64,18 +64,6 @@ export type CareerTalentProfile = {
   talentExtras: CareerTalentExtra[];
 };
 
-export type CareerNetworkApplication = {
-  selectedRole: string | null;
-  profileInputTypes: Array<
-    "linkedin" | "github" | "scholar" | "website" | "cv"
-  >;
-  linkedinProfileUrl: string | null;
-  githubProfileUrl: string | null;
-  scholarProfileUrl: string | null;
-  personalWebsiteUrl: string | null;
-  submittedAt: string | null;
-};
-
 export type CareerTalentPreferences = {
   engagementTypes: string[];
   preferredLocations: string[];
@@ -238,7 +226,6 @@ export type CareerMessagePayload = {
 };
 
 export type CareerProfileSettingsMeta = {
-  networkApplicationUpdatedAt: string | null;
   talentPreferencesUpdatedAt: string | null;
   talentInsightsUpdatedAt: string | null;
   talentSettingsUpdatedAt: string | null;
@@ -261,7 +248,6 @@ export type SessionResponse = {
   historyOpportunityCounts?: CareerHistoryOpportunityCounts;
   historyOpportunities?: CareerHistoryOpportunity[];
   notifications?: CareerTalentNotification[];
-  networkApplication?: CareerNetworkApplication | null;
   talentPreferences?: CareerTalentPreferences | null;
   talentInsights?: CareerTalentInsights | null;
   recentOpportunities?: CareerRecentOpportunity[];

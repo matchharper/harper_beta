@@ -33,7 +33,7 @@ export default function MatchCandidateProfilePage() {
     <AppLayout initialCollapse={true}>
       <div className="flex min-h-screen w-full flex-row items-start justify-between">
         {matchDetail.data ? (
-          <div className="w-[30%] min-w-[390px] flex-shrink-0 border-r border-white/10">
+          <div className="w-[30%] min-w-[390px] flex-shrink-0 border-r border-beige900/10">
             <MatchMemoPanel
               detail={matchDetail.data}
               workspaceId={
@@ -57,7 +57,7 @@ export default function MatchCandidateProfilePage() {
           <Loading
             isFullScreen={true}
             label="프로필을 불러오는 중입니다"
-            className="text-white/65"
+            className="text-beige900/65"
           />
         )}
       </div>

@@ -55,7 +55,7 @@ export const CareerSectionHeader = ({
     )}
   >
     <div>
-      <h2 className="font-halant text-[26px] leading-[1] text-beige900">
+      <h2 className="font-hedvig text-[26px] leading-[1] text-beige900">
         {title}
       </h2>
       {description ? (

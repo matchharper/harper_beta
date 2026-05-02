@@ -106,7 +106,7 @@ export default function MatchRoleComposer({
   }, [onCancel]);
 
   const canSubmit = useMemo(() => name.trim().length > 0, [name]);
-  const labelStyle = "mb-3 text-xs text-white/75";
+  const labelStyle = "mb-3 text-xs text-beige900/80";
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center px-4 py-6 sm:px-6">
@@ -116,7 +116,7 @@ export default function MatchRoleComposer({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="absolute inset-0 bg-black/20"
+        className="absolute inset-0 bg-beige900/20"
         onClick={onCancel}
       />
 
@@ -128,22 +128,22 @@ export default function MatchRoleComposer({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 20, scale: 0.98 }}
         transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-        className="relative z-[1] w-full max-w-[560px] overflow-hidden rounded-[16px] bg-hgray200 shadow-[0_32px_90px_rgba(0,0,0,0.2)] ring-1 ring-white/10"
+        className="relative z-[1] w-full max-w-[560px] overflow-hidden rounded-[16px] bg-beige50 shadow-[0_32px_90px_rgba(0,0,0,0.12)] ring-1 ring-beige900/8"
       >
         <div className="px-5 py-5">
           <div className="flex items-start justify-between gap-6">
             <div className="max-w-[500px]">
-              <h2 className="text-lg font-medium leading-tight text-white">
+              <h2 className="text-lg font-medium leading-tight text-beige900">
                 {title}
               </h2>
-              <p className="mt-2 text-sm leading-6 text-white/60">
+              <p className="mt-2 text-sm leading-6 text-beige900/55">
                 role title, 우선순위, 고용 형태, JD 맥락을 한 번에 정리합니다.
               </p>
             </div>
             <button
               type="button"
               onClick={onCancel}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-md text-white/55 transition hover:bg-white/5 hover:text-white"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-md text-beige900/55 transition hover:bg-beige50/80 hover:text-beige900"
             >
               <X size={16} />
             </button>
@@ -189,7 +189,7 @@ export default function MatchRoleComposer({
                       )}
                     >
                       <span>{STATUS_LABEL[status]}</span>
-                      <ChevronDown size={15} className="text-white/45" />
+                      <ChevronDown size={15} className="text-beige900/45" />
                     </button>
                   }
                 >
@@ -201,7 +201,7 @@ export default function MatchRoleComposer({
                     >
                       <span>{STATUS_LABEL[item]}</span>
                       {status === item ? (
-                        <span className="text-xs text-white/45">선택됨</span>
+                        <span className="text-xs text-beige900/45">선택됨</span>
                       ) : null}
                     </ActionDropdownItem>
                   ))}
@@ -238,8 +238,8 @@ export default function MatchRoleComposer({
                       className={cn(
                         "inline-flex items-center rounded-lg border px-3 py-2 text-sm transition",
                         active
-                          ? "border-accenta1 bg-accenta1 text-black"
-                          : "border-white/10 text-white/70 hover:bg-white/5 hover:text-white"
+                          ? "border-accentBronze bg-accentBronze text-beige100"
+                          : "border-beige900/8 text-beige900/80 hover:bg-beige50/80 hover:text-beige900"
                       )}
                     >
                       {label}
@@ -268,7 +268,7 @@ export default function MatchRoleComposer({
             <button
               type="submit"
               disabled={!canSubmit || isSaving}
-              className="inline-flex w-full items-center justify-center rounded-lg bg-accenta1 px-4 py-2.5 text-sm font-semibold text-black transition hover:ring-2 hover:ring-accenta1/40 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex w-full items-center justify-center rounded-lg bg-beige900 px-4 py-2.5 text-sm font-semibold text-beige100 transition hover:bg-beige900/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSaving ? "저장 중..." : "저장하기"}
             </button>

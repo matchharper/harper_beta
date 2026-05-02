@@ -54,11 +54,12 @@ import { showToast } from "./toast/toast";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
 
-function sanitizeSummaryReason(raw: string) {
+function sanitizeSummaryReason(raw: string, isDark = true) {
+  const strongClass = isDark ? "font-medium text-white" : "font-medium text-beige900";
   return (
     String(raw ?? "")
       .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<strong>/gi, "<span class='font-medium text-white'>")
+      .replace(/<strong>/gi, `<span class='${strongClass}'>`)
       .replace(/<\/strong>/gi, "</span>")
       // .replace(/<\/?strong>/gi, "")
       .trim()
@@ -137,6 +138,7 @@ function CandidateCard({
   onToggleSelection,
   onMarkChange,
   sharedFolderContext = null,
+  theme = "cream",
 }: {
   c: CandidateTypeWithConnection;
   userId?: string;
@@ -156,7 +158,9 @@ function CandidateCard({
     token: string;
     viewer: SharedFolderViewerIdentity | null;
   } | null;
+  theme?: "dark" | "cream";
 }) {
+  const isDark = theme === "dark";
   const router = useRouter();
   const logEvent = useLogEvent();
 
@@ -295,9 +299,13 @@ function CandidateCard({
           }
           logEvent("candidate_card_click: " + candidId);
         }}
-        className={`group relative block w-full rounded-[28px] bg-white/5 text-white transition-colors duration-200 ${
+        className={`group relative block w-full rounded-[28px] transition-colors duration-200 ${
+          isDark ? "bg-white/5 text-white" : "bg-beige50 border border-beige900/10 text-beige900 shadow-sm"
+        } ${
           isProfileRevealed
-            ? "cursor-pointer hover:bg-white/10"
+            ? isDark
+              ? "cursor-pointer hover:bg-white/10"
+              : "cursor-pointer hover:bg-beige50/80 hover:border-beige900/16"
             : "cursor-default"
         } ${hasSharedFolderNotes ? "h-fit min-w-0" : ""}`}
       >
@@ -316,7 +324,7 @@ function CandidateCard({
               }}
               disabled={selectionDisabled}
               aria-label={`${c.name ?? "candidate"} 선택`}
-              className="h-6 w-6 rounded-md border-white/50 bg-black/35 backdrop-blur-sm hover:bg-black/20"
+              className={isDark ? "h-6 w-6 rounded-md border-white/50 bg-black/35 backdrop-blur-sm hover:bg-black/20" : "h-6 w-6 rounded-md border-beige900/30 bg-beige900/10 backdrop-blur-sm hover:bg-beige900/15"}
             />
           </div>
         ) : null}
@@ -328,13 +336,13 @@ function CandidateCard({
               <RevealProfileButton
                 candidId={candidId}
                 overlay
-                overlayClassName="rounded-t-[28px] group-hover/content:border-accenta1/50 group-hover/content:bg-black/15"
+                overlayClassName={`rounded-t-[28px] ${isDark ? "group-hover/content:border-accenta1/50 group-hover/content:bg-black/15" : "group-hover/content:border-accentBronze/40 group-hover/content:bg-beige900/8"}`}
               />
             )}
             <div className="flex flex-row flex-1 items-start gap-4">
               <div className="w-[40%]">
                 <div className="flex flex-row flex-1 items-start gap-4">
-                  <div className="cursor-pointer rounded-full border border-transparent transition-colors duration-100 hover:border-accenta1/80">
+                  <div className={`cursor-pointer rounded-full border border-transparent transition-colors duration-100 ${isDark ? "hover:border-accenta1/80" : "hover:border-accentBronze/60"}`}>
                     <Avatar
                       url={c.profile_picture}
                       name={c.name}
@@ -357,7 +365,7 @@ function CandidateCard({
                           <div className="mt-[1px]">GitHub Profile</div>
                         </div>
                       ) : c.location ? (
-                        <div className="text-sm font-normal text-hgray600">
+                        <div className={`text-sm font-normal ${isDark ? "text-hgray600" : "text-beige900/55"}`}>
                           {locationEnToKo(c.location)}
                         </div>
                       ) : null}
@@ -381,7 +389,7 @@ function CandidateCard({
                           ))}
                           {c.links &&
                             c.links?.length - linkSources.length > 0 && (
-                              <span className="text-[13px] text-hgray700">
+                              <span className={`text-[13px] ${isDark ? "text-hgray700" : "text-beige900/65"}`}>
                                 +{c.links?.length - linkSources.length}
                               </span>
                             )}
@@ -514,12 +522,12 @@ function CandidateCard({
               >
                 <div className="mt-8 flex w-full items-start gap-3">
                   <div className="min-w-0">
-                    <div className="text-xs text-hgray600">Related paper</div>
-                    <div className="mt-1 line-clamp-2 text-[15px] font-normal text-white/95">
+                    <div className={`text-xs ${isDark ? "text-hgray600" : "text-beige900/55"}`}>Related paper</div>
+                    <div className={`mt-1 line-clamp-2 text-[15px] font-normal ${isDark ? "text-white/95" : "text-beige900"}`}>
                       {evidencePaper.title}
                     </div>
                     {evidencePaperMeta && (
-                      <div className="mt-1 text-sm font-normal text-hgray700">
+                      <div className={`mt-1 text-sm font-normal ${isDark ? "text-hgray700" : "text-beige900/65"}`}>
                         {evidencePaperMeta}
                       </div>
                     )}
@@ -530,7 +538,7 @@ function CandidateCard({
 
             {(synthesizedSummary.length !== 0 ||
               (isMyList && shortlistSummaryText.length > 0)) && (
-              <div className="mt-6 font-light leading-relaxed text-hgray700">
+              <div className={`mt-6 font-light leading-relaxed ${isDark ? "text-hgray700" : "text-beige900/65"}`}>
                 {synthesizedSummary.length !== 0 && (
                   <div>
                     {synthesizedSummary?.map((item: any, index: number) => (
@@ -539,6 +547,7 @@ function CandidateCard({
                         reason={item.reason}
                         criteria={criterias[index] ?? ""}
                         score={item.score}
+                        theme={theme}
                       />
                     ))}
                   </div>
@@ -556,7 +565,7 @@ function CandidateCard({
           </div>
           {shouldShowInlineMemo && (
             <div
-              className={`w-full border-t border-white/10 pt-4 ${hasSharedFolderNotes ? "px-5 pb-5" : "px-6 pb-6"}`}
+              className={`w-full border-t pt-4 ${isDark ? "border-white/10" : "border-beige900/8"} ${hasSharedFolderNotes ? "px-5 pb-5" : "px-6 pb-6"}`}
             >
               <CandidateMemoDock
                 userId={userId}
@@ -621,27 +630,31 @@ const CriteriaBox = ({
   reason,
   criteria,
   score,
+  theme = "cream",
 }: {
   reason: string;
   criteria: string;
   score: string;
+  theme?: "dark" | "cream";
 }) => {
+  const isDark = theme === "dark";
+
   const badeStyle = useMemo(() => {
-    if (score === SummaryScore.SATISFIED) return "text-accenta1";
+    if (score === SummaryScore.SATISFIED) return isDark ? "text-accenta1" : "text-accentBronze";
     if (score === SummaryScore.AMBIGUOUS) return "text-hgray900";
     if (score === SummaryScore.UNSATISFIED) return "text-hgray900";
     return "";
-  }, [score]);
+  }, [score, isDark]);
 
   const badgeIcon = useMemo(() => {
     if (score === SummaryScore.SATISFIED)
-      return <Check className="w-3 h-3 text-accenta1" strokeWidth={2} />;
+      return <Check className={`w-3 h-3 ${isDark ? "text-accenta1" : "text-accentBronze"}`} strokeWidth={2} />;
     if (score === SummaryScore.AMBIGUOUS)
       return <Dot className="w-3 h-3 text-hgray700" strokeWidth={2} />;
     if (score === SummaryScore.UNSATISFIED)
       return <X className="w-3 h-3 text-red-700" strokeWidth={2} />;
     return null;
-  }, [score]);
+  }, [score, isDark]);
 
   const tooltipText = useMemo(() => {
     if (score === SummaryScore.SATISFIED) return "Matches your criteria";
@@ -653,14 +666,14 @@ const CriteriaBox = ({
   }, [score]);
 
   const safeReasonText = useMemo(() => {
-    return sanitizeSummaryReason(reason.split(",").slice(1).join(","));
-  }, [reason]);
+    return sanitizeSummaryReason(reason.split(",").slice(1).join(","), isDark);
+  }, [reason, isDark]);
 
   return (
     <div className="mt-5">
       <Tooltips text={tooltipText}>
         <div
-          className={`flex-row inline-flex items-center font-normal gap-1 py-1.5 px-2 rounded-md text-[12px] bg-white/5 cursor-default ${badeStyle}`}
+          className={`flex-row inline-flex items-center font-normal gap-1 py-1.5 px-2 rounded-md text-[12px] cursor-default ${isDark ? "bg-white/5" : "bg-beige500/55"} ${badeStyle}`}
         >
           {badgeIcon}
           <span>{criteria}</span>

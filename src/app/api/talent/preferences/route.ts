@@ -19,7 +19,7 @@ import {
   normalizeTalentPeriodicIntervalDays,
   normalizeTalentRecommendationBatchSize,
 } from "@/lib/talentOnboarding/recommendationSettings";
-import { getTalentCareerMoveIntentLabel } from "@/lib/talentNetworkApplication";
+import { getTalentCareerMoveIntentLabel } from "@/lib/talentNetworkOptions";
 import { createOpportunityDiscoveryRun } from "@/lib/opportunityDiscovery/store";
 
 const getLatestUpdatedAt = (...values: Array<string | null | undefined>) => {

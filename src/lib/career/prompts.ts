@@ -774,7 +774,6 @@ export function buildCareerKickoffSystemPrompt() {
 export function buildCareerKickoffUserPrompt(args: {
   displayName: string;
   links: string[];
-  networkApplicationDescription: string;
   preferencesDescription: string;
   resumeFileName?: string | null;
   resumeTextPreview: string;
@@ -783,7 +782,6 @@ export function buildCareerKickoffUserPrompt(args: {
     `이름: ${args.displayName}`,
     `이력서 파일명: ${args.resumeFileName || "(없음)"}`,
     `링크: ${args.links.join(", ") || "(없음)"}`,
-    `network 신청 정보: ${args.networkApplicationDescription || "(없음)"}`,
     `현재 선호 정보: ${args.preferencesDescription || "(없음)"}`,
     `이력서 텍스트(일부): ${args.resumeTextPreview || "(없음)"}`,
   ].join("\n");

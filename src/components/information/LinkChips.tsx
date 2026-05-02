@@ -6,10 +6,13 @@ import { cn } from "@/lib/cn";
 type Props = {
   links: string[];
   size?: "default" | "sm";
+  theme?: "dark" | "cream";
 };
 
-function LinkChips({ links, size = "default" }: Props) {
+function LinkChips({ links, size = "default", theme = "cream" }: Props) {
   if (!links?.length) return null;
+
+  const isDark = theme === "dark";
 
   return (
     <div className="flex flex-wrap gap-2">
@@ -32,7 +35,9 @@ function LinkChips({ links, size = "default" }: Props) {
               ${
                 isSm
                   ? "bg-white/0 p-0 hover:bg-white/0"
-                  : "bg-white/5 px-2.5 py-1.5 text-sm text-white hover:bg-white/20"
+                  : isDark
+                    ? "bg-white/5 px-2.5 py-1.5 text-sm text-white hover:bg-white/20"
+                    : "bg-beige500/55 px-2.5 py-1.5 text-sm text-beige900 hover:bg-beige500/70"
               }`}
           >
             <Tooltips text={isSm ? label : ""}>
@@ -49,7 +54,7 @@ function LinkChips({ links, size = "default" }: Props) {
               />
             </Tooltips>
             {!isSm && (
-              <span className="ml-2 font-normal text-white">{label}</span>
+              <span className={`ml-2 font-normal ${isDark ? "text-white" : "text-beige900"}`}>{label}</span>
             )}
           </a>
         );
@@ -63,10 +68,12 @@ export default React.memo(LinkChips);
 export const LinkChip = ({
   raw,
   size = "default",
+  theme = "cream",
   className,
 }: {
   raw: string;
   size?: "default" | "sm" | "md";
+  theme?: "dark" | "cream";
   className?: string;
 }) => {
   const { url, brand, icon, label } = getLinkChipMeta(raw);
@@ -75,6 +82,7 @@ export const LinkChip = ({
 
   const isSm = size === "sm";
   const isMd = size === "md";
+  const isDark = theme === "dark";
 
   return (
     <a
@@ -88,8 +96,12 @@ export const LinkChip = ({
           isSm
             ? "bg-white/0 p-0 hover:bg-white/0"
             : isMd
-              ? "bg-white/5 px-2 py-1 text-xs text-white hover:bg-white/10"
-              : "bg-white/5 px-2.5 py-1.5 text-sm text-white hover:bg-white/20"
+              ? isDark
+                ? "bg-white/5 px-2 py-1 text-xs text-white hover:bg-white/10"
+                : "bg-beige500/55 px-2 py-1 text-xs text-beige900 hover:bg-beige500/70"
+              : isDark
+                ? "bg-white/5 px-2.5 py-1.5 text-sm text-white hover:bg-white/20"
+                : "bg-beige500/55 px-2.5 py-1.5 text-sm text-beige900 hover:bg-beige500/70"
         } `,
         className
       )}
@@ -109,7 +121,7 @@ export const LinkChip = ({
           }
         />
       </Tooltips>
-      {!isSm && <span className="ml-2 font-light text-white">{label}</span>}
+      {!isSm && <span className={`ml-2 font-light ${isDark ? "text-white" : "text-beige900"}`}>{label}</span>}
     </a>
   );
 };

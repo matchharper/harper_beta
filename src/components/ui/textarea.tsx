@@ -22,7 +22,7 @@ const Textarea = ({
       onChange={onChange}
       rows={rows}
       className={[
-        "w-full text-white mt-2 rounded-lg border font-light border-white/10 bg-white/5 p-4 text-[15px] focus:outline-none focus:ring-2 focus:ring-white/10",
+        "w-full text-beige900 mt-2 rounded-lg border font-light border-beige900/8 bg-beige50 p-4 text-[15px] focus:outline-none focus:ring-2 focus:ring-beige900/8",
         className,
       ].join(" ")}
     />

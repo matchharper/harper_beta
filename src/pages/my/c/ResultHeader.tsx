@@ -43,7 +43,7 @@ export default function ResultHeader({
   }, [status]);
   const sourceBadgeText =
     sourceType === "scholar" ? (
-      <div className="flex flex-row items-center justify-start gap-1 text-hgray700">
+      <div className="flex flex-row items-center justify-start gap-1 text-beige900/55">
         <GraduationCap className="w-4 h-4" strokeWidth={2} />
         <span className="text-sm">from publications</span>
       </div>
@@ -110,7 +110,7 @@ export default function ResultHeader({
   return (
     <>
       <div className="w-full h-full py-1 flex flex-row items-center justify-between px-4">
-        <div className="text-sm text-hgray600 font-normal flex flex-row items-center justify-start gap-4">
+        <div className="text-sm text-beige900/55 font-normal flex flex-row items-center justify-start gap-4">
           <div>
             {queryItem.company_users ? (
               <>
@@ -129,10 +129,10 @@ export default function ResultHeader({
             ""
           )}
           {sourceBadgeText ? (
-            <div className="text-sm text-hgray600">{sourceBadgeText}</div>
+            <div className="text-sm text-beige900/55">{sourceBadgeText}</div>
           ) : null}
         </div>
-        <div className="flex flex-row items-center justify-center gap-3 text-hgray600">
+        <div className="flex flex-row items-center justify-center gap-3 text-beige900/55">
           <button
             onClick={pin}
             disabled={!runId || pendingAction !== null}
@@ -142,8 +142,8 @@ export default function ResultHeader({
             aria-pressed={isLikeActive}
             className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors duration-150 ${
               isLikeActive
-                ? "bg-accenta1/15 text-accenta1"
-                : "hover:bg-white/10 hover:text-white"
+                ? "bg-accentBronze/10 text-accentBronze"
+                : "hover:bg-beige500/70 hover:text-beige900"
             } ${pendingAction ? "cursor-wait" : "cursor-pointer"}`}
           >
             {isLikePending ? (
@@ -163,8 +163,8 @@ export default function ResultHeader({
             aria-pressed={isDislikeActive}
             className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors duration-150 ${
               isDislikeActive
-                ? "bg-sky-500/10 text-white/90"
-                : "hover:bg-white/10 hover:text-white"
+                ? "bg-beige500/55 text-beige900"
+                : "hover:bg-beige500/70 hover:text-beige900"
             } ${pendingAction ? "cursor-wait" : "cursor-pointer"}`}
           >
             {isDislikePending ? (
@@ -187,7 +187,7 @@ export default function ResultHeader({
       {statusMessage && (
         <div className="w-full relative flex items-start justify-start">
           {/* {statusMessage === StatusEnum.RERANKING_STREAMING && (
-            <div className="text-sm font-light text-hgray900 flex flex-row gap-2 items-start absolute top-3 left-5">
+            <div className="text-sm font-light text-beige900 flex flex-row gap-2 items-start absolute top-3 left-5">
               <Loader2 className="w-4 h-4 animate-spin" strokeWidth={2} />
               <div className="animate-textGlow">
                 {m.search.resultHeader.readingCandidates}
@@ -195,7 +195,7 @@ export default function ResultHeader({
             </div>
           )} */}
           {statusMessage === StatusEnum.FINISHED && (
-            <div className="text-sm font-light text-hgray900 flex flex-row gap-2 items-start absolute top-3 left-5">
+            <div className="text-sm font-light text-beige900 flex flex-row gap-2 items-start absolute top-3 left-5">
               <Check
                 className="w-4 h-4 text-green-500 mt-0.5"
                 strokeWidth={2}

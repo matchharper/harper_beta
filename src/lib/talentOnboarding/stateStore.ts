@@ -5,7 +5,7 @@ import {
   type TalentNetworkCareerMoveIntentOptionId,
   type TalentNetworkEngagementOptionId,
   type TalentNetworkLocationOptionId,
-} from "@/lib/talentNetworkApplication";
+} from "@/lib/talentNetworkOptions";
 import { INSIGHT_CHECKLIST } from "@/lib/talentOnboarding/insightChecklist";
 import {
   DEFAULT_TALENT_PERIODIC_ENABLED,

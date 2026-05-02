@@ -47,7 +47,7 @@ const CareerLoginGate = ({
           <div className="text-[11px] uppercase tracking-[0.24em] text-beige900/35">
             Always-On Chat
           </div>
-          <div className="mt-3 font-halant text-[2.2rem] leading-none text-beige900">
+          <div className="mt-3 font-hedvig text-[2.2rem] leading-none text-beige900">
             Harper
           </div>
         </div>
@@ -61,7 +61,7 @@ const CareerLoginGate = ({
           <header className="border-b border-beige900/10 bg-[rgba(250,243,231,0.9)] px-4 py-4 backdrop-blur-xl sm:px-6 lg:px-8">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <div className="font-halant text-[2rem] leading-none text-beige900">
+                <div className="font-hedvig text-[2rem] leading-none text-beige900">
                   Harper
                 </div>
                 <div className="mt-2 text-[12px] leading-5 text-beige900/50">
@@ -120,7 +120,7 @@ const CareerLoginGate = ({
           aria-labelledby="career-login-gate-title"
           className="w-full max-w-[420px] rounded-xl border border-beige900/10 bg-[rgba(250,243,231,0.95)] p-6 text-beige900 shadow-[0_32px_90px_-32px_rgba(52,39,24,0.45)] backdrop-blur"
         >
-          <div className="flex flex-col items-start gap-4 font-halant text-3xl leading-none">
+          <div className="flex flex-col items-start gap-4 font-hedvig text-3xl leading-none">
             <Image
               src="/images/logos/harper_beige.png"
               alt="Harper"

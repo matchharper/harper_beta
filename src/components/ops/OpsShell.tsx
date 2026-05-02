@@ -97,7 +97,7 @@ function LoginGate({
           <div className="inline-flex rounded-md bg-beige500/70 p-3 text-beige900">
             <Lock className="h-5 w-5" />
           </div>
-          <h1 className="mt-4 font-halant text-[2.2rem] leading-[0.95] tracking-[-0.07em] text-beige900">
+          <h1 className="mt-4 font-hedvig text-[2.2rem] leading-[0.95] tracking-[-0.07em] text-beige900">
             Harper Ops
           </h1>
           <p className="mt-3 font-geist text-sm leading-6 text-beige900/65">
@@ -139,7 +139,7 @@ function ForbiddenGate({
           <div className="inline-flex rounded-md bg-[#F7DBD3] p-3 text-[#8A2E1D]">
             <ShieldAlert className="h-5 w-5" />
           </div>
-          <h1 className="mt-4 font-halant text-[2.2rem] leading-[0.95] tracking-[-0.07em] text-beige900">
+          <h1 className="mt-4 font-hedvig text-[2.2rem] leading-[0.95] tracking-[-0.07em] text-beige900">
             접근 불가
           </h1>
           <p className="mt-3 font-geist text-sm leading-6 text-beige900/65">
@@ -259,7 +259,7 @@ export default function OpsShell({
           <div className="flex items-center justify-between gap-4">
             <Link
               href="/ops"
-              className="shrink-0 font-halant text-[1.55rem] leading-none tracking-[-0.06em] text-beige900"
+              className="shrink-0 font-hedvig text-[1.55rem] leading-none tracking-[-0.06em] text-beige900"
             >
               Harper Ops
             </Link>

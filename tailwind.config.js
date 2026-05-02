@@ -68,6 +68,7 @@ module.exports = {
 
         brightnavy: "#0624A8",
         accenta1: "#EFFF3F",
+        accentBronze: "#B5835A",
         accenta2: "#C0CE2B",
         xgray800: "#8A8B9D",
         bgDark900: "#121212",
@@ -153,6 +154,9 @@ module.exports = {
         upDown: "upDowns 2s ease-in-out infinite",
         shake: "shake 0.3s ease-in-out",
         textGlow: "textGlow 3s ease-in-out infinite",
+      },
+      transitionTimingFunction: {
+        "out-expo": "cubic-bezier(.22,1,.36,1)",
       },
       fontFamily: {
         sans: ["PretendardVariable", "system-ui", "sans-serif"],

@@ -24,10 +24,7 @@ import {
 } from "@/lib/talentOnboarding/recommendationSettings";
 import { autoStartClaimedTalentConversation } from "@/lib/talentOnboarding/kickoff";
 import { generateTalentReengagementMessage } from "@/lib/talentOnboarding/reengagement";
-import {
-  getTalentCareerMoveIntentLabel,
-  normalizeTalentNetworkApplication,
-} from "@/lib/talentNetworkApplication";
+import { getTalentCareerMoveIntentLabel } from "@/lib/talentNetworkOptions";
 import {
   fetchTalentOpportunityHistoryByIds,
   fetchTalentOpportunityHistoryPage,
@@ -374,7 +371,6 @@ export async function GET(req: NextRequest) {
     const talentSettingsUpdatedAt = talentSetting?.updated_at ?? null;
     const talentPreferencesUpdatedAt = talentSetting?.updated_at ?? null;
     const talentInsightsUpdatedAt = talentInsights?.last_updated_at ?? null;
-    const networkApplicationUpdatedAt = profile?.updated_at ?? null;
     const recentOpportunities = historyOpportunities
       .slice(0, 8)
       .map((item) => ({
@@ -457,9 +453,6 @@ export async function GET(req: NextRequest) {
       historyOpportunities,
       nextOpportunityOffset: historyOpportunitiesPage.nextOffset,
       notifications,
-      networkApplication: normalizeTalentNetworkApplication(
-        profile?.career_profile ?? profile?.network_application
-      ),
       talentPreferences: {
         engagementTypes: normalizeTalentEngagementTypes(
           talentSetting?.engagement_types ?? []
@@ -479,12 +472,10 @@ export async function GET(req: NextRequest) {
       talentInsights: normalizedInsights,
       recentOpportunities,
       profileSettingsMeta: {
-        networkApplicationUpdatedAt,
         talentPreferencesUpdatedAt,
         talentInsightsUpdatedAt,
         talentSettingsUpdatedAt,
         latestUpdatedAt: getLatestUpdatedAt(
-          networkApplicationUpdatedAt,
           talentPreferencesUpdatedAt,
           talentInsightsUpdatedAt,
           talentSettingsUpdatedAt

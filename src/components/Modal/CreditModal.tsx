@@ -54,12 +54,12 @@ const CreditModal: React.FC<CreditModalProps> = ({
     "fixed inset-0 z-50 flex items-center justify-center px-4 w-full";
   const backdropClass = "absolute inset-0 bg-black/40 backdrop-blur-[2px]";
   const modalClass =
-    "relative z-50 w-full max-w-[440px] rounded-[28px] bg-hgray100 p-6 shadow-sm border border-white/5";
-  const titleClass = "text-base font-normal text-hgray900";
-  const descClass = "mt-4 text-sm text-hgray800 font-normal leading-loose";
+    "relative z-50 w-full max-w-[440px] rounded-[28px] bg-beige50 p-6 shadow-sm border border-beige900/8";
+  const titleClass = "text-base font-normal text-beige900";
+  const descClass = "mt-4 text-sm text-beige900/80 font-normal leading-loose";
   const footerClass = "w-full mt-12 flex flex-row items-end justify-end gap-2";
   const confirmBtnClass =
-    "transition-colors duration-200 w-full inline-flex items-center justify-center rounded-xl bg-accenta1 px-6 py-3 text-sm font-medium text-black disabled:cursor-not-allowed disabled:opacity-70";
+    "transition-colors duration-200 w-full inline-flex items-center justify-center rounded-xl bg-beige900 px-6 py-3 text-sm font-medium text-beige100 disabled:cursor-not-allowed disabled:opacity-70";
   // ===============================================
 
   return (

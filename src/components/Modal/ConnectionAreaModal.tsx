@@ -73,8 +73,8 @@ const ConnectionAreaModal = ({
       size="sm"
     >
       <div className="flex flex-col gap-3">
-        <div className="text-lg font-normal text-white">{title}</div>
-        <div className="text-sm mt-0 font-light text-hgray800">
+        <div className="text-lg font-normal text-beige900">{title}</div>
+        <div className="text-sm mt-0 font-light text-beige900/80">
           연결 요청과 함께 Harper측에 전달하고 싶은 내용을 적어주세요.
         </div>
         <textarea
@@ -83,7 +83,7 @@ const ConnectionAreaModal = ({
           placeholder={placeholder}
           disabled={isBusy}
           rows={4}
-          className="w-full mt-2 placeholder:text-sm resize-none rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-hgray900 outline-none disabled:bg-hgray50 disabled:text-hgray500"
+          className="w-full mt-2 placeholder:text-sm resize-none rounded-xl border border-beige900/8 bg-beige50 px-3 py-2 text-sm text-beige900 outline-none disabled:bg-beige100 disabled:text-beige900/35"
         />
       </div>
     </BaseModal>

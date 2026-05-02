@@ -1,6 +1,5 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { motion, useAnimation } from "framer-motion";
-import { useInView } from "react-intersection-observer";
 
 type RevealDirection = "bottom" | "top" | "left" | "right" | "none";
 
@@ -48,21 +47,37 @@ const Reveal = ({
   amount = 0.2,
 }: RevealProps) => {
   const controls = useAnimation();
-  const [ref, inView] = useInView({
-    triggerOnce: once,
-    threshold: amount,
-  });
+  const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (inView) {
-      controls.start("visible");
+    const node = ref.current;
+    if (!node) return;
+
+    if (typeof IntersectionObserver === "undefined") {
+      void controls.start("visible");
       return;
     }
 
-    if (!once) {
-      controls.start("hidden");
-    }
-  }, [controls, inView, once]);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            void controls.start("visible");
+            if (once) observer.unobserve(entry.target);
+            return;
+          }
+
+          if (!once) {
+            void controls.start("hidden");
+          }
+        });
+      },
+      { threshold: amount }
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [amount, controls, once]);
 
   const directionalOffset = getDirectionalOffset(direction, distance);
   const hiddenX = offsetX ?? directionalOffset.x;

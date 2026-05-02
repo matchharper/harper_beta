@@ -4801,16 +4801,12 @@ export type Database = {
       talent_users: {
         Row: {
           bio: string | null
-          career_profile: Json
-          career_profile_initialized_at: string | null
           created_at: string
           email: string | null
           headline: string | null
           last_logined_at: string | null
           location: string | null
           name: string | null
-          network_application: Json
-          network_claimed_at: string | null
           network_source_talent_id: string | null
           network_waitlist_id: number | null
           profile_picture: string | null
@@ -4823,16 +4819,12 @@ export type Database = {
         }
         Insert: {
           bio?: string | null
-          career_profile?: Json
-          career_profile_initialized_at?: string | null
           created_at?: string
           email?: string | null
           headline?: string | null
           last_logined_at?: string | null
           location?: string | null
           name?: string | null
-          network_application?: Json
-          network_claimed_at?: string | null
           network_source_talent_id?: string | null
           network_waitlist_id?: number | null
           profile_picture?: string | null
@@ -4845,16 +4837,12 @@ export type Database = {
         }
         Update: {
           bio?: string | null
-          career_profile?: Json
-          career_profile_initialized_at?: string | null
           created_at?: string
           email?: string | null
           headline?: string | null
           last_logined_at?: string | null
           location?: string | null
           name?: string | null
-          network_application?: Json
-          network_claimed_at?: string | null
           network_source_talent_id?: string | null
           network_waitlist_id?: number | null
           profile_picture?: string | null
