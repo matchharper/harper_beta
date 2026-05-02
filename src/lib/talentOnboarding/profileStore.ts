@@ -315,9 +315,10 @@ export function buildTalentProfileContext(args: {
       }
 
       let itemText = `${index + 1}. ${parts.join(", ")}`;
+      if (experience.id) itemText += `\n   RowID: ${experience.id}`;
       const description = clampPromptText(experience.description, 700);
       if (description) itemText += `\n   Description: ${description}`;
-      const memo = clampPromptText(experience.memo, 280);
+      const memo = clampPromptText(experience.memo, 600);
       if (memo) itemText += `\n   Memo: ${memo}`;
       lines.push(itemText);
     });
@@ -338,7 +339,8 @@ export function buildTalentProfileContext(args: {
       if (dateRange) parts.push(`Dates: ${dateRange}`);
 
       let itemText = `${index + 1}. ${parts.join(", ")}`;
-      const memo = clampPromptText(education.memo, 280);
+      if (education.id) itemText += `\n   RowID: ${education.id}`;
+      const memo = clampPromptText(education.memo, 600);
       if (memo) itemText += `\n   Memo: ${memo}`;
       lines.push(itemText);
     });
@@ -353,7 +355,7 @@ export function buildTalentProfileContext(args: {
       let itemText = `${index + 1}. ${parts.join(", ")}`;
       const description = clampPromptText(extra.description, 500);
       if (description) itemText += `\n   Description: ${description}`;
-      const memo = clampPromptText(extra.memo, 280);
+      const memo = clampPromptText(extra.memo, 600);
       if (memo) itemText += `\n   Memo: ${memo}`;
       lines.push(itemText);
     });
@@ -366,4 +368,197 @@ export function buildTalentProfileContext(args: {
   }
 
   return lines.join("\n");
+}
+
+const MEMO_MAX_CHARS = 2000;
+
+export type RowMemoOutcome =
+  | { ok: true; updated: boolean }
+  | {
+      ok: false;
+      reason:
+        | "row_not_found"
+        | "title_not_found"
+        | "ambiguous_title"
+        | "empty_input";
+    };
+
+function joinMemoWithDelta(existing: string | null | undefined, newInfo: string) {
+  const trimmedExisting = (existing ?? "").replace(/\r/g, "").trim();
+  const trimmedNew = newInfo.replace(/\r/g, "").trim();
+  if (!trimmedNew) return null;
+  const joined = trimmedExisting
+    ? `${trimmedExisting}\n${trimmedNew}`
+    : trimmedNew;
+  return joined.slice(0, MEMO_MAX_CHARS);
+}
+
+function parseRowIdToNumber(rowId: string | number | null | undefined) {
+  if (typeof rowId === "number" && Number.isFinite(rowId) && Number.isInteger(rowId)) {
+    return rowId;
+  }
+  if (typeof rowId !== "string") return null;
+  const trimmed = rowId.trim();
+  if (!trimmed) return null;
+  if (!/^\d+$/.test(trimmed)) return null;
+  const parsed = Number.parseInt(trimmed, 10);
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
+export async function fetchExperienceForMemo(args: {
+  admin: TalentAdminClient;
+  userId: string;
+  rowId: string | number;
+}) {
+  const { admin, userId, rowId } = args;
+  const parsedId = parseRowIdToNumber(rowId);
+  if (parsedId === null) return null;
+  const { data, error } = await admin
+    .from("talent_experiences")
+    .select("id, talent_id, memo")
+    .eq("id", parsedId)
+    .eq("talent_id", userId)
+    .maybeSingle();
+  if (error) {
+    throw new Error(error.message ?? "Failed to load talent_experiences row");
+  }
+  return data ?? null;
+}
+
+export async function fetchEducationForMemo(args: {
+  admin: TalentAdminClient;
+  userId: string;
+  rowId: string | number;
+}) {
+  const { admin, userId, rowId } = args;
+  const parsedId = parseRowIdToNumber(rowId);
+  if (parsedId === null) return null;
+  const { data, error } = await admin
+    .from("talent_educations")
+    .select("id, talent_id, memo")
+    .eq("id", parsedId)
+    .eq("talent_id", userId)
+    .maybeSingle();
+  if (error) {
+    throw new Error(error.message ?? "Failed to load talent_educations row");
+  }
+  return data ?? null;
+}
+
+export async function appendExperienceMemo(args: {
+  admin: TalentAdminClient;
+  userId: string;
+  rowId: string | number;
+  newInfo: string;
+}): Promise<RowMemoOutcome> {
+  const { admin, userId, rowId, newInfo } = args;
+  const parsedId = parseRowIdToNumber(rowId);
+  if (parsedId === null) return { ok: false, reason: "row_not_found" };
+  const row = await fetchExperienceForMemo({ admin, userId, rowId: parsedId });
+  if (!row) return { ok: false, reason: "row_not_found" };
+  const next = joinMemoWithDelta(row.memo, newInfo);
+  if (next === null) return { ok: false, reason: "empty_input" };
+  if (next === (row.memo ?? "")) {
+    return { ok: true, updated: false };
+  }
+  const { error } = await admin
+    .from("talent_experiences")
+    .update({ memo: next })
+    .eq("id", parsedId)
+    .eq("talent_id", userId);
+  if (error) {
+    throw new Error(
+      error.message ?? "Failed to update talent_experiences memo"
+    );
+  }
+  return { ok: true, updated: true };
+}
+
+export async function appendEducationMemo(args: {
+  admin: TalentAdminClient;
+  userId: string;
+  rowId: string | number;
+  newInfo: string;
+}): Promise<RowMemoOutcome> {
+  const { admin, userId, rowId, newInfo } = args;
+  const parsedId = parseRowIdToNumber(rowId);
+  if (parsedId === null) return { ok: false, reason: "row_not_found" };
+  const row = await fetchEducationForMemo({ admin, userId, rowId: parsedId });
+  if (!row) return { ok: false, reason: "row_not_found" };
+  const next = joinMemoWithDelta(row.memo, newInfo);
+  if (next === null) return { ok: false, reason: "empty_input" };
+  if (next === (row.memo ?? "")) {
+    return { ok: true, updated: false };
+  }
+  const { error } = await admin
+    .from("talent_educations")
+    .update({ memo: next })
+    .eq("id", parsedId)
+    .eq("talent_id", userId);
+  if (error) {
+    throw new Error(
+      error.message ?? "Failed to update talent_educations memo"
+    );
+  }
+  return { ok: true, updated: true };
+}
+
+export async function appendExtraMemo(args: {
+  admin: TalentAdminClient;
+  userId: string;
+  title: string;
+  newInfo: string;
+}): Promise<RowMemoOutcome> {
+  const { admin, userId, title, newInfo } = args;
+  const queryTitle = title.trim().toLocaleLowerCase("ko");
+  if (!queryTitle) {
+    return { ok: false, reason: "empty_input" };
+  }
+
+  const { data, error } = await admin
+    .from("talent_extras")
+    .select("talent_id, content")
+    .eq("talent_id", userId)
+    .maybeSingle();
+  if (error) {
+    throw new Error(error.message ?? "Failed to load talent_extras row");
+  }
+  if (!data) return { ok: false, reason: "title_not_found" };
+
+  const items = parseTalentExtrasContent(data.content);
+  const matchIndices: number[] = [];
+  items.forEach((item, index) => {
+    const itemTitle = item.title?.trim().toLocaleLowerCase("ko") ?? "";
+    if (itemTitle && itemTitle === queryTitle) matchIndices.push(index);
+  });
+  if (matchIndices.length === 0) {
+    return { ok: false, reason: "title_not_found" };
+  }
+  if (matchIndices.length > 1) {
+    return { ok: false, reason: "ambiguous_title" };
+  }
+
+  const matchIndex = matchIndices[0];
+  const target = items[matchIndex];
+  const next = joinMemoWithDelta(target.memo, newInfo);
+  if (next === null) return { ok: false, reason: "empty_input" };
+  if (next === (target.memo ?? "")) {
+    return { ok: true, updated: false };
+  }
+
+  const nextItems = items.map((item, index) =>
+    index === matchIndex ? { ...item, memo: next } : item
+  );
+
+  const { error: updateError } = await admin
+    .from("talent_extras")
+    .update({ content: nextItems })
+    .eq("talent_id", userId);
+  if (updateError) {
+    throw new Error(
+      updateError.message ?? "Failed to update talent_extras memo"
+    );
+  }
+  return { ok: true, updated: true };
 }

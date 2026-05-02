@@ -19,6 +19,15 @@ export type CareerPromptProfile = {
   resume_links?: string[] | null;
 };
 
+export type CareerPromptPreferences = {
+  engagementTypes?: string[] | null;
+  preferredLocations?: string[] | null;
+  careerMoveIntent?: string | null;
+  careerMoveIntentLabel?: string | null;
+  periodicIntervalDays?: number | null;
+  recommendationBatchSize?: number | null;
+};
+
 export type CareerTranscriptEntry = {
   role: "user" | "assistant";
   text: string;
@@ -242,6 +251,54 @@ function buildKnownInsightsSection(args: {
   return section;
 }
 
+function buildKnownPreferencesSection(
+  prefs: CareerPromptPreferences | null | undefined
+) {
+  if (!prefs) return "";
+
+  const lines: string[] = [];
+  const engagementTypes = Array.isArray(prefs.engagementTypes)
+    ? prefs.engagementTypes.filter((entry) => typeof entry === "string" && entry.length > 0)
+    : [];
+  const preferredLocations = Array.isArray(prefs.preferredLocations)
+    ? prefs.preferredLocations.filter(
+        (entry) => typeof entry === "string" && entry.length > 0
+      )
+    : [];
+
+  lines.push(
+    `- engagementTypes: ${engagementTypes.length > 0 ? engagementTypes.join(", ") : "(none)"}`
+  );
+  lines.push(
+    `- preferredLocations: ${preferredLocations.length > 0 ? preferredLocations.join(", ") : "(none)"}`
+  );
+
+  const intentLabel =
+    typeof prefs.careerMoveIntentLabel === "string" && prefs.careerMoveIntentLabel.trim().length > 0
+      ? prefs.careerMoveIntentLabel.trim()
+      : typeof prefs.careerMoveIntent === "string" && prefs.careerMoveIntent.trim().length > 0
+        ? prefs.careerMoveIntent.trim()
+        : "(미설정)";
+  lines.push(
+    `- careerMoveIntent: ${intentLabel} (read-only — 사용자가 직접 UI에서만 변경하므로 update_talent_profile에서는 절대 다루지 마라)`
+  );
+
+  if (typeof prefs.periodicIntervalDays === "number" && Number.isFinite(prefs.periodicIntervalDays)) {
+    lines.push(`- periodicIntervalDays: ${prefs.periodicIntervalDays}`);
+  }
+  if (
+    typeof prefs.recommendationBatchSize === "number" &&
+    Number.isFinite(prefs.recommendationBatchSize)
+  ) {
+    lines.push(`- recommendationBatchSize: ${prefs.recommendationBatchSize}`);
+  }
+
+  return [
+    "## 현재 talent_preferences (구조화 필드, update_talent_profile 호출 시 합집합/덮어쓰기 머지 기준)",
+    ...lines,
+  ].join("\n");
+}
+
 function buildExtractionKnownInsightsSection(
   content: Record<string, string> | null
 ) {
@@ -325,6 +382,7 @@ function buildCareerConversationPromptPlan(args: {
   channel: CareerPromptChannel;
   coveredCount: number;
   currentInsightContent: Record<string, string> | null;
+  currentPreferences?: CareerPromptPreferences | null;
   interruptHandling?: string;
   isOnboardingDone?: boolean;
   profile: CareerPromptProfile | null;
@@ -347,6 +405,9 @@ function buildCareerConversationPromptPlan(args: {
     maxTotal: args.channel === "voice" ? 1500 : 2000,
     quoteKeys: args.channel === "chat",
   });
+  const existingPreferencesSection = buildKnownPreferencesSection(
+    args.currentPreferences
+  );
   const topUncovered = args.uncoveredItems
     .slice(0, 10)
     .map((item) => `- ${item.promptHint}`)
@@ -356,18 +417,27 @@ function buildCareerConversationPromptPlan(args: {
     profile: args.profile,
     structuredProfileText: args.structuredProfileText,
   });
-  const toolPolicy = isOnboardingActive
-    ? ""
-    : buildCareerToolPolicyPrompt({
-        channel: args.channel,
-        toolNames: normalizeToolNames(args.toolNames),
-      });
+  const normalizedToolNames = normalizeToolNames(args.toolNames);
+  // During onboarding, suppress the standard tool policy block UNLESS the silent
+  // profile-writer (update_talent_profile) is enabled — that one runs during
+  // onboarding too and needs its policy/trigger rules in the system prompt.
+  const allowToolPolicyDuringOnboarding = normalizedToolNames.includes(
+    "update_talent_profile"
+  );
+  const toolPolicy =
+    isOnboardingActive && !allowToolPolicyDuringOnboarding
+      ? ""
+      : buildCareerToolPolicyPrompt({
+          channel: args.channel,
+          toolNames: normalizedToolNames,
+        });
 
   const dynamicStateLines = [
     `## Runtime context \n현재 후보자와 ${channelType}을 통해 소통하고 있습니다. (Voice Call or Text Chat) \n현재 시각 : ${new Date().toLocaleString()}`,
     `Insight coverage: ${args.coveredCount}/${args.totalInsightCount} items covered.`,
     `Completion threshold: ${coverageThresholdPercent}% coverage.`,
     existingInsightsSection,
+    existingPreferencesSection,
     args.recentConversationSection ?? "", // voice 일 때만 들어감
     buildUncoveredInsightSection({
       coverageRatio,
@@ -440,6 +510,7 @@ function buildCareerConversationPromptPlan(args: {
 export function buildCareerChatPromptBlocks(args: {
   coveredCount: number;
   currentInsightContent: Record<string, string> | null;
+  currentPreferences?: CareerPromptPreferences | null;
   isOnboardingDone?: boolean;
   profile: CareerPromptProfile | null;
   structuredProfileText: string;
@@ -547,12 +618,20 @@ export function buildCareerToolPolicyPrompt(args: {
   if (toolNames.length === 0) return "";
 
   const toolNameText = toolNames.join(", ");
-  const hasCompanySnapshotTool = toolNames.includes("prepare_company_snapshot");
+  const hasResearchCompanyTool = toolNames.includes("research_company");
+  const hasLookupServiceHelpTool = toolNames.includes("lookup_service_help");
+  const hasGetRecommendedJdTool = toolNames.includes("get_recommended_jd");
+  const hasAddToRecommendationsTool = toolNames.includes(
+    "add_to_recommendations"
+  );
   const hasRecommendedOpportunitiesTool = toolNames.includes(
     "read_recommended_opportunities"
   );
   const hasJobPostingRecommendationTool = toolNames.includes(
     "recommend_job_postings"
+  );
+  const hasUpdateTalentProfileTool = toolNames.includes(
+    "update_talent_profile"
   );
   const channelRule =
     args.channel === "voice"
@@ -565,13 +644,28 @@ export function buildCareerToolPolicyPrompt(args: {
     ...(args.channel === "voice"
       ? [
           "- Voice call limitation: UI-card tools are not available during a live voice call. Do not claim that you can show buttons or cards inside the call.",
-          "- If the user asks for full company snapshot/research during voice, explain in Korean that you can help after ending the call in text chat, where Harper can create the relevant setup card and button.",
+          "- If the user asks for full company snapshot/research during voice, explain in Korean that you can help after ending the call in text chat, where Harper can run real-time company research (5-15s delay).",
         ]
       : []),
-    ...(hasCompanySnapshotTool
+    ...(hasResearchCompanyTool
       ? [
-          "- If the user directly asks you to investigate, research, or assess a specific company, call `prepare_company_snapshot`. This tool prepares a company-research setup UI; do not run or summarize research yourself after calling it.",
-          "- If the user only says they are unsure whether a company is good, ask if they want you to investigate it. Call `prepare_company_snapshot` only after the company is clear and the user wants the investigation.",
+          "- Use `research_company` ONLY when the user genuinely wants to learn about a specific company (culture, funding, team, business model, hiring landscape). The tool first checks a 30-day snapshot cache: cache hit returns instantly; cache miss runs real-time web research (5-15 seconds) and returns a synthesized answer with citations. Do NOT call for passing company mentions, anecdotes about past experience at a company, comparison questions without genuine info-seeking intent, or JD/position questions (use `get_recommended_jd` instead).",
+          "- If the user only says they are unsure whether a company is good, ask which company they mean before calling `research_company`.",
+        ]
+      : []),
+    ...(hasLookupServiceHelpTool
+      ? [
+          "- Use `lookup_service_help` when the user asks about Harper's UI buttons, panels, features, or how to use the product (e.g., 'this star button on the right is what?', '이 버튼 뭐야?', 'How do I save a role?'). Pass the user's question verbatim. The tool returns top-K help chunks; cite `source_doc_title` only when it materially helps the user.",
+        ]
+      : []),
+    ...(hasGetRecommendedJdTool
+      ? [
+          "- Use `get_recommended_jd` when the user asks about job postings, positions, or roles. Pass `company_name` if the user mentioned a specific company; omit it to get only the user's recommended roles. Use `role_filter` for role_name / type / seniority / work_mode constraints. Each result row has `is_recommended`. If the user shows interest in a non-recommended role, naturally ask whether to add it.",
+        ]
+      : []),
+    ...(hasAddToRecommendationsTool
+      ? [
+          "- Use `add_to_recommendations` ONLY after the user explicitly confirms adding a specific role to their recommendations (e.g., '응 추가해줘', '맞아', '그거 넣어줘'). For weak signals like '관심 있어' alone, ask for confirmation first. Always pass `role_id` from a prior `get_recommended_jd` result.",
         ]
       : []),
     ...(hasRecommendedOpportunitiesTool
@@ -585,8 +679,38 @@ export function buildCareerToolPolicyPrompt(args: {
           "- After `recommend_job_postings`, answer in Korean using the tool's `answerDraft` and keep the ranked roles, reasons, concerns, and links visible. Do not replace it with generic advice.",
         ]
       : []),
+    ...(hasUpdateTalentProfileTool
+      ? [
+          "",
+          "### update_talent_profile (silent profile writer)",
+          "- Purpose: silently merge new info the user just shared into talent_insights (9 free-text keys) and talent_preferences (engagementTypes, preferredLocations, periodicIntervalDays, recommendationBatchSize). Eligible during onboarding AND after.",
+          "- Trigger conditions (call when EITHER applies):",
+          "  1) Declarative self-statement: 사용자가 '저는 ~예요', '~이 좋아요', '~은 어려워요' 같이 본인의 선호/상황/조건을 직접 진술한 경우.",
+          "  2) Q&A pair: 직전 assistant 메시지가 명확한 질문이고, 사용자가 짧게 답한 경우(예: assistant '이직 생각 있으세요?' / user '네' 또는 '아직은 둘러보는 정도'). 직전 질문 컨텍스트와 함께 해석해 적절한 키에 매핑.",
+          "- Do NOT call when:",
+          "  - 사용자의 발화가 *질문*(예: '회사들이 보통 어떤 보상을 주나요?')이거나 *가정/추측*(예: '만약 연봉이 1억이면 좋겠죠')일 때.",
+          "  - assistant 본인의 발언/요약/메타 멘트에 대해. 사용자가 새로 말한 정보에만 반응한다.",
+          "  - 이미 같은 정보가 '이미 알고 있는 정보'에 들어 있고 변동/보강할 게 없을 때 (중복 호출 금지).",
+          "- Read-merge-write 규칙:",
+          "  - talent_insights 9 키는 자유 텍스트로 통째 overwrite 된다. 시스템 프롬프트에 노출된 현재 값을 base로 삼고, 새 정보를 자연스럽게 통합한 *완성된 한 문장(또는 짧은 단락)* 을 보내라. 기존 정보가 의도치 않게 사라지지 않도록 한다.",
+          "  - talent_preferences 의 engagementTypes / preferredLocations 배열은 서버가 합집합으로 머지한다. 새로 추가할 항목만 보내면 된다.",
+          "  - periodicIntervalDays / recommendationBatchSize 는 사용자가 명확한 숫자 선호를 말했을 때만 보내고, 보내면 그 값으로 덮어쓰기된다.",
+          "- 절대 금지:",
+          "  - careerMoveIntent 는 schema 에 없으며 어떤 경우에도 다루지 않는다 (변경 시 백그라운드 opportunity discovery job이 트리거되는 부수효과가 있어 사용자 UI 직접 변경만 허용).",
+          "  - profileLinks(LinkedIn/GitHub/Scholar/X/개인 사이트), resume 파일은 채팅 발화에 등장해도 이 도구로 쓰지 않는다.",
+          "  - 채팅 응답 텍스트에 'OO에 추가했어요', '프로필에 반영해뒀어요', 'I noted that' 류의 메타 멘트를 절대 쓰지 마라. 호출은 silent 이며 사용자는 평소 chat 흐름만 본다. 결과는 별도 profile/insight UI 에서 사용자가 직접 확인한다.",
+          "- rowMemos (talent_experiences/educations/extras 의 'Harper의 메모' 박스):",
+          "  - 사용자가 프로필의 *특정* role/school/extra 하나에 분명히 연결되는 declarative 발화를 했을 때만 사용한다 (예: '삼성에서 ML 모델 만들었어요' → 시스템 프롬프트의 Experiences 블록에서 company_name이 '삼성'인 행 하나).",
+          "  - experiences/educations 는 시스템 프롬프트에 노출된 그 행의 RowID 값을 verbatim 으로 사용해라. 환각 금지. extras 는 동일 블록의 Title 을 정확히 사용한다.",
+          "  - newInfo 에는 *새로 알게 된 정보 한 조각만* 짧은 한국어 자연 문장으로 적어라. 기존 memo 내용을 다시 적지 마라(서버가 자동 append + 2000자 cap).",
+          "  - OMIT 규칙: (1) 후보 행이 두 개 이상 (예: '삼성' → Samsung Electronics + Samsung SDS 둘 다 존재) (2) 매칭되는 행이 없음 (3) 발화가 회사/학교 mention 없는 generic skill — 이런 케이스는 rowMemos 항목을 넣지 마라. 일반 정보는 같은 호출의 insights 가 흡수한다.",
+          "  - 채팅 응답에 '~ 메모에 추가했어요' 같은 멘트는 절대 쓰지 마라. memo 갱신은 완전 silent.",
+          "- 한 turn 에 여러 필드가 동시에 갱신될 수 있으면 한 번의 호출에 insights/preferences/rowMemos 를 같이 담아라 (turn 당 가능하면 1회).",
+          "",
+        ]
+      : []),
     "- Use `web_search` only when the user needs current, factual, or web-dependent information.",
-    "- Do not use tools for the normal onboarding interview flow if you can continue from the existing conversation context.",
+    "- Do not use tools for the normal onboarding interview flow if you can continue from the existing conversation context. (Exception: `update_talent_profile` is the silent state-writer above — it follows its own trigger rules and may run during onboarding.)",
     "- After tool use, summarize only the useful findings. Do not dump raw JSON.",
     "- Mention source names or URLs only when they materially help the user.",
     channelRule,

@@ -110,6 +110,25 @@ export const CareerFlowProvider = ({
     initialSessionPage: initialMessagePage,
   });
 
+  const applyPersistedTalentPreferencesRef = useRef<
+    ((preferences: unknown, updatedAt: unknown) => void) | null
+  >(null);
+  const applyPersistedTalentInsightsRef = useRef<
+    ((insights: unknown, updatedAt: unknown) => void) | null
+  >(null);
+  const handleTalentPreferencesRefreshedFromChat = useCallback(
+    (preferences: unknown, updatedAt: unknown) => {
+      applyPersistedTalentPreferencesRef.current?.(preferences, updatedAt);
+    },
+    []
+  );
+  const handleTalentInsightsRefreshedFromChat = useCallback(
+    (insights: unknown, updatedAt: unknown) => {
+      applyPersistedTalentInsightsRef.current?.(insights, updatedAt);
+    },
+    []
+  );
+
   const {
     stage,
     setStage,
@@ -131,6 +150,8 @@ export const CareerFlowProvider = ({
     fetchWithAuth,
     persistedMessages,
     onOpportunityRunChanged: setOpportunityRun,
+    onTalentPreferencesRefreshed: handleTalentPreferencesRefreshedFromChat,
+    onTalentInsightsRefreshed: handleTalentInsightsRefreshedFromChat,
     onMessagesChanged: appendLatestMessagesToCache,
   });
 
@@ -237,6 +258,7 @@ export const CareerFlowProvider = ({
     talentPreferencesSaveInfo,
     hasUnsavedTalentPreferencesChanges,
     applySessionTalentPreferences,
+    applyPersistedTalentPreferences,
     onTalentPreferencesChange,
     onSaveTalentPreferences,
     onResetTalentPreferences,
@@ -254,6 +276,7 @@ export const CareerFlowProvider = ({
     talentInsightsSaveInfo,
     hasUnsavedTalentInsightsChanges,
     applySessionTalentInsights,
+    applyPersistedTalentInsights,
     onTalentInsightsChange,
     onSaveTalentInsights,
     onResetTalentInsights,
@@ -262,6 +285,13 @@ export const CareerFlowProvider = ({
     fetchWithAuth,
     user,
   });
+
+  useEffect(() => {
+    applyPersistedTalentPreferencesRef.current = applyPersistedTalentPreferences;
+  }, [applyPersistedTalentPreferences]);
+  useEffect(() => {
+    applyPersistedTalentInsightsRef.current = applyPersistedTalentInsights;
+  }, [applyPersistedTalentInsights]);
 
   const {
     settingsLoading,
