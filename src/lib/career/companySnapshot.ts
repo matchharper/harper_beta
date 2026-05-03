@@ -3,6 +3,15 @@ import {
   getTalentSupabaseAdmin,
   type TalentMessageRow,
 } from "@/lib/talentOnboarding/server";
+import { client } from "@/lib/llm/llm";
+
+/**
+ * Escapes LIKE/ILIKE special characters (%, _, \) so that user-supplied
+ * strings are treated as literals rather than wildcard patterns.
+ */
+export function escapeLikePattern(value: string): string {
+  return value.replace(/[%_\\]/g, (ch) => `\\${ch}`);
+}
 
 type AdminClient = ReturnType<typeof getTalentSupabaseAdmin>;
 
@@ -250,6 +259,12 @@ export async function getOrCreateCompanySnapshot(args: {
     reason: args.reason ?? null,
   });
 
+  const researchFailed =
+    typeof (content as Record<string, unknown>)?.error === "string" &&
+    ((content as Record<string, unknown>).error as string).length > 0;
+  const status: CompanySnapshotStatus = researchFailed ? "failed" : "completed";
+  const sourceUrls = extractSourceUrls(content);
+
   const { data, error } = await ((
     args.admin.from("company_snapshot" as any) as any
   )
@@ -258,8 +273,8 @@ export async function getOrCreateCompanySnapshot(args: {
       company_name: args.companyName.trim(),
       content,
       normalized_company_name: normalizeCompanySnapshotName(args.companyName),
-      source_urls: [],
-      status: "completed",
+      source_urls: sourceUrls,
+      status,
     })
     .select("*")
     .single() as any);
@@ -325,12 +340,163 @@ export async function fetchRecentCompanySnapshot(args: {
   return (data ?? null) as CompanySnapshotRow | null;
 }
 
-export async function runCompanySnapshotResearch(_args: {
+export async function runCompanySnapshotResearch(args: {
   companyDbId: number | null;
   companyName: string;
   reason?: string | null;
 }): Promise<Record<string, unknown>> {
-  return {};
+  const prompt = buildCompanyResearchPrompt(args);
+  const primaryModel = "gpt-4.1";
+  const fallbackModel = "gpt-4o";
+
+  const callResponses = async (model: string) => {
+    return (client as any).responses.create({
+      model,
+      tools: [{ type: "web_search" }],
+      input: prompt,
+    });
+  };
+
+  try {
+    let response: any;
+    let modelUsed = primaryModel;
+    try {
+      response = await callResponses(primaryModel);
+    } catch (primaryError) {
+      console.warn(
+        "[research_company] primary model failed, falling back",
+        {
+          companyName: args.companyName,
+          primaryModel,
+          fallbackModel,
+          error:
+            primaryError instanceof Error
+              ? primaryError.message
+              : String(primaryError),
+        }
+      );
+      response = await callResponses(fallbackModel);
+      modelUsed = fallbackModel;
+    }
+    console.info("[research_company] OpenAI Responses API ok", {
+      companyName: args.companyName,
+      modelUsed,
+    });
+    return parseCompanyResearchOutput(response);
+  } catch (error) {
+    console.error("[research_company] OpenAI Responses API failed", error);
+    return {
+      error: "research_failed",
+      reason: "external_api_error",
+    };
+  }
+}
+
+function buildCompanyResearchPrompt(args: {
+  companyDbId: number | null;
+  companyName: string;
+  reason?: string | null;
+}): string {
+  const MAX_COMPANY_NAME_LENGTH = 100;
+  const MAX_REASON_LENGTH = 200;
+  const safeName = args.companyName
+    .replace(/[\n\r]/g, " ")
+    .trim()
+    .slice(0, MAX_COMPANY_NAME_LENGTH);
+  const safeReason = args.reason
+    ? args.reason.replace(/[\n\r]/g, " ").trim().slice(0, MAX_REASON_LENGTH)
+    : null;
+  const reasonLine = safeReason
+    ? `\n사용자가 이 회사에 관심을 갖게 된 맥락: ${safeReason}`
+    : "";
+  return [
+    `당신은 한국어 커리어 어드바이저 Harper의 회사 리서치 도우미입니다.`,
+    `대상 회사: ${safeName}`,
+    reasonLine,
+    ``,
+    `Web search 도구를 적극 활용해 이 회사의 사업, 제품, 비즈니스 모델, 자금/재무 상태, 팀/문화, 채용 맥락, 리스크/논란을 조사하세요.`,
+    `최신 공개 정보를 우선시하고, 가능한 경우 한국 시장 맥락도 함께 고려하세요.`,
+    ``,
+    `반드시 아래 JSON 스키마를 그대로 채워서 단일 JSON 객체로만 답하세요. 마크다운 코드펜스나 설명 텍스트를 추가하지 마세요.`,
+    `{`,
+    `  "summary": "한국어로 작성된 4~8문장 요약. 회사가 무엇을 하는지, 핵심 강점/리스크, 채용 맥락이 자연스럽게 녹아 있어야 합니다.",`,
+    `  "sections": {`,
+    `    "company_overview": "사업/제품/규모/투자/주요 지표를 정리한 한국어 본문.",`,
+    `    "risks": "리스크, 우려, 논란, 불확실성을 정리한 한국어 본문. 없다면 '특별히 두드러진 리스크는 확인되지 않았습니다.' 식으로 작성.",`,
+    `    "hiring_context": "채용/팀 분위기/현재 채용 트렌드/지원자 입장에서 알아두면 좋은 한국어 본문."`,
+    `  },`,
+    `  "sources": [`,
+    `    { "url": "https://example.com/article", "title": "출처 제목" }`,
+    `  ]`,
+    `}`,
+    ``,
+    `출처는 실제로 참고한 URL만 최대 10개까지 포함하세요. 정보가 부족한 섹션은 '확실한 정보를 찾지 못했습니다.' 처럼 솔직히 작성하세요.`,
+  ].join("\n");
+}
+
+function parseCompanyResearchOutput(
+  response: any
+): Record<string, unknown> {
+  const outputText: string = (() => {
+    if (typeof response?.output_text === "string" && response.output_text) {
+      return response.output_text;
+    }
+    // Fallback: try to read from common Responses API shapes
+    try {
+      const items: any[] = Array.isArray(response?.output) ? response.output : [];
+      const collected: string[] = [];
+      for (const item of items) {
+        const contents: any[] = Array.isArray(item?.content) ? item.content : [];
+        for (const part of contents) {
+          if (typeof part?.text === "string") collected.push(part.text);
+        }
+      }
+      return collected.join("\n");
+    } catch {
+      return "";
+    }
+  })();
+
+  const fallback: Record<string, unknown> = {
+    summary: outputText,
+    sections: {},
+    sources: [],
+  };
+
+  if (!outputText) return fallback;
+
+  const trimmed = outputText.trim();
+  // Strip code fences if the model returned them despite instructions
+  const stripped = trimmed
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+
+  try {
+    const parsed = JSON.parse(stripped);
+    if (parsed && typeof parsed === "object") {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    // fall through to plain-text fallback
+  }
+  return fallback;
+}
+
+function extractSourceUrls(content: Record<string, unknown>): string[] {
+  const sources = (content as { sources?: unknown }).sources;
+  if (!Array.isArray(sources)) return [];
+  return sources
+    .map((entry) => {
+      if (typeof entry === "string") return entry.trim();
+      if (entry && typeof entry === "object") {
+        const url = (entry as { url?: unknown }).url;
+        if (typeof url === "string") return url.trim();
+      }
+      return "";
+    })
+    .filter((value) => value.length > 0)
+    .slice(0, 10);
 }
 
 function serializeCompanySnapshot(
@@ -349,7 +515,7 @@ function serializeCompanySnapshot(
   };
 }
 
-function formatCompanySnapshotMessage(args: {
+export function formatCompanySnapshotMessage(args: {
   reused: boolean;
   snapshot: CompanySnapshotRow;
 }) {
@@ -357,6 +523,14 @@ function formatCompanySnapshotMessage(args: {
     args.snapshot.content && typeof args.snapshot.content === "object"
       ? (args.snapshot.content as Record<string, unknown>)
       : {};
+  const errorReason = (content as { error?: unknown }).error;
+  if (typeof errorReason === "string" && errorReason.length > 0) {
+    return [
+      `${args.snapshot.company_name} 회사 조사 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.`,
+      "",
+      COMPANY_SNAPSHOT_FOLLOW_UP,
+    ].join("\n");
+  }
   const summary =
     typeof content.summary === "string" && content.summary.trim()
       ? content.summary.trim()
@@ -376,10 +550,11 @@ function formatCompanySnapshotMessage(args: {
         : `${args.snapshot.company_name} 회사 조사를 완료했습니다.`,
       "",
       summary,
+      ...(sourceText ? ["", "출처:", sourceText] : []),
       "",
       COMPANY_SNAPSHOT_FOLLOW_UP,
     ]
-      .filter(Boolean)
+      .filter((line) => line !== undefined && line !== null)
       .join("\n");
   }
 
@@ -403,7 +578,7 @@ async function findCompanyDbByName(args: {
 
   const { data, error } = await ((args.admin.from("company_db" as any) as any)
     .select("id, name")
-    .ilike("name", companyName)
+    .ilike("name", `%${escapeLikePattern(companyName)}%`)
     .limit(1)
     .maybeSingle() as any);
 
@@ -414,7 +589,7 @@ async function findCompanyDbByName(args: {
   return (data ?? null) as { id: number; name: string | null } | null;
 }
 
-async function touchConversation(
+export async function touchConversation(
   admin: AdminClient,
   conversationId: string,
   userId: string

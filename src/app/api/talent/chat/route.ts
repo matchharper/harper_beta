@@ -10,7 +10,15 @@ import {
   TalentMessageRow,
   fetchTalentUserProfile,
   getTalentSupabaseAdmin,
+  normalizeTalentEngagementTypes,
+  normalizeTalentInsightContent,
+  normalizeTalentPreferredLocations,
+  sanitizeTalentCareerMoveIntent,
 } from "@/lib/talentOnboarding/server";
+import {
+  normalizeTalentPeriodicIntervalDays,
+  normalizeTalentRecommendationBatchSize,
+} from "@/lib/talentOnboarding/recommendationSettings";
 import { TALENT_INTERVIEW_FINAL_STEP } from "@/lib/talentOnboarding/progress";
 import { warmCache } from "@/lib/talentOnboarding/prompts/promptCache";
 import {
@@ -31,6 +39,7 @@ import {
   getStopAfterTalentToolNames,
   TALENT_TOOL_NAMES,
 } from "@/lib/talentOnboarding/tools";
+import { getTalentCareerMoveIntentLabel } from "@/lib/talentNetworkApplication";
 import { extractAndPersistChatInsights } from "@/lib/talentOnboarding/chatInsights";
 import {
   TALENT_ONBOARDING_DONE_MARKER,
@@ -42,7 +51,17 @@ import {
   getActiveOpportunityRun,
   serializeOpportunityRun,
 } from "@/lib/opportunityDiscovery/store";
-import { prepareCompanySnapshot } from "@/lib/career/companySnapshot";
+import {
+  COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
+  fetchRecentCompanySnapshot,
+  formatCompanySnapshotMessage,
+  getOrCreateCompanySnapshot,
+  prepareCompanySnapshot,
+  toCompanySnapshotResponseMessage,
+  touchConversation,
+} from "@/lib/career/companySnapshot";
+
+export const maxDuration = 60;
 
 type Body = {
   conversationId?: string;
@@ -50,9 +69,12 @@ type Body = {
   link?: string;
 };
 
-type PreparedCompanySnapshotResult = Awaited<
-  ReturnType<typeof prepareCompanySnapshot>
->;
+type PreparedCompanySnapshotResult = Omit<
+  Awaited<ReturnType<typeof prepareCompanySnapshot>>,
+  "setup"
+> & {
+  setup: Awaited<ReturnType<typeof prepareCompanySnapshot>>["setup"] | null;
+};
 
 const toResponseMessage = (item: TalentMessageRow) => ({
   id: item.id,
@@ -79,6 +101,40 @@ function startOpportunityDiscoveryInBackground(runId: string) {
   console.info("[opportunity-discovery] queued for harper_worker", {
     runId,
   });
+}
+
+async function buildTalentProfileSnapshot(args: {
+  admin: ReturnType<typeof getTalentSupabaseAdmin>;
+  userId: string;
+}) {
+  const [setting, insights] = await Promise.all([
+    fetchTalentSetting({ admin: args.admin, userId: args.userId }),
+    fetchTalentInsights({ admin: args.admin, userId: args.userId }),
+  ]);
+  const careerMoveIntent = sanitizeTalentCareerMoveIntent(
+    setting?.career_move_intent
+  );
+  return {
+    talentPreferences: {
+      engagementTypes: normalizeTalentEngagementTypes(
+        setting?.engagement_types ?? []
+      ),
+      preferredLocations: normalizeTalentPreferredLocations(
+        setting?.preferred_locations ?? []
+      ),
+      careerMoveIntent,
+      careerMoveIntentLabel: getTalentCareerMoveIntentLabel(careerMoveIntent),
+      periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
+        setting?.periodic_interval_days
+      ),
+      recommendationBatchSize: normalizeTalentRecommendationBatchSize(
+        setting?.recommendation_batch_size
+      ),
+    },
+    talentInsights: normalizeTalentInsightContent(insights?.content ?? null),
+    preferencesUpdatedAt: setting?.updated_at ?? null,
+    insightUpdatedAt: insights?.last_updated_at ?? null,
+  };
 }
 
 const optionalToolString = (value: unknown) => {
@@ -263,19 +319,37 @@ export async function POST(req: NextRequest) {
       .filter((item) => item.content.trim().length > 0);
 
     const availableChatTools = getOpenAIChatTools("chat");
+    const isOnboardingActiveForTools = !Boolean(talentSetting?.is_onboarding_done);
+    // During onboarding, suppress all chat tools EXCEPT the silent profile writer
+    // (update_talent_profile). After onboarding, all default-enabled tools are available.
+    const toolDefinitions = isOnboardingActiveForTools
+      ? availableChatTools.filter(
+          (tool) => tool.function.name === TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE
+        )
+      : availableChatTools;
+    const currentPreferences = {
+      engagementTypes: talentSetting?.engagement_types ?? [],
+      preferredLocations: talentSetting?.preferred_locations ?? [],
+      careerMoveIntent: talentSetting?.career_move_intent ?? null,
+      careerMoveIntentLabel: getTalentCareerMoveIntentLabel(
+        talentSetting?.career_move_intent ?? null
+      ),
+      periodicIntervalDays: talentSetting?.periodic_interval_days ?? null,
+      recommendationBatchSize: talentSetting?.recommendation_batch_size ?? null,
+    };
     const { isOnboardingActive, promptBlocks, toolPolicy } =
       buildCareerChatPromptBlocks({
         coveredCount,
         currentInsightContent,
+        currentPreferences,
         isOnboardingDone: talentSetting?.is_onboarding_done,
         profile,
         structuredProfileText,
-        toolNames: availableChatTools.map((tool) => tool.function.name),
+        toolNames: toolDefinitions.map((tool) => tool.function.name),
         totalInsightCount: INSIGHT_CHECKLIST.length,
         uncoveredItems,
         userTurnCount,
       });
-    const toolDefinitions = isOnboardingActive ? [] : availableChatTools;
     const systemBlocks = promptBlocks;
 
     console.info("[career-chat:prompt-breakdown]", {
@@ -366,6 +440,100 @@ export async function POST(req: NextRequest) {
                 sendVisibleTextDelta(delta);
               },
               executeTool: async ({ name, input }) => {
+                if (name === TALENT_TOOL_NAMES.RESEARCH_COMPANY) {
+                  const companyName =
+                    optionalToolString(input.company_name) ??
+                    optionalToolString(input.companyName);
+                  if (!companyName) {
+                    throw new Error(
+                      "research_company requires company_name."
+                    );
+                  }
+
+                  const cachedSnapshot = await fetchRecentCompanySnapshot({
+                    admin,
+                    companyName,
+                  });
+                  if (cachedSnapshot) {
+                    const messageContent = formatCompanySnapshotMessage({
+                      reused: true,
+                      snapshot: cachedSnapshot,
+                    });
+                    const { data: cacheMessage, error: cacheMessageError } =
+                      await admin
+                        .from("talent_messages")
+                        .insert({
+                          content: messageContent,
+                          conversation_id: conversationId,
+                          message_type: COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
+                          role: "assistant",
+                          user_id: user.id,
+                        })
+                        .select("*")
+                        .single();
+                    if (cacheMessageError || !cacheMessage) {
+                      throw new Error(
+                        cacheMessageError?.message ??
+                          "Failed to insert company_snapshot result message."
+                      );
+                    }
+                    await touchConversation(admin, conversationId, user.id);
+                    preparedCompanySnapshotRef.current = {
+                      messages: [
+                        toCompanySnapshotResponseMessage(
+                          cacheMessage as TalentMessageRow
+                        ),
+                      ],
+                      setup: null,
+                    };
+                    return { ok: true, cached: true };
+                  }
+
+                  // Intentional double cache-fetch: route checked cache above for fast-path,
+                  // but getOrCreateCompanySnapshot rechecks for idempotency (another request
+                  // may have created the snapshot between the two calls).
+                  const result = await getOrCreateCompanySnapshot({
+                    admin,
+                    companyName,
+                    reason: optionalToolString(input.reason),
+                    userId: user.id,
+                  });
+                  const messageContent = formatCompanySnapshotMessage({
+                    reused: result.reused,
+                    snapshot: result.snapshot,
+                  });
+                  const {
+                    data: researchMessage,
+                    error: researchMessageError,
+                  } = await admin
+                    .from("talent_messages")
+                    .insert({
+                      content: messageContent,
+                      conversation_id: conversationId,
+                      message_type: COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
+                      role: "assistant",
+                      user_id: user.id,
+                    })
+                    .select("*")
+                    .single();
+                  if (researchMessageError || !researchMessage) {
+                    throw new Error(
+                      researchMessageError?.message ??
+                        "Failed to insert company_snapshot result message."
+                    );
+                  }
+                  await touchConversation(admin, conversationId, user.id);
+                  preparedCompanySnapshotRef.current = {
+                    messages: [
+                      toCompanySnapshotResponseMessage(
+                        researchMessage as TalentMessageRow
+                      ),
+                    ],
+                    setup: null,
+                  };
+                  return { ok: true, cached: result.reused };
+                }
+
                 if (name === TALENT_TOOL_NAMES.PREPARE_COMPANY_SNAPSHOT) {
                   const companyName = optionalToolString(input.companyName);
                   if (!companyName) {
@@ -420,6 +588,11 @@ export async function POST(req: NextRequest) {
                   targetCount: TALENT_INTERVIEW_FINAL_STEP,
                 },
               });
+              const profileSnapshot = await buildTalentProfileSnapshot({
+                admin,
+                userId: user.id,
+              });
+              send("talent_profile", profileSnapshot);
               send("done", { ok: true });
               return;
             }
@@ -499,6 +672,11 @@ export async function POST(req: NextRequest) {
                 currentStep: coveredCount,
               },
             });
+            const profileSnapshot = await buildTalentProfileSnapshot({
+              admin,
+              userId: user.id,
+            });
+            send("talent_profile", profileSnapshot);
             send("done", { ok: true });
           } catch (error) {
             const message =
@@ -523,6 +701,95 @@ export async function POST(req: NextRequest) {
       stopAfterToolNames: getStopAfterTalentToolNames("chat"),
       systemBlocks,
       executeTool: async ({ name, input }) => {
+        if (name === TALENT_TOOL_NAMES.RESEARCH_COMPANY) {
+          const companyName =
+            optionalToolString(input.company_name) ??
+            optionalToolString(input.companyName);
+          if (!companyName) {
+            throw new Error("research_company requires company_name.");
+          }
+
+          const cachedSnapshot = await fetchRecentCompanySnapshot({
+            admin,
+            companyName,
+          });
+          if (cachedSnapshot) {
+            const messageContent = formatCompanySnapshotMessage({
+              reused: true,
+              snapshot: cachedSnapshot,
+            });
+            const { data: cacheMessage, error: cacheMessageError } = await admin
+              .from("talent_messages")
+              .insert({
+                content: messageContent,
+                conversation_id: conversationId,
+                message_type: COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
+                role: "assistant",
+                user_id: user.id,
+              })
+              .select("*")
+              .single();
+            if (cacheMessageError || !cacheMessage) {
+              throw new Error(
+                cacheMessageError?.message ??
+                  "Failed to insert company_snapshot result message."
+              );
+            }
+            await touchConversation(admin, conversationId, user.id);
+            preparedCompanySnapshotRef.current = {
+              messages: [
+                toCompanySnapshotResponseMessage(
+                  cacheMessage as TalentMessageRow
+                ),
+              ],
+              setup: null,
+            };
+            return { ok: true, cached: true };
+          }
+
+          // Intentional double cache-fetch: route checked cache above for fast-path,
+          // but getOrCreateCompanySnapshot rechecks for idempotency (another request
+          // may have created the snapshot between the two calls).
+          const result = await getOrCreateCompanySnapshot({
+            admin,
+            companyName,
+            reason: optionalToolString(input.reason),
+            userId: user.id,
+          });
+          const messageContent = formatCompanySnapshotMessage({
+            reused: result.reused,
+            snapshot: result.snapshot,
+          });
+          const { data: researchMessage, error: researchMessageError } =
+            await admin
+              .from("talent_messages")
+              .insert({
+                content: messageContent,
+                conversation_id: conversationId,
+                message_type: COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
+                role: "assistant",
+                user_id: user.id,
+              })
+              .select("*")
+              .single();
+          if (researchMessageError || !researchMessage) {
+            throw new Error(
+              researchMessageError?.message ??
+                "Failed to insert company_snapshot result message."
+            );
+          }
+          await touchConversation(admin, conversationId, user.id);
+          preparedCompanySnapshotRef.current = {
+            messages: [
+              toCompanySnapshotResponseMessage(
+                researchMessage as TalentMessageRow
+              ),
+            ],
+            setup: null,
+          };
+          return { ok: true, cached: result.reused };
+        }
+
         if (name === TALENT_TOOL_NAMES.PREPARE_COMPANY_SNAPSHOT) {
           const companyName = optionalToolString(input.companyName);
           if (!companyName) {
@@ -563,6 +830,10 @@ export async function POST(req: NextRequest) {
           preparedCompanySnapshot.messages.length - 1
         ]?.content ?? "";
       const newKeysCount = await extractTurnInsights(preparedAssistantText);
+      const profileSnapshot = await buildTalentProfileSnapshot({
+        admin,
+        userId: user.id,
+      });
 
       return NextResponse.json({
         ok: true,
@@ -578,6 +849,7 @@ export async function POST(req: NextRequest) {
           targetCount: TALENT_INTERVIEW_FINAL_STEP,
         },
         userMessage: toResponseMessage(insertedUserMessage as TalentMessageRow),
+        ...profileSnapshot,
       });
     }
 
@@ -646,6 +918,11 @@ export async function POST(req: NextRequest) {
       startOpportunityDiscoveryInBackground(completedOpportunityRun.id);
     }
 
+    const profileSnapshot = await buildTalentProfileSnapshot({
+      admin,
+      userId: user.id,
+    });
+
     return NextResponse.json({
       ok: true,
       userMessage: toResponseMessage(insertedUserMessage as TalentMessageRow),
@@ -659,6 +936,7 @@ export async function POST(req: NextRequest) {
         completed: isCompleted,
         currentStep: insightsCoveredAfter,
       },
+      ...profileSnapshot,
     });
   } catch (error) {
     const message =

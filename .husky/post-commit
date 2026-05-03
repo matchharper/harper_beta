@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || git diff --name-only HEAD)
+CHANGED_MDX=$(echo "$CHANGED" | grep '\.mdx$' | grep '^docs/career-help/' || true)
+if [ -n "$CHANGED_MDX" ]; then
+  echo "[help-chunks] Re-indexing changed mdx files..."
+  pnpm tsx scripts/index-help-chunks.ts --files "$CHANGED_MDX" || true
+fi
