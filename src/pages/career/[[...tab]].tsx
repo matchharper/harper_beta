@@ -13,13 +13,10 @@ type CareerTabPageParams = {
   tab?: string[];
 };
 
-const REDIRECT_TO_HOME_TABS = new Set(["chat", "home"]);
 const CAREER_TAB_PATHS = [
   "/career",
   "/career/history",
   "/career/profile",
-  "/career/home",
-  "/career/chat",
 ];
 
 const CareerTabPage = ({ activeTab }: CareerTabPageProps) => (
@@ -43,15 +40,6 @@ export const getStaticProps: GetStaticProps<
     return {
       props: {
         activeTab: "home",
-      },
-    };
-  }
-
-  if (REDIRECT_TO_HOME_TABS.has(rawTab)) {
-    return {
-      redirect: {
-        destination: "/career",
-        permanent: false,
       },
     };
   }

@@ -18,6 +18,20 @@ const nextConfig = {
     ],
   },
   reactStrictMode: false,
+  async redirects() {
+    return [
+      {
+        source: "/career/home",
+        destination: "/career",
+        permanent: false,
+      },
+      {
+        source: "/career/chat",
+        destination: "/career",
+        permanent: false,
+      },
+    ];
+  },
   async headers() {
     return [
       {
