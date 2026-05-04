@@ -18,10 +18,12 @@ import {
   type ReactNode,
 } from "react";
 import { showToast } from "@/components/toast/toast";
+import CareerMobileViewportGate from "@/components/career/CareerMobileViewportGate";
 import { BeigeButton, BeigeInput } from "@/components/ui/beige";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { useOnboarding } from "@/hooks/useOnboarding";
+import { resolveCareerMobileEntryReason } from "@/lib/career/mobileBlocker";
 import {
   TALENT_NETWORK_CAREER_MOVE_INTENT_OPTIONS,
   TALENT_NETWORK_ENGAGEMENT_OPTIONS,
@@ -31,6 +33,7 @@ import {
   type TalentNetworkProfileInputType,
 } from "@/lib/talentNetworkOptions";
 import { cn } from "@/lib/cn";
+import { useAuthStore } from "@/store/useAuthStore";
 
 const TOTAL_STEPS = 3;
 
@@ -262,7 +265,7 @@ const DoneState = ({
   </div>
 );
 
-const CareerNetworkOnboardingPage = () => {
+const CareerNetworkOnboardingContent = () => {
   const router = useRouter();
   const { user, authLoading } = useCareerAuth();
   const { fetchWithAuth } = useCareerApi();
@@ -527,11 +530,20 @@ const CareerNetworkOnboardingPage = () => {
           careerMoveIntent,
         }),
       });
+      const preferencesPayload = await preferencesRes.json().catch(() => ({}));
       if (!preferencesRes.ok) {
-        const payload = await preferencesRes.json().catch(() => ({}));
         throw new Error(
-          getErrorMessage(payload, "선호 정보를 저장하지 못했습니다.")
+          getErrorMessage(
+            preferencesPayload,
+            "선호 정보를 저장하지 못했습니다."
+          )
         );
+      }
+      if (preferencesPayload?.opportunityDiscoveryQueued) {
+        showToast({
+          message: "기회 검색을 시작했습니다.",
+          variant: "white",
+        });
       }
 
       const startRes = await fetchWithAuth("/api/talent/onboarding/start", {
@@ -929,6 +941,22 @@ const CareerNetworkOnboardingPage = () => {
         )}
       </main>
     </>
+  );
+};
+
+const CareerNetworkOnboardingPage = () => {
+  const router = useRouter();
+  const user = useAuthStore((state) => state.user);
+  const entryReason = resolveCareerMobileEntryReason(router.query);
+
+  return (
+    <CareerMobileViewportGate
+      desktopFallback={<LoadingState />}
+      entryReason={entryReason}
+      user={user}
+    >
+      <CareerNetworkOnboardingContent />
+    </CareerMobileViewportGate>
   );
 };
 

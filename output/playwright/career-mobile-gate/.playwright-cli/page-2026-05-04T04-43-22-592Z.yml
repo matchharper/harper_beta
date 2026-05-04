@@ -1,0 +1,5 @@
+- generic [active] [ref=e1]:
+  - main [ref=e5]:
+    - img [ref=e6]
+    - generic [ref=e8]: 커리어 페이지 로딩 중
+  - alert [ref=e9]

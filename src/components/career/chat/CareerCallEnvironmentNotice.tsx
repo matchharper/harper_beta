@@ -61,7 +61,7 @@ const CareerCallEnvironmentNotice = ({
                     <ChevronUp className="h-3.5 w-3.5" />
                   </button>
                 </div>
-                <p className="mt-2 text-[13px] leading-5 text-beige900/60">
+                <p className="mt-1 text-[13px] leading-5 text-beige900/60">
                   주변 소음이 많으면 Harper가 말을 정확히 듣지 못해 통화가
                   매끄럽지 않을 수 있어요. 가능한 조용한 곳에서 이어주세요.
                 </p>

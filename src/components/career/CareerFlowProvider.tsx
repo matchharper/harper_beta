@@ -269,7 +269,8 @@ export const CareerFlowProvider = ({
   });
 
   useEffect(() => {
-    applyPersistedTalentPreferencesRef.current = applyPersistedTalentPreferences;
+    applyPersistedTalentPreferencesRef.current =
+      applyPersistedTalentPreferences;
   }, [applyPersistedTalentPreferences]);
   useEffect(() => {
     applyPersistedTalentInsightsRef.current = applyPersistedTalentInsights;
@@ -750,6 +751,8 @@ export const CareerFlowProvider = ({
       opportunityRun,
       opportunityRunTriggerPending,
       onRunOpportunityDiscoveryTest: handleRunOpportunityDiscoveryTest,
+      callStartPending,
+      onStartCallMode: handleStartCallMode,
       recentOpportunities,
       historyOpportunityCounts,
       historyOpportunities,
@@ -826,8 +829,10 @@ export const CareerFlowProvider = ({
       answeredCount,
       activeCompanyRoleCount,
       blockedCompanies,
+      callStartPending,
       handleAddProfileLink,
       handleRunOpportunityDiscoveryTest,
+      handleStartCallMode,
       onAddBlockedCompany,
       hasUnsavedTalentInsightsChanges,
       hasUnsavedTalentPreferencesChanges,

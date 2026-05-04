@@ -87,6 +87,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
+      opportunityDiscoveryQueued: true,
       run: serializeOpportunityRun(run),
       runId: run.id,
     });

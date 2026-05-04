@@ -1,0 +1,28 @@
+- generic [active] [ref=e1]:
+  - main [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e8]:
+        - generic [ref=e9]: Always-On Chat
+        - generic [ref=e10]: Harper
+      - generic [ref=e15]:
+        - generic [ref=e16]:
+          - generic [ref=e17]:
+            - generic [ref=e18]: Harper
+            - generic [ref=e19]: 오른쪽에서 워크스페이스를 탐색하고 왼쪽 채팅을 이어갈 수 있습니다.
+          - generic [ref=e20]:
+            - img [ref=e22]
+            - img [ref=e26]
+            - img [ref=e30]
+        - navigation [ref=e42]:
+          - generic [ref=e43]: 홈
+          - generic [ref=e44]: 프로필
+          - generic [ref=e45]: 발견한 기회
+      - dialog "계속하려면 등록하신 이메일로 로그인해 주세요" [ref=e51]:
+        - generic [ref=e52]:
+          - img "Harper" [ref=e53]
+          - text: Harper
+        - heading "계속하려면 등록하신 이메일로 로그인해 주세요" [level=1] [ref=e54]
+        - button "Google 로그인" [ref=e55] [cursor=pointer]:
+          - img [ref=e56]
+          - text: Google 로그인
+  - alert [ref=e57]

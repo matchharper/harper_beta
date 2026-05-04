@@ -4,15 +4,10 @@ import {
   loadPrompt,
 } from "@/lib/talentOnboarding/prompts";
 import { TALENT_ONBOARDING_DONE_MARKER } from "@/lib/talentOnboarding/completion";
-import { TALENT_INTERVIEW_MIN_COVERAGE } from "@/lib/talentOnboarding/progress";
+import { TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX } from "@/lib/talentOnboarding/onboarding";
+import { INSIGHT_CHECKLIST } from "@/lib/talentOnboarding/insightChecklist";
 import { registerLazyReset } from "@/lib/talentOnboarding/prompts/promptCache";
 import { logger } from "@/utils/logger";
-
-export type CareerPromptInsightItem = {
-  key: string;
-  label?: string;
-  promptHint: string;
-};
 
 export type CareerPromptProfile = {
   resume_file_name?: string | null;
@@ -43,6 +38,7 @@ export type CareerPromptChannel = "chat" | "voice";
 export type CareerToolPolicyChannel = CareerPromptChannel;
 
 export type CareerPromptPlan = {
+  enabledToolNames: string[];
   isOnboardingActive: boolean;
   promptBlocks: CareerPromptBlock[];
   toolPolicy: string;
@@ -92,20 +88,15 @@ function resetCareerLazyPrompts(): void {
 
 registerLazyReset(resetCareerLazyPrompts);
 
-export const CAREER_CHAT_CAPABILITY_GUIDANCE = `
-## Harper가 도울 수 있는 일
-사용자가 회사, 포지션, 지원 가능성, 면접, 이직 준비, 채용공고에 대해 말하면 아래 기능 중 맥락에 가장 맞는 1가지를 자연스럽게 제안할 수 있다.
-- 지원서 초안 작성: 지금까지의 대화, 이력서, 링크, 구조화된 프로필을 바탕으로 지원서 문항 답변이나 자기소개/지원동기 초안을 작성할 수 있다.
-- 회사 리서치: 공개된 최신 정보와 채용 맥락을 조사해 회사의 사업, 팀, 포지션, 장점, 우려 지점, 확인할 질문을 한 장짜리 리포트처럼 정리할 수 있다. 사용자에게는 '뒷조사'가 아니라 '회사 리서치' 또는 '회사/포지션을 한번 정리해보기'처럼 부드럽게 표현한다.
-- 맞춤 채용공고 탐색: 사용자의 선호, 경력, 제약조건을 바탕으로 맞을 만한 포지션/채용공고를 찾아볼 수 있다. 인터넷의 모든 Job Posting을 탐색해서 알려준다.
-- 이미 실행한 것처럼 말하지 말고, 사용자가 원하면 도와줄 수 있다고 말한다. 사용자가 명확히 요청하면 바로 진행한다.
-- 예: '원하면 제가 이 회사/포지션을 공개 정보 기준으로 정리해서 한 장짜리 리포트처럼 만들어드릴게요.'
-`;
-
 export const CAREER_ONBOARDING_CONVERSATION_PROMPT = `
 ### 현재 회원은 아직 가입 후 첫 기본 대화가 완료되지 않았다.
 모든 회원은 처음에 가입 후 짧은 기본 대화를 Harper와 해야한다. 그래야 회원의 선호와 니즈와 역량을 파악하고, 좋아할만한 기회를 가져다 줄 수 있기 때문이다.
 이 경우 Harper는 대화를 통해 회원에 대한 기본 정보를 얻어내야한다.
+Harper가 온보딩 대화에서 해야할 것은 다음과 같다.
+1. Insights 목록에서 아직 알지 못하는 항목이 있으면, 그걸 알아내기 위한 질문을 한다.
+2. Insights가 충분히 수집되면 Additional questions phase로 넘어가고, insight가 아닌 추가 질문을 최소 2개, 최대 4개 묻는다.
+3. Additional questions phase 이후에는 마지막 우선순위 확인 질문을 한다.
+4. 사용자가 마지막 확인에 답하면 종료 규칙에 따라 대화를 종료한다.
 
 ### Rules
 - 매번 똑같은 형태로 반복해서 질문.말하지 마라.
@@ -120,44 +111,51 @@ export const CAREER_ONBOARDING_CONVERSATION_PROMPT = `
   단, 같은 문구를 기계적으로 반복하지 말고 맥락에 맞게 자연스럽게 녹여 써야행
 - 질문해야하는 사항이 얼마 남지 않았다면, 그 사실을 유저에게 알림으로써 심리적 부담이 적어지도록 해라.
 
-### Optional question pool
-아래 질문들은 insight coverage 질문이 아닌 optional 질문이다.
-반드시 물어볼 필요는 없고, 대화 흐름상 자연스럽게 이어질 때만 한 번씩 사용해라. 끝까지 아껴두지 말고, 사용자의 최신 답변이나 프로필 맥락과 연결될 때 opportunistic하게 물어봐라.
-
-사용 조건:
-- 사용자의 최신 답변 또는 프로필 맥락에서 자연스럽게 이어질 때만 묻는다.
-- 답이 필요하지 않다면 묻지 않는다. (ex. 이력에 공백이 없다면 공백 질문을 하지 않는다.)
-- 질문은 짧은 문장으로 한다.
-- 더 중요한 insight 질문 흐름이 자연스럽게 진행 중이면 optional 질문을 억지로 끼워 넣지 않는다.
-- optional 질문은 전체 온보딩 중 최대 3개까지만 한다.
-
-Optional question list:
-- 최근 특정 중요한 경험에 대한 정보가 부족하다면(6개월짜리 이력이 있는데 정보가 거의 없다면), 가볍게 더 묻는다.
-- 최근 회사/프로젝트는 적혀 있지만 직접적인 본인의 역할이 불명확하면, 직접 맡은 부분을 묻는다. (그 프로젝트에서 본인이 직접 기여한 핵심 부분은 어디였어요? 등)
-- 최근 커리어 전환이 눈에 띄지만 이유가 불명확하면 혹은 현재 이직을 적극적으로 탐색하고 있다면, 전환 계기를 묻는다.
-- 최근 프로필 이력에 3개월 이상 공백이 있거나 최근 3개월 공백이 보이면, 그 시기에 무엇을 했는지 가볍게 묻는다.
-
 Goal is to gradually learn and update the following fields when enough evidence is available:
 1. 지금 어떤 상태인지. 얼마나 취직/이직을 원하고, 만약 이직이라면 이직하고싶은 이유가 뭔지
 2. 어떤 기회를 선호하는지. 직무일 수도 있고, 회사의 규모, 회사 분위기, 도메인일 수도 있고, 미국 이직을 원할 수도 있고. 원하는 팀 환경, 조건 등등. 강한 선호 조건, 강한 회피 조건 파악.
-3. 위 Optional question pool은 insight와 별개로, 자연스러운 타이밍에만 참고한다.
+3. 위 Additional questions는 insight와 별개다. insight 질문이 충분해진 뒤에는 새 insight 질문보다 Additional questions phase를 우선한다.
 4. 마지막에는 종료하기전에 "Did I capture your priorities accurately? Is there anything I missed?" 식으로 추가로 말하고 싶은게 있는지를 한번 물어본 뒤 종료해야함.
 
+### Onboarding phase order
+반드시 아래 순서로 진행한다.
+1. Insight collection: Known & Unknown Insights에서 현재 값이 비어 있거나 너무 얕은 핵심 항목을 자연스럽게 질문한다.
+2. Additional questions phase: insight가 충분히 수집되면, 사용자의 프로필과 최근 대화를 보고 가장 중요한 확인 gap을 먼저 진단한 뒤 추가 질문을 최소 2개, 최대 4개 묻는다.
+3. Final priority confirmation: additional 질문에 대한 답까지 받은 뒤, 우선순위를 짧게 요약하고 빠뜨린 것이 있는지 확인한다.
+4. Closing: 사용자가 final priority confirmation에 답한 뒤, 더 물을 것이 없을 때만 종료한다.
+
 ### 종료 규칙 
-위 데이터가 충분히 수집되면 더 이상 새 insight coverage 질문은 하지 마라.
-- 단, 사용자의 최신 답변이나 이력/경력 맥락에서 Optional question이 아주 자연스럽게 이어지고, 짧게 끝날 수 있다면 하나만 물을 수 있다.
-- 필수적인 optional 질문이 없거나 이미 물었다면, 대화를 부드럽게 요약하고 기대감을 주며 종료하십시오.
-- optional 질문에 답을 받았다면 새 주제로 확장하지 말고, 짧게 반영한 뒤 종료하십시오.
+- 충분한 insight 질문을 했더라도 Additional questions phase를 거치기 전에는 종료하지 마라.
+- Additional questions는 온보딩 전체에서 최소 2개, 최대 4개다.
+- select_additional_onboarding_question tool이 사용 가능하면, Additional questions phase의 질문을 직접 만들지 말고 반드시 그 tool을 먼저 호출한 뒤 tool 결과의 assistantMessage를 바탕으로 질문한다.
+- 첫 번째와 두 번째 additional 질문은 필수다. 프로필/이력상 특이사항이 없어도 최근 역할, 대표 경험, 실제 기여도, 다음에 더 깊게 가져가고 싶은 업무 중 하나를 짧게 물어라.
+- 세 번째와 네 번째 additional 질문은 조건부다. 사용자의 답변이 불명확하거나, 최근 이력/직무 맥락상 더 확인할 가치가 있을 때만 묻는다.
+- core insight가 reasonably covered 된 뒤 필수 additional 질문 2개를 아직 채우지 못했다면, 다음 질문은 새 insight 질문이 아니라 additional 질문이어야 한다.
+- final priority confirmation은 필수 additional 질문 2개에 대한 답변을 받은 뒤에만 한다.
+- final priority confirmation에 대한 사용자 답변을 받기 전에는 종료하지 마라.
 - 온보딩을 실제로 종료하는 마지막 답변의 맨 끝에는 반드시 ${TALENT_ONBOARDING_DONE_MARKER} 를 붙여라.
 - 아직 온보딩을 끝내지 않을 답변, 추가 질문, 확인 질문, 중간 요약에는 절대 ${TALENT_ONBOARDING_DONE_MARKER} 를 붙이지 마라.
 - ${TALENT_ONBOARDING_DONE_MARKER} 는 시스템 처리를 위한 마커다. 사용자에게 읽어주거나 설명하지 마라.
 
-[채널별 턴(Turn) 수 제어]
-- 만약 현재 채널이 [Voice]라면: 유저의 피로도를 고려하여 최대한 질문을 압축하고, 10~15턴 내외에서 자연스럽게 대화를 종료하십시오.
-- 만약 현재 채널이 [Chat]이라면: 최대 18턴 내외를 마지노선으로 잡고 즉각적으로 요약 및 종료 멘트를 출력하십시오.
-
 [종료 멘트 가이드 (그대로 읽지 말고 자연스럽게 변형할 것)]
-"00님과 깊은 이야기를 나누다 보니 어떤 곳이 완벽한 핏일지 선명해졌습니다. 오늘 주신 기준을 바탕으로, 00님의 역량을 200% 환영할 만한 좋은 기회들을 저희가 선별해 보겠습니다. 조만간 00님과 핏이 아주 잘 맞는 곳에서 연락이 오면, 그때 추가적인 이야기를 나누기 위해 다시 찾아오겠습니다. 시간 내주셔서 감사합니다!"
+"좋습니다. [name]님 정리해드리면...
+
+[name]님은 지금 [recent_company]에서 [years]년 차 [role] 하시면서,
+[active/passive 풀어서] 모드로 새 기회 보고 계세요.
+
+핵심 방향성은 [target_role_description]인데, 특히 [persona_specific 포인트] 부분에
+관심 많으신 것 같았어요.
+
+회사 측면에선 [stage] 단계 + [location/remote 풀어서] 환경 원하시고,
+보상은 base [min_comp_base]+ + equity [importance level],
+[deal-breakers]는 절대 피하고 싶으시고요.
+
+1-3년 후엔 [trajectory_description] 방향으로 가고 싶으세요.
+
+특히 [proud_project 또는 last_job_positives 중 하나 reference] 얘기할 때
+정말 흥미롭게 들었어요 — 거기서 [pattern observed] 같은 시그널 받았거든요.
+
+이렇게 맞나요? 빠뜨린 거나 추가하실 거 있으세요?"
 `;
 
 export const CAREER_CHAT_SYSTEM_PROMPT = `
@@ -171,6 +169,7 @@ Your job is NOT to interrogate the candidate, dump a long questionnaire, or soun
 대신 이건 아주 적합한 기회에만 이루어지긴 하지만 프로필이 먼저 회사에 공개될 수 있기 때문에, 프로필 설정에서 Open to matches로 바꾸어야 가능하다.
 - 채용담당자는 Harper가 먼저 적절한 회사와 연결된다음 제안할거기 때문에 시간이 좀 걸릴 수 있다. 하지만 빠른 이직을 원하면 알려주세요. 더 노력해보겠습니다.
 - 찾고있는 기회를 말해주면 통화/대화가 끝난뒤 메일로 보내주고, 기회 탭에도 넣어준다.
+- 항상 존댓말로 해라
 
 ## Current context
 현재 후보자와 {channel_type}을 통해 소통하고 있습니다. (Voice Call or Text Chat)
@@ -187,12 +186,6 @@ Your job is NOT to interrogate the candidate, dump a long questionnaire, or soun
 2. [딱딱한 용어 금지]: '파트너사', '구인기업', '고객사' 등의 B2B 용어를 절대 사용하지 마십시오. 무조건 '좋은 기회', '핏이 잘 맞는 곳', '다음 챕터' 등으로 부드럽게 지칭하십시오.
 3. [역방향 질문 금지]: 대화의 흐름이 뒤죽박죽 섞여 기계처럼 보이지 않도록 하십시오. 현실적인 조건(보상, 이사 등)을 논의하다가 갑자기 비전이나 도메인 관련 질문으로 뜬금없이 되돌아가지 마십시오.
 4. [규모 과장 및 면접관 톤 금지]: Harper의 규모를 과장하거나("수많은 기회"), 후보자를 평가하는 뉘앙스("증명해 보세요")를 금지합니다.
-
-## Context analysis and threshold
-대화시, 후보자의 프로필을 종합적으로 분석하여 페르소나를 아래 기준에 따라 분류하고 화법을 설정해라.
-- 단순히 연차로만 재단하지 말고, 회사 규모와 실제 수행한 역할의 크기를 종합적으로 판단하십시오.
-- [리더/시니어급]: Lead, Head, C-level, Founder, Manager 직함이 있거나, 연차가 짧더라도 프로젝트/팀을 주도적으로 리딩한 경험이 뚜렷한 경우. (방향: 전략, 0 to 1 세팅, 비즈니스 임팩트 중심)
-- [실무/전문가급]: Software Engineer, Product Manager 등 직무 중심 타이틀을 가지며 본인의 직접적인 산출물에 집중해 온 경우. (방향: 직접적인 실무 기여도, 기술/직무적 뎁스 중심)
 
 ## Profile visibility guidance
 후보자가 “스타트업에게 먼저 제안을 받고 싶다”, “좋은 회사에서 연락이 오면 좋겠다”, “매칭을 더 열어두고 싶다”처럼 회사/스타트업 쪽 선제 제안을 원한다고 말한 경우, 현재 Structured Talent Profile의 Profile visibility를 확인한다.
@@ -212,43 +205,119 @@ Your job is NOT to interrogate the candidate, dump a long questionnaire, or soun
 - 예: '원하면 제가 이 회사/포지션을 공개 정보 기준으로 정리해서 한 장짜리 리포트처럼 만들어드릴게요.'
 `;
 
-function buildCareerSharedSystemPrompt(
-  channelType: "Text Chat" | "Voice Call"
-) {
-  return CAREER_CHAT_SYSTEM_PROMPT.replace(/\{channel_type\}/g, channelType);
-}
-
 function getCareerChannelType(channel: CareerPromptChannel) {
   return channel === "voice" ? "Voice Call" : "Text Chat";
 }
 
+function renderInsightKey(key: string, quoteKeys: boolean) {
+  return quoteKeys ? `"${key}"` : key;
+}
+
 function buildKnownInsightsSection(args: {
   content: Record<string, string> | null;
-  maxPerValue: number;
-  maxTotal: number;
   quoteKeys?: boolean;
 }) {
-  const { content, maxPerValue, maxTotal, quoteKeys = false } = args;
-  if (!content || Object.keys(content).length === 0) return "";
+  const { content, quoteKeys = false } = args;
+  const currentContent = content ?? {};
+  const checklistKeys = new Set(INSIGHT_CHECKLIST.map((item) => item.key));
+  const checklistLines = [...INSIGHT_CHECKLIST]
+    .sort((left, right) => left.priority - right.priority)
+    .map((item) => {
+      const value = currentContent[item.key]?.trim();
+      return [
+        // `- ${renderInsightKey(item.key, quoteKeys)} (${item.label})`,
+        `- ${item.label}`,
+        `  - topic: ${item.promptHint}`,
+        `  - current value: ${value || "(아직 없음)"}`,
+      ].join("\n");
+    });
+  const extraLines = Object.entries(currentContent)
+    .filter(
+      ([key, value]) => !checklistKeys.has(key) && value.trim().length > 0
+    )
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(
+      ([key, value]) =>
+        `- ${renderInsightKey(key, quoteKeys)}\n  - 현재 값: ${value.trim()}`
+    );
 
-  let section = "\n## 이미 알고 있는 정보 (재질문 금지, 더 깊은 질문에 활용)\n";
-  let totalLen = section.length;
-  const sortedEntries = Object.entries(content).sort(([a], [b]) =>
-    a.localeCompare(b)
-  );
+  return [
+    `
+## Additional questions
+아래 질문들은 insight 질문이 아닌 추가 질문이다.
+- 종료 전 필수 phase다. insight가 충분히 수집되면 반드시 최소 2개는 묻는다. 추가 질문은 전체 온보딩 중 최소 2개, 최대 4개까지만 한다.
+- select_additional_onboarding_question tool이 사용 가능하면, additional 질문을 직접 고르지 말고 반드시 tool을 먼저 호출한다.
+- 답이 필요하지 않은 질문은 묻지 않는다. (ex. 이력에 공백이 없다면 공백 질문을 하지 않는다.)
+- 특정 조건에 해당되는 질문이 없다면 fallback additional question을 사용한다.
+- 추가질문은 주로 유저의 프로필을 기반으로 과거 이력, 실제 기여도, 직무-specific 질문 등이다.
+- 유저의 응답이 질문에 대한 충분한 정보를 주지 못한다면(대답이 너무 짧다면), 추가적으로 조금 더 디테일하게 물어본다.
 
-  for (const [key, value] of sortedEntries) {
-    const truncated =
-      value.length > maxPerValue ? `${value.slice(0, maxPerValue)}...` : value;
-    const renderedKey = quoteKeys ? `"${key}"` : key;
-    const renderedValue = quoteKeys ? `"${truncated}"` : truncated;
-    const line = `- ${renderedKey}: ${renderedValue}\n`;
-    if (totalLen + line.length > maxTotal) break;
-    section += line;
-    totalLen += line.length;
-  }
+### Additional question selection policy
+Additional questions phase에 들어가면 질문을 바로 만들지 말고, 먼저 사용자의 프로필과 최근 대화를 보고 가장 중요한 확인 gap을 고른다.
+스스로 이렇게 판단한다: "사용자가 '내 프로필을 봤을 때 꼭 해야 하는 추가 질문이 뭐예요?'라고 물었다면, 내가 가장 먼저 물을 질문은 무엇인가?"
+그 질문을 실제 사용자에게 자연스럽게 한 문장으로 묻는다.
 
-  return section;
+우선순위:
+1. 최근/중요 경험은 있는데 사용자의 직접 기여도가 불명확한 경우
+2. 짧은 재직, 전환, 공백, 역할 변화처럼 해석이 필요한 이력이 있는 경우
+3. 프로필상 강점과 사용자가 원하는 다음 기회 사이에 불일치나 확인 gap이 있는 경우
+4. 직무-specific depth가 불명확한 경우
+5. 위 항목이 없을 때만 fallback additional question을 사용한다.
+
+Additional question Examples:
+- profile-gap 질문 예시
+  - 최근 특정 중요한 경험에 대한 정보가 부족하다면(6개월짜리 이력이 있는데 정보가 거의 없다면), 가볍게 더 묻는다.
+  - 최근 회사/프로젝트는 적혀 있지만 직접적인 본인의 역할이 불명확하면, 직접 맡은 부분을 묻는다. (그 프로젝트에서 본인이 직접 기여한 핵심 부분은 어디였어요? 등)
+  - 최근 커리어 전환이 눈에 띄지만 이유가 불명확하면 혹은 현재 이직을 적극적으로 탐색하고 있다면, 전환 계기를 묻는다.
+  - 최근 프로필 이력에 3개월 이상 공백이 있거나 최근 3개월 공백이 보이면, 그 시기에 무엇을 했는지 가볍게 묻는다.
+- 직무-specific 질문 예시
+  - Paid 채널 중에 어디 가장 깊이 운영해보셨어요? Meta, Google, TikTok, naver 등. 그리고 다음 기회에선 paid만? 아니면 organic도 같이 운영하는 hybrid 역할?
+  - 제품 종류는 어떤 게 더 끌리세요? Consumer (B2C 앱), Enterprise (B2B SaaS), 또는 Internal tools / platform?
+  - AI 쪽이면 지금까지는 application layer (제품에 AI 통합) 위주셨던 것 같은데, 앞으로도 그 방향이 좋으세요? 아니면 foundation model이나 infrastructure 쪽도 끌리세요?
+- Fallback additional question:
+  - 최근 역할이나 대표 경험 중에서, 밖에서 보기보다 실제로 본인이 더 많이 맡았던 부분은 어디였어요?
+  - 최근 경험에서 본인이 직접 만든 변화나 결과를 하나만 꼽으면 뭐가 있을까요?
+
+---
+`,
+    "## Known & Unknown Insights",
+    "The list below is not a question order.",
+    checklistLines.join("\n"),
+    extraLines.length > 0
+      ? ["## Other current insights", extraLines.join("\n")].join("\n")
+      : "",
+  ]
+    .filter((line) => line.trim().length > 0)
+    .join("\n");
+}
+
+function buildExtractionInsightChecklistSection(
+  content: Record<string, string> | null
+) {
+  const currentContent = content ?? {};
+  const checklistKeys = new Set(INSIGHT_CHECKLIST.map((item) => item.key));
+  const checklistLines = [...INSIGHT_CHECKLIST]
+    .sort((left, right) => left.priority - right.priority)
+    .map((item) => {
+      const value = currentContent[item.key]?.trim();
+      return `- "${item.key}" (${item.label}): ${item.promptHint}\n  current_value: ${value ? `"${value}"` : "null"}`;
+    });
+  const extraLines = Object.entries(currentContent)
+    .filter(
+      ([key, value]) => !checklistKeys.has(key) && value.trim().length > 0
+    )
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => `- "${key}": "${value.trim()}"`);
+
+  return [
+    "## Insight fields and current values",
+    checklistLines.join("\n"),
+    extraLines.length > 0
+      ? ["## Other current insights", extraLines.join("\n")].join("\n")
+      : "",
+  ]
+    .filter((line) => line.trim().length > 0)
+    .join("\n");
 }
 
 function buildKnownPreferencesSection(
@@ -258,7 +327,9 @@ function buildKnownPreferencesSection(
 
   const lines: string[] = [];
   const engagementTypes = Array.isArray(prefs.engagementTypes)
-    ? prefs.engagementTypes.filter((entry) => typeof entry === "string" && entry.length > 0)
+    ? prefs.engagementTypes.filter(
+        (entry) => typeof entry === "string" && entry.length > 0
+      )
     : [];
   const preferredLocations = Array.isArray(prefs.preferredLocations)
     ? prefs.preferredLocations.filter(
@@ -274,16 +345,21 @@ function buildKnownPreferencesSection(
   );
 
   const intentLabel =
-    typeof prefs.careerMoveIntentLabel === "string" && prefs.careerMoveIntentLabel.trim().length > 0
+    typeof prefs.careerMoveIntentLabel === "string" &&
+    prefs.careerMoveIntentLabel.trim().length > 0
       ? prefs.careerMoveIntentLabel.trim()
-      : typeof prefs.careerMoveIntent === "string" && prefs.careerMoveIntent.trim().length > 0
+      : typeof prefs.careerMoveIntent === "string" &&
+          prefs.careerMoveIntent.trim().length > 0
         ? prefs.careerMoveIntent.trim()
         : "(미설정)";
   lines.push(
     `- careerMoveIntent: ${intentLabel} (read-only — 사용자가 직접 UI에서만 변경하므로 update_talent_profile에서는 절대 다루지 마라)`
   );
 
-  if (typeof prefs.periodicIntervalDays === "number" && Number.isFinite(prefs.periodicIntervalDays)) {
+  if (
+    typeof prefs.periodicIntervalDays === "number" &&
+    Number.isFinite(prefs.periodicIntervalDays)
+  ) {
     lines.push(`- periodicIntervalDays: ${prefs.periodicIntervalDays}`);
   }
   if (
@@ -297,24 +373,6 @@ function buildKnownPreferencesSection(
     "## 현재 talent_preferences (구조화 필드, update_talent_profile 호출 시 합집합/덮어쓰기 머지 기준)",
     ...lines,
   ].join("\n");
-}
-
-function buildExtractionKnownInsightsSection(
-  content: Record<string, string> | null
-) {
-  if (!content || Object.keys(content).length === 0) return "";
-
-  return (
-    "\n## Currently Known Insights\n" +
-    Object.entries(content)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .slice(0, 20)
-      .map(
-        ([key, value]) =>
-          `- "${key}": "${value.length > 150 ? `${value.slice(0, 150)}...` : value}"`
-      )
-      .join("\n")
-  );
 }
 
 function renderCareerPromptBlocks(blocks: CareerPromptBlock[]) {
@@ -352,35 +410,10 @@ function buildProfileContextBlock(args: {
   ].join("\n");
 }
 
-function buildUncoveredInsightSection(args: {
-  coverageRatio: number;
-  isOnboardingActive: boolean;
-  topUncovered: string;
-}) {
-  if (!args.isOnboardingActive) {
-    return [
-      "Onboarding is already completed. Do not restart the onboarding checklist.",
-    ].join("\n");
-  }
-
-  if (args.topUncovered && args.coverageRatio < TALENT_INTERVIEW_MIN_COVERAGE) {
-    return [
-      "Prioritize naturally asking about these uncovered topics (one at a time):",
-      args.topUncovered,
-    ].join("\n");
-  }
-
-  return [
-    "Insight coverage is sufficient. Stop asking new insight-coverage questions.",
-    "Closing is allowed now, but do not force an immediate ending if one lightweight optional question naturally follows from the latest answer or career context.",
-    "If no optional question clearly fits now, close the onboarding politely using the end marker rule above.",
-  ].join("\n");
-}
-
 function buildCareerConversationPromptPlan(args: {
+  additionalQuestionSelectionCount?: number | null;
   callEndInstruction?: string;
   channel: CareerPromptChannel;
-  coveredCount: number;
   currentInsightContent: Record<string, string> | null;
   currentPreferences?: CareerPromptPreferences | null;
   interruptHandling?: string;
@@ -389,41 +422,35 @@ function buildCareerConversationPromptPlan(args: {
   recentConversationSection?: string;
   structuredProfileText: string;
   toolNames?: readonly string[] | string;
-  totalInsightCount: number;
-  uncoveredItems: CareerPromptInsightItem[];
-  userTurnCount: number;
 }): CareerPromptPlan {
   const channelType = getCareerChannelType(args.channel);
-  const coverageRatio =
-    args.totalInsightCount > 0 ? args.coveredCount / args.totalInsightCount : 1;
-  const coverageThresholdPercent = Math.round(
-    TALENT_INTERVIEW_MIN_COVERAGE * 100
-  );
-  const existingInsightsSection = buildKnownInsightsSection({
+  const insightGuidanceSection = buildKnownInsightsSection({
     content: args.currentInsightContent,
-    maxPerValue: args.channel === "voice" ? 120 : 150,
-    maxTotal: args.channel === "voice" ? 1500 : 2000,
     quoteKeys: args.channel === "chat",
   });
+
   const existingPreferencesSection = buildKnownPreferencesSection(
     args.currentPreferences
   );
-  const topUncovered = args.uncoveredItems
-    .slice(0, 10)
-    .map((item) => `- ${item.promptHint}`)
-    .join("\n");
   const isOnboardingActive = !Boolean(args.isOnboardingDone);
   const profileContextBlock = buildProfileContextBlock({
     profile: args.profile,
     structuredProfileText: args.structuredProfileText,
   });
   const normalizedToolNames = normalizeToolNames(args.toolNames);
+  const additionalQuestionSelectionCount =
+    typeof args.additionalQuestionSelectionCount === "number" &&
+    Number.isFinite(args.additionalQuestionSelectionCount)
+      ? Math.max(0, Math.floor(args.additionalQuestionSelectionCount))
+      : null;
+
   // During onboarding, suppress the standard tool policy block UNLESS the silent
   // profile-writer (update_talent_profile) is enabled — that one runs during
   // onboarding too and needs its policy/trigger rules in the system prompt.
-  const allowToolPolicyDuringOnboarding = normalizedToolNames.includes(
-    "update_talent_profile"
-  );
+  const allowToolPolicyDuringOnboarding =
+    normalizedToolNames.includes("update_talent_profile") ||
+    normalizedToolNames.includes("select_additional_onboarding_question");
+
   const toolPolicy =
     isOnboardingActive && !allowToolPolicyDuringOnboarding
       ? ""
@@ -434,23 +461,25 @@ function buildCareerConversationPromptPlan(args: {
 
   const dynamicStateLines = [
     `## Runtime context \n현재 후보자와 ${channelType}을 통해 소통하고 있습니다. (Voice Call or Text Chat) \n현재 시각 : ${new Date().toLocaleString()}`,
-    `Insight coverage: ${args.coveredCount}/${args.totalInsightCount} items covered.`,
-    `Completion threshold: ${coverageThresholdPercent}% coverage.`,
-    existingInsightsSection,
+    isOnboardingActive && additionalQuestionSelectionCount !== null
+      ? [
+          "## Additional question runtime state",
+          `- Additional questions already selected: ${additionalQuestionSelectionCount}/${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX}`,
+          additionalQuestionSelectionCount >=
+          TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX
+            ? "- The maximum has been reached. Do not ask another additional question; move to final priority confirmation instead."
+            : "- Use the selector only if the next turn is truly in Additional questions phase.",
+        ].join("\n")
+      : "",
+    insightGuidanceSection,
     existingPreferencesSection,
     args.recentConversationSection ?? "", // voice 일 때만 들어감
-    buildUncoveredInsightSection({
-      coverageRatio,
-      isOnboardingActive,
-      topUncovered,
-    }),
-    `Current user turn count: ${args.userTurnCount}.`,
   ].filter((value) => value && value.trim().length > 0);
 
   const promptBlocks: CareerPromptBlock[] = [
     {
       key: "chat_core",
-      text: buildCareerSharedSystemPrompt(channelType),
+      text: CAREER_CHAT_SYSTEM_PROMPT.replace(/\{channel_type\}/g, channelType),
       cacheable: true,
     },
   ];
@@ -481,6 +510,12 @@ function buildCareerConversationPromptPlan(args: {
     }
   }
 
+  promptBlocks.push({
+    key: "profile_context",
+    text: profileContextBlock,
+    cacheable: true,
+  });
+
   if (toolPolicy) {
     promptBlocks.push({
       key: "tool_policy",
@@ -490,50 +525,31 @@ function buildCareerConversationPromptPlan(args: {
   }
 
   promptBlocks.push({
-    key: "profile_context",
-    text: profileContextBlock,
-    cacheable: true,
-  });
-
-  promptBlocks.push({
     key: "dynamic_state",
     text: dynamicStateLines.join("\n\n"),
   });
 
   return {
+    enabledToolNames: normalizedToolNames,
     isOnboardingActive,
     promptBlocks,
     toolPolicy,
   };
 }
 
-export function buildCareerChatPromptBlocks(args: {
-  coveredCount: number;
+export function buildCareerTextChatPromptBlocks(args: {
+  additionalQuestionSelectionCount?: number | null;
   currentInsightContent: Record<string, string> | null;
   currentPreferences?: CareerPromptPreferences | null;
   isOnboardingDone?: boolean;
   profile: CareerPromptProfile | null;
   structuredProfileText: string;
   toolNames?: readonly string[] | string;
-  totalInsightCount: number;
-  uncoveredItems: CareerPromptInsightItem[];
-  userTurnCount: number;
 }): CareerPromptPlan {
   const plan = buildCareerConversationPromptPlan({
     ...args,
     channel: "chat",
   });
-
-  logger.log("\n\n topUncovered : ", args.uncoveredItems);
-  logger.log(
-    "\n\n existingInsightsSection : ",
-    buildKnownInsightsSection({
-      content: args.currentInsightContent,
-      maxPerValue: 150,
-      maxTotal: 2000,
-      quoteKeys: true,
-    })
-  );
 
   return plan;
 }
@@ -569,7 +585,7 @@ export function buildCareerRealtimeRecentConversationSection(
 }
 
 export function buildCareerRealtimePromptPlan(args: {
-  coveredCount: number;
+  additionalQuestionSelectionCount?: number | null;
   currentInsightContent: Record<string, string> | null;
   interruptHandling: string;
   isOnboardingDone?: boolean;
@@ -577,15 +593,12 @@ export function buildCareerRealtimePromptPlan(args: {
   recentConversationSection: string;
   structuredProfileText: string;
   toolNames?: readonly string[] | string;
-  totalInsightCount: number;
-  uncoveredItems: CareerPromptInsightItem[];
-  userTurnCount: number;
   profile: CareerPromptProfile | null;
 }) {
   const plan = buildCareerConversationPromptPlan({
     callEndInstruction: args.callEndInstruction,
+    additionalQuestionSelectionCount: args.additionalQuestionSelectionCount,
     channel: "voice",
-    coveredCount: args.coveredCount,
     currentInsightContent: args.currentInsightContent,
     interruptHandling: args.interruptHandling,
     isOnboardingDone: args.isOnboardingDone,
@@ -593,9 +606,6 @@ export function buildCareerRealtimePromptPlan(args: {
     recentConversationSection: args.recentConversationSection,
     structuredProfileText: args.structuredProfileText,
     toolNames: args.toolNames,
-    totalInsightCount: args.totalInsightCount,
-    uncoveredItems: args.uncoveredItems,
-    userTurnCount: args.userTurnCount,
   });
 
   return {
@@ -632,6 +642,9 @@ export function buildCareerToolPolicyPrompt(args: {
   );
   const hasUpdateTalentProfileTool = toolNames.includes(
     "update_talent_profile"
+  );
+  const hasAdditionalQuestionSelectorTool = toolNames.includes(
+    "select_additional_onboarding_question"
   );
   const channelRule =
     args.channel === "voice"
@@ -682,35 +695,52 @@ export function buildCareerToolPolicyPrompt(args: {
     ...(hasUpdateTalentProfileTool
       ? [
           "",
-          "### update_talent_profile (silent profile writer)",
-          "- Purpose: silently merge new info the user just shared into talent_insights (9 free-text keys) and talent_preferences (engagementTypes, preferredLocations, periodicIntervalDays, recommendationBatchSize). Eligible during onboarding AND after.",
-          "- Trigger conditions (call when EITHER applies):",
-          "  1) Declarative self-statement: 사용자가 '저는 ~예요', '~이 좋아요', '~은 어려워요' 같이 본인의 선호/상황/조건을 직접 진술한 경우.",
-          "  2) Q&A pair: 직전 assistant 메시지가 명확한 질문이고, 사용자가 짧게 답한 경우(예: assistant '이직 생각 있으세요?' / user '네' 또는 '아직은 둘러보는 정도'). 직전 질문 컨텍스트와 함께 해석해 적절한 키에 매핑.",
+          "### update_talent_profile (background profile writer)",
+          "- Purpose: update internal profile state with new info the user just shared: talent_preferences (engagementTypes, preferredLocations, periodicIntervalDays, recommendationBatchSize) and row memos. Eligible during onboarding AND after.",
+          "- This tool does NOT update talent_insights. Do not send insight fields to this tool.",
+          "- This tool is background-only from the user's perspective: never mention that you saved, updated, noted, or added anything. However, you MUST still produce a normal user-facing chat reply after the tool result. Do not return an empty assistant message, and do not return only an onboarding marker.",
+          "- Trigger conditions: call ONLY when the user's latest statement directly maps to a writable field in this tool:",
+          "  1) talent_preferences: engagementTypes, preferredLocations, periodicIntervalDays, recommendationBatchSize.",
+          "  2) rowMemos: a short fact clearly tied to exactly one visible experience/education/extra row.",
+          "- Do NOT call this tool for general onboarding answers that only update insight-like understanding, such as search intensity, desired next role, compensation, must-haves, deal-breakers, team style, environment preference, career-change reason, or optional-question answers. Those are handled outside this tool.",
           "- Do NOT call when:",
           "  - 사용자의 발화가 *질문*(예: '회사들이 보통 어떤 보상을 주나요?')이거나 *가정/추측*(예: '만약 연봉이 1억이면 좋겠죠')일 때.",
           "  - assistant 본인의 발언/요약/메타 멘트에 대해. 사용자가 새로 말한 정보에만 반응한다.",
-          "  - 이미 같은 정보가 '이미 알고 있는 정보'에 들어 있고 변동/보강할 게 없을 때 (중복 호출 금지).",
+          "  - 이미 같은 preference/memo 정보가 들어 있고 변동/보강할 게 없을 때 (중복 호출 금지).",
           "- Read-merge-write 규칙:",
-          "  - talent_insights 9 키는 자유 텍스트로 통째 overwrite 된다. 시스템 프롬프트에 노출된 현재 값을 base로 삼고, 새 정보를 자연스럽게 통합한 *완성된 한 문장(또는 짧은 단락)* 을 보내라. 기존 정보가 의도치 않게 사라지지 않도록 한다.",
           "  - talent_preferences 의 engagementTypes / preferredLocations 배열은 서버가 합집합으로 머지한다. 새로 추가할 항목만 보내면 된다.",
           "  - periodicIntervalDays / recommendationBatchSize 는 사용자가 명확한 숫자 선호를 말했을 때만 보내고, 보내면 그 값으로 덮어쓰기된다.",
           "- 절대 금지:",
           "  - careerMoveIntent 는 schema 에 없으며 어떤 경우에도 다루지 않는다 (변경 시 백그라운드 opportunity discovery job이 트리거되는 부수효과가 있어 사용자 UI 직접 변경만 허용).",
           "  - profileLinks(LinkedIn/GitHub/Scholar/X/개인 사이트), resume 파일은 채팅 발화에 등장해도 이 도구로 쓰지 않는다.",
-          "  - 채팅 응답 텍스트에 'OO에 추가했어요', '프로필에 반영해뒀어요', 'I noted that' 류의 메타 멘트를 절대 쓰지 마라. 호출은 silent 이며 사용자는 평소 chat 흐름만 본다. 결과는 별도 profile/insight UI 에서 사용자가 직접 확인한다.",
+          "  - 채팅 응답 텍스트에 'OO에 추가했어요', '프로필에 반영해뒀어요', 'I noted that' 류의 메타 멘트를 절대 쓰지 마라. 사용자는 평소 chat 흐름만 본다. 결과는 별도 profile/insight UI 에서 사용자가 직접 확인한다.",
           "- rowMemos (talent_experiences/educations/extras 의 'Harper의 메모' 박스):",
           "  - 사용자가 프로필의 *특정* role/school/extra 하나에 분명히 연결되는 declarative 발화를 했을 때만 사용한다 (예: '삼성에서 ML 모델 만들었어요' → 시스템 프롬프트의 Experiences 블록에서 company_name이 '삼성'인 행 하나).",
           "  - experiences/educations 는 시스템 프롬프트에 노출된 그 행의 RowID 값을 verbatim 으로 사용해라. 환각 금지. extras 는 동일 블록의 Title 을 정확히 사용한다.",
           "  - newInfo 에는 *새로 알게 된 정보 한 조각만* 짧은 한국어 자연 문장으로 적어라. 기존 memo 내용을 다시 적지 마라(서버가 자동 append + 2000자 cap).",
-          "  - OMIT 규칙: (1) 후보 행이 두 개 이상 (예: '삼성' → Samsung Electronics + Samsung SDS 둘 다 존재) (2) 매칭되는 행이 없음 (3) 발화가 회사/학교 mention 없는 generic skill — 이런 케이스는 rowMemos 항목을 넣지 마라. 일반 정보는 같은 호출의 insights 가 흡수한다.",
-          "  - 채팅 응답에 '~ 메모에 추가했어요' 같은 멘트는 절대 쓰지 마라. memo 갱신은 완전 silent.",
-          "- 한 turn 에 여러 필드가 동시에 갱신될 수 있으면 한 번의 호출에 insights/preferences/rowMemos 를 같이 담아라 (turn 당 가능하면 1회).",
+          "  - OMIT 규칙: (1) 후보 행이 두 개 이상 (예: '삼성' → Samsung Electronics + Samsung SDS 둘 다 존재) (2) 매칭되는 행이 없음 (3) 발화가 회사/학교 mention 없는 generic skill — 이런 케이스는 rowMemos 항목을 넣지 마라.",
+          "  - 채팅 응답에 '~ 메모에 추가했어요' 같은 멘트는 절대 쓰지 마라. memo 갱신 사실은 말하지 않는다.",
+          "- 한 turn 에 여러 필드가 동시에 갱신될 수 있으면 한 번의 호출에 preferences/rowMemos 를 같이 담아라 (turn 당 가능하면 1회).",
+          "- After calling this tool, continue the conversation naturally in Korean: acknowledge the substance of what the user said, ask the next relevant question if onboarding is still active, or close naturally with the required marker if enough information has been collected.",
+          "",
+        ]
+      : []),
+    ...(hasAdditionalQuestionSelectorTool
+      ? [
+          "",
+          "### select_additional_onboarding_question (onboarding additional question selector)",
+          "- Purpose: choose the best next Additional questions phase question from the user's structured profile, recent conversation, and known insights.",
+          "- Eligible only during onboarding. Use it when core insight collection is reasonably covered and the next step should be an additional onboarding question.",
+          "- This tool may return either a profile-gap question OR a role-specific depth/preference question. If necessary, include one profile-gap question at least.",
+          "- When this tool is available and you are in Additional questions phase, call it before asking the additional question. Do not invent the additional question yourself first.",
+          "- Pass the user's latest message in `latestUserMessage` when available, especially in voice calls.",
+          "- After the tool result, ask exactly one question using the returned `assistantMessage` naturally in Korean. Do not mention the tool, JSON, internal gap analysis, or selection rationale.",
+          "- Do not close onboarding in the same response after this tool. Wait for the user's answer.",
           "",
         ]
       : []),
     "- Use `web_search` only when the user needs current, factual, or web-dependent information.",
-    "- Do not use tools for the normal onboarding interview flow if you can continue from the existing conversation context. (Exception: `update_talent_profile` is the silent state-writer above — it follows its own trigger rules and may run during onboarding.)",
+    "- Do not use tools for the normal onboarding interview flow if you can continue from the existing conversation context. (Exceptions: `update_talent_profile` is the background state-writer above; `select_additional_onboarding_question` is required for Additional questions phase when available.)",
     "- After tool use, summarize only the useful findings. Do not dump raw JSON.",
     "- Mention source names or URLs only when they materially help the user.",
     channelRule,
@@ -718,25 +748,15 @@ export function buildCareerToolPolicyPrompt(args: {
 }
 
 export function buildCareerInsightExtractionPrompt(args: {
-  coveredCount: number;
   currentInsightContent: Record<string, string> | null;
-  totalCount: number;
-  uncoveredItems: CareerPromptInsightItem[];
 }) {
-  const checklistLines = args.uncoveredItems
-    .map((item) => `- "${item.key}": ${item.promptHint}`)
-    .join("\n");
-  const existingSection = buildExtractionKnownInsightsSection(
+  const insightChecklistSection = buildExtractionInsightChecklistSection(
     args.currentInsightContent
   );
 
   return `You are an insight extraction assistant. Given a recent conversation window (up to 3 messages) between a user and Harper (an AI career counselor), extract structured career insights.
 
-Insight coverage: ${args.coveredCount}/${args.totalCount} items covered.
-${existingSection}
-
-## Checklist (extract when mentioned)
-${checklistLines}
+${insightChecklistSection}
 
 You may also extract free-form insights as snake_case keys with Korean values.
 
@@ -755,25 +775,16 @@ Return a valid JSON object:
 }
 
 export function buildCareerInsightExtractionOnlyPrompt(args: {
-  coveredCount: number;
   currentInsightContent: Record<string, string> | null;
   insightMdOverride?: string;
-  totalCount: number;
-  uncoveredItems: CareerPromptInsightItem[];
 }) {
-  const checklistLines = args.uncoveredItems
-    .map((item) => `- "${item.key}": ${item.promptHint}`)
-    .join("\n");
-  const existingSection = buildExtractionKnownInsightsSection(
+  const insightChecklistSection = buildExtractionInsightChecklistSection(
     args.currentInsightContent
   );
   const md = args.insightMdOverride ?? loadPrompt("insight-extraction.md");
 
   return fillPlaceholders(extractSection(md, "extractionOnly"), {
-    coveredCount: args.coveredCount,
-    totalCount: args.totalCount,
-    checklistLines,
-    existingInsightsSection: existingSection,
+    insightChecklistSection,
   });
 }
 

@@ -229,7 +229,12 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ...result, assistantMessage, followUpRunId });
+    return NextResponse.json({
+      ...result,
+      assistantMessage,
+      followUpRunId,
+      opportunityDiscoveryQueued: Boolean(followUpRunId),
+    });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to update opportunity";

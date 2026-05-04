@@ -3,7 +3,6 @@ import { CareerOpportunityType, type CareerHistoryOpportunity } from "../types";
 import {
   getMetaItems,
   getOpportunityPanelTone,
-  getOpportunityStatusLabel,
   getOpportunityTypeLabel,
 } from "../CareerHistoryPanel";
 import {
@@ -79,7 +78,18 @@ export const OpportunityHeader = ({
             ) : (
               <span className="min-w-0 break-words">{item.companyName}</span>
             )}
-            {item.location && <span>· {item.location}</span>}
+            {item.location && (
+              <>
+                <span>·</span>
+                <span>{item.location}</span>
+              </>
+            )}
+            {metaItems.map((meta) => (
+              <React.Fragment key={`${item.id}-${meta}`}>
+                <span>·</span>
+                <span>{meta}</span>
+              </React.Fragment>
+            ))}
           </div>
           {postedAgo && (
             <div className="mt-1 text-[14px] leading-6 text-beige900/60">
@@ -101,9 +111,6 @@ export const OpportunityHeader = ({
             !stacked && "sm:justify-end"
           )}
         >
-          {metaItems.map((meta) => (
-            <HistoryMetaPill key={`${item.id}-${meta}`}>{meta}</HistoryMetaPill>
-          ))}
           {extraComponent && extraComponent}
         </div>
         <HistoryOpportunityInfoTag
@@ -114,12 +121,6 @@ export const OpportunityHeader = ({
     </div>
   );
 };
-
-const HistoryMetaPill = ({ children }: { children: ReactNode }) => (
-  <span className="flex items-center justify-center rounded-full border border-beige900/10 bg-white/55 px-2.5 py-1 text-[12px] leading-5 text-beige900/80">
-    {children}
-  </span>
-);
 
 const HistorySectionTitle = ({
   icon,
@@ -203,12 +204,9 @@ const HistoryOpportunityDetailContent = ({
           <HistoryDetailArrowButton direction="next" onClick={onMoveNext} />
         )}
         <CareerInlinePanel
-          className={careerCx(
-            "rounded-[8px] p-1",
-            getOpportunityPanelTone(item)
-          )}
+          className={careerCx("rounded-2xl p-1", getOpportunityPanelTone(item))}
         >
-          <div className="flex w-full flex-col items-start justify-between rounded-[8px] border border-beige200 bg-beige50 px-5 py-6">
+          <div className="flex w-full flex-col items-start justify-between rounded-2xl border border-beige200 bg-beige50 px-5 py-6">
             <OpportunityHeader
               item={item}
               onOpenOpportunityInfo={onOpenOpportunityInfo}
@@ -260,18 +258,17 @@ const HistoryOpportunityDetailContent = ({
             )}
           </div>
 
-          <div className="flex flex-col gap-8 px-5 py-5 font-inter text-[15px] font-normal text-black/80">
+          <div className="flex flex-col gap-8 px-5 py-4 font-inter text-[15px] font-normal text-black/80">
             {roleLink && (
               <button
                 type="button"
                 onClick={() => onOpenLink(roleLink)}
-                className="flex min-h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-beige900 bg-beige900 px-4 py-3 text-sm font-medium text-[#f5ecdd] transition-opacity hover:opacity-95"
+                className="flex min-h-9 w-full items-center justify-center gap-2 rounded-[8px] border border-beige900 bg-beige900 px-4 py-3 text-sm font-medium text-[#f5ecdd] transition-opacity hover:opacity-95"
               >
                 JD 확인하기
                 <ArrowUpRight className="h-4 w-4" />
               </button>
             )}
-
             <div className="space-y-2">
               <HistorySectionTitle
                 icon={<Building2 className="h-4 w-4" />}
@@ -308,7 +305,7 @@ const HistoryOpportunityDetailContent = ({
   );
 };
 
-export default HistoryOpportunityDetailContent;
+export default React.memo(HistoryOpportunityDetailContent);
 
 export const HistoryOpportunityInfoTag = ({
   item,

@@ -1,0 +1,9 @@
+- generic [active] [ref=e1]:
+  - main [ref=e5]:
+    - generic [ref=e8]:
+      - heading "데스크탑에서 만나요" [level=1] [ref=e9]
+      - generic [ref=e10]:
+        - paragraph [ref=e11]: Harper는 대화하면서 동시에 매칭, 워치리스트, 프로필을 같이 보여드려요. 한 화면에 다 있어야 진짜 도움이 되는데, 지금 화면이 좀 좁아요.
+        - paragraph [ref=e12]: 데스크탑이나 큰 화면에서 다시 들어오시면 정확히 이어서 진행돼요.
+        - paragraph [ref=e13]: — Harper
+  - alert [ref=e14]

@@ -54,15 +54,15 @@ export function logLlmTokenUsage(args: {
   if (!args.label) return;
 
   const usage = extractLlmTokenUsage(args.response);
-  console.info("[llm-usage]", {
-    label: args.label,
-    model: args.model,
-    cacheCreationInputTokens: usage.cacheCreationInputTokens,
-    cacheHit: (usage.cacheReadInputTokens ?? 0) > 0,
-    cacheReadInputTokens: usage.cacheReadInputTokens,
-    inputTokens: usage.inputTokens,
-    outputTokens: usage.outputTokens,
-    totalProcessedInputTokens: usage.totalProcessedInputTokens,
-    totalTokens: usage.totalTokens,
-  });
+  // console.info("[llm-usage]", {
+  //   label: args.label,
+  //   model: args.model,
+  //   cacheCreationInputTokens: usage.cacheCreationInputTokens,
+  //   cacheHit: (usage.cacheReadInputTokens ?? 0) > 0,
+  //   cacheReadInputTokens: usage.cacheReadInputTokens,
+  //   inputTokens: usage.inputTokens,
+  //   outputTokens: usage.outputTokens,
+  //   totalProcessedInputTokens: usage.totalProcessedInputTokens,
+  //   totalTokens: usage.totalTokens,
+  // });
 }

@@ -1,8 +1,19 @@
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
+import { TALENT_MESSAGE_TYPE_ONBOARDING_ADDITIONAL_QUESTION_SELECTION } from "@/lib/talentOnboarding/onboarding";
 import {
   TALENT_PENDING_QUESTION_PREFIX,
   type TalentMessageRow,
 } from "@/lib/talentOnboarding/models";
+
+const HIDDEN_MESSAGE_TYPES = new Set([
+  TALENT_MESSAGE_TYPE_ONBOARDING_ADDITIONAL_QUESTION_SELECTION,
+]);
+
+function removeHiddenMessages(messages: TalentMessageRow[]) {
+  return messages.filter(
+    (message) => !HIDDEN_MESSAGE_TYPES.has(message.message_type ?? "")
+  );
+}
 
 export async function fetchMessages(args: {
   admin: TalentAdminClient;
@@ -21,7 +32,7 @@ export async function fetchMessages(args: {
     throw new Error(error.message ?? "Failed to load talent_messages");
   }
 
-  return (data ?? []) as TalentMessageRow[];
+  return removeHiddenMessages((data ?? []) as TalentMessageRow[]);
 }
 
 export async function fetchRecentMessages(args: {
@@ -43,7 +54,7 @@ export async function fetchRecentMessages(args: {
     throw new Error(error.message ?? "Failed to load recent talent_messages");
   }
 
-  return ((data ?? []) as TalentMessageRow[]).reverse();
+  return removeHiddenMessages(((data ?? []) as TalentMessageRow[]).reverse());
 }
 
 export async function fetchVisibleMessagesPage(args: {
@@ -76,7 +87,7 @@ export async function fetchVisibleMessagesPage(args: {
     throw new Error(error.message ?? "Failed to load visible talent_messages");
   }
 
-  const rows = (data ?? []) as TalentMessageRow[];
+  const rows = removeHiddenMessages((data ?? []) as TalentMessageRow[]);
   const hasMore = rows.length > pageSize;
   const pageRows = hasMore ? rows.slice(0, pageSize) : rows;
   const oldestRow = pageRows[pageRows.length - 1] ?? null;
@@ -101,6 +112,30 @@ export async function countUserChatTurns(args: {
 
   if (error) {
     throw new Error(error.message ?? "Failed to count user chat turns");
+  }
+
+  return count ?? 0;
+}
+
+export async function countAdditionalOnboardingQuestionSelections(args: {
+  admin: TalentAdminClient;
+  conversationId: string;
+}) {
+  const { admin, conversationId } = args;
+  const { count, error } = await admin
+    .from("talent_messages")
+    .select("id", { count: "exact", head: true })
+    .eq("conversation_id", conversationId)
+    .eq("role", "assistant")
+    .eq(
+      "message_type",
+      TALENT_MESSAGE_TYPE_ONBOARDING_ADDITIONAL_QUESTION_SELECTION
+    );
+
+  if (error) {
+    throw new Error(
+      error.message ?? "Failed to count additional onboarding questions"
+    );
   }
 
   return count ?? 0;

@@ -163,6 +163,7 @@ module.exports = {
         geist: ["Geist", "sans-serif"],
         halant: ["Halant", "serif"],
         inter: ["var(--font-inter)", "sans-serif"],
+        instrument: ["Instrument Serif", "serif"],
         hedvig: ["Hedvig Letters Serif", "inter"],
         garamond: ["var(--font-garamond)", "serif"],
         mono: ["Menlo", "monospace", "sans-serif"],

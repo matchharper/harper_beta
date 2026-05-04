@@ -7,7 +7,7 @@ import {
 import { careerCx, CareerInlinePanel } from "../ui/CareerPrimitives";
 import { SAVED_TABS } from "../CareerHistoryPanel";
 import { getOpportunityPanelTone } from "../CareerHistoryPanel";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Dot } from "lucide-react";
 import {
   BeigeActionDropdown,
   BeigeActionDropdownItem,
@@ -113,7 +113,6 @@ const OpportunityListCard = ({
         >
           <OpportunityHeader
             item={item}
-            layout="stacked"
             onOpenOpportunityInfo={onOpenOpportunityInfo}
             extraComponent={
               <>
@@ -126,7 +125,6 @@ const OpportunityListCard = ({
                         onChange={onSavedStageChange}
                       />
                     )}
-                    {action}
                   </div>
                 )}
               </>
@@ -157,10 +155,12 @@ const OpportunityListCard = ({
               recommendationConcerns.map((concern, index) => (
                 <div
                   key={`${item.id}-concern-${index}`}
-                  className="flex items-start gap-2 rounded-[8px] border border-[#d6c6a4] bg-[#fbf4e8] px-3 py-2 text-[13px] leading-6 text-beige900/70"
+                  className="flex items-start gap-2 text-[14px] leading-6"
                 >
-                  <span className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-[#9a7b39]" />
-                  <div className="min-w-0">{concern}</div>
+                  <span className="mt-[10px] h-1 w-1 shrink-0 rounded-full bg-beige700" />
+                  <div className="text-sm leading-6 text-beige700">
+                    주의 요소 : {concern}
+                  </div>
                 </div>
               ))}
           </div>

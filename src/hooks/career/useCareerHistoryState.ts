@@ -12,6 +12,7 @@ import type {
   CareerOpportunitySavedStage,
 } from "@/components/career/types";
 import { getErrorMessage } from "@/hooks/career/careerHelpers";
+import { showOpportunityDiscoveryStartedToast } from "@/hooks/career/opportunityDiscoveryToast";
 import {
   deriveHistoryOpportunityCounts,
   getDefaultSavedStage,
@@ -337,6 +338,8 @@ export function useCareerHistoryState(args: {
 
       return payload as {
         assistantMessage?: CareerMessagePayload | null;
+        followUpRunId?: string | null;
+        opportunityDiscoveryQueued?: boolean;
       };
     },
     [fetchWithAuth]
@@ -388,6 +391,9 @@ export function useCareerHistoryState(args: {
         });
         if (payload.assistantMessage) {
           onHistoryActionAssistantMessage?.(payload.assistantMessage);
+        }
+        if (payload.opportunityDiscoveryQueued) {
+          showOpportunityDiscoveryStartedToast();
         }
       } catch (error) {
         restoreHistoryOpportunity(normalizedOpportunityId, previousItem);

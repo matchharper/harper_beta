@@ -12,6 +12,7 @@ import {
   normalizeTalentRecommendationBatchSize,
 } from "@/lib/talentOnboarding/recommendationSettings";
 import { getErrorMessage } from "./careerHelpers";
+import { showOpportunityDiscoveryStartedToast } from "./opportunityDiscoveryToast";
 import type { FetchWithAuth } from "./useCareerApi";
 
 type UseCareerTalentPreferencesArgs = {
@@ -20,6 +21,8 @@ type UseCareerTalentPreferencesArgs = {
 };
 
 type TalentPreferencesPayload = {
+  opportunityDiscoveryQueued?: boolean;
+  opportunityRunId?: string | null;
   preferences?: unknown;
   preferencesUpdatedAt?: string | null;
   error?: string;
@@ -184,6 +187,9 @@ export const useCareerTalentPreferences = ({
         payload.preferences ?? emptyPreferences(),
         payload.preferencesUpdatedAt
       );
+      if (payload.opportunityDiscoveryQueued) {
+        showOpportunityDiscoveryStartedToast();
+      }
       setTalentPreferencesSaveInfo("프로필 설정을 저장했습니다.");
       return true;
     } catch (error) {

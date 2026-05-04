@@ -3,8 +3,14 @@ import Head from "next/head";
 import Image from "next/image";
 import { useRouter } from "next/router";
 import { Loader2, Mail } from "lucide-react";
+import CareerMobileViewportGate from "@/components/career/CareerMobileViewportGate";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { BeigeButton, BeigeInput } from "@/components/ui/beige";
+import {
+  appendCareerMobileEntryReason,
+  resolveCareerMobileEntryReason,
+} from "@/lib/career/mobileBlocker";
+import { useAuthStore } from "@/store/useAuthStore";
 
 const schoolLogos = [
   { src: "/images/logos/sn.png", name: "서울대학교" },
@@ -32,7 +38,7 @@ const CareerLoginLoadingState = () => (
   </main>
 );
 
-const CareerLogin = () => {
+const CareerLoginContent = () => {
   const router = useRouter();
   const {
     user,
@@ -91,7 +97,11 @@ const CareerLogin = () => {
       password,
     });
     if (ok) {
-      void router.replace(nextPath);
+      const targetPath =
+        emailMode === "signup"
+          ? appendCareerMobileEntryReason(nextPath, "post_signup")
+          : nextPath;
+      void router.replace(targetPath);
     }
   };
 
@@ -283,6 +293,22 @@ const CareerLogin = () => {
         </section>
       </main>
     </>
+  );
+};
+
+const CareerLogin = () => {
+  const router = useRouter();
+  const user = useAuthStore((state) => state.user);
+  const entryReason = resolveCareerMobileEntryReason(router.query);
+
+  return (
+    <CareerMobileViewportGate
+      desktopFallback={<CareerLoginLoadingState />}
+      entryReason={entryReason}
+      user={user}
+    >
+      <CareerLoginContent />
+    </CareerMobileViewportGate>
   );
 };
 

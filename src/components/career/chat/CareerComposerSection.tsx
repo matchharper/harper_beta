@@ -8,7 +8,7 @@ import {
   Phone,
   PhoneOff,
 } from "lucide-react";
-import { KeyboardEvent, useState } from "react";
+import { KeyboardEvent, useRef, useState } from "react";
 import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
 import { isOnboardingPaused } from "@/hooks/career/careerHelpers";
 import { CareerSecondaryButton, careerCx } from "../ui/CareerPrimitives";
@@ -24,7 +24,6 @@ const CareerComposerSection = () => {
     profilePending,
     chatPending,
     assistantTyping,
-    opportunitySearchLocked,
     onboardingBeginPending,
     callStartPending = false,
     onboardingPausePending,
@@ -45,10 +44,11 @@ const CareerComposerSection = () => {
   const [draft, setDraft] = useState("");
   const [chatLinkDraft, setChatLinkDraft] = useState("");
   const [showLinkInput, setShowLinkInput] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const onboardingPaused = isOnboardingPaused(messages);
   const isStartingCall = onboardingBeginPending || callStartPending;
 
-  const isComposerLocked =
+  const isTextInputLocked =
     !user ||
     !conversationId ||
     sessionPending ||
@@ -56,10 +56,9 @@ const CareerComposerSection = () => {
     showVoiceStartPrompt ||
     profilePending ||
     isStartingCall ||
-    onboardingPausePending ||
-    chatPending ||
-    assistantTyping ||
-    opportunitySearchLocked;
+    onboardingPausePending;
+  const isComposerActionLocked =
+    isTextInputLocked || chatPending || assistantTyping;
 
   const composerPlaceholder = !user
     ? "로그인 후 대화를 시작할 수 있습니다."
@@ -69,11 +68,9 @@ const CareerComposerSection = () => {
         ? "아래 시작 버튼으로 대화를 시작해 주세요."
         : onboardingPaused
           ? "바로 입력하면 대화가 이어집니다."
-          : opportunitySearchLocked
-            ? "기회를 찾는 중입니다. 검색이 끝나면 다시 입력할 수 있습니다."
-            : profilePending
-              ? "이력서와 링크를 분석 중입니다."
-              : "Harper에게 답변을 입력하세요.";
+          : profilePending
+            ? "이력서와 링크를 분석 중입니다."
+            : "Harper에게 답변을 입력하세요.";
 
   const showCallQuickAction =
     Boolean(user) &&
@@ -87,18 +84,21 @@ const CareerComposerSection = () => {
   const handleSend = async () => {
     const text = draft.trim();
     if (!text) return;
+    if (isComposerActionLocked) return;
 
     const link = chatLinkDraft.trim();
     setDraft("");
     setChatLinkDraft("");
     setShowLinkInput(false);
+    window.requestAnimationFrame(() => textareaRef.current?.focus());
 
     await onSendChatMessage({
       text,
       link,
       onError: () => {
-        setDraft(text);
-        setChatLinkDraft(link);
+        setDraft((current) => current || text);
+        setChatLinkDraft((current) => current || link);
+        if (link) setShowLinkInput(true);
       },
     });
   };
@@ -118,7 +118,7 @@ const CareerComposerSection = () => {
             <button
               type="button"
               onClick={onVoicePrimaryAction}
-              disabled={isComposerLocked}
+              disabled={isComposerActionLocked}
               className={careerCx(
                 "group relative flex min-h-[44px] flex-1 items-center justify-center overflow-hidden rounded-[8px] border px-4 py-3 text-sm transition-all duration-150",
                 voiceListening && !voiceMuted
@@ -150,7 +150,7 @@ const CareerComposerSection = () => {
 
             <CareerSecondaryButton
               onClick={onToggleVoiceMute}
-              disabled={isComposerLocked}
+              disabled={isComposerActionLocked}
               className="h-12 w-12 px-0"
               aria-label={voiceMuted ? "음소거 해제" : "음소거"}
             >
@@ -172,6 +172,7 @@ const CareerComposerSection = () => {
         <div className="rounded-3xl border border-beige900/20 transition-all duration-200 focus-within:border-beige900/40 focus-within:shadow-[0_0_16px_rgba(0,0,0,0.1)] bg-white px-3 py-3 shadow-[0_0_16px_rgba(0,0,0,0.05)]">
           <div className="relative flex items-end gap-2">
             <textarea
+              ref={textareaRef}
               id="career-chat-composer"
               value={isVoiceMode ? voiceTranscript : draft}
               onChange={(event) => setDraft(event.target.value)}
@@ -184,7 +185,7 @@ const CareerComposerSection = () => {
                     : "듣는 중..."
                   : composerPlaceholder
               }
-              disabled={isComposerLocked}
+              disabled={isTextInputLocked}
               className={careerCx(
                 "min-w-0 flex-1 resize-none border-none px-0.5 py-1 text-[15px] leading-5 text-beige900 outline-none transition-all placeholder:text-beige900/35 disabled:cursor-not-allowed",
                 isVoiceMode ? "min-h-[64px]" : "min-h-[88px]"
@@ -197,7 +198,7 @@ const CareerComposerSection = () => {
                     <button
                       type="button"
                       onClick={() => onStartVoiceCall()}
-                      disabled={isComposerLocked || isStartingCall}
+                      disabled={isComposerActionLocked || isStartingCall}
                       className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-beige900/15 bg-white/45 text-beige900/50 transition-colors hover:border-beige900/30 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-50"
                       aria-label="음성 모드"
                     >
@@ -206,7 +207,7 @@ const CareerComposerSection = () => {
                     <button
                       type="button"
                       onClick={() => onStartCallMode?.()}
-                      disabled={isComposerLocked || isStartingCall}
+                      disabled={isComposerActionLocked || isStartingCall}
                       className="inline-flex h-9 px-3 gap-2 text-sm items-center justify-center rounded-[8px] border border-beige900/50 bg-beige900 text-beige50 transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                       aria-label="통화 모드"
                     >
@@ -222,7 +223,7 @@ const CareerComposerSection = () => {
                 <button
                   type="button"
                   onClick={() => void handleSend()}
-                  disabled={isComposerLocked || !draft.trim()}
+                  disabled={isComposerActionLocked || !draft.trim()}
                   className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-beige900 bg-beige900 text-[#f5ecdd] transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {chatPending || assistantTyping ? (

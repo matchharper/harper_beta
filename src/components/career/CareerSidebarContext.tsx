@@ -28,6 +28,8 @@ export type CareerSidebarContextValue = {
   opportunityRun: CareerOpportunityRun | null;
   opportunityRunTriggerPending: boolean;
   onRunOpportunityDiscoveryTest: () => void | Promise<void>;
+  callStartPending?: boolean;
+  onStartCallMode?: (openingText?: string) => boolean | Promise<boolean>;
   recentOpportunities: CareerRecentOpportunity[];
   historyOpportunityCounts: CareerHistoryOpportunityCounts;
   historyOpportunities: CareerHistoryOpportunity[];

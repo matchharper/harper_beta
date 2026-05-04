@@ -1,4 +1,4 @@
-import { Loader2, Mic, MicOff, X } from "lucide-react";
+import { Loader2, Mic, MicOff, X, Captions } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
 import { careerCx } from "@/components/career/ui/CareerPrimitives";
@@ -24,11 +24,11 @@ const WaveformDots = memo(() => {
         return (
           <div
             key={i}
-            className="h-1.5 w-1.5 rounded-full transition-all duration-150"
+            className={careerCx(
+              "h-1.5 w-1.5 rounded-full bg-beige900 transition-[opacity,transform] duration-150",
+              active ? "opacity-100" : "opacity-25"
+            )}
             style={{
-              backgroundColor: active
-                ? "rgb(var(--color-beige900))"
-                : "rgb(var(--color-beige900) / 0.2)",
               transform: active
                 ? `scaleY(${1 + voiceInputLevel * 1.5})`
                 : "scaleY(1)",
@@ -302,7 +302,7 @@ const CareerCallScreen = ({
             }`}
             aria-label="자막 토글"
           >
-            cc
+            <Captions className="h-5 w-5" />
           </button>
 
           {/* End call */}

@@ -1,4 +1,4 @@
-import type { GetServerSideProps } from "next";
+import type { GetStaticPaths, GetStaticProps } from "next";
 import CareerWorkspacePage from "@/components/career/CareerWorkspacePage";
 import {
   isCareerWorkspaceTab,
@@ -9,36 +9,45 @@ type CareerTabPageProps = {
   activeTab: CareerWorkspaceTab;
 };
 
+type CareerTabPageParams = {
+  tab?: string[];
+};
+
+const REDIRECT_TO_HOME_TABS = new Set(["chat", "home"]);
+const CAREER_TAB_PATHS = [
+  "/career",
+  "/career/history",
+  "/career/profile",
+  "/career/home",
+  "/career/chat",
+];
+
 const CareerTabPage = ({ activeTab }: CareerTabPageProps) => (
   <CareerWorkspacePage activeTab={activeTab} />
 );
 
-export const getServerSideProps: GetServerSideProps<
-  CareerTabPageProps
+export const getStaticPaths: GetStaticPaths<
+  CareerTabPageParams
+> = async () => ({
+  paths: CAREER_TAB_PATHS,
+  fallback: false,
+});
+
+export const getStaticProps: GetStaticProps<
+  CareerTabPageProps,
+  CareerTabPageParams
 > = async (context) => {
-  const rawTab = Array.isArray(context.params?.tab)
-    ? context.params?.tab[0]
-    : context.params?.tab;
+  const rawTab = context.params?.tab?.[0] ?? null;
 
   if (!rawTab) {
     return {
-      redirect: {
-        destination: "/career",
-        permanent: false,
+      props: {
+        activeTab: "home",
       },
     };
   }
 
-  if (rawTab === "home") {
-    return {
-      redirect: {
-        destination: "/career",
-        permanent: false,
-      },
-    };
-  }
-
-  if (rawTab === "chat") {
+  if (REDIRECT_TO_HOME_TABS.has(rawTab)) {
     return {
       redirect: {
         destination: "/career",

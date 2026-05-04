@@ -5,9 +5,10 @@ import CareerRichText from "@/components/career/ui/CareerRichText";
 
 // User bubble 색상을 바꾸려면 이 클래스를 수정하세요.
 export const USER_BUBBLE_CLASS =
-  "ml-auto max-w-[820px] rounded-[8px] bg-beige900 px-4 py-2 text-beige100";
+  "ml-auto max-w-[820px] rounded-[12px] rounded-tl-[8px] bg-beige900 px-4 py-2 text-beige100";
 
-export const ASSISTANT_BUBBLE_CLASS = "max-w-[920px] py-1 text-beige900/80";
+export const ASSISTANT_BUBBLE_CLASS =
+  "max-w-[920px] rounded-[8px] bg-white px-4 py-3 text-beige900/80";
 const ASSISTANT_RICH_TEXT_CLASS =
   "text-[14px] leading-7 [&_blockquote]:text-[14px] [&_blockquote]:leading-7 [&_li]:leading-7 [&_ol]:text-[14px] [&_ol]:leading-7 [&_p]:text-[14px] [&_p]:leading-7 [&_pre]:text-[12px] [&_pre]:leading-5 [&_table]:text-[13px] [&_td]:text-[13px] [&_th]:text-[13px] [&_ul]:text-[14px] [&_ul]:leading-7";
 
@@ -115,7 +116,7 @@ const CareerMessageBubble = ({
       className={[
         "max-w-[92%] text-[14px] leading-6 transition-colors duration-300",
         isUser ? USER_BUBBLE_CLASS : ASSISTANT_BUBBLE_CLASS,
-        !isUser && isAssistantSpeaking ? "bg-white/20" : "",
+        !isUser && isAssistantSpeaking ? "ring-1 ring-beige900/10" : "",
       ].join(" ")}
     >
       <div className="flex items-start gap-2">

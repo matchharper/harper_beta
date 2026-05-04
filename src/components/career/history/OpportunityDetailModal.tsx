@@ -5,7 +5,13 @@ import {
   getPositiveActionLabel,
   getNegativeActionLabel,
 } from "../CareerHistoryPanel";
-import { MessageSquare, RotateCcw, ThumbsDown, ThumbsUp } from "lucide-react";
+import {
+  ArchiveRestore,
+  MessageSquare,
+  RotateCcw,
+  ThumbsDown,
+  ThumbsUp,
+} from "lucide-react";
 import {
   getCareerFeedbackButtonClassName,
   getCareerDefaultFeedbackButtonClassName,
@@ -87,7 +93,7 @@ const OpportunityDetailModal = ({
               <HistoryFeedbackButton
                 className={getCareerDefaultFeedbackButtonClassName(false)}
                 disabled={pending}
-                icon={<RotateCcw className="h-4 w-4" />}
+                icon={<ArchiveRestore className="h-4 w-4" />}
                 label="새 기회로 되돌리기"
                 onClick={onRestore}
               />

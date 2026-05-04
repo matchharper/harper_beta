@@ -23,6 +23,7 @@ import {
   shouldShowVoiceStartPrompt,
   toUiMessage,
 } from "./careerHelpers";
+import { showOpportunityDiscoveryStartedToast } from "./opportunityDiscoveryToast";
 import type { FetchWithAuth } from "./useCareerApi";
 import { USE_ELEVENLABS_TTS } from "@/lib/careerVoiceConfig";
 import {
@@ -230,6 +231,9 @@ export const useCareerOnboardingVoice = ({
             onOpportunityRunChanged?.(
               payload.opportunityRun as CareerOpportunityRun
             );
+          }
+          if (response.ok && payload?.opportunityDiscoveryQueued) {
+            showOpportunityDiscoveryStartedToast();
           }
           if (response.ok && payload?.searchStatusMessage) {
             appendMessage(toUiMessage(payload.searchStatusMessage));

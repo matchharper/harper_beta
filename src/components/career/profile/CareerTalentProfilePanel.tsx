@@ -324,12 +324,10 @@ const TimelineBlock = ({
           <div className="mt-3 flex items-start gap-2.5 rounded-[10px] border border-beige700/15 bg-beige100 px-3.5 py-3">
             <MessageSquare className="mt-1 h-3.5 w-3.5 shrink-0 text-beige700" />
             <div className="min-w-0">
-              <div className="mb-1 text-[10.5px] font-semibold uppercase tracking-[0.16em] text-beige700">
+              <div className="mb-1 text-[10.5px] font-medium text-beige700">
                 Harper의 메모
               </div>
-              <div className="font-halant text-[15px] leading-6 text-beige900">
-                {memo}
-              </div>
+              <div className="text-sm leading-6 text-beige900">{memo}</div>
             </div>
           </div>
         )}

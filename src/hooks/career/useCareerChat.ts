@@ -8,6 +8,7 @@ import type {
   SessionResponse,
 } from "@/components/career/types";
 import { getErrorMessage, sleep, toUiMessage } from "./careerHelpers";
+import { showOpportunityDiscoveryStartedToast } from "./opportunityDiscoveryToast";
 import type { FetchWithAuth } from "./useCareerApi";
 
 type SendChatArgs = {
@@ -446,6 +447,12 @@ export const useCareerChat = ({
                 ? (data.opportunityRun as CareerOpportunityRun | null)
                 : null;
               onOpportunityRunChanged?.(run ?? null);
+              if (
+                isRecord(data) &&
+                data.opportunityDiscoveryQueued === true
+              ) {
+                showOpportunityDiscoveryStartedToast();
+              }
               return;
             }
 
@@ -535,6 +542,9 @@ export const useCareerChat = ({
           onOpportunityRunChanged?.(
             payload.opportunityRun as CareerOpportunityRun
           );
+        }
+        if (payload?.opportunityDiscoveryQueued) {
+          showOpportunityDiscoveryStartedToast();
         }
         if (isRecord(payload) && "talentPreferences" in payload) {
           onTalentPreferencesRefreshed?.(

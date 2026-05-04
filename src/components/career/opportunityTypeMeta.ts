@@ -91,7 +91,7 @@ export const CAREER_OPPORTUNITY_TYPE_META: Record<
       ],
       requiresComment: false,
     },
-    panelToneClassName: "bg-beige200/80",
+    panelToneClassName: "bg-white",
     positiveActionLabel: "저장하기",
     positiveFeedback: {
       modal: {

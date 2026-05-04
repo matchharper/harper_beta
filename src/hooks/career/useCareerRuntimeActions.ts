@@ -1,6 +1,7 @@
 import { useCallback, type Dispatch, type SetStateAction } from "react";
 import type { CareerOpportunityRun } from "@/components/career/types";
 import { getErrorMessage } from "@/hooks/career/careerHelpers";
+import { showOpportunityDiscoveryStartedToast } from "@/hooks/career/opportunityDiscoveryToast";
 import type { FetchWithAuth } from "@/hooks/career/useCareerApi";
 
 export function useCareerRuntimeActions(args: {
@@ -99,6 +100,7 @@ export function useCareerRuntimeActions(args: {
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as {
+        opportunityDiscoveryQueued?: boolean;
         run?: CareerOpportunityRun | null;
       };
 
@@ -109,6 +111,9 @@ export function useCareerRuntimeActions(args: {
       }
 
       setOpportunityRun(payload.run ?? null);
+      if (payload.opportunityDiscoveryQueued) {
+        showOpportunityDiscoveryStartedToast();
+      }
     } catch (error) {
       setChatError(
         error instanceof Error

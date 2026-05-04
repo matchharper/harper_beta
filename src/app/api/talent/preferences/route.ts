@@ -221,6 +221,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
+      opportunityDiscoveryQueued: Boolean(opportunityRunId),
       opportunityRunId,
       preferences: toResponsePreferences(savedSetting),
       talentInsights: toResponseInsights(savedInsights),

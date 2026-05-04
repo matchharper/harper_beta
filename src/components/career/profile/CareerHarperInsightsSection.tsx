@@ -28,7 +28,7 @@ const CareerHarperInsightsSection = () => {
 
   const insightEntries = useMemo(() => {
     const entries = Object.entries(talentInsights ?? {});
-    // Add empty entries for uncovered checklist items
+    // Add empty entries for insight fields that do not have saved values yet.
     const coveredKeys = new Set(entries.map(([k]) => k));
     for (const item of INSIGHT_CHECKLIST) {
       if (!coveredKeys.has(item.key)) {
