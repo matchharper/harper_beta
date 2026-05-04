@@ -8,7 +8,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "ops:workspace:sync-list": "node scripts/syncCompanyWorkspacesFromList.mjs"
+    "ops:workspace:sync-list": "node scripts/syncCompanyWorkspacesFromList.mjs",
+    "index:help": "tsx scripts/index-help-chunks.ts",
+    "prepare": "husky"
   },
   "dependencies": {
     "@deepgram/sdk": "^4.11.2",
@@ -71,10 +73,12 @@
     "@types/uuid": "^10.0.0",
     "eslint": "^8",
     "eslint-config-next": "14.2.5",
+    "husky": "^9.1.7",
     "postcss": "^8.4.40",
     "prettier": "^3.3.3",
     "tailwind-scrollbar": "^3.1.0",
     "tailwindcss": "^3.4.7",
+    "tsx": "^4.20.0",
     "typescript": "^5"
   }
 }

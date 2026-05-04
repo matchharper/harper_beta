@@ -10,6 +10,11 @@ import {
   type TalentChatMessage,
   type TalentChatTool,
 } from "@/lib/talentOnboarding/llm";
+import {
+  logTalentToolCall,
+  logTalentToolError,
+  logTalentToolResult,
+} from "@/lib/talentOnboarding/toolLogging";
 
 export const CAREER_LLM_CONFIG = {
   // 공통 talent assistant 모델 설정. runTalentAssistantCompletion/ToolLoop 기반
@@ -601,13 +606,29 @@ export async function runCareerChatAssistant(args: {
       for (const toolCall of executableToolCalls) {
         totalToolCalls += 1;
 
+        const toolInput =
+          toolCall.input && typeof toolCall.input === "object"
+            ? toolCall.input
+            : {};
+        logTalentToolCall({
+          callId: toolCall.id,
+          input: toolInput,
+          loop,
+          name: toolCall.name,
+          source: "career/chat:assistant:anthropic",
+        });
+        const toolStartedAt = Date.now();
         try {
           const result = await args.executeTool({
             name: toolCall.name,
-            input:
-              toolCall.input && typeof toolCall.input === "object"
-                ? toolCall.input
-                : {},
+            input: toolInput,
+          });
+          logTalentToolResult({
+            callId: toolCall.id,
+            durationMs: Date.now() - toolStartedAt,
+            name: toolCall.name,
+            result,
+            source: "career/chat:assistant:anthropic",
           });
           toolResultBlocks.push({
             type: "tool_result",
@@ -616,8 +637,16 @@ export async function runCareerChatAssistant(args: {
           });
           if (stopAfterToolNameSet.has(toolCall.name)) {
             shouldStopAfterTool = true;
+            break;
           }
         } catch (error) {
+          logTalentToolError({
+            callId: toolCall.id,
+            durationMs: Date.now() - toolStartedAt,
+            error,
+            name: toolCall.name,
+            source: "career/chat:assistant:anthropic",
+          });
           toolResultBlocks.push({
             type: "tool_result",
             tool_use_id: toolCall.id,

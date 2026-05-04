@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   buildTalentProfileContext,
-  countUserChatTurns,
+  countAdditionalOnboardingQuestionSelections,
   fetchVisibleMessagesPage,
   fetchTalentInsights,
   fetchTalentSetting,
@@ -10,15 +10,13 @@ import {
   fetchTalentUserProfile,
   getTalentSupabaseAdmin,
 } from "@/lib/talentOnboarding/server";
-import {
-  getUncoveredChecklistItems,
-  INSIGHT_CHECKLIST,
-} from "@/lib/talentOnboarding/insightChecklist";
 import { warmCache } from "@/lib/talentOnboarding/prompts/promptCache";
 import {
   getTalentToolVoicePreambles,
   getRealtimeTools,
+  TALENT_TOOL_NAMES,
 } from "@/lib/talentOnboarding/tools";
+import { TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX } from "@/lib/talentOnboarding/onboarding";
 import {
   getCareerCallEndInstructionPrompt,
   getCareerInterruptHandlingPrompt,
@@ -40,10 +38,19 @@ async function buildRealtimeInstructions(
 
   const admin = getTalentSupabaseAdmin();
 
-  const [profile, currentInsights, talentSetting] = await Promise.all([
+  const [
+    profile,
+    currentInsights,
+    talentSetting,
+    additionalQuestionSelectionCount,
+  ] = await Promise.all([
     fetchTalentUserProfile({ admin, userId }),
     fetchTalentInsights({ admin, userId }),
     fetchTalentSetting({ admin, userId }),
+    countAdditionalOnboardingQuestionSelections({
+      admin,
+      conversationId,
+    }),
   ]);
 
   const structuredProfile = await fetchTalentStructuredProfile({
@@ -59,7 +66,6 @@ async function buildRealtimeInstructions(
     maxResumeChars: 3000,
   });
 
-  const userTurnCount = await countUserChatTurns({ admin, conversationId });
   const { messages: visibleMessages } = await fetchVisibleMessagesPage({
     admin,
     conversationId,
@@ -70,8 +76,19 @@ async function buildRealtimeInstructions(
     string,
     string
   > | null;
-  const uncoveredItems = getUncoveredChecklistItems(currentInsightContent);
-  const coveredCount = INSIGHT_CHECKLIST.length - uncoveredItems.length;
+  const canSelectAdditionalOnboardingQuestion =
+    additionalQuestionSelectionCount <
+    TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX;
+  const promptToolNames = talentSetting?.is_onboarding_done
+    ? toolNames.filter(
+        (toolName) =>
+          toolName !== TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION
+      )
+    : toolNames.filter(
+        (toolName) =>
+          canSelectAdditionalOnboardingQuestion &&
+          toolName === TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION
+      );
 
   const recentConversationSection =
     buildCareerRealtimeRecentConversationSection(
@@ -81,18 +98,15 @@ async function buildRealtimeInstructions(
       }))
     );
   return buildCareerRealtimePromptPlan({
+    additionalQuestionSelectionCount,
     callEndInstruction: getCareerCallEndInstructionPrompt(),
-    coveredCount,
     currentInsightContent,
     interruptHandling: getCareerInterruptHandlingPrompt(),
     isOnboardingDone: talentSetting?.is_onboarding_done,
     profile,
     recentConversationSection,
     structuredProfileText,
-    toolNames,
-    totalInsightCount: INSIGHT_CHECKLIST.length,
-    uncoveredItems,
-    userTurnCount,
+    toolNames: promptToolNames,
   });
 }
 
@@ -157,7 +171,12 @@ export async function POST(req: NextRequest) {
       realtimeTools.map((tool) => tool.name)
     );
     const instructions = realtimePromptPlan.instructions;
-    const tools = realtimePromptPlan.isOnboardingActive ? [] : realtimeTools;
+    const enabledRealtimeToolNames = new Set(
+      realtimePromptPlan.enabledToolNames
+    );
+    const tools = realtimeTools.filter((tool) =>
+      enabledRealtimeToolNames.has(tool.name)
+    );
     const toolVoicePreambles =
       tools.length > 0 ? getTalentToolVoicePreambles("voice") : {};
     const realtimeConfig = getCareerRealtimeSessionConfig(

@@ -1,4 +1,12 @@
-import { Loader2, RotateCcw } from "lucide-react";
+import {
+  ArchiveRestore,
+  CheckCircle2,
+  Loader2,
+  MessageSquareText,
+  Search,
+  Sparkles,
+  Target,
+} from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -47,7 +55,7 @@ import HistoryOpportunityInfoModal from "./history/HistoryOppotunityInfoModal";
 import OpportunityDetailModal from "./history/OpportunityDetailModal";
 import HistoryShortcutPanel from "./history/HistoryShortcutPanel";
 import { BeigeButton } from "@/components/ui/beige/button";
-import CandidateCarousel from "../chat/LoadingComponent";
+import React from "react";
 
 type HistoryTabId = "new" | "saved" | "archived";
 type HistoryDisplayTabId = "new" | "tracking" | "applied" | "archived";
@@ -94,18 +102,18 @@ export const SAVED_TABS: Array<{
 ];
 
 const formatEmploymentType = (value: string) => {
-  if (value === "full_time") return "Full-time";
-  if (value === "part_time") return "Part-time";
-  if (value === "internship") return "Internship";
-  if (value === "contract") return "Contract";
+  if (value === "full_time") return "";
+  if (value === "part_time") return "파트타임";
+  if (value === "internship") return "인턴";
+  if (value === "contract") return "계약직";
   if (value === "fractional") return "Fractional";
   return value.replaceAll("_", " ");
 };
 
 const formatWorkMode = (value: string | null) => {
-  if (value === "remote") return "Remote";
-  if (value === "hybrid") return "Hybrid";
-  if (value === "onsite") return "On-site";
+  if (value === "remote") return "원격근무";
+  if (value === "hybrid") return "대면 + 원격";
+  if (value === "onsite") return "대면근무";
   return value;
 };
 
@@ -214,11 +222,227 @@ export const HistoryFeedbackButton = ({
   </button>
 );
 
+type HistoryEmptyStateVariant = "onboarding" | "searching" | "matching";
+
+const clampPercent = (value: number) =>
+  Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0;
+
+const HistoryEmptyStateDetail = ({
+  body,
+  icon,
+  title,
+}: {
+  body: string;
+  icon: ReactNode;
+  title: string;
+}) => (
+  <div className="flex items-start gap-3">
+    <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] bg-beige500 text-beige900/70">
+      {icon}
+    </span>
+    <div>
+      <div className="text-[13px] font-medium leading-5 text-beige900">
+        {title}
+      </div>
+      <div className="mt-1 text-[12px] leading-5 text-beige900/50">{body}</div>
+    </div>
+  </div>
+);
+
+const HistoryEmptyStatePanel = ({
+  answeredCount,
+  onOpenChat,
+  progressPercent,
+  targetQuestions,
+  variant,
+}: {
+  answeredCount: number;
+  onOpenChat: () => void;
+  progressPercent: number;
+  targetQuestions: number;
+  variant: HistoryEmptyStateVariant;
+}) => {
+  const normalizedProgress = clampPercent(progressPercent);
+  const answeredLabel = Math.max(0, Math.min(answeredCount, targetQuestions));
+
+  const config =
+    variant === "searching"
+      ? {
+          actionLabel: null,
+          details: [
+            {
+              body: "대화, 프로필, 링크에서 역할 선호와 강한 신호를 추려요.",
+              icon: <Sparkles className="h-3.5 w-3.5" />,
+              title: "후보자 신호 정리",
+            },
+            {
+              body: "Harper 네트워크와 외부 포지션을 함께 비교하고 있어요.",
+              icon: <Search className="h-3.5 w-3.5" />,
+              title: "기회 스캔",
+            },
+            {
+              body: "적합도가 높은 순서로 새 포지션 탭에 보여드릴게요.",
+              icon: <Target className="h-3.5 w-3.5" />,
+              title: "추천 정렬",
+            },
+          ],
+          eyebrow: "추천 탐색 중",
+          icon: <Loader2 className="h-5 w-5 animate-spin" />,
+          sideTitle: "지금 진행 중인 일",
+          title: "Harper가 맞는 기회를 찾고 있습니다.",
+          toneClassName: "bg-beige900 text-beige50",
+          body: (
+            <>
+              추천을 만들기 위해 프로필과 대화 내용을 기준으로 기회를 비교하고
+              있습니다. 완료되면 이 화면의{" "}
+              <span className="font-medium">새 포지션</span>에 바로 표시됩니다.
+            </>
+          ),
+        }
+      : variant === "onboarding"
+        ? {
+            actionLabel: "대화 이어가기",
+            details: [
+              {
+                body: "역할, 팀 규모, 근무 방식 같은 핵심 조건을 더 확인합니다.",
+                icon: <MessageSquareText className="h-3.5 w-3.5" />,
+                title: "몇 가지 답변 필요",
+              },
+              {
+                body: "응답이 충분해지면 Harper가 자동으로 추천 탐색을 시작해요.",
+                icon: <Sparkles className="h-3.5 w-3.5" />,
+                title: "추천 준비",
+              },
+              {
+                body: "완료 후에는 새 포지션, 추적 중, 지원함 상태로 관리됩니다.",
+                icon: <CheckCircle2 className="h-3.5 w-3.5" />,
+                title: "히스토리 생성",
+              },
+            ],
+            eyebrow: "온보딩 미완료",
+            icon: <MessageSquareText className="h-5 w-5" />,
+            sideTitle: "추천 전에 필요한 것",
+            title: "아직 추천 후보를 정리하지 않았습니다.",
+            toneClassName: "bg-beige700/10 text-beige700",
+            body: (
+              <>
+                Harper가 좋은 기회를 고르려면 선호와 현재 상황을 조금 더 알아야
+                합니다. 대화를 이어가면 추천 가능한 신호가 충분해지는 시점에
+                포지션을 정리합니다.
+              </>
+            ),
+          }
+        : {
+            actionLabel: null,
+            details: [
+              {
+                body: "대화 내용은 충분히 모였고, 추천 후보를 좁히는 중입니다.",
+                icon: <CheckCircle2 className="h-3.5 w-3.5" />,
+                title: "온보딩 완료",
+              },
+              {
+                body: "조건에 맞지 않는 포지션은 보여드리지 않도록 걸러냅니다.",
+                icon: <Target className="h-3.5 w-3.5" />,
+                title: "적합도 검토",
+              },
+              {
+                body: "새 추천이 생기면 이 화면과 메일로 확인할 수 있습니다.",
+                icon: <Sparkles className="h-3.5 w-3.5" />,
+                title: "결과 대기",
+              },
+            ],
+            eyebrow: "추천 준비 중",
+            icon: <Search className="h-5 w-5" />,
+            sideTitle: "다음 단계",
+            title: "추천 후보를 정리하고 있습니다.",
+            toneClassName: "bg-beige700/10 text-beige700",
+            body: (
+              <>
+                대화해주셔서 감사합니다. 지금 내용을 바탕으로 맞는 팀과 포지션을
+                확인하고 있습니다. 연결 가능한 기회가 준비되면 바로
+                안내드릴게요.
+              </>
+            ),
+          };
+
+  return (
+    <section className="overflow-hidden rounded-[8px] border border-beige900/10 bg-white shadow-[0_16px_48px_rgba(46,23,6,0.08)]">
+      <div className="grid gap-8 px-6 py-7 lg:grid-cols-[minmax(0,1fr)_240px] lg:px-8 lg:py-8">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={careerCx(
+                "inline-flex h-11 w-11 items-center justify-center rounded-[8px]",
+                config.toneClassName
+              )}
+            >
+              {config.icon}
+            </span>
+            <span className="inline-flex h-8 items-center rounded-full border border-beige900/10 bg-beige50 px-3 text-[12px] font-medium text-beige900/55">
+              {config.eyebrow}
+            </span>
+          </div>
+
+          <h4 className="mt-6 max-w-[640px] font-hedvig text-[24px] font-medium leading-none text-beige900 sm:text-[28px]">
+            {config.title}
+          </h4>
+          <p className="mt-4 max-w-[640px] text-[15px] leading-7 text-beige900/65">
+            {config.body}
+          </p>
+
+          {variant === "searching" && (
+            <div className="mt-7 flex max-w-[520px] items-center gap-3 border-y border-beige900/10 py-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-beige50 text-beige900">
+                <Loader2 className="h-4 w-4 animate-spin" />
+              </div>
+              <div className="text-[13px] leading-6 text-beige900/60">
+                탐색이 끝나면 새 포지션 탭이 자동으로 채워집니다. 화면을 떠나도
+                백그라운드에서 계속 진행됩니다.
+              </div>
+            </div>
+          )}
+
+          {config.actionLabel && (
+            <div className="mt-7">
+              <BeigeButton
+                label={config.actionLabel}
+                icon={<MessageSquareText className="h-4 w-4" />}
+                size="md"
+                variant="primary"
+                onClick={onOpenChat}
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-beige900/10 pt-6 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-1">
+          <div className="text-[11px] font-medium text-beige900/35">
+            {config.sideTitle}
+          </div>
+          <div className="mt-5 space-y-5">
+            {config.details.map((detail) => (
+              <HistoryEmptyStateDetail
+                key={detail.title}
+                body={detail.body}
+                icon={detail.icon}
+                title={detail.title}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
 const CareerHistoryPanel = () => {
   const router = useRouter();
   const {
     stage,
-    userChatCount,
+    answeredCount,
+    progressPercent,
+    opportunityRun,
+    opportunityRunTriggerPending,
     historyOpportunityCounts,
     historyOpportunities,
     historyLoading,
@@ -923,6 +1147,7 @@ const CareerHistoryPanel = () => {
         ? "applied"
         : "tracking"
       : activeTab;
+
   const handleDisplayTabChange = useCallback(
     (nextTab: HistoryDisplayTabId) => {
       if (nextTab === "new") {
@@ -947,101 +1172,42 @@ const CareerHistoryPanel = () => {
   );
 
   const listItems = activeTab === "saved" ? filteredSavedItems : archivedItems;
-  const isConversationCompleted =
-    stage === "completed" || userChatCount >= TALENT_INTERVIEW_FINAL_STEP;
-  const emptyStateCopy = isConversationCompleted
-    ? {
-        body: (
-          <>
-            <div className="leading-7 text-beige900/80">
-              대화해주셔서 감사합니다.
-              <br />
-              지금 내용을 바탕으로 맞는 팀과 포지션을 확인하고 있습니다.
-              <br />
-              연결이 진행되면 메일로 바로 안내드릴게요.
-            </div>
-          </>
-        ),
-        ctaLabel: null,
-        heading: "Mathing in Progress...",
-      }
-    : {
-        body: (
-          <>
-            <div className="leading-7 text-beige900/80">
-              아직 맞는 기회를 추리는 중입니다.
-              <br />
-              몇 가지만 더 이야기해주시면 더 잘 맞는 포지션을
-              <br />더 빠르게 찾을 수 있어요.
-            </div>
-            <div className="mt-6">
-              대화를 이어주시면 내용을 바탕으로 순서대로 정리해 보여드릴게요.
-            </div>
-          </>
-        ),
-        ctaLabel: "대화 이어가기",
-        heading: "Mathing in Progress...",
-      };
-
-  const OuterBox = ({ children }: { children: ReactNode }) => {
-    return (
-      <div>
-        <div className="w-[280px] flex flex-col gap-2 pr-8 mt-2 mb-8">
-          <h3 className="text-[28px] text-black font-normal font-hedvig leading-5">
-            Opportunities
-          </h3>
-        </div>
-        {children}
-      </div>
-    );
-  };
+  const isConversationCompleted = stage === "completed";
+  const isOpportunitySearchActive =
+    opportunityRunTriggerPending || Boolean(opportunityRun?.inputLocked);
+  const emptyStateVariant: HistoryEmptyStateVariant = isOpportunitySearchActive
+    ? "searching"
+    : isConversationCompleted
+      ? "matching"
+      : "onboarding";
 
   if (historyLoading) {
     return (
-      <OuterBox>
-        <section className="px-5 py-6">
-          <div className="flex items-center gap-2 text-[15px] leading-6 text-beige900/55">
-            <Loader2 className="h-4 w-4 animate-spin text-beige900" />
-            저장된 정보를 불러오는 중입니다...
-          </div>
-        </section>
-      </OuterBox>
+      <section className="px-5 py-6">
+        <div className="flex items-center gap-2 text-[15px] leading-6 text-beige900/55">
+          <Loader2 className="h-4 w-4 animate-spin text-beige900" />
+          저장된 정보를 불러오는 중입니다...
+        </div>
+      </section>
     );
   }
 
   if (sortedOpportunities.length === 0) {
     return (
-      <OuterBox>
-        <section className="text-[15px] py-6 flex flex-row items-start justify-between">
-          <div>
-            {emptyStateCopy.body}
-            <div className="mt-6 flex flex-col items-start justify-start gap-8">
-              {emptyStateCopy.ctaLabel ? (
-                <>
-                  <div>원하는 방향이 있다면 지금 이어서 알려주세요.</div>
-                  <BeigeButton
-                    label={emptyStateCopy.ctaLabel}
-                    size="md"
-                    className="text-beige50"
-                    variant="primary"
-                    onClick={openChatTab}
-                  />
-                </>
-              ) : null}
-            </div>
-          </div>
-          <div>
-            <div className="text-beige900 text-2xl font-semibold font-hedvig">
-              {emptyStateCopy.heading}
-            </div>
-          </div>
-        </section>
-      </OuterBox>
+      <HistoryEmptyStatePanel
+        answeredCount={answeredCount}
+        onOpenChat={openChatTab}
+        progressPercent={progressPercent}
+        targetQuestions={TALENT_INTERVIEW_FINAL_STEP}
+        variant={emptyStateVariant}
+      />
     );
   }
 
+  const showShortcutPanel = activeTab === "new" && Boolean(activeOpportunity);
+
   return (
-    <>
+    <div className="flex min-h-full flex-col">
       <div className="my-4">
         <CareerInPageTabs
           items={tabs}
@@ -1050,8 +1216,10 @@ const CareerHistoryPanel = () => {
         />
       </div>
 
-      <div className="flex flex-col gap-6">
-        <div className="min-w-0 flex-1">
+      <div className="relative flex flex-1 flex-col gap-6">
+        <div
+          className={careerCx("min-w-0 flex-1", showShortcutPanel && "pb-24")}
+        >
           {historyUpdateError && (
             <div className="mb-4 rounded-[8px] border border-[#7c2d12]/15 bg-[#7c2d12]/5 px-4 py-3 text-sm text-[#7c2d12]">
               {historyUpdateError}
@@ -1083,7 +1251,7 @@ const CareerHistoryPanel = () => {
           {activeTab === "saved" && (
             <div className="space-y-4">
               {listItems.length > 0 && (
-                <div className="max-h-[calc(100vh-300px)] space-y-3 overflow-y-auto pr-1">
+                <div className="space-y-3 overflow-y-auto pr-1">
                   {listItems.map((item) => (
                     <OpportunityListCard
                       key={item.id}
@@ -1099,7 +1267,7 @@ const CareerHistoryPanel = () => {
                           {pendingOpportunityIds.has(item.id) ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
-                            <RotateCcw className="h-4 w-4" />
+                            <ArchiveRestore className="h-4 w-4" />
                           )}
                           새 기회로 되돌리기
                         </CareerSecondaryButton>
@@ -1128,30 +1296,28 @@ const CareerHistoryPanel = () => {
           )}
 
           {activeTab === "archived" && listItems.length > 0 && (
-            <div className="space-y-3">
-              <div className="max-h-[calc(100vh-260px)] space-y-3 overflow-y-auto pr-1">
-                {listItems.map((item) => (
-                  <OpportunityListCard
-                    key={item.id}
-                    item={item}
-                    pending={pendingOpportunityIds.has(item.id)}
-                    action={
-                      <CareerSecondaryButton
-                        onClick={() => handleRestoreAction(item)}
-                        disabled={pendingOpportunityIds.has(item.id)}
-                        className="h-9 gap-2 px-3"
-                      >
-                        {pendingOpportunityIds.has(item.id) && (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        )}
-                        복구하기
-                      </CareerSecondaryButton>
-                    }
-                    onOpenOpportunityInfo={setInfoOpportunityType}
-                    onOpenDetail={() => setModalOpportunityId(item.id)}
-                  />
-                ))}
-              </div>
+            <div className="space-y-3 overflow-y-auto pr-1">
+              {listItems.map((item) => (
+                <OpportunityListCard
+                  key={item.id}
+                  item={item}
+                  pending={pendingOpportunityIds.has(item.id)}
+                  action={
+                    <CareerSecondaryButton
+                      onClick={() => handleRestoreAction(item)}
+                      disabled={pendingOpportunityIds.has(item.id)}
+                      className="h-9 gap-2 px-3"
+                    >
+                      {pendingOpportunityIds.has(item.id) && (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      )}
+                      복구하기
+                    </CareerSecondaryButton>
+                  }
+                  onOpenOpportunityInfo={setInfoOpportunityType}
+                  onOpenDetail={() => setModalOpportunityId(item.id)}
+                />
+              ))}
             </div>
           )}
 
@@ -1165,19 +1331,21 @@ const CareerHistoryPanel = () => {
             </div>
           )}
         </div>
-        {activeTab === "new" && activeOpportunity && (
-          <HistoryShortcutPanel
-            item={activeOpportunity}
-            pending={pendingOpportunityIds.has(activeOpportunity.id)}
-            onPositive={() => handlePositiveAction(activeOpportunity)}
-            onNegative={() => handleNegativeAction(activeOpportunity)}
-            onQuestion={() => handleQuestionAction(activeOpportunity)}
-            activeIndex={activeIndex}
-            canMoveNext={canMoveNextOpportunity}
-            nextPending={nextOpportunityPending}
-            onNext={handleMoveNextOpportunity}
-            onPrev={() => moveActiveOpportunity(-1)}
-          />
+        {showShortcutPanel && activeOpportunity && (
+          <div className="sticky -bottom-8 z-20 -mx-4 bg-beige50 px-4 pb-3 pt-2 border-t border-beige900/10">
+            <HistoryShortcutPanel
+              item={activeOpportunity}
+              pending={pendingOpportunityIds.has(activeOpportunity.id)}
+              onPositive={() => handlePositiveAction(activeOpportunity)}
+              onNegative={() => handleNegativeAction(activeOpportunity)}
+              onQuestion={() => handleQuestionAction(activeOpportunity)}
+              activeIndex={activeIndex}
+              canMoveNext={canMoveNextOpportunity}
+              nextPending={nextOpportunityPending}
+              onNext={handleMoveNextOpportunity}
+              onPrev={() => moveActiveOpportunity(-1)}
+            />
+          </div>
         )}
       </div>
 
@@ -1269,8 +1437,8 @@ const CareerHistoryPanel = () => {
         }}
         onSubmit={handleSubmitQuestionPrompt}
       />
-    </>
+    </div>
   );
 };
 
-export default CareerHistoryPanel;
+export default React.memo(CareerHistoryPanel);

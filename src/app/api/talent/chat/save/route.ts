@@ -13,10 +13,6 @@ import {
   getTestFlagSlugs,
   getContentForUser,
 } from "@/lib/talentOnboarding/prompts/promptCache";
-import {
-  getUncoveredChecklistItems,
-  INSIGHT_CHECKLIST,
-} from "@/lib/talentOnboarding/insightChecklist";
 import { buildCareerInsightExtractionOnlyPrompt } from "@/lib/career/prompts";
 import {
   completeOnboardingAndQueueInitialOpportunityRun,
@@ -109,8 +105,6 @@ export async function POST(req: NextRequest) {
       string,
       string
     > | null;
-    const uncoveredItems = getUncoveredChecklistItems(currentInsightContent);
-    const coveredCount = INSIGHT_CHECKLIST.length - uncoveredItems.length;
     const extractTurnInsights = () =>
       extractAndPersistChatInsights({
         admin,
@@ -119,19 +113,13 @@ export async function POST(req: NextRequest) {
           const draftInsightMd =
             getContentForUser("insight-extraction", testSlugs) ?? undefined;
           return buildCareerInsightExtractionOnlyPrompt({
-            coveredCount: promptArgs.coveredCount,
             currentInsightContent: promptArgs.currentInsightContent,
             insightMdOverride: draftInsightMd,
-            totalCount: promptArgs.totalCount,
-            uncoveredItems: promptArgs.uncoveredItems,
           });
         },
         conversationId,
-        coveredCount,
         currentInsightContent,
         logPrefix: "ChatSave",
-        totalCount: INSIGHT_CHECKLIST.length,
-        uncoveredItems,
         userId: user.id,
       });
 
@@ -199,11 +187,14 @@ export async function POST(req: NextRequest) {
       ReturnType<typeof completeOnboardingAndQueueInitialOpportunityRun>
     > | null = null;
 
-    const newKeysCount = await extractTurnInsights();
+    await extractTurnInsights();
 
     // Completion check: explicit LLM onboarding-done marker only.
     const userTurnCount = await countUserChatTurns({ admin, conversationId });
-    const insightsCoveredAfter = coveredCount + newKeysCount;
+    const currentProgressStep = Math.min(
+      userTurnCount,
+      TALENT_INTERVIEW_FINAL_STEP
+    );
     const completion = resolveTalentOnboardingCompletion({
       assistantContent: assistantMessageTextWithMarkers ?? "",
       assistantEndedOnboarding,
@@ -239,6 +230,7 @@ export async function POST(req: NextRequest) {
       assistantMessage: toResponseMessage(
         insertedAssistantMessage as TalentMessageRow
       ),
+      opportunityDiscoveryQueued: Boolean(opportunityRun),
       opportunityRun: serializeOpportunityRun(opportunityRun),
       searchStatusMessage: null,
       shouldEndCall: false,
@@ -246,7 +238,7 @@ export async function POST(req: NextRequest) {
         answeredCount: userTurnCount,
         targetCount: TALENT_INTERVIEW_FINAL_STEP,
         completed: isCompleted,
-        currentStep: insightsCoveredAfter,
+        currentStep: currentProgressStep,
       },
     });
   } catch (error) {

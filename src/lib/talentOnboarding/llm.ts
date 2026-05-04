@@ -3,6 +3,11 @@ import {
   supportsResponseFormatForModel,
 } from "@/lib/llm/llm";
 import { logLlmTokenUsage } from "@/lib/llm/usageLogging";
+import {
+  logTalentToolCall,
+  logTalentToolError,
+  logTalentToolResult,
+} from "./toolLogging";
 
 export type TalentChatMessage = {
   content: string;
@@ -278,10 +283,25 @@ export async function runTalentAssistantToolLoop(args: {
         parsedArguments = { _raw: rawArguments };
       }
 
+      logTalentToolCall({
+        callId: toolCallId,
+        input: parsedArguments,
+        loop,
+        name: toolName,
+        source: usageLabel ?? "talent-assistant-tool-loop",
+      });
+      const toolStartedAt = Date.now();
       try {
         const result = await executeTool({
           name: toolName,
           input: parsedArguments,
+        });
+        logTalentToolResult({
+          callId: toolCallId,
+          durationMs: Date.now() - toolStartedAt,
+          name: toolName,
+          result,
+          source: usageLabel ?? "talent-assistant-tool-loop",
         });
 
         workingMessages.push({
@@ -294,6 +314,13 @@ export async function runTalentAssistantToolLoop(args: {
           return "";
         }
       } catch (error) {
+        logTalentToolError({
+          callId: toolCallId,
+          durationMs: Date.now() - toolStartedAt,
+          error,
+          name: toolName,
+          source: usageLabel ?? "talent-assistant-tool-loop",
+        });
         workingMessages.push({
           role: "tool",
           tool_call_id: toolCallId,

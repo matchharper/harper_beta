@@ -1,6 +1,5 @@
 import React from "react";
 import AppHeader from "@/components/common/AppHeader";
-import { AnimatedGraphics, GeometricAnimatedGraphics } from "./Compo";
 
 const PRINCIPLES = [
   {

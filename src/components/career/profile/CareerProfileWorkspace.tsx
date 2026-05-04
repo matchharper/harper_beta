@@ -94,7 +94,7 @@ const CareerProfileWorkspace = () => {
 
   return (
     <>
-      <div className="">
+      <div className="my-4">
         <CareerInPageTabs
           items={tabs}
           activeId={activeSection}
@@ -102,7 +102,7 @@ const CareerProfileWorkspace = () => {
         />
       </div>
 
-      <div className="flex flex-col gap-4 pt-4">
+      <div className="flex flex-col gap-4">
         <div className="w-full">{activeContent}</div>
       </div>
     </>

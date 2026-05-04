@@ -9,6 +9,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   TrendingUp,
+  Undo2,
   X,
 } from "lucide-react";
 import React, { KeyboardEvent, useMemo, useState } from "react";
@@ -124,8 +125,7 @@ const CareerProfileSettingsSection = () => {
 
   const isSavePending = talentPreferencesSavePending || settingsSaving;
   const hasUnsavedChanges =
-    hasUnsavedTalentPreferencesChanges ||
-    hasUnsavedTalentSettingsChanges;
+    hasUnsavedTalentPreferencesChanges || hasUnsavedTalentSettingsChanges;
   const canSaveProfileSettings = hasUnsavedChanges && !settingsLoading;
   const saveError = talentPreferencesSaveError || settingsError;
   const saveInfo = talentPreferencesSaveInfo || settingsSaveInfo;
@@ -136,11 +136,7 @@ const CareerProfileSettingsSection = () => {
         talentInsightsUpdatedAt,
         settingsUpdatedAt
       ),
-    [
-      settingsUpdatedAt,
-      talentInsightsUpdatedAt,
-      talentPreferencesUpdatedAt,
-    ]
+    [settingsUpdatedAt, talentInsightsUpdatedAt, talentPreferencesUpdatedAt]
   );
   const selectedVisibilityOption = useMemo(
     () =>
@@ -496,15 +492,15 @@ const CareerProfileSettingsSection = () => {
         </div>
       )}
 
-      {hasUnsavedChanges ? (
-        <div className="mt-6 flex justify-end gap-2">
+      {hasUnsavedChanges && (
+        <div className="fixed bottom-4 right-4 flex justify-end gap-2">
           <CareerSecondaryButton
             onClick={handleRefresh}
             disabled={isSavePending || settingsLoading}
-            className="gap-2 px-4"
+            className="gap-2 px-4 bg-beige50/70"
           >
-            <RefreshCcw className="h-4 w-4" />
-            Refresh
+            <Undo2 className="h-4 w-4" />
+            되돌리기
           </CareerSecondaryButton>
           <CareerPrimaryButton
             onClick={() => void handleSave()}
@@ -519,7 +515,7 @@ const CareerProfileSettingsSection = () => {
             {isSavePending ? "저장 중..." : "설정 저장"}
           </CareerPrimaryButton>
         </div>
-      ) : null}
+      )}
     </div>
   );
 };

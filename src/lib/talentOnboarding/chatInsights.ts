@@ -1,4 +1,3 @@
-import type { CareerPromptInsightItem } from "@/lib/career/prompts";
 import { runCareerInsightExtraction } from "@/lib/career/llm";
 import { normalizeExtractedInsights } from "@/lib/talentOnboarding/insights";
 import {
@@ -17,10 +16,7 @@ type ExtractionConversationMessage = {
 };
 
 type BuildPromptArgs = {
-  coveredCount: number;
   currentInsightContent: Record<string, string> | null;
-  totalCount: number;
-  uncoveredItems: CareerPromptInsightItem[];
 };
 
 function buildExtractionConversationMessages(args: {
@@ -72,11 +68,8 @@ export async function extractAndPersistChatInsights(args: {
   assistantContent: string;
   buildPrompt: (args: BuildPromptArgs) => string;
   conversationId: string;
-  coveredCount: number;
   currentInsightContent: Record<string, string> | null;
   logPrefix: string;
-  totalCount: number;
-  uncoveredItems: CareerPromptInsightItem[];
   userId: string;
 }) {
   const assistantContent = args.assistantContent.trim();
@@ -106,10 +99,7 @@ export async function extractAndPersistChatInsights(args: {
 
     const rawExtraction = await runCareerInsightExtraction({
       systemPrompt: args.buildPrompt({
-        coveredCount: args.coveredCount,
         currentInsightContent: args.currentInsightContent,
-        totalCount: args.totalCount,
-        uncoveredItems: args.uncoveredItems,
       }),
       conversationMessages,
     });

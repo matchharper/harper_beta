@@ -15,7 +15,7 @@ import {
 } from "../CareerHistoryPanel";
 
 const ShortcutKey = ({ children }: { children: React.ReactNode }) => (
-  <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded-[4px] border border-beige900/10 bg-beige500 px-1.5 text-[10.5px] font-medium leading-none text-beige900/70 shadow-[0_1px_0_rgba(46,23,6,0.05)]">
+  <kbd className="inline-flex h-4 min-w-4 items-center justify-center rounded-[4px] border border-beige900/10 bg-beige500 px-1 text-[9.5px] font-medium leading-none text-beige900/70 shadow-[0_1px_0_rgba(46,23,6,0.05)]">
     {children}
   </kbd>
 );
@@ -36,7 +36,7 @@ const ShortcutActionButton = ({
     onClick={onClick}
     disabled={disabled}
     className={careerCx(
-      "inline-flex h-10 min-w-[120px] flex-1 items-center justify-center gap-2 rounded-[10px] px-3 text-[13.5px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-55",
+      "inline-flex h-10 min-w-[92px] flex-1 items-center justify-center gap-1 rounded-[8px] px-2 font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-55",
       className
     )}
   >
@@ -60,7 +60,7 @@ const ShortcutNavButton = ({
     onClick={onClick}
     disabled={disabled}
     aria-label={label}
-    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-beige900/10 bg-transparent text-beige900/60 transition-colors hover:bg-beige500 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-40"
+    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-beige900/10 bg-transparent text-beige900/60 transition-colors hover:bg-beige500 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-40"
   >
     {children}
   </button>
@@ -90,13 +90,13 @@ const HistoryShortcutPanel = ({
   onQuestion: () => void;
 }) => (
   <div className="space-y-2.5">
-    <div className="flex flex-wrap items-center gap-2 rounded-[14px] border border-beige900/10 bg-white/75 p-2 shadow-[0_1px_2px_rgba(46,23,6,0.04)] sm:flex-nowrap">
+    <div className="flex text-sm flex-wrap items-center gap-1 rounded-[10px] border border-beige900/10 bg-white/75 p-1 shadow-[0_1px_2px_rgba(46,23,6,0.04)] sm:flex-nowrap">
       <ShortcutNavButton
         onClick={onPrev}
         disabled={activeIndex <= 0}
         label="이전 포지션"
       >
-        <ArrowLeft className="h-4 w-4" />
+        <ArrowLeft className="h-3 w-3" />
       </ShortcutNavButton>
 
       <ShortcutActionButton
@@ -104,7 +104,7 @@ const HistoryShortcutPanel = ({
         disabled={pending}
         className="bg-beige500 text-beige900/70 hover:bg-beige200 hover:text-beige900"
       >
-        <ThumbsDown className="h-4 w-4" />
+        <ThumbsDown className="h-3 w-3" />
         {getNegativeActionLabel(item)}
       </ShortcutActionButton>
 
@@ -113,7 +113,7 @@ const HistoryShortcutPanel = ({
         disabled={pending}
         className="border border-beige900/10 bg-white/45 text-beige900/70 hover:border-beige900/20 hover:text-beige900 sm:max-w-[148px]"
       >
-        <MessageSquare className="h-4 w-4" />
+        <MessageSquare className="h-3 w-3" />
         질문하기
       </ShortcutActionButton>
 
@@ -122,7 +122,7 @@ const HistoryShortcutPanel = ({
         disabled={pending}
         className="bg-beige700 text-beige50 hover:bg-beige900"
       >
-        <ThumbsUp className="h-4 w-4" />
+        <ThumbsUp className="h-3 w-3" />
         {getPositiveActionLabel(item)}
       </ShortcutActionButton>
 
@@ -132,32 +132,32 @@ const HistoryShortcutPanel = ({
         label="다음 포지션"
       >
         {nextPending ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <Loader2 className="h-3 w-3 animate-spin" />
         ) : (
-          <ArrowRight className="h-4 w-4" />
+          <ArrowRight className="h-3 w-3" />
         )}
       </ShortcutNavButton>
     </div>
 
-    <div className="flex flex-wrap items-center justify-center gap-2.5 text-[11.5px] leading-5 text-beige900/50">
-      <span className="text-[13px] opacity-60">⌨</span>
-      <span className="inline-flex items-center gap-1.5">
+    <div className="flex flex-wrap items-center justify-center gap-2 text-[12px] leading-4 text-beige900/50">
+      <span className="opacity-60">⌨</span>
+      <span className="inline-flex items-center gap-1">
         <ShortcutKey>←</ShortcutKey>
         <ShortcutKey>→</ShortcutKey>
         이동
       </span>
       <span className="text-beige900/20">·</span>
-      <span className="inline-flex items-center gap-1.5">
+      <span className="inline-flex items-center gap-1">
         <ShortcutKey>S</ShortcutKey>
         {getNegativeActionLabel(item)}
       </span>
       <span className="text-beige900/20">·</span>
-      <span className="inline-flex items-center gap-1.5">
+      <span className="inline-flex items-center gap-1">
         <ShortcutKey>T</ShortcutKey>
         {getPositiveActionLabel(item)}
       </span>
       <span className="text-beige900/20">·</span>
-      <span className="inline-flex items-center gap-1.5">
+      <span className="inline-flex items-center gap-1">
         <ShortcutKey>A</ShortcutKey>
         질문하기
       </span>

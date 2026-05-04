@@ -407,7 +407,6 @@ const CareerTimelineSection = () => {
     assistantTyping,
     chatPending,
     companySnapshotPending,
-    opportunitySearchLocked,
     historyUpdatingOpportunityIds,
     onboardingBeginPending,
     callStartPending = false,
@@ -798,19 +797,6 @@ const CareerTimelineSection = () => {
               </span>
             </StatusMessage>
           )}
-
-        {user && !sessionPending && opportunitySearchLocked && (
-          <TimelinePanel>
-            <div className="flex items-center gap-2 text-sm font-medium text-beige900">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              검색중...
-            </div>
-            <StatusMessage className="mt-3">
-              Harper가 기회를 찾고, 추천 결과를 보여드리고 이어서 대화를
-              진행합니다.
-            </StatusMessage>
-          </TimelinePanel>
-        )}
 
         {user && profilePending && (
           <TimelinePanel className="max-w-[980px]">

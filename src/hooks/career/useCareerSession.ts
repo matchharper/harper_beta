@@ -18,6 +18,14 @@ type UseCareerSessionArgs = {
 };
 
 const CAREER_SESSION_GC_TIME = 30 * 60_000;
+const CAREER_SESSION_MAX_RETRIES = 2;
+
+const shouldRetryCareerSession = (failureCount: number, error: unknown) => {
+  if (failureCount >= CAREER_SESSION_MAX_RETRIES) return false;
+
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return !/Unauthorized|로그인 세션/.test(message);
+};
 
 export const careerSessionKey = (
   userId: string | null,
@@ -87,7 +95,8 @@ export const useCareerSession = ({
     refetchOnMount: false,
     refetchOnReconnect: false,
     refetchOnWindowFocus: false,
-    retry: false,
+    retry: shouldRetryCareerSession,
+    retryDelay: (attemptIndex) => Math.min(1000 * (attemptIndex + 1), 2500),
     staleTime: Infinity,
   });
 

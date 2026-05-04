@@ -105,9 +105,7 @@ IMPORTANT: Include this exact nudge once in your response:
 | `system.md` | `{{userTurnCount}}` | 사용자 발화 횟수 |
 | | `{{resumeFileName}}`, `{{resumeLinks}}` | 이력서 정보 |
 | | `{{structuredProfileText}}` | 구조화된 프로필 |
-| `../career/insights.md` | `{{coveredCount}}`, `{{totalCount}}` | 인사이트 커버리지 |
-| | `{{checklistLines}}`, `{{topUncovered}}` | 체크리스트 항목 |
-| | `{{existingInsightsSection}}` | 기존 인사이트 목록 |
+| `../career/insights.md` | `{{insightChecklistSection}}` | 알아내면 좋은 인사이트와 현재 값 |
 | `misc.md` | `{{CALL_END_MARKER}}` | 통화 종료 마커 (##END##) |
 
 ## 수정 후 테스트

@@ -8,6 +8,7 @@ import type {
   SessionResponse,
 } from "@/components/career/types";
 import { getErrorMessage, sleep, toUiMessage } from "./careerHelpers";
+import { showOpportunityDiscoveryStartedToast } from "./opportunityDiscoveryToast";
 import type { FetchWithAuth } from "./useCareerApi";
 
 type SendChatArgs = {
@@ -31,6 +32,14 @@ type UseCareerChatArgs = {
   sessionPending: boolean;
   fetchWithAuth: FetchWithAuth;
   onOpportunityRunChanged?: (run: CareerOpportunityRun | null) => void;
+  onTalentPreferencesRefreshed?: (
+    preferences: unknown,
+    updatedAt: unknown
+  ) => void;
+  onTalentInsightsRefreshed?: (
+    insights: unknown,
+    updatedAt: unknown
+  ) => void;
   persistedMessages: CareerMessage[];
   onMessagesChanged?: (
     messages: CareerMessagePayload[]
@@ -153,6 +162,8 @@ export const useCareerChat = ({
   sessionPending,
   fetchWithAuth,
   onOpportunityRunChanged,
+  onTalentPreferencesRefreshed,
+  onTalentInsightsRefreshed,
   persistedMessages,
   onMessagesChanged,
 }: UseCareerChatArgs) => {
@@ -436,6 +447,30 @@ export const useCareerChat = ({
                 ? (data.opportunityRun as CareerOpportunityRun | null)
                 : null;
               onOpportunityRunChanged?.(run ?? null);
+              if (
+                isRecord(data) &&
+                data.opportunityDiscoveryQueued === true
+              ) {
+                showOpportunityDiscoveryStartedToast();
+              }
+              return;
+            }
+
+            if (event === "talent_profile") {
+              if (isRecord(data)) {
+                if ("talentPreferences" in data) {
+                  onTalentPreferencesRefreshed?.(
+                    data.talentPreferences,
+                    data.preferencesUpdatedAt
+                  );
+                }
+                if ("talentInsights" in data) {
+                  onTalentInsightsRefreshed?.(
+                    data.talentInsights,
+                    data.insightUpdatedAt
+                  );
+                }
+              }
               return;
             }
 
@@ -508,6 +543,21 @@ export const useCareerChat = ({
             payload.opportunityRun as CareerOpportunityRun
           );
         }
+        if (payload?.opportunityDiscoveryQueued) {
+          showOpportunityDiscoveryStartedToast();
+        }
+        if (isRecord(payload) && "talentPreferences" in payload) {
+          onTalentPreferencesRefreshed?.(
+            payload.talentPreferences,
+            payload.preferencesUpdatedAt
+          );
+        }
+        if (isRecord(payload) && "talentInsights" in payload) {
+          onTalentInsightsRefreshed?.(
+            payload.talentInsights,
+            payload.insightUpdatedAt
+          );
+        }
         if (!response.ok) {
           throw new Error(
             getErrorMessage(payload, "메시지 전송에 실패했습니다.")
@@ -565,6 +615,8 @@ export const useCareerChat = ({
       user,
       onMessagesChanged,
       onOpportunityRunChanged,
+      onTalentInsightsRefreshed,
+      onTalentPreferencesRefreshed,
     ]
   );
 

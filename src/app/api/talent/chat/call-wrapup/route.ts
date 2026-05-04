@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
-  fetchTalentInsights,
   fetchTalentSetting,
   getTalentSupabaseAdmin,
 } from "@/lib/talentOnboarding/server";
-import { INSIGHT_CHECKLIST } from "@/lib/talentOnboarding/insightChecklist";
-import { TALENT_INTERVIEW_MIN_COVERAGE } from "@/lib/talentOnboarding/progress";
 import {
   buildCareerCallWrapupFallbackFollowUp,
   buildCareerCallWrapupPrompt,
@@ -105,12 +102,8 @@ export async function POST(request: NextRequest) {
       transcriptStats,
       safeDurationSeconds
     );
-    const [talentSetting, currentInsights, conversation] = await Promise.all([
+    const [talentSetting, conversation] = await Promise.all([
       fetchTalentSetting({
-        admin: supabase,
-        userId: user.id,
-      }),
-      fetchTalentInsights({
         admin: supabase,
         userId: user.id,
       }),
@@ -121,19 +114,9 @@ export async function POST(request: NextRequest) {
         .eq("user_id", user.id)
         .maybeSingle(),
     ]);
-    const currentInsightContent = (currentInsights?.content ?? null) as Record<
-      string,
-      string
-    > | null;
-    const coveredCount = Object.keys(currentInsightContent ?? {}).length;
-    const coverageRatio =
-      INSIGHT_CHECKLIST.length > 0
-        ? coveredCount / INSIGHT_CHECKLIST.length
-        : 1;
     const inferredOnboardingDone =
       Boolean(talentSetting?.is_onboarding_done) ||
-      conversation.data?.stage === "completed" ||
-      coverageRatio >= TALENT_INTERVIEW_MIN_COVERAGE;
+      conversation.data?.stage === "completed";
 
     let followUpText = buildCareerCallWrapupFallbackFollowUp({
       isBrief: briefConversation,

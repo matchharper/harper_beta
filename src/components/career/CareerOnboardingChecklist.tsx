@@ -36,9 +36,7 @@ const CareerOnboardingChecklist = () => {
       userChatCount,
       TALENT_INTERVIEW_FINAL_STEP
     );
-    const isCompleted =
-      stage === "completed" ||
-      normalizedConversationCount >= TALENT_INTERVIEW_FINAL_STEP;
+    const isCompleted = stage === "completed";
 
     return {
       hasUploadedProfile,

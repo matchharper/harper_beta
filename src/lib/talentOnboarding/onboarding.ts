@@ -3,6 +3,9 @@ export const TALENT_MESSAGE_TYPE_ONBOARDING_INTEREST_PROMPT =
 export const TALENT_MESSAGE_TYPE_ONBOARDING_STATUS = "onboarding_status";
 export const TALENT_MESSAGE_TYPE_ONBOARDING_PAUSE_CLOSE =
   "onboarding_pause_close";
+export const TALENT_MESSAGE_TYPE_ONBOARDING_ADDITIONAL_QUESTION_SELECTION =
+  "onboarding_additional_question_selection";
+export const TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX = 4;
 
 export const TALENT_ONBOARDING_INTEREST_OPTIONS = [
   {

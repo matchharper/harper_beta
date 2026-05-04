@@ -37,6 +37,7 @@ import {
   type MergedChecklistItem,
 } from "@/lib/talentOnboarding/stateStore";
 import {
+  countAdditionalOnboardingQuestionSelections,
   countUserChatTurns,
   fetchMessages,
   fetchRecentMessages,
@@ -71,6 +72,7 @@ export {
   TALENT_SETTING_SELECT_QUERY,
   addCustomChecklistItem,
   buildTalentProfileContext,
+  countAdditionalOnboardingQuestionSelections,
   countUserChatTurns,
   deleteCustomChecklistItem,
   fetchCustomChecklistItems,
@@ -147,6 +149,24 @@ function normalizeComparableEmail(value: string | null | undefined) {
   return normalized ? normalized.toLowerCase() : null;
 }
 
+function isUniqueViolation(error: { code?: string; message?: string } | null) {
+  if (!error) return false;
+  return (
+    error.code === "23505" ||
+    /duplicate key value violates unique constraint/i.test(error.message ?? "")
+  );
+}
+
+function isTargetTalentUserAlreadyClaimed(
+  error: {
+    message?: string;
+  } | null
+) {
+  return /talent_users row already exists for target user/i.test(
+    error?.message ?? ""
+  );
+}
+
 async function claimTalentUserFromMailAlias(args: {
   admin: TalentAdminClient;
   user: User;
@@ -192,6 +212,10 @@ async function claimTalentUserFromMailAlias(args: {
   );
 
   if (error) {
+    if (isTargetTalentUserAlreadyClaimed(error)) {
+      return true;
+    }
+
     throw new Error(
       error.message ?? "Failed to claim existing talent_users profile"
     );
@@ -240,6 +264,10 @@ export async function ensureTalentUserRecord(args: {
     });
 
     if (insertError) {
+      if (isUniqueViolation(insertError)) {
+        return;
+      }
+
       throw new Error(insertError.message ?? "Failed to insert talent_users");
     }
     return;
