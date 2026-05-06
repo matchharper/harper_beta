@@ -20,7 +20,7 @@ type RawRecommendationRow = {
   opportunity_type: string | null;
   preference_fit: Json | null;
   recommended_at: string;
-  recommendation_reasons: Json;
+  fit_reasons: Json;
   role_id: string;
   saved_stage: string | null;
   tradeoffs: Json;
@@ -60,7 +60,7 @@ type RawPostingRecommendationRow = {
   opportunity_type: string | null;
   preference_fit: Json | null;
   recommended_at: string | null;
-  recommendation_reasons: Json;
+  fit_reasons: Json;
   saved_stage: string | null;
   tradeoffs: Json;
   viewed_at: string | null;
@@ -97,7 +97,7 @@ const TALENT_OPPORTUNITY_HISTORY_SELECT = `
   preference_fit,
   fit_summary,
   recommended_at,
-  recommendation_reasons,
+  fit_reasons,
   tradeoffs,
   feedback,
   feedback_at,
@@ -156,7 +156,7 @@ const TALENT_POSTING_ROLE_SELECT = `
     preference_fit,
     fit_summary,
     recommended_at,
-    recommendation_reasons,
+    fit_reasons,
     tradeoffs,
     feedback,
     feedback_at,
@@ -621,7 +621,7 @@ function mapRecommendationRow(
     preferenceFit: normalizePreferenceFit(row.preference_fit ?? null),
     recommendedAt: row.recommended_at,
     recommendationConcerns: normalizeTextList(row.tradeoffs, 3),
-    recommendationReasons: normalizeTextList(row.recommendation_reasons),
+    recommendationReasons: normalizeTextList(row.fit_reasons),
     recommendationSummary: row.fit_summary ?? null,
     roleId: String(row.role_id ?? ""),
     savedStage: normalizeSavedStage(row.saved_stage),
@@ -709,7 +709,7 @@ function mapPostingRoleRow(
       3
     ),
     recommendationReasons: normalizeTextList(
-      existingRecommendation?.recommendation_reasons ?? []
+      existingRecommendation?.fit_reasons ?? []
     ),
     recommendationSummary: existingRecommendation?.fit_summary ?? null,
     roleId,
@@ -930,7 +930,6 @@ async function ensureTalentOpportunityRecommendationForPostingRole(args: {
       kind: "recommendation",
       opportunity_type: opportunityType,
       preference_fit: {},
-      recommendation_reasons: [],
       recommended_at: now,
       role_id: roleId,
       talent_id: args.userId,

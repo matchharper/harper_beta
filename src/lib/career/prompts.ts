@@ -1139,7 +1139,7 @@ export function buildCareerToolPolicyPrompt(args: {
           "### select_additional_onboarding_question (onboarding additional question selector)",
           "- Purpose: choose the best next Additional questions phase question from the user's structured profile, recent conversation, and known insights.",
           "- Eligible only during onboarding. Use it when core insight collection is reasonably covered and the next step should be an additional onboarding question.",
-          "- This tool may return either a profile-gap question OR a role-specific depth/preference question. If necessary, include one profile-gap question at least.",
+          "- This tool may return either a profile-gap question OR a role-specific depth/preference question. Prefer concrete profile gaps, especially substantial experience rows with no description/memo. Do not keep asking broad desired role/tech-stack preference questions.",
           "- When this tool is available and you are in Additional questions phase, call it before asking the additional question. Do not invent the additional question yourself first.",
           "- Pass the user's latest message in `latestUserMessage` when available, especially in voice calls.",
           "- After the tool result, ask exactly one question using the returned `assistantMessage` naturally in Korean. Do not mention the tool, JSON, internal gap analysis, or selection rationale.",

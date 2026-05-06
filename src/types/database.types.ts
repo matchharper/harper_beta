@@ -4782,7 +4782,6 @@ export type Database = {
           preference_fit: Json
           rank: number | null
           ranking_notes: string | null
-          recommendation_reasons: Json
           recommendation_status: string
           recommended_at: string
           role_id: string
@@ -4812,7 +4811,6 @@ export type Database = {
           preference_fit?: Json
           rank?: number | null
           ranking_notes?: string | null
-          recommendation_reasons?: Json
           recommendation_status?: string
           recommended_at?: string
           role_id: string
@@ -4842,7 +4840,6 @@ export type Database = {
           preference_fit?: Json
           rank?: number | null
           ranking_notes?: string | null
-          recommendation_reasons?: Json
           recommendation_status?: string
           recommended_at?: string
           role_id?: string
