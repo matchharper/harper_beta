@@ -10,6 +10,7 @@ import CareerWorkspaceScreen, {
 } from "@/components/career/CareerWorkspaceScreen";
 import {
   getCareerWorkspaceHref,
+  getCareerWorkspaceTabFromPath,
   type CareerWorkspaceTab,
 } from "@/components/career/CareerWorkspaceNav";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
@@ -37,8 +38,10 @@ const CareerWorkspacePage = ({
   const entryReason = resolveCareerMobileEntryReason(router.query);
 
   useEffect(() => {
-    setCurrentActiveTab(activeTab);
-  }, [activeTab]);
+    setCurrentActiveTab(
+      isRouterReady ? getCareerWorkspaceTabFromPath(router.asPath) : activeTab
+    );
+  }, [activeTab, isRouterReady, router.asPath]);
 
   const handleChangeTab = (
     nextTab: CareerWorkspaceTab,
@@ -77,7 +80,7 @@ const CareerWorkspacePage = ({
         query: nextQuery,
       },
       undefined,
-      { scroll: false }
+      { scroll: false, shallow: true }
     );
   };
 

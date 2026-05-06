@@ -23,6 +23,15 @@ export const isCareerWorkspaceTab = (
 export const getCareerWorkspaceHref = (tab: CareerWorkspaceTab) =>
   tab === "home" ? "/career" : `/career/${tab}`;
 
+export const getCareerWorkspaceTabFromPath = (path: string) => {
+  const pathname = path.split(/[?#]/)[0]?.replace(/\/+$/, "") || "/career";
+  if (pathname === "/career") return "home";
+
+  const [, root, tab] = pathname.split("/");
+  if (root !== "career") return "home";
+  return isCareerWorkspaceTab(tab) ? tab : "home";
+};
+
 const CareerWorkspaceNav = () => {
   const {
     user,
