@@ -23,60 +23,94 @@ export function useCareerRuntimeActions(args: {
     setOpportunityRunTriggerPending,
   } = args;
 
-  const handleRunOpportunityDiscoveryTest = useCallback(async () => {
-    if (opportunityRun?.inputLocked || opportunityRunTriggerPending) {
-      return;
-    }
+  const queueOpportunityRun = useCallback(
+    async (mode: "immediate" | "periodic") => {
+      if (opportunityRun?.inputLocked || opportunityRunTriggerPending) {
+        return;
+      }
 
-    setOpportunityRunTriggerPending(true);
-    setChatError("");
-    try {
-      const response = await fetchWithAuth("/api/talent/opportunity-runs", {
-        method: "POST",
-        body: JSON.stringify({
-          chatPreviewCount: 3,
-          conversationId: conversationId ?? null,
-          targetRecommendationCount: 150,
-          trigger: "immediate_opportunity_requested",
-          triggerPayload: {
-            manualTest: true,
-            source: "career_home_panel_test_button",
-          },
-        }),
-      });
-      const payload = (await response.json().catch(() => ({}))) as {
-        opportunityDiscoveryQueued?: boolean;
-        run?: CareerOpportunityRun | null;
-      };
+      const isPeriodic = mode === "periodic";
+      setOpportunityRunTriggerPending(true);
+      setChatError("");
+      try {
+        const response = await fetchWithAuth("/api/talent/opportunity-runs", {
+          method: "POST",
+          body: JSON.stringify({
+            chatPreviewCount: 3,
+            conversationId: conversationId ?? null,
+            targetRecommendationCount: isPeriodic ? undefined : 150,
+            trigger: isPeriodic
+              ? "periodic_refresh_due"
+              : "immediate_opportunity_requested",
+            triggerPayload: isPeriodic
+              ? {
+                  createdBy: "career_home_panel_dev_button",
+                  manualTest: true,
+                  simulatedElapsedDays: 3,
+                  source: "career_home_panel_periodic_test_button",
+                }
+              : {
+                  manualTest: true,
+                  source: "career_home_panel_test_button",
+                },
+          }),
+        });
+        const payload = (await response.json().catch(() => ({}))) as {
+          opportunityDiscoveryQueued?: boolean;
+          run?: CareerOpportunityRun | null;
+        };
 
-      if (!response.ok) {
-        throw new Error(
-          getErrorMessage(payload, "추천 테스트 실행에 실패했습니다.")
+        if (!response.ok) {
+          throw new Error(
+            getErrorMessage(
+              payload,
+              isPeriodic
+                ? "3일 경과 테스트 실행에 실패했습니다."
+                : "추천 테스트 실행에 실패했습니다."
+            )
+          );
+        }
+
+        setOpportunityRun(payload.run ?? null);
+        if (payload.opportunityDiscoveryQueued) {
+          showOpportunityDiscoveryStartedToast(
+            isPeriodic
+              ? "3일 경과 테스트 run을 큐에 넣었습니다."
+              : "기회 검색 테스트 run을 큐에 넣었습니다."
+          );
+        }
+      } catch (error) {
+        setChatError(
+          error instanceof Error
+            ? error.message
+            : isPeriodic
+              ? "3일 경과 테스트 실행 중 오류가 발생했습니다."
+              : "추천 테스트 실행 중 오류가 발생했습니다."
         );
+      } finally {
+        setOpportunityRunTriggerPending(false);
       }
+    },
+    [
+      conversationId,
+      fetchWithAuth,
+      opportunityRun?.inputLocked,
+      opportunityRunTriggerPending,
+      setChatError,
+      setOpportunityRun,
+      setOpportunityRunTriggerPending,
+    ]
+  );
 
-      setOpportunityRun(payload.run ?? null);
-      if (payload.opportunityDiscoveryQueued) {
-        showOpportunityDiscoveryStartedToast();
-      }
-    } catch (error) {
-      setChatError(
-        error instanceof Error
-          ? error.message
-          : "추천 테스트 실행 중 오류가 발생했습니다."
-      );
-    } finally {
-      setOpportunityRunTriggerPending(false);
-    }
-  }, [
-    conversationId,
-    fetchWithAuth,
-    opportunityRun?.inputLocked,
-    opportunityRunTriggerPending,
-    setChatError,
-    setOpportunityRun,
-    setOpportunityRunTriggerPending,
-  ]);
+  const handleRunOpportunityDiscoveryTest = useCallback(
+    async () => queueOpportunityRun("immediate"),
+    [queueOpportunityRun]
+  );
+
+  const handleRunPeriodicOpportunityDiscoveryTest = useCallback(
+    async () => queueOpportunityRun("periodic"),
+    [queueOpportunityRun]
+  );
 
   const resetRuntimeActionsState = useCallback(() => {
     setOpportunityRun(null);
@@ -84,6 +118,7 @@ export function useCareerRuntimeActions(args: {
   }, [setOpportunityRun, setOpportunityRunTriggerPending]);
 
   return {
+    handleRunPeriodicOpportunityDiscoveryTest,
     handleRunOpportunityDiscoveryTest,
     resetRuntimeActionsState,
   };

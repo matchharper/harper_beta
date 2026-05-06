@@ -1,5 +1,5 @@
 import {
-  getChatClientForModel,
+  createChatCompletionWithFallback,
   supportsResponseFormatForModel,
 } from "@/lib/llm/llm";
 import { logLlmTokenUsage } from "@/lib/llm/usageLogging";
@@ -34,12 +34,15 @@ export type TalentChatTool = {
 };
 
 type TalentAssistantModelConfig = {
+  anthropicOverloadFallbackModel?: string;
   fallbackModel?: string;
   primaryModel?: string;
 };
 
 const DEFAULT_TALENT_PRIMARY_MODEL = "grok-4-1-fast-non-reasoning";
 const DEFAULT_TALENT_FALLBACK_MODEL = "gpt-4.1-mini";
+const DEFAULT_TALENT_ANTHROPIC_OVERLOAD_FALLBACK_MODEL =
+  "grok-4-1-fast-reasoning";
 
 function cleanModelText(raw: string) {
   return raw
@@ -68,6 +71,7 @@ function getMessageContent(message: any) {
 }
 
 async function createTalentChatCompletion(args: {
+  anthropicOverloadFallbackModel?: string;
   fallbackModel?: string;
   messages: TalentChatMessage[];
   primaryModel?: string;
@@ -76,6 +80,8 @@ async function createTalentChatCompletion(args: {
   usageLabel?: string;
 }) {
   const {
+    anthropicOverloadFallbackModel =
+      DEFAULT_TALENT_ANTHROPIC_OVERLOAD_FALLBACK_MODEL,
     fallbackModel = DEFAULT_TALENT_FALLBACK_MODEL,
     messages,
     primaryModel = DEFAULT_TALENT_PRIMARY_MODEL,
@@ -89,38 +95,26 @@ async function createTalentChatCompletion(args: {
       ? ({ tools: tools as any, tool_choice: "auto" as const } as const)
       : undefined;
 
-  try {
-    const primaryClient = getChatClientForModel(primaryModel);
-    const response = await primaryClient.chat.completions.create({
-      model: primaryModel,
+  const { model, response } = await createChatCompletionWithFallback({
+    anthropicOverloadFallbackModel,
+    fallbackModel,
+    model: primaryModel,
+    buildRequest: () => ({
       messages: messages as any,
       temperature,
       ...(toolPayload ?? {}),
-    } as any);
-    logLlmTokenUsage({
-      label: usageLabel,
-      model: primaryModel,
-      response,
-    });
-    return response;
-  } catch {
-    const fallbackClient = getChatClientForModel(fallbackModel);
-    const response = await fallbackClient.chat.completions.create({
-      model: fallbackModel,
-      messages: messages as any,
-      temperature,
-      ...(toolPayload ?? {}),
-    } as any);
-    logLlmTokenUsage({
-      label: usageLabel,
-      model: fallbackModel,
-      response,
-    });
-    return response;
-  }
+    }),
+  });
+  logLlmTokenUsage({
+    label: usageLabel,
+    model,
+    response,
+  });
+  return response;
 }
 
 export async function runTalentAssistantCompletion(args: {
+  anthropicOverloadFallbackModel?: string;
   fallbackModel?: string;
   primaryModel?: string;
   messages: TalentChatMessage[];
@@ -129,6 +123,8 @@ export async function runTalentAssistantCompletion(args: {
   usageLabel?: string;
 }) {
   const {
+    anthropicOverloadFallbackModel =
+      DEFAULT_TALENT_ANTHROPIC_OVERLOAD_FALLBACK_MODEL,
     fallbackModel = DEFAULT_TALENT_FALLBACK_MODEL,
     messages,
     primaryModel = DEFAULT_TALENT_PRIMARY_MODEL,
@@ -136,46 +132,28 @@ export async function runTalentAssistantCompletion(args: {
     jsonMode = false,
     usageLabel,
   } = args;
-  const primaryResponseFormat =
-    jsonMode && supportsResponseFormatForModel(primaryModel)
-      ? ({ type: "json_object" } as const)
-      : undefined;
-  const fallbackResponseFormat =
-    jsonMode && supportsResponseFormatForModel(fallbackModel)
-      ? ({ type: "json_object" } as const)
-      : undefined;
-
-  try {
-    const primaryClient = getChatClientForModel(primaryModel);
-    const response = await primaryClient.chat.completions.create({
-      model: primaryModel,
-      messages: messages as any,
-      temperature,
-      ...(primaryResponseFormat && { response_format: primaryResponseFormat }),
-    } as any);
-    logLlmTokenUsage({
-      label: usageLabel,
-      model: primaryModel,
-      response,
-    });
-    return cleanModelText(getMessageContent(response.choices[0]?.message));
-  } catch {
-    const fallbackClient = getChatClientForModel(fallbackModel);
-    const fallback = await fallbackClient.chat.completions.create({
-      model: fallbackModel,
-      messages: messages as any,
-      temperature,
-      ...(fallbackResponseFormat && {
-        response_format: fallbackResponseFormat,
-      }),
-    } as any);
-    logLlmTokenUsage({
-      label: usageLabel,
-      model: fallbackModel,
-      response: fallback,
-    });
-    return cleanModelText(getMessageContent(fallback.choices[0]?.message));
-  }
+  const { model, response } = await createChatCompletionWithFallback({
+    anthropicOverloadFallbackModel,
+    fallbackModel,
+    model: primaryModel,
+    buildRequest: (model) => {
+      const responseFormat =
+        jsonMode && supportsResponseFormatForModel(model)
+          ? ({ type: "json_object" } as const)
+          : undefined;
+      return {
+        messages: messages as any,
+        temperature,
+        ...(responseFormat && { response_format: responseFormat }),
+      };
+    },
+  });
+  logLlmTokenUsage({
+    label: usageLabel,
+    model,
+    response,
+  });
+  return cleanModelText(getMessageContent(response.choices[0]?.message));
 }
 
 export async function runTalentAssistantToolLoop(args: {
@@ -206,6 +184,8 @@ export async function runTalentAssistantToolLoop(args: {
 
   if (tools.length === 0) {
     return runTalentAssistantCompletion({
+      anthropicOverloadFallbackModel:
+        modelConfig?.anthropicOverloadFallbackModel,
       fallbackModel: modelConfig?.fallbackModel,
       messages,
       primaryModel: modelConfig?.primaryModel,
@@ -220,6 +200,8 @@ export async function runTalentAssistantToolLoop(args: {
 
   for (let loop = 0; loop < maxToolLoops; loop += 1) {
     const response = await createTalentChatCompletion({
+      anthropicOverloadFallbackModel:
+        modelConfig?.anthropicOverloadFallbackModel,
       fallbackModel: modelConfig?.fallbackModel,
       messages: workingMessages,
       primaryModel: modelConfig?.primaryModel,
@@ -335,6 +317,7 @@ export async function runTalentAssistantToolLoop(args: {
   }
 
   const fallback = await createTalentChatCompletion({
+    anthropicOverloadFallbackModel: modelConfig?.anthropicOverloadFallbackModel,
     fallbackModel: modelConfig?.fallbackModel,
     messages: workingMessages,
     primaryModel: modelConfig?.primaryModel,

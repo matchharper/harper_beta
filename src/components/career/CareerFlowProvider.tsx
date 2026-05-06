@@ -370,16 +370,19 @@ export const CareerFlowProvider = ({
     [appendLatestMessagesToCache, enqueueAssistantTypewriter]
   );
 
-  const { handleRunOpportunityDiscoveryTest, resetRuntimeActionsState } =
-    useCareerRuntimeActions({
-      conversationId,
-      fetchWithAuth,
-      opportunityRun,
-      opportunityRunTriggerPending,
-      setChatError,
-      setOpportunityRun,
-      setOpportunityRunTriggerPending,
-    });
+  const {
+    handleRunOpportunityDiscoveryTest,
+    handleRunPeriodicOpportunityDiscoveryTest,
+    resetRuntimeActionsState,
+  } = useCareerRuntimeActions({
+    conversationId,
+    fetchWithAuth,
+    opportunityRun,
+    opportunityRunTriggerPending,
+    setChatError,
+    setOpportunityRun,
+    setOpportunityRunTriggerPending,
+  });
 
   const {
     showVoiceStartPrompt,
@@ -872,6 +875,8 @@ export const CareerFlowProvider = ({
       activeCompanyRoleCount,
       opportunityRun,
       opportunityRunTriggerPending,
+      onRunPeriodicOpportunityDiscoveryTest:
+        handleRunPeriodicOpportunityDiscoveryTest,
       onRunOpportunityDiscoveryTest: handleRunOpportunityDiscoveryTest,
       callStartPending,
       onStartCallMode: handleStartCallMode,
@@ -953,6 +958,7 @@ export const CareerFlowProvider = ({
       blockedCompanies,
       callStartPending,
       handleAddProfileLink,
+      handleRunPeriodicOpportunityDiscoveryTest,
       handleRunOpportunityDiscoveryTest,
       handleStartCallMode,
       onAddBlockedCompany,

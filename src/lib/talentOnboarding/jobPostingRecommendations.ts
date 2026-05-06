@@ -99,10 +99,11 @@ type EnrichedRankedRole = RankedRole & {
   recommendationId: string | null;
 };
 
-const MAX_SEARCH_RESULTS = 100;
+const MAX_SEARCH_RESULTS = 200;
 const FINAL_RECOMMENDATION_COUNT = 5;
 const CONTINUATION_RECOMMENDATION_BATCH_LIMIT = 10;
-const RECOMMEND_JOB_POSTINGS_MODEL_VERSION = "career_chat_recommend_job_postings_v2";
+const RECOMMEND_JOB_POSTINGS_MODEL_VERSION =
+  "career_chat_recommend_job_postings_v3";
 const PREFERENCE_FIT_KEYS = [
   "next_scope",
   "location",
@@ -138,7 +139,11 @@ const FTS_TEXT_CONDITION_COLUMNS = new Set([
 ]);
 const FTS_RANK_WEIGHTS = "ARRAY[0.04,0.57,0.64,1.0]::real[]";
 const MAX_FTS_KEYWORDS = 8;
-const MAX_FTS_TERMS_PER_KEYWORD = 8;
+const MAX_CONDITION_VALUES = 10;
+const MAX_FTS_TERMS_PER_KEYWORD = 10;
+const RERANK_BATCH_SIZE = 50;
+const RERANK_BATCH_FINALIST_COUNT = 10;
+const ROLE_DESCRIPTION_PROMPT_LIMIT = 3000;
 const COMPANY_TEST_SCORE_MAX = 20;
 // Max boost is about +2.9 on the 0-10 rerank score.
 const COMPANY_TEST_SCORE_RERANK_DIVISOR = 7;
@@ -148,20 +153,18 @@ const RECOMMEND_JOB_POSTINGS_FALLBACK_MODEL = "grok-4-fast-reasoning";
 const PLAN_SYSTEM_PROMPT = `You are a job-search query planner for Harper.
 Return JSON only. Do not write SQL.
 
-You receive a user/candidate brief and a Supabase schema. Decide which columns and values should be used to retrieve up to 100 candidate job postings, then write reranking criteria.
+You receive a user/candidate brief and a Supabase schema. Decide which columns and values should be used to retrieve up to ${MAX_SEARCH_RESULTS} candidate job postings, then write reranking criteria.
 
 Allowed output shape:
 {
   "searchIntentSummary": "one Korean sentence",
-  "must": [
-    { "column": "company_roles.name", "mode": "any", "values": ["ML Engineer"], "polarity": "include" }
-  ],
+  "must": [],
   "should": [
-    { "column": "company_roles.description", "mode": "any", "values": ["LLM", "학습"], "polarity": "include" }
+    { "column": "company_roles.location_text", "mode": "any", "values": ["Seoul", "서울"], "polarity": "include" }
   ],
   "ftsKeywords": [
-    { "terms": ["TTS", "Text-to-Speech", "음성합성"], "weight": 3.0 },
-    { "terms": ["Researcher", "연구원", "연구자"], "weight": 1.0 }
+    { "terms": ["Research Scientist", "Research Engineer", "Applied Scientist", "ML Researcher", "AI Researcher", "Machine Learning Engineer", "ML Engineer", "Researcher", "연구원", "머신러닝 엔지니어"], "weight": 1.2 },
+    { "terms": ["TTS", "Text-to-Speech", "speech synthesis", "음성합성"], "weight": 3.5 }
   ],
   "rerankCriteria": ["Korean sentence 1", "Korean sentence 2", "Korean sentence 3"]
 }
@@ -176,6 +179,8 @@ Rules:
 - For role name/description intent, always add ftsKeywords. The SQL builder searches company_roles.opportunity_search_tsv for these terms and uses weight for ts_rank_cd ordering.
 - Put synonyms for one concept in one ftsKeywords item. Example: ["TTS", "Text-to-Speech", "음성합성"].
 - Set ftsKeywords.weight from 0.5 to 5.0. More distinctive domain/skill keywords should be heavier than generic role words. Example: for "TTS Researcher", TTS should be around 3.0-5.0 and Researcher around 0.8-1.5.
+- Avoid putting company_roles.name in must. Role titles are noisy, inconsistent, and often do not share exact wording; hard title substring filters hurt recall. Prefer ftsKeywords for title/role-family concepts and let rerankCriteria decide final fit.
+- Use company_roles.name in must only when the user explicitly makes the exact title non-negotiable, such as "Research Scientist만" or "ML Engineer role only". If you do, use mode="any" and include 8-10 broad English/Korean variants, abbreviations, and adjacent titles that should still count. Never use mode="all" for company_roles.name title variants.
 - Still use must/should for structured filters such as location_text, work_mode, type, company, source, and explicit exclusions.
 - Never use company_roles.salary_range in must or should. Salary data is sparse, so salary requirements belong only in rerankCriteria.
 - The SQL builder converts non-FTS condition values into ILIKE patterns. Example: column=company_roles.location_text, mode=any, values=["Seoul","서울"] becomes location_text ILIKE %Seoul% OR location_text ILIKE %서울%.
@@ -183,7 +188,7 @@ Rules:
 - Put truly non-negotiable requirements in must only when the user says "only", "must", "exclude", or clearly rejects alternatives. Put useful preferences in should. If unsure, prefer should.
 - Prefer should for location_text, work_mode, type, and seniority unless the user explicitly makes them hard constraints, because some postings have sparse structured fields.
 - Use polarity=exclude for explicit negative requirements only.
-- Keep values short search tokens, not whole sentences. Maximum 8 total conditions and 8 values per condition.
+- Keep values short search tokens, not whole sentences. Maximum 8 total conditions and 10 values per condition.
 - ftsKeywords should contain 2-8 high-signal concepts at most.
 - rerankCriteria must be 3-4 Korean sentences and should explain how to score fit, concerns, and prioritization.`;
 
@@ -205,11 +210,13 @@ Output:
 
 Rules:
 - Rank the best roles first.
-- Return at least the top 20 roleIds when enough candidates exist.
+- Return the requested number of roleIds for the current rerank stage when enough candidates exist.
 - Use the user's profile, conversation, insights, preferences, and the reranking criteria.
 - Company test score is Harper's internal company quality/priority score from 0 to 20. Treat it as important, but do not let it override a severe role mismatch.
-- Prefer company diversity for the final recommendation slate. When multiple same-company roles are close in fit, rank the strongest one highest and lower near-duplicates enough that downstream selection can include different companies.
-- Same-company duplicates are allowed only when the extra role is clearly different and materially stronger than alternatives, or when the candidate pool lacks enough credible companies.
+- Strongly prefer company diversity in every rerank stage, including batch finalist selection and the final top 5.
+- In a batch stage, the returned finalists should normally contain at most one role per company. Include a second role from the same company only when it is clearly a different role family and materially stronger than the best outside-company alternative.
+- In the final top 5, do not include two roles from the same company unless there are fewer than 5 credible companies or the second same-company role is clearly different and much stronger than available alternatives.
+- When multiple same-company roles are close in fit, rank only the strongest one high and push the others below comparable roles from other companies.
 - If score is 9.0 or higher, recommendationText is required and must include both why it is good and one possible concern.
 - If score is below 9.0, recommendationText may be null.
 - Do not invent facts that are not in the role or company data.`;
@@ -588,7 +595,7 @@ function normalizeCondition(value: unknown): SearchCondition | null {
   const sqlColumn = COLUMN_SQL[column];
   if (!sqlColumn) return null;
 
-  const values = asStringArray(record.values);
+  const values = asStringArray(record.values, MAX_CONDITION_VALUES);
   if (values.length === 0) return null;
 
   const mode = record.mode === "all" ? "all" : "any";
@@ -1036,7 +1043,7 @@ function formatRoleForPrompt(role: RawRoleRow, index: number) {
     `Company description: ${cleanText(role.company_description, 420) || cleanText(role.company_db_description, 420) || cleanText(role.company_db_short_description, 420) || "(none)"}`,
     `Company specialities: ${cleanText(role.company_db_specialities, 320) || "(none)"}`,
     `Role information: ${cleanText(role.information_text, 500) || "(none)"}`,
-    `Role description: ${cleanText(role.description, 1800) || "(none)"}`,
+    `Role description: ${cleanText(role.description, ROLE_DESCRIPTION_PROMPT_LIMIT) || "(none)"}`,
   ].join("\n");
 }
 
@@ -1137,6 +1144,108 @@ async function rerankRoles(args: {
   plan: SearchPlan;
   userBrief: string;
 }) {
+  if (args.candidates.length <= RERANK_BATCH_SIZE) {
+    return rerankRoleBatch({
+      ...args,
+      returnCount: FINAL_RECOMMENDATION_COUNT,
+      stageLabel: "final",
+    });
+  }
+
+  let round = 1;
+  let roundCandidates = args.candidates;
+
+  while (roundCandidates.length > RERANK_BATCH_SIZE) {
+    const batches = chunkArray(roundCandidates, RERANK_BATCH_SIZE);
+    const returnCount = Math.min(
+      RERANK_BATCH_FINALIST_COUNT,
+      RERANK_BATCH_SIZE
+    );
+
+    infoJson("rerank batch round", {
+      batchCount: batches.length,
+      batchSize: RERANK_BATCH_SIZE,
+      candidateCount: roundCandidates.length,
+      finalistTargetPerBatch: returnCount,
+      round,
+    });
+
+    const batchResults = await Promise.all(
+      batches.map((batch, index) =>
+        rerankRoleBatch({
+          candidates: batch,
+          plan: args.plan,
+          returnCount: Math.min(returnCount, batch.length),
+          stageLabel: `round ${round} batch ${index + 1}/${batches.length}`,
+          userBrief: args.userBrief,
+        })
+      )
+    );
+
+    const finalists = uniqueRoleRows(
+      batchResults.flat().map((item) => item.role)
+    );
+
+    if (finalists.length >= roundCandidates.length) break;
+    roundCandidates = finalists;
+    round += 1;
+  }
+
+  return rerankRoleBatch({
+    candidates: roundCandidates,
+    plan: args.plan,
+    returnCount: FINAL_RECOMMENDATION_COUNT,
+    stageLabel: `final from ${roundCandidates.length} finalists`,
+    userBrief: args.userBrief,
+  });
+}
+
+function chunkArray<T>(items: T[], chunkSize: number) {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += chunkSize) {
+    chunks.push(items.slice(index, index + chunkSize));
+  }
+  return chunks;
+}
+
+function roleDedupeKey(role: RawRoleRow, index: number) {
+  const explicitId = cleanText(role.role_id, 120);
+  if (explicitId) return explicitId;
+
+  const fallback = [
+    cleanText(role.company_workspace_id, 120),
+    cleanText(role.company_name, 160) || cleanText(role.company_db_name, 160),
+    cleanText(role.role_name, 160),
+    cleanText(role.external_jd_url, 500),
+  ]
+    .filter(Boolean)
+    .join("|")
+    .toLocaleLowerCase("ko-KR");
+
+  return fallback || `candidate_${index}`;
+}
+
+function uniqueRoleRows(rows: RawRoleRow[]) {
+  const seen = new Set<string>();
+  const unique: RawRoleRow[] = [];
+
+  rows.forEach((row, index) => {
+    const key = roleDedupeKey(row, index);
+    if (seen.has(key)) return;
+    seen.add(key);
+    unique.push(row);
+  });
+
+  return unique;
+}
+
+async function rerankRoleBatch(args: {
+  candidates: RawRoleRow[];
+  plan: SearchPlan;
+  returnCount: number;
+  stageLabel: string;
+  userBrief: string;
+}) {
   const raw = await runTalentAssistantCompletion({
     fallbackModel: RECOMMEND_JOB_POSTINGS_FALLBACK_MODEL,
     jsonMode: true,
@@ -1155,6 +1264,9 @@ async function rerankRoles(args: {
             .map((item, index) => `${index + 1}. ${item}`)
             .join("\n"),
           "",
+          "[Rerank stage]",
+          `${args.stageLabel}. Return up to ${args.returnCount} roleIds from only the candidate roles shown below.`,
+          "",
           "[Candidate roles]",
           args.candidates.map(formatRoleForPrompt).join("\n\n"),
         ].join("\n"),
@@ -1166,8 +1278,11 @@ async function rerankRoles(args: {
 
   const parsed = parseJsonObject(raw);
   debugLog("rerank raw", {
+    candidateCount: args.candidates.length,
     raw: raw.slice(0, 4000),
     parsedKeys: parsed ? Object.keys(parsed) : [],
+    returnCount: args.returnCount,
+    stageLabel: args.stageLabel,
   });
   const rankedRows = Array.isArray(parsed?.rankedRoles)
     ? parsed?.rankedRoles
@@ -1214,7 +1329,7 @@ async function rerankRoles(args: {
 
   return ranked
     .sort((left, right) => right.score - left.score)
-    .slice(0, FINAL_RECOMMENDATION_COUNT);
+    .slice(0, args.returnCount);
 }
 
 async function fillMissingExplanations(args: {
@@ -1336,7 +1451,9 @@ function buildRoleOverviewFallback(role: RawRoleRow) {
   return cleanText(sentences.join(" "), 700) || null;
 }
 
-function normalizePreferenceFitStatus(value: unknown): PreferenceFitStatus | null {
+function normalizePreferenceFitStatus(
+  value: unknown
+): PreferenceFitStatus | null {
   const text = cleanText(value, 40).toLocaleLowerCase("ko-KR");
   if (text === "satisfied") return "Satisfied";
   if (text === "neutral") return "Neutral";
@@ -1373,7 +1490,8 @@ function normalizeRecommendationDetail(
   const fitReasons = asStringArray(raw?.fitReasons, 2, 180);
   const tradeoffs = asStringArray(raw?.tradeoffs, 1, 220);
   const roleOverviewText =
-    cleanText(raw?.roleOverviewText, 700) || buildRoleOverviewFallback(item.role);
+    cleanText(raw?.roleOverviewText, 700) ||
+    buildRoleOverviewFallback(item.role);
 
   return {
     fitReasons:
@@ -1383,7 +1501,9 @@ function normalizeRecommendationDetail(
             item.recommendationText ||
               item.goodPoints[0] ||
               fallbackRecommendationText(item),
-          ].filter(Boolean).map((value) => cleanText(value, 180)),
+          ]
+            .filter(Boolean)
+            .map((value) => cleanText(value, 180)),
     preferenceFit: normalizeRecommendationPreferenceFit(raw?.preferenceFit),
     roleOverviewText,
     tradeoffs:

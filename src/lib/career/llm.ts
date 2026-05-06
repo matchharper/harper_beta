@@ -1,6 +1,7 @@
 import {
-  getChatClientForModel,
+  createChatCompletionWithFallback,
   getLlmChatProviderForModel,
+  resolveChatCompletionFallbackModelForError,
   supportsResponseFormatForModel,
 } from "@/lib/llm/llm";
 import { logLlmTokenUsage } from "@/lib/llm/usageLogging";
@@ -18,10 +19,11 @@ import {
 
 export const CAREER_LLM_CONFIG = {
   // 공통 talent assistant 모델 설정. runTalentAssistantCompletion/ToolLoop 기반
-  // wrapper들이 이 primary/fallback 쌍을 공유한다.
+  // wrapper들이 primary/general fallback/Anthropic overload fallback을 공유한다.
   // 사용처: 일반 커리어 채팅, kickoff, reengagement, onboarding defer,
   // profile ingestion, refresh insights, ops 요약/추천.
   assistant: {
+    anthropicOverloadFallbackModel: "grok-4-1-fast-reasoning",
     primaryModel: "claude-sonnet-4-6",
     fallbackModel: "gpt-4.1-mini",
   },
@@ -471,30 +473,63 @@ async function runDirectTextCompletion(args: {
   temperature: number;
   usageLabel?: string;
 }) {
-  const llmClient = getChatClientForModel(args.model);
-  const responseFormat =
-    args.jsonMode && supportsResponseFormatForModel(args.model)
-      ? ({ type: "json_object" } as const)
-      : undefined;
-  const response = await llmClient.chat.completions.create({
+  const { model, response } = await createChatCompletionWithFallback({
+    anthropicOverloadFallbackModel:
+      CAREER_LLM_CONFIG.assistant.anthropicOverloadFallbackModel,
     model: args.model,
-    messages: args.messages,
-    temperature: args.temperature,
-    ...(responseFormat && { response_format: responseFormat }),
-  } as any);
+    buildRequest: (model) => {
+      const responseFormat =
+        args.jsonMode && supportsResponseFormatForModel(model)
+          ? ({ type: "json_object" } as const)
+          : undefined;
+      return {
+        messages: args.messages,
+        temperature: args.temperature,
+        ...(responseFormat && { response_format: responseFormat }),
+      };
+    },
+  });
   logLlmTokenUsage({
     label: args.usageLabel,
-    model: args.model,
+    model,
     response,
   });
 
   return cleanModelText(response.choices[0]?.message?.content ?? "");
 }
 
-function assistantModelConfig() {
+type CareerAssistantModelConfig = {
+  anthropicOverloadFallbackModel: string;
+  fallbackModel: string;
+  primaryModel: string;
+};
+
+function assistantModelConfig(): CareerAssistantModelConfig {
   return {
+    anthropicOverloadFallbackModel:
+      CAREER_LLM_CONFIG.assistant.anthropicOverloadFallbackModel,
     fallbackModel: CAREER_LLM_CONFIG.assistant.fallbackModel,
     primaryModel: CAREER_LLM_CONFIG.assistant.primaryModel,
+  };
+}
+
+function resolveNativeAnthropicFallbackModelConfig(
+  error: unknown,
+  modelConfig: CareerAssistantModelConfig
+) {
+  const fallback = resolveChatCompletionFallbackModelForError({
+    anthropicOverloadFallbackModel:
+      modelConfig.anthropicOverloadFallbackModel,
+    error,
+    fallbackModel: null,
+    model: modelConfig.primaryModel,
+  });
+
+  return {
+    fallback,
+    modelConfig: fallback
+      ? { ...modelConfig, primaryModel: fallback.model }
+      : modelConfig,
   };
 }
 
@@ -510,8 +545,12 @@ export async function runCareerChatAssistant(args: {
   stopAfterToolNames?: string[];
   systemBlocks: CareerChatSystemBlock[];
   tools: TalentChatTool[];
+  modelConfig?: CareerAssistantModelConfig;
 }) {
-  const fallbackWithExistingClient = () => {
+  const modelConfig = args.modelConfig ?? assistantModelConfig();
+  const fallbackWithExistingClient = (
+    activeModelConfig: CareerAssistantModelConfig = modelConfig
+  ) => {
     const systemPrompt = flattenCareerSystemBlocks(args.systemBlocks);
     const fallbackMessages: TalentChatMessage[] = [
       { role: "system", content: systemPrompt },
@@ -522,7 +561,7 @@ export async function runCareerChatAssistant(args: {
       return runTalentAssistantToolLoop({
         executeTool: args.executeTool,
         messages: fallbackMessages,
-        modelConfig: assistantModelConfig(),
+        modelConfig: activeModelConfig,
         stopAfterToolNames: args.stopAfterToolNames,
         temperature: CAREER_LLM_CONFIG.chat.temperature,
         tools: args.tools,
@@ -531,14 +570,14 @@ export async function runCareerChatAssistant(args: {
     }
 
     return runTalentAssistantCompletion({
-      ...assistantModelConfig(),
+      ...activeModelConfig,
       messages: fallbackMessages,
       temperature: CAREER_LLM_CONFIG.chat.temperature,
       usageLabel: "career/chat:assistant",
     });
   };
 
-  if (!shouldUseAnthropicNativeMessages(assistantModelConfig().primaryModel)) {
+  if (!shouldUseAnthropicNativeMessages(modelConfig.primaryModel)) {
     return fallbackWithExistingClient();
   }
 
@@ -555,7 +594,7 @@ export async function runCareerChatAssistant(args: {
     if (args.tools.length === 0) {
       const response = await createAnthropicMessage({
         messages: workingMessages,
-        model: assistantModelConfig().primaryModel,
+        model: modelConfig.primaryModel,
         systemBlocks: args.systemBlocks,
         temperature: CAREER_LLM_CONFIG.chat.temperature,
         usageLabel: "career/chat:assistant",
@@ -566,7 +605,7 @@ export async function runCareerChatAssistant(args: {
     for (let loop = 0; loop < 3; loop += 1) {
       const response = await createAnthropicMessage({
         messages: workingMessages,
-        model: assistantModelConfig().primaryModel,
+        model: modelConfig.primaryModel,
         systemBlocks: args.systemBlocks,
         temperature: CAREER_LLM_CONFIG.chat.temperature,
         tools: args.tools,
@@ -677,7 +716,7 @@ export async function runCareerChatAssistant(args: {
 
     const finalResponse = await createAnthropicMessage({
       messages: workingMessages,
-      model: assistantModelConfig().primaryModel,
+      model: modelConfig.primaryModel,
       systemBlocks: args.systemBlocks,
       temperature: CAREER_LLM_CONFIG.chat.temperature,
       tools: args.tools,
@@ -686,11 +725,17 @@ export async function runCareerChatAssistant(args: {
 
     return cleanModelText(extractAnthropicText(finalResponse.content));
   } catch (error) {
+    const nativeFallback = resolveNativeAnthropicFallbackModelConfig(
+      error,
+      modelConfig
+    );
     console.error("[career-chat:anthropic-native-fallback]", {
       error: error instanceof Error ? error.message : String(error),
-      model: assistantModelConfig().primaryModel,
+      fallbackModel: nativeFallback.fallback?.model ?? null,
+      fallbackReason: nativeFallback.fallback?.reason ?? null,
+      model: modelConfig.primaryModel,
     });
-    return fallbackWithExistingClient();
+    return fallbackWithExistingClient(nativeFallback.modelConfig);
   }
 }
 
@@ -707,14 +752,17 @@ export async function runCareerChatAssistantStream(args: {
   stopAfterToolNames?: string[];
   systemBlocks: CareerChatSystemBlock[];
   tools: TalentChatTool[];
+  modelConfig?: CareerAssistantModelConfig;
 }) {
+  const modelConfig = args.modelConfig ?? assistantModelConfig();
   if (
     args.tools.length > 0 ||
-    !shouldUseAnthropicNativeMessages(assistantModelConfig().primaryModel)
+    !shouldUseAnthropicNativeMessages(modelConfig.primaryModel)
   ) {
     const text = await runCareerChatAssistant({
       executeTool: args.executeTool,
       messages: args.messages,
+      modelConfig,
       stopAfterToolNames: args.stopAfterToolNames,
       systemBlocks: args.systemBlocks,
       tools: args.tools,
@@ -736,7 +784,7 @@ export async function runCareerChatAssistantStream(args: {
   try {
     return await createAnthropicMessageStream({
       messages: workingMessages,
-      model: assistantModelConfig().primaryModel,
+      model: modelConfig.primaryModel,
       onTextDelta: async (delta) => {
         streamedAnyText = true;
         await args.onTextDelta(delta);
@@ -750,13 +798,20 @@ export async function runCareerChatAssistantStream(args: {
       throw error;
     }
 
+    const nativeFallback = resolveNativeAnthropicFallbackModelConfig(
+      error,
+      modelConfig
+    );
     console.error("[career-chat:anthropic-stream-fallback]", {
       error: error instanceof Error ? error.message : String(error),
-      model: assistantModelConfig().primaryModel,
+      fallbackModel: nativeFallback.fallback?.model ?? null,
+      fallbackReason: nativeFallback.fallback?.reason ?? null,
+      model: modelConfig.primaryModel,
     });
     const text = await runCareerChatAssistant({
       executeTool: args.executeTool,
       messages: args.messages,
+      modelConfig: nativeFallback.modelConfig,
       stopAfterToolNames: args.stopAfterToolNames,
       systemBlocks: args.systemBlocks,
       tools: args.tools,

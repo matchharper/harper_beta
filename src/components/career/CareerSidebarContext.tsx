@@ -27,6 +27,7 @@ export type CareerSidebarContextValue = {
   activeCompanyRoleCount: number;
   opportunityRun: CareerOpportunityRun | null;
   opportunityRunTriggerPending: boolean;
+  onRunPeriodicOpportunityDiscoveryTest: () => void | Promise<void>;
   onRunOpportunityDiscoveryTest: () => void | Promise<void>;
   callStartPending?: boolean;
   onStartCallMode?: (openingText?: string) => boolean | Promise<boolean>;

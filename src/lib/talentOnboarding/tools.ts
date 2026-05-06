@@ -333,7 +333,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.LOOKUP_SERVICE_HELP]: {
     name: TALENT_TOOL_NAMES.LOOKUP_SERVICE_HELP,
     description:
-      "Use when the user asks about Harper's UI buttons, panels, features, or how to use the product (e.g., '우측 별 모양 버튼 뭐야?', '이 버튼 뭐하는 거야?'). Searches the in-app help corpus and returns relevant help chunks with source attribution.",
+      "Use when the user asks about Harper's UI buttons, panels, features, opportunity flows, or how to use the product (e.g., '우측 별 모양 버튼 뭐야?', '이 버튼 뭐하는 거야?', '내부 기회 연결 수락하면 어떻게 돼?', 'Open to matches가 뭐야?'). Searches the in-app help corpus and returns relevant help chunks with source attribution.",
     parameters: {
       type: "object",
       properties: {

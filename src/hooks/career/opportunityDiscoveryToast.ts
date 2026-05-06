@@ -1,8 +1,10 @@
 import { showToast } from "@/components/toast/toast";
 
-export function showOpportunityDiscoveryStartedToast() {
+export function showOpportunityDiscoveryStartedToast(
+  message = "기회 검색을 시작했습니다."
+) {
   showToast({
-    message: "기회 검색을 시작했습니다.",
+    message,
     variant: "white",
   });
 }
