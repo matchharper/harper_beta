@@ -208,6 +208,8 @@ Rules:
 - Return at least the top 20 roleIds when enough candidates exist.
 - Use the user's profile, conversation, insights, preferences, and the reranking criteria.
 - Company test score is Harper's internal company quality/priority score from 0 to 20. Treat it as important, but do not let it override a severe role mismatch.
+- Prefer company diversity for the final recommendation slate. When multiple same-company roles are close in fit, rank the strongest one highest and lower near-duplicates enough that downstream selection can include different companies.
+- Same-company duplicates are allowed only when the extra role is clearly different and materially stronger than alternatives, or when the candidate pool lacks enough credible companies.
 - If score is 9.0 or higher, recommendationText is required and must include both why it is good and one possible concern.
 - If score is below 9.0, recommendationText may be null.
 - Do not invent facts that are not in the role or company data.`;

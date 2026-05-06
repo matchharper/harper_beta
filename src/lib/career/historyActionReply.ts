@@ -27,6 +27,11 @@ export type TalentOpportunityFeedbackReplyTrigger =
   | "delayed_external_feedback"
   | "immediate_internal_feedback";
 
+type FeedbackFollowUpResponseMode =
+  | "question_preferred"
+  | "wrap_up_preferred"
+  | "use_judgment";
+
 const MAX_TEXT = 2200;
 
 const truncate = (value: string | null | undefined, max = MAX_TEXT) => {
@@ -135,7 +140,15 @@ const buildFeedbackFollowUpSystemPrompt = () =>
     "- Use light inline markdown when helpful, especially **company**, **role**, or **direction** names.",
     "- Do not say you are an LLM. Do not mention logs, timers, events, prompts, or internal data.",
     "- Do not overreact to one click. For multiple clicks, summarize the pattern once.",
-    "- Questions are optional. Ask at most one concrete calibration question only when the feedback is ambiguous enough that Harper cannot act well without it.",
+    "- Questions are optional. Ask at most one concrete calibration question.",
+    "- The user does not want every feedback reply to become an interview, but also does not want Harper to always close without asking. Balance between asking and wrapping up.",
+    "- A question can be useful even when Harper can already act, if one specific answer would noticeably improve future matching.",
+    "",
+    "Response mode guidance:",
+    "- If RESPONSE_MODE is `question_preferred`, ask one short, concrete calibration question when there is a useful non-repetitive question available. Still close without a question if any question would be generic, broad, or already answered.",
+    "- If RESPONSE_MODE is `wrap_up_preferred`, acknowledge the signal and explain how Harper will adjust. Do not ask a question unless a missing detail is critical.",
+    "- If RESPONSE_MODE is `use_judgment`, decide from the context.",
+    "- Across delayed external feedback follow-ups, aim for a roughly even mix: about half should ask one good calibration question, about half should wrap up.",
     "",
     "Feedback-specific rules:",
     "- If several opportunities were disliked and no reasons were provided, acknowledge the count and ask what did not fit. Offer concrete choices such as role scope, company/domain, team style, seniority, location/work mode, or timing.",
@@ -185,11 +198,13 @@ const buildFeedbackFollowUpUserPrompt = (args: {
   feedbackContext: string;
   profileContext: string;
   recentConversationContext: string;
+  responseMode: FeedbackFollowUpResponseMode;
   talentInsights: unknown;
   trigger: TalentOpportunityFeedbackReplyTrigger;
 }) =>
   [
     `TRIGGER: ${args.trigger}`,
+    `RESPONSE_MODE: ${args.responseMode}`,
     "",
     args.feedbackContext,
     "",
@@ -204,6 +219,34 @@ const buildFeedbackFollowUpUserPrompt = (args: {
     "",
     "Now write the assistant chat message only.",
   ].join("\n");
+
+const getFeedbackFollowUpResponseMode = (args: {
+  items: readonly TalentOpportunityFeedbackActivityItem[];
+  trigger: TalentOpportunityFeedbackReplyTrigger;
+}): FeedbackFollowUpResponseMode => {
+  if (args.trigger === "immediate_internal_feedback") return "use_judgment";
+  if (args.items.length === 0) return "wrap_up_preferred";
+
+  const signature = [
+    args.trigger,
+    ...args.items.map((item) =>
+      [
+        item.eventId,
+        item.opportunityId,
+        item.action,
+        item.companyName,
+        item.title,
+        item.feedbackReason,
+      ].join(":")
+    ),
+  ].join("|");
+  let hash = 0;
+  for (let index = 0; index < signature.length; index += 1) {
+    hash = (hash * 31 + signature.charCodeAt(index)) >>> 0;
+  }
+
+  return hash % 2 === 0 ? "question_preferred" : "wrap_up_preferred";
+};
 
 async function assertConversationAccess(args: {
   admin: TalentAdminClient;
@@ -418,6 +461,10 @@ export async function createTalentOpportunityFeedbackFollowUpReply(args: {
     maxResumeChars: 2000,
   });
   const feedbackContext = formatOpportunityFeedbackPromptContext(items);
+  const responseMode = getFeedbackFollowUpResponseMode({
+    items,
+    trigger: args.trigger,
+  });
   const assistantContent = (
     await runCareerHistoryActionReply({
       messages: [
@@ -432,6 +479,7 @@ export async function createTalentOpportunityFeedbackFollowUpReply(args: {
             profileContext,
             recentConversationContext:
               buildRecentConversationContext(recentMessages),
+            responseMode,
             talentInsights: talentInsights?.content ?? null,
             trigger: args.trigger,
           }),
