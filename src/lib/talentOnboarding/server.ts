@@ -60,6 +60,7 @@ import {
   type TalentStructuredProfile,
   type TalentUserProfileRow,
   DEFAULT_TALENT_PROFILE_VISIBILITY,
+  toTalentMessageResponse,
 } from "@/lib/talentOnboarding/models";
 import { validatePromptFile } from "./prompts";
 
@@ -99,6 +100,7 @@ export {
   sanitizeTalentCareerMoveIntent,
   sanitizeTalentProfileVisibility,
   setTalentOnboardingDone,
+  toTalentMessageResponse,
   toTalentDisplayName,
   upsertTalentInsights,
   upsertTalentSetting,

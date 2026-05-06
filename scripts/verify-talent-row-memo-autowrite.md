@@ -47,7 +47,7 @@ order by start_date desc;
 
 **Expected:**
 - No `talent_experiences` row's memo changes.
-- (insights side may absorb the info — that's fine; this AC only checks memo isolation.)
+- `talent_insights.content` should not absorb this as a profile-like experience fact unless the user also stated a future opportunity preference or constraint.
 
 **Verify SQL:** same as AC1; compare before/after — no diff in memo column.
 
@@ -141,7 +141,7 @@ The reply MUST NOT contain any of these or equivalent phrasings.
 
 ---
 
-## AC8. Dual-write (memo + insights)
+## AC8. Profile fact goes to memo, not insights
 
 **Setup:** user has Samsung experience row; current `talent_insights.content.signature_story` is empty.
 
@@ -149,7 +149,7 @@ The reply MUST NOT contain any of these or equivalent phrasings.
 
 **Expected:**
 - Samsung experience `memo` updated with a context-rich Korean sentence.
-- `talent_insights.content` (likely `signature_story`) updated with a generic-skill or signature-experience phrasing.
+- `talent_insights.content` is not updated with a profile-like key such as `representative_experience`, `recent_experience`, or a duplicate of the same past-role fact.
 
 **Verify SQL:**
 ```sql

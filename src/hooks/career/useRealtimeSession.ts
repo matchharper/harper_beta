@@ -289,10 +289,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     suppressCurrentResponseOutputRef.current = true;
     suppressCancelledResponseDoneRef.current = true;
 
-    if (
-      responseInProgressRef.current &&
-      !responseCancelRequestedRef.current
-    ) {
+    if (responseInProgressRef.current && !responseCancelRequestedRef.current) {
       responseCancelRequestedRef.current = true;
       sendEvent({ type: "response.cancel" });
     }
@@ -365,6 +362,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
           const response = await fetchWithAuth("/api/talent/tool/execute", {
             method: "POST",
             body: JSON.stringify({
+              channel: "voice",
               conversationId,
               name: functionCall.name,
               arguments: parsedArguments,
@@ -657,8 +655,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
 
           case "error": {
             const error = msg.error as Record<string, unknown> | undefined;
-            const errorCode =
-              typeof error?.code === "string" ? error.code : "";
+            const errorCode = typeof error?.code === "string" ? error.code : "";
             const errorMessage =
               typeof error?.message === "string"
                 ? error.message
@@ -918,7 +915,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
                 input_audio_transcription: {
                   model: "whisper-1",
                   prompt:
-                    "대화는 주로 한국어지만 기술명은 영어 원문으로 적는다. 예: Diffusion, Transformer, ML, Harper, etc",
+                    "대화는 주로 한국어지만 기술 용어는 영어 원문으로 적는다.",
                 },
               },
             })

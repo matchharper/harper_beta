@@ -96,7 +96,7 @@ export const SAVED_TABS: Array<{
   label: string;
 }> = [
   { id: "saved", label: "저장됨" },
-  { id: "applied", label: "관심 표시함(지원함)" },
+  { id: "applied", label: "연결 수락함 / 지원함" },
   { id: "connected", label: "연결됨" },
   { id: "closed", label: "종료됨" },
 ];

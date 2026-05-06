@@ -99,8 +99,10 @@ const BeigeDropdownMenuItem = React.forwardRef<
       )}
       {...props}
     >
-      <span className="min-w-0 flex-1">{children}</span>
-      {selected ? <Check className="h-4 w-4 text-beige900/70" /> : null}
+      {children}
+      {selected ? (
+        <Check className="ml-auto h-4 w-4 shrink-0 text-beige900/70" />
+      ) : null}
     </BaseDropdownMenuItem>
   )
 );

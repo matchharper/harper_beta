@@ -8,6 +8,7 @@ import type {
   TalentMessageRow,
   TalentUserProfileRow,
 } from "@/lib/talentOnboarding/server";
+import type { TalentActivityEventRow } from "@/lib/talentOnboarding/activityEvents";
 
 function clampText(value: string | null | undefined, maxLength = 240) {
   const normalized = String(value ?? "")
@@ -59,6 +60,25 @@ function buildRecentConversation(messages: TalentMessageRow[]) {
     .join("\n");
 }
 
+function buildRecentActivity(events: TalentActivityEventRow[] | undefined) {
+  const visibleEvents = (events ?? [])
+    .filter((event) => clampText(event.summary).length > 0)
+    .slice(0, 8);
+
+  if (visibleEvents.length === 0) {
+    return "(최근 활동 없음)";
+  }
+
+  return visibleEvents
+    .map(
+      (event) =>
+        `${event.occurred_at}: ${clampText(event.summary, 260)} (impact: ${
+          event.impact_level
+        })`
+    )
+    .join("\n");
+}
+
 function normalizeReengagementMessage(content: string) {
   return content
     .replace(/^["'“”]+|["'“”]+$/g, "")
@@ -70,9 +90,16 @@ export async function generateTalentReengagementMessage(args: {
   displayName: string;
   hoursSinceLastChat: number;
   profile: TalentUserProfileRow | null;
+  recentActivityEvents?: TalentActivityEventRow[];
   recentMessages: TalentMessageRow[];
 }) {
-  const { displayName, hoursSinceLastChat, profile, recentMessages } = args;
+  const {
+    displayName,
+    hoursSinceLastChat,
+    profile,
+    recentActivityEvents,
+    recentMessages,
+  } = args;
 
   try {
     const message = await runCareerReengagementMessage({
@@ -87,6 +114,7 @@ export async function generateTalentReengagementMessage(args: {
             displayName,
             hoursSinceLastChat,
             profileSummary: buildProfileSummary(profile),
+            recentActivity: buildRecentActivity(recentActivityEvents),
             recentConversation: buildRecentConversation(recentMessages),
           }),
         },

@@ -5,6 +5,12 @@ export const TALENT_MESSAGE_TYPE_ONBOARDING_PAUSE_CLOSE =
   "onboarding_pause_close";
 export const TALENT_MESSAGE_TYPE_ONBOARDING_ADDITIONAL_QUESTION_SELECTION =
   "onboarding_additional_question_selection";
+export const TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NOTICE =
+  "onboarding_completion_notice";
+export const TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP =
+  "onboarding_completion_wrapup";
+export const TALENT_MESSAGE_TYPE_SESSION_REENGAGEMENT_SKIP =
+  "session_reengagement_skip";
 export const TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX = 4;
 
 export const TALENT_ONBOARDING_INTEREST_OPTIONS = [

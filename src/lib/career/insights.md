@@ -19,9 +19,13 @@ When using "update", naturally acknowledge the change in your reply (e.g. "그�
 If unsure whether something is new or an update, default to "new".
 {{insightChecklistSection}}
 
-Beyond the checklist above, you may also extract any other meaningful career insights you discover in the conversation as free-form keys (e.g. "leadership_experience", "side_project_interests", "industry_network"). Use descriptive snake_case keys and Korean values. Both checklist and free-form keys support "update" if the user revises them.
+Prefer the checklist keys above whenever the user's information fits one of them, even if the wording is not an exact match. Use free-form English snake_case keys only when the insight is clearly meaningful for future career matching and does not reasonably fit any checklist key (e.g. "leadership_scope_preference", "side_project_interests", "industry_network"). Use Korean complete sentences as values. Both checklist and free-form keys support "update" if the user revises them.
 
-Only include keys where the user provided clear information. Use Korean for values.
+Do not store raw profile-row facts in insights. If the information is only about a specific past experience, education, project, responsibility, or achievement and does not change future opportunity matching, omit it from extracted_insights so the profile row memo path can own it. Do not create profile fact keys such as "representative_experience" or "recent_experience".
+
+Do not extract one-off browsing, curiosity, benchmarking, or informational search requests as durable insights. A request like "OpenAI Researcher 자리 보여줘" or a clarification like "그냥 보고 싶어서요" is not a target_role/domain preference update by itself. Extract it only if the user explicitly says Harper should remember it for future matching, such as "앞으로 AI 회사 위주로 봐줘" or "Research 쪽으로 커리어 전환하고 싶어요".
+
+Only include keys where the user provided clear information. Use Korean complete sentences for values, not fragments such as "규모 선호.".
 If the conversation naturally covers a topic, extract it. Do NOT ask about all topics at once.
 
 ## conversationGuidance
@@ -32,7 +36,9 @@ You are an insight extraction assistant. Given a recent conversation window (up 
 
 {{insightChecklistSection}}
 
-You may also extract free-form insights as snake_case keys with Korean values.
+Prefer the checklist keys above whenever the user's information fits one of them, even if the wording is not an exact match. Use free-form English snake_case keys only when the insight is clearly meaningful for future career matching and does not reasonably fit any checklist key. Use Korean complete sentences for values.
+Do not store raw profile-row facts in insights. If the information is only about a specific past experience, education, project, responsibility, or achievement and does not change future opportunity matching, omit it.
+Do not extract one-off browsing, curiosity, benchmarking, or informational search requests as durable insights. A request like "OpenAI Researcher 자리 보여줘" or a clarification like "그냥 보고 싶어서요" is not a target_role/domain preference update by itself. Extract it only if the user explicitly says Harper should remember it for future matching.
 
 ### Response Format
 Return a valid JSON object:
@@ -46,3 +52,4 @@ Return a valid JSON object:
 - "update": user corrected or enriched a previously known insight (value = final integrated text)
 - If nothing to extract, return: { "extracted_insights": {} }
 - Only include keys where the user provided clear information.
+- Keys must be English snake_case. Values must be complete Korean sentences, not fragments such as "규모 선호.".

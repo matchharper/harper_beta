@@ -20,7 +20,16 @@ import {
   normalizeTalentRecommendationBatchSize,
 } from "@/lib/talentOnboarding/recommendationSettings";
 import { getTalentCareerMoveIntentLabel } from "@/lib/talentNetworkOptions";
-import { createOpportunityDiscoveryRun } from "@/lib/opportunityDiscovery/store";
+import {
+  buildInsightActivitySummary,
+  buildPreferenceActivitySummary,
+  compactActivityChanges,
+  getPreferenceActivityImpact,
+  insertTalentActivityEvent,
+  isSameActivityValue,
+  toPreferenceActivityDisplayChanges,
+  type TalentActivityChange,
+} from "@/lib/talentOnboarding/activityEvents";
 
 const getLatestUpdatedAt = (...values: Array<string | null | undefined>) => {
   const timestamps = values
@@ -83,19 +92,60 @@ const toResponsePreferences = (
 const toResponseInsights = (insights?: { content?: unknown } | null) =>
   normalizeTalentInsightContent(insights?.content);
 
-const CAREER_MOVE_INTENT_RANK: Record<string, number> = {
-  advisor_or_part_time_only: 1,
-  open_to_explore: 2,
-  ready_to_move: 3,
-};
+function getPreferenceActivityChanges(args: {
+  body: Body;
+  from: ReturnType<typeof toResponsePreferences>;
+  to: ReturnType<typeof toResponsePreferences>;
+}) {
+  const changes: TalentActivityChange[] = [];
+  if (args.body.engagementTypes !== undefined) {
+    changes.push({
+      field: "engagementTypes",
+      from: args.from.engagementTypes,
+      to: args.to.engagementTypes,
+    });
+  }
+  if (args.body.preferredLocations !== undefined) {
+    changes.push({
+      field: "preferredLocations",
+      from: args.from.preferredLocations,
+      to: args.to.preferredLocations,
+    });
+  }
+  if (args.body.careerMoveIntent !== undefined) {
+    changes.push({
+      field: "careerMoveIntent",
+      from: args.from.careerMoveIntent,
+      to: args.to.careerMoveIntent,
+    });
+  }
+  if (args.body.periodicIntervalDays !== undefined) {
+    changes.push({
+      field: "periodicIntervalDays",
+      from: args.from.periodicIntervalDays,
+      to: args.to.periodicIntervalDays,
+    });
+  }
+  if (args.body.recommendationBatchSize !== undefined) {
+    changes.push({
+      field: "recommendationBatchSize",
+      from: args.from.recommendationBatchSize,
+      to: args.to.recommendationBatchSize,
+    });
+  }
+  return compactActivityChanges(changes);
+}
 
-const getIntentRank = (value: unknown) =>
-  CAREER_MOVE_INTENT_RANK[sanitizeTalentCareerMoveIntent(value) ?? ""] ?? 0;
-
-function startOpportunityDiscoveryInBackground(runId: string) {
-  console.info("[opportunity-discovery] queued for harper_worker", {
-    runId,
-  });
+function getInsightActivityChanges(args: {
+  from: Record<string, string> | null;
+  to: Record<string, string> | null;
+}) {
+  const from = args.from ?? {};
+  const to = args.to ?? {};
+  return Array.from(new Set([...Object.keys(from), ...Object.keys(to)]))
+    .sort()
+    .map((key) => ({ field: key, from: from[key] ?? null, to: to[key] ?? null }))
+    .filter((change) => !isSameActivityValue(change.from, change.to));
 }
 
 export async function GET(req: NextRequest) {
@@ -196,33 +246,68 @@ export async function POST(req: NextRequest) {
         })
       : existingInsights;
 
-    const careerMoveIntentBecameMoreActive =
-      body.careerMoveIntent !== undefined &&
-      getIntentRank(savedSetting?.career_move_intent) >
-        getIntentRank(existingSetting?.career_move_intent);
-    let opportunityRunId: string | null = null;
-
-    if (careerMoveIntentBecameMoreActive) {
-      const run = await createOpportunityDiscoveryRun({
+    const previousPreferences = toResponsePreferences(existingSetting);
+    const nextPreferences = toResponsePreferences(savedSetting);
+    const preferenceChanges = hasPreferenceUpdate
+      ? getPreferenceActivityChanges({
+          body,
+          from: previousPreferences,
+          to: nextPreferences,
+        })
+      : [];
+    const preferenceSummary =
+      buildPreferenceActivitySummary(preferenceChanges);
+    if (preferenceSummary) {
+      await insertTalentActivityEvent({
         admin,
-        chatPreviewCount: 0,
-        talentId: user.id,
-        trigger: "preference_became_more_active",
-        triggerPayload: {
-          from: sanitizeTalentCareerMoveIntent(
-            existingSetting?.career_move_intent
-          ),
-          to: sanitizeTalentCareerMoveIntent(savedSetting?.career_move_intent),
+        changedDomains: [
+          "preferences",
+          ...preferenceChanges.map((change) => change.field),
+        ],
+        eventType: "preferences_changed",
+        impactLevel: getPreferenceActivityImpact(preferenceChanges),
+        metadata: {
+          changes: toPreferenceActivityDisplayChanges(preferenceChanges),
         },
+        relatedEntityType: "talent_setting",
+        source: "profile_tab",
+        summary: preferenceSummary,
+        userId: user.id,
       });
-      opportunityRunId = run.id;
-      startOpportunityDiscoveryInBackground(run.id);
+    }
+
+    const previousInsightContent = toResponseInsights(existingInsights);
+    const nextInsightContent = toResponseInsights(savedInsights);
+    const insightChanges = hasInsightUpdate
+      ? getInsightActivityChanges({
+          from: previousInsightContent,
+          to: nextInsightContent,
+        })
+      : [];
+    const insightSummary = buildInsightActivitySummary(
+      insightChanges.map((change) => change.field)
+    );
+    if (insightSummary) {
+      await insertTalentActivityEvent({
+        admin,
+        changedDomains: [
+          "insights",
+          ...insightChanges.map((change) => change.field),
+        ],
+        eventType: "insight_updated",
+        impactLevel: "high",
+        metadata: { changes: insightChanges },
+        relatedEntityType: "talent_insights",
+        source: "profile_tab",
+        summary: insightSummary,
+        userId: user.id,
+      });
     }
 
     return NextResponse.json({
       ok: true,
-      opportunityDiscoveryQueued: Boolean(opportunityRunId),
-      opportunityRunId,
+      opportunityDiscoveryQueued: false,
+      opportunityRunId: null,
       preferences: toResponsePreferences(savedSetting),
       talentInsights: toResponseInsights(savedInsights),
       preferencesUpdatedAt: savedSetting?.updated_at ?? null,

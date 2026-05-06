@@ -44,6 +44,8 @@ export type CareerSidebarContextValue = {
     feedback: CareerHistoryOpportunityFeedback | null,
     options?: {
       feedbackReason?: string | null;
+      fallbackOpportunity?: CareerHistoryOpportunity;
+      promptImmediately?: boolean;
       savedStage?: CareerOpportunitySavedStage | null;
     }
   ) => void | Promise<void>;

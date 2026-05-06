@@ -19,6 +19,7 @@ type SpeechRecognitionLike = {
 };
 
 type VoiceSendArgs = {
+  channel?: "chat" | "voice";
   text: string;
   onError?: () => void;
 };
@@ -485,6 +486,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
       }
 
       void onSendMessage({
+        channel: "voice",
         text,
         onError: () => {
           setVoiceTranscript(text);

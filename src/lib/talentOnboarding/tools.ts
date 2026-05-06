@@ -2,6 +2,7 @@ import { runWebSearch } from "@/lib/tools/webSearch";
 import { fetchTalentOpportunityHistory } from "@/lib/talentOpportunity";
 import { runCareerJobPostingRecommendations } from "./jobPostingRecommendations";
 import { lookupServiceHelp } from "@/lib/serviceHelpRag";
+import { normalizeGeneratedTalentInsightEntry } from "./insights";
 import {
   normalizeCompanySnapshotName,
   escapeLikePattern,
@@ -12,12 +13,29 @@ import {
   appendExtraMemo,
 } from "./profileStore";
 import {
+  fetchTalentInsights,
   fetchTalentSetting,
   normalizeTalentEngagementTypes,
+  normalizeTalentInsightContent,
   normalizeTalentPreferredLocations,
+  upsertTalentInsights,
   upsertTalentSetting,
 } from "./server";
 import { selectAdditionalOnboardingQuestion } from "./additionalQuestionSelector";
+import {
+  buildInsightActivitySummary,
+  buildPreferenceActivitySummary,
+  buildRowMemoActivitySummary,
+  compactActivityChanges,
+  fetchTalentActivityEvents,
+  getPreferenceActivityImpact,
+  insertTalentActivityEvent,
+  isSameActivityValue,
+  toPreferenceActivityDisplayChanges,
+  type TalentActivityChange,
+  type TalentActivityImpactLevel,
+  type TalentRowMemoActivityItem,
+} from "./activityEvents";
 import {
   logTalentToolCall,
   logTalentToolError,
@@ -29,6 +47,7 @@ export type TalentToolChannel = "chat" | "voice";
 export type TalentToolExecutionContext = {
   admin?: unknown;
   conversationId?: string;
+  userMessageId?: number | string | null;
   userId?: string;
 };
 
@@ -59,13 +78,12 @@ export const TALENT_TOOL_NAMES = {
   SELECT_ADDITIONAL_ONBOARDING_QUESTION:
     "select_additional_onboarding_question",
   RECOMMEND_JOB_POSTINGS: "recommend_job_postings",
-  PREPARE_COMPANY_SNAPSHOT: "prepare_company_snapshot",
   READ_RECOMMENDED_OPPORTUNITIES: "read_recommended_opportunities",
   WEB_SEARCH: "web_search",
   RESEARCH_COMPANY: "research_company",
   LOOKUP_SERVICE_HELP: "lookup_service_help",
-  GET_RECOMMENDED_JD: "get_recommended_jd",
-  ADD_TO_RECOMMENDATIONS: "add_to_recommendations",
+  GET_OPEN_ROLES: "get_open_roles",
+  READ_TALENT_ACTIVITY_EVENTS: "read_talent_activity_events",
   UPDATE_TALENT_PROFILE: "update_talent_profile",
 } as const;
 
@@ -79,8 +97,8 @@ export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES,
   TALENT_TOOL_NAMES.RESEARCH_COMPANY,
   TALENT_TOOL_NAMES.LOOKUP_SERVICE_HELP,
-  TALENT_TOOL_NAMES.GET_RECOMMENDED_JD,
-  TALENT_TOOL_NAMES.ADD_TO_RECOMMENDATIONS,
+  TALENT_TOOL_NAMES.GET_OPEN_ROLES,
+  TALENT_TOOL_NAMES.READ_TALENT_ACTIVITY_EVENTS,
   TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
 ] as const;
 
@@ -88,6 +106,31 @@ const optionalToolString = (value: unknown) => {
   const text = typeof value === "string" ? value.trim() : "";
   return text || null;
 };
+
+const IMPACT_LEVEL_RANK: Record<TalentActivityImpactLevel, number> = {
+  low: 0,
+  medium: 1,
+  high: 2,
+};
+
+function normalizeToolImpactLevel(
+  value: unknown
+): TalentActivityImpactLevel | null {
+  const text = optionalToolString(value);
+  if (text === "low" || text === "medium" || text === "high") return text;
+  return null;
+}
+
+function maxImpactLevel(
+  levels: Array<TalentActivityImpactLevel | null | undefined>
+): TalentActivityImpactLevel {
+  return levels.reduce<TalentActivityImpactLevel>((current, next) => {
+    if (!next) return current;
+    return IMPACT_LEVEL_RANK[next] > IMPACT_LEVEL_RANK[current]
+      ? next
+      : current;
+  }, "low");
+}
 
 const normalizeToolLimit = (value: unknown, fallback: number) => {
   const parsed =
@@ -98,6 +141,40 @@ const normalizeToolLimit = (value: unknown, fallback: number) => {
   if (!Number.isFinite(parsed)) return fallback;
   return Math.max(1, Math.min(20, Math.floor(parsed)));
 };
+
+const TALENT_ACTIVITY_EVENT_TYPES = new Set([
+  "insight_updated",
+  "onboarding_completed",
+  "preferences_changed",
+  "row_memo_added",
+]);
+
+function normalizeActivityEventTypes(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return Array.from(
+    new Set(
+      value
+        .map((entry) => String(entry ?? "").trim())
+        .filter((entry) => TALENT_ACTIVITY_EVENT_TYPES.has(entry))
+    )
+  );
+}
+
+function normalizeSinceDate(input: Record<string, unknown>) {
+  const since = optionalToolString(input.since);
+  if (since) {
+    const time = Date.parse(since);
+    if (!Number.isNaN(time)) return new Date(time).toISOString();
+  }
+
+  const daysBack =
+    typeof input.sinceDays === "number"
+      ? input.sinceDays
+      : Number.parseInt(String(input.sinceDays ?? ""), 10);
+  if (!Number.isFinite(daysBack)) return null;
+  const normalizedDays = Math.max(1, Math.min(365, Math.floor(daysBack)));
+  return new Date(Date.now() - normalizedDays * 24 * 60 * 60 * 1000).toISOString();
+}
 
 const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION]: {
@@ -110,12 +187,12 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         latestUserMessage: {
           type: "string",
           description:
-            "Optional latest user message from the current turn. Especially useful in voice, where the current spoken turn may not be saved to the database yet.",
+            "Optional latest user message from the current turn.",
         },
       },
       additionalProperties: false,
     },
-    channels: ["chat", "voice"],
+    channels: ["chat"],
     stopAfterExecution: true,
     async execute(input, context) {
       const admin = context?.admin;
@@ -193,14 +270,14 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS]: {
     name: TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS,
     description:
-      "Find and rerank current job postings from Harper's company_roles/company_workspace/company_db database for this user. Use when the user asks to find, recommend, or match new job postings, roles, positions, companies, or opportunities with specific requirements.",
+      "Find, rerank, enrich, and save up to 5 current job postings from Harper's company_roles/company_workspace/company_db database for this user. Use when the user asks to find, recommend, or match new job postings, roles, positions, companies, or opportunities with specific requirements. Do not use first when the user's request includes a durable hard filter or future-matching command such as '~로만 찾아줘', '~만 보내줘', '앞으로 ~로 찾아줘', '다음부터 ~는 빼줘', or '~ 조건을 반영해줘'; call update_talent_profile first so the condition is saved, then let the fresh search run. Do not use immediately for clearly off-profile or aspirational role requests; first explain the mismatch and ask one clarifying question. If the user clarifies it is only curiosity/browsing, use this as a one-off exploratory search and do not update future matching memory.",
     parameters: {
       type: "object",
       properties: {
         request: {
           type: "string",
           description:
-            "The user's full job-search request, including role, domain, location, work mode, company type, seniority, and any constraints they mentioned.",
+            "The user's full job-search request, including role, domain, location, work mode, company type, seniority, and any constraints they mentioned. If this is one-off curiosity/browsing rather than a durable preference, explicitly include that in the request so the search does not imply future matching criteria changed.",
         },
       },
       required: ["request"],
@@ -230,34 +307,10 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       });
     },
   },
-  [TALENT_TOOL_NAMES.PREPARE_COMPANY_SNAPSHOT]: {
-    name: TALENT_TOOL_NAMES.PREPARE_COMPANY_SNAPSHOT,
-    description:
-      "Prepare the company snapshot setup UI when the user clearly wants company research or confirms they want help checking whether a company is good. This does not run the research; it only creates a setup card with a start button.",
-    parameters: {
-      type: "object",
-      properties: {
-        companyName: {
-          type: "string",
-          description:
-            "Company name to investigate. Ask a follow-up instead of calling this tool if the company is unknown.",
-        },
-        reason: {
-          type: "string",
-          description:
-            "Short reason from the user's request, such as concerns about culture, stability, funding, layoffs, or interview preparation.",
-        },
-      },
-      required: ["companyName"],
-      additionalProperties: false,
-    },
-    channels: ["chat"],
-    stopAfterExecution: true,
-  },
   [TALENT_TOOL_NAMES.RESEARCH_COMPANY]: {
     name: TALENT_TOOL_NAMES.RESEARCH_COMPANY,
     description:
-      "Use this tool when the user GENUINELY wants to learn about a specific company (asking about culture, funding, team, business model, hiring landscape, etc.). On cache hit, returns the saved snapshot instantly; on cache miss, runs real-time web research (5-15 second delay) and returns a synthesized answer with citations.\n\nDo NOT call when:\n- Company name appears in passing or anecdotally (e.g., '내 친구도 토스 다녔어')\n- Company name is part of a JD/role question (use get_recommended_jd instead)\n- User is just sharing their own experience at a company\n- User asks for an opinion comparing companies without asking for info ('A vs B 어디가 좋을까')\n\nFresh research takes 5-15 seconds — only invoke when the user clearly wants the depth.",
+      "Use this tool when the user GENUINELY wants to learn about a specific company (asking about culture, funding, team, business model, hiring landscape, etc.). On cache hit, returns the saved snapshot instantly; on cache miss, runs real-time web research (5-15 second delay) and returns a synthesized answer with citations.\n\nDo NOT call when:\n- Company name appears in passing or anecdotally (e.g., '내 친구도 토스 다녔어')\n- Company name is part of a JD/role question (use get_open_roles instead)\n- User is just sharing their own experience at a company\n- User asks for an opinion comparing companies without asking for info ('A vs B 어디가 좋을까')\n\nFresh research takes 5-15 seconds — only invoke when the user clearly wants the depth.",
     parameters: {
       type: "object",
       properties: {
@@ -304,10 +357,10 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       return lookupServiceHelp(question);
     },
   },
-  [TALENT_TOOL_NAMES.GET_RECOMMENDED_JD]: {
-    name: TALENT_TOOL_NAMES.GET_RECOMMENDED_JD,
+  [TALENT_TOOL_NAMES.GET_OPEN_ROLES]: {
+    name: TALENT_TOOL_NAMES.GET_OPEN_ROLES,
     description:
-      "Use when the user asks about job postings, positions, or roles. Returns recommended roles when no company is specified, or roles matching a given company name. Each role includes an `is_recommended` flag so the assistant can naturally offer to add non-recommended roles.",
+      "Use when the user asks about job postings, positions, or roles. Returns recommended roles when no company is specified, or roles matching a given company name. Each role includes an `is_recommended` flag.",
     parameters: {
       type: "object",
       properties: {
@@ -349,9 +402,9 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const admin = context?.admin;
       const userId = context?.userId;
       if (!admin || !userId) {
-        throw new TalentToolError("get_recommended_jd requires user context.");
+        throw new TalentToolError("get_open_roles requires user context.");
       }
-      return runGetRecommendedJd({
+      return runGetOpenRoles({
         admin: admin as any,
         userId,
         companyName: optionalToolString(input.company_name),
@@ -359,20 +412,46 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       });
     },
   },
-  [TALENT_TOOL_NAMES.ADD_TO_RECOMMENDATIONS]: {
-    name: TALENT_TOOL_NAMES.ADD_TO_RECOMMENDATIONS,
+  [TALENT_TOOL_NAMES.READ_TALENT_ACTIVITY_EVENTS]: {
+    name: TALENT_TOOL_NAMES.READ_TALENT_ACTIVITY_EVENTS,
     description:
-      "Use ONLY when the user explicitly confirms in chat to add a specific role to their recommendations (e.g., '응 추가해줘', '맞아', '그거 넣어줘'). Do NOT use on weak signals like '관심 있어' alone — ask for confirmation first.",
+      "Read concise recent activity summaries for this talent user. Use when the answer depends on what the user recently changed or did in Career, such as profile preference changes, profile-row memo additions, onboarding completion, or Harper insight updates.",
     parameters: {
       type: "object",
       properties: {
-        role_id: {
+        limit: {
+          type: "integer",
+          description: "Maximum number of activity events to return.",
+          minimum: 1,
+          maximum: 20,
+          default: 5,
+        },
+        since: {
           type: "string",
           description:
-            "The role_id from a prior get_recommended_jd result that the user confirmed adding.",
+            "Optional ISO timestamp. If provided, return activity events on or after this time.",
+        },
+        sinceDays: {
+          type: "integer",
+          description:
+            "Optional lookback window in days. Used only when since is omitted.",
+          minimum: 1,
+          maximum: 365,
+        },
+        eventTypes: {
+          type: "array",
+          description: "Optional event type filter.",
+          items: {
+            type: "string",
+            enum: [
+              "preferences_changed",
+              "row_memo_added",
+              "insight_updated",
+              "onboarding_completed",
+            ],
+          },
         },
       },
-      required: ["role_id"],
       additionalProperties: false,
     },
     channels: ["chat"],
@@ -381,14 +460,36 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const userId = context?.userId;
       if (!admin || !userId) {
         throw new TalentToolError(
-          "add_to_recommendations requires user context."
+          "read_talent_activity_events requires user context."
         );
       }
-      const roleId = optionalToolString(input.role_id);
-      if (!roleId) {
-        throw new TalentToolError("add_to_recommendations requires role_id.");
-      }
-      return runAddToRecommendations({ admin: admin as any, userId, roleId });
+
+      const limit = normalizeToolLimit(input.limit, 5);
+      const since = normalizeSinceDate(input);
+      const eventTypes = normalizeActivityEventTypes(input.eventTypes);
+      const events = await fetchTalentActivityEvents({
+        admin: admin as any,
+        eventTypes,
+        limit,
+        since,
+        userId,
+      });
+
+      return {
+        count: events.length,
+        eventTypes: eventTypes.length > 0 ? eventTypes : null,
+        limit,
+        since,
+        summaries: events.map((event) => event.summary),
+        events: events.map((event) => ({
+          changedDomains: event.changed_domains,
+          eventType: event.event_type,
+          impactLevel: event.impact_level,
+          occurredAt: event.occurred_at,
+          source: event.source,
+          summary: event.summary,
+        })),
+      };
     },
   },
   [TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES]: {
@@ -463,6 +564,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         totalMatchingCount: filtered.length,
         opportunities: filtered.slice(0, limit).map((item) => ({
           id: item.id,
+          roleId: item.roleId,
           companyName: item.companyName,
           title: item.title,
           opportunityType: item.opportunityType,
@@ -489,7 +591,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE]: {
     name: TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
     description:
-      "Update internal profile state with new information about the user in talent_preferences and per-row memos on talent_experiences/educations/extras. This tool must not update talent_insights. Call only when the user's statement directly maps to one of these writable fields: engagementTypes, preferredLocations, periodicIntervalDays, recommendationBatchSize, or a specific profile-row memo. Do NOT call for general onboarding answers that only describe career intent, desired role, compensation, must-haves, deal-breakers, team style, search intensity, or other insight-like information; those are handled outside this tool. Do NOT call for user questions, hypotheticals/conditional speech ('만약 ~라면'), assistant statements, or info already saved in current preferences/memos (shown in system prompt). For per-row memos use the rowMemos field — only when the user's statement clearly maps to ONE specific row visible in the profile listing (matched by RowID for experiences/educations or by exact Title for extras); OMIT entirely if the mention is ambiguous. NEVER tell the user that you called this tool or saved/updated/noted/added anything. However, after the tool result you must still produce a normal user-facing chat reply in Korean; do not return an empty assistant message or only an onboarding marker.",
+      "Update internal profile state with new information about the user. It can update talent_preferences and row memos during onboarding and after onboarding. It can update talent_insights only after onboarding is already complete, and only for future recommendation/search memory, not profile-row facts that belong in experiences, educations, or extras. Call when the user's latest statement directly maps to writable state, including explicit durable hard-filter search commands such as '미국 회사로만 찾아줘', '앞으로 리모트만 보내줘', '대기업은 빼고 찾아줘', or '다음부터 Series B 이상만 봐줘'. Do not call for user questions, one-off browsing/curiosity/search requests, hypotheticals/conditional speech ('만약 ~라면'), assistant statements, aspirational/off-profile role mentions without explicit future intent, or information already saved in current state. If a post-onboarding update is marked high-impact and actually changes recommendation-relevant state, Harper will automatically run a fresh job-posting recommendation search after this tool, so reserve high impact for material changes. After the tool result, produce a normal user-facing chat reply in Korean; do not return an empty assistant message or only an onboarding marker.",
     parameters: {
       type: "object",
       properties: {
@@ -526,9 +628,9 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             recommendationBatchSize: {
               type: "integer",
               description:
-                "Number of opportunities per batch (1-20). Set only when user states a clear preferred batch size.",
+                "Number of opportunities per batch (1-10). Set only when user states a clear preferred batch size.",
               minimum: 1,
-              maximum: 20,
+              maximum: 10,
             },
           },
           additionalProperties: false,
@@ -599,6 +701,36 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           },
           additionalProperties: false,
         },
+        talentInsights: {
+          type: "object",
+          description:
+            "Post-onboarding only. Durable future recommendation/search-memory updates from the user's latest statement, such as desired next role, search intensity, compensation, must-haves, deal-breakers, team style, company/domain preference, company size/stage preference, or corrections to prior recommendation preferences. Explicit hard-filter search commands are durable memory too: for example, '미국 회사로만 찾아줘' should update must_haves with a value like '앞으로 미국 기반 회사만 추천받고 싶어합니다.' when intended as a hard requirement. Do not use this for facts that belong on a specific experience, education, or extra row; use rowMemos instead. Do not use this for one-off curiosity/browsing/search requests or aspirational/off-profile role mentions unless the user explicitly says Harper should remember the new direction for future matching. Keys must be English snake_case. Values must be final integrated Korean complete sentences, not fragments. During onboarding, omit this entirely because insight extraction is handled separately.",
+          properties: {
+            content: {
+              type: "object",
+              description:
+                "Partial talent_insights.content patch. If the new information belongs to an existing/current insight or checklist axis, update that key with the final integrated value instead of creating a synonym key. Examples: next_scope for target role, deal_breakers for deal-breakers, must_haves for must-have conditions, team_style_fit for team style, compensation for compensation floor, location for location preference. Create a new descriptive English snake_case key when the information is genuinely distinct and does not fit existing keys. Do not create profile-row keys like representative_experience or recent_experience.",
+              additionalProperties: {
+                type: "string",
+                description:
+                  "Final integrated Korean complete sentence. Write '규모를 선호합니다.' rather than '규모 선호.'",
+              },
+            },
+            changeSummary: {
+              type: "string",
+              description:
+                "Short Korean summary of what changed and why it matters for future recommendations.",
+            },
+            impactLevel: {
+              type: "string",
+              enum: ["low", "medium", "high"],
+              description:
+                "Estimated impact on future recommendations. Use high only for core preference, hard constraint, or recommendation-changing updates. After onboarding is complete, high-impact changes automatically trigger a fresh job-posting recommendation search, so do not mark minor notes as high.",
+            },
+          },
+          required: ["content"],
+          additionalProperties: false,
+        },
       },
       additionalProperties: false,
     },
@@ -624,6 +756,22 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         !Array.isArray(input.rowMemos)
           ? (input.rowMemos as Record<string, unknown>)
           : null;
+      const talentInsightsInput =
+        input.talentInsights &&
+        typeof input.talentInsights === "object" &&
+        !Array.isArray(input.talentInsights)
+          ? (input.talentInsights as Record<string, unknown>)
+          : null;
+
+      let existingSetting:
+        | Awaited<ReturnType<typeof fetchTalentSetting>>
+        | undefined;
+      const loadExistingSetting = async () => {
+        if (existingSetting === undefined) {
+          existingSetting = await fetchTalentSetting({ admin, userId });
+        }
+        return existingSetting;
+      };
 
       const updatedPreferenceFields: string[] = [];
       const updatedRowMemos: {
@@ -631,9 +779,19 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         educations: string[];
         extras: string[];
       } = { experiences: [], educations: [], extras: [] };
+      const updatedTalentInsights: Record<
+        string,
+        { from: string | null; to: string }
+      > = {};
+      const preferenceActivityChanges: TalentActivityChange[] = [];
+      const rowMemoActivityItems: TalentRowMemoActivityItem[] = [];
       const skippedRowMemos: Array<{
         table: "experiences" | "educations" | "extras";
         key: string;
+        reason: string;
+      }> = [];
+      const skippedTalentInsights: Array<{
+        key?: string;
         reason: string;
       }> = [];
 
@@ -641,7 +799,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       // careerMoveIntent is intentionally NEVER passed so upsertTalentSetting
       // falls back to the existing value (avoids triggering opportunity discovery).
       if (preferencesInput) {
-        const existingSetting = await fetchTalentSetting({ admin, userId });
+        const existingSetting = await loadExistingSetting();
         const updatePayload: Parameters<typeof upsertTalentSetting>[0] = {
           admin,
           userId,
@@ -658,10 +816,24 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
               ),
             ])
           ).filter((entry) => entry.length > 0);
-          updatePayload.engagementTypes =
-            normalizeTalentEngagementTypes(merged);
+          const nextEngagementTypes = normalizeTalentEngagementTypes(merged);
+          updatePayload.engagementTypes = nextEngagementTypes;
           didUpdate = true;
           updatedPreferenceFields.push("engagementTypes");
+          if (
+            !isSameActivityValue(
+              existingSetting?.engagement_types ?? [],
+              nextEngagementTypes
+            )
+          ) {
+            preferenceActivityChanges.push({
+              field: "engagementTypes",
+              from: normalizeTalentEngagementTypes(
+                existingSetting?.engagement_types ?? []
+              ),
+              to: nextEngagementTypes,
+            });
+          }
         }
         if (Array.isArray(preferencesInput.preferredLocations)) {
           const merged = Array.from(
@@ -672,32 +844,147 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
               ),
             ])
           ).filter((entry) => entry.length > 0);
-          updatePayload.preferredLocations =
+          const nextPreferredLocations =
             normalizeTalentPreferredLocations(merged);
+          updatePayload.preferredLocations = nextPreferredLocations;
           didUpdate = true;
           updatedPreferenceFields.push("preferredLocations");
+          if (
+            !isSameActivityValue(
+              existingSetting?.preferred_locations ?? [],
+              nextPreferredLocations
+            )
+          ) {
+            preferenceActivityChanges.push({
+              field: "preferredLocations",
+              from: normalizeTalentPreferredLocations(
+                existingSetting?.preferred_locations ?? []
+              ),
+              to: nextPreferredLocations,
+            });
+          }
         }
         if (
           typeof preferencesInput.periodicIntervalDays === "number" &&
           Number.isFinite(preferencesInput.periodicIntervalDays)
         ) {
-          updatePayload.periodicIntervalDays =
+          const nextPeriodicIntervalDays =
             preferencesInput.periodicIntervalDays;
+          updatePayload.periodicIntervalDays = nextPeriodicIntervalDays;
           didUpdate = true;
           updatedPreferenceFields.push("periodicIntervalDays");
+          if (
+            !isSameActivityValue(
+              existingSetting?.periodic_interval_days ?? null,
+              nextPeriodicIntervalDays
+            )
+          ) {
+            preferenceActivityChanges.push({
+              field: "periodicIntervalDays",
+              from: existingSetting?.periodic_interval_days ?? null,
+              to: nextPeriodicIntervalDays,
+            });
+          }
         }
         if (
           typeof preferencesInput.recommendationBatchSize === "number" &&
           Number.isFinite(preferencesInput.recommendationBatchSize)
         ) {
-          updatePayload.recommendationBatchSize =
+          const nextRecommendationBatchSize =
             preferencesInput.recommendationBatchSize;
+          updatePayload.recommendationBatchSize = nextRecommendationBatchSize;
           didUpdate = true;
           updatedPreferenceFields.push("recommendationBatchSize");
+          if (
+            !isSameActivityValue(
+              existingSetting?.recommendation_batch_size ?? null,
+              nextRecommendationBatchSize
+            )
+          ) {
+            preferenceActivityChanges.push({
+              field: "recommendationBatchSize",
+              from: existingSetting?.recommendation_batch_size ?? null,
+              to: nextRecommendationBatchSize,
+            });
+          }
         }
 
         if (didUpdate) {
           await upsertTalentSetting(updatePayload);
+        }
+      }
+
+      // talent_insights — only after onboarding is complete. During onboarding,
+      // the separate insight extraction pass owns this state.
+      if (talentInsightsInput) {
+        const setting = await loadExistingSetting();
+        if (!setting?.is_onboarding_done) {
+          skippedTalentInsights.push({ reason: "onboarding_active" });
+        } else {
+          const contentInput =
+            talentInsightsInput.content &&
+            typeof talentInsightsInput.content === "object" &&
+            !Array.isArray(talentInsightsInput.content)
+              ? talentInsightsInput.content
+              : null;
+          const normalizedPatch: Record<string, string> = {};
+
+          if (contentInput) {
+            for (const [rawKey, rawValue] of Object.entries(contentInput)) {
+              const normalized = normalizeGeneratedTalentInsightEntry({
+                rawKey,
+                rawValue,
+                rejectProfileRowFactKeys: true,
+              });
+              if (!normalized.ok) {
+                skippedTalentInsights.push({
+                  key: normalized.key ?? rawKey,
+                  reason: normalized.reason,
+                });
+                continue;
+              }
+              normalizedPatch[normalized.key] = normalized.value;
+            }
+          }
+
+          if (Object.keys(normalizedPatch).length === 0) {
+            skippedTalentInsights.push({ reason: "empty_or_invalid_content" });
+          } else {
+            const existingInsights = await fetchTalentInsights({
+              admin,
+              userId,
+            });
+            const currentContent =
+              normalizeTalentInsightContent(existingInsights?.content ?? null) ??
+              {};
+            const changedPatch: Record<string, string> = {};
+
+            for (const [key, value] of Object.entries(normalizedPatch)) {
+              const previous = currentContent[key]?.trim() || null;
+              const next = value.trim();
+              if (!next) continue;
+              if (previous === next) {
+                skippedTalentInsights.push({ key, reason: "unchanged" });
+                continue;
+              }
+              changedPatch[key] = next;
+              updatedTalentInsights[key] = {
+                from: previous,
+                to: next,
+              };
+            }
+
+            if (Object.keys(changedPatch).length > 0) {
+              await upsertTalentInsights({
+                admin,
+                userId,
+                content: {
+                  ...currentContent,
+                  ...changedPatch,
+                },
+              });
+            }
+          }
         }
       }
 
@@ -720,7 +1007,17 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             newInfo,
           });
           if (outcome.ok) {
-            if (outcome.updated) updatedRowMemos.experiences.push(rowId);
+            if (outcome.updated) {
+              updatedRowMemos.experiences.push(rowId);
+              if (outcome.target) {
+                rowMemoActivityItems.push({
+                  entityId: outcome.target.entityId,
+                  entityLabel: outcome.target.entityLabel,
+                  entityType: outcome.target.entityType,
+                  newInfo,
+                });
+              }
+            }
           } else {
             skippedRowMemos.push({
               table: "experiences",
@@ -746,7 +1043,17 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             newInfo,
           });
           if (outcome.ok) {
-            if (outcome.updated) updatedRowMemos.educations.push(rowId);
+            if (outcome.updated) {
+              updatedRowMemos.educations.push(rowId);
+              if (outcome.target) {
+                rowMemoActivityItems.push({
+                  entityId: outcome.target.entityId,
+                  entityLabel: outcome.target.entityLabel,
+                  entityType: outcome.target.entityType,
+                  newInfo,
+                });
+              }
+            }
           } else {
             skippedRowMemos.push({
               table: "educations",
@@ -772,7 +1079,17 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             newInfo,
           });
           if (outcome.ok) {
-            if (outcome.updated) updatedRowMemos.extras.push(title);
+            if (outcome.updated) {
+              updatedRowMemos.extras.push(title);
+              if (outcome.target) {
+                rowMemoActivityItems.push({
+                  entityId: outcome.target.entityId,
+                  entityLabel: outcome.target.entityLabel,
+                  entityType: outcome.target.entityType,
+                  newInfo,
+                });
+              }
+            }
           } else {
             skippedRowMemos.push({
               table: "extras",
@@ -783,14 +1100,126 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         }
       }
 
-      return {
-        assistantInstruction:
-          "Continue the conversation naturally in Korean now. Do not mention this tool or that anything was saved. If onboarding is still active, ask the next relevant short question or close naturally with the required marker when appropriate. Do not return an empty assistant message.",
+      const preferenceChanges = compactActivityChanges(
+        preferenceActivityChanges
+      );
+      const preferenceSummary =
+        buildPreferenceActivitySummary(preferenceChanges);
+      const preferenceImpactLevel =
+        preferenceChanges.length > 0
+          ? getPreferenceActivityImpact(preferenceChanges)
+          : null;
+      if (preferenceSummary) {
+        await insertTalentActivityEvent({
+          admin,
+          changedDomains: [
+            "preferences",
+            ...preferenceChanges.map((change) => change.field),
+          ],
+          conversationId: context?.conversationId ?? null,
+          eventType: "preferences_changed",
+          impactLevel: preferenceImpactLevel ?? "low",
+          messageId: context?.userMessageId ?? null,
+          metadata: {
+            changes: toPreferenceActivityDisplayChanges(preferenceChanges),
+          },
+          relatedEntityType: "talent_setting",
+          source: "chat",
+          summary: preferenceSummary,
+          userId,
+        });
+      }
+
+      const rowMemoSummary = buildRowMemoActivitySummary(rowMemoActivityItems);
+      if (rowMemoSummary) {
+        await insertTalentActivityEvent({
+          admin,
+          changedDomains: [
+            "profile_memo",
+            ...Array.from(
+              new Set(
+                rowMemoActivityItems.map((item) => `${item.entityType}_memo`)
+              )
+            ),
+          ],
+          conversationId: context?.conversationId ?? null,
+          eventType: "row_memo_added",
+          impactLevel: "medium",
+          messageId: context?.userMessageId ?? null,
+          metadata: { items: rowMemoActivityItems },
+          source: "chat",
+          summary: rowMemoSummary,
+          userId,
+        });
+      }
+
+      const talentInsightKeys = Object.keys(updatedTalentInsights);
+      const insightSummary = buildInsightActivitySummary(talentInsightKeys);
+      const insightImpactLevel = insightSummary
+        ? normalizeToolImpactLevel(talentInsightsInput?.impactLevel) ?? "high"
+        : null;
+      if (insightSummary) {
+        await insertTalentActivityEvent({
+          admin,
+          changedDomains: ["insights", ...talentInsightKeys],
+          conversationId: context?.conversationId ?? null,
+          eventType: "insight_updated",
+          impactLevel: insightImpactLevel ?? "high",
+          messageId: context?.userMessageId ?? null,
+          metadata: {
+            changeSummary: optionalToolString(
+              talentInsightsInput?.changeSummary
+            ),
+            changes: updatedTalentInsights,
+          },
+          relatedEntityType: "talent_insights",
+          source: "chat",
+          summary: insightSummary,
+          userId,
+        });
+      }
+
+      const impactLevel = maxImpactLevel([
+        preferenceImpactLevel,
+        rowMemoActivityItems.length > 0 ? "medium" : null,
+        insightImpactLevel,
+      ]);
+      const hasRecommendationChangingUpdate =
+        preferenceChanges.length > 0 || talentInsightKeys.length > 0;
+      const shouldRecommendJobPostings =
+        impactLevel === "high" &&
+        hasRecommendationChangingUpdate &&
+        Boolean((await loadExistingSetting())?.is_onboarding_done);
+      const recommendationTrigger = shouldRecommendJobPostings
+        ? {
+            changeSummary:
+              optionalToolString(talentInsightsInput?.changeSummary) ??
+              preferenceSummary ??
+              insightSummary ??
+              "사용자의 추천 조건에 큰 변경이 생겼습니다.",
+            changedPreferenceFields: preferenceChanges.map(
+              (change) => change.field
+            ),
+            updatedTalentInsightKeys: talentInsightKeys,
+          }
+        : null;
+
+      const result = {
+        assistantInstruction: shouldRecommendJobPostings
+          ? "This profile update is high-impact and onboarding is complete. A fresh job-posting recommendation search should be run immediately before the final Korean reply."
+          : "Continue the conversation naturally in Korean now. If onboarding is still active, ask the next relevant short question or close naturally with the required marker when appropriate. Do not return an empty assistant message.",
+        impactLevel,
         ok: true,
+        recommendationTrigger,
+        shouldRecommendJobPostings,
         updatedPreferenceFields,
         updatedRowMemos,
+        updatedTalentInsightKeys: talentInsightKeys,
         skippedRowMemos,
+        skippedTalentInsights,
       };
+
+      return result;
     },
   },
 };
@@ -803,13 +1232,36 @@ export function getEnabledTalentTools(channel: TalentToolChannel) {
   );
 }
 
+const UI_STATUS_MESSAGE_PARAMETER = {
+  type: "string",
+  description:
+    "Specific English user-facing Thinking log sentence for this exact tool call. Say what is being changed, checked, searched, or prepared. If searching jobs, describe the kind of opportunities being searched for. If changing saved information, mention the concrete field/value being adjusted; old-to-new is optional only when it is naturally available. Do not use vague text like 'updating', 'checking', or 'searching' by itself. Do not mention internal tool names. Keep it under 160 characters.",
+};
+
+function withUiStatusMessageParameter(parameters: Record<string, unknown>) {
+  const properties =
+    parameters.properties &&
+    typeof parameters.properties === "object" &&
+    !Array.isArray(parameters.properties)
+      ? (parameters.properties as Record<string, unknown>)
+      : {};
+
+  return {
+    ...parameters,
+    properties: {
+      ...properties,
+      _uiStatusMessage: UI_STATUS_MESSAGE_PARAMETER,
+    },
+  };
+}
+
 export function getOpenAIChatTools(channel: TalentToolChannel) {
   return getEnabledTalentTools(channel).map((tool) => ({
     type: "function" as const,
     function: {
       name: tool.name,
       description: tool.description,
-      parameters: tool.parameters,
+      parameters: withUiStatusMessageParameter(tool.parameters),
     },
   }));
 }
@@ -825,13 +1277,14 @@ export function getRealtimeTools(channel: TalentToolChannel) {
     type: "function" as const,
     name: tool.name,
     description: tool.description,
-    parameters: tool.parameters,
+    parameters: withUiStatusMessageParameter(tool.parameters),
   }));
 }
 
 export async function executeTalentTool(args: {
   context?: TalentToolExecutionContext;
   input: Record<string, unknown>;
+  logging?: boolean;
   name: string;
 }) {
   const tool = TALENT_TOOL_REGISTRY[args.name];
@@ -856,34 +1309,43 @@ export async function executeTalentTool(args: {
     );
   }
 
-  logTalentToolCall({
-    input: {
-      ...args.input,
-      _context: {
-        conversationId: args.context?.conversationId,
-        userId: args.context?.userId,
+  const shouldLog = args.logging !== false;
+
+  if (shouldLog) {
+    logTalentToolCall({
+      input: {
+        ...args.input,
+        _context: {
+          conversationId: args.context?.conversationId,
+          userMessageId: args.context?.userMessageId,
+          userId: args.context?.userId,
+        },
       },
-    },
-    name: tool.name,
-    source: "talent-tool-registry",
-  });
+      name: tool.name,
+      source: "talent-tool-registry",
+    });
+  }
   const startedAt = Date.now();
   try {
     const result = await tool.execute(args.input, args.context);
-    logTalentToolResult({
-      durationMs: Date.now() - startedAt,
-      name: tool.name,
-      result,
-      source: "talent-tool-registry",
-    });
+    if (shouldLog) {
+      logTalentToolResult({
+        durationMs: Date.now() - startedAt,
+        name: tool.name,
+        result,
+        source: "talent-tool-registry",
+      });
+    }
     return result;
   } catch (error) {
-    logTalentToolError({
-      durationMs: Date.now() - startedAt,
-      error,
-      name: tool.name,
-      source: "talent-tool-registry",
-    });
+    if (shouldLog) {
+      logTalentToolError({
+        durationMs: Date.now() - startedAt,
+        error,
+        name: tool.name,
+        source: "talent-tool-registry",
+      });
+    }
     throw error;
   }
 }
@@ -897,17 +1359,17 @@ export function getTalentToolVoicePreambles(channel: TalentToolChannel) {
 }
 
 // ---------------------------------------------------------------------------
-// get_recommended_jd / add_to_recommendations helpers
+// get_open_roles helpers
 // ---------------------------------------------------------------------------
 
-type GetRecommendedJdRoleFilter = {
+type GetOpenRolesRoleFilter = {
   role_name?: string | null;
   type?: string | null;
   seniority?: string | null;
   work_mode?: string | null;
 };
 
-function normalizeRoleFilter(value: unknown): GetRecommendedJdRoleFilter {
+function normalizeRoleFilter(value: unknown): GetOpenRolesRoleFilter {
   if (!value || typeof value !== "object") return {};
   const filter = value as Record<string, unknown>;
   return {
@@ -918,7 +1380,7 @@ function normalizeRoleFilter(value: unknown): GetRecommendedJdRoleFilter {
   };
 }
 
-type RecommendedJdRow = {
+type OpenRoleRow = {
   role_id: string;
   name: string;
   description_summary: string | null;
@@ -944,15 +1406,15 @@ type RecommendedJdRow = {
   }>;
 };
 
-async function runGetRecommendedJd(args: {
+async function runGetOpenRoles(args: {
   admin: any;
   userId: string;
   companyName: string | null;
-  roleFilter: GetRecommendedJdRoleFilter;
+  roleFilter: GetOpenRolesRoleFilter;
 }) {
   const { admin, userId, companyName, roleFilter } = args;
 
-  let rows: RecommendedJdRow[];
+  let rows: OpenRoleRow[];
 
   if (!companyName) {
     // No-company path: start FROM talent_opportunity_recommendation so we
@@ -1015,7 +1477,7 @@ async function runGetRecommendedJd(args: {
         id: string;
         talent_id: string;
         dismissed_at: string | null;
-        company_roles: RecommendedJdRow;
+        company_roles: OpenRoleRow;
       }> | null;
       error: { message?: string } | null;
     };
@@ -1026,7 +1488,7 @@ async function runGetRecommendedJd(args: {
       );
     }
 
-    // Reshape to match RecommendedJdRow shape (embed the rec row back in).
+    // Reshape to match OpenRoleRow shape (embed the rec row back in).
     rows = (recData ?? []).map((rec) => ({
       ...rec.company_roles,
       talent_opportunity_recommendation: [
@@ -1090,7 +1552,7 @@ async function runGetRecommendedJd(args: {
     }
 
     const { data, error } = (await query) as {
-      data: RecommendedJdRow[] | null;
+      data: OpenRoleRow[] | null;
       error: { message?: string } | null;
     };
 
@@ -1100,7 +1562,7 @@ async function runGetRecommendedJd(args: {
       );
     }
 
-    rows = (data ?? []) as RecommendedJdRow[];
+    rows = (data ?? []) as OpenRoleRow[];
   }
 
   const normalizedTarget = companyName
@@ -1180,116 +1642,5 @@ async function runGetRecommendedJd(args: {
   return {
     roles,
     total: roles.length,
-  };
-}
-
-async function runAddToRecommendations(args: {
-  admin: any;
-  userId: string;
-  roleId: string;
-}) {
-  const { admin, userId, roleId } = args;
-
-  // Fetch the role + company name for the response payload.
-  const { data: roleRow, error: roleError } = (await admin
-    .from("company_roles")
-    .select(
-      `role_id,
-       name,
-       company_workspace:company_workspace_id (
-         company_name,
-         company_db:company_db_id (name)
-       )`
-    )
-    .eq("role_id", roleId)
-    .maybeSingle()) as {
-    data: {
-      role_id: string;
-      name: string;
-      company_workspace: {
-        company_name: string | null;
-        company_db: { name: string | null } | null;
-      } | null;
-    } | null;
-    error: { message?: string } | null;
-  };
-
-  if (roleError) {
-    throw new TalentToolError(
-      roleError.message ?? "Failed to read role for add_to_recommendations."
-    );
-  }
-  if (!roleRow) {
-    throw new TalentToolError(`Unknown role_id: ${roleId}`);
-  }
-
-  // Check existing recommendation row.
-  const { data: existing, error: existingError } = (await admin
-    .from("talent_opportunity_recommendation")
-    .select("id, dismissed_at")
-    .eq("talent_id", userId)
-    .eq("role_id", roleId)
-    .maybeSingle()) as {
-    data: { id: string; dismissed_at: string | null } | null;
-    error: { message?: string } | null;
-  };
-
-  if (existingError) {
-    throw new TalentToolError(
-      existingError.message ?? "Failed to read existing recommendation."
-    );
-  }
-
-  if (existing) {
-    if (existing.dismissed_at) {
-      // Un-dismiss instead of inserting a duplicate.
-      const { error: updateError } = await admin
-        .from("talent_opportunity_recommendation")
-        .update({ dismissed_at: null })
-        .eq("id", existing.id);
-      if (updateError) {
-        throw new TalentToolError(
-          updateError.message ?? "Failed to un-dismiss recommendation."
-        );
-      }
-    }
-
-    return {
-      ok: true,
-      already_exists: true,
-      role_id: roleId,
-      role_name: roleRow.name,
-      company_name:
-        roleRow.company_workspace?.company_db?.name ??
-        roleRow.company_workspace?.company_name ??
-        null,
-    };
-  }
-
-  const { error: insertError } = await admin
-    .from("talent_opportunity_recommendation")
-    .insert({
-      talent_id: userId,
-      role_id: roleId,
-      kind: "recommendation",
-      opportunity_type: "external_jd",
-      recommendation_reasons: ["chat_request"],
-      feedback: null,
-    });
-
-  if (insertError) {
-    throw new TalentToolError(
-      insertError.message ?? "Failed to insert recommendation."
-    );
-  }
-
-  return {
-    ok: true,
-    role_id: roleId,
-    role_name: roleRow.name,
-    company_name:
-      roleRow.company_workspace?.company_db?.name ??
-      roleRow.company_workspace?.company_name ??
-      null,
   };
 }

@@ -5,16 +5,11 @@ import {
   getPositiveActionLabel,
   getNegativeActionLabel,
 } from "../CareerHistoryPanel";
-import {
-  ArchiveRestore,
-  MessageSquare,
-  RotateCcw,
-  ThumbsDown,
-  ThumbsUp,
-} from "lucide-react";
+import { ArchiveRestore, ThumbsDown } from "lucide-react";
 import {
   getCareerFeedbackButtonClassName,
   getCareerDefaultFeedbackButtonClassName,
+  getCareerPositiveActionIcon,
 } from "../opportunityTypeMeta";
 import HistoryOpportunityDetailContent from "./HistoryOpportunityDetailContent";
 import React from "react";
@@ -44,6 +39,8 @@ const OpportunityDetailModal = ({
 }) => {
   if (!open || !item) return null;
 
+  const PositiveActionIcon = getCareerPositiveActionIcon(item.opportunityType);
+
   return (
     <TalentCareerModal
       open={open}
@@ -63,7 +60,7 @@ const OpportunityDetailModal = ({
                 item.feedback === "positive"
               )}
               disabled={pending}
-              icon={<ThumbsUp className="h-4 w-4" />}
+              icon={<PositiveActionIcon className="h-4 w-4" />}
               label={getPositiveActionLabel(item)}
               onClick={onPositive}
             />
@@ -79,7 +76,7 @@ const OpportunityDetailModal = ({
               onClick={onNegative}
             />
           </div>
-          <div className="flex-1">
+          {/* <div className="flex-1">
             <HistoryFeedbackButton
               className={getCareerDefaultFeedbackButtonClassName(false)}
               disabled={pending}
@@ -87,7 +84,7 @@ const OpportunityDetailModal = ({
               label="질문하기"
               onClick={onQuestion}
             />
-          </div>
+          </div> */}
           {onRestore && (
             <div className="flex-1">
               <HistoryFeedbackButton

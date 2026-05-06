@@ -7,6 +7,7 @@ import React, {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import TurndownService from "turndown";
+import { POSTING_LINK_LABEL } from "@/lib/career/postingLinks";
 import { careerCx } from "./CareerPrimitives";
 
 const turndownService = new TurndownService({
@@ -27,7 +28,9 @@ const HIGHLIGHT_PATTERN = /<<([\s\S]+?)>>/g;
 function looksLikeHtml(value: string) {
   const trimmed = value.trim();
   if (!trimmed) return false;
-  return HTML_BLOCK_TAG_PATTERN.test(trimmed) || HTML_PAIR_PATTERN.test(trimmed);
+  return (
+    HTML_BLOCK_TAG_PATTERN.test(trimmed) || HTML_PAIR_PATTERN.test(trimmed)
+  );
 }
 
 function normalizeRichText(value: string) {
@@ -46,7 +49,10 @@ function normalizeRichText(value: string) {
   return markdown || trimmed;
 }
 
-function renderTextWithHighlights(content: string, keyPrefix: string): ReactNode {
+function renderTextWithHighlights(
+  content: string,
+  keyPrefix: string
+): ReactNode {
   const nodes: ReactNode[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null = null;
@@ -90,7 +96,10 @@ function renderTextWithHighlights(content: string, keyPrefix: string): ReactNode
   return nodes.length === 1 ? nodes[0] : nodes;
 }
 
-function renderNodeWithHighlights(node: ReactNode, keyPrefix: string): ReactNode {
+function renderNodeWithHighlights(
+  node: ReactNode,
+  keyPrefix: string
+): ReactNode {
   if (typeof node === "string") {
     return renderTextWithHighlights(node, keyPrefix);
   }
@@ -172,7 +181,22 @@ export default function CareerRichText({
           ),
           a: ({ href, children }) => {
             if (!href) {
-              return <span>{renderNodeWithHighlights(children, "link-fallback")}</span>;
+              return (
+                <span>
+                  {renderNodeWithHighlights(children, "link-fallback")}
+                </span>
+              );
+            }
+            const childText = Array.isArray(children)
+              ? children.join("")
+              : String(children ?? "");
+            if (
+              childText.trim().toLowerCase() === POSTING_LINK_LABEL &&
+              !href.startsWith("http://") &&
+              !href.startsWith("https://") &&
+              !href.startsWith("mailto:")
+            ) {
+              return null;
             }
 
             return (
@@ -191,7 +215,9 @@ export default function CareerRichText({
               {renderNodeWithHighlights(children, "blockquote")}
             </blockquote>
           ),
-          hr: () => <hr className="my-4 border-0 border-t border-beige900/10" />,
+          hr: () => (
+            <hr className="my-4 border-0 border-t border-beige900/10" />
+          ),
           table: ({ children }) => (
             <div className="mt-4 overflow-x-auto first:mt-0">
               <table className="min-w-full border-collapse text-left text-sm leading-6 text-beige900/80">

@@ -3,7 +3,9 @@ import { getRequestUser } from "@/lib/supabaseServer";
 import {
   countUserChatTurns,
   fetchTalentInsights,
+  fetchTalentSetting,
   getTalentSupabaseAdmin,
+  toTalentMessageResponse,
   type TalentConversationRow,
   type TalentMessageRow,
 } from "@/lib/talentOnboarding/server";
@@ -20,6 +22,8 @@ import {
   serializeOpportunityRun,
 } from "@/lib/opportunityDiscovery/store";
 import { extractAndPersistChatInsights } from "@/lib/talentOnboarding/chatInsights";
+import { maybeSummarizeTalentConversation } from "@/lib/talentOnboarding/conversationSummary";
+import { createOnboardingCompletionWrapupMessage } from "@/lib/talentOnboarding/onboardingCompletionWrapup";
 import {
   hasTalentOnboardingCompletionMarker,
   resolveTalentOnboardingCompletion,
@@ -34,13 +38,9 @@ type Body = {
   isCallMode?: boolean;
 };
 
-const toResponseMessage = (item: TalentMessageRow) => ({
-  id: item.id,
-  role: item.role,
-  content: item.content,
-  messageType: item.message_type ?? "chat",
-  createdAt: item.created_at,
-});
+const INSIGHT_EXTRACTION_THINKING_LOG = "인사이트 추출";
+
+const toResponseMessage = toTalentMessageResponse;
 
 function startOpportunityDiscoveryInBackground(runId: string) {
   console.info("[opportunity-discovery] queued for harper_worker", {
@@ -97,31 +97,42 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const currentInsights = await fetchTalentInsights({
-      admin,
-      userId: user.id,
-    });
+    const [currentInsights, talentSetting] = await Promise.all([
+      fetchTalentInsights({
+        admin,
+        userId: user.id,
+      }),
+      fetchTalentSetting({
+        admin,
+        userId: user.id,
+      }),
+    ]);
     const currentInsightContent = (currentInsights?.content ?? null) as Record<
       string,
       string
     > | null;
+    const shouldAutoExtractInsights = !Boolean(
+      talentSetting?.is_onboarding_done
+    );
     const extractTurnInsights = () =>
-      extractAndPersistChatInsights({
-        admin,
-        assistantContent: assistantMessageText,
-        buildPrompt: (promptArgs) => {
-          const draftInsightMd =
-            getContentForUser("insight-extraction", testSlugs) ?? undefined;
-          return buildCareerInsightExtractionOnlyPrompt({
-            currentInsightContent: promptArgs.currentInsightContent,
-            insightMdOverride: draftInsightMd,
-          });
-        },
-        conversationId,
-        currentInsightContent,
-        logPrefix: "ChatSave",
-        userId: user.id,
-      });
+      shouldAutoExtractInsights
+        ? extractAndPersistChatInsights({
+            admin,
+            assistantContent: assistantMessageText,
+            buildPrompt: (promptArgs) => {
+              const draftInsightMd =
+                getContentForUser("insight-extraction", testSlugs) ?? undefined;
+              return buildCareerInsightExtractionOnlyPrompt({
+                currentInsightContent: promptArgs.currentInsightContent,
+                insightMdOverride: draftInsightMd,
+              });
+            },
+            conversationId,
+            currentInsightContent,
+            logPrefix: "ChatSave",
+            userId: user.id,
+          })
+        : Promise.resolve(0);
 
     const activeRun = await getActiveOpportunityRun({
       admin,
@@ -187,7 +198,33 @@ export async function POST(req: NextRequest) {
       ReturnType<typeof completeOnboardingAndQueueInitialOpportunityRun>
     > | null = null;
 
-    await extractTurnInsights();
+    const insightChangedKeysCount = await extractTurnInsights();
+    const assistantThinkingLogs =
+      insightChangedKeysCount > 0 ? [INSIGHT_EXTRACTION_THINKING_LOG] : [];
+    if (assistantThinkingLogs.length > 0) {
+      const { error: thinkingLogsError } = await admin
+        .from("talent_messages")
+        .update({ thinking_logs: assistantThinkingLogs })
+        .eq("id", insertedAssistantMessage.id)
+        .eq("conversation_id", conversationId)
+        .eq("user_id", user.id);
+      if (thinkingLogsError) {
+        throw new Error(
+          thinkingLogsError.message ?? "Failed to persist thinking logs"
+        );
+      }
+    }
+    void maybeSummarizeTalentConversation({
+      admin,
+      conversationId,
+      userId: user.id,
+    }).catch((error) => {
+      console.error("[ChatSave] Failed to summarize conversation", {
+        conversationId,
+        error: error instanceof Error ? error.message : String(error),
+        userId: user.id,
+      });
+    });
 
     // Completion check: explicit LLM onboarding-done marker only.
     const userTurnCount = await countUserChatTurns({ admin, conversationId });
@@ -223,13 +260,33 @@ export async function POST(req: NextRequest) {
         startOpportunityDiscoveryInBackground(opportunityRun.id);
       }
     }
+    const insertedCompletionWrapupMessage = isCompleted
+      ? await createOnboardingCompletionWrapupMessage({
+          admin,
+          conversationId,
+          latestUserMessageId: insertedUserMessage.id,
+          userId: user.id,
+        })
+      : null;
+    const assistantResponseMessage = {
+      ...toResponseMessage(insertedAssistantMessage as TalentMessageRow),
+      thinkingLogs: assistantThinkingLogs,
+    };
+    const assistantResponseMessages = [
+      assistantResponseMessage,
+      insertedCompletionWrapupMessage
+        ? toResponseMessage(insertedCompletionWrapupMessage)
+        : null,
+    ].filter(
+      (message): message is ReturnType<typeof toResponseMessage> =>
+        message !== null
+    );
 
     return NextResponse.json({
       ok: true,
       userMessage: toResponseMessage(insertedUserMessage as TalentMessageRow),
-      assistantMessage: toResponseMessage(
-        insertedAssistantMessage as TalentMessageRow
-      ),
+      assistantMessage: assistantResponseMessage,
+      assistantMessages: assistantResponseMessages,
       opportunityDiscoveryQueued: Boolean(opportunityRun),
       opportunityRun: serializeOpportunityRun(opportunityRun),
       searchStatusMessage: null,

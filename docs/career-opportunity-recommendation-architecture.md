@@ -113,7 +113,7 @@ Worker 책임:
 - `talent_id`
 - `conversation_id`
 - `status`: `queued`, `running`, `completed`, `failed`, `partial`
-- `trigger`: `conversation_completed`, `immediate_opportunity_requested`, `all_batch_feedback_submitted`, `preference_became_more_active`, `periodic_refresh_due`
+- `trigger`: `conversation_completed`, `immediate_opportunity_requested`, `all_batch_feedback_submitted`, `periodic_refresh_due`
 - `run_mode`: `initial`, `immediate`, `refine`, `refresh`
 - `target_recommendation_count`: 해당 run에서 목표로 하는 추천 개수
 - `chat_preview_count`: 추천 완료 후 대화창에 바로 보여줄 카드 개수, 기본 3
@@ -380,18 +380,7 @@ MVP에서는 별도 `role_intelligence` 테이블을 만들지 않는다. 우선
 
 positive feedback 자체는 trigger가 아니다. 예를 들어 추천 하나를 저장하거나 관심 표시했다고 바로 새 run을 만들지는 않는다. 대신 그 신호는 다음 `all_batch_feedback_submitted`, `periodic_refresh_due`, `immediate_opportunity_requested` run에서 랭킹에 반영한다.
 
-### `preference_became_more_active`
-
-선호가 바뀔 때마다 실행하지 않는다. 이직 의향이 더 적극적인 방향으로 바뀐 경우에만 실행한다.
-
-예시 단계:
-
-1. `not_looking`
-2. `casually_open`
-3. `actively_looking`
-4. `urgent`
-
-`not_looking -> casually_open`, `casually_open -> actively_looking`, `actively_looking -> urgent`처럼 단계가 올라갈 때만 trigger가 된다. 반대로 더 소극적으로 바뀌거나, 지역/근무 형태만 바뀐 경우에는 설정과 선호를 저장하되 추천 run은 즉시 만들지 않는다. 이런 변경은 다음 주기 추천이나 즉시 요청 run에 반영한다.
+프로필 선호도 변경 자체는 discovery run을 즉시 만들지 않는다. 선호도 변경은 activity event와 `talent_setting`에만 반영하고, 다음 `periodic_refresh_due` 또는 `immediate_opportunity_requested` run에서 참고한다.
 
 ### `periodic_refresh_due`
 
@@ -1315,7 +1304,7 @@ API 예시:
 - API route는 run 생성과 enqueue만 담당
 - worker module에서 DB-first 추천 생성
 - 기본 10개 batch 생성
-- `conversation_completed`, `immediate_opportunity_requested`, `all_batch_feedback_submitted`, `preference_became_more_active` trigger 처리
+- `conversation_completed`, `immediate_opportunity_requested`, `all_batch_feedback_submitted`, `periodic_refresh_due` trigger 처리
 - `/career/history`에 pending state 추가
 - 추천 이유 스키마와 validation 추가
 

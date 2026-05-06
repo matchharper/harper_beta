@@ -456,7 +456,7 @@ const CareerProfileSettingsSection = () => {
                 <CareerTextInput
                   type="number"
                   min={1}
-                  max={20}
+                  max={10}
                   step={1}
                   inputMode="numeric"
                   value={talentPreferences.recommendationBatchSize}

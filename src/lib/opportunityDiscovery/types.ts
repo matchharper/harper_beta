@@ -11,7 +11,6 @@ export type OpportunityDiscoveryTrigger =
   | "conversation_completed"
   | "immediate_opportunity_requested"
   | "all_batch_feedback_submitted"
-  | "preference_became_more_active"
   | "periodic_refresh_due";
 
 export type OpportunityRunMode = "initial" | "immediate" | "refine" | "refresh";

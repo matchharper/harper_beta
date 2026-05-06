@@ -43,6 +43,12 @@ export const CAREER_LLM_CONFIG = {
     model: "grok-4-fast-reasoning",
     temperature: 0.2,
   },
+  // 긴 talent chat history를 rolling summary로 압축할 때.
+  // 사용처: maybeSummarizeTalentConversation.
+  conversationSummary: {
+    model: "grok-4-fast-reasoning",
+    temperature: 0.2,
+  },
   // 온보딩을 지금 끝내지 않고 나중으로 미룰 때 닫는 응답을 생성한다.
   // 모델은 assistant.primary/fallback을 쓰고 여기서는 온도만 조정한다.
   // 사용처: /api/talent/onboarding/defer.
@@ -73,7 +79,7 @@ export const CAREER_LLM_CONFIG = {
   realtime: {
     model: "gpt-realtime-1.5",
     transcriptionModel: "gpt-4o-mini-transcribe",
-    voice: "coral",
+    voice: "cedar",
   },
   // 오래 대화하지 않은 유저에게 다시 말을 걸 reengagement 메시지를 만들 때.
   // 모델은 assistant.primary/fallback을 쓴다.
@@ -778,6 +784,22 @@ export async function runCareerInsightExtraction(args: {
     model: CAREER_LLM_CONFIG.insightExtraction.model,
     temperature: CAREER_LLM_CONFIG.insightExtraction.temperature,
     usageLabel: "career/chat:insight_extraction",
+  });
+}
+
+export async function runCareerConversationSummary(args: {
+  systemPrompt: string;
+  userPrompt: string;
+}) {
+  return runDirectTextCompletion({
+    jsonMode: true,
+    messages: [
+      { role: "system", content: args.systemPrompt },
+      { role: "user", content: args.userPrompt },
+    ],
+    model: CAREER_LLM_CONFIG.conversationSummary.model,
+    temperature: CAREER_LLM_CONFIG.conversationSummary.temperature,
+    usageLabel: "career/chat:conversation_summary",
   });
 }
 

@@ -132,7 +132,6 @@ const OpportunityListCard = ({
           />
 
           <div className="mt-4 space-y-2">
-            <OpportunityPreferenceFit items={item.preferenceFit} />
             {recommendationSummary ? (
               <div className="rounded-[8px] border border-beige900/10 bg-white/65 px-3 py-2 text-[14px] leading-6 text-beige900/90">
                 {recommendationSummary}
@@ -163,6 +162,10 @@ const OpportunityListCard = ({
                   </div>
                 </div>
               ))}
+            <OpportunityPreferenceFit
+              items={item.preferenceFit}
+              variant="compact"
+            />
           </div>
         </div>
       </div>

@@ -4,10 +4,12 @@ import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 import {
   executeTalentTool,
   TalentToolError,
+  TALENT_TOOL_NAMES,
 } from "@/lib/talentOnboarding/tools";
 
 type Body = {
   arguments?: Record<string, unknown>;
+  channel?: string;
   conversationId?: string;
   name?: string;
 };
@@ -20,6 +22,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json().catch(() => ({}))) as Body;
+    const channel = body.channel === "voice" ? "voice" : "chat";
     const conversationId = String(body.conversationId ?? "").trim();
     const name = String(body.name ?? "").trim();
 
@@ -32,6 +35,16 @@ export async function POST(req: NextRequest) {
 
     if (!name) {
       return NextResponse.json({ error: "name is required" }, { status: 400 });
+    }
+
+    if (
+      channel === "voice" &&
+      name === TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION
+    ) {
+      return NextResponse.json(
+        { error: "Tool is disabled for voice onboarding." },
+        { status: 400 }
+      );
     }
 
     const admin = getTalentSupabaseAdmin();

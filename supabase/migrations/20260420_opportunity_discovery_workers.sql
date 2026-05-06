@@ -57,7 +57,6 @@ create table if not exists public.opportunity_discovery_run (
         'conversation_completed',
         'immediate_opportunity_requested',
         'all_batch_feedback_submitted',
-        'preference_became_more_active',
         'periodic_refresh_due'
       )
     ),
