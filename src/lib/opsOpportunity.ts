@@ -128,10 +128,10 @@ type RecommendationRow = {
   } | null;
   created_at: string;
   feedback: string | null;
+  fit_reasons: Json;
   id: string;
   kind: string;
   opportunity_type: string | null;
-  recommendation_reasons: Json;
   recommended_at: string;
   role_id: string;
   saved_stage: string | null;
@@ -1267,7 +1267,7 @@ function mapRecommendationRecord(
   if (!role || !workspace) return null;
 
   const recommendationReasons = normalizeRecommendationReasons(
-    row.recommendation_reasons
+    row.fit_reasons
   );
 
   return {
@@ -2795,7 +2795,7 @@ export async function fetchOpsOpportunityRecommendations(args: {
         role_id,
         kind,
         opportunity_type,
-        recommendation_reasons,
+        fit_reasons,
         feedback,
         saved_stage,
         recommended_at,
@@ -2868,9 +2868,9 @@ export async function saveOpsOpportunityRecommendation(args: {
     admin.from("talent_opportunity_recommendation" as any) as any
   )
     .insert({
+      fit_reasons: buildRecommendationReasons(recommendationMemo),
       kind,
       opportunity_type: opportunityType,
-      recommendation_reasons: buildRecommendationReasons(recommendationMemo),
       recommended_at: now,
       role_id: roleId,
       talent_id: talentId,

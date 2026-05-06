@@ -1520,7 +1520,6 @@ async function persistRecommendations(args: {
         opportunity_type: opportunityTypeForRole(item.role),
         preference_fit: item.detail.preferenceFit,
         rank: index + 1,
-        recommendation_reasons: fitReasons,
         recommended_at: now,
         recommendation_status: "ready",
         role_id: roleId,

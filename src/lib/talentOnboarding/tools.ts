@@ -180,7 +180,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION]: {
     name: TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION,
     description:
-      "Internal onboarding selector. Use only during career onboarding Additional questions phase. It reads the user's profile, recent conversation, current insights, and optional latestUserMessage, then selects the single best next additional onboarding question. The selected question can be a profile-gap question OR a role-specific depth/preference question. After the tool returns, ask exactly the returned assistantMessage naturally and do not close onboarding in the same response.",
+      "Internal onboarding selector. Use only during career onboarding Additional questions phase. It reads the user's profile, recent conversation, current insights, and optional latestUserMessage, then selects the single best next additional onboarding question. Prefer concrete profile gaps, especially substantial experience rows with empty description/memo; do not repeatedly ask broad desired role/tech-stack preference questions. After the tool returns, ask exactly the returned assistantMessage naturally and do not close onboarding in the same response.",
     parameters: {
       type: "object",
       properties: {

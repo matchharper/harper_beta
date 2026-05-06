@@ -58,13 +58,7 @@ import Image from "next/image";
 import { formatRelativeTime } from "@/lib/utils";
 
 const LOGIN_GREETING_TEXT =
-  "안녕하세요. 잘해드리겠습니다.\n\n회원님의 정보를 저장하기 위해서 우선 계정으로 로그인을 해주세요.";
-
-const LOGIN_NUDGE =
-  "<<일주일 이내에 Harper를 통해서 미국 법인의 회사로 한명이 채용되었어요!>>";
-
-const LOADING_NUDGE =
-  "<< 하퍼를 통해 이런 기회를 받게됩니다. -> 받게되는 좋은 기회 예시 >>";
+  "안녕하세요.\n\n회원님의 정보를 저장하기 위해서 우선 계정으로 로그인을 해주세요.";
 
 const LOADING_EXAMPLES = [
   "미국 법인 AI Product 팀 Senior Software Engineer",
@@ -1075,8 +1069,6 @@ const CareerTimelineSection = () => {
                   {authInfo}
                 </div>
               )}
-
-              <StatusMessage className="mt-5">{LOGIN_NUDGE}</StatusMessage>
             </TimelinePanel>
           </>
         ) : null}
@@ -1151,7 +1143,6 @@ const CareerTimelineSection = () => {
               <Loader2 className="h-4 w-4 animate-spin text-beige900" />
               이력서와 링크 정보를 분석 중입니다...
             </div>
-            <StatusMessage className="mt-4">{LOADING_NUDGE}</StatusMessage>
             <div className="mt-5 grid gap-2 border-t border-beige900/10 pt-4">
               {LOADING_EXAMPLES.map((example) => (
                 <div

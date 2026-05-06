@@ -22,6 +22,7 @@ type AdditionalQuestionSelection = {
 };
 
 const ALLOWED_GAP_TYPES = new Set([
+  "experience_description_missing",
   "direct_contribution_unclear",
   "career_transition_or_timeline",
   "profile_preference_mismatch",
@@ -138,20 +139,28 @@ export async function selectAdditionalOnboardingQuestion(args: {
         "Prefer the question that would most improve future opportunity matching.",
         "Do not repeat questions already asked in the recent conversation.",
         "Ask exactly one question. Korean 존댓말 only.",
+        "The Structured profile omits `Description` when an experience description is empty. If an experience has a role/company/date range/months but no Description and no Memo, treat that as a missing experience-description gap.",
         "",
         "Selection priority:",
-        "1. Recent/important experience exists but direct contribution is unclear.",
-        "2. Short tenure, career transition, gap, or role change needs interpretation.",
-        "3. The profile strengths and the desired next opportunity have a mismatch or unresolved gap.",
-        "4. Role-specific depth is unclear.",
-        "5. Role-specific preference would improve matching, such as paid channel depth, B2C vs B2B product preference, or AI application layer vs foundation/infrastructure direction.",
-        "6. Use fallback only if no profile-specific or role-specific question is clearly better.",
+        "1. Substantial experience exists but its description is empty, especially around 6+ months or roughly a year. Ask what they actually did in that period once, using the company/role/date context.",
+        "2. Recent/important experience exists but direct contribution is unclear.",
+        "3. Short tenure, career transition, gap, or role change needs interpretation.",
+        "4. The profile strengths and the desired next opportunity have a mismatch or unresolved gap.",
+        "5. Role-specific depth is unclear.",
+        "6. Role-specific preference would improve matching, such as paid channel depth, B2C vs B2B product preference, or AI application layer vs foundation/infrastructure direction.",
+        "7. Use fallback only if no profile-specific or role-specific question is clearly better.",
+        "",
+        "Role/preference restraint:",
+        "- Do not ask broad desired job/role/tech-stack questions repeatedly.",
+        "- If a desired role, role scope, domain, or tech-stack preference has already been asked or answered in recent conversation, do not choose role_specific_preference again.",
+        "- Prefer one concrete profile-gap question over another generic role/tech-stack preference question.",
+        "- If no concrete profile gap remains and role/preference was already covered, return shouldAsk=false.",
         "",
         "JSON schema:",
         JSON.stringify({
           shouldAsk: true,
           gapType:
-            "direct_contribution_unclear | career_transition_or_timeline | profile_preference_mismatch | role_specific_depth | role_specific_preference | fallback",
+            "experience_description_missing | direct_contribution_unclear | career_transition_or_timeline | profile_preference_mismatch | role_specific_depth | role_specific_preference | fallback",
           rationale: "short Korean reason why this is the best next question",
           assistantMessage:
             "natural Korean message Harper should say; include a short reason then the question",
@@ -163,6 +172,9 @@ export async function selectAdditionalOnboardingQuestion(args: {
       content: [
         "## Structured profile",
         profileContext || "(none)",
+        "",
+        "## Additional question state",
+        `Already selected: ${askedCount}/${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX}`,
         "",
         "## Current insights",
         JSON.stringify(insights?.content ?? {}, null, 2),
