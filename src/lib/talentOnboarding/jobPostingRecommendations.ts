@@ -145,6 +145,7 @@ const RERANK_BATCH_SIZE = 50;
 const RERANK_BATCH_FINALIST_COUNT = 10;
 const ROLE_DESCRIPTION_PROMPT_LIMIT = 3000;
 const COMPANY_TEST_SCORE_MAX = 20;
+const COMPANY_TEST_SCORE_SEARCH_RANK_DIVISOR = 100;
 // Max boost is about +2.9 on the 0-10 rerank score.
 const COMPANY_TEST_SCORE_RERANK_DIVISOR = 7;
 const RECOMMEND_JOB_POSTINGS_PRIMARY_MODEL = "grok-4-1-fast-reasoning";
@@ -826,7 +827,8 @@ function buildRoleSearchSql(args: {
 }) {
   const useFts = args.plan.ftsKeywords.length > 0;
   const ftsWhere = useFts ? ftsWhereSql(args.plan.ftsKeywords) : null;
-  const searchRankSql = `(${ftsRankSql(args.plan.ftsKeywords)} + ${softConditionRankSql(args.plan.must.concat(args.plan.should))})`;
+  const companyTestScoreRankSql = `COALESCE(cw.test_score, 0) / ${COMPANY_TEST_SCORE_SEARCH_RANK_DIVISOR}.0`;
+  const searchRankSql = `(${ftsRankSql(args.plan.ftsKeywords)} + ${softConditionRankSql(args.plan.must.concat(args.plan.should))} + ${companyTestScoreRankSql})`;
   const baseWhere = [
     "COALESCE(cr.is_expired, false) = false",
     "LOWER(COALESCE(cr.status, '')) NOT IN ('expired', 'closed', 'inactive', 'archived')",
