@@ -901,7 +901,7 @@ export type Database = {
           is_expired: boolean
           location_text: string | null
           name: string
-          opportunity_search_tsv: unknown | null
+          opportunity_search_tsv: unknown
           posted_at: string | null
           priority: number | null
           request: string | null
@@ -927,7 +927,7 @@ export type Database = {
           is_expired?: boolean
           location_text?: string | null
           name: string
-          opportunity_search_tsv?: never
+          opportunity_search_tsv?: unknown
           posted_at?: string | null
           priority?: number | null
           request?: string | null
@@ -953,7 +953,7 @@ export type Database = {
           is_expired?: boolean
           location_text?: string | null
           name?: string
-          opportunity_search_tsv?: never
+          opportunity_search_tsv?: unknown
           posted_at?: string | null
           priority?: number | null
           request?: string | null
@@ -1123,6 +1123,7 @@ export type Database = {
           logo_url: string | null
           pitch: string | null
           request: string | null
+          test_score: number
           updated_at: string
         }
         Insert: {
@@ -1141,6 +1142,7 @@ export type Database = {
           logo_url?: string | null
           pitch?: string | null
           request?: string | null
+          test_score?: number
           updated_at?: string
         }
         Update: {
@@ -1159,6 +1161,7 @@ export type Database = {
           logo_url?: string | null
           pitch?: string | null
           request?: string | null
+          test_score?: number
           updated_at?: string
         }
         Relationships: [
@@ -3750,6 +3753,51 @@ export type Database = {
         }
         Relationships: []
       }
+      service_help_chunks: {
+        Row: {
+          chunk_index: number
+          chunk_text: string
+          content_hash: string
+          created_at: string
+          doc_path: string
+          embedding: string
+          embedding_model: string
+          id: string
+          metadata: Json
+          source_doc_title: string | null
+          ui_target: string | null
+          updated_at: string
+        }
+        Insert: {
+          chunk_index: number
+          chunk_text: string
+          content_hash: string
+          created_at?: string
+          doc_path: string
+          embedding: string
+          embedding_model?: string
+          id?: string
+          metadata?: Json
+          source_doc_title?: string | null
+          ui_target?: string | null
+          updated_at?: string
+        }
+        Update: {
+          chunk_index?: number
+          chunk_text?: string
+          content_hash?: string
+          created_at?: string
+          doc_path?: string
+          embedding?: string
+          embedding_model?: string
+          id?: string
+          metadata?: Json
+          source_doc_title?: string | null
+          ui_target?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       settings: {
         Row: {
           created_at: string
@@ -3894,6 +3942,147 @@ export type Database = {
             columns: ["run_id"]
             isOneToOne: false
             referencedRelation: "runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      talent_activity_events: {
+        Row: {
+          changed_domains: string[]
+          conversation_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          impact_level: string
+          message_id: number | null
+          metadata: Json
+          occurred_at: string
+          related_entity_id: string | null
+          related_entity_type: string | null
+          source: string
+          summary: string
+          talent_id: string
+        }
+        Insert: {
+          changed_domains?: string[]
+          conversation_id?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          impact_level?: string
+          message_id?: number | null
+          metadata?: Json
+          occurred_at?: string
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          source?: string
+          summary: string
+          talent_id: string
+        }
+        Update: {
+          changed_domains?: string[]
+          conversation_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          impact_level?: string
+          message_id?: number | null
+          metadata?: Json
+          occurred_at?: string
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          source?: string
+          summary?: string
+          talent_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_activity_events_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "talent_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_activity_events_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "talent_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_activity_events_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      talent_conversation_summaries: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          from_message_id: number | null
+          id: string
+          message_count: number
+          source_char_count: number
+          summary_json: Json
+          summary_text: string
+          talent_id: string
+          to_message_id: number
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          from_message_id?: number | null
+          id?: string
+          message_count?: number
+          source_char_count?: number
+          summary_json?: Json
+          summary_text?: string
+          talent_id: string
+          to_message_id: number
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          from_message_id?: number | null
+          id?: string
+          message_count?: number
+          source_char_count?: number
+          summary_json?: Json
+          summary_text?: string
+          talent_id?: string
+          to_message_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talent_conversation_summaries_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "talent_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_conversation_summaries_from_message_id_fkey"
+            columns: ["from_message_id"]
+            isOneToOne: false
+            referencedRelation: "talent_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "talent_conversation_summaries_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "talent_users"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "talent_conversation_summaries_to_message_id_fkey"
+            columns: ["to_message_id"]
+            isOneToOne: false
+            referencedRelation: "talent_messages"
             referencedColumns: ["id"]
           },
         ]
@@ -4174,6 +4363,7 @@ export type Database = {
           id: number
           message_type: string
           role: string
+          thinking_logs: Json
           user_id: string
         }
         Insert: {
@@ -4183,6 +4373,7 @@ export type Database = {
           id?: number
           message_type?: string
           role: string
+          thinking_logs?: Json
           user_id: string
         }
         Update: {
@@ -4192,6 +4383,7 @@ export type Database = {
           id?: number
           message_type?: string
           role?: string
+          thinking_logs?: Json
           user_id?: string
         }
         Relationships: [
@@ -4801,12 +4993,15 @@ export type Database = {
       talent_users: {
         Row: {
           bio: string | null
+          career_profile: Json
           created_at: string
           email: string | null
           headline: string | null
           last_logined_at: string | null
           location: string | null
           name: string | null
+          network_application: Json
+          network_claimed_at: string | null
           network_source_talent_id: string | null
           network_waitlist_id: number | null
           profile_picture: string | null
@@ -4819,12 +5014,15 @@ export type Database = {
         }
         Insert: {
           bio?: string | null
+          career_profile?: Json
           created_at?: string
           email?: string | null
           headline?: string | null
           last_logined_at?: string | null
           location?: string | null
           name?: string | null
+          network_application?: Json
+          network_claimed_at?: string | null
           network_source_talent_id?: string | null
           network_waitlist_id?: number | null
           profile_picture?: string | null
@@ -4837,12 +5035,15 @@ export type Database = {
         }
         Update: {
           bio?: string | null
+          career_profile?: Json
           created_at?: string
           email?: string | null
           headline?: string | null
           last_logined_at?: string | null
           location?: string | null
           name?: string | null
+          network_application?: Json
+          network_claimed_at?: string | null
           network_source_talent_id?: string | null
           network_waitlist_id?: number | null
           profile_picture?: string | null
@@ -5001,6 +5202,15 @@ export type Database = {
       }
       get_scholar_candidate_ids: { Args: never; Returns: string[] }
       is_admin: { Args: never; Returns: boolean }
+      match_service_help_chunks: {
+        Args: { match_count?: number; query_embedding: string }
+        Returns: {
+          chunk_text: string
+          score: number
+          source_doc_title: string
+          ui_target: string
+        }[]
+      }
       reset_org_db_seq: { Args: never; Returns: undefined }
       reveal_candidate_profile: {
         Args: { target_candid_id: string }

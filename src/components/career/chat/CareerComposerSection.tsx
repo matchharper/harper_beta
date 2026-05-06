@@ -44,7 +44,9 @@ const CareerComposerSection = () => {
   const [draft, setDraft] = useState("");
   const [chatLinkDraft, setChatLinkDraft] = useState("");
   const [showLinkInput, setShowLinkInput] = useState(false);
+  const [textareaResetVersion, setTextareaResetVersion] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const isComposingRef = useRef(false);
   const onboardingPaused = isOnboardingPaused(messages);
   const isStartingCall = onboardingBeginPending || callStartPending;
 
@@ -81,13 +83,18 @@ const CareerComposerSection = () => {
 
   const isVoiceMode = inputMode === "voice";
 
+  const resetDraftField = () => {
+    setDraft("");
+    setTextareaResetVersion((version) => version + 1);
+  };
+
   const handleSend = async () => {
-    const text = draft.trim();
+    const text = (textareaRef.current?.value ?? draft).trim();
     if (!text) return;
     if (isComposerActionLocked) return;
 
     const link = chatLinkDraft.trim();
-    setDraft("");
+    resetDraftField();
     setChatLinkDraft("");
     setShowLinkInput(false);
     window.requestAnimationFrame(() => textareaRef.current?.focus());
@@ -105,6 +112,7 @@ const CareerComposerSection = () => {
 
   const handleComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
+      if (event.nativeEvent.isComposing || isComposingRef.current) return;
       event.preventDefault();
       void handleSend();
     }
@@ -172,10 +180,18 @@ const CareerComposerSection = () => {
         <div className="rounded-3xl border border-beige900/20 transition-all duration-200 focus-within:border-beige900/40 focus-within:shadow-[0_0_16px_rgba(0,0,0,0.1)] bg-white px-3 py-3 shadow-[0_0_16px_rgba(0,0,0,0.05)]">
           <div className="relative flex items-end gap-2">
             <textarea
+              key={textareaResetVersion}
               ref={textareaRef}
               id="career-chat-composer"
               value={isVoiceMode ? voiceTranscript : draft}
               onChange={(event) => setDraft(event.target.value)}
+              onCompositionStart={() => {
+                isComposingRef.current = true;
+              }}
+              onCompositionEnd={(event) => {
+                isComposingRef.current = false;
+                setDraft(event.currentTarget.value);
+              }}
               onKeyDown={handleComposerKeyDown}
               readOnly={isVoiceMode}
               placeholder={

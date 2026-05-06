@@ -19,22 +19,30 @@ export const normalizeText = (raw: string) =>
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
+const normalizeThinkingLogs = (value: unknown) =>
+  Array.isArray(value)
+    ? value
+        .filter((item): item is string => typeof item === "string")
+        .map((item) => item.replace(/\s+/g, " ").trim())
+        .filter(Boolean)
+    : [];
+
 export const toUiMessage = (message: {
   id: string | number;
-  role: MessageRole;
-	  content: string;
-	  messageType?: string;
-	  companySnapshotSetup?: CareerMessage["companySnapshotSetup"];
-	  createdAt?: string;
-	  opportunityPreview?: CareerMessage["opportunityPreview"];
+	  role: MessageRole;
+		  content: string;
+		  messageType?: string;
+		  createdAt?: string;
+		  opportunityPreview?: CareerMessage["opportunityPreview"];
+		  thinkingLogs?: unknown;
 	}): CareerMessage => ({
 	  id: message.id,
-	  role: message.role,
-	  content: message.content,
-	  messageType: message.messageType ?? "chat",
-	  companySnapshotSetup: message.companySnapshotSetup,
-	  createdAt: message.createdAt ?? new Date().toISOString(),
-	  opportunityPreview: message.opportunityPreview,
+		  role: message.role,
+		  content: message.content,
+		  messageType: message.messageType ?? "chat",
+		  createdAt: message.createdAt ?? new Date().toISOString(),
+		  opportunityPreview: message.opportunityPreview,
+	  thinkingLogs: normalizeThinkingLogs(message.thinkingLogs),
 	});
 
 export const getErrorMessage = (payload: unknown, fallback: string) => {

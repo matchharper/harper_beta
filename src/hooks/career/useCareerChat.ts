@@ -4,6 +4,7 @@ import type {
   CareerMessage,
   CareerMessagePayload,
   CareerOpportunityRun,
+  CareerRecommendationSearchStatus,
   CareerStage,
   SessionResponse,
 } from "@/components/career/types";
@@ -12,6 +13,7 @@ import { showOpportunityDiscoveryStartedToast } from "./opportunityDiscoveryToas
 import type { FetchWithAuth } from "./useCareerApi";
 
 type SendChatArgs = {
+  channel?: "chat" | "voice";
   text: string;
   link?: string;
   onError?: () => void;
@@ -36,10 +38,7 @@ type UseCareerChatArgs = {
     preferences: unknown,
     updatedAt: unknown
   ) => void;
-  onTalentInsightsRefreshed?: (
-    insights: unknown,
-    updatedAt: unknown
-  ) => void;
+  onTalentInsightsRefreshed?: (insights: unknown, updatedAt: unknown) => void;
   persistedMessages: CareerMessage[];
   onMessagesChanged?: (
     messages: CareerMessagePayload[]
@@ -156,6 +155,26 @@ const toStreamMessagePayload = (
   return value;
 };
 
+const toRecommendationSearchStatus = (
+  value: unknown
+): CareerRecommendationSearchStatus | null => {
+  if (!isRecord(value)) return null;
+  const state = value.state;
+  if (state !== "running" && state !== "completed" && state !== "error") {
+    return null;
+  }
+
+  return {
+    candidateCount:
+      typeof value.candidateCount === "number" ? value.candidateCount : null,
+    recommendationCount:
+      typeof value.recommendationCount === "number"
+        ? value.recommendationCount
+        : null,
+    state,
+  };
+};
+
 export const useCareerChat = ({
   user,
   conversationId,
@@ -172,8 +191,19 @@ export const useCareerChat = ({
   const [chatPending, setChatPending] = useState(false);
   const [chatError, setChatError] = useState("");
   const [assistantTyping, setAssistantTyping] = useState(false);
+  const [toolStatusMessage, setToolStatusMessage] = useState("");
+  const [activeThinkingLogs, setActiveThinkingLogs] = useState<string[]>([]);
+  const [
+    activeRecommendationSearchStatus,
+    setActiveRecommendationSearchStatus,
+  ] = useState<CareerRecommendationSearchStatus | null>(null);
+  const [onboardingWrapupPending, setOnboardingWrapupPending] = useState(false);
+  const [thinkingLogsByMessageId, setThinkingLogsByMessageId] = useState<
+    Record<string, string[]>
+  >({});
   const [scrollTick, setScrollTick] = useState(0);
 
+  const activeThinkingLogsRef = useRef<string[]>([]);
   const typingQueueRef = useRef<Promise<void>>(Promise.resolve());
   const mountedRef = useRef(true);
 
@@ -250,14 +280,104 @@ export const useCareerChat = ({
     return typingQueueRef.current;
   }, []);
 
+  const resetActiveThinkingLogs = useCallback(() => {
+    activeThinkingLogsRef.current = [];
+    setActiveThinkingLogs([]);
+    setActiveRecommendationSearchStatus(null);
+    setOnboardingWrapupPending(false);
+    setToolStatusMessage("");
+  }, []);
+
+  const appendThinkingLog = useCallback((message: string) => {
+    const normalized = message.replace(/\s+/g, " ").trim();
+    if (!normalized) return;
+
+    const current = activeThinkingLogsRef.current;
+    const next =
+      current[current.length - 1] === normalized
+        ? current
+        : [...current, normalized].slice(-12);
+    activeThinkingLogsRef.current = next;
+    setActiveThinkingLogs(next);
+    setToolStatusMessage(normalized);
+    setScrollTick((t) => t + 1);
+  }, []);
+
+  const attachThinkingLogsToMessage = useCallback(
+    (messageId: string | number) => {
+      const logs = activeThinkingLogsRef.current;
+      if (logs.length === 0) return;
+      setThinkingLogsByMessageId((prev) => ({
+        ...prev,
+        [String(messageId)]: logs,
+      }));
+    },
+    []
+  );
+
   const applySessionConversation = useCallback((payload: SessionResponse) => {
     setStage(payload.conversation.stage);
     setLocalMessages([]);
+    activeThinkingLogsRef.current = [];
+    setActiveThinkingLogs([]);
+    setOnboardingWrapupPending(false);
+    setThinkingLogsByMessageId({});
+    setToolStatusMessage("");
   }, []);
 
   const appendMessage = useCallback((message: CareerMessage) => {
     setLocalMessages((prev) => [...prev, message]);
+    setScrollTick((t) => t + 1);
   }, []);
+
+  const regenerateOnboardingWrapup = useCallback(async () => {
+    if (!user || !conversationId || onboardingWrapupPending) return;
+
+    setChatError("");
+    setOnboardingWrapupPending(true);
+    try {
+      const response = await fetchWithAuth(
+        "/api/talent/onboarding/wrapup/regenerate",
+        {
+          method: "POST",
+          body: JSON.stringify({ conversationId }),
+        }
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          getErrorMessage(payload, "Call Wrap-up 재생성에 실패했습니다.")
+        );
+      }
+
+      const messagePayload = isRecord(payload)
+        ? toStreamMessagePayload(payload.message)
+        : null;
+      if (!messagePayload) {
+        throw new Error("Call Wrap-up 응답이 비어 있습니다.");
+      }
+
+      setLocalMessages((prev) =>
+        replaceMessageById(prev, messagePayload.id, toUiMessage(messagePayload))
+      );
+      await onMessagesChanged?.([messagePayload]);
+      setScrollTick((t) => t + 1);
+    } catch (error) {
+      setChatError(
+        error instanceof Error
+          ? error.message
+          : "Call Wrap-up 재생성 중 오류가 발생했습니다."
+      );
+    } finally {
+      setOnboardingWrapupPending(false);
+    }
+  }, [
+    conversationId,
+    fetchWithAuth,
+    onboardingWrapupPending,
+    onMessagesChanged,
+    user,
+  ]);
 
   const sendChatMessage = useCallback(
     async (args: SendChatArgs, options?: SendChatOptions) => {
@@ -282,6 +402,7 @@ export const useCareerChat = ({
       const nowIso = new Date().toISOString();
 
       setChatError("");
+      resetActiveThinkingLogs();
       setChatPending(true);
       setLocalMessages((prev) => [
         ...prev,
@@ -303,6 +424,7 @@ export const useCareerChat = ({
             Accept: "text/event-stream",
           },
           body: JSON.stringify({
+            channel: args.channel ?? "chat",
             conversationId,
             message: text,
             link,
@@ -359,12 +481,28 @@ export const useCareerChat = ({
             setScrollTick((t) => t + 1);
           };
 
+          const upsertFinalAssistantMessages = (
+            currentMessages: CareerMessage[],
+            payloads: CareerMessagePayload[]
+          ) => {
+            const withoutStreamPlaceholder = currentMessages.filter(
+              (message) => String(message.id) !== streamAssistantId
+            );
+
+            return payloads.reduce(
+              (nextMessages, payload) =>
+                replaceMessageById(
+                  nextMessages,
+                  payload.id,
+                  toUiMessage(payload)
+                ),
+              withoutStreamPlaceholder
+            );
+          };
+
           const settleAssistantMessage = (payload: CareerMessagePayload) => {
-            const nextMessage = toUiMessage(payload);
             setLocalMessages((prev) =>
-              streamAssistantVisible
-                ? replaceMessageById(prev, streamAssistantId, nextMessage)
-                : [...prev, nextMessage]
+              upsertFinalAssistantMessages(prev, [payload])
             );
             streamAssistantVisible = false;
             pendingAssistantMessageId = null;
@@ -397,11 +535,45 @@ export const useCareerChat = ({
               return;
             }
 
+            if (event === "tool_status") {
+              const message =
+                isRecord(data) && typeof data.message === "string"
+                  ? data.message.trim()
+                  : "";
+              if (!message) return;
+              appendThinkingLog(message);
+              return;
+            }
+
+            if (event === "recommendation_search_status") {
+              const status = toRecommendationSearchStatus(data);
+              if (!status) return;
+              setActiveRecommendationSearchStatus(status);
+              setScrollTick((t) => t + 1);
+              return;
+            }
+
+            if (event === "onboarding_wrapup_status") {
+              const state = isRecord(data) ? data.state : null;
+              if (state === "running") {
+                setOnboardingWrapupPending(true);
+                setScrollTick((t) => t + 1);
+                return;
+              }
+              if (state === "completed" || state === "error") {
+                setOnboardingWrapupPending(false);
+                setScrollTick((t) => t + 1);
+              }
+              return;
+            }
+
             if (event === "assistant_message") {
               const payload = isRecord(data)
                 ? toStreamMessagePayload(data.message)
                 : null;
               if (!payload) return;
+              attachThinkingLogsToMessage(payload.id);
+              resetActiveThinkingLogs();
               assistantPayloads = [payload];
               settleAssistantMessage(payload);
               return;
@@ -417,23 +589,11 @@ export const useCareerChat = ({
                       )
                   : [];
               if (payloads.length === 0) return;
+              attachThinkingLogsToMessage(payloads[0].id);
+              resetActiveThinkingLogs();
               assistantPayloads = payloads;
               setLocalMessages((prev) => {
-                let nextMessages = [...prev];
-                for (let index = 0; index < payloads.length; index += 1) {
-                  const payload = payloads[index];
-                  const nextMessage = toUiMessage(payload);
-                  if (index === 0 && streamAssistantVisible) {
-                    nextMessages = replaceMessageById(
-                      nextMessages,
-                      streamAssistantId,
-                      nextMessage
-                    );
-                    continue;
-                  }
-                  nextMessages.push(nextMessage);
-                }
-                return nextMessages;
+                return upsertFinalAssistantMessages(prev, payloads);
               });
               streamAssistantVisible = false;
               pendingAssistantMessageId = null;
@@ -447,10 +607,7 @@ export const useCareerChat = ({
                 ? (data.opportunityRun as CareerOpportunityRun | null)
                 : null;
               onOpportunityRunChanged?.(run ?? null);
-              if (
-                isRecord(data) &&
-                data.opportunityDiscoveryQueued === true
-              ) {
+              if (isRecord(data) && data.opportunityDiscoveryQueued === true) {
                 showOpportunityDiscoveryStartedToast();
               }
               return;
@@ -483,6 +640,8 @@ export const useCareerChat = ({
             }
 
             if (event === "error") {
+              resetActiveThinkingLogs();
+              setOnboardingWrapupPending(false);
               throw new Error(
                 isRecord(data) && typeof data.error === "string"
                   ? data.error
@@ -492,6 +651,8 @@ export const useCareerChat = ({
 
             if (event === "done") {
               streamDone = true;
+              resetActiveThinkingLogs();
+              setOnboardingWrapupPending(false);
               if (realUserMessage || assistantPayloads.length > 0) {
                 await onMessagesChanged?.([
                   ...(realUserMessage ? [realUserMessage] : []),
@@ -586,6 +747,7 @@ export const useCareerChat = ({
           setStage("completed");
         }
       } catch (error) {
+        resetActiveThinkingLogs();
         const message =
           error instanceof Error
             ? error.message
@@ -605,7 +767,9 @@ export const useCareerChat = ({
       }
     },
     [
+      appendThinkingLog,
       assistantTyping,
+      attachThinkingLogsToMessage,
       chatPending,
       conversationId,
       enqueueAssistantTypewriter,
@@ -617,6 +781,7 @@ export const useCareerChat = ({
       onOpportunityRunChanged,
       onTalentInsightsRefreshed,
       onTalentPreferencesRefreshed,
+      resetActiveThinkingLogs,
     ]
   );
 
@@ -631,7 +796,10 @@ export const useCareerChat = ({
     setChatPending(false);
     setChatError("");
     setAssistantTyping(false);
-  }, []);
+    setOnboardingWrapupPending(false);
+    resetActiveThinkingLogs();
+    setThinkingLogsByMessageId({});
+  }, [resetActiveThinkingLogs]);
 
   return {
     stage,
@@ -640,12 +808,18 @@ export const useCareerChat = ({
     scrollTick,
     appendMessage,
     chatPending,
+    toolStatusMessage,
+    activeThinkingLogs,
+    activeRecommendationSearchStatus,
+    onboardingWrapupPending,
+    thinkingLogsByMessageId,
     chatError,
     setChatError,
     assistantTyping,
     enqueueAssistantTypewriter,
     applySessionConversation,
     sendChatMessage,
+    regenerateOnboardingWrapup,
     resetChatState,
   };
 };

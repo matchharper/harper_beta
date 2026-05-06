@@ -130,7 +130,28 @@ export function sanitizeTalentCareerMoveIntent(
   return null;
 }
 
-export function normalizeTalentInsightKey(value: unknown, maxLength = 64) {
+const TALENT_INSIGHT_KEY_ALIASES: Record<string, string> = {
+  collaboration_style: "team_style_fit",
+  compensation_expectation: "compensation",
+  compensation_floor: "compensation",
+  deal_breaker: "deal_breakers",
+  desired_role: "next_scope",
+  dream_teams: "desired_teams",
+  impact_summary: "technical_strengths",
+  location_preference: "location",
+  must_have: "must_haves",
+  next_role: "next_scope",
+  preferred_location: "location",
+  preferred_role: "next_scope",
+  role_preference: "next_scope",
+  salary_expectation: "compensation",
+  search_urgency: "search_intensity",
+  target_role: "next_scope",
+  target_roles: "next_scope",
+  team_style: "team_style_fit",
+};
+
+function normalizeTalentInsightRawKey(value: unknown, maxLength = 64) {
   if (typeof value !== "string") return null;
 
   const normalized = value
@@ -143,11 +164,24 @@ export function normalizeTalentInsightKey(value: unknown, maxLength = 64) {
     .slice(0, maxLength);
 
   if (!normalized) return null;
-
-  if (normalized === "impact_summary") return "technical_strengths";
-  if (normalized === "dream_teams") return "desired_teams";
-
   return normalized;
+}
+
+export function isTalentInsightKeyAlias(value: unknown, maxLength = 64) {
+  const normalized = normalizeTalentInsightRawKey(value, maxLength);
+  return Boolean(normalized && TALENT_INSIGHT_KEY_ALIASES[normalized]);
+}
+
+export function normalizeTalentInsightKey(value: unknown, maxLength = 64) {
+  const normalized = normalizeTalentInsightRawKey(value, maxLength);
+  if (!normalized) return null;
+  return TALENT_INSIGHT_KEY_ALIASES[normalized] ?? normalized;
+}
+
+function shouldReplaceTalentInsightValue(current: string, next: string) {
+  if (next.length > current.length) return true;
+  if (current.length > next.length) return false;
+  return next.localeCompare(current, "ko-KR") > 0;
 }
 
 export function normalizeTalentInsightContent(
@@ -162,6 +196,13 @@ export function normalizeTalentInsightContent(
     const key = normalizeTalentInsightKey(rawKey);
     const nextValue = normalizeTalentInsightText(rawValue, 8000);
     if (!key || !nextValue) continue;
+    const currentValue = normalized[key];
+    if (
+      currentValue &&
+      !shouldReplaceTalentInsightValue(currentValue, nextValue)
+    ) {
+      continue;
+    }
     normalized[key] = nextValue;
   }
 
@@ -424,7 +465,12 @@ export async function fetchTalentInsights(args: {
   }
 
   const row = (data ?? [])[0] ?? null;
-  return (row ?? null) as TalentInsightRow | null;
+  if (!row) return null;
+
+  return {
+    ...(row as TalentInsightRow),
+    content: normalizeTalentInsightContent(row.content),
+  } as TalentInsightRow;
 }
 
 export async function upsertTalentInsights(args: {

@@ -1,9 +1,11 @@
 import { runCareerInsightExtraction } from "@/lib/career/llm";
-import { normalizeExtractedInsights } from "@/lib/talentOnboarding/insights";
+import {
+  normalizeExtractedInsights,
+  normalizeGeneratedTalentInsightEntry,
+} from "@/lib/talentOnboarding/insights";
 import {
   fetchRecentMessages,
   getTalentSupabaseAdmin,
-  normalizeTalentInsightKey,
   upsertTalentInsights,
 } from "@/lib/talentOnboarding/server";
 import { logger } from "@/utils/logger";
@@ -115,17 +117,29 @@ export async function extractAndPersistChatInsights(args: {
     const processedInsights: Record<string, string> = {};
 
     for (const [rawKey, extracted] of Object.entries(extractedInsights)) {
-      const key = normalizeTalentInsightKey(rawKey);
-      if (!key || !extracted.value) continue;
+      const normalized = normalizeGeneratedTalentInsightEntry({
+        rawKey,
+        rawValue: extracted.value,
+        rejectProfileRowFactKeys: true,
+      });
+      if (!normalized.ok) {
+        logger.log(`[${args.logPrefix}] Skipped invalid talent insight`, {
+          key: normalized.key ?? rawKey,
+          reason: normalized.reason,
+        });
+        continue;
+      }
 
+      const { key, value } = normalized;
       const existingValue = args.currentInsightContent?.[key]?.trim();
       if (extracted.action === "update") {
-        processedInsights[key] = extracted.value;
+        if (existingValue === value) continue;
+        processedInsights[key] = value;
         continue;
       }
 
       if (!existingValue) {
-        processedInsights[key] = extracted.value;
+        processedInsights[key] = value;
       }
     }
 
@@ -133,9 +147,7 @@ export async function extractAndPersistChatInsights(args: {
       return 0;
     }
 
-    const newKeysCount = Object.keys(processedInsights).filter(
-      (key) => !args.currentInsightContent?.[key]?.trim()
-    ).length;
+    const changedKeysCount = Object.keys(processedInsights).length;
     const finalContent: Record<string, string> = {
       ...(args.currentInsightContent ?? {}),
       ...processedInsights,
@@ -147,7 +159,7 @@ export async function extractAndPersistChatInsights(args: {
       content: finalContent,
     });
 
-    return newKeysCount;
+    return changedKeysCount;
   } catch (insightError) {
     logger.log(`[${args.logPrefix}] Failed to extract insights`, {
       userId: args.userId,

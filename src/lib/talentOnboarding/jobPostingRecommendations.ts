@@ -1,7 +1,7 @@
 import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
+import { fetchRecentMessagesWithSummary } from "@/lib/talentOnboarding/conversationSummary";
 import {
   buildTalentProfileContext,
-  fetchRecentMessages,
   fetchTalentInsights,
   fetchTalentSetting,
   fetchTalentStructuredProfile,
@@ -9,6 +9,7 @@ import {
   getTalentSupabaseAdmin,
   normalizeTalentBlockedCompanies,
 } from "@/lib/talentOnboarding/server";
+import { OpportunityType } from "@/lib/opportunityType";
 
 if (typeof window !== "undefined") {
   throw new Error("jobPostingRecommendations must not run in the browser");
@@ -23,7 +24,13 @@ type SearchCondition = {
   values: string[];
 };
 
+type FtsKeyword = {
+  terms: string[];
+  weight: number;
+};
+
 type SearchPlan = {
+  ftsKeywords: FtsKeyword[];
   must: SearchCondition[];
   rerankCriteria: string[];
   searchIntentSummary: string;
@@ -40,9 +47,9 @@ type RawRoleRow = {
   company_db_specialities?: string | null;
   company_description?: string | null;
   company_name?: string | null;
+  company_test_score?: number | null;
   company_workspace_id?: string | null;
   description?: string | null;
-  description_summary?: string | null;
   external_jd_url?: string | null;
   homepage_url?: string | null;
   information_text?: string | null;
@@ -51,6 +58,7 @@ type RawRoleRow = {
   role_id?: string | null;
   role_name?: string | null;
   salary_range?: string | null;
+  search_rank?: number | null;
   seniority_level?: string | null;
   source_provider?: string | null;
   source_type?: string | null;
@@ -69,8 +77,39 @@ type RankedRole = {
   score: number;
 };
 
+type PreferenceFitStatus = "Satisfied" | "Neutral" | "Dissatisfied";
+
+type RecommendationPreferenceFit = Record<
+  string,
+  {
+    note: string;
+    status: PreferenceFitStatus;
+  }
+>;
+
+type RecommendationDetail = {
+  fitReasons: string[];
+  preferenceFit: RecommendationPreferenceFit;
+  roleOverviewText: string | null;
+  tradeoffs: string[];
+};
+
+type EnrichedRankedRole = RankedRole & {
+  detail: RecommendationDetail;
+  recommendationId: string | null;
+};
+
 const MAX_SEARCH_RESULTS = 100;
-const FINAL_RECOMMENDATION_COUNT = 10;
+const FINAL_RECOMMENDATION_COUNT = 5;
+const CONTINUATION_RECOMMENDATION_BATCH_LIMIT = 10;
+const RECOMMEND_JOB_POSTINGS_MODEL_VERSION = "career_chat_recommend_job_postings_v2";
+const PREFERENCE_FIT_KEYS = [
+  "next_scope",
+  "location",
+  "compensation",
+  "deal_breakers",
+  "must_haves",
+] as const;
 
 const COLUMN_SQL: Record<string, string> = {
   "company_db.description": "cd.description",
@@ -80,11 +119,9 @@ const COLUMN_SQL: Record<string, string> = {
   "company_db.short_description": "cd.short_description",
   "company_db.specialities": "cd.specialities",
   "company_roles.description": "cr.description",
-  "company_roles.description_summary": "cr.description_summary",
   "company_roles.information": "cr.information::text",
   "company_roles.location_text": "cr.location_text",
   "company_roles.name": "cr.name",
-  "company_roles.salary_range": "cr.salary_range",
   "company_roles.seniority_level": "cr.seniority_level",
   "company_roles.source_provider": "cr.source_provider",
   "company_roles.source_type": "cr.source_type",
@@ -95,6 +132,18 @@ const COLUMN_SQL: Record<string, string> = {
 };
 
 const ARRAY_COLUMNS = new Set(["cr.type"]);
+const FTS_TEXT_CONDITION_COLUMNS = new Set([
+  "company_roles.description",
+  "company_roles.name",
+]);
+const FTS_RANK_WEIGHTS = "ARRAY[0.04,0.57,0.64,1.0]::real[]";
+const MAX_FTS_KEYWORDS = 8;
+const MAX_FTS_TERMS_PER_KEYWORD = 8;
+const COMPANY_TEST_SCORE_MAX = 20;
+// Max boost is about +2.9 on the 0-10 rerank score.
+const COMPANY_TEST_SCORE_RERANK_DIVISOR = 7;
+const RECOMMEND_JOB_POSTINGS_PRIMARY_MODEL = "grok-4-1-fast-reasoning";
+const RECOMMEND_JOB_POSTINGS_FALLBACK_MODEL = "grok-4-fast-reasoning";
 
 const PLAN_SYSTEM_PROMPT = `You are a job-search query planner for Harper.
 Return JSON only. Do not write SQL.
@@ -110,6 +159,10 @@ Allowed output shape:
   "should": [
     { "column": "company_roles.description", "mode": "any", "values": ["LLM", "학습"], "polarity": "include" }
   ],
+  "ftsKeywords": [
+    { "terms": ["TTS", "Text-to-Speech", "음성합성"], "weight": 3.0 },
+    { "terms": ["Researcher", "연구원", "연구자"], "weight": 1.0 }
+  ],
   "rerankCriteria": ["Korean sentence 1", "Korean sentence 2", "Korean sentence 3"]
 }
 
@@ -117,14 +170,21 @@ Rules:
 - Use only these columns:
   company_roles.name, company_roles.description, company_roles.information,
   company_roles.location_text, company_roles.work_mode, company_roles.type,
-  company_roles.salary_range, company_roles.source_type, company_roles.source_provider,
+  company_roles.source_type, company_roles.source_provider,
   company_workspace.company_name, company_workspace.company_description,
   company_db.name, company_db.description, company_db.short_description, company_db.specialities, company_db.location, company_db.investors.
-- The SQL builder will convert values into ILIKE patterns. Example: column=company_roles.description, mode=all, values=["LLM","학습"] becomes description ILIKE %LLM% AND description ILIKE %학습%.
+- For role name/description intent, always add ftsKeywords. The SQL builder searches company_roles.opportunity_search_tsv for these terms and uses weight for ts_rank_cd ordering.
+- Put synonyms for one concept in one ftsKeywords item. Example: ["TTS", "Text-to-Speech", "음성합성"].
+- Set ftsKeywords.weight from 0.5 to 5.0. More distinctive domain/skill keywords should be heavier than generic role words. Example: for "TTS Researcher", TTS should be around 3.0-5.0 and Researcher around 0.8-1.5.
+- Still use must/should for structured filters such as location_text, work_mode, type, company, source, and explicit exclusions.
+- Never use company_roles.salary_range in must or should. Salary data is sparse, so salary requirements belong only in rerankCriteria.
+- The SQL builder converts non-FTS condition values into ILIKE patterns. Example: column=company_roles.location_text, mode=any, values=["Seoul","서울"] becomes location_text ILIKE %Seoul% OR location_text ILIKE %서울%.
 - Use "mode":"any" when synonyms or alternatives are acceptable. Use "mode":"all" only for truly required co-occurring concepts.
-- Put hard requirements in must. Put useful signals in should. If unsure, prefer should.
+- Put truly non-negotiable requirements in must only when the user says "only", "must", "exclude", or clearly rejects alternatives. Put useful preferences in should. If unsure, prefer should.
+- Prefer should for location_text, work_mode, type, and seniority unless the user explicitly makes them hard constraints, because some postings have sparse structured fields.
 - Use polarity=exclude for explicit negative requirements only.
 - Keep values short search tokens, not whole sentences. Maximum 8 total conditions and 8 values per condition.
+- ftsKeywords should contain 2-8 high-signal concepts at most.
 - rerankCriteria must be 3-4 Korean sentences and should explain how to score fit, concerns, and prioritization.`;
 
 const RERANK_SYSTEM_PROMPT = `You are Harper's job recommendation reranker.
@@ -147,6 +207,7 @@ Rules:
 - Rank the best roles first.
 - Return at least the top 20 roleIds when enough candidates exist.
 - Use the user's profile, conversation, insights, preferences, and the reranking criteria.
+- Company test score is Harper's internal company quality/priority score from 0 to 20. Treat it as important, but do not let it override a severe role mismatch.
 - If score is 9.0 or higher, recommendationText is required and must include both why it is good and one possible concern.
 - If score is below 9.0, recommendationText may be null.
 - Do not invent facts that are not in the role or company data.`;
@@ -166,6 +227,29 @@ Return JSON only:
 
 Each recommendationText must explain why the role is recommended and include one realistic concern.`;
 
+const RECOMMENDATION_DETAIL_SYSTEM_PROMPT = `You write worker-compatible Korean job recommendation details.
+Return JSON only:
+{
+  "fitReasons": ["추천하는 이유", "추천하는 이유 2"],
+  "tradeoffs": ["구체적 우려나 확인할 점"],
+  "roleOverviewText": "회사 + Role에 대한 객관적 설명. 1-2 문장.",
+  "preferenceFit": {
+    "next_scope": {"status": "Satisfied|Neutral|Dissatisfied", "note": "짧은 한국어 한 문장"},
+    "location": {"status": "Satisfied|Neutral|Dissatisfied", "note": "짧은 한국어 한 문장"},
+    "compensation": {"status": "Satisfied|Neutral|Dissatisfied", "note": "짧은 한국어 한 문장"},
+    "deal_breakers": {"status": "Satisfied|Neutral|Dissatisfied", "note": "짧은 한국어 한 문장"},
+    "must_haves": {"status": "Satisfied|Neutral|Dissatisfied", "note": "짧은 한국어 한 문장"}
+  }
+}
+
+Rules:
+- fitReasons are required. Write 1-2 personalized Korean reasons grounded in the candidate brief and role card.
+- tradeoffs should contain 0-1 concrete concern. Leave it empty when there is no grounded downside.
+- roleOverviewText is neutral company-and-role overview, not a recommendation reason. Do not mention the candidate in roleOverviewText.
+- preferenceFit evaluates only explicit user insights for next_scope, location, compensation, deal_breakers, and must_haves. Omit keys when the matching user insight is missing or blank.
+- Each preferenceFit note must be one short factual Korean sentence grounded in the role card and user insight.
+- Do not invent facts that are missing from the role or company data.`;
+
 const DEBUG_RECOMMEND_JOB_POSTINGS =
   process.env.DEBUG_RECOMMEND_JOB_POSTINGS === "1";
 
@@ -173,6 +257,11 @@ function cleanText(value: unknown, maxLength = 4000) {
   const text =
     typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
   return text ? text.slice(0, maxLength) : "";
+}
+
+function cleanPlainText(value: unknown, maxLength = 4000) {
+  const raw = typeof value === "string" ? value.replace(/<[^>]*>/g, " ") : "";
+  return cleanText(raw, maxLength);
 }
 
 function clampBlock(value: unknown, maxLength = 4000) {
@@ -226,6 +315,17 @@ function asStringArray(value: unknown, maxItems = 8, maxLength = 80) {
     if (unique.size >= maxItems) break;
   }
   return Array.from(unique.values());
+}
+
+function clampNumber(
+  value: unknown,
+  min: number,
+  max: number,
+  fallback: number
+) {
+  const number = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.max(min, Math.min(max, number));
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -346,6 +446,15 @@ function stringField(record: Record<string, unknown>, ...keys: string[]) {
   return null;
 }
 
+function numberField(record: Record<string, unknown>, ...keys: string[]) {
+  for (const key of keys) {
+    const value = record[key];
+    const number = typeof value === "number" ? value : Number(value);
+    if (Number.isFinite(number)) return number;
+  }
+  return null;
+}
+
 function stringArrayField(record: Record<string, unknown>, ...keys: string[]) {
   for (const key of keys) {
     const value = record[key];
@@ -411,17 +520,15 @@ function normalizeRoleRow(value: unknown): RawRoleRow | null {
       "companyDescription"
     ),
     company_name: stringField(record, "company_name", "companyName"),
+    company_test_score: normalizeCompanyTestScore(
+      numberField(record, "company_test_score", "companyTestScore")
+    ),
     company_workspace_id: stringField(
       record,
       "company_workspace_id",
       "companyWorkspaceId"
     ),
     description: stringField(record, "description"),
-    description_summary: stringField(
-      record,
-      "description_summary",
-      "descriptionSummary"
-    ),
     external_jd_url: stringField(record, "external_jd_url", "externalJdUrl"),
     homepage_url: stringField(record, "homepage_url", "homepageUrl"),
     information_text: stringField(
@@ -434,6 +541,7 @@ function normalizeRoleRow(value: unknown): RawRoleRow | null {
     role_id: stringField(record, "role_id", "roleId"),
     role_name: stringField(record, "role_name", "roleName", "name"),
     salary_range: stringField(record, "salary_range", "salaryRange"),
+    search_rank: numberField(record, "search_rank", "searchRank"),
     seniority_level: stringField(record, "seniority_level", "seniorityLevel"),
     source_provider: stringField(record, "source_provider", "sourceProvider"),
     source_type: stringField(record, "source_type", "sourceType"),
@@ -447,6 +555,7 @@ function normalizeRoleRow(value: unknown): RawRoleRow | null {
 function rolePreview(row: RawRoleRow) {
   return {
     companyName: row.company_name ?? row.company_db_name ?? null,
+    companyTestScore: row.company_test_score ?? null,
     employmentTypes: row.type ?? [],
     location: row.location_text ?? row.company_db_location ?? null,
     roleId: row.role_id ?? null,
@@ -497,15 +606,91 @@ function normalizeConditions(value: unknown, maxItems: number) {
   return conditions;
 }
 
+function normalizeFtsKeyword(value: unknown): FtsKeyword | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const terms = asStringArray(
+    Array.isArray(record.terms)
+      ? record.terms
+      : [record.term, record.query, record.keyword],
+    MAX_FTS_TERMS_PER_KEYWORD,
+    80
+  );
+  if (terms.length === 0) return null;
+
+  return {
+    terms,
+    weight: clampNumber(record.weight, 0.5, 5, 1),
+  };
+}
+
+function normalizeFtsKeywords(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  const keywords: FtsKeyword[] = [];
+  for (const item of value) {
+    const keyword = normalizeFtsKeyword(item);
+    if (keyword) keywords.push(keyword);
+    if (keywords.length >= MAX_FTS_KEYWORDS) break;
+  }
+  return keywords;
+}
+
+function isPositiveFtsCondition(condition: SearchCondition) {
+  return (
+    condition.polarity === "include" &&
+    FTS_TEXT_CONDITION_COLUMNS.has(condition.column)
+  );
+}
+
+function deriveFtsKeywordsFromConditions(conditions: SearchCondition[]) {
+  const keywords: FtsKeyword[] = [];
+  for (const condition of conditions) {
+    if (!isPositiveFtsCondition(condition)) continue;
+    keywords.push({
+      terms: condition.values,
+      weight: condition.column === "company_roles.description" ? 1.4 : 1,
+    });
+  }
+  return keywords;
+}
+
+function mergeFtsKeywords(
+  plannedKeywords: FtsKeyword[],
+  derivedKeywords: FtsKeyword[]
+) {
+  const merged: FtsKeyword[] = [];
+  const seenTerms = new Set<string>();
+
+  const pushKeyword = (keyword: FtsKeyword) => {
+    const terms = keyword.terms.filter((term) => {
+      const key = term.toLocaleLowerCase("ko-KR");
+      if (seenTerms.has(key)) return false;
+      seenTerms.add(key);
+      return true;
+    });
+    if (terms.length === 0) return;
+    merged.push({ terms, weight: keyword.weight });
+  };
+
+  plannedKeywords.forEach(pushKeyword);
+  derivedKeywords.forEach(pushKeyword);
+  return merged.slice(0, MAX_FTS_KEYWORDS);
+}
+
 function normalizePlan(raw: Record<string, unknown> | null): SearchPlan {
   const must = normalizeConditions(raw?.must, 4);
   const should = normalizeConditions(raw?.should, 6);
+  const ftsKeywords = mergeFtsKeywords(
+    normalizeFtsKeywords(raw?.ftsKeywords),
+    deriveFtsKeywordsFromConditions(must.concat(should))
+  );
   const rerankCriteria = asStringArray(raw?.rerankCriteria, 4, 280);
   const searchIntentSummary =
     cleanText(raw?.searchIntentSummary, 220) ||
     "사용자의 프로필과 선호를 바탕으로 맞는 채용공고를 찾는다.";
 
   return {
+    ftsKeywords,
     must,
     should,
     searchIntentSummary,
@@ -522,6 +707,50 @@ function normalizePlan(raw: Record<string, unknown> | null): SearchPlan {
 
 function sqlLiteral(value: string) {
   return `'${value.replace(/'/g, "''")}'`;
+}
+
+function sqlNumber(value: number) {
+  return Number.isFinite(value) ? String(Math.round(value * 100) / 100) : "1";
+}
+
+function ftsVectorSql() {
+  return "COALESCE(cr.opportunity_search_tsv, ''::tsvector)";
+}
+
+function ftsTermQuerySql(term: string) {
+  return `websearch_to_tsquery('simple', ${sqlLiteral(term)})`;
+}
+
+function ftsKeywordQuerySql(keyword: FtsKeyword) {
+  const terms = keyword.terms.map(ftsTermQuerySql);
+  if (terms.length === 0) return null;
+  return terms.length === 1 ? terms[0] : `(${terms.join(" || ")})`;
+}
+
+function ftsAnyQuerySql(keywords: FtsKeyword[]) {
+  const groups = keywords
+    .map(ftsKeywordQuerySql)
+    .filter((sql): sql is string => Boolean(sql));
+  if (groups.length === 0) return null;
+  return groups.length === 1 ? groups[0] : `(${groups.join(" || ")})`;
+}
+
+function ftsWhereSql(keywords: FtsKeyword[]) {
+  const query = ftsAnyQuerySql(keywords);
+  return query ? `${ftsVectorSql()} @@ ${query}` : null;
+}
+
+function ftsRankSql(keywords: FtsKeyword[]) {
+  const vector = ftsVectorSql();
+  const parts = keywords
+    .map((keyword) => {
+      const query = ftsKeywordQuerySql(keyword);
+      if (!query) return null;
+      return `${sqlNumber(keyword.weight)} * ts_rank_cd(${FTS_RANK_WEIGHTS}, ${vector}, ${query})`;
+    })
+    .filter((sql): sql is string => Boolean(sql));
+
+  return parts.length > 0 ? `(${parts.join(" + ")})` : "0";
 }
 
 function ilikeExpression(sqlColumn: string, value: string) {
@@ -552,6 +781,20 @@ function positiveConditionSql(condition: SearchCondition) {
   return conditionSql(condition);
 }
 
+function softConditionScoreSql(condition: SearchCondition) {
+  const sql = positiveConditionSql(condition);
+  if (!sql) return null;
+  return `(CASE WHEN ${sql} THEN 0.2 ELSE 0 END)`;
+}
+
+function softConditionRankSql(conditions: SearchCondition[]) {
+  const parts = conditions
+    .filter((condition) => !isPositiveFtsCondition(condition))
+    .map(softConditionScoreSql)
+    .filter((sql): sql is string => Boolean(sql));
+  return parts.length > 0 ? `(${parts.join(" + ")})` : "0";
+}
+
 function buildBlockedCompanySql(blockedCompanies: string[]) {
   const filters = blockedCompanies
     .map((company) => cleanText(company, 100))
@@ -572,6 +815,9 @@ function buildRoleSearchSql(args: {
   plan: SearchPlan;
   relaxed?: boolean;
 }) {
+  const useFts = args.plan.ftsKeywords.length > 0;
+  const ftsWhere = useFts ? ftsWhereSql(args.plan.ftsKeywords) : null;
+  const searchRankSql = `(${ftsRankSql(args.plan.ftsKeywords)} + ${softConditionRankSql(args.plan.must.concat(args.plan.should))})`;
   const baseWhere = [
     "COALESCE(cr.is_expired, false) = false",
     "LOWER(COALESCE(cr.status, '')) NOT IN ('expired', 'closed', 'inactive', 'archived')",
@@ -586,12 +832,23 @@ function buildRoleSearchSql(args: {
   if (args.relaxed) {
     const positiveWhere = args.plan.must
       .concat(args.plan.should)
+      .filter((condition) => !(useFts && isPositiveFtsCondition(condition)))
       .map(positiveConditionSql)
       .filter((sql): sql is string => Boolean(sql));
-    if (positiveWhere.length > 0) {
-      baseWhere.push(`(${positiveWhere.join(" OR ")})`);
+    const relaxedWhere = [ftsWhere, ...positiveWhere].filter(
+      (sql): sql is string => Boolean(sql)
+    );
+    if (relaxedWhere.length > 0) {
+      baseWhere.push(`(${relaxedWhere.join(" OR ")})`);
     }
     baseWhere.push(...excludeWhere);
+  } else if (useFts && ftsWhere) {
+    const mustWhere = args.plan.must
+      .filter((condition) => !isPositiveFtsCondition(condition))
+      .map(conditionSql)
+      .filter((sql): sql is string => Boolean(sql));
+
+    baseWhere.push(...mustWhere, ftsWhere, ...excludeWhere);
   } else {
     const mustWhere = args.plan.must
       .map(conditionSql)
@@ -612,7 +869,6 @@ SELECT
   cr.company_workspace_id::text AS company_workspace_id,
   cr.name AS role_name,
   cr.description,
-  cr.description_summary,
   cr.information::text AS information_text,
   cr.external_jd_url,
   cr.location_text,
@@ -627,6 +883,7 @@ SELECT
   cr.seniority_level,
   cw.company_name,
   cw.company_description,
+  cw.test_score AS company_test_score,
   cw.homepage_url,
   cw.career_url,
   cw.linkedin_url,
@@ -635,7 +892,8 @@ SELECT
   cd.description AS company_db_description,
   cd.short_description AS company_db_short_description,
   cd.specialities AS company_db_specialities,
-  cd.location AS company_db_location
+  cd.location AS company_db_location,
+  ${searchRankSql} AS search_rank
 FROM public.company_roles cr
 JOIN public.company_workspace cw
   ON cw.company_workspace_id = cr.company_workspace_id
@@ -643,6 +901,8 @@ LEFT JOIN public.company_db cd
   ON cd.id = cw.company_db_id
 WHERE ${baseWhere.join("\n  AND ")}
 ORDER BY
+  search_rank DESC,
+  COALESCE(cw.test_score, 0) DESC,
   COALESCE(cr.priority, 0) DESC,
   cr.posted_at DESC NULLS LAST,
   cr.updated_at DESC NULLS LAST
@@ -700,7 +960,7 @@ function formatInsightContent(content: unknown) {
 }
 
 function formatRecentConversation(
-  messages: Awaited<ReturnType<typeof fetchRecentMessages>>
+  messages: Awaited<ReturnType<typeof fetchRecentMessagesWithSummary>>
 ) {
   const lines = messages
     .slice(-16)
@@ -716,13 +976,13 @@ function buildUserBrief(args: {
   currentRequest: string;
   insights: unknown;
   profileText: string;
-  recentMessages: Awaited<ReturnType<typeof fetchRecentMessages>>;
+  recentMessages: Awaited<ReturnType<typeof fetchRecentMessagesWithSummary>>;
 }) {
   return [
     "[Current Request]",
     clampBlock(args.currentRequest, 1200) || "(none)",
     "",
-    "[Profile, Resume, Preferences]",
+    "[Structured Profile and Preferences]",
     clampBlock(args.profileText, 8000) || "(none)",
     "",
     "[Insights]",
@@ -735,6 +995,7 @@ function buildUserBrief(args: {
 
 async function buildSearchPlan(args: { request: string; userBrief: string }) {
   const raw = await runTalentAssistantCompletion({
+    fallbackModel: RECOMMEND_JOB_POSTINGS_FALLBACK_MODEL,
     jsonMode: true,
     messages: [
       { role: "system", content: PLAN_SYSTEM_PROMPT },
@@ -742,7 +1003,7 @@ async function buildSearchPlan(args: { request: string; userBrief: string }) {
         role: "user",
         content: [
           "Supabase schema:",
-          "- company_roles(role_id, company_workspace_id, name, description, information, type, status, is_expired, location_text, work_mode, salary_range, source_type, source_provider, posted_at, expires_at, external_jd_url, priority, updated_at)",
+          "- company_roles(role_id, company_workspace_id, name, description, information, opportunity_search_tsv, type, status, is_expired, location_text, work_mode, salary_range, source_type, source_provider, posted_at, expires_at, external_jd_url, priority, updated_at)",
           "- company_workspace(company_workspace_id, company_name, company_description, homepage_url, career_url, linkedin_url, company_db_id)",
           "- company_db(id, name, description, short_description, specialities, location, website_url, linkedin_url, founded_year, investors, funding, employee_count_range)",
           "",
@@ -750,6 +1011,7 @@ async function buildSearchPlan(args: { request: string; userBrief: string }) {
         ].join("\n"),
       },
     ],
+    primaryModel: RECOMMEND_JOB_POSTINGS_PRIMARY_MODEL,
     temperature: 0.2,
   });
 
@@ -761,6 +1023,7 @@ function formatRoleForPrompt(role: RawRoleRow, index: number) {
     `#${index + 1} roleId=${getRoleKey(role, index)}`,
     `Role: ${cleanText(role.role_name, 160) || "(unknown)"}`,
     `Company: ${cleanText(role.company_name, 160) || cleanText(role.company_db_name, 160) || "(unknown)"}`,
+    `Company test score: ${formatCompanyTestScore(role.company_test_score)}`,
     `Location: ${cleanText(role.location_text, 160) || cleanText(role.company_db_location, 160) || "(unknown)"}`,
     `Work mode: ${cleanText(role.work_mode, 80) || "(unknown)"}`,
     `Employment type: ${Array.isArray(role.type) ? role.type.join(", ") : "(unknown)"}`,
@@ -770,9 +1033,8 @@ function formatRoleForPrompt(role: RawRoleRow, index: number) {
     `Posted: ${cleanText(role.posted_at, 60) || "(unknown)"}`,
     `Company description: ${cleanText(role.company_description, 420) || cleanText(role.company_db_description, 420) || cleanText(role.company_db_short_description, 420) || "(none)"}`,
     `Company specialities: ${cleanText(role.company_db_specialities, 320) || "(none)"}`,
-    `Role summary: ${cleanText(role.description_summary, 420) || "(none)"}`,
-    `Role information: ${cleanText(role.information_text, 700) || "(none)"}`,
-    `Role description: ${cleanText(role.description, 900) || "(none)"}`,
+    `Role information: ${cleanText(role.information_text, 500) || "(none)"}`,
+    `Role description: ${cleanText(role.description, 1800) || "(none)"}`,
   ].join("\n");
 }
 
@@ -791,6 +1053,28 @@ function normalizeScore(value: unknown) {
   return Math.max(0, Math.min(10, number));
 }
 
+function normalizeCompanyTestScore(value: unknown) {
+  const number = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(number)) return null;
+  return Math.max(0, Math.min(COMPANY_TEST_SCORE_MAX, number));
+}
+
+function companyTestScoreBoost(value: unknown) {
+  const score = normalizeCompanyTestScore(value);
+  return score === null ? 0 : score / COMPANY_TEST_SCORE_RERANK_DIVISOR;
+}
+
+function applyCompanyTestScoreBoost(score: unknown, role: RawRoleRow) {
+  return normalizeScore(
+    normalizeScore(score) + companyTestScoreBoost(role.company_test_score)
+  );
+}
+
+function formatCompanyTestScore(value: unknown) {
+  const score = normalizeCompanyTestScore(value);
+  return score === null ? "(unknown)" : `${score.toFixed(1)}/20`;
+}
+
 function roleById(rows: RawRoleRow[]) {
   return new Map(
     rows.map((row, index) => [getRoleKey(row, index), row] as const)
@@ -801,12 +1085,58 @@ function getRoleKey(role: RawRoleRow, index: number) {
   return cleanText(role.role_id, 120) || `candidate_${index}`;
 }
 
+function mergeRoleRows(primary: RawRoleRow[], secondary: RawRoleRow[]) {
+  const rowsById = new Map<
+    string,
+    { firstSeen: number; row: RawRoleRow; score: number }
+  >();
+  let firstSeen = 0;
+
+  const addRows = (rows: RawRoleRow[]) => {
+    rows.forEach((row, index) => {
+      const key = getRoleKey(row, index);
+      const score =
+        typeof row.search_rank === "number" && Number.isFinite(row.search_rank)
+          ? row.search_rank
+          : 0;
+      const existing = rowsById.get(key);
+      if (!existing) {
+        rowsById.set(key, { firstSeen, row, score });
+        firstSeen += 1;
+        return;
+      }
+      if (score > existing.score) {
+        existing.row = row;
+        existing.score = score;
+      }
+    });
+  };
+
+  addRows(primary);
+  addRows(secondary);
+
+  return Array.from(rowsById.values())
+    .sort((left, right) => {
+      if (right.score !== left.score) return right.score - left.score;
+      return left.firstSeen - right.firstSeen;
+    })
+    .map((item) => item.row);
+}
+
+function sameRoleRowOrder(left: RawRoleRow[], right: RawRoleRow[]) {
+  if (left.length !== right.length) return false;
+  return left.every(
+    (row, index) => getRoleKey(row, index) === getRoleKey(right[index], index)
+  );
+}
+
 async function rerankRoles(args: {
   candidates: RawRoleRow[];
   plan: SearchPlan;
   userBrief: string;
 }) {
   const raw = await runTalentAssistantCompletion({
+    fallbackModel: RECOMMEND_JOB_POSTINGS_FALLBACK_MODEL,
     jsonMode: true,
     messages: [
       { role: "system", content: RERANK_SYSTEM_PROMPT },
@@ -828,6 +1158,7 @@ async function rerankRoles(args: {
         ].join("\n"),
       },
     ],
+    primaryModel: RECOMMEND_JOB_POSTINGS_PRIMARY_MODEL,
     temperature: 0.15,
   });
 
@@ -861,7 +1192,7 @@ async function rerankRoles(args: {
       recommendationText: cleanText(record.recommendationText, 700) || null,
       role,
       roleId: resolvedRoleId,
-      score: normalizeScore(record.score),
+      score: applyCompanyTestScoreBoost(record.score, role),
     });
   }
 
@@ -875,7 +1206,7 @@ async function rerankRoles(args: {
       recommendationText: null,
       role,
       roleId,
-      score: 0,
+      score: applyCompanyTestScoreBoost(0, role),
     });
   }
 
@@ -895,6 +1226,7 @@ async function fillMissingExplanations(args: {
   if (missing.length === 0) return args.recommendations;
 
   const raw = await runTalentAssistantCompletion({
+    fallbackModel: RECOMMEND_JOB_POSTINGS_FALLBACK_MODEL,
     jsonMode: true,
     messages: [
       { role: "system", content: EXPLANATION_SYSTEM_PROMPT },
@@ -922,6 +1254,7 @@ async function fillMissingExplanations(args: {
         ].join("\n"),
       },
     ],
+    primaryModel: RECOMMEND_JOB_POSTINGS_PRIMARY_MODEL,
     temperature: 0.25,
   });
 
@@ -964,7 +1297,6 @@ function fallbackRecommendationText(item: RankedRole) {
   const title = cleanText(role.role_name, 160) || "해당 포지션";
   const good =
     item.goodPoints[0] ||
-    cleanText(role.description_summary, 160) ||
     cleanText(role.description, 160) ||
     "프로필과 연결될 수 있는 업무 내용이 있습니다";
   const concern =
@@ -973,10 +1305,277 @@ function fallbackRecommendationText(item: RankedRole) {
   return `${company}의 ${title}은 ${good}는 점에서 검토할 만합니다. 다만 ${concern}.`;
 }
 
+function buildRoleOverviewFallback(role: RawRoleRow) {
+  const company =
+    cleanText(role.company_name, 160) ||
+    cleanText(role.company_db_name, 160) ||
+    "해당 회사";
+  const title = cleanText(role.role_name, 180) || "해당 포지션";
+  const companyDescription =
+    cleanPlainText(role.company_description, 260) ||
+    cleanPlainText(role.company_db_description, 260) ||
+    cleanPlainText(role.company_db_short_description, 260);
+  const roleDescription =
+    cleanPlainText(role.information_text, 220) ||
+    cleanPlainText(role.description, 220);
+  const sentences: string[] = [];
+
+  if (companyDescription) {
+    sentences.push(`${company}는 ${companyDescription.replace(/[.。]$/, "")}.`);
+  } else {
+    sentences.push(`${company}의 ${title} 포지션입니다.`);
+  }
+  if (roleDescription) {
+    sentences.push(`이 역할은 ${roleDescription.replace(/[.。]$/, "")}.`);
+  } else if (companyDescription) {
+    sentences.push(`역할명은 ${title}입니다.`);
+  }
+
+  return cleanText(sentences.join(" "), 700) || null;
+}
+
+function normalizePreferenceFitStatus(value: unknown): PreferenceFitStatus | null {
+  const text = cleanText(value, 40).toLocaleLowerCase("ko-KR");
+  if (text === "satisfied") return "Satisfied";
+  if (text === "neutral") return "Neutral";
+  if (text === "dissatisfied") return "Dissatisfied";
+  return null;
+}
+
+function normalizeRecommendationPreferenceFit(
+  value: unknown
+): RecommendationPreferenceFit {
+  const record = asRecord(value);
+  if (!record) return {};
+
+  const result: RecommendationPreferenceFit = {};
+  for (const key of PREFERENCE_FIT_KEYS) {
+    const item = asRecord(record[key]);
+    if (!item) continue;
+    const status = normalizePreferenceFitStatus(item.status);
+    const note =
+      cleanText(item.note, 180) ||
+      cleanText(item.reason, 180) ||
+      cleanText(item.sentence, 180);
+    if (!status || !note) continue;
+    result[key] = { note, status };
+  }
+
+  return result;
+}
+
+function normalizeRecommendationDetail(
+  raw: Record<string, unknown> | null,
+  item: RankedRole
+): RecommendationDetail {
+  const fitReasons = asStringArray(raw?.fitReasons, 2, 180);
+  const tradeoffs = asStringArray(raw?.tradeoffs, 1, 220);
+  const roleOverviewText =
+    cleanText(raw?.roleOverviewText, 700) || buildRoleOverviewFallback(item.role);
+
+  return {
+    fitReasons:
+      fitReasons.length > 0
+        ? fitReasons
+        : [
+            item.recommendationText ||
+              item.goodPoints[0] ||
+              fallbackRecommendationText(item),
+          ].filter(Boolean).map((value) => cleanText(value, 180)),
+    preferenceFit: normalizeRecommendationPreferenceFit(raw?.preferenceFit),
+    roleOverviewText,
+    tradeoffs:
+      tradeoffs.length > 0
+        ? tradeoffs
+        : item.concerns.slice(0, 1).map((value) => cleanText(value, 220)),
+  };
+}
+
+async function generateRecommendationDetail(args: {
+  item: RankedRole;
+  plan: SearchPlan;
+  userBrief: string;
+}) {
+  try {
+    const raw = await runTalentAssistantCompletion({
+      fallbackModel: RECOMMEND_JOB_POSTINGS_FALLBACK_MODEL,
+      jsonMode: true,
+      messages: [
+        { role: "system", content: RECOMMENDATION_DETAIL_SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: [
+            args.userBrief,
+            "",
+            "[Search intent]",
+            args.plan.searchIntentSummary,
+            "",
+            "[Reranking criteria]",
+            args.plan.rerankCriteria
+              .map((item, index) => `${index + 1}. ${item}`)
+              .join("\n"),
+            "",
+            "[Selected role]",
+            formatRoleForPrompt(args.item.role, 0),
+            "",
+            "[Rerank result]",
+            JSON.stringify({
+              concerns: args.item.concerns,
+              goodPoints: args.item.goodPoints,
+              recommendationText: args.item.recommendationText,
+              score: args.item.score,
+            }),
+          ].join("\n"),
+        },
+      ],
+      primaryModel: RECOMMEND_JOB_POSTINGS_PRIMARY_MODEL,
+      temperature: 0.2,
+    });
+
+    return normalizeRecommendationDetail(parseJsonObject(raw), args.item);
+  } catch (error) {
+    console.warn("[recommend_job_postings] detail generation failed", {
+      error: error instanceof Error ? error.message : String(error),
+      roleId: args.item.roleId,
+    });
+    return normalizeRecommendationDetail(null, args.item);
+  }
+}
+
+async function enrichRecommendationDetails(args: {
+  plan: SearchPlan;
+  recommendations: RankedRole[];
+  userBrief: string;
+}): Promise<EnrichedRankedRole[]> {
+  const details = await Promise.all(
+    args.recommendations.map((item) =>
+      generateRecommendationDetail({
+        item,
+        plan: args.plan,
+        userBrief: args.userBrief,
+      })
+    )
+  );
+
+  return args.recommendations.map((item, index) => ({
+    ...item,
+    detail: details[index],
+    recommendationId: null,
+  }));
+}
+
+function opportunityTypeForRole(role: RawRoleRow) {
+  const sourceType = cleanText(role.source_type, 80).toLocaleLowerCase("ko-KR");
+  return sourceType === "internal"
+    ? OpportunityType.InternalRecommendation
+    : OpportunityType.ExternalJd;
+}
+
+function recommendationScoreForDb(score: unknown) {
+  return Math.max(0, Math.min(1, normalizeScore(score) / 10));
+}
+
+function buildRecommendationEvidence(item: EnrichedRankedRole) {
+  const role = item.role;
+  return [
+    {
+      label: "role",
+      text:
+        cleanText(role.information_text, 700) ||
+        cleanText(role.description, 700),
+    },
+    {
+      label: "company",
+      text:
+        cleanText(role.company_description, 700) ||
+        cleanText(role.company_db_description, 700) ||
+        cleanText(role.company_db_short_description, 700),
+    },
+    {
+      label: "search_intent",
+      text: cleanText(item.recommendationText, 700),
+    },
+  ].filter((entry) => entry.text);
+}
+
+async function persistRecommendations(args: {
+  admin: AdminClient;
+  recommendations: EnrichedRankedRole[];
+  userId: string;
+}) {
+  const now = new Date().toISOString();
+  const rows = args.recommendations
+    .map((item, index) => {
+      const roleId = cleanText(item.role.role_id, 120);
+      if (!roleId) return null;
+      const fitReasons = item.detail.fitReasons.filter(Boolean);
+
+      return {
+        confidence: recommendationScoreForDb(item.score),
+        evidence: buildRecommendationEvidence(item),
+        fit_reasons: fitReasons,
+        fit_summary: item.detail.roleOverviewText,
+        kind: "recommendation",
+        model_version: RECOMMEND_JOB_POSTINGS_MODEL_VERSION,
+        opportunity_type: opportunityTypeForRole(item.role),
+        preference_fit: item.detail.preferenceFit,
+        rank: index + 1,
+        recommendation_reasons: fitReasons,
+        recommended_at: now,
+        recommendation_status: "ready",
+        role_id: roleId,
+        score: recommendationScoreForDb(item.score),
+        talent_id: args.userId,
+        tradeoffs: item.detail.tradeoffs.filter(Boolean),
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => row !== null);
+
+  if (rows.length === 0) return args.recommendations;
+
+  const { data, error } = await ((
+    args.admin.from("talent_opportunity_recommendation" as any) as any
+  )
+    .insert(rows)
+    .select("id, role_id") as any);
+
+  if (error) {
+    throw new Error(
+      error.message ?? "Failed to save job posting recommendations"
+    );
+  }
+
+  const insertedIdsByRoleId = new Map<string, string>();
+  if (Array.isArray(data)) {
+    for (const row of data) {
+      const roleId = cleanText(row?.role_id, 120);
+      const id = cleanText(row?.id, 120);
+      if (roleId && id) insertedIdsByRoleId.set(roleId, id);
+    }
+  }
+
+  return args.recommendations.map((item) => ({
+    ...item,
+    recommendationId:
+      insertedIdsByRoleId.get(cleanText(item.role.role_id, 120)) ?? null,
+  }));
+}
+
+function extractRequestedPostingCount(request: string) {
+  const matches = Array.from(
+    request.matchAll(/(\d{1,4})\s*(?:개|건|곳|포지션|공고|자리)/g)
+  );
+  const counts = matches
+    .map((match) => Number.parseInt(match[1] ?? "", 10))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  return counts.length > 0 ? Math.max(...counts) : null;
+}
+
 function formatAnswerDraft(args: {
   candidateCount: number;
   plan: SearchPlan;
-  recommendations: RankedRole[];
+  recommendations: EnrichedRankedRole[];
+  requestedCount: number | null;
 }) {
   if (args.recommendations.length === 0) {
     return [
@@ -986,10 +1585,20 @@ function formatAnswerDraft(args: {
   }
 
   const lines = [
-    `요청 조건과 프로필을 같이 보고 현재 채용공고 ${args.candidateCount}개를 검토한 뒤, 우선순위가 높은 10개를 골랐습니다.`,
+    `요청 조건과 프로필을 같이 보고 현재 채용공고 ${args.candidateCount}개를 검토한 뒤, 우선순위가 높은 ${args.recommendations.length}개를 포지션 탭에 저장했습니다.`,
     `검색 의도: ${args.plan.searchIntentSummary}`,
     "",
   ];
+
+  if (
+    typeof args.requestedCount === "number" &&
+    args.requestedCount > FINAL_RECOMMENDATION_COUNT
+  ) {
+    lines.push(
+      `요청하신 ${args.requestedCount}개를 한 번에 모두 보여드리기보다는, 지금은 바로 볼 만한 최대 ${FINAL_RECOMMENDATION_COUNT}개만 먼저 골랐습니다. 이후 주기 추천에서는 한 번에 최대 ${CONTINUATION_RECOMMENDATION_BATCH_LIMIT}개씩 더 넓게 찾아보되, 기준에 못 미치는 공고는 넣지 않겠습니다.`,
+      ""
+    );
+  }
 
   args.recommendations.forEach((item, index) => {
     const role = item.role;
@@ -1002,13 +1611,20 @@ function formatAnswerDraft(args: {
     const workMode = cleanText(role.work_mode, 100);
     const url = roleUrl(role);
     const meta = [location, workMode].filter(Boolean).join(" / ");
-    const why = item.recommendationText || fallbackRecommendationText(item);
+    const why =
+      item.detail.fitReasons.length > 0
+        ? item.detail.fitReasons.join(" ")
+        : item.recommendationText || fallbackRecommendationText(item);
+    const concern = item.detail.tradeoffs[0];
+    const roleId = cleanText(item.roleId, 120);
 
     lines.push(
       `${index + 1}. ${company} - ${title} (${item.score.toFixed(1)}/10)`
     );
     if (meta) lines.push(`   조건: ${meta}`);
     lines.push(`   추천 이유: ${why}`);
+    if (concern) lines.push(`   확인할 점: ${concern}`);
+    if (index === 0 && roleId) lines.push(`   [posting](${roleId})`);
     if (url) lines.push(`   공고 링크: ${url}`);
     lines.push("");
   });
@@ -1026,11 +1642,13 @@ export async function runCareerJobPostingRecommendations(args: {
   if (!request) {
     throw new Error("recommend_job_postings requires a request.");
   }
+  const requestedCount = extractRequestedPostingCount(request);
 
   const startedAt = Date.now();
   console.info("[recommend_job_postings] start", {
     conversationId: args.conversationId,
     request,
+    requestedCount,
     userId: args.userId,
   });
 
@@ -1038,10 +1656,12 @@ export async function runCareerJobPostingRecommendations(args: {
     fetchTalentUserProfile({ admin: args.admin, userId: args.userId }),
     fetchTalentInsights({ admin: args.admin, userId: args.userId }),
     fetchTalentSetting({ admin: args.admin, userId: args.userId }),
-    fetchRecentMessages({
+    fetchRecentMessagesWithSummary({
       admin: args.admin,
       conversationId: args.conversationId,
-      limit: 24,
+      fallbackLimit: 4,
+      recentLimit: 4,
+      userId: args.userId,
     }),
   ]);
   const structuredProfile = await fetchTalentStructuredProfile({
@@ -1050,10 +1670,10 @@ export async function runCareerJobPostingRecommendations(args: {
     talentUser: profile,
   });
   const profileText = buildTalentProfileContext({
+    includeResumeText: false,
     profile,
     structuredProfile,
     setting,
-    maxResumeChars: 4000,
   });
   const userBrief = buildUserBrief({
     currentRequest: request,
@@ -1066,6 +1686,7 @@ export async function runCareerJobPostingRecommendations(args: {
     setting?.blocked_companies ?? []
   );
   infoJson("search plan", {
+    ftsKeywords: plan.ftsKeywords,
     must: plan.must,
     rerankCriteria: plan.rerankCriteria,
     searchIntentSummary: plan.searchIntentSummary,
@@ -1073,6 +1694,7 @@ export async function runCareerJobPostingRecommendations(args: {
   });
   debugLog("search plan full", {
     blockedCompanies,
+    ftsKeywords: plan.ftsKeywords,
     must: plan.must,
     should: plan.should,
   });
@@ -1097,22 +1719,52 @@ export async function runCareerJobPostingRecommendations(args: {
     rowsSample: search.rows.slice(0, 5),
     sql: search.sql,
   });
-  if (search.rows.length < 10 && plan.must.concat(plan.should).length > 0) {
+  const conditions = plan.must.concat(plan.should);
+  const hasHardStructuredFilter = plan.must.some(
+    (condition) =>
+      condition.polarity === "include" && !isPositiveFtsCondition(condition)
+  );
+  const shouldRunRelaxedSearch =
+    conditions.length > 0 &&
+    (search.rows.length < 10 ||
+      (plan.ftsKeywords.length > 0 &&
+        hasHardStructuredFilter &&
+        search.rows.length < MAX_SEARCH_RESULTS));
+
+  if (shouldRunRelaxedSearch) {
     const relaxedSearch = await executeRoleSql({
       admin: args.admin,
       blockedCompanies,
       plan,
       relaxed: true,
     });
-    if (relaxedSearch.rows.length > search.rows.length) {
-      search = relaxedSearch;
+    const mergedRows = mergeRoleRows(search.rows, relaxedSearch.rows).slice(
+      0,
+      MAX_SEARCH_RESULTS
+    );
+    const strictCandidateCount = search.rows.length;
+    if (
+      !sameRoleRowOrder(search.rows.slice(0, MAX_SEARCH_RESULTS), mergedRows)
+    ) {
+      search = {
+        ...search,
+        rawRows: search.rawRows.concat(relaxedSearch.rawRows),
+        rows: mergedRows,
+        rpcContainerCount: null,
+        sql: `${search.sql}\n\n-- relaxed candidate backfill\n${relaxedSearch.sql}`,
+      };
       relaxed = true;
       infoJson("relaxed sql search", {
+        addedCandidateCount: Math.max(
+          0,
+          mergedRows.length - strictCandidateCount
+        ),
         candidateCount: search.rows.length,
         candidates: search.rows.slice(0, 5).map(rolePreview),
         relaxed,
         rawCount: search.rawRows.length,
         rpcContainerCount: search.rpcContainerCount,
+        strictCandidateCount,
       });
       debugLog("relaxed sql search full", {
         candidateCount: search.rows.length,
@@ -1129,10 +1781,15 @@ export async function runCareerJobPostingRecommendations(args: {
     candidates.length > 0
       ? await rerankRoles({ candidates, plan, userBrief })
       : [];
-  const recommendations = await fillMissingExplanations({
+  const detailedRecommendations = await enrichRecommendationDetails({
     plan,
     recommendations: ranked,
     userBrief,
+  });
+  const recommendations = await persistRecommendations({
+    admin: args.admin,
+    recommendations: detailedRecommendations,
+    userId: args.userId,
   });
   infoJson("completed", {
     candidateCount: candidates.length,
@@ -1140,6 +1797,7 @@ export async function runCareerJobPostingRecommendations(args: {
     recommendationCount: recommendations.length,
     topScores: recommendations.slice(0, 5).map((item) => ({
       ...rolePreview(item.role),
+      recommendationId: item.recommendationId,
       score: item.score,
     })),
   });
@@ -1149,10 +1807,12 @@ export async function runCareerJobPostingRecommendations(args: {
       candidateCount: candidates.length,
       plan,
       recommendations,
+      requestedCount,
     }),
     candidateCount: candidates.length,
     relaxed,
     recommendations: recommendations.map((item, index) => ({
+      id: item.recommendationId,
       rank: index + 1,
       roleId: item.roleId,
       score: item.score,
@@ -1165,11 +1825,18 @@ export async function runCareerJobPostingRecommendations(args: {
       employmentTypes: Array.isArray(item.role.type) ? item.role.type : [],
       url: roleUrl(item.role),
       recommendationText:
-        item.recommendationText || fallbackRecommendationText(item),
-      goodPoints: item.goodPoints,
-      concerns: item.concerns,
+        item.detail.fitReasons.join(" ") ||
+        item.recommendationText ||
+        fallbackRecommendationText(item),
+      goodPoints: item.detail.fitReasons,
+      concerns: item.detail.tradeoffs,
+      preferenceFit: item.detail.preferenceFit,
+      roleOverviewText: item.detail.roleOverviewText,
     })),
+    requestedCount,
+    saveCount: recommendations.filter((item) => item.recommendationId).length,
     searchPlan: {
+      ftsKeywords: plan.ftsKeywords,
       must: plan.must,
       rerankCriteria: plan.rerankCriteria,
       searchIntentSummary: plan.searchIntentSummary,

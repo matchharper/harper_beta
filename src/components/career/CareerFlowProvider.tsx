@@ -39,6 +39,14 @@ import { useCareerHistoryState } from "@/hooks/career/useCareerHistoryState";
 import { useCareerRuntimeActions } from "@/hooks/career/useCareerRuntimeActions";
 import { TALENT_INTERVIEW_FINAL_STEP } from "@/lib/talentOnboarding/progress";
 
+const getCompletedOpportunityRunRefreshKey = (
+  run: CareerOpportunityRun | null
+) => {
+  if (!run || run.inputLocked) return null;
+  if (run.status !== "completed" && run.status !== "partial") return null;
+  return `${run.id}:${run.completedAt ?? run.status}`;
+};
+
 export const CareerFlowProvider = ({
   children,
   inviteToken,
@@ -75,10 +83,11 @@ export const CareerFlowProvider = ({
     useState<CareerOpportunityRun | null>(null);
   const [opportunityRunTriggerPending, setOpportunityRunTriggerPending] =
     useState(false);
-  const [companySnapshotPending, setCompanySnapshotPending] = useState(false);
   const [notificationsMarkingAsRead, setNotificationsMarkingAsRead] =
     useState(false);
   const [notificationsError, setNotificationsError] = useState("");
+  const completedOpportunityRunRefreshRef = useRef<string | null>(null);
+  const emptyCompletedHistoryProbeRef = useRef<string | null>(null);
 
   const {
     conversationId,
@@ -138,9 +147,15 @@ export const CareerFlowProvider = ({
     chatError,
     setChatError,
     assistantTyping,
+    toolStatusMessage,
+    activeThinkingLogs,
+    activeRecommendationSearchStatus,
+    onboardingWrapupPending: chatOnboardingWrapupPending,
+    thinkingLogsByMessageId,
     enqueueAssistantTypewriter,
     applySessionConversation,
     sendChatMessage: sendChatMessageBase,
+    regenerateOnboardingWrapup,
     resetChatState,
   } = useCareerChat({
     user,
@@ -164,6 +179,14 @@ export const CareerFlowProvider = ({
     [appendLatestMessagesToCache, enqueueAssistantTypewriter]
   );
 
+  const appendHistoryActionUserMessage = useCallback(
+    (message: CareerMessagePayload) => {
+      appendMessage(toUiMessage(message));
+      appendLatestMessagesToCache([message]);
+    },
+    [appendLatestMessagesToCache, appendMessage]
+  );
+
   const {
     hasMoreHistoryOpportunities,
     historyLoaded,
@@ -181,6 +204,7 @@ export const CareerFlowProvider = ({
     onSendHistoryOpportunityQuestion,
     onUpdateHistoryOpportunityFeedback,
     onUpdateHistoryOpportunitySavedStage,
+    cancelPendingOpportunityFeedbackFollowUp,
     resetHistoryState,
   } = useCareerHistoryState({
     conversationId,
@@ -194,6 +218,7 @@ export const CareerFlowProvider = ({
         }
       : null,
     onHistoryActionAssistantMessage: enqueueHistoryActionAssistantMessage,
+    onHistoryActionUserMessage: appendHistoryActionUserMessage,
     userId,
   });
 
@@ -306,13 +331,22 @@ export const CareerFlowProvider = ({
     Boolean(opportunityRun?.inputLocked);
 
   const sendChatMessage = useCallback(
-    async (args: { text: string; link?: string; onError?: () => void }) => {
-      if (opportunityRun?.inputLocked) return;
+    async (args: {
+      channel?: "chat" | "voice";
+      text: string;
+      link?: string;
+      onError?: () => void;
+    }) => {
+      cancelPendingOpportunityFeedbackFollowUp();
       await sendChatMessageBase(args, {
         profilePending,
       });
     },
-    [opportunityRun?.inputLocked, profilePending, sendChatMessageBase]
+    [
+      cancelPendingOpportunityFeedbackFollowUp,
+      profilePending,
+      sendChatMessageBase,
+    ]
   );
 
   const handleLoadOlderMessages = useCallback(async () => {
@@ -336,26 +370,21 @@ export const CareerFlowProvider = ({
     [appendLatestMessagesToCache, enqueueAssistantTypewriter]
   );
 
-  const {
-    handleRunOpportunityDiscoveryTest,
-    handleStartCompanySnapshot,
-    resetRuntimeActionsState,
-  } = useCareerRuntimeActions({
-    companySnapshotPending,
-    conversationId,
-    enqueueAssistantMessages,
-    fetchWithAuth,
-    opportunityRun,
-    opportunityRunTriggerPending,
-    setCompanySnapshotPending,
-    setChatError,
-    setOpportunityRun,
-    setOpportunityRunTriggerPending,
-  });
+  const { handleRunOpportunityDiscoveryTest, resetRuntimeActionsState } =
+    useCareerRuntimeActions({
+      conversationId,
+      fetchWithAuth,
+      opportunityRun,
+      opportunityRunTriggerPending,
+      setChatError,
+      setOpportunityRun,
+      setOpportunityRunTriggerPending,
+    });
 
   const {
     showVoiceStartPrompt,
     onboardingBeginPending,
+    onboardingWrapupPending: voiceOnboardingWrapupPending,
     callStartPending,
     onboardingPausePending,
     inputMode,
@@ -476,6 +505,12 @@ export const CareerFlowProvider = ({
       setNotifications(normalizeNotifications(payload.notifications));
       setNotificationsError("");
       setOpportunityRun(payload.opportunityRun ?? null);
+      const completedRunRefreshKey = getCompletedOpportunityRunRefreshKey(
+        payload.opportunityRun ?? null
+      );
+      if (completedRunRefreshKey) {
+        completedOpportunityRunRefreshRef.current = completedRunRefreshKey;
+      }
     },
     [
       applySessionConversation,
@@ -486,6 +521,23 @@ export const CareerFlowProvider = ({
       appendLatestMessagesToCache,
       hydrateHistoryOpportunities,
     ]
+  );
+
+  const loadSessionForCompletedOpportunityRun = useCallback(
+    async (run: CareerOpportunityRun | null) => {
+      const refreshKey = getCompletedOpportunityRunRefreshKey(run);
+      if (!refreshKey) return null;
+      if (completedOpportunityRunRefreshRef.current === refreshKey) {
+        return null;
+      }
+
+      const sessionPayload = await loadSession({ force: true });
+      if (sessionPayload) {
+        completedOpportunityRunRefreshRef.current = refreshKey;
+      }
+      return sessionPayload;
+    },
+    [loadSession]
   );
 
   useEffect(() => {
@@ -545,11 +597,10 @@ export const CareerFlowProvider = ({
 
         const nextRun = payload.run ?? null;
         setOpportunityRun(nextRun);
-        if (nextRun && !nextRun.inputLocked) {
-          const sessionPayload = await loadSession({ force: true });
-          if (!cancelled && sessionPayload) {
-            hydrateSession(sessionPayload);
-          }
+        const sessionPayload =
+          await loadSessionForCompletedOpportunityRun(nextRun);
+        if (!cancelled && sessionPayload) {
+          hydrateSession(sessionPayload);
         }
       } catch {
         // Keep the current lock state; the next poll can recover.
@@ -568,8 +619,69 @@ export const CareerFlowProvider = ({
   }, [
     fetchWithAuth,
     hydrateSession,
-    loadSession,
+    loadSessionForCompletedOpportunityRun,
     opportunityRun?.inputLocked,
+    userId,
+  ]);
+
+  useEffect(() => {
+    if (
+      !userId ||
+      sessionPending ||
+      stage !== "completed" ||
+      opportunityRun?.inputLocked
+    ) {
+      return;
+    }
+
+    const probeKey = [
+      userId,
+      conversationId ?? "",
+      opportunityRun?.id ?? "none",
+      opportunityRun?.status ?? "none",
+    ].join(":");
+    if (emptyCompletedHistoryProbeRef.current === probeKey) return;
+    emptyCompletedHistoryProbeRef.current = probeKey;
+
+    let cancelled = false;
+    const probeLatestRun = async () => {
+      try {
+        const response = await fetchWithAuth(
+          "/api/talent/opportunity-runs/latest"
+        );
+        const payload = (await response.json().catch(() => ({}))) as {
+          run?: CareerOpportunityRun | null;
+        };
+        if (!response.ok || cancelled) return;
+
+        const nextRun = payload.run ?? null;
+        setOpportunityRun(nextRun);
+
+        const sessionPayload =
+          await loadSessionForCompletedOpportunityRun(nextRun);
+        if (!cancelled && sessionPayload) {
+          hydrateSession(sessionPayload);
+        }
+      } catch {
+        // The regular session load path can recover on the next navigation.
+      }
+    };
+
+    void probeLatestRun();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    conversationId,
+    fetchWithAuth,
+    hydrateSession,
+    loadSessionForCompletedOpportunityRun,
+    opportunityRun?.id,
+    opportunityRun?.inputLocked,
+    opportunityRun?.status,
+    sessionPending,
+    stage,
     userId,
   ]);
 
@@ -609,6 +721,8 @@ export const CareerFlowProvider = ({
     () => Math.min(userChatCount, TALENT_INTERVIEW_FINAL_STEP),
     [userChatCount]
   );
+  const onboardingWrapupPending =
+    chatOnboardingWrapupPending || voiceOnboardingWrapupPending;
 
   const progressPercent = Math.round(
     (answeredCount / TALENT_INTERVIEW_FINAL_STEP) * 100
@@ -635,8 +749,12 @@ export const CareerFlowProvider = ({
       profileError,
       chatError,
       assistantTyping,
+      toolStatusMessage,
+      activeThinkingLogs,
+      activeRecommendationSearchStatus,
+      onboardingWrapupPending,
+      thinkingLogsByMessageId,
       chatPending,
-      companySnapshotPending,
       opportunityRun,
       opportunitySearchLocked: Boolean(opportunityRun?.inputLocked),
       historyUpdatingOpportunityIds,
@@ -652,8 +770,8 @@ export const CareerFlowProvider = ({
       onProfileSubmit: handleProfileSubmit,
       onSendChatMessage: sendChatMessage,
       onUpdateHistoryOpportunityFeedback,
-      onStartCompanySnapshot: handleStartCompanySnapshot,
       onLoadOlderMessages: handleLoadOlderMessages,
+      onRegenerateOnboardingWrapup: regenerateOnboardingWrapup,
       showVoiceStartPrompt,
       onStartVoiceCall: handleStartVoiceCall,
       onUseChatOnly: handleUseChatOnly,
@@ -678,17 +796,20 @@ export const CareerFlowProvider = ({
     }),
     [
       assistantTyping,
+      activeThinkingLogs,
+      activeRecommendationSearchStatus,
+      onboardingWrapupPending,
       authLoading,
       authError,
       authInfo,
       authPending,
       chatError,
       chatPending,
-      companySnapshotPending,
+      thinkingLogsByMessageId,
+      toolStatusMessage,
       conversationId,
       handleAddProfileLink,
       handleEmailAuth,
-      handleStartCompanySnapshot,
       handleGoogleLogin,
       handleProfileLinkChange,
       handleProfileSubmit,
@@ -712,6 +833,7 @@ export const CareerFlowProvider = ({
       messages,
       loadingOlderMessages,
       onUpdateHistoryOpportunityFeedback,
+      regenerateOnboardingWrapup,
       onboardingBeginPending,
       callStartPending,
       onboardingPausePending,

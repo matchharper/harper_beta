@@ -321,8 +321,8 @@ const TimelineBlock = ({
           </div>
         )}
         {memo && (
-          <div className="mt-3 flex items-start gap-2.5 rounded-[10px] border border-beige700/15 bg-beige100 px-3.5 py-3">
-            <MessageSquare className="mt-1 h-3.5 w-3.5 shrink-0 text-beige700" />
+          <div className="mt-3 flex items-start gap-2 rounded-[10px] border border-beige700/15 bg-beige100 px-3.5 py-3">
+            <MessageSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-beige700" />
             <div className="min-w-0">
               <div className="mb-1 text-[10.5px] font-medium text-beige700">
                 Harper의 메모

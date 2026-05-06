@@ -1,4 +1,10 @@
-import { GalleryVerticalEnd, House, Loader2, UserRoundCog } from "lucide-react";
+import {
+  GalleryVerticalEnd,
+  House,
+  Loader2,
+  User,
+  UserRoundCog,
+} from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -49,9 +55,10 @@ export const NAV_ITEMS: Array<{
   {
     id: "profile",
     label: "프로필",
-    icon: UserRoundCog,
+    icon: User,
   },
 ];
+
 const CareerCanvas = ({
   children,
   className,

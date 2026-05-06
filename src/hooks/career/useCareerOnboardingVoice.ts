@@ -38,6 +38,7 @@ const DEFAULT_CALL_OPENING_TEXT =
   "좋아요, 이제 통화로 이어서 이야기해볼게요. 편하게 말씀해 주세요.";
 
 type SendChatArgs = {
+  channel?: "chat" | "voice";
   text: string;
   link?: string;
   onError?: () => void;
@@ -85,6 +86,7 @@ export const useCareerOnboardingVoice = ({
 }: UseCareerOnboardingVoiceArgs) => {
   const [showVoiceStartPrompt, setShowVoiceStartPrompt] = useState(false);
   const [onboardingBeginPending, setOnboardingBeginPending] = useState(false);
+  const [onboardingWrapupPending, setOnboardingWrapupPending] = useState(false);
   const [onboardingPausePending, setOnboardingPausePending] = useState(false);
   const [callStartPending, setCallStartPending] = useState(false);
   const [isElevenLabsPlaying, setIsElevenLabsPlaying] = useState(false);
@@ -193,6 +195,10 @@ export const useCareerOnboardingVoice = ({
       }
 
       const runSave = async () => {
+        const showWrapupPending = Boolean(args.assistantEndedOnboarding);
+        if (showWrapupPending) {
+          setOnboardingWrapupPending(true);
+        }
         try {
           const response = await fetchWithAuth("/api/talent/chat/save", {
             method: "POST",
@@ -206,9 +212,12 @@ export const useCareerOnboardingVoice = ({
           });
           const payload = await response.json().catch(() => ({}));
           if (response.ok) {
+            const assistantMessages = Array.isArray(payload?.assistantMessages)
+              ? payload.assistantMessages
+              : [payload?.assistantMessage].filter(Boolean);
             const savedMessages = [
               payload?.userMessage,
-              payload?.assistantMessage,
+              ...assistantMessages,
             ].filter(Boolean) as CareerMessagePayload[];
 
             if (savedMessages.length > 0) {
@@ -248,6 +257,10 @@ export const useCareerOnboardingVoice = ({
           }
         } catch (err) {
           console.error("[CareerOnboardingVoice] Save turn failed:", err);
+        } finally {
+          if (showWrapupPending) {
+            setOnboardingWrapupPending(false);
+          }
         }
       };
 
@@ -1228,6 +1241,7 @@ export const useCareerOnboardingVoice = ({
     stopElevenLabsTts();
     setShowVoiceStartPrompt(false);
     setOnboardingBeginPending(false);
+    setOnboardingWrapupPending(false);
     setOnboardingPausePending(false);
     setCallStartPending(false);
     callStartedAtRef.current = null;
@@ -1241,6 +1255,7 @@ export const useCareerOnboardingVoice = ({
   return {
     showVoiceStartPrompt,
     onboardingBeginPending,
+    onboardingWrapupPending,
     callStartPending,
     onboardingPausePending,
     inputMode,

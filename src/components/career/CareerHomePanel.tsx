@@ -165,7 +165,7 @@ const HomeOpportunitySummaryCard = ({
         <span className="font-hedvig text-[34px] font-medium leading-[0.9] text-beige900 sm:text-[40px]">
           {countFormatter.format(count)}
         </span>
-        <span className="pb-0.5 text-[12px] font-semibold leading-4 text-beige900/55">
+        <span className="pb-0.5 text-[12px] font-medium leading-4 text-beige900/55">
           {description}
         </span>
       </div>
@@ -279,15 +279,15 @@ const CareerHomePanel = ({
       <section className="w-full">
         <div className="w-full">
           <h2 className="mt-4 w-full text-center py-4 font-hedvig font-semibold text-[2rem] leading-none text-beige900 sm:text-[1.8rem]">
-            Welcome,<span className="text-beige700">{displayName}</span>!
+            Welcome, <span className="text-beige700">{displayName}</span>!
           </h2>
           <p className="mt-4 max-w-[620px] text-[15px] leading-5 text-beige900/65">
-            Harper와 대화를 이어가면 최고의 기회를 추천받을 수 있습니다.
+            Harper는 회원님만을 위한 커리어 에이전트입니다.
             <br />
             {activeOpportunityLabel}
           </p>
           <div>
-            <div className="mt-4 rounded-3xl flex flex-row items-center justify-between border border-beige900/5 bg-beige50 px-6 py-5">
+            <div className="mt-4 rounded-3xl flex flex-row items-center justify-between bg-beige100 border border-beige900/5 px-6 py-5">
               <div className="w-12 h-12 min-w-12 flex items-center justify-center bg-beige200 rounded-2xl">
                 <Phone className="h-6 w-6 text-beige700" strokeWidth={1.6} />
               </div>
@@ -405,33 +405,6 @@ const CareerHomePanel = ({
           <PreferenceRow label="이직 의향" value={careerMoveIntentLabel} />
         </div>
       </section>
-
-      {/* <section className="space-y-2">
-        <div className="pb-4">
-          <div className="font-hedvig text-[1.4rem] font-medium leading-none text-beige900">
-            최근 추천된 기회
-          </div>
-        </div>
-
-        {recentWeeklyOpportunities.length > 0 ? (
-          <div className="mt-2 grid grid-cols-1 gap-4">
-            {recentWeeklyOpportunities.map((item) => (
-              <OpportunityListCard
-                key={item.id}
-                item={item}
-                pending={false}
-                onOpenDetail={onOpenHistory}
-                onOpenOpportunityInfo={setInfoOpportunityType}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="mt-6 rounded-xl border border-dashed border-beige900/10 bg-white/25 px-4 py-4 text-[15px] font-normal leading-7 text-beige900/45">
-            아직 새로 추천된 기회가 아직 없습니다. 새 매칭이 생기면 여기에 최대
-            4개까지 표시됩니다.
-          </div>
-        )}
-      </section> */}
     </div>
   );
 };

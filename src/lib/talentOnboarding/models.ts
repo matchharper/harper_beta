@@ -69,8 +69,41 @@ export type TalentMessageRow = {
   role: "user" | "assistant";
   content: string;
   message_type: string | null;
+  thinking_logs?: Database["public"]["Tables"]["talent_messages"]["Row"]["thinking_logs"];
   created_at: string;
 };
+
+export type TalentMessageResponse = {
+  id: number;
+  role: "user" | "assistant";
+  content: string;
+  messageType: string;
+  createdAt: string;
+  thinkingLogs: string[];
+};
+
+export function normalizeTalentMessageThinkingLogs(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .slice(0, 12);
+}
+
+export function toTalentMessageResponse(
+  item: TalentMessageRow
+): TalentMessageResponse {
+  return {
+    id: item.id,
+    role: item.role,
+    content: item.content,
+    messageType: item.message_type ?? "chat",
+    createdAt: item.created_at,
+    thinkingLogs: normalizeTalentMessageThinkingLogs(item.thinking_logs),
+  };
+}
 
 export type TalentProfileVisibility =
   | "open_to_matches"

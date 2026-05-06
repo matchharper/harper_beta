@@ -218,12 +218,6 @@ const HistoryOpportunityDetailContent = ({
               </div>
             )}
 
-            <OpportunityPreferenceFit
-              className="mt-4"
-              items={item.preferenceFit}
-              variant="detail"
-            />
-
             {item.recommendationReasons.length > 0 && (
               <div className="mt-4 w-full space-y-2">
                 {item.recommendationReasons.map((reason, index) => (
@@ -259,16 +253,22 @@ const HistoryOpportunityDetailContent = ({
           </div>
 
           <div className="flex flex-col gap-8 px-5 py-4 font-inter text-[15px] font-normal text-black/80">
-            {roleLink && (
-              <button
-                type="button"
-                onClick={() => onOpenLink(roleLink)}
-                className="flex min-h-9 w-full items-center justify-center gap-2 rounded-[8px] border border-beige900 bg-beige900 px-4 py-3 text-sm font-medium text-[#f5ecdd] transition-opacity hover:opacity-95"
-              >
-                JD 확인하기
-                <ArrowUpRight className="h-4 w-4" />
-              </button>
-            )}
+            <div className="space-y-3">
+              {roleLink && (
+                <button
+                  type="button"
+                  onClick={() => onOpenLink(roleLink)}
+                  className="flex min-h-9 w-full items-center justify-center gap-2 rounded-[8px] border border-beige900 bg-beige900 px-4 py-3 text-sm font-medium text-[#f5ecdd] transition-opacity hover:opacity-95"
+                >
+                  JD 확인하기
+                  <ArrowUpRight className="h-4 w-4" />
+                </button>
+              )}
+              <OpportunityPreferenceFit
+                items={item.preferenceFit}
+                variant="detail"
+              />
+            </div>
             <div className="space-y-2">
               <HistorySectionTitle
                 icon={<Building2 className="h-4 w-4" />}

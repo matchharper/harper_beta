@@ -14,8 +14,6 @@ export const runtime = "nodejs";
 const isTrigger = (value: unknown): value is OpportunityDiscoveryTrigger =>
   value === "conversation_completed" ||
   value === "immediate_opportunity_requested" ||
-  value === "all_batch_feedback_submitted" ||
-  value === "preference_became_more_active" ||
   value === "periodic_refresh_due";
 
 export async function GET(req: NextRequest) {

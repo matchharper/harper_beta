@@ -1,18 +1,12 @@
 import React from "react";
 import { careerCx } from "../ui/CareerPrimitives";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Loader2,
-  MessageSquare,
-  ThumbsDown,
-  ThumbsUp,
-} from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2, ThumbsDown } from "lucide-react";
 import { CareerHistoryOpportunity } from "../types";
 import {
   getNegativeActionLabel,
   getPositiveActionLabel,
 } from "../CareerHistoryPanel";
+import { getCareerPositiveActionIcon } from "../opportunityTypeMeta";
 
 const ShortcutKey = ({ children }: { children: React.ReactNode }) => (
   <kbd className="inline-flex h-4 min-w-4 items-center justify-center rounded-[4px] border border-beige900/10 bg-beige500 px-1 text-[9.5px] font-medium leading-none text-beige900/70 shadow-[0_1px_0_rgba(46,23,6,0.05)]">
@@ -88,81 +82,85 @@ const HistoryShortcutPanel = ({
   onPositive: () => void;
   onNegative: () => void;
   onQuestion: () => void;
-}) => (
-  <div className="space-y-2.5">
-    <div className="flex text-sm flex-wrap items-center gap-1 rounded-[10px] border border-beige900/10 bg-white/75 p-1 shadow-[0_1px_2px_rgba(46,23,6,0.04)] sm:flex-nowrap">
-      <ShortcutNavButton
-        onClick={onPrev}
-        disabled={activeIndex <= 0}
-        label="이전 포지션"
-      >
-        <ArrowLeft className="h-3 w-3" />
-      </ShortcutNavButton>
+}) => {
+  const PositiveActionIcon = getCareerPositiveActionIcon(item.opportunityType);
 
-      <ShortcutActionButton
-        onClick={onNegative}
-        disabled={pending}
-        className="bg-beige500 text-beige900/70 hover:bg-beige200 hover:text-beige900"
-      >
-        <ThumbsDown className="h-3 w-3" />
-        {getNegativeActionLabel(item)}
-      </ShortcutActionButton>
+  return (
+    <div className="space-y-2.5">
+      <div className="flex text-sm flex-wrap items-center gap-1 rounded-[10px] border border-beige900/10 bg-white/75 p-1 shadow-[0_1px_2px_rgba(46,23,6,0.04)] sm:flex-nowrap">
+        <ShortcutNavButton
+          onClick={onPrev}
+          disabled={activeIndex <= 0}
+          label="이전 포지션"
+        >
+          <ArrowLeft className="h-3 w-3" />
+        </ShortcutNavButton>
 
-      <ShortcutActionButton
+        <ShortcutActionButton
+          onClick={onNegative}
+          disabled={pending}
+          className="bg-beige500 text-beige900/70 hover:bg-beige200 hover:text-beige900"
+        >
+          <ThumbsDown className="h-3 w-3" />
+          {getNegativeActionLabel(item)}
+        </ShortcutActionButton>
+
+        {/* <ShortcutActionButton
         onClick={onQuestion}
         disabled={pending}
         className="border border-beige900/10 bg-white/45 text-beige900/70 hover:border-beige900/20 hover:text-beige900 sm:max-w-[148px]"
       >
         <MessageSquare className="h-3 w-3" />
         질문하기
-      </ShortcutActionButton>
+      </ShortcutActionButton> */}
 
-      <ShortcutActionButton
-        onClick={onPositive}
-        disabled={pending}
-        className="bg-beige700 text-beige50 hover:bg-beige900"
-      >
-        <ThumbsUp className="h-3 w-3" />
-        {getPositiveActionLabel(item)}
-      </ShortcutActionButton>
+        <ShortcutActionButton
+          onClick={onPositive}
+          disabled={pending}
+          className="bg-beige700 text-beige50 hover:bg-beige900"
+        >
+          <PositiveActionIcon className="h-3 w-3" />
+          {getPositiveActionLabel(item)}
+        </ShortcutActionButton>
 
-      <ShortcutNavButton
-        onClick={onNext}
-        disabled={!canMoveNext || nextPending}
-        label="다음 포지션"
-      >
-        {nextPending ? (
-          <Loader2 className="h-3 w-3 animate-spin" />
-        ) : (
-          <ArrowRight className="h-3 w-3" />
-        )}
-      </ShortcutNavButton>
-    </div>
+        <ShortcutNavButton
+          onClick={onNext}
+          disabled={!canMoveNext || nextPending}
+          label="다음 포지션"
+        >
+          {nextPending ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <ArrowRight className="h-3 w-3" />
+          )}
+        </ShortcutNavButton>
+      </div>
 
-    <div className="flex flex-wrap items-center justify-center gap-2 text-[12px] leading-4 text-beige900/50">
-      <span className="opacity-60">⌨</span>
-      <span className="inline-flex items-center gap-1">
-        <ShortcutKey>←</ShortcutKey>
-        <ShortcutKey>→</ShortcutKey>
-        이동
-      </span>
-      <span className="text-beige900/20">·</span>
-      <span className="inline-flex items-center gap-1">
-        <ShortcutKey>S</ShortcutKey>
-        {getNegativeActionLabel(item)}
-      </span>
-      <span className="text-beige900/20">·</span>
-      <span className="inline-flex items-center gap-1">
-        <ShortcutKey>T</ShortcutKey>
-        {getPositiveActionLabel(item)}
-      </span>
-      <span className="text-beige900/20">·</span>
-      <span className="inline-flex items-center gap-1">
+      <div className="flex flex-wrap items-center justify-center gap-2 text-[12px] leading-4 text-beige900/50">
+        <span className="opacity-60">⌨</span>
+        <span className="inline-flex items-center gap-1">
+          <ShortcutKey>←</ShortcutKey>
+          <ShortcutKey>→</ShortcutKey>
+          이동
+        </span>
+        <span className="text-beige900/20">·</span>
+        <span className="inline-flex items-center gap-1">
+          <ShortcutKey>S</ShortcutKey>
+          {getNegativeActionLabel(item)}
+        </span>
+        <span className="text-beige900/20">·</span>
+        <span className="inline-flex items-center gap-1">
+          <ShortcutKey>T</ShortcutKey>
+          {getPositiveActionLabel(item)}
+        </span>
+        <span className="text-beige900/20">·</span>
+        {/* <span className="inline-flex items-center gap-1">
         <ShortcutKey>A</ShortcutKey>
         질문하기
-      </span>
+      </span> */}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 export default React.memo(HistoryShortcutPanel);

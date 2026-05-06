@@ -1,10 +1,13 @@
 import {
   BadgeCheck,
-  BadgeDollarSign,
-  BriefcaseBusiness,
+  Banknote,
+  Briefcase,
+  Check,
   MapPin,
   OctagonX,
   ShieldCheck,
+  TriangleAlert,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import type {
@@ -13,11 +16,12 @@ import type {
   CareerPreferenceFitStatus,
 } from "../types";
 import { careerCx } from "../ui/CareerPrimitives";
+import { Tooltips } from "@/components/ui/tooltip";
 
 const PREFERENCE_FIT_ICON: Record<CareerPreferenceFitKey, LucideIcon> = {
-  next_scope: BriefcaseBusiness,
+  next_scope: Briefcase,
   location: MapPin,
-  compensation: BadgeDollarSign,
+  compensation: Banknote,
   deal_breakers: OctagonX,
   must_haves: ShieldCheck,
 };
@@ -25,29 +29,21 @@ const PREFERENCE_FIT_ICON: Record<CareerPreferenceFitKey, LucideIcon> = {
 const PREFERENCE_FIT_STATUS_META: Record<
   CareerPreferenceFitStatus,
   {
-    iconClassName: string;
-    label: string;
-    rowClassName: string;
+    label: React.ReactNode;
     statusClassName: string;
   }
 > = {
   Satisfied: {
-    iconClassName: "bg-[#e7f2e9] text-[#2f6f4e]",
-    label: "충족",
-    rowClassName: "border-[#b9d8c2] bg-[#f4faf5]",
-    statusClassName: "bg-[#dfeee4] text-[#2f6f4e]",
+    label: <Check className="h-4 w-4" />,
+    statusClassName: "text-[#2f6f4e]",
   },
   Neutral: {
-    iconClassName: "bg-beige200 text-beige900/65",
-    label: "보류",
-    rowClassName: "border-beige900/10 bg-white/55",
-    statusClassName: "bg-beige200 text-beige900/65",
+    label: <TriangleAlert className="h-3.5 w-3.5" />,
+    statusClassName: "text-orange-600/70",
   },
   Dissatisfied: {
-    iconClassName: "bg-[#f8e5df] text-[#9f3e29]",
-    label: "불일치",
-    rowClassName: "border-[#e6b9ad] bg-[#fff6f3]",
-    statusClassName: "bg-[#f8e5df] text-[#9f3e29]",
+    label: <X className="h-3.5 w-3.5" />,
+    statusClassName: "text-[#9f3e29]",
   },
 };
 
@@ -69,8 +65,8 @@ const OpportunityPreferenceFit = ({
     <div
       className={careerCx(
         variant === "detail"
-          ? "grid w-full gap-2 sm:grid-cols-2"
-          : "flex flex-wrap gap-2",
+          ? "grid w-full gap-2 sm:grid-cols-1"
+          : "w-full flex flex-row items-center justify-between gap-2",
         className
       )}
     >
@@ -79,48 +75,54 @@ const OpportunityPreferenceFit = ({
         const Icon = PREFERENCE_FIT_ICON[item.key] ?? PreferenceFitIconFallback;
 
         return (
-          <div
+          <Tooltips
+            text={item.note}
             key={`${item.key}-${item.status}-${item.note}`}
-            className={careerCx(
-              "min-w-0 rounded-[8px] border px-3 py-2",
-              variant === "detail"
-                ? "flex items-start gap-2.5"
-                : "inline-flex max-w-full items-start gap-2",
-              meta.rowClassName
-            )}
           >
-            <span
+            <div
               className={careerCx(
-                "mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
-                meta.iconClassName
+                "min-w-0 rounded-[8px] py-2",
+                variant === "detail"
+                  ? "flex items-start gap-2.5"
+                  : "inline-flex max-w-full items-center gap-2"
               )}
             >
-              <Icon className="h-3.5 w-3.5" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="flex min-w-0 flex-wrap items-center gap-1.5">
-                <span className="text-[12px] font-medium leading-5 text-beige900">
-                  {item.label}
-                </span>
-                <span
-                  className={careerCx(
-                    "rounded-full px-1.5 py-0.5 text-[10px] font-medium leading-4",
-                    meta.statusClassName
-                  )}
-                >
-                  {meta.label}
-                </span>
-              </span>
               <span
                 className={careerCx(
-                  "mt-0.5 block text-[12px] leading-5 text-beige900/70",
-                  variant === "compact" && "line-clamp-2"
+                  "mt-0.5 inline-flex shrink-0 items-center justify-center rounded-full bg-beige500 text-beige900/80",
+                  variant === "detail" ? "h-7 w-7" : "h-6 w-6"
                 )}
               >
-                {item.note}
+                <Icon
+                  className={variant === "detail" ? "h-4 w-4" : "h-3.5 w-3.5"}
+                />
               </span>
-            </span>
-          </div>
+              <span className="min-w-0 flex-1">
+                <span className="flex min-w-0 flex-wrap items-center gap-0.5">
+                  <span className="text-[13px] font-medium leading-5 text-beige900">
+                    {item.label}
+                  </span>
+                  <span
+                    className={careerCx(
+                      "rounded-full px-1.5 py-0.5 text-[10px] font-medium leading-4",
+                      meta.statusClassName
+                    )}
+                  >
+                    {meta.label}
+                  </span>
+                </span>
+                {variant !== "compact" && (
+                  <span
+                    className={careerCx(
+                      "mt-0.5 block text-[13px] leading-5 text-beige900/80"
+                    )}
+                  >
+                    {item.note}
+                  </span>
+                )}
+              </span>
+            </div>
+          </Tooltips>
         );
       })}
     </div>

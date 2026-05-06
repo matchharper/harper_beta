@@ -6,6 +6,17 @@ export type CareerStage = "profile" | "chat" | "completed";
 export type MessageRole = "assistant" | "user";
 export type CareerInputMode = "text" | "voice" | "call";
 
+export type CareerRecommendationSearchStatusState =
+  | "running"
+  | "completed"
+  | "error";
+
+export type CareerRecommendationSearchStatus = {
+  candidateCount?: number | null;
+  recommendationCount?: number | null;
+  state: CareerRecommendationSearchStatusState;
+};
+
 export type CallTranscriptEntry = {
   role: "user" | "assistant";
   text: string;
@@ -182,16 +193,6 @@ export type CareerOpportunityRun = {
   trigger: string;
 };
 
-export type CareerCompanySnapshotSetup = {
-  buttonLabel: string;
-  cacheWindowDays: number;
-  cachedAvailable: boolean;
-  companyName: string;
-  reason: string | null;
-  subtitle: string;
-  title: string;
-};
-
 export type CareerHistoryItem = {
   id: string;
   title: string;
@@ -209,9 +210,9 @@ export type CareerMessage = {
   role: MessageRole;
   content: string;
   messageType: string;
-  companySnapshotSetup?: CareerCompanySnapshotSetup | null;
   createdAt: string;
   opportunityPreview?: CareerHistoryOpportunity[];
+  thinkingLogs?: string[];
   typing?: boolean;
 };
 
@@ -220,9 +221,9 @@ export type CareerMessagePayload = {
   role: MessageRole;
   content: string;
   messageType: string;
-  companySnapshotSetup?: CareerCompanySnapshotSetup | null;
   createdAt: string;
   opportunityPreview?: CareerHistoryOpportunity[];
+  thinkingLogs?: string[];
 };
 
 export type CareerProfileSettingsMeta = {

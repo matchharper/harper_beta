@@ -1,8 +1,5 @@
 import type { Json } from "@/types/database.types";
-import {
-  getTalentSupabaseAdmin,
-  type TalentMessageRow,
-} from "@/lib/talentOnboarding/server";
+import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 import { client } from "@/lib/llm/llm";
 
 /**
@@ -16,7 +13,6 @@ export function escapeLikePattern(value: string): string {
 type AdminClient = ReturnType<typeof getTalentSupabaseAdmin>;
 
 export const COMPANY_SNAPSHOT_CACHE_WINDOW_DAYS = 30;
-export const COMPANY_SNAPSHOT_SETUP_MESSAGE_TYPE = "company_snapshot_setup";
 export const COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE = "company_snapshot";
 const COMPANY_SNAPSHOT_FOLLOW_UP =
   "더 궁금한 건 없으신가요? Harper가 외부에서 접근하기 어려운 정보들까지 함께 참고해서 알려드려요.";
@@ -36,27 +32,6 @@ export type CompanySnapshotRow = {
   updated_at: string;
 };
 
-export type CompanySnapshotSetupPayload = {
-  buttonLabel: string;
-  cacheWindowDays: number;
-  cachedAvailable: boolean;
-  companyName: string;
-  reason: string | null;
-  subtitle: string;
-  title: string;
-};
-
-export type SerializedCompanySnapshot = {
-  companyDbId: number | null;
-  companyName: string;
-  content: Json;
-  createdAt: string;
-  id: string;
-  reused: boolean;
-  sourceUrls: Json;
-  status: CompanySnapshotStatus;
-};
-
 export function normalizeCompanySnapshotName(value: string) {
   return value
     .normalize("NFKC")
@@ -69,167 +44,6 @@ export function normalizeCompanySnapshotName(value: string) {
     .replace(/[^0-9a-z가-힣ㄱ-ㅎㅏ-ㅣ]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-}
-
-export function parseCompanySnapshotSetupPayload(
-  content: string
-): CompanySnapshotSetupPayload | null {
-  try {
-    const parsed = JSON.parse(content) as Partial<CompanySnapshotSetupPayload>;
-    if (!parsed || typeof parsed !== "object") return null;
-    if (typeof parsed.companyName !== "string" || !parsed.companyName.trim()) {
-      return null;
-    }
-
-    const companyName = parsed.companyName.trim();
-    const title =
-      typeof parsed.title === "string" && parsed.title.trim()
-        ? parsed.title.trim()
-        : `${companyName} 회사 조사`;
-    const subtitle =
-      typeof parsed.subtitle === "string" && parsed.subtitle.trim()
-        ? parsed.subtitle.trim()
-        : `${companyName}에 대한 회사 snapshot을 만들어볼게요.`;
-    const buttonLabel =
-      typeof parsed.buttonLabel === "string" && parsed.buttonLabel.trim()
-        ? parsed.buttonLabel.trim()
-        : "회사 조사 시작";
-
-    return {
-      buttonLabel,
-      cacheWindowDays: COMPANY_SNAPSHOT_CACHE_WINDOW_DAYS,
-      cachedAvailable: Boolean(parsed.cachedAvailable),
-      companyName,
-      reason:
-        typeof parsed.reason === "string" && parsed.reason.trim()
-          ? parsed.reason.trim()
-          : null,
-      subtitle,
-      title,
-    };
-  } catch {
-    return null;
-  }
-}
-
-export function toCompanySnapshotResponseMessage(item: TalentMessageRow) {
-  const setup =
-    item.message_type === COMPANY_SNAPSHOT_SETUP_MESSAGE_TYPE
-      ? parseCompanySnapshotSetupPayload(item.content)
-      : null;
-
-  return {
-    id: item.id,
-    role: item.role,
-    content: setup ? setup.title : item.content,
-    messageType: item.message_type ?? "chat",
-    createdAt: item.created_at,
-    companySnapshotSetup: setup,
-  };
-}
-
-export async function prepareCompanySnapshot(args: {
-  admin: AdminClient;
-  companyName: string;
-  conversationId: string;
-  reason?: string | null;
-  userId: string;
-}) {
-  const companyName = args.companyName.trim();
-  if (!companyName) {
-    throw new Error("companyName is required");
-  }
-
-  const recentSnapshot = await fetchRecentCompanySnapshot({
-    admin: args.admin,
-    companyName,
-  });
-  const payload: CompanySnapshotSetupPayload = {
-    buttonLabel: "회사 조사 시작",
-    cacheWindowDays: COMPANY_SNAPSHOT_CACHE_WINDOW_DAYS,
-    cachedAvailable: Boolean(recentSnapshot),
-    companyName,
-    reason: args.reason?.trim() || null,
-    subtitle: recentSnapshot
-      ? `최근 ${COMPANY_SNAPSHOT_CACHE_WINDOW_DAYS}일 안에 저장된 ${companyName} snapshot이 있어요. 필요하면 바로 불러올게요.`
-      : `${companyName}에 대한 회사 정보, 리스크, 채용 맥락을 확인해볼게요.`,
-    title: `${companyName} 회사 조사`,
-  };
-
-  const { data: message, error: messageError } = await args.admin
-    .from("talent_messages")
-    .insert({
-      content: JSON.stringify(payload),
-      conversation_id: args.conversationId,
-      message_type: COMPANY_SNAPSHOT_SETUP_MESSAGE_TYPE,
-      role: "assistant",
-      user_id: args.userId,
-    })
-    .select("*")
-    .single();
-
-  if (messageError) {
-    throw new Error(
-      messageError.message ?? "Failed to create company snapshot setup message"
-    );
-  }
-
-  await touchConversation(args.admin, args.conversationId, args.userId);
-
-  return {
-    messages: [toCompanySnapshotResponseMessage(message as TalentMessageRow)],
-    setup: payload,
-  };
-}
-
-export async function startCompanySnapshot(args: {
-  admin: AdminClient;
-  companyName: string;
-  conversationId: string;
-  reason?: string | null;
-  userId: string;
-}) {
-  const companyName = args.companyName.trim();
-  if (!companyName) {
-    throw new Error("companyName is required");
-  }
-
-  const result = await getOrCreateCompanySnapshot({
-    admin: args.admin,
-    companyName,
-    reason: args.reason ?? null,
-    userId: args.userId,
-  });
-  const messageContent = formatCompanySnapshotMessage({
-    reused: result.reused,
-    snapshot: result.snapshot,
-  });
-
-  const { data: message, error: messageError } = await args.admin
-    .from("talent_messages")
-    .insert({
-      content: messageContent,
-      conversation_id: args.conversationId,
-      message_type: COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
-      role: "assistant",
-      user_id: args.userId,
-    })
-    .select("*")
-    .single();
-
-  if (messageError) {
-    throw new Error(
-      messageError.message ?? "Failed to create company snapshot message"
-    );
-  }
-
-  await touchConversation(args.admin, args.conversationId, args.userId);
-
-  return {
-    message: toCompanySnapshotResponseMessage(message as TalentMessageRow),
-    reused: result.reused,
-    snapshot: serializeCompanySnapshot(result.snapshot, result.reused),
-  };
 }
 
 export async function getOrCreateCompanySnapshot(args: {
@@ -363,18 +177,15 @@ export async function runCompanySnapshotResearch(args: {
     try {
       response = await callResponses(primaryModel);
     } catch (primaryError) {
-      console.warn(
-        "[research_company] primary model failed, falling back",
-        {
-          companyName: args.companyName,
-          primaryModel,
-          fallbackModel,
-          error:
-            primaryError instanceof Error
-              ? primaryError.message
-              : String(primaryError),
-        }
-      );
+      console.warn("[research_company] primary model failed, falling back", {
+        companyName: args.companyName,
+        primaryModel,
+        fallbackModel,
+        error:
+          primaryError instanceof Error
+            ? primaryError.message
+            : String(primaryError),
+      });
       response = await callResponses(fallbackModel);
       modelUsed = fallbackModel;
     }
@@ -404,7 +215,10 @@ function buildCompanyResearchPrompt(args: {
     .trim()
     .slice(0, MAX_COMPANY_NAME_LENGTH);
   const safeReason = args.reason
-    ? args.reason.replace(/[\n\r]/g, " ").trim().slice(0, MAX_REASON_LENGTH)
+    ? args.reason
+        .replace(/[\n\r]/g, " ")
+        .trim()
+        .slice(0, MAX_REASON_LENGTH)
     : null;
   const reasonLine = safeReason
     ? `\n사용자가 이 회사에 관심을 갖게 된 맥락: ${safeReason}`
@@ -430,23 +244,25 @@ function buildCompanyResearchPrompt(args: {
     `  ]`,
     `}`,
     ``,
-    `출처는 실제로 참고한 URL만 최대 10개까지 포함하세요. 정보가 부족한 섹션은 '확실한 정보를 찾지 못했습니다.' 처럼 솔직히 작성하세요.`,
+    `출처는 실제로 참고한 URL만 최대 10개까지 포함하세요. 정보가 부족한 섹션은 '확실한 정보를 찾지 못했습니다.' 처럼 있는 그대로 작성하세요.`,
   ].join("\n");
 }
 
-function parseCompanyResearchOutput(
-  response: any
-): Record<string, unknown> {
+function parseCompanyResearchOutput(response: any): Record<string, unknown> {
   const outputText: string = (() => {
     if (typeof response?.output_text === "string" && response.output_text) {
       return response.output_text;
     }
     // Fallback: try to read from common Responses API shapes
     try {
-      const items: any[] = Array.isArray(response?.output) ? response.output : [];
+      const items: any[] = Array.isArray(response?.output)
+        ? response.output
+        : [];
       const collected: string[] = [];
       for (const item of items) {
-        const contents: any[] = Array.isArray(item?.content) ? item.content : [];
+        const contents: any[] = Array.isArray(item?.content)
+          ? item.content
+          : [];
         for (const part of contents) {
           if (typeof part?.text === "string") collected.push(part.text);
         }
@@ -497,22 +313,6 @@ function extractSourceUrls(content: Record<string, unknown>): string[] {
     })
     .filter((value) => value.length > 0)
     .slice(0, 10);
-}
-
-function serializeCompanySnapshot(
-  snapshot: CompanySnapshotRow,
-  reused: boolean
-): SerializedCompanySnapshot {
-  return {
-    companyDbId: snapshot.company_db_id,
-    companyName: snapshot.company_name,
-    content: snapshot.content,
-    createdAt: snapshot.created_at,
-    id: snapshot.id,
-    reused,
-    sourceUrls: snapshot.source_urls,
-    status: snapshot.status,
-  };
 }
 
 export function formatCompanySnapshotMessage(args: {

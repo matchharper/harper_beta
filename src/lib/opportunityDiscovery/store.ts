@@ -13,6 +13,7 @@ import {
   setTalentOnboardingDone,
   upsertTalentSetting,
 } from "@/lib/talentOnboarding/server";
+import { insertTalentActivityEvent } from "@/lib/talentOnboarding/activityEvents";
 import type { TalentOnboardingCompletionReason } from "@/lib/talentOnboarding/completion";
 import {
   DEFAULT_TALENT_PERIODIC_ENABLED,
@@ -177,6 +178,11 @@ export async function completeOnboardingAndQueueInitialOpportunityRun(args: {
   targetRecommendationCount?: number;
   userId: string;
 }) {
+  const previousSetting = await fetchTalentSetting({
+    admin: args.admin,
+    userId: args.userId,
+  });
+
   await setTalentOnboardingDone({
     admin: args.admin,
     userId: args.userId,
@@ -189,9 +195,39 @@ export async function completeOnboardingAndQueueInitialOpportunityRun(args: {
     admin: args.admin,
     userId: args.userId,
   });
-  if (hasInitialRun) return null;
+  if (hasInitialRun) {
+    await insertTalentActivityEvent({
+      admin: args.admin,
+      changedDomains: ["onboarding", "opportunity_search"],
+      conversationId: args.conversationId,
+      eventType: "onboarding_completed",
+      impactLevel: "high",
+      metadata: {
+        completionReason: args.completionReason,
+        result: {
+          initialOpportunityRunQueued: false,
+          reason: "initial_run_already_exists",
+        },
+        source: args.source,
+        talentSetting: {
+          is_onboarding_done: {
+            from: previousSetting?.is_onboarding_done ?? null,
+            to: true,
+          },
+          recommendation_source_conversation_id: args.conversationId,
+          recommendation_settings_updated_by: "conversation",
+        },
+      },
+      relatedEntityType: "talent_setting",
+      source: "onboarding",
+      summary:
+        "Onboarding completed; initial opportunity search was not queued because an initial run already exists.",
+      userId: args.userId,
+    });
+    return null;
+  }
 
-  return createOpportunityDiscoveryRun({
+  const run = await createOpportunityDiscoveryRun({
     admin: args.admin,
     chatPreviewCount: 3,
     conversationId: args.conversationId,
@@ -205,6 +241,37 @@ export async function completeOnboardingAndQueueInitialOpportunityRun(args: {
       source: args.source,
     },
   });
+
+  await insertTalentActivityEvent({
+    admin: args.admin,
+    changedDomains: ["onboarding", "opportunity_search"],
+    conversationId: args.conversationId,
+    eventType: "onboarding_completed",
+    impactLevel: "high",
+    metadata: {
+      completionReason: args.completionReason,
+      result: {
+        initialOpportunityRunId: run.id,
+        initialOpportunityRunQueued: true,
+      },
+      source: args.source,
+      talentSetting: {
+        is_onboarding_done: {
+          from: previousSetting?.is_onboarding_done ?? null,
+          to: true,
+        },
+        recommendation_source_conversation_id: args.conversationId,
+        recommendation_settings_updated_by: "conversation",
+      },
+    },
+    relatedEntityId: run.id,
+    relatedEntityType: "opportunity_discovery_run",
+    source: "onboarding",
+    summary: `Onboarding completed; initial opportunity search ${run.id} was queued.`,
+    userId: args.userId,
+  });
+
+  return run;
 }
 
 export function serializeOpportunityRun(run: OpportunityRunRow | null) {

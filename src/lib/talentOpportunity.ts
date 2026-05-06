@@ -1,5 +1,9 @@
 import type { Json } from "@/types/database.types";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
+import {
+  getPostingRoleIdFromOpportunityId,
+  toPostingOpportunityId,
+} from "@/lib/career/postingLinks";
 import { OpportunityType, isOpportunityType } from "@/lib/opportunityType";
 
 type AdminClient = ReturnType<typeof getTalentSupabaseAdmin>;
@@ -44,6 +48,47 @@ type RawRecommendationRow = {
   } | null;
 };
 
+type RawPostingRecommendationRow = {
+  clicked_at: string | null;
+  dismissed_at: string | null;
+  feedback: string | null;
+  feedback_at: string | null;
+  feedback_reason: string | null;
+  fit_summary: string | null;
+  id: string;
+  kind: string;
+  opportunity_type: string | null;
+  preference_fit: Json | null;
+  recommended_at: string | null;
+  recommendation_reasons: Json;
+  saved_stage: string | null;
+  tradeoffs: Json;
+  viewed_at: string | null;
+};
+
+type RawPostingRoleRow = {
+  description: string | null;
+  external_jd_url: string | null;
+  location_text: string | null;
+  name: string;
+  posted_at: string | null;
+  role_id: string;
+  source_job_id: string | null;
+  source_provider: string | null;
+  source_type: string;
+  status: string;
+  talent_opportunity_recommendation: RawPostingRecommendationRow[] | null;
+  type: string[] | null;
+  work_mode: string | null;
+  company_workspace: {
+    company_description: string | null;
+    company_name: string;
+    homepage_url: string | null;
+    linkedin_url: string | null;
+    logo_url: string | null;
+  } | null;
+};
+
 const TALENT_OPPORTUNITY_HISTORY_SELECT = `
   id,
   role_id,
@@ -81,6 +126,46 @@ const TALENT_OPPORTUNITY_HISTORY_SELECT = `
       linkedin_url,
       logo_url
     )
+  )
+`;
+
+const TALENT_POSTING_ROLE_SELECT = `
+  role_id,
+  name,
+  description,
+  external_jd_url,
+  location_text,
+  posted_at,
+  type,
+  work_mode,
+  status,
+  source_type,
+  source_provider,
+  source_job_id,
+  company_workspace:company_workspace!inner (
+    company_name,
+    company_description,
+    homepage_url,
+    linkedin_url,
+    logo_url
+  ),
+  talent_opportunity_recommendation:talent_opportunity_recommendation!role_id (
+    id,
+    kind,
+    opportunity_type,
+    preference_fit,
+    fit_summary,
+    recommended_at,
+    recommendation_reasons,
+    tradeoffs,
+    feedback,
+    feedback_at,
+    feedback_reason,
+    saved_stage,
+    viewed_at,
+    clicked_at,
+    dismissed_at,
+    talent_id
   )
 `;
 
@@ -550,6 +635,95 @@ function mapRecommendationRow(
   };
 }
 
+function pickLatestPostingRecommendation(
+  recommendations: RawPostingRecommendationRow[] | null | undefined
+) {
+  const rows = Array.isArray(recommendations) ? recommendations : [];
+  if (rows.length === 0) return null;
+
+  return [...rows].sort((left, right) => {
+    const leftTime = Date.parse(left.recommended_at ?? "");
+    const rightTime = Date.parse(right.recommended_at ?? "");
+    const safeLeft = Number.isFinite(leftTime) ? leftTime : 0;
+    const safeRight = Number.isFinite(rightTime) ? rightTime : 0;
+    return safeRight - safeLeft;
+  })[0];
+}
+
+function mapPostingRoleRow(
+  row: RawPostingRoleRow,
+  fallbackRecommendedAt: string
+): TalentOpportunityHistoryItem | null {
+  const workspace = row.company_workspace;
+  if (!workspace) return null;
+
+  const sourceType = normalizeSourceType(row.source_type);
+  const existingRecommendation = pickLatestPostingRecommendation(
+    row.talent_opportunity_recommendation
+  );
+  const kind = normalizeRecommendationKind(existingRecommendation?.kind);
+  const opportunityType = normalizeOpportunityType({
+    kind,
+    sourceType,
+    value: existingRecommendation?.opportunity_type,
+  });
+  const externalJdUrl = row.external_jd_url ?? null;
+  const homepageUrl = workspace.homepage_url ?? null;
+  const linkedinUrl = workspace.linkedin_url ?? null;
+  const href = externalJdUrl || homepageUrl || linkedinUrl || null;
+  const roleId = String(row.role_id ?? "");
+
+  return {
+    clickedAt: existingRecommendation?.clicked_at ?? null,
+    companyDescription: workspace.company_description ?? null,
+    companyHomepageUrl: homepageUrl,
+    companyLinkedinUrl: linkedinUrl,
+    companyLogoUrl: workspace.logo_url ?? null,
+    companyName: String(workspace.company_name ?? ""),
+    description: row.description ?? null,
+    dismissedAt: existingRecommendation?.dismissed_at ?? null,
+    employmentTypes: Array.isArray(row.type) ? row.type : [],
+    externalJdUrl,
+    feedback: normalizeFeedback(existingRecommendation?.feedback),
+    feedbackAt: existingRecommendation?.feedback_at ?? null,
+    feedbackReason: existingRecommendation?.feedback_reason ?? null,
+    href,
+    id: existingRecommendation?.id
+      ? String(existingRecommendation.id)
+      : toPostingOpportunityId(roleId),
+    isAccepted: kind === "match",
+    isInternal: sourceType === "internal",
+    kind,
+    location: row.location_text ?? null,
+    opportunityType,
+    postedAt: row.posted_at ?? null,
+    preferenceFit: normalizePreferenceFit(
+      existingRecommendation?.preference_fit ?? null
+    ),
+    recommendedAt:
+      existingRecommendation?.recommended_at ??
+      row.posted_at ??
+      fallbackRecommendedAt,
+    recommendationConcerns: normalizeTextList(
+      existingRecommendation?.tradeoffs ?? [],
+      3
+    ),
+    recommendationReasons: normalizeTextList(
+      existingRecommendation?.recommendation_reasons ?? []
+    ),
+    recommendationSummary: existingRecommendation?.fit_summary ?? null,
+    roleId,
+    savedStage: normalizeSavedStage(existingRecommendation?.saved_stage),
+    sourceJobId: row.source_job_id ?? null,
+    sourceProvider: row.source_provider ?? null,
+    sourceType,
+    status: String(row.status ?? "active"),
+    title: String(row.name ?? ""),
+    viewedAt: existingRecommendation?.viewed_at ?? null,
+    workMode: row.work_mode ?? null,
+  };
+}
+
 export async function fetchTalentOpportunityHistory(args: {
   admin: AdminClient;
   limit?: number;
@@ -664,6 +838,120 @@ export async function fetchTalentOpportunityHistoryByIds(args: {
     .filter((item): item is TalentOpportunityHistoryItem => item !== null);
 }
 
+export async function fetchTalentPostingCardsByRoleIds(args: {
+  admin: AdminClient;
+  roleIds: string[];
+  userId: string;
+}) {
+  const roleIds = Array.from(
+    new Set(args.roleIds.map((id) => String(id ?? "").trim()).filter(Boolean))
+  );
+  if (roleIds.length === 0) return [];
+
+  const { data, error } = await ((
+    args.admin.from("company_roles" as any) as any
+  )
+    .select(TALENT_POSTING_ROLE_SELECT)
+    .in("role_id", roleIds)
+    .eq("talent_opportunity_recommendation.talent_id", args.userId) as any);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load posting cards");
+  }
+
+  const fallbackRecommendedAt = new Date().toISOString();
+  const byRoleId = new Map(
+    coerceJsonArray<RawPostingRoleRow>(data)
+      .map((row) => mapPostingRoleRow(row, fallbackRecommendedAt))
+      .filter((item): item is TalentOpportunityHistoryItem => item !== null)
+      .map((item) => [item.roleId, item])
+  );
+
+  return roleIds
+    .map((roleId) => byRoleId.get(roleId))
+    .filter((item): item is TalentOpportunityHistoryItem => item !== undefined);
+}
+
+async function ensureTalentOpportunityRecommendationForPostingRole(args: {
+  admin: AdminClient;
+  roleId: string;
+  userId: string;
+}) {
+  const roleId = String(args.roleId ?? "").trim();
+  if (!roleId) {
+    throw new Error("roleId is required");
+  }
+
+  const { data: existing, error: existingError } = await ((
+    args.admin.from("talent_opportunity_recommendation" as any) as any
+  )
+    .select("id")
+    .eq("talent_id", args.userId)
+    .eq("role_id", roleId)
+    .order("recommended_at", { ascending: false })
+    .limit(1)
+    .maybeSingle() as any);
+
+  if (existingError) {
+    throw new Error(
+      existingError.message ?? "Failed to load existing recommendation"
+    );
+  }
+
+  const existingId = String(existing?.id ?? "").trim();
+  if (existingId) return existingId;
+
+  const { data: role, error: roleError } = await ((
+    args.admin.from("company_roles" as any) as any
+  )
+    .select("role_id, source_type")
+    .eq("role_id", roleId)
+    .maybeSingle() as any);
+
+  if (roleError) {
+    throw new Error(roleError.message ?? "Failed to load posting role");
+  }
+  if (!role) {
+    throw new Error("Posting role not found");
+  }
+
+  const sourceType = normalizeSourceType(role.source_type);
+  const opportunityType =
+    sourceType === "internal"
+      ? OpportunityType.InternalRecommendation
+      : OpportunityType.ExternalJd;
+  const now = new Date().toISOString();
+  const { data: inserted, error: insertError } = await ((
+    args.admin.from("talent_opportunity_recommendation" as any) as any
+  )
+    .insert({
+      evidence: [],
+      fit_reasons: [],
+      kind: "recommendation",
+      opportunity_type: opportunityType,
+      preference_fit: {},
+      recommendation_reasons: [],
+      recommended_at: now,
+      role_id: roleId,
+      talent_id: args.userId,
+      tradeoffs: [],
+    })
+    .select("id")
+    .single() as any);
+
+  if (insertError) {
+    throw new Error(
+      insertError.message ?? "Failed to create posting recommendation"
+    );
+  }
+
+  const insertedId = String(inserted?.id ?? "").trim();
+  if (!insertedId) {
+    throw new Error("Created posting recommendation is missing id");
+  }
+  return insertedId;
+}
+
 export async function updateTalentOpportunityHistoryItem(args: {
   action: "feedback" | "saved_stage" | "view" | "click";
   admin: AdminClient;
@@ -673,7 +961,15 @@ export async function updateTalentOpportunityHistoryItem(args: {
   savedStage?: TalentOpportunitySavedStage | null;
   userId: string;
 }) {
-  const opportunityId = String(args.opportunityId ?? "").trim();
+  const rawOpportunityId = String(args.opportunityId ?? "").trim();
+  const postingRoleId = getPostingRoleIdFromOpportunityId(rawOpportunityId);
+  const opportunityId = postingRoleId
+    ? await ensureTalentOpportunityRecommendationForPostingRole({
+        admin: args.admin,
+        roleId: postingRoleId,
+        userId: args.userId,
+      })
+    : rawOpportunityId;
   if (!opportunityId) {
     throw new Error("opportunityId is required");
   }
@@ -709,7 +1005,7 @@ export async function updateTalentOpportunityHistoryItem(args: {
     throw new Error(error.message ?? "Failed to update opportunity state");
   }
 
-  return { ok: true, updatedAt: now };
+  return { ok: true, opportunityId, updatedAt: now };
 }
 
 export async function createTalentOpportunityQuestion(args: {

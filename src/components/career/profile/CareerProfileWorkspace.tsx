@@ -24,12 +24,6 @@ const PROFILE_SECTION_ITEMS: Array<{
   description: string[];
 }> = [
   {
-    id: "preference",
-    label: "선호 조건",
-    title: "현재 상태 설정",
-    description: ["선호하는 기회 혹은 현재 상태를 설정합니다."],
-  },
-  {
     id: "profile",
     label: "프로필",
     title: "프로필",
@@ -37,6 +31,12 @@ const PROFILE_SECTION_ITEMS: Array<{
       "입력하신 정보와 대화내용을 바탕으로 Harper가 구성한 프로필입니다.",
       "이대로 회사 측에 전달되지는 않지만, 변경하고 싶으신 사항이 있는지 확인할 수 있습니다.",
     ],
+  },
+  {
+    id: "preference",
+    label: "선호 조건",
+    title: "현재 상태 설정",
+    description: ["선호하는 기회 혹은 현재 상태를 설정합니다."],
   },
   {
     id: "insight",
@@ -57,7 +57,7 @@ const PROFILE_SECTION_ITEMS: Array<{
 const CareerProfileWorkspace = () => {
   const router = useRouter();
   const [activeSection, setActiveSection] =
-    useState<ProfileSectionId>("preference");
+    useState<ProfileSectionId>("profile");
   const requestedSection = useMemo(() => {
     const raw =
       typeof router.query.profileSection === "string"

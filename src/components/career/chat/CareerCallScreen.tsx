@@ -11,13 +11,19 @@ import CareerCallEnvironmentNotice from "./CareerCallEnvironmentNotice";
 const WAVEFORM_DOT_COUNT = 5;
 const CALL_CLOSE_ANIMATION_MS = 420;
 
-const WaveformDots = memo(() => {
+const WaveformDots = memo(({ size = "md" }: { size?: "sm" | "md" | "lg" }) => {
+  const sizeClass =
+    size === "sm"
+      ? "h-[2px] w-[2px]"
+      : size === "md"
+        ? "h-[3px] w-[3px]"
+        : "h-[4px] w-[4px]";
   const voiceInputLevel = useCareerVoiceInputStore(
     (state) => state.voiceInputLevel
   );
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-0.5">
       {Array.from({ length: WAVEFORM_DOT_COUNT }).map((_, i) => {
         const threshold = (i + 1) / (WAVEFORM_DOT_COUNT + 1);
         const active = voiceInputLevel > threshold;
@@ -25,7 +31,8 @@ const WaveformDots = memo(() => {
           <div
             key={i}
             className={careerCx(
-              "h-1.5 w-1.5 rounded-full bg-beige900 transition-[opacity,transform] duration-150",
+              "rounded-full bg-beige900 transition-[opacity,transform] duration-150",
+              sizeClass,
               active ? "opacity-100" : "opacity-25"
             )}
             style={{
@@ -238,7 +245,7 @@ const CareerCallScreen = ({
       <div className="flex flex-1 flex-col items-center justify-center pb-40">
         <span className="text-lg font-medium text-beige900/80">Harper</span>
         <div className="mt-4 flex h-24 w-24 items-center justify-center rounded-full bg-beige900/5">
-          <WaveformDots />
+          <WaveformDots size="lg" />
         </div>
         <span className="mt-4 text-sm tabular-nums text-beige900/50">
           {timer}

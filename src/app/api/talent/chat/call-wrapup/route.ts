@@ -9,6 +9,8 @@ import {
   buildCareerCallWrapupPrompt,
 } from "@/lib/career/prompts";
 import { runCareerCallWrapup } from "@/lib/career/llm";
+import { maybeSummarizeTalentConversation } from "@/lib/talentOnboarding/conversationSummary";
+import { TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP } from "@/lib/talentOnboarding/onboarding";
 
 type TranscriptEntry = {
   role: "user" | "assistant";
@@ -102,18 +104,39 @@ export async function POST(request: NextRequest) {
       transcriptStats,
       safeDurationSeconds
     );
-    const [talentSetting, conversation] = await Promise.all([
-      fetchTalentSetting({
-        admin: supabase,
-        userId: user.id,
-      }),
-      supabase
-        .from("talent_conversations")
-        .select("stage")
-        .eq("id", conversationId)
-        .eq("user_id", user.id)
-        .maybeSingle(),
-    ]);
+    const [talentSetting, conversation, existingOnboardingWrapup] =
+      await Promise.all([
+        fetchTalentSetting({
+          admin: supabase,
+          userId: user.id,
+        }),
+        supabase
+          .from("talent_conversations")
+          .select("stage")
+          .eq("id", conversationId)
+          .eq("user_id", user.id)
+          .maybeSingle(),
+        supabase
+          .from("talent_messages")
+          .select("id")
+          .eq("conversation_id", conversationId)
+          .eq("user_id", user.id)
+          .eq("message_type", TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP)
+          .order("id", { ascending: true })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+    if (existingOnboardingWrapup.error) {
+      console.error("[call-wrapup] Failed to read onboarding wrap-up", {
+        error: existingOnboardingWrapup.error,
+      });
+    }
+    if (existingOnboardingWrapup.data) {
+      return NextResponse.json({
+        followUpMessage: null,
+        skipped: "onboarding_completion_wrapup_exists",
+      });
+    }
     const inferredOnboardingDone =
       Boolean(talentSetting?.is_onboarding_done) ||
       conversation.data?.stage === "completed";
@@ -160,6 +183,18 @@ export async function POST(request: NextRequest) {
     if (followUpError) {
       console.error("[call-wrapup] Failed to save follow-up message", {
         error: followUpError,
+      });
+    } else {
+      void maybeSummarizeTalentConversation({
+        admin: supabase,
+        conversationId,
+        userId: user.id,
+      }).catch((error) => {
+        console.error("[call-wrapup] Failed to summarize conversation", {
+          conversationId,
+          error: error instanceof Error ? error.message : String(error),
+          userId: user.id,
+        });
       });
     }
 

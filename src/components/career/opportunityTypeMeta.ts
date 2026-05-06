@@ -1,4 +1,9 @@
-import { ExternalLink, Handshake, Zap, type LucideIcon } from "lucide-react";
+import {
+  ExternalLink,
+  Handshake,
+  ThumbsUp,
+  type LucideIcon,
+} from "lucide-react";
 import { OpportunityType } from "@/lib/opportunityType";
 import type { CareerOpportunitySavedStage } from "./types";
 
@@ -38,6 +43,7 @@ type CareerOpportunityTypeMeta = {
   negativeActionLabel: string;
   negativeFeedback: CareerOpportunityFeedbackMeta;
   panelToneClassName: string;
+  positiveActionIcon: LucideIcon;
   positiveActionLabel: string;
   positiveFeedbackSubmitButtonClassName?: string;
   positiveFeedback: CareerOpportunityFeedbackMeta;
@@ -92,6 +98,7 @@ export const CAREER_OPPORTUNITY_TYPE_META: Record<
       requiresComment: false,
     },
     panelToneClassName: "bg-white",
+    positiveActionIcon: ThumbsUp,
     positiveActionLabel: "저장하기",
     positiveFeedback: {
       modal: {
@@ -114,11 +121,11 @@ export const CAREER_OPPORTUNITY_TYPE_META: Record<
     defaultSavedStage: "applied",
     info: {
       description:
-        "Harper의 추천입니다. 회원님의 관심과 프로필 공개 가능 여부를 먼저 확인한 뒤 다음 단계를 진행합니다.",
+        "Harper의 추천입니다. 회원님의 연결 수락과 프로필 공개 가능 여부를 먼저 확인한 뒤 다음 단계를 진행합니다.",
       title: "Harper 추천 기회",
     },
     infoTag: {
-      icon: Zap,
+      icon: Handshake,
       interactive: true,
       showHelpIcon: true,
     },
@@ -155,21 +162,22 @@ export const CAREER_OPPORTUNITY_TYPE_META: Record<
       requiresComment: false,
     },
     panelToneClassName: "bg-[#edf4ef]",
-    positiveActionLabel: "관심 표시",
+    positiveActionIcon: Handshake,
+    positiveActionLabel: "연결 수락",
     positiveFeedbackSubmitButtonClassName:
       "border-[#2f5d47] bg-[#2f5d47] text-[#f3f8f4]",
     positiveFeedback: {
       modal: {
         description:
-          "이 메모는 Harper가 프로필 전달 전 다음 단계를 준비할 때 참고합니다. 바로 제출하셔도 됩니다.",
+          "이 메모는 Harper가 연결 수락 후 다음 단계를 준비할 때 참고합니다. 바로 제출하셔도 됩니다.",
         placeholder:
           "(Optional) 어떤 점이 괜찮게 느껴졌는지, Harper가 다음 단계에서 참고할 포인트를 적어주세요.",
-        title: "다음 단계로 진행을 도와드리겠습니다.",
+        title: "연결 수락 후 다음 단계로 진행합니다.",
       },
       requiresComment: true,
     },
     savedStageLabels: {
-      applied: "관심 표시함",
+      applied: "연결 수락함",
     },
     shortLabel: "회사 추천",
     sortPriority: 1,
@@ -220,6 +228,7 @@ export const CAREER_OPPORTUNITY_TYPE_META: Record<
       requiresComment: false,
     },
     panelToneClassName: "bg-orange-300",
+    positiveActionIcon: Handshake,
     positiveActionLabel: "연결 수락",
     positiveFeedbackSubmitButtonClassName:
       "border-xprimary bg-xprimary text-beige50",
@@ -233,7 +242,7 @@ export const CAREER_OPPORTUNITY_TYPE_META: Record<
       requiresComment: true,
     },
     savedStageLabels: {
-      applied: "관심 표시함",
+      applied: "연결 수락함",
     },
     shortLabel: "Intro 요청",
     sortPriority: 0,
@@ -266,6 +275,9 @@ export const getCareerOpportunityInfoCopy = (
 export const getCareerPositiveActionLabel = (
   opportunityType: OpportunityType
 ) => getCareerOpportunityTypeMeta(opportunityType).positiveActionLabel;
+
+export const getCareerPositiveActionIcon = (opportunityType: OpportunityType) =>
+  getCareerOpportunityTypeMeta(opportunityType).positiveActionIcon;
 
 export const getCareerNegativeActionLabel = (
   opportunityType: OpportunityType

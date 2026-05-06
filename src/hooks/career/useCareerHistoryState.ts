@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   useInfiniteQuery,
   useQueryClient,
@@ -23,6 +23,7 @@ import type { FetchWithAuth } from "@/hooks/career/useCareerApi";
 
 const CAREER_HISTORY_PAGE_SIZE = 20;
 const CAREER_HISTORY_GC_TIME = 30 * 60_000;
+const CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_DELAY_MS = 15_000;
 
 type CareerHistoryPage = {
   counts: CareerHistoryOpportunityCounts | null;
@@ -74,6 +75,7 @@ export function useCareerHistoryState(args: {
   fetchWithAuth: FetchWithAuth;
   initialSessionPage?: InitialCareerHistoryPage;
   onHistoryActionAssistantMessage?: (message: CareerMessagePayload) => void;
+  onHistoryActionUserMessage?: (message: CareerMessagePayload) => void;
   userId: string | null;
 }) {
   const {
@@ -82,6 +84,7 @@ export function useCareerHistoryState(args: {
     fetchWithAuth,
     initialSessionPage,
     onHistoryActionAssistantMessage,
+    onHistoryActionUserMessage,
     userId,
   } = args;
   const queryClient = useQueryClient();
@@ -95,6 +98,67 @@ export function useCareerHistoryState(args: {
   const [historyUpdatingOpportunityIds, setHistoryUpdatingOpportunityIds] =
     useState<string[]>([]);
   const [historyUpdateError, setHistoryUpdateError] = useState("");
+  const feedbackFollowUpTimerRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+  const feedbackActionSequenceRef = useRef(0);
+
+  const cancelPendingOpportunityFeedbackFollowUp = useCallback(() => {
+    if (!feedbackFollowUpTimerRef.current) return;
+    clearTimeout(feedbackFollowUpTimerRef.current);
+    feedbackFollowUpTimerRef.current = null;
+  }, []);
+
+  const requestOpportunityFeedbackFollowUp = useCallback(async () => {
+    if (!conversationId) return;
+
+    try {
+      const response = await fetchWithAuth(
+        "/api/talent/opportunities/feedback-followup",
+        {
+          method: "POST",
+          body: JSON.stringify({ conversationId }),
+        }
+      );
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          getErrorMessage(payload, "피드백 후속 메시지를 만들지 못했습니다.")
+        );
+      }
+
+      if (payload.assistantMessage) {
+        onHistoryActionAssistantMessage?.(
+          payload.assistantMessage as CareerMessagePayload
+        );
+      }
+    } catch (error) {
+      setHistoryUpdateError(
+        error instanceof Error
+          ? error.message
+          : "피드백 후속 메시지를 만들지 못했습니다."
+      );
+    }
+  }, [conversationId, fetchWithAuth, onHistoryActionAssistantMessage]);
+
+  const scheduleOpportunityFeedbackFollowUp = useCallback(() => {
+    cancelPendingOpportunityFeedbackFollowUp();
+    feedbackFollowUpTimerRef.current = setTimeout(() => {
+      feedbackFollowUpTimerRef.current = null;
+      void requestOpportunityFeedbackFollowUp();
+    }, CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_DELAY_MS);
+  }, [
+    cancelPendingOpportunityFeedbackFollowUp,
+    requestOpportunityFeedbackFollowUp,
+  ]);
+
+  useEffect(
+    () => () => {
+      cancelPendingOpportunityFeedbackFollowUp();
+    },
+    [cancelPendingOpportunityFeedbackFollowUp]
+  );
 
   const fetchHistoryPage = useCallback(
     async (offset: number) => {
@@ -322,6 +386,7 @@ export function useCareerHistoryState(args: {
       feedback?: CareerHistoryOpportunityFeedback | null;
       feedbackReason?: string | null;
       opportunityId: string;
+      promptImmediately?: boolean;
       savedStage?: CareerOpportunitySavedStage | null;
     }) => {
       const response = await fetchWithAuth("/api/talent/opportunities", {
@@ -338,8 +403,10 @@ export function useCareerHistoryState(args: {
 
       return payload as {
         assistantMessage?: CareerMessagePayload | null;
+        feedbackFollowUp?: { delayed?: boolean } | null;
         followUpRunId?: string | null;
         opportunityDiscoveryQueued?: boolean;
+        userMessage?: CareerMessagePayload | null;
       };
     },
     [fetchWithAuth]
@@ -351,14 +418,23 @@ export function useCareerHistoryState(args: {
       feedback: CareerHistoryOpportunityFeedback | null,
       options?: {
         feedbackReason?: string | null;
+        fallbackOpportunity?: CareerHistoryOpportunity;
+        promptImmediately?: boolean;
         savedStage?: CareerOpportunitySavedStage | null;
       }
     ) => {
       const normalizedOpportunityId = opportunityId.trim();
       if (!normalizedOpportunityId) return;
 
-      const previousItem = historyOpportunityById.get(normalizedOpportunityId);
+      const cachedPreviousItem = historyOpportunityById.get(
+        normalizedOpportunityId
+      );
+      const previousItem = cachedPreviousItem ?? options?.fallbackOpportunity;
       if (!previousItem) return;
+      const shouldUpdateHistoryCache = Boolean(cachedPreviousItem);
+      const feedbackActionSequence = feedback
+        ? (feedbackActionSequenceRef.current += 1)
+        : feedbackActionSequenceRef.current;
       const now = new Date().toISOString();
       const nextSavedStage =
         feedback === "positive"
@@ -377,8 +453,13 @@ export function useCareerHistoryState(args: {
       const previousCounts = historyOpportunityCounts;
 
       beginHistoryUpdate(normalizedOpportunityId);
-      updateHistoryOpportunityLocally(normalizedOpportunityId, () => nextItem);
-      applyHistoryOpportunityCountsTransition(previousItem, nextItem);
+      if (shouldUpdateHistoryCache) {
+        updateHistoryOpportunityLocally(
+          normalizedOpportunityId,
+          () => nextItem
+        );
+        applyHistoryOpportunityCountsTransition(previousItem, nextItem);
+      }
 
       try {
         const payload = await patchHistoryOpportunity({
@@ -387,17 +468,34 @@ export function useCareerHistoryState(args: {
           feedback,
           feedbackReason: options?.feedbackReason ?? null,
           opportunityId: normalizedOpportunityId,
+          promptImmediately: options?.promptImmediately === true,
           savedStage: nextSavedStage,
         });
+        if (payload.userMessage) {
+          onHistoryActionUserMessage?.(payload.userMessage);
+        }
         if (payload.assistantMessage) {
+          cancelPendingOpportunityFeedbackFollowUp();
           onHistoryActionAssistantMessage?.(payload.assistantMessage);
+        } else if (
+          feedback &&
+          feedbackActionSequence === feedbackActionSequenceRef.current &&
+          payload.feedbackFollowUp?.delayed &&
+          previousItem.sourceType === "external"
+        ) {
+          scheduleOpportunityFeedbackFollowUp();
         }
         if (payload.opportunityDiscoveryQueued) {
           showOpportunityDiscoveryStartedToast();
         }
+        if (!shouldUpdateHistoryCache) {
+          await queryClient.invalidateQueries({ queryKey });
+        }
       } catch (error) {
-        restoreHistoryOpportunity(normalizedOpportunityId, previousItem);
-        setHistoryOpportunityCounts(previousCounts);
+        if (shouldUpdateHistoryCache) {
+          restoreHistoryOpportunity(normalizedOpportunityId, previousItem);
+          setHistoryOpportunityCounts(previousCounts);
+        }
         setHistoryUpdateError(
           error instanceof Error
             ? error.message
@@ -414,9 +512,14 @@ export function useCareerHistoryState(args: {
       historyOpportunityCounts,
       applyHistoryOpportunityCountsTransition,
       conversationId,
+      cancelPendingOpportunityFeedbackFollowUp,
       onHistoryActionAssistantMessage,
+      onHistoryActionUserMessage,
       patchHistoryOpportunity,
+      queryClient,
+      queryKey,
       restoreHistoryOpportunity,
+      scheduleOpportunityFeedbackFollowUp,
       updateHistoryOpportunityLocally,
     ]
   );
@@ -624,12 +727,13 @@ export function useCareerHistoryState(args: {
   }, [infinite]);
 
   const resetHistoryState = useCallback(() => {
+    cancelPendingOpportunityFeedbackFollowUp();
     queryClient.removeQueries({ queryKey: ["career-history-opportunities"] });
     setHistoryLoaded(false);
     setHistoryOpportunityCounts(null);
     setHistoryUpdatingOpportunityIds([]);
     setHistoryUpdateError("");
-  }, [queryClient]);
+  }, [cancelPendingOpportunityFeedbackFollowUp, queryClient]);
 
   return {
     hasMoreHistoryOpportunities: Boolean(infinite.hasNextPage),
@@ -648,6 +752,7 @@ export function useCareerHistoryState(args: {
     onSendHistoryOpportunityQuestion,
     onUpdateHistoryOpportunityFeedback,
     onUpdateHistoryOpportunitySavedStage,
+    cancelPendingOpportunityFeedbackFollowUp,
     resetHistoryState,
     setHistoryLoaded,
   };

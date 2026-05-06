@@ -63,13 +63,13 @@ const HistoryOpportunityInfoModal = ({
     if (opportunityType === OpportunityType.InternalRecommendation) {
       return (
         <>
-          <div className={titleCss}>관심을 표시하면 어떻게 되나요?</div>
+          <div className={titleCss}>연결을 수락하면 어떻게 되나요?</div>
           <div className={descCss}>
             현재 추천은 하퍼에게 인재 채용을 요청한 회사들 중 저희가 회원님과
             적합하다고 판단한 기회입니다.
             <br />
             <br />
-            관심을 표시하시면 Harper가 회사 측에 회원님을 직접 추천하며, 실제
+            연결을 수락하시면 Harper가 회사 측에 회원님을 직접 추천하며, 실제
             연결로 이어질 가능성이 매우 높습니다.
             <br />
             <br />
@@ -77,7 +77,7 @@ const HistoryOpportunityInfoModal = ({
             때문에, 단순한 제안이 아닌 실제로 연결이 성사될 확률이 높은
             추천입니다.
           </div>
-          <div className={titleCss}>관심 표시 후, 다시 취소할 수 있나요?</div>
+          <div className={titleCss}>연결 수락 후, 다시 취소할 수 있나요?</div>
           <div className={descCss}>
             언제든지 취소할 수 있습니다. 부담 없이 편하게 선택해주세요.
           </div>

@@ -5,78 +5,23 @@ import { showOpportunityDiscoveryStartedToast } from "@/hooks/career/opportunity
 import type { FetchWithAuth } from "@/hooks/career/useCareerApi";
 
 export function useCareerRuntimeActions(args: {
-  companySnapshotPending: boolean;
   conversationId: string | null;
-  enqueueAssistantMessages: (rawMessages: unknown[]) => Promise<void>;
   fetchWithAuth: FetchWithAuth;
   opportunityRun: CareerOpportunityRun | null;
   opportunityRunTriggerPending: boolean;
-  setCompanySnapshotPending: Dispatch<SetStateAction<boolean>>;
   setChatError: Dispatch<SetStateAction<string>>;
   setOpportunityRun: Dispatch<SetStateAction<CareerOpportunityRun | null>>;
   setOpportunityRunTriggerPending: Dispatch<SetStateAction<boolean>>;
 }) {
   const {
-    companySnapshotPending,
     conversationId,
-    enqueueAssistantMessages,
     fetchWithAuth,
     opportunityRun,
     opportunityRunTriggerPending,
-    setCompanySnapshotPending,
     setChatError,
     setOpportunityRun,
     setOpportunityRunTriggerPending,
   } = args;
-
-  const handleStartCompanySnapshot = useCallback(
-    async (args: { companyName: string; reason?: string | null }) => {
-      const companyName = args.companyName.trim();
-      if (!conversationId || !companyName || companySnapshotPending) return;
-
-      setCompanySnapshotPending(true);
-      setChatError("");
-      try {
-        const response = await fetchWithAuth(
-          "/api/talent/company-snapshot/start",
-          {
-            method: "POST",
-            body: JSON.stringify({
-              companyName,
-              conversationId,
-              reason: args.reason ?? null,
-            }),
-          }
-        );
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          throw new Error(
-            getErrorMessage(payload, "회사 조사 시작에 실패했습니다.")
-          );
-        }
-
-        const message = payload.message ?? payload.assistantMessage;
-        if (message) {
-          await enqueueAssistantMessages([message]);
-        }
-      } catch (error) {
-        setChatError(
-          error instanceof Error
-            ? error.message
-            : "회사 조사 시작 중 오류가 발생했습니다."
-        );
-      } finally {
-        setCompanySnapshotPending(false);
-      }
-    },
-    [
-      companySnapshotPending,
-      conversationId,
-      enqueueAssistantMessages,
-      fetchWithAuth,
-      setChatError,
-    ]
-  );
 
   const handleRunOpportunityDiscoveryTest = useCallback(async () => {
     if (opportunityRun?.inputLocked || opportunityRunTriggerPending) {
@@ -129,17 +74,17 @@ export function useCareerRuntimeActions(args: {
     opportunityRun?.inputLocked,
     opportunityRunTriggerPending,
     setChatError,
+    setOpportunityRun,
+    setOpportunityRunTriggerPending,
   ]);
 
   const resetRuntimeActionsState = useCallback(() => {
     setOpportunityRun(null);
     setOpportunityRunTriggerPending(false);
-    setCompanySnapshotPending(false);
-  }, []);
+  }, [setOpportunityRun, setOpportunityRunTriggerPending]);
 
   return {
     handleRunOpportunityDiscoveryTest,
-    handleStartCompanySnapshot,
     resetRuntimeActionsState,
   };
 }

@@ -2,13 +2,15 @@ import type { User } from "@supabase/supabase-js";
 import React, { createContext, useContext } from "react";
 import type {
   CallTranscriptEntry,
-	  CareerInputMode,
-	  CareerHistoryOpportunityFeedback,
-	  CareerMessage,
-	  CareerOpportunityRun,
-	  CareerOpportunitySavedStage,
-	  CareerStage,
-	} from "./types";
+  CareerInputMode,
+  CareerHistoryOpportunity,
+  CareerHistoryOpportunityFeedback,
+  CareerMessage,
+  CareerOpportunityRun,
+  CareerOpportunitySavedStage,
+  CareerRecommendationSearchStatus,
+  CareerStage,
+} from "./types";
 import type { TalentOnboardingInterestOptionId } from "@/lib/talentOnboarding/onboarding";
 
 export type CareerChatPanelContextValue = {
@@ -35,13 +37,17 @@ export type CareerChatPanelContextValue = {
 
   chatError: string;
   assistantTyping: boolean;
-	  chatPending: boolean;
-	  companySnapshotPending: boolean;
-	  opportunityRun: CareerOpportunityRun | null;
-	  opportunitySearchLocked: boolean;
-	  historyUpdatingOpportunityIds: string[];
-	  onboardingBeginPending: boolean;
-	  callStartPending?: boolean;
+  toolStatusMessage: string;
+  activeThinkingLogs: string[];
+  activeRecommendationSearchStatus: CareerRecommendationSearchStatus | null;
+  onboardingWrapupPending: boolean;
+  thinkingLogsByMessageId: Record<string, string[]>;
+  chatPending: boolean;
+  opportunityRun: CareerOpportunityRun | null;
+  opportunitySearchLocked: boolean;
+  historyUpdatingOpportunityIds: string[];
+  onboardingBeginPending: boolean;
+  callStartPending?: boolean;
   onboardingPausePending: boolean;
 
   onGoogleLogin: () => void | Promise<void>;
@@ -58,6 +64,7 @@ export type CareerChatPanelContextValue = {
   onProfileSubmit: () => void | Promise<void>;
 
   onSendChatMessage: (args: {
+    channel?: "chat" | "voice";
     text: string;
     link?: string;
     onError?: () => void;
@@ -67,14 +74,13 @@ export type CareerChatPanelContextValue = {
     feedback: CareerHistoryOpportunityFeedback | null,
     options?: {
       feedbackReason?: string | null;
-	      savedStage?: CareerOpportunitySavedStage | null;
-	    }
-	  ) => void | Promise<void>;
-	  onStartCompanySnapshot: (args: {
-	    companyName: string;
-	    reason?: string | null;
-  }) => void | Promise<void>;
+      fallbackOpportunity?: CareerHistoryOpportunity;
+      promptImmediately?: boolean;
+      savedStage?: CareerOpportunitySavedStage | null;
+    }
+  ) => void | Promise<void>;
   onLoadOlderMessages: () => void | Promise<void>;
+  onRegenerateOnboardingWrapup?: () => void | Promise<void>;
 
   showVoiceStartPrompt: boolean;
   onStartVoiceCall: (durationMinutes?: 5 | 10) => void;

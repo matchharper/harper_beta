@@ -20,8 +20,6 @@ create table if not exists public.talent_opportunity_profile_snapshot (
   preference_profile_json jsonb not null default '{}'::jsonb,
   snapshot_text text not null default '',
   retrieval_query_text text not null default '',
-  snapshot_embedding jsonb null,
-  embedding_model text null,
   created_at timestamptz not null default timezone('utc', now())
 );
 

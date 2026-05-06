@@ -451,9 +451,8 @@ const CareerPreviewPage = () => {
       opportunityRunTriggerPending: false,
       onRunOpportunityDiscoveryTest: () => undefined,
       recentOpportunities: initialRecentOpportunities,
-      historyOpportunityCounts: deriveHistoryOpportunityCounts(
-        historyOpportunities
-      ),
+      historyOpportunityCounts:
+        deriveHistoryOpportunityCounts(historyOpportunities),
       historyOpportunities,
       historyLoading: false,
       historyLoadingMore: false,
@@ -702,8 +701,12 @@ const CareerPreviewPage = () => {
       profileError: "",
       chatError: "",
       assistantTyping: false,
+      toolStatusMessage: "",
+      activeThinkingLogs: [],
+      activeRecommendationSearchStatus: null,
+      onboardingWrapupPending: false,
+      thinkingLogsByMessageId: {},
       chatPending: false,
-      companySnapshotPending: false,
       opportunityRun: null,
       opportunitySearchLocked: false,
       historyUpdatingOpportunityIds: [],
@@ -745,7 +748,6 @@ const CareerPreviewPage = () => {
         ]);
       },
       onUpdateHistoryOpportunityFeedback: async () => undefined,
-      onStartCompanySnapshot: async () => undefined,
       onLoadOlderMessages: async () => undefined,
       showVoiceStartPrompt: false,
       onStartVoiceCall: () => undefined,
@@ -764,11 +766,7 @@ const CareerPreviewPage = () => {
       onToggleVoiceMute: () => undefined,
       onSwitchToTextMode: () => undefined,
     }),
-    [
-      messages,
-      profileLinks,
-      resumeFile,
-    ]
+    [messages, profileLinks, resumeFile]
   );
 
   return (

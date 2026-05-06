@@ -13,7 +13,7 @@ import {
   PanelHeader,
   RECOMMENDATION_FEEDBACK_LABEL,
   RoleOptionCard,
-  SAVED_STAGE_LABEL,
+  getOpsOpportunitySavedStageLabel,
   SearchInput,
   SelectionSummary,
   SOURCE_LABEL,
@@ -315,7 +315,11 @@ export default function TalentRecommendationView({
                 <div className="flex flex-wrap gap-1.5">
                   <Token>{SOURCE_LABEL[item.sourceType]}</Token>
                   <Token>{OPPORTUNITY_TYPE_LABEL[item.opportunityType]}</Token>
-                  {item.savedStage && <Token>{SAVED_STAGE_LABEL[item.savedStage]}</Token>}
+                  {item.savedStage && (
+                    <Token>
+                      {getOpsOpportunitySavedStageLabel(item.savedStage, item)}
+                    </Token>
+                  )}
                   {item.feedback && (
                     <Token>{RECOMMENDATION_FEEDBACK_LABEL[item.feedback]}</Token>
                   )}

@@ -10,6 +10,7 @@ import type {
   OpportunityStatus,
   OpportunityWorkMode,
 } from "@/lib/opsOpportunity";
+import { OpportunityType } from "@/lib/opportunityType";
 import { Mail, Search } from "lucide-react";
 import type { KeyboardEvent, ReactNode } from "react";
 
@@ -138,10 +139,29 @@ export const RECOMMENDATION_FEEDBACK_LABEL: Record<
 };
 
 export const SAVED_STAGE_LABEL: Record<OpsOpportunitySavedStage, string> = {
-  applied: "관심 표시함 / 지원함",
+  applied: "지원함",
   closed: "종료됨",
   connected: "연결됨",
   saved: "저장됨",
+};
+
+export const getOpsOpportunitySavedStageLabel = (
+  savedStage: OpsOpportunitySavedStage,
+  opportunity?: {
+    opportunityType?: OpportunityType | null;
+    sourceType?: OpportunitySourceType | null;
+  }
+) => {
+  if (
+    savedStage === "applied" &&
+    (opportunity?.sourceType === "internal" ||
+      opportunity?.opportunityType === OpportunityType.InternalRecommendation ||
+      opportunity?.opportunityType === OpportunityType.IntroRequest)
+  ) {
+    return "연결 수락함";
+  }
+
+  return SAVED_STAGE_LABEL[savedStage];
 };
 
 const formatDateValue = (value: string | null | undefined) => {

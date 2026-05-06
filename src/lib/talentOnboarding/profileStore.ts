@@ -221,12 +221,19 @@ export async function fetchTalentStructuredProfile(args: {
 }
 
 export function buildTalentProfileContext(args: {
+  includeResumeText?: boolean;
   profile: TalentUserProfileRow | null;
   structuredProfile?: TalentStructuredProfile | null;
   setting?: TalentSettingRow | null;
   maxResumeChars?: number;
 }) {
-  const { profile, structuredProfile, setting, maxResumeChars = 3000 } = args;
+  const {
+    includeResumeText = true,
+    profile,
+    structuredProfile,
+    setting,
+    maxResumeChars = 3000,
+  } = args;
   const lines: string[] = [];
   const talentUser = structuredProfile?.talentUser ?? profile;
   const resumeLinks = (profile?.resume_links ?? []).filter(
@@ -361,7 +368,9 @@ export function buildTalentProfileContext(args: {
     });
   }
 
-  const resumeSnippet = clampPromptText(profile?.resume_text, maxResumeChars);
+  const resumeSnippet = includeResumeText
+    ? clampPromptText(profile?.resume_text, maxResumeChars)
+    : "";
   if (resumeSnippet) {
     lines.push("Resume Text Snippet");
     lines.push(resumeSnippet);
@@ -373,7 +382,15 @@ export function buildTalentProfileContext(args: {
 const MEMO_MAX_CHARS = 2000;
 
 export type RowMemoOutcome =
-  | { ok: true; updated: boolean }
+  | {
+      ok: true;
+      target?: {
+        entityId?: number | string | null;
+        entityLabel: string;
+        entityType: "education" | "experience" | "extra";
+      };
+      updated: boolean;
+    }
   | {
       ok: false;
       reason:
@@ -406,6 +423,39 @@ function parseRowIdToNumber(rowId: string | number | null | undefined) {
   return parsed;
 }
 
+function normalizeMemoTargetText(value: unknown) {
+  return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+}
+
+function describeExperienceMemoTarget(row: {
+  company_name?: unknown;
+  id?: unknown;
+  role?: unknown;
+}) {
+  const role = normalizeMemoTargetText(row.role);
+  const company = normalizeMemoTargetText(row.company_name);
+  if (role && company) return `${role} at ${company}`;
+  if (role) return role;
+  if (company) return company;
+  return `experience ${row.id ?? ""}`.trim();
+}
+
+function describeEducationMemoTarget(row: {
+  degree?: unknown;
+  field?: unknown;
+  id?: unknown;
+  school?: unknown;
+}) {
+  const school = normalizeMemoTargetText(row.school);
+  const degree = normalizeMemoTargetText(row.degree);
+  const field = normalizeMemoTargetText(row.field);
+  const program = [degree, field].filter(Boolean).join(" in ");
+  if (school && program) return `${program} at ${school}`;
+  if (school) return school;
+  if (program) return program;
+  return `education ${row.id ?? ""}`.trim();
+}
+
 export async function fetchExperienceForMemo(args: {
   admin: TalentAdminClient;
   userId: string;
@@ -416,7 +466,7 @@ export async function fetchExperienceForMemo(args: {
   if (parsedId === null) return null;
   const { data, error } = await admin
     .from("talent_experiences")
-    .select("id, talent_id, memo")
+    .select("id, talent_id, memo, role, company_name")
     .eq("id", parsedId)
     .eq("talent_id", userId)
     .maybeSingle();
@@ -436,7 +486,7 @@ export async function fetchEducationForMemo(args: {
   if (parsedId === null) return null;
   const { data, error } = await admin
     .from("talent_educations")
-    .select("id, talent_id, memo")
+    .select("id, talent_id, memo, school, degree, field")
     .eq("id", parsedId)
     .eq("talent_id", userId)
     .maybeSingle();
@@ -460,7 +510,15 @@ export async function appendExperienceMemo(args: {
   const next = joinMemoWithDelta(row.memo, newInfo);
   if (next === null) return { ok: false, reason: "empty_input" };
   if (next === (row.memo ?? "")) {
-    return { ok: true, updated: false };
+    return {
+      ok: true,
+      target: {
+        entityId: parsedId,
+        entityLabel: describeExperienceMemoTarget(row),
+        entityType: "experience",
+      },
+      updated: false,
+    };
   }
   const { error } = await admin
     .from("talent_experiences")
@@ -472,7 +530,15 @@ export async function appendExperienceMemo(args: {
       error.message ?? "Failed to update talent_experiences memo"
     );
   }
-  return { ok: true, updated: true };
+  return {
+    ok: true,
+    target: {
+      entityId: parsedId,
+      entityLabel: describeExperienceMemoTarget(row),
+      entityType: "experience",
+    },
+    updated: true,
+  };
 }
 
 export async function appendEducationMemo(args: {
@@ -489,7 +555,15 @@ export async function appendEducationMemo(args: {
   const next = joinMemoWithDelta(row.memo, newInfo);
   if (next === null) return { ok: false, reason: "empty_input" };
   if (next === (row.memo ?? "")) {
-    return { ok: true, updated: false };
+    return {
+      ok: true,
+      target: {
+        entityId: parsedId,
+        entityLabel: describeEducationMemoTarget(row),
+        entityType: "education",
+      },
+      updated: false,
+    };
   }
   const { error } = await admin
     .from("talent_educations")
@@ -501,7 +575,15 @@ export async function appendEducationMemo(args: {
       error.message ?? "Failed to update talent_educations memo"
     );
   }
-  return { ok: true, updated: true };
+  return {
+    ok: true,
+    target: {
+      entityId: parsedId,
+      entityLabel: describeEducationMemoTarget(row),
+      entityType: "education",
+    },
+    updated: true,
+  };
 }
 
 export async function appendExtraMemo(args: {
@@ -544,7 +626,14 @@ export async function appendExtraMemo(args: {
   const next = joinMemoWithDelta(target.memo, newInfo);
   if (next === null) return { ok: false, reason: "empty_input" };
   if (next === (target.memo ?? "")) {
-    return { ok: true, updated: false };
+    return {
+      ok: true,
+      target: {
+        entityLabel: target.title ?? title,
+        entityType: "extra",
+      },
+      updated: false,
+    };
   }
 
   const nextItems = items.map((item, index) =>
@@ -560,5 +649,12 @@ export async function appendExtraMemo(args: {
       updateError.message ?? "Failed to update talent_extras memo"
     );
   }
-  return { ok: true, updated: true };
+  return {
+    ok: true,
+    target: {
+      entityLabel: target.title ?? title,
+      entityType: "extra",
+    },
+    updated: true,
+  };
 }
