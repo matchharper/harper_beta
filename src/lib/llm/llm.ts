@@ -73,6 +73,200 @@ export function supportsResponseFormatForModel(model: string) {
   return getLlmChatProviderForModel(model) === "openai";
 }
 
+export type ChatCompletionFallbackReason =
+  | "anthropic_overloaded"
+  | "primary_failed";
+
+export type ChatCompletionFallbackCandidate = {
+  model: string;
+  reason: ChatCompletionFallbackReason;
+};
+
+function stringifyErrorDetail(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return "";
+  }
+}
+
+function getLlmErrorStatus(error: unknown): number | null {
+  if (error && typeof error === "object") {
+    const record = error as Record<string, any>;
+    const candidates = [
+      record.status,
+      record.statusCode,
+      record.response?.status,
+    ];
+    for (const candidate of candidates) {
+      const status =
+        typeof candidate === "number"
+          ? candidate
+          : typeof candidate === "string"
+            ? Number.parseInt(candidate, 10)
+            : Number.NaN;
+      if (Number.isFinite(status)) return status;
+    }
+  }
+
+  const message = getLlmErrorMessage(error);
+  const match =
+    message.match(/\bHTTP\s+(\d{3})\b/i) ??
+    message.match(/\((\d{3})\)/) ??
+    message.match(/\bstatus(?:Code)?["'\s:=]+(\d{3})\b/i);
+  return match ? Number.parseInt(match[1], 10) : null;
+}
+
+export function getLlmErrorMessage(error: unknown): string {
+  const details: string[] = [];
+  const add = (value: unknown) => {
+    const detail = stringifyErrorDetail(value).trim();
+    if (detail) details.push(detail);
+  };
+
+  if (error instanceof Error) {
+    add(error.message);
+    add(error.name);
+  } else {
+    add(error);
+  }
+
+  if (error && typeof error === "object") {
+    const record = error as Record<string, any>;
+    add(record.message);
+    add(record.code);
+    add(record.type);
+    add(record.status);
+    add(record.statusCode);
+    add(record.error);
+    add(record.response?.data);
+    add(record.response?.body);
+  }
+
+  return details.join(" | ").slice(0, 1200);
+}
+
+export function isAnthropicOverloadedError(error: unknown) {
+  const status = getLlmErrorStatus(error);
+  const detail = getLlmErrorMessage(error).toLowerCase();
+  return (
+    (status === 529 || /\b529\b/.test(detail)) &&
+    (detail.includes("overloaded_error") || detail.includes("overloaded"))
+  );
+}
+
+function normalizedModelName(model: string | null | undefined) {
+  return (model ?? "").trim();
+}
+
+export function getChatCompletionFallbackCandidates(args: {
+  anthropicOverloadFallbackModel?: string | null;
+  error: unknown;
+  fallbackModel?: string | null;
+  model: string;
+}): ChatCompletionFallbackCandidate[] {
+  const requestedModel = normalizedModelName(args.model);
+  const candidates: ChatCompletionFallbackCandidate[] = [];
+  const addCandidate = (
+    model: string | null | undefined,
+    reason: ChatCompletionFallbackReason
+  ) => {
+    const normalized = normalizedModelName(model);
+    if (!normalized || normalized === requestedModel) return;
+    if (candidates.some((candidate) => candidate.model === normalized)) return;
+    candidates.push({ model: normalized, reason });
+  };
+
+  if (
+    getLlmChatProviderForModel(requestedModel) === "anthropic" &&
+    isAnthropicOverloadedError(args.error)
+  ) {
+    addCandidate(
+      args.anthropicOverloadFallbackModel,
+      "anthropic_overloaded"
+    );
+  }
+
+  addCandidate(args.fallbackModel, "primary_failed");
+  return candidates;
+}
+
+export function resolveChatCompletionFallbackModelForError(args: {
+  anthropicOverloadFallbackModel?: string | null;
+  error: unknown;
+  fallbackModel?: string | null;
+  model: string;
+}) {
+  return getChatCompletionFallbackCandidates(args)[0] ?? null;
+}
+
+export async function createChatCompletionWithFallback(args: {
+  anthropicOverloadFallbackModel?: string | null;
+  buildRequest: (model: string) => Record<string, unknown>;
+  fallbackModel?: string | null;
+  model: string;
+}): Promise<{
+  fallbackReason?: ChatCompletionFallbackReason;
+  model: string;
+  response: any;
+}> {
+  const createForModel = async (model: string) => {
+    const llmClient = getChatClientForModel(model);
+    return llmClient.chat.completions.create({
+      ...args.buildRequest(model),
+      model,
+    } as any);
+  };
+
+  try {
+    return {
+      model: args.model,
+      response: await createForModel(args.model),
+    };
+  } catch (error) {
+    const fallbackCandidates = getChatCompletionFallbackCandidates({
+      anthropicOverloadFallbackModel: args.anthropicOverloadFallbackModel,
+      error,
+      fallbackModel: args.fallbackModel,
+      model: args.model,
+    });
+    if (fallbackCandidates.length === 0) throw error;
+
+    let lastError: unknown = error;
+    for (const fallback of fallbackCandidates) {
+      console.warn("[llm:chat-completion-fallback]", {
+        error: getLlmErrorMessage(error),
+        fromModel: args.model,
+        reason: fallback.reason,
+        toModel: fallback.model,
+      });
+      try {
+        return {
+          fallbackReason: fallback.reason,
+          model: fallback.model,
+          response: await createForModel(fallback.model),
+        };
+      } catch (fallbackError) {
+        lastError = fallbackError;
+        console.warn("[llm:chat-completion-fallback-failed]", {
+          error: getLlmErrorMessage(fallbackError),
+          fromModel: args.model,
+          reason: fallback.reason,
+          toModel: fallback.model,
+        });
+      }
+    }
+
+    throw lastError;
+  }
+}
+
 export type OnToken = (token: string) => void;
 
 const pricingTable = {

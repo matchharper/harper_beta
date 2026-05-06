@@ -2,10 +2,12 @@ import {
   BriefcaseBusiness,
   Check,
   ChevronRight,
+  Clock3,
   Loader2,
   Mail,
   MessageSquareText,
   Phone,
+  Plus,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
@@ -190,10 +192,14 @@ const CareerHomePanel = ({
     user,
     activeCompanyRoleCount,
     callStartPending = false,
+    opportunityRun,
+    opportunityRunTriggerPending,
     talentProfile,
     talentPreferences,
     historyOpportunityCounts,
     historyOpportunities,
+    onRunPeriodicOpportunityDiscoveryTest,
+    onRunOpportunityDiscoveryTest,
     onStartCallMode,
   } = useCareerSidebarContext();
 
@@ -268,6 +274,19 @@ const CareerHomePanel = ({
           activeCompanyRoleCount * 2
         )}개의 기회를 스캔하고 있습니다. 매일매일 더 많은 기회를 발견합니다.`
       : "현재 Harper는 새로운 기회를 계속 탐색하고 있습니다.";
+
+  const userEmail = String(user?.email ?? "")
+    .trim()
+    .toLowerCase();
+  const showDevRunControls =
+    process.env.NODE_ENV !== "production" ||
+    userEmail.endsWith("@matchharper.com") ||
+    userEmail === "khj605123@gmail.com";
+  const opportunityRunLocked =
+    opportunityRunTriggerPending || Boolean(opportunityRun?.inputLocked);
+  const latestRunLabel = opportunityRun
+    ? `${opportunityRun.id.slice(0, 8)} · ${opportunityRun.status}`
+    : "latest run 없음";
 
   const handleStartCall = () => {
     onOpenChat();
@@ -348,38 +367,73 @@ const CareerHomePanel = ({
               }
             />
           </div>
-          {/* <div className="mt-6 flex flex-wrap gap-3">
-            <CareerPrimaryButton
-              onClick={onOpenChat}
-              className="h-11 gap-2 px-5"
-            >
-              <MessageSquareText className="h-4 w-4" />
-              {startButtonLabel}
-            </CareerPrimaryButton>
-            <CareerSecondaryButton
-              onClick={onOpenProfile}
-              className="h-11 gap-2 px-5"
-            >
-              <BriefcaseBusiness className="h-4 w-4" />
-              Preference 보기
-            </CareerSecondaryButton>
-            <CareerSecondaryButton
-              onClick={() => void onRunOpportunityDiscoveryTest()}
-              disabled={!canRunOpportunityTest}
-              className="h-11 px-5"
-            >
-              {opportunityRunTriggerPending || opportunityRun?.inputLocked
-                ? "추천 생성 중..."
-                : "추천 테스트 실행"}
-            </CareerSecondaryButton>
-          </div> */}
+          {showDevRunControls ? (
+            <div className="mt-5 rounded-2xl border border-dashed border-beige900/15 bg-white/70 px-4 py-4">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="text-[13px] font-semibold uppercase tracking-[0.08em] text-beige900/45">
+                    Dev controls
+                  </div>
+                  <div className="mt-1 text-[13px] leading-5 text-beige900/60">
+                    latest: {latestRunLabel}
+                  </div>
+                </div>
+                {opportunityRunLocked ? (
+                  <div className="mt-1 inline-flex items-center gap-1.5 text-[13px] text-beige900/55 sm:mt-0">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    worker 처리 대기 중
+                  </div>
+                ) : null}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <CareerSecondaryButton
+                  onClick={() => void onRunOpportunityDiscoveryTest()}
+                  disabled={opportunityRunLocked}
+                  className="h-10 gap-2 px-4 text-[13px]"
+                >
+                  {opportunityRunTriggerPending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Plus className="h-3.5 w-3.5" />
+                  )}
+                  discovery_run 추가
+                </CareerSecondaryButton>
+                <CareerSecondaryButton
+                  onClick={() => void onRunPeriodicOpportunityDiscoveryTest()}
+                  disabled={opportunityRunLocked}
+                  className="h-10 gap-2 px-4 text-[13px]"
+                >
+                  {opportunityRunTriggerPending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Clock3 className="h-3.5 w-3.5" />
+                  )}
+                  3일 경과 run 큐잉
+                </CareerSecondaryButton>
+                <CareerSecondaryButton
+                  onClick={onOpenProfile}
+                  className="h-10 gap-2 px-4 text-[13px]"
+                >
+                  <BriefcaseBusiness className="h-3.5 w-3.5" />
+                  Preference 보기
+                </CareerSecondaryButton>
+                <CareerPrimaryButton
+                  onClick={onOpenChat}
+                  className="h-10 gap-2 px-4 text-[13px]"
+                >
+                  <MessageSquareText className="h-3.5 w-3.5" />
+                  Chat 열기
+                </CareerPrimaryButton>
+              </div>
+            </div>
+          ) : null}
         </div>
       </section>
 
       {/* <DeliveryCopyPromptTestPanel displayName={displayName} /> */}
 
       <section className="mt-6">
-        <h3 className="font-hedvig text-[1.6rem] font-medium leading-none text-beige900">
+        <h3 className="font-hedvig text-[1.2rem] font-medium leading-none text-beige900">
           My Preference
         </h3>
         <div className="mt-6">

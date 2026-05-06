@@ -449,6 +449,7 @@ const CareerPreviewPage = () => {
       activeCompanyRoleCount: 1284,
       opportunityRun: null,
       opportunityRunTriggerPending: false,
+      onRunPeriodicOpportunityDiscoveryTest: () => undefined,
       onRunOpportunityDiscoveryTest: () => undefined,
       recentOpportunities: initialRecentOpportunities,
       historyOpportunityCounts:

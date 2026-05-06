@@ -2643,39 +2643,36 @@ export type Database = {
       }
       opportunity_ingestion_run: {
         Row: {
-          completed_at: string | null
-          coverage: Json
           created_at: string
           error_message: string | null
+          from_date: string | null
           id: string
-          source_scope: Json
-          started_at: string | null
+          numbers: Json | null
+          source_provider: string | null
           status: string
-          trigger: string
+          to_date: string | null
           updated_at: string
         }
         Insert: {
-          completed_at?: string | null
-          coverage?: Json
           created_at?: string
           error_message?: string | null
+          from_date?: string | null
           id?: string
-          source_scope?: Json
-          started_at?: string | null
+          numbers?: Json | null
+          source_provider?: string | null
           status?: string
-          trigger?: string
+          to_date?: string | null
           updated_at?: string
         }
         Update: {
-          completed_at?: string | null
-          coverage?: Json
           created_at?: string
           error_message?: string | null
+          from_date?: string | null
           id?: string
-          source_scope?: Json
-          started_at?: string | null
+          numbers?: Json | null
+          source_provider?: string | null
           status?: string
-          trigger?: string
+          to_date?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -4782,6 +4779,7 @@ export type Database = {
           preference_fit: Json
           rank: number | null
           ranking_notes: string | null
+          recommendation_reasons: Json
           recommendation_status: string
           recommended_at: string
           role_id: string
@@ -4811,6 +4809,7 @@ export type Database = {
           preference_fit?: Json
           rank?: number | null
           ranking_notes?: string | null
+          recommendation_reasons?: Json
           recommendation_status?: string
           recommended_at?: string
           role_id: string
@@ -4840,6 +4839,7 @@ export type Database = {
           preference_fit?: Json
           rank?: number | null
           ranking_notes?: string | null
+          recommendation_reasons?: Json
           recommendation_status?: string
           recommended_at?: string
           role_id?: string

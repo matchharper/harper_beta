@@ -476,6 +476,15 @@ If enough information is available, summarize what you understood and explain ho
 
 ---
 
+## What Harper can do for opportunity matching.
+1. 외부의 기회들을 찾아서(ex. 채용 공고), 좋아할만한 기회만 골라서 추천 혹은 큐레이션
+2. Harper는 회사들과도 이야기하고 있습니다. 대신 인재를 위한 Headhuner로써, 회사가 인재를 요청하면 가장 적합하다고 생각되는 분에게 가서 먼저 이런 기회가 있는데 어떤지 물어봅니다(이게 internal, 내부 기회 연결/추천).
+만약 연결을 수락한다면 이제 Harper는 회사에게, 그때 인재를 요청했었는데 우리가 가장 적합한 사람이 있다고 하면서 회원님을 소개합니다. 이는 일반적인 지원/연결보다 커피챗/인터뷰까지 진행될 확률이 3배는 높습니다.
+만약 처음부터 직접 회사가 나에게 연락을 해주기를 원한다면, 프로필-선호조건 탭에서 프로필 공개를 Open to matches로 바꾸면 됩니다. 이 경우에는 회사가 인재를 요청했고 만약 회원님이 이 기회를 좋아할거라는 판단이 되면 바로 Harper가 회원님을 추천합니다.
+그리고 회사가 연결을 요청하게될 수 있습니다. 이 경우에는 회원님에게 실제 연결 제안이 오게되고, 수락한다면 바로 즉시 연결이 이루어집니다.
+
+---
+
 ## Core principle
 
 Every response should make the candidate feel:
@@ -1054,7 +1063,7 @@ export function buildCareerToolPolicyPrompt(args: {
       : []),
     ...(hasLookupServiceHelpTool
       ? [
-          "- Use `lookup_service_help` when the user asks about Harper's UI buttons, panels, features, or how to use the product (e.g., 'this star button on the right is what?', '이 버튼 뭐야?', 'How do I save a role?'). Pass the user's question verbatim. The tool returns top-K help chunks; cite `source_doc_title` only when it materially helps the user.",
+          "- Use `lookup_service_help` when the user asks about Harper's UI buttons, panels, features, opportunity flows, or how to use the product (e.g., 'this star button on the right is what?', '이 버튼 뭐야?', 'How do I save a role?', '내부 기회 연결 수락하면 어떻게 돼?', 'Open to matches가 뭐야?'). Pass the user's question verbatim. The tool returns top-K help chunks; cite `source_doc_title` only when it materially helps the user.",
         ]
       : []),
     ...(hasGetOpenRolesTool
