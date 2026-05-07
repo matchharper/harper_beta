@@ -45,10 +45,15 @@ import {
   useSaveOpsOpportunityRole,
   useSaveOpsOpportunityWorkspace,
   useSyncOpsOpportunityRoles,
+  useUpdateOpsCompanyHumanQualityLabel,
   useUpdateOpsCompanyScrapeOriginal,
 } from "@/hooks/useOpsOpportunities";
-import type { OpsCompanyManagementEmployeeCountRangeFilter } from "@/lib/opsOpportunityCompanyManagement";
 import type {
+  OpsCompanyManagementEmployeeCountRangeFilter,
+  OpsCompanyManagementQualityLabelFilter,
+} from "@/lib/opsOpportunityCompanyManagement";
+import type {
+  OpsCompanyQualityLabel,
   OpsCompanyManagementRecord,
   OpsOpportunityCandidateRecord,
   OpsOpportunityRoleRecord,
@@ -112,6 +117,14 @@ export default function OpsOpportunitiesPage() {
   ] = useState<OpsCompanyManagementEmployeeCountRangeFilter>("");
   const [companyManagementFoundedYearMin, setCompanyManagementFoundedYearMin] =
     useState("");
+  const [companyManagementQualityLabel, setCompanyManagementQualityLabel] =
+    useState<OpsCompanyManagementQualityLabelFilter>("");
+  const [companyManagementReviewMode, setCompanyManagementReviewMode] =
+    useState(false);
+  const [
+    companyManagementReviewUnlabeledFirst,
+    setCompanyManagementReviewUnlabeledFirst,
+  ] = useState(true);
   const [
     companyManagementHasCareerUrlOnly,
     setCompanyManagementHasCareerUrlOnly,
@@ -124,6 +137,7 @@ export default function OpsOpportunitiesPage() {
       hasCareerUrlOnly: false,
       investors: "",
       location: "",
+      qualityLabel: "" as OpsCompanyManagementQualityLabelFilter,
     });
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
     null
@@ -174,6 +188,9 @@ export default function OpsOpportunitiesPage() {
   const [updatingScrapeOriginalIds, setUpdatingScrapeOriginalIds] = useState(
     () => new Set<string>()
   );
+  const [updatingQualityLabelIds, setUpdatingQualityLabelIds] = useState(
+    () => new Set<string>()
+  );
   const currentViewQuery = router.query[PAGE_VIEW_QUERY_KEY];
 
   const setViewWithUrl = useCallback(
@@ -220,9 +237,13 @@ export default function OpsOpportunitiesPage() {
     employeeCountRange: companyManagementAppliedFilters.employeeCountRange,
     foundedYearMin: companyManagementAppliedFilters.foundedYearMin,
     hasCareerUrlOnly: companyManagementAppliedFilters.hasCareerUrlOnly,
+    humanLabelMissingFirst:
+      companyManagementReviewMode && companyManagementReviewUnlabeledFirst,
     investors: companyManagementAppliedFilters.investors,
     limit: 30,
+    llmQualityLabelFirst: companyManagementReviewMode,
     location: companyManagementAppliedFilters.location,
+    qualityLabel: companyManagementAppliedFilters.qualityLabel,
   });
   const refetchCatalog = catalogQuery.refetch;
   const fetchNextCompanyManagementQueryPage =
@@ -240,6 +261,7 @@ export default function OpsOpportunitiesPage() {
   const deleteRecommendation = useDeleteOpsOpportunityRecommendation();
   const sendCandidateMail = useSendOpsOpportunityCandidateMail();
   const updateCompanyScrapeOriginal = useUpdateOpsCompanyScrapeOriginal();
+  const updateCompanyHumanQualityLabel = useUpdateOpsCompanyHumanQualityLabel();
 
   const workspaces = useMemo(
     () => catalogQuery.data?.workspaces ?? [],
@@ -933,6 +955,7 @@ export default function OpsOpportunitiesPage() {
       hasCareerUrlOnly: companyManagementHasCareerUrlOnly,
       investors: companyManagementInvestors.trim(),
       location: companyManagementLocation.trim(),
+      qualityLabel: companyManagementQualityLabel,
     };
     const filtersUnchanged =
       nextFilters.companyName === companyManagementAppliedFilters.companyName &&
@@ -943,7 +966,8 @@ export default function OpsOpportunitiesPage() {
       nextFilters.hasCareerUrlOnly ===
         companyManagementAppliedFilters.hasCareerUrlOnly &&
       nextFilters.investors === companyManagementAppliedFilters.investors &&
-      nextFilters.location === companyManagementAppliedFilters.location;
+      nextFilters.location === companyManagementAppliedFilters.location &&
+      nextFilters.qualityLabel === companyManagementAppliedFilters.qualityLabel;
 
     if (filtersUnchanged) {
       void refetchCompanyManagement();
@@ -958,12 +982,14 @@ export default function OpsOpportunitiesPage() {
     companyManagementAppliedFilters.hasCareerUrlOnly,
     companyManagementAppliedFilters.investors,
     companyManagementAppliedFilters.location,
+    companyManagementAppliedFilters.qualityLabel,
     companyManagementCompanyName,
     companyManagementEmployeeCountRange,
     companyManagementFoundedYearMin,
     companyManagementHasCareerUrlOnly,
     companyManagementInvestors,
     companyManagementLocation,
+    companyManagementQualityLabel,
     refetchCompanyManagement,
   ]);
 
@@ -1000,6 +1026,44 @@ export default function OpsOpportunitiesPage() {
       }
     },
     [updateCompanyScrapeOriginal]
+  );
+
+  const handleCompanyQualityLabelChange = useCallback(
+    async (
+      company: OpsCompanyManagementRecord,
+      humanQualityLabel: OpsCompanyQualityLabel | null
+    ) => {
+      const workspaceId = company.companyWorkspaceId;
+      if (!workspaceId) return;
+
+      setUpdatingQualityLabelIds((current) => {
+        const next = new Set(current);
+        next.add(workspaceId);
+        return next;
+      });
+
+      try {
+        await updateCompanyHumanQualityLabel.mutateAsync({
+          humanQualityLabel,
+          workspaceId,
+        });
+      } catch (error) {
+        showToast({
+          message:
+            error instanceof Error
+              ? error.message
+              : "human_quality_label 업데이트에 실패했습니다.",
+          variant: "white",
+        });
+      } finally {
+        setUpdatingQualityLabelIds((current) => {
+          const next = new Set(current);
+          next.delete(workspaceId);
+          return next;
+        });
+      }
+    },
+    [updateCompanyHumanQualityLabel]
   );
 
   const refreshPending =
@@ -1134,8 +1198,18 @@ export default function OpsOpportunitiesPage() {
             onHasCareerUrlOnlyChange={setCompanyManagementHasCareerUrlOnly}
             onInvestorsSearchChange={setCompanyManagementInvestors}
             onLocationSearchChange={setCompanyManagementLocation}
+            onQualityLabelChange={setCompanyManagementQualityLabel}
+            onReviewModeChange={setCompanyManagementReviewMode}
+            onReviewUnlabeledFirstChange={
+              setCompanyManagementReviewUnlabeledFirst
+            }
             onSearch={handleCompanyManagementSearch}
+            onHumanQualityLabelChange={handleCompanyQualityLabelChange}
             onScrapeOriginalChange={handleCompanyScrapeOriginalChange}
+            qualityLabel={companyManagementQualityLabel}
+            reviewMode={companyManagementReviewMode}
+            reviewUnlabeledFirst={companyManagementReviewUnlabeledFirst}
+            updatingQualityLabelIds={updatingQualityLabelIds}
             updatingScrapeOriginalIds={updatingScrapeOriginalIds}
           />
         ) : view === "company_match" ? (

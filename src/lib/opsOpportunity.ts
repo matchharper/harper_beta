@@ -2,8 +2,10 @@ import type { Json } from "@/types/database.types";
 import { ApifyClient } from "apify-client";
 import {
   getOpsCompanyManagementEmployeeCountRangeExactJsonValues,
+  normalizeOpsCompanyManagementQualityLabelFilter,
   OPS_COMPANY_MANAGEMENT_EMPLOYEE_COUNT_RANGE_OPTIONS,
   type OpsCompanyManagementEmployeeCountRangeFilter,
+  type OpsCompanyManagementQualityLabelFilter,
 } from "@/lib/opsOpportunityCompanyManagement";
 import {
   DEFAULT_OPS_TALENT_RECOMMENDATION_PROMPT,
@@ -179,16 +181,20 @@ type CompanyDbRow = {
 };
 
 type CompanyManagementCompanyDbRow = {
+  crunchbase_information: Json | null;
   description: string | null;
   employee_count_range: Json | null;
   founded_year: number | null;
+  funding_url: string | null;
   id: number;
   investors: string | null;
+  last_crunchbase_updated_at: string | null;
   linkedin_url: string | null;
   location: string | null;
   logo: string | null;
   name: string | null;
   short_description: string | null;
+  specialities: string | null;
   website_url: string | null;
 };
 
@@ -198,6 +204,15 @@ type CompanyManagementWorkspaceRow = WorkspaceRow & {
     | CompanyManagementCompanyDbRow[]
     | null;
   is_scrape_original?: boolean | null;
+};
+
+type CompanyWorkspaceQualityLabelRow = {
+  company_workspace_id: string;
+  human_quality_label: number | null;
+  human_quality_labeled_at: string | null;
+  llm_quality_label: number | null;
+  llm_quality_label_reason: string | null;
+  llm_quality_labeled_at: string | null;
 };
 
 type SupportedExternalRoleProvider = "lever" | "linkedin_jobs";
@@ -225,6 +240,7 @@ export type OpportunityEmploymentType =
   | "internship"
   | "contract";
 export type OpportunityWorkMode = "onsite" | "hybrid" | "remote";
+export type OpsCompanyQualityLabel = 0 | 1 | 2;
 
 export type OpsOpportunityWorkspaceRecord = {
   activeRoleCount: number;
@@ -291,16 +307,27 @@ export type OpsOpportunityCatalogResponse = {
 };
 
 export type OpsCompanyManagementCompanyDbRecord = {
+  crunchbaseInformation: Json | null;
   description: string | null;
   employeeCountRange: Json | null;
   foundedYear: number | null;
+  fundingUrl: string | null;
   id: number | null;
+  investors: string | null;
   linkedinUrl: string | null;
   location: string | null;
   logoUrl: string | null;
   name: string | null;
   shortDescription: string | null;
+  specialities: string | null;
   websiteUrl: string | null;
+};
+
+export type OpsCompanyLatestFundingRound = {
+  amountText: string | null;
+  announcedOn: string | null;
+  leadInvestors: string[];
+  name: string | null;
 };
 
 export type OpsCompanyManagementRecord = {
@@ -309,13 +336,22 @@ export type OpsCompanyManagementRecord = {
   companyDescription: string | null;
   companyName: string;
   companyWorkspaceId: string;
+  effectiveQualityLabel: OpsCompanyQualityLabel | null;
   employeeCountRange: Json | null;
   foundedYear: number | null;
   homepageUrl: string | null;
+  humanQualityLabel: OpsCompanyQualityLabel | null;
+  humanQualityLabeledAt: string | null;
+  industry: string | null;
+  investors: string | null;
   isScrapeOriginal: boolean;
+  latestFundingRound: OpsCompanyLatestFundingRound | null;
   linkedinUrl: string | null;
   location: string | null;
   logoUrl: string | null;
+  llmQualityLabel: OpsCompanyQualityLabel | null;
+  llmQualityLabeledAt: string | null;
+  llmQualityLabelReason: string | null;
   recentJoinCount: number;
   updatedAt: string;
 };
@@ -326,8 +362,11 @@ export type OpsCompanyManagementPageResponse = {
     employeeCountRange: OpsCompanyManagementEmployeeCountRangeFilter;
     foundedYearMin: number | null;
     hasCareerUrlOnly: boolean;
+    humanLabelMissingFirst: boolean;
     investors: string;
+    llmQualityLabelFirst: boolean;
     location: string;
+    qualityLabel: OpsCompanyManagementQualityLabelFilter;
   };
   items: OpsCompanyManagementRecord[];
   limit: number;
@@ -1772,6 +1811,10 @@ const COMPANY_MANAGEMENT_SELECT = `
     description,
     employee_count_range,
     investors,
+    specialities,
+    funding_url,
+    crunchbase_information,
+    last_crunchbase_updated_at,
     location,
     founded_year,
     website_url,
@@ -1808,6 +1851,92 @@ function normalizeCompanyManagementEmployeeCountRangeFilter(
     : "";
 }
 
+function normalizeCompanyQualityLabel(
+  value: unknown
+): OpsCompanyQualityLabel | null {
+  if (value === 0 || value === 1 || value === 2) return value;
+  if (value === null || value === undefined) return null;
+  const normalizedValue = typeof value === "string" ? value.trim() : value;
+  if (normalizedValue === "") return null;
+  const numeric = Number(normalizedValue);
+  return numeric === 0 || numeric === 1 || numeric === 2
+    ? (numeric as OpsCompanyQualityLabel)
+    : null;
+}
+
+function getEffectiveCompanyQualityLabel(args: {
+  humanQualityLabel: unknown;
+  llmQualityLabel: unknown;
+}) {
+  return (
+    normalizeCompanyQualityLabel(args.humanQualityLabel) ??
+    normalizeCompanyQualityLabel(args.llmQualityLabel)
+  );
+}
+
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function stringArrayValue(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => stringValue(item))
+    .filter((item): item is string => Boolean(item));
+}
+
+function getJsonPath(value: unknown, path: string[]) {
+  let current = value;
+  for (const key of path) {
+    if (!isJsonObject(current)) return null;
+    current = current[key];
+  }
+  return current;
+}
+
+function extractLatestFundingRound(
+  crunchbaseInformation: Json | null | undefined
+): OpsCompanyLatestFundingRound | null {
+  const candidates = [
+    getJsonPath(crunchbaseInformation, ["funding", "latest_round"]),
+    getJsonPath(crunchbaseInformation, ["funding", "latestRound"]),
+    getJsonPath(crunchbaseInformation, ["latest_funding_round"]),
+    getJsonPath(crunchbaseInformation, ["latestFundingRound"]),
+  ];
+  const rawRound = candidates.find(isJsonObject);
+  if (!rawRound || !isJsonObject(rawRound)) return null;
+
+  const leadInvestors = [
+    ...stringArrayValue(rawRound.leadInvestors),
+    ...stringArrayValue(rawRound.lead_investors),
+  ];
+  const uniqueLeadInvestors = Array.from(new Set(leadInvestors));
+
+  const latestRound = {
+    amountText:
+      stringValue(rawRound.amountText) ??
+      stringValue(rawRound.amount_text) ??
+      stringValue(rawRound.amount),
+    announcedOn:
+      stringValue(rawRound.announcedOn) ??
+      stringValue(rawRound.announced_on) ??
+      stringValue(rawRound.date),
+    leadInvestors: uniqueLeadInvestors,
+    name: stringValue(rawRound.name) ?? stringValue(rawRound.roundName),
+  };
+
+  return latestRound.amountText ||
+    latestRound.announcedOn ||
+    latestRound.leadInvestors.length > 0 ||
+    latestRound.name
+    ? latestRound
+    : null;
+}
+
 function getEmbeddedCompanyDb(
   value: CompanyManagementWorkspaceRow["company_db"]
 ): CompanyManagementCompanyDbRow | null {
@@ -1815,6 +1944,135 @@ function getEmbeddedCompanyDb(
     return value[0] ?? null;
   }
   return value ?? null;
+}
+
+function isMissingQualityLabelTableError(error: { message?: string } | null) {
+  return Boolean(
+    error?.message &&
+      /company_workspace_quality_label|relation .* does not exist/i.test(
+        error.message
+      )
+  );
+}
+
+async function fetchCompanyQualityLabelsByWorkspaceId(
+  admin: AdminClient,
+  workspaceIds: string[]
+) {
+  const labelsByWorkspaceId = new Map<string, CompanyWorkspaceQualityLabelRow>();
+  const uniqueWorkspaceIds = Array.from(
+    new Set(workspaceIds.map((id) => String(id ?? "").trim()).filter(Boolean))
+  );
+  if (uniqueWorkspaceIds.length === 0) return labelsByWorkspaceId;
+
+  const { data, error } = await (
+    admin.from("company_workspace_quality_label" as any) as any
+  )
+    .select(
+      [
+        "company_workspace_id",
+        "human_quality_label",
+        "human_quality_labeled_at",
+        "llm_quality_label",
+        "llm_quality_label_reason",
+        "llm_quality_labeled_at",
+      ].join(", ")
+    )
+    .in("company_workspace_id", uniqueWorkspaceIds);
+
+  if (error) {
+    if (isMissingQualityLabelTableError(error)) return labelsByWorkspaceId;
+    throw new Error(error.message ?? "Failed to load company quality labels");
+  }
+
+  for (const row of coerceJsonArray<CompanyWorkspaceQualityLabelRow>(data)) {
+    const workspaceId = String(row.company_workspace_id ?? "").trim();
+    if (!workspaceId) continue;
+    labelsByWorkspaceId.set(workspaceId, row);
+  }
+
+  return labelsByWorkspaceId;
+}
+
+async function fetchWorkspaceIdsForQualityLabelFilter(
+  admin: AdminClient,
+  qualityLabel: OpsCompanyManagementQualityLabelFilter
+) {
+  if (!qualityLabel) return null;
+
+  let query = (admin.from("company_workspace_quality_label" as any) as any)
+    .select("company_workspace_id")
+    .limit(10000);
+
+  if (qualityLabel === "unlabeled") {
+    query = query.or(
+      "human_quality_label.not.is.null,llm_quality_label.not.is.null"
+    );
+  } else {
+    query = query.or(
+      [
+        `human_quality_label.eq.${qualityLabel}`,
+        `and(human_quality_label.is.null,llm_quality_label.eq.${qualityLabel})`,
+      ].join(",")
+    );
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    if (isMissingQualityLabelTableError(error)) {
+      return qualityLabel === "unlabeled"
+        ? { ids: [], mode: "exclude" as const }
+        : { ids: [], mode: "include" as const };
+    }
+    throw new Error(error.message ?? "Failed to filter company quality labels");
+  }
+
+  const ids = coerceJsonArray<{ company_workspace_id?: string | null }>(data)
+    .map((row) => String(row.company_workspace_id ?? "").trim())
+    .filter(Boolean);
+  return {
+    ids,
+    mode: qualityLabel === "unlabeled" ? "exclude" as const : "include" as const,
+  };
+}
+
+async function fetchHumanLabeledCompanyWorkspaceIds(admin: AdminClient) {
+  const { data, error } = await (
+    admin.from("company_workspace_quality_label" as any) as any
+  )
+    .select("company_workspace_id")
+    .not("human_quality_label", "is", null)
+    .limit(10000);
+
+  if (error) {
+    if (isMissingQualityLabelTableError(error)) return [];
+    throw new Error(error.message ?? "Failed to load human quality labels");
+  }
+
+  return coerceJsonArray<{ company_workspace_id?: string | null }>(data)
+    .map((row) => String(row.company_workspace_id ?? "").trim())
+    .filter(Boolean);
+}
+
+async function fetchLlmQualityLabelCompanyWorkspaceIds(
+  admin: AdminClient,
+  llmQualityLabel: OpsCompanyQualityLabel
+) {
+  const { data, error } = await (
+    admin.from("company_workspace_quality_label" as any) as any
+  )
+    .select("company_workspace_id")
+    .eq("llm_quality_label", llmQualityLabel)
+    .limit(10000);
+
+  if (error) {
+    if (isMissingQualityLabelTableError(error)) return [];
+    throw new Error(error.message ?? "Failed to load llm quality labels");
+  }
+
+  return coerceJsonArray<{ company_workspace_id?: string | null }>(data)
+    .map((row) => String(row.company_workspace_id ?? "").trim())
+    .filter(Boolean);
 }
 
 async function fetchCompanyDbIdsForCompanyManagementFilters(
@@ -1912,27 +2170,42 @@ async function fetchRecentJoinCountByCompanyDbId(
 }
 
 function mapCompanyManagementRecord(args: {
+  qualityLabelRow?: CompanyWorkspaceQualityLabelRow | null;
   recentJoinCount: number;
   row: CompanyManagementWorkspaceRow;
 }): OpsCompanyManagementRecord {
   const companyDb = getEmbeddedCompanyDb(args.row.company_db);
   const companyDbRecord: OpsCompanyManagementCompanyDbRecord | null = companyDb
     ? {
+        crunchbaseInformation: companyDb.crunchbase_information ?? null,
         description: companyDb.description ?? null,
         employeeCountRange: companyDb.employee_count_range ?? null,
         foundedYear:
           typeof companyDb.founded_year === "number"
             ? companyDb.founded_year
             : null,
+        fundingUrl: companyDb.funding_url ?? null,
         id: typeof companyDb.id === "number" ? companyDb.id : null,
+        investors: companyDb.investors ?? null,
         linkedinUrl: companyDb.linkedin_url ?? null,
         location: companyDb.location ?? null,
         logoUrl: companyDb.logo ?? null,
         name: companyDb.name ?? null,
         shortDescription: companyDb.short_description ?? null,
+        specialities: companyDb.specialities ?? null,
         websiteUrl: companyDb.website_url ?? null,
       }
     : null;
+  const humanQualityLabel = normalizeCompanyQualityLabel(
+    args.qualityLabelRow?.human_quality_label
+  );
+  const llmQualityLabel = normalizeCompanyQualityLabel(
+    args.qualityLabelRow?.llm_quality_label
+  );
+  const effectiveQualityLabel = getEffectiveCompanyQualityLabel({
+    humanQualityLabel,
+    llmQualityLabel,
+  });
 
   return {
     companyDb: companyDbRecord,
@@ -1949,13 +2222,26 @@ function mapCompanyManagementRecord(args: {
       String(args.row.company_name ?? "").trim() ||
       String(companyDbRecord?.name ?? "").trim(),
     companyWorkspaceId: String(args.row.company_workspace_id ?? ""),
+    effectiveQualityLabel,
     employeeCountRange: companyDbRecord?.employeeCountRange ?? null,
     foundedYear: companyDbRecord?.foundedYear ?? null,
     homepageUrl: args.row.homepage_url ?? companyDbRecord?.websiteUrl ?? null,
+    humanQualityLabel,
+    humanQualityLabeledAt:
+      args.qualityLabelRow?.human_quality_labeled_at ?? null,
+    industry: companyDbRecord?.specialities ?? null,
+    investors: companyDb?.investors ?? null,
     isScrapeOriginal: Boolean(args.row.is_scrape_original),
+    latestFundingRound: extractLatestFundingRound(
+      companyDbRecord?.crunchbaseInformation
+    ),
     linkedinUrl: args.row.linkedin_url ?? companyDbRecord?.linkedinUrl ?? null,
     location: companyDbRecord?.location ?? null,
     logoUrl: args.row.logo_url ?? companyDbRecord?.logoUrl ?? null,
+    llmQualityLabel,
+    llmQualityLabeledAt: args.qualityLabelRow?.llm_quality_labeled_at ?? null,
+    llmQualityLabelReason:
+      args.qualityLabelRow?.llm_quality_label_reason ?? null,
     recentJoinCount: args.recentJoinCount,
     updatedAt: String(args.row.updated_at ?? args.row.created_at ?? ""),
   };
@@ -1966,10 +2252,13 @@ export async function fetchOpsCompanyManagementPage(args: {
   employeeCountRange?: OpsCompanyManagementEmployeeCountRangeFilter | null;
   foundedYearMin?: number | string | null;
   hasCareerUrlOnly?: boolean | null;
+  humanLabelMissingFirst?: boolean | null;
   investors?: string | null;
   limit?: number;
+  llmQualityLabelFirst?: boolean | null;
   location?: string | null;
   offset?: number;
+  qualityLabel?: OpsCompanyManagementQualityLabelFilter | null;
   query?: string | null;
 }): Promise<OpsCompanyManagementPageResponse> {
   const admin = getSupabaseAdmin();
@@ -1990,6 +2279,13 @@ export async function fetchOpsCompanyManagementPage(args: {
   const employeeCountRange = normalizeCompanyManagementEmployeeCountRangeFilter(
     args.employeeCountRange
   );
+  const qualityLabel = normalizeOpsCompanyManagementQualityLabelFilter(
+    args.qualityLabel
+  );
+  const humanLabelMissingFirst = Boolean(args.humanLabelMissingFirst);
+  const llmQualityLabelFirst = Boolean(args.llmQualityLabelFirst);
+  const qualityWorkspaceFilter =
+    await fetchWorkspaceIdsForQualityLabelFilter(admin, qualityLabel);
   const employeeCountRangeExactJsonValues =
     getOpsCompanyManagementEmployeeCountRangeExactJsonValues(
       employeeCountRange
@@ -2007,80 +2303,310 @@ export async function fetchOpsCompanyManagementPage(args: {
     companyNameCompanyDbIds.length > 0 &&
     companyNameCompanyDbIds.length <= MAX_COMPANY_DB_IDS_IN_WORKSPACE_FILTER;
 
-  let workspaceQuery = (admin.from("company_workspace" as any) as any)
-    .select(
-      hasCompanyDbFilters
-        ? COMPANY_MANAGEMENT_SELECT_WITH_COMPANY_DB_FILTER
-        : COMPANY_MANAGEMENT_SELECT
-    )
-    .order("is_scrape_original", {
-      ascending: false,
-      nullsFirst: false,
-    })
-    .order("updated_at", { ascending: false, nullsFirst: false })
-    .order("company_workspace_id", { ascending: true })
-    .range(offset, offset + limit);
+  if (
+    qualityWorkspaceFilter?.mode === "include" &&
+    qualityWorkspaceFilter.ids.length === 0
+  ) {
+    return {
+      filters: {
+        companyName,
+        employeeCountRange,
+        foundedYearMin,
+        hasCareerUrlOnly,
+        humanLabelMissingFirst,
+        investors,
+        llmQualityLabelFirst,
+        location,
+        qualityLabel,
+      },
+      items: [],
+      limit,
+      nextOffset: null,
+      offset,
+      query: companyName,
+    };
+  }
 
-  if (hasCareerUrlOnly) {
+  const selectColumns = hasCompanyDbFilters
+    ? COMPANY_MANAGEMENT_SELECT_WITH_COMPANY_DB_FILTER
+    : COMPANY_MANAGEMENT_SELECT;
+  const buildWorkspaceQuery = (options: {
+    count?: boolean;
+    excludeWorkspaceIds?: string[];
+    humanLabelMode?: "missing" | "present";
+    humanLabeledWorkspaceIds?: string[];
+    includeWorkspaceIds?: string[];
+    rangeOffset: number;
+    rowCount: number;
+  }) => {
+    const excludeWorkspaceIds = options.excludeWorkspaceIds ?? [];
+    const humanLabeledWorkspaceIds = options.humanLabeledWorkspaceIds ?? [];
+    const includeWorkspaceIds = options.includeWorkspaceIds ?? [];
+    let workspaceQuery = options.count
+      ? ((admin.from("company_workspace" as any) as any).select(
+          selectColumns,
+          { count: "exact" }
+        ) as any)
+      : ((admin.from("company_workspace" as any) as any).select(
+          selectColumns
+        ) as any);
+
     workspaceQuery = workspaceQuery
-      .not("career_url", "is", null)
-      .neq("career_url", "");
+      .order("is_scrape_original", {
+        ascending: false,
+        nullsFirst: false,
+      })
+      .order("updated_at", { ascending: false, nullsFirst: false })
+      .order("company_workspace_id", { ascending: true });
+
+    if (hasCareerUrlOnly) {
+      workspaceQuery = workspaceQuery
+        .not("career_url", "is", null)
+        .neq("career_url", "");
+    } else {
+      workspaceQuery = workspaceQuery.is("career_url", null);
+    }
+
+    if (
+      qualityWorkspaceFilter?.mode === "include" &&
+      qualityWorkspaceFilter.ids.length > 0
+    ) {
+      workspaceQuery = workspaceQuery.in(
+        "company_workspace_id",
+        qualityWorkspaceFilter.ids
+      );
+    } else if (
+      qualityWorkspaceFilter?.mode === "exclude" &&
+      qualityWorkspaceFilter.ids.length > 0
+    ) {
+      workspaceQuery = workspaceQuery.not(
+        "company_workspace_id",
+        "in",
+        `(${qualityWorkspaceFilter.ids.join(",")})`
+      );
+    }
+
+    if (includeWorkspaceIds.length > 0) {
+      workspaceQuery = workspaceQuery.in(
+        "company_workspace_id",
+        includeWorkspaceIds
+      );
+    }
+    if (excludeWorkspaceIds.length > 0) {
+      workspaceQuery = workspaceQuery.not(
+        "company_workspace_id",
+        "in",
+        `(${excludeWorkspaceIds.join(",")})`
+      );
+    }
+
+    if (
+      options.humanLabelMode === "present" &&
+      humanLabeledWorkspaceIds.length > 0
+    ) {
+      workspaceQuery = workspaceQuery.in(
+        "company_workspace_id",
+        humanLabeledWorkspaceIds
+      );
+    } else if (
+      options.humanLabelMode === "missing" &&
+      humanLabeledWorkspaceIds.length > 0
+    ) {
+      workspaceQuery = workspaceQuery.not(
+        "company_workspace_id",
+        "in",
+        `(${humanLabeledWorkspaceIds.join(",")})`
+      );
+    }
+
+    if (employeeCountRangeExactJsonValues.length === 1) {
+      workspaceQuery = workspaceQuery.eq(
+        "company_db.employee_count_range",
+        employeeCountRangeExactJsonValues[0]
+      );
+    } else if (employeeCountRangeExactJsonValues.length > 1) {
+      workspaceQuery = workspaceQuery.or(
+        employeeCountRangeExactJsonValues
+          .map((value) => `employee_count_range.eq.${value}`)
+          .join(","),
+        { foreignTable: "company_db" }
+      );
+    }
+
+    if (location) {
+      workspaceQuery = workspaceQuery.ilike(
+        "company_db.location",
+        `%${location}%`
+      );
+    }
+
+    if (investors) {
+      workspaceQuery = workspaceQuery.ilike(
+        "company_db.investors",
+        `%${investors}%`
+      );
+    }
+
+    if (foundedYearMin) {
+      workspaceQuery = workspaceQuery.gte(
+        "company_db.founded_year",
+        foundedYearMin
+      );
+    }
+
+    if (companyName) {
+      const workspaceNameFilters = [
+        `company_name.ilike.%${companyName}%`,
+        ...(shouldFilterByCompanyNameCompanyDbIds
+          ? [`company_db_id.in.(${companyNameCompanyDbIds.join(",")})`]
+          : []),
+      ];
+      workspaceQuery = workspaceQuery.or(workspaceNameFilters.join(","));
+    }
+
+    return workspaceQuery.range(
+      options.rangeOffset,
+      options.rangeOffset + options.rowCount - 1
+    );
+  };
+  const fetchWorkspaceRows = async (options: {
+    count?: boolean;
+    excludeWorkspaceIds?: string[];
+    humanLabelMode?: "missing" | "present";
+    humanLabeledWorkspaceIds?: string[];
+    includeWorkspaceIds?: string[];
+    rangeOffset: number;
+    rowCount: number;
+  }) => {
+    const { data, error, count } = await buildWorkspaceQuery(options);
+    if (error) {
+      throw new Error(error.message ?? "Failed to load companies");
+    }
+    return {
+      count: typeof count === "number" ? count : null,
+      rows: coerceJsonArray<CompanyManagementWorkspaceRow>(data),
+    };
+  };
+  const collectWorkspaceRowsFromBuckets = async (
+    buckets: Array<{
+      excludeWorkspaceIds?: string[];
+      humanLabelMode?: "missing" | "present";
+      humanLabeledWorkspaceIds?: string[];
+      includeWorkspaceIds?: string[];
+      skipIfEmptyInclude?: boolean;
+    }>
+  ) => {
+    const desiredRowCount = limit + 1;
+    const collectedRows: CompanyManagementWorkspaceRow[] = [];
+    let bucketOffset = offset;
+
+    for (const bucket of buckets) {
+      if (collectedRows.length >= desiredRowCount) break;
+      if (
+        bucket.skipIfEmptyInclude &&
+        (bucket.includeWorkspaceIds?.length ?? 0) === 0
+      ) {
+        continue;
+      }
+
+      const result = await fetchWorkspaceRows({
+        ...bucket,
+        count: true,
+        rangeOffset: bucketOffset,
+        rowCount: desiredRowCount - collectedRows.length,
+      });
+      collectedRows.push(...result.rows);
+
+      const bucketTotal = result.count ?? bucketOffset + result.rows.length;
+      bucketOffset =
+        bucketOffset >= bucketTotal ? bucketOffset - bucketTotal : 0;
+    }
+
+    return collectedRows;
+  };
+
+  let rows: CompanyManagementWorkspaceRow[];
+  if (llmQualityLabelFirst && humanLabelMissingFirst) {
+    const humanLabeledWorkspaceIds =
+      await fetchHumanLabeledCompanyWorkspaceIds(admin);
+    const llmQualityLabelTwoWorkspaceIds =
+      await fetchLlmQualityLabelCompanyWorkspaceIds(admin, 2);
+    const humanLabeledWorkspaceIdSet = new Set(humanLabeledWorkspaceIds);
+    const humanMissingLlmTwoWorkspaceIds =
+      llmQualityLabelTwoWorkspaceIds.filter(
+        (workspaceId) => !humanLabeledWorkspaceIdSet.has(workspaceId)
+      );
+    const humanPresentLlmTwoWorkspaceIds =
+      llmQualityLabelTwoWorkspaceIds.filter((workspaceId) =>
+        humanLabeledWorkspaceIdSet.has(workspaceId)
+      );
+    rows = await collectWorkspaceRowsFromBuckets([
+      {
+        includeWorkspaceIds: humanMissingLlmTwoWorkspaceIds,
+        skipIfEmptyInclude: true,
+      },
+      {
+        excludeWorkspaceIds: llmQualityLabelTwoWorkspaceIds,
+        humanLabelMode: "missing",
+        humanLabeledWorkspaceIds,
+      },
+      {
+        includeWorkspaceIds: humanPresentLlmTwoWorkspaceIds,
+        skipIfEmptyInclude: true,
+      },
+      {
+        excludeWorkspaceIds: llmQualityLabelTwoWorkspaceIds,
+        includeWorkspaceIds: humanLabeledWorkspaceIds,
+        skipIfEmptyInclude: true,
+      },
+    ]);
+  } else if (llmQualityLabelFirst) {
+    const llmQualityLabelTwoWorkspaceIds =
+      await fetchLlmQualityLabelCompanyWorkspaceIds(admin, 2);
+    if (llmQualityLabelTwoWorkspaceIds.length === 0) {
+      rows = (
+        await fetchWorkspaceRows({
+          rangeOffset: offset,
+          rowCount: limit + 1,
+        })
+      ).rows;
+    } else {
+      rows = await collectWorkspaceRowsFromBuckets([
+        {
+          includeWorkspaceIds: llmQualityLabelTwoWorkspaceIds,
+          skipIfEmptyInclude: true,
+        },
+        {
+          excludeWorkspaceIds: llmQualityLabelTwoWorkspaceIds,
+        },
+      ]);
+    }
+  } else if (humanLabelMissingFirst) {
+    const humanLabeledWorkspaceIds =
+      await fetchHumanLabeledCompanyWorkspaceIds(admin);
+    rows = await collectWorkspaceRowsFromBuckets([
+      {
+        humanLabelMode: "missing",
+        humanLabeledWorkspaceIds,
+      },
+      {
+        includeWorkspaceIds: humanLabeledWorkspaceIds,
+        skipIfEmptyInclude: true,
+      },
+    ]);
   } else {
-    workspaceQuery = workspaceQuery.is("career_url", null);
+    rows = (
+      await fetchWorkspaceRows({
+        rangeOffset: offset,
+        rowCount: limit + 1,
+      })
+    ).rows;
   }
-
-  if (employeeCountRangeExactJsonValues.length === 1) {
-    workspaceQuery = workspaceQuery.eq(
-      "company_db.employee_count_range",
-      employeeCountRangeExactJsonValues[0]
-    );
-  } else if (employeeCountRangeExactJsonValues.length > 1) {
-    workspaceQuery = workspaceQuery.or(
-      employeeCountRangeExactJsonValues
-        .map((value) => `employee_count_range.eq.${value}`)
-        .join(","),
-      { foreignTable: "company_db" }
-    );
-  }
-
-  if (location) {
-    workspaceQuery = workspaceQuery.ilike(
-      "company_db.location",
-      `%${location}%`
-    );
-  }
-
-  if (investors) {
-    workspaceQuery = workspaceQuery.ilike(
-      "company_db.investors",
-      `%${investors}%`
-    );
-  }
-
-  if (foundedYearMin) {
-    workspaceQuery = workspaceQuery.gte(
-      "company_db.founded_year",
-      foundedYearMin
-    );
-  }
-
-  if (companyName) {
-    const workspaceNameFilters = [
-      `company_name.ilike.%${companyName}%`,
-      ...(shouldFilterByCompanyNameCompanyDbIds
-        ? [`company_db_id.in.(${companyNameCompanyDbIds.join(",")})`]
-        : []),
-    ];
-    workspaceQuery = workspaceQuery.or(workspaceNameFilters.join(","));
-  }
-
-  const { data, error } = await workspaceQuery;
-  if (error) {
-    throw new Error(error.message ?? "Failed to load companies");
-  }
-
-  const rows = coerceJsonArray<CompanyManagementWorkspaceRow>(data);
   const pageRows = rows.slice(0, limit);
+  const qualityLabelsByWorkspaceId = await fetchCompanyQualityLabelsByWorkspaceId(
+    admin,
+    pageRows.map((row) => String(row.company_workspace_id ?? ""))
+  );
   const pageCompanyDbIds = pageRows
     .map((row) => row.company_db_id)
     .filter((id): id is number => typeof id === "number");
@@ -2095,12 +2621,18 @@ export async function fetchOpsCompanyManagementPage(args: {
       employeeCountRange,
       foundedYearMin,
       hasCareerUrlOnly,
+      humanLabelMissingFirst,
       investors,
+      llmQualityLabelFirst,
       location,
+      qualityLabel,
     },
     items: pageRows
       .map((row) =>
         mapCompanyManagementRecord({
+          qualityLabelRow: qualityLabelsByWorkspaceId.get(
+            String(row.company_workspace_id ?? "")
+          ),
           recentJoinCount:
             typeof row.company_db_id === "number"
               ? (recentJoinCountByCompanyDbId.get(row.company_db_id) ?? 0)
@@ -2139,6 +2671,120 @@ export async function updateOpsCompanyScrapeOriginal(args: {
 
   return {
     isScrapeOriginal: Boolean(data?.is_scrape_original),
+    workspaceId: String(data?.company_workspace_id ?? workspaceId),
+  };
+}
+
+export async function updateOpsCompanyHumanQualityLabel(args: {
+  humanQualityLabel: number | null;
+  workspaceId: string;
+}) {
+  const admin = getSupabaseAdmin();
+  const workspaceId = ensureNonEmptyString(args.workspaceId, "workspaceId");
+  const humanQualityLabel =
+    args.humanQualityLabel === null
+      ? null
+      : normalizeCompanyQualityLabel(args.humanQualityLabel);
+
+  if (args.humanQualityLabel !== null && humanQualityLabel === null) {
+    throw new Error("humanQualityLabel must be 0, 1, 2, or null");
+  }
+
+  const now = new Date().toISOString();
+  const { data, error } = await (
+    admin.from("company_workspace_quality_label" as any) as any
+  )
+    .upsert(
+      {
+        company_workspace_id: workspaceId,
+        human_quality_label: humanQualityLabel,
+        human_quality_labeled_at: humanQualityLabel === null ? null : now,
+        updated_at: now,
+      },
+      { onConflict: "company_workspace_id" }
+    )
+    .select(
+      [
+        "company_workspace_id",
+        "human_quality_label",
+        "human_quality_labeled_at",
+        "llm_quality_label",
+      ].join(", ")
+    )
+    .single();
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to update human_quality_label");
+  }
+
+  const nextHumanQualityLabel = normalizeCompanyQualityLabel(
+    data?.human_quality_label
+  );
+  const nextLlmQualityLabel = normalizeCompanyQualityLabel(
+    data?.llm_quality_label
+  );
+
+  return {
+    effectiveQualityLabel: nextHumanQualityLabel ?? nextLlmQualityLabel,
+    humanQualityLabel: nextHumanQualityLabel,
+    humanQualityLabeledAt: data?.human_quality_labeled_at ?? null,
+    workspaceId: String(data?.company_workspace_id ?? workspaceId),
+  };
+}
+
+export async function updateOpsCompanyLlmQualityLabel(args: {
+  llmQualityLabel: number | null;
+  llmQualityLabelReason?: string | null;
+  workspaceId: string;
+}) {
+  const admin = getSupabaseAdmin();
+  const workspaceId = ensureNonEmptyString(args.workspaceId, "workspaceId");
+  const llmQualityLabel =
+    args.llmQualityLabel === null
+      ? null
+      : normalizeCompanyQualityLabel(args.llmQualityLabel);
+
+  if (args.llmQualityLabel !== null && llmQualityLabel === null) {
+    throw new Error("llmQualityLabel must be 0, 1, 2, or null");
+  }
+
+  const now = new Date().toISOString();
+  const { data, error } = await (
+    admin.from("company_workspace_quality_label" as any) as any
+  )
+    .upsert(
+      {
+        company_workspace_id: workspaceId,
+        llm_quality_label: llmQualityLabel,
+        llm_quality_label_reason:
+          String(args.llmQualityLabelReason ?? "").trim() || null,
+        llm_quality_labeled_at: llmQualityLabel === null ? null : now,
+        updated_at: now,
+      },
+      { onConflict: "company_workspace_id" }
+    )
+    .select(
+      [
+        "company_workspace_id",
+        "human_quality_label",
+        "llm_quality_label",
+        "llm_quality_label_reason",
+        "llm_quality_labeled_at",
+      ].join(", ")
+    )
+    .single();
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to update llm_quality_label");
+  }
+
+  return {
+    effectiveQualityLabel:
+      normalizeCompanyQualityLabel(data?.human_quality_label) ??
+      normalizeCompanyQualityLabel(data?.llm_quality_label),
+    llmQualityLabel: normalizeCompanyQualityLabel(data?.llm_quality_label),
+    llmQualityLabeledAt: data?.llm_quality_labeled_at ?? null,
+    llmQualityLabelReason: data?.llm_quality_label_reason ?? null,
     workspaceId: String(data?.company_workspace_id ?? workspaceId),
   };
 }
