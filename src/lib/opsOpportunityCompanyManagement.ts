@@ -11,6 +11,13 @@ export type OpsCompanyManagementEmployeeCountRangeFilter =
   | "5001-10000"
   | "10001+";
 
+export type OpsCompanyManagementQualityLabelFilter =
+  | ""
+  | "0"
+  | "1"
+  | "2"
+  | "unlabeled";
+
 type EmployeeCountRangeOption = {
   exactJsonValues: string[];
   label: string;
@@ -85,6 +92,17 @@ export const OPS_COMPANY_MANAGEMENT_EMPLOYEE_COUNT_RANGE_OPTIONS: ReadonlyArray<
     },
 ];
 
+export const OPS_COMPANY_MANAGEMENT_QUALITY_LABEL_OPTIONS: ReadonlyArray<{
+  label: string;
+  value: OpsCompanyManagementQualityLabelFilter;
+}> = [
+  { label: "quality 전체", value: "" },
+  { label: "unlabeled", value: "unlabeled" },
+  { label: "0 제외", value: "0" },
+  { label: "1 후순위", value: "1" },
+  { label: "2 우선", value: "2" },
+];
+
 export function getOpsCompanyManagementEmployeeCountRangeExactJsonValues(
   filter: OpsCompanyManagementEmployeeCountRangeFilter
 ) {
@@ -93,4 +111,14 @@ export function getOpsCompanyManagementEmployeeCountRangeExactJsonValues(
       (option) => option.value === filter
     )?.exactJsonValues ?? []
   );
+}
+
+export function normalizeOpsCompanyManagementQualityLabelFilter(
+  value: unknown
+): OpsCompanyManagementQualityLabelFilter {
+  return OPS_COMPANY_MANAGEMENT_QUALITY_LABEL_OPTIONS.some(
+    (option) => option.value === value
+  )
+    ? (value as OpsCompanyManagementQualityLabelFilter)
+    : "";
 }
