@@ -1,19 +1,10 @@
 import fs from "fs";
-import { getCached } from "./promptCache";
 import { resolvePromptPath } from "./paths";
 
 /**
  * Read a .md prompt file.
- * Priority: DB cache (populated by warmCache) → filesystem fallback.
- * Stays sync for module-level compatibility; DB data is pre-loaded by warmCache().
  */
 export function loadPrompt(filename: string): string {
-  // Try DB cache first (populated by warmCache in request handlers)
-  const slug = filename.replace(/\.md$/, "");
-  const cached = getCached(slug);
-  if (cached) return cached;
-
-  // Fallback: read from filesystem (cold start or DB unavailable)
   return fs.readFileSync(resolvePromptPath(filename), "utf-8");
 }
 

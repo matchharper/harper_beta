@@ -52,6 +52,33 @@ const toHistoryPage = (
   nextOffset: typeof nextOffset === "number" ? nextOffset : null,
 });
 
+const getHistoryBucket = (item: CareerHistoryOpportunity) => {
+  if (item.feedback === "positive") return "saved";
+  if (item.feedback === "negative") return "archived";
+  return "new";
+};
+
+const cloneHistoryCounts = (
+  counts: CareerHistoryOpportunityCounts
+): CareerHistoryOpportunityCounts => ({
+  ...counts,
+  savedStages: { ...counts.savedStages },
+});
+
+const incrementCountsForItem = (
+  counts: CareerHistoryOpportunityCounts,
+  item: CareerHistoryOpportunity
+) => {
+  const bucket = getHistoryBucket(item);
+  counts[bucket] += 1;
+  counts.total += 1;
+
+  if (bucket === "saved") {
+    const stage = item.savedStage ?? getDefaultSavedStage(item);
+    counts.savedStages[stage] += 1;
+  }
+};
+
 const mergePagesWithFirstPage = (
   current: InfiniteData<CareerHistoryPage, number> | undefined,
   firstPage: CareerHistoryPage
@@ -98,9 +125,9 @@ export function useCareerHistoryState(args: {
   const [historyUpdatingOpportunityIds, setHistoryUpdatingOpportunityIds] =
     useState<string[]>([]);
   const [historyUpdateError, setHistoryUpdateError] = useState("");
-  const feedbackFollowUpTimerRef = useRef<ReturnType<
-    typeof setTimeout
-  > | null>(null);
+  const feedbackFollowUpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
   const feedbackActionSequenceRef = useRef(0);
 
   const cancelPendingOpportunityFeedbackFollowUp = useCallback(() => {
@@ -257,6 +284,27 @@ export function useCareerHistoryState(args: {
     [historyOpportunities]
   );
 
+  const findCachedHistoryOpportunity = useCallback(
+    (opportunityId: string, roleId?: string | null) => {
+      const normalizedOpportunityId = opportunityId.trim();
+      const normalizedRoleId = String(roleId ?? "").trim();
+      const current =
+        queryClient.getQueryData<InfiniteData<CareerHistoryPage, number>>(
+          queryKey
+        );
+
+      for (const page of current?.pages ?? []) {
+        for (const item of page.items) {
+          if (item.id === normalizedOpportunityId) return item;
+          if (normalizedRoleId && item.roleId === normalizedRoleId) return item;
+        }
+      }
+
+      return null;
+    },
+    [queryClient, queryKey]
+  );
+
   const resolvedHistoryOpportunityCounts = useMemo(
     () =>
       historyOpportunityCounts ??
@@ -272,27 +320,16 @@ export function useCareerHistoryState(args: {
       setHistoryOpportunityCounts((current) => {
         const baseCounts =
           current ?? deriveHistoryOpportunityCounts(historyOpportunities);
-        const nextCounts: CareerHistoryOpportunityCounts = {
-          ...baseCounts,
-          savedStages: { ...baseCounts.savedStages },
-        };
-        const decrement = (key: "new" | "saved" | "archived") => {
-          nextCounts[key] = Math.max(0, nextCounts[key] - 1);
-        };
-        const increment = (key: "new" | "saved" | "archived") => {
-          nextCounts[key] += 1;
-        };
-        const getBucket = (item: CareerHistoryOpportunity) => {
-          if (item.feedback === "positive") return "saved";
-          if (item.feedback === "negative") return "archived";
-          return "new";
-        };
-        const previousBucket = getBucket(previousItem);
-        const nextBucket = getBucket(nextItem);
+        const nextCounts = cloneHistoryCounts(baseCounts);
+        const previousBucket = getHistoryBucket(previousItem);
+        const nextBucket = getHistoryBucket(nextItem);
 
         if (previousBucket !== nextBucket) {
-          decrement(previousBucket);
-          increment(nextBucket);
+          nextCounts[previousBucket] = Math.max(
+            0,
+            nextCounts[previousBucket] - 1
+          );
+          nextCounts[nextBucket] += 1;
         }
 
         if (previousBucket === "saved") {
@@ -319,6 +356,19 @@ export function useCareerHistoryState(args: {
     [historyOpportunities]
   );
 
+  const applyHistoryOpportunityCountsInsertion = useCallback(
+    (item: CareerHistoryOpportunity) => {
+      setHistoryOpportunityCounts((current) => {
+        const baseCounts =
+          current ?? deriveHistoryOpportunityCounts(historyOpportunities);
+        const nextCounts = cloneHistoryCounts(baseCounts);
+        incrementCountsForItem(nextCounts, item);
+        return nextCounts;
+      });
+    },
+    [historyOpportunities]
+  );
+
   const updateHistoryOpportunityLocally = useCallback(
     (
       opportunityId: string,
@@ -336,6 +386,92 @@ export function useCareerHistoryState(args: {
               items: page.items.map((item) =>
                 item.id === opportunityId ? updater(item) : item
               ),
+            })),
+          };
+        }
+      );
+    },
+    [queryClient, queryKey]
+  );
+
+  const upsertHistoryOpportunityLocally = useCallback(
+    (
+      item: CareerHistoryOpportunity,
+      options?: { replaceOpportunityId?: string | null }
+    ) => {
+      queryClient.setQueryData<InfiniteData<CareerHistoryPage, number>>(
+        queryKey,
+        (current) => {
+          const replaceOpportunityId = String(
+            options?.replaceOpportunityId ?? ""
+          ).trim();
+          const matchesItem = (candidate: CareerHistoryOpportunity) =>
+            candidate.id === item.id ||
+            (replaceOpportunityId.length > 0 &&
+              candidate.id === replaceOpportunityId);
+
+          if (!current || current.pages.length === 0) {
+            return {
+              pages: [
+                {
+                  counts: null,
+                  items: [item],
+                  nextOffset: null,
+                },
+              ],
+              pageParams: [0],
+            };
+          }
+
+          let inserted = false;
+          const pages = current.pages.map((page, pageIndex) => {
+            const nextItems: CareerHistoryOpportunity[] = [];
+
+            for (const candidate of page.items) {
+              if (matchesItem(candidate)) {
+                if (!inserted) {
+                  nextItems.push(item);
+                  inserted = true;
+                }
+                continue;
+              }
+
+              nextItems.push(candidate);
+            }
+
+            if (pageIndex === 0 && !inserted) {
+              nextItems.unshift(item);
+              inserted = true;
+            }
+
+            return {
+              ...page,
+              items: nextItems,
+            };
+          });
+
+          return {
+            ...current,
+            pages,
+          };
+        }
+      );
+    },
+    [queryClient, queryKey]
+  );
+
+  const removeHistoryOpportunityLocally = useCallback(
+    (opportunityId: string) => {
+      queryClient.setQueryData<InfiniteData<CareerHistoryPage, number>>(
+        queryKey,
+        (current) => {
+          if (!current) return current;
+
+          return {
+            ...current,
+            pages: current.pages.map((page) => ({
+              ...page,
+              items: page.items.filter((item) => item.id !== opportunityId),
             })),
           };
         }
@@ -405,6 +541,7 @@ export function useCareerHistoryState(args: {
         assistantMessage?: CareerMessagePayload | null;
         feedbackFollowUp?: { delayed?: boolean } | null;
         followUpRunId?: string | null;
+        opportunity?: CareerHistoryOpportunity | null;
         opportunityDiscoveryQueued?: boolean;
         userMessage?: CareerMessagePayload | null;
       };
@@ -426,11 +563,17 @@ export function useCareerHistoryState(args: {
       const normalizedOpportunityId = opportunityId.trim();
       if (!normalizedOpportunityId) return;
 
-      const cachedPreviousItem = historyOpportunityById.get(
-        normalizedOpportunityId
-      );
-      const previousItem = cachedPreviousItem ?? options?.fallbackOpportunity;
+      const fallbackOpportunity = options?.fallbackOpportunity;
+      const cachedPreviousItem =
+        historyOpportunityById.get(normalizedOpportunityId) ??
+        findCachedHistoryOpportunity(
+          normalizedOpportunityId,
+          fallbackOpportunity?.roleId
+        );
+      const previousItem = cachedPreviousItem ?? fallbackOpportunity;
       if (!previousItem) return;
+      const localOpportunityId =
+        cachedPreviousItem?.id ?? normalizedOpportunityId;
       const shouldUpdateHistoryCache = Boolean(cachedPreviousItem);
       const feedbackActionSequence = feedback
         ? (feedbackActionSequenceRef.current += 1)
@@ -451,14 +594,19 @@ export function useCareerHistoryState(args: {
         savedStage: nextSavedStage,
       };
       const previousCounts = historyOpportunityCounts;
+      let insertedFallbackOpportunity = false;
 
       beginHistoryUpdate(normalizedOpportunityId);
+      if (localOpportunityId !== normalizedOpportunityId) {
+        beginHistoryUpdate(localOpportunityId);
+      }
       if (shouldUpdateHistoryCache) {
-        updateHistoryOpportunityLocally(
-          normalizedOpportunityId,
-          () => nextItem
-        );
+        updateHistoryOpportunityLocally(localOpportunityId, () => nextItem);
         applyHistoryOpportunityCountsTransition(previousItem, nextItem);
+      } else {
+        upsertHistoryOpportunityLocally(nextItem);
+        applyHistoryOpportunityCountsInsertion(nextItem);
+        insertedFallbackOpportunity = true;
       }
 
       try {
@@ -471,6 +619,14 @@ export function useCareerHistoryState(args: {
           promptImmediately: options?.promptImmediately === true,
           savedStage: nextSavedStage,
         });
+        const [updatedOpportunity] = normalizeHistoryOpportunities(
+          payload.opportunity ? [payload.opportunity] : []
+        );
+        if (updatedOpportunity) {
+          upsertHistoryOpportunityLocally(updatedOpportunity, {
+            replaceOpportunityId: localOpportunityId,
+          });
+        }
         if (payload.userMessage) {
           onHistoryActionUserMessage?.(payload.userMessage);
         }
@@ -493,7 +649,10 @@ export function useCareerHistoryState(args: {
         }
       } catch (error) {
         if (shouldUpdateHistoryCache) {
-          restoreHistoryOpportunity(normalizedOpportunityId, previousItem);
+          restoreHistoryOpportunity(localOpportunityId, previousItem);
+          setHistoryOpportunityCounts(previousCounts);
+        } else if (insertedFallbackOpportunity) {
+          removeHistoryOpportunityLocally(normalizedOpportunityId);
           setHistoryOpportunityCounts(previousCounts);
         }
         setHistoryUpdateError(
@@ -503,13 +662,18 @@ export function useCareerHistoryState(args: {
         );
       } finally {
         endHistoryUpdate(normalizedOpportunityId);
+        if (localOpportunityId !== normalizedOpportunityId) {
+          endHistoryUpdate(localOpportunityId);
+        }
       }
     },
     [
       beginHistoryUpdate,
       endHistoryUpdate,
+      findCachedHistoryOpportunity,
       historyOpportunityById,
       historyOpportunityCounts,
+      applyHistoryOpportunityCountsInsertion,
       applyHistoryOpportunityCountsTransition,
       conversationId,
       cancelPendingOpportunityFeedbackFollowUp,
@@ -518,9 +682,11 @@ export function useCareerHistoryState(args: {
       patchHistoryOpportunity,
       queryClient,
       queryKey,
+      removeHistoryOpportunityLocally,
       restoreHistoryOpportunity,
       scheduleOpportunityFeedbackFollowUp,
       updateHistoryOpportunityLocally,
+      upsertHistoryOpportunityLocally,
     ]
   );
 
@@ -544,11 +710,19 @@ export function useCareerHistoryState(args: {
       applyHistoryOpportunityCountsTransition(previousItem, nextItem);
 
       try {
-        await patchHistoryOpportunity({
+        const payload = await patchHistoryOpportunity({
           action: "saved_stage",
           opportunityId: normalizedOpportunityId,
           savedStage,
         });
+        const [updatedOpportunity] = normalizeHistoryOpportunities(
+          payload.opportunity ? [payload.opportunity] : []
+        );
+        if (updatedOpportunity) {
+          upsertHistoryOpportunityLocally(updatedOpportunity, {
+            replaceOpportunityId: normalizedOpportunityId,
+          });
+        }
       } catch (error) {
         restoreHistoryOpportunity(normalizedOpportunityId, previousItem);
         setHistoryOpportunityCounts(previousCounts);
@@ -570,6 +744,7 @@ export function useCareerHistoryState(args: {
       patchHistoryOpportunity,
       restoreHistoryOpportunity,
       updateHistoryOpportunityLocally,
+      upsertHistoryOpportunityLocally,
     ]
   );
 
@@ -721,6 +896,27 @@ export function useCareerHistoryState(args: {
     [queryClient, queryKey]
   );
 
+  const refreshLatestHistoryOpportunities = useCallback(async () => {
+    if (!enabled || !userId) return;
+
+    try {
+      const firstPage = await fetchHistoryPage(0);
+      queryClient.setQueryData<InfiniteData<CareerHistoryPage, number>>(
+        queryKey,
+        (current) => mergePagesWithFirstPage(current, firstPage)
+      );
+      setHistoryOpportunityCounts(firstPage.counts);
+      setHistoryLoaded(true);
+      setHistoryUpdateError("");
+    } catch (error) {
+      setHistoryUpdateError(
+        error instanceof Error
+          ? error.message
+          : "기회 목록을 새로고침하지 못했습니다."
+      );
+    }
+  }, [enabled, fetchHistoryPage, queryClient, queryKey, userId]);
+
   const loadMoreHistoryOpportunities = useCallback(async () => {
     if (!infinite.hasNextPage || infinite.isFetchingNextPage) return;
     await infinite.fetchNextPage();
@@ -753,6 +949,7 @@ export function useCareerHistoryState(args: {
     onUpdateHistoryOpportunityFeedback,
     onUpdateHistoryOpportunitySavedStage,
     cancelPendingOpportunityFeedbackFollowUp,
+    refreshLatestHistoryOpportunities,
     resetHistoryState,
     setHistoryLoaded,
   };

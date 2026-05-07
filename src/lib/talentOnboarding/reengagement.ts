@@ -4,6 +4,7 @@ import {
   CAREER_REENGAGEMENT_FALLBACK_MESSAGE,
 } from "@/lib/career/prompts";
 import { runCareerReengagementMessage } from "@/lib/career/llm";
+import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 import type {
   TalentMessageRow,
   TalentUserProfileRow,
@@ -55,7 +56,10 @@ function buildRecentConversation(messages: TalentMessageRow[]) {
     .map((message) => {
       const speaker = message.role === "assistant" ? "Harper" : "User";
       const type = message.message_type ?? "chat";
-      return `${speaker} (${type}): ${clampText(message.content, 220)}`;
+      return `${speaker} (${type}): ${clampText(
+        formatTalentMessageContentForLlmPrompt(message),
+        220
+      )}`;
     })
     .join("\n");
 }

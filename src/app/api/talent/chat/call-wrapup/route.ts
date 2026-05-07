@@ -6,11 +6,12 @@ import {
 } from "@/lib/talentOnboarding/server";
 import {
   buildCareerCallWrapupFallbackFollowUp,
-  buildCareerCallWrapupPrompt,
+  buildCareerCallWrapupTurnInstruction,
 } from "@/lib/career/prompts";
-import { runCareerCallWrapup } from "@/lib/career/llm";
 import { maybeSummarizeTalentConversation } from "@/lib/talentOnboarding/conversationSummary";
 import { TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP } from "@/lib/talentOnboarding/onboarding";
+import { runCareerChatTurn } from "@/lib/career/chatTurn";
+import { TALENT_TOOL_NAMES } from "@/lib/talentOnboarding/tools";
 
 type TranscriptEntry = {
   role: "user" | "assistant";
@@ -78,6 +79,55 @@ function normalizeFollowUpMessage(content: string): string {
     .trim();
 }
 
+async function insertFallbackFollowUp(args: {
+  content: string;
+  conversationId: string;
+  supabase: ReturnType<typeof getTalentSupabaseAdmin>;
+  userId: string;
+}) {
+  const now = new Date().toISOString();
+  const { data: savedFollowUp, error: followUpError } = await args.supabase
+    .from("talent_messages")
+    .insert({
+      conversation_id: args.conversationId,
+      user_id: args.userId,
+      role: "assistant",
+      content: args.content,
+      message_type: "call_wrapup",
+      created_at: now,
+    })
+    .select("id, role, content, message_type, created_at")
+    .single();
+
+  if (followUpError) {
+    console.error("[call-wrapup] Failed to save fallback follow-up message", {
+      error: followUpError,
+    });
+  } else {
+    void maybeSummarizeTalentConversation({
+      admin: args.supabase,
+      conversationId: args.conversationId,
+      userId: args.userId,
+    }).catch((error) => {
+      console.error("[call-wrapup] Failed to summarize conversation", {
+        conversationId: args.conversationId,
+        error: error instanceof Error ? error.message : String(error),
+        userId: args.userId,
+      });
+    });
+  }
+
+  return (
+    savedFollowUp ?? {
+      id: `followup-${Date.now()}`,
+      role: "assistant",
+      content: args.content,
+      messageType: "call_wrapup",
+      createdAt: now,
+    }
+  );
+}
+
 export async function POST(request: NextRequest) {
   try {
     const user = await getRequestUser(request);
@@ -100,6 +150,13 @@ export async function POST(request: NextRequest) {
     const durationLabel =
       safeDurationSeconds > 0 ? formatDuration(safeDurationSeconds) : null;
     const transcriptStats = summarizeTranscript(transcript);
+    if (transcriptStats.userTurns <= 0) {
+      return NextResponse.json({
+        followUpMessage: null,
+        skipped: "no_user_speech",
+      });
+    }
+
     const briefConversation = isBriefConversation(
       transcriptStats,
       safeDurationSeconds
@@ -131,6 +188,18 @@ export async function POST(request: NextRequest) {
         error: existingOnboardingWrapup.error,
       });
     }
+    if (conversation.error) {
+      return NextResponse.json(
+        { error: conversation.error.message ?? "Failed to read conversation" },
+        { status: 500 }
+      );
+    }
+    if (!conversation.data) {
+      return NextResponse.json(
+        { error: "Conversation not found" },
+        { status: 404 }
+      );
+    }
     if (existingOnboardingWrapup.data) {
       return NextResponse.json({
         followUpMessage: null,
@@ -140,72 +209,51 @@ export async function POST(request: NextRequest) {
     const inferredOnboardingDone =
       Boolean(talentSetting?.is_onboarding_done) ||
       conversation.data?.stage === "completed";
-
-    let followUpText = buildCareerCallWrapupFallbackFollowUp({
+    const fallbackFollowUpText = buildCareerCallWrapupFallbackFollowUp({
       isBrief: briefConversation,
       isOnboardingDone: inferredOnboardingDone,
     });
-
     try {
-      const prompt = buildCareerCallWrapupPrompt({
-        transcript,
-        durationLabel,
-        isBrief: briefConversation,
-        isOnboardingDone: inferredOnboardingDone,
+      const result = await runCareerChatTurn({
+        admin: supabase,
+        allowedToolNames: [TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE],
+        assistantMessageType: "call_wrapup",
+        conversationId,
+        proactiveContext: buildCareerCallWrapupTurnInstruction({
+          durationLabel,
+          isBrief: briefConversation,
+          isOnboardingDone: inferredOnboardingDone,
+          transcript,
+        }),
+        userId: user.id,
       });
 
-      const content = await runCareerCallWrapup({ prompt });
-      const normalized = normalizeFollowUpMessage(content);
-      if (normalized) {
-        followUpText = normalized;
+      const normalized = normalizeFollowUpMessage(
+        result.assistantMessage?.content ?? ""
+      );
+      if (normalized && result.assistantMessage) {
+        return NextResponse.json({
+          followUpMessage: {
+            ...result.assistantMessage,
+            content: normalized,
+          },
+        });
       }
     } catch (error) {
-      console.error("[call-wrapup] Failed to generate follow-up", { error });
-    }
-
-    const now = new Date().toISOString();
-
-    const followUpRow = {
-      conversation_id: conversationId,
-      user_id: user.id,
-      role: "assistant",
-      content: followUpText,
-      message_type: "call_wrapup",
-      created_at: now,
-    };
-
-    const { data: savedFollowUp, error: followUpError } = await supabase
-      .from("talent_messages")
-      .insert(followUpRow)
-      .select("id, role, content, message_type, created_at")
-      .single();
-
-    if (followUpError) {
-      console.error("[call-wrapup] Failed to save follow-up message", {
-        error: followUpError,
-      });
-    } else {
-      void maybeSummarizeTalentConversation({
-        admin: supabase,
-        conversationId,
-        userId: user.id,
-      }).catch((error) => {
-        console.error("[call-wrapup] Failed to summarize conversation", {
-          conversationId,
-          error: error instanceof Error ? error.message : String(error),
-          userId: user.id,
-        });
+      console.error("[call-wrapup] Failed to generate chat-turn follow-up", {
+        error,
       });
     }
+
+    const fallbackMessage = await insertFallbackFollowUp({
+      content: fallbackFollowUpText,
+      conversationId,
+      supabase,
+      userId: user.id,
+    });
 
     return NextResponse.json({
-      followUpMessage: savedFollowUp ?? {
-        id: `followup-${Date.now()}`,
-        role: "assistant",
-        content: followUpText,
-        messageType: "call_wrapup",
-        createdAt: now,
-      },
+      followUpMessage: fallbackMessage,
     });
   } catch (error) {
     console.error("[call-wrapup] Unexpected error", { error });

@@ -10,11 +10,6 @@ import {
   type TalentMessageRow,
 } from "@/lib/talentOnboarding/server";
 import { TALENT_INTERVIEW_FINAL_STEP } from "@/lib/talentOnboarding/progress";
-import {
-  warmCache,
-  getTestFlagSlugs,
-  getContentForUser,
-} from "@/lib/talentOnboarding/prompts/promptCache";
 import { buildCareerInsightExtractionOnlyPrompt } from "@/lib/career/prompts";
 import {
   completeOnboardingAndQueueInitialOpportunityRun,
@@ -54,8 +49,6 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    await warmCache();
-    const testSlugs = await getTestFlagSlugs(user.id);
 
     const body = (await req.json()) as Body;
     const conversationId = body.conversationId?.trim();
@@ -119,14 +112,10 @@ export async function POST(req: NextRequest) {
         ? extractAndPersistChatInsights({
             admin,
             assistantContent: assistantMessageText,
-            buildPrompt: (promptArgs) => {
-              const draftInsightMd =
-                getContentForUser("insight-extraction", testSlugs) ?? undefined;
-              return buildCareerInsightExtractionOnlyPrompt({
+            buildPrompt: (promptArgs) =>
+              buildCareerInsightExtractionOnlyPrompt({
                 currentInsightContent: promptArgs.currentInsightContent,
-                insightMdOverride: draftInsightMd,
-              });
-            },
+              }),
             conversationId,
             currentInsightContent,
             logPrefix: "ChatSave",

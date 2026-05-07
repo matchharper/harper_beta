@@ -11,6 +11,16 @@
   font-display: swap;
 }
 
+.wavy-underline {
+  display: inline-block;
+  padding-bottom: 8px;
+
+  background-image: url("data:image/svg+xml,%3Csvg width='20' height='8' viewBox='0 0 20 8' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 4 Q5 0 10 4 T20 4' fill='none' stroke='%23a68a6d' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+  background-size: 12px 8px;
+  background-position: left bottom;
+}
+
 .hedvig-letters-serif {
   font-family: "Hedvig Letters Serif", serif;
   font-optical-sizing: auto;

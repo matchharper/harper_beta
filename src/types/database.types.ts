@@ -3253,103 +3253,6 @@ export type Database = {
         }
         Relationships: []
       }
-      prompt_templates: {
-        Row: {
-          content: string
-          draft_content: string | null
-          id: string
-          name: string
-          published_at: string | null
-          required_sections: string[]
-          slug: string
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          content: string
-          draft_content?: string | null
-          id?: string
-          name: string
-          published_at?: string | null
-          required_sections?: string[]
-          slug: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          content?: string
-          draft_content?: string | null
-          id?: string
-          name?: string
-          published_at?: string | null
-          required_sections?: string[]
-          slug?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: []
-      }
-      prompt_test_flags: {
-        Row: {
-          enabled_at: string
-          template_slug: string
-          user_id: string
-        }
-        Insert: {
-          enabled_at?: string
-          template_slug: string
-          user_id: string
-        }
-        Update: {
-          enabled_at?: string
-          template_slug?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "prompt_test_flags_template_slug_fkey"
-            columns: ["template_slug"]
-            isOneToOne: false
-            referencedRelation: "prompt_templates"
-            referencedColumns: ["slug"]
-          },
-        ]
-      }
-      prompt_versions: {
-        Row: {
-          content: string
-          id: string
-          published_at: string
-          published_by: string | null
-          template_id: string
-          version_number: number
-        }
-        Insert: {
-          content: string
-          id?: string
-          published_at?: string
-          published_by?: string | null
-          template_id: string
-          version_number: number
-        }
-        Update: {
-          content?: string
-          id?: string
-          published_at?: string
-          published_by?: string | null
-          template_id?: string
-          version_number?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "prompt_versions_template_id_fkey"
-            columns: ["template_id"]
-            isOneToOne: false
-            referencedRelation: "prompt_templates"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       publications: {
         Row: {
           abstract: string | null
@@ -4023,6 +3926,7 @@ export type Database = {
           from_message_id: number | null
           id: string
           message_count: number
+          segment_summary: string
           source_char_count: number
           summary_json: Json
           summary_text: string
@@ -4035,6 +3939,7 @@ export type Database = {
           from_message_id?: number | null
           id?: string
           message_count?: number
+          segment_summary?: string
           source_char_count?: number
           summary_json?: Json
           summary_text?: string
@@ -4047,6 +3952,7 @@ export type Database = {
           from_message_id?: number | null
           id?: string
           message_count?: number
+          segment_summary?: string
           source_char_count?: number
           summary_json?: Json
           summary_text?: string

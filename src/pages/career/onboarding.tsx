@@ -4,6 +4,7 @@ import { useRouter } from "next/router";
 import {
   ArrowRight,
   FileText,
+  Globe2,
   LoaderCircle,
   MessageSquareText,
   Phone,
@@ -104,10 +105,12 @@ const BeigeLinkInput = ({
 
 const ProfileInputToggle = ({
   active,
+  id,
   label,
   onClick,
 }: {
   active: boolean;
+  id: TalentNetworkProfileInputType;
   label: string;
   onClick: () => void;
 }) => (
@@ -115,14 +118,86 @@ const ProfileInputToggle = ({
     type="button"
     onClick={onClick}
     className={cn(
-      "rounded-[8px] border px-4 py-2 text-sm font-medium transition",
+      "flex h-[104px] w-[108px] shrink-0 flex-col items-center justify-center gap-2 rounded-[8px] border px-3 py-3 text-center text-[13px] font-medium leading-4 transition sm:w-[116px]",
       active
         ? "border-beige900 bg-beige900 text-beige100"
-        : "border-beige900/10 bg-beige500 text-beige900/70 hover:bg-beige500/90"
+        : "border-beige900/10 bg-beige500 text-beige900/70 hover:border-beige900/30 hover:bg-beige500/90"
     )}
   >
-    {label}
+    <span
+      className={cn(
+        "flex h-9 w-9 items-center justify-center rounded-[8px] border bg-white",
+        active ? "border-beige100/40" : "border-beige900/10"
+      )}
+    >
+      <ProfileInputIcon id={id} />
+    </span>
+    <span className="line-clamp-2 min-h-8">{label}</span>
   </button>
+);
+
+const ProfileInputIcon = ({ id }: { id: TalentNetworkProfileInputType }) => {
+  if (id === "linkedin") {
+    return (
+      <ProfileIconMask
+        src="/images/logos/linkedin.svg"
+        sizeClass="h-[22px] w-[22px]"
+      />
+    );
+  }
+
+  if (id === "github") {
+    return (
+      <span className="flex items-center gap-0.5">
+        <ProfileIconMask
+          src="/images/logos/github.svg"
+          sizeClass="h-4 w-4"
+        />
+        <ProfileIconMask
+          src="/images/logos/huggingface.svg"
+          sizeClass="h-4 w-4"
+        />
+      </span>
+    );
+  }
+
+  if (id === "scholar") {
+    return (
+      <ProfileIconMask
+        src="/images/logos/scholar.png"
+        sizeClass="h-[22px] w-[22px]"
+      />
+    );
+  }
+
+  if (id === "website") {
+    return <Globe2 className="h-[22px] w-[22px] text-beige700" />;
+  }
+
+  return <FileText className="h-[22px] w-[22px] text-beige700" />;
+};
+
+const ProfileIconMask = ({
+  sizeClass,
+  src,
+}: {
+  sizeClass: string;
+  src: string;
+}) => (
+  <span
+    aria-hidden="true"
+    className={cn("block bg-beige700", sizeClass)}
+    style={{
+      WebkitMaskImage: `url(${src})`,
+      WebkitMaskPosition: "center",
+      WebkitMaskRepeat: "no-repeat",
+      WebkitMaskSize: "contain",
+      maskImage: `url(${src})`,
+      maskPosition: "center",
+      maskRepeat: "no-repeat",
+      maskSize: "contain",
+    }}
+  />
 );
 
 const SelectionCardButton = ({
@@ -579,18 +654,13 @@ const CareerNetworkOnboardingContent = () => {
     conversationId,
     email,
     fetchWithAuth,
-    github,
-    linkedin,
     links,
     name,
     parseResumeText,
     resumeFile,
-    scholar,
     selectedEngagements,
-    selectedProfileInputs,
     submitState,
     uploadResumeFile,
-    website,
   ]);
 
   const { step, handleNext, handlePrev, isNextRef } = useOnboarding({
@@ -783,6 +853,7 @@ const CareerNetworkOnboardingContent = () => {
                         {TALENT_NETWORK_PROFILE_INPUT_OPTIONS.map((option) => (
                           <ProfileInputToggle
                             key={option.id}
+                            id={option.id}
                             label={option.label}
                             active={selectedProfileInputs.includes(option.id)}
                             onClick={() => handleProfileInputToggle(option.id)}

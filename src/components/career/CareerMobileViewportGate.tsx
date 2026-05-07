@@ -2,6 +2,7 @@ import type { User } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type { CareerMobileEntryReason } from "@/lib/career/mobileBlocker";
+import Image from "next/image";
 
 const CAREER_DESKTOP_MEDIA_QUERY = "(min-width: 1024px)";
 
@@ -75,17 +76,14 @@ export const CareerMobileBlocker = ({
 
   return (
     <main className="relative flex min-h-[100dvh] w-full items-center justify-center overflow-hidden bg-beige50 px-6 py-10 font-inter text-beige900">
-      <div
-        aria-hidden="true"
-        className="absolute left-0 top-[30dvh] flex w-full -translate-y-1/2 justify-center"
-      >
-        <span
-          className="block h-[82px] w-[82px] bg-contain bg-center bg-no-repeat"
-          style={{ backgroundImage: "url('/svgs/harper-h-mark.svg')" }}
+      <section className="relative flex flex-col gap-2 z-10 w-full max-w-[540px] text-center items-center justify-center">
+        <Image
+          src="/svgs/harper-h-mark.svg"
+          alt="Harper"
+          width={82}
+          height={82}
+          className="h-[82px] w-[82px]"
         />
-      </div>
-
-      <section className="relative z-10 mt-[12dvh] w-full max-w-[540px] text-center">
         <h1 className="font-instrument text-[36px] font-normal leading-[1.08] text-beige900 sm:text-[42px]">
           {headline}
         </h1>

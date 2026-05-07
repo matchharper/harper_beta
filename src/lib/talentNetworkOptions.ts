@@ -13,7 +13,7 @@ export const TALENT_NETWORK_PROFILE_INPUT_OPTIONS: Array<{
   { id: "github", label: "GitHub / Hugging Face" },
   { id: "scholar", label: "Google Scholar" },
   { id: "website", label: "개인 사이트" },
-  { id: "cv", label: "CV" },
+  { id: "cv", label: "CV/이력서" },
 ];
 
 export const TALENT_NETWORK_ENGAGEMENT_OPTIONS = [

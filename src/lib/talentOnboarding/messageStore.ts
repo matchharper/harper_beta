@@ -133,31 +133,45 @@ export async function fetchVisibleMessagesPage(args: {
 }) {
   const { admin, conversationId, limit = 20, beforeMessageId } = args;
   const pageSize = Math.max(1, Math.min(limit, 100));
+  const visibleRows: TalentMessageRow[] = [];
+  const batchSize = Math.min(Math.max(pageSize + 1, 40), 100);
+  let cursor = beforeMessageId ?? null;
 
-  let query = admin
-    .from("talent_messages")
-    .select(
-      "id, conversation_id, user_id, role, content, message_type, thinking_logs, created_at"
-    )
-    .eq("conversation_id", conversationId)
-    .or("message_type.is.null,message_type.neq.call_wrapup")
-    .not("content", "like", `${TALENT_PENDING_QUESTION_PREFIX}%`)
-    .order("id", { ascending: false })
-    .limit(pageSize + 1);
+  while (visibleRows.length <= pageSize) {
+    let query = admin
+      .from("talent_messages")
+      .select(
+        "id, conversation_id, user_id, role, content, message_type, thinking_logs, created_at"
+      )
+      .eq("conversation_id", conversationId)
+      .or("message_type.is.null,message_type.neq.call_wrapup")
+      .not("content", "like", `${TALENT_PENDING_QUESTION_PREFIX}%`)
+      .order("id", { ascending: false })
+      .limit(batchSize);
 
-  if (beforeMessageId) {
-    query = query.lt("id", beforeMessageId);
+    if (cursor) {
+      query = query.lt("id", cursor);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw new Error(
+        error.message ?? "Failed to load visible talent_messages"
+      );
+    }
+
+    const rawRows = (data ?? []) as TalentMessageRow[];
+    if (rawRows.length === 0) break;
+
+    visibleRows.push(...removeHiddenMessages(rawRows));
+    cursor = rawRows[rawRows.length - 1]?.id ?? null;
+
+    if (rawRows.length < batchSize || !cursor) break;
   }
 
-  const { data, error } = await query;
-
-  if (error) {
-    throw new Error(error.message ?? "Failed to load visible talent_messages");
-  }
-
-  const rows = removeHiddenMessages((data ?? []) as TalentMessageRow[]);
-  const hasMore = rows.length > pageSize;
-  const pageRows = hasMore ? rows.slice(0, pageSize) : rows;
+  const hasMore = visibleRows.length > pageSize;
+  const pageRows = hasMore ? visibleRows.slice(0, pageSize) : visibleRows;
   const oldestRow = pageRows[pageRows.length - 1] ?? null;
 
   return {

@@ -268,6 +268,22 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     [sendEvent]
   );
 
+  const requestSpeechFromInstructions = useCallback(
+    (instructions: string) => {
+      const normalizedInstructions = instructions.trim();
+      if (!normalizedInstructions) return;
+
+      responseTextRef.current = "";
+      sendEvent({
+        type: "response.create",
+        response: {
+          instructions: normalizedInstructions,
+        },
+      });
+    },
+    [sendEvent]
+  );
+
   const getRemainingPlaybackMs = useCallback(() => {
     const ctx = playbackCtxRef.current;
     if (!ctx || ctx.state === "closed") return 0;
@@ -1079,6 +1095,13 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     [requestExactSpeech]
   );
 
+  const generateSpeechFromInstructions = useCallback(
+    (instructions: string) => {
+      requestSpeechFromInstructions(instructions);
+    },
+    [requestSpeechFromInstructions]
+  );
+
   /** Expose the MediaStream for voice level monitoring */
   const getMediaStream = useCallback((): MediaStream | null => {
     return mediaStreamRef.current;
@@ -1106,6 +1129,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     cancelResponse,
     primePlayback,
     generateSpeech,
+    generateSpeechFromInstructions,
     updateSessionInstructions,
     getMediaStream,
     sendEvent,

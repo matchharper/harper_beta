@@ -6,7 +6,6 @@ import {
 import { TALENT_ONBOARDING_DONE_MARKER } from "@/lib/talentOnboarding/completion";
 import { TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX } from "@/lib/talentOnboarding/onboarding";
 import { INSIGHT_CHECKLIST } from "@/lib/talentOnboarding/insightChecklist";
-import { registerLazyReset } from "@/lib/talentOnboarding/prompts/promptCache";
 import { logger } from "@/utils/logger";
 
 export type CareerPromptProfile = {
@@ -58,6 +57,34 @@ export type CareerPromptPlan = {
 
 export const CAREER_CALL_END_MARKER = "##END##";
 
+export const CAREER_VOICE_CALL_MODE_PROMPT = `
+## Voice call mode behavior
+지금은 텍스트 채팅이 아니라 실시간 통화다. 사용자가 화면을 보고 긴 문장을 읽는 상황이 아니므로, Harper가 대화를 자연스럽게 이끌어야 한다.
+
+### 통화 중 우선순위
+- 사용자가 짧게 답하거나 멈추면 가만히 기다리지 말고, 바로 답하기 쉬운 후속 질문을 하나 던져라.
+- "계속 이어서 해보죠", "더 말씀해주세요"처럼 막연한 말만 하고 멈추지 마라.
+- 질문은 한 번에 하나만 한다. 사용자가 듣고 바로 답할 수 있게 짧고 구체적으로 묻는다.
+- 가능한 한 최근 대화, 프로필, 이력의 실제 단서와 연결해서 묻는다.
+
+### 장려할 질문 주제
+통화에서는 텍스트보다 조금 더 사람처럼 깊게 파고들어도 된다. 아래 중 현재 맥락에 가장 중요한 하나를 고른다.
+- profile gap: 프로필에 적혀 있지만 설명이 얕은 최근/중요 경험, 프로젝트, 역할, 성과
+- 이력/경험 추가 질문: 특정 회사/프로젝트에서 본인이 직접 맡은 부분, 팀 규모, 의사결정, 성과
+- 경력 전환 이유: 짧은 재직, 역할 변화, 도메인 전환, 공백, 현재 이직을 생각하게 된 계기
+- 개인적인 선호: 다음 팀에서 중요하게 보는 문화, 일하는 방식, 리더십, 보상/위치/리모트 제약, 피하고 싶은 환경
+- 연결 가능성: 어떤 회사나 팀에게 먼저 소개되어도 괜찮은지, 어떤 조건이면 연결 요청을 수락할지
+
+### 정보 제공의 가치
+필요할 때만 짧게 알려라: 사용자가 더 구체적으로 알려줄수록 Harper가 회사에게 더 잘 설명할 수 있고, 맞는 연결 요청이나 추천을 고르는 정확도가 올라간다.
+
+### 통화 흐름
+- 사용자가 답한 내용에서 바로 다음 질문을 이어가라. 완전히 다른 주제로 갑자기 점프하지 마라.
+- 답변이 충분히 구체적이면 짧게 확인하고 다음 gap으로 넘어간다.
+- 이미 충분히 알고 있는 내용은 반복해서 묻지 않는다.
+- 통화 종료 의사가 보이면 종료 시그널 규칙을 따른다.
+`;
+
 let careerFirstVisitText: string | null = null;
 export function getCareerFirstVisitText(): string {
   if (!careerFirstVisitText) {
@@ -91,14 +118,6 @@ export function getCareerCallEndInstructionPrompt(): string {
   }
   return careerCallEndInstructionPrompt;
 }
-
-function resetCareerLazyPrompts(): void {
-  careerFirstVisitText = null;
-  careerInterruptHandlingPrompt = null;
-  careerCallEndInstructionPrompt = null;
-}
-
-registerLazyReset(resetCareerLazyPrompts);
 
 export const CAREER_ONBOARDING_CONVERSATION_PROMPT = `
 ### 현재 회원은 아직 가입 후 첫 기본 대화가 완료되지 않았다.
@@ -504,9 +523,10 @@ function renderInsightKey(key: string, quoteKeys: boolean) {
 
 function buildKnownInsightsSection(args: {
   content: Record<string, string> | null;
+  includeAdditionalQuestions: boolean;
   quoteKeys?: boolean;
 }) {
-  const { content, quoteKeys = false } = args;
+  const { content, includeAdditionalQuestions, quoteKeys = false } = args;
   const currentContent = content ?? {};
   const checklistKeys = new Set(INSIGHT_CHECKLIST.map((item) => item.key));
   const checklistLines = [...INSIGHT_CHECKLIST]
@@ -531,14 +551,13 @@ function buildKnownInsightsSection(args: {
     );
 
   return [
-    `
+    includeAdditionalQuestions
+      ? `
 ## Additional questions
 아래 질문들은 insight 질문이 아닌 추가 질문이다.
-- 종료 전 필수 phase다. insight가 충분히 수집되면 반드시 최소 2개는 묻는다. 추가 질문은 전체 온보딩 중 최소 2개, 최대 4개까지만 한다.
+- 종료 전, insight가 충분히 수집되면 반드시 최소 2개의 추가 질문을 묻는다. 추가 질문은 전체 온보딩 중 최소 2개, 최대 4개까지만 한다.
 - select_additional_onboarding_question tool이 사용 가능하면, additional 질문을 직접 고르지 말고 반드시 tool을 먼저 호출한다.
-- 답이 필요하지 않은 질문은 묻지 않는다. (ex. 이력에 공백이 없다면 공백 질문을 하지 않는다.)
-- 특정 조건에 해당되는 질문이 없다면 fallback additional question을 사용한다.
-- 추가질문은 주로 유저의 프로필을 기반으로 과거 이력, 실제 기여도, 직무-specific 질문 등이다.
+- 추가질문은 유저의 프로필을 기반으로 과거 이력 전환, 자세한 역할/기여, 직무-specific 질문 등이다.
 - 유저의 응답이 질문에 대한 충분한 정보를 주지 못한다면(대답이 너무 짧다면), 추가적으로 조금 더 디테일하게 물어본다.
 
 ### Additional question selection policy
@@ -547,28 +566,30 @@ Additional questions phase에 들어가면 질문을 바로 만들지 말고, �
 그 질문을 실제 사용자에게 자연스럽게 한 문장으로 묻는다.
 
 우선순위:
-1. 최근/중요 경험은 있는데 사용자의 직접 기여도가 불명확한 경우
-2. 짧은 재직, 전환, 공백, 역할 변화처럼 해석이 필요한 이력이 있는 경우
+1. 최근/중요 경험은 있는데 사용자의 기여가 불명확한 경우(ex. 이 2년의 경험이 눈에 띄는데, 설명이 1줄밖에 보이지 않네요. 어떤 역할을 했는지 조금 더 자세하게 말씀해주실 수 있나요? 이걸 안다면 <> 덕분에 더 좋은 기회를 찾을 수 있을거에요.)
+2. 짧은 재직, 전환, 공백, 역할 변화처럼 해석이 필요한 이력이 있는 경우(ex. 현재 회사에 재직중이신걸로 보이는데, 이직을 결심하신 계기가 있으세요? or 이때 이 회사에서 이 회사로 이직을 하셨는데 더 작은 팀으로 이직을 하신 이유가 있으신가요?)
+   - 그냥 이라고 하면 한번 더 깊게 묻는다.
 3. 프로필상 강점과 사용자가 원하는 다음 기회 사이에 불일치나 확인 gap이 있는 경우
 4. 직무-specific depth가 불명확한 경우
 5. 위 항목이 없을 때만 fallback additional question을 사용한다.
 
 Additional question Examples:
 - profile-gap 질문 예시
-  - 최근 특정 중요한 경험에 대한 정보가 부족하다면(6개월짜리 이력이 있는데 정보가 거의 없다면), 가볍게 더 묻는다.
+  - 최근 혹은 특정 중요한 경험에 대한 정보가 부족하다면(6개월짜리 이력이 있는데 설명이 1줄이라면), 가볍게 더 묻는다.
+  - 최근 눈에 띄는 커리어 전환이 있다면, 전환 계기를 묻는다.
   - 최근 회사/프로젝트는 적혀 있지만 직접적인 본인의 역할이 불명확하면, 직접 맡은 부분을 묻는다. (그 프로젝트에서 본인이 직접 기여한 핵심 부분은 어디였어요? 등)
-  - 최근 커리어 전환이 눈에 띄지만 이유가 불명확하면 혹은 현재 이직을 적극적으로 탐색하고 있다면, 전환 계기를 묻는다.
   - 최근 프로필 이력에 3개월 이상 공백이 있거나 최근 3개월 공백이 보이면, 그 시기에 무엇을 했는지 가볍게 묻는다.
 - 직무-specific 질문 예시
-  - Paid 채널 중에 어디 가장 깊이 운영해보셨어요? Meta, Google, TikTok, naver 등. 그리고 다음 기회에선 paid만? 아니면 organic도 같이 운영하는 hybrid 역할?
-  - 제품 종류는 어떤 게 더 끌리세요? Consumer (B2C 앱), Enterprise (B2B SaaS), 또는 Internal tools / platform?
-  - AI 쪽이면 지금까지는 application layer (제품에 AI 통합) 위주셨던 것 같은데, 앞으로도 그 방향이 좋으세요? 아니면 foundation model이나 infrastructure 쪽도 끌리세요?
+  - 마케터-Paid 채널 중에 어디 가장 깊이 운영해보셨어요? Meta, Google, TikTok, naver 등. 그리고 다음 기회에선 paid만? 아니면 organic도 같이 운영하는 hybrid 역할?
+  - PM-제품 종류는 어떤 게 더 끌리세요? Consumer (B2C 앱), Enterprise (B2B SaaS), 또는 Internal tools / platform?
+  - Engineer=AI 쪽이면 지금까지는 application layer (제품에 AI 통합) 위주셨던 것 같은데, 앞으로도 그 방향이 좋으세요? 아니면 foundation model이나 infrastructure 쪽도 끌리세요?
 - Fallback additional question:
   - 최근 역할이나 대표 경험 중에서, 밖에서 보기보다 실제로 본인이 더 많이 맡았던 부분은 어디였어요?
   - 최근 경험에서 본인이 직접 만든 변화나 결과를 하나만 꼽으면 뭐가 있을까요?
 
 ---
-`,
+`
+      : "",
     "## Known & Unknown Insights",
     checklistLines.join("\n"),
     extraLines.length > 0
@@ -583,6 +604,9 @@ function buildExtractionInsightChecklistSection(
   content: Record<string, string> | null
 ) {
   const currentContent = content ?? {};
+  const canonicalKeys = [...INSIGHT_CHECKLIST]
+    .sort((left, right) => left.priority - right.priority)
+    .map((item) => `"${item.key}"`);
   const checklistKeys = new Set(INSIGHT_CHECKLIST.map((item) => item.key));
   const checklistLines = [...INSIGHT_CHECKLIST]
     .sort((left, right) => left.priority - right.priority)
@@ -598,6 +622,8 @@ function buildExtractionInsightChecklistSection(
     .map(([key, value]) => `- "${key}": "${value.trim()}"`);
 
   return [
+    "## Canonical insight keys",
+    canonicalKeys.join(", "),
     "## Insight fields and current values",
     checklistLines.join("\n"),
     extraLines.length > 0
@@ -778,6 +804,7 @@ function buildCareerConversationPromptPlan(args: {
   opportunityStatus?: CareerPromptOpportunityStatus | null;
   pendingOpportunityFeedbackContext?: string | null;
   profile: CareerPromptProfile | null;
+  proactiveTurnInstruction?: string;
   recentActivitySummaries?: readonly CareerPromptActivitySummary[] | null;
   recentConversationSection?: string;
   sessionStartInstruction?: string;
@@ -785,8 +812,10 @@ function buildCareerConversationPromptPlan(args: {
   toolNames?: readonly string[] | string;
 }): CareerPromptPlan {
   const channelType = getCareerChannelType(args.channel);
+  const isOnboardingActive = !Boolean(args.isOnboardingDone);
   const insightGuidanceSection = buildKnownInsightsSection({
     content: args.currentInsightContent,
+    includeAdditionalQuestions: isOnboardingActive,
     quoteKeys: args.channel === "chat",
   });
 
@@ -799,7 +828,6 @@ function buildCareerConversationPromptPlan(args: {
   const opportunityStatusSection = buildOpportunityStatusSection(
     args.opportunityStatus
   );
-  const isOnboardingActive = !Boolean(args.isOnboardingDone);
   const profileContextBlock = buildProfileContextBlock({
     profile: args.profile,
     structuredProfileText: args.structuredProfileText,
@@ -833,7 +861,7 @@ function buildCareerConversationPromptPlan(args: {
 
   const dynamicStateLines = [
     `## Runtime context \n현재 후보자와 ${channelType}을 통해 소통하고 있습니다. (Voice Call or Text Chat) \n현재 시각 : ${new Date().toLocaleString()}`,
-    args.sessionStartInstruction ?? "",
+    args.proactiveTurnInstruction ?? args.sessionStartInstruction ?? "",
     isOnboardingActive && additionalQuestionSelectionCount !== null
       ? [
           "## Additional question runtime state",
@@ -876,6 +904,7 @@ function buildCareerConversationPromptPlan(args: {
     const voiceRules = [
       args.interruptHandling,
       args.callEndInstruction,
+      CAREER_VOICE_CALL_MODE_PROMPT,
       "## Voice Call Style\n질문은 짧게 하나씩만 하고, 사용자가 듣고 바로 답할 수 있는 자연스러운 구어체로 말하라. Markdown 문법, 긴 목록, 표 형식은 사용하지 마라.",
     ]
       .filter((value) => value && value.trim().length > 0)
@@ -925,6 +954,7 @@ export function buildCareerTextChatPromptBlocks(args: {
   opportunityStatus?: CareerPromptOpportunityStatus | null;
   pendingOpportunityFeedbackContext?: string | null;
   profile: CareerPromptProfile | null;
+  proactiveTurnInstruction?: string;
   recentActivitySummaries?: readonly CareerPromptActivitySummary[] | null;
   sessionStartInstruction?: string;
   structuredProfileText: string;
@@ -1151,7 +1181,8 @@ export function buildCareerToolPolicyPrompt(args: {
           "- This tool may return either a profile-gap question OR a role-specific depth/preference question. Prefer concrete profile gaps, especially substantial experience rows with no description/memo. Do not keep asking broad desired role/tech-stack preference questions.",
           "- When this tool is available and you are in Additional questions phase, call it before asking the additional question. Do not invent the additional question yourself first.",
           "- Pass the user's latest message in `latestUserMessage` when available, especially in voice calls.",
-          "- After the tool result, ask exactly one question using the returned `assistantMessage` naturally in Korean. Do not mention the tool, JSON, internal gap analysis, or selection rationale.",
+          "- If the tool result has `shouldAsk=true`, ask exactly one question using the returned `assistantMessage` naturally in Korean. Do not mention the tool, JSON, internal gap analysis, or selection rationale.",
+          "- If the tool result has `shouldAsk=false`, do not ask another additional question; use the returned `assistantMessage` as the final priority confirmation.",
           "- Do not close onboarding in the same response after this tool. Wait for the user's answer.",
           "",
         ]
@@ -1171,11 +1202,19 @@ export function buildCareerInsightExtractionPrompt(args: {
     args.currentInsightContent
   );
 
-  return `You are an insight extraction assistant. Given a recent conversation window (up to 3 messages) between a user and Harper (an AI career counselor), extract structured career insights.
+  return `You are an insight extraction assistant. Given a recent transcript between a user and Harper (an AI career counselor), extract structured career insights.
 
 ${insightChecklistSection}
 
-Prefer the checklist keys above whenever the user's information fits one of them, even if the wording is not an exact match. Use free-form English snake_case keys only when the insight is clearly meaningful for future career matching and does not reasonably fit any checklist key. Use Korean complete sentences for values.
+Key selection policy:
+- Use the canonical insight keys above whenever the user's information fits one of them, even if the wording is not an exact match.
+- Do not invent synonym keys for canonical concepts. For example, if the concept belongs to a listed canonical key, output that exact key.
+- Use a new English snake_case key only when the insight is clearly meaningful for future career matching and does not reasonably fit any canonical key.
+- Values must be Korean complete sentences.
+
+Extraction scope:
+- Extract from User lines. Harper lines are context only.
+- Extract clear preferences, constraints, priorities, corrections, and matching-relevant facts stated by the user.
 Do not store raw profile-row facts in insights. If the information is only about a specific past experience, education, project, responsibility, or achievement and does not change future opportunity matching, omit it from extracted_insights so the profile row memo path can own it.
 Do not extract one-off browsing, curiosity, benchmarking, or informational search requests as durable insights. A request like "OpenAI Researcher 자리 보여줘" or a clarification like "그냥 보고 싶어서요" is not a target_role/domain preference update by itself. Extract it only if the user explicitly says Harper should remember it for future matching.
 
@@ -1248,6 +1287,46 @@ ${args.durationLabel ? `통화 시간은 ${args.durationLabel}입니다.` : ""}
 아래는 방금 통화 transcript입니다:
 
 ${lines || "(대화 내용이 거의 없었음)"}`;
+}
+
+export function buildCareerCallWrapupTurnInstruction(args: {
+  durationLabel: string | null;
+  isBrief: boolean;
+  isOnboardingDone?: boolean;
+  transcript: CareerTranscriptEntry[];
+}) {
+  const lines = args.transcript
+    .map((entry) => {
+      const role = entry.role === "user" ? "User" : "Harper";
+      return `${role}: ${entry.text.replace(/\s+/g, " ").trim()}`;
+    })
+    .filter((line) => line.trim().length > 0)
+    .join("\n");
+
+  return [
+    "## Call wrap-up turn",
+    "The user just ended a voice call. This is an assistant-initiated follow-up in the existing career chat, using the normal chat logic and tool policy.",
+    `- callDuration: ${args.durationLabel ?? "(unknown)"}`,
+    `- callLengthAssessment: ${args.isBrief ? "brief" : "substantial"}`,
+    `- onboardingStatus: ${args.isOnboardingDone ? "completed" : "not_completed"}`,
+    "",
+    "Important tool instruction:",
+    "- During the live voice call, `update_talent_profile` was not available. Inspect only the user's statements in the call transcript below.",
+    "- If the user disclosed clear new durable preferences, constraints, recommendation memory, or profile-row details that are missing from current state, call `update_talent_profile` once before writing the wrap-up.",
+    "- This tool call is optional. Skip it when there is no clear new writable information, the information is already saved, or the statement was only casual/uncertain.",
+    "- Do not call search, recommendation, company research, service-help, open-role, or activity-reading tools in this wrap-up turn.",
+    "",
+    "Response instruction:",
+    "- Write one short natural Korean follow-up message for the chat after the call ends.",
+    "- 1-2 sentences, no heading, no bullets, no markdown card.",
+    "- Do not ask a new onboarding/interview question. The call has ended.",
+    "- If onboarding is not completed, say briefly that there is a little more to finish later in chat or another call.",
+    "- If onboarding is completed and the call had useful substance, thank them and say Harper will reflect what they shared in future matching/search.",
+    "- Do not claim you updated profile state unless `update_talent_profile` was actually called and returned a successful change.",
+    "",
+    "[Call transcript for this wrap-up]",
+    lines || "(no transcript text)",
+  ].join("\n");
 }
 
 export function buildCareerCallWrapupFallbackFollowUp(args: {
@@ -1393,6 +1472,8 @@ export function buildCareerProfileIngestionSystemPrompt() {
     "Never invent a company_id.",
     "talentExtras is an array for awards, projects, publications, volunteering, certifications, or other notable details.",
     "Date format must be YYYY-MM-DD or null.",
+    "for description field, you can use markdown for formatting.(bold, list, italic, etc.)",
+    "talentExperiences is most important. Use exact role name",
     "Output schema:",
     "{",
     '  "talentUserPatch": {',
@@ -1413,7 +1494,6 @@ export function buildCareerProfileIngestionSystemPrompt() {
     '      "company_location": string|null,',
     '      "company_id": number|null,',
     '      "company_link": string|null,',
-    '      "memo": string|null',
     "    }",
     "  ],",
     '  "talentEducations": [',
@@ -1425,14 +1505,12 @@ export function buildCareerProfileIngestionSystemPrompt() {
     '      "start_date": "YYYY-MM-DD"|null,',
     '      "end_date": "YYYY-MM-DD"|null,',
     '      "url": string|null,',
-    '      "memo": string|null',
     "    }",
     "  ],",
     '  "talentExtras": [',
     "    {",
     '      "title": string|null,',
     '      "description": string|null,',
-    '      "memo": string|null,',
     '      "date": "YYYY-MM-DD"|null',
     "    }",
     "  ],",

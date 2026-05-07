@@ -197,6 +197,11 @@ export async function PATCH(req: NextRequest) {
       savedStage: body.savedStage,
       userId: user.id,
     });
+    const [updatedOpportunity] = await fetchTalentOpportunityHistoryByIds({
+      admin,
+      ids: [result.opportunityId ?? opportunityId],
+      userId: user.id,
+    });
 
     let assistantMessage: Awaited<
       ReturnType<typeof createTalentOpportunityFeedbackFollowUpReply>
@@ -285,6 +290,7 @@ export async function PATCH(req: NextRequest) {
         delayed: shouldScheduleDelayedFollowUp && !assistantMessage,
       },
       followUpRunId: null,
+      opportunity: updatedOpportunity ?? null,
       opportunityDiscoveryQueued: false,
       userMessage,
     });

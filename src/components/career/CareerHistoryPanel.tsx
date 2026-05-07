@@ -354,7 +354,7 @@ const HistoryEmptyStatePanel = ({
             eyebrow: "추천 준비 중",
             icon: <Search className="h-5 w-5" />,
             sideTitle: "다음 단계",
-            title: "추천 후보를 정리하고 있습니다.",
+            title: "기회를 찾고 있습니다.",
             toneClassName: "bg-beige700/10 text-beige700",
             body: (
               <>
@@ -383,10 +383,10 @@ const HistoryEmptyStatePanel = ({
             </span>
           </div>
 
-          <h4 className="mt-6 max-w-[640px] font-hedvig text-[24px] font-medium leading-none text-beige900 sm:text-[28px]">
+          <h4 className="mt-6 max-w-[640px] font-hedvig text-[20px] font-medium leading-none text-beige900 sm:text-[24px]">
             {config.title}
           </h4>
-          <p className="mt-4 max-w-[640px] text-[15px] leading-7 text-beige900/65">
+          <p className="mt-4 max-w-[640px] text-sm leading-7 text-beige900/65">
             {config.body}
           </p>
 

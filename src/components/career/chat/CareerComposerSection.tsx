@@ -232,7 +232,7 @@ const CareerComposerSection = () => {
                       ) : (
                         <Phone className="h-3.5 w-3.5" />
                       )}
-                      {isStartingCall ? "연결 중..." : "전화 하기"}
+                      {isStartingCall ? "연결 중..." : ""}
                     </button>
                   </>
                 )}

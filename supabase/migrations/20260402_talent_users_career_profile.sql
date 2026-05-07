@@ -1,1 +1,0 @@
--- Legacy talent profile columns were removed.

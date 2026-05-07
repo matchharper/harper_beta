@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
-import { warmCache } from "@/lib/talentOnboarding/prompts/promptCache";
 import {
-  buildTalentProfileContext,
-  countAdditionalOnboardingQuestionSelections,
   getTalentFirstVisitText,
   TalentConversationRow,
   TalentMessageRow,
@@ -28,7 +25,6 @@ import {
 import { autoStartClaimedTalentConversation } from "@/lib/talentOnboarding/kickoff";
 import { TALENT_MESSAGE_TYPE_SESSION_REENGAGEMENT_SKIP } from "@/lib/talentOnboarding/onboarding";
 import { getTalentCareerMoveIntentLabel } from "@/lib/talentNetworkOptions";
-import { fetchRecentMessagesWithSummary } from "@/lib/talentOnboarding/conversationSummary";
 import {
   fetchTalentOpportunityHistoryByIds,
   fetchTalentOpportunityHistoryPage,
@@ -39,18 +35,10 @@ import {
   fetchLatestOpportunityRun,
   serializeOpportunityRun,
 } from "@/lib/opportunityDiscovery/store";
-import { buildCareerTextChatPromptBlocks } from "@/lib/career/prompts";
-import { runCareerChatAssistant } from "@/lib/career/llm";
-import {
-  executeTalentTool,
-  getOpenAIChatTools,
-  getStopAfterTalentToolNames,
-  TALENT_TOOL_NAMES,
-} from "@/lib/talentOnboarding/tools";
-import { fetchRecentTalentActivitySummaries } from "@/lib/talentOnboarding/activityEvents";
+import { runCareerChatTurn } from "@/lib/career/chatTurn";
 
 // const REENGAGEMENT_IDLE_MS = 60 * 1000;
-const REENGAGEMENT_IDLE_MS = 1 * 60 * 60 * 1000; // 24시간 지나서 접속시 인사
+const REENGAGEMENT_IDLE_MS = 6 * 60 * 60 * 1000; // 6시간 지나서 접속시 인사
 const DEFAULT_OPPORTUNITY_LIMIT = 20;
 
 const getLatestUpdatedAt = (...values: Array<string | null | undefined>) => {
@@ -95,11 +83,6 @@ const parseOffsetParam = (value: string | null) => {
 
 const SESSION_GREETING_NO_MESSAGE_MARKER = "__NO_SESSION_GREETING__";
 
-const SESSION_GREETING_TOOL_NAMES = new Set<string>([
-  TALENT_TOOL_NAMES.READ_TALENT_ACTIVITY_EVENTS,
-  TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES,
-]);
-
 function buildSessionStartInstruction(args: {
   currentAccessAt: string;
   idleMs: number;
@@ -116,7 +99,7 @@ function buildSessionStartInstruction(args: {
     "대화 맥락상 지금 아무 말도 하지 않는 편이 더 자연스럽거나 도움이 되지 않는다고 판단되면 아무 것도 출력하지 않아도 된다.",
     `아무 말도 하지 않기로 결정하면 응답 본문을 비우거나 ${SESSION_GREETING_NO_MESSAGE_MARKER} 만 출력해라. 이 경우 다른 설명을 붙이지 마라.`,
     "이전 대화 맥락을 이어서 말하고, 처음 온 사람처럼 Harper를 길게 소개하지 마라.",
-    "최근 Career 활동이나 프로필 변경 혹은 이전 추천 등이 필요하면 적절한 tool을 사용해라. (read_talent_activity_events, read_recommended_opportunities 등)",
+    "최근 Career 활동이나 프로필 변경 혹은 이전 추천 등이 필요하면 기존 career/chat에서 쓰는 tool 정책에 따라 적절한 tool을 사용해라.",
     // "이미 추천된 기회나 사용자의 피드백을 짧게 짚는 것이 자연스러우면 `read_recommended_opportunities`를 호출해라.",
     "정확한 시각, 내부 이벤트명, 시스템 동작 방식은 사용자에게 말하지 마라.",
     "메시지를 보낼 때는 1-3문장으로 끝내라. 질문은 선택 사항이다. 사용자가 답하지 않아도 되는 단순 상태 업데이트나 피드백 반영 상황이면 질문 없이 닫아라.",
@@ -125,27 +108,12 @@ function buildSessionStartInstruction(args: {
   ].join("\n");
 }
 
-function normalizeSessionStartGreeting(content: string) {
-  const normalized = content
-    .replace(/^[`"'“”]+|[`"'“”]+$/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  if (!normalized) return null;
-  const markerCandidate = normalized
-    .replace(/^[`"'“”]+|[`"'“”.。]+$/g, "")
-    .trim();
-  if (markerCandidate === SESSION_GREETING_NO_MESSAGE_MARKER) return null;
-  return normalized;
-}
-
 async function generateSessionStartGreeting(args: {
   admin: ReturnType<typeof getTalentSupabaseAdmin>;
   conversationId: string;
   currentAccessAt: string;
   idleMs: number;
   previousChatAt: string | null;
-  profile: Awaited<ReturnType<typeof fetchTalentUserProfile>>;
   userId: string;
 }) {
   const {
@@ -154,114 +122,22 @@ async function generateSessionStartGreeting(args: {
     currentAccessAt,
     idleMs,
     previousChatAt,
-    profile,
     userId,
   } = args;
 
-  const [
-    currentInsights,
-    talentSetting,
-    additionalQuestionSelectionCount,
-    structuredProfile,
-    recentMessages,
-    recentActivitySummaries,
-  ] = await Promise.all([
-    fetchTalentInsights({ admin, userId }),
-    fetchTalentSetting({ admin, userId }),
-    countAdditionalOnboardingQuestionSelections({
-      admin,
-      conversationId,
-    }),
-    fetchTalentStructuredProfile({
-      admin,
-      userId,
-      talentUser: profile,
-    }),
-    fetchRecentMessagesWithSummary({
-      admin,
-      conversationId,
-      recentLimit: 12,
-      userId,
-    }),
-    fetchRecentTalentActivitySummaries({
-      admin,
-      limit: 5,
-      userId,
-    }),
-  ]);
-
-  const structuredProfileText = buildTalentProfileContext({
-    profile,
-    structuredProfile,
-    setting: talentSetting,
-    maxResumeChars: 3000,
-  });
-  const currentInsightContent = (currentInsights?.content ?? null) as Record<
-    string,
-    string
-  > | null;
-  const currentPreferences = {
-    engagementTypes: talentSetting?.engagement_types ?? [],
-    preferredLocations: talentSetting?.preferred_locations ?? [],
-    careerMoveIntent: talentSetting?.career_move_intent ?? null,
-    careerMoveIntentLabel: getTalentCareerMoveIntentLabel(
-      talentSetting?.career_move_intent ?? null
-    ),
-    periodicIntervalDays: talentSetting?.periodic_interval_days ?? null,
-    recommendationBatchSize: talentSetting?.recommendation_batch_size ?? null,
-  };
-  const toolDefinitions = getOpenAIChatTools("chat").filter((tool) =>
-    SESSION_GREETING_TOOL_NAMES.has(tool.function.name)
-  );
-  const { promptBlocks } = buildCareerTextChatPromptBlocks({
-    additionalQuestionSelectionCount,
-    currentInsightContent,
-    currentPreferences,
-    isOnboardingDone: talentSetting?.is_onboarding_done,
-    profile,
-    recentActivitySummaries,
-    sessionStartInstruction: buildSessionStartInstruction({
+  const result = await runCareerChatTurn({
+    admin,
+    conversationId,
+    noMessageMarker: SESSION_GREETING_NO_MESSAGE_MARKER,
+    proactiveContext: buildSessionStartInstruction({
       currentAccessAt,
       idleMs,
       previousChatAt,
     }),
-    structuredProfileText,
-    toolNames: toolDefinitions.map((tool) => tool.function.name),
-  });
-  const llmMessages = recentMessages
-    .map((item) => ({
-      role: item.role as "user" | "assistant",
-      content: item.content,
-    }))
-    .filter((item) => item.content.trim().length > 0);
-
-  llmMessages.push({
-    role: "user",
-    content:
-      `[Career session event] 사용자가 방금 Career 화면에 다시 접속했습니다. 새 메시지는 아직 보내지 않았습니다. 위 Session-start assistant turn 지시에 따라 필요하면 먼저 짧게 말하고, 아무 말도 하지 않는 게 맞으면 ${SESSION_GREETING_NO_MESSAGE_MARKER} 만 출력하세요.`,
+    userId,
   });
 
-  const assistantText = await runCareerChatAssistant({
-    executeTool: ({ name, input }) =>
-      executeTalentTool({
-        context: {
-          admin,
-          conversationId,
-          userId,
-        },
-        input,
-        logging: false,
-        name,
-      }),
-    messages: llmMessages,
-    stopAfterToolNames: getStopAfterTalentToolNames("chat").filter((name) =>
-      SESSION_GREETING_TOOL_NAMES.has(name)
-    ),
-    systemBlocks: promptBlocks,
-    tools: toolDefinitions,
-  });
-
-  return normalizeSessionStartGreeting(assistantText);
+  return result.assistantMessage?.content ?? null;
 }
 
 export async function GET(req: NextRequest) {
@@ -270,7 +146,6 @@ export async function GET(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    await warmCache();
 
     const admin = getTalentSupabaseAdmin();
     await ensureTalentUserRecord({ admin, user });
@@ -400,10 +275,7 @@ export async function GET(req: NextRequest) {
               .from("talent_messages")
               .select("id, created_at")
               .eq("conversation_id", conversation.id)
-              .eq(
-                "message_type",
-                TALENT_MESSAGE_TYPE_SESSION_REENGAGEMENT_SKIP
-              )
+              .eq("message_type", TALENT_MESSAGE_TYPE_SESSION_REENGAGEMENT_SKIP)
               .order("id", { ascending: false })
               .limit(1)
               .maybeSingle(),
@@ -449,28 +321,27 @@ export async function GET(req: NextRequest) {
             currentAccessAt: now,
             idleMs,
             previousChatAt: latestChatMessage?.created_at ?? null,
-            profile,
             userId: user.id,
           });
 
-          const { error: insertReengagementError } = await admin
-            .from("talent_messages")
-            .insert({
-              conversation_id: conversation.id,
-              user_id: user.id,
-              role: "assistant",
-              content: assistantContent ?? SESSION_GREETING_NO_MESSAGE_MARKER,
-              message_type: assistantContent
-                ? "chat"
-                : TALENT_MESSAGE_TYPE_SESSION_REENGAGEMENT_SKIP,
-              created_at: now,
-            });
+          if (!assistantContent) {
+            const { error: insertReengagementError } = await admin
+              .from("talent_messages")
+              .insert({
+                conversation_id: conversation.id,
+                user_id: user.id,
+                role: "assistant",
+                content: SESSION_GREETING_NO_MESSAGE_MARKER,
+                message_type: TALENT_MESSAGE_TYPE_SESSION_REENGAGEMENT_SKIP,
+                created_at: now,
+              });
 
-          if (insertReengagementError) {
-            throw new Error(
-              insertReengagementError.message ??
-                "Failed to insert re-engagement message"
-            );
+            if (insertReengagementError) {
+              throw new Error(
+                insertReengagementError.message ??
+                  "Failed to insert re-engagement skip"
+              );
+            }
           }
 
           const { data: updatedConversation, error: updateConversationError } =

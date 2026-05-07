@@ -35,7 +35,17 @@ import {
 const SILENT_WAV_DATA_URI =
   "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAAZGF0YQQAAAAAAA==";
 const DEFAULT_CALL_OPENING_TEXT =
-  "좋아요, 이제 통화로 이어서 이야기해볼게요. 편하게 말씀해 주세요.";
+  "안녕하세요, 직접 통화로 이야기하게 되어 좋네요. 최근에 달라진 우선순위가 있으면 거기서 시작해도 좋고, 아니면 지금까지의 역할이나 경험 중 회사들이 꼭 알아야 할 부분부터 편하게 들려주세요. 정보가 많을수록 더 잘 맞는 연결 요청이나 기회를 골라드릴 수 있어요.";
+const CALL_OPENING_RESPONSE_INSTRUCTION = [
+  "통화가 방금 시작되었습니다. 사용자가 먼저 할 말을 찾지 않아도 되도록 Harper가 먼저 대화를 시작하세요.",
+  "도구는 사용하지 마세요. 지금은 통화 시작 인사와 첫 질문만 합니다.",
+  "한국어 존댓말로, 실제 전화 첫마디처럼 자연스럽게 말하세요.",
+  "1-3문장으로 짧게 말하고, 마지막은 사용자가 바로 답할 수 있는 하나의 질문으로 끝내세요.",
+  "최근 대화나 활동 맥락이 보이면 구체적으로 연결하세요. 예를 들어 최근 연결 제안을 거절했거나 추천에 피드백을 남겼다면, 그 이후 달라진 점이 있는지 물어보세요.",
+  "구체적 맥락이 약하면 최근에 달라진 우선순위, 현재 역할/경험 중 더 알려줄 부분, 개인적인 선호나 제약 중 하나를 물어보세요.",
+  "많은 정보를 들려줄수록 회사 연결 요청이나 맞춤 기회 추천이 더 정확해진다는 취지를 한 번만 짧게 말하고, 함께 헤드헌터의 입장에서 할만한 질문을 던져도 됩니다.",
+  "만약 직전의 대화가 5분, 10분 이내로 최근이라면, ~~를 얘기했었는데 이어서 할까요? 정도로만 말해도 됩니다.",
+].join("\n");
 
 type SendChatArgs = {
   channel?: "chat" | "voice";
@@ -462,6 +472,9 @@ export const useCareerOnboardingVoice = ({
   const inputModeRef = useRef<string>("text");
   const fetchWithAuthRef = useRef(fetchWithAuth);
   const generateSpeechRef = useRef<((text: string) => void) | null>(null);
+  const generateSpeechFromInstructionsRef = useRef<
+    ((instructions: string) => void) | null
+  >(null);
   const realtimeSessionRef = useRef<ReturnType<
     typeof useRealtimeSession
   > | null>(null);
@@ -559,6 +572,9 @@ export const useCareerOnboardingVoice = ({
           if (suppressNextAssistantDoneRef.current) {
             finalizeCallAssistantTranscriptRef.current?.(cleanText);
             suppressNextAssistantDoneRef.current = false;
+            if (USE_ELEVENLABS_TTS) {
+              void playElevenLabsTts(cleanText);
+            }
             return;
           }
           pendingAssistantDoneRef.current = {
@@ -780,6 +796,11 @@ export const useCareerOnboardingVoice = ({
   useEffect(() => {
     generateSpeechRef.current = realtimeSession.generateSpeech;
   }, [realtimeSession.generateSpeech]);
+
+  useEffect(() => {
+    generateSpeechFromInstructionsRef.current =
+      realtimeSession.generateSpeechFromInstructions;
+  }, [realtimeSession.generateSpeechFromInstructions]);
 
   useEffect(() => {
     forceEndCallModeRef.current = endCallMode;
@@ -1049,29 +1070,54 @@ export const useCareerOnboardingVoice = ({
         callStartedAtRef.current = Date.now();
 
         if (!shouldBeginOnboarding) {
-          const openingText =
-            customOpeningText?.trim() || DEFAULT_CALL_OPENING_TEXT;
+          const openingText = customOpeningText?.trim();
 
-          if (USE_ELEVENLABS_TTS) {
-            addCallTranscriptEntryRef.current?.("assistant", openingText);
-            void playElevenLabsTts(openingText);
-            sendRealtimeEvent({
-              type: "conversation.item.create",
-              item: {
-                type: "message",
-                role: "assistant",
-                content: [{ type: "text", text: openingText }],
-              },
-            });
-          } else {
+          if (openingText) {
+            if (USE_ELEVENLABS_TTS) {
+              addCallTranscriptEntryRef.current?.("assistant", openingText);
+              void playElevenLabsTts(openingText);
+              sendRealtimeEvent({
+                type: "conversation.item.create",
+                item: {
+                  type: "message",
+                  role: "assistant",
+                  content: [{ type: "text", text: openingText }],
+                },
+              });
+            } else {
+              suppressNextAssistantDoneRef.current = true;
+              generateSpeechRef.current?.(openingText);
+            }
+          } else if (generateSpeechFromInstructionsRef.current) {
             suppressNextAssistantDoneRef.current = true;
-            generateSpeechRef.current?.(openingText);
+            generateSpeechFromInstructionsRef.current(
+              CALL_OPENING_RESPONSE_INSTRUCTION
+            );
+          } else {
+            if (USE_ELEVENLABS_TTS) {
+              addCallTranscriptEntryRef.current?.(
+                "assistant",
+                DEFAULT_CALL_OPENING_TEXT
+              );
+              void playElevenLabsTts(DEFAULT_CALL_OPENING_TEXT);
+              sendRealtimeEvent({
+                type: "conversation.item.create",
+                item: {
+                  type: "message",
+                  role: "assistant",
+                  content: [{ type: "text", text: DEFAULT_CALL_OPENING_TEXT }],
+                },
+              });
+            } else {
+              suppressNextAssistantDoneRef.current = true;
+              generateSpeechRef.current?.(DEFAULT_CALL_OPENING_TEXT);
+            }
           }
           return true;
         }
 
         const greetingText =
-          "안녕하세요, 하퍼입니다. 오늘 커리어에 대해 이야기 나눠볼게요. 편하게 말씀해 주세요!";
+          "안녕하세요, 직접 통화로 이야기하게 되어 좋네요. 제가 먼저 하나씩 여쭤볼게요. 편하게 답해주시면 더 잘 맞는 기회를 찾는 데 도움이 됩니다.";
         const followUpText = openingAssistantMessage?.content.trim();
         const openingText = followUpText
           ? `${greetingText}\n\n${followUpText}`
@@ -1128,6 +1174,13 @@ export const useCareerOnboardingVoice = ({
     endCallMode();
 
     if (!conversationId) {
+      return;
+    }
+
+    const hasUserSpeech = transcript.some(
+      (entry) => entry.role === "user" && entry.text.trim().length > 0
+    );
+    if (!hasUserSpeech) {
       return;
     }
 

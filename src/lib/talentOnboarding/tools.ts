@@ -180,7 +180,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION]: {
     name: TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION,
     description:
-      "Internal onboarding selector. Use only during career onboarding Additional questions phase. It reads the user's profile, recent conversation, current insights, and optional latestUserMessage, then selects the single best next additional onboarding question. Prefer concrete profile gaps, especially substantial experience rows with empty description/memo; do not repeatedly ask broad desired role/tech-stack preference questions. After the tool returns, ask exactly the returned assistantMessage naturally and do not close onboarding in the same response.",
+      "Internal onboarding selector. Use only during career onboarding Additional questions phase. It reads the user's profile, recent conversation, current insights, and optional latestUserMessage, then selects the single best next additional onboarding question. Prefer concrete profile gaps, especially substantial experience rows with empty description/memo; do not repeatedly ask broad desired role/tech-stack preference questions. If shouldAsk is true, ask exactly the returned assistantMessage naturally. If shouldAsk is false, use assistantMessage as the final priority confirmation. Do not close onboarding in the same response.",
     parameters: {
       type: "object",
       properties: {
@@ -1155,6 +1155,9 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
 
       const talentInsightKeys = Object.keys(updatedTalentInsights);
       const insightSummary = buildInsightActivitySummary(talentInsightKeys);
+      const insightChangeSummary = optionalToolString(
+        talentInsightsInput?.changeSummary
+      );
       const insightImpactLevel = insightSummary
         ? normalizeToolImpactLevel(talentInsightsInput?.impactLevel) ?? "high"
         : null;
@@ -1167,14 +1170,14 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           impactLevel: insightImpactLevel ?? "high",
           messageId: context?.userMessageId ?? null,
           metadata: {
-            changeSummary: optionalToolString(
-              talentInsightsInput?.changeSummary
-            ),
+            changeSummary: insightChangeSummary,
             changes: updatedTalentInsights,
           },
           relatedEntityType: "talent_insights",
           source: "chat",
-          summary: insightSummary,
+          summary: insightChangeSummary
+            ? `${insightSummary} Change summary: ${insightChangeSummary}`
+            : insightSummary,
           userId,
         });
       }
@@ -1193,7 +1196,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const recommendationTrigger = shouldRecommendJobPostings
         ? {
             changeSummary:
-              optionalToolString(talentInsightsInput?.changeSummary) ??
+              insightChangeSummary ??
               preferenceSummary ??
               insightSummary ??
               "사용자의 추천 조건에 큰 변경이 생겼습니다.",

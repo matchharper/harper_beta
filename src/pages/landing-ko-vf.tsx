@@ -465,7 +465,7 @@ function VoiceBar({ active, done }: { active: boolean; done: boolean }) {
           />
         ))}
       </div>
-      <span className="text-[11px]">0:28</span>
+      <span className="text-[13px]">0:28</span>
     </motion.div>
   );
 }
@@ -522,7 +522,7 @@ function ChatMatchCard({
           {match.role}
         </div>
       </div>
-      <div className="shrink-0 text-[11px] font-medium text-beige700">
+      <div className="shrink-0 text-[13px] font-medium text-beige700">
         {match.fit}
       </div>
     </div>
@@ -579,7 +579,7 @@ function HarperReport({
               <div className="font-halant text-[22px] leading-[1.15] text-beige900 md:text-2xl">
                 <em className="text-beige700">Anthropic</em> — Harper 리포트
               </div>
-              <div className="mt-1 text-[11px] text-beige900/55">
+              <div className="mt-1 text-[13px] text-beige900/55">
                 2021년 설립 · 샌프란시스코 본사 · H-1B·O-1 스폰서
               </div>
             </div>
@@ -588,7 +588,7 @@ function HarperReport({
             <span className="rounded-full bg-beige900 px-3 py-1 text-[10.5px] font-medium text-beige50">
               Series G
             </span>
-            <span className="text-[11px] text-beige900/45">4분 소요</span>
+            <span className="text-[13px] text-beige900/45">4분 소요</span>
           </div>
         </div>
       </ReportItem>
@@ -620,9 +620,9 @@ function HarperReport({
         visibleCount={reportItemsVisible}
         className="border-b border-beige900/10 py-4"
       >
-        <div className="mb-3 flex items-baseline justify-between gap-3 text-[11px] text-beige900/50">
+        <div className="mb-3 flex items-baseline justify-between gap-3 text-[13px] text-beige900/50">
           <span>펀딩 히스토리</span>
-          <span className="font-halant text-xs italic text-beige900/70">
+          <span className="font-halant text-[13px] italic text-beige900/80">
             누적 $58B+ 투자 유치
           </span>
         </div>
@@ -729,7 +729,7 @@ function HarperReport({
               className="grid grid-cols-[1fr_auto] gap-3 border-b border-dashed border-beige900/10 py-1.5 last:border-b-0"
             >
               <span className="font-medium text-beige900">{name}</span>
-              <span className="text-xs italic text-beige900/45">
+              <span className="text-[13px] italic text-beige900/45">
                 {previous}
               </span>
             </div>
@@ -794,9 +794,9 @@ function ReportSection({
     <ReportItem
       index={index}
       visibleCount={visibleCount}
-      className="grid grid-cols-1 gap-2 border-b border-beige900/10 py-3 text-[13px] leading-[1.65] text-beige900/70 md:grid-cols-[120px_1fr] md:gap-4 md:text-sm"
+      className="grid grid-cols-1 gap-2 border-b border-beige900/10 py-3 text-[13px] leading-[1.65] text-beige900/80 md:grid-cols-[120px_1fr] md:gap-4 md:text-sm"
     >
-      <div className="pt-0.5 text-[11px] text-beige900/45">{label}</div>
+      <div className="pt-0.5 text-[13px] text-beige900/45">{label}</div>
       <div>{children}</div>
     </ReportItem>
   );
@@ -1014,25 +1014,28 @@ function DemoSection() {
       className="bg-gradient-to-b from-beige100 to-beige50 px-4 py-16 text-center md:px-10 md:py-24"
     >
       <Reveal once>
-        <div className="text-[11px] font-medium text-beige700">
+        {/* <div className="text-[13px] font-medium text-beige700">
           채팅과 음성으로 작동하는 프라이빗 인터페이스
-        </div>
-        <h2 className="mx-auto mt-4 max-w-[820px] font-halant text-[26px] leading-[1.18] text-beige900 md:text-[42px]">
-          “이런 포지션 찾아줘” <em className="text-beige700">가벼운 대화</em> 한
-          번이면 충분합니다.
+        </div> */}
+        <h2 className="mx-auto mt-4 max-w-[820px] font-halant font-medium text-[26px] leading-[1.3] text-beige900 md:text-[2.4rem]">
+          “이런 포지션 찾아줘”
+          <br />
+          <span className="text-beige700">가벼운 대화</span> 한 번이면
+          충분합니다.
         </h2>
-        <p className="mx-auto mt-4 max-w-[720px] text-sm leading-[1.75] text-beige900/70">
+        <p className="mx-auto mt-4 max-w-[720px] text-[15px] leading-[1.75] text-beige900/80">
           링크드인이나 채용 사이트를 뒤지며 비자 스폰서가 가능한 스타트업을
-          일일이 리서치할 필요가 없습니다. 원하는 조건을 가볍게 이야기해 두기만
-          하면 Harper가 글로벌 시장을 스캔해 풀타임, 파트타임, 어드바이저리,
-          단기 자문까지 대화창으로 바로 가져옵니다.
+          일일이 리서치할 필요가 없습니다.
+          <br />
+          원하는 조건을 가볍게 이야기해 두기만 하면 Harper가 모든 기회를 스캔해
+          풀타임, 파트타임, 어드바이저리, 단기 자문까지 찾아 알려드립니다.
         </p>
       </Reveal>
 
       <div className="mx-auto mt-12 grid max-w-[1180px] grid-cols-1 items-start gap-10 lg:grid-cols-[460px_1fr]">
         <Reveal once direction="left" className="min-w-0">
           <div className="text-left">
-            <div className="mb-2 text-[11px] font-medium text-beige900/50">
+            <div className="mb-2 text-[13px] font-medium text-beige900/50">
               Harper와의 대화
             </div>
             <div
@@ -1047,7 +1050,7 @@ function DemoSection() {
                   <div className="text-[13px] font-medium text-beige50">
                     Harper · 내 agent
                   </div>
-                  <div className="flex items-center gap-1.5 text-[11px] text-beige700">
+                  <div className="flex items-center gap-1.5 text-[13px] text-beige700">
                     <motion.span
                       animate={{ opacity: [1, 0.3, 1] }}
                       transition={{ duration: 1.5, repeat: Infinity }}
@@ -1152,7 +1155,7 @@ function DemoSection() {
                       Series C AI 스타트업 · 1시간 통화 · 이번 주 가능
                     </div>
                   </div>
-                  <div className="text-[11px] font-medium text-beige700">
+                  <div className="text-[13px] font-medium text-beige700">
                     $500 / 1h
                   </div>
                 </div>
@@ -1203,7 +1206,7 @@ function DemoSection() {
         <Reveal once direction="right" className="min-w-0">
           <div className="text-left lg:sticky lg:top-[96px]">
             <div
-              className={`mb-2 text-[11px] font-medium text-beige900/50 transition ${
+              className={`mb-2 text-[13px] font-medium text-beige900/50 transition ${
                 reportVisible ? "opacity-100" : "opacity-60"
               }`}
             >
@@ -1287,11 +1290,11 @@ function WorkflowVisual({
               <span className="text-[12.5px] font-semibold text-beige900">
                 {company}
               </span>
-              <span className="font-halant text-[11px] italic text-beige700">
+              <span className="font-halant text-[13px] italic text-beige700">
                 {fit}
               </span>
             </div>
-            <div className="mt-1 text-[11px] leading-snug text-beige900/55">
+            <div className="mt-1 text-[13px] leading-snug text-beige900/55">
               {body}
             </div>
           </div>
@@ -1327,14 +1330,14 @@ function WorkflowVisual({
           />
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-2">
-              <span className="truncate text-[11px] font-semibold text-beige900">
+              <span className="truncate text-[13px] font-semibold text-beige900">
                 {sender}
               </span>
               <span className="shrink-0 text-[10px] text-beige900/40">
                 {time}
               </span>
             </div>
-            <div className="mt-0.5 truncate text-xs font-semibold text-beige900">
+            <div className="mt-0.5 truncate text-[13px] font-semibold text-beige900">
               {title}
             </div>
             <div className="mt-0.5 truncate text-[10.5px] text-beige900/55">
@@ -1396,25 +1399,29 @@ export default function LandingKoVfPage() {
         <AppBar />
 
         <main key={revealPass}>
-          <section className="flex flex-col items-center justify-center px-4 pb-14 pt-[112px] text-center md:px-10 md:pb-20 md:pt-[28vh]">
+          <section className="flex flex-col items-center justify-center px-4 pb-14 pt-[112px] text-center md:px-10 md:pb-20 md:pt-[24vh]">
             <Reveal once delay={0.06}>
-              <div className="text-[11px] font-medium text-beige900/50">
+              <div className="text-[13px] font-medium text-beige900/50">
                 탤런트만을 위해 설계된 AI 커리어 agent
               </div>
             </Reveal>
             <Reveal once delay={0.18} className="mt-6">
-              <h1 className="mx-auto max-w-[980px] font-halant text-[34px] leading-[1.1] text-beige900 sm:text-[44px] md:text-[54px]">
+              <h1 className="mx-auto max-w-[980px] font-halant font-medium text-[34px] leading-[1.1] text-beige900 sm:text-[44px] md:text-[3rem]">
                 <span className="block">나를 위한 완벽한 기회,</span>
                 <span className="mt-1 block">
-                  이제 <em className="text-beige700">agent</em>가 찾아옵니다.
+                  이제 <em className="text-beige700">Agent</em>가 찾아옵니다.
                 </span>
               </h1>
             </Reveal>
             <Reveal once delay={0.32}>
-              <p className="mx-auto mt-5 max-w-[620px] text-[15px] leading-[1.75] text-beige900/70 md:text-base">
-                수많은 채용 공고와 무의미한 제안 사이에서 시간을 낭비하지
-                마세요. 당신의 기준과 야망을 이해하고, 가장 완벽한 기회만 선별해
-                가져오는 나만의 전담 커리어 agent입니다.
+              <p className="mx-auto mt-5 max-w-[620px] text-[15px] leading-[1.75] text-beige900/80 md:text-base">
+                수많은 채용 공고와 무의미한 이직 제안 사이에서 시간을 낭비하지
+                마세요.
+                <br />
+                당신의 기준과 야망을 이해하고, 가장 완벽한 기회만 선별해
+                가져오는
+                <br />
+                나만의 전담 커리어 agent입니다.
               </p>
             </Reveal>
             <Reveal once delay={0.46} className="mt-8">
@@ -1440,7 +1447,7 @@ export default function LandingKoVfPage() {
           >
             <Reveal once>
               <div className="mx-auto max-w-[860px]">
-                <div className="text-xs font-medium text-beige700">
+                <div className="text-[13px] font-medium text-beige700">
                   이렇게 작동합니다
                 </div>
                 <h2 className="mt-5 font-halant text-[28px] leading-[1.15] text-beige900 md:text-[44px]">
@@ -1448,7 +1455,7 @@ export default function LandingKoVfPage() {
                   <em className="text-beige700">Founder에게 직접 소개</em>
                   까지.
                 </h2>
-                <p className="mx-auto mt-4 max-w-[680px] text-[15px] leading-[1.7] text-beige900/70">
+                <p className="mx-auto mt-4 max-w-[680px] text-[15px] leading-[1.7] text-beige900/80">
                   채용 공고를 뒤지고, 지원하고, 또 기다리고. 반복되는 구직의
                   피로는 이제 끝. Harper가 하는 일은 딱 세 단계예요.
                 </p>
@@ -1468,7 +1475,7 @@ export default function LandingKoVfPage() {
                         {card.title}
                       </h3>
                     </div>
-                    <p className="mt-3 text-sm leading-[1.7] text-beige900/70">
+                    <p className="mt-3 text-sm leading-[1.7] text-beige900/80">
                       {card.body}
                     </p>
                   </div>
@@ -1479,7 +1486,7 @@ export default function LandingKoVfPage() {
 
           <section className="mx-auto max-w-[1400px] border-t border-beige900/10 px-4 py-20 text-center md:px-10 md:py-32">
             <Reveal once>
-              <div className="text-xs font-medium text-beige700">
+              <div className="text-[13px] font-medium text-beige700">
                 당신이 목표한 최고의 모습, 그곳을 향해 함께 뛰는 agent
               </div>
             </Reveal>
@@ -1496,7 +1503,7 @@ export default function LandingKoVfPage() {
               </h2>
             </Reveal>
             <Reveal once delay={0.16}>
-              <p className="mx-auto mt-10 max-w-[720px] text-[15px] leading-[1.85] text-beige900/70 md:text-[17px]">
+              <p className="mx-auto mt-10 max-w-[720px] text-[15px] leading-[1.85] text-beige900/80 md:text-[17px]">
                 뛰어난 선수가 경기에만 집중하듯, 당신은 지금의 일과 성장에만
                 집중하세요. 다음 무대를 찾고 조율하는 건 agent의 몫입니다.
                 수수료를 위해 기업 편에 서는 리크루터와 달리, Harper는 철저히
@@ -1518,7 +1525,7 @@ export default function LandingKoVfPage() {
                   <br />
                   이렇게 달라요.
                 </h2>
-                <p className="max-w-[460px] text-[15px] text-right leading-[1.75] text-beige900/70 md:text-base">
+                <p className="max-w-[460px] text-[15px] text-right leading-[1.75] text-beige900/80 md:text-base">
                   지금까지 받아오신 리크루터 연락, 채용 공고, LinkedIn DM과
                   Harper가 다른 네 가지 지점.
                 </p>
@@ -1535,7 +1542,7 @@ export default function LandingKoVfPage() {
                     <h3 className="font-halant text-[22px] font-medium leading-[1.2] text-beige900 md:text-[30px]">
                       {row.title}
                     </h3>
-                    <p className="text-[15px] leading-[1.75] text-beige900/70">
+                    <p className="text-[15px] leading-[1.75] text-beige900/80">
                       {row.body}
                     </p>
                   </div>
@@ -1550,7 +1557,7 @@ export default function LandingKoVfPage() {
           >
             <div className="mx-auto max-w-[1200px]">
               <Reveal once>
-                <div className="text-xs font-medium text-beige700">
+                <div className="text-[13px] font-medium text-beige700">
                   먼저 경험한 탤런트들의 이야기
                 </div>
                 <h2 className="mt-5 max-w-[860px] font-halant text-[28px] leading-[1.15] md:text-[44px]">
@@ -1577,7 +1584,7 @@ export default function LandingKoVfPage() {
                           <div className="text-[13px] font-medium">
                             {voice.name}
                           </div>
-                          <div className="text-[11px] text-beige200/50">
+                          <div className="text-[13px] text-beige200/50">
                             {voice.role}
                           </div>
                           {voice.status && (
@@ -1614,7 +1621,7 @@ export default function LandingKoVfPage() {
               </h2>
             </Reveal>
             <Reveal once delay={0.08}>
-              <p className="mx-auto mt-6 max-w-[620px] text-[15px] leading-[1.75] text-beige900/70 md:text-lg">
+              <p className="mx-auto mt-6 max-w-[620px] text-[15px] leading-[1.75] text-beige900/80 md:text-lg">
                 현재 Harper는 얼리 액세스를 신청하신 분들을 위해 순차적으로 문을
                 열어드리고 있습니다. 이메일을 남겨주시면, 탤런트만을 위해 시장을
                 스캔할 전담 agent를 가장 먼저 연결해 드릴게요.
@@ -1646,7 +1653,7 @@ export default function LandingKoVfPage() {
               )}
             </Reveal>
             <Reveal once delay={0.22}>
-              <div className="mt-5 text-xs text-beige900/45">
+              <div className="mt-5 text-[13px] text-beige900/45">
                 스팸 없음. 리크루터 없음. 정보 공유는 절대 없어요.
               </div>
             </Reveal>

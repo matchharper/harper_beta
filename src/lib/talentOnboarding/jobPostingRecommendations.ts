@@ -1,5 +1,6 @@
 import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
 import { fetchRecentMessagesWithSummary } from "@/lib/talentOnboarding/conversationSummary";
+import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 import {
   buildTalentProfileContext,
   fetchTalentInsights,
@@ -100,6 +101,7 @@ type EnrichedRankedRole = RankedRole & {
 };
 
 const MAX_SEARCH_RESULTS = 200;
+const BROADENED_SEARCH_CANDIDATE_THRESHOLD = 5;
 const FINAL_RECOMMENDATION_COUNT = 5;
 const CONTINUATION_RECOMMENDATION_BATCH_LIMIT = 10;
 const RECOMMEND_JOB_POSTINGS_MODEL_VERSION =
@@ -133,6 +135,10 @@ const COLUMN_SQL: Record<string, string> = {
 };
 
 const ARRAY_COLUMNS = new Set(["cr.type"]);
+const COMPANY_CONDITION_COLUMNS = new Set([
+  "company_workspace.company_name",
+  "company_db.name",
+]);
 const FTS_TEXT_CONDITION_COLUMNS = new Set([
   "company_roles.description",
   "company_roles.name",
@@ -192,6 +198,18 @@ Rules:
 - Keep values short search tokens, not whole sentences. Maximum 8 total conditions and 10 values per condition.
 - ftsKeywords should contain 2-8 high-signal concepts at most.
 - rerankCriteria must be 3-4 Korean sentences and should explain how to score fit, concerns, and prioritization.`;
+
+const BROADENED_PLAN_SYSTEM_PROMPT = `${PLAN_SYSTEM_PROMPT}
+
+Second-pass broadening rules:
+- You are creating a broader fallback SearchPlan after the first plan found too few roles.
+- Return the same JSON shape only.
+- This plan is still executed by the normal SQL builder: must conditions are ANDed, should conditions are soft preferences or fallback filters, and ftsKeywords are an ANDed retrieval filter when present. Do not rely on OR broadening across unrelated fields.
+- Preserve explicit hard constraints from the user, especially company names and exclusions. If the original plan targeted a specific company, the broader plan must still target that company.
+- For a specific company, prefer one company identity column, usually company_workspace.company_name. Do not duplicate the same company as separate must conditions across company_workspace.company_name and company_db.name unless both are truly required.
+- Broaden noisy role/domain matching by using fewer or broader ftsKeywords, or by moving preferences to rerankCriteria.
+- Prefer moving location, work_mode, type, and seniority preferences to should or rerankCriteria unless the user made them explicit hard filters.
+- Do not add weak generic terms like "full-time", "remote", or "US" as ftsKeywords.`;
 
 const RERANK_SYSTEM_PROMPT = `You are Harper's job recommendation reranker.
 Score each role from 0 to 10 for this specific user. Return JSON only.
@@ -715,6 +733,81 @@ function normalizePlan(raw: Record<string, unknown> | null): SearchPlan {
   };
 }
 
+function isCompanyCondition(condition: SearchCondition) {
+  return COMPANY_CONDITION_COLUMNS.has(condition.column);
+}
+
+function normalizedConditionKey(condition: SearchCondition) {
+  const values = condition.values
+    .map((value) => value.toLocaleLowerCase("ko-KR"))
+    .sort()
+    .join("\u0001");
+  return [condition.column, condition.mode, condition.polarity, values].join(
+    "\u0002"
+  );
+}
+
+function uniqueConditions(conditions: SearchCondition[]) {
+  const unique: SearchCondition[] = [];
+  const seen = new Set<string>();
+  for (const condition of conditions) {
+    const key = normalizedConditionKey(condition);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(condition);
+  }
+  return unique;
+}
+
+function preferredCompanyMustCondition(plan: SearchPlan) {
+  const companyMust = plan.must.filter(
+    (condition) =>
+      condition.polarity === "include" && isCompanyCondition(condition)
+  );
+  return (
+    companyMust.find(
+      (condition) => condition.column === "company_workspace.company_name"
+    ) ??
+    companyMust[0] ??
+    null
+  );
+}
+
+function preserveBroadenedHardConstraints(
+  originalPlan: SearchPlan,
+  broadenedPlan: SearchPlan
+) {
+  const must = [...broadenedPlan.must];
+  const hasBroadenedCompanyMust = must.some(
+    (condition) =>
+      condition.polarity === "include" && isCompanyCondition(condition)
+  );
+  const originalCompanyMust = preferredCompanyMustCondition(originalPlan);
+  if (originalCompanyMust && !hasBroadenedCompanyMust) {
+    must.unshift(originalCompanyMust);
+  }
+
+  must.push(
+    ...originalPlan.must.filter(
+      (condition) =>
+        !isCompanyCondition(condition) && !isPositiveFtsCondition(condition)
+    ),
+    ...originalPlan.should.filter(
+      (condition) => condition.polarity === "exclude"
+    )
+  );
+
+  return {
+    ...broadenedPlan,
+    must: uniqueConditions(must),
+    should: uniqueConditions(broadenedPlan.should),
+  };
+}
+
+function hasStrongRetrievalConstraints(plan: SearchPlan) {
+  return plan.ftsKeywords.length > 0 || plan.must.length > 0;
+}
+
 function sqlLiteral(value: string) {
   return `'${value.replace(/'/g, "''")}'`;
 }
@@ -823,7 +916,6 @@ function buildBlockedCompanySql(blockedCompanies: string[]) {
 function buildRoleSearchSql(args: {
   blockedCompanies: string[];
   plan: SearchPlan;
-  relaxed?: boolean;
 }) {
   const useFts = args.plan.ftsKeywords.length > 0;
   const ftsWhere = useFts ? ftsWhereSql(args.plan.ftsKeywords) : null;
@@ -843,20 +935,7 @@ function buildRoleSearchSql(args: {
     .map(conditionSql)
     .filter((sql): sql is string => Boolean(sql));
 
-  if (args.relaxed) {
-    const positiveWhere = args.plan.must
-      .concat(args.plan.should)
-      .filter((condition) => !(useFts && isPositiveFtsCondition(condition)))
-      .map(positiveConditionSql)
-      .filter((sql): sql is string => Boolean(sql));
-    const relaxedWhere = [ftsWhere, ...positiveWhere].filter(
-      (sql): sql is string => Boolean(sql)
-    );
-    if (relaxedWhere.length > 0) {
-      baseWhere.push(`(${relaxedWhere.join(" OR ")})`);
-    }
-    baseWhere.push(...excludeWhere);
-  } else if (useFts && ftsWhere) {
+  if (useFts && ftsWhere) {
     const mustWhere = args.plan.must
       .filter((condition) => !isPositiveFtsCondition(condition))
       .map(conditionSql)
@@ -929,7 +1008,6 @@ async function executeRoleSql(args: {
   admin: AdminClient;
   blockedCompanies: string[];
   plan: SearchPlan;
-  relaxed?: boolean;
 }) {
   const sql = buildRoleSearchSql(args);
   const { data, error } = await (args.admin.rpc(
@@ -982,7 +1060,10 @@ function formatRecentConversation(
     .slice(-16)
     .map((message) => {
       const role = message.role === "user" ? "User" : "Harper";
-      return `${role}: ${clampBlock(message.content, 700)}`;
+      return `${role}: ${clampBlock(
+        formatTalentMessageContentForLlmPrompt(message),
+        700
+      )}`;
     })
     .filter((line) => line.length > 8);
   return lines.length > 0 ? lines.join("\n") : "(none)";
@@ -1032,6 +1113,67 @@ async function buildSearchPlan(args: { request: string; userBrief: string }) {
   });
 
   return normalizePlan(parseJsonObject(raw));
+}
+
+async function buildBroadenedSearchPlan(args: {
+  originalPlan: SearchPlan;
+  request: string;
+  strictCandidateCount: number;
+  strictCandidates: RawRoleRow[];
+  userBrief: string;
+}) {
+  const raw = await runTalentAssistantCompletion({
+    fallbackModel: RECOMMEND_JOB_POSTINGS_FALLBACK_MODEL,
+    jsonMode: true,
+    messages: [
+      { role: "system", content: BROADENED_PLAN_SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: [
+          "Supabase schema:",
+          "- company_roles(role_id, company_workspace_id, name, description, information, opportunity_search_tsv, type, status, is_expired, location_text, work_mode, salary_range, source_type, source_provider, posted_at, expires_at, external_jd_url, priority, updated_at)",
+          "- company_workspace(company_workspace_id, company_name, company_description, homepage_url, career_url, linkedin_url, company_db_id)",
+          "- company_db(id, name, description, short_description, specialities, location, website_url, linkedin_url, founded_year, investors, funding, employee_count_range)",
+          "",
+          args.userBrief,
+          "",
+          "[Original request]",
+          clampBlock(args.request, 1200),
+          "",
+          "[Original strict SearchPlan]",
+          JSON.stringify(args.originalPlan, null, 2),
+          "",
+          "[Strict search result]",
+          `candidateCount=${args.strictCandidateCount}`,
+          JSON.stringify(
+            args.strictCandidates.slice(0, 5).map(rolePreview),
+            null,
+            2
+          ),
+          "",
+          "Return a broader second-pass SearchPlan that can find additional plausible roles without dropping explicit hard constraints.",
+        ].join("\n"),
+      },
+    ],
+    primaryModel: RECOMMEND_JOB_POSTINGS_PRIMARY_MODEL,
+    temperature: 0.2,
+  });
+
+  const normalized = normalizePlan(parseJsonObject(raw));
+  const broadened = preserveBroadenedHardConstraints(
+    args.originalPlan,
+    normalized
+  );
+  debugLog("broadened search plan raw", {
+    normalized,
+    originalPlan: args.originalPlan,
+    raw: raw.slice(0, 4000),
+    strictCandidateCount: args.strictCandidateCount,
+  });
+
+  return hasStrongRetrievalConstraints(broadened)
+    ? broadened
+    : args.originalPlan;
 }
 
 function formatRoleForPrompt(role: RawRoleRow, index: number) {
@@ -1337,82 +1479,6 @@ async function rerankRoleBatch(args: {
   return ranked
     .sort((left, right) => right.score - left.score)
     .slice(0, args.returnCount);
-}
-
-async function fillMissingExplanations(args: {
-  plan: SearchPlan;
-  recommendations: RankedRole[];
-  userBrief: string;
-}) {
-  const missing = args.recommendations.filter(
-    (item) => !cleanText(item.recommendationText, 80)
-  );
-  if (missing.length === 0) return args.recommendations;
-
-  const raw = await runTalentAssistantCompletion({
-    fallbackModel: RECOMMEND_JOB_POSTINGS_FALLBACK_MODEL,
-    jsonMode: true,
-    messages: [
-      { role: "system", content: EXPLANATION_SYSTEM_PROMPT },
-      {
-        role: "user",
-        content: [
-          args.userBrief,
-          "",
-          "[Reranking criteria]",
-          args.plan.rerankCriteria
-            .map((item, index) => `${index + 1}. ${item}`)
-            .join("\n"),
-          "",
-          "[Roles needing explanations]",
-          missing
-            .map((item, index) =>
-              [
-                formatRoleForPrompt(item.role, index),
-                `Score: ${item.score}`,
-                `Good points already found: ${item.goodPoints.join(", ") || "(none)"}`,
-                `Concerns already found: ${item.concerns.join(", ") || "(none)"}`,
-              ].join("\n")
-            )
-            .join("\n\n"),
-        ].join("\n"),
-      },
-    ],
-    primaryModel: RECOMMEND_JOB_POSTINGS_PRIMARY_MODEL,
-    temperature: 0.25,
-  });
-
-  const parsed = parseJsonObject(raw);
-  const explanations = Array.isArray(parsed?.explanations)
-    ? parsed?.explanations
-    : [];
-  const byId = new Map<string, Record<string, unknown>>();
-  for (const item of explanations) {
-    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
-    const record = item as Record<string, unknown>;
-    const roleId = cleanText(record.roleId, 120);
-    if (roleId) byId.set(roleId, record);
-  }
-
-  return args.recommendations.map((item) => {
-    const explanation = byId.get(item.roleId);
-    if (!explanation) return item;
-    return {
-      ...item,
-      concerns:
-        item.concerns.length > 0
-          ? item.concerns
-          : asStringArray(explanation.concerns, 4, 180),
-      goodPoints:
-        item.goodPoints.length > 0
-          ? item.goodPoints
-          : asStringArray(explanation.goodPoints, 4, 180),
-      recommendationText:
-        item.recommendationText ||
-        cleanText(explanation.recommendationText, 700) ||
-        null,
-    };
-  });
 }
 
 function fallbackRecommendationText(item: RankedRole) {
@@ -1809,7 +1875,7 @@ export async function runCareerJobPostingRecommendations(args: {
     profileText,
     recentMessages,
   });
-  const plan = await buildSearchPlan({ request, userBrief });
+  let plan = await buildSearchPlan({ request, userBrief });
   const blockedCompanies = normalizeTalentBlockedCompanies(
     setting?.blocked_companies ?? []
   );
@@ -1848,25 +1914,33 @@ export async function runCareerJobPostingRecommendations(args: {
     sql: search.sql,
   });
   const conditions = plan.must.concat(plan.should);
-  const hasHardStructuredFilter = plan.must.some(
-    (condition) =>
-      condition.polarity === "include" && !isPositiveFtsCondition(condition)
-  );
-  const shouldRunRelaxedSearch =
+  const shouldRunBroadenedSearch =
     conditions.length > 0 &&
-    (search.rows.length < 10 ||
-      (plan.ftsKeywords.length > 0 &&
-        hasHardStructuredFilter &&
-        search.rows.length < MAX_SEARCH_RESULTS));
+    search.rows.length <= BROADENED_SEARCH_CANDIDATE_THRESHOLD;
 
-  if (shouldRunRelaxedSearch) {
-    const relaxedSearch = await executeRoleSql({
+  if (shouldRunBroadenedSearch) {
+    const broadenedPlan = await buildBroadenedSearchPlan({
+      originalPlan: plan,
+      request,
+      strictCandidateCount: search.rows.length,
+      strictCandidates: search.rows,
+      userBrief,
+    });
+    infoJson("broadened search plan", {
+      ftsKeywords: broadenedPlan.ftsKeywords,
+      must: broadenedPlan.must,
+      rerankCriteria: broadenedPlan.rerankCriteria,
+      searchIntentSummary: broadenedPlan.searchIntentSummary,
+      should: broadenedPlan.should,
+      strictCandidateCount: search.rows.length,
+    });
+
+    const broadenedSearch = await executeRoleSql({
       admin: args.admin,
       blockedCompanies,
-      plan,
-      relaxed: true,
+      plan: broadenedPlan,
     });
-    const mergedRows = mergeRoleRows(search.rows, relaxedSearch.rows).slice(
+    const mergedRows = mergeRoleRows(search.rows, broadenedSearch.rows).slice(
       0,
       MAX_SEARCH_RESULTS
     );
@@ -1876,13 +1950,14 @@ export async function runCareerJobPostingRecommendations(args: {
     ) {
       search = {
         ...search,
-        rawRows: search.rawRows.concat(relaxedSearch.rawRows),
+        rawRows: search.rawRows.concat(broadenedSearch.rawRows),
         rows: mergedRows,
         rpcContainerCount: null,
-        sql: `${search.sql}\n\n-- relaxed candidate backfill\n${relaxedSearch.sql}`,
+        sql: `${search.sql}\n\n-- broadened candidate backfill\n${broadenedSearch.sql}`,
       };
       relaxed = true;
-      infoJson("relaxed sql search", {
+      plan = broadenedPlan;
+      infoJson("broadened sql search", {
         addedCandidateCount: Math.max(
           0,
           mergedRows.length - strictCandidateCount
@@ -1894,7 +1969,7 @@ export async function runCareerJobPostingRecommendations(args: {
         rpcContainerCount: search.rpcContainerCount,
         strictCandidateCount,
       });
-      debugLog("relaxed sql search full", {
+      debugLog("broadened sql search full", {
         candidateCount: search.rows.length,
         rawCount: search.rawRows.length,
         rawRowsSample: search.rawRows.slice(0, 5),

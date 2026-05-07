@@ -11,11 +11,22 @@ export type WebSearchResponse = {
   results: WebSearchResult[];
 };
 
+const APIFY_SEARCH_LIMITS = [10, 20, 30, 40, 50, 100] as const;
+
 function clampCount(value: unknown, fallback: number) {
   const parsed =
-    typeof value === "number" ? value : Number.parseInt(String(value ?? ""), 10);
+    typeof value === "number"
+      ? value
+      : Number.parseInt(String(value ?? ""), 10);
   if (!Number.isFinite(parsed)) return fallback;
-  return Math.max(1, Math.min(8, parsed));
+  return Math.max(1, Math.min(100, parsed));
+}
+
+function toApifyLimit(maxResults: number) {
+  return (
+    APIFY_SEARCH_LIMITS.find((limit) => limit >= maxResults) ??
+    APIFY_SEARCH_LIMITS[APIFY_SEARCH_LIMITS.length - 1]
+  );
 }
 
 export async function runWebSearch(args: {
@@ -40,7 +51,7 @@ export async function runWebSearch(args: {
     language: "ko",
     country: "KR",
     page: 1,
-    limit: String(Math.max(maxResults, 5)),
+    limit: String(toApifyLimit(maxResults)),
     logger: null,
   });
 
