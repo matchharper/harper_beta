@@ -81,7 +81,7 @@ import {
 } from "@/lib/career/companySnapshot";
 import { logger } from "@/utils/logger";
 
-export const maxDuration = 60;
+export const maxDuration = 180;
 
 type Body = {
   channel?: string;
