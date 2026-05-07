@@ -828,10 +828,13 @@ function buildRoleSearchSql(args: {
   const useFts = args.plan.ftsKeywords.length > 0;
   const ftsWhere = useFts ? ftsWhereSql(args.plan.ftsKeywords) : null;
   const companyTestScoreRankSql = `COALESCE(cw.test_score, 0) / ${COMPANY_TEST_SCORE_SEARCH_RANK_DIVISOR}.0`;
-  const searchRankSql = `(${ftsRankSql(args.plan.ftsKeywords)} + ${softConditionRankSql(args.plan.must.concat(args.plan.should))} + ${companyTestScoreRankSql})`;
+  const effectiveCompanyQualityLabelSql = `COALESCE(cwql.human_quality_label, cwql.llm_quality_label)`;
+  const companyQualityLabelRankSql = `(CASE WHEN ${effectiveCompanyQualityLabelSql} = 2 THEN 0.25 ELSE 0 END)`;
+  const searchRankSql = `(${ftsRankSql(args.plan.ftsKeywords)} + ${softConditionRankSql(args.plan.must.concat(args.plan.should))} + ${companyTestScoreRankSql} + ${companyQualityLabelRankSql})`;
   const baseWhere = [
     "COALESCE(cr.is_expired, false) = false",
     "LOWER(COALESCE(cr.status, '')) NOT IN ('expired', 'closed', 'inactive', 'archived')",
+    `(${effectiveCompanyQualityLabelSql} IS NULL OR ${effectiveCompanyQualityLabelSql} <> 0)`,
     ...buildBlockedCompanySql(args.blockedCompanies),
   ];
   const excludeWhere = args.plan.must
@@ -910,6 +913,8 @@ JOIN public.company_workspace cw
   ON cw.company_workspace_id = cr.company_workspace_id
 LEFT JOIN public.company_db cd
   ON cd.id = cw.company_db_id
+LEFT JOIN public.company_workspace_quality_label cwql
+  ON cwql.company_workspace_id = cw.company_workspace_id
 WHERE ${baseWhere.join("\n  AND ")}
 ORDER BY
   search_rank DESC,

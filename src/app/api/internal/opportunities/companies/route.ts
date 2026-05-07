@@ -3,7 +3,10 @@ import {
   requireInternalApiUser,
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
-import type { OpsCompanyManagementEmployeeCountRangeFilter } from "@/lib/opsOpportunityCompanyManagement";
+import type {
+  OpsCompanyManagementEmployeeCountRangeFilter,
+  OpsCompanyManagementQualityLabelFilter,
+} from "@/lib/opsOpportunityCompanyManagement";
 import {
   fetchOpsCompanyManagementPage,
   updateOpsCompanyScrapeOriginal,
@@ -29,16 +32,26 @@ export async function GET(req: NextRequest) {
       searchParams.get("foundedYearMin") ?? ""
     ).trim();
     const hasCareerUrlOnly = searchParams.get("hasCareerUrlOnly") === "true";
+    const humanLabelMissingFirst =
+      searchParams.get("humanLabelMissingFirst") === "true";
+    const llmQualityLabelFirst =
+      searchParams.get("llmQualityLabelFirst") === "true";
+    const qualityLabel = String(searchParams.get("qualityLabel") ?? "")
+      .trim()
+      .toLowerCase() as OpsCompanyManagementQualityLabelFilter;
 
     const data = await fetchOpsCompanyManagementPage({
       companyName,
       employeeCountRange,
       foundedYearMin,
       hasCareerUrlOnly,
+      humanLabelMissingFirst,
       investors,
       limit,
+      llmQualityLabelFirst,
       location,
       offset,
+      qualityLabel,
     });
 
     return NextResponse.json(data);

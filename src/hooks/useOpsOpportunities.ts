@@ -6,9 +6,13 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
-import type { OpsCompanyManagementEmployeeCountRangeFilter } from "@/lib/opsOpportunityCompanyManagement";
+import type {
+  OpsCompanyManagementEmployeeCountRangeFilter,
+  OpsCompanyManagementQualityLabelFilter,
+} from "@/lib/opsOpportunityCompanyManagement";
 import { queryKeys } from "@/lib/queryKeys";
 import type {
+  OpsCompanyQualityLabel,
   OpsCompanyManagementPageResponse,
   OpsOpportunityCandidateSearchResponse,
   OpsOpportunityCatalogResponse,
@@ -108,6 +112,11 @@ type UpdateCompanyScrapeOriginalInput = {
   workspaceId: string;
 };
 
+type UpdateCompanyHumanQualityLabelInput = {
+  humanQualityLabel: OpsCompanyQualityLabel | null;
+  workspaceId: string;
+};
+
 export function useOpsOpportunityCatalog() {
   return useQuery({
     queryKey: queryKeys.opsOpportunity.catalog,
@@ -125,9 +134,12 @@ export function useOpsOpportunityCompanies(args: {
   employeeCountRange?: OpsCompanyManagementEmployeeCountRangeFilter | null;
   foundedYearMin?: number | string | null;
   hasCareerUrlOnly?: boolean;
+  humanLabelMissingFirst?: boolean;
   investors?: string | null;
   limit?: number;
+  llmQualityLabelFirst?: boolean;
   location?: string | null;
+  qualityLabel?: OpsCompanyManagementQualityLabelFilter | null;
 }) {
   const limit = Math.max(1, Math.min(Number(args.limit ?? 30) || 30, 80));
   const companyName = String(args.companyName ?? "").trim();
@@ -135,6 +147,9 @@ export function useOpsOpportunityCompanies(args: {
   const investors = String(args.investors ?? "").trim();
   const location = String(args.location ?? "").trim();
   const hasCareerUrlOnly = Boolean(args.hasCareerUrlOnly);
+  const humanLabelMissingFirst = Boolean(args.humanLabelMissingFirst);
+  const llmQualityLabelFirst = Boolean(args.llmQualityLabelFirst);
+  const qualityLabel = String(args.qualityLabel ?? "").trim();
   const foundedYearMinNumber = Number(args.foundedYearMin ?? "");
   const foundedYearMin =
     Number.isFinite(foundedYearMinNumber) && foundedYearMinNumber > 0
@@ -147,9 +162,12 @@ export function useOpsOpportunityCompanies(args: {
       employeeCountRange,
       foundedYearMin,
       hasCareerUrlOnly,
+      humanLabelMissingFirst,
       investors,
       limit,
+      llmQualityLabelFirst,
       location,
+      qualityLabel,
     }),
     initialPageParam: 0,
     queryFn: ({ pageParam }) => {
@@ -174,6 +192,15 @@ export function useOpsOpportunityCompanies(args: {
       if (hasCareerUrlOnly) {
         params.set("hasCareerUrlOnly", "true");
       }
+      if (humanLabelMissingFirst) {
+        params.set("humanLabelMissingFirst", "true");
+      }
+      if (llmQualityLabelFirst) {
+        params.set("llmQualityLabelFirst", "true");
+      }
+      if (qualityLabel) {
+        params.set("qualityLabel", qualityLabel);
+      }
 
       return fetchWithInternalAuth<OpsCompanyManagementPageResponse>(
         `/api/internal/opportunities/companies?${params.toString()}`
@@ -184,6 +211,100 @@ export function useOpsOpportunityCompanies(args: {
     staleTime: 30_000,
     gcTime: 5 * 60_000,
     refetchOnWindowFocus: false,
+  });
+}
+
+export function useUpdateOpsCompanyHumanQualityLabel() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: UpdateCompanyHumanQualityLabelInput) =>
+      fetchWithInternalAuth<{
+        effectiveQualityLabel: OpsCompanyQualityLabel | null;
+        humanQualityLabel: OpsCompanyQualityLabel | null;
+        humanQualityLabeledAt: string | null;
+        workspaceId: string;
+      }>("/api/internal/opportunities/companies/quality-label", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(input),
+      }),
+    onMutate: async (input) => {
+      await queryClient.cancelQueries({
+        queryKey: queryKeys.opsOpportunity.companiesAll,
+      });
+
+      const optimisticLabeledAt =
+        input.humanQualityLabel === null ? null : new Date().toISOString();
+
+      queryClient.setQueriesData<
+        InfiniteData<OpsCompanyManagementPageResponse>
+      >(
+        {
+          queryKey: queryKeys.opsOpportunity.companiesAll,
+        },
+        (current) => {
+          if (!current) return current;
+          return {
+            ...current,
+            pages: current.pages.map((page) => ({
+              ...page,
+              items: page.items.map((item) =>
+                item.companyWorkspaceId === input.workspaceId
+                  ? {
+                      ...item,
+                      effectiveQualityLabel:
+                        input.humanQualityLabel ?? item.llmQualityLabel,
+                      humanQualityLabel: input.humanQualityLabel,
+                      humanQualityLabeledAt: optimisticLabeledAt,
+                    }
+                  : item
+              ),
+            })),
+          };
+        }
+      );
+    },
+    onError: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.opsOpportunity.companiesAll,
+      });
+    },
+    onSuccess: (data) => {
+      queryClient.setQueriesData<
+        InfiniteData<OpsCompanyManagementPageResponse>
+      >(
+        {
+          queryKey: queryKeys.opsOpportunity.companiesAll,
+        },
+        (current) => {
+          if (!current) return current;
+          return {
+            ...current,
+            pages: current.pages.map((page) => ({
+              ...page,
+              items: page.items.map((item) =>
+                item.companyWorkspaceId === data.workspaceId
+                  ? {
+                      ...item,
+                      effectiveQualityLabel: data.effectiveQualityLabel,
+                      humanQualityLabel: data.humanQualityLabel,
+                      humanQualityLabeledAt: data.humanQualityLabeledAt,
+                    }
+                  : item
+              ),
+            })),
+          };
+        }
+      );
+    },
+    onSettled: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.opsOpportunity.companiesAll,
+      });
+    },
   });
 }
 

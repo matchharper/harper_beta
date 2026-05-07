@@ -48,9 +48,12 @@ export const queryKeys = {
       employeeCountRange?: string | null;
       foundedYearMin?: number | null;
       hasCareerUrlOnly?: boolean | null;
+      humanLabelMissingFirst?: boolean | null;
       investors?: string | null;
       limit?: number | null;
+      llmQualityLabelFirst?: boolean | null;
       location?: string | null;
+      qualityLabel?: string | null;
     }) =>
       [
         "opsOpportunity",
@@ -61,6 +64,9 @@ export const queryKeys = {
         filters?.investors ?? "",
         filters?.foundedYearMin ?? null,
         Boolean(filters?.hasCareerUrlOnly),
+        Boolean(filters?.humanLabelMissingFirst),
+        Boolean(filters?.llmQualityLabelFirst),
+        filters?.qualityLabel ?? "",
         filters?.limit ?? 30,
       ] as const,
     candidates: (query?: string | null, roleId?: string | null) =>
