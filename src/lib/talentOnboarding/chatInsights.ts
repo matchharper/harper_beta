@@ -1,4 +1,8 @@
-import { runCareerInsightExtraction } from "@/lib/career/llm";
+import {
+  CAREER_LLM_CONFIG,
+  runCareerInsightExtraction,
+} from "@/lib/career/llm";
+import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 import {
   normalizeExtractedInsights,
   normalizeGeneratedTalentInsightEntry,
@@ -21,23 +25,49 @@ type BuildPromptArgs = {
   currentInsightContent: Record<string, string> | null;
 };
 
+function clamp(value: string, maxLength: number) {
+  return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
+}
+
 function buildExtractionConversationMessages(args: {
   assistantContent: string;
   recentMessages: Array<{ content: string; role: "user" | "assistant" }>;
 }) {
   const { assistantContent, recentMessages } = args;
-  if (
+  const messages =
     recentMessages.length > 0 &&
     recentMessages[recentMessages.length - 1]?.role === "assistant" &&
     recentMessages[recentMessages.length - 1]?.content === assistantContent
-  ) {
-    return recentMessages;
-  }
+      ? recentMessages
+      : [
+          ...recentMessages,
+          { role: "assistant" as const, content: assistantContent },
+        ];
+
+  const transcript = messages
+    .slice(-5)
+    .map((message, index) => {
+      const role = message.role === "user" ? "User" : "Harper";
+      return `[${index + 1}] ${role}: ${clamp(
+        message.content.replace(/\s+/g, " ").trim(),
+        1200
+      )}`;
+    })
+    .join("\n");
 
   return [
-    ...recentMessages,
-    { role: "assistant" as const, content: assistantContent },
-  ].slice(-3);
+    {
+      role: "user" as const,
+      content: [
+        "Extract durable career matching insights from the transcript below.",
+        "Use User lines as the source of truth. Harper lines are context only.",
+        "If the user gives a clear preference, constraint, priority, or correction, extract it even if Harper's reply is generic.",
+        "",
+        "## Recent transcript",
+        transcript || "(empty)",
+      ].join("\n"),
+    },
+  ];
 }
 
 function parseExtractedInsights(args: {
@@ -46,23 +76,95 @@ function parseExtractedInsights(args: {
 }) {
   const { logPrefix, rawExtraction } = args;
   let parsed: { extracted_insights?: Record<string, unknown> } = {};
+  let parseOk = false;
+  const cleaned = rawExtraction
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
 
   try {
-    parsed = JSON.parse(rawExtraction);
+    parsed = JSON.parse(cleaned);
+    parseOk =
+      parsed &&
+      typeof parsed === "object" &&
+      !Array.isArray(parsed) &&
+      parsed.extracted_insights !== undefined;
   } catch {
-    const match = rawExtraction.match(/\{[\s\S]*\}/);
-    if (match) {
+    const candidates = extractJsonObjectCandidates(cleaned);
+    for (const candidate of candidates) {
       try {
-        parsed = JSON.parse(match[0]);
+        const candidateParsed = JSON.parse(candidate);
+        if (
+          candidateParsed &&
+          typeof candidateParsed === "object" &&
+          !Array.isArray(candidateParsed)
+        ) {
+          parsed = candidateParsed;
+          parseOk = parsed.extracted_insights !== undefined;
+          break;
+        }
       } catch {
-        logger.log(`[${logPrefix}] JSON regex fallback parse failed`);
+        // Try the next balanced object candidate.
       }
     }
   }
 
-  return normalizeExtractedInsights(
-    (parsed.extracted_insights as Record<string, unknown>) ?? null
-  );
+  if (!parseOk) {
+    logger.log(`[${logPrefix}] Insight extraction returned no parseable JSON`, {
+      preview: cleaned.slice(0, 300),
+    });
+  }
+
+  return {
+    insights: normalizeExtractedInsights(
+      (parsed.extracted_insights as Record<string, unknown>) ?? null
+    ),
+    parseOk,
+  };
+}
+
+function extractJsonObjectCandidates(value: string) {
+  const candidates: string[] = [];
+  let start = -1;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (char === "{") {
+      if (depth === 0) start = index;
+      depth += 1;
+      continue;
+    }
+
+    if (char === "}" && depth > 0) {
+      depth -= 1;
+      if (depth === 0 && start >= 0) {
+        candidates.push(value.slice(start, index + 1));
+        start = -1;
+      }
+    }
+  }
+
+  return candidates;
 }
 
 export async function extractAndPersistChatInsights(args: {
@@ -82,14 +184,14 @@ export async function extractAndPersistChatInsights(args: {
       await fetchRecentMessages({
         admin: args.admin,
         conversationId: args.conversationId,
-        limit: 3,
+        limit: 6,
       })
     )
       .map(
         (item) =>
           ({
             role: item.role as "user" | "assistant",
-            content: item.content.trim(),
+            content: formatTalentMessageContentForLlmPrompt(item).trim(),
           }) satisfies ExtractionConversationMessage
       )
       .filter((item) => item.content.length > 0);
@@ -99,17 +201,42 @@ export async function extractAndPersistChatInsights(args: {
       recentMessages: recentExtractionMessages,
     });
 
-    const rawExtraction = await runCareerInsightExtraction({
-      systemPrompt: args.buildPrompt({
-        currentInsightContent: args.currentInsightContent,
-      }),
+    const systemPrompt = args.buildPrompt({
+      currentInsightContent: args.currentInsightContent,
+    });
+    let rawExtraction = await runCareerInsightExtraction({
+      systemPrompt,
       conversationMessages,
     });
 
-    const extractedInsights = parseExtractedInsights({
+    let parsedExtraction = parseExtractedInsights({
       logPrefix: args.logPrefix,
       rawExtraction,
     });
+    if (
+      !parsedExtraction.parseOk &&
+      CAREER_LLM_CONFIG.insightExtraction.fallbackModel
+    ) {
+      logger.log(
+        `[${args.logPrefix}] Retrying insight extraction with fallback model`,
+        {
+          fallbackModel: CAREER_LLM_CONFIG.insightExtraction.fallbackModel,
+        }
+      );
+      rawExtraction = await runCareerInsightExtraction({
+        fallbackModel: null,
+        model: CAREER_LLM_CONFIG.insightExtraction.fallbackModel,
+        systemPrompt,
+        conversationMessages,
+        usageLabel: "career/chat:insight_extraction:fallback",
+      });
+      parsedExtraction = parseExtractedInsights({
+        logPrefix: args.logPrefix,
+        rawExtraction,
+      });
+    }
+
+    const extractedInsights = parsedExtraction.insights;
     if (!extractedInsights) {
       return 0;
     }

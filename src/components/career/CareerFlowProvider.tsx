@@ -88,6 +88,9 @@ export const CareerFlowProvider = ({
   const [notificationsError, setNotificationsError] = useState("");
   const completedOpportunityRunRefreshRef = useRef<string | null>(null);
   const emptyCompletedHistoryProbeRef = useRef<string | null>(null);
+  const refreshLatestHistoryOpportunitiesRef = useRef<
+    (() => void | Promise<void>) | null
+  >(null);
 
   const {
     conversationId,
@@ -136,6 +139,9 @@ export const CareerFlowProvider = ({
     },
     []
   );
+  const handleOpportunityRecommendationsChanged = useCallback(() => {
+    return refreshLatestHistoryOpportunitiesRef.current?.();
+  }, []);
 
   const {
     stage,
@@ -164,6 +170,8 @@ export const CareerFlowProvider = ({
     fetchWithAuth,
     persistedMessages,
     onOpportunityRunChanged: setOpportunityRun,
+    onOpportunityRecommendationsChanged:
+      handleOpportunityRecommendationsChanged,
     onTalentPreferencesRefreshed: handleTalentPreferencesRefreshedFromChat,
     onTalentInsightsRefreshed: handleTalentInsightsRefreshedFromChat,
     onMessagesChanged: appendLatestMessagesToCache,
@@ -205,6 +213,7 @@ export const CareerFlowProvider = ({
     onUpdateHistoryOpportunityFeedback,
     onUpdateHistoryOpportunitySavedStage,
     cancelPendingOpportunityFeedbackFollowUp,
+    refreshLatestHistoryOpportunities,
     resetHistoryState,
   } = useCareerHistoryState({
     conversationId,
@@ -221,6 +230,11 @@ export const CareerFlowProvider = ({
     onHistoryActionUserMessage: appendHistoryActionUserMessage,
     userId,
   });
+
+  useEffect(() => {
+    refreshLatestHistoryOpportunitiesRef.current =
+      refreshLatestHistoryOpportunities;
+  }, [refreshLatestHistoryOpportunities]);
 
   const {
     resumeFile,

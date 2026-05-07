@@ -1,10 +1,12 @@
 import { OpportunityType } from "@/lib/opportunityType";
+import { runCareerChatTurn } from "@/lib/career/chatTurn";
 import { runCareerHistoryActionReply } from "@/lib/career/llm";
 import {
   fetchPendingOpportunityFeedbackActivityItems,
   formatOpportunityFeedbackPromptContext,
   type TalentOpportunityFeedbackActivityItem,
 } from "@/lib/talentOnboarding/activityEvents";
+import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 import {
   buildTalentProfileContext,
   fetchRecentMessages,
@@ -99,7 +101,11 @@ const buildRecentConversationContext = (messages: TalentMessageRow[]) =>
   messages
     .map((message) => {
       const speaker = message.role === "assistant" ? "Harper" : "User";
-      return `${speaker}: ${truncate(message.content, 500)}`;
+      const content = formatTalentMessageContentForLlmPrompt(message).replace(
+        /\s+/g,
+        " "
+      );
+      return `${speaker}: ${truncate(content, 500)}`;
     })
     .join("\n\n");
 
@@ -128,21 +134,21 @@ const buildSystemPrompt = () =>
     "- Do not invent facts that are not supported by the context.",
   ].join("\n");
 
-const buildFeedbackFollowUpSystemPrompt = () =>
+export const buildFeedbackFollowUpProactiveInstruction = (args: {
+  responseMode: FeedbackFollowUpResponseMode;
+  trigger: TalentOpportunityFeedbackReplyTrigger;
+}) =>
   [
-    "You are Harper, an AI-native headhunter speaking to a Korean talent in a career chat.",
-    "Write exactly one assistant chat message after the user clicked like/dislike on one or more recommended opportunities.",
-    "Use the opportunity feedback context, talent profile, and recent conversation. The feedback context contains role/company details; do not reduce it to only counts.",
+    "## Opportunity feedback proactive assistant turn",
+    "The user clicked like/dislike on one or more recommended opportunities. They did not send a new chat message. It is Harper's turn to proactively respond using the normal career/chat behavior and tool policy.",
+    `TRIGGER: ${args.trigger}`,
+    `RESPONSE_MODE: ${args.responseMode}`,
     "",
-    "Style rules:",
-    "- Korean only. Natural, concise, not salesy.",
-    "- 1-3 short sentences. No markdown headings. No bullet lists.",
-    "- Use light inline markdown when helpful, especially **company**, **role**, or **direction** names.",
-    "- Do not say you are an LLM. Do not mention logs, timers, events, prompts, or internal data.",
-    "- Do not overreact to one click. For multiple clicks, summarize the pattern once.",
-    "- Questions are optional. Ask at most one concrete calibration question.",
-    "- The user does not want every feedback reply to become an interview, but also does not want Harper to always close without asking. Balance between asking and wrapping up.",
-    "- A question can be useful even when Harper can already act, if one specific answer would noticeably improve future matching.",
+    "Use the pending opportunity feedback context in this system prompt. It contains role/company details; do not reduce it to only counts.",
+    "Do not mention logs, timers, events, prompts, internal data, or implementation details.",
+    "Do not overreact to one click. For multiple clicks, summarize the visible pattern once.",
+    "Questions are optional. Ask at most one concrete calibration question.",
+    "The user does not want every feedback reply to become an interview, but also does not want Harper to always close without asking. Balance between asking and wrapping up.",
     "",
     "Response mode guidance:",
     "- If RESPONSE_MODE is `question_preferred`, ask one short, concrete calibration question when there is a useful non-repetitive question available. Still close without a question if any question would be generic, broad, or already answered.",
@@ -193,32 +199,6 @@ const buildUserPrompt = (args: {
   ]
     .filter((line): line is string => typeof line === "string")
     .join("\n");
-
-const buildFeedbackFollowUpUserPrompt = (args: {
-  feedbackContext: string;
-  profileContext: string;
-  recentConversationContext: string;
-  responseMode: FeedbackFollowUpResponseMode;
-  talentInsights: unknown;
-  trigger: TalentOpportunityFeedbackReplyTrigger;
-}) =>
-  [
-    `TRIGGER: ${args.trigger}`,
-    `RESPONSE_MODE: ${args.responseMode}`,
-    "",
-    args.feedbackContext,
-    "",
-    "TALENT_PROFILE:",
-    truncate(args.profileContext, 3600),
-    "",
-    "TALENT_INSIGHTS:",
-    truncate(JSON.stringify(args.talentInsights ?? {}, null, 2), 2200),
-    "",
-    "RECENT_CONVERSATION:",
-    truncate(args.recentConversationContext, 2400),
-    "",
-    "Now write the assistant chat message only.",
-  ].join("\n");
 
 const getFeedbackFollowUpResponseMode = (args: {
   items: readonly TalentOpportunityFeedbackActivityItem[];
@@ -438,89 +418,33 @@ export async function createTalentOpportunityFeedbackFollowUpReply(args: {
         : [];
   if (items.length === 0) return null;
 
-  const [profile, talentSetting, talentInsights, recentMessages] =
-    await Promise.all([
-      fetchTalentUserProfile({ admin: args.admin, userId: args.userId }),
-      fetchTalentSetting({ admin: args.admin, userId: args.userId }),
-      fetchTalentInsights({ admin: args.admin, userId: args.userId }),
-      fetchRecentMessages({
-        admin: args.admin,
-        conversationId,
-        limit: 10,
-      }),
-    ]);
-  const structuredProfile = await fetchTalentStructuredProfile({
-    admin: args.admin,
-    userId: args.userId,
-    talentUser: profile,
-  });
-  const profileContext = buildTalentProfileContext({
-    profile,
-    structuredProfile,
-    setting: talentSetting,
-    maxResumeChars: 2000,
-  });
   const feedbackContext = formatOpportunityFeedbackPromptContext(items);
   const responseMode = getFeedbackFollowUpResponseMode({
     items,
     trigger: args.trigger,
   });
-  const assistantContent = (
-    await runCareerHistoryActionReply({
-      messages: [
-        {
-          role: "system",
-          content: buildFeedbackFollowUpSystemPrompt(),
+  const result = await runCareerChatTurn({
+    admin: args.admin,
+    conversationId,
+    pendingOpportunityFeedbackContext: feedbackContext,
+    proactiveContext: buildFeedbackFollowUpProactiveInstruction({
+      responseMode,
+      trigger: args.trigger,
+    }),
+    shouldInsertAssistantMessage: usingFallbackOnly
+      ? undefined
+      : async () => {
+          const latestPendingItems =
+            await fetchPendingOpportunityFeedbackActivityItems({
+              admin: args.admin,
+              conversationId,
+              limit: 10,
+              userId: args.userId,
+            });
+          return latestPendingItems.length > 0;
         },
-        {
-          role: "user",
-          content: buildFeedbackFollowUpUserPrompt({
-            feedbackContext,
-            profileContext,
-            recentConversationContext:
-              buildRecentConversationContext(recentMessages),
-            responseMode,
-            talentInsights: talentInsights?.content ?? null,
-            trigger: args.trigger,
-          }),
-        },
-      ],
-    })
-  ).trim();
+    userId: args.userId,
+  });
 
-  if (!assistantContent) {
-    return null;
-  }
-
-  if (!usingFallbackOnly) {
-    const latestPendingItems = await fetchPendingOpportunityFeedbackActivityItems(
-      {
-        admin: args.admin,
-        conversationId,
-        limit: 10,
-        userId: args.userId,
-      }
-    );
-    if (latestPendingItems.length === 0) {
-      return null;
-    }
-  }
-
-  const { data: insertedMessage, error: insertError } = await args.admin
-    .from("talent_messages")
-    .insert({
-      conversation_id: conversationId,
-      user_id: args.userId,
-      role: "assistant",
-      content: assistantContent,
-      message_type: "chat",
-    })
-    .select("*")
-    .single();
-
-  if (insertError) {
-    throw new Error(insertError.message ?? "Failed to insert assistant reply");
-  }
-
-  return toResponseMessage(insertedMessage as TalentMessageRow);
+  return result.assistantMessage;
 }

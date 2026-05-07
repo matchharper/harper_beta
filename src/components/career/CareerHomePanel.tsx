@@ -25,8 +25,6 @@ import {
   type CareerHistoryOpportunity,
   type CareerRecentOpportunity,
 } from "./types";
-import OpportunityListCard from "./history/OpportunityListCard";
-import HistoryOpportunityInfoModal from "./history/HistoryOppotunityInfoModal";
 import React from "react";
 import { getCareerDefaultSavedStage } from "./opportunityTypeMeta";
 
@@ -41,62 +39,6 @@ const formatMatchedAt = (value: string) => {
     month: "short",
     day: "numeric",
   }).format(date);
-};
-
-const isWithinLastWeek = (value: string) => {
-  const timestamp = Date.parse(value);
-  if (Number.isNaN(timestamp)) return false;
-  return Date.now() - timestamp <= ONE_WEEK_MS;
-};
-
-const createRecentOpportunityCardItem = ({
-  historyItem,
-  recentItem,
-}: {
-  historyItem?: CareerHistoryOpportunity;
-  recentItem: CareerRecentOpportunity;
-}): CareerHistoryOpportunity => {
-  if (historyItem) return historyItem;
-
-  return {
-    clickedAt: null,
-    companyDescription: null,
-    companyHomepageUrl: recentItem.href ?? null,
-    companyLinkedinUrl: null,
-    companyLogoUrl: null,
-    companyName: recentItem.companyName,
-    description: recentItem.summary,
-    dismissedAt: null,
-    employmentTypes: recentItem.engagementType
-      ? [recentItem.engagementType]
-      : [],
-    externalJdUrl: recentItem.href ?? null,
-    feedback: null,
-    feedbackAt: null,
-    feedbackReason: null,
-    href: recentItem.href ?? null,
-    id: recentItem.id,
-    isAccepted: false,
-    isInternal: recentItem.opportunityType !== CareerOpportunityType.ExternalJd,
-    kind: recentItem.kind,
-    location: recentItem.location,
-    opportunityType: recentItem.opportunityType,
-    postedAt: null,
-    recommendedAt: recentItem.matchedAt,
-    recommendationReasons: [],
-    roleId: `recent-${recentItem.id}`,
-    savedStage: null,
-    sourceJobId: null,
-    sourceProvider: null,
-    sourceType:
-      recentItem.opportunityType === CareerOpportunityType.ExternalJd
-        ? "external"
-        : "internal",
-    status: "active",
-    title: recentItem.title,
-    viewedAt: null,
-    workMode: null,
-  };
 };
 
 const PreferenceRow = ({
@@ -220,6 +162,19 @@ const CareerHomePanel = ({
     "아직 설정되지 않았습니다.";
 
   const newPositionCount = historyOpportunityCounts.new;
+  const newInternalOpportunityCount = useMemo(
+    () =>
+      historyOpportunities.filter(
+        (item) => item.feedback === null && item.sourceType === "internal"
+      ).length,
+    [historyOpportunities]
+  );
+  const newPositionDescription =
+    newInternalOpportunityCount > 0
+      ? `추천된 기회 · ${countFormatter.format(
+          newInternalOpportunityCount
+        )}개 연결 가능`
+      : "추천된 기회";
   const trackingPositionCount = historyOpportunityCounts.savedStages.saved;
   const appliedPositionCount = historyOpportunityCounts.savedStages.applied;
   const inProgressPositionCount = trackingPositionCount + appliedPositionCount;
@@ -336,7 +291,7 @@ const CareerHomePanel = ({
               title="새 포지션"
               status="검토 대기 중"
               count={newPositionCount}
-              description="Founder 직접 소개"
+              description={newPositionDescription}
               buttonLabel="검토하기"
               icon={
                 <Mail className="h-5 w-5 text-[#b77a4e]" strokeWidth={1.8} />

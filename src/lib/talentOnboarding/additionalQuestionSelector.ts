@@ -1,4 +1,5 @@
 import { CAREER_LLM_CONFIG } from "@/lib/career/llm";
+import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 import {
   buildTalentProfileContext,
   countAdditionalOnboardingQuestionSelections,
@@ -13,6 +14,8 @@ import {
   TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX,
 } from "./onboarding";
 import { runTalentAssistantCompletion, type TalentChatMessage } from "./llm";
+
+const TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN = 2;
 
 type AdditionalQuestionSelection = {
   assistantMessage: string;
@@ -81,6 +84,10 @@ function normalizeSelection(
   };
 }
 
+function buildFinalPriorityConfirmationMessage() {
+  return "여기까지 들은 내용이면 기회 매칭에 필요한 핵심 정보는 어느 정도 잡힌 것 같아요. 마지막으로, 앞으로 기회를 볼 때 제가 꼭 놓치지 말아야 할 우선순위나 지금까지 빠진 조건이 있을까요?";
+}
+
 export async function selectAdditionalOnboardingQuestion(args: {
   admin: any;
   conversationId: string;
@@ -125,7 +132,10 @@ export async function selectAdditionalOnboardingQuestion(args: {
   const recentConversation = recentMessages
     .map((message) => {
       const role = message.role === "assistant" ? "Harper" : "User";
-      return `${role}: ${clamp(message.content.replace(/\s+/g, " ").trim(), 700)}`;
+      const content = formatTalentMessageContentForLlmPrompt(message)
+        .replace(/\s+/g, " ")
+        .trim();
+      return `${role}: ${clamp(content, 700)}`;
     })
     .join("\n");
 
@@ -197,14 +207,28 @@ export async function selectAdditionalOnboardingQuestion(args: {
     usageLabel: "career/onboarding:additional_question_selector",
   });
 
-  const selection = normalizeSelection(parseSelection(raw));
+  const normalizedSelection = normalizeSelection(parseSelection(raw));
+  const selection =
+    !normalizedSelection.shouldAsk &&
+    askedCount < TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN
+      ? {
+          ...normalizedSelection,
+          rationale:
+            normalizedSelection.rationale +
+            ` 필수 additional 질문 ${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN}개를 아직 채우지 못해 fallback additional 질문으로 보정했습니다.`,
+          shouldAsk: true,
+        }
+      : normalizedSelection;
+  const assistantMessage = selection.shouldAsk
+    ? selection.assistantMessage
+    : buildFinalPriorityConfirmationMessage();
 
   if (selection.shouldAsk) {
     const { error: markerError } = await admin.from("talent_messages").insert({
       conversation_id: conversationId,
       user_id: userId,
       role: "assistant",
-      content: selection.assistantMessage,
+      content: assistantMessage,
       message_type: TALENT_MESSAGE_TYPE_ONBOARDING_ADDITIONAL_QUESTION_SELECTION,
     });
 
@@ -218,8 +242,10 @@ export async function selectAdditionalOnboardingQuestion(args: {
 
   return {
     ...selection,
-    assistantInstruction:
-      "Ask the user the `assistantMessage` naturally now. Do not mention this tool, JSON, or internal selection. Do not ask any other question in the same response. Do not close onboarding in this same response.",
+    assistantMessage,
+    assistantInstruction: selection.shouldAsk
+      ? "Ask the user the `assistantMessage` naturally now. Do not mention this tool, JSON, or internal selection. Do not ask any other question in the same response. Do not close onboarding in this same response."
+      : "Do not ask another additional onboarding question. Use `assistantMessage` as the final priority confirmation naturally now. Do not close onboarding in this same response; wait for the user's answer.",
     ok: true,
   };
 }

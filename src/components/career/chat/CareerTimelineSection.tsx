@@ -420,21 +420,21 @@ const OpportunityPreviewCards = memo(function OpportunityPreviewCards({
                   <div className="mt-1 break-words text-[15px] font-medium leading-6 text-beige900">
                     {item.title}
                   </div>
-                  <div className="mt-1 break-words text-[13px] leading-5 text-beige900/65">
+                  <div className="mt-1 break-words flex flex-row gap-2 items-center text-[13px] leading-5 text-beige900/65">
                     {item.companyName}
+                    {feedback && (
+                      <div
+                        className={careerCx(
+                          "mt-1 inline-flex h-6 items-center rounded-full border px-2.5 text-[11px] font-medium",
+                          isPositive
+                            ? "border-beige900/20 bg-beige900 text-[#f5ecdd]"
+                            : "border-beige900/10 bg-white/60 text-beige900/55"
+                        )}
+                      >
+                        {isPositive ? "저장됨" : "맞지 않음"}
+                      </div>
+                    )}
                   </div>
-                  {feedback ? (
-                    <div
-                      className={careerCx(
-                        "mt-2 inline-flex h-6 items-center rounded-full border px-2.5 text-[11px] font-medium",
-                        isPositive
-                          ? "border-beige900/20 bg-beige900 text-[#f5ecdd]"
-                          : "border-beige900/10 bg-white/60 text-beige900/55"
-                      )}
-                    >
-                      {isPositive ? "저장됨" : "맞지 않음 표시됨"}
-                    </div>
-                  ) : null}
                 </div>
               </div>
 
@@ -807,6 +807,8 @@ const CareerTimelineSection = () => {
   }, [syncScrollState]);
 
   const handleLoadOlderMessages = useCallback(async () => {
+    if (!hasOlderMessages || loadingOlderMessages) return;
+
     const el = scrollRef.current;
     const previousScrollHeight = el?.scrollHeight ?? null;
     const previousScrollTop = el?.scrollTop ?? 0;
@@ -820,7 +822,13 @@ const CareerTimelineSection = () => {
       el.scrollTop = previousScrollTop + scrollHeightDelta;
       syncScrollState();
     });
-  }, [onLoadOlderMessages, scrollRef, syncScrollState]);
+  }, [
+    hasOlderMessages,
+    loadingOlderMessages,
+    onLoadOlderMessages,
+    scrollRef,
+    syncScrollState,
+  ]);
 
   const isVoiceMode = inputMode === "voice";
   const timelineMessages = useMemo(

@@ -25,7 +25,8 @@ export const CAREER_LLM_CONFIG = {
   assistant: {
     anthropicOverloadFallbackModel: "grok-4-1-fast-reasoning",
     primaryModel: "claude-sonnet-4-6",
-    fallbackModel: "gpt-4.1-mini",
+    fallbackModel: "grok-4-1-fast-reasoning",
+    // fallbackModel: "gpt-4.1-mini",
   },
   // 일반 텍스트 커리어 채팅 온도. Realtime 전화/음성 응답에는 적용되지 않는다.
   // 사용처: /api/talent/chat 에서 유저 메시지에 답하거나 tool loop를 돌릴 때.
@@ -42,6 +43,7 @@ export const CAREER_LLM_CONFIG = {
   // 대화 저장/응답 이후 assistant 답변에서 structured insight JSON을 뽑을 때.
   // 사용처: /api/talent/chat, /api/talent/chat/save.
   insightExtraction: {
+    fallbackModel: "claude-sonnet-4-6",
     model: "grok-4-fast-reasoning",
     temperature: 0.2,
   },
@@ -467,6 +469,7 @@ async function createAnthropicMessageStream(args: {
 }
 
 async function runDirectTextCompletion(args: {
+  fallbackModel?: string | null;
   jsonMode?: boolean;
   messages: DirectOpenAIMessage[];
   model: string;
@@ -476,6 +479,7 @@ async function runDirectTextCompletion(args: {
   const { model, response } = await createChatCompletionWithFallback({
     anthropicOverloadFallbackModel:
       CAREER_LLM_CONFIG.assistant.anthropicOverloadFallbackModel,
+    fallbackModel: args.fallbackModel,
     model: args.model,
     buildRequest: (model) => {
       const responseFormat =
@@ -518,8 +522,7 @@ function resolveNativeAnthropicFallbackModelConfig(
   modelConfig: CareerAssistantModelConfig
 ) {
   const fallback = resolveChatCompletionFallbackModelForError({
-    anthropicOverloadFallbackModel:
-      modelConfig.anthropicOverloadFallbackModel,
+    anthropicOverloadFallbackModel: modelConfig.anthropicOverloadFallbackModel,
     error,
     fallbackModel: null,
     model: modelConfig.primaryModel,
@@ -828,17 +831,22 @@ export async function runCareerInsightExtraction(args: {
     content: string;
     role: "user" | "assistant";
   }>;
+  fallbackModel?: string | null;
+  model?: string;
   systemPrompt: string;
+  usageLabel?: string;
 }) {
   return runDirectTextCompletion({
+    fallbackModel:
+      args.fallbackModel ?? CAREER_LLM_CONFIG.insightExtraction.fallbackModel,
     jsonMode: true,
     messages: [
       { role: "system", content: args.systemPrompt },
       ...args.conversationMessages,
     ],
-    model: CAREER_LLM_CONFIG.insightExtraction.model,
+    model: args.model ?? CAREER_LLM_CONFIG.insightExtraction.model,
     temperature: CAREER_LLM_CONFIG.insightExtraction.temperature,
-    usageLabel: "career/chat:insight_extraction",
+    usageLabel: args.usageLabel ?? "career/chat:insight_extraction",
   });
 }
 

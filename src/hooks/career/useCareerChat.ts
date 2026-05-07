@@ -34,6 +34,7 @@ type UseCareerChatArgs = {
   sessionPending: boolean;
   fetchWithAuth: FetchWithAuth;
   onOpportunityRunChanged?: (run: CareerOpportunityRun | null) => void;
+  onOpportunityRecommendationsChanged?: () => void | Promise<void>;
   onTalentPreferencesRefreshed?: (
     preferences: unknown,
     updatedAt: unknown
@@ -181,6 +182,7 @@ export const useCareerChat = ({
   sessionPending,
   fetchWithAuth,
   onOpportunityRunChanged,
+  onOpportunityRecommendationsChanged,
   onTalentPreferencesRefreshed,
   onTalentInsightsRefreshed,
   persistedMessages,
@@ -444,6 +446,7 @@ export const useCareerChat = ({
           let buffer = "";
           let realUserMessage: CareerMessagePayload | null = null;
           let assistantPayloads: CareerMessagePayload[] = [];
+          let recommendationRefreshPromise: Promise<void> | null = null;
           let streamAssistantVisible = false;
           let streamDone = false;
 
@@ -510,6 +513,19 @@ export const useCareerChat = ({
             setScrollTick((t) => t + 1);
           };
 
+          const refreshOpportunityRecommendations = () => {
+            if (
+              recommendationRefreshPromise ||
+              !onOpportunityRecommendationsChanged
+            ) {
+              return;
+            }
+
+            recommendationRefreshPromise = Promise.resolve(
+              onOpportunityRecommendationsChanged()
+            ).catch(() => undefined);
+          };
+
           const handleStreamEvent = async ({
             data,
             event,
@@ -549,6 +565,12 @@ export const useCareerChat = ({
               const status = toRecommendationSearchStatus(data);
               if (!status) return;
               setActiveRecommendationSearchStatus(status);
+              if (
+                status.state === "completed" &&
+                (status.recommendationCount ?? 0) > 0
+              ) {
+                refreshOpportunityRecommendations();
+              }
               setScrollTick((t) => t + 1);
               return;
             }
@@ -653,6 +675,9 @@ export const useCareerChat = ({
               streamDone = true;
               resetActiveThinkingLogs();
               setOnboardingWrapupPending(false);
+              if (recommendationRefreshPromise) {
+                await recommendationRefreshPromise;
+              }
               if (realUserMessage || assistantPayloads.length > 0) {
                 await onMessagesChanged?.([
                   ...(realUserMessage ? [realUserMessage] : []),
@@ -779,6 +804,7 @@ export const useCareerChat = ({
       user,
       onMessagesChanged,
       onOpportunityRunChanged,
+      onOpportunityRecommendationsChanged,
       onTalentInsightsRefreshed,
       onTalentPreferencesRefreshed,
       resetActiveThinkingLogs,

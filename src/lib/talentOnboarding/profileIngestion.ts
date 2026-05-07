@@ -47,7 +47,6 @@ export type TalentExperienceDraft = {
   company_id: number | null;
   company_link: string | null;
   company_logo: string | null;
-  memo: string | null;
 };
 
 export type TalentEducationDraft = {
@@ -58,14 +57,12 @@ export type TalentEducationDraft = {
   start_date: string | null;
   end_date: string | null;
   url: string | null;
-  memo: string | null;
 };
 
 export type TalentExtraDraft = {
   title: string | null;
   description: string | null;
   date: string | null;
-  memo: string | null;
 };
 
 type TalentUserDraft = {
@@ -464,7 +461,6 @@ function toTalentExperienceDraft(raw: unknown): TalentExperienceDraft | null {
     company_id: companyId,
     company_link: companyLink,
     company_logo: null,
-    memo: cleanText(item.memo, 200),
   };
 }
 
@@ -504,7 +500,6 @@ function toTalentEducationDraft(raw: unknown): TalentEducationDraft | null {
     start_date: startDate,
     end_date: endDate,
     url,
-    memo: cleanText(item.memo, 200),
   };
 }
 
@@ -533,13 +528,10 @@ function toTalentExtraDraft(raw: unknown): TalentExtraDraft | null {
       false
     );
 
-  const sourceType = cleanText(item.type, 80);
-
   return {
     title,
     description: descriptionParts.join("\n\n").slice(0, 6000) || null,
     date: parsedDate,
-    memo: cleanText(item.memo, 200) ?? sourceType,
   };
 }
 
@@ -969,7 +961,7 @@ export async function ingestTalentProfileFromLinkedin(
 
   const linkedinUrl = pickLinkedinUrl(links);
   const scholarLinks = pickScholarLinks(links);
-  const resumeText = cleanMultilineText(args.resumeText, 20000);
+  const resumeText = cleanMultilineText(args.resumeText, 24000);
   if (!linkedinUrl && !resumeText) {
     throw new Error("LinkedIn profile link or resume text is required");
   }
@@ -1146,7 +1138,7 @@ export async function ingestTalentProfileFromLinkedin(
     userPayload.resume_storage_path = args.resumeStoragePath.trim();
   }
   if (typeof args.resumeText === "string") {
-    userPayload.resume_text = args.resumeText.trim().slice(0, 20000);
+    userPayload.resume_text = args.resumeText.trim().slice(0, 24000);
   }
 
   logger.log("[TalentIngest] writing talent_users");
@@ -1203,7 +1195,6 @@ export async function ingestTalentProfileFromLinkedin(
     company_name: item.company_name,
     company_location: item.company_location,
     company_logo: item.company_logo,
-    memo: item.memo,
   }));
   if (experienceRows.length > 0) {
     const { error: expInsertError } = await db
@@ -1225,7 +1216,6 @@ export async function ingestTalentProfileFromLinkedin(
     start_date: item.start_date,
     end_date: item.end_date,
     url: item.url,
-    memo: item.memo,
   }));
   if (educationRows.length > 0) {
     const { error: eduInsertError } = await db
@@ -1244,7 +1234,6 @@ export async function ingestTalentProfileFromLinkedin(
       title: item.title,
       description: item.description,
       date: item.date,
-      memo: item.memo,
     })),
   };
 

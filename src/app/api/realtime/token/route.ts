@@ -10,7 +10,6 @@ import {
   fetchTalentUserProfile,
   getTalentSupabaseAdmin,
 } from "@/lib/talentOnboarding/server";
-import { warmCache } from "@/lib/talentOnboarding/prompts/promptCache";
 import {
   getTalentToolVoicePreambles,
   getRealtimeTools,
@@ -24,6 +23,7 @@ import {
   buildCareerRealtimeRecentConversationSection,
 } from "@/lib/career/prompts";
 import { getCareerRealtimeSessionConfig } from "@/lib/career/llm";
+import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 
 /**
  * Build realtime instructions from the shared Harper system prompt plus
@@ -34,8 +34,6 @@ async function buildRealtimeInstructions(
   conversationId: string,
   toolNames: string[]
 ) {
-  await warmCache();
-
   const admin = getTalentSupabaseAdmin();
 
   const [
@@ -94,7 +92,7 @@ async function buildRealtimeInstructions(
     buildCareerRealtimeRecentConversationSection(
       visibleMessages.map((message) => ({
         role: message.role,
-        content: message.content,
+        content: formatTalentMessageContentForLlmPrompt(message),
       }))
     );
   return buildCareerRealtimePromptPlan({

@@ -3,6 +3,7 @@ import {
   type CareerPromptPreferences,
 } from "@/lib/career/prompts";
 import { runCareerChatAssistant } from "@/lib/career/llm";
+import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 import { getTalentCareerMoveIntentLabel } from "@/lib/talentNetworkOptions";
 import {
   buildTalentProfileContext,
@@ -196,7 +197,7 @@ export async function generateOnboardingCompletionWrapupContent(args: {
   const conversationMessages = recentMessages
     .filter(isWrapupInputMessage)
     .map((message) => ({
-      content: message.content,
+      content: formatTalentMessageContentForLlmPrompt(message),
       role: message.role as "user" | "assistant",
     }))
     .filter((message) => message.content.trim().length > 0);

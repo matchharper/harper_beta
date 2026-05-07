@@ -14,11 +14,13 @@ import {
   fetchMessages,
   fetchRecentMessages,
 } from "@/lib/talentOnboarding/messageStore";
+import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 
 const SUMMARY_MESSAGE_TYPE = "conversation_summary";
 const DEFAULT_MIN_MESSAGE_COUNT = 14;
 const DEFAULT_MIN_SOURCE_CHARS = 5000;
 const DEFAULT_RECENT_MESSAGE_LIMIT = 12;
+const MIN_RECENT_RAW_MESSAGES = 6;
 const MAX_SOURCE_MESSAGES = 80;
 const MAX_SOURCE_CHARS = 18000;
 
@@ -29,6 +31,7 @@ type TalentConversationSummaryRow = {
   from_message_id: number | null;
   to_message_id: number;
   message_count: number;
+  segment_summary: string;
   source_char_count: number;
   summary_text: string;
   summary_json: Record<string, unknown>;
@@ -75,7 +78,9 @@ function formatMessagesForSummary(messages: TalentMessageRow[]) {
   return messages
     .map((message) => {
       const role = message.role === "assistant" ? "Harper" : "User";
-      const content = message.content.replace(/\s+/g, " ").trim();
+      const content = formatTalentMessageContentForLlmPrompt(message)
+        .replace(/\s+/g, " ")
+        .trim();
       return `[${message.id}] ${role}: ${content}`;
     })
     .join("\n");
@@ -102,9 +107,12 @@ function buildSummarySystemPrompt() {
     "Return a valid JSON object only.",
     "Write Korean unless a company, role, or product name is naturally English.",
     "Preserve durable facts: career preferences, constraints, corrections, recommendation feedback, open loops, and next actions.",
+    "Also write `segment_summary` from ONLY the new messages to fold in. It should be 4-8 concise Korean sentences and must not include facts that only come from the existing rolling summary.",
     "Treat the existing summary as prior state to merge and rewrite, not text to append.",
     "If a fact appears in both the existing summary and new messages, mention it once.",
     "If new messages correct or supersede an older fact, keep the corrected version only.",
+    "Opportunity feedback notes such as saved/dismissed roles are action logs, not full user utterances. Compact many similar feedback notes into concise preference/status changes; do not let role-save logs dominate the summary.",
+    "`do_not_repeat` should contain only concrete context Harper should avoid repeating because it was already covered, rejected, or annoyed the user. Do not carry forward stale empathy/style notes unless the new messages explicitly support them.",
     "Do not invent facts. Do not include routine greetings or filler.",
   ].join("\n");
 }
@@ -130,6 +138,8 @@ function buildSummaryUserPrompt(args: {
     "[Required JSON shape]",
     JSON.stringify(
       {
+        segment_summary:
+          "4-8 sentence summary of ONLY the new messages to fold in.",
         summary_text:
           "8-12 sentence compact, deduplicated rolling summary of the useful conversation state.",
         key_points: ["durable user preference or fact"],
@@ -181,14 +191,20 @@ export async function maybeSummarizeTalentConversation(args: {
     admin: args.admin,
     conversationId: args.conversationId,
   });
-  const sourceMessages = allMessages.filter(
+  const cappedVisibleMessages = allMessages.filter(
     (message) =>
-      (latestSummary ? message.id > latestSummary.to_message_id : true) &&
       (typeof args.maxToMessageId === "number"
         ? message.id <= args.maxToMessageId
         : true) &&
       isVisibleSummaryRecentMessage(message) &&
       message.content.trim().length > 0
+  );
+  const summarizableMessages = cappedVisibleMessages.slice(
+    0,
+    Math.max(0, cappedVisibleMessages.length - MIN_RECENT_RAW_MESSAGES)
+  );
+  const sourceMessages = summarizableMessages.filter((message) =>
+    latestSummary ? message.id > latestSummary.to_message_id : true
   );
   const sourceCharCount = sourceMessages.reduce(
     (sum, message) => sum + message.content.trim().length,
@@ -217,6 +233,7 @@ export async function maybeSummarizeTalentConversation(args: {
     }),
   });
   const parsed = parseJsonObject(raw) ?? {};
+  const segmentSummary = normalizeText(parsed.segment_summary, 3000);
   const summaryText =
     normalizeText(parsed.summary_text, 6000) || normalizeText(raw, 6000);
   if (!summaryText) {
@@ -251,6 +268,7 @@ export async function maybeSummarizeTalentConversation(args: {
         conversation_id: args.conversationId,
         from_message_id: fromMessage?.id ?? null,
         message_count: summarizedMessages.length,
+        segment_summary: segmentSummary,
         source_char_count: summarizedCharCount,
         summary_json: summaryJson,
         summary_text: summaryText,
@@ -322,7 +340,7 @@ export async function fetchRecentMessagesWithSummary(args: {
   userId: string;
 }) {
   const recentLimit = Math.max(
-    1,
+    MIN_RECENT_RAW_MESSAGES,
     Math.min(args.recentLimit ?? DEFAULT_RECENT_MESSAGE_LIMIT, 40)
   );
   const latestSummary = await fetchLatestConversationSummary(args);
@@ -348,9 +366,26 @@ export async function fetchRecentMessagesWithSummary(args: {
     throw new Error(error.message ?? "Failed to load recent talent_messages");
   }
 
-  const recentMessages = ((data ?? []) as TalentMessageRow[])
+  let recentMessages = ((data ?? []) as TalentMessageRow[])
     .filter(isVisibleSummaryRecentMessage)
     .reverse();
+
+  if (recentMessages.length < MIN_RECENT_RAW_MESSAGES) {
+    const fallbackRecentMessages = (
+      await fetchRecentMessages({
+        admin: args.admin,
+        conversationId: args.conversationId,
+        limit: recentLimit,
+      })
+    ).filter(isVisibleSummaryRecentMessage);
+    const messageById = new Map<number, TalentMessageRow>();
+    for (const message of [...recentMessages, ...fallbackRecentMessages]) {
+      messageById.set(message.id, message);
+    }
+    recentMessages = Array.from(messageById.values())
+      .sort((left, right) => left.id - right.id)
+      .slice(-recentLimit);
+  }
 
   return [
     buildSummaryPseudoMessage({

@@ -26,7 +26,6 @@ import {
   TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP,
   TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX,
 } from "@/lib/talentOnboarding/onboarding";
-import { warmCache } from "@/lib/talentOnboarding/prompts/promptCache";
 import {
   buildCareerTextChatPromptBlocks,
   buildCareerInsightExtractionPrompt,
@@ -79,6 +78,7 @@ import {
   getOrCreateCompanySnapshot,
   touchConversation,
 } from "@/lib/career/companySnapshot";
+import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 import { logger } from "@/utils/logger";
 
 export const maxDuration = 60;
@@ -370,7 +370,6 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    await warmCache();
 
     const body = (await req.json()) as Body;
     const conversationId = body.conversationId?.trim();
@@ -553,7 +552,7 @@ export async function POST(req: NextRequest) {
       )
       .map((item) => ({
         role: item.role as "user" | "assistant",
-        content: item.content,
+        content: formatTalentMessageContentForLlmPrompt(item),
       }))
       .filter((item) => item.content.trim().length > 0);
 
@@ -815,8 +814,7 @@ export async function POST(req: NextRequest) {
         toolArgs.name ===
           TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION &&
         result &&
-        typeof result === "object" &&
-        (result as { shouldAsk?: unknown }).shouldAsk !== false
+        typeof result === "object"
       ) {
         const assistantMessage = String(
           (result as { assistantMessage?: unknown }).assistantMessage ?? ""

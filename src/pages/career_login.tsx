@@ -142,10 +142,10 @@ const CareerLoginContent = () => {
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <Image
-                    src="/svgs/google.svg"
+                    src="/images/logos/google.png"
                     alt=""
-                    width={18}
-                    height={18}
+                    width={16}
+                    height={16}
                     aria-hidden="true"
                   />
                 )

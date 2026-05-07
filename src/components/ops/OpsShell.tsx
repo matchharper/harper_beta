@@ -6,7 +6,6 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { INTERNAL_EMAIL_DOMAIN, isInternalEmail } from "@/lib/internalAccess";
 import {
   BriefcaseBusiness,
-  FileText,
   KeyRound,
   LayoutDashboard,
   Lock,
@@ -61,13 +60,6 @@ export const OPS_NAV_ITEMS: OpsNavItem[] = [
     icon: KeyRound,
     label: "Request Access",
     matchPrefix: "/ops/request-access",
-  },
-  {
-    description: "프롬프트 관리 및 버전 이력",
-    href: "/ops/prompt",
-    icon: FileText,
-    label: "Prompts",
-    matchPrefix: "/ops/prompt",
   },
 ];
 
