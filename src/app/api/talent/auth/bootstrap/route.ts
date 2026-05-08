@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { notifySlackActivity } from "@/lib/slackActivity";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   ensureTalentUserRecord,
@@ -12,6 +13,8 @@ type Body = {
   mail?: string;
 };
 
+const CAREER_SIGNUP_EVENT_TYPE = "career_signup_completed";
+
 export async function POST(req: NextRequest) {
   try {
     const user = await getRequestUser(req);
@@ -23,6 +26,25 @@ export async function POST(req: NextRequest) {
     const inviteToken = String(body?.inviteToken ?? "").trim();
     const mail = String(body?.mail ?? "").trim();
     const admin = getTalentSupabaseAdmin();
+
+    const { data: existingTalentUser, error: existingTalentUserError } =
+      await admin
+        .from("talent_users")
+        .select("user_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+    if (existingTalentUserError) {
+      return NextResponse.json(
+        {
+          error:
+            existingTalentUserError.message ??
+            "Failed to read talent user profile",
+        },
+        { status: 500 }
+      );
+    }
+
     await ensureTalentUserRecord({
       admin,
       user,
@@ -40,6 +62,36 @@ export async function POST(req: NextRequest) {
       admin,
       userId: user.id,
     });
+
+    if (!existingTalentUser) {
+      const { error: logInsertError } = await admin.from("logs").insert({
+        type: CAREER_SIGNUP_EVENT_TYPE,
+        user_id: user.id,
+      });
+      if (logInsertError) {
+        console.error(
+          "[talent/auth/bootstrap] signup log insert error:",
+          logInsertError
+        );
+      }
+
+      try {
+        await notifySlackActivity({
+          action: "회원가입 완료",
+          details: [
+            { label: "Flow", value: "Career" },
+            ...(inviteToken ? [{ label: "Invite", value: "yes" }] : []),
+            ...(mail ? [{ label: "Mail alias", value: mail }] : []),
+          ],
+          user,
+        });
+      } catch (slackError) {
+        console.error(
+          "[talent/auth/bootstrap] signup slack notify error:",
+          slackError
+        );
+      }
+    }
 
     return NextResponse.json({
       claim,

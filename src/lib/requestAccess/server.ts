@@ -315,6 +315,7 @@ function buildSlackSignupBlocks(
         type: "mrkdwn",
         text: [
           "🎉 *New Signup*",
+          "• *Flow*: Company Search",
           `• *Name*: ${row.name || "N/A"}`,
           `• *Email*: ${row.email || "N/A"}`,
           `• *User ID*: ${row.user_id || "N/A"}`,

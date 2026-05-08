@@ -32,7 +32,7 @@ type CareerWorkspaceNavigationOptions = {
   historyTarget?: CareerWorkspaceHistoryTarget;
 };
 
-const DESKTOP_MEDIA_QUERY = "(min-width: 1024px)";
+const DESKTOP_MEDIA_QUERY = "(min-width: 720px)";
 const CHAT_PANEL_MIN_WIDTH = 36;
 const CHAT_PANEL_MAX_WIDTH = 64;
 const CHAT_PANEL_DEFAULT_WIDTH = 50;

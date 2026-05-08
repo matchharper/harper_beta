@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import type { CareerMobileEntryReason } from "@/lib/career/mobileBlocker";
 import Image from "next/image";
 
-const CAREER_DESKTOP_MEDIA_QUERY = "(min-width: 1024px)";
+const CAREER_DESKTOP_MEDIA_QUERY = "(min-width: 720px)";
 
 type CareerMobileViewportGateProps = {
   children: ReactNode;
@@ -112,15 +112,12 @@ const CareerMobileViewportGate = ({
 }: CareerMobileViewportGateProps) => {
   const isDesktop = useCareerDesktopViewport();
 
-  return (
-    <>
-      <div className="lg:hidden">
-        <CareerMobileBlocker entryReason={entryReason} user={user} />
-      </div>
-      <div className="hidden lg:block">
-        {isDesktop === true ? children : desktopFallback}
-      </div>
-    </>
+  if (isDesktop === null) return <>{desktopFallback}</>;
+
+  return isDesktop ? (
+    <>{children}</>
+  ) : (
+    <CareerMobileBlocker entryReason={entryReason} user={user} />
   );
 };
 

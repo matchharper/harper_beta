@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { notifySlackActivity } from "@/lib/slackActivity";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   TALENT_PENDING_QUESTION_PREFIX,
@@ -47,6 +48,22 @@ type TalentProfileUpdatePayload = {
   resume_text?: string;
   resume_file_name?: string;
   resume_storage_path?: string;
+};
+
+const ONBOARDING_SUBMITTED_EVENT_TYPE = "career_onboarding_submitted";
+
+const summarizeSubmittedProfile = (args: {
+  linkCount: number;
+  resumeFileName?: string;
+}) => {
+  const parts: string[] = [];
+  if (args.linkCount > 0) {
+    parts.push(`${args.linkCount} link${args.linkCount === 1 ? "" : "s"}`);
+  }
+  if (args.resumeFileName) {
+    parts.push("resume");
+  }
+  return parts.join(", ") || "profile info";
 };
 
 export async function POST(req: NextRequest) {
@@ -296,6 +313,54 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "Failed to create profile submit message" },
         { status: 500 }
+      );
+    }
+
+    const { error: logInsertError } = await admin.from("logs").insert({
+      type: ONBOARDING_SUBMITTED_EVENT_TYPE,
+      user_id: user.id,
+    });
+    if (logInsertError) {
+      console.error(
+        "[TalentOnboardingStart] log insert failed:",
+        logInsertError
+      );
+    }
+
+    try {
+      await notifySlackActivity({
+        action: "/career/onboarding 제출 완료",
+        details: [
+          {
+            label: "Submitted",
+            value: summarizeSubmittedProfile({
+              linkCount: links.length,
+              resumeFileName,
+            }),
+          },
+          {
+            label: "Looking for",
+            value: getTalentEngagementLabels(
+              normalizeTalentEngagementTypes(
+                talentSetting?.engagement_types ?? []
+              )
+            ).join(", "),
+          },
+          {
+            label: "Visibility",
+            value: getTalentProfileVisibilityLabel(
+              talentSetting?.profile_visibility
+            ),
+          },
+        ],
+        email: submittedEmail || profile?.email || user.email,
+        name: submittedName || profile?.name || displayName,
+        user,
+      });
+    } catch (slackError) {
+      console.error(
+        "[TalentOnboardingStart] onboarding slack notify error:",
+        slackError
       );
     }
 
