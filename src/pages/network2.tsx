@@ -8,6 +8,7 @@ import Link from "next/link";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 const MOBILE_HEADER_SCROLL_DELTA_THRESHOLD = 8;
+const NETWORK_PAGE_BACKGROUND = "#F7F0E8";
 const REPORT_ITEM_COUNT = 9;
 const CAREER_START_HREF =
   "/career_login?next=%2Fcareer%2Fonboarding&source=network";
@@ -253,8 +254,8 @@ function LandingButton({
   const isPrimary = variant === "primary";
   const classNames = `group relative inline-flex items-center justify-center overflow-hidden font-geist font-medium transition-shadow duration-300 ${
     isPrimary
-      ? "rounded-[12px] bg-beige900 text-beige100 shadow-lg hover:shadow-xl"
-      : "rounded-[12px] bg-beige500/70 text-beige900 shadow-inner"
+      ? "rounded-[12px] bg-beige900 text-beige100 shadow-[0_14px_30px_rgba(46,23,6,0.18)] hover:shadow-[0_18px_38px_rgba(46,23,6,0.22)]"
+      : "rounded-[12px] bg-beige500/70 text-beige900 shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_8px_20px_rgba(46,23,6,0.06)]"
   } ${
     isSmall
       ? isPrimary
@@ -396,7 +397,7 @@ function SocialProofSection() {
       className="px-4 py-4 text-center md:px-10 md:py-8"
     >
       <Reveal once delay={0.06}>
-        <div className="flex flex-col items-center justify-center gap-3 text-[15px] font-normal tracking-[-0.03em] text-beige900/75 sm:flex-row md:text-base">
+        <div className="flex flex-col items-center justify-center gap-5 text-[15px] font-normal tracking-[-0.03em] text-beige900/75 sm:flex-row md:text-base">
           <div>150+ engineers and researchers From</div>
           <div className="flex -space-x-2">
             {schoolLogos.map((school) => (
@@ -614,7 +615,7 @@ function HarperReport({
 
   return (
     <div
-      className={`relative h-[520px] overflow-hidden rounded-2xl border border-beige900/10 bg-beige50 p-5 text-left shadow-xl transition duration-700 md:h-[820px] md:rounded-[22px] md:p-[30px] ${
+      className={`relative h-[520px] overflow-hidden rounded-2xl border border-beige900/10 bg-beige50 p-5 text-left shadow-[0_22px_55px_rgba(46,23,6,0.10)] transition duration-700 md:h-[820px] md:rounded-[22px] md:p-[30px] ${
         reportVisible ? "translate-y-0 opacity-100" : "translate-y-5 opacity-0"
       }`}
     >
@@ -1097,7 +1098,7 @@ function DemoSection() {
             </div>
             <div
               ref={phoneRef}
-              className="relative flex h-[520px] flex-col rounded-[28px] border-2 border-beige500 bg-beige900 p-3.5 text-left shadow-2xl md:h-[820px] md:rounded-[36px]"
+              className="relative flex h-[520px] flex-col rounded-[28px] border-2 border-beige500 bg-beige900 p-3.5 text-left shadow-[0_26px_70px_rgba(46,23,6,0.20)] md:h-[820px] md:rounded-[36px]"
             >
               <div className="flex items-center gap-2.5 border-b border-beige100/10 px-2 pb-2.5">
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-beige700 font-instrument text-lg italic text-beige50">
@@ -1235,7 +1236,7 @@ function DemoSection() {
                     ? { duration: 0 }
                     : { duration: 0.7, ease: [0.25, 0.8, 0.25, 1] }
                 }
-                className="pointer-events-none absolute z-10 h-7 w-[22px] -translate-x-1.5 -translate-y-1 drop-shadow-lg"
+                className="pointer-events-none absolute z-10 h-7 w-[22px] -translate-x-1.5 -translate-y-1 drop-shadow-[0_6px_5px_rgba(46,23,6,0.24)]"
               >
                 <svg viewBox="0 0 18 24" xmlns="http://www.w3.org/2000/svg">
                   <path
@@ -1667,6 +1668,9 @@ export default function LandingKoVfPage() {
           name="description"
           content="Harper는 오직 탤런트만을 위한 AI 커리어 agent입니다. 풀타임 정규직부터 어드바이저리, 전문가 콜까지 당신의 전문성에 맞는 모든 기회를 대화로 전달합니다."
         />
+        <meta name="theme-color" content={NETWORK_PAGE_BACKGROUND} />
+        <meta name="color-scheme" content="light" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <link rel="alternate" hrefLang="en" href="https://matchharper.com/" />
         <link rel="alternate" hrefLang="ko" href="https://matchharper.com/ko" />
         <link
@@ -1675,7 +1679,21 @@ export default function LandingKoVfPage() {
           href="https://matchharper.com/"
         />
         <link rel="icon" href="/images/logo.ico" />
-        <style>{`body { display: block !important; }`}</style>
+        <style>{`
+          html,
+          body,
+          #__next {
+            background: ${NETWORK_PAGE_BACKGROUND} !important;
+          }
+
+          html {
+            color-scheme: light;
+          }
+
+          body {
+            display: block !important;
+          }
+        `}</style>
       </Head>
 
       <div
@@ -1685,7 +1703,7 @@ export default function LandingKoVfPage() {
         <AppBar />
 
         <main key={revealPass}>
-          <section className="flex flex-col items-center justify-center px-4 pb-14 pt-[112px] text-center md:px-10 md:pb-20 md:pt-[20vh]">
+          <section className="flex flex-col items-center justify-center px-4 pb-14 pt-[112px] text-center md:px-10 md:pb-28 md:pt-[20vh]">
             <Reveal once delay={0.06}>
               <SectionTag>탤런트만을 위해 설계된 AI 커리어 agent</SectionTag>
             </Reveal>
