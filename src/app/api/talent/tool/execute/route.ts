@@ -70,6 +70,7 @@ export async function POST(req: NextRequest) {
     }
 
     const output = await executeTalentTool({
+      channel,
       name,
       context: {
         admin,

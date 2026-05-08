@@ -571,6 +571,8 @@ export async function POST(req: NextRequest) {
           (tool) =>
             tool.function.name === TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE ||
             (requestChannel !== "voice" &&
+              tool.function.name === TALENT_TOOL_NAMES.OPEN_URL) ||
+            (requestChannel !== "voice" &&
               canSelectAdditionalOnboardingQuestion &&
               tool.function.name ===
                 TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION)

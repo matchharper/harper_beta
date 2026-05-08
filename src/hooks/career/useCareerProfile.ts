@@ -16,13 +16,19 @@ import type {
   CareerTalentUser,
   SessionResponse,
 } from "@/components/career/types";
+import { showToast } from "@/components/toast/toast";
 import {
+  compactProfileLinks,
   getErrorMessage,
   normalizeText,
   toProfileLinks,
   toUiMessage,
 } from "./careerHelpers";
 import type { FetchWithAuth } from "./useCareerApi";
+
+const showProfileSaveToast = (message: string) => {
+  showToast({ message, variant: "white" });
+};
 
 type UseCareerProfileArgs = {
   user: User | null;
@@ -167,14 +173,12 @@ export const useCareerProfile = ({
     async (onSuccess?: () => void | Promise<void>) => {
       if (!user || !conversationId || profilePending) return;
 
-      const cleanedLinks = profileLinks
-        .filter((link) => link.trim().includes("linkedin.com"))
-        .filter(Boolean);
+      const cleanedLinks = compactProfileLinks(profileLinks);
       const hasSavedResume = Boolean(
         savedResumeFileName || savedResumeStoragePath
       );
       if (!resumeFile && !hasSavedResume && cleanedLinks.length === 0) {
-        setProfileError("이력서 혹은 링크드인 링크를 업로드해 주세요.");
+        setProfileError("이력서 혹은 주요 링크를 업로드해 주세요.");
         return;
       }
 
@@ -221,7 +225,7 @@ export const useCareerProfile = ({
             typeof payload?.profileIngestion?.error === "string"
               ? payload.profileIngestion.error
               : "원인을 확인하지 못했습니다.";
-          setProfileSaveInfo(
+          showProfileSaveToast(
             `참고: LinkedIn 자동 구조화 저장에 실패했습니다. (${ingestionError})`
           );
           console.warn(
@@ -317,13 +321,12 @@ export const useCareerProfile = ({
 
       const structuredProfile = args?.structuredProfile ?? null;
 
-      const cleanedLinks = profileLinks
-        .map((link) => link.trim())
-        .filter(Boolean);
+      const cleanedLinks = compactProfileLinks(profileLinks);
+      const savedCleanedLinks = compactProfileLinks(savedProfileLinks);
       const hasUnsavedLinkChanges =
-        cleanedLinks.length !== savedProfileLinks.length ||
+        cleanedLinks.length !== savedCleanedLinks.length ||
         cleanedLinks.some(
-          (link, index) => link !== (savedProfileLinks[index] ?? "").trim()
+          (link, index) => link !== (savedCleanedLinks[index] ?? "").trim()
         );
 
       setProfileSavePending(true);
@@ -391,13 +394,27 @@ export const useCareerProfile = ({
 
         const savedStructuredProfile = Boolean(structuredProfile);
         const savedResumeOrLinks = Boolean(resumeFile) || hasUnsavedLinkChanges;
-        setProfileSaveInfo(
-          savedStructuredProfile && savedResumeOrLinks
-            ? "프로필과 이력서/링크 정보를 저장했습니다."
-            : savedStructuredProfile
-              ? "프로필을 저장했습니다."
-              : "이력서/링크 정보를 저장했습니다."
-        );
+        const ingestion = payload?.profileIngestion as
+          | { ok?: boolean; error?: string }
+          | null
+          | undefined;
+        if (ingestion?.ok === false) {
+          showProfileSaveToast(
+            `이력서/링크는 저장했지만 자동 프로필 업데이트는 실패했습니다. (${ingestion.error ?? "원인을 확인하지 못했습니다."})`
+          );
+        } else if (ingestion?.ok === true) {
+          showProfileSaveToast(
+            "이력서/링크를 저장하고 새 정보를 프로필에 반영했습니다."
+          );
+        } else {
+          showProfileSaveToast(
+            savedStructuredProfile && savedResumeOrLinks
+              ? "프로필과 이력서/링크 정보를 저장했습니다."
+              : savedStructuredProfile
+                ? "프로필을 저장했습니다."
+                : "이력서/링크 정보를 저장했습니다."
+          );
+        }
 
         return true;
       } catch (error) {

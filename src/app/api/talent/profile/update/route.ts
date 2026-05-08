@@ -7,6 +7,10 @@ import {
   getTalentResumeSignedUrl,
   getTalentSupabaseAdmin,
 } from "@/lib/talentOnboarding/server";
+import {
+  mergeTalentProfileFromLatestSources,
+  pickLinkedinUrl,
+} from "@/lib/talentOnboarding/profileIngestion";
 
 type StructuredProfileBody = {
   talentUser?: {
@@ -282,6 +286,33 @@ export async function POST(req: NextRequest) {
 
     const admin = getTalentSupabaseAdmin();
     await ensureTalentUserRecord({ admin, user });
+    const existingProfile = await fetchTalentUserProfile({
+      admin,
+      userId: user.id,
+    });
+    const previousLinkedinUrl = pickLinkedinUrl(
+      existingProfile?.resume_links ?? []
+    );
+    const nextLinkedinUrl = pickLinkedinUrl(links);
+    const shouldMergeLatestSources =
+      !structuredProfile &&
+      (Boolean(resumeText) ||
+        Boolean(nextLinkedinUrl && nextLinkedinUrl !== previousLinkedinUrl));
+    const existingStructuredProfile = shouldMergeLatestSources
+      ? await fetchTalentStructuredProfile({
+          admin,
+          userId: user.id,
+          talentUser: existingProfile,
+        })
+      : null;
+    let profileIngestion:
+      | {
+          ok: boolean;
+          linkedinUrl?: string;
+          stats?: Record<string, number>;
+          error?: string;
+        }
+      | null = null;
 
     const { error: updateError } = await admin
       .from("talent_users")
@@ -374,6 +405,36 @@ export async function POST(req: NextRequest) {
           { status: 500 }
         );
       }
+    } else if (shouldMergeLatestSources && existingStructuredProfile) {
+      try {
+        const ingestion = await mergeTalentProfileFromLatestSources({
+          admin,
+          userId: user.id,
+          links,
+          resumeText,
+          resumeFileName,
+          resumeStoragePath,
+          existingProfile: existingStructuredProfile,
+        });
+        profileIngestion = {
+          ok: true,
+          linkedinUrl: ingestion.linkedinUrl,
+          stats: ingestion.stats,
+        };
+      } catch (ingestionError) {
+        const ingestionMessage =
+          ingestionError instanceof Error
+            ? ingestionError.message
+            : "Failed to ingest latest profile sources";
+        console.error("[TalentProfileUpdate] profile ingestion failed:", {
+          userId: user.id,
+          error: ingestionMessage,
+        });
+        profileIngestion = {
+          ok: false,
+          error: ingestionMessage,
+        };
+      }
     }
 
     const profile = await fetchTalentUserProfile({ admin, userId: user.id });
@@ -396,6 +457,7 @@ export async function POST(req: NextRequest) {
         resumeLinks: profile?.resume_links ?? [],
       },
       talentProfile,
+      profileIngestion,
     });
   } catch (error) {
     const message =

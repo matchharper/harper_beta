@@ -3,8 +3,11 @@ import { logger } from "@/utils/logger";
 import {
   buildCareerProfileIngestionSystemPrompt,
   buildCareerProfileIngestionUserPrompt,
+  buildCareerProfileUpdateMergeSystemPrompt,
+  buildCareerProfileUpdateMergeUserPrompt,
 } from "@/lib/career/prompts";
 import { runCareerProfileIngestion } from "@/lib/career/llm";
+import type { TalentStructuredProfile } from "@/lib/talentOnboarding/models";
 
 const DEFAULT_LINKEDIN_ACTOR_ID = "LpVuK3Zozwuipa5bp";
 const NULL_CHAR_RE = /\u0000/g;
@@ -82,6 +85,27 @@ type LlmEnrichmentDraft = {
   notes?: string;
 };
 
+type MergedTalentExperienceDraft = TalentExperienceDraft & {
+  existingId: number | null;
+};
+
+type MergedTalentEducationDraft = TalentEducationDraft & {
+  existingId: number | null;
+};
+
+type MergedTalentExtraDraft = TalentExtraDraft & {
+  existingTitle: string | null;
+};
+
+type LlmProfileMergeDraft = {
+  talentUserPatch?: Partial<TalentUserDraft>;
+  talentUser?: Partial<TalentUserDraft>;
+  talentExperiences?: Array<Record<string, unknown>>;
+  talentEducations?: Array<Record<string, unknown>>;
+  talentExtras?: Array<Record<string, unknown>>;
+  notes?: string;
+};
+
 export type TalentProfileIngestionResult = {
   ok: boolean;
   linkedinUrl: string;
@@ -115,6 +139,34 @@ type IngestArgs = {
   resumeText?: string | null;
   resumeFileName?: string | null;
   resumeStoragePath?: string | null;
+};
+
+type MergeIngestArgs = IngestArgs & {
+  existingProfile: TalentStructuredProfile;
+};
+
+type ExtractedTalentProfileDraft = {
+  linkedinUrl: string | null;
+  scholarLinks: string[];
+  links: string[];
+  resumeText: string | null;
+  stats: {
+    experiencesFromLinkedin: number;
+    educationsFromLinkedin: number;
+    extrasFromLinkedin: number;
+    experiencesFromLlm: number;
+    educationsFromLlm: number;
+    extrasFromLlm: number;
+  };
+  talentUser: TalentUserDraft;
+  experiences: TalentExperienceDraft[];
+  educations: TalentEducationDraft[];
+  talentExtras: TalentExtraDraft[];
+  llm: {
+    used: boolean;
+    notes: string | null;
+    raw: string | null;
+  };
 };
 
 function toArray<T>(value: unknown): T[] {
@@ -205,7 +257,7 @@ function normalizeLinkedinProfileUrl(raw: string): string | null {
   }
 }
 
-function pickLinkedinUrl(links: string[]): string | null {
+export function pickLinkedinUrl(links: string[]): string | null {
   for (const raw of links) {
     const normalized = normalizeLinkedinProfileUrl(raw);
     if (normalized) return normalized;
@@ -872,6 +924,109 @@ function normalizeLlmEnrichment(raw: LlmEnrichmentDraft): {
   };
 }
 
+function parseExistingId(value: unknown): number | null {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
+    return value;
+  }
+  if (typeof value !== "string") return null;
+  const parsed = Number(value.trim());
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function toMergedExperienceDraft(
+  raw: unknown
+): MergedTalentExperienceDraft | null {
+  const base = toTalentExperienceDraft(raw);
+  if (!base || !raw || typeof raw !== "object") return null;
+  const record = raw as Record<string, unknown>;
+  return {
+    ...base,
+    existingId: parseExistingId(record.existingId ?? record.id),
+  };
+}
+
+function toMergedEducationDraft(
+  raw: unknown
+): MergedTalentEducationDraft | null {
+  const base = toTalentEducationDraft(raw);
+  if (!base || !raw || typeof raw !== "object") return null;
+  const record = raw as Record<string, unknown>;
+  return {
+    ...base,
+    existingId: parseExistingId(record.existingId ?? record.id),
+  };
+}
+
+function toMergedExtraDraft(raw: unknown): MergedTalentExtraDraft | null {
+  const base = toTalentExtraDraft(raw);
+  if (!base || !raw || typeof raw !== "object") return null;
+  const record = raw as Record<string, unknown>;
+  return {
+    ...base,
+    existingTitle: cleanText(record.existingTitle, 240),
+  };
+}
+
+function dedupeMergedRows<T extends { existingId: number | null }>(
+  items: T[],
+  keyFn: (item: T) => string
+): T[] {
+  const seenExistingIds = new Set<number>();
+  const seenKeys = new Set<string>();
+  const result: T[] = [];
+
+  for (const item of items) {
+    if (item.existingId) {
+      if (seenExistingIds.has(item.existingId)) continue;
+      seenExistingIds.add(item.existingId);
+      result.push(item);
+      continue;
+    }
+
+    const key = keyFn(item);
+    if (!key || seenKeys.has(key)) continue;
+    seenKeys.add(key);
+    result.push(item);
+  }
+
+  return result;
+}
+
+function normalizeLlmProfileMerge(raw: LlmProfileMergeDraft): {
+  talentUserPatch: Partial<TalentUserDraft>;
+  experiences: MergedTalentExperienceDraft[];
+  educations: MergedTalentEducationDraft[];
+  talentExtras: MergedTalentExtraDraft[];
+  notes: string | null;
+} {
+  const base = normalizeLlmEnrichment(raw as LlmEnrichmentDraft);
+
+  return {
+    talentUserPatch: base.talentUserPatch,
+    experiences: dedupeMergedRows(
+      toArray(raw.talentExperiences)
+        .map((item) => toMergedExperienceDraft(item))
+        .filter(
+          (item): item is MergedTalentExperienceDraft => item !== null
+        ),
+      experienceKey
+    ),
+    educations: dedupeMergedRows(
+      toArray(raw.talentEducations)
+        .map((item) => toMergedEducationDraft(item))
+        .filter((item): item is MergedTalentEducationDraft => item !== null),
+      educationKey
+    ),
+    talentExtras: dedupeByKey(
+      toArray(raw.talentExtras)
+        .map((item) => toMergedExtraDraft(item))
+        .filter((item): item is MergedTalentExtraDraft => item !== null),
+      extraKey
+    ),
+    notes: base.notes,
+  };
+}
+
 async function runResumeEnrichmentLlm(args: {
   linkedinUrl: string;
   scholarLinks: string[];
@@ -946,9 +1101,9 @@ async function runResumeEnrichmentLlm(args: {
   };
 }
 
-export async function ingestTalentProfileFromLinkedin(
+async function extractTalentProfileDraftFromSources(
   args: IngestArgs
-): Promise<TalentProfileIngestionResult> {
+): Promise<ExtractedTalentProfileDraft> {
   const { admin, userId } = args;
   const links = toArray<string>(args.links)
     .map((link) => String(link).trim())
@@ -1117,14 +1272,44 @@ export async function ingestTalentProfileFromLinkedin(
   });
   experiences = attachCompanyLogos(experiences, companyLogoById);
 
+  return {
+    linkedinUrl,
+    scholarLinks,
+    links,
+    resumeText,
+    stats: {
+      experiencesFromLinkedin: experiencesFromLinkedin.length,
+      educationsFromLinkedin: educationsFromLinkedin.length,
+      extrasFromLinkedin: extrasFromLinkedin.length,
+      experiencesFromLlm,
+      educationsFromLlm,
+      extrasFromLlm,
+    },
+    talentUser,
+    experiences,
+    educations,
+    talentExtras,
+    llm: {
+      used: Boolean(resumeText),
+      notes: llmNotes,
+      raw: llmRaw,
+    },
+  };
+}
+
+export async function ingestTalentProfileFromLinkedin(
+  args: IngestArgs
+): Promise<TalentProfileIngestionResult> {
+  const { admin, userId } = args;
+  const extracted = await extractTalentProfileDraftFromSources(args);
   const now = new Date().toISOString();
   const userPayload: Record<string, unknown> = {
-    name: talentUser.name,
-    profile_picture: talentUser.profile_picture,
-    headline: talentUser.headline,
-    bio: talentUser.bio,
-    location: talentUser.location,
-    resume_links: links,
+    name: extracted.talentUser.name,
+    profile_picture: extracted.talentUser.profile_picture,
+    headline: extracted.talentUser.headline,
+    bio: extracted.talentUser.bio,
+    location: extracted.talentUser.location,
+    resume_links: extracted.links,
     updated_at: now,
   };
 
@@ -1151,11 +1336,12 @@ export async function ingestTalentProfileFromLinkedin(
   }
 
   logger.log("[TalentIngest] replacing child rows", {
-    experiences: experiences.length,
-    educations: educations.length,
-    extras: talentExtras.length,
-    experienceCompanyLogos: experiences.filter((item) => item.company_logo)
-      .length,
+    experiences: extracted.experiences.length,
+    educations: extracted.educations.length,
+    extras: extracted.talentExtras.length,
+    experienceCompanyLogos: extracted.experiences.filter(
+      (item) => item.company_logo
+    ).length,
   });
 
   const db = admin as any;
@@ -1180,7 +1366,7 @@ export async function ingestTalentProfileFromLinkedin(
     );
   }
 
-  const experienceRows = experiences.map((item) => ({
+  const experienceRows = extracted.experiences.map((item) => ({
     talent_id: userId,
     role: item.role,
     description: item.description,
@@ -1207,7 +1393,7 @@ export async function ingestTalentProfileFromLinkedin(
     }
   }
 
-  const educationRows = educations.map((item) => ({
+  const educationRows = extracted.educations.map((item) => ({
     talent_id: userId,
     school: item.school,
     degree: item.degree,
@@ -1230,7 +1416,7 @@ export async function ingestTalentProfileFromLinkedin(
 
   const extrasContent = {
     updated_at: now,
-    talent_extras: talentExtras.map((item) => ({
+    talent_extras: extracted.talentExtras.map((item) => ({
       title: item.title,
       description: item.description,
       date: item.date,
@@ -1252,31 +1438,691 @@ export async function ingestTalentProfileFromLinkedin(
 
   const result: TalentProfileIngestionResult = {
     ok: true,
-    linkedinUrl: linkedinUrl ?? "",
-    scholarLinks,
+    linkedinUrl: extracted.linkedinUrl ?? "",
+    scholarLinks: extracted.scholarLinks,
     stats: {
-      experiencesFromLinkedin: experiencesFromLinkedin.length,
-      educationsFromLinkedin: educationsFromLinkedin.length,
-      extrasFromLinkedin: extrasFromLinkedin.length,
-      experiencesFromLlm,
-      educationsFromLlm,
-      extrasFromLlm,
+      ...extracted.stats,
       experiencesSaved: experienceRows.length,
       educationsSaved: educationRows.length,
-      extrasSaved: talentExtras.length,
+      extrasSaved: extracted.talentExtras.length,
     },
-    talentUser,
-    experiences,
-    educations,
-    talentExtras,
-    llm: {
-      used: Boolean(resumeText),
-      notes: llmNotes,
-      raw: llmRaw,
-    },
+    talentUser: extracted.talentUser,
+    experiences: extracted.experiences,
+    educations: extracted.educations,
+    talentExtras: extracted.talentExtras,
+    llm: extracted.llm,
   };
 
   logger.log("[TalentIngest] done", {
+    userId,
+    stats: result.stats,
+  });
+
+  return result;
+}
+
+function talentUserPatchFromExtracted(
+  extracted: ExtractedTalentProfileDraft,
+  existingProfile: TalentStructuredProfile
+): Partial<TalentUserDraft> {
+  const existingUser = existingProfile.talentUser;
+  const patch: Partial<TalentUserDraft> = {};
+
+  for (const key of [
+    "name",
+    "profile_picture",
+    "headline",
+    "bio",
+    "location",
+  ] as const) {
+    const next = extracted.talentUser[key];
+    const current = existingUser?.[key] ?? null;
+    if (next && next !== current) {
+      patch[key] = next;
+    }
+  }
+
+  return patch;
+}
+
+function existingExperienceToMergedDraft(
+  row: TalentStructuredProfile["talentExperiences"][number]
+): MergedTalentExperienceDraft {
+  return {
+    existingId: row.id,
+    role: cleanText(row.role, 240),
+    description: cleanMultilineText(row.description, 8000),
+    start_date: cleanText(row.start_date, 32),
+    end_date: cleanText(row.end_date, 32),
+    months: typeof row.months === "number" ? row.months : null,
+    company_id: parseCompanyId(row.company_id),
+    company_link: cleanText(row.company_link, 2000),
+    company_name: cleanText(row.company_name, 240),
+    company_location: cleanText(row.company_location, 240),
+    company_logo: cleanText(row.company_logo, 2000),
+  };
+}
+
+function existingEducationToMergedDraft(
+  row: TalentStructuredProfile["talentEducations"][number]
+): MergedTalentEducationDraft {
+  return {
+    existingId: row.id,
+    school: cleanText(row.school, 240),
+    degree: cleanText(row.degree, 120),
+    description: cleanMultilineText(row.description, 8000),
+    field: cleanText(row.field, 240),
+    start_date: cleanText(row.start_date, 32),
+    end_date: cleanText(row.end_date, 32),
+    url: cleanText(row.url, 2000),
+  };
+}
+
+function existingExtraToMergedDraft(
+  item: TalentStructuredProfile["talentExtras"][number]
+): MergedTalentExtraDraft {
+  return {
+    existingTitle: cleanText(item.title, 240),
+    title: cleanText(item.title, 240),
+    description: cleanMultilineText(item.description, 8000),
+    date: cleanText(item.date, 32),
+  };
+}
+
+function experienceLooksSame(
+  existing: MergedTalentExperienceDraft,
+  incoming: TalentExperienceDraft
+) {
+  const existingCompany = normalizeForKey(existing.company_name);
+  const incomingCompany = normalizeForKey(incoming.company_name);
+  const existingRole = normalizeForKey(existing.role);
+  const incomingRole = normalizeForKey(incoming.role);
+  if (!existingCompany || existingCompany !== incomingCompany) return false;
+
+  if (existingRole && incomingRole && existingRole === incomingRole) return true;
+  if (
+    normalizeForKey(existing.start_date) &&
+    normalizeForKey(existing.start_date) === normalizeForKey(incoming.start_date)
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function educationLooksSame(
+  existing: MergedTalentEducationDraft,
+  incoming: TalentEducationDraft
+) {
+  const existingSchool = normalizeForKey(existing.school);
+  const incomingSchool = normalizeForKey(incoming.school);
+  if (!existingSchool || existingSchool !== incomingSchool) return false;
+
+  const existingDegree = normalizeForKey(existing.degree);
+  const incomingDegree = normalizeForKey(incoming.degree);
+  const existingField = normalizeForKey(existing.field);
+  const incomingField = normalizeForKey(incoming.field);
+
+  return (
+    (existingDegree && incomingDegree && existingDegree === incomingDegree) ||
+    (existingField && incomingField && existingField === incomingField) ||
+    (!incomingDegree && !incomingField)
+  );
+}
+
+function mergeNonEmpty<T extends Record<string, unknown>>(
+  base: T,
+  incoming: T
+): T {
+  const next = { ...base };
+  for (const [key, value] of Object.entries(incoming)) {
+    if (key === "existingId" || value === null || value === undefined) continue;
+    next[key as keyof T] = value as T[keyof T];
+  }
+  return next;
+}
+
+function buildFallbackMergedProfile(args: {
+  existingProfile: TalentStructuredProfile;
+  extracted: ExtractedTalentProfileDraft;
+}): {
+  talentUserPatch: Partial<TalentUserDraft>;
+  experiences: MergedTalentExperienceDraft[];
+  educations: MergedTalentEducationDraft[];
+  talentExtras: MergedTalentExtraDraft[];
+  notes: string | null;
+} {
+  const experiences = args.existingProfile.talentExperiences.map(
+    existingExperienceToMergedDraft
+  );
+  for (const incoming of args.extracted.experiences) {
+    const matchIndex = experiences.findIndex((existing) =>
+      experienceLooksSame(existing, incoming)
+    );
+    if (matchIndex >= 0) {
+      experiences[matchIndex] = mergeNonEmpty(experiences[matchIndex], {
+        ...incoming,
+        existingId: experiences[matchIndex].existingId,
+        company_logo:
+          incoming.company_logo ?? experiences[matchIndex].company_logo,
+      });
+    } else {
+      experiences.push({ ...incoming, existingId: null });
+    }
+  }
+
+  const educations = args.existingProfile.talentEducations.map(
+    existingEducationToMergedDraft
+  );
+  for (const incoming of args.extracted.educations) {
+    const matchIndex = educations.findIndex((existing) =>
+      educationLooksSame(existing, incoming)
+    );
+    if (matchIndex >= 0) {
+      educations[matchIndex] = mergeNonEmpty(educations[matchIndex], {
+        ...incoming,
+        existingId: educations[matchIndex].existingId,
+      });
+    } else {
+      educations.push({ ...incoming, existingId: null });
+    }
+  }
+
+  const talentExtras = args.existingProfile.talentExtras.map(
+    existingExtraToMergedDraft
+  );
+  for (const incoming of args.extracted.talentExtras) {
+    const incomingTitle = normalizeForKey(incoming.title);
+    const matchIndex = talentExtras.findIndex(
+      (existing) => normalizeForKey(existing.title) === incomingTitle
+    );
+    if (matchIndex >= 0) {
+      talentExtras[matchIndex] = {
+        ...mergeNonEmpty(talentExtras[matchIndex], {
+          ...incoming,
+          existingTitle: talentExtras[matchIndex].existingTitle,
+        }),
+      };
+    } else {
+      talentExtras.push({ ...incoming, existingTitle: null });
+    }
+  }
+
+  return {
+    talentUserPatch: talentUserPatchFromExtracted(
+      args.extracted,
+      args.existingProfile
+    ),
+    experiences,
+    educations,
+    talentExtras,
+    notes: "Used deterministic fallback merge.",
+  };
+}
+
+function buildExistingProfileForMergePrompt(
+  existingProfile: TalentStructuredProfile
+) {
+  return {
+    talentUser: existingProfile.talentUser,
+    talentExperiences: existingProfile.talentExperiences.map((item) => ({
+      existingId: item.id,
+      role: item.role,
+      description: item.description,
+      start_date: item.start_date,
+      end_date: item.end_date,
+      months: item.months,
+      company_id: item.company_id,
+      company_link: item.company_link,
+      company_name: item.company_name,
+      company_location: item.company_location,
+      hasMemo: Boolean(item.memo?.trim()),
+      memo: item.memo,
+    })),
+    talentEducations: existingProfile.talentEducations.map((item) => ({
+      existingId: item.id,
+      school: item.school,
+      degree: item.degree,
+      description: item.description,
+      field: item.field,
+      start_date: item.start_date,
+      end_date: item.end_date,
+      url: item.url,
+      hasMemo: Boolean(item.memo?.trim()),
+      memo: item.memo,
+    })),
+    talentExtras: existingProfile.talentExtras.map((item) => ({
+      existingTitle: item.title,
+      title: item.title,
+      description: item.description,
+      date: item.date,
+      hasMemo: Boolean(item.memo?.trim()),
+      memo: item.memo,
+    })),
+  };
+}
+
+function buildLatestParsedProfileForMergePrompt(
+  extracted: ExtractedTalentProfileDraft
+) {
+  return {
+    linkedinUrl: extracted.linkedinUrl,
+    scholarLinks: extracted.scholarLinks,
+    talentUser: extracted.talentUser,
+    talentExperiences: extracted.experiences,
+    talentEducations: extracted.educations,
+    talentExtras: extracted.talentExtras,
+    stats: extracted.stats,
+  };
+}
+
+async function runProfileUpdateMergeLlm(args: {
+  existingProfile: TalentStructuredProfile;
+  extracted: ExtractedTalentProfileDraft;
+}): Promise<ReturnType<typeof buildFallbackMergedProfile>> {
+  logger.log("[TalentIngest] profile update merge LLM start");
+  const llmRaw = await runCareerProfileIngestion({
+    messages: [
+      {
+        role: "system",
+        content: buildCareerProfileUpdateMergeSystemPrompt(),
+      },
+      {
+        role: "user",
+        content: buildCareerProfileUpdateMergeUserPrompt({
+          existingProfile: buildExistingProfileForMergePrompt(
+            args.existingProfile
+          ),
+          latestParsedProfile: buildLatestParsedProfileForMergePrompt(
+            args.extracted
+          ),
+        }),
+      },
+    ],
+  });
+
+  logger.log("[TalentIngest] profile update merge LLM done");
+  const parsed = parseLlmJson(llmRaw) as LlmProfileMergeDraft | null;
+  if (!parsed) {
+    logger.log("[TalentIngest] profile update merge parse failed", {
+      preview: llmRaw.slice(0, 1000),
+    });
+    return buildFallbackMergedProfile(args);
+  }
+
+  const normalized = normalizeLlmProfileMerge(parsed);
+  const fallback = buildFallbackMergedProfile(args);
+
+  return {
+    talentUserPatch: normalized.talentUserPatch,
+    experiences:
+      normalized.experiences.length > 0 ||
+      args.existingProfile.talentExperiences.length === 0
+        ? normalized.experiences
+        : fallback.experiences,
+    educations:
+      normalized.educations.length > 0 ||
+      args.existingProfile.talentEducations.length === 0
+        ? normalized.educations
+        : fallback.educations,
+    talentExtras:
+      normalized.talentExtras.length > 0 ||
+      args.existingProfile.talentExtras.length === 0
+        ? normalized.talentExtras
+        : fallback.talentExtras,
+    notes: normalized.notes,
+  };
+}
+
+function validMergedExperienceRows(args: {
+  existingProfile: TalentStructuredProfile;
+  rows: MergedTalentExperienceDraft[];
+}) {
+  const existingIds = new Set(
+    args.existingProfile.talentExperiences.map((item) => item.id)
+  );
+  return args.rows.map((item) => ({
+    ...item,
+    existingId:
+      item.existingId && existingIds.has(item.existingId)
+        ? item.existingId
+        : null,
+  }));
+}
+
+function validMergedEducationRows(args: {
+  existingProfile: TalentStructuredProfile;
+  rows: MergedTalentEducationDraft[];
+}) {
+  const existingIds = new Set(
+    args.existingProfile.talentEducations.map((item) => item.id)
+  );
+  return args.rows.map((item) => ({
+    ...item,
+    existingId:
+      item.existingId && existingIds.has(item.existingId)
+        ? item.existingId
+        : null,
+  }));
+}
+
+function profileUserUpdatePayload(args: {
+  extracted: ExtractedTalentProfileDraft;
+  mergedUserPatch: Partial<TalentUserDraft>;
+  resumeFileName?: string | null;
+  resumeStoragePath?: string | null;
+  resumeText?: string | null;
+  now: string;
+}) {
+  const payload: Record<string, unknown> = {
+    resume_links: args.extracted.links,
+    updated_at: args.now,
+  };
+
+  for (const [key, value] of Object.entries(args.mergedUserPatch)) {
+    if (value !== undefined && value !== null) {
+      payload[key] = value;
+    }
+  }
+
+  if (typeof args.resumeFileName === "string" && args.resumeFileName.trim()) {
+    payload.resume_file_name = args.resumeFileName.trim();
+  }
+  if (
+    typeof args.resumeStoragePath === "string" &&
+    args.resumeStoragePath.trim()
+  ) {
+    payload.resume_storage_path = args.resumeStoragePath.trim();
+  }
+  if (typeof args.resumeText === "string") {
+    payload.resume_text = args.resumeText.trim().slice(0, 24000);
+  }
+
+  return payload;
+}
+
+function experienceUpdatePayload(
+  item: MergedTalentExperienceDraft,
+  existing?: TalentStructuredProfile["talentExperiences"][number]
+) {
+  return {
+    role: item.role,
+    description: item.description,
+    start_date: item.start_date,
+    end_date: item.end_date,
+    months: item.months,
+    company_id:
+      typeof item.company_id === "number" && item.company_id > 0
+        ? String(item.company_id)
+        : null,
+    company_link: item.company_link,
+    company_name: item.company_name,
+    company_location: item.company_location,
+    company_logo: item.company_logo ?? existing?.company_logo ?? null,
+  };
+}
+
+function educationUpdatePayload(item: MergedTalentEducationDraft) {
+  return {
+    school: item.school,
+    degree: item.degree,
+    description: item.description,
+    field: item.field,
+    start_date: item.start_date,
+    end_date: item.end_date,
+    url: item.url,
+  };
+}
+
+function normalizedExtraTitle(value: string | null | undefined) {
+  return normalizeForKey(value);
+}
+
+export async function mergeTalentProfileFromLatestSources(
+  args: MergeIngestArgs
+): Promise<TalentProfileIngestionResult> {
+  const { admin, userId, existingProfile } = args;
+  const extracted = await extractTalentProfileDraftFromSources(args);
+  let mergedRaw: ReturnType<typeof buildFallbackMergedProfile>;
+  try {
+    mergedRaw = await withTimeout(
+      runProfileUpdateMergeLlm({ existingProfile, extracted }),
+      60_000,
+      "Profile update merge LLM timed out"
+    );
+  } catch (mergeError) {
+    logger.log("[TalentIngest] profile update merge fallback", {
+      userId,
+      error:
+        mergeError instanceof Error
+          ? mergeError.message
+          : "Failed to merge latest profile sources",
+    });
+    mergedRaw = buildFallbackMergedProfile({ existingProfile, extracted });
+  }
+  let experiences = validMergedExperienceRows({
+    existingProfile,
+    rows: mergedRaw.experiences,
+  });
+  const educations = validMergedEducationRows({
+    existingProfile,
+    rows: mergedRaw.educations,
+  });
+
+  const companyLogoById = await loadCompanyLogoMap({
+    admin,
+    experiences,
+  });
+  const existingExperienceById = new Map(
+    existingProfile.talentExperiences.map((item) => [item.id, item])
+  );
+  experiences = experiences.map((item) => ({
+    ...item,
+    company_logo:
+      item.company_id && companyLogoById.has(item.company_id)
+        ? (companyLogoById.get(item.company_id) ?? null)
+        : item.existingId
+          ? (existingExperienceById.get(item.existingId)?.company_logo ?? null)
+          : item.company_logo,
+  }));
+
+  const now = new Date().toISOString();
+  const db = admin as any;
+
+  logger.log("[TalentIngest] merging latest profile sources", {
+    userId,
+    experiences: experiences.length,
+    educations: educations.length,
+    extras: mergedRaw.talentExtras.length,
+  });
+
+  const { error: userUpdateError } = await db
+    .from("talent_users")
+    .update(
+      profileUserUpdatePayload({
+        extracted,
+        mergedUserPatch: mergedRaw.talentUserPatch,
+        resumeFileName: args.resumeFileName,
+        resumeStoragePath: args.resumeStoragePath,
+        resumeText: args.resumeText,
+        now,
+      })
+    )
+    .eq("user_id", userId);
+  if (userUpdateError) {
+    throw new Error(userUpdateError.message ?? "Failed to update talent_users");
+  }
+
+  const finalExperienceIds = new Set(
+    experiences
+      .map((item) => item.existingId)
+      .filter((item): item is number => typeof item === "number")
+  );
+  const experienceIdsToDelete = existingProfile.talentExperiences
+    .map((item) => item.id)
+    .filter((id) => !finalExperienceIds.has(id));
+  if (experienceIdsToDelete.length > 0) {
+    const { error } = await db
+      .from("talent_experiences")
+      .delete()
+      .eq("talent_id", userId)
+      .in("id", experienceIdsToDelete);
+    if (error) {
+      throw new Error(error.message ?? "Failed to delete talent_experiences");
+    }
+  }
+
+  for (const item of experiences.filter((row) => row.existingId)) {
+    const { error } = await db
+      .from("talent_experiences")
+      .update(
+        experienceUpdatePayload(
+          item,
+          item.existingId ? existingExperienceById.get(item.existingId) : undefined
+        )
+      )
+      .eq("talent_id", userId)
+      .eq("id", item.existingId);
+    if (error) {
+      throw new Error(error.message ?? "Failed to update talent_experiences");
+    }
+  }
+
+  const experienceRowsToInsert = experiences
+    .filter((item) => !item.existingId)
+    .map((item) => ({
+      talent_id: userId,
+      ...experienceUpdatePayload(item),
+    }));
+  if (experienceRowsToInsert.length > 0) {
+    const { error } = await db
+      .from("talent_experiences")
+      .insert(experienceRowsToInsert);
+    if (error) {
+      throw new Error(error.message ?? "Failed to insert talent_experiences");
+    }
+  }
+
+  const finalEducationIds = new Set(
+    educations
+      .map((item) => item.existingId)
+      .filter((item): item is number => typeof item === "number")
+  );
+  const educationIdsToDelete = existingProfile.talentEducations
+    .map((item) => item.id)
+    .filter((id) => !finalEducationIds.has(id));
+  if (educationIdsToDelete.length > 0) {
+    const { error } = await db
+      .from("talent_educations")
+      .delete()
+      .eq("talent_id", userId)
+      .in("id", educationIdsToDelete);
+    if (error) {
+      throw new Error(error.message ?? "Failed to delete talent_educations");
+    }
+  }
+
+  for (const item of educations.filter((row) => row.existingId)) {
+    const { error } = await db
+      .from("talent_educations")
+      .update(educationUpdatePayload(item))
+      .eq("talent_id", userId)
+      .eq("id", item.existingId);
+    if (error) {
+      throw new Error(error.message ?? "Failed to update talent_educations");
+    }
+  }
+
+  const educationRowsToInsert = educations
+    .filter((item) => !item.existingId)
+    .map((item) => ({
+      talent_id: userId,
+      ...educationUpdatePayload(item),
+    }));
+  if (educationRowsToInsert.length > 0) {
+    const { error } = await db
+      .from("talent_educations")
+      .insert(educationRowsToInsert);
+    if (error) {
+      throw new Error(error.message ?? "Failed to insert talent_educations");
+    }
+  }
+
+  const existingExtraByTitle = new Map(
+    existingProfile.talentExtras
+      .map((item) => [normalizedExtraTitle(item.title), item] as const)
+      .filter(([key]) => Boolean(key))
+  );
+  const talentExtras = mergedRaw.talentExtras.map((item) => {
+    const byExistingTitle = item.existingTitle
+      ? existingExtraByTitle.get(normalizedExtraTitle(item.existingTitle))
+      : null;
+    const byTitle = item.title
+      ? existingExtraByTitle.get(normalizedExtraTitle(item.title))
+      : null;
+    const existing = byExistingTitle ?? byTitle ?? null;
+    return {
+      title: item.title,
+      description: item.description,
+      date: item.date,
+      memo: existing?.memo ?? null,
+    };
+  });
+
+  const { error: extrasUpsertError } = await db.from("talent_extras").upsert(
+    {
+      talent_id: userId,
+      content: {
+        updated_at: now,
+        talent_extras: talentExtras,
+      },
+    },
+    { onConflict: "talent_id" }
+  );
+  if (extrasUpsertError) {
+    throw new Error(
+      extrasUpsertError.message ?? "Failed to upsert talent_extras"
+    );
+  }
+
+  const result: TalentProfileIngestionResult = {
+    ok: true,
+    linkedinUrl: extracted.linkedinUrl ?? "",
+    scholarLinks: extracted.scholarLinks,
+    stats: {
+      ...extracted.stats,
+      experiencesSaved: experiences.length,
+      educationsSaved: educations.length,
+      extrasSaved: talentExtras.length,
+    },
+    talentUser: {
+      name:
+        cleanText(mergedRaw.talentUserPatch.name, 240) ??
+        extracted.talentUser.name,
+      profile_picture:
+        cleanText(mergedRaw.talentUserPatch.profile_picture, 1000) ??
+        extracted.talentUser.profile_picture,
+      headline:
+        cleanText(mergedRaw.talentUserPatch.headline, 300) ??
+        extracted.talentUser.headline,
+      bio:
+        cleanMultilineText(mergedRaw.talentUserPatch.bio, 8000) ??
+        extracted.talentUser.bio,
+      location:
+        cleanText(mergedRaw.talentUserPatch.location, 240) ??
+        extracted.talentUser.location,
+    },
+    experiences: experiences.map(({ existingId: _existingId, ...item }) => item),
+    educations: educations.map(({ existingId: _existingId, ...item }) => item),
+    talentExtras: talentExtras.map(({ memo: _memo, ...item }) => item),
+    llm: {
+      used: true,
+      notes: mergedRaw.notes,
+      raw: extracted.llm.raw,
+    },
+  };
+
+  logger.log("[TalentIngest] merge done", {
     userId,
     stats: result.stats,
   });

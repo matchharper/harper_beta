@@ -29,21 +29,21 @@ const normalizeThinkingLogs = (value: unknown) =>
 
 export const toUiMessage = (message: {
   id: string | number;
-	  role: MessageRole;
-		  content: string;
-		  messageType?: string;
-		  createdAt?: string;
-		  opportunityPreview?: CareerMessage["opportunityPreview"];
-		  thinkingLogs?: unknown;
-	}): CareerMessage => ({
-	  id: message.id,
-		  role: message.role,
-		  content: message.content,
-		  messageType: message.messageType ?? "chat",
-		  createdAt: message.createdAt ?? new Date().toISOString(),
-		  opportunityPreview: message.opportunityPreview,
-	  thinkingLogs: normalizeThinkingLogs(message.thinkingLogs),
-	});
+  role: MessageRole;
+  content: string;
+  messageType?: string;
+  createdAt?: string;
+  opportunityPreview?: CareerMessage["opportunityPreview"];
+  thinkingLogs?: unknown;
+}): CareerMessage => ({
+  id: message.id,
+  role: message.role,
+  content: message.content,
+  messageType: message.messageType ?? "chat",
+  createdAt: message.createdAt ?? new Date().toISOString(),
+  opportunityPreview: message.opportunityPreview,
+  thinkingLogs: normalizeThinkingLogs(message.thinkingLogs),
+});
 
 export const getErrorMessage = (payload: unknown, fallback: string) => {
   if (typeof payload === "string" && payload.trim()) return payload;
@@ -58,14 +58,86 @@ export const getErrorMessage = (payload: unknown, fallback: string) => {
   return fallback;
 };
 
-export const toProfileLinks = (links: string[] = []) => [
-  links[0] ?? "",
-  links[1] ?? "",
-  links[2] ?? "",
-  links[3] ?? "",
-  links[4] ?? "",
-  ...links.slice(5),
-];
+export const PROFILE_LINK_SLOT_COUNT = 5;
+
+const normalizeLinkForParsing = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+};
+
+const getLinkHost = (value: string) => {
+  const normalized = normalizeLinkForParsing(value);
+  if (!normalized) return "";
+
+  try {
+    return new URL(normalized).hostname.toLowerCase();
+  } catch {
+    return "";
+  }
+};
+
+export const getProfileLinkSlot = (value: string) => {
+  const host = getLinkHost(value);
+  if (!host) return null;
+
+  if (host === "linkedin.com" || host.endsWith(".linkedin.com")) return 0;
+  if (
+    host === "github.com" ||
+    host.endsWith(".github.com") ||
+    host === "huggingface.co" ||
+    host.endsWith(".huggingface.co")
+  ) {
+    return 1;
+  }
+  if (host.includes("scholar.google.")) return 2;
+  if (
+    host === "x.com" ||
+    host.endsWith(".x.com") ||
+    host === "twitter.com" ||
+    host.endsWith(".twitter.com")
+  ) {
+    return 4;
+  }
+
+  return 3;
+};
+
+export const toProfileLinks = (links: string[] = []) => {
+  const slottedLinks = Array.from(
+    { length: PROFILE_LINK_SLOT_COUNT },
+    () => ""
+  );
+  const extraLinks: string[] = [];
+  const seenLinks = new Set<string>();
+
+  for (const rawLink of links) {
+    const link = String(rawLink ?? "").trim();
+    if (!link) continue;
+    const linkKey = link.toLowerCase();
+    if (seenLinks.has(linkKey)) continue;
+    seenLinks.add(linkKey);
+
+    const slot = getProfileLinkSlot(link);
+    if (slot === null || slottedLinks[slot]) {
+      extraLinks.push(link);
+      continue;
+    }
+
+    slottedLinks[slot] = link;
+  }
+
+  return [...slottedLinks, ...extraLinks];
+};
+
+export const compactProfileLinks = (links: string[] = []) =>
+  toProfileLinks(links)
+    .map((link) => link.trim())
+    .filter(Boolean);
+
+export const pickLinkedinProfileLink = (links: string[] = []) =>
+  toProfileLinks(links)[0]?.trim() ?? "";
 
 const findLastMessageTypeIndex = (
   messages: CareerMessage[],

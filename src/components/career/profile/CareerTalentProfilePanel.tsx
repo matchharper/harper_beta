@@ -425,7 +425,6 @@ const CareerTalentProfilePanel = ({
     talentInsightsUpdatedAt,
     profileSavePending,
     profileSaveError,
-    profileSaveInfo,
     onSaveTalentProfile,
   } = useCareerSidebarContext();
   const { talentUser, talentExperiences, talentEducations, talentExtras } =
@@ -521,6 +520,7 @@ const CareerTalentProfilePanel = ({
       })),
     [talentInsights]
   );
+  const profileSummary = talentUser?.bio?.trim() ?? "";
   const backgroundCount = mergedExperience.length + talentExtras.length;
 
   const hasUnsavedChanges = useMemo(() => {
@@ -727,11 +727,6 @@ const CareerTalentProfilePanel = ({
       {profileSaveError ? (
         <p className="rounded-lg border border-beige900/20 bg-beige900/10 px-3 py-2 text-sm text-beige900">
           {profileSaveError}
-        </p>
-      ) : null}
-      {profileSaveInfo && (!isEditing || !hasUnsavedChanges) ? (
-        <p className="rounded-lg border border-hblack200 bg-hblack100 px-3 py-2 text-sm text-hblack700">
-          {profileSaveInfo}
         </p>
       ) : null}
 
@@ -1189,6 +1184,17 @@ const CareerTalentProfilePanel = ({
           />
 
           <section className="px-1">
+            {profileSummary ? (
+              <div className="mb-7">
+                <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-beige900/45">
+                  Summary
+                </div>
+                <p className="mt-3 whitespace-pre-line text-[14px] leading-6 text-beige900">
+                  {profileSummary}
+                </p>
+              </div>
+            ) : null}
+
             <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-beige900/45">
               What they are looking for
             </div>

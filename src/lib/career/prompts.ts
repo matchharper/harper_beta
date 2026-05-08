@@ -76,6 +76,10 @@ export const CAREER_VOICE_CALL_MODE_PROMPT = `
 - 개인적인 선호: 다음 팀에서 중요하게 보는 문화, 일하는 방식, 리더십, 보상/위치/리모트 제약, 피하고 싶은 환경
 - 연결 가능성: 어떤 회사나 팀에게 먼저 소개되어도 괜찮은지, 어떤 조건이면 연결 요청을 수락할지
 
+### 통화 중 웹사이트/URL 요청
+- 실시간 통화 중에는 웹사이트를 열거나 URL 본문을 읽는 도구를 사용할 수 없다.
+- 사용자가 URL을 열어보거나 웹페이지를 요약해달라고 하면, 통화가 끝난 뒤 텍스트 채팅에서 이어서 URL을 확인할 수 있다고 짧게 안내하라.
+
 ### 정보 제공의 가치
 필요할 때만 짧게 알려라: 사용자가 더 구체적으로 알려줄수록 Harper가 회사에게 더 잘 설명할 수 있고, 맞는 연결 요청이나 추천을 고르는 정확도가 올라간다.
 
@@ -759,6 +763,7 @@ function buildCareerConversationPromptPlan(args: {
   const allowToolPolicyDuringOnboarding =
     normalizedToolNames.includes("update_talent_profile") ||
     hasAdditionalQuestionSelectorTool ||
+    normalizedToolNames.includes("open_url") ||
     normalizedToolNames.includes("read_talent_activity_events") ||
     normalizedToolNames.includes("read_recommended_opportunities");
 
@@ -972,6 +977,7 @@ export function buildCareerToolPolicyPrompt(args: {
 
   const toolNameText = toolNames.join(", ");
   const hasResearchCompanyTool = toolNames.includes("research_company");
+  const hasOpenUrlTool = toolNames.includes("open_url");
   const hasLookupServiceHelpTool = toolNames.includes("lookup_service_help");
   const hasGetOpenRolesTool = toolNames.includes("get_open_roles");
   const hasRecommendedOpportunitiesTool = toolNames.includes(
@@ -1010,6 +1016,14 @@ export function buildCareerToolPolicyPrompt(args: {
       ? [
           "- Voice call limitation: UI-card tools are not available during a live voice call. Do not claim that you can show buttons or cards inside the call.",
           "- If the user asks for full company snapshot/research during voice, explain in Korean that you can help after ending the call in text chat, where Harper can run real-time company research (5-15s delay).",
+          "- If the user asks to open, read, inspect, or summarize a specific URL/website during voice, explain in Korean that this requires text chat after ending the call, where Harper can open the URL.",
+        ]
+      : []),
+    ...(hasOpenUrlTool
+      ? [
+          "- Use `open_url` when the user provides a specific URL or asks to read, inspect, summarize, or answer based on a specific webpage. It checks Harper's documents cache by URL first; on cache miss it scrapes the page and saves markdown to the cache.",
+          "- Do not use `open_url` for broad discovery when no URL is provided. Use `web_search` first if the user asks for current web information but did not give a specific URL.",
+          "- After `open_url`, answer in Korean using the returned markdown. Mention the page title or URL only when it helps the user.",
         ]
       : []),
     ...(hasResearchCompanyTool
@@ -1058,9 +1072,9 @@ export function buildCareerToolPolicyPrompt(args: {
       ? [
           "",
           "### update_talent_profile (profile writer)",
-          "- Purpose: update internal profile state with new info the user just shared: talent_preferences (engagementTypes, periodicIntervalDays, recommendationBatchSize), row memos, and post-onboarding talent_insights.",
+          "- Purpose: update internal profile state with new info the user just shared: talentUser.bio, talent_preferences (engagementTypes, periodicIntervalDays, recommendationBatchSize), row memos, and post-onboarding talent_insights.",
           "- Boundary: facts about a specific past role, school, project, responsibility, achievement, or education belong in the structured profile row memo when one visible row matches. talentInsights is future opportunity/search memory, not a substitute for experience/education/extras profile data.",
-          "- During onboarding: use only preferences/rowMemos. Do NOT send talentInsights; onboarding insight extraction is handled separately.",
+          "- During onboarding: use only talentUser.bio, preferences, and rowMemos. Do NOT send talentInsights; onboarding insight extraction is handled separately.",
           "- After onboarding is complete: send talentInsights only when the user's latest message clearly changes durable future recommendation memory, such as desired next role, search intensity, compensation, must-haves, deal-breakers, team style, company/domain preference, company size/stage preference, or corrections to prior recommendation preferences.",
           "- Search requests with explicit hard-filter language count as durable future recommendation memory even when phrased as 'find/search'. Examples: '미국 회사로만 찾아줘', '앞으로 리모트만 보내줘', '대기업은 빼고 찾아줘', '다음부터 Series B 이상만 봐줘'. In these cases, call this tool before job search.",
           "- For '미국 회사로만 찾아줘', update `must_haves` if the user means a hard requirement, e.g. '앞으로 미국 기반 회사만 추천받고 싶어합니다.' Use `impactLevel: \"high\"` because it materially changes recommendations.",
@@ -1069,15 +1083,17 @@ export function buildCareerToolPolicyPrompt(args: {
           '- If a post-onboarding talentInsights update has `impactLevel: "high"`, Harper will automatically run a fresh job-posting recommendation search after this profile update. Use `high` only for changes that materially alter what should be recommended, such as hard constraints, target-role shifts, location/work-authorization constraints, compensation floors, or strong must-have/deal-breaker changes. Use `low` or `medium` for minor notes so recommendations are not refreshed unnecessarily.',
           "- After this tool returns, produce a normal user-facing chat reply. Do not return an empty assistant message, and do not return only an onboarding marker.",
           "- Trigger conditions: call ONLY when the user's latest statement directly maps to a writable field in this tool:",
-          "  1) talent_preferences: engagementTypes, periodicIntervalDays, recommendationBatchSize.",
-          "  2) rowMemos: a short fact clearly tied to exactly one visible experience/education/extra row. This includes recent/representative experience details, project descriptions, responsibilities, achievements, and education details.",
-          "  3) talentInsights: post-onboarding durable future preference/memory changes. Use descriptive English snake_case keys and final integrated Korean complete sentences as values.",
+          "  1) talentUser.bio: the user explicitly provides, rewrites, corrects, or asks to clear their profile Summary/About/Bio text. Do not invent this from assistant-only summaries.",
+          "  2) talent_preferences: engagementTypes, periodicIntervalDays, recommendationBatchSize.",
+          "  3) rowMemos: a short fact clearly tied to exactly one visible experience/education/extra row. This includes recent/representative experience details, project descriptions, responsibilities, achievements, and education details.",
+          "  4) talentInsights: post-onboarding durable future preference/memory changes. Use descriptive English snake_case keys and final integrated Korean complete sentences as values.",
           "- Do NOT call this tool during onboarding for general answers that only update insight-like understanding, such as search intensity, desired next role, compensation, must-haves, deal-breakers, team style, environment preference, career-change reason, or optional-question answers. Those are handled outside this tool until onboarding completes.",
           "- Do NOT call when:",
           "  - 사용자의 발화가 *질문*(예: '회사들이 보통 어떤 보상을 주나요?')이거나 *가정/추측*(예: '만약 연봉이 1억이면 좋겠죠')일 때.",
           "  - assistant 본인의 발언/요약/메타 멘트에 대해. 사용자가 새로 말한 정보에만 반응한다.",
           "  - 이미 같은 preference/memo 정보가 들어 있고 변동/보강할 게 없을 때 (중복 호출 금지).",
           "- Read-merge-write 규칙:",
+          "  - talentUser.bio 는 talent_users.bio 전체를 교체한다. 사용자가 의도한 최종 Summary/About 문장만 보내라. 삭제/비우기를 명확히 요청한 경우에만 null 또는 빈 문자열을 보낸다.",
           "  - talent_preferences 의 engagementTypes 배열은 서버가 합집합으로 머지한다. 새로 추가할 항목만 보내면 된다. 지역/위치 선호는 talent_preferences가 아니라 talentInsights.content.location에 완성된 문장으로 저장한다.",
           "  - periodicIntervalDays / recommendationBatchSize 는 사용자가 명확한 숫자 선호를 말했을 때만 보내고, 보내면 그 값으로 덮어쓰기된다.",
           "  - talentInsights.content 는 partial patch 이다. 기존 값과 통합된 최종 문장만 보내고, 단순 중복이면 보내지 않는다.",
@@ -1456,6 +1472,82 @@ export function buildCareerProfileIngestionUserPrompt(args: {
     "",
     "[Resume Text]",
     args.resumeText.slice(0, 14000),
+  ].join("\n");
+}
+
+export function buildCareerProfileUpdateMergeSystemPrompt() {
+  return [
+    "You update an existing saved candidate profile from newly parsed LinkedIn/resume data.",
+    "Return JSON only, with no markdown.",
+    "The goal is a minimal, accurate profile update, not a full rewrite.",
+    "Existing profile rows have existingId values. If a final row refers to the same real-world experience or education, keep that existingId.",
+    "For new rows, set existingId to null.",
+    "Omit an existing row only when the new data clearly shows it is a duplicate, stale duplicate, or should not remain.",
+    "If uncertain, keep the existing row.",
+    "Existing memo fields are user/Harper notes. Never edit, rewrite, summarize, translate, or include memo in your output. The server preserves memo for rows that keep their existingId or existingTitle.",
+    "Prefer preserving existing wording when new data is weaker. Use new data to add missing rows, fill missing dates/descriptions, or correct clearly better facts.",
+    "Never hallucinate uncertain facts. If uncertain, leave field null or keep the existing value.",
+    "Preserve company_id/company_link from existing or LinkedIn-derived rows when the final row refers to the same company. Never invent company_id.",
+    "Date format must be YYYY-MM-DD or null.",
+    "Descriptions may use markdown for formatting.",
+    "Output schema:",
+    "{",
+    '  "talentUserPatch": {',
+    '    "name"?: string|null,',
+    '    "headline"?: string|null,',
+    '    "bio"?: string|null,',
+    '    "location"?: string|null,',
+    '    "profile_picture"?: string|null',
+    "  },",
+    '  "talentExperiences": [',
+    "    {",
+    '      "existingId": number|null,',
+    '      "role": string|null,',
+    '      "description": string|null,',
+    '      "start_date": "YYYY-MM-DD"|null,',
+    '      "end_date": "YYYY-MM-DD"|null,',
+    '      "months": number|null,',
+    '      "company_name": string|null,',
+    '      "company_location": string|null,',
+    '      "company_id": number|null,',
+    '      "company_link": string|null',
+    "    }",
+    "  ],",
+    '  "talentEducations": [',
+    "    {",
+    '      "existingId": number|null,',
+    '      "school": string|null,',
+    '      "degree": string|null,',
+    '      "description": string|null,',
+    '      "field": string|null,',
+    '      "start_date": "YYYY-MM-DD"|null,',
+    '      "end_date": "YYYY-MM-DD"|null,',
+    '      "url": string|null',
+    "    }",
+    "  ],",
+    '  "talentExtras": [',
+    "    {",
+    '      "existingTitle": string|null,',
+    '      "title": string|null,',
+    '      "description": string|null,',
+    '      "date": "YYYY-MM-DD"|null',
+    "    }",
+    "  ],",
+    '  "notes": string|null',
+    "}",
+  ].join("\n");
+}
+
+export function buildCareerProfileUpdateMergeUserPrompt(args: {
+  existingProfile: unknown;
+  latestParsedProfile: unknown;
+}) {
+  return [
+    "[Existing Saved Profile]",
+    JSON.stringify(args.existingProfile, null, 2),
+    "",
+    "[Newly Parsed LinkedIn/Resume Profile]",
+    JSON.stringify(args.latestParsedProfile, null, 2),
   ].join("\n");
 }
 
