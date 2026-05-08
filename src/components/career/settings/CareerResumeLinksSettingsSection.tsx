@@ -9,9 +9,12 @@ import {
   X,
 } from "lucide-react";
 import Image from "next/image";
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
+import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { useCareerSidebarContext } from "@/components/career/CareerSidebarContext";
 import { CAREER_LINK_LABELS } from "@/components/career/constants";
+import { LoadingState } from "@/components/career/OnboardingLoadingState";
+import { pickLinkedinProfileLink } from "@/hooks/career/careerHelpers";
 import {
   CareerField,
   CareerFieldLabel,
@@ -75,13 +78,14 @@ const CareerResumeLinksSettingsSection = () => {
     savedProfileLinks,
     profileSavePending,
     profileSaveError,
-    profileSaveInfo,
     onResumeFileChange,
     onProfileLinkChange,
     onAddProfileLink,
     onRemoveProfileLink,
     onSaveTalentProfile,
   } = useCareerSidebarContext();
+  const [isProcessingSourceUpdate, setIsProcessingSourceUpdate] =
+    useState(false);
 
   const hasSavedResume = useMemo(
     () => Boolean(savedResumeFileName || savedResumeStoragePath),
@@ -97,6 +101,24 @@ const CareerResumeLinksSettingsSection = () => {
   }, [profileLinks, savedProfileLinks]);
 
   const shouldShowSaveButton = Boolean(resumeFile) || hasUnsavedLinkChanges;
+  const hasLinkedinChange = useMemo(() => {
+    const previousLinkedinUrl = pickLinkedinProfileLink(savedProfileLinks);
+    const nextLinkedinUrl = pickLinkedinProfileLink(profileLinks);
+    return Boolean(nextLinkedinUrl && nextLinkedinUrl !== previousLinkedinUrl);
+  }, [profileLinks, savedProfileLinks]);
+  const shouldProcessProfileSources = Boolean(resumeFile) || hasLinkedinChange;
+
+  const handleSaveClick = async () => {
+    if (shouldProcessProfileSources) {
+      setIsProcessingSourceUpdate(true);
+    }
+
+    try {
+      await onSaveTalentProfile();
+    } finally {
+      setIsProcessingSourceUpdate(false);
+    }
+  };
 
   return (
     <div className="font-geist">
@@ -180,7 +202,9 @@ const CareerResumeLinksSettingsSection = () => {
                 onChange={(event) =>
                   onProfileLinkChange(index, event.target.value)
                 }
-                placeholder={CAREER_LINK_ITEMS[index]?.placeholder ?? "https://"}
+                placeholder={
+                  CAREER_LINK_ITEMS[index]?.placeholder ?? "https://"
+                }
                 className="h-9 flex-1 rounded-lg border border-hblack300 bg-hblack000 px-2 text-sm text-hblack900 outline-none transition-colors focus:border-beige900"
               />
               {index >= CAREER_LINK_ITEMS.length && (
@@ -207,18 +231,13 @@ const CareerResumeLinksSettingsSection = () => {
           {profileSaveError}
         </p>
       )}
-      {profileSaveInfo && (
-        <p className="rounded-lg border border-hblack200 bg-hblack100 px-3 py-2 text-sm text-hblack700">
-          {profileSaveInfo}
-        </p>
-      )}
 
       {shouldShowSaveButton ? (
         <button
           type="button"
-          onClick={() => void onSaveTalentProfile()}
+          onClick={() => void handleSaveClick()}
           disabled={profileSavePending}
-          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-beige900 bg-beige900 text-sm font-normal text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-beige900 bg-beige900 text-sm font-normal text-hblack000 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <Save className="h-4 w-4" />
           {profileSavePending
@@ -226,6 +245,19 @@ const CareerResumeLinksSettingsSection = () => {
             : "이력서/링크 저장 및 새로운 정보 업데이트"}
         </button>
       ) : null}
+
+      <TalentCareerModal
+        open={isProcessingSourceUpdate}
+        onClose={() => undefined}
+        ariaLabel="프로필 업데이트 중"
+        closeOnBackdrop={false}
+        showCloseButton={false}
+        overlayClassName="z-[120]"
+        panelClassName="max-w-none w-[min(1080px,94vw)] max-h-[92dvh] border-0 bg-beige50"
+        bodyClassName="max-h-[92dvh] overflow-y-auto"
+      >
+        <LoadingState />
+      </TalentCareerModal>
     </div>
   );
 };

@@ -1,13 +1,11 @@
 import { Check, Minus, X } from "lucide-react";
 import { useMemo } from "react";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
+import { compactProfileLinks } from "@/hooks/career/careerHelpers";
 import {
   TALENT_INTERVIEW_FINAL_STEP,
   TALENT_ONBOARDING_QUESTION_MILESTONE,
 } from "@/lib/talentOnboarding/progress";
-
-const isLinkedinUrl = (value: string) =>
-  value.trim().toLowerCase().includes("linkedin.com");
 
 const checkboxClasses =
   "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors";
@@ -28,10 +26,10 @@ const CareerOnboardingChecklist = () => {
     const hasResume = Boolean(
       resumeFile || savedResumeFileName || savedResumeStoragePath
     );
-    const hasLinkedin = [...profileLinks, ...savedProfileLinks].some((link) =>
-      isLinkedinUrl(link)
-    );
-    const hasUploadedProfile = stage !== "profile" || hasResume || hasLinkedin;
+    const hasProfileLink =
+      compactProfileLinks([...profileLinks, ...savedProfileLinks]).length > 0;
+    const hasUploadedProfile =
+      stage !== "profile" || hasResume || hasProfileLink;
     const normalizedConversationCount = Math.min(
       userChatCount,
       TALENT_INTERVIEW_FINAL_STEP
@@ -79,7 +77,7 @@ const CareerOnboardingChecklist = () => {
     },
     {
       id: "profile",
-      label: "이력서/링크드인 중 하나 업로드",
+      label: "이력서/링크 중 하나 업로드",
       completed: checklistState.hasUploadedProfile,
     },
     {

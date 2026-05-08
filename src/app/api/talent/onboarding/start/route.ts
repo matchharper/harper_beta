@@ -52,6 +52,26 @@ type TalentProfileUpdatePayload = {
 
 const ONBOARDING_SUBMITTED_EVENT_TYPE = "career_onboarding_submitted";
 
+const normalizeLink = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+};
+
+const isLinkedinLink = (value: string) => {
+  const normalized = normalizeLink(value);
+  if (!normalized) return false;
+
+  try {
+    const url = new URL(normalized);
+    const host = url.hostname.toLowerCase();
+    return host === "linkedin.com" || host.endsWith(".linkedin.com");
+  } catch {
+    return false;
+  }
+};
+
 const summarizeSubmittedProfile = (args: {
   linkCount: number;
   resumeFileName?: string;
@@ -83,10 +103,21 @@ export async function POST(req: NextRequest) {
     const links = (body.links ?? [])
       .map((link) => String(link).trim())
       .filter(Boolean);
+    const hasResume = Boolean(
+      resumeFileName || resumeStoragePath || resumeText
+    );
+    const hasProfileLink = links.length > 0;
+    const hasLinkedin = links.some(isLinkedinLink);
 
     if (!conversationId) {
       return NextResponse.json(
         { error: "conversationId is required" },
+        { status: 400 }
+      );
+    }
+    if (!hasResume && !hasProfileLink) {
+      return NextResponse.json(
+        { error: "이력서나 주요 링크 중 하나는 꼭 입력해주세요." },
         { status: 400 }
       );
     }
@@ -175,41 +206,51 @@ export async function POST(req: NextRequest) {
       resumeText,
     });
 
-    const profileIngestionPromise = (async () => {
-      try {
-        const ingestion = await ingestTalentProfileFromLinkedin({
-          admin,
-          userId: user.id,
-          links,
-          resumeText,
-          resumeFileName,
-          resumeStoragePath,
-        });
-        return {
+    const shouldRunProfileIngestion = Boolean(resumeText || hasLinkedin);
+    const profileIngestionPromise = shouldRunProfileIngestion
+      ? (async () => {
+          try {
+            const ingestion = await ingestTalentProfileFromLinkedin({
+              admin,
+              userId: user.id,
+              links,
+              resumeText,
+              resumeFileName,
+              resumeStoragePath,
+            });
+            return {
+              ok: true,
+              linkedinUrl: ingestion.linkedinUrl,
+              stats: ingestion.stats,
+            } as {
+              ok: boolean;
+              linkedinUrl?: string;
+              stats?: Record<string, number>;
+              error?: string;
+            };
+          } catch (ingestionError) {
+            const ingestionMessage =
+              ingestionError instanceof Error
+                ? ingestionError.message
+                : "Failed to ingest talent profile";
+            logger.log("[TalentOnboardingStart] profile ingestion failed", {
+              userId: user.id,
+              error: ingestionMessage,
+            });
+            return {
+              ok: false,
+              error: ingestionMessage,
+            };
+          }
+        })()
+      : Promise.resolve({
           ok: true,
-          linkedinUrl: ingestion.linkedinUrl,
-          stats: ingestion.stats,
         } as {
           ok: boolean;
           linkedinUrl?: string;
           stats?: Record<string, number>;
           error?: string;
-        };
-      } catch (ingestionError) {
-        const ingestionMessage =
-          ingestionError instanceof Error
-            ? ingestionError.message
-            : "Failed to ingest talent profile";
-        logger.log("[TalentOnboardingStart] profile ingestion failed", {
-          userId: user.id,
-          error: ingestionMessage,
         });
-        return {
-          ok: false,
-          error: ingestionMessage,
-        };
-      }
-    })();
 
     const [llmRaw, profileIngestion] = await Promise.all([
       kickoffLlmPromise,

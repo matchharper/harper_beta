@@ -24,6 +24,7 @@ import CareerMobileViewportGate from "@/components/career/CareerMobileViewportGa
 import { BeigeButton, BeigeInput } from "@/components/ui/beige";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
+import { careerSessionKey } from "@/hooks/career/useCareerSession";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { resolveCareerMobileEntryReason } from "@/lib/career/mobileBlocker";
 import {
@@ -45,6 +46,19 @@ const normalizeLink = (value: string) => {
   return `https://${trimmed}`;
 };
 
+const isLinkedinLink = (value: string) => {
+  const normalized = normalizeLink(value);
+  if (!normalized) return false;
+
+  try {
+    const url = new URL(normalized);
+    const host = url.hostname.toLowerCase();
+    return host === "linkedin.com" || host.endsWith(".linkedin.com");
+  } catch {
+    return false;
+  }
+};
+
 const isValidEmail = (value: string) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
@@ -62,6 +76,14 @@ const getErrorMessage = (payload: unknown, fallback: string) => {
 
 const getSingleQueryParam = (value: string | string[] | undefined) =>
   Array.isArray(value) ? value[0] : value;
+
+type OnboardingSessionPayload = {
+  conversation?: {
+    id?: string | number | null;
+    stage?: string | null;
+  } | null;
+  error?: string;
+};
 
 const ProgressBar = ({ step }: { step: number }) => {
   const value = Math.min((step + 1) / TOTAL_STEPS, 1) * 100;
@@ -384,6 +406,42 @@ const CareerNetworkOnboardingContent = () => {
     "form"
   );
   const [submitError, setSubmitError] = useState("");
+  const userId = user?.id ?? null;
+  const inviteToken = getSingleQueryParam(router.query.invite)?.trim() || null;
+  const mail = getSingleQueryParam(router.query.mail)?.trim() || null;
+  const onboardingNextPath = router.asPath || "/career/onboarding";
+  const sessionQueryKey = useMemo(
+    () => careerSessionKey(userId, inviteToken, mail),
+    [inviteToken, mail, userId]
+  );
+
+  const fetchOnboardingSession = useCallback(async () => {
+    const bootstrapRes = await fetchWithAuth("/api/talent/auth/bootstrap", {
+      method: "POST",
+      body: JSON.stringify({
+        inviteToken: inviteToken || undefined,
+        mail: mail || undefined,
+      }),
+    });
+    if (!bootstrapRes.ok) {
+      const payload = await bootstrapRes.json().catch(() => ({}));
+      throw new Error(
+        getErrorMessage(payload, "로그인 정보를 초기화하지 못했습니다.")
+      );
+    }
+
+    const sessionRes = await fetchWithAuth("/api/talent/session");
+    const payload = (await sessionRes
+      .json()
+      .catch(() => ({}))) as OnboardingSessionPayload;
+    if (!sessionRes.ok) {
+      throw new Error(
+        getErrorMessage(payload, "온보딩 세션을 불러오지 못했습니다.")
+      );
+    }
+
+    return payload;
+  }, [fetchWithAuth, inviteToken, mail]);
 
   useEffect(() => {
     if (!user) return;
@@ -398,10 +456,9 @@ const CareerNetworkOnboardingContent = () => {
   useEffect(() => {
     if (authLoading || !router.isReady) return;
 
-    if (!user) {
-      const next = router.asPath || "/career/onboarding";
+    if (!userId) {
       void router.replace(
-        `/career_login?next=${encodeURIComponent(next)}&source=network`
+        `/career_login?next=${encodeURIComponent(onboardingNextPath)}&source=network`
       );
       return;
     }
@@ -409,36 +466,26 @@ const CareerNetworkOnboardingContent = () => {
     let cancelled = false;
 
     const loadSession = async () => {
-      setBootstrapLoading(true);
+      const cachedSession =
+        queryClient.getQueryData<OnboardingSessionPayload>(sessionQueryKey);
+      if (!cachedSession && !conversationId) {
+        setBootstrapLoading(true);
+      }
       setSubmitError("");
 
       try {
-        const bootstrapRes = await fetchWithAuth("/api/talent/auth/bootstrap", {
-          method: "POST",
-          body: JSON.stringify({}),
+        const payload = await queryClient.ensureQueryData({
+          queryKey: sessionQueryKey,
+          queryFn: fetchOnboardingSession,
+          gcTime: 30 * 60_000,
+          staleTime: Infinity,
         });
-        if (!bootstrapRes.ok) {
-          const payload = await bootstrapRes.json().catch(() => ({}));
-          throw new Error(
-            getErrorMessage(payload, "로그인 정보를 초기화하지 못했습니다.")
-          );
-        }
-
-        const sessionRes = await fetchWithAuth("/api/talent/session");
-        const payload = await sessionRes.json().catch(() => ({}));
-        if (!sessionRes.ok) {
-          throw new Error(
-            getErrorMessage(payload, "온보딩 세션을 불러오지 못했습니다.")
-          );
-        }
 
         if (cancelled) return;
 
         if (payload?.conversation?.stage !== "profile") {
-          const invite = getSingleQueryParam(router.query.invite);
-          const mail = getSingleQueryParam(router.query.mail);
           const query: Record<string, string> = {};
-          if (invite) query.invite = invite;
+          if (inviteToken) query.invite = inviteToken;
           if (mail) query.mail = mail;
 
           void router.replace({
@@ -468,7 +515,19 @@ const CareerNetworkOnboardingContent = () => {
     return () => {
       cancelled = true;
     };
-  }, [authLoading, fetchWithAuth, router, router.asPath, router.isReady, user]);
+  }, [
+    authLoading,
+    conversationId,
+    fetchOnboardingSession,
+    inviteToken,
+    mail,
+    onboardingNextPath,
+    queryClient,
+    router,
+    router.isReady,
+    sessionQueryKey,
+    userId,
+  ]);
 
   const handleProfileInputToggle = useCallback(
     (option: TalentNetworkProfileInputType) => {
@@ -505,7 +564,11 @@ const CareerNetworkOnboardingContent = () => {
     [github, linkedin, scholar, selectedProfileInputs, website]
   );
 
-  const hasProfileSignal = links.length > 0 || Boolean(resumeFile);
+  const linkedinLink = selectedProfileInputs.includes("linkedin")
+    ? normalizeLink(linkedin)
+    : "";
+  const hasRequiredProfileSignal =
+    Boolean(resumeFile) || isLinkedinLink(linkedinLink);
 
   const validateStep = useCallback(
     (currentStep: number) => {
@@ -523,9 +586,9 @@ const CareerNetworkOnboardingContent = () => {
         }
       }
 
-      if (currentStep === 1 && !hasProfileSignal) {
+      if (currentStep === 1 && !hasRequiredProfileSignal) {
         showToast({
-          message: "대표 프로필 링크나 이력서 중 하나를 입력해주세요.",
+          message: "이력서나 LinkedIn 링크 중 하나는 꼭 입력해주세요.",
           variant: "white",
         });
         return false;
@@ -543,7 +606,7 @@ const CareerNetworkOnboardingContent = () => {
 
       return true;
     },
-    [email, hasProfileSignal, name, selectedEngagements]
+    [email, hasRequiredProfileSignal, name, selectedEngagements]
   );
 
   const uploadResumeFile = useCallback(
@@ -905,7 +968,8 @@ const CareerNetworkOnboardingContent = () => {
                           대표 프로필을 알려주세요.
                         </h1>
                         <p className="mt-3 text-base leading-7 text-beige900/60 md:text-lg">
-                          링크드인이 없다면 다른 정보를 주셔도 괜찮습니다.
+                          이력서나 LinkedIn 중 하나는 꼭 필요합니다. 다른 링크는
+                          보조 정보로 추가할 수 있습니다.
                         </p>
                       </header>
                       <div className="mt-1 flex flex-wrap gap-2">

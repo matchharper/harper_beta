@@ -368,8 +368,11 @@ function AppBar() {
         </a>
         <div className="flex items-center gap-3 sm:gap-6">
           <div className="flex items-center gap-3 text-[12.5px] font-medium text-beige900/60 sm:gap-4 sm:text-[13px] md:gap-5 md:text-sm">
-            <a href="#voices" className="transition hover:text-beige900">
-              실제 사례
+            <a
+              href="#voices"
+              className="transition hover:text-beige900 hidden md:flex"
+            >
+              Success Stories
             </a>
             <Link href="/company" className="transition hover:text-beige900">
               For Companies

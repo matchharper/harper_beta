@@ -3,6 +3,7 @@ import { fetchTalentOpportunityHistory } from "@/lib/talentOpportunity";
 import { runCareerJobPostingRecommendations } from "./jobPostingRecommendations";
 import { lookupServiceHelp } from "@/lib/serviceHelpRag";
 import { normalizeGeneratedTalentInsightEntry } from "./insights";
+import { openUrlWithDocumentsCache } from "./openUrlTool";
 import {
   normalizeCompanySnapshotName,
   escapeLikePattern,
@@ -79,6 +80,7 @@ export const TALENT_TOOL_NAMES = {
   RECOMMEND_JOB_POSTINGS: "recommend_job_postings",
   READ_RECOMMENDED_OPPORTUNITIES: "read_recommended_opportunities",
   WEB_SEARCH: "web_search",
+  OPEN_URL: "open_url",
   RESEARCH_COMPANY: "research_company",
   LOOKUP_SERVICE_HELP: "lookup_service_help",
   GET_OPEN_ROLES: "get_open_roles",
@@ -92,6 +94,7 @@ export type TalentToolName =
 export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION,
   TALENT_TOOL_NAMES.WEB_SEARCH,
+  TALENT_TOOL_NAMES.OPEN_URL,
   TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS,
   TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES,
   TALENT_TOOL_NAMES.RESEARCH_COMPANY,
@@ -104,6 +107,17 @@ export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
 const optionalToolString = (value: unknown) => {
   const text = typeof value === "string" ? value.trim() : "";
   return text || null;
+};
+
+const normalizeToolBio = (value: unknown) => {
+  if (value === null) return null;
+  if (typeof value !== "string") return undefined;
+  const text = value
+    .replace(/\r/g, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return text ? text.slice(0, 8000) : null;
 };
 
 const IMPACT_LEVEL_RANK: Record<TalentActivityImpactLevel, number> = {
@@ -144,6 +158,7 @@ const normalizeToolLimit = (value: unknown, fallback: number) => {
 const TALENT_ACTIVITY_EVENT_TYPES = new Set([
   "insight_updated",
   "onboarding_completed",
+  "profile_updated",
   "preferences_changed",
   "row_memo_added",
 ]);
@@ -264,6 +279,47 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
               : result.snippet,
         })),
       };
+    },
+  },
+  [TALENT_TOOL_NAMES.OPEN_URL]: {
+    name: TALENT_TOOL_NAMES.OPEN_URL,
+    description:
+      "Open a specific website URL and return its page markdown. Use when the user provides a URL or asks to read, inspect, summarize, or reason about a specific webpage. This first checks Harper's cached documents table by URL; on cache miss, it scrapes the URL with Firecrawl and saves the markdown to documents.",
+    parameters: {
+      type: "object",
+      properties: {
+        url: {
+          type: "string",
+          description: "The exact http(s) URL to open.",
+        },
+        maxMarkdownChars: {
+          type: "integer",
+          description:
+            "Optional maximum markdown characters returned to the model. The full markdown is still saved in the documents cache.",
+          minimum: 1000,
+          maximum: 40000,
+          default: 20000,
+        },
+      },
+      required: ["url"],
+      additionalProperties: false,
+    },
+    channels: ["chat"],
+    async execute(input, context) {
+      const admin = context?.admin;
+      const url = optionalToolString(input.url);
+      if (!admin) {
+        throw new TalentToolError("open_url requires database context.");
+      }
+      if (!url) {
+        throw new TalentToolError("open_url requires a non-empty URL.");
+      }
+
+      return openUrlWithDocumentsCache({
+        admin: admin as any,
+        maxMarkdownChars: input.maxMarkdownChars,
+        url,
+      });
     },
   },
   [TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS]: {
@@ -590,10 +646,23 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE]: {
     name: TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
     description:
-      "Update internal profile state with new information about the user. It can update talent_preferences and row memos during onboarding and after onboarding. It can update talent_insights only after onboarding is already complete, and only for future recommendation/search memory, not profile-row facts that belong in experiences, educations, or extras. Call when the user's latest statement directly maps to writable state, including explicit durable hard-filter search commands such as '미국 회사로만 찾아줘', '앞으로 리모트만 보내줘', '대기업은 빼고 찾아줘', or '다음부터 Series B 이상만 봐줘'. Do not call for user questions, one-off browsing/curiosity/search requests, hypotheticals/conditional speech ('만약 ~라면'), assistant statements, aspirational/off-profile role mentions without explicit future intent, or information already saved in current state. If a post-onboarding update is marked high-impact and actually changes recommendation-relevant state, Harper will automatically run a fresh job-posting recommendation search after this tool, so reserve high impact for material changes. After the tool result, produce a normal user-facing chat reply in Korean; do not return an empty assistant message or only an onboarding marker.",
+      "Update internal profile state with new information about the user. It can update talent_users.bio, talent_preferences, and row memos during onboarding and after onboarding. It can update talent_insights only after onboarding is already complete, and only for future recommendation/search memory, not profile-row facts that belong in experiences, educations, or extras. Call when the user's latest statement directly maps to writable state, including explicit durable hard-filter search commands such as '미국 회사로만 찾아줘', '앞으로 리모트만 보내줘', '대기업은 빼고 찾아줘', or '다음부터 Series B 이상만 봐줘'. Do not call for user questions, one-off browsing/curiosity/search requests, hypotheticals/conditional speech ('만약 ~라면'), assistant statements, aspirational/off-profile role mentions without explicit future intent, or information already saved in current state. If a post-onboarding update is marked high-impact and actually changes recommendation-relevant state, Harper will automatically run a fresh job-posting recommendation search after this tool, so reserve high impact for material changes. After the tool result, produce a normal user-facing chat reply in Korean; do not return an empty assistant message or only an onboarding marker.",
     parameters: {
       type: "object",
       properties: {
+        talentUser: {
+          type: "object",
+          description:
+            "Profile-level talent_users fields. Currently supports bio only. Use when the user explicitly provides or corrects their profile summary/about text. Do not invent a bio from assistant-only summaries; write the user's intended updated summary.",
+          properties: {
+            bio: {
+              anyOf: [{ type: "string" }, { type: "null" }],
+              description:
+                "New talent_users.bio profile summary. Use null or an empty string only when the user explicitly asks to clear/remove the summary. Server trims and caps at 8000 chars.",
+            },
+          },
+          additionalProperties: false,
+        },
         preferences: {
           type: "object",
           description:
@@ -734,6 +803,12 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         );
       }
 
+      const talentUserInput =
+        input.talentUser &&
+        typeof input.talentUser === "object" &&
+        !Array.isArray(input.talentUser)
+          ? (input.talentUser as Record<string, unknown>)
+          : null;
       const preferencesInput =
         input.preferences &&
         typeof input.preferences === "object" &&
@@ -763,6 +838,8 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         return existingSetting;
       };
 
+      const updatedTalentUserFields: string[] = [];
+      const talentUserActivityChanges: TalentActivityChange[] = [];
       const updatedPreferenceFields: string[] = [];
       const updatedRowMemos: {
         experiences: string[];
@@ -784,6 +861,49 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         key?: string;
         reason: string;
       }> = [];
+
+      // talent_users — direct profile-level updates.
+      if (
+        talentUserInput &&
+        Object.prototype.hasOwnProperty.call(talentUserInput, "bio")
+      ) {
+        const nextBio = normalizeToolBio(talentUserInput.bio);
+        if (nextBio !== undefined) {
+          const { data: currentUser, error: currentUserError } = await admin
+            .from("talent_users")
+            .select("bio")
+            .eq("user_id", userId)
+            .maybeSingle();
+          if (currentUserError) {
+            throw new TalentToolError(
+              currentUserError.message ?? "Failed to read talent_users."
+            );
+          }
+
+          const previousBio = normalizeToolBio(currentUser?.bio) ?? null;
+          if (previousBio !== nextBio) {
+            const { error: talentUserUpdateError } = await admin
+              .from("talent_users")
+              .update({
+                bio: nextBio,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("user_id", userId);
+            if (talentUserUpdateError) {
+              throw new TalentToolError(
+                talentUserUpdateError.message ?? "Failed to update talent_users."
+              );
+            }
+
+            updatedTalentUserFields.push("bio");
+            talentUserActivityChanges.push({
+              field: "bio",
+              from: previousBio,
+              to: nextBio,
+            });
+          }
+        }
+      }
 
       // talent_preferences — server-side union for arrays, overwrite for numbers.
       // careerMoveIntent is intentionally NEVER passed so upsertTalentSetting
@@ -1061,6 +1181,30 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         }
       }
 
+      const talentUserSummary =
+        talentUserActivityChanges.length > 0
+          ? talentUserActivityChanges.some((change) => change.to)
+            ? "Profile summary updated."
+            : "Profile summary cleared."
+          : null;
+      if (talentUserSummary) {
+        await insertTalentActivityEvent({
+          admin,
+          changedDomains: ["profile", "bio"],
+          conversationId: context?.conversationId ?? null,
+          eventType: "profile_updated",
+          impactLevel: "low",
+          messageId: context?.userMessageId ?? null,
+          metadata: {
+            changes: talentUserActivityChanges,
+          },
+          relatedEntityType: "talent_users",
+          source: "chat",
+          summary: talentUserSummary,
+          userId,
+        });
+      }
+
       const preferenceChanges = compactActivityChanges(
         preferenceActivityChanges
       );
@@ -1144,6 +1288,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       }
 
       const impactLevel = maxImpactLevel([
+        talentUserActivityChanges.length > 0 ? "low" : null,
         preferenceImpactLevel,
         rowMemoActivityItems.length > 0 ? "medium" : null,
         insightImpactLevel,
@@ -1176,6 +1321,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         ok: true,
         recommendationTrigger,
         shouldRecommendJobPostings,
+        updatedTalentUserFields,
         updatedPreferenceFields,
         updatedRowMemos,
         updatedTalentInsightKeys: talentInsightKeys,
@@ -1246,6 +1392,7 @@ export function getRealtimeTools(channel: TalentToolChannel) {
 }
 
 export async function executeTalentTool(args: {
+  channel?: TalentToolChannel;
   context?: TalentToolExecutionContext;
   input: Record<string, unknown>;
   logging?: boolean;
@@ -1255,6 +1402,12 @@ export async function executeTalentTool(args: {
 
   if (!tool) {
     throw new TalentToolError(`Unknown talent tool: ${args.name}`);
+  }
+
+  if (args.channel && !tool.channels.includes(args.channel)) {
+    throw new TalentToolError(
+      `Tool is disabled for ${args.channel}: ${args.name}`
+    );
   }
 
   const enabledNames = new Set(
