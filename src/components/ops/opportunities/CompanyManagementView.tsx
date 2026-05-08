@@ -175,6 +175,92 @@ function QualityBadge({ label }: { label: OpsCompanyQualityLabel | null }) {
   );
 }
 
+function InlineQualityLabelButton({
+  disabled,
+  label,
+  onClick,
+}: {
+  disabled: boolean;
+  label: OpsCompanyQualityLabel;
+  onClick: () => void;
+}) {
+  const meta = QUALITY_LABEL_META[label];
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={cx(
+        "inline-flex h-6 w-7 items-center justify-center rounded-md border font-geist text-[11px] font-semibold transition disabled:cursor-wait disabled:opacity-50",
+        meta.className,
+        "hover:border-beige900/35 hover:bg-white"
+      )}
+      title={`human quality ${label}`}
+      aria-label={`human quality ${label} 설정`}
+    >
+      {label}
+    </button>
+  );
+}
+
+function QualityCell({
+  company,
+  disabled,
+  onHumanQualityLabelChange,
+}: {
+  company: OpsCompanyManagementRecord;
+  disabled: boolean;
+  onHumanQualityLabelChange: (
+    company: OpsCompanyManagementRecord,
+    humanQualityLabel: OpsCompanyQualityLabel
+  ) => void;
+}) {
+  const canSetHumanQualityLabel = company.humanQualityLabel === null;
+
+  return (
+    <div className="min-w-0">
+      <div className="flex items-center gap-2">
+        <QualityBadge label={company.effectiveQualityLabel} />
+        {company.humanQualityLabel !== null ? (
+          <span className="font-geist text-[11px] font-medium text-beige900/45">
+            human
+          </span>
+        ) : company.llmQualityLabel !== null ? (
+          <span className="inline-flex items-center gap-1 font-geist text-[11px] font-medium text-beige900/45">
+            <Sparkles className="h-3 w-3" />
+            llm
+          </span>
+        ) : null}
+      </div>
+      {canSetHumanQualityLabel ? (
+        <div className="mt-1 flex items-center gap-1">
+          {[0, 1, 2].map((label) => (
+            <InlineQualityLabelButton
+              key={label}
+              disabled={disabled}
+              label={label as OpsCompanyQualityLabel}
+              onClick={() =>
+                onHumanQualityLabelChange(
+                  company,
+                  label as OpsCompanyQualityLabel
+                )
+              }
+            />
+          ))}
+        </div>
+      ) : null}
+      {company.llmQualityLabelReason ? (
+        <div
+          className="mt-1 line-clamp-2 font-geist text-[11px] leading-4 text-beige900/45"
+          title={company.llmQualityLabelReason}
+        >
+          {company.llmQualityLabelReason}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function CompanyLogo({ company }: { company: OpsCompanyManagementRecord }) {
   if (!company.logoUrl) {
     return (
@@ -199,14 +285,21 @@ function CompanyLogo({ company }: { company: OpsCompanyManagementRecord }) {
 
 function CompanyRow({
   company,
+  onHumanQualityLabelChange,
   onScrapeOriginalChange,
+  updatingQualityLabel,
   updatingScrapeOriginal,
 }: {
   company: OpsCompanyManagementRecord;
+  onHumanQualityLabelChange: (
+    company: OpsCompanyManagementRecord,
+    humanQualityLabel: OpsCompanyQualityLabel
+  ) => void;
   onScrapeOriginalChange: (
     company: OpsCompanyManagementRecord,
     nextValue: boolean
   ) => void;
+  updatingQualityLabel: boolean;
   updatingScrapeOriginal: boolean;
 }) {
   const homepageUrl = normalizeExternalUrl(company.homepageUrl);
@@ -269,29 +362,11 @@ function CompanyRow({
           </div>
         ) : null}
       </div>
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <QualityBadge label={company.effectiveQualityLabel} />
-          {company.humanQualityLabel !== null ? (
-            <span className="font-geist text-[11px] font-medium text-beige900/45">
-              human
-            </span>
-          ) : company.llmQualityLabel !== null ? (
-            <span className="inline-flex items-center gap-1 font-geist text-[11px] font-medium text-beige900/45">
-              <Sparkles className="h-3 w-3" />
-              llm
-            </span>
-          ) : null}
-        </div>
-        {company.llmQualityLabelReason ? (
-          <div
-            className="mt-1 line-clamp-2 font-geist text-[11px] leading-4 text-beige900/45"
-            title={company.llmQualityLabelReason}
-          >
-            {company.llmQualityLabelReason}
-          </div>
-        ) : null}
-      </div>
+      <QualityCell
+        company={company}
+        disabled={updatingQualityLabel}
+        onHumanQualityLabelChange={onHumanQualityLabelChange}
+      />
       <div className="line-clamp-2 font-geist text-xs leading-5 text-beige900/60">
         {company.companyDescription || "-"}
       </div>
@@ -939,7 +1014,11 @@ export default function CompanyManagementView({
                 <CompanyRow
                   key={company.companyWorkspaceId}
                   company={company}
+                  onHumanQualityLabelChange={onHumanQualityLabelChange}
                   onScrapeOriginalChange={onScrapeOriginalChange}
+                  updatingQualityLabel={updatingQualityLabelIds.has(
+                    company.companyWorkspaceId
+                  )}
                   updatingScrapeOriginal={updatingScrapeOriginalIds.has(
                     company.companyWorkspaceId
                   )}

@@ -234,7 +234,9 @@ Rules:
 - Do not use hard-coded role category exclusions. Judge whether each role appears aligned with the user brief, current request, search intent, and compact card.
 - Prefer one role per company when possible. Select a second role from the same company only if there are not enough credible companies or the roles are materially different and both are strong fits.
 - Use the user's profile, current request, recent activity summaries, insights, and reranking criteria. The compact role cards intentionally omit detailed descriptions; shortlist for likely fit, then a later model will inspect full details.
-- Preserve candidate order only as a weak tie-breaker.`;
+- Preserve candidate order only as a weak tie-breaker.
+- Company score is very important. Always prefer roles from companies with higher scores.
+`;
 
 const RERANK_SYSTEM_PROMPT = `You are Harper's job recommendation reranker.
 Score each role from 0 to 10 for this specific user. Return JSON only.
@@ -1373,7 +1375,7 @@ function formatRoleForPrompt(role: RawRoleRow, index: number) {
     `#${index + 1} roleId=${getRoleKey(role, index)}`,
     `Role: ${cleanText(role.role_name, 160) || "(unknown)"}`,
     `Company: ${cleanText(role.company_name, 160) || cleanText(role.company_db_name, 160) || "(unknown)"}`,
-    `Company test score: ${formatCompanyTestScore(role.company_test_score)}`,
+    `Company score: ${formatCompanyTestScore(role.company_test_score)}`,
     `Location: ${cleanText(role.location_text, 160) || cleanText(role.company_db_location, 160) || "(unknown)"}`,
     `Work mode: ${cleanText(role.work_mode, 80) || "(unknown)"}`,
     `Employment type: ${Array.isArray(role.type) ? role.type.join(", ") : "(unknown)"}`,

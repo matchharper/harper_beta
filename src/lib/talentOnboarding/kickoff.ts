@@ -10,11 +10,14 @@ import type {
   TalentConversationRow,
   TalentInsightContent,
   TalentMessageRow,
+  TalentStructuredProfile,
   TalentUserProfileRow,
 } from "@/lib/talentOnboarding/server";
 import {
+  buildTalentProfileContext,
   fetchTalentInsights,
   fetchTalentSetting,
+  fetchTalentStructuredProfile,
   getTalentProfileVisibilityLabel,
   TALENT_PENDING_QUESTION_PREFIX,
   normalizeTalentBlockedCompanies,
@@ -89,6 +92,34 @@ function dedupeLinks(values: Array<string | null | undefined>) {
   }
 
   return normalized;
+}
+
+function hasText(value: string | null | undefined) {
+  return String(value ?? "").trim().length > 0;
+}
+
+function hasStoredProfileSeed(profile: TalentUserProfileRow | null) {
+  if (!profile) return false;
+
+  return Boolean(
+    profile.network_waitlist_id ||
+    hasText(profile.resume_file_name) ||
+    hasText(profile.resume_storage_path) ||
+    hasText(profile.resume_text) ||
+    hasText(profile.headline) ||
+    hasText(profile.bio) ||
+    hasText(profile.location) ||
+    (profile.resume_links ?? []).some((link) => hasText(link))
+  );
+}
+
+function hasStructuredProfileSeed(profile: TalentStructuredProfile | null) {
+  if (!profile) return false;
+  return (
+    profile.talentExperiences.length > 0 ||
+    profile.talentEducations.length > 0 ||
+    profile.talentExtras.length > 0
+  );
 }
 
 function describeTalentPreferences(
@@ -171,8 +202,21 @@ export async function autoStartClaimedTalentConversation(args: {
   user: User;
 }) {
   const { admin, conversation, profile, user } = args;
-  if (!profile?.network_waitlist_id || conversation.stage !== "profile") {
+  if (!profile || conversation.stage !== "profile") {
     return null;
+  }
+
+  let structuredProfile: TalentStructuredProfile | null = null;
+  const hasStoredSeed = hasStoredProfileSeed(profile);
+  if (!hasStoredSeed) {
+    structuredProfile = await fetchTalentStructuredProfile({
+      admin,
+      userId: user.id,
+      talentUser: profile,
+    });
+    if (!hasStructuredProfileSeed(structuredProfile)) {
+      return null;
+    }
   }
 
   const { count, error: messageCountError } = await admin
@@ -190,7 +234,7 @@ export async function autoStartClaimedTalentConversation(args: {
     return null;
   }
 
-  const [talentSetting, talentInsights] = await Promise.all([
+  const [talentSetting, talentInsights, promptProfile] = await Promise.all([
     fetchTalentSetting({
       admin,
       userId: user.id,
@@ -199,6 +243,13 @@ export async function autoStartClaimedTalentConversation(args: {
       admin,
       userId: user.id,
     }),
+    structuredProfile
+      ? Promise.resolve(structuredProfile)
+      : fetchTalentStructuredProfile({
+          admin,
+          userId: user.id,
+          talentUser: profile,
+        }),
   ]);
   const normalizedInsights = normalizeTalentInsightContent(
     talentInsights?.content
@@ -216,9 +267,17 @@ export async function autoStartClaimedTalentConversation(args: {
     talentSetting?.blocked_companies ?? []
   );
 
-  const links = dedupeLinks([
-    ...(profile?.resume_links ?? []),
-  ]);
+  const links = dedupeLinks([...(profile?.resume_links ?? [])]);
+  const profileContext = buildTalentProfileContext({
+    includeResumeText: false,
+    profile,
+    setting: talentSetting,
+    structuredProfile: promptProfile,
+  });
+  const resumeTextForKickoff = [profile?.resume_text, profileContext]
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean)
+    .join("\n\n");
   const kickoff = await generateTalentKickoff({
     displayName: toTalentDisplayName(user),
     links,
@@ -230,7 +289,7 @@ export async function autoStartClaimedTalentConversation(args: {
       insightContent: normalizedInsights,
     },
     resumeFileName: profile?.resume_file_name,
-    resumeText: profile?.resume_text,
+    resumeText: resumeTextForKickoff,
   });
 
   const now = new Date().toISOString();
@@ -266,7 +325,9 @@ export async function autoStartClaimedTalentConversation(args: {
     .select("*");
 
   if (insertError) {
-    throw new Error(insertError.message ?? "Failed to seed onboarding messages");
+    throw new Error(
+      insertError.message ?? "Failed to seed onboarding messages"
+    );
   }
 
   const { data: updatedConversation, error: updateError } = await admin

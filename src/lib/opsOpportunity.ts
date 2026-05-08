@@ -1827,6 +1827,11 @@ const COMPANY_MANAGEMENT_SELECT_WITH_COMPANY_DB_FILTER =
     "company_db:company_db (",
     "company_db:company_db!inner ("
   );
+const COMPANY_MANAGEMENT_QUALITY_LABEL_V2_SELECT = `
+  company_workspace_quality_label (
+    llm_quality_label_v2
+  )
+`;
 const MAX_COMPANY_DB_IDS_IN_WORKSPACE_FILTER = 500;
 
 function sanitizeCompanyManagementFilterText(value: string) {
@@ -2294,6 +2299,8 @@ export async function fetchOpsCompanyManagementPage(args: {
   const hasCompanyDbFilters = Boolean(
     employeeCountRange || location || foundedYearMin || investors
   );
+  const shouldOrderByLlmQualityLabelV2 =
+    !llmQualityLabelFirst && !humanLabelMissingFirst;
   const companyNameCompanyDbIds = companyName
     ? await fetchCompanyDbIdsForCompanyManagementFilters(admin, {
         companyName,
@@ -2330,6 +2337,9 @@ export async function fetchOpsCompanyManagementPage(args: {
   const selectColumns = hasCompanyDbFilters
     ? COMPANY_MANAGEMENT_SELECT_WITH_COMPANY_DB_FILTER
     : COMPANY_MANAGEMENT_SELECT;
+  const workspaceSelectColumns = shouldOrderByLlmQualityLabelV2
+    ? `${selectColumns}, ${COMPANY_MANAGEMENT_QUALITY_LABEL_V2_SELECT}`
+    : selectColumns;
   const buildWorkspaceQuery = (options: {
     count?: boolean;
     excludeWorkspaceIds?: string[];
@@ -2344,20 +2354,28 @@ export async function fetchOpsCompanyManagementPage(args: {
     const includeWorkspaceIds = options.includeWorkspaceIds ?? [];
     let workspaceQuery = options.count
       ? ((admin.from("company_workspace" as any) as any).select(
-          selectColumns,
+          workspaceSelectColumns,
           { count: "exact" }
         ) as any)
       : ((admin.from("company_workspace" as any) as any).select(
-          selectColumns
+          workspaceSelectColumns
         ) as any);
 
-    workspaceQuery = workspaceQuery
-      .order("is_scrape_original", {
-        ascending: false,
-        nullsFirst: false,
-      })
-      .order("updated_at", { ascending: false, nullsFirst: false })
-      .order("company_workspace_id", { ascending: true });
+    workspaceQuery = shouldOrderByLlmQualityLabelV2
+      ? workspaceQuery
+          .order("company_workspace_quality_label(llm_quality_label_v2)", {
+            ascending: false,
+            nullsFirst: false,
+          })
+          .order("created_at", { ascending: false, nullsFirst: false })
+          .order("company_workspace_id", { ascending: true })
+      : workspaceQuery
+          .order("is_scrape_original", {
+            ascending: false,
+            nullsFirst: false,
+          })
+          .order("updated_at", { ascending: false, nullsFirst: false })
+          .order("company_workspace_id", { ascending: true });
 
     if (hasCareerUrlOnly) {
       workspaceQuery = workspaceQuery

@@ -1,14 +1,16 @@
 import Reveal from "@/components/landing/Animation/Reveal";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Clock, Loader, Lock } from "lucide-react";
 import Head from "next/head";
 import Image from "next/image";
 import Link from "next/link";
-import React, { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 const MOBILE_HEADER_SCROLL_DELTA_THRESHOLD = 8;
 const REPORT_ITEM_COUNT = 9;
+const CAREER_START_HREF =
+  "/career_login?next=%2Fcareer%2Fonboarding&source=landing-ko-vf";
 
 const schoolLogos = [
   { src: "/images/logos/sn.png", name: "서울대학교" },
@@ -328,7 +330,7 @@ function AppBar() {
           Harper
         </a>
         <LandingButton
-          href="#cta"
+          href={CAREER_START_HREF}
           label="Join"
           size="sm"
           variant="secondary"
@@ -1351,7 +1353,6 @@ function WorkflowVisual({
 }
 
 export default function LandingKoVfPage() {
-  const [submitted, setSubmitted] = useState(false);
   const [revealPass, setRevealPass] = useState(0);
 
   useEffect(() => {
@@ -1367,11 +1368,6 @@ export default function LandingKoVfPage() {
       if (secondFrame !== null) window.cancelAnimationFrame(secondFrame);
     };
   }, []);
-
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setSubmitted(true);
-  };
 
   return (
     <>
@@ -1425,7 +1421,21 @@ export default function LandingKoVfPage() {
               </p>
             </Reveal>
             <Reveal once delay={0.46} className="mt-8">
-              <LandingButton href="#cta" label="얼리 액세스 신청" />
+              <LandingButton href={CAREER_START_HREF} label="시작하기" />
+              <div className="mt-4 flex flex-row gap-4 text-sm text-beige900/80">
+                <div className="flex flex-row items-center gap-2">
+                  <Clock className="h-3.5 w-3.5" />
+                  <span>1시간 이내 첫 매칭</span>
+                </div>
+                <div className="flex flex-row items-center gap-2">
+                  <Loader className="h-3.5 w-3.5" />
+                  <span>Free</span>
+                </div>
+                <div className="flex flex-row items-center gap-2">
+                  <Lock className="h-3.5 w-3.5" />
+                  <span>익명 보장</span>
+                </div>
+              </div>
             </Reveal>
 
             {/* <Image
@@ -1622,39 +1632,17 @@ export default function LandingKoVfPage() {
             </Reveal>
             <Reveal once delay={0.08}>
               <p className="mx-auto mt-6 max-w-[620px] text-[15px] leading-[1.75] text-beige900/80 md:text-lg">
-                현재 Harper는 얼리 액세스를 신청하신 분들을 위해 순차적으로 문을
-                열어드리고 있습니다. 이메일을 남겨주시면, 탤런트만을 위해 시장을
-                스캔할 전담 agent를 가장 먼저 연결해 드릴게요.
+                신청하고 기다릴 필요 없이 바로 시작하세요. 몇 분만 대화하면
+                Harper가 회원님의 기준을 이해하고, 지금 맞는 기회를 조용히
+                스캔하기 시작합니다.
               </p>
             </Reveal>
-            <Reveal once delay={0.16}>
-              {submitted ? (
-                <div className="mx-auto mt-10 font-halant text-[22px] italic text-beige900">
-                  명단에 추가됐어요. 곧 연락드릴게요.
-                </div>
-              ) : (
-                <form
-                  onSubmit={handleSubmit}
-                  className="mx-auto mt-10 flex max-w-[500px] flex-col justify-center gap-2 sm:flex-row"
-                >
-                  <input
-                    type="email"
-                    required
-                    placeholder="future.you@email.com"
-                    className="min-h-[52px] flex-1 rounded-full border border-beige900/10 bg-beige50 px-5 text-[15px] text-beige900 outline-none transition placeholder:text-beige900/35 focus:border-beige900/40"
-                  />
-                  <button
-                    type="submit"
-                    className="min-h-[52px] rounded-full bg-beige900 px-7 text-sm font-medium text-beige50 transition hover:bg-beige900/90"
-                  >
-                    얼리 액세스 신청 →
-                  </button>
-                </form>
-              )}
+            <Reveal once delay={0.16} className="mt-10">
+              <LandingButton href={CAREER_START_HREF} label="지금 시작하기" />
             </Reveal>
             <Reveal once delay={0.22}>
               <div className="mt-5 text-[13px] text-beige900/45">
-                스팸 없음. 리크루터 없음. 정보 공유는 절대 없어요.
+                로그인 후 바로 커리어 agent 설정을 시작합니다.
               </div>
             </Reveal>
           </section>

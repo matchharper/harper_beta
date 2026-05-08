@@ -75,7 +75,7 @@ const TranscriptOverlay = memo(
     entries: CallTranscriptEntry[];
     currentUserTranscript?: string;
   }) => {
-    const bottomRef = useRef<HTMLDivElement>(null);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
     const liveUserText = currentUserTranscript?.trim() ?? "";
     const hasSameUserEntry = entries.some(
       (entry) => entry.role === "user" && entry.text.trim() === liveUserText
@@ -95,10 +95,20 @@ const TranscriptOverlay = memo(
         ? [...entries.slice(0, -1), liveUserEntry, lastEntry]
         : [...entries, liveUserEntry]
       : entries;
+    const transcriptScrollKey = displayEntries
+      .map((entry) => `${entry.timestamp}:${entry.role}:${entry.text}`)
+      .join("\n");
 
     useEffect(() => {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [displayEntries.length, liveUserText]);
+      const scrollContainer = scrollContainerRef.current;
+      if (!scrollContainer) return;
+
+      const frame = window.requestAnimationFrame(() => {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+      });
+
+      return () => window.cancelAnimationFrame(frame);
+    }, [transcriptScrollKey]);
 
     return (
       <div className="absolute inset-x-4 bottom-24 z-10 max-h-[50vh] overflow-hidden rounded-[8px] border border-beige900/10 bg-white/95 shadow-[0_0_24px_rgba(0,0,0,0.1)]">
@@ -107,7 +117,10 @@ const TranscriptOverlay = memo(
             Transcript
           </span>
         </div>
-        <div className="max-h-[calc(50vh-48px)] overflow-y-auto px-4 py-3">
+        <div
+          ref={scrollContainerRef}
+          className="max-h-[calc(50vh-48px)] overflow-y-auto px-4 py-3"
+        >
           {displayEntries.length === 0 ? (
             <p className="text-center text-sm text-beige900/35">
               대화가 시작되면 여기에 표시됩니다.
@@ -128,7 +141,6 @@ const TranscriptOverlay = memo(
                   {entry.text}
                 </div>
               ))}
-              <div ref={bottomRef} />
             </div>
           )}
         </div>
