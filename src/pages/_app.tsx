@@ -145,6 +145,7 @@ export default function App({ Component, pageProps }: AppProps) {
           name="description"
           content="Harper는 모든 팀들을 위한 전담 AI Recruiter입니다."
         />
+        <meta name="theme-color" content="#F7F0E8" />
       </Head>
       {GA_ID && (
         <>
