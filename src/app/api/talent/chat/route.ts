@@ -583,12 +583,6 @@ export async function POST(req: NextRequest) {
             TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION
         );
     const currentPreferences = {
-      engagementTypes: talentSetting?.engagement_types ?? [],
-      preferredLocations: [],
-      careerMoveIntent: talentSetting?.career_move_intent ?? null,
-      careerMoveIntentLabel: getTalentCareerMoveIntentLabel(
-        talentSetting?.career_move_intent ?? null
-      ),
       periodicIntervalDays: talentSetting?.periodic_interval_days ?? null,
       recommendationBatchSize: talentSetting?.recommendation_batch_size ?? null,
     };

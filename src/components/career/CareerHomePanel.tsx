@@ -1,4 +1,5 @@
 import {
+  Badge,
   BriefcaseBusiness,
   Check,
   ChevronRight,
@@ -9,13 +10,10 @@ import {
   Phone,
   Plus,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
 import DeliveryCopyPromptTestPanel from "./DeliveryCopyPromptTestPanel";
-import {
-  getTalentEngagementLabels,
-  getTalentCareerMoveIntentLabel,
-} from "@/lib/talentNetworkOptions";
+import { CareerProfileSharingSettingsSection } from "./CareerProfileSettingsSection";
 import {
   CareerPrimaryButton,
   CareerSecondaryButton,
@@ -40,24 +38,6 @@ const formatMatchedAt = (value: string) => {
     day: "numeric",
   }).format(date);
 };
-
-const PreferenceRow = ({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: React.ReactNode;
-  hint?: string;
-}) => (
-  <div className="py-2 first:pt-0 last:pb-0">
-    <div className="text-[13px] leading-5 text-beige900/45">{label}</div>
-    <div className="mt-2 text-[15px] leading-7 text-beige900">{value}</div>
-    {hint ? (
-      <div className="mt-1 text-[13px] leading-5 text-beige900/45">{hint}</div>
-    ) : null}
-  </div>
-);
 
 type HomeHistoryTarget = {
   historyTab: "new" | "saved" | "archived";
@@ -132,12 +112,12 @@ const CareerHomePanel = ({
 }) => {
   const {
     user,
+    stage,
     activeCompanyRoleCount,
     callStartPending = false,
     opportunityRun,
     opportunityRunTriggerPending,
     talentProfile,
-    talentPreferences,
     historyOpportunityCounts,
     historyOpportunities,
     onRunPeriodicOpportunityDiscoveryTest,
@@ -150,16 +130,6 @@ const CareerHomePanel = ({
     user?.user_metadata?.full_name ??
     user?.user_metadata?.name ??
     (typeof user?.email === "string" ? user.email.split("@")[0] : "Candidate");
-
-  const engagementLabels = useMemo(
-    () => getTalentEngagementLabels(talentPreferences?.engagementTypes ?? []),
-    [talentPreferences?.engagementTypes]
-  );
-
-  const careerMoveIntentLabel =
-    talentPreferences?.careerMoveIntentLabel ??
-    getTalentCareerMoveIntentLabel(talentPreferences?.careerMoveIntent) ??
-    "아직 설정되지 않았습니다.";
 
   const newPositionCount = historyOpportunityCounts.new;
   const newInternalOpportunityCount = useMemo(
@@ -243,6 +213,13 @@ const CareerHomePanel = ({
   const latestRunLabel = opportunityRun
     ? `${opportunityRun.id.slice(0, 8)} · ${opportunityRun.status}`
     : "latest run 없음";
+  const isOnboardingCompleted = stage === "completed";
+  const callCardTitle = isOnboardingCompleted
+    ? "Harper와 5분 통화"
+    : "아직 첫번째 대화가 완료되지 않았어요";
+  const callCardDescription = isOnboardingCompleted
+    ? "변경된 사항이 있거나 요구사항이 있을 때 — 통화하면 빨라요"
+    : "왼쪽에서 채팅 혹은 대화로 간단한 질문에만 대답해주세요.";
 
   const handleStartCall = () => {
     onOpenChat();
@@ -264,12 +241,16 @@ const CareerHomePanel = ({
           <div>
             <div className="mt-4 rounded-3xl flex flex-row items-center justify-between bg-beige100 border border-beige900/5 px-6 py-5">
               <div className="w-12 h-12 min-w-12 flex items-center justify-center bg-beige200 rounded-2xl">
-                <Phone className="h-6 w-6 text-beige700" strokeWidth={1.6} />
+                {isOnboardingCompleted ? (
+                  <Phone className="h-6 w-6 text-beige700" strokeWidth={1.6} />
+                ) : (
+                  <Badge className="h-6 w-6 text-beige700" strokeWidth={1.6} />
+                )}
               </div>
               <div className="flex flex-col gap-1 items-start justify-center w-full px-4">
-                <div className="font-medium">Harper와 5분 통화</div>
+                <div className="font-medium">{callCardTitle}</div>
                 <div className="text-sm text-beige900/80">
-                  변경된 사항이 있거나 요구사항이 있을 때 — 통화하면 빨라요
+                  {callCardDescription}
                 </div>
               </div>
               <button
@@ -371,7 +352,7 @@ const CareerHomePanel = ({
                   className="h-10 gap-2 px-4 text-[13px]"
                 >
                   <BriefcaseBusiness className="h-3.5 w-3.5" />
-                  Preference 보기
+                  프로필 보기
                 </CareerSecondaryButton>
                 <CareerPrimaryButton
                   onClick={onOpenChat}
@@ -389,31 +370,7 @@ const CareerHomePanel = ({
       {/* <DeliveryCopyPromptTestPanel displayName={displayName} /> */}
 
       <section className="mt-6">
-        <h3 className="font-hedvig text-[1.2rem] font-medium leading-none text-beige900">
-          My Preference
-        </h3>
-        <div className="mt-6">
-          <PreferenceRow
-            label="선호하는 형태"
-            value={
-              engagementLabels.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {engagementLabels.map((item) => (
-                    <span
-                      key={item}
-                      className="rounded-full border border-beige900/10 bg-beige100/65 px-3 py-1 text-[13px] leading-5 text-beige900/75"
-                    >
-                      {item}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                "아직 설정되지 않았습니다."
-              )
-            }
-          />
-          <PreferenceRow label="이직 의향" value={careerMoveIntentLabel} />
-        </div>
+        <CareerProfileSharingSettingsSection showLastUpdated={false} />
       </section>
     </div>
   );

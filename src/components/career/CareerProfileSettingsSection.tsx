@@ -1,33 +1,21 @@
 import {
-  Briefcase,
   Loader2,
   Lock,
   Plus,
-  RefreshCcw,
   Save,
   ShieldAlert,
   ShieldCheck,
-  TrendingUp,
   Undo2,
   X,
 } from "lucide-react";
 import React, { KeyboardEvent, useMemo, useState } from "react";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
-import {
-  TALENT_NETWORK_CAREER_MOVE_INTENT_OPTIONS,
-  TALENT_NETWORK_ENGAGEMENT_OPTIONS,
-} from "@/lib/talentNetworkOptions";
-import {
-  normalizeTalentPeriodicIntervalDays,
-  normalizeTalentRecommendationBatchSize,
-} from "@/lib/talentOnboarding/recommendationSettings";
 import type { CareerProfileVisibility } from "@/hooks/career/useCareerTalentSettings";
 import {
   CareerField,
   CareerPrimaryButton,
   CareerSecondaryButton,
   CareerTextInput,
-  CareerToggleButton,
 } from "./ui/CareerPrimitives";
 
 const PROFILE_VISIBILITY_OPTIONS: Array<{
@@ -63,24 +51,6 @@ const PROFILE_VISIBILITY_OPTIONS: Array<{
   },
 ];
 
-const getLatestUpdatedAt = (...values: Array<string | null | undefined>) => {
-  const timestamps = values
-    .map((value) => {
-      if (typeof value !== "string") return null;
-      const time = Date.parse(value);
-      if (Number.isNaN(time)) return null;
-      return { time, value };
-    })
-    .filter(
-      (entry): entry is { time: number; value: string } => entry !== null
-    );
-
-  if (timestamps.length === 0) return null;
-
-  timestamps.sort((left, right) => right.time - left.time);
-  return timestamps[0]?.value ?? null;
-};
-
 const formatUpdatedAt = (value: string | null) => {
   if (!value) return "아직 저장된 변경 이력이 없습니다.";
 
@@ -93,18 +63,12 @@ const formatUpdatedAt = (value: string | null) => {
   }).format(new Date(value));
 };
 
-const CareerProfileSettingsSection = () => {
+export const CareerProfileSharingSettingsSection = ({
+  showLastUpdated = true,
+}: {
+  showLastUpdated?: boolean;
+}) => {
   const {
-    talentPreferences,
-    talentPreferencesSavePending,
-    talentPreferencesSaveError,
-    talentPreferencesSaveInfo,
-    talentPreferencesUpdatedAt,
-    talentInsightsUpdatedAt,
-    hasUnsavedTalentPreferencesChanges,
-    onTalentPreferencesChange,
-    onSaveTalentPreferences,
-    onResetTalentPreferences,
     settingsLoading,
     settingsSaving,
     settingsError,
@@ -121,21 +85,11 @@ const CareerProfileSettingsSection = () => {
   } = useCareerSidebarContext();
   const [blockedCompanyDraft, setBlockedCompanyDraft] = useState("");
 
-  const isSavePending = talentPreferencesSavePending || settingsSaving;
-  const hasUnsavedChanges =
-    hasUnsavedTalentPreferencesChanges || hasUnsavedTalentSettingsChanges;
+  const isSavePending = settingsSaving;
+  const hasUnsavedChanges = hasUnsavedTalentSettingsChanges;
   const canSaveProfileSettings = hasUnsavedChanges && !settingsLoading;
-  const saveError = talentPreferencesSaveError || settingsError;
-  const saveInfo = talentPreferencesSaveInfo || settingsSaveInfo;
-  const latestUpdatedAt = useMemo(
-    () =>
-      getLatestUpdatedAt(
-        talentPreferencesUpdatedAt,
-        talentInsightsUpdatedAt,
-        settingsUpdatedAt
-      ),
-    [settingsUpdatedAt, talentInsightsUpdatedAt, talentPreferencesUpdatedAt]
-  );
+  const saveError = settingsError;
+  const saveInfo = settingsSaveInfo;
   const selectedVisibilityOption = useMemo(
     () =>
       PROFILE_VISIBILITY_OPTIONS.find(
@@ -145,21 +99,11 @@ const CareerProfileSettingsSection = () => {
   );
 
   const handleSave = async () => {
-    const tasks: Array<Promise<boolean>> = [];
-
-    if (hasUnsavedTalentPreferencesChanges && talentPreferences) {
-      tasks.push(Promise.resolve(onSaveTalentPreferences()));
-    }
-    if (hasUnsavedTalentSettingsChanges) {
-      tasks.push(Promise.resolve(onSaveTalentSettings()));
-    }
-
-    if (tasks.length === 0) return;
-    await Promise.all(tasks);
+    if (!hasUnsavedTalentSettingsChanges) return;
+    await onSaveTalentSettings();
   };
 
   const handleRefresh = () => {
-    onResetTalentPreferences();
     onResetTalentSettings();
     setBlockedCompanyDraft("");
   };
@@ -179,108 +123,18 @@ const CareerProfileSettingsSection = () => {
     handleAddBlockedCompany();
   };
 
-  const handleRecommendationSettingChange = (
-    field: "periodicIntervalDays" | "recommendationBatchSize",
-    rawValue: string
-  ) => {
-    if (!rawValue.trim()) return;
-
-    onTalentPreferencesChange((current) => {
-      if (!current) return current;
-
-      const nextValue =
-        field === "periodicIntervalDays"
-          ? normalizeTalentPeriodicIntervalDays(rawValue)
-          : normalizeTalentRecommendationBatchSize(rawValue);
-
-      return {
-        ...current,
-        [field]: nextValue,
-      };
-    });
-  };
-
   return (
     <div className="font-geist">
-      <div className="mb-6 text-sm">
-        <span className="text-beige900/45">Last updated : </span>
-        <span className="text-beige900">
-          {formatUpdatedAt(latestUpdatedAt)}
-        </span>
-      </div>
+      {showLastUpdated ? (
+        <div className="mb-6 text-sm">
+          <span className="text-beige900/45">Last updated : </span>
+          <span className="text-beige900">
+            {formatUpdatedAt(settingsUpdatedAt)}
+          </span>
+        </div>
+      ) : null}
 
       <div>
-        {talentPreferences && (
-          <CareerField
-            label="선호하는 형태"
-            icon={<Briefcase className="h-4 w-4" />}
-          >
-            <div className="flex flex-wrap gap-2">
-              {TALENT_NETWORK_ENGAGEMENT_OPTIONS.map((option) => {
-                const active = talentPreferences.engagementTypes.includes(
-                  option.id
-                );
-
-                return (
-                  <CareerToggleButton
-                    key={option.id}
-                    active={active}
-                    onClick={() =>
-                      onTalentPreferencesChange((current) =>
-                        current
-                          ? {
-                              ...current,
-                              engagementTypes: active
-                                ? current.engagementTypes.filter(
-                                    (item) => item !== option.id
-                                  )
-                                : [...current.engagementTypes, option.id],
-                            }
-                          : current
-                      )
-                    }
-                  >
-                    {option.label}
-                  </CareerToggleButton>
-                );
-              })}
-            </div>
-          </CareerField>
-        )}
-
-        {talentPreferences && (
-          <CareerField
-            label="이직 의향"
-            icon={<TrendingUp className="h-4 w-4" />}
-          >
-            <div className="flex flex-wrap gap-2">
-              {TALENT_NETWORK_CAREER_MOVE_INTENT_OPTIONS.map((option) => {
-                const active = talentPreferences.careerMoveIntent === option.id;
-
-                return (
-                  <CareerToggleButton
-                    key={option.id}
-                    active={active}
-                    onClick={() =>
-                      onTalentPreferencesChange((current) =>
-                        current
-                          ? {
-                              ...current,
-                              careerMoveIntent: option.id,
-                              careerMoveIntentLabel: option.label,
-                            }
-                          : current
-                      )
-                    }
-                  >
-                    {option.label}
-                  </CareerToggleButton>
-                );
-              })}
-            </div>
-          </CareerField>
-        )}
-
         <CareerField
           label="프로필 공개"
           hint="어떤 수준의 매칭에서 회사가 프로필을 볼 수 있는지 정합니다."
@@ -359,7 +213,7 @@ const CareerProfileSettingsSection = () => {
             </div>
 
             {blockedCompanies.length === 0 ? (
-              <div className="rounded-[8px] border border-dashed border-beige900/15 bg-white/30 px-4 py-3 text-sm text-beige900/45">
+              <div className="rounded-[8px] border border-dashed border-beige900/15 bg-white/30 px-3 py-2 text-sm text-beige900/45">
                 차단된 회사가 없습니다.
               </div>
             ) : (
@@ -385,62 +239,6 @@ const CareerProfileSettingsSection = () => {
             )}
           </div>
         </CareerField>
-
-        {talentPreferences && (
-          <CareerField
-            label="추가 추천 설정"
-            icon={<RefreshCcw className="h-4 w-4" />}
-            hint="온보딩 이후 Harper가 external 공고를 몇 일마다 몇 개씩 더 찾을지 정합니다."
-          >
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="block">
-                <div className="mb-2 text-sm text-beige900/60">몇 일마다</div>
-                <CareerTextInput
-                  type="number"
-                  min={1}
-                  max={30}
-                  step={1}
-                  inputMode="numeric"
-                  value={talentPreferences.periodicIntervalDays}
-                  onChange={(event) =>
-                    handleRecommendationSettingChange(
-                      "periodicIntervalDays",
-                      event.target.value
-                    )
-                  }
-                  disabled={settingsLoading || isSavePending}
-                />
-              </label>
-
-              <label className="block">
-                <div className="mb-2 text-sm text-beige900/60">
-                  한 번에 몇 개
-                </div>
-                <CareerTextInput
-                  type="number"
-                  min={1}
-                  max={10}
-                  step={1}
-                  inputMode="numeric"
-                  value={talentPreferences.recommendationBatchSize}
-                  onChange={(event) =>
-                    handleRecommendationSettingChange(
-                      "recommendationBatchSize",
-                      event.target.value
-                    )
-                  }
-                  disabled={settingsLoading || isSavePending}
-                />
-              </label>
-            </div>
-
-            <div className="mt-3 text-[13px] leading-5 text-beige900/60">
-              현재 {talentPreferences.periodicIntervalDays}일마다 external 공고
-              {` ${talentPreferences.recommendationBatchSize}개`}를 추가로
-              찾습니다.
-            </div>
-          </CareerField>
-        )}
       </div>
 
       {saveError && (
@@ -482,5 +280,9 @@ const CareerProfileSettingsSection = () => {
     </div>
   );
 };
+
+const CareerProfileSettingsSection = () => (
+  <CareerProfileSharingSettingsSection />
+);
 
 export default CareerProfileSettingsSection;

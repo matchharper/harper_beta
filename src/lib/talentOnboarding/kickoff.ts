@@ -21,16 +21,10 @@ import {
   getTalentProfileVisibilityLabel,
   TALENT_PENDING_QUESTION_PREFIX,
   normalizeTalentBlockedCompanies,
-  normalizeTalentEngagementTypes,
   normalizeTalentInsightContent,
   getTalentSupabaseAdmin,
-  sanitizeTalentCareerMoveIntent,
   toTalentDisplayName,
 } from "@/lib/talentOnboarding/server";
-import {
-  getTalentCareerMoveIntentLabel,
-  getTalentEngagementLabels,
-} from "@/lib/talentNetworkOptions";
 
 type AdminClient = ReturnType<typeof getTalentSupabaseAdmin>;
 
@@ -41,8 +35,6 @@ type LlmKickoff = {
 
 type TalentKickoffPreferences = {
   profileVisibilityLabel: string;
-  engagementTypes: string[];
-  careerMoveIntentLabel: string | null;
   blockedCompanies: string[];
   insightContent: TalentInsightContent | null;
 };
@@ -147,12 +139,6 @@ function describeTalentPreferences(
 
   return [
     `프로필 공개: ${preferences.profileVisibilityLabel}`,
-    `선호 형태: ${
-      preferences.engagementTypes.length > 0
-        ? preferences.engagementTypes.join(", ")
-        : "(없음)"
-    }`,
-    `이직 의향: ${preferences.careerMoveIntentLabel ?? "(미입력)"}`,
     `차단 기업: ${
       preferences.blockedCompanies.length > 0
         ? preferences.blockedCompanies.join(", ")
@@ -254,12 +240,6 @@ export async function autoStartClaimedTalentConversation(args: {
   const normalizedInsights = normalizeTalentInsightContent(
     talentInsights?.content
   );
-  const engagementLabels = getTalentEngagementLabels(
-    normalizeTalentEngagementTypes(talentSetting?.engagement_types ?? [])
-  );
-  const careerMoveIntentLabel = getTalentCareerMoveIntentLabel(
-    sanitizeTalentCareerMoveIntent(talentSetting?.career_move_intent)
-  );
   const profileVisibilityLabel = getTalentProfileVisibilityLabel(
     talentSetting?.profile_visibility
   );
@@ -283,8 +263,6 @@ export async function autoStartClaimedTalentConversation(args: {
     links,
     talentPreferences: {
       profileVisibilityLabel,
-      engagementTypes: engagementLabels,
-      careerMoveIntentLabel,
       blockedCompanies,
       insightContent: normalizedInsights,
     },

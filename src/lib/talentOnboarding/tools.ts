@@ -16,7 +16,6 @@ import {
 import {
   fetchTalentInsights,
   fetchTalentSetting,
-  normalizeTalentEngagementTypes,
   normalizeTalentInsightContent,
   upsertTalentInsights,
   upsertTalentSetting,
@@ -187,7 +186,9 @@ function normalizeSinceDate(input: Record<string, unknown>) {
       : Number.parseInt(String(input.sinceDays ?? ""), 10);
   if (!Number.isFinite(daysBack)) return null;
   const normalizedDays = Math.max(1, Math.min(365, Math.floor(daysBack)));
-  return new Date(Date.now() - normalizedDays * 24 * 60 * 60 * 1000).toISOString();
+  return new Date(
+    Date.now() - normalizedDays * 24 * 60 * 60 * 1000
+  ).toISOString();
 }
 
 const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
@@ -200,8 +201,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       properties: {
         latestUserMessage: {
           type: "string",
-          description:
-            "Optional latest user message from the current turn.",
+          description: "Optional latest user message from the current turn.",
         },
       },
       additionalProperties: false,
@@ -666,17 +666,8 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         preferences: {
           type: "object",
           description:
-            "Structured talent_preferences fields. Provide ONLY fields the user newly disclosed. Arrays are unioned with existing values server-side; numbers overwrite. The careerMoveIntent field is intentionally not part of this tool — never attempt to write it.",
+            "Structured talent_preferences fields. Provide ONLY fields the user newly disclosed. Only numeric recommendation cadence fields are writable here.",
           properties: {
-            engagementTypes: {
-              type: "array",
-              description:
-                "Engagement types to add (server unions with existing). Use only when the user clearly states the form of engagement they want.",
-              items: {
-                type: "string",
-                enum: ["full_time", "fractional", "advisor"],
-              },
-            },
             periodicIntervalDays: {
               type: "integer",
               description:
@@ -891,7 +882,8 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
               .eq("user_id", userId);
             if (talentUserUpdateError) {
               throw new TalentToolError(
-                talentUserUpdateError.message ?? "Failed to update talent_users."
+                talentUserUpdateError.message ??
+                  "Failed to update talent_users."
               );
             }
 
@@ -905,9 +897,9 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         }
       }
 
-      // talent_preferences — server-side union for arrays, overwrite for numbers.
-      // careerMoveIntent is intentionally NEVER passed so upsertTalentSetting
-      // falls back to the existing value (avoids triggering opportunity discovery).
+      // talent_preferences — overwrite numeric recommendation settings only.
+      // Hidden talent_setting fields are intentionally NEVER passed so
+      // upsertTalentSetting falls back to existing values.
       if (preferencesInput) {
         const existingSetting = await loadExistingSetting();
         const updatePayload: Parameters<typeof upsertTalentSetting>[0] = {
@@ -917,34 +909,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         };
         let didUpdate = false;
 
-        if (Array.isArray(preferencesInput.engagementTypes)) {
-          const merged = Array.from(
-            new Set<string>([
-              ...((existingSetting?.engagement_types ?? []) as string[]),
-              ...(preferencesInput.engagementTypes as unknown[]).map((entry) =>
-                String(entry ?? "").trim()
-              ),
-            ])
-          ).filter((entry) => entry.length > 0);
-          const nextEngagementTypes = normalizeTalentEngagementTypes(merged);
-          updatePayload.engagementTypes = nextEngagementTypes;
-          didUpdate = true;
-          updatedPreferenceFields.push("engagementTypes");
-          if (
-            !isSameActivityValue(
-              existingSetting?.engagement_types ?? [],
-              nextEngagementTypes
-            )
-          ) {
-            preferenceActivityChanges.push({
-              field: "engagementTypes",
-              from: normalizeTalentEngagementTypes(
-                existingSetting?.engagement_types ?? []
-              ),
-              to: nextEngagementTypes,
-            });
-          }
-        }
         if (
           typeof preferencesInput.periodicIntervalDays === "number" &&
           Number.isFinite(preferencesInput.periodicIntervalDays)
@@ -1036,8 +1000,9 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
               userId,
             });
             const currentContent =
-              normalizeTalentInsightContent(existingInsights?.content ?? null) ??
-              {};
+              normalizeTalentInsightContent(
+                existingInsights?.content ?? null
+              ) ?? {};
             const changedPatch: Record<string, string> = {};
 
             for (const [key, value] of Object.entries(normalizedPatch)) {
@@ -1264,7 +1229,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         talentInsightsInput?.changeSummary
       );
       const insightImpactLevel = insightSummary
-        ? normalizeToolImpactLevel(talentInsightsInput?.impactLevel) ?? "high"
+        ? (normalizeToolImpactLevel(talentInsightsInput?.impactLevel) ?? "high")
         : null;
       if (insightSummary) {
         await insertTalentActivityEvent({

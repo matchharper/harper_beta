@@ -1,7 +1,3 @@
-import {
-  getTalentCareerMoveIntentLabel,
-  getTalentEngagementLabels,
-} from "@/lib/talentNetworkOptions";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import type {
   TalentEducationRow,
@@ -15,8 +11,6 @@ import type {
 import {
   getTalentProfileVisibilityLabel,
   normalizeTalentBlockedCompanies,
-  normalizeTalentEngagementTypes,
-  sanitizeTalentCareerMoveIntent,
 } from "@/lib/talentOnboarding/stateStore";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -219,7 +213,6 @@ export async function fetchTalentStructuredProfile(args: {
 }
 
 export function buildTalentProfileContext(args: {
-  includeCareerMoveIntent?: boolean;
   includeResumeFileName?: boolean;
   includeResumeText?: boolean;
   includeRowIds?: boolean;
@@ -229,7 +222,6 @@ export function buildTalentProfileContext(args: {
   maxResumeChars?: number;
 }) {
   const {
-    includeCareerMoveIntent = true,
     includeResumeFileName = true,
     includeResumeText = true,
     includeRowIds = true,
@@ -246,14 +238,6 @@ export function buildTalentProfileContext(args: {
   const experiences = structuredProfile?.talentExperiences ?? [];
   const educations = structuredProfile?.talentEducations ?? [];
   const extras = structuredProfile?.talentExtras ?? [];
-  const engagementLabels = getTalentEngagementLabels(
-    normalizeTalentEngagementTypes(setting?.engagement_types ?? [])
-  );
-  const careerMoveIntentLabel = includeCareerMoveIntent
-    ? getTalentCareerMoveIntentLabel(
-        sanitizeTalentCareerMoveIntent(setting?.career_move_intent)
-      )
-    : null;
   const blockedCompanies = normalizeTalentBlockedCompanies(
     setting?.blocked_companies ?? []
   ).slice(0, 20);
@@ -286,14 +270,6 @@ export function buildTalentProfileContext(args: {
       setting?.profile_visibility
     )}`
   );
-  lines.push(
-    `- Preferred engagement types: ${
-      engagementLabels.length > 0 ? engagementLabels.join(", ") : "(none)"
-    }`
-  );
-  if (includeCareerMoveIntent) {
-    lines.push(`- Career move intent: ${careerMoveIntentLabel ?? "(not set)"}`);
-  }
   lines.push(
     `- Blocked companies: ${
       blockedCompanies.length > 0 ? blockedCompanies.join(", ") : "(none)"

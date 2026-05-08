@@ -4,16 +4,13 @@ import {
 } from "@/lib/career/prompts";
 import { runCareerChatAssistant } from "@/lib/career/llm";
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
-import { getTalentCareerMoveIntentLabel } from "@/lib/talentNetworkOptions";
 import {
   buildTalentProfileContext,
   fetchTalentInsights,
   fetchTalentSetting,
   fetchTalentStructuredProfile,
   fetchTalentUserProfile,
-  normalizeTalentEngagementTypes,
   normalizeTalentInsightContent,
-  sanitizeTalentCareerMoveIntent,
   type TalentAdminClient,
   type TalentMessageRow,
 } from "@/lib/talentOnboarding/server";
@@ -88,16 +85,7 @@ function isWrapupInputMessage(message: TalentMessageRow) {
 function buildCurrentPreferences(
   setting: Awaited<ReturnType<typeof fetchTalentSetting>>
 ): CareerPromptPreferences {
-  const careerMoveIntent = sanitizeTalentCareerMoveIntent(
-    setting?.career_move_intent
-  );
-
   return {
-    careerMoveIntent,
-    careerMoveIntentLabel: getTalentCareerMoveIntentLabel(careerMoveIntent),
-    engagementTypes: normalizeTalentEngagementTypes(
-      setting?.engagement_types ?? []
-    ),
     periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
       setting?.periodic_interval_days
     ),

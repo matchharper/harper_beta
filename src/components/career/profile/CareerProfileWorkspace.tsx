@@ -1,21 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
-import CareerHarperInsightsSection from "./CareerHarperInsightsSection";
 import CareerInPageTabs from "../CareerInPageTabs";
-import CareerProfileSettingsSection from "../CareerProfileSettingsSection";
 import CareerTalentProfilePanel from "./CareerTalentProfilePanel";
 import CareerResumeLinksSettingsSection from "../settings/CareerResumeLinksSettingsSection";
 import React from "react";
 
-type ProfileSectionId = "preference" | "profile" | "insight" | "links";
+type ProfileSectionId = "profile" | "links";
 
 const isProfileSectionId = (
   value: string | null | undefined
-): value is ProfileSectionId =>
-  value === "preference" ||
-  value === "profile" ||
-  value === "insight" ||
-  value === "links";
+): value is ProfileSectionId => value === "profile" || value === "links";
 
 const PROFILE_SECTION_ITEMS: Array<{
   id: ProfileSectionId;
@@ -30,20 +24,6 @@ const PROFILE_SECTION_ITEMS: Array<{
     description: [
       "입력하신 정보와 대화내용을 바탕으로 Harper가 구성한 프로필입니다.",
       "이대로 회사 측에 전달되지는 않지만, 변경하고 싶으신 사항이 있는지 확인할 수 있습니다.",
-    ],
-  },
-  {
-    id: "preference",
-    label: "선호 조건",
-    title: "현재 상태 설정",
-    description: ["선호하는 기회 혹은 현재 상태를 설정합니다."],
-  },
-  {
-    id: "insight",
-    label: "하퍼 인사이트",
-    title: "기회 탐색 조건",
-    description: [
-      "Harper가 대화 혹은 프로필을 바탕으로 어떤 기회를 주로 매칭할지에 대해 저장한 정보입니다.",
     ],
   },
   {
@@ -71,25 +51,14 @@ const CareerProfileWorkspace = () => {
     setActiveSection(requestedSection);
   }, [requestedSection, router.isReady]);
 
-  const tabs = useMemo(
-    () => PROFILE_SECTION_ITEMS.filter((item) => item.id !== "insight"),
-    []
-  );
+  const tabs = useMemo(() => PROFILE_SECTION_ITEMS, []);
 
   const activeContent = useMemo(() => {
-    if (activeSection === "preference") {
-      return <CareerProfileSettingsSection />;
+    if (activeSection === "links") {
+      return <CareerResumeLinksSettingsSection />;
     }
 
-    if (activeSection === "profile") {
-      return <CareerTalentProfilePanel />;
-    }
-
-    if (activeSection === "insight") {
-      return <CareerHarperInsightsSection />;
-    }
-
-    return <CareerResumeLinksSettingsSection />;
+    return <CareerTalentProfilePanel />;
   }, [activeSection]);
 
   return (

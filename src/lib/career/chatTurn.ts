@@ -528,7 +528,8 @@ export async function runCareerChatTurn(
   const llmMessages = recentMessages
     .filter(
       (item) =>
-        item.message_type !== TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NOTICE &&
+        item.message_type !==
+          TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NOTICE &&
         item.message_type !== TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP
     )
     .map((item) => ({
@@ -538,7 +539,9 @@ export async function runCareerChatTurn(
     .filter((item) => item.content.trim().length > 0);
 
   const availableChatTools = getOpenAIChatTools("chat");
-  const isOnboardingActiveForTools = !Boolean(talentSetting?.is_onboarding_done);
+  const isOnboardingActiveForTools = !Boolean(
+    talentSetting?.is_onboarding_done
+  );
   const canSelectAdditionalOnboardingQuestion =
     additionalQuestionSelectionCount <
     TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX;
@@ -561,12 +564,6 @@ export async function runCareerChatTurn(
         )
   );
   const currentPreferences = {
-    engagementTypes: talentSetting?.engagement_types ?? [],
-    preferredLocations: [],
-    careerMoveIntent: talentSetting?.career_move_intent ?? null,
-    careerMoveIntentLabel: getTalentCareerMoveIntentLabel(
-      talentSetting?.career_move_intent ?? null
-    ),
     periodicIntervalDays: talentSetting?.periodic_interval_days ?? null,
     recommendationBatchSize: talentSetting?.recommendation_batch_size ?? null,
   };
@@ -824,7 +821,9 @@ export async function runCareerChatTurn(
           }
           await touchConversation(admin, conversationId, userId);
           preparedCompanySnapshotRef.current = {
-            messages: [toTalentMessageResponse(cacheMessage as TalentMessageRow)],
+            messages: [
+              toTalentMessageResponse(cacheMessage as TalentMessageRow),
+            ],
           };
           return { ok: true, cached: true };
         }
@@ -911,7 +910,9 @@ export async function runCareerChatTurn(
       completed,
       noMessage: responseMessages.length === 0,
       opportunityDiscoveryQueued: Boolean(options?.opportunityRun),
-      opportunityRun: serializeOpportunityRun(options?.opportunityRun ?? activeRun),
+      opportunityRun: serializeOpportunityRun(
+        options?.opportunityRun ?? activeRun
+      ),
       progress: {
         ...progress,
         completed,
@@ -926,8 +927,9 @@ export async function runCareerChatTurn(
   const preparedCompanySnapshot = preparedCompanySnapshotRef.current;
   if (preparedCompanySnapshot) {
     const preparedAssistantText =
-      preparedCompanySnapshot.messages[preparedCompanySnapshot.messages.length - 1]
-        ?.content ?? "";
+      preparedCompanySnapshot.messages[
+        preparedCompanySnapshot.messages.length - 1
+      ]?.content ?? "";
     const insightChangedKeysCount = await extractTurnInsights(
       preparedAssistantText
     );
@@ -1030,7 +1032,9 @@ export async function runCareerChatTurn(
     .single();
 
   if (assistantError) {
-    throw new Error(assistantError.message ?? "Failed to insert assistant message");
+    throw new Error(
+      assistantError.message ?? "Failed to insert assistant message"
+    );
   }
 
   const insightChangedKeysCount = await extractTurnInsights(safeAssistantText);
@@ -1080,7 +1084,9 @@ export async function runCareerChatTurn(
   return buildResult(
     [
       {
-        ...toTalentMessageResponse(insertedAssistantMessage as TalentMessageRow),
+        ...toTalentMessageResponse(
+          insertedAssistantMessage as TalentMessageRow
+        ),
         thinkingLogs: finalAssistantThinkingLogs,
       },
       insertedCompletionWrapupMessage

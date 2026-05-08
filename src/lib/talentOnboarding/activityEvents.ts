@@ -82,6 +82,13 @@ const PREFERENCE_FIELD_LABELS: Record<string, string> = {
   recommendationBatchSize: "recommendation batch size",
 };
 
+const HIDDEN_TALENT_SETTING_SUMMARY_PATTERNS = [
+  "career move intent",
+  "careermoveintent",
+  "engagement types",
+  "engagementtypes",
+];
+
 function normalizeMessageId(value: unknown) {
   if (typeof value === "number" && Number.isFinite(value)) {
     return Math.floor(value);
@@ -164,6 +171,13 @@ function formatPreferenceActivityValue(field: string, value: unknown) {
   return formatActivityValue(value);
 }
 
+function containsHiddenTalentSettingSummary(summary: string) {
+  const normalized = summary.toLowerCase();
+  return HIDDEN_TALENT_SETTING_SUMMARY_PATTERNS.some((pattern) =>
+    normalized.includes(pattern)
+  );
+}
+
 function formatQuotedValue(value: string) {
   return `"${clampText(value, 180).replaceAll('"', "'")}"`;
 }
@@ -180,7 +194,11 @@ function getOptionalString(value: unknown) {
 function getStringList(value: unknown, limit = 4) {
   return Array.isArray(value)
     ? value
-        .map((entry) => String(entry ?? "").replace(/\s+/g, " ").trim())
+        .map((entry) =>
+          String(entry ?? "")
+            .replace(/\s+/g, " ")
+            .trim()
+        )
         .filter(Boolean)
         .slice(0, limit)
     : [];
@@ -276,9 +294,7 @@ export function getPreferenceActivityImpact(
 
 export function buildInsightActivitySummary(keys: readonly string[]) {
   const normalizedKeys = Array.from(
-    new Set(
-      keys.map((key) => key.trim()).filter((key) => key.length > 0)
-    )
+    new Set(keys.map((key) => key.trim()).filter((key) => key.length > 0))
   );
   if (normalizedKeys.length === 0) return null;
   return `User updated Harper insights: ${normalizedKeys.join(", ")}.`;
@@ -334,9 +350,9 @@ export async function insertTalentActivityEvent(args: {
   if (!summary) return false;
 
   try {
-    const { error } = (await ((args.admin.from(
-      "talent_activity_events" as any
-    ) as any).insert({
+    const { error } = (await ((
+      args.admin.from("talent_activity_events" as any) as any
+    ).insert({
       changed_domains: normalizeChangedDomains(args.changedDomains),
       conversation_id: args.conversationId ?? null,
       event_type: args.eventType,
@@ -532,7 +548,11 @@ export async function fetchTalentActivityEvents(args: {
       throw new Error(error.message ?? "Failed to load talent_activity_events");
     }
 
-    return Array.isArray(data) ? data : [];
+    return Array.isArray(data)
+      ? data.filter(
+          (row) => !containsHiddenTalentSettingSummary(row.summary ?? "")
+        )
+      : [];
   } catch (error) {
     console.error("[TalentActivityEvent] Failed to fetch activity events", {
       error: error instanceof Error ? error.message : String(error),
@@ -625,13 +645,12 @@ export async function fetchPendingOpportunityFeedbackActivityItems(args: {
   limit?: number;
   userId: string;
 }) {
-  const latestAssistantCreatedAt = await fetchLatestAssistantChatMessageCreatedAt(
-    {
+  const latestAssistantCreatedAt =
+    await fetchLatestAssistantChatMessageCreatedAt({
       admin: args.admin,
       conversationId: args.conversationId,
       userId: args.userId,
-    }
-  );
+    });
   const latestAssistantTime = Date.parse(latestAssistantCreatedAt ?? "");
   const rows = await fetchTalentActivityEvents({
     admin: args.admin,
@@ -662,13 +681,22 @@ export function formatOpportunityFeedbackPromptContext(
 ) {
   if (items.length === 0) return "";
 
-  const positiveCount = items.filter((item) => item.action === "positive").length;
-  const negativeCount = items.filter((item) => item.action === "negative").length;
-  const missingReasonCount = items.filter((item) => !item.feedbackReason).length;
+  const positiveCount = items.filter(
+    (item) => item.action === "positive"
+  ).length;
+  const negativeCount = items.filter(
+    (item) => item.action === "negative"
+  ).length;
+  const missingReasonCount = items.filter(
+    (item) => !item.feedbackReason
+  ).length;
 
   const lines = items.slice(0, 8).map((item, index) => {
     const actionLabel = item.action === "positive" ? "liked" : "disliked";
-    const roleLabel = [item.title, item.companyName ? `at ${item.companyName}` : ""]
+    const roleLabel = [
+      item.title,
+      item.companyName ? `at ${item.companyName}` : "",
+    ]
       .filter(Boolean)
       .join(" ");
     const details = [
@@ -715,9 +743,9 @@ export async function fetchRecentTalentActivitySummaries(args: {
   const limit = Math.max(1, Math.min(20, Math.floor(args.limit ?? 5)));
 
   try {
-    const { data, error } = (await (args.admin.from(
-      "talent_activity_events" as any
-    ) as any)
+    const { data, error } = (await (
+      args.admin.from("talent_activity_events" as any) as any
+    )
       .select("created_at, summary")
       .eq("talent_id", args.userId)
       .order("created_at", { ascending: false })
@@ -736,16 +764,18 @@ export async function fetchRecentTalentActivitySummaries(args: {
             created_at: row.created_at,
             summary: clampText(row.summary ?? "", 1200),
           }))
-          .filter((row) => row.created_at && row.summary)
+          .filter(
+            (row) =>
+              row.created_at &&
+              row.summary &&
+              !containsHiddenTalentSettingSummary(row.summary)
+          )
       : [];
   } catch (error) {
-    console.error(
-      "[TalentActivityEvent] Failed to fetch activity summaries",
-      {
-        error: error instanceof Error ? error.message : String(error),
-        userId: args.userId,
-      }
-    );
+    console.error("[TalentActivityEvent] Failed to fetch activity summaries", {
+      error: error instanceof Error ? error.message : String(error),
+      userId: args.userId,
+    });
     return [];
   }
 }

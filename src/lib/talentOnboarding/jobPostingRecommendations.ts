@@ -2244,7 +2244,6 @@ export async function runCareerJobPostingRecommendations(args: {
     talentUser: profile,
   });
   const profileText = buildTalentProfileContext({
-    includeCareerMoveIntent: false,
     includeResumeFileName: false,
     includeResumeText: false,
     includeRowIds: false,

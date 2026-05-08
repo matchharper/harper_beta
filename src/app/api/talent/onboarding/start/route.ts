@@ -13,15 +13,11 @@ import {
   getTalentSupabaseAdmin,
   toTalentDisplayName,
 } from "@/lib/talentOnboarding/server";
-import {
-  getTalentCareerMoveIntentLabel,
-  getTalentEngagementLabels,
-} from "@/lib/talentNetworkOptions";
+import { getTalentEngagementLabels } from "@/lib/talentNetworkOptions";
 import {
   getTalentProfileVisibilityLabel,
   normalizeTalentBlockedCompanies,
   normalizeTalentEngagementTypes,
-  sanitizeTalentCareerMoveIntent,
 } from "@/lib/talentOnboarding/server";
 import { ingestTalentProfileFromLinkedin } from "@/lib/talentOnboarding/profileIngestion";
 import {
@@ -190,12 +186,6 @@ export async function POST(req: NextRequest) {
       talentPreferences: {
         profileVisibilityLabel: getTalentProfileVisibilityLabel(
           talentSetting?.profile_visibility
-        ),
-        engagementTypes: getTalentEngagementLabels(
-          normalizeTalentEngagementTypes(talentSetting?.engagement_types ?? [])
-        ),
-        careerMoveIntentLabel: getTalentCareerMoveIntentLabel(
-          sanitizeTalentCareerMoveIntent(talentSetting?.career_move_intent)
         ),
         blockedCompanies: normalizeTalentBlockedCompanies(
           talentSetting?.blocked_companies ?? []

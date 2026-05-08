@@ -16,9 +16,6 @@ export type CareerPromptProfile = {
 };
 
 export type CareerPromptPreferences = {
-  engagementTypes?: string[] | null;
-  careerMoveIntent?: string | null;
-  careerMoveIntentLabel?: string | null;
   periodicIntervalDays?: number | null;
   recommendationBatchSize?: number | null;
 };
@@ -570,27 +567,6 @@ function buildKnownPreferencesSection(
   if (!prefs) return "";
 
   const lines: string[] = [];
-  const engagementTypes = Array.isArray(prefs.engagementTypes)
-    ? prefs.engagementTypes.filter(
-        (entry) => typeof entry === "string" && entry.length > 0
-      )
-    : [];
-  lines.push(
-    `- engagementTypes: ${engagementTypes.length > 0 ? engagementTypes.join(", ") : "(none)"}`
-  );
-
-  const intentLabel =
-    typeof prefs.careerMoveIntentLabel === "string" &&
-    prefs.careerMoveIntentLabel.trim().length > 0
-      ? prefs.careerMoveIntentLabel.trim()
-      : typeof prefs.careerMoveIntent === "string" &&
-          prefs.careerMoveIntent.trim().length > 0
-        ? prefs.careerMoveIntent.trim()
-        : "(미설정)";
-  lines.push(
-    `- careerMoveIntent: ${intentLabel} (read-only — 사용자가 직접 UI에서만 변경하므로 update_talent_profile에서는 절대 다루지 마라)`
-  );
-
   if (
     typeof prefs.periodicIntervalDays === "number" &&
     Number.isFinite(prefs.periodicIntervalDays)
@@ -603,6 +579,7 @@ function buildKnownPreferencesSection(
   ) {
     lines.push(`- recommendationBatchSize: ${prefs.recommendationBatchSize}`);
   }
+  if (lines.length === 0) return "";
 
   return [
     "## 현재 talent_preferences (구조화 필드, update_talent_profile 호출 시 합집합/덮어쓰기 머지 기준)",
@@ -1072,7 +1049,7 @@ export function buildCareerToolPolicyPrompt(args: {
       ? [
           "",
           "### update_talent_profile (profile writer)",
-          "- Purpose: update internal profile state with new info the user just shared: talentUser.bio, talent_preferences (engagementTypes, periodicIntervalDays, recommendationBatchSize), row memos, and post-onboarding talent_insights.",
+          "- Purpose: update internal profile state with new info the user just shared: talentUser.bio, talent_preferences (periodicIntervalDays, recommendationBatchSize), row memos, and post-onboarding talent_insights.",
           "- Boundary: facts about a specific past role, school, project, responsibility, achievement, or education belong in the structured profile row memo when one visible row matches. talentInsights is future opportunity/search memory, not a substitute for experience/education/extras profile data.",
           "- During onboarding: use only talentUser.bio, preferences, and rowMemos. Do NOT send talentInsights; onboarding insight extraction is handled separately.",
           "- After onboarding is complete: send talentInsights only when the user's latest message clearly changes durable future recommendation memory, such as desired next role, search intensity, compensation, must-haves, deal-breakers, team style, company/domain preference, company size/stage preference, or corrections to prior recommendation preferences.",
@@ -1084,7 +1061,7 @@ export function buildCareerToolPolicyPrompt(args: {
           "- After this tool returns, produce a normal user-facing chat reply. Do not return an empty assistant message, and do not return only an onboarding marker.",
           "- Trigger conditions: call ONLY when the user's latest statement directly maps to a writable field in this tool:",
           "  1) talentUser.bio: the user explicitly provides, rewrites, corrects, or asks to clear their profile Summary/About/Bio text. Do not invent this from assistant-only summaries.",
-          "  2) talent_preferences: engagementTypes, periodicIntervalDays, recommendationBatchSize.",
+          "  2) talent_preferences: periodicIntervalDays, recommendationBatchSize.",
           "  3) rowMemos: a short fact clearly tied to exactly one visible experience/education/extra row. This includes recent/representative experience details, project descriptions, responsibilities, achievements, and education details.",
           "  4) talentInsights: post-onboarding durable future preference/memory changes. Use descriptive English snake_case keys and final integrated Korean complete sentences as values.",
           "- Do NOT call this tool during onboarding for general answers that only update insight-like understanding, such as search intensity, desired next role, compensation, must-haves, deal-breakers, team style, environment preference, career-change reason, or optional-question answers. Those are handled outside this tool until onboarding completes.",
@@ -1094,14 +1071,13 @@ export function buildCareerToolPolicyPrompt(args: {
           "  - 이미 같은 preference/memo 정보가 들어 있고 변동/보강할 게 없을 때 (중복 호출 금지).",
           "- Read-merge-write 규칙:",
           "  - talentUser.bio 는 talent_users.bio 전체를 교체한다. 사용자가 의도한 최종 Summary/About 문장만 보내라. 삭제/비우기를 명확히 요청한 경우에만 null 또는 빈 문자열을 보낸다.",
-          "  - talent_preferences 의 engagementTypes 배열은 서버가 합집합으로 머지한다. 새로 추가할 항목만 보내면 된다. 지역/위치 선호는 talent_preferences가 아니라 talentInsights.content.location에 완성된 문장으로 저장한다.",
           "  - periodicIntervalDays / recommendationBatchSize 는 사용자가 명확한 숫자 선호를 말했을 때만 보내고, 보내면 그 값으로 덮어쓰기된다.",
           "  - talentInsights.content 는 partial patch 이다. 기존 값과 통합된 최종 문장만 보내고, 단순 중복이면 보내지 않는다.",
           "  - 새 정보가 기존/current insight 또는 checklist 축에 속하면 새 synonym key를 만들지 말고 그 key를 업데이트해라. 예: target_role 계열은 next_scope, deal_breaker 계열은 deal_breakers, must_have 계열은 must_haves, team_style 계열은 team_style_fit, compensation_floor 계열은 compensation, location_preference 계열은 location.",
           "  - 정말 기존 key로 표현하기 어려운 별도 축이면 새 영어 snake_case key를 만들어도 된다. 단, `representative_experience`, `recent_experience`처럼 프로필 row fact를 담는 key는 만들지 마라.",
           "  - talentInsights value 는 완성된 한국어 문장이어야 한다. 예: `규모 선호.`가 아니라 `일정 규모가 있는 회사를 선호합니다.`",
           "- 제외 대상:",
-          "  - careerMoveIntent 는 schema 에 없으며 어떤 경우에도 다루지 않는다 (변경 시 백그라운드 opportunity discovery job이 트리거되는 부수효과가 있어 사용자 UI 직접 변경만 허용).",
+          "  - 숨겨진 talent_setting 필드는 어떤 경우에도 다루지 않는다.",
           "  - profileLinks(LinkedIn/GitHub/Scholar/X/개인 사이트), resume 파일은 채팅 발화에 등장해도 이 도구로 쓰지 않는다.",
           "- rowMemos (talent_experiences/educations/extras 의 'Harper의 메모' 박스):",
           "  - 사용자가 프로필의 *특정* role/school/extra 하나에 분명히 연결되는 declarative 발화를 했을 때만 사용한다 (예: '삼성에서 ML 모델 만들었어요' → 시스템 프롬프트의 Experiences 블록에서 company_name이 '삼성'인 행 하나).",
