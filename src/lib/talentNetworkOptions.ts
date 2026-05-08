@@ -9,11 +9,11 @@ export const TALENT_NETWORK_PROFILE_INPUT_OPTIONS: Array<{
   id: TalentNetworkProfileInputType;
   label: string;
 }> = [
+  { id: "cv", label: "CV/이력서" },
   { id: "linkedin", label: "LinkedIn" },
   { id: "github", label: "GitHub / Hugging Face" },
   { id: "scholar", label: "Google Scholar" },
   { id: "website", label: "개인 사이트" },
-  { id: "cv", label: "CV/이력서" },
 ];
 
 export const TALENT_NETWORK_ENGAGEMENT_OPTIONS = [

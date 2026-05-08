@@ -167,6 +167,11 @@ function buildLeadInsightSeed(lead: NetworkLead) {
   const content = {
     ...(lead.impactSummary ? { technical_strengths: lead.impactSummary } : {}),
     ...(lead.dreamTeams ? { desired_teams: lead.dreamTeams } : {}),
+    ...(lead.preferredLocations.length > 0
+      ? {
+          location: `선호 근무 지역은 ${lead.preferredLocations.join(", ")}입니다.`,
+        }
+      : {}),
   };
 
   return Object.keys(content).length > 0 ? content : null;
@@ -1007,7 +1012,6 @@ export async function fetchNetworkLeadDetail(
     latestTalentSetting: latestTalentSetting
       ? {
           engagement_types: latestTalentSetting.engagement_types,
-          preferred_locations: latestTalentSetting.preferred_locations,
           career_move_intent: latestTalentSetting.career_move_intent,
         }
       : null,
@@ -1143,7 +1147,7 @@ export async function ingestNetworkLeadProfile(args: { leadId: number }) {
           ? ingestion.experiences.map((experience) => experience.company_name)
           : [],
         engagementTypes: lead.engagementTypes,
-        preferredLocations: lead.preferredLocations,
+        preferredLocations: [],
         careerMoveIntent: lead.careerMoveIntent,
       }),
     }),

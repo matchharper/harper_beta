@@ -15,13 +15,11 @@ import {
 import {
   getTalentCareerMoveIntentLabel,
   getTalentEngagementLabels,
-  getTalentLocationLabels,
 } from "@/lib/talentNetworkOptions";
 import {
   getTalentProfileVisibilityLabel,
   normalizeTalentBlockedCompanies,
   normalizeTalentEngagementTypes,
-  normalizeTalentPreferredLocations,
   sanitizeTalentCareerMoveIntent,
 } from "@/lib/talentOnboarding/server";
 import { ingestTalentProfileFromLinkedin } from "@/lib/talentOnboarding/profileIngestion";
@@ -147,11 +145,6 @@ export async function POST(req: NextRequest) {
         ),
         engagementTypes: getTalentEngagementLabels(
           normalizeTalentEngagementTypes(talentSetting?.engagement_types ?? [])
-        ),
-        preferredLocations: getTalentLocationLabels(
-          normalizeTalentPreferredLocations(
-            talentSetting?.preferred_locations ?? []
-          )
         ),
         careerMoveIntentLabel: getTalentCareerMoveIntentLabel(
           sanitizeTalentCareerMoveIntent(talentSetting?.career_move_intent)

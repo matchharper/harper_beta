@@ -58,7 +58,11 @@ export default function App({ Component, pageProps }: AppProps) {
     router.pathname === "/career" ||
     router.pathname.startsWith("/career/") ||
     router.pathname === "/career_login";
-  const shouldLoadCrisp = Boolean(CRISP_BOOTSTRAP_SCRIPT) && !isCareerPage;
+  const shouldHideCrisp =
+    isCareerPage ||
+    router.pathname === "/landing-ko-vf" ||
+    router.pathname === "/network2";
+  const shouldLoadCrisp = Boolean(CRISP_BOOTSTRAP_SCRIPT) && !shouldHideCrisp;
 
   useEffect(() => {
     if (!GA_ID) return;
@@ -97,12 +101,15 @@ export default function App({ Component, pageProps }: AppProps) {
     };
 
     if (!crispWindow.$crisp) {
-      if (isCareerPage) return;
+      if (shouldHideCrisp) return;
       crispWindow.$crisp = [];
     }
 
-    crispWindow.$crisp.push(["do", isCareerPage ? "chat:hide" : "chat:show"]);
-  }, [isCareerPage]);
+    crispWindow.$crisp.push([
+      "do",
+      shouldHideCrisp ? "chat:hide" : "chat:show",
+    ]);
+  }, [shouldHideCrisp]);
 
   useEffect(() => {
     init();

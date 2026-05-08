@@ -1,7 +1,6 @@
 import {
   getTalentCareerMoveIntentLabel,
   getTalentEngagementLabels,
-  getTalentLocationLabels,
 } from "@/lib/talentNetworkOptions";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import type {
@@ -17,7 +16,6 @@ import {
   getTalentProfileVisibilityLabel,
   normalizeTalentBlockedCompanies,
   normalizeTalentEngagementTypes,
-  normalizeTalentPreferredLocations,
   sanitizeTalentCareerMoveIntent,
 } from "@/lib/talentOnboarding/stateStore";
 
@@ -221,14 +219,20 @@ export async function fetchTalentStructuredProfile(args: {
 }
 
 export function buildTalentProfileContext(args: {
+  includeCareerMoveIntent?: boolean;
+  includeResumeFileName?: boolean;
   includeResumeText?: boolean;
+  includeRowIds?: boolean;
   profile: TalentUserProfileRow | null;
   structuredProfile?: TalentStructuredProfile | null;
   setting?: TalentSettingRow | null;
   maxResumeChars?: number;
 }) {
   const {
+    includeCareerMoveIntent = true,
+    includeResumeFileName = true,
     includeResumeText = true,
+    includeRowIds = true,
     profile,
     structuredProfile,
     setting,
@@ -245,12 +249,11 @@ export function buildTalentProfileContext(args: {
   const engagementLabels = getTalentEngagementLabels(
     normalizeTalentEngagementTypes(setting?.engagement_types ?? [])
   );
-  const locationLabels = getTalentLocationLabels(
-    normalizeTalentPreferredLocations(setting?.preferred_locations ?? [])
-  );
-  const careerMoveIntentLabel = getTalentCareerMoveIntentLabel(
-    sanitizeTalentCareerMoveIntent(setting?.career_move_intent)
-  );
+  const careerMoveIntentLabel = includeCareerMoveIntent
+    ? getTalentCareerMoveIntentLabel(
+        sanitizeTalentCareerMoveIntent(setting?.career_move_intent)
+      )
+    : null;
   const blockedCompanies = normalizeTalentBlockedCompanies(
     setting?.blocked_companies ?? []
   ).slice(0, 20);
@@ -266,7 +269,7 @@ export function buildTalentProfileContext(args: {
     if (bio) lines.push(`- Bio: ${bio}`);
   }
 
-  if (profile?.resume_file_name) {
+  if (includeResumeFileName && profile?.resume_file_name) {
     lines.push(`- Resume File: ${profile.resume_file_name}`);
   }
 
@@ -288,14 +291,9 @@ export function buildTalentProfileContext(args: {
       engagementLabels.length > 0 ? engagementLabels.join(", ") : "(none)"
     }`
   );
-  lines.push(
-    `- Career move intent: ${careerMoveIntentLabel ?? "(not set)"}`
-  );
-  lines.push(
-    `- Preferred locations: ${
-      locationLabels.length > 0 ? locationLabels.join(", ") : "(none)"
-    }`
-  );
+  if (includeCareerMoveIntent) {
+    lines.push(`- Career move intent: ${careerMoveIntentLabel ?? "(not set)"}`);
+  }
   lines.push(
     `- Blocked companies: ${
       blockedCompanies.length > 0 ? blockedCompanies.join(", ") : "(none)"
@@ -322,7 +320,9 @@ export function buildTalentProfileContext(args: {
       }
 
       let itemText = `${index + 1}. ${parts.join(", ")}`;
-      if (experience.id) itemText += `\n   RowID: ${experience.id}`;
+      if (includeRowIds && experience.id) {
+        itemText += `\n   RowID: ${experience.id}`;
+      }
       const description = clampPromptText(experience.description, 700);
       if (description) itemText += `\n   Description: ${description}`;
       const memo = clampPromptText(experience.memo, 600);
@@ -346,7 +346,9 @@ export function buildTalentProfileContext(args: {
       if (dateRange) parts.push(`Dates: ${dateRange}`);
 
       let itemText = `${index + 1}. ${parts.join(", ")}`;
-      if (education.id) itemText += `\n   RowID: ${education.id}`;
+      if (includeRowIds && education.id) {
+        itemText += `\n   RowID: ${education.id}`;
+      }
       const memo = clampPromptText(education.memo, 600);
       if (memo) itemText += `\n   Memo: ${memo}`;
       lines.push(itemText);
@@ -400,7 +402,10 @@ export type RowMemoOutcome =
         | "empty_input";
     };
 
-function joinMemoWithDelta(existing: string | null | undefined, newInfo: string) {
+function joinMemoWithDelta(
+  existing: string | null | undefined,
+  newInfo: string
+) {
   const trimmedExisting = (existing ?? "").replace(/\r/g, "").trim();
   const trimmedNew = newInfo.replace(/\r/g, "").trim();
   if (!trimmedNew) return null;
@@ -411,7 +416,11 @@ function joinMemoWithDelta(existing: string | null | undefined, newInfo: string)
 }
 
 function parseRowIdToNumber(rowId: string | number | null | undefined) {
-  if (typeof rowId === "number" && Number.isFinite(rowId) && Number.isInteger(rowId)) {
+  if (
+    typeof rowId === "number" &&
+    Number.isFinite(rowId) &&
+    Number.isInteger(rowId)
+  ) {
     return rowId;
   }
   if (typeof rowId !== "string") return null;
@@ -419,7 +428,8 @@ function parseRowIdToNumber(rowId: string | number | null | undefined) {
   if (!trimmed) return null;
   if (!/^\d+$/.test(trimmed)) return null;
   const parsed = Number.parseInt(trimmed, 10);
-  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) return null;
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0)
+    return null;
   return parsed;
 }
 
@@ -571,9 +581,7 @@ export async function appendEducationMemo(args: {
     .eq("id", parsedId)
     .eq("talent_id", userId);
   if (error) {
-    throw new Error(
-      error.message ?? "Failed to update talent_educations memo"
-    );
+    throw new Error(error.message ?? "Failed to update talent_educations memo");
   }
   return {
     ok: true,

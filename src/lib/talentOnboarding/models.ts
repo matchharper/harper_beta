@@ -118,7 +118,7 @@ export type TalentSettingRow = {
   profile_visibility: TalentProfileVisibility;
   blocked_companies: string[];
   engagement_types: TalentNetworkEngagementOptionId[];
-  preferred_locations: TalentNetworkLocationOptionId[];
+  preferred_locations?: TalentNetworkLocationOptionId[];
   career_move_intent: TalentNetworkCareerMoveIntentOptionId | null;
   is_onboarding_done: boolean;
   periodic_enabled: boolean;
@@ -144,4 +144,4 @@ export type TalentInsightRow = {
 export const TALENT_RESUME_BUCKET = "talent-resumes";
 export const TALENT_PENDING_QUESTION_PREFIX = "__PENDING_Q__::";
 export const TALENT_SETTING_SELECT_QUERY =
-  "user_id, profile_visibility, blocked_companies, engagement_types, preferred_locations, career_move_intent, is_onboarding_done, periodic_enabled, periodic_interval_days, recommendation_batch_size, last_periodic_run_at, recommendation_source_conversation_id, recommendation_settings_updated_by, created_at, updated_at";
+  "user_id, profile_visibility, blocked_companies, engagement_types, career_move_intent, is_onboarding_done, periodic_enabled, periodic_interval_days, recommendation_batch_size, last_periodic_run_at, recommendation_source_conversation_id, recommendation_settings_updated_by, created_at, updated_at";

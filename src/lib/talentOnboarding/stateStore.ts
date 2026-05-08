@@ -240,9 +240,6 @@ export function mergeTalentSettingSeed(args: {
   const currentEngagementTypes = normalizeTalentEngagementTypes(
     currentSetting?.engagement_types ?? []
   );
-  const currentPreferredLocations = normalizeTalentPreferredLocations(
-    currentSetting?.preferred_locations ?? []
-  );
   const currentCareerMoveIntent = sanitizeTalentCareerMoveIntent(
     currentSetting?.career_move_intent
   );
@@ -259,10 +256,6 @@ export function mergeTalentSettingSeed(args: {
       currentEngagementTypes.length > 0
         ? currentEngagementTypes
         : normalizeTalentEngagementTypes(args.engagementTypes),
-    preferredLocations:
-      currentPreferredLocations.length > 0
-        ? currentPreferredLocations
-        : normalizeTalentPreferredLocations(args.preferredLocations),
     careerMoveIntent:
       currentCareerMoveIntent ??
       sanitizeTalentCareerMoveIntent(args.careerMoveIntent),
@@ -331,9 +324,6 @@ export async function upsertTalentSetting(args: {
     ),
     engagement_types: normalizeTalentEngagementTypes(
       args.engagementTypes ?? current?.engagement_types ?? []
-    ),
-    preferred_locations: normalizeTalentPreferredLocations(
-      args.preferredLocations ?? current?.preferred_locations ?? []
     ),
     career_move_intent: sanitizeTalentCareerMoveIntent(
       args.careerMoveIntent ?? current?.career_move_intent
@@ -426,7 +416,6 @@ export async function setTalentOnboardingDone(args: {
       profile_visibility: DEFAULT_TALENT_PROFILE_VISIBILITY,
       blocked_companies: [],
       engagement_types: [],
-      preferred_locations: [],
       career_move_intent: null,
       is_onboarding_done: isOnboardingDone,
       periodic_enabled: DEFAULT_TALENT_PERIODIC_ENABLED,

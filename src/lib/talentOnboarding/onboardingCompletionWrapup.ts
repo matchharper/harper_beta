@@ -13,7 +13,6 @@ import {
   fetchTalentUserProfile,
   normalizeTalentEngagementTypes,
   normalizeTalentInsightContent,
-  normalizeTalentPreferredLocations,
   sanitizeTalentCareerMoveIntent,
   type TalentAdminClient,
   type TalentMessageRow,
@@ -98,9 +97,6 @@ function buildCurrentPreferences(
     careerMoveIntentLabel: getTalentCareerMoveIntentLabel(careerMoveIntent),
     engagementTypes: normalizeTalentEngagementTypes(
       setting?.engagement_types ?? []
-    ),
-    preferredLocations: normalizeTalentPreferredLocations(
-      setting?.preferred_locations ?? []
     ),
     periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
       setting?.periodic_interval_days

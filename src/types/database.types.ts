@@ -786,10 +786,13 @@ export type Database = {
           founded_year: number | null
           funding: Json | null
           funding_url: string | null
+          harvestapi_information: Json | null
           id: number
           investors: string | null
           last_crunchbase_updated_at: string | null
+          last_harvestapi_updated_at: string | null
           last_updated_at: string
+          linkedin_company_id: number | null
           linkedin_url: string | null
           location: string | null
           logo: string | null
@@ -806,10 +809,13 @@ export type Database = {
           founded_year?: number | null
           funding?: Json | null
           funding_url?: string | null
+          harvestapi_information?: Json | null
           id?: number
           investors?: string | null
           last_crunchbase_updated_at?: string | null
+          last_harvestapi_updated_at?: string | null
           last_updated_at?: string
+          linkedin_company_id?: number | null
           linkedin_url?: string | null
           location?: string | null
           logo?: string | null
@@ -826,10 +832,13 @@ export type Database = {
           founded_year?: number | null
           funding?: Json | null
           funding_url?: string | null
+          harvestapi_information?: Json | null
           id?: number
           investors?: string | null
           last_crunchbase_updated_at?: string | null
+          last_harvestapi_updated_at?: string | null
           last_updated_at?: string
+          linkedin_company_id?: number | null
           linkedin_url?: string | null
           location?: string | null
           logo?: string | null
@@ -976,6 +985,13 @@ export type Database = {
             referencedRelation: "company_workspace"
             referencedColumns: ["company_workspace_id"]
           },
+          {
+            foreignKeyName: "company_roles_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "ops_company_workspace_with_label"
+            referencedColumns: ["company_workspace_id"]
+          },
         ]
       }
       company_snapshot: {
@@ -1060,6 +1076,13 @@ export type Database = {
             columns: ["company_workspace_id"]
             isOneToOne: false
             referencedRelation: "company_workspace"
+            referencedColumns: ["company_workspace_id"]
+          },
+          {
+            foreignKeyName: "company_user_workspace_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "ops_company_workspace_with_label"
             referencedColumns: ["company_workspace_id"]
           },
         ]
@@ -1171,6 +1194,57 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "company_db"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_workspace_quality_label: {
+        Row: {
+          company_workspace_id: string
+          created_at: string
+          human_quality_label: number | null
+          human_quality_labeled_at: string | null
+          llm_quality_label: number | null
+          llm_quality_label_reason: string | null
+          llm_quality_label_v2: number | null
+          llm_quality_labeled_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_workspace_id: string
+          created_at?: string
+          human_quality_label?: number | null
+          human_quality_labeled_at?: string | null
+          llm_quality_label?: number | null
+          llm_quality_label_reason?: string | null
+          llm_quality_label_v2?: number | null
+          llm_quality_labeled_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_workspace_id?: string
+          created_at?: string
+          human_quality_label?: number | null
+          human_quality_labeled_at?: string | null
+          llm_quality_label?: number | null
+          llm_quality_label_reason?: string | null
+          llm_quality_label_v2?: number | null
+          llm_quality_labeled_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_workspace_quality_label_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: true
+            referencedRelation: "company_workspace"
+            referencedColumns: ["company_workspace_id"]
+          },
+          {
+            foreignKeyName: "company_workspace_quality_label_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: true
+            referencedRelation: "ops_company_workspace_with_label"
+            referencedColumns: ["company_workspace_id"]
           },
         ]
       }
@@ -1318,6 +1392,47 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "company_users"
             referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      crunchbase_history: {
+        Row: {
+          company_db_id: number | null
+          content: Json
+          created_at: string
+          fetched_at: string
+          id: string
+          organization_permalink: string | null
+          organization_url: string
+          source_actor: string | null
+        }
+        Insert: {
+          company_db_id?: number | null
+          content?: Json
+          created_at?: string
+          fetched_at?: string
+          id?: string
+          organization_permalink?: string | null
+          organization_url: string
+          source_actor?: string | null
+        }
+        Update: {
+          company_db_id?: number | null
+          content?: Json
+          created_at?: string
+          fetched_at?: string
+          id?: string
+          organization_permalink?: string | null
+          organization_url?: string
+          source_actor?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crunchbase_history_company_db_id_fkey"
+            columns: ["company_db_id"]
+            isOneToOne: false
+            referencedRelation: "company_db"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -1657,93 +1772,6 @@ export type Database = {
           },
         ]
       }
-      github_profile_backup_20260325: {
-        Row: {
-          account_type: string | null
-          avatar_url: string | null
-          bio: string | null
-          blog: string | null
-          candid_id: string | null
-          company: string | null
-          created_at: string | null
-          email: string | null
-          followers: number | null
-          following: number | null
-          github_id: number | null
-          github_url: string | null
-          github_username: string | null
-          id: string | null
-          inserted_at: string | null
-          is_hireable: boolean | null
-          is_site_admin: boolean | null
-          last_fetched_at: string | null
-          location: string | null
-          name: string | null
-          node_id: string | null
-          public_gists: number | null
-          public_repos: number | null
-          search_text: string | null
-          twitter_username: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          account_type?: string | null
-          avatar_url?: string | null
-          bio?: string | null
-          blog?: string | null
-          candid_id?: string | null
-          company?: string | null
-          created_at?: string | null
-          email?: string | null
-          followers?: number | null
-          following?: number | null
-          github_id?: number | null
-          github_url?: string | null
-          github_username?: string | null
-          id?: string | null
-          inserted_at?: string | null
-          is_hireable?: boolean | null
-          is_site_admin?: boolean | null
-          last_fetched_at?: string | null
-          location?: string | null
-          name?: string | null
-          node_id?: string | null
-          public_gists?: number | null
-          public_repos?: number | null
-          search_text?: string | null
-          twitter_username?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          account_type?: string | null
-          avatar_url?: string | null
-          bio?: string | null
-          blog?: string | null
-          candid_id?: string | null
-          company?: string | null
-          created_at?: string | null
-          email?: string | null
-          followers?: number | null
-          following?: number | null
-          github_id?: number | null
-          github_url?: string | null
-          github_username?: string | null
-          id?: string | null
-          inserted_at?: string | null
-          is_hireable?: boolean | null
-          is_site_admin?: boolean | null
-          last_fetched_at?: string | null
-          location?: string | null
-          name?: string | null
-          node_id?: string | null
-          public_gists?: number | null
-          public_repos?: number | null
-          search_text?: string | null
-          twitter_username?: string | null
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
       github_repo: {
         Row: {
           created_at: string | null
@@ -1881,89 +1909,6 @@ export type Database = {
             columns: ["repo_id"]
             isOneToOne: false
             referencedRelation: "github_repo"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      github_repo_contribution_old_20260326: {
-        Row: {
-          candid_id: string | null
-          commits: number | null
-          contributors: number | null
-          created_at: string | null
-          default_rank_score: number | null
-          description: string | null
-          forks: number | null
-          github_profile_id: string | null
-          id: number | null
-          languages: Json | null
-          last_contrib_at: string | null
-          last_updated_at: string | null
-          merged_prs: number | null
-          readme_excerpt: string | null
-          repo: string | null
-          repo_id: string | null
-          role: string | null
-          search_text: string | null
-          search_text_fts: unknown
-          stars: number | null
-          topics: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          candid_id?: string | null
-          commits?: number | null
-          contributors?: number | null
-          created_at?: string | null
-          default_rank_score?: number | null
-          description?: string | null
-          forks?: number | null
-          github_profile_id?: string | null
-          id?: number | null
-          languages?: Json | null
-          last_contrib_at?: string | null
-          last_updated_at?: string | null
-          merged_prs?: number | null
-          readme_excerpt?: string | null
-          repo?: string | null
-          repo_id?: string | null
-          role?: string | null
-          search_text?: string | null
-          search_text_fts?: unknown
-          stars?: number | null
-          topics?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          candid_id?: string | null
-          commits?: number | null
-          contributors?: number | null
-          created_at?: string | null
-          default_rank_score?: number | null
-          description?: string | null
-          forks?: number | null
-          github_profile_id?: string | null
-          id?: number | null
-          languages?: Json | null
-          last_contrib_at?: string | null
-          last_updated_at?: string | null
-          merged_prs?: number | null
-          readme_excerpt?: string | null
-          repo?: string | null
-          repo_id?: string | null
-          role?: string | null
-          search_text?: string | null
-          search_text_fts?: unknown
-          stars?: number | null
-          topics?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "github_repo_contribution_candid_id_fkey"
-            columns: ["candid_id"]
-            isOneToOne: false
-            referencedRelation: "candid"
             referencedColumns: ["id"]
           },
         ]
@@ -2205,6 +2150,13 @@ export type Database = {
             referencedRelation: "company_workspace"
             referencedColumns: ["company_workspace_id"]
           },
+          {
+            foreignKeyName: "jobposting_company_identity_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "ops_company_workspace_with_label"
+            referencedColumns: ["company_workspace_id"]
+          },
         ]
       }
       jobposting_company_status: {
@@ -2254,6 +2206,13 @@ export type Database = {
             columns: ["company_workspace_id"]
             isOneToOne: false
             referencedRelation: "company_workspace"
+            referencedColumns: ["company_workspace_id"]
+          },
+          {
+            foreignKeyName: "jobposting_company_status_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "ops_company_workspace_with_label"
             referencedColumns: ["company_workspace_id"]
           },
         ]
@@ -2331,6 +2290,13 @@ export type Database = {
             referencedRelation: "company_workspace"
             referencedColumns: ["company_workspace_id"]
           },
+          {
+            foreignKeyName: "jobposting_crawl_log_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "ops_company_workspace_with_label"
+            referencedColumns: ["company_workspace_id"]
+          },
         ]
       }
       jobs_companies_sources: {
@@ -2399,6 +2365,13 @@ export type Database = {
             referencedRelation: "company_workspace"
             referencedColumns: ["company_workspace_id"]
           },
+          {
+            foreignKeyName: "jobs_companies_sources_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "ops_company_workspace_with_label"
+            referencedColumns: ["company_workspace_id"]
+          },
         ]
       }
       landing_logs: {
@@ -2452,6 +2425,36 @@ export type Database = {
           published_at?: string | null
           title?: string | null
           url?: string
+        }
+        Relationships: []
+      }
+      linkedin_company_id_collision_log: {
+        Row: {
+          detected_at: string
+          existing_company_db_id: number
+          harvestapi_id: number | null
+          id: number
+          incoming_company_db_id: number
+          linkedin_company_id: number
+          slug: string | null
+        }
+        Insert: {
+          detected_at?: string
+          existing_company_db_id: number
+          harvestapi_id?: number | null
+          id?: number
+          incoming_company_db_id: number
+          linkedin_company_id: number
+          slug?: string | null
+        }
+        Update: {
+          detected_at?: string
+          existing_company_db_id?: number
+          harvestapi_id?: number | null
+          id?: number
+          incoming_company_db_id?: number
+          linkedin_company_id?: number
+          slug?: string | null
         }
         Relationships: []
       }
@@ -2643,34 +2646,40 @@ export type Database = {
       }
       opportunity_ingestion_run: {
         Row: {
+          completed_at: string | null
           created_at: string
           error_message: string | null
           from_date: string | null
           id: string
           numbers: Json | null
           source_provider: string | null
+          started_at: string | null
           status: string
           to_date: string | null
           updated_at: string
         }
         Insert: {
+          completed_at?: string | null
           created_at?: string
           error_message?: string | null
           from_date?: string | null
           id?: string
           numbers?: Json | null
           source_provider?: string | null
+          started_at?: string | null
           status?: string
           to_date?: string | null
           updated_at?: string
         }
         Update: {
+          completed_at?: string | null
           created_at?: string
           error_message?: string | null
           from_date?: string | null
           id?: string
           numbers?: Json | null
           source_provider?: string | null
+          started_at?: string | null
           status?: string
           to_date?: string | null
           updated_at?: string
@@ -2809,6 +2818,13 @@ export type Database = {
             columns: ["company_workspace_id"]
             isOneToOne: false
             referencedRelation: "company_workspace"
+            referencedColumns: ["company_workspace_id"]
+          },
+          {
+            foreignKeyName: "opportunity_role_match_index_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "ops_company_workspace_with_label"
             referencedColumns: ["company_workspace_id"]
           },
           {
@@ -2953,6 +2969,13 @@ export type Database = {
             columns: ["company_workspace_id"]
             isOneToOne: false
             referencedRelation: "company_workspace"
+            referencedColumns: ["company_workspace_id"]
+          },
+          {
+            foreignKeyName: "opportunity_source_registry_company_workspace_id_fkey"
+            columns: ["company_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "ops_company_workspace_with_label"
             referencedColumns: ["company_workspace_id"]
           },
           {
@@ -3252,6 +3275,103 @@ export type Database = {
           token?: string
         }
         Relationships: []
+      }
+      prompt_templates: {
+        Row: {
+          content: string
+          draft_content: string | null
+          id: string
+          name: string
+          published_at: string | null
+          required_sections: string[]
+          slug: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          content: string
+          draft_content?: string | null
+          id?: string
+          name: string
+          published_at?: string | null
+          required_sections?: string[]
+          slug: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          content?: string
+          draft_content?: string | null
+          id?: string
+          name?: string
+          published_at?: string | null
+          required_sections?: string[]
+          slug?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      prompt_test_flags: {
+        Row: {
+          enabled_at: string
+          template_slug: string
+          user_id: string
+        }
+        Insert: {
+          enabled_at?: string
+          template_slug: string
+          user_id: string
+        }
+        Update: {
+          enabled_at?: string
+          template_slug?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prompt_test_flags_template_slug_fkey"
+            columns: ["template_slug"]
+            isOneToOne: false
+            referencedRelation: "prompt_templates"
+            referencedColumns: ["slug"]
+          },
+        ]
+      }
+      prompt_versions: {
+        Row: {
+          content: string
+          id: string
+          published_at: string
+          published_by: string | null
+          template_id: string
+          version_number: number
+        }
+        Insert: {
+          content: string
+          id?: string
+          published_at?: string
+          published_by?: string | null
+          template_id: string
+          version_number: number
+        }
+        Update: {
+          content?: string
+          id?: string
+          published_at?: string
+          published_by?: string | null
+          template_id?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prompt_versions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "prompt_templates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       publications: {
         Row: {
@@ -4299,95 +4419,6 @@ export type Database = {
           },
         ]
       }
-      talent_mock_interview_session: {
-        Row: {
-          company_name: string
-          completed_at: string | null
-          conversation_id: string
-          created_at: string
-          duration_minutes: number
-          feedback_payload: Json
-          id: string
-          interview_type: string
-          opportunity_recommendation_id: string | null
-          research_payload: Json
-          role_id: string | null
-          role_title: string
-          setup_payload: Json
-          started_at: string | null
-          status: string
-          talent_id: string
-          updated_at: string
-        }
-        Insert: {
-          company_name: string
-          completed_at?: string | null
-          conversation_id: string
-          created_at?: string
-          duration_minutes?: number
-          feedback_payload?: Json
-          id?: string
-          interview_type?: string
-          opportunity_recommendation_id?: string | null
-          research_payload?: Json
-          role_id?: string | null
-          role_title: string
-          setup_payload?: Json
-          started_at?: string | null
-          status?: string
-          talent_id: string
-          updated_at?: string
-        }
-        Update: {
-          company_name?: string
-          completed_at?: string | null
-          conversation_id?: string
-          created_at?: string
-          duration_minutes?: number
-          feedback_payload?: Json
-          id?: string
-          interview_type?: string
-          opportunity_recommendation_id?: string | null
-          research_payload?: Json
-          role_id?: string | null
-          role_title?: string
-          setup_payload?: Json
-          started_at?: string | null
-          status?: string
-          talent_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "talent_mock_interview_session_conversation_id_fkey"
-            columns: ["conversation_id"]
-            isOneToOne: false
-            referencedRelation: "talent_conversations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "talent_mock_interview_session_opportunity_recommendation_i_fkey"
-            columns: ["opportunity_recommendation_id"]
-            isOneToOne: false
-            referencedRelation: "talent_opportunity_recommendation"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "talent_mock_interview_session_role_id_fkey"
-            columns: ["role_id"]
-            isOneToOne: false
-            referencedRelation: "company_roles"
-            referencedColumns: ["role_id"]
-          },
-          {
-            foreignKeyName: "talent_mock_interview_session_talent_id_fkey"
-            columns: ["talent_id"]
-            isOneToOne: false
-            referencedRelation: "talent_users"
-            referencedColumns: ["user_id"]
-          },
-        ]
-      }
       talent_network_referral_links: {
         Row: {
           conversion_count: number
@@ -4896,7 +4927,6 @@ export type Database = {
       talent_users: {
         Row: {
           bio: string | null
-          career_profile: Json
           created_at: string
           email: string | null
           headline: string | null
@@ -4917,7 +4947,6 @@ export type Database = {
         }
         Insert: {
           bio?: string | null
-          career_profile?: Json
           created_at?: string
           email?: string | null
           headline?: string | null
@@ -4938,7 +4967,6 @@ export type Database = {
         }
         Update: {
           bio?: string | null
-          career_profile?: Json
           created_at?: string
           email?: string | null
           headline?: string | null
@@ -5030,7 +5058,39 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      ops_company_workspace_with_label: {
+        Row: {
+          brief: string | null
+          career_url: string | null
+          company_db_id: number | null
+          company_description: string | null
+          company_name: string | null
+          company_workspace_id: string | null
+          created_at: string | null
+          cwql_human_quality_label: number | null
+          cwql_llm_quality_label: number | null
+          cwql_llm_quality_label_v2: number | null
+          has_career_page: boolean | null
+          homepage_url: string | null
+          is_internal: boolean | null
+          is_scrape_original: boolean | null
+          linkedin_url: string | null
+          logo_url: string | null
+          pitch: string | null
+          request: string | null
+          test_score: number | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_workspace_company_db_id_fkey"
+            columns: ["company_db_id"]
+            isOneToOne: false
+            referencedRelation: "company_db"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       can_access_candidate_profile: {

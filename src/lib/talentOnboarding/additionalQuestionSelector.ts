@@ -88,6 +88,12 @@ function buildFinalPriorityConfirmationMessage() {
   return "여기까지 들은 내용이면 기회 매칭에 필요한 핵심 정보는 어느 정도 잡힌 것 같아요. 마지막으로, 앞으로 기회를 볼 때 제가 꼭 놓치지 말아야 할 우선순위나 지금까지 빠진 조건이 있을까요?";
 }
 
+function countFilledInsights(content: Record<string, unknown> | null) {
+  return Object.values(content ?? {}).filter(
+    (value) => typeof value === "string" && value.trim().length > 0
+  ).length;
+}
+
 export async function selectAdditionalOnboardingQuestion(args: {
   admin: any;
   conversationId: string;
@@ -129,6 +135,11 @@ export async function selectAdditionalOnboardingQuestion(args: {
     setting,
     maxResumeChars: 4000,
   });
+  const currentInsightContent = (insights?.content ?? {}) as Record<
+    string,
+    unknown
+  >;
+  const filledInsightCount = countFilledInsights(currentInsightContent);
   const recentConversation = recentMessages
     .map((message) => {
       const role = message.role === "assistant" ? "Harper" : "User";
@@ -149,6 +160,8 @@ export async function selectAdditionalOnboardingQuestion(args: {
         "Prefer the question that would most improve future opportunity matching.",
         "Do not repeat questions already asked in the recent conversation.",
         "Ask exactly one question. Korean 존댓말 only.",
+        `This selector is for the Additional questions phase. It should be used after the main onboarding insights are reasonably covered, normally when at least 6 insights are already filled.`,
+        `At least ${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN} additional questions are required before final priority confirmation or closing.`,
         "The Structured profile omits `Description` when an experience description is empty. If an experience has a role/company/date range/months but no Description and no Memo, treat that as a missing experience-description gap.",
         "",
         "Selection priority:",
@@ -185,9 +198,11 @@ export async function selectAdditionalOnboardingQuestion(args: {
         "",
         "## Additional question state",
         `Already selected: ${askedCount}/${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX}`,
+        `Minimum required before final priority confirmation or closing: ${TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN}`,
         "",
         "## Current insights",
-        JSON.stringify(insights?.content ?? {}, null, 2),
+        `Filled insight count: ${filledInsightCount}`,
+        JSON.stringify(currentInsightContent, null, 2),
         "",
         "## Latest user message from the current turn, if available",
         latestUserMessage?.trim() || "(not provided)",
@@ -229,7 +244,8 @@ export async function selectAdditionalOnboardingQuestion(args: {
       user_id: userId,
       role: "assistant",
       content: assistantMessage,
-      message_type: TALENT_MESSAGE_TYPE_ONBOARDING_ADDITIONAL_QUESTION_SELECTION,
+      message_type:
+        TALENT_MESSAGE_TYPE_ONBOARDING_ADDITIONAL_QUESTION_SELECTION,
     });
 
     if (markerError) {

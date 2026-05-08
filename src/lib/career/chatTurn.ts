@@ -13,7 +13,6 @@ import {
   fetchTalentUserProfile,
   normalizeTalentEngagementTypes,
   normalizeTalentInsightContent,
-  normalizeTalentPreferredLocations,
   sanitizeTalentCareerMoveIntent,
   toTalentMessageResponse,
   type TalentAdminClient,
@@ -311,9 +310,7 @@ async function buildTalentProfileSnapshot(args: {
       engagementTypes: normalizeTalentEngagementTypes(
         setting?.engagement_types ?? []
       ),
-      preferredLocations: normalizeTalentPreferredLocations(
-        setting?.preferred_locations ?? []
-      ),
+      preferredLocations: [],
       careerMoveIntent,
       careerMoveIntentLabel: getTalentCareerMoveIntentLabel(careerMoveIntent),
       periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
@@ -563,7 +560,7 @@ export async function runCareerChatTurn(
   );
   const currentPreferences = {
     engagementTypes: talentSetting?.engagement_types ?? [],
-    preferredLocations: talentSetting?.preferred_locations ?? [],
+    preferredLocations: [],
     careerMoveIntent: talentSetting?.career_move_intent ?? null,
     careerMoveIntentLabel: getTalentCareerMoveIntentLabel(
       talentSetting?.career_move_intent ?? null

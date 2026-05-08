@@ -101,7 +101,7 @@ export type NetworkLeadDetailResponse = {
   latestTalentInsights: TalentInsightContent | null;
   latestTalentSetting: Pick<
     TalentSettingRow,
-    "engagement_types" | "preferred_locations" | "career_move_intent"
+    "engagement_types" | "career_move_intent"
   > | null;
   sourceTalentId: string;
   structuredProfile: TalentStructuredProfile | null;

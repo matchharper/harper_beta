@@ -60,7 +60,11 @@ const CareerChatPanel = () => {
     if (typeof window === "undefined") return;
     const nextUrl = new URL(window.location.href);
     nextUrl.searchParams.delete("start");
-    void router.replace(`${nextUrl.pathname}${nextUrl.search}`, undefined, {
+    const nextPathname =
+      nextUrl.pathname.replace(/\/+$/, "") === "/career/chat"
+        ? "/career"
+        : nextUrl.pathname;
+    void router.replace(`${nextPathname}${nextUrl.search}`, undefined, {
       shallow: true,
     });
   }, [router]);

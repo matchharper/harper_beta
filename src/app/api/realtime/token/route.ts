@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   buildTalentProfileContext,
-  countAdditionalOnboardingQuestionSelections,
   fetchVisibleMessagesPage,
   fetchTalentInsights,
   fetchTalentSetting,
@@ -13,9 +12,7 @@ import {
 import {
   getTalentToolVoicePreambles,
   getRealtimeTools,
-  TALENT_TOOL_NAMES,
 } from "@/lib/talentOnboarding/tools";
-import { TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX } from "@/lib/talentOnboarding/onboarding";
 import {
   getCareerCallEndInstructionPrompt,
   getCareerInterruptHandlingPrompt,
@@ -36,19 +33,10 @@ async function buildRealtimeInstructions(
 ) {
   const admin = getTalentSupabaseAdmin();
 
-  const [
-    profile,
-    currentInsights,
-    talentSetting,
-    additionalQuestionSelectionCount,
-  ] = await Promise.all([
+  const [profile, currentInsights, talentSetting] = await Promise.all([
     fetchTalentUserProfile({ admin, userId }),
     fetchTalentInsights({ admin, userId }),
     fetchTalentSetting({ admin, userId }),
-    countAdditionalOnboardingQuestionSelections({
-      admin,
-      conversationId,
-    }),
   ]);
 
   const structuredProfile = await fetchTalentStructuredProfile({
@@ -74,19 +62,7 @@ async function buildRealtimeInstructions(
     string,
     string
   > | null;
-  const canSelectAdditionalOnboardingQuestion =
-    additionalQuestionSelectionCount <
-    TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX;
-  const promptToolNames = talentSetting?.is_onboarding_done
-    ? toolNames.filter(
-        (toolName) =>
-          toolName !== TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION
-      )
-    : toolNames.filter(
-        (toolName) =>
-          canSelectAdditionalOnboardingQuestion &&
-          toolName === TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION
-      );
+  const promptToolNames = talentSetting?.is_onboarding_done ? toolNames : [];
 
   const recentConversationSection =
     buildCareerRealtimeRecentConversationSection(
@@ -96,7 +72,6 @@ async function buildRealtimeInstructions(
       }))
     );
   return buildCareerRealtimePromptPlan({
-    additionalQuestionSelectionCount,
     callEndInstruction: getCareerCallEndInstructionPrompt(),
     currentInsightContent,
     interruptHandling: getCareerInterruptHandlingPrompt(),

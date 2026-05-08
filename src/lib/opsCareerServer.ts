@@ -221,9 +221,7 @@ export async function fetchCareerTalentDetail(
   // Fetch preferences
   const { data: setting } = await admin
     .from("talent_setting")
-    .select(
-      "engagement_types, preferred_locations, career_move_intent, profile_visibility"
-    )
+    .select("engagement_types, career_move_intent, profile_visibility")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -252,7 +250,7 @@ export async function fetchCareerTalentDetail(
     preferences: setting
       ? {
           engagementTypes: (setting.engagement_types as string[]) ?? [],
-          preferredLocations: (setting.preferred_locations as string[]) ?? [],
+          preferredLocations: [],
           careerMoveIntent: (setting.career_move_intent as string) ?? null,
           profileVisibility: (setting.profile_visibility as string) ?? null,
         }

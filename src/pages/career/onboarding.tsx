@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
+import { useQueryClient } from "@tanstack/react-query";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import {
@@ -26,15 +27,14 @@ import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { resolveCareerMobileEntryReason } from "@/lib/career/mobileBlocker";
 import {
-  TALENT_NETWORK_CAREER_MOVE_INTENT_OPTIONS,
   TALENT_NETWORK_ENGAGEMENT_OPTIONS,
   TALENT_NETWORK_PROFILE_INPUT_OPTIONS,
-  type TalentNetworkCareerMoveIntentOptionId,
   type TalentNetworkEngagementOptionId,
   type TalentNetworkProfileInputType,
 } from "@/lib/talentNetworkOptions";
 import { cn } from "@/lib/cn";
 import { useAuthStore } from "@/store/useAuthStore";
+import { LoadingState } from "../../components/career/OnboardingLoadingState";
 
 const TOTAL_STEPS = 3;
 
@@ -59,6 +59,9 @@ const getErrorMessage = (payload: unknown, fallback: string) => {
   }
   return fallback;
 };
+
+const getSingleQueryParam = (value: string | string[] | undefined) =>
+  Array.isArray(value) ? value[0] : value;
 
 const ProgressBar = ({ step }: { step: number }) => {
   const value = Math.min((step + 1) / TOTAL_STEPS, 1) * 100;
@@ -118,18 +121,13 @@ const ProfileInputToggle = ({
     type="button"
     onClick={onClick}
     className={cn(
-      "flex h-[104px] w-[108px] shrink-0 flex-col items-center justify-center gap-2 rounded-[8px] border px-3 py-3 text-center text-[13px] font-medium leading-4 transition sm:w-[116px]",
+      "flex h-[104px] w-[108px] shrink-0 flex-col items-center justify-center gap-2 rounded-[8px] border px-3 py-3 text-center text-[13px] font-medium leading-4 transition sm:w-[136px]",
       active
         ? "border-beige900 bg-beige900 text-beige100"
         : "border-beige900/10 bg-beige500 text-beige900/70 hover:border-beige900/30 hover:bg-beige500/90"
     )}
   >
-    <span
-      className={cn(
-        "flex h-9 w-9 items-center justify-center rounded-[8px] border bg-white",
-        active ? "border-beige100/40" : "border-beige900/10"
-      )}
-    >
+    <span className={cn("flex h-9 w-9 items-center justify-center")}>
       <ProfileInputIcon id={id} />
     </span>
     <span className="line-clamp-2 min-h-8">{label}</span>
@@ -149,24 +147,14 @@ const ProfileInputIcon = ({ id }: { id: TalentNetworkProfileInputType }) => {
   if (id === "github") {
     return (
       <span className="flex items-center gap-0.5">
-        <ProfileIconMask
-          src="/images/logos/github.svg"
-          sizeClass="h-4 w-4"
-        />
-        <ProfileIconMask
-          src="/images/logos/huggingface.svg"
-          sizeClass="h-4 w-4"
-        />
+        <ProfileIconMask src="/svgs/github.svg" sizeClass="h-4 w-4" />
       </span>
     );
   }
 
   if (id === "scholar") {
     return (
-      <ProfileIconMask
-        src="/images/logos/scholar.png"
-        sizeClass="h-[22px] w-[22px]"
-      />
+      <ProfileIconMask src="/svgs/scholar.svg" sizeClass="h-[22px] w-[22px]" />
     );
   }
 
@@ -246,6 +234,33 @@ const SelectionCardButton = ({
   </button>
 );
 
+type OnboardingProfileVisibility = "open_to_matches" | "exceptional_only";
+
+const DEFAULT_ONBOARDING_PROFILE_VISIBILITY: OnboardingProfileVisibility =
+  "open_to_matches";
+
+const ONBOARDING_PROFILE_VISIBILITY_OPTIONS: Array<{
+  id: OnboardingProfileVisibility;
+  label: string;
+  description: string;
+  sub: string;
+}> = [
+  {
+    id: "open_to_matches",
+    label: "Open to matches",
+    description:
+      "강하게 맞는 포지션으로 판단되면 회사에 먼저 프로필을 공유하고, 구체적인 제안을 받으신 뒤 판단하실 수 있도록 합니다.",
+    sub: "강하게 맞는 포지션으로 판단되면 회사에 먼저 프로필을 공유하고, 구체적인 제안을 받으신 뒤 판단하실 수 있도록 합니다.",
+  },
+  {
+    id: "exceptional_only",
+    label: "Exceptional only",
+    description:
+      "매칭된 기회/회사를 확인한 뒤 허용한 경우에만 프로필이 공유됩니다.",
+    sub: "매칭된 기회/회사를 확인한 뒤 허용한 경우에만 프로필이 회사 측에 공유됩니다. 이 경우에도 대화 내용 및 선택하신 옵션이 공개되진 않고, 매칭에 필요한 정보만 공유됩니다.",
+  },
+];
+
 const ResumeUploadInput = ({
   fileName,
   onChange,
@@ -283,23 +298,24 @@ const ResumeUploadInput = ({
   </label>
 );
 
-const LoadingState = () => (
-  <div className="mx-auto flex min-h-[calc(100dvh-8px)] w-full max-w-[760px] flex-col items-center justify-center px-4 text-center">
-    <div className="relative flex h-14 w-14 items-center justify-center">
-      <motion.div
-        animate={{ rotate: 360 }}
-        transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
-        className="absolute h-14 w-14 rounded-full border-2 border-beige900/10 border-t-xprimary"
-      />
-      <LoaderCircle className="h-5 w-5 text-beige900/55" />
-    </div>
-    <p className="mt-8 max-w-[640px] text-xl font-medium leading-8 tracking-[-0.03em] text-beige900 md:text-2xl md:leading-10">
-      감사합니다. 이력을 확인하고, 바로 구조화하고 있습니다… 최대 2분 정도
-      소요됩니다. 확인이 끝나면 Harper와 잠깐 대화하면서 현재 어떤 상황인지,
-      어떤 기회를 선호하시는지 더 자세하게 알려주세요.
-    </p>
-  </div>
-);
+// const LoadingState = () => (
+//   <div className="mx-auto flex min-h-[calc(100dvh-8px)] w-full max-w-[760px] flex-col items-center justify-center px-4 text-center">
+//     <div className="relative flex h-14 w-14 items-center justify-center">
+//       <motion.div
+//         animate={{ rotate: 360 }}
+//         transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
+//         className="absolute h-14 w-14 rounded-full border-2 border-beige900/10 border-t-xprimary"
+//       />
+//       <LoaderCircle className="h-5 w-5 text-beige900/55" />
+//     </div>
+//     <p className="mt-8 max-w-[640px] text-xl font-medium leading-8 tracking-[-0.03em] text-beige900 md:text-2xl md:leading-10">
+//       감사합니다. 이력을 확인하고, 바로 구조화하고 있습니다…
+//       <br />
+//       최대 2분 정도 소요됩니다. 확인이 끝나면 Harper와 잠깐 대화하면서 현재 어떤
+//       상황인지, 어떤 기회를 선호하시는지 더 자세하게 알려주세요.
+//     </p>
+//   </div>
+// );
 
 const DoneState = ({
   onStartCall,
@@ -324,7 +340,7 @@ const DoneState = ({
         onClick={onStartCall}
         className="w-full"
       >
-        Call with Harper
+        전화로 얘기하기
       </BeigeButton>
       <BeigeButton
         type="button"
@@ -342,6 +358,7 @@ const DoneState = ({
 
 const CareerNetworkOnboardingContent = () => {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user, authLoading } = useCareerAuth();
   const { fetchWithAuth } = useCareerApi();
   const [bootstrapLoading, setBootstrapLoading] = useState(true);
@@ -359,9 +376,10 @@ const CareerNetworkOnboardingContent = () => {
   const [selectedEngagements, setSelectedEngagements] = useState<
     TalentNetworkEngagementOptionId[]
   >([]);
-  const [careerMoveIntent, setCareerMoveIntent] = useState<
-    TalentNetworkCareerMoveIntentOptionId | ""
-  >("");
+  const [profileVisibility, setProfileVisibility] =
+    useState<OnboardingProfileVisibility>(
+      DEFAULT_ONBOARDING_PROFILE_VISIBILITY
+    );
   const [submitState, setSubmitState] = useState<"form" | "loading" | "done">(
     "form"
   );
@@ -417,7 +435,16 @@ const CareerNetworkOnboardingContent = () => {
         if (cancelled) return;
 
         if (payload?.conversation?.stage !== "profile") {
-          void router.replace("/career/chat");
+          const invite = getSingleQueryParam(router.query.invite);
+          const mail = getSingleQueryParam(router.query.mail);
+          const query: Record<string, string> = {};
+          if (invite) query.invite = invite;
+          if (mail) query.mail = mail;
+
+          void router.replace({
+            pathname: "/career",
+            query: Object.keys(query).length > 0 ? query : undefined,
+          });
           return;
         }
 
@@ -512,18 +539,11 @@ const CareerNetworkOnboardingContent = () => {
           });
           return false;
         }
-        if (!careerMoveIntent) {
-          showToast({
-            message: "현재 이직 의사를 선택해주세요.",
-            variant: "white",
-          });
-          return false;
-        }
       }
 
       return true;
     },
-    [careerMoveIntent, email, hasProfileSignal, name, selectedEngagements]
+    [email, hasProfileSignal, name, selectedEngagements]
   );
 
   const uploadResumeFile = useCallback(
@@ -602,7 +622,6 @@ const CareerNetworkOnboardingContent = () => {
         method: "POST",
         body: JSON.stringify({
           engagementTypes: selectedEngagements,
-          careerMoveIntent,
         }),
       });
       const preferencesPayload = await preferencesRes.json().catch(() => ({}));
@@ -619,6 +638,22 @@ const CareerNetworkOnboardingContent = () => {
           message: "기회 검색을 시작했습니다.",
           variant: "white",
         });
+      }
+
+      const settingsRes = await fetchWithAuth("/api/talent/settings", {
+        method: "POST",
+        body: JSON.stringify({
+          profileVisibility,
+        }),
+      });
+      const settingsPayload = await settingsRes.json().catch(() => ({}));
+      if (!settingsRes.ok) {
+        throw new Error(
+          getErrorMessage(
+            settingsPayload,
+            "프로필 공개 설정을 저장하지 못했습니다."
+          )
+        );
       }
 
       const startRes = await fetchWithAuth("/api/talent/onboarding/start", {
@@ -640,6 +675,9 @@ const CareerNetworkOnboardingContent = () => {
         );
       }
 
+      queryClient.removeQueries({ queryKey: ["career-session"] });
+      queryClient.removeQueries({ queryKey: ["career-message-history"] });
+      queryClient.removeQueries({ queryKey: ["career-history-opportunities"] });
       setSubmitState("done");
     } catch (error) {
       setSubmitError(
@@ -650,13 +688,14 @@ const CareerNetworkOnboardingContent = () => {
       setSubmitState("form");
     }
   }, [
-    careerMoveIntent,
     conversationId,
     email,
     fetchWithAuth,
     links,
     name,
     parseResumeText,
+    profileVisibility,
+    queryClient,
     resumeFile,
     selectedEngagements,
     submitState,
@@ -697,14 +736,14 @@ const CareerNetworkOnboardingContent = () => {
         return;
       }
 
-      const moveIntent =
-        TALENT_NETWORK_CAREER_MOVE_INTENT_OPTIONS[
+      const visibility =
+        ONBOARDING_PROFILE_VISIBILITY_OPTIONS[
           optionIndex - TALENT_NETWORK_ENGAGEMENT_OPTIONS.length
         ];
-      if (!moveIntent) return;
+      if (!visibility) return;
 
       event.preventDefault();
-      setCareerMoveIntent(moveIntent.id);
+      setProfileVisibility(visibility.id);
     };
 
     window.addEventListener("keydown", onKeyDown);
@@ -727,6 +766,26 @@ const CareerNetworkOnboardingContent = () => {
   };
 
   const stepLabel = `${step + 1}/${TOTAL_STEPS}`;
+  const selectedVisibilityOption =
+    ONBOARDING_PROFILE_VISIBILITY_OPTIONS.find(
+      (option) => option.id === profileVisibility
+    ) ?? ONBOARDING_PROFILE_VISIBILITY_OPTIONS[0];
+
+  const navigateToCareerStart = useCallback(
+    (startMode: "call" | "chat") => {
+      const invite = getSingleQueryParam(router.query.invite);
+      const mail = getSingleQueryParam(router.query.mail);
+      const query: Record<string, string> = { start: startMode };
+      if (invite) query.invite = invite;
+      if (mail) query.mail = mail;
+
+      void router.push({
+        pathname: "/career",
+        query,
+      });
+    },
+    [router]
+  );
 
   if (authLoading || bootstrapLoading) {
     return (
@@ -748,8 +807,8 @@ const CareerNetworkOnboardingContent = () => {
           <LoadingState />
         ) : submitState === "done" ? (
           <DoneState
-            onStartCall={() => void router.push("/career/chat?start=call")}
-            onStartChat={() => void router.push("/career/chat?start=chat")}
+            onStartCall={() => navigateToCareerStart("call")}
+            onStartChat={() => navigateToCareerStart("chat")}
           />
         ) : (
           <div className="mx-auto flex min-h-[calc(100dvh-8px)] w-full max-w-[1040px] flex-col px-4 py-6 md:flex-row md:gap-10 md:py-10">
@@ -941,10 +1000,14 @@ const CareerNetworkOnboardingContent = () => {
 
                         <div>
                           <div className="mb-3 text-base font-medium">
-                            현재 이직 의향
+                            프로필 공개
                           </div>
-                          <div className="grid gap-3">
-                            {TALENT_NETWORK_CAREER_MOVE_INTENT_OPTIONS.map(
+                          <p className="mb-3 text-sm leading-6 text-beige900/55">
+                            어떤 수준의 매칭에서 회사가 프로필을 볼 수 있는지
+                            정합니다.
+                          </p>
+                          <div className="grid gap-3 md:grid-cols-2">
+                            {ONBOARDING_PROFILE_VISIBILITY_OPTIONS.map(
                               (option, index) => (
                                 <SelectionCardButton
                                   key={option.id}
@@ -954,12 +1017,18 @@ const CareerNetworkOnboardingContent = () => {
                                     1
                                   }
                                   label={option.label}
-                                  active={careerMoveIntent === option.id}
-                                  onClick={() => setCareerMoveIntent(option.id)}
+                                  description={option.description}
+                                  active={profileVisibility === option.id}
+                                  onClick={() =>
+                                    setProfileVisibility(option.id)
+                                  }
                                 />
                               )
                             )}
                           </div>
+                          <p className="mt-3 text-[13px] leading-5 text-beige900/80">
+                            {selectedVisibilityOption.sub}
+                          </p>
                         </div>
                       </div>
                     </>

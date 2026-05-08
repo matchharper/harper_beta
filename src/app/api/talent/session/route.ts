@@ -14,7 +14,6 @@ import {
   getTalentSupabaseAdmin,
   normalizeTalentEngagementTypes,
   normalizeTalentInsightContent,
-  normalizeTalentPreferredLocations,
   sanitizeTalentCareerMoveIntent,
   toTalentMessageResponse,
 } from "@/lib/talentOnboarding/server";
@@ -586,9 +585,7 @@ export async function GET(req: NextRequest) {
         engagementTypes: normalizeTalentEngagementTypes(
           talentSetting?.engagement_types ?? []
         ),
-        preferredLocations: normalizeTalentPreferredLocations(
-          talentSetting?.preferred_locations ?? []
-        ),
+        preferredLocations: [],
         careerMoveIntent,
         careerMoveIntentLabel: getTalentCareerMoveIntentLabel(careerMoveIntent),
         periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
