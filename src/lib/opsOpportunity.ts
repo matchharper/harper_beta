@@ -1305,9 +1305,7 @@ function mapRecommendationRecord(
   const workspace = role?.company_workspace;
   if (!role || !workspace) return null;
 
-  const recommendationReasons = normalizeRecommendationReasons(
-    row.fit_reasons
-  );
+  const recommendationReasons = normalizeRecommendationReasons(row.fit_reasons);
 
   return {
     companyName: String(workspace.company_name ?? ""),
@@ -1954,9 +1952,9 @@ function getEmbeddedCompanyDb(
 function isMissingQualityLabelTableError(error: { message?: string } | null) {
   return Boolean(
     error?.message &&
-      /company_workspace_quality_label|relation .* does not exist/i.test(
-        error.message
-      )
+    /company_workspace_quality_label|relation .* does not exist/i.test(
+      error.message
+    )
   );
 }
 
@@ -1964,7 +1962,10 @@ async function fetchCompanyQualityLabelsByWorkspaceId(
   admin: AdminClient,
   workspaceIds: string[]
 ) {
-  const labelsByWorkspaceId = new Map<string, CompanyWorkspaceQualityLabelRow>();
+  const labelsByWorkspaceId = new Map<
+    string,
+    CompanyWorkspaceQualityLabelRow
+  >();
   const uniqueWorkspaceIds = Array.from(
     new Set(workspaceIds.map((id) => String(id ?? "").trim()).filter(Boolean))
   );
@@ -2037,7 +2038,10 @@ async function fetchWorkspaceIdsForQualityLabelFilter(
     .filter(Boolean);
   return {
     ids,
-    mode: qualityLabel === "unlabeled" ? "exclude" as const : "include" as const,
+    mode:
+      qualityLabel === "unlabeled"
+        ? ("exclude" as const)
+        : ("include" as const),
   };
 }
 
@@ -2289,8 +2293,10 @@ export async function fetchOpsCompanyManagementPage(args: {
   );
   const humanLabelMissingFirst = Boolean(args.humanLabelMissingFirst);
   const llmQualityLabelFirst = Boolean(args.llmQualityLabelFirst);
-  const qualityWorkspaceFilter =
-    await fetchWorkspaceIdsForQualityLabelFilter(admin, qualityLabel);
+  const qualityWorkspaceFilter = await fetchWorkspaceIdsForQualityLabelFilter(
+    admin,
+    qualityLabel
+  );
   const employeeCountRangeExactJsonValues =
     getOpsCompanyManagementEmployeeCountRangeExactJsonValues(
       employeeCountRange
@@ -2346,20 +2352,25 @@ export async function fetchOpsCompanyManagementPage(args: {
     humanLabelMode?: "missing" | "present";
     humanLabeledWorkspaceIds?: string[];
     includeWorkspaceIds?: string[];
+    labelFilter?: {
+      humanLabeled?: "present" | "missing";
+      llmIsTwo?: "eq" | "neq";
+    } | null;
     rangeOffset: number;
     rowCount: number;
   }) => {
     const excludeWorkspaceIds = options.excludeWorkspaceIds ?? [];
     const humanLabeledWorkspaceIds = options.humanLabeledWorkspaceIds ?? [];
     const includeWorkspaceIds = options.includeWorkspaceIds ?? [];
+    const labelFilter = options.labelFilter ?? null;
+    const tableName = labelFilter
+      ? "ops_company_workspace_with_label"
+      : "company_workspace";
     let workspaceQuery = options.count
-      ? ((admin.from("company_workspace" as any) as any).select(
-          workspaceSelectColumns,
-          { count: "exact" }
-        ) as any)
-      : ((admin.from("company_workspace" as any) as any).select(
-          workspaceSelectColumns
-        ) as any);
+      ? ((admin.from(tableName as any) as any).select(selectColumns, {
+          count: "exact",
+        }) as any)
+      : ((admin.from(tableName as any) as any).select(selectColumns) as any);
 
     workspaceQuery = shouldOrderByLlmQualityLabelV2
       ? workspaceQuery
@@ -2437,6 +2448,23 @@ export async function fetchOpsCompanyManagementPage(args: {
       );
     }
 
+    if (labelFilter?.llmIsTwo === "eq") {
+      workspaceQuery = workspaceQuery.eq("cwql_llm_quality_label", 2);
+    } else if (labelFilter?.llmIsTwo === "neq") {
+      workspaceQuery = workspaceQuery.or(
+        "cwql_llm_quality_label.neq.2,cwql_llm_quality_label.is.null"
+      );
+    }
+    if (labelFilter?.humanLabeled === "present") {
+      workspaceQuery = workspaceQuery.not(
+        "cwql_human_quality_label",
+        "is",
+        null
+      );
+    } else if (labelFilter?.humanLabeled === "missing") {
+      workspaceQuery = workspaceQuery.is("cwql_human_quality_label", null);
+    }
+
     if (employeeCountRangeExactJsonValues.length === 1) {
       workspaceQuery = workspaceQuery.eq(
         "company_db.employee_count_range",
@@ -2511,6 +2539,10 @@ export async function fetchOpsCompanyManagementPage(args: {
       humanLabelMode?: "missing" | "present";
       humanLabeledWorkspaceIds?: string[];
       includeWorkspaceIds?: string[];
+      labelFilter?: {
+        humanLabeled?: "present" | "missing";
+        llmIsTwo?: "eq" | "neq";
+      } | null;
       skipIfEmptyInclude?: boolean;
     }>
   ) => {
@@ -2545,72 +2577,21 @@ export async function fetchOpsCompanyManagementPage(args: {
 
   let rows: CompanyManagementWorkspaceRow[];
   if (llmQualityLabelFirst && humanLabelMissingFirst) {
-    const humanLabeledWorkspaceIds =
-      await fetchHumanLabeledCompanyWorkspaceIds(admin);
-    const llmQualityLabelTwoWorkspaceIds =
-      await fetchLlmQualityLabelCompanyWorkspaceIds(admin, 2);
-    const humanLabeledWorkspaceIdSet = new Set(humanLabeledWorkspaceIds);
-    const humanMissingLlmTwoWorkspaceIds =
-      llmQualityLabelTwoWorkspaceIds.filter(
-        (workspaceId) => !humanLabeledWorkspaceIdSet.has(workspaceId)
-      );
-    const humanPresentLlmTwoWorkspaceIds =
-      llmQualityLabelTwoWorkspaceIds.filter((workspaceId) =>
-        humanLabeledWorkspaceIdSet.has(workspaceId)
-      );
     rows = await collectWorkspaceRowsFromBuckets([
-      {
-        includeWorkspaceIds: humanMissingLlmTwoWorkspaceIds,
-        skipIfEmptyInclude: true,
-      },
-      {
-        excludeWorkspaceIds: llmQualityLabelTwoWorkspaceIds,
-        humanLabelMode: "missing",
-        humanLabeledWorkspaceIds,
-      },
-      {
-        includeWorkspaceIds: humanPresentLlmTwoWorkspaceIds,
-        skipIfEmptyInclude: true,
-      },
-      {
-        excludeWorkspaceIds: llmQualityLabelTwoWorkspaceIds,
-        includeWorkspaceIds: humanLabeledWorkspaceIds,
-        skipIfEmptyInclude: true,
-      },
+      { labelFilter: { humanLabeled: "missing", llmIsTwo: "eq" } },
+      { labelFilter: { humanLabeled: "missing", llmIsTwo: "neq" } },
+      { labelFilter: { humanLabeled: "present", llmIsTwo: "eq" } },
+      { labelFilter: { humanLabeled: "present", llmIsTwo: "neq" } },
     ]);
   } else if (llmQualityLabelFirst) {
-    const llmQualityLabelTwoWorkspaceIds =
-      await fetchLlmQualityLabelCompanyWorkspaceIds(admin, 2);
-    if (llmQualityLabelTwoWorkspaceIds.length === 0) {
-      rows = (
-        await fetchWorkspaceRows({
-          rangeOffset: offset,
-          rowCount: limit + 1,
-        })
-      ).rows;
-    } else {
-      rows = await collectWorkspaceRowsFromBuckets([
-        {
-          includeWorkspaceIds: llmQualityLabelTwoWorkspaceIds,
-          skipIfEmptyInclude: true,
-        },
-        {
-          excludeWorkspaceIds: llmQualityLabelTwoWorkspaceIds,
-        },
-      ]);
-    }
-  } else if (humanLabelMissingFirst) {
-    const humanLabeledWorkspaceIds =
-      await fetchHumanLabeledCompanyWorkspaceIds(admin);
     rows = await collectWorkspaceRowsFromBuckets([
-      {
-        humanLabelMode: "missing",
-        humanLabeledWorkspaceIds,
-      },
-      {
-        includeWorkspaceIds: humanLabeledWorkspaceIds,
-        skipIfEmptyInclude: true,
-      },
+      { labelFilter: { llmIsTwo: "eq" } },
+      { labelFilter: { llmIsTwo: "neq" } },
+    ]);
+  } else if (humanLabelMissingFirst) {
+    rows = await collectWorkspaceRowsFromBuckets([
+      { labelFilter: { humanLabeled: "missing" } },
+      { labelFilter: { humanLabeled: "present" } },
     ]);
   } else {
     rows = (
@@ -2621,10 +2602,11 @@ export async function fetchOpsCompanyManagementPage(args: {
     ).rows;
   }
   const pageRows = rows.slice(0, limit);
-  const qualityLabelsByWorkspaceId = await fetchCompanyQualityLabelsByWorkspaceId(
-    admin,
-    pageRows.map((row) => String(row.company_workspace_id ?? ""))
-  );
+  const qualityLabelsByWorkspaceId =
+    await fetchCompanyQualityLabelsByWorkspaceId(
+      admin,
+      pageRows.map((row) => String(row.company_workspace_id ?? ""))
+    );
   const pageCompanyDbIds = pageRows
     .map((row) => row.company_db_id)
     .filter((id): id is number => typeof id === "number");
