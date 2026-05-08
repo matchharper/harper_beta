@@ -121,15 +121,15 @@ const workflowCards = [
 
 const matchFlowCards = [
   {
-    eyebrow: "회원에게 먼저",
-    title: "회사를 먼저 소개합니다.",
-    body: "회원님의 기준을 통과한 회사만 Harper가 먼저 브리핑합니다. 관심 있다고 답한 기회만 founder 소개로 이어져요.",
+    eyebrow: "회원님에게",
+    title: "기회를 먼저 추천합니다.",
+    body: "회원님의 기준을 통과한 회사와 기회만 Harper가 먼저 브리핑합니다. 관심 있다고 답한 기회만 founder 소개로 이어져요.",
     visual: "candidate-first",
   },
   {
     eyebrow: "Open to matches",
     title: "회사에게 먼저 회원님을 제안합니다.",
-    body: "Open to matches로 설정해두면, 익명 요약 프로필을 먼저 회사에게 제안합니다. 회사가 관심을 보이면 회원님에게 연결 요청이 오게됩니다.",
+    body: "양측 모두 좋아할 것이라는 확신이 들 때, 익명 요약 프로필을 먼저 회사에게 제안합니다. 회사가 확인 후 회원님에게 먼저 연결 요청이 오게됩니다.",
     visual: "company-first",
   },
 ] as const;
@@ -364,7 +364,7 @@ function AppBar() {
     >
       <div className="mx-auto flex h-[64px] max-w-[1160px] items-center justify-between px-4">
         <a href="#top" className="font-instrument text-[28px] text-beige900">
-          Harper
+          <Image src="/svgs/logov2.svg" alt="Harper" width={70} height={60} />
         </a>
         <div className="flex items-center gap-3 sm:gap-6">
           <div className="flex items-center gap-3 text-[12.5px] font-medium text-beige900/60 sm:gap-4 sm:text-[13px] md:gap-5 md:text-sm">
@@ -1711,7 +1711,7 @@ export default function LandingKoVfPage() {
               <div className="mt-4 flex flex-row gap-4 text-sm text-beige900/80">
                 <div className="flex flex-row gap-2 items-center">
                   <Clock className="h-3.5 w-3.5" />
-                  <span>5분 소요</span>
+                  <span>1시간 이내 첫 매칭</span>
                 </div>
                 <div className="flex flex-row gap-2 items-center">
                   <Loader className="h-3.5 w-3.5" />
@@ -1724,13 +1724,13 @@ export default function LandingKoVfPage() {
               </div>
             </Reveal>
 
-            <Image
+            {/* <Image
               src="/images/career_screen.png"
               alt="Harper"
               width={1000}
               height={1000}
               className="mt-[20vh]"
-            />
+            /> */}
           </section>
 
           <SocialProofSection />

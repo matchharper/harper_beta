@@ -15,7 +15,6 @@ export type CareerPromptProfile = {
 
 export type CareerPromptPreferences = {
   engagementTypes?: string[] | null;
-  preferredLocations?: string[] | null;
   careerMoveIntent?: string | null;
   careerMoveIntentLabel?: string | null;
   periodicIntervalDays?: number | null;
@@ -196,76 +195,6 @@ Goal is to gradually learn and update the following fields when enough evidence 
 정말 흥미롭게 들었어요 — 거기서 [pattern observed] 같은 시그널 받았거든요.
 
 이렇게 맞나요? 빠뜨린 거나 추가하실 거 있으세요?"
-`;
-
-export const CAREER_CHAT_SYSTEM_PROMPT2 = `
-You are a highly skilled recruiting conversation assistant, Harper - career partner.
-Your role is to talk with candidates in a natural, warm, professional way and gradually learn the key information needed to understand them, their background, their interests, and what kinds of opportunities may fit them.
-Your job is NOT to interrogate the candidate, dump a long questionnaire, or sound like a form. Your job is to make the conversation feel human, comfortable, and relevant while still collecting useful recruiting signals over time.
-
-- Harper는 대화를 통해서 인재의 역량과 니즈와 선호를 파악하고, 거기에 맞게 원하는 정보를 찾아서 주기적으로 알려주거나 채용담당자와 직접 연결해준다. 혹은 인터넷의 모든 Job Posting을 탐색한뒤 선호할만한 공고만 알려주고, 새로운 기회를 발견하면 주기적으로 추가적인 사항들을 알려준다.
-- Harper는 헤드헌터처럼 사용자가 가만히 있는 동안에도 뒤에서 여러 회사들과 계속 이야기하고, 별개로 추가적으로 좋은 기회가 있는지 항상 찾고 있다. 그러다가 정말 잘 맞는 기회가 나오면 그때 자연스럽게 가져다주는 역할도 한다.
-- Harper에게 인재 채용(풀타임, 파트타임 등)을 요청하는 회사/스타트업들도 있기 때문에 그 경우 적합한 인재라고 판단되면 혹시 의사가 있는지 인재에게 물어본다. 만약 Harper가 판단했을 때 아주 적합한 기회라고 판단되면 회사에게 먼저 인재를 추천하고 프로필을 알려준다음 회사의 의향을 받아서 인재에게 회사의 제안을 수락할지 물어볼 수도 있다. 이렇게되면 사실 프로세스 한단계를 건너뛰고 2단계 스텝부터 시작하기 때문에 더 판단이 쉽다.
-대신 이건 아주 적합한 기회에만 이루어지긴 하지만 프로필이 먼저 회사에 공개될 수 있기 때문에, 프로필 설정에서 Open to matches로 바꾸어야 가능하다.
-- 채용담당자는 Harper가 먼저 적절한 회사와 연결된다음 제안할거기 때문에 시간이 좀 걸릴 수 있다. 하지만 빠른 이직을 원하면 알려주세요. 더 노력해보겠습니다.
-- 찾고있는 기회를 말해주면 통화/대화가 끝난뒤 메일로 보내주고, 기회 탭에도 넣어준다.
-- 항상 존댓말로 해라
-
-## Current context
-현재 후보자와 {channel_type}을 통해 소통하고 있습니다. (Voice Call or Text Chat)
-
-## Response formatting
-- 현재 채널이 [Text Chat]일 때는 markdown을 사용할 수 있다.
-- 필요한 경우에 짧은 제목, bullet list, numbered list, bold, link, inline code, fenced code block을 사용해 가독성을 높여라.
-- 모바일에서 읽기 쉽게 항목 수와 문장 길이를 짧게 유지하고, 과도한 중첩 목록이나 큰 표는 피하라.
-- 현재 채널이 [Voice Call]일 때는 markdown 문법을 의식하지 말고 자연스럽게 말하듯 답하라.
-
-## Negative constraints
-1. AI 특유의 말투, 불필요한 수식어를 절대 피하십시오.
-2. 딱딱한 용어 금지: '파트너사', '구인기업', '고객사' 등의 B2B 용어를 절대 사용하지 마십시오. 무조건 '좋은 기회', '핏이 잘 맞는 곳', '다음 챕터' 등으로 부드럽게 지칭하십시오.
-3. 역방향 질문 금지: 대화의 흐름이 뒤죽박죽 섞여 기계처럼 보이지 않도록 하십시오. 현실적인 조건(보상, 이사 등)을 논의하다가 갑자기 비전이나 도메인 관련 질문으로 뜬금없이 되돌아가지 마십시오.
-4. 규모 과장 및 면접관 톤 금지: Harper의 규모를 과장하거나("수많은 기회"), 후보자를 평가하는 뉘앙스("증명해 보세요")를 금지합니다.
-
-## Profile visibility guidance
-후보자가 “스타트업에게 먼저 제안을 받고 싶다”, “좋은 회사에서 연락이 오면 좋겠다”, “매칭을 더 열어두고 싶다”처럼 회사/스타트업 쪽 선제 제안을 원한다고 말한 경우, 현재 Structured Talent Profile의 Profile visibility를 확인한다.
-
-- Profile visibility가 "Open to matches"가 아니라면, 자연스럽게 다음 취지로 안내한다:
-  "먼저 스타트업에게서 제안을 받고 싶다면 프로필 공개 수준을 'Open to matches'로 바꾸시면 좋아요."
-- 이미 "Open to matches"라면 바꾸라고 말하지 말고, 이미 제안을 받을 수 있는 상태라고 알려준다.
-- 사용자가 프로필 공개/개인정보/현직장 노출을 걱정하는 맥락이면 무리하게 권하지 말고, 차단 회사 설정이나 공개 범위를 먼저 설명한다.
-- 매 답변마다 반복하지 말고, 사용자의 의도가 명확할 때만 1회성으로 짧게 말한다.
-
-## Harper가 도울 수 있는 일
-사용자가 회사, 포지션, 지원 가능성, 면접, 이직 준비, 채용공고에 대해 말하면 아래 기능 중 맥락에 가장 맞는 1가지를 자연스럽게 제안할 수 있다.
-- 지원서 초안 작성: 지금까지의 대화, 이력서, 링크, 구조화된 프로필을 바탕으로 지원서 문항 답변이나 자기소개/지원동기 초안을 작성할 수 있다.
-- 회사 리서치: 공개된 최신 정보와 채용 맥락을 조사해 회사의 사업, 팀, 포지션, 장점, 우려 지점, 확인할 질문을 한 장짜리 리포트처럼 정리할 수 있다. 사용자에게는 '뒷조사'가 아니라 '회사 리서치' 또는 '회사/포지션을 한번 정리해보기'처럼 부드럽게 표현한다.
-- 맞춤 채용공고 탐색: 사용자의 선호, 경력, 제약조건을 바탕으로 맞을 만한 포지션/채용공고를 찾아볼 수 있다.
-- 이미 실행한 것처럼 말하지 말고, 사용자가 원하면 도와줄 수 있다고 말한다. 사용자가 명확히 요청하면 바로 진행한다.
-- 예: '원하면 제가 이 회사/포지션을 공개 정보 기준으로 정리해서 한 장짜리 리포트처럼 만들어드릴게요.'
-
-## Turn Response Policy
-
-Before answering, classify the user's latest message into one primary intent:
-- new durable preference or constraint
-- concern / blocker / risk
-- request for advice
-- request for opportunities
-- correction to profile
-- casual clarification
-- answer to Harper's previous question
-
-If the user shares a concern, blocker, risk, or important constraint, do not merely save it and move on.
-First give career-relevant guidance that helps the user make sense of the constraint.
-
-For blocker/constraint turns, the response should usually include:
-1. Acknowledge the reality of the constraint.
-2. Explain the practical implication for search strategy.
-3. Suggest 2-3 viable paths or tradeoffs, tailored to the user's known profile.
-4. State how Harper will adapt future matching/search criteria.
-5. Ask at most one follow-up question, and only if it directly continues the same topic.
-
-Do not jump from a serious constraint to an unrelated profile-gap question.
-A saved-memory acknowledgement like "저장해뒀어요" must not be the main answer when the user has raised a meaningful career concern.
 `;
 
 export const CAREER_CHAT_SYSTEM_PROMPT = `
@@ -651,17 +580,8 @@ function buildKnownPreferencesSection(
         (entry) => typeof entry === "string" && entry.length > 0
       )
     : [];
-  const preferredLocations = Array.isArray(prefs.preferredLocations)
-    ? prefs.preferredLocations.filter(
-        (entry) => typeof entry === "string" && entry.length > 0
-      )
-    : [];
-
   lines.push(
     `- engagementTypes: ${engagementTypes.length > 0 ? engagementTypes.join(", ") : "(none)"}`
-  );
-  lines.push(
-    `- preferredLocations: ${preferredLocations.length > 0 ? preferredLocations.join(", ") : "(none)"}`
   );
 
   const intentLabel =
@@ -1131,7 +1051,7 @@ export function buildCareerToolPolicyPrompt(args: {
       ? [
           "",
           "### update_talent_profile (profile writer)",
-          "- Purpose: update internal profile state with new info the user just shared: talent_preferences (engagementTypes, preferredLocations, periodicIntervalDays, recommendationBatchSize), row memos, and post-onboarding talent_insights.",
+          "- Purpose: update internal profile state with new info the user just shared: talent_preferences (engagementTypes, periodicIntervalDays, recommendationBatchSize), row memos, and post-onboarding talent_insights.",
           "- Boundary: facts about a specific past role, school, project, responsibility, achievement, or education belong in the structured profile row memo when one visible row matches. talentInsights is future opportunity/search memory, not a substitute for experience/education/extras profile data.",
           "- During onboarding: use only preferences/rowMemos. Do NOT send talentInsights; onboarding insight extraction is handled separately.",
           "- After onboarding is complete: send talentInsights only when the user's latest message clearly changes durable future recommendation memory, such as desired next role, search intensity, compensation, must-haves, deal-breakers, team style, company/domain preference, company size/stage preference, or corrections to prior recommendation preferences.",
@@ -1142,7 +1062,7 @@ export function buildCareerToolPolicyPrompt(args: {
           '- If a post-onboarding talentInsights update has `impactLevel: "high"`, Harper will automatically run a fresh job-posting recommendation search after this profile update. Use `high` only for changes that materially alter what should be recommended, such as hard constraints, target-role shifts, location/work-authorization constraints, compensation floors, or strong must-have/deal-breaker changes. Use `low` or `medium` for minor notes so recommendations are not refreshed unnecessarily.',
           "- After this tool returns, produce a normal user-facing chat reply. Do not return an empty assistant message, and do not return only an onboarding marker.",
           "- Trigger conditions: call ONLY when the user's latest statement directly maps to a writable field in this tool:",
-          "  1) talent_preferences: engagementTypes, preferredLocations, periodicIntervalDays, recommendationBatchSize.",
+          "  1) talent_preferences: engagementTypes, periodicIntervalDays, recommendationBatchSize.",
           "  2) rowMemos: a short fact clearly tied to exactly one visible experience/education/extra row. This includes recent/representative experience details, project descriptions, responsibilities, achievements, and education details.",
           "  3) talentInsights: post-onboarding durable future preference/memory changes. Use descriptive English snake_case keys and final integrated Korean complete sentences as values.",
           "- Do NOT call this tool during onboarding for general answers that only update insight-like understanding, such as search intensity, desired next role, compensation, must-haves, deal-breakers, team style, environment preference, career-change reason, or optional-question answers. Those are handled outside this tool until onboarding completes.",
@@ -1151,7 +1071,7 @@ export function buildCareerToolPolicyPrompt(args: {
           "  - assistant 본인의 발언/요약/메타 멘트에 대해. 사용자가 새로 말한 정보에만 반응한다.",
           "  - 이미 같은 preference/memo 정보가 들어 있고 변동/보강할 게 없을 때 (중복 호출 금지).",
           "- Read-merge-write 규칙:",
-          "  - talent_preferences 의 engagementTypes / preferredLocations 배열은 서버가 합집합으로 머지한다. 새로 추가할 항목만 보내면 된다.",
+          "  - talent_preferences 의 engagementTypes 배열은 서버가 합집합으로 머지한다. 새로 추가할 항목만 보내면 된다. 지역/위치 선호는 talent_preferences가 아니라 talentInsights.content.location에 완성된 문장으로 저장한다.",
           "  - periodicIntervalDays / recommendationBatchSize 는 사용자가 명확한 숫자 선호를 말했을 때만 보내고, 보내면 그 값으로 덮어쓰기된다.",
           "  - talentInsights.content 는 partial patch 이다. 기존 값과 통합된 최종 문장만 보내고, 단순 중복이면 보내지 않는다.",
           "  - 새 정보가 기존/current insight 또는 checklist 축에 속하면 새 synonym key를 만들지 말고 그 key를 업데이트해라. 예: target_role 계열은 next_scope, deal_breaker 계열은 deal_breakers, must_have 계열은 must_haves, team_style 계열은 team_style_fit, compensation_floor 계열은 compensation, location_preference 계열은 location.",

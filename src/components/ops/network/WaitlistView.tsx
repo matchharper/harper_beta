@@ -6,7 +6,6 @@ import type {
 import {
   getTalentCareerMoveIntentLabel,
   getTalentEngagementLabels,
-  getTalentLocationLabels,
 } from "@/lib/talentNetworkOptions";
 import { Mail } from "lucide-react";
 import {
@@ -161,17 +160,6 @@ export default function WaitlistView({
                 detail.latestTalentSetting.engagement_types.length > 0
                   ? getTalentEngagementLabels(
                       detail.latestTalentSetting.engagement_types
-                    ).join(", ")
-                  : "-"
-              }
-            />
-            <InfoRow
-              label="선호 지역"
-              value={
-                detail?.latestTalentSetting &&
-                detail.latestTalentSetting.preferred_locations.length > 0
-                  ? getTalentLocationLabels(
-                      detail.latestTalentSetting.preferred_locations
                     ).join(", ")
                   : "-"
               }

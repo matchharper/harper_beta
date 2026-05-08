@@ -60,11 +60,7 @@ const cloneTalentPreferences = (value: unknown): CareerTalentPreferences => {
           .map((item) => String(item ?? "").trim())
           .filter(Boolean)
       : [],
-    preferredLocations: Array.isArray(record.preferredLocations)
-      ? record.preferredLocations
-          .map((item) => String(item ?? "").trim())
-          .filter(Boolean)
-      : [],
+    preferredLocations: [],
     careerMoveIntent,
     careerMoveIntentLabel: getTalentCareerMoveIntentLabel(careerMoveIntent),
     periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
@@ -90,7 +86,6 @@ const sameTalentPreferences = (
 
   return (
     sameStringArray(left.engagementTypes, right.engagementTypes) &&
-    sameStringArray(left.preferredLocations, right.preferredLocations) &&
     left.careerMoveIntent === right.careerMoveIntent &&
     left.periodicIntervalDays === right.periodicIntervalDays &&
     left.recommendationBatchSize === right.recommendationBatchSize
@@ -168,7 +163,6 @@ export const useCareerTalentPreferences = ({
         method: "POST",
         body: JSON.stringify({
           engagementTypes: talentPreferences.engagementTypes,
-          preferredLocations: talentPreferences.preferredLocations,
           careerMoveIntent: talentPreferences.careerMoveIntent,
           periodicIntervalDays: talentPreferences.periodicIntervalDays,
           recommendationBatchSize: talentPreferences.recommendationBatchSize,

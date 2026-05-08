@@ -20,7 +20,6 @@ import {
   normalizeTalentBlockedCompanies,
   normalizeTalentEngagementTypes,
   normalizeTalentInsightContent,
-  normalizeTalentPreferredLocations,
   getTalentSupabaseAdmin,
   sanitizeTalentCareerMoveIntent,
   toTalentDisplayName,
@@ -28,7 +27,6 @@ import {
 import {
   getTalentCareerMoveIntentLabel,
   getTalentEngagementLabels,
-  getTalentLocationLabels,
 } from "@/lib/talentNetworkOptions";
 
 type AdminClient = ReturnType<typeof getTalentSupabaseAdmin>;
@@ -41,7 +39,6 @@ type LlmKickoff = {
 type TalentKickoffPreferences = {
   profileVisibilityLabel: string;
   engagementTypes: string[];
-  preferredLocations: string[];
   careerMoveIntentLabel: string | null;
   blockedCompanies: string[];
   insightContent: TalentInsightContent | null;
@@ -125,11 +122,6 @@ function describeTalentPreferences(
         : "(없음)"
     }`,
     `이직 의향: ${preferences.careerMoveIntentLabel ?? "(미입력)"}`,
-    `선호 지역: ${
-      preferences.preferredLocations.length > 0
-        ? preferences.preferredLocations.join(", ")
-        : "(없음)"
-    }`,
     `차단 기업: ${
       preferences.blockedCompanies.length > 0
         ? preferences.blockedCompanies.join(", ")
@@ -214,9 +206,6 @@ export async function autoStartClaimedTalentConversation(args: {
   const engagementLabels = getTalentEngagementLabels(
     normalizeTalentEngagementTypes(talentSetting?.engagement_types ?? [])
   );
-  const locationLabels = getTalentLocationLabels(
-    normalizeTalentPreferredLocations(talentSetting?.preferred_locations ?? [])
-  );
   const careerMoveIntentLabel = getTalentCareerMoveIntentLabel(
     sanitizeTalentCareerMoveIntent(talentSetting?.career_move_intent)
   );
@@ -236,7 +225,6 @@ export async function autoStartClaimedTalentConversation(args: {
     talentPreferences: {
       profileVisibilityLabel,
       engagementTypes: engagementLabels,
-      preferredLocations: locationLabels,
       careerMoveIntentLabel,
       blockedCompanies,
       insightContent: normalizedInsights,

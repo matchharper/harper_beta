@@ -1,5 +1,6 @@
 import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
 import { fetchRecentMessagesWithSummary } from "@/lib/talentOnboarding/conversationSummary";
+import { fetchRecentTalentActivitySummaries } from "@/lib/talentOnboarding/activityEvents";
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 import {
   buildTalentProfileContext,
@@ -61,7 +62,6 @@ type RawRoleRow = {
   salary_range?: string | null;
   search_rank?: number | null;
   seniority_level?: string | null;
-  source_provider?: string | null;
   source_type?: string | null;
   status?: string | null;
   type?: string[] | null;
@@ -101,6 +101,11 @@ type EnrichedRankedRole = RankedRole & {
 };
 
 const MAX_SEARCH_RESULTS = 200;
+const PREVIOUSLY_RECOMMENDED_ROLE_ID_PAGE_SIZE = 1000;
+const RECENT_TALENT_ACTIVITY_SUMMARY_LIMIT = 5;
+const SHORTLIST_CANDIDATE_MIN_COUNT = 30;
+const SHORTLIST_CANDIDATE_TARGET_COUNT = 40;
+const SHORTLIST_COMPANY_DESCRIPTION_LIMIT = 200;
 const BROADENED_SEARCH_CANDIDATE_THRESHOLD = 5;
 const FINAL_RECOMMENDATION_COUNT = 5;
 const CONTINUATION_RECOMMENDATION_BATCH_LIMIT = 10;
@@ -126,7 +131,6 @@ const COLUMN_SQL: Record<string, string> = {
   "company_roles.location_text": "cr.location_text",
   "company_roles.name": "cr.name",
   "company_roles.seniority_level": "cr.seniority_level",
-  "company_roles.source_provider": "cr.source_provider",
   "company_roles.source_type": "cr.source_type",
   "company_roles.type": "cr.type",
   "company_roles.work_mode": "cr.work_mode",
@@ -171,21 +175,28 @@ Allowed output shape:
   ],
   "ftsKeywords": [
     { "terms": ["Research Scientist", "Research Engineer", "Applied Scientist", "ML Researcher", "AI Researcher", "Machine Learning Engineer", "ML Engineer", "Researcher", "연구원", "머신러닝 엔지니어"], "weight": 1.2 },
-    { "terms": ["TTS", "Text-to-Speech", "speech synthesis", "음성합성"], "weight": 3.5 }
+    { "terms": ["TTS", "Text-to-Speech", "speech synthesis", "음성합성"], "weight": 2.8 }
   ],
   "rerankCriteria": ["Korean sentence 1", "Korean sentence 2", "Korean sentence 3"]
 }
 
 Rules:
 - Use only these columns:
-  company_roles.name, company_roles.description, company_roles.information,
+  company_roles.name, company_roles.description,
   company_roles.location_text, company_roles.work_mode, company_roles.type,
-  company_roles.source_type, company_roles.source_provider,
+  company_roles.source_type,
   company_workspace.company_name, company_workspace.company_description,
   company_db.name, company_db.description, company_db.short_description, company_db.specialities, company_db.location, company_db.investors.
 - For role name/description intent, always add ftsKeywords. The SQL builder searches company_roles.opportunity_search_tsv for these terms and uses weight for ts_rank_cd ordering.
+- Retrieval contract: ftsKeywords are the first-pass role/domain gate. The SQL builder ORs all ftsKeywords groups together, so a posting can enter the candidate pool if it matches any single ftsKeywords group. Therefore every ftsKeywords group must be strong enough that a posting matching only that group is still plausibly relevant to the user's requested role.
+- First-pass search must prioritize role fit above company, location, compensation, work style, culture, and prestige. Use ftsKeywords only for role family, title family, core technical/business domain, methods, tools, or responsibilities that define the work itself.
+- Do not put preference-only concepts in ftsKeywords: company stage, company size, funding stage, investors, famous accelerators, location, remote/hybrid/onsite, salary, culture, benefits, brand prestige, "startup", "Series A", "YC", "a16z", "global", "Seoul", or similar context. Put these in should when a column exists, and in rerankCriteria otherwise.
+- Exception: a context word may be in ftsKeywords only when it is literally the work domain or role family, not just a preference. Example: "Venture Capital Analyst" may use VC/investment terms; "LLM Researcher at VC-backed startups" must not use VC/startup terms as ftsKeywords.
+- If the request combines a role with company/location/work-mode/company-stage preferences, keep ftsKeywords role/domain-only and express the preferences through should and rerankCriteria.
 - Put synonyms for one concept in one ftsKeywords item. Example: ["TTS", "Text-to-Speech", "음성합성"].
 - Set ftsKeywords.weight from 0.5 to 5.0. More distinctive domain/skill keywords should be heavier than generic role words. Example: for "TTS Researcher", TTS should be around 3.0-5.0 and Researcher around 0.8-1.5.
+- Good example for "LLM Researcher at hot Seoul/remote startups": ftsKeywords should include LLM/large-language-model research terms, alignment/RLHF/SFT/DPO/PPO terms, and AI/ML researcher title-family terms. Put Seoul/remote/startup/investor preference in should/rerankCriteria, not ftsKeywords.
+- Bad example: adding ["Startup", "Series A", "YC", "a16z"] to ftsKeywords for an LLM Researcher search, because a marketing or sales role at a startup could then pass the first retrieval gate.
 - Avoid putting company_roles.name in must. Role titles are noisy, inconsistent, and often do not share exact wording; hard title substring filters hurt recall. Prefer ftsKeywords for title/role-family concepts and let rerankCriteria decide final fit.
 - Use company_roles.name in must only when the user explicitly makes the exact title non-negotiable, such as "Research Scientist만" or "ML Engineer role only". If you do, use mode="any" and include 8-10 broad English/Korean variants, abbreviations, and adjacent titles that should still count. Never use mode="all" for company_roles.name title variants.
 - Still use must/should for structured filters such as location_text, work_mode, type, company, source, and explicit exclusions.
@@ -196,7 +207,7 @@ Rules:
 - Prefer should for location_text, work_mode, type, and seniority unless the user explicitly makes them hard constraints, because some postings have sparse structured fields.
 - Use polarity=exclude for explicit negative requirements only.
 - Keep values short search tokens, not whole sentences. Maximum 8 total conditions and 10 values per condition.
-- ftsKeywords should contain 2-8 high-signal concepts at most.
+- ftsKeywords should contain 2-6 high-signal role/domain concepts at most.
 - rerankCriteria must be 3-4 Korean sentences and should explain how to score fit, concerns, and prioritization.`;
 
 const BROADENED_PLAN_SYSTEM_PROMPT = `${PLAN_SYSTEM_PROMPT}
@@ -204,12 +215,26 @@ const BROADENED_PLAN_SYSTEM_PROMPT = `${PLAN_SYSTEM_PROMPT}
 Second-pass broadening rules:
 - You are creating a broader fallback SearchPlan after the first plan found too few roles.
 - Return the same JSON shape only.
-- This plan is still executed by the normal SQL builder: must conditions are ANDed, should conditions are soft preferences or fallback filters, and ftsKeywords are an ANDed retrieval filter when present. Do not rely on OR broadening across unrelated fields.
+- This plan is still executed by the normal SQL builder: must conditions are ANDed, should conditions are soft preferences or fallback filters, and ftsKeywords groups are ORed together when present. Do not rely on preference-only ftsKeywords to broaden retrieval.
 - Preserve explicit hard constraints from the user, especially company names and exclusions. If the original plan targeted a specific company, the broader plan must still target that company.
 - For a specific company, prefer one company identity column, usually company_workspace.company_name. Do not duplicate the same company as separate must conditions across company_workspace.company_name and company_db.name unless both are truly required.
-- Broaden noisy role/domain matching by using fewer or broader ftsKeywords, or by moving preferences to rerankCriteria.
+- Broaden noisy role/domain matching by using fewer or broader role/domain ftsKeywords, or by moving preferences to rerankCriteria. Do not broaden by adding company-stage, location, compensation, or prestige terms to ftsKeywords.
 - Prefer moving location, work_mode, type, and seniority preferences to should or rerankCriteria unless the user made them explicit hard filters.
 - Do not add weak generic terms like "full-time", "remote", or "US" as ftsKeywords.`;
+
+const SHORTLIST_SYSTEM_PROMPT = `You are Harper's compact job-posting shortlist filter.
+Return JSON only:
+{
+  "selectedRoleIds": ["role_id_1", "role_id_2"]
+}
+
+Rules:
+- Select roleIds only from the candidate roles shown by the user.
+- Select ${SHORTLIST_CANDIDATE_MIN_COUNT}-${SHORTLIST_CANDIDATE_TARGET_COUNT} roles when that many candidates are plausibly relevant. If fewer candidates are available or plausible, select all plausible candidates.
+- Do not use hard-coded role category exclusions. Judge whether each role appears aligned with the user brief, current request, search intent, and compact card.
+- Prefer one role per company when possible. Select a second role from the same company only if there are not enough credible companies or the roles are materially different and both are strong fits.
+- Use the user's profile, current request, recent activity summaries, insights, and reranking criteria. The compact role cards intentionally omit detailed descriptions; shortlist for likely fit, then a later model will inspect full details.
+- Preserve candidate order only as a weak tie-breaker.`;
 
 const RERANK_SYSTEM_PROMPT = `You are Harper's job recommendation reranker.
 Score each role from 0 to 10 for this specific user. Return JSON only.
@@ -258,19 +283,25 @@ Each recommendationText must explain why the role is recommended and include one
 const RECOMMENDATION_DETAIL_SYSTEM_PROMPT = `You write worker-compatible Korean job recommendation details.
 Return JSON only:
 {
-  "fitReasons": ["추천하는 이유", "추천하는 이유 2"],
-  "tradeoffs": ["구체적 우려나 확인할 점"],
-  "roleOverviewText": "회사 + Role에 대한 객관적 설명. 1-2 문장.",
-  "preferenceFit": {
-    "next_scope": {"status": "Satisfied|Neutral|Dissatisfied", "note": "짧은 한국어 한 문장"},
-    "location": {"status": "Satisfied|Neutral|Dissatisfied", "note": "짧은 한국어 한 문장"},
-    "compensation": {"status": "Satisfied|Neutral|Dissatisfied", "note": "짧은 한국어 한 문장"},
-    "deal_breakers": {"status": "Satisfied|Neutral|Dissatisfied", "note": "짧은 한국어 한 문장"},
-    "must_haves": {"status": "Satisfied|Neutral|Dissatisfied", "note": "짧은 한국어 한 문장"}
-  }
+  "details": [
+    {
+      "roleId": "uuid",
+      "fitReasons": ["추천하는 이유", "추천하는 이유 2"],
+      "tradeoffs": ["구체적 우려나 확인할 점"],
+      "roleOverviewText": "회사 + Role에 대한 객관적 설명. 1-2 문장.",
+      "preferenceFit": {
+        "next_scope": {"status": "Satisfied|Neutral|Dissatisfied", "note": "짧은 한국어 한 문장"},
+        "location": {"status": "Satisfied|Neutral|Dissatisfied", "note": "짧은 한국어 한 문장"},
+        "compensation": {"status": "Satisfied|Neutral|Dissatisfied", "note": "짧은 한국어 한 문장"},
+        "deal_breakers": {"status": "Satisfied|Neutral|Dissatisfied", "note": "짧은 한국어 한 문장"},
+        "must_haves": {"status": "Satisfied|Neutral|Dissatisfied", "note": "짧은 한국어 한 문장"}
+      }
+    }
+  ]
 }
 
 Rules:
+- Return one detail object for each selected roleId from the user message.
 - fitReasons are required. Write 1-2 personalized Korean reasons grounded in the candidate brief and role card.
 - tradeoffs should contain 0-1 concrete concern. Leave it empty when there is no grounded downside.
 - roleOverviewText is neutral company-and-role overview, not a recommendation reason. Do not mention the candidate in roleOverviewText.
@@ -571,7 +602,6 @@ function normalizeRoleRow(value: unknown): RawRoleRow | null {
     salary_range: stringField(record, "salary_range", "salaryRange"),
     search_rank: numberField(record, "search_rank", "searchRank"),
     seniority_level: stringField(record, "seniority_level", "seniorityLevel"),
-    source_provider: stringField(record, "source_provider", "sourceProvider"),
     source_type: stringField(record, "source_type", "sourceType"),
     status: stringField(record, "status"),
     type: stringArrayField(record, "type"),
@@ -913,9 +943,22 @@ function buildBlockedCompanySql(blockedCompanies: string[]) {
   return filters;
 }
 
+function previouslyRecommendedRoleExclusionSql(userId: string) {
+  const normalizedUserId = cleanText(userId, 120);
+  if (!normalizedUserId) return null;
+
+  return `NOT EXISTS (
+    SELECT 1
+    FROM public.talent_opportunity_recommendation tor
+    WHERE tor.talent_id::text = ${sqlLiteral(normalizedUserId)}
+      AND tor.role_id = cr.role_id
+  )`;
+}
+
 function buildRoleSearchSql(args: {
   blockedCompanies: string[];
   plan: SearchPlan;
+  userId: string;
 }) {
   const useFts = args.plan.ftsKeywords.length > 0;
   const ftsWhere = useFts ? ftsWhereSql(args.plan.ftsKeywords) : null;
@@ -927,8 +970,9 @@ function buildRoleSearchSql(args: {
     "COALESCE(cr.is_expired, false) = false",
     "LOWER(COALESCE(cr.status, '')) NOT IN ('expired', 'closed', 'inactive', 'archived')",
     `(${effectiveCompanyQualityLabelSql} IS NULL OR ${effectiveCompanyQualityLabelSql} <> 0)`,
+    previouslyRecommendedRoleExclusionSql(args.userId),
     ...buildBlockedCompanySql(args.blockedCompanies),
-  ];
+  ].filter((sql): sql is string => Boolean(sql));
   const excludeWhere = args.plan.must
     .concat(args.plan.should)
     .filter((condition) => condition.polarity === "exclude")
@@ -969,7 +1013,6 @@ SELECT
   cr.type,
   cr.status,
   cr.source_type,
-  cr.source_provider,
   cr.posted_at,
   cr.updated_at,
   cr.salary_range,
@@ -1008,6 +1051,7 @@ async function executeRoleSql(args: {
   admin: AdminClient;
   blockedCompanies: string[];
   plan: SearchPlan;
+  userId: string;
 }) {
   const sql = buildRoleSearchSql(args);
   const { data, error } = await (args.admin.rpc(
@@ -1036,6 +1080,136 @@ async function executeRoleSql(args: {
     rows,
     rpcContainerCount: Array.isArray(data) ? data.length : null,
     sql,
+  };
+}
+
+async function fetchPreviouslyRecommendedRoleIds(args: {
+  admin: AdminClient;
+  userId: string;
+}) {
+  const roleIds = new Set<string>();
+  let offset = 0;
+
+  while (true) {
+    const { data, error } = await ((
+      args.admin.from("talent_opportunity_recommendation" as any) as any
+    )
+      .select("role_id")
+      .eq("talent_id", args.userId)
+      .range(
+        offset,
+        offset + PREVIOUSLY_RECOMMENDED_ROLE_ID_PAGE_SIZE - 1
+      ) as any);
+
+    if (error) {
+      throw new Error(
+        error.message ?? "Failed to load previous job posting recommendations"
+      );
+    }
+
+    const rows = Array.isArray(data) ? data : [];
+    for (const row of rows) {
+      const roleId = cleanText(row?.role_id, 120);
+      if (roleId) roleIds.add(roleId);
+    }
+
+    if (rows.length < PREVIOUSLY_RECOMMENDED_ROLE_ID_PAGE_SIZE) break;
+    offset += PREVIOUSLY_RECOMMENDED_ROLE_ID_PAGE_SIZE;
+  }
+
+  return roleIds;
+}
+
+function blockedCompanyKey(value: unknown) {
+  return cleanText(value, 160).toLocaleLowerCase("ko-KR");
+}
+
+function isRoleFromBlockedCompany(
+  role: RawRoleRow,
+  blockedCompanies: string[]
+) {
+  if (blockedCompanies.length === 0) return false;
+
+  const companyNames = [
+    blockedCompanyKey(role.company_name),
+    blockedCompanyKey(role.company_db_name),
+  ].filter(Boolean);
+  if (companyNames.length === 0) return false;
+
+  return blockedCompanies.some((company) => {
+    const blockedCompany = blockedCompanyKey(company);
+    if (!blockedCompany) return false;
+    return companyNames.some((companyName) =>
+      companyName.includes(blockedCompany)
+    );
+  });
+}
+
+function filterSearchRowsForUserConstraints(args: {
+  blockedCompanies: string[];
+  previouslyRecommendedRoleIds: Set<string>;
+  rows: RawRoleRow[];
+}) {
+  let blockedCompanyCount = 0;
+  let previouslyRecommendedRoleCount = 0;
+  const rows: RawRoleRow[] = [];
+
+  for (const row of args.rows) {
+    const roleId = cleanText(row.role_id, 120);
+    if (roleId && args.previouslyRecommendedRoleIds.has(roleId)) {
+      previouslyRecommendedRoleCount += 1;
+      continue;
+    }
+
+    if (isRoleFromBlockedCompany(row, args.blockedCompanies)) {
+      blockedCompanyCount += 1;
+      continue;
+    }
+
+    rows.push(row);
+  }
+
+  return {
+    blockedCompanyCount,
+    filteredCount: blockedCompanyCount + previouslyRecommendedRoleCount,
+    previouslyRecommendedRoleCount,
+    rows,
+  };
+}
+
+function applySearchRowUserFilters(args: {
+  blockedCompanies: string[];
+  label: string;
+  previouslyRecommendedRoleIds: Set<string>;
+  search: Awaited<ReturnType<typeof executeRoleSql>>;
+}) {
+  const filterResult = filterSearchRowsForUserConstraints({
+    blockedCompanies: args.blockedCompanies,
+    previouslyRecommendedRoleIds: args.previouslyRecommendedRoleIds,
+    rows: args.search.rows,
+  });
+
+  if (
+    filterResult.filteredCount > 0 ||
+    args.blockedCompanies.length > 0 ||
+    args.previouslyRecommendedRoleIds.size > 0
+  ) {
+    infoJson("candidate filters", {
+      afterCandidateCount: filterResult.rows.length,
+      beforeCandidateCount: args.search.rows.length,
+      blockedCompanies: args.blockedCompanies,
+      filteredBlockedCompanyCount: filterResult.blockedCompanyCount,
+      filteredPreviouslyRecommendedRoleCount:
+        filterResult.previouslyRecommendedRoleCount,
+      knownPreviouslyRecommendedRoleCount:
+        args.previouslyRecommendedRoleIds.size,
+      label: args.label,
+    });
+  }
+
+  return {
+    ...args.search,
+    rows: filterResult.rows,
   };
 }
 
@@ -1069,7 +1243,22 @@ function formatRecentConversation(
   return lines.length > 0 ? lines.join("\n") : "(none)";
 }
 
+function formatRecentTalentActivitySummaries(
+  events: Awaited<ReturnType<typeof fetchRecentTalentActivitySummaries>>
+) {
+  const lines = events
+    .map((event) => cleanText(event.summary, 700))
+    .filter(Boolean)
+    .slice(0, RECENT_TALENT_ACTIVITY_SUMMARY_LIMIT)
+    .map((summary, index) => `${index + 1}. ${summary}`);
+
+  return lines.length > 0 ? lines.join("\n") : "(none)";
+}
+
 function buildUserBrief(args: {
+  activitySummaries: Awaited<
+    ReturnType<typeof fetchRecentTalentActivitySummaries>
+  >;
   currentRequest: string;
   insights: unknown;
   profileText: string;
@@ -1084,6 +1273,9 @@ function buildUserBrief(args: {
     "",
     "[Insights]",
     formatInsightContent(args.insights),
+    "",
+    "[Recent Talent Activity Summaries]",
+    formatRecentTalentActivitySummaries(args.activitySummaries),
     "",
     "[Recent Conversation]",
     formatRecentConversation(args.recentMessages),
@@ -1100,7 +1292,7 @@ async function buildSearchPlan(args: { request: string; userBrief: string }) {
         role: "user",
         content: [
           "Supabase schema:",
-          "- company_roles(role_id, company_workspace_id, name, description, information, opportunity_search_tsv, type, status, is_expired, location_text, work_mode, salary_range, source_type, source_provider, posted_at, expires_at, external_jd_url, priority, updated_at)",
+          "- company_roles(role_id, company_workspace_id, name, description, information, opportunity_search_tsv, type, status, is_expired, location_text, work_mode, salary_range, source_type, posted_at, expires_at, external_jd_url, priority, updated_at)",
           "- company_workspace(company_workspace_id, company_name, company_description, homepage_url, career_url, linkedin_url, company_db_id)",
           "- company_db(id, name, description, short_description, specialities, location, website_url, linkedin_url, founded_year, investors, funding, employee_count_range)",
           "",
@@ -1131,7 +1323,7 @@ async function buildBroadenedSearchPlan(args: {
         role: "user",
         content: [
           "Supabase schema:",
-          "- company_roles(role_id, company_workspace_id, name, description, information, opportunity_search_tsv, type, status, is_expired, location_text, work_mode, salary_range, source_type, source_provider, posted_at, expires_at, external_jd_url, priority, updated_at)",
+          "- company_roles(role_id, company_workspace_id, name, description, information, opportunity_search_tsv, type, status, is_expired, location_text, work_mode, salary_range, source_type, posted_at, expires_at, external_jd_url, priority, updated_at)",
           "- company_workspace(company_workspace_id, company_name, company_description, homepage_url, career_url, linkedin_url, company_db_id)",
           "- company_db(id, name, description, short_description, specialities, location, website_url, linkedin_url, founded_year, investors, funding, employee_count_range)",
           "",
@@ -1187,13 +1379,40 @@ function formatRoleForPrompt(role: RawRoleRow, index: number) {
     `Employment type: ${Array.isArray(role.type) ? role.type.join(", ") : "(unknown)"}`,
     `Seniority: ${cleanText(role.seniority_level, 120) || "(unknown)"}`,
     `Salary: ${cleanText(role.salary_range, 160) || "(unknown)"}`,
-    `Source: ${cleanText(role.source_provider, 120) || cleanText(role.source_type, 120) || "(unknown)"}`,
+    `Source type: ${cleanText(role.source_type, 120) || "(unknown)"}`,
     `Posted: ${cleanText(role.posted_at, 60) || "(unknown)"}`,
     `Company description: ${cleanText(role.company_description, 420) || cleanText(role.company_db_description, 420) || cleanText(role.company_db_short_description, 420) || "(none)"}`,
     `Company specialities: ${cleanText(role.company_db_specialities, 320) || "(none)"}`,
     `Role information: ${cleanText(role.information_text, 500) || "(none)"}`,
     `Role description: ${cleanText(role.description, ROLE_DESCRIPTION_PROMPT_LIMIT) || "(none)"}`,
   ].join("\n");
+}
+
+function compactRoleForShortlist(role: RawRoleRow, index: number) {
+  return {
+    company_description:
+      cleanText(
+        role.company_description,
+        SHORTLIST_COMPANY_DESCRIPTION_LIMIT
+      ) ||
+      cleanText(
+        role.company_db_description,
+        SHORTLIST_COMPANY_DESCRIPTION_LIMIT
+      ) ||
+      cleanText(
+        role.company_db_short_description,
+        SHORTLIST_COMPANY_DESCRIPTION_LIMIT
+      ) ||
+      null,
+    company_name:
+      cleanText(role.company_name, 160) ||
+      cleanText(role.company_db_name, 160) ||
+      null,
+    role_id: getRoleKey(role, index),
+    role_location_text: cleanText(role.location_text, 160) || null,
+    role_name: cleanText(role.role_name, 180) || null,
+    role_type: Array.isArray(role.type) ? role.type : [],
+  };
 }
 
 function roleUrl(role: RawRoleRow) {
@@ -1286,6 +1505,123 @@ function sameRoleRowOrder(left: RawRoleRow[], right: RawRoleRow[]) {
   return left.every(
     (row, index) => getRoleKey(row, index) === getRoleKey(right[index], index)
   );
+}
+
+function roleLookupByKey(rows: RawRoleRow[]) {
+  const lookup = new Map<string, RawRoleRow>();
+  rows.forEach((row, index) => {
+    const fallbackKey = getRoleKey(row, index);
+    lookup.set(fallbackKey, row);
+    const roleId = cleanText(row.role_id, 120);
+    if (roleId) lookup.set(roleId, row);
+  });
+  return lookup;
+}
+
+function roleSelectionKey(role: RawRoleRow, fallbackIndex: number) {
+  return cleanText(role.role_id, 120) || roleDedupeKey(role, fallbackIndex);
+}
+
+function selectedRowsFromRoleIds(args: {
+  candidates: RawRoleRow[];
+  selectedRoleIds: string[];
+}) {
+  const lookup = roleLookupByKey(args.candidates);
+  const selected: RawRoleRow[] = [];
+  const seen = new Set<string>();
+
+  for (const roleId of args.selectedRoleIds) {
+    const role = lookup.get(cleanText(roleId, 120));
+    if (!role) continue;
+    const key = roleSelectionKey(role, selected.length);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    selected.push(role);
+    if (selected.length >= SHORTLIST_CANDIDATE_TARGET_COUNT) break;
+  }
+
+  const minCount = Math.min(
+    SHORTLIST_CANDIDATE_MIN_COUNT,
+    args.candidates.length
+  );
+  for (let index = 0; selected.length < minCount; index += 1) {
+    const role = args.candidates[index];
+    if (!role) break;
+    const key = roleSelectionKey(role, index);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    selected.push(role);
+  }
+
+  return selected.slice(0, SHORTLIST_CANDIDATE_TARGET_COUNT);
+}
+
+async function shortlistRoles(args: {
+  candidates: RawRoleRow[];
+  plan: SearchPlan;
+  userBrief: string;
+}) {
+  if (args.candidates.length <= SHORTLIST_CANDIDATE_TARGET_COUNT) {
+    infoJson("shortlist skipped", {
+      candidateCount: args.candidates.length,
+      reason: "candidate_count_within_target",
+    });
+    return args.candidates;
+  }
+
+  const compactRoles = args.candidates.map(compactRoleForShortlist);
+  const raw = await runTalentAssistantCompletion({
+    fallbackModel: RECOMMEND_JOB_POSTINGS_FALLBACK_MODEL,
+    jsonMode: true,
+    messages: [
+      { role: "system", content: SHORTLIST_SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: [
+          args.userBrief,
+          "",
+          "[Search intent]",
+          args.plan.searchIntentSummary,
+          "",
+          "[Reranking criteria]",
+          args.plan.rerankCriteria
+            .map((item, index) => `${index + 1}. ${item}`)
+            .join("\n"),
+          "",
+          "[Compact candidate roles]",
+          JSON.stringify(compactRoles),
+        ].join("\n"),
+      },
+    ],
+    primaryModel: RECOMMEND_JOB_POSTINGS_PRIMARY_MODEL,
+    temperature: 0.1,
+  });
+
+  const parsed = parseJsonObject(raw);
+  const selectedRoleIds = asStringArray(
+    parsed?.selectedRoleIds,
+    SHORTLIST_CANDIDATE_TARGET_COUNT,
+    120
+  );
+  const selected = selectedRowsFromRoleIds({
+    candidates: args.candidates,
+    selectedRoleIds,
+  });
+
+  infoJson("shortlist completed", {
+    candidateCount: args.candidates.length,
+    compactRoleCount: compactRoles.length,
+    llmSelectedRoleIdCount: selectedRoleIds.length,
+    selectedCandidateCount: selected.length,
+    selectedCandidates: selected.slice(0, 5).map(rolePreview),
+  });
+  debugLog("shortlist raw", {
+    parsed,
+    raw: raw.slice(0, 4000),
+    selectedRoleIds,
+  });
+
+  return selected;
 }
 
 async function rerankRoles(args: {
@@ -1586,11 +1922,13 @@ function normalizeRecommendationDetail(
   };
 }
 
-async function generateRecommendationDetail(args: {
-  item: RankedRole;
+async function generateRecommendationDetails(args: {
   plan: SearchPlan;
+  recommendations: RankedRole[];
   userBrief: string;
 }) {
+  if (args.recommendations.length === 0) return [];
+
   try {
     const raw = await runTalentAssistantCompletion({
       fallbackModel: RECOMMEND_JOB_POSTINGS_FALLBACK_MODEL,
@@ -1610,16 +1948,21 @@ async function generateRecommendationDetail(args: {
               .map((item, index) => `${index + 1}. ${item}`)
               .join("\n"),
             "",
-            "[Selected role]",
-            formatRoleForPrompt(args.item.role, 0),
+            "[Selected roles]",
+            args.recommendations
+              .map((item, index) => formatRoleForPrompt(item.role, index))
+              .join("\n\n"),
             "",
-            "[Rerank result]",
-            JSON.stringify({
-              concerns: args.item.concerns,
-              goodPoints: args.item.goodPoints,
-              recommendationText: args.item.recommendationText,
-              score: args.item.score,
-            }),
+            "[Rerank results]",
+            JSON.stringify(
+              args.recommendations.map((item) => ({
+                concerns: item.concerns,
+                goodPoints: item.goodPoints,
+                recommendationText: item.recommendationText,
+                roleId: item.roleId,
+                score: item.score,
+              }))
+            ),
           ].join("\n"),
         },
       ],
@@ -1627,13 +1970,36 @@ async function generateRecommendationDetail(args: {
       temperature: 0.2,
     });
 
-    return normalizeRecommendationDetail(parseJsonObject(raw), args.item);
+    const parsed = parseJsonObject(raw);
+    const details = Array.isArray(parsed?.details) ? parsed.details : [];
+    const detailsByRoleId = new Map<string, Record<string, unknown>>();
+
+    for (const detail of details) {
+      const record = asRecord(detail);
+      const roleId = cleanText(record?.roleId, 120);
+      if (roleId && record) detailsByRoleId.set(roleId, record);
+    }
+
+    debugLog("detail generation raw", {
+      detailCount: detailsByRoleId.size,
+      raw: raw.slice(0, 4000),
+      recommendationCount: args.recommendations.length,
+    });
+
+    return args.recommendations.map((item) =>
+      normalizeRecommendationDetail(
+        detailsByRoleId.get(item.roleId) ?? null,
+        item
+      )
+    );
   } catch (error) {
     console.warn("[recommend_job_postings] detail generation failed", {
       error: error instanceof Error ? error.message : String(error),
-      roleId: args.item.roleId,
+      recommendationCount: args.recommendations.length,
     });
-    return normalizeRecommendationDetail(null, args.item);
+    return args.recommendations.map((item) =>
+      normalizeRecommendationDetail(null, item)
+    );
   }
 }
 
@@ -1642,19 +2008,15 @@ async function enrichRecommendationDetails(args: {
   recommendations: RankedRole[];
   userBrief: string;
 }): Promise<EnrichedRankedRole[]> {
-  const details = await Promise.all(
-    args.recommendations.map((item) =>
-      generateRecommendationDetail({
-        item,
-        plan: args.plan,
-        userBrief: args.userBrief,
-      })
-    )
-  );
+  const details = await generateRecommendationDetails({
+    plan: args.plan,
+    recommendations: args.recommendations,
+    userBrief: args.userBrief,
+  });
 
   return args.recommendations.map((item, index) => ({
     ...item,
-    detail: details[index],
+    detail: details[index] ?? normalizeRecommendationDetail(null, item),
     recommendationId: null,
   }));
 }
@@ -1846,7 +2208,14 @@ export async function runCareerJobPostingRecommendations(args: {
     userId: args.userId,
   });
 
-  const [profile, insights, setting, recentMessages] = await Promise.all([
+  const [
+    profile,
+    insights,
+    setting,
+    recentMessages,
+    previouslyRecommendedRoleIds,
+    activitySummaries,
+  ] = await Promise.all([
     fetchTalentUserProfile({ admin: args.admin, userId: args.userId }),
     fetchTalentInsights({ admin: args.admin, userId: args.userId }),
     fetchTalentSetting({ admin: args.admin, userId: args.userId }),
@@ -1857,6 +2226,15 @@ export async function runCareerJobPostingRecommendations(args: {
       recentLimit: 4,
       userId: args.userId,
     }),
+    fetchPreviouslyRecommendedRoleIds({
+      admin: args.admin,
+      userId: args.userId,
+    }),
+    fetchRecentTalentActivitySummaries({
+      admin: args.admin,
+      limit: RECENT_TALENT_ACTIVITY_SUMMARY_LIMIT,
+      userId: args.userId,
+    }),
   ]);
   const structuredProfile = await fetchTalentStructuredProfile({
     admin: args.admin,
@@ -1864,12 +2242,16 @@ export async function runCareerJobPostingRecommendations(args: {
     talentUser: profile,
   });
   const profileText = buildTalentProfileContext({
+    includeCareerMoveIntent: false,
+    includeResumeFileName: false,
     includeResumeText: false,
+    includeRowIds: false,
     profile,
     structuredProfile,
     setting,
   });
   const userBrief = buildUserBrief({
+    activitySummaries,
     currentRequest: request,
     insights: insights?.content ?? null,
     profileText,
@@ -1890,13 +2272,20 @@ export async function runCareerJobPostingRecommendations(args: {
     blockedCompanies,
     ftsKeywords: plan.ftsKeywords,
     must: plan.must,
+    previouslyRecommendedRoleCount: previouslyRecommendedRoleIds.size,
     should: plan.should,
   });
 
-  let search = await executeRoleSql({
-    admin: args.admin,
+  let search = applySearchRowUserFilters({
     blockedCompanies,
-    plan,
+    label: "strict",
+    previouslyRecommendedRoleIds,
+    search: await executeRoleSql({
+      admin: args.admin,
+      blockedCompanies,
+      plan,
+      userId: args.userId,
+    }),
   });
   let relaxed = false;
   infoJson("sql search", {
@@ -1935,23 +2324,37 @@ export async function runCareerJobPostingRecommendations(args: {
       strictCandidateCount: search.rows.length,
     });
 
-    const broadenedSearch = await executeRoleSql({
-      admin: args.admin,
+    const broadenedSearch = applySearchRowUserFilters({
       blockedCompanies,
-      plan: broadenedPlan,
+      label: "broadened",
+      previouslyRecommendedRoleIds,
+      search: await executeRoleSql({
+        admin: args.admin,
+        blockedCompanies,
+        plan: broadenedPlan,
+        userId: args.userId,
+      }),
     });
     const mergedRows = mergeRoleRows(search.rows, broadenedSearch.rows).slice(
       0,
       MAX_SEARCH_RESULTS
     );
+    const filteredMergedRows = filterSearchRowsForUserConstraints({
+      blockedCompanies,
+      previouslyRecommendedRoleIds,
+      rows: mergedRows,
+    }).rows;
     const strictCandidateCount = search.rows.length;
     if (
-      !sameRoleRowOrder(search.rows.slice(0, MAX_SEARCH_RESULTS), mergedRows)
+      !sameRoleRowOrder(
+        search.rows.slice(0, MAX_SEARCH_RESULTS),
+        filteredMergedRows
+      )
     ) {
       search = {
         ...search,
         rawRows: search.rawRows.concat(broadenedSearch.rawRows),
-        rows: mergedRows,
+        rows: filteredMergedRows,
         rpcContainerCount: null,
         sql: `${search.sql}\n\n-- broadened candidate backfill\n${broadenedSearch.sql}`,
       };
@@ -1960,9 +2363,9 @@ export async function runCareerJobPostingRecommendations(args: {
       infoJson("broadened sql search", {
         addedCandidateCount: Math.max(
           0,
-          mergedRows.length - strictCandidateCount
+          filteredMergedRows.length - strictCandidateCount
         ),
-        candidateCount: search.rows.length,
+        candidateCount: filteredMergedRows.length,
         candidates: search.rows.slice(0, 5).map(rolePreview),
         relaxed,
         rawCount: search.rawRows.length,
@@ -1980,9 +2383,13 @@ export async function runCareerJobPostingRecommendations(args: {
   }
 
   const candidates = search.rows.slice(0, MAX_SEARCH_RESULTS);
-  const ranked =
+  const shortlistCandidates =
     candidates.length > 0
-      ? await rerankRoles({ candidates, plan, userBrief })
+      ? await shortlistRoles({ candidates, plan, userBrief })
+      : [];
+  const ranked =
+    shortlistCandidates.length > 0
+      ? await rerankRoles({ candidates: shortlistCandidates, plan, userBrief })
       : [];
   const detailedRecommendations = await enrichRecommendationDetails({
     plan,
@@ -1998,6 +2405,7 @@ export async function runCareerJobPostingRecommendations(args: {
     candidateCount: candidates.length,
     durationMs: Date.now() - startedAt,
     recommendationCount: recommendations.length,
+    shortlistCandidateCount: shortlistCandidates.length,
     topScores: recommendations.slice(0, 5).map((item) => ({
       ...rolePreview(item.role),
       recommendationId: item.recommendationId,
@@ -2038,6 +2446,7 @@ export async function runCareerJobPostingRecommendations(args: {
     })),
     requestedCount,
     saveCount: recommendations.filter((item) => item.recommendationId).length,
+    shortlistCandidateCount: shortlistCandidates.length,
     searchPlan: {
       ftsKeywords: plan.ftsKeywords,
       must: plan.must,

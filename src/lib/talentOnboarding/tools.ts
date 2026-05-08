@@ -17,7 +17,6 @@ import {
   fetchTalentSetting,
   normalizeTalentEngagementTypes,
   normalizeTalentInsightContent,
-  normalizeTalentPreferredLocations,
   upsertTalentInsights,
   upsertTalentSetting,
 } from "./server";
@@ -609,15 +608,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
                 enum: ["full_time", "fractional", "advisor"],
               },
             },
-            preferredLocations: {
-              type: "array",
-              description:
-                "Preferred location categories to add (server unions with existing). Use only when the user clearly states the work-location category.",
-              items: {
-                type: "string",
-                enum: ["korea_based", "global_remote", "relocation"],
-              },
-            },
             periodicIntervalDays: {
               type: "integer",
               description:
@@ -832,35 +822,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
                 existingSetting?.engagement_types ?? []
               ),
               to: nextEngagementTypes,
-            });
-          }
-        }
-        if (Array.isArray(preferencesInput.preferredLocations)) {
-          const merged = Array.from(
-            new Set<string>([
-              ...((existingSetting?.preferred_locations ?? []) as string[]),
-              ...(preferencesInput.preferredLocations as unknown[]).map(
-                (entry) => String(entry ?? "").trim()
-              ),
-            ])
-          ).filter((entry) => entry.length > 0);
-          const nextPreferredLocations =
-            normalizeTalentPreferredLocations(merged);
-          updatePayload.preferredLocations = nextPreferredLocations;
-          didUpdate = true;
-          updatedPreferenceFields.push("preferredLocations");
-          if (
-            !isSameActivityValue(
-              existingSetting?.preferred_locations ?? [],
-              nextPreferredLocations
-            )
-          ) {
-            preferenceActivityChanges.push({
-              field: "preferredLocations",
-              from: normalizeTalentPreferredLocations(
-                existingSetting?.preferred_locations ?? []
-              ),
-              to: nextPreferredLocations,
             });
           }
         }

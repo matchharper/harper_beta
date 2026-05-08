@@ -1428,13 +1428,13 @@ export default function LandingKoVfPage() {
               <LandingButton href="#cta" label="얼리 액세스 신청" />
             </Reveal>
 
-            <Image
+            {/* <Image
               src="/images/career_screen.png"
               alt="Harper"
               width={1000}
               height={1000}
               className="mt-[20vh]"
-            />
+            /> */}
           </section>
 
           <SocialProofSection />

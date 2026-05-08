@@ -89,7 +89,6 @@ export async function POST(req: NextRequest) {
       profileVisibility,
       blockedCompanies,
       engagementTypes: existing?.engagement_types ?? [],
-      preferredLocations: existing?.preferred_locations ?? [],
       careerMoveIntent: existing?.career_move_intent ?? null,
     });
 

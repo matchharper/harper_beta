@@ -2,7 +2,6 @@ import {
   Briefcase,
   Loader2,
   Lock,
-  Map,
   Plus,
   RefreshCcw,
   Save,
@@ -17,7 +16,6 @@ import { useCareerSidebarContext } from "./CareerSidebarContext";
 import {
   TALENT_NETWORK_CAREER_MOVE_INTENT_OPTIONS,
   TALENT_NETWORK_ENGAGEMENT_OPTIONS,
-  TALENT_NETWORK_LOCATION_OPTIONS,
 } from "@/lib/talentNetworkOptions";
 import {
   normalizeTalentPeriodicIntervalDays,
@@ -237,41 +235,6 @@ const CareerProfileSettingsSection = () => {
                                     (item) => item !== option.id
                                   )
                                 : [...current.engagementTypes, option.id],
-                            }
-                          : current
-                      )
-                    }
-                  >
-                    {option.label}
-                  </CareerToggleButton>
-                );
-              })}
-            </div>
-          </CareerField>
-        )}
-
-        {talentPreferences && (
-          <CareerField label="선호 지역" icon={<Map className="h-4 w-4" />}>
-            <div className="flex flex-wrap gap-2">
-              {TALENT_NETWORK_LOCATION_OPTIONS.map((option) => {
-                const active = talentPreferences.preferredLocations.includes(
-                  option.id
-                );
-
-                return (
-                  <CareerToggleButton
-                    key={option.id}
-                    active={active}
-                    onClick={() =>
-                      onTalentPreferencesChange((current) =>
-                        current
-                          ? {
-                              ...current,
-                              preferredLocations: active
-                                ? current.preferredLocations.filter(
-                                    (item) => item !== option.id
-                                  )
-                                : [...current.preferredLocations, option.id],
                             }
                           : current
                       )

@@ -517,7 +517,10 @@ export const useCareerOnboardingVoice = ({
         void playElevenLabsTts(pendingAssistant.text);
       }
 
-      if (pendingAssistant.hasEndMarker) {
+      if (
+        pendingAssistant.hasEndMarker ||
+        pendingAssistant.hasOnboardingDoneMarker
+      ) {
         pendingCallEndRef.current = true;
         if (!isAssistantSpeakingRef.current) {
           pendingCallEndRef.current = false;
@@ -615,8 +618,9 @@ export const useCareerOnboardingVoice = ({
           void playElevenLabsTts(cleanText);
         }
 
-        // AI signaled end of interview — wait for audio then end call
-        if (hasEndMarker) {
+        // AI signaled end of interview — wait for audio then end call.
+        // The onboarding-done marker also means the live interview is finished.
+        if (hasEndMarker || hasOnboardingDoneMarker) {
           pendingCallEndRef.current = true;
           if (!isAssistantSpeakingRef.current) {
             pendingCallEndRef.current = false;

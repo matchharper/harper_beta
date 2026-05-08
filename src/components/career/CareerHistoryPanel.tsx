@@ -496,7 +496,7 @@ const CareerHistoryPanel = () => {
     if (mail) query.mail = mail;
 
     void router.push({
-      pathname: "/career/chat",
+      pathname: "/career",
       query: Object.keys(query).length > 0 ? query : undefined,
     });
   }, [router]);

@@ -237,6 +237,7 @@ const CareerHomePanel = ({
     process.env.NODE_ENV !== "production" ||
     userEmail.endsWith("@matchharper.com") ||
     userEmail === "khj605123@gmail.com";
+
   const opportunityRunLocked =
     opportunityRunTriggerPending || Boolean(opportunityRun?.inputLocked);
   const latestRunLabel = opportunityRun

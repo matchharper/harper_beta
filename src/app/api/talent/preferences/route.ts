@@ -9,7 +9,6 @@ import {
   normalizeTalentBlockedCompanies,
   normalizeTalentEngagementTypes,
   normalizeTalentInsightContent,
-  normalizeTalentPreferredLocations,
   sanitizeTalentCareerMoveIntent,
   sanitizeTalentProfileVisibility,
   upsertTalentInsights,
@@ -51,7 +50,6 @@ const getLatestUpdatedAt = (...values: Array<string | null | undefined>) => {
 
 type Body = {
   engagementTypes?: string[];
-  preferredLocations?: string[];
   careerMoveIntent?: string | null;
   periodicIntervalDays?: number;
   recommendationBatchSize?: number;
@@ -61,7 +59,6 @@ type Body = {
 const toResponsePreferences = (
   setting?: {
     engagement_types?: string[] | null;
-    preferred_locations?: string[] | null;
     career_move_intent?: string | null;
     periodic_interval_days?: number | null;
     recommendation_batch_size?: number | null;
@@ -75,9 +72,7 @@ const toResponsePreferences = (
     engagementTypes: normalizeTalentEngagementTypes(
       setting?.engagement_types ?? []
     ),
-    preferredLocations: normalizeTalentPreferredLocations(
-      setting?.preferred_locations ?? []
-    ),
+    preferredLocations: [],
     careerMoveIntent,
     careerMoveIntentLabel: getTalentCareerMoveIntentLabel(careerMoveIntent),
     periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
@@ -103,13 +98,6 @@ function getPreferenceActivityChanges(args: {
       field: "engagementTypes",
       from: args.from.engagementTypes,
       to: args.to.engagementTypes,
-    });
-  }
-  if (args.body.preferredLocations !== undefined) {
-    changes.push({
-      field: "preferredLocations",
-      from: args.from.preferredLocations,
-      to: args.to.preferredLocations,
     });
   }
   if (args.body.careerMoveIntent !== undefined) {
@@ -199,7 +187,6 @@ export async function POST(req: NextRequest) {
 
     const hasPreferenceUpdate =
       body.engagementTypes !== undefined ||
-      body.preferredLocations !== undefined ||
       body.careerMoveIntent !== undefined ||
       body.periodicIntervalDays !== undefined ||
       body.recommendationBatchSize !== undefined;
@@ -218,11 +205,6 @@ export async function POST(req: NextRequest) {
           ),
           engagementTypes: normalizeTalentEngagementTypes(
             body.engagementTypes ?? existingSetting?.engagement_types ?? []
-          ),
-          preferredLocations: normalizeTalentPreferredLocations(
-            body.preferredLocations ??
-              existingSetting?.preferred_locations ??
-              []
           ),
           careerMoveIntent: sanitizeTalentCareerMoveIntent(
             body.careerMoveIntent ?? existingSetting?.career_move_intent
