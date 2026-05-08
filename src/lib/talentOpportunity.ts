@@ -2,6 +2,8 @@ import type { Json } from "@/types/database.types";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 import {
   getPostingRoleIdFromOpportunityId,
+  isPostingRoleId,
+  normalizePostingRoleId,
   toPostingOpportunityId,
 } from "@/lib/career/postingLinks";
 import { OpportunityType, isOpportunityType } from "@/lib/opportunityType";
@@ -844,7 +846,11 @@ export async function fetchTalentPostingCardsByRoleIds(args: {
   userId: string;
 }) {
   const roleIds = Array.from(
-    new Set(args.roleIds.map((id) => String(id ?? "").trim()).filter(Boolean))
+    new Set(
+      args.roleIds
+        .map((id) => normalizePostingRoleId(id))
+        .filter((id) => id && isPostingRoleId(id))
+    )
   );
   if (roleIds.length === 0) return [];
 

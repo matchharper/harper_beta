@@ -4,6 +4,8 @@ export const POSTING_OPPORTUNITY_ID_PREFIX = "posting:";
 const POSTING_LINK_PATTERN = /\[posting\]\(([^)\s]+)\)/gi;
 const STANDALONE_POSTING_LINK_LINE_PATTERN =
   /^\s*(?:[-*+]\s+|\d+[.)]\s*)?\[posting\]\([^)]+\)\s*$/i;
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function normalizePostingRoleId(value: unknown) {
   const raw = String(value ?? "").trim();
@@ -16,6 +18,10 @@ export function normalizePostingRoleId(value: unknown) {
   }
 }
 
+export function isPostingRoleId(value: unknown) {
+  return UUID_PATTERN.test(normalizePostingRoleId(value));
+}
+
 export function extractPostingRoleIdsFromText(content: string) {
   const roleIds: string[] = [];
   const seen = new Set<string>();
@@ -24,7 +30,7 @@ export function extractPostingRoleIdsFromText(content: string) {
   POSTING_LINK_PATTERN.lastIndex = 0;
   while ((match = POSTING_LINK_PATTERN.exec(content)) !== null) {
     const roleId = normalizePostingRoleId(match[1]);
-    if (!roleId || seen.has(roleId)) continue;
+    if (!roleId || !isPostingRoleId(roleId) || seen.has(roleId)) continue;
     seen.add(roleId);
     roleIds.push(roleId);
   }
@@ -39,7 +45,10 @@ export function toPostingOpportunityId(roleId: string) {
 export function getPostingRoleIdFromOpportunityId(opportunityId: string) {
   const id = String(opportunityId ?? "").trim();
   if (!id.startsWith(POSTING_OPPORTUNITY_ID_PREFIX)) return "";
-  return normalizePostingRoleId(id.slice(POSTING_OPPORTUNITY_ID_PREFIX.length));
+  const roleId = normalizePostingRoleId(
+    id.slice(POSTING_OPPORTUNITY_ID_PREFIX.length)
+  );
+  return isPostingRoleId(roleId) ? roleId : "";
 }
 
 export function stripStandalonePostingLinksFromText(content: string) {
