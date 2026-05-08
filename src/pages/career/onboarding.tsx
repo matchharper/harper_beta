@@ -34,7 +34,7 @@ import {
 } from "@/lib/talentNetworkOptions";
 import { cn } from "@/lib/cn";
 import { useAuthStore } from "@/store/useAuthStore";
-import { LoadingState } from "./OnboardingLoadingState";
+import { LoadingState } from "../../components/career/OnboardingLoadingState";
 
 const TOTAL_STEPS = 3;
 
