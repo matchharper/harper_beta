@@ -1203,13 +1203,15 @@ const CareerNetworkOnboardingContent = () => {
                     <>
                       <header className="mx-auto max-w-[720px]">
                         <h1 className="text-2xl font-medium leading-[1.25] md:text-3xl">
-                          스포츠 스타에게 에이전트가 있듯, 좋은 커리어에도 전담
-                          에이전트가 필요합니다.
+                          스포츠 스타에게 에이전트가 있듯,
+                          <br />
+                          커리어에도 에이전트가 필요합니다.
                         </h1>
                         <p className="mt-4 text-base leading-7 text-beige900/65 md:text-lg">
                           Harper가 에이전트/헤드헌터처럼 맞는 기회를 먼저
-                          살펴보고 연결할 수 있도록, 이름과 연락처만 먼저
-                          확인할게요.
+                          살펴보고 연결할 수 있도록,
+                          <br />
+                          이름과 연락처만 먼저 확인할게요.
                         </p>
                       </header>
                       <div className="mx-auto mt-6 grid w-full max-w-[520px] gap-5 text-left">
