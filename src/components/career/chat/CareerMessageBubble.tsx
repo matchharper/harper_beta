@@ -1,5 +1,5 @@
 import React, { type ReactNode } from "react";
-import { AudioLines } from "lucide-react";
+import { AudioLines, Phone } from "lucide-react";
 import type { CareerMessage } from "@/components/career/types";
 import CareerRichText from "@/components/career/ui/CareerRichText";
 import { TALENT_MESSAGE_TYPE_OPPORTUNITY_FEEDBACK_NOTE } from "@/lib/career/opportunityFeedbackNote";
@@ -17,12 +17,21 @@ const ASSISTANT_RICH_TEXT_CLASS =
 
 const HIGHLIGHT_PATTERN = /<<([\s\S]+?)>>/g;
 const URL_PATTERN = /(https?:\/\/[^\s]+)/g;
+const CALL_ACTION_MARKER = "[[CALL]]";
+const CALL_ACTION_OPENING_TEXT =
+  "좋아요. 최근 업데이트나 요즘 재밌게 하고 계신 일부터 편하게 들려주세요.";
 
 type Props = {
   message: CareerMessage;
   isUser: boolean;
   isAssistantSpeaking?: boolean;
+  isCallStartPending?: boolean;
+  onStartCallMode?: (openingText?: string) => void | Promise<void>;
 };
+
+function stripCallActionMarker(content: string) {
+  return content.replaceAll(CALL_ACTION_MARKER, "").trim();
+}
 
 function renderTextWithLinks(content: string, keyPrefix: string): ReactNode[] {
   const nodes: ReactNode[] = [];
@@ -110,16 +119,22 @@ const CareerMessageBubble = ({
   message,
   isUser,
   isAssistantSpeaking = false,
+  isCallStartPending = false,
+  onStartCallMode,
 }: Props) => {
   const isCallTranscript = message.messageType === "call_transcript";
+  const hasCallAction = !isUser && message.content.includes(CALL_ACTION_MARKER);
   const isOpportunityFeedbackNote =
     isUser &&
     message.messageType === TALENT_MESSAGE_TYPE_OPPORTUNITY_FEEDBACK_NOTE;
   // const isCallWrapup = message.messageType === "call_wrapup";
+  const displayContent = hasCallAction
+    ? stripCallActionMarker(message.content)
+    : message.content;
   const assistantContent =
     !isUser && (message.opportunityPreview?.length ?? 0) > 0
-      ? stripStandalonePostingLinksFromText(message.content)
-      : message.content;
+      ? stripStandalonePostingLinksFromText(displayContent)
+      : displayContent;
   const articleClassName = isOpportunityFeedbackNote
     ? "ml-auto max-w-[820px] px-1 py-0 text-right text-[11px] leading-4 text-beige900/45"
     : [
@@ -143,13 +158,24 @@ const CareerMessageBubble = ({
         <div className="min-w-0 flex-1">
           {isUser ? (
             <div className="whitespace-pre-wrap break-words">
-              {renderHighlightedContent(message.content)}
+              {renderHighlightedContent(displayContent)}
             </div>
           ) : (
             <CareerRichText
               content={assistantContent}
               className={ASSISTANT_RICH_TEXT_CLASS}
             />
+          )}
+          {hasCallAction && (
+            <button
+              type="button"
+              onClick={() => void onStartCallMode?.(CALL_ACTION_OPENING_TEXT)}
+              disabled={!onStartCallMode || isCallStartPending}
+              className="mt-3 inline-flex h-9 items-center gap-2 rounded-[8px] border border-beige900/15 bg-white/70 px-3 text-[13px] font-medium text-beige900 transition-colors hover:border-beige900/30 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Phone className="h-4 w-4" />
+              {isCallStartPending ? "연결 중..." : "전화하기"}
+            </button>
           )}
         </div>
       </div>

@@ -151,7 +151,7 @@ export async function fetchTalentStructuredProfile(args: {
       admin
         .from("talent_experiences")
         .select(
-          "id, talent_id, role, description, start_date, end_date, months, company_id, company_link, company_name, company_location, company_logo, memo, created_at"
+          "id, talent_id, role, description, employment_type, start_date, end_date, months, company_id, company_link, company_name, company_location, company_logo, memo, created_at"
         )
         .eq("talent_id", userId)
         .order("start_date", { ascending: false, nullsFirst: false })
@@ -290,6 +290,9 @@ export function buildTalentProfileContext(args: {
       if (dateRange) parts.push(`Dates: ${dateRange}`);
       if (experience.months && experience.months > 0) {
         parts.push(`Months: ${experience.months}`);
+      }
+      if (experience.employment_type) {
+        parts.push(`Employment type: ${experience.employment_type}`);
       }
       if (experience.company_location) {
         parts.push(`Location: ${experience.company_location}`);

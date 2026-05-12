@@ -24,7 +24,7 @@ category: "right-panel" | "chat" | "general"
 
 **Frontmatter fields:**
 - `title` — Korean title describing the UI element or feature
-- `ui_target` — Dot-separated slug identifying the component/feature (e.g., `chat.voice-input`, `right-panel.notifications-bell`)
+- `ui_target` — Dot-separated slug identifying the component/feature (e.g., `chat.voice-input`, `right-panel.settings-button`)
 - `category` — One of: `right-panel`, `chat`, `general`
 
 **Content guidelines:**
@@ -41,7 +41,6 @@ category: "right-panel" | "chat" | "general"
 docs/career-help/
 ├── README.md (this file)
 ├── right-panel/
-│   ├── notifications-bell.mdx
 │   ├── settings-button.mdx
 │   └── tabs-overview.mdx
 ├── chat/

@@ -1,6 +1,7 @@
 import type { User } from "@supabase/supabase-js";
 import type {
   OpportunityDiscoveryTrigger,
+  OpportunityDiscoveryAgentVariant,
   OpportunityIngestionRunRow,
   OpportunityIngestionTrigger,
   OpportunityRunMode,
@@ -37,6 +38,19 @@ const DEFAULT_SETTINGS: RecommendationSettings = {
 };
 
 const OPPORTUNITY_RUN_LOCK_TIMEOUT_MS = 3 * 60 * 1000;
+
+function normalizeOpportunityAgentVariant(
+  value: unknown
+): OpportunityDiscoveryAgentVariant | null {
+  return value === "tool_agent" || value === "scripted" ? value : null;
+}
+
+function readOpportunityAgentVariant(payload: unknown) {
+  if (!payload || typeof payload !== "object") return null;
+  return normalizeOpportunityAgentVariant(
+    (payload as Record<string, unknown>).opportunityAgentVariant
+  );
+}
 
 function isOpportunityRunLockExpired(run: OpportunityRunRow) {
   if (run.status !== "queued" && run.status !== "running") return false;
@@ -281,6 +295,7 @@ export function serializeOpportunityRun(run: OpportunityRunRow | null) {
     !isOpportunityRunLockExpired(run);
 
   return {
+    agentVariant: readOpportunityAgentVariant(run.trigger_payload),
     chatPreviewCount: run.chat_preview_count,
     completedAt: run.completed_at ?? null,
     coverage: run.coverage ?? {},

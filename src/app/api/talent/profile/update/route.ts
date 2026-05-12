@@ -28,6 +28,7 @@ type StructuredProfileBody = {
     company_logo?: string | null;
     company_name?: string | null;
     description?: string | null;
+    employment_type?: string | null;
     end_date?: string | null;
     memo?: string | null;
     months?: number | null;
@@ -129,6 +130,7 @@ const normalizeStructuredProfile = (
         talent_id: userId,
         role: sanitizeSingleLineText(row.role, 240),
         description: sanitizeMultilineText(row.description, 8000),
+        employment_type: sanitizeSingleLineText(row.employment_type, 120),
         start_date: sanitizeDateText(row.start_date),
         end_date: sanitizeDateText(row.end_date),
         months: sanitizeInteger(row.months, 0, 1200),
@@ -152,6 +154,7 @@ const normalizeStructuredProfile = (
         talent_id: string;
         role: string | null;
         description: string | null;
+        employment_type: string | null;
         start_date: string | null;
         end_date: string | null;
         months: number | null;

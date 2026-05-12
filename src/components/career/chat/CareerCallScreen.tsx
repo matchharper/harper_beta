@@ -1,6 +1,7 @@
 import { Loader2, Mic, MicOff, X, Captions } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
+import { Tooltips } from "@/components/ui/tooltip";
 import { careerCx } from "@/components/career/ui/CareerPrimitives";
 import { useCareerVoiceInputStore } from "@/store/useCareerVoiceInputStore";
 import type { CallTranscriptEntry } from "../types";
@@ -165,6 +166,10 @@ const CareerCallScreen = ({
   const {
     voiceMuted,
     voiceTranscript,
+    isOnboardingDone,
+    forceCompletePending = false,
+    interviewProgress,
+    onboardingWrapupPending,
     onToggleVoiceMute,
     onEndCallMode,
     callTranscriptEntries,
@@ -178,23 +183,32 @@ const CareerCallScreen = ({
   const closeTimerRef = useRef<number | null>(null);
   const hasStarted = (callTranscriptEntries ?? []).length > 0;
   const timer = useCallTimer(hasStarted);
+  const forceCompleteTooltip =
+    "커리어 인터뷰를 임의로 종료할 수 있어요. 거의 다 왔으니 2~3개의 질문에만 추가로 대답해주시면 자동으로 종료됩니다!";
 
-  const requestEndCall = useCallback(() => {
-    if (isClosing) return;
-    setIsClosing(true);
-    if (typeof window === "undefined") {
-      onEndCallMode?.();
-      return;
-    }
-    closeTimerRef.current = window.setTimeout(() => {
-      closeTimerRef.current = null;
-      onEndCallMode?.();
-    }, CALL_CLOSE_ANIMATION_MS);
-  }, [isClosing, onEndCallMode]);
+  const showInterviewCallProgress = !isOnboardingDone;
+
+  const requestEndCall = useCallback(
+    (options?: { forceCompleteOnboarding?: boolean }) => {
+      if (isClosing) return;
+      setIsClosing(true);
+      if (typeof window === "undefined") {
+        onEndCallMode?.(options);
+        return;
+      }
+      closeTimerRef.current = window.setTimeout(() => {
+        closeTimerRef.current = null;
+        onEndCallMode?.(options);
+      }, CALL_CLOSE_ANIMATION_MS);
+    },
+    [isClosing, onEndCallMode]
+  );
 
   const handleEndCall = useCallback(() => {
-    requestEndCall();
-  }, [requestEndCall]);
+    requestEndCall({
+      forceCompleteOnboarding: interviewProgress.canForceComplete,
+    });
+  }, [interviewProgress.canForceComplete, requestEndCall]);
 
   useEffect(() => {
     return () => {
@@ -272,6 +286,28 @@ const CareerCallScreen = ({
         >
           {isAssistantSpeaking ? "Speaking" : "Listening"}
         </span>
+        {showInterviewCallProgress ? (
+          <div className="mt-4 w-full max-w-[360px] rounded-[12px] border border-beige50/10 bg-beige900/90 px-4 py-3 text-beige50 shadow-[0_14px_32px_rgba(37,20,6,0.16)] backdrop-blur">
+            <div className="flex items-center gap-3">
+              <span className="career-interview-shimmer text-[13px] font-semibold">
+                커리어 인터뷰 진행 중
+              </span>
+            </div>
+            <div
+              className="mt-2 h-1.5 overflow-hidden rounded-full bg-beige50/15"
+              role="progressbar"
+              aria-label="커리어 인터뷰 진행률"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={interviewProgress.percent}
+            >
+              <div
+                className="h-full rounded-full bg-[#f1a35d] transition-[width] duration-700 ease-out"
+                style={{ width: `${interviewProgress.percent}%` }}
+              />
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {/* Transcript overlay */}
@@ -325,15 +361,36 @@ const CareerCallScreen = ({
           </button>
 
           {/* End call */}
-          <button
-            type="button"
-            onClick={handleEndCall}
-            disabled={isClosing}
-            className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500 text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-            aria-label="통화 종료"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          {interviewProgress.canForceComplete ? (
+            <Tooltips text={forceCompleteTooltip} side="top">
+              <button
+                type="button"
+                onClick={handleEndCall}
+                disabled={
+                  isClosing || forceCompletePending || onboardingWrapupPending
+                }
+                className="flex h-12 items-center justify-center gap-2 rounded-full bg-red-500 px-4 text-sm font-semibold text-white transition-colors hover:bg-red-600 disabled:opacity-60"
+                aria-label="통화 종료 및 커리어 인터뷰 임의 종료"
+              >
+                {forceCompletePending || onboardingWrapupPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <X className="h-5 w-5" />
+                )}
+                임의 종료
+              </button>
+            </Tooltips>
+          ) : (
+            <button
+              type="button"
+              onClick={handleEndCall}
+              disabled={isClosing}
+              className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500 text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+              aria-label="통화 종료"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          )}
         </div>
       </div>
     </div>

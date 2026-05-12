@@ -117,6 +117,7 @@ export type CareerChatTurnResult = {
     careerMoveIntent: string | null;
     careerMoveIntentLabel: string | null;
     engagementTypes: string[];
+    isOnboardingDone: boolean;
     periodicIntervalDays: number | null;
     preferredLocations: string[];
     recommendationBatchSize: number | null;
@@ -313,6 +314,7 @@ async function buildTalentProfileSnapshot(args: {
       preferredLocations: [],
       careerMoveIntent,
       careerMoveIntentLabel: getTalentCareerMoveIntentLabel(careerMoveIntent),
+      isOnboardingDone: Boolean(setting?.is_onboarding_done),
       periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
         setting?.periodic_interval_days
       ),

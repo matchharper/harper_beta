@@ -3,7 +3,6 @@ import type {
   CareerHistoryOpportunity,
   CareerRecentOpportunity,
   CareerOpportunitySavedStage,
-  CareerTalentNotification,
   SessionResponse,
 } from "@/components/career/types";
 import { getCareerDefaultSavedStage } from "@/components/career/opportunityTypeMeta";
@@ -165,24 +164,5 @@ export const normalizeHistoryOpportunities = (
       return false;
     }
     return true;
-  });
-};
-
-export const normalizeNotifications = (
-  value: SessionResponse["notifications"]
-): CareerTalentNotification[] => {
-  if (!Array.isArray(value)) return [];
-
-  return value.filter((item): item is CareerTalentNotification => {
-    if (!item || typeof item !== "object") return false;
-    if (typeof item.id !== "number" || !Number.isFinite(item.id)) return false;
-    if (
-      typeof item.createdAt !== "string" ||
-      Number.isNaN(Date.parse(item.createdAt))
-    ) {
-      return false;
-    }
-    if (item.message !== null && typeof item.message !== "string") return false;
-    return typeof item.isRead === "boolean";
   });
 };

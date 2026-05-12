@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { getRequestUser } from "@/lib/supabaseServer";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 const MAX_TTS_TEXT_LENGTH = 5000;
+const ELEVENLABS_TTS_OUTPUT_FORMAT = "mp3_44100_128";
 
 export async function POST(req: NextRequest) {
   try {
@@ -34,25 +38,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const elevenRes = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-      {
-        method: "POST",
-        headers: {
-          "xi-api-key": apiKey,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          text,
-          model_id: "eleven_flash_v2_5",
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.8,
-            speed: 1.15,
-          },
-        }),
-      }
+    const elevenUrl = new URL(
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`
     );
+    elevenUrl.searchParams.set("output_format", ELEVENLABS_TTS_OUTPUT_FORMAT);
+
+    const elevenRes = await fetch(elevenUrl, {
+      method: "POST",
+      headers: {
+        "xi-api-key": apiKey,
+        "Content-Type": "application/json",
+        Accept: "audio/mpeg",
+      },
+      body: JSON.stringify({
+        text,
+        model_id: "eleven_flash_v2_5",
+        voice_settings: {
+          stability: 0.5,
+          similarity_boost: 0.8,
+          speed: 1.15,
+        },
+      }),
+    });
 
     if (!elevenRes.ok) {
       const errText = await elevenRes.text();
@@ -83,8 +90,19 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const audioArrayBuffer = await elevenRes.arrayBuffer();
+    if (elevenRes.body) {
+      return new NextResponse(elevenRes.body, {
+        status: 200,
+        headers: {
+          "Content-Type":
+            elevenRes.headers.get("Content-Type") ?? "audio/mpeg",
+          "Cache-Control": "no-store, no-transform",
+          "X-Accel-Buffering": "no",
+        },
+      });
+    }
 
+    const audioArrayBuffer = await elevenRes.arrayBuffer();
     return new NextResponse(audioArrayBuffer, {
       status: 200,
       headers: {

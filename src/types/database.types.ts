@@ -4219,6 +4219,7 @@ export type Database = {
           company_name: string | null
           created_at: string
           description: string | null
+          employment_type: string | null
           end_date: string | null
           id: number
           memo: string | null
@@ -4235,6 +4236,7 @@ export type Database = {
           company_name?: string | null
           created_at?: string
           description?: string | null
+          employment_type?: string | null
           end_date?: string | null
           id?: number
           memo?: string | null
@@ -4251,6 +4253,7 @@ export type Database = {
           company_name?: string | null
           created_at?: string
           description?: string | null
+          employment_type?: string | null
           end_date?: string | null
           id?: number
           memo?: string | null
@@ -4493,38 +4496,6 @@ export type Database = {
           visit_count?: number
         }
         Relationships: []
-      }
-      talent_notification: {
-        Row: {
-          created_at: string
-          id: number
-          is_read: boolean | null
-          message: string | null
-          talent_id: string | null
-        }
-        Insert: {
-          created_at?: string
-          id?: number
-          is_read?: boolean | null
-          message?: string | null
-          talent_id?: string | null
-        }
-        Update: {
-          created_at?: string
-          id?: number
-          is_read?: boolean | null
-          message?: string | null
-          talent_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "talent_notification_talent_id_fkey"
-            columns: ["talent_id"]
-            isOneToOne: false
-            referencedRelation: "talent_users"
-            referencedColumns: ["user_id"]
-          },
-        ]
       }
       talent_opportunity_chat_preview: {
         Row: {
@@ -4933,8 +4904,6 @@ export type Database = {
           last_logined_at: string | null
           location: string | null
           name: string | null
-          network_application: Json
-          network_claimed_at: string | null
           network_source_talent_id: string | null
           network_waitlist_id: number | null
           profile_picture: string | null
@@ -4953,8 +4922,6 @@ export type Database = {
           last_logined_at?: string | null
           location?: string | null
           name?: string | null
-          network_application?: Json
-          network_claimed_at?: string | null
           network_source_talent_id?: string | null
           network_waitlist_id?: number | null
           profile_picture?: string | null
@@ -4973,8 +4940,6 @@ export type Database = {
           last_logined_at?: string | null
           location?: string | null
           name?: string | null
-          network_application?: Json
-          network_claimed_at?: string | null
           network_source_talent_id?: string | null
           network_waitlist_id?: number | null
           profile_picture?: string | null
@@ -5069,7 +5034,6 @@ export type Database = {
           created_at: string | null
           cwql_human_quality_label: number | null
           cwql_llm_quality_label: number | null
-          cwql_llm_quality_label_v2: number | null
           has_career_page: boolean | null
           homepage_url: string | null
           is_internal: boolean | null

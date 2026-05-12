@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from "react";
-import { motion, useAnimation } from "framer-motion";
+import React, { useEffect, useRef, useState } from "react";
+import { motion } from "framer-motion";
 
 type RevealDirection = "bottom" | "top" | "left" | "right" | "none";
 
@@ -46,29 +46,44 @@ const Reveal = ({
   once = true,
   amount = 0.2,
 }: RevealProps) => {
-  const controls = useAnimation();
   const ref = useRef<HTMLDivElement | null>(null);
+  const [animationState, setAnimationState] = useState<"hidden" | "visible">(
+    "visible"
+  );
 
   useEffect(() => {
     const node = ref.current;
     if (!node) return;
 
     if (typeof IntersectionObserver === "undefined") {
-      void controls.start("visible");
+      setAnimationState("visible");
       return;
     }
+
+    const viewportHeight =
+      window.innerHeight || document.documentElement.clientHeight;
+    const viewportWidth =
+      window.innerWidth || document.documentElement.clientWidth;
+    const rect = node.getBoundingClientRect();
+    const isInitiallyInViewport =
+      rect.bottom > 0 &&
+      rect.right > 0 &&
+      rect.top < viewportHeight &&
+      rect.left < viewportWidth;
+
+    setAnimationState(isInitiallyInViewport ? "visible" : "hidden");
 
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            void controls.start("visible");
+            setAnimationState("visible");
             if (once) observer.unobserve(entry.target);
             return;
           }
 
           if (!once) {
-            void controls.start("hidden");
+            setAnimationState("hidden");
           }
         });
       },
@@ -77,7 +92,7 @@ const Reveal = ({
 
     observer.observe(node);
     return () => observer.disconnect();
-  }, [amount, controls, once]);
+  }, [amount, once]);
 
   const directionalOffset = getDirectionalOffset(direction, distance);
   const hiddenX = offsetX ?? directionalOffset.x;
@@ -86,8 +101,8 @@ const Reveal = ({
   return (
     <motion.div
       ref={ref}
-      initial="hidden"
-      animate={controls}
+      initial={false}
+      animate={animationState}
       variants={{
         hidden: {
           opacity: 0,

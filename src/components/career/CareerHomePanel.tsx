@@ -4,11 +4,14 @@ import {
   Check,
   ChevronRight,
   Clock3,
+  FileText,
   Loader2,
   Mail,
   MessageSquareText,
   Phone,
   Plus,
+  Search,
+  UserRound,
 } from "lucide-react";
 import { useMemo } from "react";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
@@ -20,6 +23,7 @@ import {
 } from "./ui/CareerPrimitives";
 import {
   CareerOpportunityType,
+  type CareerOpportunityAgentVariant,
   type CareerHistoryOpportunity,
   type CareerRecentOpportunity,
 } from "./types";
@@ -28,6 +32,13 @@ import { getCareerDefaultSavedStage } from "./opportunityTypeMeta";
 
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const countFormatter = new Intl.NumberFormat("ko-KR");
+const devAgentVariantOptions: Array<{
+  label: string;
+  value: CareerOpportunityAgentVariant;
+}> = [
+  { label: "Tool agent", value: "tool_agent" },
+  { label: "Rule flow", value: "scripted" },
+];
 
 const formatMatchedAt = (value: string) => {
   const date = new Date(value);
@@ -113,6 +124,7 @@ const CareerHomePanel = ({
   const {
     user,
     stage,
+    isOnboardingDone,
     activeCompanyRoleCount,
     callStartPending = false,
     opportunityRun,
@@ -124,6 +136,8 @@ const CareerHomePanel = ({
     onRunOpportunityDiscoveryTest,
     onStartCallMode,
   } = useCareerSidebarContext();
+  const [devAgentVariant, setDevAgentVariant] =
+    React.useState<CareerOpportunityAgentVariant>("tool_agent");
 
   const displayName =
     talentProfile.talentUser?.name ??
@@ -203,23 +217,68 @@ const CareerHomePanel = ({
   const userEmail = String(user?.email ?? "")
     .trim()
     .toLowerCase();
+
   const showDevRunControls =
     process.env.NODE_ENV !== "production" ||
     userEmail.endsWith("@matchharper.com") ||
+    userEmail === "hyunbin.bk@gmail.com" ||
     userEmail === "khj605123@gmail.com";
 
   const opportunityRunLocked =
     opportunityRunTriggerPending || Boolean(opportunityRun?.inputLocked);
+
+  const latestRunAgentLabel =
+    opportunityRun?.agentVariant === "scripted"
+      ? "rule flow"
+      : opportunityRun?.agentVariant === "tool_agent"
+        ? "tool agent"
+        : "agent 미지정";
   const latestRunLabel = opportunityRun
-    ? `${opportunityRun.id.slice(0, 8)} · ${opportunityRun.status}`
+    ? `${opportunityRun.id.slice(0, 8)} · ${opportunityRun.status} · ${latestRunAgentLabel}`
     : "latest run 없음";
-  const isOnboardingCompleted = stage === "completed";
+
+  const isOnboardingCompleted = isOnboardingDone || stage === "completed";
+
   const callCardTitle = isOnboardingCompleted
     ? "Harper와 5분 통화"
-    : "아직 첫번째 대화가 완료되지 않았어요";
-  const callCardDescription = isOnboardingCompleted
-    ? "변경된 사항이 있거나 요구사항이 있을 때 — 통화하면 빨라요"
-    : "왼쪽에서 채팅 혹은 대화로 간단한 질문에만 대답해주세요.";
+    : "아직 5분 커리어 인터뷰가 완료되지 않았어요";
+
+  const callCardDescription = isOnboardingCompleted ? (
+    "변경된 사항이 있거나 요구사항이 있을 때 — 통화하면 빨라요"
+  ) : (
+    <>
+      왼쪽 채팅에서 혹은 아래 통화로 간단한 질문에만 대답해주세요.
+      <br />
+      대화가 끝나면 내용을 정리하고, 딱맞는 기회를 받아보실 수 있게 할게요.
+    </>
+  );
+
+  const onboardingChecklistItems = [
+    {
+      icon: UserRound,
+      label: "계정",
+      meta: null,
+      state: "done",
+    },
+    {
+      icon: FileText,
+      label: "자료 제출",
+      meta: null,
+      state: "done",
+    },
+    {
+      icon: MessageSquareText,
+      label: "기준 확인",
+      meta: "역할과 조건을 짧게 확인",
+      state: "current",
+    },
+    {
+      icon: Search,
+      label: "추천 시작",
+      meta: null,
+      state: "pending",
+    },
+  ] as const;
 
   const handleStartCall = () => {
     onOpenChat();
@@ -238,72 +297,160 @@ const CareerHomePanel = ({
             <br />
             {activeOpportunityLabel}
           </p>
-          <div>
-            <div className="mt-4 rounded-3xl flex flex-row items-center justify-between bg-beige100 border border-beige900/5 px-6 py-5">
-              <div className="w-12 h-12 min-w-12 flex items-center justify-center bg-beige200 rounded-2xl">
-                {isOnboardingCompleted ? (
+          <div className="mt-4 rounded-3xl border border-beige900/5 bg-beige100 px-6 py-5">
+            {isOnboardingCompleted ? (
+              <div className="flex flex-row items-center justify-between gap-4">
+                <div className="flex h-12 w-12 min-w-12 items-center justify-center rounded-2xl bg-beige200">
                   <Phone className="h-6 w-6 text-beige700" strokeWidth={1.6} />
-                ) : (
-                  <Badge className="h-6 w-6 text-beige700" strokeWidth={1.6} />
-                )}
-              </div>
-              <div className="flex flex-col gap-1 items-start justify-center w-full px-4">
-                <div className="font-medium">{callCardTitle}</div>
-                <div className="text-sm text-beige900/80">
-                  {callCardDescription}
                 </div>
+                <div className="flex w-full flex-col items-start justify-center gap-1 px-4">
+                  <div className="font-medium">{callCardTitle}</div>
+                  <div className="text-sm text-beige900/80">
+                    {callCardDescription}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleStartCall}
+                  disabled={callStartPending || !onStartCallMode}
+                  className="flex min-w-[130px] flex-row items-center justify-center gap-2 rounded-full bg-beige700 px-4 py-3 text-base text-beige100 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {callStartPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Phone className="h-4 w-4" strokeWidth={1.6} />
+                  )}
+                  {callStartPending ? "연결 중..." : "통화 시작"}
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={handleStartCall}
-                disabled={callStartPending || !onStartCallMode}
-                className="flex min-w-[130px] flex-row items-center justify-center gap-2 rounded-full bg-beige700 px-4 py-3 text-base text-beige100 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {callStartPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Phone className="h-4 w-4" strokeWidth={1.6} />
-                )}
-                {callStartPending ? "연결 중..." : "통화 시작"}
-              </button>
+            ) : (
+              <div className="flex w-full flex-col items-center justify-center gap-1 px-4 py-2">
+                <div className="flex h-12 w-12 min-w-12 items-center justify-center rounded-2xl bg-beige200">
+                  <Badge className="h-6 w-6 text-beige700" strokeWidth={1.6} />
+                </div>
+                <div className="mt-4 text-lg font-medium">{callCardTitle}</div>
+                <div className="mt-2 text-center text-sm text-beige900/80">
+                  <div>{callCardDescription}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleStartCall}
+                  disabled={callStartPending || !onStartCallMode}
+                  className="mt-6 flex min-w-[130px] flex-row items-center justify-center gap-2 rounded-full bg-beige700 px-4 py-3 text-base text-beige100 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {callStartPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Phone className="h-4 w-4" strokeWidth={1.6} />
+                  )}
+                  {callStartPending ? "연결 중..." : "통화 시작"}
+                </button>
+              </div>
+            )}
+          </div>
+          {!isOnboardingCompleted ? (
+            <div className="mt-3 rounded-3xl bg-beige100 px-6 py-5">
+              <div>
+                <div className="text-[15px] font-semibold text-beige900">
+                  커리어 인터뷰 진행 중
+                </div>
+                <p className="mt-1 text-[13px] leading-5 text-beige900/60">
+                  원하는 기회의 기준을 확인하고 있어요.
+                </p>
+              </div>
+              <div className="mt-4 space-y-4">
+                {onboardingChecklistItems.map((item) => {
+                  const ItemIcon = item.icon;
+
+                  return (
+                    <div key={item.label} className="flex items-start gap-3">
+                      <span
+                        className={[
+                          "flex mt-[1px] h-4 w-4 shrink-0 items-center justify-center rounded-md border transition-colors",
+                          item.state === "done"
+                            ? "border-beige700 bg-beige700 text-hblack000"
+                            : item.state === "current"
+                              ? "border-beige700 bg-hblack000 text-beige700"
+                              : "border-hblack300 bg-hblack000 text-transparent",
+                        ].join(" ")}
+                        aria-hidden="true"
+                      >
+                        <Check className="h-3 w-3" />
+                      </span>
+                      <div className="flex flex-row gap-1 items-start justify-start w-full">
+                        <span
+                          className={[
+                            "flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors",
+                            item.state === "pending"
+                              ? "text-hblack400"
+                              : "text-beige700",
+                          ].join(" ")}
+                          aria-hidden="true"
+                        >
+                          <ItemIcon className="h-4 w-4" strokeWidth={1.8} />
+                        </span>
+                        <div className="min-w-0">
+                          <p
+                            className={[
+                              "text-sm",
+                              item.state === "pending"
+                                ? "text-hblack500"
+                                : "text-hblack1000",
+                            ].join(" ")}
+                          >
+                            {item.label}
+                          </p>
+                          {item.meta && (
+                            <p className="mt-1 text-[12px] leading-5 text-hblack500">
+                              {item.meta}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-          <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <HomeOpportunitySummaryCard
-              title="새 포지션"
-              status="검토 대기 중"
-              count={newPositionCount}
-              description={newPositionDescription}
-              buttonLabel="검토하기"
-              icon={
-                <Mail className="h-5 w-5 text-[#b77a4e]" strokeWidth={1.8} />
-              }
-              iconClassName="bg-[#f3ede8]"
-              onClick={() =>
-                onOpenHistory({
-                  historyTab: "new",
-                  savedStage: "saved",
-                })
-              }
-            />
-            <HomeOpportunitySummaryCard
-              title="진행 중"
-              status="추적 + 지원"
-              count={inProgressPositionCount}
-              description={inProgressCompanyLabel}
-              buttonLabel="상세 보기"
-              icon={
-                <Check className="h-6 w-6 text-[#4f8062]" strokeWidth={1.9} />
-              }
-              iconClassName="bg-[#e8f0eb]"
-              onClick={() =>
-                onOpenHistory({
-                  historyTab: "saved",
-                  savedStage: inProgressTargetSavedStage,
-                })
-              }
-            />
-          </div>
+          ) : null}
+          {isOnboardingCompleted ? (
+            <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <HomeOpportunitySummaryCard
+                title="새 포지션"
+                status="검토 대기 중"
+                count={newPositionCount}
+                description={newPositionDescription}
+                buttonLabel="검토하기"
+                icon={
+                  <Mail className="h-5 w-5 text-[#b77a4e]" strokeWidth={1.8} />
+                }
+                iconClassName="bg-[#f3ede8]"
+                onClick={() =>
+                  onOpenHistory({
+                    historyTab: "new",
+                    savedStage: "saved",
+                  })
+                }
+              />
+              <HomeOpportunitySummaryCard
+                title="진행 중"
+                status="추적 + 지원"
+                count={inProgressPositionCount}
+                description={inProgressCompanyLabel}
+                buttonLabel="상세 보기"
+                icon={
+                  <Check className="h-6 w-6 text-[#4f8062]" strokeWidth={1.9} />
+                }
+                iconClassName="bg-[#e8f0eb]"
+                onClick={() =>
+                  onOpenHistory({
+                    historyTab: "saved",
+                    savedStage: inProgressTargetSavedStage,
+                  })
+                }
+              />
+            </div>
+          ) : null}
           {showDevRunControls ? (
             <div className="mt-5 rounded-2xl border border-dashed border-beige900/15 bg-white/70 px-4 py-4">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
@@ -322,9 +469,35 @@ const CareerHomePanel = ({
                   </div>
                 ) : null}
               </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="text-[12px] font-medium text-beige900/55">
+                  Agent
+                </span>
+                {devAgentVariantOptions.map((option) => {
+                  const selected = option.value === devAgentVariant;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setDevAgentVariant(option.value)}
+                      disabled={opportunityRunLocked}
+                      className={[
+                        "inline-flex h-8 items-center rounded-full border px-3 text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+                        selected
+                          ? "border-beige700 bg-beige700 text-white"
+                          : "border-beige900/10 bg-beige50 text-beige900/65 hover:border-beige900/20",
+                      ].join(" ")}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 <CareerSecondaryButton
-                  onClick={() => void onRunOpportunityDiscoveryTest()}
+                  onClick={() =>
+                    void onRunOpportunityDiscoveryTest(devAgentVariant)
+                  }
                   disabled={opportunityRunLocked}
                   className="h-10 gap-2 px-4 text-[13px]"
                 >
@@ -336,7 +509,9 @@ const CareerHomePanel = ({
                   discovery_run 추가
                 </CareerSecondaryButton>
                 <CareerSecondaryButton
-                  onClick={() => void onRunPeriodicOpportunityDiscoveryTest()}
+                  onClick={() =>
+                    void onRunPeriodicOpportunityDiscoveryTest(devAgentVariant)
+                  }
                   disabled={opportunityRunLocked}
                   className="h-10 gap-2 px-4 text-[13px]"
                 >

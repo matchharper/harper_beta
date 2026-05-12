@@ -1,4 +1,10 @@
-import { Loader2, MessageSquareText, Phone } from "lucide-react";
+import {
+  CheckCircle2,
+  Clock3,
+  Loader2,
+  MessageSquareText,
+  Phone,
+} from "lucide-react";
 import StaggerText from "@/components/landing/Animation/StaggerText";
 import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
 import {
@@ -34,7 +40,25 @@ const CareerWelcomeScreen = () => {
     <section className="flex h-full min-h-0 flex-1 flex-col">
       <div className="flex min-h-full flex-1 flex-col overflow-hidden">
         <div className="flex flex-1 flex-col justify-between">
-          <div className="max-w-[820px] mt-8 space-y-12 px-12">
+          <div className="max-w-[820px] mt-8 space-y-10 px-12">
+            <div className="max-w-[560px] rounded-[8px] border border-beige900/10 bg-white/65 px-4 py-4">
+              <div className="flex flex-wrap items-center gap-2 text-[12px] font-medium text-beige900/55">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-beige50 px-2.5 py-1">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-[#4f8062]" />
+                  프로필 확인됨
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-beige50 px-2.5 py-1">
+                  <Clock3 className="h-3.5 w-3.5 text-beige700" />약 5분
+                </span>
+              </div>
+              <div className="mt-3 text-[15px] font-medium leading-6 text-beige900">
+                첫 추천 기준을 짧게 정리할게요.
+              </div>
+              <p className="mt-2 text-[13px] leading-6 text-beige900/55">
+                희망 역할, 근무 방식, 제외할 조건만 확인하면 실제 포지션
+                탐색으로 넘어갑니다.
+              </p>
+            </div>
             <div className="max-w-[560px] space-y-3 text-[16px] leading-8 text-beige900/65 sm:text-[17px]">
               <StaggerText
                 text={`안녕하세요 ${displayName}님, 만나서 반갑습니다. 저는 하퍼입니다.`}
@@ -64,7 +88,7 @@ const CareerWelcomeScreen = () => {
               </p>
               <p className="pt-2 text-beige900/75">
                 <StaggerText
-                  text={`${displayName}님에 대해서 더 자세히 알고, 어떤 기회를 찾고계신지 듣고싶어요.`}
+                  text={`${displayName}님에게 맞는 기회 기준을 5분 정도만 맞춰볼게요.`}
                   by="word"
                   delay={0.82}
                   stagger={0.05}

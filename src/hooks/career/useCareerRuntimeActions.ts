@@ -1,5 +1,8 @@
 import { useCallback, type Dispatch, type SetStateAction } from "react";
-import type { CareerOpportunityRun } from "@/components/career/types";
+import type {
+  CareerOpportunityAgentVariant,
+  CareerOpportunityRun,
+} from "@/components/career/types";
 import { getErrorMessage } from "@/hooks/career/careerHelpers";
 import { showOpportunityDiscoveryStartedToast } from "@/hooks/career/opportunityDiscoveryToast";
 import type { FetchWithAuth } from "@/hooks/career/useCareerApi";
@@ -24,7 +27,10 @@ export function useCareerRuntimeActions(args: {
   } = args;
 
   const queueOpportunityRun = useCallback(
-    async (mode: "immediate" | "periodic") => {
+    async (
+      mode: "immediate" | "periodic",
+      agentVariant: CareerOpportunityAgentVariant = "tool_agent"
+    ) => {
       if (opportunityRun?.inputLocked || opportunityRunTriggerPending) {
         return;
       }
@@ -38,6 +44,7 @@ export function useCareerRuntimeActions(args: {
           body: JSON.stringify({
             chatPreviewCount: 3,
             conversationId: conversationId ?? null,
+            agentVariant,
             targetRecommendationCount: isPeriodic ? undefined : 150,
             trigger: isPeriodic
               ? "periodic_refresh_due"
@@ -45,11 +52,13 @@ export function useCareerRuntimeActions(args: {
             triggerPayload: isPeriodic
               ? {
                   createdBy: "career_home_panel_dev_button",
+                  opportunityAgentVariant: agentVariant,
                   manualTest: true,
                   simulatedElapsedDays: 3,
                   source: "career_home_panel_periodic_test_button",
                 }
               : {
+                  opportunityAgentVariant: agentVariant,
                   manualTest: true,
                   source: "career_home_panel_test_button",
                 },
@@ -103,12 +112,14 @@ export function useCareerRuntimeActions(args: {
   );
 
   const handleRunOpportunityDiscoveryTest = useCallback(
-    async () => queueOpportunityRun("immediate"),
+    async (agentVariant?: CareerOpportunityAgentVariant) =>
+      queueOpportunityRun("immediate", agentVariant),
     [queueOpportunityRun]
   );
 
   const handleRunPeriodicOpportunityDiscoveryTest = useCallback(
-    async () => queueOpportunityRun("periodic"),
+    async (agentVariant?: CareerOpportunityAgentVariant) =>
+      queueOpportunityRun("periodic", agentVariant),
     [queueOpportunityRun]
   );
 

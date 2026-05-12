@@ -24,8 +24,6 @@ type InternalViewProps = {
   mailPending: boolean;
   mailSubject: string;
   memoContent: string;
-  notificationContent: string;
-  notificationPending: boolean;
   onConversationContentChange: (value: string) => void;
   onDeleteEntry: (entry: TalentInternalEntry) => void;
   onEditCancel: () => void;
@@ -36,10 +34,8 @@ type InternalViewProps = {
   onMailFromEmailChange: (value: string) => void;
   onMailSubjectChange: (value: string) => void;
   onMemoContentChange: (value: string) => void;
-  onNotificationContentChange: (value: string) => void;
   onSaveConversation: () => void;
   onSaveMemo: () => void;
-  onSaveNotification: () => void;
   onSendMail: () => void;
   updatePendingEntryId: number | null;
 };
@@ -58,8 +54,6 @@ export default function InternalView({
   mailPending,
   mailSubject,
   memoContent,
-  notificationContent,
-  notificationPending,
   onConversationContentChange,
   onDeleteEntry,
   onEditCancel,
@@ -70,10 +64,8 @@ export default function InternalView({
   onMailFromEmailChange,
   onMailSubjectChange,
   onMemoContentChange,
-  onNotificationContentChange,
   onSaveConversation,
   onSaveMemo,
-  onSaveNotification,
   onSendMail,
   updatePendingEntryId,
 }: InternalViewProps) {
@@ -174,31 +166,6 @@ export default function InternalView({
           >
             메모 저장
           </button>
-
-          <div className="mt-5 border-t border-beige900/10 pt-5">
-            <label className={opsTheme.label}>Candidate Notification</label>
-            <p className="mt-2 font-geist text-sm leading-6 text-beige900/60">
-              여기서 입력한 내용은 후보자의 `career` 페이지 Notification에
-              표시됩니다. 아직 계정 연결 전이어도 이후 이어지도록 저장됩니다.
-            </p>
-            <textarea
-              value={notificationContent}
-              onChange={(event) => onNotificationContentChange(event.target.value)}
-              className={cx(opsTheme.textarea, "mt-3 min-h-[120px]")}
-              placeholder="후보자에게 보여줄 알림 내용을 입력하세요."
-            />
-            <button
-              type="button"
-              onClick={onSaveNotification}
-              disabled={notificationPending || !notificationContent.trim()}
-              className={cx(opsTheme.buttonSoft, "mt-3 h-10")}
-            >
-              {notificationPending ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-              ) : null}
-              알림 저장
-            </button>
-          </div>
         </StructuredSection>
 
         <StructuredSection icon={MessageSquareText} title="직접 대화 기록">

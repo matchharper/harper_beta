@@ -1,8 +1,3 @@
-drop function if exists public.claim_talent_user_email_alias(text, uuid, text, text, text);
-
-alter table public.talent_users
-  add column if not exists last_logined_at timestamptz null;
-
 create or replace function public.claim_talent_user_email_alias(
   source_email text,
   target_user_id uuid,
@@ -154,3 +149,5 @@ begin
   return true;
 end;
 $$;
+
+drop table if exists public.talent_notification;

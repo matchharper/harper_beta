@@ -33,6 +33,7 @@ const emptyPreferences = (): CareerTalentPreferences => ({
   preferredLocations: [],
   careerMoveIntent: null,
   careerMoveIntentLabel: null,
+  isOnboardingDone: false,
   periodicIntervalDays: DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS,
   recommendationBatchSize: DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
 });
@@ -63,6 +64,7 @@ const cloneTalentPreferences = (value: unknown): CareerTalentPreferences => {
     preferredLocations: [],
     careerMoveIntent,
     careerMoveIntentLabel: getTalentCareerMoveIntentLabel(careerMoveIntent),
+    isOnboardingDone: Boolean(record.isOnboardingDone),
     periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
       record.periodicIntervalDays
     ),
@@ -87,6 +89,7 @@ const sameTalentPreferences = (
   return (
     sameStringArray(left.engagementTypes, right.engagementTypes) &&
     left.careerMoveIntent === right.careerMoveIntent &&
+    left.isOnboardingDone === right.isOnboardingDone &&
     left.periodicIntervalDays === right.periodicIntervalDays &&
     left.recommendationBatchSize === right.recommendationBatchSize
   );

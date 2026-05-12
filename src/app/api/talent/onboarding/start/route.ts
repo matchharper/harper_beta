@@ -68,6 +68,67 @@ const isLinkedinLink = (value: string) => {
   }
 };
 
+const getSubmittedLinkLabel = (value: string) => {
+  const normalized = normalizeLink(value);
+  if (!normalized) return null;
+
+  try {
+    const url = new URL(normalized);
+    const host = url.hostname.toLowerCase();
+
+    if (host === "linkedin.com" || host.endsWith(".linkedin.com")) {
+      return "링크드인";
+    }
+    if (host === "github.com" || host.endsWith(".github.com")) {
+      return "깃헙";
+    }
+    if (host === "huggingface.co" || host.endsWith(".huggingface.co")) {
+      return "Hugging Face";
+    }
+    if (host.includes("scholar.google.")) {
+      return "Scholar";
+    }
+    if (
+      host === "x.com" ||
+      host.endsWith(".x.com") ||
+      host === "twitter.com" ||
+      host.endsWith(".twitter.com")
+    ) {
+      return "X";
+    }
+
+    return "개인 웹사이트";
+  } catch {
+    return "기타";
+  }
+};
+
+const buildProfileSubmitMessage = (args: {
+  hasResume: boolean;
+  links: string[];
+}) => {
+  const linkLabels = args.links.reduce<string[]>((acc, link) => {
+    const label = getSubmittedLinkLabel(link);
+    if (label && !acc.includes(label)) {
+      acc.push(label);
+    }
+    return acc;
+  }, []);
+  const linkPart =
+    linkLabels.length > 0 ? `${linkLabels.join("/")} 링크` : "";
+
+  if (args.hasResume && linkPart) {
+    return `이력서와 ${linkPart}를 제출했습니다.`;
+  }
+  if (args.hasResume) {
+    return "이력서를 제출했습니다.";
+  }
+  if (linkPart) {
+    return `${linkPart}를 제출했습니다.`;
+  }
+  return "프로필 정보를 제출했습니다.";
+};
+
 const summarizeSubmittedProfile = (args: {
   linkCount: number;
   resumeFileName?: string;
@@ -248,13 +309,17 @@ export async function POST(req: NextRequest) {
     ]);
 
     const kickoff = llmRaw;
+    const profileSubmitContent = buildProfileSubmitMessage({
+      hasResume,
+      links,
+    });
 
     const messagePayloads = [
       {
         conversation_id: conversationId,
         user_id: user.id,
         role: "user",
-        content: "이력서와 주요 링크를 제출했습니다.",
+        content: profileSubmitContent,
         message_type: "profile_submit",
       },
       {
@@ -407,6 +472,8 @@ export async function POST(req: NextRequest) {
       },
       talentProfile,
       userMessage: toResponseMessage(insertedUserMessage),
+      profileSubmitMessage: profileSubmitContent,
+      kickoff,
       assistantMessages: insertedRows
         .filter(
           (item) =>

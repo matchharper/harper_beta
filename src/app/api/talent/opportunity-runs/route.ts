@@ -7,7 +7,10 @@ import {
   getOpportunityAdmin,
   serializeOpportunityRun,
 } from "@/lib/opportunityDiscovery/store";
-import type { OpportunityDiscoveryTrigger } from "@/lib/opportunityDiscovery/types";
+import type {
+  OpportunityDiscoveryAgentVariant,
+  OpportunityDiscoveryTrigger,
+} from "@/lib/opportunityDiscovery/types";
 
 export const runtime = "nodejs";
 
@@ -15,6 +18,11 @@ const isTrigger = (value: unknown): value is OpportunityDiscoveryTrigger =>
   value === "conversation_completed" ||
   value === "immediate_opportunity_requested" ||
   value === "periodic_refresh_due";
+
+const isAgentVariant = (
+  value: unknown
+): value is OpportunityDiscoveryAgentVariant =>
+  value === "tool_agent" || value === "scripted";
 
 export async function GET(req: NextRequest) {
   try {
@@ -43,6 +51,7 @@ export async function POST(req: NextRequest) {
     const body = (await req.json().catch(() => ({}))) as {
       chatPreviewCount?: number;
       conversationId?: string;
+      agentVariant?: unknown;
       targetRecommendationCount?: number;
       trigger?: unknown;
       triggerPayload?: Record<string, unknown>;
@@ -54,6 +63,19 @@ export async function POST(req: NextRequest) {
 
     const admin = getOpportunityAdmin();
     const conversationId = String(body.conversationId ?? "").trim() || null;
+    const bodyAgentVariant = isAgentVariant(body.agentVariant)
+      ? body.agentVariant
+      : null;
+    const payloadAgentVariant = isAgentVariant(
+      body.triggerPayload?.opportunityAgentVariant
+    )
+      ? body.triggerPayload.opportunityAgentVariant
+      : null;
+    const agentVariant = bodyAgentVariant ?? payloadAgentVariant;
+    const triggerPayload = {
+      ...(body.triggerPayload ?? {}),
+      ...(agentVariant ? { opportunityAgentVariant: agentVariant } : {}),
+    };
     if (conversationId) {
       const activeRun = await getActiveOpportunityRun({
         admin,
@@ -76,7 +98,7 @@ export async function POST(req: NextRequest) {
       talentId: user.id,
       targetRecommendationCount: body.targetRecommendationCount,
       trigger: body.trigger,
-      triggerPayload: body.triggerPayload ?? {},
+      triggerPayload,
     });
 
     console.info("[opportunity-discovery] queued for harper_worker", {

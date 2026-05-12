@@ -1,10 +1,4 @@
-import {
-  GalleryVerticalEnd,
-  House,
-  Loader2,
-  User,
-  UserRoundCog,
-} from "lucide-react";
+import { GalleryVerticalEnd, House, Loader2, User } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -17,6 +11,7 @@ import CareerChatPanel from "@/components/career/CareerChatPanel";
 import CareerHistoryPanel from "@/components/career/CareerHistoryPanel";
 import CareerHomePanel from "@/components/career/CareerHomePanel";
 import CareerProfileWorkspace from "@/components/career/profile/CareerProfileWorkspace";
+import { useCareerSidebarContext } from "@/components/career/CareerSidebarContext";
 import CareerWorkspaceNav, {
   type CareerWorkspaceTab,
 } from "@/components/career/CareerWorkspaceNav";
@@ -160,6 +155,7 @@ const CareerWorkspaceRoot = ({
   const [chatPanelWidth, setChatPanelWidth] = useState(
     CHAT_PANEL_DEFAULT_WIDTH
   );
+  const { stage } = useCareerSidebarContext();
   const activeTab = controlledActiveTab ?? activeTabState;
   const handleChangeTab =
     controlledOnChangeTab ??
@@ -273,6 +269,7 @@ const CareerWorkspaceRoot = ({
     });
     composer?.focus();
   }, []);
+  const hasPendingSetup = stage !== "completed";
 
   return (
     <div className="flex min-h-screen w-full flex-col lg:h-screen lg:overflow-hidden">
@@ -286,7 +283,7 @@ const CareerWorkspaceRoot = ({
           className="flex h-[55vh] min-h-0 min-w-0 flex-col border-b border-beige900/10 bg-beige50 lg:h-auto lg:flex-none lg:border-b-0"
           style={isDesktop ? { flexBasis: `${chatPanelWidth}%` } : undefined}
         >
-          <div className="min-h-0 flex-1 p-1 bg-beige200">
+          <div className="min-h-0 flex-1 bg-beige200 p-1">
             <CareerChatPanel />
           </div>
         </section>
@@ -330,6 +327,11 @@ const CareerWorkspaceRoot = ({
                     >
                       <Icon className="h-4 w-4" />
                       {item.label}
+                      {item.id === "home" && hasPendingSetup ? (
+                        <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-beige900 px-1.5 text-[11px] leading-none text-beige50">
+                          1
+                        </span>
+                      ) : null}
                     </button>
                   );
                 })}

@@ -3,12 +3,14 @@ import { getRequestUser } from "@/lib/supabaseServer";
 import {
   fetchTalentSetting,
   getTalentSupabaseAdmin,
+  toTalentMessageResponse,
 } from "@/lib/talentOnboarding/server";
 import {
   buildCareerCallWrapupFallbackFollowUp,
   buildCareerCallWrapupTurnInstruction,
 } from "@/lib/career/prompts";
 import { maybeSummarizeTalentConversation } from "@/lib/talentOnboarding/conversationSummary";
+import { completeTalentOnboardingManually } from "@/lib/talentOnboarding/manualCompletion";
 import { TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP } from "@/lib/talentOnboarding/onboarding";
 import { runCareerChatTurn } from "@/lib/career/chatTurn";
 import { TALENT_TOOL_NAMES } from "@/lib/talentOnboarding/tools";
@@ -20,6 +22,7 @@ type TranscriptEntry = {
 
 type Body = {
   conversationId: string;
+  forceCompleteOnboarding?: boolean;
   transcript: TranscriptEntry[];
   durationSeconds: number;
 };
@@ -136,7 +139,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as Body;
-    const { conversationId, transcript, durationSeconds } = body;
+    const {
+      conversationId,
+      forceCompleteOnboarding = false,
+      transcript,
+      durationSeconds,
+    } = body;
 
     if (!conversationId || !Array.isArray(transcript)) {
       return NextResponse.json(
@@ -150,7 +158,7 @@ export async function POST(request: NextRequest) {
     const durationLabel =
       safeDurationSeconds > 0 ? formatDuration(safeDurationSeconds) : null;
     const transcriptStats = summarizeTranscript(transcript);
-    if (transcriptStats.userTurns <= 0) {
+    if (transcriptStats.userTurns <= 0 && !forceCompleteOnboarding) {
       return NextResponse.json({
         followUpMessage: null,
         skipped: "no_user_speech",
@@ -200,10 +208,33 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       );
     }
-    if (existingOnboardingWrapup.data) {
+    if (existingOnboardingWrapup.data && !forceCompleteOnboarding) {
       return NextResponse.json({
         followUpMessage: null,
         skipped: "onboarding_completion_wrapup_exists",
+      });
+    }
+    if (forceCompleteOnboarding) {
+      const result = await completeTalentOnboardingManually({
+        admin: supabase,
+        conversationId,
+        source: "career_call_manual_completion",
+        userId: user.id,
+      });
+      const followUpMessage = result.wrapupMessage
+        ? toTalentMessageResponse(result.wrapupMessage)
+        : null;
+
+      return NextResponse.json({
+        followUpMessage,
+        followUpMessages: followUpMessage ? [followUpMessage] : [],
+        insightUpdatedAt: result.insightUpdatedAt,
+        opportunityDiscoveryQueued: result.opportunityDiscoveryQueued,
+        opportunityRun: result.opportunityRun,
+        progress: {
+          completed: true,
+        },
+        talentInsights: result.talentInsights,
       });
     }
     const inferredOnboardingDone =

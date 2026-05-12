@@ -1241,59 +1241,6 @@ function splitRecommendationMemoIntoReasons(memo: string | null) {
   return items;
 }
 
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function buildOpportunityRecommendationNotificationMessage(args: {
-  companyName: string;
-  opportunityType: OpportunityType;
-  roleName: string;
-}) {
-  const companyName = `<strong>${escapeHtml(args.companyName)}</strong>`;
-  const roleName = `<strong>${escapeHtml(args.roleName)}</strong>`;
-
-  if (args.opportunityType === OpportunityType.IntroRequest) {
-    return `${companyName}의 채용담당자가 회원님과의 연결을 원합니다.`;
-  }
-
-  if (args.opportunityType === OpportunityType.InternalRecommendation) {
-    return `${companyName}의 ${roleName}에 추천드리고 싶습니다.`;
-  }
-
-  return `${companyName}의 ${roleName} 기회를 추천합니다.`;
-}
-
-async function insertTalentOpportunityNotification(args: {
-  admin: AdminClient;
-  message: string;
-  talentId: string;
-}) {
-  const now = new Date().toISOString();
-  const message = String(args.message ?? "").trim();
-  if (!message) {
-    throw new Error("Notification message is required");
-  }
-
-  const { error } = await (
-    args.admin.from("talent_notification" as any) as any
-  ).insert({
-    created_at: now,
-    is_read: false,
-    message,
-    talent_id: args.talentId,
-  } as any);
-
-  if (error) {
-    throw new Error(error.message ?? "Failed to insert talent notification");
-  }
-}
-
 function buildRecommendationReasons(memo: string | null) {
   return splitRecommendationMemoIntoReasons(memo);
 }
@@ -3259,46 +3206,6 @@ async function fetchRoleLookupByIds(admin: AdminClient, roleIds: string[]) {
   );
 }
 
-async function fetchRoleNotificationContext(args: {
-  admin: AdminClient;
-  roleId: string;
-}) {
-  const { data, error } = await ((
-    args.admin.from("company_roles" as any) as any
-  )
-    .select(
-      `
-        role_id,
-        name,
-        company_workspace:company_workspace (
-          company_name
-        )
-      `
-    )
-    .eq("role_id", args.roleId)
-    .maybeSingle() as any);
-
-  if (error) {
-    throw new Error(
-      error.message ?? "Failed to load role notification context"
-    );
-  }
-
-  const roleName = String(data?.name ?? "").trim();
-  const companyName = String(
-    data?.company_workspace?.company_name ?? ""
-  ).trim();
-
-  if (!roleName || !companyName) {
-    throw new Error("Failed to load role notification context");
-  }
-
-  return {
-    companyName,
-    roleName,
-  };
-}
-
 export async function fetchOpsOpportunityMatches(args: {
   candidId?: string | null;
   roleId?: string | null;
@@ -3500,51 +3407,21 @@ export async function saveOpsOpportunityRecommendation(args: {
     opportunityType === OpportunityType.IntroRequest
       ? "match"
       : "recommendation";
-  const role = await fetchRoleNotificationContext({ admin, roleId });
 
-  const notificationMessage = buildOpportunityRecommendationNotificationMessage(
-    {
-      companyName: role.companyName,
-      opportunityType,
-      roleName: role.roleName,
-    }
-  );
-
-  const { data, error } = await (
+  const { error } = await (
     admin.from("talent_opportunity_recommendation" as any) as any
-  )
-    .insert({
-      fit_reasons: buildRecommendationReasons(recommendationMemo),
-      kind,
-      opportunity_type: opportunityType,
-      recommended_at: now,
-      role_id: roleId,
-      talent_id: talentId,
-      updated_at: now,
-    })
-    .select("id")
-    .single();
+  ).insert({
+    fit_reasons: buildRecommendationReasons(recommendationMemo),
+    kind,
+    opportunity_type: opportunityType,
+    recommended_at: now,
+    role_id: roleId,
+    talent_id: talentId,
+    updated_at: now,
+  });
 
   if (error) {
     throw new Error(error.message ?? "Failed to save recommendation");
-  }
-
-  const recommendationId = String(data?.id ?? "").trim();
-
-  try {
-    await insertTalentOpportunityNotification({
-      admin,
-      message: notificationMessage,
-      talentId,
-    });
-  } catch (notificationError) {
-    if (recommendationId) {
-      await (admin.from("talent_opportunity_recommendation" as any) as any)
-        .delete()
-        .eq("id", recommendationId);
-    }
-
-    throw notificationError;
   }
 
   return fetchOpsOpportunityRecommendations({ talentId });

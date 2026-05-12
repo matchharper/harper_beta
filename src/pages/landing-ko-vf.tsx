@@ -1353,22 +1353,6 @@ function WorkflowVisual({
 }
 
 export default function LandingKoVfPage() {
-  const [revealPass, setRevealPass] = useState(0);
-
-  useEffect(() => {
-    let secondFrame: number | null = null;
-    const firstFrame = window.requestAnimationFrame(() => {
-      secondFrame = window.requestAnimationFrame(() => {
-        setRevealPass(1);
-      });
-    });
-
-    return () => {
-      window.cancelAnimationFrame(firstFrame);
-      if (secondFrame !== null) window.cancelAnimationFrame(secondFrame);
-    };
-  }, []);
-
   return (
     <>
       <Head>
@@ -1385,7 +1369,6 @@ export default function LandingKoVfPage() {
           href="https://matchharper.com/"
         />
         <link rel="icon" href="/images/logo.ico" />
-        <style>{`body { display: block !important; }`}</style>
       </Head>
 
       <div
@@ -1394,7 +1377,7 @@ export default function LandingKoVfPage() {
       >
         <AppBar />
 
-        <main key={revealPass}>
+        <main>
           <section className="flex flex-col items-center justify-center px-4 pb-14 pt-[112px] text-center md:px-10 md:pb-20 md:pt-[24vh]">
             <Reveal once delay={0.06}>
               <div className="text-[13px] font-medium text-beige900/50">
@@ -1437,14 +1420,6 @@ export default function LandingKoVfPage() {
                 </div>
               </div>
             </Reveal>
-
-            {/* <Image
-              src="/images/career_screen.png"
-              alt="Harper"
-              width={1000}
-              height={1000}
-              className="mt-[20vh]"
-            /> */}
           </section>
 
           <SocialProofSection />

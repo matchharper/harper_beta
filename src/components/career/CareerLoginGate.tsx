@@ -1,4 +1,4 @@
-import { Bell, Loader2, Settings2, UserRoundCog } from "lucide-react";
+import { CircleHelp, Loader2, Settings2, UserRoundCog } from "lucide-react";
 import type { CareerWorkspaceTab } from "./CareerWorkspaceNav";
 import { careerCx } from "./ui/CareerPrimitives";
 import Image from "next/image";
@@ -72,7 +72,7 @@ const CareerLoginGate = ({
 
               <div className="flex items-center gap-2">
                 <ContentSkeleton className="flex h-10 w-10 items-center justify-center rounded-full">
-                  <Bell className="h-4 w-4 text-beige900/25" />
+                  <CircleHelp className="h-4 w-4 text-beige900/25" />
                 </ContentSkeleton>
                 <ContentSkeleton className="flex h-10 w-10 items-center justify-center rounded-full">
                   <Settings2 className="h-4 w-4 text-beige900/25" />

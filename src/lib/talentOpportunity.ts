@@ -30,6 +30,9 @@ type RawRecommendationRow = {
   company_role: {
     company_workspace: {
       company_description: string | null;
+      company_db: {
+        logo: string | null;
+      } | null;
       company_name: string;
       homepage_url: string | null;
       linkedin_url: string | null;
@@ -84,6 +87,9 @@ type RawPostingRoleRow = {
   work_mode: string | null;
   company_workspace: {
     company_description: string | null;
+    company_db: {
+      logo: string | null;
+    } | null;
     company_name: string;
     homepage_url: string | null;
     linkedin_url: string | null;
@@ -126,7 +132,10 @@ const TALENT_OPPORTUNITY_HISTORY_SELECT = `
       company_description,
       homepage_url,
       linkedin_url,
-      logo_url
+      logo_url,
+      company_db:company_db (
+        logo
+      )
     )
   )
 `;
@@ -149,7 +158,10 @@ const TALENT_POSTING_ROLE_SELECT = `
     company_description,
     homepage_url,
     linkedin_url,
-    logo_url
+    logo_url,
+    company_db:company_db (
+      logo
+    )
   ),
   talent_opportunity_recommendation:talent_opportunity_recommendation!role_id (
     id,
@@ -603,7 +615,7 @@ function mapRecommendationRow(
     companyDescription: workspace.company_description ?? null,
     companyHomepageUrl: homepageUrl,
     companyLinkedinUrl: linkedinUrl,
-    companyLogoUrl: workspace.logo_url ?? null,
+    companyLogoUrl: workspace.company_db?.logo ?? workspace.logo_url ?? null,
     companyName: String(workspace.company_name ?? ""),
     description: role.description ?? null,
     dismissedAt: row.dismissed_at ?? null,
@@ -680,7 +692,7 @@ function mapPostingRoleRow(
     companyDescription: workspace.company_description ?? null,
     companyHomepageUrl: homepageUrl,
     companyLinkedinUrl: linkedinUrl,
-    companyLogoUrl: workspace.logo_url ?? null,
+    companyLogoUrl: workspace.company_db?.logo ?? workspace.logo_url ?? null,
     companyName: String(workspace.company_name ?? ""),
     description: row.description ?? null,
     dismissedAt: existingRecommendation?.dismissed_at ?? null,
@@ -838,6 +850,43 @@ export async function fetchTalentOpportunityHistoryByIds(args: {
   return coerceJsonArray<RawRecommendationRow>(data)
     .map(mapRecommendationRow)
     .filter((item): item is TalentOpportunityHistoryItem => item !== null);
+}
+
+export async function fetchTalentOpportunityHistoryByRoleIds(args: {
+  admin: AdminClient;
+  roleIds: string[];
+  userId: string;
+}) {
+  const roleIds = Array.from(
+    new Set(args.roleIds.map((id) => String(id ?? "").trim()).filter(Boolean))
+  );
+  if (roleIds.length === 0) return [];
+
+  const { data, error } = await ((
+    args.admin.from("talent_opportunity_recommendation" as any) as any
+  )
+    .select(TALENT_OPPORTUNITY_HISTORY_SELECT)
+    .eq("talent_id", args.userId)
+    .in("role_id", roleIds)
+    .order("recommended_at", { ascending: false }) as any);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load talent opportunities");
+  }
+
+  const byRoleId = new Map<string, TalentOpportunityHistoryItem>();
+
+  for (const item of coerceJsonArray<RawRecommendationRow>(data)
+    .map(mapRecommendationRow)
+    .filter((item): item is TalentOpportunityHistoryItem => item !== null)) {
+    if (!byRoleId.has(item.roleId)) {
+      byRoleId.set(item.roleId, item);
+    }
+  }
+
+  return roleIds
+    .map((roleId) => byRoleId.get(roleId))
+    .filter((item): item is TalentOpportunityHistoryItem => item !== undefined);
 }
 
 export async function fetchTalentPostingCardsByRoleIds(args: {

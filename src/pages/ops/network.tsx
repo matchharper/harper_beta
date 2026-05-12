@@ -15,7 +15,6 @@ import {
 import { showToast } from "@/components/toast/toast";
 import {
   useCreateOpsNetworkInternalEntry,
-  useCreateOpsNetworkNotification,
   useDeleteOpsNetworkInternalEntry,
   useIngestOpsNetworkLead,
   useOpsNetworkDetail,
@@ -70,7 +69,6 @@ export default function NetworkOpsPage() {
 
   const ingestMutation = useIngestOpsNetworkLead();
   const internalMutation = useCreateOpsNetworkInternalEntry();
-  const notificationMutation = useCreateOpsNetworkNotification();
   const updateInternalMutation = useUpdateOpsNetworkInternalEntry();
   const deleteInternalMutation = useDeleteOpsNetworkInternalEntry();
   const mailMutation = useSendOpsNetworkMail();
@@ -84,7 +82,6 @@ export default function NetworkOpsPage() {
   const [mailSubject, setMailSubject] = useState("");
   const [mailContent, setMailContent] = useState("");
   const [memoContent, setMemoContent] = useState("");
-  const [notificationContent, setNotificationContent] = useState("");
   const [conversationContent, setConversationContent] = useState("");
   const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
   const [editingEntryContent, setEditingEntryContent] = useState("");
@@ -291,7 +288,6 @@ export default function NetworkOpsPage() {
     setMailDraftInitializedLeadId(null);
     setEditingEntryId(null);
     setEditingEntryContent("");
-    setNotificationContent("");
   }, [selectedLeadId]);
 
   const selectedLead = useMemo(
@@ -532,33 +528,6 @@ export default function NetworkOpsPage() {
     },
     [conversationContent, internalMutation, memoContent, selectedLeadId]
   );
-
-  const handleSaveNotification = useCallback(async () => {
-    if (!selectedLeadId) return;
-
-    const message = notificationContent.trim();
-    if (!message) return;
-
-    try {
-      await notificationMutation.mutateAsync({
-        id: selectedLeadId,
-        message,
-      });
-      setNotificationContent("");
-      showToast({
-        message: "후보자 알림 저장 완료",
-        variant: "white",
-      });
-    } catch (error) {
-      showToast({
-        message:
-          error instanceof Error
-            ? error.message
-            : "후보자 알림 저장에 실패했습니다.",
-        variant: "error",
-      });
-    }
-  }, [notificationContent, notificationMutation, selectedLeadId]);
 
   const handleOpenQuickMemo = useCallback((lead: NetworkLeadSummary) => {
     setQuickMemoLead(lead);
@@ -811,8 +780,6 @@ export default function NetworkOpsPage() {
                 messagesHasOlder={messagesQuery.hasOlderMessages}
                 messagesLoading={messagesQuery.isLoading}
                 messagesLoadingOlder={messagesQuery.loadingOlderMessages}
-                notificationContent={notificationContent}
-                notificationPending={notificationMutation.isPending}
                 onConversationContentChange={setConversationContent}
                 onCopy={(value, label) => {
                   void handleCopy(value, label);
@@ -836,7 +803,6 @@ export default function NetworkOpsPage() {
                 onMailFromEmailChange={setMailFromEmail}
                 onMailSubjectChange={setMailSubject}
                 onMemoContentChange={setMemoContent}
-                onNotificationContentChange={setNotificationContent}
                 onOpenCv={(lead) => {
                   void handleOpenCv(lead);
                 }}
@@ -845,9 +811,6 @@ export default function NetworkOpsPage() {
                 }}
                 onSaveMemo={() => {
                   void handleSaveInternal("memo");
-                }}
-                onSaveNotification={() => {
-                  void handleSaveNotification();
                 }}
                 onSendMail={() => {
                   void handleSendMail();

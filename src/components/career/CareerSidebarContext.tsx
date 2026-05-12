@@ -7,17 +7,18 @@ import type {
   CareerOpportunitySavedStage,
   CareerRecentOpportunity,
   CareerStage,
-  CareerTalentNotification,
   CareerTalentInsights,
   CareerTalentPreferences,
   CareerTalentProfile,
   CareerOpportunityRun,
+  CareerOpportunityAgentVariant,
 } from "./types";
 import type { CareerProfileVisibility } from "@/hooks/career/useCareerTalentSettings";
 
 export type CareerSidebarContextValue = {
   user: User | null;
   stage: CareerStage;
+  isOnboardingDone: boolean;
   userChatCount: number;
   answeredCount: number;
   targetQuestions: number;
@@ -27,8 +28,12 @@ export type CareerSidebarContextValue = {
   activeCompanyRoleCount: number;
   opportunityRun: CareerOpportunityRun | null;
   opportunityRunTriggerPending: boolean;
-  onRunPeriodicOpportunityDiscoveryTest: () => void | Promise<void>;
-  onRunOpportunityDiscoveryTest: () => void | Promise<void>;
+  onRunPeriodicOpportunityDiscoveryTest: (
+    agentVariant?: CareerOpportunityAgentVariant
+  ) => void | Promise<void>;
+  onRunOpportunityDiscoveryTest: (
+    agentVariant?: CareerOpportunityAgentVariant
+  ) => void | Promise<void>;
   callStartPending?: boolean;
   onStartCallMode?: (openingText?: string) => boolean | Promise<boolean>;
   recentOpportunities: CareerRecentOpportunity[];
@@ -40,6 +45,9 @@ export type CareerSidebarContextValue = {
   historyUpdatingOpportunityIds: string[];
   historyUpdateError: string;
   onLoadMoreHistoryOpportunities: () => void | Promise<void>;
+  onLoadHistoryOpportunityByRoleId: (
+    roleId: string
+  ) => CareerHistoryOpportunity | null | Promise<CareerHistoryOpportunity | null>;
   onUpdateHistoryOpportunityFeedback: (
     opportunityId: string,
     feedback: CareerHistoryOpportunityFeedback | null,
@@ -64,11 +72,6 @@ export type CareerSidebarContextValue = {
     opportunityId: string,
     question: string
   ) => boolean | Promise<boolean>;
-  notifications: CareerTalentNotification[];
-  unreadNotificationCount: number;
-  notificationsMarkingAsRead: boolean;
-  notificationsError: string;
-  onMarkNotificationsRead: () => void | Promise<void>;
 
   resumeFile: File | null;
   savedResumeFileName: string | null;

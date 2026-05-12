@@ -60,6 +60,7 @@ const toResponsePreferences = (
   setting?: {
     engagement_types?: string[] | null;
     career_move_intent?: string | null;
+    is_onboarding_done?: boolean | null;
     periodic_interval_days?: number | null;
     recommendation_batch_size?: number | null;
   } | null
@@ -75,6 +76,7 @@ const toResponsePreferences = (
     preferredLocations: [],
     careerMoveIntent,
     careerMoveIntentLabel: getTalentCareerMoveIntentLabel(careerMoveIntent),
+    isOnboardingDone: Boolean(setting?.is_onboarding_done),
     periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
       setting?.periodic_interval_days
     ),

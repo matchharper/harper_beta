@@ -5,6 +5,7 @@ import type {
   CareerInputMode,
   CareerHistoryOpportunity,
   CareerHistoryOpportunityFeedback,
+  CareerInterviewProgress,
   CareerMessage,
   CareerOpportunityRun,
   CareerOpportunitySavedStage,
@@ -29,6 +30,7 @@ export type CareerChatPanelContextValue = {
 
   sessionPending: boolean;
   sessionError: string;
+  isOnboardingDone: boolean;
 
   resumeFile: File | null;
   profileLinks: string[];
@@ -81,6 +83,9 @@ export type CareerChatPanelContextValue = {
   ) => void | Promise<void>;
   onLoadOlderMessages: () => void | Promise<void>;
   onRegenerateOnboardingWrapup?: () => void | Promise<void>;
+  forceCompletePending?: boolean;
+  interviewProgress: CareerInterviewProgress;
+  onForceCompleteOnboarding?: () => boolean | Promise<boolean>;
 
   showVoiceStartPrompt: boolean;
   onStartVoiceCall: (durationMinutes?: 5 | 10) => void;
@@ -103,7 +108,9 @@ export type CareerChatPanelContextValue = {
 
   // Call mode (optional — not provided by preview.tsx)
   onStartCallMode?: (openingText?: string) => boolean | Promise<boolean>;
-  onEndCallMode?: () => void;
+  onEndCallMode?: (options?: {
+    forceCompleteOnboarding?: boolean;
+  }) => void;
   callTranscriptEntries?: CallTranscriptEntry[];
   callConnectionStatus?: "connected" | "reconnecting" | "disconnected";
   isAssistantSpeaking?: boolean;
