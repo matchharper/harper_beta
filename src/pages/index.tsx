@@ -1,16 +1,19 @@
 import Reveal from "@/components/landing/Animation/Reveal";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUpRight, Clock, Loader, Lock } from "lucide-react";
+import { ArrowUpRight, Clock, Loader, Lock, User2 } from "lucide-react";
 import Head from "next/head";
 import Image from "next/image";
 import Link from "next/link";
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useAuthStore } from "@/store/useAuthStore";
 
 const MOBILE_HEADER_SCROLL_DELTA_THRESHOLD = 8;
 const REPORT_ITEM_COUNT = 9;
 const CAREER_START_HREF =
   "/career_login?next=%2Fcareer%2Fonboarding&source=network";
+const CAREER_AUTHENTICATED_START_HREF = "/career";
+const CAREER_ONBOARDING_HREF = "/career/onboarding";
 
 const schoolLogos = [
   { src: "/images/logos/sn.png", name: "서울대학교" },
@@ -194,8 +197,8 @@ const voices = [
   {
     quote:
       "제 전문성이 이런 식으로도 쓰일 수 있다는 걸 몰랐어요. 본업은 그대로 유지하고 있는데, Harper가 파트타임 두 건을 연결해줬어요.",
-    initial: "D",
-    name: "Daniel R.",
+    initial: "/images/person3.png",
+    name: "Soyeon L.",
     role: "스태프 엔지니어, 인프라",
     status: "파트타임 2건 진행",
   },
@@ -320,8 +323,77 @@ function LandingButton({
   );
 }
 
+const useCareerStartHref = () => {
+  const user = useAuthStore((state) => state.user);
+  const session = useAuthStore((state) => state.session);
+  const authLoading = useAuthStore((state) => state.loading);
+  const [needsOnboarding, setNeedsOnboarding] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (authLoading) return;
+
+    if (!user) {
+      setNeedsOnboarding(null);
+      return;
+    }
+
+    const token = session?.access_token;
+    if (!token) {
+      setNeedsOnboarding(true);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadOnboardingStatus = async () => {
+      setNeedsOnboarding(null);
+
+      try {
+        const response = await fetch("/api/talent/onboarding/status", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const payload = (await response.json().catch(() => ({}))) as {
+          needsOnboarding?: boolean;
+        };
+
+        if (cancelled) return;
+
+        if (!response.ok) {
+          setNeedsOnboarding(true);
+          return;
+        }
+
+        setNeedsOnboarding(payload.needsOnboarding !== false);
+      } catch {
+        if (!cancelled) {
+          setNeedsOnboarding(true);
+        }
+      }
+    };
+
+    void loadOnboardingStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, session?.access_token, user]);
+
+  if (authLoading || !user) {
+    return CAREER_START_HREF;
+  }
+
+  if (needsOnboarding !== false) {
+    return CAREER_ONBOARDING_HREF;
+  }
+
+  return CAREER_AUTHENTICATED_START_HREF;
+};
+
 function AppBar() {
   const isMobile = useIsMobile();
+  const careerStartHref = useCareerStartHref();
   const [isMobileHeaderVisible, setIsMobileHeaderVisible] = useState(true);
   const lastScrollYRef = useRef(0);
 
@@ -379,7 +451,7 @@ function AppBar() {
             </Link>
           </div>
           <LandingButton
-            href={CAREER_START_HREF}
+            href={careerStartHref}
             label="Join"
             size="sm"
             variant="secondary"
@@ -554,17 +626,17 @@ function ChatMatchCard({
   return (
     <div
       ref={refCallback}
-      className={`flex cursor-pointer items-center gap-2.5 rounded-[11px] border p-2.5 transition duration-300 ${
+      className={`flex cursor-pointer items-center gap-2 rounded-[14px] border p-2.5 transition duration-300 md:gap-2.5 md:rounded-[11px] ${
         visible ? "translate-x-0 opacity-100" : "-translate-x-2 opacity-0"
       } ${
         selected
-          ? "border-beige700 bg-beige700/20"
-          : "border-beige100/10 bg-beige100/5"
+          ? "border-beige700/80 bg-beige700/25 shadow-[0_10px_28px_rgba(172,120,80,0.14),inset_0_1px_0_rgba(255,255,255,0.08)]"
+          : "border-beige100/10 bg-beige100/[0.055] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
       }`}
     >
       <CompanyMark>{match.mark}</CompanyMark>
       <div className="min-w-0 flex-1">
-        <div className="font-instrument text-base leading-none text-beige50">
+        <div className="font-instrument text-[15px] leading-none text-beige50 md:text-base">
           <span className="mr-1.5 inline-flex rounded-full bg-beige50/10 px-2 py-0.5 font-geist text-[10px] text-beige200">
             {match.type}
           </span>
@@ -574,7 +646,7 @@ function ChatMatchCard({
           {match.role}
         </div>
       </div>
-      <div className="shrink-0 text-[13px] font-medium text-beige700">
+      <div className="shrink-0 text-[12px] font-medium text-beige700 md:text-[13px]">
         {match.fit}
       </div>
     </div>
@@ -868,6 +940,7 @@ type CursorState = {
 };
 
 function DemoSection() {
+  const isMobile = useIsMobile();
   const sectionRef = useRef<HTMLElement | null>(null);
   const phoneRef = useRef<HTMLDivElement | null>(null);
   const phoneBodyRef = useRef<HTMLDivElement | null>(null);
@@ -1000,6 +1073,7 @@ function DemoSection() {
 
     const buildReport = () => {
       setSelectedMatch(true);
+      if (isMobile) return;
       setReportVisible(true);
       Array.from({ length: REPORT_ITEM_COUNT }).forEach((_, index) => {
         schedule(180 + index * 160, () => setReportItemsVisible(index + 1));
@@ -1045,7 +1119,7 @@ function DemoSection() {
       cancelled = true;
       timers.forEach((timer) => window.clearTimeout(timer));
     };
-  }, [hasStarted]);
+  }, [hasStarted, isMobile]);
 
   useEffect(() => {
     const body = phoneBodyRef.current;
@@ -1067,26 +1141,33 @@ function DemoSection() {
     <section
       id="demo"
       ref={sectionRef}
-      className="bg-gradient-to-b from-beige100 to-beige50 px-4 py-16 text-center md:px-10 md:py-24"
+      className="bg-gradient-to-b from-beige100 to-beige50 px-4 py-14 text-center md:px-10 md:py-24"
     >
       <Reveal once>
         <WavyTag left="1.">외부 기회 탐색</WavyTag>
-        <h2 className="mx-auto mt-4 max-w-[820px] font-instrument font-medium text-[26px] leading-[1.3] text-beige900 md:text-[2.4rem]">
+        <h2 className="mx-auto mt-4 max-w-[820px] font-instrument font-medium text-[30px] leading-[1.15] text-beige900 md:text-[2.4rem] md:leading-[1.3]">
           “이런 포지션 찾아줘”
           <br />
           <span className="text-beige700">가벼운 대화</span> 한 번이면
           충분합니다.
         </h2>
-        <p className="mx-auto mt-4 max-w-[720px] text-[15px] leading-[1.75] text-beige900/80">
+        <p className="mx-auto mt-4 max-w-[720px] text-[14.5px] leading-[1.75] text-beige900/75 md:text-[15px] md:text-beige900/80">
           채용 사이트를 뒤지며 비자 지원이 가능한 스타트업을 일일이 리서치할
           필요가 없습니다.
-          <br />
-          원하는 조건을 이야기해 두기만 하면 Harper가 모든 기회를 스캔해 풀타임,
-          파트타임, 단기 자문까지 찾아 알려드립니다.
+          <span className="hidden md:inline">
+            <br />
+            압도적으로 높았던 탐색의 수고로움은 이제 agent에게 맡기세요. 원하는
+            조건을 가볍게 이야기해 두기만 하면 됩니다.
+            <br />
+          </span>
+          <span className="block md:inline">
+            Harper가 모든 기회를 스캔하여 풀타임, 파트타임, 단기 자문까지 찾아
+            알려드립니다.
+          </span>
         </p>
       </Reveal>
 
-      <Reveal once className="mx-auto mt-12 max-w-[1180px]">
+      <Reveal once className="mx-auto mt-8 max-w-[1180px] md:mt-12">
         <div className="relative mx-auto lg:h-[846px]">
           <div
             className={`relative z-20 mx-auto w-full max-w-[420px] text-left transition-[left,transform] duration-700 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] md:max-w-[460px] lg:absolute lg:top-0 lg:mx-0 lg:w-[430px] lg:max-w-none xl:w-[460px] ${
@@ -1095,14 +1176,18 @@ function DemoSection() {
                 : "lg:left-1/2 lg:-translate-x-1/2"
             }`}
           >
-            <div className="mb-2 text-[13px] font-medium text-beige900/50">
-              Harper와의 대화
+            <div className="mb-3 flex items-center justify-between text-[13px] font-medium text-beige900/55 md:mb-2">
+              <span>Harper와의 대화</span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-beige900/10 bg-beige50/70 px-3 py-1 text-[11px] text-beige900/55 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] lg:hidden">
+                <span className="h-1.5 w-1.5 rounded-full bg-beige700" />
+                Live
+              </span>
             </div>
             <div
               ref={phoneRef}
-              className="relative flex h-[520px] flex-col rounded-[28px] border-2 border-beige500 bg-beige900 p-3.5 text-left shadow-2xl md:h-[820px] md:rounded-[36px]"
+              className="relative flex h-[min(590px,calc(100svh-96px))] min-h-[520px] flex-col rounded-[30px] border border-beige900/10 bg-[linear-gradient(180deg,#2e1706_0%,#180b03_100%)] p-2.5 text-left shadow-[0_26px_72px_rgba(46,23,6,0.24)] md:h-[820px] md:min-h-0 md:rounded-[36px] md:border-2 md:border-beige500 md:bg-beige900 md:bg-none md:p-3.5 md:shadow-2xl"
             >
-              <div className="flex items-center gap-2.5 border-b border-beige100/10 px-2 pb-2.5">
+              <div className="flex items-center gap-2.5 rounded-[22px] border border-beige100/10 bg-beige50/[0.055] px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] md:rounded-none md:border-x-0 md:border-t-0 md:bg-transparent md:px-2 md:pb-2.5 md:pt-0 md:shadow-none">
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-beige700 font-instrument text-lg italic text-beige50">
                   <Image
                     src="/svgs/harper-h-mark.svg"
@@ -1128,7 +1213,7 @@ function DemoSection() {
 
               <div
                 ref={phoneBodyRef}
-                className="no-scrollbar flex flex-1 flex-col gap-2 overflow-y-auto px-1 py-3"
+                className="no-scrollbar flex flex-1 flex-col gap-2 overflow-y-auto px-0.5 py-3.5 md:px-1 md:py-3"
               >
                 <VoiceBar active={voiceActive} done={voiceDone} />
                 {chatMessages.slice(0, 1).map((message) => (
@@ -1159,7 +1244,7 @@ function DemoSection() {
                 ))}
 
                 <div
-                  className={`flex flex-col gap-1.5 rounded-2xl rounded-bl border border-beige100/10 bg-beige100/5 p-2.5 transition ${
+                  className={`flex flex-col gap-1.5 rounded-[20px] rounded-bl border border-beige100/10 bg-beige100/[0.045] p-2.5 transition md:rounded-2xl ${
                     matchesActive ? "opacity-100" : "hidden opacity-0"
                   }`}
                 >
@@ -1202,7 +1287,7 @@ function DemoSection() {
                   />
                 ))}
                 <div
-                  className={`flex max-w-[88%] items-center gap-2.5 rounded-[11px] rounded-bl border border-dashed border-beige700/30 bg-beige700/10 p-2.5 transition duration-300 ${
+                  className={`flex max-w-[92%] items-center gap-2.5 rounded-[14px] rounded-bl border border-dashed border-beige700/30 bg-beige700/10 p-2.5 transition duration-300 md:max-w-[88%] md:rounded-[11px] ${
                     visibleStepSet.has(13)
                       ? "translate-y-0 opacity-100"
                       : "translate-y-2 opacity-0"
@@ -1275,7 +1360,7 @@ function DemoSection() {
                 animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
                 exit={{ opacity: 0, x: 80, y: 16, scale: 0.98 }}
                 transition={{ duration: 0.82, ease: [0.22, 1, 0.36, 1] }}
-                className="relative z-10 mx-auto mt-[-54px] w-full max-w-[720px] text-left md:mt-[-72px] lg:absolute lg:right-0 lg:top-0 lg:mt-0 lg:w-[calc(100%-390px)] lg:max-w-none xl:w-[760px]"
+                className="relative z-10 mx-auto mt-[-54px] hidden w-full max-w-[720px] text-left md:mt-[-72px] lg:absolute lg:right-0 lg:top-0 lg:mt-0 lg:block lg:w-[calc(100%-390px)] lg:max-w-none xl:w-[760px]"
               >
                 <div className="mb-2 text-left text-[13px] font-medium text-beige900/50 lg:text-right">
                   나만의 기업 브리핑
@@ -1306,7 +1391,7 @@ function MessageBubble({
 
   return (
     <div
-      className={`max-w-[86%] rounded-2xl px-[13px] py-2 text-[12.8px] leading-[1.45] transition duration-300 ${
+      className={`max-w-[91%] rounded-2xl px-[13px] py-2 text-[12.3px] leading-[1.48] transition duration-300 md:max-w-[86%] md:text-[12.8px] md:leading-[1.45] ${
         visible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
       } ${
         isUser
@@ -1646,21 +1731,7 @@ const SectionTag = ({ children }: { children: React.ReactNode }) => (
 );
 
 export default function LandingKoVfPage() {
-  const [revealPass, setRevealPass] = useState(0);
-
-  useEffect(() => {
-    let secondFrame: number | null = null;
-    const firstFrame = window.requestAnimationFrame(() => {
-      secondFrame = window.requestAnimationFrame(() => {
-        setRevealPass(1);
-      });
-    });
-
-    return () => {
-      window.cancelAnimationFrame(firstFrame);
-      if (secondFrame !== null) window.cancelAnimationFrame(secondFrame);
-    };
-  }, []);
+  const careerStartHref = useCareerStartHref();
 
   return (
     <>
@@ -1678,7 +1749,6 @@ export default function LandingKoVfPage() {
           href="https://matchharper.com/"
         />
         <link rel="icon" href="/images/logo.ico" />
-        <style>{`body { display: block !important; }`}</style>
       </Head>
 
       <div
@@ -1687,7 +1757,7 @@ export default function LandingKoVfPage() {
       >
         <AppBar />
 
-        <main key={revealPass}>
+        <main>
           <section className="flex flex-col items-center justify-center px-4 pb-14 pt-[112px] text-center md:px-10 md:pb-20 md:pt-[20vh]">
             <Reveal once delay={0.06}>
               <SectionTag>탤런트만을 위해 설계된 AI 커리어 agent</SectionTag>
@@ -1710,17 +1780,17 @@ export default function LandingKoVfPage() {
               </p>
             </Reveal>
             <Reveal once delay={0.46} className="mt-8">
-              <LandingButton href={CAREER_START_HREF} label="시작하기" />
-              <div className="mt-4 flex flex-row gap-4 text-sm text-beige900/80">
-                <div className="flex flex-row gap-2 items-center">
+              <LandingButton href={careerStartHref} label="시작하기" />
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[13px] text-beige900/80 md:flex-row md:text-sm">
+                <div className="flex flex-row items-center gap-2 whitespace-nowrap">
                   <Clock className="h-3.5 w-3.5" />
                   <span>1시간 이내 첫 매칭</span>
                 </div>
-                <div className="flex flex-row gap-2 items-center">
+                <div className="flex flex-row items-center gap-2 whitespace-nowrap">
                   <Loader className="h-3.5 w-3.5" />
-                  <span>Free</span>
+                  <span>완전 무료</span>
                 </div>
-                <div className="flex flex-row gap-2 items-center">
+                <div className="flex flex-row items-center gap-2 whitespace-nowrap">
                   <Lock className="h-3.5 w-3.5" />
                   <span>익명 보장</span>
                 </div>
@@ -1728,11 +1798,13 @@ export default function LandingKoVfPage() {
             </Reveal>
 
             <Reveal once delay={0.24} className="w-full">
-              <div className="flex items-center justify-center w-full mt-28 mb-4">
-                <img
+              <div className="mb-4 mt-20 flex w-full items-center justify-center md:mt-28">
+                <Image
                   src="/images/objects.png"
                   alt="objects"
-                  className="w-48 sm:w-64 md:w-72"
+                  width={288}
+                  height={288}
+                  className="h-auto w-48 sm:w-64 md:w-72"
                 />
               </div>
             </Reveal>
@@ -1756,7 +1828,10 @@ export default function LandingKoVfPage() {
                 </h2>
                 <p className="mx-auto mt-4 max-w-[680px] text-[15px] leading-[1.7] text-beige900/80">
                   채용 공고를 뒤지고, 지원하고, 또 기다리고. 반복되는 구직의
-                  피로는 이제 끝. Harper가 하는 일은 딱 세 단계예요.
+                  피로는 이제 끝.
+                  <br />
+                  Harper는 좋은 인재를 찾는 회사들과 직접 이야기하며, 당신을
+                  위한 헤드헌터처럼 일해요.
                 </p>
               </div>
             </Reveal>
@@ -1828,7 +1903,7 @@ export default function LandingKoVfPage() {
                   <br />
                   이렇게 달라요.
                 </h2>
-                <p className="max-w-[460px] text-[15px] text-right leading-[1.75] text-beige900/80 md:text-base">
+                <p className="max-w-[460px] text-left text-[15px] leading-[1.75] text-beige900/80 md:text-right md:text-base">
                   지금까지 받아오신 리크루터 연락, 채용 공고, LinkedIn DM과
                   Harper가 다른 네 가지 지점.
                 </p>
@@ -1880,9 +1955,19 @@ export default function LandingKoVfPage() {
                         “{voice.quote}”
                       </div>
                       <div className="mt-7 flex items-start gap-3 border-t border-beige50/10 pt-5">
-                        <div className="flex mt-1 h-7 w-7 items-center justify-center rounded-full bg-beige700 font-instrument text-base italic text-beige50">
-                          {voice.initial}
-                        </div>
+                        {voice.initial.includes("images") ? (
+                          <Image
+                            src={voice.initial}
+                            alt={voice.name}
+                            width={28}
+                            height={28}
+                            className="h-7 w-7 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex mt-1 h-7 w-7 items-center justify-center rounded-full bg-beige700 font-instrument text-base italic text-beige50">
+                            <User2 className="w-5 h-5" strokeWidth={1.3} />
+                          </div>
+                        )}
                         <div>
                           <div className="text-[13px] font-medium">
                             {voice.name}
@@ -1931,7 +2016,7 @@ export default function LandingKoVfPage() {
               </p>
             </Reveal>
             <Reveal once delay={0.16} className="mt-10">
-              <LandingButton href={CAREER_START_HREF} label="지금 시작하기" />
+              <LandingButton href={careerStartHref} label="지금 시작하기" />
             </Reveal>
             <Reveal once delay={0.22}>
               <div className="mt-5 text-[13px] text-beige900/45">

@@ -13,7 +13,7 @@ import React, { useMemo, useState } from "react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { useCareerSidebarContext } from "@/components/career/CareerSidebarContext";
 import { CAREER_LINK_LABELS } from "@/components/career/constants";
-import { LoadingState } from "@/components/career/OnboardingLoadingState";
+import LoadingState from "@/components/career/OnboardingLoadingState";
 import { pickLinkedinProfileLink } from "@/hooks/career/careerHelpers";
 import {
   CareerField,

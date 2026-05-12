@@ -20,7 +20,6 @@ import {
   type CareerMessage,
   type CareerRecentOpportunity,
   type CareerTalentInsights,
-  type CareerTalentNotification,
   type CareerTalentPreferences,
   type CareerTalentProfile,
 } from "@/components/career/types";
@@ -38,8 +37,6 @@ const previewDate = (offsetMs = 0) =>
 const previewDaysAgo = (days: number) =>
   previewDate(-days * 24 * 60 * 60 * 1000);
 const previewHoursAgo = (hours: number) => previewDate(-hours * 60 * 60 * 1000);
-const previewMinutesAgo = (minutes: number) =>
-  previewDate(-minutes * 60 * 1000);
 
 const mockUser = {
   id: "career-preview-user",
@@ -59,6 +56,7 @@ const initialTalentPreferences: CareerTalentPreferences = {
   careerMoveIntent: "open_to_explore",
   careerMoveIntentLabel:
     "아직 이직 생각은 없지만, 기회를 받아보고 결정하고 싶음",
+  isOnboardingDone: false,
   periodicIntervalDays: DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS,
   recommendationBatchSize: DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
 };
@@ -86,6 +84,7 @@ const initialTalentProfile: CareerTalentProfile = {
       role: "Senior AI Engineer",
       description:
         "대화형 agent 제품을 설계하고, retrieval / evaluation / observability 파이프라인을 구축했습니다.",
+      employment_type: "Full-time",
       start_date: "2023-01-01",
       end_date: null,
       months: 28,
@@ -102,6 +101,7 @@ const initialTalentProfile: CareerTalentProfile = {
       role: "Software Engineer",
       description:
         "데이터 파이프라인과 internal tooling을 개발하며 제품팀과 협업했습니다.",
+      employment_type: "Full-time",
       start_date: "2020-02-01",
       end_date: "2022-12-01",
       months: 34,
@@ -136,21 +136,6 @@ const initialTalentProfile: CareerTalentProfile = {
     },
   ],
 };
-
-const initialNotifications: CareerTalentNotification[] = [
-  {
-    id: 1,
-    message: "Harper가 당신의 프로필을 바탕으로 새 매칭 가능성을 찾았습니다.",
-    isRead: false,
-    createdAt: previewDate(),
-  },
-  {
-    id: 2,
-    message: "프로필 링크가 최신 상태인지 확인해 주세요.",
-    isRead: true,
-    createdAt: previewMinutesAgo(90),
-  },
-];
 
 const initialMessages: CareerMessage[] = [
   {
@@ -440,6 +425,7 @@ const CareerPreviewPage = () => {
     () => ({
       user: mockUser,
       stage: "chat",
+      isOnboardingDone: talentPreferences.isOnboardingDone,
       userChatCount: 1,
       answeredCount: 4,
       targetQuestions: 8,
@@ -461,6 +447,8 @@ const CareerPreviewPage = () => {
       historyUpdatingOpportunityIds: [],
       historyUpdateError: "",
       onLoadMoreHistoryOpportunities: () => undefined,
+      onLoadHistoryOpportunityByRoleId: (roleId) =>
+        historyOpportunities.find((item) => item.roleId === roleId) ?? null,
       onUpdateHistoryOpportunityFeedback: (
         opportunityId,
         feedback,
@@ -516,13 +504,6 @@ const CareerPreviewPage = () => {
         );
       },
       onSendHistoryOpportunityQuestion: async () => true,
-      notifications: initialNotifications,
-      unreadNotificationCount: initialNotifications.filter(
-        (notification) => !notification.isRead
-      ).length,
-      notificationsMarkingAsRead: false,
-      notificationsError: "",
-      onMarkNotificationsRead: () => undefined,
       resumeFile,
       savedResumeFileName,
       savedResumeStoragePath: "talent/resume/preview_resume.pdf",
@@ -696,6 +677,7 @@ const CareerPreviewPage = () => {
       authInfo: "",
       sessionPending: false,
       sessionError: "",
+      isOnboardingDone: talentPreferences.isOnboardingDone,
       resumeFile,
       profileLinks,
       profilePending: false,
@@ -712,6 +694,14 @@ const CareerPreviewPage = () => {
       opportunitySearchLocked: false,
       historyUpdatingOpportunityIds: [],
       onboardingBeginPending: false,
+      forceCompletePending: false,
+      interviewProgress: {
+        canForceComplete: !talentPreferences.isOnboardingDone,
+        filledCount: 7,
+        percent: 88,
+        remainingCount: 1,
+        totalCount: 8,
+      },
       onboardingPausePending: false,
       onGoogleLogin: () => undefined,
       onEmailAuth: async () => true,
@@ -750,6 +740,18 @@ const CareerPreviewPage = () => {
       },
       onUpdateHistoryOpportunityFeedback: async () => undefined,
       onLoadOlderMessages: async () => undefined,
+      onForceCompleteOnboarding: async () => {
+        const nextAssistantMessage: CareerMessage = {
+          id: Date.now(),
+          role: "assistant",
+          content:
+            "미리보기 화면입니다. 실제 연동에서는 인터뷰를 종료하고 추천 탐색을 시작합니다.",
+          messageType: "onboarding_completion_wrapup",
+          createdAt: new Date().toISOString(),
+        };
+        setMessages((current) => [...current, nextAssistantMessage]);
+        return true;
+      },
       showVoiceStartPrompt: false,
       onStartVoiceCall: () => undefined,
       onUseChatOnly: () => undefined,
@@ -767,7 +769,7 @@ const CareerPreviewPage = () => {
       onToggleVoiceMute: () => undefined,
       onSwitchToTextMode: () => undefined,
     }),
-    [messages, profileLinks, resumeFile]
+    [messages, profileLinks, resumeFile, talentPreferences.isOnboardingDone]
   );
 
   return (

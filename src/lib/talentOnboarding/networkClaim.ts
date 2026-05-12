@@ -223,7 +223,7 @@ async function copyExperiencesIfEmpty(args: {
   const { data, error } = await admin
     .from("talent_experiences")
     .select(
-      "company_id, company_link, company_location, company_logo, company_name, created_at, description, end_date, memo, months, role, start_date"
+      "company_id, company_link, company_location, company_logo, company_name, created_at, description, employment_type, end_date, memo, months, role, start_date"
     )
     .eq("talent_id", sourceTalentId)
     .order("id", { ascending: true });
@@ -434,24 +434,6 @@ async function copyTalentInsightsIfEmpty(args: {
   });
 }
 
-async function moveTalentNotifications(args: {
-  admin: AdminClient;
-  sourceTalentId: string;
-  targetTalentId: string;
-}) {
-  const { admin, sourceTalentId, targetTalentId } = args;
-  if (sourceTalentId === targetTalentId) return;
-
-  const { error } = await admin
-    .from("talent_notification")
-    .update({ talent_id: targetTalentId })
-    .eq("talent_id", sourceTalentId);
-
-  if (error) {
-    throw new Error(error.message ?? "Failed to move notifications");
-  }
-}
-
 function buildTalentUserMergePayload(args: {
   currentProfile: TalentUserProfileRow | null;
   sourceProfile: TalentUserProfileRow | null;
@@ -643,11 +625,6 @@ export async function claimTalentNetworkInvite(args: {
       sourceTalentId,
       targetTalentId: user.id,
       lead,
-    }),
-    moveTalentNotifications({
-      admin,
-      sourceTalentId,
-      targetTalentId: user.id,
     }),
   ]);
 

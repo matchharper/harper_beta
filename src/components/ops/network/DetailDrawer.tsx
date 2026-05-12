@@ -43,8 +43,6 @@ type DetailDrawerProps = {
   messagesHasOlder: boolean;
   messagesLoading: boolean;
   messagesLoadingOlder: boolean;
-  notificationContent: string;
-  notificationPending: boolean;
   onConversationContentChange: (value: string) => void;
   onCopy: (value: string, label: string) => void;
   onDeleteEntry: (entry: TalentInternalEntry) => void;
@@ -58,11 +56,9 @@ type DetailDrawerProps = {
   onMailFromEmailChange: (value: string) => void;
   onMailSubjectChange: (value: string) => void;
   onMemoContentChange: (value: string) => void;
-  onNotificationContentChange: (value: string) => void;
   onOpenCv: (lead: NetworkLeadSummary) => void;
   onSaveConversation: () => void;
   onSaveMemo: () => void;
-  onSaveNotification: () => void;
   onSendMail: () => void;
   onSetDetailTab: (tab: DetailTab) => void;
   updatePendingEntryId: number | null;
@@ -92,8 +88,6 @@ export default function DetailDrawer({
   messagesHasOlder,
   messagesLoading,
   messagesLoadingOlder,
-  notificationContent,
-  notificationPending,
   onConversationContentChange,
   onCopy,
   onDeleteEntry,
@@ -107,11 +101,9 @@ export default function DetailDrawer({
   onMailFromEmailChange,
   onMailSubjectChange,
   onMemoContentChange,
-  onNotificationContentChange,
   onOpenCv,
   onSaveConversation,
   onSaveMemo,
-  onSaveNotification,
   onSendMail,
   onSetDetailTab,
   updatePendingEntryId,
@@ -301,8 +293,6 @@ export default function DetailDrawer({
                       mailPending={mailPending}
                       mailSubject={mailSubject}
                       memoContent={memoContent}
-                      notificationContent={notificationContent}
-                      notificationPending={notificationPending}
                       onConversationContentChange={onConversationContentChange}
                       onDeleteEntry={onDeleteEntry}
                       onEditCancel={onEditCancel}
@@ -313,10 +303,8 @@ export default function DetailDrawer({
                       onMailFromEmailChange={onMailFromEmailChange}
                       onMailSubjectChange={onMailSubjectChange}
                       onMemoContentChange={onMemoContentChange}
-                      onNotificationContentChange={onNotificationContentChange}
                       onSaveConversation={onSaveConversation}
                       onSaveMemo={onSaveMemo}
-                      onSaveNotification={onSaveNotification}
                       onSendMail={onSendMail}
                       updatePendingEntryId={updatePendingEntryId}
                     />

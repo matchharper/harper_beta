@@ -148,6 +148,7 @@ const toComparableProfile = (
   talentExperiences: profile.talentExperiences.map((item) => ({
     role: trimSingleLine(item.role),
     description: trimMultiline(item.description),
+    employment_type: trimSingleLine(item.employment_type),
     start_date: trimDateText(item.start_date),
     end_date: trimDateText(item.end_date),
     months: item.months ?? null,
@@ -193,6 +194,7 @@ const toStructuredProfile = (
       ...item,
       role: trimSingleLine(item.role),
       description: trimMultiline(item.description),
+      employment_type: trimSingleLine(item.employment_type),
       start_date: trimDateText(item.start_date),
       end_date: trimDateText(item.end_date),
       company_id: trimSingleLine(item.company_id),
@@ -617,6 +619,7 @@ const CareerTalentProfilePanel = ({
             "",
           role: null,
           description: null,
+          employment_type: null,
           start_date: null,
           end_date: null,
           months: null,

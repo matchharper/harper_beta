@@ -2,6 +2,7 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, FileText, Linkedin, MessageCircle, Search } from "lucide-react";
+import React from "react";
 import { useEffect, useState } from "react";
 
 const steps = [
@@ -33,6 +34,12 @@ const steps = [
 ];
 
 const stepDurations = [4200, 4800, 5200, 5600, 26000];
+
+function formatElapsedTime(totalSeconds: number) {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
 
 const SkeletonLine = ({
   className = "",
@@ -177,8 +184,9 @@ const ProfilePreview = ({ activeStep }: { activeStep: number }) => {
   );
 };
 
-export const LoadingState = () => {
+const LoadingState = () => {
   const [activeStep, setActiveStep] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   useEffect(() => {
     if (activeStep >= steps.length - 1) return;
@@ -189,6 +197,14 @@ export const LoadingState = () => {
 
     return () => window.clearTimeout(timeout);
   }, [activeStep]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setElapsedSeconds((prev) => prev + 1);
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, []);
 
   const ActiveIcon = steps[activeStep].icon;
 
@@ -204,6 +220,9 @@ export const LoadingState = () => {
           <div className="mx-auto mb-5 flex w-fit items-center gap-2 rounded-full border border-beige900/[0.08] bg-beige50/70 px-3 py-1.5 text-xs font-medium text-beige900/45 backdrop-blur md:mx-0">
             <ActiveIcon className="h-3.5 w-3.5" />
             <span>Harper is coming</span>
+            <span className="min-w-[4ch] font-mono tabular-nums text-beige900/35">
+              {formatElapsedTime(elapsedSeconds)}
+            </span>
           </div>
 
           <AnimatePresence mode="wait">
@@ -269,8 +288,12 @@ export const LoadingState = () => {
           </div>
 
           <p className="mt-8 max-w-[520px] text-sm leading-6 text-beige900/40">
-            보통 1분 정도 걸리고, 길어도 2분 안에 끝나요. 확인이 끝나면 Harper와
-            짧게 대화하면서 현재 상황과 원하는 기회를 더 정확히 맞출게요.
+            보통{" "}
+            <span className="text-beige900">
+              1분 정도 걸리고, 길어도 2분 안에 끝나요.
+            </span>{" "}
+            확인이 끝나면 Harper와 짧게 대화하면서 현재 상황과 원하는 기회를
+            알려주세요.
           </p>
         </div>
 
@@ -279,3 +302,5 @@ export const LoadingState = () => {
     </div>
   );
 };
+
+export default React.memo(LoadingState);

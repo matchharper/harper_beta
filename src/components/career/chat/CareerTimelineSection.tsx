@@ -592,14 +592,18 @@ const TimelineMessageList = memo(function TimelineMessageList({
   onOpportunityFeedback,
   onRegenerateOnboardingWrapup,
   onboardingWrapupPending,
+  onStartCallMode,
+  isStartingCall,
 }: {
   messages: CareerMessage[];
   isVoiceMode: boolean;
   lastSpokenAssistantMessageIndex: number;
   historyUpdatingOpportunityIds: string[];
   thinkingLogsByMessageId: Record<string, string[]>;
+  isStartingCall: boolean;
   onRegenerateOnboardingWrapup?: () => void | Promise<void>;
   onboardingWrapupPending: boolean;
+  onStartCallMode?: (openingText?: string) => boolean | Promise<boolean>;
   onOpportunityFeedback: (
     opportunity: CareerHistoryOpportunity,
     feedback: "positive" | "negative",
@@ -676,6 +680,14 @@ const TimelineMessageList = memo(function TimelineMessageList({
                   isUser={isUser}
                   isAssistantSpeaking={
                     !isUser && index === lastSpokenAssistantMessageIndex
+                  }
+                  isCallStartPending={isStartingCall}
+                  onStartCallMode={
+                    onStartCallMode
+                      ? (openingText) => {
+                          void onStartCallMode(openingText);
+                        }
+                      : undefined
                   }
                 />
               </>
@@ -1115,6 +1127,8 @@ const CareerTimelineSection = () => {
             thinkingLogsByMessageId={thinkingLogsByMessageId}
             onRegenerateOnboardingWrapup={onRegenerateOnboardingWrapup}
             onboardingWrapupPending={onboardingWrapupPending}
+            onStartCallMode={onStartCallMode}
+            isStartingCall={isStartingCall}
             onOpportunityFeedback={handleOpportunityFeedback}
           />
         ) : null}
@@ -1279,9 +1293,13 @@ const CareerTimelineSection = () => {
         {user && showVoiceStartPrompt && (
           <TimelinePanel className="max-w-[620px]">
             <div className="text-[15px] leading-7 text-beige900/70">
-              현재 대화가 가능하신가요?
+              첫 추천 기준을 정리할 차례입니다.
               <br />
-              간단한 질문 몇 가지만 여쭤볼게요.
+              희망 역할과 피하고 싶은 조건만 짧게 확인할게요.
+            </div>
+            <div className="mt-3 rounded-[8px] border border-beige900/10 bg-beige50 px-3 py-3 text-[13px] leading-6 text-beige900/55">
+              역할, 지역/근무 방식, 보상, 제외할 회사를 남기면 첫 탐색으로
+              넘어갑니다.
             </div>
             <div className="mt-5 grid gap-2">
               <CareerPrimaryButton
@@ -1289,14 +1307,14 @@ const CareerTimelineSection = () => {
                 disabled={isStartingCall}
                 className="w-full justify-center"
               >
-                {isStartingCall ? "통화 연결 중..." : "5분 통화 시작"}
+                {isStartingCall ? "통화 연결 중..." : "전화로 시작"}
               </CareerPrimaryButton>
               <CareerSecondaryButton
                 onClick={onUseChatOnly}
                 disabled={isStartingCall}
                 className="w-full justify-center"
               >
-                {isStartingCall ? "준비 중..." : "텍스트로 시작"}
+                {isStartingCall ? "준비 중..." : "채팅으로 시작"}
               </CareerSecondaryButton>
               <CareerSecondaryButton
                 onClick={() => void onPauseOnboarding()}
@@ -1348,14 +1366,16 @@ const CareerTimelineSection = () => {
         {user && showContinueConversation && (
           <TimelinePanel className="max-w-[620px]">
             <div className="text-[15px] leading-7 text-beige900/55">
-              방문해주셔서 감사합니다.
+              5분 커리어 인터뷰가 아직 완료되지 않았어요.
+              <br />
+              이어서 답변하면 맞춤 기회 탐색을 시작할 수 있습니다.
             </div>
             <CareerPrimaryButton
               onClick={() => void onContinueOnboardingConversation()}
               disabled={onboardingBeginPending}
               className="mt-4 justify-center"
             >
-              {onboardingBeginPending ? "준비 중..." : "지금 더 대화하기"}
+              {onboardingBeginPending ? "준비 중..." : "대화 이어가기"}
             </CareerPrimaryButton>
           </TimelinePanel>
         )}

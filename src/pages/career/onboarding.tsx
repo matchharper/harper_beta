@@ -1,13 +1,16 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
 import Head from "next/head";
+import Image from "next/image";
 import { useRouter } from "next/router";
 import {
   ArrowRight,
+  BriefcaseBusiness,
+  Clock3,
   FileText,
   Globe2,
+  Handshake,
   LoaderCircle,
-  MessageSquareText,
   Phone,
   Upload,
 } from "lucide-react";
@@ -24,7 +27,6 @@ import CareerMobileViewportGate from "@/components/career/CareerMobileViewportGa
 import { BeigeButton, BeigeInput } from "@/components/ui/beige";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
-import { careerSessionKey } from "@/hooks/career/useCareerSession";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { resolveCareerMobileEntryReason } from "@/lib/career/mobileBlocker";
 import {
@@ -35,9 +37,17 @@ import {
 } from "@/lib/talentNetworkOptions";
 import { cn } from "@/lib/cn";
 import { useAuthStore } from "@/store/useAuthStore";
-import { LoadingState } from "../../components/career/OnboardingLoadingState";
+import LoadingState from "../../components/career/OnboardingLoadingState";
 
-const TOTAL_STEPS = 3;
+const TOTAL_STEPS = 4;
+const ONBOARDING_BACKGROUND_CLASS =
+  "bg-[#F8F1EA] bg-[linear-gradient(to_top,#F1E1D7_0%,#F8F1EA_58%,#FEFBF6_100%)]";
+const ONBOARDING_STEP_TITLES = [
+  "기본 정보",
+  "찾는 역할",
+  "프로필 자료",
+  "공개 범위",
+];
 
 const normalizeLink = (value: string) => {
   const trimmed = value.trim();
@@ -77,12 +87,134 @@ const getErrorMessage = (payload: unknown, fallback: string) => {
 const getSingleQueryParam = (value: string | string[] | undefined) =>
   Array.isArray(value) ? value[0] : value;
 
+const careerOnboardingSessionKey = (
+  userId: string | null,
+  inviteToken?: string | null,
+  mail?: string | null
+) =>
+  [
+    "career-onboarding-session",
+    userId,
+    inviteToken?.trim() || null,
+    mail?.trim() || null,
+  ] as const;
+
 type OnboardingSessionPayload = {
   conversation?: {
     id?: string | number | null;
     stage?: string | null;
   } | null;
   error?: string;
+  hasFirstSubmission?: boolean;
+  needsOnboarding?: boolean;
+};
+
+type OnboardingStartMessagePayload = {
+  content?: string | null;
+};
+
+type OnboardingStartPayload = {
+  assistantMessages?: OnboardingStartMessagePayload[];
+  error?: string;
+  kickoff?: {
+    acknowledgement?: string | null;
+    insight?: string | null;
+  } | null;
+  profileSubmitMessage?: string | null;
+  userMessage?: OnboardingStartMessagePayload | null;
+};
+
+const DEFAULT_DONE_USER_MESSAGE = "프로필 자료를 제출했습니다.";
+
+const DEFAULT_DONE_KICKOFF_TEXT = [
+  "제출해주신 이력서/링크를 바탕으로 기회를 찾아 볼게요.",
+].join("\n\n");
+
+const DONE_AGENT_INTRO_BASE =
+  "이제 제가 맞을 만한 기회들을 찾아보고, 괜찮은 곳이 있으면 회사와의 연결까지 챙겨드릴게요. 더 잘 맞는 추천을 드리기 위해 지금 어떤 상황이신지, 어떤 기회를 원하시는지 몇 가지만 더 여쭤보고 싶어요. 보통 5분 정도면 충분합니다.";
+
+const DONE_ENGAGEMENT_COPY: Record<TalentNetworkEngagementOptionId, string> = {
+  advisor: "부담 없이 이야기 나눠볼 수 있는 어드바이저 기회",
+  fractional: "지금 하시는 일과 병행하기 좋은 파트타임/프로젝트 기회",
+  full_time: "바로 검토해볼 만한 풀타임 포지션",
+};
+
+const ONBOARDING_ENGAGEMENT_COPY: Record<
+  TalentNetworkEngagementOptionId,
+  { label: string; description: string }
+> = {
+  advisor: {
+    label: "어드바이저",
+    description: "기술 자문, 초기 팀 멘토링, 전략 검토 중심",
+  },
+  fractional: {
+    label: "파트타임·프로젝트",
+    description: "현업과 병행하며 깊게 기여하는 역할",
+  },
+  full_time: {
+    label: "풀타임 합류",
+    description: "핵심 멤버로 검토할 만한 정규 포지션",
+  },
+};
+
+const buildDoneAgentIntro = (
+  selectedEngagements: TalentNetworkEngagementOptionId[]
+) => {
+  const selectedCopies = selectedEngagements
+    .map((id) => DONE_ENGAGEMENT_COPY[id])
+    .filter(Boolean);
+  const targetCopy =
+    selectedCopies.length > 0
+      ? selectedCopies.join(", ")
+      : "잘 맞는 커리어 기회";
+
+  return `${DONE_AGENT_INTRO_BASE} 대화가 끝나면 내용을 정리해서 ${targetCopy}부터 찾아볼게요.`;
+};
+
+const getOnboardingKickoffText = (payload: OnboardingStartPayload) => {
+  const acknowledgement = payload.kickoff?.acknowledgement?.trim();
+  const insight = payload.kickoff?.insight?.trim();
+  const structuredText = [acknowledgement, insight]
+    .filter(Boolean)
+    .join("\n\n");
+
+  if (structuredText) return structuredText;
+
+  const assistantText = payload.assistantMessages
+    ?.map((message) => message.content?.trim())
+    .find(Boolean);
+
+  return assistantText || DEFAULT_DONE_KICKOFF_TEXT;
+};
+
+const useStreamingText = (text: string) => {
+  const [streamedText, setStreamedText] = useState("");
+
+  useEffect(() => {
+    setStreamedText("");
+    if (!text) return;
+
+    let index = 0;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    const tick = () => {
+      const increment = index < 40 ? 1 : 2;
+      index = Math.min(text.length, index + increment);
+      setStreamedText(text.slice(0, index));
+
+      if (index < text.length) {
+        timeoutId = setTimeout(tick, index < 40 ? 26 : 14);
+      }
+    };
+
+    timeoutId = setTimeout(tick, 420);
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [text]);
+
+  return streamedText;
 };
 
 const ProgressBar = ({ step }: { step: number }) => {
@@ -229,8 +361,8 @@ const SelectionCardButton = ({
     className={cn(
       "flex min-h-[74px] w-full flex-col items-start justify-start rounded-md border-2 px-3 py-2.5 text-left transition duration-300",
       active
-        ? "border-beige900/80 bg-beige500 text-beige900"
-        : "border-beige900/10 bg-beige100 text-beige900 hover:border-beige900/60 hover:bg-beige500/50"
+        ? "border-xprimary bg-[#FFF3E8] text-beige900 shadow-[0_14px_30px_rgba(211,84,0,0.12)]"
+        : "border-beige900/10 bg-beige100 text-beige900 hover:border-xprimary/50 hover:bg-beige500/50"
     )}
   >
     <span className="flex w-full items-start gap-3">
@@ -238,7 +370,7 @@ const SelectionCardButton = ({
         className={cn(
           "mt-1 hidden h-5 w-5 shrink-0 items-center justify-center rounded-[4px] border text-xs font-medium md:inline-flex",
           active
-            ? "border-beige900 bg-beige900 text-beige100"
+            ? "border-xprimary bg-xprimary text-white"
             : "border-black/10 bg-white text-beige900"
         )}
       >
@@ -256,6 +388,77 @@ const SelectionCardButton = ({
   </button>
 );
 
+const EngagementOptionIcon = ({
+  active,
+  id,
+}: {
+  active: boolean;
+  id: TalentNetworkEngagementOptionId;
+}) => {
+  const className = cn(
+    "h-7 w-7 transition-colors",
+    active ? "text-white" : "text-xprimary"
+  );
+
+  if (id === "full_time") {
+    return <BriefcaseBusiness className={className} strokeWidth={1.7} />;
+  }
+
+  if (id === "fractional") {
+    return <Clock3 className={className} strokeWidth={1.7} />;
+  }
+
+  return <Handshake className={className} strokeWidth={1.7} />;
+};
+
+const EngagementCardButton = ({
+  active,
+  description,
+  id,
+  label,
+  optionNumber,
+  onClick,
+}: {
+  active: boolean;
+  description?: string;
+  id: TalentNetworkEngagementOptionId;
+  label: string;
+  optionNumber: number;
+  onClick: () => void;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={cn(
+      "flex min-h-[168px] w-full flex-col items-center justify-center rounded-[8px] border-2 px-5 py-5 text-center transition duration-300",
+      active
+        ? "border-xprimary bg-[#FFF3E8] text-beige900 shadow-[0_18px_38px_rgba(211,84,0,0.16)]"
+        : "border-beige900/10 bg-beige100/90 text-beige900 hover:border-xprimary/55 hover:bg-white/80"
+    )}
+  >
+    <span
+      className={cn(
+        "flex h-14 w-14 items-center justify-center rounded-[8px] border transition-colors",
+        active
+          ? "border-xprimary bg-xprimary"
+          : "border-xprimary/20 bg-white/75"
+      )}
+      aria-hidden="true"
+    >
+      <EngagementOptionIcon active={active} id={id} />
+    </span>
+    <span className="mt-4 text-[11px] font-medium text-beige900/45">
+      {optionNumber}
+    </span>
+    <span className="mt-1 text-[17px] font-medium leading-6">{label}</span>
+    {description ? (
+      <span className="mt-2 min-h-10 text-sm leading-5 text-beige900/60">
+        {description}
+      </span>
+    ) : null}
+  </button>
+);
+
 type OnboardingProfileVisibility = "open_to_matches" | "exceptional_only";
 
 const DEFAULT_ONBOARDING_PROFILE_VISIBILITY: OnboardingProfileVisibility =
@@ -269,17 +472,16 @@ const ONBOARDING_PROFILE_VISIBILITY_OPTIONS: Array<{
 }> = [
   {
     id: "open_to_matches",
-    label: "Open to matches",
+    label: "먼저 공유해도 좋아요",
     description:
-      "강하게 맞는 포지션으로 판단되면 회사에 먼저 프로필을 공유하고, 구체적인 제안을 받으신 뒤 판단하실 수 있도록 합니다.",
-    sub: "강하게 맞는 포지션으로 판단되면 회사에 먼저 프로필을 공유하고, 구체적인 제안을 받으신 뒤 판단하실 수 있도록 합니다.",
+      "강하게 맞는 포지션이면 회사에 프로필을 먼저 공유하고, 구체적인 제안을 받은 뒤 판단합니다.",
+    sub: "매칭에 필요한 프로필 정보만 공유됩니다. 대화 내용과 선택한 공개 옵션은 회사에 전달되지 않습니다.",
   },
   {
     id: "exceptional_only",
-    label: "Exceptional only",
-    description:
-      "매칭된 기회/회사를 확인한 뒤 허용한 경우에만 프로필이 공유됩니다.",
-    sub: "매칭된 기회/회사를 확인한 뒤 허용한 경우에만 프로필이 회사 측에 공유됩니다. 이 경우에도 대화 내용 및 선택하신 옵션이 공개되진 않고, 매칭에 필요한 정보만 공유됩니다.",
+    label: "확인 후 공유할게요",
+    description: "기회와 회사를 확인하고 허용한 경우에만 프로필이 공유됩니다.",
+    sub: "기회를 먼저 확인한 뒤 직접 허용하는 방식입니다. 기본적으로 회사에는 프로필이 보이지 않습니다.",
   },
 ];
 
@@ -320,63 +522,131 @@ const ResumeUploadInput = ({
   </label>
 );
 
-// const LoadingState = () => (
-//   <div className="mx-auto flex min-h-[calc(100dvh-8px)] w-full max-w-[760px] flex-col items-center justify-center px-4 text-center">
-//     <div className="relative flex h-14 w-14 items-center justify-center">
-//       <motion.div
-//         animate={{ rotate: 360 }}
-//         transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
-//         className="absolute h-14 w-14 rounded-full border-2 border-beige900/10 border-t-xprimary"
-//       />
-//       <LoaderCircle className="h-5 w-5 text-beige900/55" />
-//     </div>
-//     <p className="mt-8 max-w-[640px] text-xl font-medium leading-8 tracking-[-0.03em] text-beige900 md:text-2xl md:leading-10">
-//       감사합니다. 이력을 확인하고, 바로 구조화하고 있습니다…
-//       <br />
-//       최대 2분 정도 소요됩니다. 확인이 끝나면 Harper와 잠깐 대화하면서 현재 어떤
-//       상황인지, 어떤 기회를 선호하시는지 더 자세하게 알려주세요.
-//     </p>
-//   </div>
-// );
-
 const DoneState = ({
+  kickoffText,
   onStartCall,
   onStartChat,
+  selectedEngagements,
+  userMessage,
 }: {
+  kickoffText: string;
   onStartCall: () => void;
   onStartChat: () => void;
-}) => (
-  <div className="mx-auto flex min-h-[calc(100dvh-8px)] w-full max-w-[680px] flex-col items-center justify-center px-4 text-center">
-    <h1 className="text-2xl font-medium tracking-[-0.04em] md:text-3xl">
-      확인이 끝났습니다.
-    </h1>
-    <p className="mt-3 text-base leading-7 text-beige900/60 md:text-lg">
-      이제 Harper와 잠깐 대화하면서 현재 상황과 선호하는 기회를 알려주세요.
-    </p>
-    <div className="mt-8 grid w-full max-w-[520px] gap-3 md:grid-cols-2">
-      <BeigeButton
-        type="button"
-        size="lg"
-        variant="primary"
-        icon={<Phone className="h-4 w-4" />}
-        onClick={onStartCall}
-        className="w-full"
+  selectedEngagements: TalentNetworkEngagementOptionId[];
+  userMessage: string;
+}) => {
+  const doneAgentIntro = useMemo(
+    () => buildDoneAgentIntro(selectedEngagements),
+    [selectedEngagements]
+  );
+  const fullHarperText = useMemo(
+    () => [kickoffText.trim(), doneAgentIntro].filter(Boolean).join("\n\n"),
+    [doneAgentIntro, kickoffText]
+  );
+  const streamedText = useStreamingText(fullHarperText);
+  const isStreamComplete =
+    fullHarperText.length > 0 && streamedText.length >= fullHarperText.length;
+  const streamedParagraphs = streamedText.split(/\n{2,}/);
+
+  return (
+    <div className="mx-auto flex min-h-[calc(100dvh-8px)] w-full max-w-[760px] flex-col px-5 py-10 md:justify-center md:py-14">
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
+        className="flex flex-col items-center gap-4 text-center"
       >
-        전화로 얘기하기
-      </BeigeButton>
-      <BeigeButton
-        type="button"
-        size="lg"
-        variant="outline"
-        icon={<MessageSquareText className="h-4 w-4" />}
-        onClick={onStartChat}
-        className="w-full"
-      >
-        채팅으로 얘기하기
-      </BeigeButton>
+        <Image
+          src="/svgs/harper-h-mark.svg"
+          alt="Harper"
+          width={34}
+          height={34}
+          priority
+          className="h-[34px] w-[34px]"
+        />
+        <p className="text-[20px] font-medium text-beige900/45">
+          정보를 확인했습니다
+        </p>
+      </motion.div>
+
+      <div className="mt-12 flex flex-col">
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.12, duration: 0.45, ease: "easeOut" }}
+          className="flex justify-end"
+        >
+          <p className="max-w-[520px] text-right text-[13px] leading-7 text-beige900/42 md:text-[15px]">
+            {userMessage || DEFAULT_DONE_USER_MESSAGE}
+          </p>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.36, duration: 0.45, ease: "easeOut" }}
+          className="mt-10 max-w-[660px]"
+        >
+          <div className="space-y-5 text-left text-[15px] leading-8 text-beige900 md:text-[16px] md:leading-9">
+            {streamedParagraphs.map((paragraph, index) => {
+              const isLast = index === streamedParagraphs.length - 1;
+              return (
+                <p key={`${index}-${paragraph.slice(0, 10)}`}>
+                  {paragraph}
+                  {isLast && !isStreamComplete ? (
+                    <span className="ml-1 inline-block h-4 w-[1px] translate-y-0.5 animate-pulse bg-beige900/55" />
+                  ) : null}
+                </p>
+              );
+            })}
+          </div>
+        </motion.div>
+
+        <AnimatePresence>
+          {isStreamComplete ? (
+            <motion.div
+              key="done-actions"
+              initial={{ opacity: 0, y: 18, filter: "blur(6px)" }}
+              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+              className="mt-10"
+            >
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <BeigeButton
+                  type="button"
+                  size="lg"
+                  variant="primary"
+                  icon={<Phone className="h-4 w-4" />}
+                  onClick={onStartCall}
+                  animate
+                  className="w-full sm:w-auto"
+                >
+                  5분 커리어 인터뷰 시작하기
+                </BeigeButton>
+                <BeigeButton
+                  type="button"
+                  size="lg"
+                  variant="outline"
+                  icon={<ArrowRight className="h-4 w-4" />}
+                  onClick={onStartChat}
+                  animate
+                  className="w-full sm:w-auto"
+                >
+                  채팅으로 계속 하기
+                </BeigeButton>
+              </div>
+              <p className="mt-4 text-[13px] leading-6 text-beige900/45">
+                통화가 어렵다면 채팅으로 이어가도 됩니다. 있는 그대로
+                알려주실수록 연결이 더 정확해집니다.
+              </p>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const CareerNetworkOnboardingContent = () => {
   const router = useRouter();
@@ -406,12 +676,18 @@ const CareerNetworkOnboardingContent = () => {
     "form"
   );
   const [submitError, setSubmitError] = useState("");
+  const [doneUserMessage, setDoneUserMessage] = useState(
+    DEFAULT_DONE_USER_MESSAGE
+  );
+  const [doneKickoffText, setDoneKickoffText] = useState(
+    DEFAULT_DONE_KICKOFF_TEXT
+  );
   const userId = user?.id ?? null;
   const inviteToken = getSingleQueryParam(router.query.invite)?.trim() || null;
   const mail = getSingleQueryParam(router.query.mail)?.trim() || null;
   const onboardingNextPath = router.asPath || "/career/onboarding";
   const sessionQueryKey = useMemo(
-    () => careerSessionKey(userId, inviteToken, mail),
+    () => careerOnboardingSessionKey(userId, inviteToken, mail),
     [inviteToken, mail, userId]
   );
 
@@ -430,7 +706,7 @@ const CareerNetworkOnboardingContent = () => {
       );
     }
 
-    const sessionRes = await fetchWithAuth("/api/talent/session");
+    const sessionRes = await fetchWithAuth("/api/talent/session?statusOnly=1");
     const payload = (await sessionRes
       .json()
       .catch(() => ({}))) as OnboardingSessionPayload;
@@ -483,7 +759,10 @@ const CareerNetworkOnboardingContent = () => {
 
         if (cancelled) return;
 
-        if (payload?.conversation?.stage !== "profile") {
+        if (
+          payload?.conversation?.stage !== "profile" &&
+          payload?.needsOnboarding !== true
+        ) {
           const query: Record<string, string> = {};
           if (inviteToken) query.invite = inviteToken;
           if (mail) query.mail = mail;
@@ -496,6 +775,7 @@ const CareerNetworkOnboardingContent = () => {
         }
 
         setConversationId(String(payload?.conversation?.id ?? ""));
+        setSubmitState(payload?.hasFirstSubmission ? "done" : "form");
       } catch (error) {
         if (cancelled) return;
         setSubmitError(
@@ -586,15 +866,7 @@ const CareerNetworkOnboardingContent = () => {
         }
       }
 
-      if (currentStep === 1 && !hasRequiredProfileSignal) {
-        showToast({
-          message: "이력서나 LinkedIn 링크 중 하나는 꼭 입력해주세요.",
-          variant: "white",
-        });
-        return false;
-      }
-
-      if (currentStep === 2) {
+      if (currentStep === 1) {
         if (selectedEngagements.length === 0) {
           showToast({
             message: "찾고 있는 업무 형태를 선택해주세요.",
@@ -602,6 +874,14 @@ const CareerNetworkOnboardingContent = () => {
           });
           return false;
         }
+      }
+
+      if (currentStep === 2 && !hasRequiredProfileSignal) {
+        showToast({
+          message: "이력서나 LinkedIn 링크 중 하나는 꼭 입력해주세요.",
+          variant: "white",
+        });
+        return false;
       }
 
       return true;
@@ -731,7 +1011,9 @@ const CareerNetworkOnboardingContent = () => {
           resumeText,
         }),
       });
-      const payload = await startRes.json().catch(() => ({}));
+      const payload = (await startRes
+        .json()
+        .catch(() => ({}))) as OnboardingStartPayload;
       if (!startRes.ok) {
         throw new Error(
           getErrorMessage(payload, "프로필 구조화를 시작하지 못했습니다.")
@@ -741,6 +1023,12 @@ const CareerNetworkOnboardingContent = () => {
       queryClient.removeQueries({ queryKey: ["career-session"] });
       queryClient.removeQueries({ queryKey: ["career-message-history"] });
       queryClient.removeQueries({ queryKey: ["career-history-opportunities"] });
+      setDoneUserMessage(
+        payload.profileSubmitMessage?.trim() ||
+          payload.userMessage?.content?.trim() ||
+          DEFAULT_DONE_USER_MESSAGE
+      );
+      setDoneKickoffText(getOnboardingKickoffText(payload));
       setSubmitState("done");
     } catch (error) {
       setSubmitError(
@@ -778,7 +1066,7 @@ const CareerNetworkOnboardingContent = () => {
       if (event.isComposing || event.metaKey || event.ctrlKey || event.altKey) {
         return;
       }
-      if (step !== 2 || !/^[1-9]$/.test(event.key)) return;
+      if ((step !== 1 && step !== 3) || !/^[1-9]$/.test(event.key)) return;
 
       const target = event.target;
       if (
@@ -792,17 +1080,16 @@ const CareerNetworkOnboardingContent = () => {
       }
 
       const optionIndex = Number(event.key) - 1;
-      const engagement = TALENT_NETWORK_ENGAGEMENT_OPTIONS[optionIndex];
-      if (engagement) {
+      if (step === 1) {
+        const engagement = TALENT_NETWORK_ENGAGEMENT_OPTIONS[optionIndex];
+        if (!engagement) return;
+
         event.preventDefault();
         handleEngagementToggle(engagement.id);
         return;
       }
 
-      const visibility =
-        ONBOARDING_PROFILE_VISIBILITY_OPTIONS[
-          optionIndex - TALENT_NETWORK_ENGAGEMENT_OPTIONS.length
-        ];
+      const visibility = ONBOARDING_PROFILE_VISIBILITY_OPTIONS[optionIndex];
       if (!visibility) return;
 
       event.preventDefault();
@@ -828,7 +1115,9 @@ const CareerNetworkOnboardingContent = () => {
     }),
   };
 
-  const stepLabel = `${step + 1}/${TOTAL_STEPS}`;
+  const stepLabel = `Step ${step + 1} / ${TOTAL_STEPS} · ${
+    ONBOARDING_STEP_TITLES[step] ?? ""
+  }`;
   const selectedVisibilityOption =
     ONBOARDING_PROFILE_VISIBILITY_OPTIONS.find(
       (option) => option.id === profileVisibility
@@ -852,7 +1141,12 @@ const CareerNetworkOnboardingContent = () => {
 
   if (authLoading || bootstrapLoading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-beige100 font-geist text-beige900">
+      <main
+        className={cn(
+          "flex min-h-screen items-center justify-center font-geist text-beige900",
+          ONBOARDING_BACKGROUND_CLASS
+        )}
+      >
         <LoaderCircle className="h-5 w-5 animate-spin text-beige900/40" />
       </main>
     );
@@ -863,55 +1157,35 @@ const CareerNetworkOnboardingContent = () => {
       <Head>
         <title>Harper Onboarding</title>
       </Head>
-      <main className="min-h-[100dvh] bg-beige100 pt-2 font-geist text-beige900">
-        <ProgressBar step={step} />
+      <main
+        className={cn(
+          "min-h-[100dvh] pt-2 font-geist text-beige900",
+          ONBOARDING_BACKGROUND_CLASS
+        )}
+      >
+        <ProgressBar
+          step={
+            submitState === "done" || submitState === "loading"
+              ? TOTAL_STEPS - 1
+              : step
+          }
+        />
 
         {submitState === "loading" ? (
           <LoadingState />
         ) : submitState === "done" ? (
           <DoneState
+            kickoffText={doneKickoffText}
             onStartCall={() => navigateToCareerStart("call")}
             onStartChat={() => navigateToCareerStart("chat")}
+            selectedEngagements={selectedEngagements}
+            userMessage={doneUserMessage}
           />
         ) : (
-          <div className="mx-auto flex min-h-[calc(100dvh-8px)] w-full max-w-[1040px] flex-col px-4 py-6 md:flex-row md:gap-10 md:py-10">
-            <aside className="hidden w-[210px] shrink-0 md:block">
-              <div className="sticky top-10 border-r border-beige900/10 pr-6">
-                <button
-                  type="button"
-                  onClick={() => void router.push("/network")}
-                  className="font-halant text-[32px] leading-none tracking-[-0.06em]"
-                >
-                  Harper
-                </button>
-                <div className="mt-8 space-y-3 text-sm text-beige900/55">
-                  {["회원 정보", "대표 프로필", "찾고 있는 기회"].map(
-                    (label, index) => (
-                      <div
-                        key={label}
-                        className={cn(
-                          "flex items-center gap-2",
-                          index === step && "font-medium text-beige900"
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "h-1.5 w-1.5 rounded-full bg-beige900/20",
-                            index === step && "bg-xprimary"
-                          )}
-                        />
-                        {label}
-                      </div>
-                    )
-                  )}
-                </div>
-              </div>
-            </aside>
-
-            <section className="flex min-w-0 flex-1 flex-col justify-start pt-8 md:pt-[6vh]">
-              <div className="mb-5 flex items-center gap-2 text-sm font-semibold text-xprimary md:text-base">
+          <div className="mx-auto flex min-h-[calc(100dvh-8px)] w-full max-w-[960px] flex-col items-center px-4 py-8 md:justify-center md:px-6 md:py-12">
+            <section className="flex w-full flex-col items-center text-center">
+              <div className="mb-6 text-center text-[11px] font-medium text-xprimary">
                 {stepLabel}
-                <ArrowRight className="h-4 w-4" />
               </div>
 
               <AnimatePresence mode="wait" custom={isNextRef.current}>
@@ -923,20 +1197,22 @@ const CareerNetworkOnboardingContent = () => {
                   variants={slideVariants}
                   custom={isNextRef.current}
                   transition={{ duration: 0.3, ease: "easeInOut" }}
-                  className="flex w-full flex-col gap-5"
+                  className="flex w-full flex-col items-center gap-5"
                 >
                   {step === 0 ? (
                     <>
-                      <header>
-                        <h1 className="max-w-[720px] text-2xl font-medium leading-[1.3] tracking-[-0.04em] md:text-3xl">
-                          Harper는 원하던 곳에서 만족하며 일하시게 되는 날까지
-                          모든 과정을 돕습니다.
+                      <header className="mx-auto max-w-[720px]">
+                        <h1 className="text-2xl font-medium leading-[1.25] md:text-3xl">
+                          스포츠 스타에게 에이전트가 있듯, 좋은 커리어에도 전담
+                          에이전트가 필요합니다.
                         </h1>
-                        <p className="mt-4 text-xl font-normal tracking-[-0.03em] text-beige900/70 md:text-2xl">
-                          회원님에 대해서 알려주세요.
+                        <p className="mt-4 text-base leading-7 text-beige900/65 md:text-lg">
+                          Harper가 에이전트/헤드헌터처럼 맞는 기회를 먼저
+                          살펴보고 연결할 수 있도록, 이름과 연락처만 먼저
+                          확인할게요.
                         </p>
                       </header>
-                      <div className="mt-4 grid gap-5">
+                      <div className="mx-auto mt-6 grid w-full max-w-[520px] gap-5 text-left">
                         <div className="space-y-2">
                           <OnboardingFieldLabel>이름</OnboardingFieldLabel>
                           <BeigeInput
@@ -963,16 +1239,52 @@ const CareerNetworkOnboardingContent = () => {
 
                   {step === 1 ? (
                     <>
-                      <header>
-                        <h1 className="text-2xl font-medium tracking-[-0.04em] md:text-3xl">
-                          대표 프로필을 알려주세요.
+                      <header className="mx-auto max-w-[720px]">
+                        <h1 className="text-2xl font-medium leading-[1.25] md:text-3xl">
+                          어떤 형태의 기회를 열어둘까요?
                         </h1>
                         <p className="mt-3 text-base leading-7 text-beige900/60 md:text-lg">
-                          이력서나 LinkedIn 중 하나는 꼭 필요합니다. 다른 링크는
-                          보조 정보로 추가할 수 있습니다.
+                          풀타임 합류부터 현업과 병행하는 파트타임, 어드바이저
+                          역할까지 관심 있는 것만 선택해주세요.
                         </p>
                       </header>
-                      <div className="mt-1 flex flex-wrap gap-2">
+                      <div className="mx-auto mt-5 grid w-full max-w-[860px] gap-3 md:grid-cols-3">
+                        {TALENT_NETWORK_ENGAGEMENT_OPTIONS.map(
+                          (option, index) => {
+                            const copy = ONBOARDING_ENGAGEMENT_COPY[option.id];
+
+                            return (
+                              <EngagementCardButton
+                                key={option.id}
+                                id={option.id}
+                                optionNumber={index + 1}
+                                label={copy.label}
+                                description={copy.description}
+                                active={selectedEngagements.includes(option.id)}
+                                onClick={() =>
+                                  handleEngagementToggle(option.id)
+                                }
+                              />
+                            );
+                          }
+                        )}
+                      </div>
+                    </>
+                  ) : null}
+
+                  {step === 2 ? (
+                    <>
+                      <header className="mx-auto max-w-[720px]">
+                        <h1 className="text-2xl font-medium leading-[1.25] md:text-3xl">
+                          가장 잘 보여주는 자료를 연결해주세요.
+                        </h1>
+                        <p className="mt-3 text-base leading-7 text-beige900/60 md:text-lg">
+                          이력서나 LinkedIn 중 하나면 충분합니다. GitHub,
+                          Scholar, 개인 사이트는 더 정확한 판단을 위한 보조
+                          자료로 추가할 수 있습니다.
+                        </p>
+                      </header>
+                      <div className="mx-auto mt-3 flex max-w-[760px] flex-wrap justify-center gap-2">
                         {TALENT_NETWORK_PROFILE_INPUT_OPTIONS.map((option) => (
                           <ProfileInputToggle
                             key={option.id}
@@ -983,7 +1295,7 @@ const CareerNetworkOnboardingContent = () => {
                           />
                         ))}
                       </div>
-                      <div className="mt-3 flex flex-col gap-4">
+                      <div className="mx-auto mt-5 flex w-full max-w-[700px] flex-col gap-4 text-left">
                         {selectedProfileInputs.includes("linkedin") ? (
                           <BeigeLinkInput
                             label="LinkedIn"
@@ -1030,89 +1342,53 @@ const CareerNetworkOnboardingContent = () => {
                     </>
                   ) : null}
 
-                  {step === 2 ? (
+                  {step === 3 ? (
                     <>
-                      <header>
-                        <h1 className="text-2xl font-medium tracking-[-0.04em] md:text-3xl">
-                          어떤 기회를 찾고 계신가요?
+                      <header className="mx-auto max-w-[720px]">
+                        <h1 className="text-2xl font-medium leading-[1.25] md:text-3xl">
+                          회사에 프로필을 언제 공개할까요?
                         </h1>
+                        <p className="mt-3 text-base leading-7 text-beige900/60 md:text-lg">
+                          공개 범위를 정해주세요. 대화 내용과 선택한 옵션은
+                          회사에 공개되지 않습니다.
+                        </p>
                       </header>
-                      <div className="mt-2 space-y-6">
-                        <div>
-                          <div className="mb-3 text-base font-medium">
-                            찾고 있는 업무 형태
-                          </div>
-                          <div className="grid gap-3 md:grid-cols-3">
-                            {TALENT_NETWORK_ENGAGEMENT_OPTIONS.map(
-                              (option, index) => (
-                                <SelectionCardButton
-                                  key={option.id}
-                                  optionNumber={index + 1}
-                                  label={option.label}
-                                  description={option.description}
-                                  active={selectedEngagements.includes(
-                                    option.id
-                                  )}
-                                  onClick={() =>
-                                    handleEngagementToggle(option.id)
-                                  }
-                                />
-                              )
-                            )}
-                          </div>
-                        </div>
-
-                        <div>
-                          <div className="mb-3 text-base font-medium">
-                            프로필 공개
-                          </div>
-                          <p className="mb-3 text-sm leading-6 text-beige900/55">
-                            어떤 수준의 매칭에서 회사가 프로필을 볼 수 있는지
-                            정합니다.
-                          </p>
-                          <div className="grid gap-3 md:grid-cols-2">
-                            {ONBOARDING_PROFILE_VISIBILITY_OPTIONS.map(
-                              (option, index) => (
-                                <SelectionCardButton
-                                  key={option.id}
-                                  optionNumber={
-                                    TALENT_NETWORK_ENGAGEMENT_OPTIONS.length +
-                                    index +
-                                    1
-                                  }
-                                  label={option.label}
-                                  description={option.description}
-                                  active={profileVisibility === option.id}
-                                  onClick={() =>
-                                    setProfileVisibility(option.id)
-                                  }
-                                />
-                              )
-                            )}
-                          </div>
-                          <p className="mt-3 text-[13px] leading-5 text-beige900/80">
-                            {selectedVisibilityOption.sub}
-                          </p>
-                        </div>
+                      <div className="mx-auto mt-5 grid w-full max-w-[760px] gap-3 text-left md:grid-cols-2">
+                        {ONBOARDING_PROFILE_VISIBILITY_OPTIONS.map(
+                          (option, index) => (
+                            <SelectionCardButton
+                              key={option.id}
+                              optionNumber={index + 1}
+                              label={option.label}
+                              description={option.description}
+                              active={profileVisibility === option.id}
+                              onClick={() => setProfileVisibility(option.id)}
+                            />
+                          )
+                        )}
                       </div>
+                      <p className="mx-auto mt-2 max-w-[680px] text-[13px] leading-5 text-beige900/70">
+                        {selectedVisibilityOption.sub}
+                      </p>
                     </>
                   ) : null}
                 </motion.div>
               </AnimatePresence>
 
               {submitError ? (
-                <p className="mt-5 border border-xprimary/30 bg-white/45 px-3 py-2 text-sm leading-6 text-xprimary">
+                <p className="mx-auto mt-5 w-full max-w-[680px] border border-xprimary/30 bg-white/45 px-3 py-2 text-left text-sm leading-6 text-xprimary">
                   {submitError}
                 </p>
               ) : null}
 
-              <div className="mt-8 flex flex-col-reverse gap-3 md:flex-row md:items-center">
+              <div className="mt-8 flex w-full flex-col-reverse items-stretch justify-center gap-3 sm:w-auto sm:flex-row sm:items-center">
                 {step > 0 ? (
                   <BeigeButton
                     type="button"
                     variant="outline"
                     size="lg"
                     onClick={handlePrev}
+                    className="w-full sm:w-auto"
                   >
                     이전
                   </BeigeButton>
@@ -1122,7 +1398,7 @@ const CareerNetworkOnboardingContent = () => {
                   variant="primary"
                   size="lg"
                   onClick={handleNext}
-                  className="w-full md:w-fit"
+                  className="w-full sm:w-auto"
                 >
                   {step === TOTAL_STEPS - 1 ? (
                     <>

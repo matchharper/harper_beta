@@ -7,6 +7,11 @@ import {
   buildCareerProfileUpdateMergeUserPrompt,
 } from "@/lib/career/prompts";
 import { runCareerProfileIngestion } from "@/lib/career/llm";
+import {
+  fetchTalentSetting,
+  normalizeTalentBlockedCompanies,
+  upsertTalentSetting,
+} from "@/lib/talentOnboarding/stateStore";
 import type { TalentStructuredProfile } from "@/lib/talentOnboarding/models";
 
 const DEFAULT_LINKEDIN_ACTOR_ID = "LpVuK3Zozwuipa5bp";
@@ -42,6 +47,7 @@ const MONTH_NAME_TO_INDEX: Record<string, number> = {
 export type TalentExperienceDraft = {
   role: string | null;
   description: string | null;
+  employment_type: string | null;
   start_date: string | null;
   end_date: string | null;
   months: number | null;
@@ -82,6 +88,7 @@ type LlmEnrichmentDraft = {
   talentExperiences?: TalentExperienceDraft[];
   talentEducations?: TalentEducationDraft[];
   talentExtras?: TalentExtraDraft[];
+  blockedCompanies?: string[];
   notes?: string;
 };
 
@@ -103,6 +110,7 @@ type LlmProfileMergeDraft = {
   talentExperiences?: Array<Record<string, unknown>>;
   talentEducations?: Array<Record<string, unknown>>;
   talentExtras?: Array<Record<string, unknown>>;
+  blockedCompanies?: string[];
   notes?: string;
 };
 
@@ -125,6 +133,7 @@ export type TalentProfileIngestionResult = {
   experiences: TalentExperienceDraft[];
   educations: TalentEducationDraft[];
   talentExtras: TalentExtraDraft[];
+  blockedCompanies: string[];
   llm: {
     used: boolean;
     notes: string | null;
@@ -162,6 +171,7 @@ type ExtractedTalentProfileDraft = {
   experiences: TalentExperienceDraft[];
   educations: TalentEducationDraft[];
   talentExtras: TalentExtraDraft[];
+  blockedCompanies: string[];
   llm: {
     used: boolean;
     notes: string | null;
@@ -213,6 +223,79 @@ function cleanMultilineText(value: unknown, maxLength = 8000): string | null {
     .trim();
   if (!normalized) return null;
   return normalized.slice(0, maxLength);
+}
+
+function collectTextFragments(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (Array.isArray(value)) return value.flatMap(collectTextFragments);
+  if (!value || typeof value !== "object") return [];
+
+  const record = value as Record<string, unknown>;
+  return [
+    record.text,
+    record.insight,
+    record.description,
+    record.summary,
+  ].flatMap(collectTextFragments);
+}
+
+function combineMultilineText(
+  values: unknown[],
+  maxLength = 8000
+): string | null {
+  const seen = new Set<string>();
+  const parts: string[] = [];
+
+  for (const value of values) {
+    for (const fragment of collectTextFragments(value)) {
+      const cleaned = cleanMultilineText(fragment, maxLength);
+      if (!cleaned || seen.has(cleaned)) continue;
+      seen.add(cleaned);
+      parts.push(cleaned);
+    }
+  }
+
+  return cleanMultilineText(parts.join("\n\n"), maxLength);
+}
+
+function blockedCompaniesFromExperiences(
+  experiences: readonly TalentExperienceDraft[]
+): string[] {
+  return normalizeTalentBlockedCompanies(
+    experiences.map((item) => item.company_name)
+  );
+}
+
+async function mergeBlockedCompaniesIntoTalentSetting(args: {
+  admin: any;
+  userId: string;
+  blockedCompanies: string[];
+}) {
+  const nextBlockedCompanies = normalizeTalentBlockedCompanies(
+    args.blockedCompanies
+  );
+  if (nextBlockedCompanies.length === 0) return null;
+
+  const current = await fetchTalentSetting({
+    admin: args.admin,
+    userId: args.userId,
+  });
+  const mergedBlockedCompanies = normalizeTalentBlockedCompanies([
+    ...(current?.blocked_companies ?? []),
+    ...nextBlockedCompanies,
+  ]);
+
+  if (mergedBlockedCompanies.length === (current?.blocked_companies ?? []).length) {
+    return current;
+  }
+
+  return upsertTalentSetting({
+    admin: args.admin,
+    userId: args.userId,
+    blockedCompanies: mergedBlockedCompanies,
+    recommendationSettingsUpdatedBy:
+      current?.recommendation_settings_updated_by ?? "conversation",
+  });
 }
 
 function parseCompanyId(value: unknown): number | null {
@@ -475,6 +558,8 @@ function toTalentExperienceDraft(raw: unknown): TalentExperienceDraft | null {
     cleanText(item.company_name, 300) ?? cleanText(item.companyName, 300);
   const companyLocation =
     cleanText(item.company_location, 300) ?? cleanText(item.location, 300);
+  const employmentType =
+    cleanText(item.employment_type, 120) ?? cleanText(item.employmentType, 120);
   const companyId = parseCompanyId(item.company_id ?? item.companyId);
   const companyLink =
     extractLinkValue(
@@ -505,6 +590,7 @@ function toTalentExperienceDraft(raw: unknown): TalentExperienceDraft | null {
   return {
     role,
     description,
+    employment_type: employmentType,
     start_date: startDate,
     end_date: endDate,
     months,
@@ -522,14 +608,10 @@ function toTalentEducationDraft(raw: unknown): TalentEducationDraft | null {
 
   const school = cleanText(item.school, 300) ?? cleanText(item.schoolName, 300);
   const degree = cleanText(item.degree, 220);
-  const description =
-    cleanMultilineText(
-      item.description ??
-        item.activitiesAndSocieties ??
-        item.activities ??
-        item.summary,
-      6000
-    ) ?? null;
+  const description = combineMultilineText(
+    [item.description, item.activitiesAndSocieties, item.insights],
+    6000
+  );
   const field = cleanText(item.field, 220) ?? cleanText(item.fieldOfStudy, 220);
   const startDate = parseLinkedinDate(
     extractDateText(item.start_date ?? item.startDate),
@@ -645,12 +727,13 @@ function recoverExperienceCompanyIds(
   experiences: TalentExperienceDraft[],
   linkedinExperiences: TalentExperienceDraft[]
 ): TalentExperienceDraft[] {
-  const linkedinWithCompanyIds = linkedinExperiences.filter(
-    (item): item is TalentExperienceDraft & { company_id: number } =>
-      typeof item.company_id === "number" && item.company_id > 0
+  const linkedinWithRecoverableFields = linkedinExperiences.filter(
+    (item) =>
+      (typeof item.company_id === "number" && item.company_id > 0) ||
+      Boolean(item.employment_type)
   );
 
-  if (linkedinWithCompanyIds.length === 0) {
+  if (linkedinWithRecoverableFields.length === 0) {
     return experiences.map((item) => ({
       ...item,
       company_logo: null,
@@ -658,14 +741,6 @@ function recoverExperienceCompanyIds(
   }
 
   return experiences.map((item) => {
-    if (item.company_id) {
-      return {
-        ...item,
-        company_link: item.company_link ?? null,
-        company_logo: null,
-      };
-    }
-
     const companyName = normalizeForKey(item.company_name);
     if (!companyName) {
       return {
@@ -676,9 +751,9 @@ function recoverExperienceCompanyIds(
     }
 
     let bestScore = -1;
-    let bestCompanyIds = new Set<number>();
+    let bestCandidates: TalentExperienceDraft[] = [];
 
-    for (const candidate of linkedinWithCompanyIds) {
+    for (const candidate of linkedinWithRecoverableFields) {
       if (normalizeForKey(candidate.company_name) !== companyName) continue;
 
       let score = 100;
@@ -711,13 +786,13 @@ function recoverExperienceCompanyIds(
 
       if (score > bestScore) {
         bestScore = score;
-        bestCompanyIds = new Set<number>([candidate.company_id]);
+        bestCandidates = [candidate];
       } else if (score === bestScore) {
-        bestCompanyIds.add(candidate.company_id);
+        bestCandidates.push(candidate);
       }
     }
 
-    if (bestScore < 100 || bestCompanyIds.size !== 1) {
+    if (bestScore < 100 || bestCandidates.length !== 1) {
       return {
         ...item,
         company_link: item.company_link ?? null,
@@ -725,17 +800,17 @@ function recoverExperienceCompanyIds(
       };
     }
 
-    const resolvedCompanyId = Array.from(bestCompanyIds)[0] ?? null;
+    const bestCandidate = bestCandidates[0];
+    const resolvedCompanyId =
+      typeof bestCandidate.company_id === "number" && bestCandidate.company_id > 0
+        ? bestCandidate.company_id
+        : null;
 
     return {
       ...item,
-      company_id: resolvedCompanyId,
-      company_link:
-        item.company_link ??
-        linkedinWithCompanyIds.find(
-          (candidate) => candidate.company_id === resolvedCompanyId
-        )?.company_link ??
-        null,
+      company_id: item.company_id ?? resolvedCompanyId,
+      company_link: item.company_link ?? bestCandidate.company_link ?? null,
+      employment_type: item.employment_type ?? bestCandidate.employment_type,
       company_logo: null,
     };
   });
@@ -875,6 +950,7 @@ function normalizeLlmEnrichment(raw: LlmEnrichmentDraft): {
   experiences: TalentExperienceDraft[];
   educations: TalentEducationDraft[];
   talentExtras: TalentExtraDraft[];
+  blockedCompanies: string[];
   notes: string | null;
 } {
   const userPatchRaw = raw.talentUserPatch ?? raw.talentUser ?? {};
@@ -920,6 +996,7 @@ function normalizeLlmEnrichment(raw: LlmEnrichmentDraft): {
     experiences,
     educations,
     talentExtras,
+    blockedCompanies: normalizeTalentBlockedCompanies(raw.blockedCompanies),
     notes: cleanText(raw.notes, 2000),
   };
 }
@@ -1220,6 +1297,7 @@ async function extractTalentProfileDraftFromSources(
   let experiencesFromLlm = 0;
   let educationsFromLlm = 0;
   let extrasFromLlm = 0;
+  let blockedCompaniesFromLlm: string[] = [];
 
   if (resumeText) {
     const llmResult = await withTimeout(
@@ -1233,7 +1311,7 @@ async function extractTalentProfileDraftFromSources(
         talentExtras,
         resumeText,
       }),
-      60_000,
+      90_000,
       "Resume enrichment LLM timed out"
     );
     llmRaw = llmResult.raw;
@@ -1254,6 +1332,7 @@ async function extractTalentProfileDraftFromSources(
       experiences = dedupeByKey(normalized.experiences, experienceKey);
       educations = dedupeByKey(normalized.educations, educationKey);
       talentExtras = dedupeByKey(normalized.talentExtras, extraKey);
+      blockedCompaniesFromLlm = normalized.blockedCompanies;
 
       experiencesFromLlm = experiences.length;
       educationsFromLlm = educations.length;
@@ -1271,6 +1350,11 @@ async function extractTalentProfileDraftFromSources(
     experiences,
   });
   experiences = attachCompanyLogos(experiences, companyLogoById);
+  const blockedCompanies = normalizeTalentBlockedCompanies([
+    ...blockedCompaniesFromExperiences(experiencesFromLinkedin),
+    ...blockedCompaniesFromExperiences(experiences),
+    ...blockedCompaniesFromLlm,
+  ]);
 
   return {
     linkedinUrl,
@@ -1289,6 +1373,7 @@ async function extractTalentProfileDraftFromSources(
     experiences,
     educations,
     talentExtras,
+    blockedCompanies,
     llm: {
       used: Boolean(resumeText),
       notes: llmNotes,
@@ -1370,6 +1455,7 @@ export async function ingestTalentProfileFromLinkedin(
     talent_id: userId,
     role: item.role,
     description: item.description,
+    employment_type: item.employment_type,
     start_date: item.start_date,
     end_date: item.end_date,
     months: item.months,
@@ -1436,6 +1522,12 @@ export async function ingestTalentProfileFromLinkedin(
     );
   }
 
+  await mergeBlockedCompaniesIntoTalentSetting({
+    admin,
+    userId,
+    blockedCompanies: extracted.blockedCompanies,
+  });
+
   const result: TalentProfileIngestionResult = {
     ok: true,
     linkedinUrl: extracted.linkedinUrl ?? "",
@@ -1450,6 +1542,7 @@ export async function ingestTalentProfileFromLinkedin(
     experiences: extracted.experiences,
     educations: extracted.educations,
     talentExtras: extracted.talentExtras,
+    blockedCompanies: extracted.blockedCompanies,
     llm: extracted.llm,
   };
 
@@ -1492,6 +1585,7 @@ function existingExperienceToMergedDraft(
     existingId: row.id,
     role: cleanText(row.role, 240),
     description: cleanMultilineText(row.description, 8000),
+    employment_type: cleanText(row.employment_type, 120),
     start_date: cleanText(row.start_date, 32),
     end_date: cleanText(row.end_date, 32),
     months: typeof row.months === "number" ? row.months : null,
@@ -1669,6 +1763,7 @@ function buildExistingProfileForMergePrompt(
       existingId: item.id,
       role: item.role,
       description: item.description,
+      employment_type: item.employment_type,
       start_date: item.start_date,
       end_date: item.end_date,
       months: item.months,
@@ -1848,6 +1943,7 @@ function experienceUpdatePayload(
   return {
     role: item.role,
     description: item.description,
+    employment_type: item.employment_type,
     start_date: item.start_date,
     end_date: item.end_date,
     months: item.months,
@@ -2084,6 +2180,15 @@ export async function mergeTalentProfileFromLatestSources(
       extrasUpsertError.message ?? "Failed to upsert talent_extras"
     );
   }
+  const blockedCompanies = normalizeTalentBlockedCompanies([
+    ...extracted.blockedCompanies,
+    ...blockedCompaniesFromExperiences(experiences),
+  ]);
+  await mergeBlockedCompaniesIntoTalentSetting({
+    admin,
+    userId,
+    blockedCompanies,
+  });
 
   const result: TalentProfileIngestionResult = {
     ok: true,
@@ -2115,6 +2220,7 @@ export async function mergeTalentProfileFromLatestSources(
     experiences: experiences.map(({ existingId: _existingId, ...item }) => item),
     educations: educations.map(({ existingId: _existingId, ...item }) => item),
     talentExtras: talentExtras.map(({ memo: _memo, ...item }) => item),
+    blockedCompanies,
     llm: {
       used: true,
       notes: mergedRaw.notes,

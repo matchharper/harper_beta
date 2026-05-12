@@ -124,10 +124,6 @@ begin
      set talent_id = target_user_id
    where talent_id = source_row.user_id;
 
-  update public.talent_notification
-     set talent_id = target_user_id
-   where talent_id = source_row.user_id;
-
   update public.talent_opportunity_recommendation
      set talent_id = target_user_id
    where talent_id = source_row.user_id;

@@ -1,4 +1,5 @@
 import { OpportunityType } from "@/lib/opportunityType";
+import type { OpportunityDiscoveryAgentVariant } from "@/lib/opportunityDiscovery/types";
 
 export { OpportunityType as CareerOpportunityType };
 
@@ -16,6 +17,8 @@ export type CareerRecommendationSearchStatus = {
   recommendationCount?: number | null;
   state: CareerRecommendationSearchStatusState;
 };
+
+export type CareerOpportunityAgentVariant = OpportunityDiscoveryAgentVariant;
 
 export type CallTranscriptEntry = {
   role: "user" | "assistant";
@@ -37,6 +40,7 @@ export type CareerTalentExperience = {
   talent_id: string;
   role: string | null;
   description: string | null;
+  employment_type: string | null;
   start_date: string | null;
   end_date: string | null;
   months: number | null;
@@ -80,11 +84,20 @@ export type CareerTalentPreferences = {
   preferredLocations: string[];
   careerMoveIntent: string | null;
   careerMoveIntentLabel: string | null;
+  isOnboardingDone: boolean;
   periodicIntervalDays: number;
   recommendationBatchSize: number;
 };
 
 export type CareerTalentInsights = Record<string, string>;
+
+export type CareerInterviewProgress = {
+  canForceComplete: boolean;
+  filledCount: number;
+  percent: number;
+  remainingCount: number;
+  totalCount: number;
+};
 
 export type CareerOpportunitySavedStage =
   | "saved"
@@ -172,14 +185,8 @@ export type CareerHistoryOpportunity = {
   workMode: string | null;
 };
 
-export type CareerTalentNotification = {
-  id: number;
-  message: string | null;
-  isRead: boolean;
-  createdAt: string;
-};
-
 export type CareerOpportunityRun = {
+  agentVariant: CareerOpportunityAgentVariant | null;
   chatPreviewCount: number;
   completedAt: string | null;
   coverage: Record<string, unknown>;
@@ -248,7 +255,6 @@ export type SessionResponse = {
   historyItems?: CareerHistoryItem[];
   historyOpportunityCounts?: CareerHistoryOpportunityCounts;
   historyOpportunities?: CareerHistoryOpportunity[];
-  notifications?: CareerTalentNotification[];
   talentPreferences?: CareerTalentPreferences | null;
   talentInsights?: CareerTalentInsights | null;
   recentOpportunities?: CareerRecentOpportunity[];

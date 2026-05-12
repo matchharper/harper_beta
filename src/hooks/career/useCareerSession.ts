@@ -55,22 +55,23 @@ export const useCareerSession = ({
   );
 
   const fetchSession = useCallback(async () => {
-    const bootstrapRes = await fetchWithAuth("/api/talent/auth/bootstrap", {
-      method: "POST",
-      body: JSON.stringify({
-        inviteToken: normalizedInviteToken || undefined,
-        mail: normalizedMail || undefined,
-      }),
-    });
-    if (!bootstrapRes.ok) {
-      const payload = await bootstrapRes.json().catch(() => ({}));
-      throw new Error(
-        getErrorMessage(payload, "talent_users 초기화에 실패했습니다.")
-      );
+    if (normalizedInviteToken || normalizedMail) {
+      const bootstrapRes = await fetchWithAuth("/api/talent/auth/bootstrap", {
+        method: "POST",
+        body: JSON.stringify({
+          inviteToken: normalizedInviteToken || undefined,
+          mail: normalizedMail || undefined,
+        }),
+      });
+      if (!bootstrapRes.ok) {
+        const payload = await bootstrapRes.json().catch(() => ({}));
+        throw new Error(
+          getErrorMessage(payload, "talent_users 초기화에 실패했습니다.")
+        );
+      }
     }
 
     const sessionParams = new URLSearchParams({
-      allowReengagement: "1",
       messageLimit: "20",
       opportunityLimit: "20",
     });

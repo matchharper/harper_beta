@@ -34,6 +34,7 @@ import {
 
 const SILENT_WAV_DATA_URI =
   "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAAZGF0YQQAAAAAAA==";
+const ELEVENLABS_STREAM_MIME_TYPE = "audio/mpeg";
 const DEFAULT_CALL_OPENING_TEXT =
   "안녕하세요, 직접 통화로 이야기하게 되어 좋네요. 최근에 달라진 우선순위가 있으면 거기서 시작해도 좋고, 아니면 지금까지의 역할이나 경험 중 회사들이 꼭 알아야 할 부분부터 편하게 들려주세요. 정보가 많을수록 더 잘 맞는 연결 요청이나 기회를 골라드릴 수 있어요.";
 const CALL_OPENING_RESPONSE_INSTRUCTION = [
@@ -69,6 +70,7 @@ type UseCareerOnboardingVoiceArgs = {
   isVoiceInteractionLocked: boolean;
   onSendChatMessage: (args: SendChatArgs) => void | Promise<void>;
   onOpportunityRunChanged?: (run: CareerOpportunityRun | null) => void;
+  onTalentInsightsRefreshed?: (insights: unknown, updatedAt: unknown) => void;
   appendMessage: (message: CareerMessage) => void;
   setChatError: Dispatch<SetStateAction<string>>;
   setStage: Dispatch<SetStateAction<CareerStage>>;
@@ -77,6 +79,166 @@ type UseCareerOnboardingVoiceArgs = {
     messages: CareerMessagePayload[]
   ) => void | Promise<void>;
 };
+
+type EndCallModeOptions = {
+  forceCompleteOnboarding?: boolean;
+};
+
+function getElevenLabsMediaSourceCtor(): typeof MediaSource | null {
+  if (
+    typeof window === "undefined" ||
+    typeof window.MediaSource === "undefined"
+  ) {
+    return null;
+  }
+
+  if (
+    typeof window.MediaSource.isTypeSupported === "function" &&
+    !window.MediaSource.isTypeSupported(ELEVENLABS_STREAM_MIME_TYPE)
+  ) {
+    return null;
+  }
+
+  return window.MediaSource;
+}
+
+function createAbortError() {
+  return new DOMException("ElevenLabs playback aborted", "AbortError");
+}
+
+function throwIfAborted(signal: AbortSignal) {
+  if (signal.aborted) {
+    throw createAbortError();
+  }
+}
+
+function waitForMediaSourceOpen(
+  mediaSource: MediaSource,
+  signal: AbortSignal
+) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal.aborted) {
+      reject(createAbortError());
+      return;
+    }
+    if (mediaSource.readyState === "open") {
+      resolve();
+      return;
+    }
+
+    const cleanup = () => {
+      mediaSource.removeEventListener("sourceopen", handleOpen);
+      mediaSource.removeEventListener("sourceended", handleEnded);
+      signal.removeEventListener("abort", handleAbort);
+    };
+    const handleOpen = () => {
+      cleanup();
+      resolve();
+    };
+    const handleEnded = () => {
+      cleanup();
+      reject(new Error("MediaSource ended before it opened."));
+    };
+    const handleAbort = () => {
+      cleanup();
+      reject(createAbortError());
+    };
+
+    mediaSource.addEventListener("sourceopen", handleOpen);
+    mediaSource.addEventListener("sourceended", handleEnded);
+    signal.addEventListener("abort", handleAbort, { once: true });
+  });
+}
+
+function waitForSourceBufferIdle(
+  sourceBuffer: SourceBuffer,
+  signal: AbortSignal
+) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal.aborted) {
+      reject(createAbortError());
+      return;
+    }
+    if (!sourceBuffer.updating) {
+      resolve();
+      return;
+    }
+
+    const cleanup = () => {
+      sourceBuffer.removeEventListener("updateend", handleUpdateEnd);
+      sourceBuffer.removeEventListener("error", handleError);
+      signal.removeEventListener("abort", handleAbort);
+    };
+    const handleUpdateEnd = () => {
+      cleanup();
+      resolve();
+    };
+    const handleError = () => {
+      cleanup();
+      reject(new Error("MediaSource failed to append ElevenLabs audio."));
+    };
+    const handleAbort = () => {
+      cleanup();
+      reject(createAbortError());
+    };
+
+    sourceBuffer.addEventListener("updateend", handleUpdateEnd, {
+      once: true,
+    });
+    sourceBuffer.addEventListener("error", handleError, { once: true });
+    signal.addEventListener("abort", handleAbort, { once: true });
+  });
+}
+
+function copyChunkToArrayBuffer(chunk: Uint8Array) {
+  const buffer = new ArrayBuffer(chunk.byteLength);
+  new Uint8Array(buffer).set(chunk);
+  return buffer;
+}
+
+async function appendElevenLabsAudioChunk(
+  sourceBuffer: SourceBuffer,
+  chunk: Uint8Array,
+  signal: AbortSignal
+) {
+  throwIfAborted(signal);
+  await waitForSourceBufferIdle(sourceBuffer, signal);
+  throwIfAborted(signal);
+
+  const buffer = copyChunkToArrayBuffer(chunk);
+  return new Promise<void>((resolve, reject) => {
+    const cleanup = () => {
+      sourceBuffer.removeEventListener("updateend", handleUpdateEnd);
+      sourceBuffer.removeEventListener("error", handleError);
+      signal.removeEventListener("abort", handleAbort);
+    };
+    const handleUpdateEnd = () => {
+      cleanup();
+      resolve();
+    };
+    const handleError = () => {
+      cleanup();
+      reject(new Error("MediaSource failed to append ElevenLabs audio."));
+    };
+    const handleAbort = () => {
+      cleanup();
+      reject(createAbortError());
+    };
+
+    sourceBuffer.addEventListener("updateend", handleUpdateEnd, {
+      once: true,
+    });
+    sourceBuffer.addEventListener("error", handleError, { once: true });
+    signal.addEventListener("abort", handleAbort, { once: true });
+
+    try {
+      sourceBuffer.appendBuffer(buffer);
+    } catch (error) {
+      cleanup();
+      reject(error);
+    }
+  });
+}
 
 export const useCareerOnboardingVoice = ({
   user,
@@ -88,6 +250,7 @@ export const useCareerOnboardingVoice = ({
   isVoiceInteractionLocked,
   onSendChatMessage,
   onOpportunityRunChanged,
+  onTalentInsightsRefreshed,
   appendMessage,
   setChatError,
   setStage,
@@ -184,7 +347,9 @@ export const useCareerOnboardingVoice = ({
   const updateSessionInstructionsRef = useRef<
     ((instructions: string) => void) | null
   >(null);
-  const endCallModeRef = useRef<(() => void) | null>(null);
+  const endCallModeRef = useRef<
+    ((options?: EndCallModeOptions) => void) | null
+  >(null);
   const forceEndCallModeRef = useRef<(() => void) | null>(null);
   const pendingCallEndRef = useRef(false);
   const isAssistantSpeakingRef = useRef(false);
@@ -349,8 +514,130 @@ export const useCareerOnboardingVoice = ({
         if (ttsRes.ok) {
           const fetchDone = performance.now();
           console.log(
-            `[TTFT] ElevenLabs fetch: ${(fetchDone - ttsStartTime).toFixed(0)}ms`
+            `[TTFT] ElevenLabs response headers: ${(fetchDone - ttsStartTime).toFixed(0)}ms`
           );
+
+          const mediaSourceCtor = getElevenLabsMediaSourceCtor();
+          if (ttsRes.body && mediaSourceCtor) {
+            const mediaSource = new mediaSourceCtor();
+            const url = URL.createObjectURL(mediaSource);
+            let objectUrlActive = true;
+            let playbackStarted = false;
+            let firstChunkLogged = false;
+            const reader = ttsRes.body.getReader();
+            const cleanupStreamAudio = () => {
+              if (objectUrlActive) {
+                URL.revokeObjectURL(url);
+                objectUrlActive = false;
+              }
+              if (elevenLabsAudioRef.current === audio) {
+                audio.removeAttribute("src");
+                audio.load();
+              }
+            };
+
+            audio.src = url;
+            audio.muted = false;
+            audio.volume = 1;
+            audio.preload = "auto";
+            audio.onplay = () => {
+              if (elevenLabsPlaybackIdRef.current !== playbackId) return;
+              const totalTtft = performance.now() - ttsStartTime;
+              console.log(
+                `[TTFT] ElevenLabs streaming playback: ${totalTtft.toFixed(0)}ms`
+              );
+            };
+            audio.onended = () => {
+              if (elevenLabsPlaybackIdRef.current !== playbackId) return;
+              setIsElevenLabsPlaying(false);
+              cleanupStreamAudio();
+            };
+            audio.onerror = () => {
+              if (elevenLabsPlaybackIdRef.current !== playbackId) return;
+              console.error(
+                "[CareerOnboardingVoice] ElevenLabs streaming playback error"
+              );
+              setIsElevenLabsPlaying(false);
+              cleanupStreamAudio();
+            };
+
+            try {
+              await waitForMediaSourceOpen(
+                mediaSource,
+                abortController.signal
+              );
+              const sourceBuffer = mediaSource.addSourceBuffer(
+                ELEVENLABS_STREAM_MIME_TYPE
+              );
+              try {
+                sourceBuffer.mode = "sequence";
+              } catch {
+                // Some browsers keep MPEG audio SourceBuffers in segments mode.
+              }
+
+              while (true) {
+                throwIfAborted(abortController.signal);
+                const { done, value } = await reader.read();
+                if (done) break;
+                if (!value?.byteLength) continue;
+
+                if (!firstChunkLogged) {
+                  firstChunkLogged = true;
+                  const firstChunkTime = performance.now() - ttsStartTime;
+                  console.log(
+                    `[TTFT] ElevenLabs first audio chunk: ${firstChunkTime.toFixed(0)}ms`
+                  );
+                }
+
+                await appendElevenLabsAudioChunk(
+                  sourceBuffer,
+                  value,
+                  abortController.signal
+                );
+
+                if (!playbackStarted) {
+                  playbackStarted = true;
+                  void audio.play().catch((error) => {
+                    if (
+                      abortController.signal.aborted ||
+                      elevenLabsPlaybackIdRef.current !== playbackId
+                    ) {
+                      return;
+                    }
+                    console.error(
+                      "[CareerOnboardingVoice] ElevenLabs streaming play failed",
+                      {
+                        error:
+                          error instanceof Error ? error.message : "unknown",
+                      }
+                    );
+                    setIsElevenLabsPlaying(false);
+                    abortController.abort();
+                    cleanupStreamAudio();
+                  });
+                }
+              }
+
+              await waitForSourceBufferIdle(
+                sourceBuffer,
+                abortController.signal
+              );
+              if (mediaSource.readyState === "open") {
+                mediaSource.endOfStream();
+              }
+              return;
+            } catch (error) {
+              cleanupStreamAudio();
+              throw error;
+            } finally {
+              try {
+                reader.releaseLock();
+              } catch {
+                // The reader may already be released after an abort.
+              }
+            }
+          }
+
           const blob = await ttsRes.blob();
           if (elevenLabsPlaybackIdRef.current !== playbackId) return;
 
@@ -1160,8 +1447,11 @@ export const useCareerOnboardingVoice = ({
 
   // Ends the call and turns the in-call transcript into one visible follow-up
   // chat message so the user has a clear next step after the phone UI closes.
-  const handleEndCallMode = useCallback(() => {
+  const handleEndCallMode = useCallback((options?: EndCallModeOptions) => {
     if (callWrapUpPendingRef.current) return;
+    const forceCompleteOnboarding = Boolean(
+      options?.forceCompleteOnboarding
+    );
 
     stopElevenLabsTts();
     // Capture transcript before ending (endCallMode doesn't clear it)
@@ -1184,7 +1474,7 @@ export const useCareerOnboardingVoice = ({
     const hasUserSpeech = transcript.some(
       (entry) => entry.role === "user" && entry.text.trim().length > 0
     );
-    if (!hasUserSpeech) {
+    if (!hasUserSpeech && !forceCompleteOnboarding) {
       return;
     }
 
@@ -1205,6 +1495,7 @@ export const useCareerOnboardingVoice = ({
               text: e.text,
             })),
             durationSeconds,
+            forceCompleteOnboarding,
           }),
         });
         const payload = await response.json().catch(() => ({}));
@@ -1214,8 +1505,36 @@ export const useCareerOnboardingVoice = ({
           return;
         }
 
-        if (payload?.followUpMessage) {
-          const followMsg = payload.followUpMessage;
+        if (payload?.progress?.completed) {
+          setStage("completed" as CareerStage);
+        }
+        if (payload?.opportunityRun) {
+          onOpportunityRunChanged?.(
+            payload.opportunityRun as CareerOpportunityRun
+          );
+        }
+        if (payload?.opportunityDiscoveryQueued) {
+          showOpportunityDiscoveryStartedToast();
+        }
+        if (
+          payload &&
+          typeof payload === "object" &&
+          "talentInsights" in payload
+        ) {
+          onTalentInsightsRefreshed?.(
+            payload.talentInsights,
+            payload.insightUpdatedAt ?? null
+          );
+        }
+
+        const followUpMessages = Array.isArray(payload?.followUpMessages)
+          ? payload.followUpMessages
+          : payload?.followUpMessage
+            ? [payload.followUpMessage]
+            : [];
+
+        const savedFollowUpMessages: CareerMessagePayload[] = [];
+        for (const followMsg of followUpMessages) {
           const id = followMsg.id ?? `followup-${Date.now()}`;
           const role = followMsg.role === "user" ? "user" : "assistant";
           const content = String(followMsg.content ?? "");
@@ -1236,16 +1555,17 @@ export const useCareerOnboardingVoice = ({
 
           const numericId = typeof id === "number" ? id : Number(id);
           if (Number.isFinite(numericId)) {
-            await onMessagesChanged?.([
-              {
-                id: numericId,
-                role,
-                content,
-                messageType,
-                createdAt,
-              },
-            ]);
+            savedFollowUpMessages.push({
+              id: numericId,
+              role,
+              content,
+              messageType,
+              createdAt,
+            });
           }
+        }
+        if (savedFollowUpMessages.length > 0) {
+          await onMessagesChanged?.(savedFollowUpMessages);
         }
       } catch (error) {
         console.error("[CareerOnboardingVoice] Follow-up error:", error);
@@ -1262,7 +1582,10 @@ export const useCareerOnboardingVoice = ({
     enqueueAssistantTypewriter,
     fetchWithAuth,
     onMessagesChanged,
+    onOpportunityRunChanged,
+    onTalentInsightsRefreshed,
     setChatError,
+    setStage,
     stopElevenLabsTts,
   ]);
 

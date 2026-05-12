@@ -1,7 +1,14 @@
-import { LifeBuoy, LoaderCircle, LogOut, Settings2, X } from "lucide-react";
-import { useState } from "react";
+import {
+  CircleHelp,
+  LoaderCircle,
+  LogOut,
+  Megaphone,
+  Settings2,
+  X,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
-import CareerNotificationsPopover from "./CareerNotificationsPopover";
+import CareerUpdateNotesModal from "./CareerUpdateNotesModal";
 import { careerCx } from "./ui/CareerPrimitives";
 import {
   BeigeActionDropdown,
@@ -11,6 +18,10 @@ import {
 import { DropdownMenuLabel } from "@/components/ui/beige/dropdown-menu";
 import React from "react";
 import { showToast } from "@/components/toast/toast";
+import {
+  CAREER_UPDATE_NOTES_STORAGE_KEY,
+  latestCareerUpdateNote,
+} from "@/content/careerUpdateNotes";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 
 export type CareerWorkspaceTab = "home" | "profile" | "history";
@@ -38,11 +49,6 @@ const CareerWorkspaceNav = () => {
     onLogout,
     onOpenSettings,
     talentProfile,
-    notifications,
-    unreadNotificationCount,
-    notificationsMarkingAsRead,
-    notificationsError,
-    onMarkNotificationsRead,
   } = useCareerSidebarContext();
   const { fetchWithAuth } = useCareerApi();
 
@@ -57,10 +63,13 @@ const CareerWorkspaceNav = () => {
     user?.user_metadata?.avatar_url;
   const normalizedProfileName = String(profileName ?? "Candidate");
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [updateNotesOpen, setUpdateNotesOpen] = useState(false);
+  const [hasUnreadUpdateNote, setHasUnreadUpdateNote] = useState(false);
   const [inquiryOpen, setInquiryOpen] = useState(false);
   const [inquiryEmail, setInquiryEmail] = useState(profileEmail);
   const [inquiryContent, setInquiryContent] = useState("");
   const [inquirySubmitting, setInquirySubmitting] = useState(false);
+  const latestUpdateNoteId = latestCareerUpdateNote?.id ?? "";
 
   const profileInitial =
     normalizedProfileName
@@ -70,11 +79,45 @@ const CareerWorkspaceNav = () => {
       .map((value) => value[0]?.toUpperCase())
       .join("") || "C";
 
+  useEffect(() => {
+    if (typeof window === "undefined" || !latestUpdateNoteId) return;
+
+    try {
+      setHasUnreadUpdateNote(
+        window.localStorage.getItem(CAREER_UPDATE_NOTES_STORAGE_KEY) !==
+          latestUpdateNoteId
+      );
+    } catch {
+      setHasUnreadUpdateNote(false);
+    }
+  }, [latestUpdateNoteId]);
+
+  const markLatestUpdateNoteSeen = () => {
+    if (typeof window === "undefined" || !latestUpdateNoteId) return;
+
+    try {
+      window.localStorage.setItem(
+        CAREER_UPDATE_NOTES_STORAGE_KEY,
+        latestUpdateNoteId
+      );
+      setHasUnreadUpdateNote(false);
+    } catch {
+      setHasUnreadUpdateNote(false);
+    }
+  };
+
+  const handleOpenUpdateNotes = () => {
+    setUpdateNotesOpen(true);
+    setProfileMenuOpen(false);
+    markLatestUpdateNoteSeen();
+  };
+
   const handleOpenSupport = () => {
     setInquiryEmail(profileEmail);
     setInquiryContent("");
     setInquiryOpen(true);
     setProfileMenuOpen(false);
+    setUpdateNotesOpen(false);
   };
 
   const handleCloseInquiry = () => {
@@ -149,18 +192,14 @@ const CareerWorkspaceNav = () => {
         <div className="flex flex-row items-center justify-between gap-4 px-4 py-2 sm:px-6 lg:px-8">
           <div className="font-hedvig text-[1.1rem] text-beige900">Harper</div>
           <div className="flex items-center gap-2">
-            <CareerNotificationsPopover
-              notifications={notifications}
-              unreadNotificationCount={unreadNotificationCount}
-              notificationsMarkingAsRead={notificationsMarkingAsRead}
-              notificationsError={notificationsError}
-              onMarkNotificationsRead={onMarkNotificationsRead}
-              showLabel={false}
-              align="end"
-              side="bottom"
-              sideOffset={12}
-              buttonClassName="h-8 w-8 rounded-xl border border-beige900/10 bg-white/75 px-0 text-beige900 shadow-[0_8px_24px_rgba(37,20,6,0.05)] hover:border-beige900/20 hover:bg-white"
-            />
+            <button
+              type="button"
+              onClick={handleOpenSupport}
+              aria-label="개선사항 및 문의사항"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-beige900/10 bg-white/75 text-beige900 shadow-[0_8px_24px_rgba(37,20,6,0.05)] transition-colors hover:border-beige900/20 hover:bg-white"
+            >
+              <CircleHelp className="h-4 w-4" />
+            </button>
             <button
               type="button"
               onClick={onOpenSettings}
@@ -213,12 +252,18 @@ const CareerWorkspaceNav = () => {
               </DropdownMenuLabel>
               <BeigeActionDropdownSeparator />
               <BeigeActionDropdownItem
-                onSelect={handleOpenSupport}
+                onSelect={() => handleOpenUpdateNotes()}
                 className="flex flex-row items-center gap-2.5"
               >
-                <LifeBuoy className="h-4 w-4" />
-                문의하기
+                <Megaphone className="h-4 w-4" />
+                <span className="min-w-0 flex-1">업데이트 노트</span>
+                {hasUnreadUpdateNote ? (
+                  <span className="rounded-full bg-beige900 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-beige50">
+                    NEW
+                  </span>
+                ) : null}
               </BeigeActionDropdownItem>
+              <BeigeActionDropdownSeparator />
               <BeigeActionDropdownItem
                 onSelect={() => void onLogout()}
                 tone="danger"
@@ -231,6 +276,11 @@ const CareerWorkspaceNav = () => {
           </div>
         </div>
       </header>
+      <CareerUpdateNotesModal
+        open={updateNotesOpen}
+        onClose={() => setUpdateNotesOpen(false)}
+        onSuggestUpdate={handleOpenSupport}
+      />
       {inquiryOpen && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
           <button
@@ -256,7 +306,9 @@ const CareerWorkspaceNav = () => {
               <X className="h-4 w-4" />
             </button>
             <div className="pr-8">
-              <h2 className="text-lg font-semibold text-beige900">문의하기</h2>
+              <h2 className="text-lg font-semibold text-beige900">
+                개선사항 혹은 문의사항을 알려주세요.
+              </h2>
               <p className="mt-2 text-sm leading-6 text-beige900/55">
                 확인 후 입력하신 이메일로 답변드리겠습니다.
               </p>
@@ -277,14 +329,14 @@ const CareerWorkspaceNav = () => {
               </label>
               <label className="block">
                 <span className="mb-2 block text-sm font-medium text-beige900/70">
-                  문의 내용
+                  내용
                 </span>
                 <textarea
                   value={inquiryContent}
                   onChange={(event) => setInquiryContent(event.target.value)}
                   disabled={inquirySubmitting}
                   rows={4}
-                  placeholder="문의하실 내용을 입력해 주세요."
+                  placeholder="개선사항이나 문의사항을 입력해 주세요."
                   className="w-full resize-none rounded-xl border border-beige900/10 bg-white/75 px-3 py-3 text-sm leading-6 text-beige900 outline-none transition placeholder:text-beige900/30 focus:border-beige900/30 focus:ring-2 focus:ring-beige900/10 disabled:cursor-not-allowed disabled:opacity-60"
                 />
               </label>

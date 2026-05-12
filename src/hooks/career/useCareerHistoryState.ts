@@ -917,6 +917,39 @@ export function useCareerHistoryState(args: {
     }
   }, [enabled, fetchHistoryPage, queryClient, queryKey, userId]);
 
+  const loadHistoryOpportunityByRoleId = useCallback(
+    async (roleId: string) => {
+      const normalizedRoleId = String(roleId ?? "").trim();
+      if (!enabled || !userId || !normalizedRoleId) return null;
+
+      const searchParams = new URLSearchParams({ id: normalizedRoleId });
+      const response = await fetchWithAuth(
+        `/api/talent/opportunities?${searchParams.toString()}`
+      );
+      const payload = (await response
+        .json()
+        .catch(() => ({}))) as Partial<CareerHistoryPage> &
+        Record<string, unknown>;
+
+      if (!response.ok) {
+        throw new Error(
+          getErrorMessage(payload, "기회를 불러오지 못했습니다.")
+        );
+      }
+
+      const [item] = normalizeHistoryOpportunities(
+        payload.items as Parameters<typeof normalizeHistoryOpportunities>[0]
+      );
+
+      if (item) {
+        upsertHistoryOpportunityLocally(item);
+      }
+
+      return item ?? null;
+    },
+    [enabled, fetchWithAuth, upsertHistoryOpportunityLocally, userId]
+  );
+
   const loadMoreHistoryOpportunities = useCallback(async () => {
     if (!infinite.hasNextPage || infinite.isFetchingNextPage) return;
     await infinite.fetchNextPage();
@@ -942,6 +975,7 @@ export function useCareerHistoryState(args: {
     historyUpdateError,
     historyUpdatingOpportunityIds,
     hydrateHistoryOpportunities,
+    loadHistoryOpportunityByRoleId,
     loadMoreHistoryOpportunities,
     onMarkHistoryOpportunityClicked,
     onMarkHistoryOpportunityViewed,

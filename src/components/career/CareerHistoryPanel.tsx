@@ -1,10 +1,14 @@
 import {
+  ArrowRight,
   ArchiveRestore,
-  CheckCircle2,
+  BriefcaseBusiness,
+  ClipboardCheck,
+  FileCheck2,
+  ListChecks,
   Loader2,
-  MessageSquareText,
+  MapPin,
   Search,
-  Sparkles,
+  SlidersHorizontal,
   Target,
 } from "lucide-react";
 import {
@@ -17,7 +21,6 @@ import {
 } from "react";
 import { useRouter } from "next/router";
 import { showToast } from "@/components/toast/toast";
-import { TALENT_INTERVIEW_FINAL_STEP } from "@/lib/talentOnboarding/progress";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
 import CareerInPageTabs from "./CareerInPageTabs";
 import {
@@ -63,6 +66,7 @@ type SavedTabId = CareerOpportunitySavedStage;
 
 const HISTORY_TAB_QUERY_KEY = "historyTab";
 const HISTORY_SAVED_STAGE_QUERY_KEY = "savedStage";
+const HISTORY_ROLE_QUERY_KEY = "id";
 
 const isHistoryTabId = (value: unknown): value is HistoryTabId =>
   value === "new" || value === "saved" || value === "archived";
@@ -75,6 +79,12 @@ const isSavedTabId = (value: unknown): value is SavedTabId =>
 
 const getQueryValue = (value: string | string[] | undefined) =>
   Array.isArray(value) ? value[0] : value;
+
+const getNormalizedQueryValue = (value: string | string[] | undefined) =>
+  String(getQueryValue(value) ?? "").trim();
+
+const getOpportunityUrlRoleId = (item: CareerHistoryOpportunity | null) =>
+  String(item?.roleId ?? "").trim();
 
 const HISTORY_DISPLAY_TABS: Array<{
   id: HistoryDisplayTabId;
@@ -224,8 +234,26 @@ export const HistoryFeedbackButton = ({
 
 type HistoryEmptyStateVariant = "onboarding" | "searching" | "matching";
 
-const clampPercent = (value: number) =>
-  Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0;
+const EMPTY_STATE_BRIEF_ITEMS = {
+  onboarding: [
+    { label: "경력 자료", state: "확인됨", status: "done" },
+    { label: "희망 역할", state: "필요", status: "needed" },
+    { label: "근무 조건", state: "필요", status: "needed" },
+    { label: "제외할 선택지", state: "필요", status: "needed" },
+  ],
+  searching: [
+    { label: "경력 자료", state: "확인됨", status: "done" },
+    { label: "추천 기준", state: "반영 중", status: "active" },
+    { label: "포지션 탐색", state: "진행 중", status: "active" },
+    { label: "추천 정리", state: "대기", status: "queued" },
+  ],
+  matching: [
+    { label: "경력 자료", state: "확인됨", status: "done" },
+    { label: "추천 기준", state: "확인됨", status: "done" },
+    { label: "후보 검토", state: "진행 중", status: "active" },
+    { label: "첫 추천", state: "대기", status: "queued" },
+  ],
+} as const;
 
 const HistoryEmptyStateDetail = ({
   body,
@@ -236,99 +264,90 @@ const HistoryEmptyStateDetail = ({
   icon: ReactNode;
   title: string;
 }) => (
-  <div className="flex items-start gap-3">
-    <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] bg-beige500 text-beige900/70">
+  <div className="rounded-[8px] border border-beige900/10 bg-white/55 px-3.5 py-3">
+    <span className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] bg-beige500 text-beige900">
       {icon}
     </span>
-    <div>
+    <div className="mt-3">
       <div className="text-[13px] font-medium leading-5 text-beige900">
         {title}
       </div>
-      <div className="mt-1 text-[12px] leading-5 text-beige900/50">{body}</div>
+      <div className="mt-1.5 text-[12px] leading-5 text-beige900/55">
+        {body}
+      </div>
     </div>
   </div>
 );
 
 const HistoryEmptyStatePanel = ({
-  answeredCount,
   onOpenChat,
-  progressPercent,
-  targetQuestions,
   variant,
 }: {
-  answeredCount: number;
   onOpenChat: () => void;
-  progressPercent: number;
-  targetQuestions: number;
   variant: HistoryEmptyStateVariant;
 }) => {
-  const normalizedProgress = clampPercent(progressPercent);
-  const answeredLabel = Math.max(0, Math.min(answeredCount, targetQuestions));
-
   const config =
     variant === "searching"
       ? {
           actionLabel: null,
           details: [
             {
-              body: "대화, 프로필, 링크에서 역할 선호와 강한 신호를 추려요.",
-              icon: <Sparkles className="h-3.5 w-3.5" />,
-              title: "후보자 신호 정리",
+              body: "프로필과 대화에서 강한 경력 신호를 추립니다.",
+              icon: <FileCheck2 className="h-3.5 w-3.5" />,
+              title: "신호 정리",
             },
             {
-              body: "Harper 네트워크와 외부 포지션을 함께 비교하고 있어요.",
+              body: "네트워크와 공개 포지션을 같은 기준으로 비교합니다.",
               icon: <Search className="h-3.5 w-3.5" />,
-              title: "기회 스캔",
+              title: "포지션 탐색",
             },
             {
-              body: "적합도가 높은 순서로 새 포지션 탭에 보여드릴게요.",
+              body: "보낼 만한 후보만 새 포지션에 남깁니다.",
               icon: <Target className="h-3.5 w-3.5" />,
-              title: "추천 정렬",
+              title: "적합도 정렬",
             },
           ],
-          eyebrow: "추천 탐색 중",
+          eyebrow: "탐색 진행 중",
           icon: <Loader2 className="h-5 w-5 animate-spin" />,
-          sideTitle: "지금 진행 중인 일",
-          title: "Harper가 맞는 기회를 찾고 있습니다.",
+          sideTitle: "추천 브리프",
+          title: "기준에 맞는 포지션을 추리는 중입니다.",
           toneClassName: "bg-beige900 text-beige50",
           body: (
             <>
-              추천을 만들기 위해 프로필과 대화 내용을 기준으로 기회를 비교하고
-              있습니다. 완료되면 이 화면의{" "}
-              <span className="font-medium">새 포지션</span>에 바로 표시됩니다.
+              지금은 결과를 기다리는 상태입니다. 새 추천이 준비되면 이 탭에 바로
+              정리됩니다.
             </>
           ),
         }
       : variant === "onboarding"
         ? {
-            actionLabel: "대화 이어가기",
+            actionLabel: "추천 기준 정리하기",
             details: [
               {
-                body: "역할, 팀 규모, 근무 방식 같은 핵심 조건을 더 확인합니다.",
-                icon: <MessageSquareText className="h-3.5 w-3.5" />,
-                title: "몇 가지 답변 필요",
+                body: "다음에 집중하고 싶은 역할과 레벨을 정합니다.",
+                icon: <BriefcaseBusiness className="h-3.5 w-3.5" />,
+                title: "희망 역할",
               },
               {
-                body: "응답이 충분해지면 Harper가 자동으로 추천 탐색을 시작해요.",
-                icon: <Sparkles className="h-3.5 w-3.5" />,
-                title: "추천 준비",
+                body: "지역, 근무 형태, 보상처럼 놓치면 안 되는 조건을 남깁니다.",
+                icon: <MapPin className="h-3.5 w-3.5" />,
+                title: "근무 조건",
               },
               {
-                body: "완료 후에는 새 포지션, 추적 중, 지원함 상태로 관리됩니다.",
-                icon: <CheckCircle2 className="h-3.5 w-3.5" />,
-                title: "히스토리 생성",
+                body: "관심 없는 산업, 회사 유형, 역할을 미리 제외합니다.",
+                icon: <SlidersHorizontal className="h-3.5 w-3.5" />,
+                title: "제외 기준",
               },
             ],
-            eyebrow: "온보딩 미완료",
-            icon: <MessageSquareText className="h-5 w-5" />,
-            sideTitle: "추천 전에 필요한 것",
-            title: "아직 추천 후보를 정리하지 않았습니다.",
+            eyebrow: "첫 추천 준비",
+            icon: <ClipboardCheck className="h-5 w-5" />,
+            sideTitle: "추천 브리프",
+            title: "어떤 기회가 맞는지 먼저 좁혀야 합니다.",
             toneClassName: "bg-beige700/10 text-beige700",
             body: (
               <>
-                Harper가 좋은 기회를 고르려면 선호와 현재 상황을 조금 더 알아야
-                합니다. 대화를 이어가면 추천 가능한 신호가 충분해지는 시점에
-                포지션을 정리합니다.
+                경력 자료는 확인했습니다. 지금 필요한 건 희망 역할, 근무 조건,
+                피하고 싶은 선택지를 짧게 정리하는 일입니다.
               </>
             ),
           }
@@ -336,39 +355,39 @@ const HistoryEmptyStatePanel = ({
             actionLabel: null,
             details: [
               {
-                body: "대화 내용은 충분히 모였고, 추천 후보를 좁히는 중입니다.",
-                icon: <CheckCircle2 className="h-3.5 w-3.5" />,
-                title: "온보딩 완료",
+                body: "저장된 경력과 선호 기준을 함께 보고 있습니다.",
+                icon: <FileCheck2 className="h-3.5 w-3.5" />,
+                title: "자료 검토",
               },
               {
-                body: "조건에 맞지 않는 포지션은 보여드리지 않도록 걸러냅니다.",
+                body: "조건과 맞지 않는 역할은 추천에서 제외합니다.",
                 icon: <Target className="h-3.5 w-3.5" />,
-                title: "적합도 검토",
+                title: "후보 압축",
               },
               {
-                body: "새 추천이 생기면 이 화면과 메일로 확인할 수 있습니다.",
-                icon: <Sparkles className="h-3.5 w-3.5" />,
-                title: "결과 대기",
+                body: "첫 추천이 준비되면 새 포지션에 표시됩니다.",
+                icon: <ListChecks className="h-3.5 w-3.5" />,
+                title: "결과 정리",
               },
             ],
-            eyebrow: "추천 준비 중",
+            eyebrow: "검토 진행 중",
             icon: <Search className="h-5 w-5" />,
-            sideTitle: "다음 단계",
-            title: "기회를 찾고 있습니다.",
+            sideTitle: "추천 브리프",
+            title: "첫 추천 후보를 검토하고 있습니다.",
             toneClassName: "bg-beige700/10 text-beige700",
             body: (
               <>
-                대화해주셔서 감사합니다. 지금 내용을 바탕으로 맞는 팀과 포지션을
-                확인하고 있습니다. 연결 가능한 기회가 준비되면 바로
-                안내드릴게요.
+                대화에서 정리한 기준으로 실제로 보낼 만한 역할만 남기는
+                중입니다.
               </>
             ),
           };
+  const briefItems = EMPTY_STATE_BRIEF_ITEMS[variant];
 
   return (
-    <section className="overflow-hidden rounded-[8px] border border-beige900/10 bg-white shadow-[0_16px_48px_rgba(46,23,6,0.08)]">
-      <div className="grid gap-8 px-6 py-7 lg:grid-cols-[minmax(0,1fr)_240px] lg:px-8 lg:py-8">
-        <div className="min-w-0">
+    <section className="overflow-hidden rounded-[8px] border border-beige900/10 bg-[#fffdf8] shadow-[0_18px_50px_rgba(46,23,6,0.08)]">
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="min-w-0 px-6 py-7 lg:px-8 lg:py-8">
           <div className="flex flex-wrap items-center gap-2">
             <span
               className={careerCx(
@@ -378,48 +397,31 @@ const HistoryEmptyStatePanel = ({
             >
               {config.icon}
             </span>
-            <span className="inline-flex h-8 items-center rounded-full border border-beige900/10 bg-beige50 px-3 text-[12px] font-medium text-beige900/55">
+            <span className="inline-flex h-8 items-center rounded-[8px] border border-beige900/10 bg-white px-3 text-[12px] font-medium text-beige900/55">
               {config.eyebrow}
             </span>
           </div>
 
-          <h4 className="mt-6 max-w-[640px] font-hedvig text-[20px] font-medium leading-none text-beige900 sm:text-[24px]">
+          <h4 className="mt-6 max-w-[640px] font-hedvig text-[24px] font-medium leading-[1.08] text-beige900 sm:text-[30px]">
             {config.title}
           </h4>
-          <p className="mt-4 max-w-[640px] text-sm leading-7 text-beige900/65">
+          <p className="mt-4 max-w-[600px] text-[14px] leading-7 text-beige900/65">
             {config.body}
           </p>
 
-          {variant === "searching" && (
-            <div className="mt-7 flex max-w-[520px] items-center gap-3 border-y border-beige900/10 py-4">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-beige50 text-beige900">
-                <Loader2 className="h-4 w-4 animate-spin" />
-              </div>
-              <div className="text-[13px] leading-6 text-beige900/60">
-                탐색이 끝나면 새 포지션 탭이 자동으로 채워집니다. 화면을 떠나도
-                백그라운드에서 계속 진행됩니다.
-              </div>
-            </div>
-          )}
-
           {config.actionLabel && (
-            <div className="mt-7">
+            <div className="mt-6">
               <BeigeButton
                 label={config.actionLabel}
-                icon={<MessageSquareText className="h-4 w-4" />}
+                icon={<ArrowRight className="h-4 w-4" />}
                 size="md"
                 variant="primary"
                 onClick={onOpenChat}
               />
             </div>
           )}
-        </div>
 
-        <div className="border-t border-beige900/10 pt-6 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-1">
-          <div className="text-[11px] font-medium text-beige900/35">
-            {config.sideTitle}
-          </div>
-          <div className="mt-5 space-y-5">
+          <div className="mt-8 grid gap-3 sm:grid-cols-3">
             {config.details.map((detail) => (
               <HistoryEmptyStateDetail
                 key={detail.title}
@@ -428,6 +430,49 @@ const HistoryEmptyStatePanel = ({
                 title={detail.title}
               />
             ))}
+          </div>
+        </div>
+
+        <div className="border-t border-beige900/10 bg-beige50/65 px-6 py-6 lg:border-l lg:border-t-0 lg:px-6 lg:py-8">
+          <div className="text-[12px] font-medium text-beige900">
+            {config.sideTitle}
+          </div>
+          <div className="mt-4 overflow-hidden rounded-[8px] border border-beige900/10 bg-white">
+            {briefItems.map((item) => (
+              <div
+                key={item.label}
+                className="flex items-center justify-between gap-3 border-b border-beige900/10 px-4 py-3 last:border-b-0"
+              >
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <span
+                    className={careerCx(
+                      "inline-flex h-2.5 w-2.5 shrink-0 rounded-full",
+                      item.status === "done"
+                        ? "bg-beige900"
+                        : item.status === "active"
+                          ? "bg-beige700"
+                          : "border border-beige900/25 bg-white"
+                    )}
+                  />
+                  <span className="truncate text-[13px] text-beige900">
+                    {item.label}
+                  </span>
+                </div>
+                <span className="shrink-0 text-[12px] font-medium text-beige900/45">
+                  {item.state}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-5 rounded-[8px] border border-dashed border-beige900/15 bg-white/45 px-4 py-4">
+            <div className="text-[12px] font-medium text-beige900/65">
+              새 포지션
+            </div>
+            <div className="mt-4 space-y-2">
+              <div className="h-2.5 w-3/4 rounded-full bg-beige500" />
+              <div className="h-2.5 w-1/2 rounded-full bg-beige500/70" />
+              <div className="h-2.5 w-2/3 rounded-full bg-beige500/45" />
+            </div>
           </div>
         </div>
       </div>
@@ -439,8 +484,6 @@ const CareerHistoryPanel = () => {
   const router = useRouter();
   const {
     stage,
-    answeredCount,
-    progressPercent,
     opportunityRun,
     opportunityRunTriggerPending,
     historyOpportunityCounts,
@@ -451,6 +494,7 @@ const CareerHistoryPanel = () => {
     historyUpdatingOpportunityIds,
     historyUpdateError,
     onLoadMoreHistoryOpportunities,
+    onLoadHistoryOpportunityByRoleId,
     onMarkHistoryOpportunityClicked,
     onMarkHistoryOpportunityViewed,
     onUpdateHistoryOpportunityFeedback,
@@ -466,8 +510,12 @@ const CareerHistoryPanel = () => {
     number | null
   >(null);
   const feedbackAdvanceTargetIndexRef = useRef<number | null>(null);
+  const feedbackRoleQueryIgnoreRef = useRef<string | null>(null);
+  const activeOpportunityUrlSyncRequestedRef = useRef(false);
   const autoAdvanceRequestedRef = useRef(false);
   const wasHistoryLoadingMoreRef = useRef(false);
+  const missingRoleIdRef = useRef<string | null>(null);
+  const [loadingRoleId, setLoadingRoleId] = useState<string | null>(null);
   const [modalOpportunityId, setModalOpportunityId] = useState<string | null>(
     null
   );
@@ -487,6 +535,7 @@ const CareerHistoryPanel = () => {
   const [questionPromptDraft, setQuestionPromptDraft] = useState("");
   const currentHistoryTabQuery = router.query[HISTORY_TAB_QUERY_KEY];
   const currentSavedStageQuery = router.query[HISTORY_SAVED_STAGE_QUERY_KEY];
+  const currentRoleQuery = router.query[HISTORY_ROLE_QUERY_KEY];
 
   const openChatTab = useCallback(() => {
     const query: Record<string, string> = {};
@@ -502,7 +551,14 @@ const CareerHistoryPanel = () => {
   }, [router]);
 
   const updateHistoryLocation = useCallback(
-    (nextTab: HistoryTabId, nextSavedStage: SavedTabId) => {
+    (
+      nextTab: HistoryTabId,
+      nextSavedStage: SavedTabId,
+      options?: {
+        mode?: "push" | "replace";
+        roleId?: string | null;
+      }
+    ) => {
       setActiveTab(nextTab);
       setActiveSavedTab(nextSavedStage);
 
@@ -510,29 +566,66 @@ const CareerHistoryPanel = () => {
 
       const normalizedHistoryTab = getQueryValue(currentHistoryTabQuery);
       const normalizedSavedStage = getQueryValue(currentSavedStageQuery);
+      const normalizedRoleId = getNormalizedQueryValue(currentRoleQuery);
+      const nextRoleId = String(options?.roleId ?? "").trim();
 
       if (
         normalizedHistoryTab === nextTab &&
-        normalizedSavedStage === nextSavedStage
+        normalizedSavedStage === nextSavedStage &&
+        normalizedRoleId === nextRoleId
       ) {
         return;
       }
 
-      void router.push(
-        {
-          pathname: router.pathname,
-          query: {
-            ...router.query,
-            [HISTORY_TAB_QUERY_KEY]: nextTab,
-            [HISTORY_SAVED_STAGE_QUERY_KEY]: nextSavedStage,
-          },
-        },
-        undefined,
-        { shallow: true, scroll: false }
-      );
+      const query: Record<string, string | string[] | undefined> = {
+        ...router.query,
+        [HISTORY_TAB_QUERY_KEY]: nextTab,
+        [HISTORY_SAVED_STAGE_QUERY_KEY]: nextSavedStage,
+      };
+
+      if (nextRoleId) {
+        query[HISTORY_ROLE_QUERY_KEY] = nextRoleId;
+      } else {
+        delete query[HISTORY_ROLE_QUERY_KEY];
+      }
+
+      const nextLocation = {
+        pathname: router.pathname,
+        query,
+      };
+
+      if (options?.mode === "replace") {
+        void router.replace(nextLocation, undefined, {
+          shallow: true,
+          scroll: false,
+        });
+        return;
+      }
+
+      void router.push(nextLocation, undefined, {
+        shallow: true,
+        scroll: false,
+      });
     },
-    [currentHistoryTabQuery, currentSavedStageQuery, router]
+    [currentHistoryTabQuery, currentRoleQuery, currentSavedStageQuery, router]
   );
+
+  const clearHistoryRoleId = useCallback(() => {
+    if (!router.isReady) return;
+    if (!getNormalizedQueryValue(currentRoleQuery)) return;
+
+    const query = { ...router.query };
+    delete query[HISTORY_ROLE_QUERY_KEY];
+
+    void router.replace(
+      {
+        pathname: router.pathname,
+        query,
+      },
+      undefined,
+      { shallow: true, scroll: false }
+    );
+  }, [currentRoleQuery, router]);
 
   const sortedOpportunities = useMemo(
     () => [...historyOpportunities].sort(compareRecommendedAtDesc),
@@ -587,6 +680,22 @@ const CareerHistoryPanel = () => {
     () => new Map(sortedOpportunities.map((item) => [item.id, item])),
     [sortedOpportunities]
   );
+  const opportunityByRoleId = useMemo(() => {
+    const next = new Map<string, CareerHistoryOpportunity>();
+
+    for (const item of sortedOpportunities) {
+      const roleId = getOpportunityUrlRoleId(item);
+      if (roleId && !next.has(roleId)) {
+        next.set(roleId, item);
+      }
+    }
+
+    return next;
+  }, [sortedOpportunities]);
+  const requestedRoleId = getNormalizedQueryValue(currentRoleQuery);
+  const requestedOpportunity = requestedRoleId
+    ? (opportunityByRoleId.get(requestedRoleId) ?? null)
+    : null;
   const sortedOpportunityIds = useMemo(
     () => new Set(sortedOpportunities.map((item) => item.id)),
     [sortedOpportunities]
@@ -640,10 +749,6 @@ const CareerHistoryPanel = () => {
     setQuestionPromptDraft("");
   }, [questionPromptOpportunityId, sortedOpportunityIds]);
 
-  useEffect(() => {
-    setModalOpportunityId(null);
-  }, [activeTab]);
-
   const activeIndex = activeOpportunityId
     ? (newItemIndexById.get(activeOpportunityId) ?? -1)
     : -1;
@@ -688,6 +793,168 @@ const CareerHistoryPanel = () => {
   );
 
   useEffect(() => {
+    if (!router.isReady || !requestedRoleId || requestedOpportunity) return;
+    if (historyLoading) return;
+
+    if (missingRoleIdRef.current === requestedRoleId) {
+      clearHistoryRoleId();
+      return;
+    }
+
+    if (loadingRoleId === requestedRoleId) return;
+
+    let cancelled = false;
+    setLoadingRoleId(requestedRoleId);
+
+    void (async () => {
+      try {
+        const item = await onLoadHistoryOpportunityByRoleId(requestedRoleId);
+
+        if (cancelled) return;
+
+        if (item) {
+          missingRoleIdRef.current = null;
+          return;
+        }
+
+        missingRoleIdRef.current = requestedRoleId;
+        clearHistoryRoleId();
+      } catch {
+        if (cancelled) return;
+        missingRoleIdRef.current = requestedRoleId;
+        clearHistoryRoleId();
+      } finally {
+        if (!cancelled) {
+          setLoadingRoleId((current) =>
+            current === requestedRoleId ? null : current
+          );
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    clearHistoryRoleId,
+    historyLoading,
+    loadingRoleId,
+    onLoadHistoryOpportunityByRoleId,
+    requestedOpportunity,
+    requestedRoleId,
+    router.isReady,
+  ]);
+
+  useEffect(() => {
+    if (!router.isReady || !requestedRoleId || !requestedOpportunity) return;
+
+    missingRoleIdRef.current = null;
+
+    if (
+      feedbackRoleQueryIgnoreRef.current === requestedRoleId &&
+      requestedOpportunity.feedback !== null
+    ) {
+      return;
+    }
+
+    const roleId = getOpportunityUrlRoleId(requestedOpportunity);
+    if (!roleId) {
+      clearHistoryRoleId();
+      return;
+    }
+
+    if (isNewOpportunity(requestedOpportunity)) {
+      setModalOpportunityId(null);
+      setActiveOpportunityId(requestedOpportunity.id);
+      updateHistoryLocation("new", activeSavedTab, {
+        mode: "replace",
+        roleId,
+      });
+      return;
+    }
+
+    if (isSavedOpportunity(requestedOpportunity)) {
+      const savedStage = getResolvedSavedStage(requestedOpportunity);
+      setModalOpportunityId(requestedOpportunity.id);
+      updateHistoryLocation("saved", savedStage, {
+        mode: "replace",
+        roleId,
+      });
+      return;
+    }
+
+    if (isArchivedOpportunity(requestedOpportunity)) {
+      setModalOpportunityId(requestedOpportunity.id);
+      updateHistoryLocation("archived", activeSavedTab, {
+        mode: "replace",
+        roleId,
+      });
+    }
+  }, [
+    activeSavedTab,
+    clearHistoryRoleId,
+    requestedOpportunity,
+    requestedRoleId,
+    router.isReady,
+    updateHistoryLocation,
+  ]);
+
+  useEffect(() => {
+    if (!modalOpportunityId) return;
+    if (!requestedRoleId) return;
+
+    const currentModalOpportunity = opportunityById.get(modalOpportunityId);
+    if (
+      currentModalOpportunity &&
+      getOpportunityUrlRoleId(currentModalOpportunity) === requestedRoleId
+    ) {
+      return;
+    }
+
+    setModalOpportunityId(null);
+  }, [activeTab, modalOpportunityId, opportunityById, requestedRoleId]);
+
+  useEffect(() => {
+    if (!router.isReady || historyLoading || activeTab !== "new") return;
+
+    if (requestedRoleId && !requestedOpportunity) return;
+
+    if (
+      requestedRoleId &&
+      requestedOpportunity?.id !== activeOpportunity?.id &&
+      feedbackRoleQueryIgnoreRef.current !== requestedRoleId &&
+      !activeOpportunityUrlSyncRequestedRef.current
+    ) {
+      return;
+    }
+
+    const roleId = getOpportunityUrlRoleId(activeOpportunity);
+    if (!roleId && !requestedRoleId) return;
+
+    if (
+      feedbackRoleQueryIgnoreRef.current &&
+      feedbackRoleQueryIgnoreRef.current !== roleId
+    ) {
+      feedbackRoleQueryIgnoreRef.current = null;
+    }
+
+    activeOpportunityUrlSyncRequestedRef.current = false;
+    updateHistoryLocation("new", activeSavedTab, {
+      mode: "replace",
+      roleId,
+    });
+  }, [
+    activeOpportunity,
+    activeSavedTab,
+    activeTab,
+    historyLoading,
+    requestedOpportunity,
+    requestedRoleId,
+    router.isReady,
+    updateHistoryLocation,
+  ]);
+
+  useEffect(() => {
     if (
       activeTab !== "new" ||
       !activeOpportunity ||
@@ -719,6 +986,7 @@ const CareerHistoryPanel = () => {
       const nextOpportunityId = newItems[nextIndex]?.id ?? null;
 
       if (nextOpportunityId) {
+        activeOpportunityUrlSyncRequestedRef.current = true;
         setActiveOpportunityId(nextOpportunityId);
       }
     },
@@ -734,6 +1002,7 @@ const CareerHistoryPanel = () => {
       return;
     }
     autoAdvanceRequestedRef.current = true;
+    activeOpportunityUrlSyncRequestedRef.current = true;
     setAutoAdvanceTargetIndex(newItems.length);
     void onLoadMoreHistoryOpportunities();
   }, [
@@ -833,6 +1102,7 @@ const CareerHistoryPanel = () => {
 
   useEffect(() => {
     feedbackAdvanceTargetIndexRef.current = null;
+    activeOpportunityUrlSyncRequestedRef.current = false;
     setAutoAdvanceTargetIndex(null);
     autoAdvanceRequestedRef.current = false;
     wasHistoryLoadingMoreRef.current = false;
@@ -893,6 +1163,7 @@ const CareerHistoryPanel = () => {
       const itemIndex = newItemIndexById.get(item.id);
       if (typeof itemIndex === "number") {
         feedbackAdvanceTargetIndexRef.current = itemIndex;
+        feedbackRoleQueryIgnoreRef.current = getOpportunityUrlRoleId(item);
       }
     },
     [activeTab, newItemIndexById]
@@ -922,7 +1193,9 @@ const CareerHistoryPanel = () => {
     (item: CareerHistoryOpportunity) => {
       setModalOpportunityId(null);
       setActiveOpportunityId(item.id);
-      updateHistoryLocation("new", activeSavedTab);
+      updateHistoryLocation("new", activeSavedTab, {
+        roleId: getOpportunityUrlRoleId(item),
+      });
       updateFeedbackForItem(item, null);
     },
     [activeSavedTab, updateFeedbackForItem, updateHistoryLocation]
@@ -951,10 +1224,11 @@ const CareerHistoryPanel = () => {
     (item: CareerHistoryOpportunity) => {
       if (shouldCollectPositiveReason(item)) {
         setModalOpportunityId(null);
+        clearHistoryRoleId();
       }
       handlePositiveAction(item);
     },
-    [handlePositiveAction]
+    [clearHistoryRoleId, handlePositiveAction]
   );
 
   const handleNegativeAction = useCallback(
@@ -967,9 +1241,10 @@ const CareerHistoryPanel = () => {
   const handleModalNegativeAction = useCallback(
     (item: CareerHistoryOpportunity) => {
       setModalOpportunityId(null);
+      clearHistoryRoleId();
       handleNegativeAction(item);
     },
-    [handleNegativeAction]
+    [clearHistoryRoleId, handleNegativeAction]
   );
 
   const handleQuestionAction = useCallback(
@@ -982,9 +1257,10 @@ const CareerHistoryPanel = () => {
   const handleModalQuestionAction = useCallback(
     (item: CareerHistoryOpportunity) => {
       setModalOpportunityId(null);
+      clearHistoryRoleId();
       handleQuestionAction(item);
     },
-    [handleQuestionAction]
+    [clearHistoryRoleId, handleQuestionAction]
   );
 
   const handleSubmitPositivePrompt = useCallback(() => {
@@ -1150,8 +1426,12 @@ const CareerHistoryPanel = () => {
 
   const handleDisplayTabChange = useCallback(
     (nextTab: HistoryDisplayTabId) => {
+      setModalOpportunityId(null);
+
       if (nextTab === "new") {
-        updateHistoryLocation("new", activeSavedTab);
+        updateHistoryLocation("new", activeSavedTab, {
+          roleId: getOpportunityUrlRoleId(activeOpportunity),
+        });
         return;
       }
       if (nextTab === "tracking") {
@@ -1164,8 +1444,40 @@ const CareerHistoryPanel = () => {
       }
       updateHistoryLocation("archived", activeSavedTab);
     },
+    [activeOpportunity, activeSavedTab, updateHistoryLocation]
+  );
+
+  const openModalForItem = useCallback(
+    (item: CareerHistoryOpportunity) => {
+      const roleId = getOpportunityUrlRoleId(item);
+      setModalOpportunityId(item.id);
+
+      if (isSavedOpportunity(item)) {
+        updateHistoryLocation("saved", getResolvedSavedStage(item), {
+          mode: "replace",
+          roleId,
+        });
+        return;
+      }
+
+      if (isArchivedOpportunity(item)) {
+        updateHistoryLocation("archived", activeSavedTab, {
+          mode: "replace",
+          roleId,
+        });
+      }
+    },
     [activeSavedTab, updateHistoryLocation]
   );
+
+  const closeOpportunityModal = useCallback(() => {
+    setModalOpportunityId(null);
+    updateHistoryLocation(activeTab, activeSavedTab, {
+      mode: "replace",
+      roleId: null,
+    });
+  }, [activeSavedTab, activeTab, updateHistoryLocation]);
+
   const pendingOpportunityIds = useMemo(
     () => new Set(historyUpdatingOpportunityIds),
     [historyUpdatingOpportunityIds]
@@ -1195,10 +1507,7 @@ const CareerHistoryPanel = () => {
   if (sortedOpportunities.length === 0) {
     return (
       <HistoryEmptyStatePanel
-        answeredCount={answeredCount}
         onOpenChat={openChatTab}
-        progressPercent={progressPercent}
-        targetQuestions={TALENT_INTERVIEW_FINAL_STEP}
         variant={emptyStateVariant}
       />
     );
@@ -1279,7 +1588,7 @@ const CareerHistoryPanel = () => {
                           stage
                         );
                       }}
-                      onOpenDetail={() => setModalOpportunityId(item.id)}
+                      onOpenDetail={() => openModalForItem(item)}
                     />
                   ))}
                 </div>
@@ -1315,7 +1624,7 @@ const CareerHistoryPanel = () => {
                     </CareerSecondaryButton>
                   }
                   onOpenOpportunityInfo={setInfoOpportunityType}
-                  onOpenDetail={() => setModalOpportunityId(item.id)}
+                  onOpenDetail={() => openModalForItem(item)}
                 />
               ))}
             </div>
@@ -1357,7 +1666,7 @@ const CareerHistoryPanel = () => {
             ? pendingOpportunityIds.has(modalOpportunity.id)
             : false
         }
-        onClose={() => setModalOpportunityId(null)}
+        onClose={closeOpportunityModal}
         onOpenLink={(url) => {
           if (!modalOpportunity) return;
           openHistoryLink(modalOpportunity.id, url);

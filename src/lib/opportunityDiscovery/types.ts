@@ -15,6 +15,8 @@ export type OpportunityDiscoveryTrigger =
 
 export type OpportunityRunMode = "initial" | "immediate" | "refine" | "refresh";
 
+export type OpportunityDiscoveryAgentVariant = "tool_agent" | "scripted";
+
 export type OpportunityIngestionTrigger =
   | "scheduled_refresh"
   | "manual_admin_refresh"

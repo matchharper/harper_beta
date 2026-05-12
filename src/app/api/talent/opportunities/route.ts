@@ -8,6 +8,7 @@ import {
 } from "@/lib/talentOnboarding/server";
 import {
   fetchTalentOpportunityHistoryByIds,
+  fetchTalentOpportunityHistoryByRoleIds,
   fetchTalentOpportunityHistoryPage,
   type TalentOpportunitySavedStage,
   updateTalentOpportunityHistoryItem,
@@ -115,6 +116,25 @@ export async function GET(req: NextRequest) {
       100
     );
     const offset = parseOffsetParam(req.nextUrl.searchParams.get("offset"));
+    const roleId = String(req.nextUrl.searchParams.get("id") ?? "").trim();
+
+    if (roleId) {
+      const items = await fetchTalentOpportunityHistoryByRoleIds({
+        admin,
+        roleIds: [roleId],
+        userId: user.id,
+      });
+
+      return NextResponse.json({
+        counts: null,
+        items,
+        limit: 1,
+        nextOffset: null,
+        offset: 0,
+        ok: true,
+      });
+    }
+
     const page = await fetchTalentOpportunityHistoryPage({
       admin,
       limit,

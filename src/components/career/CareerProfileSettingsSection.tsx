@@ -221,7 +221,7 @@ export const CareerProfileSharingSettingsSection = ({
                 {blockedCompanies.map((companyName) => (
                   <div
                     key={companyName}
-                    className="inline-flex items-center gap-2 rounded-[8px] border border-beige900/10 bg-white/45 pl-4 pr-2 py-2 text-sm text-beige900"
+                    className="inline-flex items-center gap-2 rounded-[8px] border border-beige900/10 bg-white/45 pl-3 pr-1.5 py-1.5 text-sm text-beige900"
                   >
                     <span>{companyName}</span>
                     <button

@@ -6,10 +6,10 @@ import React, {
   useState,
 } from "react";
 import type {
+  CareerInterviewProgress,
   CareerMessagePayload,
   CareerOpportunityRun,
   CareerRecentOpportunity,
-  CareerTalentNotification,
   SessionResponse,
 } from "@/components/career/types";
 import {
@@ -31,12 +31,11 @@ import { useCareerTalentPreferences } from "@/hooks/career/useCareerTalentPrefer
 import { useCareerTalentSettings } from "@/hooks/career/useCareerTalentSettings";
 import { useCareerSession } from "@/hooks/career/useCareerSession";
 import { getErrorMessage, toUiMessage } from "@/hooks/career/careerHelpers";
-import {
-  normalizeNotifications,
-  normalizeRecentOpportunities,
-} from "@/hooks/career/careerSessionData";
+import { normalizeRecentOpportunities } from "@/hooks/career/careerSessionData";
 import { useCareerHistoryState } from "@/hooks/career/useCareerHistoryState";
 import { useCareerRuntimeActions } from "@/hooks/career/useCareerRuntimeActions";
+import { showOpportunityDiscoveryStartedToast } from "@/hooks/career/opportunityDiscoveryToast";
+import { INSIGHT_CHECKLIST } from "@/lib/talentOnboarding/insightChecklist";
 import { TALENT_INTERVIEW_FINAL_STEP } from "@/lib/talentOnboarding/progress";
 
 const getCompletedOpportunityRunRefreshKey = (
@@ -45,6 +44,30 @@ const getCompletedOpportunityRunRefreshKey = (
   if (!run || run.inputLocked) return null;
   if (run.status !== "completed" && run.status !== "partial") return null;
   return `${run.id}:${run.completedAt ?? run.status}`;
+};
+
+type SessionReengagementPayload = {
+  assistantMessage?: CareerMessagePayload | null;
+  assistantMessages?: CareerMessagePayload[];
+  insightUpdatedAt?: unknown;
+  opportunityRun?: CareerOpportunityRun | null;
+  preferencesUpdatedAt?: unknown;
+  skipped?: boolean;
+  talentInsights?: unknown;
+  talentPreferences?: unknown;
+};
+
+type OnboardingManualCompletionPayload = {
+  assistantMessage?: CareerMessagePayload | null;
+  assistantMessages?: CareerMessagePayload[];
+  error?: string;
+  insightUpdatedAt?: unknown;
+  opportunityDiscoveryQueued?: boolean;
+  opportunityRun?: CareerOpportunityRun | null;
+  progress?: {
+    completed?: boolean;
+  };
+  talentInsights?: unknown;
 };
 
 export const CareerFlowProvider = ({
@@ -76,18 +99,14 @@ export const CareerFlowProvider = ({
   const [recentOpportunities, setRecentOpportunities] = useState<
     CareerRecentOpportunity[]
   >([]);
-  const [notifications, setNotifications] = useState<
-    CareerTalentNotification[]
-  >([]);
   const [opportunityRun, setOpportunityRun] =
     useState<CareerOpportunityRun | null>(null);
   const [opportunityRunTriggerPending, setOpportunityRunTriggerPending] =
     useState(false);
-  const [notificationsMarkingAsRead, setNotificationsMarkingAsRead] =
-    useState(false);
-  const [notificationsError, setNotificationsError] = useState("");
+  const [forceCompletePending, setForceCompletePending] = useState(false);
   const completedOpportunityRunRefreshRef = useRef<string | null>(null);
   const emptyCompletedHistoryProbeRef = useRef<string | null>(null);
+  const sessionReengagementRef = useRef<string | null>(null);
   const refreshLatestHistoryOpportunitiesRef = useRef<
     (() => void | Promise<void>) | null
   >(null);
@@ -206,6 +225,7 @@ export const CareerFlowProvider = ({
     historyUpdateError,
     historyUpdatingOpportunityIds,
     hydrateHistoryOpportunities,
+    loadHistoryOpportunityByRoleId,
     loadMoreHistoryOpportunities,
     onMarkHistoryOpportunityClicked,
     onMarkHistoryOpportunityViewed,
@@ -384,6 +404,76 @@ export const CareerFlowProvider = ({
     [appendLatestMessagesToCache, enqueueAssistantTypewriter]
   );
 
+  const handleForceCompleteOnboarding = useCallback(async () => {
+    if (!conversationId || forceCompletePending || stage === "profile") {
+      return false;
+    }
+
+    setForceCompletePending(true);
+    setChatError("");
+    try {
+      const response = await fetchWithAuth("/api/talent/onboarding/complete", {
+        method: "POST",
+        body: JSON.stringify({ conversationId }),
+      });
+      const payload = (await response
+        .json()
+        .catch(() => ({}))) as OnboardingManualCompletionPayload;
+
+      if (!response.ok) {
+        throw new Error(
+          getErrorMessage(payload, "커리어 인터뷰 종료에 실패했습니다.")
+        );
+      }
+
+      if (payload.opportunityRun) {
+        setOpportunityRun(payload.opportunityRun);
+      }
+      if (payload.opportunityDiscoveryQueued) {
+        showOpportunityDiscoveryStartedToast();
+      }
+      if ("talentInsights" in payload) {
+        handleTalentInsightsRefreshedFromChat(
+          payload.talentInsights,
+          payload.insightUpdatedAt ?? null
+        );
+      }
+
+      const assistantMessages = Array.isArray(payload.assistantMessages)
+        ? payload.assistantMessages
+        : payload.assistantMessage
+          ? [payload.assistantMessage]
+          : [];
+
+      if (assistantMessages.length > 0) {
+        await enqueueAssistantMessages(assistantMessages);
+      }
+      if (payload.progress?.completed) {
+        setStage("completed");
+      }
+
+      return true;
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "커리어 인터뷰 종료 중 오류가 발생했습니다.";
+      setChatError(message);
+      return false;
+    } finally {
+      setForceCompletePending(false);
+    }
+  }, [
+    conversationId,
+    enqueueAssistantMessages,
+    fetchWithAuth,
+    forceCompletePending,
+    handleTalentInsightsRefreshedFromChat,
+    setChatError,
+    setStage,
+    stage,
+  ]);
+
   const {
     handleRunOpportunityDiscoveryTest,
     handleRunPeriodicOpportunityDiscoveryTest,
@@ -437,6 +527,7 @@ export const CareerFlowProvider = ({
     isVoiceInteractionLocked,
     onSendChatMessage: sendChatMessage,
     onOpportunityRunChanged: setOpportunityRun,
+    onTalentInsightsRefreshed: handleTalentInsightsRefreshedFromChat,
     appendMessage,
     setChatError,
     setStage,
@@ -447,58 +538,6 @@ export const CareerFlowProvider = ({
   const handleProfileSubmit = useCallback(async () => {
     await handleProfileSubmitBase(handleProfileSubmitSuccess);
   }, [handleProfileSubmitBase, handleProfileSubmitSuccess]);
-
-  const unreadNotificationCount = useMemo(
-    () => notifications.filter((notification) => !notification.isRead).length,
-    [notifications]
-  );
-
-  const markNotificationsRead = useCallback(async () => {
-    if (
-      !userId ||
-      notificationsMarkingAsRead ||
-      unreadNotificationCount === 0
-    ) {
-      return;
-    }
-
-    const previousNotifications = notifications;
-    setNotificationsError("");
-    setNotificationsMarkingAsRead(true);
-    setNotifications((current) =>
-      current.map((notification) =>
-        notification.isRead ? notification : { ...notification, isRead: true }
-      )
-    );
-
-    try {
-      const response = await fetchWithAuth("/api/talent/notifications", {
-        method: "PATCH",
-      });
-      const payload = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(
-          getErrorMessage(payload, "알림 읽음 처리에 실패했습니다.")
-        );
-      }
-    } catch (error) {
-      setNotifications(previousNotifications);
-      setNotificationsError(
-        error instanceof Error
-          ? error.message
-          : "알림 읽음 처리에 실패했습니다."
-      );
-    } finally {
-      setNotificationsMarkingAsRead(false);
-    }
-  }, [
-    fetchWithAuth,
-    notifications,
-    notificationsMarkingAsRead,
-    unreadNotificationCount,
-    userId,
-  ]);
 
   const hydrateSession = useCallback(
     (payload: SessionResponse) => {
@@ -519,8 +558,6 @@ export const CareerFlowProvider = ({
       setActiveCompanyRoleCount(
         Math.max(0, Number(payload.activeCompanyRoleCount ?? 0) || 0)
       );
-      setNotifications(normalizeNotifications(payload.notifications));
-      setNotificationsError("");
       setOpportunityRun(payload.opportunityRun ?? null);
       const completedRunRefreshKey = getCompletedOpportunityRunRefreshKey(
         payload.opportunityRun ?? null
@@ -575,9 +612,7 @@ export const CareerFlowProvider = ({
       resetRuntimeActionsState();
       setRecentOpportunities([]);
       setActiveCompanyRoleCount(0);
-      setNotifications([]);
-      setNotificationsMarkingAsRead(false);
-      setNotificationsError("");
+      sessionReengagementRef.current = null;
     }
   }, [
     authLoading,
@@ -597,6 +632,80 @@ export const CareerFlowProvider = ({
     hydrateSession(sessionData);
     setHistoryLoaded(true);
   }, [hydrateSession, sessionData, setHistoryLoaded, userId]);
+
+  useEffect(() => {
+    if (!userId || !conversationId || sessionPending || stage === "profile") {
+      return;
+    }
+
+    const reengagementKey = `${userId}:${conversationId}`;
+    if (sessionReengagementRef.current === reengagementKey) return;
+    sessionReengagementRef.current = reengagementKey;
+
+    let cancelled = false;
+
+    const triggerReengagement = async () => {
+      try {
+        const response = await fetchWithAuth(
+          "/api/talent/session/reengagement",
+          {
+            method: "POST",
+            body: JSON.stringify({ conversationId }),
+          }
+        );
+        const payload = (await response
+          .json()
+          .catch(() => ({}))) as SessionReengagementPayload;
+
+        if (!response.ok || cancelled || payload.skipped) return;
+
+        if (payload.opportunityRun) {
+          setOpportunityRun(payload.opportunityRun);
+        }
+        if ("talentPreferences" in payload) {
+          handleTalentPreferencesRefreshedFromChat(
+            payload.talentPreferences,
+            payload.preferencesUpdatedAt ?? null
+          );
+        }
+        if ("talentInsights" in payload) {
+          handleTalentInsightsRefreshedFromChat(
+            payload.talentInsights,
+            payload.insightUpdatedAt ?? null
+          );
+        }
+
+        const assistantMessages = Array.isArray(payload.assistantMessages)
+          ? payload.assistantMessages
+          : payload.assistantMessage
+            ? [payload.assistantMessage]
+            : [];
+
+        if (assistantMessages.length > 0) {
+          await enqueueAssistantMessages(assistantMessages);
+        }
+      } catch (error) {
+        console.error("[CareerFlowProvider] session re-engagement failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    };
+
+    void triggerReengagement();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    conversationId,
+    enqueueAssistantMessages,
+    fetchWithAuth,
+    handleTalentInsightsRefreshedFromChat,
+    handleTalentPreferencesRefreshedFromChat,
+    sessionPending,
+    stage,
+    userId,
+  ]);
 
   useEffect(() => {
     if (!userId || !opportunityRun?.inputLocked) return;
@@ -740,10 +849,31 @@ export const CareerFlowProvider = ({
   );
   const onboardingWrapupPending =
     chatOnboardingWrapupPending || voiceOnboardingWrapupPending;
+  const isOnboardingDone =
+    stage === "completed" || Boolean(talentPreferences?.isOnboardingDone);
 
   const progressPercent = Math.round(
     (answeredCount / TALENT_INTERVIEW_FINAL_STEP) * 100
   );
+  const interviewProgress: CareerInterviewProgress = useMemo(() => {
+    const totalCount = INSIGHT_CHECKLIST.length;
+    const filledCount = INSIGHT_CHECKLIST.reduce((count, item) => {
+      const value = talentInsights?.[item.key];
+      return String(value ?? "").trim().length > 0 ? count + 1 : count;
+    }, 0);
+    const percent =
+      totalCount > 0
+        ? Math.min(100, Math.round((filledCount / totalCount) * 100))
+        : 0;
+
+    return {
+      canForceComplete: !isOnboardingDone && stage === "chat" && percent >= 85,
+      filledCount,
+      percent,
+      remainingCount: Math.max(totalCount - filledCount, 0),
+      totalCount,
+    };
+  }, [isOnboardingDone, stage, talentInsights]);
 
   const chatPanelContextValue: CareerChatPanelContextValue = useMemo(
     () => ({
@@ -760,6 +890,7 @@ export const CareerFlowProvider = ({
       authInfo,
       sessionPending,
       sessionError,
+      isOnboardingDone,
       resumeFile,
       profileLinks,
       profilePending,
@@ -775,7 +906,7 @@ export const CareerFlowProvider = ({
       opportunityRun,
       opportunitySearchLocked: Boolean(opportunityRun?.inputLocked),
       historyUpdatingOpportunityIds,
-      onboardingBeginPending,
+      onboardingBeginPending: onboardingBeginPending || forceCompletePending,
       callStartPending,
       onboardingPausePending,
       onGoogleLogin: handleGoogleLogin,
@@ -789,6 +920,9 @@ export const CareerFlowProvider = ({
       onUpdateHistoryOpportunityFeedback,
       onLoadOlderMessages: handleLoadOlderMessages,
       onRegenerateOnboardingWrapup: regenerateOnboardingWrapup,
+      forceCompletePending,
+      interviewProgress,
+      onForceCompleteOnboarding: handleForceCompleteOnboarding,
       showVoiceStartPrompt,
       onStartVoiceCall: handleStartVoiceCall,
       onUseChatOnly: handleUseChatOnly,
@@ -827,6 +961,7 @@ export const CareerFlowProvider = ({
       conversationId,
       handleAddProfileLink,
       handleEmailAuth,
+      handleForceCompleteOnboarding,
       handleGoogleLogin,
       handleProfileLinkChange,
       handleProfileSubmit,
@@ -847,6 +982,9 @@ export const CareerFlowProvider = ({
       handleUseChatOnly,
       handleVoicePrimaryAction,
       inputMode,
+      forceCompletePending,
+      isOnboardingDone,
+      interviewProgress,
       messages,
       loadingOlderMessages,
       onUpdateHistoryOpportunityFeedback,
@@ -880,6 +1018,7 @@ export const CareerFlowProvider = ({
     () => ({
       user,
       stage,
+      isOnboardingDone,
       userChatCount,
       answeredCount,
       targetQuestions: TALENT_INTERVIEW_FINAL_STEP,
@@ -903,16 +1042,12 @@ export const CareerFlowProvider = ({
       historyUpdatingOpportunityIds,
       historyUpdateError,
       onLoadMoreHistoryOpportunities: loadMoreHistoryOpportunities,
+      onLoadHistoryOpportunityByRoleId: loadHistoryOpportunityByRoleId,
       onUpdateHistoryOpportunityFeedback,
       onUpdateHistoryOpportunitySavedStage,
       onMarkHistoryOpportunityViewed,
       onMarkHistoryOpportunityClicked,
       onSendHistoryOpportunityQuestion,
-      notifications,
-      unreadNotificationCount,
-      notificationsMarkingAsRead,
-      notificationsError,
-      onMarkNotificationsRead: markNotificationsRead,
       resumeFile,
       savedResumeFileName,
       savedResumeStoragePath,
@@ -981,9 +1116,6 @@ export const CareerFlowProvider = ({
       hasUnsavedTalentSettingsChanges,
       handleLogout,
       handleProfileLinkChange,
-      notifications,
-      notificationsError,
-      notificationsMarkingAsRead,
       onResetTalentInsights,
       onResetTalentPreferences,
       onResetTalentSettings,
@@ -997,7 +1129,6 @@ export const CareerFlowProvider = ({
       onOpenSettings,
       handleRemoveProfileLink,
       onRemoveBlockedCompany,
-      markNotificationsRead,
       handleSaveTalentProfile,
       hasMoreHistoryOpportunities,
       historyOpportunityCounts,
@@ -1006,6 +1137,8 @@ export const CareerFlowProvider = ({
       historyOpportunities,
       historyUpdateError,
       historyUpdatingOpportunityIds,
+      isOnboardingDone,
+      loadHistoryOpportunityByRoleId,
       loadMoreHistoryOpportunities,
       profileLinks,
       profileVisibility,
@@ -1036,7 +1169,6 @@ export const CareerFlowProvider = ({
       talentPreferencesSaveInfo,
       talentPreferencesSavePending,
       talentPreferencesUpdatedAt,
-      unreadNotificationCount,
       userChatCount,
       onMarkHistoryOpportunityClicked,
       onMarkHistoryOpportunityViewed,

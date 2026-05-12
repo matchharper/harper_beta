@@ -1266,6 +1266,8 @@ export function buildCareerCallWrapupFallbackFollowUp(args: {
 export const CAREER_REENGAGEMENT_FALLBACK_MESSAGE =
   "다시 이어서 이야기해볼게요. 최근 기준으로 달라진 우선순위가 있으면 그 부분부터 반영하겠습니다.";
 
+export const CAREER_REENGAGEMENT_CALL_ACTION_MARKER = "[[CALL]]";
+
 export function buildCareerReengagementSystemPrompt() {
   return [
     "You are Harper, an AI career agent for talent users.",
@@ -1276,13 +1278,16 @@ export function buildCareerReengagementSystemPrompt() {
     "- Write 2-3 natural Korean sentences.",
     "- Keep it concise, warm, and specific.",
     "- Use the recent activity, recent conversation, and profile context if helpful.",
-    "- Questions are optional. Ask one focused follow-up question only when the user needs to clarify something before Harper can act well.",
-    "- If recent activity already gives a clear next direction, acknowledge it and close without a question.",
+    "- Default structure: briefly wrap up the most relevant previous conversation, recent Career activity, profile change, previous recommendation, or feedback, then end with one focused follow-up question.",
+    "- The question should be easy to answer and should naturally continue from that wrap-up.",
+    "- If prior context is weak, ask what changed most recently in the user's priorities or what direction they want to focus on now.",
+    "- If there is already a clear next action and the user does not need to answer anything, you may close with a short status update instead of a question.",
+    `- If hoursSinceLastChat is 168 or more and there is no clear recent activity, recommendation, profile update, or feedback to continue from, naturally suggest a quick call to hear any recent updates or interesting things the user is working on, then append ${CAREER_REENGAGEMENT_CALL_ACTION_MARKER} at the very end.`,
+    `- ${CAREER_REENGAGEMENT_CALL_ACTION_MARKER} is a UI marker for showing a call button. Do not explain it or wrap it in quotes.`,
     "- Do not use bullet points, markdown headings, or quotes.",
     "- Use light inline markdown when helpful, especially **company**, **role**, or **direction** names.",
     '- Do not mention internal mechanics like "자동 메시지", "시스템", or "24시간 이상".',
     "- Do not sound like a first-visit greeting.",
-    "- If prior context is weak, you may ask what changed most recently in the user's priorities, but do not force the question.",
   ].join("\n");
 }
 
@@ -1314,7 +1319,8 @@ export function buildCareerKickoffOpeningMessage(displayName: string) {
       .trim()
       .replace(/\s*님$/, "") || "회원";
   return `${normalizedName}님이 실제로 만족할만한 기회를 찾기위해서, 몇 가지만 먼저 여쭤보고 싶어요.
-현재 상황에 대한 간단한 소개나 어떤 기회를 찾고계신지 알려주실 수 있나요?`;
+가벼운 대화라고 생각하시고, 편하게 대답해주세요. 5분 내외로 대화가 끝날 수 있게 하고, 거의 다 질문했다면 임의로 종료하실 수도 있게 할게요.
+우선 현재 상황 혹은 본인에 대한 간단한 소개나 어떤 기회를 찾고계신지 알려주실 수 있나요?`;
 }
 
 export function buildCareerKickoffSystemPrompt() {
@@ -1389,6 +1395,7 @@ export function buildCareerProfileIngestionSystemPrompt() {
     "Preserve company_id from the current LinkedIn experience when the final row refers to the same company.",
     "Preserve company_link from the current LinkedIn experience when the final row refers to the same company.",
     "Never invent a company_id.",
+    "blockedCompanies must list company names the candidate has ever worked for or interned at. Use exact company names from LinkedIn/resume only.",
     "talentExtras is an array for awards, projects, publications, volunteering, certifications, or other notable details.",
     "Date format must be YYYY-MM-DD or null.",
     "for description field, you can use markdown for formatting.(bold, list, italic, etc.)",
@@ -1406,6 +1413,7 @@ export function buildCareerProfileIngestionSystemPrompt() {
     "    {",
     '      "role": string|null,',
     '      "description": string|null,',
+    '      "employment_type": string|null,',
     '      "start_date": "YYYY-MM-DD"|null,',
     '      "end_date": "YYYY-MM-DD"|null,',
     '      "months": number|null,',
@@ -1433,6 +1441,7 @@ export function buildCareerProfileIngestionSystemPrompt() {
     '      "date": "YYYY-MM-DD"|null',
     "    }",
     "  ],",
+    '  "blockedCompanies": string[],',
     '  "notes": string|null',
     "}",
   ].join("\n");
@@ -1464,6 +1473,7 @@ export function buildCareerProfileUpdateMergeSystemPrompt() {
     "Prefer preserving existing wording when new data is weaker. Use new data to add missing rows, fill missing dates/descriptions, or correct clearly better facts.",
     "Never hallucinate uncertain facts. If uncertain, leave field null or keep the existing value.",
     "Preserve company_id/company_link from existing or LinkedIn-derived rows when the final row refers to the same company. Never invent company_id.",
+    "blockedCompanies must list company names the candidate has ever worked for or interned at. Use exact company names from existing/new profile data only.",
     "Date format must be YYYY-MM-DD or null.",
     "Descriptions may use markdown for formatting.",
     "Output schema:",
@@ -1480,6 +1490,7 @@ export function buildCareerProfileUpdateMergeSystemPrompt() {
     '      "existingId": number|null,',
     '      "role": string|null,',
     '      "description": string|null,',
+    '      "employment_type": string|null,',
     '      "start_date": "YYYY-MM-DD"|null,',
     '      "end_date": "YYYY-MM-DD"|null,',
     '      "months": number|null,',
@@ -1509,6 +1520,7 @@ export function buildCareerProfileUpdateMergeSystemPrompt() {
     '      "date": "YYYY-MM-DD"|null',
     "    }",
     "  ],",
+    '  "blockedCompanies": string[],',
     '  "notes": string|null',
     "}",
   ].join("\n");

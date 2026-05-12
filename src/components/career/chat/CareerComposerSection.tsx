@@ -2,7 +2,9 @@ import React from "react";
 import {
   ArrowUp,
   AudioLines,
+  Clock3,
   Loader2,
+  MessageSquareText,
   Mic,
   MicOff,
   Phone,
@@ -10,6 +12,7 @@ import {
 } from "lucide-react";
 import { KeyboardEvent, useRef, useState } from "react";
 import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
+import { Tooltips } from "@/components/ui/tooltip";
 import { isOnboardingPaused } from "@/hooks/career/careerHelpers";
 import { CareerSecondaryButton, careerCx } from "../ui/CareerPrimitives";
 import CareerVoiceInputLevelFill from "./CareerVoiceInputLevelFill";
@@ -20,12 +23,16 @@ const CareerComposerSection = () => {
     conversationId,
     stage,
     messages,
+    isOnboardingDone,
     sessionPending,
     profilePending,
     chatPending,
     assistantTyping,
     onboardingBeginPending,
+    onboardingWrapupPending,
     callStartPending = false,
+    forceCompletePending = false,
+    interviewProgress,
     onboardingPausePending,
     showVoiceStartPrompt,
     inputMode,
@@ -39,6 +46,7 @@ const CareerComposerSection = () => {
     onToggleVoiceMute,
     onSwitchToTextMode,
     onStartCallMode,
+    onForceCompleteOnboarding,
   } = useCareerChatPanelContext();
 
   const [draft, setDraft] = useState("");
@@ -72,7 +80,9 @@ const CareerComposerSection = () => {
           ? "바로 입력하면 대화가 이어집니다."
           : profilePending
             ? "이력서와 링크를 분석 중입니다."
-            : "Harper에게 답변을 입력하세요.";
+            : stage === "completed"
+              ? "Harper에게 답변을 입력하세요."
+              : "원하는 역할이나 조건을 편하게 답해주세요.";
 
   const showCallQuickAction =
     Boolean(user) &&
@@ -82,6 +92,23 @@ const CareerComposerSection = () => {
     !showVoiceStartPrompt;
 
   const isVoiceMode = inputMode === "voice";
+  const showInterviewComposerFrame =
+    Boolean(user) &&
+    stage === "chat" &&
+    !isOnboardingDone &&
+    !showVoiceStartPrompt &&
+    inputMode === "text";
+  const showManualCompletionAction =
+    showInterviewComposerFrame &&
+    interviewProgress.canForceComplete &&
+    Boolean(onForceCompleteOnboarding);
+  const manualCompletionDisabled =
+    forceCompletePending ||
+    onboardingWrapupPending ||
+    chatPending ||
+    assistantTyping;
+  const forceCompleteTooltip =
+    "커리어 인터뷰를 임의로 종료할 수 있어요. 거의 다 왔으니 2~3개의 질문에만 추가로 대답해주시면 자동으로 종료됩니다!";
 
   const resetDraftField = () => {
     setDraft("");
@@ -116,6 +143,11 @@ const CareerComposerSection = () => {
       event.preventDefault();
       void handleSend();
     }
+  };
+
+  const handleForceComplete = () => {
+    if (!onForceCompleteOnboarding || manualCompletionDisabled) return;
+    void onForceCompleteOnboarding();
   };
 
   return (
@@ -177,79 +209,134 @@ const CareerComposerSection = () => {
           </div>
         ) : null}
 
-        <div className="rounded-3xl border border-beige900/20 transition-all duration-200 focus-within:border-beige900/40 focus-within:shadow-[0_0_16px_rgba(0,0,0,0.1)] bg-white px-3 py-3 shadow-[0_0_16px_rgba(0,0,0,0.05)]">
-          <div className="relative flex items-end gap-2">
-            <textarea
-              key={textareaResetVersion}
-              ref={textareaRef}
-              id="career-chat-composer"
-              value={isVoiceMode ? voiceTranscript : draft}
-              onChange={(event) => setDraft(event.target.value)}
-              onCompositionStart={() => {
-                isComposingRef.current = true;
-              }}
-              onCompositionEnd={(event) => {
-                isComposingRef.current = false;
-                setDraft(event.currentTarget.value);
-              }}
-              onKeyDown={handleComposerKeyDown}
-              readOnly={isVoiceMode}
-              placeholder={
-                isVoiceMode
-                  ? voiceMuted
-                    ? "마이크가 음소거되어 있습니다."
-                    : "듣는 중..."
-                  : composerPlaceholder
-              }
-              disabled={isTextInputLocked}
-              className={careerCx(
-                "min-w-0 flex-1 resize-none border-none px-0.5 py-1 text-[15px] leading-5 text-beige900 outline-none transition-all placeholder:text-beige900/35 disabled:cursor-not-allowed",
-                isVoiceMode ? "min-h-[64px]" : "min-h-[88px]"
-              )}
-            />
-            {!isVoiceMode && (
-              <div className="absolute bottom-0 right-0 flex items-center gap-2">
-                {showCallQuickAction && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => onStartVoiceCall()}
-                      disabled={isComposerActionLocked || isStartingCall}
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-beige900/15 bg-white/45 text-beige900/50 transition-colors hover:border-beige900/30 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-50"
-                      aria-label="음성 모드"
-                    >
-                      <Mic className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onStartCallMode?.()}
-                      disabled={isComposerActionLocked || isStartingCall}
-                      className="inline-flex h-9 px-3 gap-2 text-sm items-center justify-center rounded-[8px] border border-beige900/50 bg-beige900 text-beige50 transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                      aria-label="통화 모드"
-                    >
-                      {isStartingCall ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Phone className="h-3.5 w-3.5" />
-                      )}
-                      {isStartingCall ? "연결 중..." : ""}
-                    </button>
-                  </>
-                )}
-                <button
-                  type="button"
-                  onClick={() => void handleSend()}
-                  disabled={isComposerActionLocked || !draft.trim()}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-beige900 bg-beige900 text-[#f5ecdd] transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {chatPending || assistantTyping ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        <div
+          className={careerCx(
+            "transition-all duration-200",
+            showInterviewComposerFrame
+              ? "rounded-[18px] bg-beige900 p-1 shadow-[0_12px_28px_rgba(37,20,6,0.14)]"
+              : "rounded-3xl"
+          )}
+        >
+          {showInterviewComposerFrame ? (
+            <div className="px-3 py-2 text-beige50">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="inline-flex items-center gap-2 text-[13px] font-semibold">
+                  <MessageSquareText className="h-4 w-4" />
+                  <span className="career-interview-shimmer inline-block">
+                    커리어 인터뷰 진행 중
+                  </span>
+                </div>
+                <div className="h-5 min-w-[64px] overflow-hidden text-right">
+                  {showManualCompletionAction ? (
+                    <Tooltips text={forceCompleteTooltip} side="top">
+                      <button
+                        type="button"
+                        onClick={handleForceComplete}
+                        disabled={manualCompletionDisabled}
+                        className="inline-flex h-5 items-center gap-1 text-[12px] font-semibold text-red-300 transition-all duration-300 ease-out hover:text-red-400 disabled:cursor-wait disabled:opacity-70"
+                      >
+                        {forceCompletePending || onboardingWrapupPending ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : null}
+                        임의 종료
+                      </button>
+                    </Tooltips>
                   ) : (
-                    <ArrowUp className="h-3.5 w-3.5" />
+                    <div className="inline-flex h-5 items-center gap-1.5 text-[12px] text-beige50/70 transition-all duration-300 ease-out">
+                      <Clock3 className="h-3.5 w-3.5" />약 5분
+                    </div>
                   )}
-                </button>
+                </div>
               </div>
-            )}
+              <div
+                className="mt-2 h-1 overflow-hidden rounded-full bg-beige50/15"
+                role="progressbar"
+                aria-label="커리어 인터뷰 진행률"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={interviewProgress.percent}
+              >
+                <div
+                  className="h-full rounded-full bg-[#f1a35d] transition-[width] duration-700 ease-out"
+                  style={{ width: `${interviewProgress.percent}%` }}
+                />
+              </div>
+            </div>
+          ) : null}
+          <div className="rounded-[16px] border border-beige900/20 bg-white px-3 py-3 shadow-[0_0_16px_rgba(0,0,0,0.05)] transition-all duration-200 focus-within:border-beige900/40 focus-within:shadow-[0_0_16px_rgba(0,0,0,0.1)]">
+            <div className="relative flex items-end gap-2">
+              <textarea
+                key={textareaResetVersion}
+                ref={textareaRef}
+                id="career-chat-composer"
+                value={isVoiceMode ? voiceTranscript : draft}
+                onChange={(event) => setDraft(event.target.value)}
+                onCompositionStart={() => {
+                  isComposingRef.current = true;
+                }}
+                onCompositionEnd={(event) => {
+                  isComposingRef.current = false;
+                  setDraft(event.currentTarget.value);
+                }}
+                onKeyDown={handleComposerKeyDown}
+                readOnly={isVoiceMode}
+                placeholder={
+                  isVoiceMode
+                    ? voiceMuted
+                      ? "마이크가 음소거되어 있습니다."
+                      : "듣는 중..."
+                    : composerPlaceholder
+                }
+                disabled={isTextInputLocked}
+                className={careerCx(
+                  "min-w-0 flex-1 resize-none border-none px-0.5 py-1 text-[15px] leading-5 text-beige900 outline-none transition-all placeholder:text-beige900/35 disabled:cursor-not-allowed",
+                  isVoiceMode ? "min-h-[64px]" : "min-h-[80px]"
+                )}
+              />
+              {!isVoiceMode && (
+                <div className="absolute bottom-0 right-0 flex items-center gap-2">
+                  {showCallQuickAction && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => onStartVoiceCall()}
+                        disabled={isComposerActionLocked || isStartingCall}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-beige900/15 bg-white/45 text-beige900/50 transition-colors hover:border-beige900/30 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label="음성 모드"
+                      >
+                        <Mic className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onStartCallMode?.()}
+                        disabled={isComposerActionLocked || isStartingCall}
+                        className="inline-flex h-9 px-3 gap-2 text-sm items-center justify-center rounded-[8px] border border-beige900/50 bg-beige900 text-beige50 transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label="통화 모드"
+                      >
+                        {isStartingCall ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Phone className="h-3.5 w-3.5" />
+                        )}
+                        {isStartingCall ? "연결 중..." : ""}
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => void handleSend()}
+                    disabled={isComposerActionLocked || !draft.trim()}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-beige900 bg-beige900 text-[#f5ecdd] transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {chatPending || assistantTyping ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <ArrowUp className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

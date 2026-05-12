@@ -188,6 +188,7 @@ async function buildTalentProfileSnapshot(args: {
       preferredLocations: [],
       careerMoveIntent,
       careerMoveIntentLabel: getTalentCareerMoveIntentLabel(careerMoveIntent),
+      isOnboardingDone: Boolean(setting?.is_onboarding_done),
       periodicIntervalDays: normalizeTalentPeriodicIntervalDays(
         setting?.periodic_interval_days
       ),
