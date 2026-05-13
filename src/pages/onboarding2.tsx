@@ -220,7 +220,7 @@ const BeigeTextInput = ({
           autoFocus={autoFocus}
         />
       )}
-      <div className="h-[1px] w-full rounded-full bg-white/0 transition-colors duration-200 group-focus-within:bg-beige900" />
+      <div className="h-px w-full rounded-full bg-white/0 transition-colors duration-200 group-focus-within:bg-beige900" />
     </div>
   );
 };
@@ -945,7 +945,7 @@ export const Onboarding2Content = ({
   };
 
   return (
-    <main className="flex min-h-[100dvh] pt-4 w-full flex-col items-center justify-start overflow-y-auto scrollbar-none bg-beige100 px-0 font-geist text-beige900">
+    <main className="flex min-h-dvh pt-4 w-full flex-col items-center justify-start overflow-y-auto scrollbar-none bg-beige100 px-0 font-geist text-beige900">
       <div className="fixed left-0 top-0 z-20 w-full">
         <BeigeProgressBar
           currentStep={questionProgressStep}

@@ -282,7 +282,7 @@ const CareerWorkspaceNav = () => {
         onSuggestUpdate={handleOpenSupport}
       />
       {inquiryOpen && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-80 flex items-center justify-center p-4">
           <button
             type="button"
             aria-label="문의 모달 닫기"
@@ -301,7 +301,7 @@ const CareerWorkspaceNav = () => {
               onClick={handleCloseInquiry}
               disabled={inquirySubmitting}
               aria-label="문의 모달 닫기"
-              className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-beige900/50 transition hover:bg-beige900/[0.05] hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-40"
+              className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-beige900/50 transition hover:bg-beige900/5 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <X className="h-4 w-4" />
             </button>

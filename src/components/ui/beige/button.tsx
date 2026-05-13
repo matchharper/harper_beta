@@ -24,7 +24,7 @@ const beigeButtonVariantClassNames: Record<BeigeButtonVariant, string> = {
   outline:
     "border border-beige900/15 bg-white/45 text-beige900 hover:border-beige900/30 hover:bg-white/65",
   ghost:
-    "border border-transparent bg-transparent text-beige900 hover:bg-beige900/[0.05]",
+    "border border-transparent bg-transparent text-beige900 hover:bg-beige900/5",
 };
 
 function getBeigeButtonSizeClassName(

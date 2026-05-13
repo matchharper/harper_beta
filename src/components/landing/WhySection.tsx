@@ -97,7 +97,7 @@ export const WhyImageSection = React.memo(function WhyImageSection({
       {imgReturn()}
       <div className="flex flex-col items-start justify-start w-full gap-4 text-left">
         <h3
-          className="text-[20px] md:text-2xl font-normal leading-[2.2rem] md:leading-[2.5rem]"
+          className="text-[20px] md:text-2xl font-normal leading-[2.2rem] md:leading-10"
           dangerouslySetInnerHTML={{ __html: title }}
         />
         <div

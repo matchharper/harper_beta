@@ -38,7 +38,7 @@ const CareerCallEnvironmentNotice = ({
   return (
     <div className={careerCx("w-full", className)}>
       <div className="flex justify-center">
-        <div className="animate-in fade-in slide-in-from-top-2 w-full max-w-[560px] rounded-[24px] border border-[#dcc4a8]/60 bg-[linear-gradient(135deg,rgba(255,252,245,1),rgba(247,235,220,0.95))] p-[1px] shadow-[0_18px_55px_rgba(69,44,26,0.15)] backdrop-blur duration-300">
+        <div className="animate-in fade-in slide-in-from-top-2 w-full max-w-[560px] rounded-[24px] border border-[#dcc4a8]/60 bg-[linear-gradient(135deg,rgba(255,252,245,1),rgba(247,235,220,0.95))] p-px shadow-[0_18px_55px_rgba(69,44,26,0.15)] backdrop-blur duration-300">
           <div className="rounded-[23px] bg-[linear-gradient(180deg,rgba(255,255,255,0.75),rgba(245,236,221,0.9))] px-4 py-4 sm:px-5">
             <div className="flex items-start gap-3">
               <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#f4dfc7] text-[#9a5c25] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">

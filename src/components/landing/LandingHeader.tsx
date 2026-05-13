@@ -158,8 +158,8 @@ const LandingHeader = ({
               shadow-[0_12px_40px_rgba(180,255,120,0.25)]
               transition-all duration-200
               hover:shadow-[0_18px_60px_rgba(180,255,120,0.35)]
-              hover:-translate-y-[1px]
-              active:translate-y-[0px]
+              hover:-translate-y-px
+              active:translate-y-0
               active:shadow-[0_8px_20px_rgba(180,255,120,0.2)]
             "
           >

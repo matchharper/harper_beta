@@ -59,7 +59,7 @@ export default function CandidateMemoDock({
         ) : (
           <div
             className={[
-              "min-h-[36px] rounded-md px-2 pt-1.5 pb-1.5 text-[13px] leading-relaxed whitespace-pre-wrap break-words",
+              "min-h-[36px] rounded-md px-2 pt-1.5 pb-1.5 text-[13px] leading-relaxed whitespace-pre-wrap wrap-break-word",
               editorClassName,
               initialMemo ? "text-beige900" : "text-beige900/45",
             ].join(" ")}

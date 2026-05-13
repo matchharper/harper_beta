@@ -635,10 +635,10 @@ export default function MatchPage() {
                         >
                           <div
                             className={cn(
-                              "border-b border-beige900/8 py-3 bg-beige500/[0.01] px-3 hover:bg-beige500/[0.03] transition-colors",
+                              "border-b border-beige900/8 py-3 bg-beige500/1 px-3 hover:bg-beige500/3 transition-colors",
                               isActive
                                 ? "border-beige900/8 bg-beige50"
-                                : "hover:border-beige900/12 hover:bg-beige500/[0.03]"
+                                : "hover:border-beige900/12 hover:bg-beige500/3"
                             )}
                           >
                             <div className="flex gap-4 flex-row items-start justify-between">

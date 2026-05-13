@@ -147,7 +147,7 @@ export const CriteriaItem = React.memo(function CriteriaItem({
               e.stopPropagation();
               onRemove();
             }}
-            className={`absolute top-[-4px] right-[0px] text-xs opacity-0 group-hover:opacity-100 transition-all duration-200 ${isDark ? "text-hgray700 hover:text-hgray900" : "text-beige900/55 hover:text-beige900"}`}
+            className={`absolute top-[-4px] right-0 text-xs opacity-0 group-hover:opacity-100 transition-all duration-200 ${isDark ? "text-hgray700 hover:text-hgray900" : "text-beige900/55 hover:text-beige900"}`}
             aria-label="Remove"
           >
             ✕
@@ -845,7 +845,7 @@ export const SettingsCtaCard = React.memo(function SettingsCtaCard({
 
   return (
     <div className="w-full">
-      <div className={`inline-flex flex-col rounded-xl px-4 py-3 text-[13px] backdrop-blur-sm ${isDark ? "bg-white/[0.03]" : "bg-beige50 border border-beige900/8"}`}>
+      <div className={`inline-flex flex-col rounded-xl px-4 py-3 text-[13px] backdrop-blur-sm ${isDark ? "bg-white/3" : "bg-beige50 border border-beige900/8"}`}>
         <div
           className={`leading-relaxed whitespace-pre-wrap ${isDark ? "text-white/70" : "text-beige900/80"}`}
           dangerouslySetInnerHTML={{ __html: block.text }}
@@ -854,7 +854,7 @@ export const SettingsCtaCard = React.memo(function SettingsCtaCard({
         <button
           type="button"
           onClick={() => router.push(href)}
-          className={`mt-4 inline-flex w-fit items-center gap-1.5 rounded-md px-3 py-1.5 transition ${isDark ? "bg-white/[0.04] text-white/80 hover:bg-white/[0.08]" : "bg-beige500/55 text-beige900 hover:bg-beige500/70"}`}
+          className={`mt-4 inline-flex w-fit items-center gap-1.5 rounded-md px-3 py-1.5 transition ${isDark ? "bg-white/4 text-white/80 hover:bg-white/8" : "bg-beige500/55 text-beige900 hover:bg-beige500/70"}`}
         >
           {buttonLabel}
           <ArrowRight className="w-3.5 h-3.5 opacity-70" />
@@ -961,7 +961,7 @@ export const SearchResultCard = React.memo(function SearchResultCard({
   if (!fullCount || fullCount <= 0) {
     return (
       <div className="w-full mt-4">
-        <div className={`w-full rounded-2xl overflow-hidden ${isDark ? "border border-white/10 bg-white/[0.03] text-hgray900" : "border border-beige900/8 bg-beige50 text-beige900"}`}>
+        <div className={`w-full rounded-2xl overflow-hidden ${isDark ? "border border-white/10 bg-white/3 text-hgray900" : "border border-beige900/8 bg-beige50 text-beige900"}`}>
           <div className="flex text-[13px] items-center gap-2 px-4 py-3">
             <FileSpreadsheet className="w-3 h-3 text-green-500" />
             <span className="font-medium">
@@ -1035,7 +1035,7 @@ export const SearchResultCard = React.memo(function SearchResultCard({
 
   return (
     <div className="w-full mt-4">
-      <div className={`w-full rounded-2xl overflow-hidden ${isDark ? "border border-white/10 bg-white/[0.03] text-hgray900" : "border border-beige900/8 bg-beige50 text-beige900"}`}>
+      <div className={`w-full rounded-2xl overflow-hidden ${isDark ? "border border-white/10 bg-white/3 text-hgray900" : "border border-beige900/8 bg-beige50 text-beige900"}`}>
         <div className={`flex text-[13px] items-center justify-between gap-2 px-4 py-3 ${isDark ? "border-b border-white/10" : "border-b border-beige900/8"}`}>
           <div className="flex items-center gap-2">
             <FileSpreadsheet className="w-3 h-3 text-green-500" />

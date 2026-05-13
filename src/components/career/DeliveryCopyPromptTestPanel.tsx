@@ -182,7 +182,7 @@ const DeliveryCopyPromptTestPanel = ({
           <summary className="cursor-pointer text-[14px] font-medium text-beige900">
             System prompt 보기
           </summary>
-          <pre className="mt-3 max-h-[420px] overflow-auto whitespace-pre-wrap break-words text-[12px] leading-6 text-beige900/70">
+          <pre className="mt-3 max-h-[420px] overflow-auto whitespace-pre-wrap wrap-break-word text-[12px] leading-6 text-beige900/70">
             {DELIVERY_COPY_SYSTEM_PROMPT}
           </pre>
         </details>
@@ -191,7 +191,7 @@ const DeliveryCopyPromptTestPanel = ({
           <summary className="cursor-pointer text-[14px] font-medium text-beige900">
             Example user prompt 보기
           </summary>
-          <pre className="mt-3 max-h-[420px] overflow-auto whitespace-pre-wrap break-words text-[12px] leading-6 text-beige900/70">
+          <pre className="mt-3 max-h-[420px] overflow-auto whitespace-pre-wrap wrap-break-word text-[12px] leading-6 text-beige900/70">
             {userPrompt}
           </pre>
         </details>
@@ -221,7 +221,7 @@ const DeliveryCopyPromptTestPanel = ({
               <div className="text-[12px] uppercase tracking-[0.14em] text-beige900/40">
                 Body
               </div>
-              <pre className="mt-2 whitespace-pre-wrap break-words text-[14px] leading-7 text-beige900/80">
+              <pre className="mt-2 whitespace-pre-wrap wrap-break-word text-[14px] leading-7 text-beige900/80">
                 {result.emailBody}
               </pre>
             </div>
@@ -230,7 +230,7 @@ const DeliveryCopyPromptTestPanel = ({
               <summary className="cursor-pointer text-[13px] font-medium text-beige900/70">
                 Raw parsed text 보기
               </summary>
-              <pre className="mt-3 whitespace-pre-wrap break-words text-[12px] leading-6 text-beige900/65">
+              <pre className="mt-3 whitespace-pre-wrap wrap-break-word text-[12px] leading-6 text-beige900/65">
                 {result.rawText}
               </pre>
             </details>

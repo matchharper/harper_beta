@@ -59,7 +59,7 @@ export default function CareerLandingButton({
         </span>
       </span>
       {showArrow && (
-        <ArrowUpRight className="relative ml-2 h-4 w-4 transition-transform duration-300 group-hover:translate-x-[2px] group-hover:-translate-y-[2px]" />
+        <ArrowUpRight className="relative ml-2 h-4 w-4 transition-transform duration-300 group-hover:translate-x-[2px] group-hover:translate-y-[-2px]" />
       )}
     </>
   );

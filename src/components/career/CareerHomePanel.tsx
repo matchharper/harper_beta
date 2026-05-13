@@ -366,7 +366,7 @@ const CareerHomePanel = ({
                     <div key={item.label} className="flex items-start gap-3">
                       <span
                         className={[
-                          "flex mt-[1px] h-4 w-4 shrink-0 items-center justify-center rounded-md border transition-colors",
+                          "flex mt-px h-4 w-4 shrink-0 items-center justify-center rounded-md border transition-colors",
                           item.state === "done"
                             ? "border-beige700 bg-beige700 text-hblack000"
                             : item.state === "current"

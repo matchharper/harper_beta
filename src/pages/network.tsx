@@ -407,7 +407,7 @@ export const NetworkButton = ({
         </span>
       </span>
       {showArrow && (
-        <ArrowUpRight className="relative ml-2 h-4 w-4 transition-transform duration-300 group-hover:translate-x-[2px] group-hover:-translate-y-[2px]" />
+        <ArrowUpRight className="relative ml-2 h-4 w-4 transition-transform duration-300 group-hover:translate-x-[2px] group-hover:translate-y-[-2px]" />
       )}
     </motion.button>
   );
@@ -508,7 +508,7 @@ const RequestDetailModal = ({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[130] flex items-center justify-center p-4 md:p-6"
+      className="fixed inset-0 z-130 flex items-center justify-center p-4 md:p-6"
     >
       <motion.button
         type="button"
@@ -536,7 +536,7 @@ const RequestDetailModal = ({
             <button
               type="button"
               onClick={onClose}
-              className="absolute right-3 top-3 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-beige900/55 transition hover:border-beige900/20 hover:bg-beige900/[0.05] hover:text-beige900/80"
+              className="absolute right-3 top-3 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-beige900/55 transition hover:border-beige900/20 hover:bg-beige900/5 hover:text-beige900/80"
               aria-label="Close request details"
             >
               <X className="h-4 w-4" />
@@ -638,7 +638,7 @@ const InquiryModal = ({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[145] flex items-center justify-center p-4 md:p-6"
+      className="fixed inset-0 z-145 flex items-center justify-center p-4 md:p-6"
     >
       <motion.button
         type="button"
@@ -659,7 +659,7 @@ const InquiryModal = ({
           type="button"
           onClick={onClose}
           disabled={isSubmitting}
-          className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-lg text-beige900/55 transition hover:bg-beige900/[0.05] hover:text-beige900/80 disabled:cursor-not-allowed disabled:opacity-40"
+          className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-lg text-beige900/55 transition hover:bg-beige900/5 hover:text-beige900/80 disabled:cursor-not-allowed disabled:opacity-40"
           aria-label="문의 모달 닫기"
         >
           <X className="h-4 w-4" />
@@ -751,7 +751,7 @@ const ReferralShareModal = ({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[146] flex items-center justify-center p-4"
+      className="fixed inset-0 z-146 flex items-center justify-center p-4"
     >
       <motion.button
         type="button"
@@ -772,7 +772,7 @@ const ReferralShareModal = ({
           type="button"
           onClick={onClose}
           disabled={isSubmitting}
-          className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-beige900/55 transition hover:bg-beige900/[0.05] hover:text-beige900/80 disabled:cursor-not-allowed disabled:opacity-40"
+          className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-beige900/55 transition hover:bg-beige900/5 hover:text-beige900/80 disabled:cursor-not-allowed disabled:opacity-40"
           aria-label="공유 모달 닫기"
         >
           <X className="h-4 w-4" />
@@ -889,7 +889,7 @@ const QuickApplyModal = ({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[146] flex items-center justify-center md:p-4"
+      className="fixed inset-0 z-146 flex items-center justify-center md:p-4"
     >
       <motion.button
         type="button"
@@ -910,7 +910,7 @@ const QuickApplyModal = ({
           type="button"
           onClick={onClose}
           disabled={isSubmitting}
-          className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-beige900/55 transition hover:bg-beige900/[0.05] hover:text-beige900/80 disabled:cursor-not-allowed disabled:opacity-40"
+          className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-beige900/55 transition hover:bg-beige900/5 hover:text-beige900/80 disabled:cursor-not-allowed disabled:opacity-40"
           aria-label="지원 모달 닫기"
         >
           <X className="h-4 w-4" />
@@ -1941,7 +1941,7 @@ const NetworkPage = () => {
                 y: "-100%",
                 transition: { duration: 0.9, ease: [0.76, 0, 0.24, 1] },
               }}
-              className="fixed inset-0 z-[160] flex items-center justify-center bg-beige500"
+              className="fixed inset-0 z-160 flex items-center justify-center bg-beige500"
             >
               <div className="font-hedvig text-5xl md:text-7xl tracking-[-0.08em] text-beige900">
                 <StaggerText text="Harper" by="char" delay={0.08} />
@@ -1950,7 +1950,7 @@ const NetworkPage = () => {
           )}
         </AnimatePresence>
 
-        {/* <div className="fixed bottom-4 left-4 z-[170] rounded-xl border border-beige900/15 bg-beige200/95 p-3 shadow-[0_12px_30px_rgba(37,20,6,0.15)] backdrop-blur">
+        {/* <div className="fixed bottom-4 left-4 z-170 rounded-xl border border-beige900/15 bg-beige200/95 p-3 shadow-[0_12px_30px_rgba(37,20,6,0.15)] backdrop-blur">
           <div className="text-[11px] font-medium tracking-[0.14em] text-beige900/45">
             AB Test Preview
           </div>
@@ -2201,7 +2201,7 @@ const NetworkPage = () => {
             >
               Highly Curated
             </h2>
-            {/* <p className="mx-auto mt-6 max-w-[680px] text-[20px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
+            {/* <p className="mx-auto mt-6 max-w-[680px] text-[20px] leading-normal tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
                 Tell us who you need. We find, shortlist, and deliver candidates
                 you can review and interview right away.
               </p> */}
@@ -2221,12 +2221,12 @@ const NetworkPage = () => {
                     </div>
                     <div>
                       <div className="flex items-start gap-3 max-[809px]:flex-col-reverse max-[809px]:gap-2">
-                        <h3 className="text-xl font-medium leading-[1.12] tracking-[-0.05em] text-beige900 max-[809px]:mt-2">
+                        <h3 className="text-xl font-medium leading-[1.12] tracking-tighter text-beige900 max-[809px]:mt-2">
                           {item.title}
                         </h3>
                       </div>
                       <p
-                        className="mt-2 text-base md:text-[18px] leading-[1.5] tracking-[-0.03em] text-beige900/50"
+                        className="mt-2 text-base md:text-[18px] leading-normal tracking-[-0.03em] text-beige900/50"
                         dangerouslySetInnerHTML={{ __html: item.description }}
                       />
                     </div>
@@ -2346,7 +2346,7 @@ const NetworkPage = () => {
                     className="h-11 w-[180px]"
                     onClick={openShareModal}
                   />
-                  <div className="whitespace-pre-wrap break-words px-1 py-0.5 leading-[1.2] w-full text-sm text-center rounded-sm mt-1 text-beige900/80">
+                  <div className="whitespace-pre-wrap wrap-break-word px-1 py-0.5 leading-[1.2] w-full text-sm text-center rounded-sm mt-1 text-beige900/80">
                     링크를 공유받은 사람이 Harper를 통해 채용되면 감사의 의미로
                     양쪽에 300만원 상당의 허먼밀러 의자를 보내드립니다.
                   </div>

@@ -21,7 +21,7 @@ export function QuickMemoModal({
   if (!lead) return null;
 
   return (
-    <div className="fixed inset-0 z-[80]">
+    <div className="fixed inset-0 z-80">
       <motion.button
         type="button"
         aria-label="Close quick memo modal"

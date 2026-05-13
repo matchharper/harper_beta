@@ -223,7 +223,7 @@ export default function SharedFolderCandidateNotes({
                 </div>
               ) : null}
             </div>
-            <div className="mt-3 whitespace-pre-wrap break-words text-[13px] leading-6 text-hgray900">
+            <div className="mt-3 whitespace-pre-wrap wrap-break-word text-[13px] leading-6 text-hgray900">
               {note.memo}
             </div>
           </div>

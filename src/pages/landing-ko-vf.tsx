@@ -253,7 +253,7 @@ function LandingButton({
         </span>
       </span>
       {showArrow && (
-        <ArrowUpRight className="relative ml-2 h-4 w-4 transition-transform duration-300 group-hover:translate-x-[2px] group-hover:-translate-y-[2px]" />
+        <ArrowUpRight className="relative ml-2 h-4 w-4 transition-transform duration-300 group-hover:translate-x-[2px] group-hover:translate-y-[-2px]" />
       )}
     </>
   );
@@ -571,7 +571,7 @@ function HarperReport({
         reportVisible ? "translate-y-0 opacity-100" : "translate-y-5 opacity-0"
       }`}
     >
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-b from-beige50/0 to-beige50" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-linear-to-b from-beige50/0 to-beige50" />
 
       <ReportItem index={0} visibleCount={reportItemsVisible}>
         <div className="flex items-start justify-between gap-4 border-b border-beige900/10 pb-4">
@@ -1013,7 +1013,7 @@ function DemoSection() {
     <section
       id="demo"
       ref={sectionRef}
-      className="bg-gradient-to-b from-beige100 to-beige50 px-4 py-16 text-center md:px-10 md:py-24"
+      className="bg-linear-to-b from-beige100 to-beige50 px-4 py-16 text-center md:px-10 md:py-24"
     >
       <Reveal once>
         {/* <div className="text-[13px] font-medium text-beige700">
@@ -1196,7 +1196,7 @@ function DemoSection() {
                     animate={{ opacity: 0, scale: 2.2 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.65, ease: "easeOut" }}
-                    className="pointer-events-none absolute z-[9] h-9 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-beige700 bg-beige700/25"
+                    className="pointer-events-none absolute z-9 h-9 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-beige700 bg-beige700/25"
                     style={{ left: cursor.x, top: cursor.y }}
                   />
                 )}
@@ -1327,7 +1327,7 @@ function WorkflowVisual({
         >
           <div
             aria-label="Gmail"
-            className="mt-0.5 h-8 w-8 shrink-0 rounded-lg bg-white bg-[length:24px_24px] bg-center bg-no-repeat shadow-[inset_0_0_0_1px_rgba(46,23,6,0.08)]"
+            className="mt-0.5 h-8 w-8 shrink-0 rounded-lg bg-white bg-size-[24px_24px] bg-center bg-no-repeat shadow-[inset_0_0_0_1px_rgba(46,23,6,0.08)]"
             style={{ backgroundImage: "url('/svgs/gmail.svg')" }}
           />
           <div className="min-w-0 flex-1">
@@ -1456,7 +1456,7 @@ export default function LandingKoVfPage() {
                       <div className="font-halant text-xl italic leading-none text-beige700">
                         {card.number}
                       </div>
-                      <h3 className="font-halant font-semibold text-[20px] leading-[1.25] text-beige900">
+                      <h3 className="font-halant font-semibold text-[20px] leading-tight text-beige900">
                         {card.title}
                       </h3>
                     </div>

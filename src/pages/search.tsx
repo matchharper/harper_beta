@@ -230,7 +230,7 @@ export const StartButton = React.memo(function StartButton({
         "ring-1 ring-white/10",
         "shadow-[0_12px_40px_rgba(180,255,120,0.25)]",
         "transition-all duration-200",
-        "hover:-translate-y-[1px] hover:shadow-[0_18px_60px_rgba(180,255,120,0.35)]",
+        "hover:-translate-y-px hover:shadow-[0_18px_60px_rgba(180,255,120,0.35)]",
         "active:translate-y-0 active:shadow-[0_8px_20px_rgba(180,255,120,0.2)]",
         sizeClass,
       ].join(" ")}
@@ -1331,7 +1331,7 @@ export default function RadarLandingPage() {
         <Animate duration={0.8}>
           <section className="relative w-full overflow-hidden bg-black py-10">
             <PixelBackground count={380} className="absolute inset-0" />
-            <div className="absolute left-0 top-0 h-[50%] w-full bg-gradient-to-t from-transparent to-black" />
+            <div className="absolute left-0 top-0 h-[50%] w-full bg-linear-to-t from-transparent to-black" />
 
             <div className="relative z-10 mx-auto flex w-full max-w-[1000px] flex-col items-center justify-center px-4 py-20 text-white md:py-36 md:pb-48">
               <h2 className="mt-7 text-center text-3xl font-medium leading-[1.15] text-white/95 md:text-4xl">

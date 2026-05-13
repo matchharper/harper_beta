@@ -657,7 +657,7 @@ export default function AtsCandidateDrawer({
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className="fixed inset-0 z-[140]"
+          className="fixed inset-0 z-140"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -973,7 +973,7 @@ export default function AtsCandidateDrawer({
                                           <span>{suggestion.label}</span>
                                           <ArrowUpRight className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                                         </a>
-                                        <div className="mt-2 break-words text-xs leading-5 text-beige900/55">
+                                        <div className="mt-2 wrap-break-word text-xs leading-5 text-beige900/55">
                                           {suggestion.reason}
                                         </div>
                                       </div>
@@ -1024,12 +1024,12 @@ export default function AtsCandidateDrawer({
                                     </span>
                                   </div>
                                   {evidence.title && (
-                                    <div className="mt-2 break-words text-sm text-beige900/80">
+                                    <div className="mt-2 wrap-break-word text-sm text-beige900/80">
                                       {evidence.title}
                                     </div>
                                   )}
                                   {evidence.snippet && (
-                                    <div className="mt-2 break-words text-sm leading-6 text-beige900/55">
+                                    <div className="mt-2 wrap-break-word text-sm leading-6 text-beige900/55">
                                       {evidence.snippet}
                                     </div>
                                   )}

@@ -19,8 +19,8 @@ function VCLogos() {
   return (
     <div className="relative w-[86%] mx-auto overflow-hidden">
       {/* soft edge fade (optional) */}
-      <div className="hidden md:block pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-black to-transparent dark:from-black z-10" />
-      <div className="hidden md:block pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-black to-transparent dark:from-black z-10" />
+      <div className="hidden md:block pointer-events-none absolute inset-y-0 left-0 w-16 bg-linear-to-r from-black to-transparent dark:from-black z-10" />
+      <div className="hidden md:block pointer-events-none absolute inset-y-0 right-0 w-16 bg-linear-to-l from-black to-transparent dark:from-black z-10" />
 
       <div className="marquee group w-max hidden md:flex">
         {items.map((vc, i) => (

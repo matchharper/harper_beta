@@ -252,7 +252,7 @@ const CareerResumeLinksSettingsSection = () => {
         ariaLabel="프로필 업데이트 중"
         closeOnBackdrop={false}
         showCloseButton={false}
-        overlayClassName="z-[120]"
+        overlayClassName="z-120"
         panelClassName="max-w-none w-[min(1080px,94vw)] max-h-[92dvh] border-0 bg-beige50"
         bodyClassName="max-h-[92dvh] overflow-y-auto"
       >

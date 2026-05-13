@@ -253,7 +253,7 @@ function CollapsibleReadmeSection({
 
   return (
     <div className="mt-4 w-full">
-      <div className="[&_.prose]:max-w-none [&_.prose]:text-hgray800 [&_.prose_a]:text-blue-500 [&_.prose_code]:text-hgray900 [&_.prose_headings]:text-hgray1000 [&_.prose_p]:!my-1 [&_.prose]:text-sm">
+      <div className="[&_.prose]:max-w-none [&_.prose]:text-hgray800 [&_.prose_a]:text-blue-500 [&_.prose_code]:text-hgray900 [&_.prose_headings]:text-hgray1000 [&_.prose_p]:my-1! [&_.prose]:text-sm">
         <MarkdownView markdown={displayMarkdown} />
       </div>
 
@@ -297,7 +297,7 @@ const GithubRepoContributionBox = ({
 
   if (!contribution) {
     return (
-      <div className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-hgray700">
+      <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-hgray700">
         GitHub repository data is unavailable.
       </div>
     );
@@ -348,8 +348,8 @@ const GithubRepoContributionBox = ({
         "group w-full rounded-2xl border text-left transition-all duration-200 flex flex-col items-start justify-start",
         "px-5 py-4",
         role.isOwner
-          ? "border-white/0 bg-white/[0.05] hover:bg-white/[0.05] hover:border-white/10"
-          : "border-white/0 bg-white/[0.05] hover:bg-white/5 hover:border-white/5"
+          ? "border-white/0 bg-white/5 hover:bg-white/5 hover:border-white/10"
+          : "border-white/0 bg-white/5 hover:bg-white/5 hover:border-white/5"
       )}
     >
       <div className="flex items-start justify-between gap-4 w-full">

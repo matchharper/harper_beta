@@ -672,8 +672,8 @@ const ExampleQuery = ({
         "bg-beige50 text-beige900 text-sm",
         "border border-beige900/8",
         "transition-all duration-200 ease-out",
-        "hover:border-beige900/16 hover:-translate-y-[2px]",
-        "active:translate-y-[0px] active:scale-[0.99]",
+        "hover:border-beige900/16 hover:translate-y-[-2px]",
+        "active:translate-y-0 active:scale-[0.99]",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-beige900/20",
       ].join(" ")}
       onClick={() => onClick(query)}

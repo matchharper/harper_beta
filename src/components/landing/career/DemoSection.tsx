@@ -107,7 +107,7 @@ function HarperReport({
         reportVisible ? "translate-y-0 opacity-100" : "translate-y-5 opacity-0"
       }`}
     >
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-b from-[#FFFCF6]/0 to-[#FFFCF6]" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-linear-to-b from-[#FFFCF6]/0 to-[#FFFCF6]" />
 
       <ReportItem index={0} visibleCount={reportItemsVisible}>
         <div className="flex items-start justify-between gap-4 pb-4">
@@ -358,7 +358,7 @@ function ChatMatchCard({
       className={`grid cursor-pointer grid-cols-[auto_1fr_auto] rounded-md items-center gap-2.5 border-b px-2.5 py-2.5 transition duration-300 last:border-b-0 ${
         visible ? "translate-x-0 opacity-100" : "-translate-x-2 opacity-0"
       } ${
-        selected ? "border-[#D7B48F]/30 bg-[#3B2B1D]" : "border-white/[0.08]"
+        selected ? "border-[#D7B48F]/30 bg-[#3B2B1D]" : "border-white/8"
       }`}
     >
       <CompanyMark>{match.mark}</CompanyMark>
@@ -501,7 +501,7 @@ function CompanyMark({
 }) {
   return (
     <div
-      className={`flex rounded-md shrink-0 items-center justify-center border border-[#E3D3BE]/[0.15] bg-[#201811] font-geist font-semibold text-[#F7E8D2] ${
+      className={`flex rounded-md shrink-0 items-center justify-center border border-[#E3D3BE]/15 bg-[#201811] font-geist font-semibold text-[#F7E8D2] ${
         size === "lg" ? "h-[52px] w-[52px] text-[21px]" : "h-7 w-7 text-[12px]"
       }`}
     >
@@ -757,7 +757,7 @@ function DemoSection() {
     >
       <Reveal once>
         <WavyTag left="1.">외부 기회 탐색</WavyTag>
-        <h2 className="font-halant mx-auto mt-4 max-w-[820px] text-[26px] font-semibold leading-[1.15] text-[#21170D] md:text-[2rem] md:leading-[1.25]">
+        <h2 className="font-halant mx-auto mt-4 max-w-[820px] text-[26px] font-semibold leading-[1.15] text-[#21170D] md:text-[2rem] md:leading-tight">
           “이런 역할 찾아줘”
           <br />
           <span className="text-beige700">가벼운 대화</span> 한 번이면
@@ -788,7 +788,7 @@ function DemoSection() {
       <Reveal once className="mx-auto mt-8 max-w-[1180px] md:mt-12">
         <div className="relative mx-auto lg:h-[846px]">
           <div
-            className={`relative z-20 mx-auto w-full max-w-[420px] text-left transition-[left,transform] duration-700 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] md:max-w-[460px] lg:absolute lg:top-0 lg:mx-0 lg:w-[430px] lg:max-w-none xl:w-[460px] ${
+            className={`relative z-20 mx-auto w-full max-w-[420px] text-left transition-[left,transform] duration-700 ease-out-expo md:max-w-[460px] lg:absolute lg:top-0 lg:mx-0 lg:w-[430px] lg:max-w-none xl:w-[460px] ${
               reportVisible
                 ? "lg:left-0 lg:translate-x-0"
                 : "lg:left-1/2 lg:-translate-x-1/2"
@@ -802,9 +802,9 @@ function DemoSection() {
             </div>
             <div
               ref={phoneRef}
-              className="relative flex h-[min(590px,calc(100svh-96px))] min-h-[520px] flex-col rounded-[22px] bg-[#151311] p-2 text-left shadow-[0_16px_40px_rgba(33,23,13,0.16)] ring-1 ring-[#21170D]/[0.15] md:h-[820px] md:min-h-0 md:rounded-[24px] md:p-2.5"
+              className="relative flex h-[min(590px,calc(100svh-96px))] min-h-[520px] flex-col rounded-[22px] bg-[#151311] p-2 text-left shadow-[0_16px_40px_rgba(33,23,13,0.16)] ring-1 ring-[#21170D]/15 md:h-[820px] md:min-h-0 md:rounded-[24px] md:p-2.5"
             >
-              <div className="flex items-center justify-between gap-3 border-b border-white/[0.08] px-3 pb-2.5 pt-1.5">
+              <div className="flex items-center justify-between gap-3 border-b border-white/8 px-3 pb-2.5 pt-1.5">
                 <div className="flex items-center gap-2.5">
                   <div className="flex rounded-md h-9 w-9 items-center justify-center bg-[#D7B48F]">
                     <Image
@@ -862,7 +862,7 @@ function DemoSection() {
                 ))}
 
                 <div
-                  className={`flex flex-col border-y border-white/[0.08] bg-[#1B1815] px-2.5 py-2 transition ${
+                  className={`flex flex-col border-y border-white/8 bg-[#1B1815] px-2.5 py-2 transition ${
                     matchesActive ? "opacity-100" : "hidden opacity-0"
                   }`}
                 >
@@ -963,7 +963,7 @@ function DemoSection() {
                     animate={{ opacity: 0, scale: 2.2 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.65, ease: "easeOut" }}
-                    className="pointer-events-none absolute z-[9] h-9 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[#D7B48F] bg-[#D7B48F]/20"
+                    className="pointer-events-none absolute z-9 h-9 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[#D7B48F] bg-[#D7B48F]/20"
                     style={{ left: cursor.x, top: cursor.y }}
                   />
                 )}

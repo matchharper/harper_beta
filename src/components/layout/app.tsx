@@ -119,10 +119,10 @@ const AppLayout = ({
           "relative bg-beige100 text-beige900",
           "border-r border-beige900/8 h-screen flex flex-col",
           collapsed ? "w-[66px]" : "w-[260px]",
-          "transition-all duration-300 ease-out flex-shrink-0",
+          "transition-all duration-300 ease-out shrink-0",
         ].join(" ")}
       >
-        <div className="flex items-center justify-between px-3 pt-4 flex-shrink-0">
+        <div className="flex items-center justify-between px-3 pt-4 shrink-0">
           {!collapsed && (
             <Link
               href="/my"
@@ -207,7 +207,7 @@ const AppLayout = ({
         </div>
 
         {/* 3. Bottom Section: 고정 */}
-        <div className="p-3 gap-2 flex flex-col flex-shrink-0 border-t border-beige900/8 bg-beige100 absolute bottom-0 left-0 min-w-full">
+        <div className="p-3 gap-2 flex flex-col shrink-0 border-t border-beige900/8 bg-beige100 absolute bottom-0 left-0 min-w-full">
           {!collapsed && (
             <>
               <Link

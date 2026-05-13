@@ -347,7 +347,7 @@ const Talent = () => {
   }) => {
     return (
       <div
-        className={`text-3xl/[1.2] font-hedvig font-semibold tracking-[-0.05em] text-hblack1000 lg:text-4xl/[1.3] ${className ?? ""}`}
+        className={`text-3xl/[1.2] font-hedvig font-semibold tracking-tighter text-hblack1000 lg:text-4xl/[1.3] ${className ?? ""}`}
       >
         {children}
       </div>

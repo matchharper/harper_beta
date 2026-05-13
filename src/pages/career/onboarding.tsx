@@ -69,7 +69,7 @@ const ONBOARDING_STEPS: OnboardingStepDefinition[] = [
       "이름과 연락처만 먼저 확인할게요.",
     ],
     headerClassName: "mx-auto max-w-[720px]",
-    titleClassName: "text-2xl font-medium leading-[1.25] md:text-3xl",
+    titleClassName: "text-2xl font-medium leading-tight md:text-3xl",
     descriptionClassName:
       "mt-4 text-base leading-7 text-beige900/65 md:text-lg",
     bodyClassName: "mx-auto mt-4 grid w-full max-w-[520px] gap-3 text-left",
@@ -82,7 +82,7 @@ const ONBOARDING_STEPS: OnboardingStepDefinition[] = [
       "Harper가 24/7 쉬지않고 찾아드릴게요.",
     ],
     headerClassName: "mx-auto max-w-[720px]",
-    titleClassName: "text-2xl font-medium leading-[1.25] md:text-3xl",
+    titleClassName: "text-2xl font-medium leading-tight md:text-3xl",
     descriptionClassName:
       "mt-3 text-base leading-7 text-beige900/60 md:text-lg",
     bodyClassName:
@@ -96,7 +96,7 @@ const ONBOARDING_STEPS: OnboardingStepDefinition[] = [
       "GitHub, Scholar, 개인 사이트는 더 정확한 판단을 위한 보조 자료로 추가할 수 있습니다.",
     ],
     headerClassName: "mx-auto max-w-[720px]",
-    titleClassName: "text-2xl font-medium leading-[1.25] md:text-3xl",
+    titleClassName: "text-2xl font-medium leading-tight md:text-3xl",
     descriptionClassName:
       "mt-3 text-base leading-7 text-beige900/60 md:text-lg",
     bodyClassName:
@@ -111,7 +111,7 @@ const ONBOARDING_STEPS: OnboardingStepDefinition[] = [
       "공개 범위를 정해주세요. 대화 내용과 선택한 옵션은 회사에 공개되지 않습니다.",
     ],
     headerClassName: "mx-auto max-w-[720px]",
-    titleClassName: "text-2xl font-medium leading-[1.25] md:text-3xl",
+    titleClassName: "text-2xl font-medium leading-tight md:text-3xl",
     descriptionClassName:
       "mt-3 text-base leading-7 text-beige900/60 md:text-lg",
     bodyClassName:
@@ -703,7 +703,7 @@ const DoneState = ({
                 <p key={`${index}-${paragraph.slice(0, 10)}`}>
                   {paragraph}
                   {isLast && !isStreamComplete && (
-                    <span className="ml-1 inline-block h-4 w-[1px] translate-y-0.5 animate-pulse bg-beige900/55" />
+                    <span className="ml-1 inline-block h-4 w-px translate-y-0.5 animate-pulse bg-beige900/55" />
                   )}
                 </p>
               );
@@ -1268,7 +1268,7 @@ const CareerNetworkOnboardingContent = () => {
       </Head>
       <main
         className={cn(
-          "min-h-[100dvh] pt-2 font-geist text-beige900",
+          "min-h-dvh pt-2 font-geist text-beige900",
           ONBOARDING_BACKGROUND_CLASS
         )}
       >

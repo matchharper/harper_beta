@@ -168,7 +168,7 @@ const Call: React.FC = () => {
   };
 
   return (
-    <div className="flex h-[100vh] max-w-[100vw] flex-col items-center justify-center gap-2 bg-white font-inter text-black">
+    <div className="flex h-screen max-w-[100vw] flex-col items-center justify-center gap-2 bg-white font-inter text-black">
       <div className="flex w-[90vw] flex-row items-stretch justify-between gap-8">
         <div
           className={`flex items-center justify-center transition-transform duration-300 ${
@@ -185,7 +185,7 @@ const Call: React.FC = () => {
 
             <div className="relative flex h-[380px] w-full items-center justify-center rounded-lg border border-xlightgray shadow-sm">
               <div className="flex flex-col items-center justify-center gap-3">
-                <div className="relative flex h-[140px] w-[140px] items-center justify-center rounded-full bg-[linear-gradient(45deg,#6d28d9,#8b5cf6,#c084fc,#e879f9,#f472b6)] bg-[length:300%_300%] transition-all animate-gradientx">
+                <div className="relative flex h-[140px] w-[140px] items-center justify-center rounded-full bg-[linear-gradient(45deg,#6d28d9,#8b5cf6,#c084fc,#e879f9,#f472b6)] bg-size-[300%_300%] transition-all animate-gradientx">
                   {isPlayingTts && <MicPulseRings count={2} />}
                 </div>
                 <div className="text-xl font-light text-black">Harper</div>
@@ -201,7 +201,7 @@ const Call: React.FC = () => {
                         <div className="flex w-[86%] items-center gap-3">
                           <div className="h-2 flex-1 overflow-hidden rounded-full bg-xgray300">
                             <div
-                              className="h-full max-w-[100%] rounded-full bg-xgrayblack transition-all duration-150"
+                              className="h-full max-w-full rounded-full bg-xgrayblack transition-all duration-150"
                               style={{ width: `${micLevel * 100 * 1.2}%` }}
                             />
                           </div>

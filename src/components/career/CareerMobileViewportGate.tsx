@@ -75,7 +75,7 @@ export const CareerMobileBlocker = ({
         : "";
 
   return (
-    <main className="relative flex min-h-[100dvh] w-full items-center justify-center overflow-hidden bg-beige50 px-6 py-10 font-inter text-beige900">
+    <main className="relative flex min-h-dvh w-full items-center justify-center overflow-hidden bg-beige50 px-6 py-10 font-inter text-beige900">
       <section className="relative flex flex-col gap-2 z-10 w-full max-w-[540px] text-center items-center justify-center">
         <Image
           src="/svgs/harper-h-mark.svg"

@@ -33,7 +33,7 @@ export default function MatchCandidateProfilePage() {
     <AppLayout initialCollapse={true}>
       <div className="flex min-h-screen w-full flex-row items-start justify-between">
         {matchDetail.data ? (
-          <div className="w-[30%] min-w-[390px] flex-shrink-0 border-r border-beige900/10">
+          <div className="w-[30%] min-w-[390px] shrink-0 border-r border-beige900/10">
             <MatchMemoPanel
               detail={matchDetail.data}
               workspaceId={
