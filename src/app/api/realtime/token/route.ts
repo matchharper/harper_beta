@@ -230,16 +230,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const expiresAt =
-      data.expires_at ??
-      data.client_secret?.expires_at ??
-      Math.floor(Date.now() / 1000) + 60;
-    const sessionId = data.session?.id ?? data.id ?? "";
-
     return NextResponse.json({
       token,
-      expiresAt,
-      sessionId,
       toolVoicePreambles,
     });
   } catch (error) {

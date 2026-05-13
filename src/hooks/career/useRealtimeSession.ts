@@ -5,7 +5,6 @@ import type { FetchWithAuth } from "./useCareerApi";
 
 type UseRealtimeSessionArgs = {
   conversationId: string | null;
-  enabled: boolean;
   useElevenLabsTts?: boolean;
   fetchWithAuth: FetchWithAuth;
   onTranscript: (text: string) => void;
@@ -18,8 +17,6 @@ type UseRealtimeSessionArgs = {
 
 type TokenInfo = {
   token: string;
-  expiresAt: number;
-  sessionId: string;
   toolVoicePreambles?: Record<string, string>;
 };
 
@@ -57,20 +54,6 @@ function logCareerVoiceDebug(
   });
 }
 
-function pcm16ToBase64(input: Int16Array | ArrayBuffer | string): string {
-  if (typeof input === "string") return input;
-
-  const bytes =
-    input instanceof Int16Array
-      ? new Uint8Array(input.buffer)
-      : new Uint8Array(input);
-  let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
-
 function getErrorText(payload: unknown, fallback: string) {
   if (!payload || typeof payload !== "object") return fallback;
 
@@ -83,7 +66,6 @@ function getErrorText(payload: unknown, fallback: string) {
 export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   const {
     conversationId,
-    enabled,
     useElevenLabsTts = false,
     fetchWithAuth,
     onTranscript,
@@ -226,11 +208,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
       const data = await res.json();
       return {
         token: data.token,
-        expiresAt:
-          typeof data.expiresAt === "number"
-            ? data.expiresAt * 1000
-            : new Date(data.expiresAt).getTime(),
-        sessionId: data.sessionId,
         toolVoicePreambles:
           data.toolVoicePreambles &&
           typeof data.toolVoicePreambles === "object" &&
@@ -920,21 +897,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     connectRef.current = connect;
   }, [connect]);
 
-  const sendAudio = useCallback(
-    (pcm16: Int16Array | ArrayBuffer | string) => {
-      sendEvent({
-        type: "input_audio_buffer.append",
-        audio: pcm16ToBase64(pcm16),
-      });
-    },
-    [sendEvent]
-  );
-
-  const commitAudio = useCallback(() => {
-    sendEvent({ type: "input_audio_buffer.commit" });
-    sendEvent({ type: "response.create" });
-  }, [sendEvent]);
-
   const sendTextMessage = useCallback(
     (text: string) => {
       responseTextRef.current = "";
@@ -1019,8 +981,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     connectionStatus,
     connect,
     disconnect,
-    sendAudio,
-    commitAudio,
     sendTextMessage,
     triggerResponse,
     cancelResponse,

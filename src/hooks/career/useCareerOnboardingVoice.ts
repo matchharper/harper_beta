@@ -987,7 +987,6 @@ export const useCareerOnboardingVoice = ({
 
   const realtimeSession = useRealtimeSession({
     conversationId,
-    enabled: Boolean(user && conversationId),
     useElevenLabsTts: USE_ELEVENLABS_TTS,
     fetchWithAuth,
     onTranscript: handleRealtimeTranscript,
