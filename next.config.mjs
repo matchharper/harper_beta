@@ -1,3 +1,5 @@
+const supabaseHostname = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname;
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   serverExternalPackages: ["apify-client", "proxy-agent"],
@@ -13,6 +15,12 @@ const nextConfig = {
       // Scholar / Google user content (paper & profile assets)
       { protocol: "https", hostname: "scholar.google.com" },
       { protocol: "https", hostname: "scholar.googleusercontent.com" },
+      // Supabase public storage (company logos, resumes, etc.)
+      {
+        protocol: "https",
+        hostname: supabaseHostname,
+        pathname: "/storage/v1/object/public/**",
+      },
     ],
   },
   reactStrictMode: false,
