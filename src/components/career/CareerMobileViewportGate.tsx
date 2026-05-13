@@ -102,6 +102,9 @@ export const CareerMobileBlocker = ({
   );
 };
 
+const isMobilePreviewEnabled = () =>
+  process.env.NEXT_PUBLIC_CAREER_MOBILE_PREVIEW === "true";
+
 const CareerMobileViewportGate = ({
   children,
   desktopFallback = null,
@@ -109,6 +112,8 @@ const CareerMobileViewportGate = ({
   user,
 }: CareerMobileViewportGateProps) => {
   const isDesktop = useCareerDesktopViewport();
+
+  if (isMobilePreviewEnabled()) return <>{children}</>;
 
   if (isDesktop === null) return <>{desktopFallback}</>;
 
