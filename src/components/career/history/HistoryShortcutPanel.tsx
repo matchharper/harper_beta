@@ -54,7 +54,7 @@ const ShortcutNavButton = ({
     onClick={onClick}
     disabled={disabled}
     aria-label={label}
-    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-beige900/10 bg-transparent text-beige900/60 transition-colors hover:bg-beige500 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-40"
+    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-beige900/10 bg-transparent text-beige900/80 transition-colors hover:bg-beige500 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-40"
   >
     {children}
   </button>
@@ -105,15 +105,6 @@ const HistoryShortcutPanel = ({
           {getNegativeActionLabel(item)}
         </ShortcutActionButton>
 
-        {/* <ShortcutActionButton
-        onClick={onQuestion}
-        disabled={pending}
-        className="border border-beige900/10 bg-white/45 text-beige900/70 hover:border-beige900/20 hover:text-beige900 sm:max-w-[148px]"
-      >
-        <MessageSquare className="h-3 w-3" />
-        질문하기
-      </ShortcutActionButton> */}
-
         <ShortcutActionButton
           onClick={onPositive}
           disabled={pending}
@@ -137,7 +128,7 @@ const HistoryShortcutPanel = ({
       </div>
 
       <div className="flex flex-wrap items-center justify-center gap-2 text-[12px] leading-4 text-beige900/50">
-        <span className="opacity-60">⌨</span>
+        <span className="opacity-60">Shortcut</span>
         <span className="inline-flex items-center gap-1">
           <ShortcutKey>←</ShortcutKey>
           <ShortcutKey>→</ShortcutKey>

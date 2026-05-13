@@ -110,10 +110,7 @@ async function attachPostingPreviewsToMessages(args: {
     const messageId = Number(message.id);
     if (!Number.isFinite(messageId)) continue;
 
-    const roleIds = extractPostingRoleIdsFromText(message.content ?? "").slice(
-      0,
-      1
-    );
+    const roleIds = extractPostingRoleIdsFromText(message.content ?? "");
     if (roleIds.length > 0) {
       roleIdsByMessageId.set(messageId, roleIds);
     }
@@ -498,6 +495,7 @@ export async function POST(req: NextRequest) {
             conversationId,
             currentInsightContent,
             logPrefix: "TalentChat",
+            sourceChannel: "text_chat",
             userId: user.id,
           })
         : Promise.resolve(0);
@@ -861,37 +859,45 @@ export async function POST(req: NextRequest) {
             streamedAssistantText += missingText;
             send("text_delta", { delta: missingText });
           };
-          const runInsightExtractionInBackground = (args: {
+          const runInsightExtractionForStream = async (args: {
             content: string;
             messageId: number | string | null | undefined;
             thinkingLogs: string[];
           }) => {
-            if (!shouldAutoExtractInsights || !args.content.trim()) return;
-            void (async () => {
+            if (!shouldAutoExtractInsights || !args.content.trim()) {
+              return args.thinkingLogs;
+            }
+
+            try {
               const changedKeysCount = await extractTurnInsights(args.content);
               if (changedKeysCount > 0) {
-                await persistInsightExtractionThinkingLogForMessage({
-                  messageId: args.messageId,
-                  thinkingLogs: args.thinkingLogs,
+                const nextThinkingLogs =
+                  await persistInsightExtractionThinkingLogForMessage({
+                    messageId: args.messageId,
+                    thinkingLogs: args.thinkingLogs,
+                  });
+                console.info("[TalentChat] stream insight extraction done", {
+                  changedKeysCount,
+                  conversationId,
+                  userId: user.id,
                 });
+                return nextThinkingLogs;
               }
-              console.info("[TalentChat] background insight extraction done", {
+              console.info("[TalentChat] stream insight extraction done", {
                 changedKeysCount,
                 conversationId,
                 userId: user.id,
               });
-            })().catch((error) => {
-              console.error(
-                "[TalentChat] Failed to persist background insight extraction log",
-                {
-                  conversationId,
-                  error: error instanceof Error ? error.message : String(error),
-                  userId: user.id,
-                }
-              );
-            });
+              return args.thinkingLogs;
+            } catch (error) {
+              console.error("[TalentChat] Failed to extract stream insights", {
+                conversationId,
+                error: error instanceof Error ? error.message : String(error),
+                userId: user.id,
+              });
+              return args.thinkingLogs;
+            }
           };
-
           try {
             send("user_message", {
               message: toResponseMessage(
@@ -1007,26 +1013,26 @@ export async function POST(req: NextRequest) {
                 preparedCompanySnapshot.messages[
                   preparedCompanySnapshot.messages.length - 1
                 ]?.content ?? "";
-              const messagesWithThinkingLogs = attachThinkingLogsToLastMessage(
-                preparedCompanySnapshot.messages,
-                thinkingLogs
-              );
+              const preparedMessageId =
+                preparedCompanySnapshot.messages[
+                  preparedCompanySnapshot.messages.length - 1
+                ]?.id;
               await persistThinkingLogsForMessage({
                 admin,
                 conversationId,
-                messageId:
-                  messagesWithThinkingLogs[messagesWithThinkingLogs.length - 1]
-                    ?.id,
+                messageId: preparedMessageId,
                 thinkingLogs,
                 userId: user.id,
               });
-              runInsightExtractionInBackground({
+              const finalThinkingLogs = await runInsightExtractionForStream({
                 content: preparedAssistantText,
-                messageId:
-                  messagesWithThinkingLogs[messagesWithThinkingLogs.length - 1]
-                    ?.id,
+                messageId: preparedMessageId,
                 thinkingLogs,
               });
+              const messagesWithThinkingLogs = attachThinkingLogsToLastMessage(
+                preparedCompanySnapshot.messages,
+                finalThinkingLogs
+              );
               summarizeConversationInBackground();
 
               send("assistant_messages", {
@@ -1083,11 +1089,12 @@ export async function POST(req: NextRequest) {
               );
             }
 
-            runInsightExtractionInBackground({
-              content: safeAssistantText,
-              messageId: insertedAssistantMessage.id,
-              thinkingLogs,
-            });
+            const finalAssistantThinkingLogs =
+              await runInsightExtractionForStream({
+                content: safeAssistantText,
+                messageId: insertedAssistantMessage.id,
+                thinkingLogs,
+              });
             summarizeConversationInBackground();
 
             const isCompleted = completion.completed;
@@ -1119,9 +1126,12 @@ export async function POST(req: NextRequest) {
             let insertedCompletionWrapupMessage: TalentMessageRow | null = null;
             if (isCompleted) {
               send("assistant_message", {
-                message: toResponseMessage(
-                  insertedAssistantMessage as TalentMessageRow
-                ),
+                message: {
+                  ...toResponseMessage(
+                    insertedAssistantMessage as TalentMessageRow
+                  ),
+                  thinkingLogs: finalAssistantThinkingLogs,
+                },
               });
               sentFinalAssistantMessage = true;
               send("onboarding_wrapup_status", {
@@ -1139,9 +1149,12 @@ export async function POST(req: NextRequest) {
               await attachPostingPreviewsToMessages({
                 admin,
                 messages: [
-                  toResponseMessage(
-                    insertedAssistantMessage as TalentMessageRow
-                  ),
+                  {
+                    ...toResponseMessage(
+                      insertedAssistantMessage as TalentMessageRow
+                    ),
+                    thinkingLogs: finalAssistantThinkingLogs,
+                  },
                   insertedCompletionWrapupMessage
                     ? toResponseMessage(insertedCompletionWrapupMessage)
                     : null,

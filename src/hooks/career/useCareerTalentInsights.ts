@@ -53,8 +53,9 @@ export const useCareerTalentInsights = ({
     useState<CareerTalentInsights | null>(null);
   const [savedTalentInsights, setSavedTalentInsights] =
     useState<CareerTalentInsights | null>(null);
-  const [talentInsightsUpdatedAt, setTalentInsightsUpdatedAt] =
-    useState<string | null>(null);
+  const [talentInsightsUpdatedAt, setTalentInsightsUpdatedAt] = useState<
+    string | null
+  >(null);
   const [talentInsightsSavePending, setTalentInsightsSavePending] =
     useState(false);
   const [talentInsightsSaveError, setTalentInsightsSaveError] = useState("");
@@ -63,9 +64,21 @@ export const useCareerTalentInsights = ({
   const applyPersistedTalentInsights = useCallback(
     (next: unknown, updatedAt?: unknown) => {
       const normalized = cloneTalentInsights(next);
-      setTalentInsights(normalized);
-      setSavedTalentInsights(normalized);
-      setTalentInsightsUpdatedAt(normalizeUpdatedAt(updatedAt));
+      const nextSignature = toStableSignature(normalized);
+      const nextUpdatedAt = normalizeUpdatedAt(updatedAt);
+      setTalentInsights((current) =>
+        current !== null && toStableSignature(current) === nextSignature
+          ? current
+          : normalized
+      );
+      setSavedTalentInsights((current) =>
+        current !== null && toStableSignature(current) === nextSignature
+          ? current
+          : normalized
+      );
+      setTalentInsightsUpdatedAt((current) =>
+        current === nextUpdatedAt ? current : nextUpdatedAt
+      );
     },
     []
   );
@@ -87,7 +100,9 @@ export const useCareerTalentInsights = ({
       updater:
         | CareerTalentInsights
         | null
-        | ((current: CareerTalentInsights | null) => CareerTalentInsights | null)
+        | ((
+            current: CareerTalentInsights | null
+          ) => CareerTalentInsights | null)
     ) => {
       setTalentInsights((current) =>
         typeof updater === "function" ? updater(current) : updater
@@ -164,7 +179,8 @@ export const useCareerTalentInsights = ({
 
   const hasUnsavedTalentInsightsChanges = useMemo(
     () =>
-      toStableSignature(talentInsights) !== toStableSignature(savedTalentInsights),
+      toStableSignature(talentInsights) !==
+      toStableSignature(savedTalentInsights),
     [savedTalentInsights, talentInsights]
   );
 

@@ -544,6 +544,10 @@ const CareerPreviewPage = () => {
         setProfileSaveInfo("이력서와 링크를 저장했습니다.");
         return true;
       },
+      onRefreshTalentProfileSources: () => {
+        setProfileSaveInfo("저장된 이력서/링크에서 정보를 다시 가져왔습니다.");
+        return true;
+      },
       talentProfile,
       talentPreferences,
       talentInsights,
@@ -608,20 +612,31 @@ const CareerPreviewPage = () => {
         JSON.stringify(blockedCompanies) !==
           JSON.stringify(savedBlockedCompanies),
       onProfileVisibilityChange: (value) => {
-        setSettingsSaveInfo("");
+        setSettingsSaveInfo("프로필 설정을 저장했습니다.");
         setProfileVisibility(value);
+        setSavedProfileVisibility(value);
+        setSettingsUpdatedAt(new Date().toISOString());
+        return true;
       },
       onAddBlockedCompany: (name) => {
-        setSettingsSaveInfo("");
-        setBlockedCompanies((current) =>
-          current.includes(name) ? current : [...current, name]
-        );
+        const nextBlockedCompanies = blockedCompanies.includes(name)
+          ? blockedCompanies
+          : [...blockedCompanies, name];
+        setSettingsSaveInfo("프로필 설정을 저장했습니다.");
+        setBlockedCompanies(nextBlockedCompanies);
+        setSavedBlockedCompanies(nextBlockedCompanies);
+        setSettingsUpdatedAt(new Date().toISOString());
+        return true;
       },
       onRemoveBlockedCompany: (name) => {
-        setSettingsSaveInfo("");
-        setBlockedCompanies((current) =>
-          current.filter((item) => item !== name)
+        const nextBlockedCompanies = blockedCompanies.filter(
+          (item) => item !== name
         );
+        setSettingsSaveInfo("프로필 설정을 저장했습니다.");
+        setBlockedCompanies(nextBlockedCompanies);
+        setSavedBlockedCompanies(nextBlockedCompanies);
+        setSettingsUpdatedAt(new Date().toISOString());
+        return true;
       },
       onSaveTalentSettings: () => {
         setSavedProfileVisibility(profileVisibility);

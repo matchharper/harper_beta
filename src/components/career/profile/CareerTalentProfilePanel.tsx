@@ -511,7 +511,7 @@ const profileEditInputClassName =
   "h-9 border-beige900/15 bg-white/70 text-[13px] placeholder:text-beige900/35";
 
 const profileEditTextareaClassName =
-  "min-h-[92px] border-beige900/15 bg-white/70 text-[13px] leading-6 placeholder:text-beige900/35";
+  "min-h-[92px] border border-white/0 rounded-md px-1.5 py-1 bg-white/70 text-[13px] leading-6 placeholder:text-beige900/35 focus:border-beige900/15 focus:ring-1 focus:ring-beige900/20";
 
 const profileEditPlainInputClassName =
   "h-auto rounded-[4px] border border-white/50 bg-white/80 px-1.5 py-1 shadow-none hover:bg-white/45 focus:border-beige900/15 focus:bg-white/75 focus:ring-1 focus:ring-beige900/20";
@@ -557,7 +557,8 @@ const ProfileAvatar = ({
   const shouldShowImage =
     Boolean(imageUrl) && !String(imageUrl).includes("media.licdn.com");
   const hasStoredImage = Boolean(imageUrl);
-  const imageActionDisabled = uploadPending || (!onFileChange && !onDeleteImage);
+  const imageActionDisabled =
+    uploadPending || (!onFileChange && !onDeleteImage);
 
   return (
     <div className="relative h-14 w-14 shrink-0">
@@ -698,7 +699,7 @@ const ProfileHeader = ({
             )}
           />
         ) : (
-          <h2 className="font-hedvig text-[30px] leading-none text-beige900">
+          <h2 className="font-hedvig text-[24px] leading-none text-beige900">
             {displayName}
           </h2>
         )}
@@ -1179,7 +1180,9 @@ const CareerTalentProfilePanel = ({
       }
     } catch (error) {
       setProfileImageError(
-        error instanceof Error ? error.message : "프로필 사진 삭제에 실패했습니다."
+        error instanceof Error
+          ? error.message
+          : "프로필 사진 삭제에 실패했습니다."
       );
     } finally {
       setProfileImageUploadPending(false);

@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
+  buildCareerInsightExtractionPrompt,
   buildCareerOnboardingDeferCloseSystemPrompt,
   CAREER_ONBOARDING_DEFER_FALLBACK_CLOSE_TEXT,
   CAREER_ONBOARDING_DEFER_PROMPT_TEXT,
 } from "@/lib/career/prompts";
 import { runCareerOnboardingDeferClose } from "@/lib/career/llm";
+import { extractAndPersistChatInsights } from "@/lib/talentOnboarding/chatInsights";
 import {
   TALENT_MESSAGE_TYPE_ONBOARDING_INTEREST_PROMPT,
   TALENT_MESSAGE_TYPE_ONBOARDING_PAUSE_CLOSE,
@@ -16,6 +18,7 @@ import {
 import {
   TalentConversationRow,
   TalentMessageRow,
+  fetchTalentInsights,
   getTalentSupabaseAdmin,
 } from "@/lib/talentOnboarding/server";
 
@@ -162,6 +165,14 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+    const currentInsights = await fetchTalentInsights({
+      admin,
+      userId: user.id,
+    });
+    const currentInsightContent = (currentInsights?.content ?? null) as Record<
+      string,
+      string
+    > | null;
 
     const selectedLabels = selectedOptions.map(
       (optionId) => INTEREST_OPTION_LABELS.get(optionId) ?? optionId
@@ -190,8 +201,7 @@ export async function POST(req: NextRequest) {
     }
 
     const safeAssistantContent =
-      assistantContent.trim() ||
-      CAREER_ONBOARDING_DEFER_FALLBACK_CLOSE_TEXT;
+      assistantContent.trim() || CAREER_ONBOARDING_DEFER_FALLBACK_CLOSE_TEXT;
 
     const { data: insertedMessages, error: insertError } = await admin
       .from("talent_messages")
@@ -252,12 +262,33 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    await extractAndPersistChatInsights({
+      admin,
+      assistantContent: safeAssistantContent,
+      buildPrompt: (promptArgs) =>
+        buildCareerInsightExtractionPrompt({
+          currentInsightContent: promptArgs.currentInsightContent,
+        }),
+      conversationId,
+      currentInsightContent,
+      logPrefix: "TalentOnboardingDefer",
+      sourceChannel: "text_chat",
+      userId: user.id,
+    });
+
+    const latestInsights = await fetchTalentInsights({
+      admin,
+      userId: user.id,
+    });
+
     return NextResponse.json({
       ok: true,
       conversation: {
         id: (conversation as TalentConversationRow).id,
         stage: "chat",
       },
+      insightUpdatedAt: latestInsights?.last_updated_at ?? null,
+      talentInsights: latestInsights?.content ?? null,
       userMessage: toResponseMessage(userMessage),
       assistantMessage: toResponseMessage(assistantMessage),
     });

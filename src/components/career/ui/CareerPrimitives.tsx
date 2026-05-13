@@ -158,7 +158,7 @@ export const CareerPrimaryButton = ({
     type="button"
     {...props}
     className={careerCx(
-      "inline-flex h-10 items-center justify-center rounded-[8px] border border-beige900 bg-beige900 px-4 text-sm font-medium text-[#f5ecdd] transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60",
+      "inline-flex h-9 items-center justify-center rounded-[8px] border border-beige900 bg-beige900 px-3.5 text-sm font-medium text-[#f5ecdd] transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60",
       className
     )}
   >

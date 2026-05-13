@@ -90,6 +90,7 @@ export type CareerSidebarContextValue = {
   onSaveTalentProfile: (args?: {
     structuredProfile?: CareerTalentProfile | null;
   }) => boolean | Promise<boolean>;
+  onRefreshTalentProfileSources: () => boolean | Promise<boolean>;
   talentProfile: CareerTalentProfile;
   talentPreferences: CareerTalentPreferences | null;
   talentInsights: CareerTalentInsights | null;
@@ -130,9 +131,11 @@ export type CareerSidebarContextValue = {
   profileVisibility: CareerProfileVisibility;
   blockedCompanies: string[];
   hasUnsavedTalentSettingsChanges: boolean;
-  onProfileVisibilityChange: (value: CareerProfileVisibility) => void;
-  onAddBlockedCompany: (name: string) => void;
-  onRemoveBlockedCompany: (name: string) => void;
+  onProfileVisibilityChange: (
+    value: CareerProfileVisibility
+  ) => boolean | Promise<boolean>;
+  onAddBlockedCompany: (name: string) => boolean | Promise<boolean>;
+  onRemoveBlockedCompany: (name: string) => boolean | Promise<boolean>;
   onSaveTalentSettings: () => boolean | Promise<boolean>;
   onResetTalentSettings: () => void;
   onReloadTalentSettings: () => void | Promise<void>;
