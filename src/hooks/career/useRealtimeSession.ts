@@ -11,7 +11,7 @@ type UseRealtimeSessionArgs = {
   onAssistantDone: (fullText: string) => void;
   onError: (error: string) => void;
   onConnectionChange: (connected: boolean) => void;
-  onUserSpeechStarted?: (event: { interruptedAssistant: boolean }) => void;
+  onUserSpeechStarted?: () => void;
   onUserSpeechStopped?: () => void;
 };
 
@@ -609,18 +609,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
               interruptTimerRef.current = null;
             }
 
-            const shouldInterrupt =
-              responseInProgressRef.current ||
-              hasAudioInResponseRef.current ||
-              responseTextRef.current.trim().length > 0 ||
-              getRemainingPlaybackMs() > 50;
-
-            if (shouldInterrupt) {
-              cancelActiveResponse();
-            }
-            onUserSpeechStartedRef.current?.({
-              interruptedAssistant: shouldInterrupt,
-            });
+            onUserSpeechStartedRef.current?.();
             break;
           }
 
@@ -658,13 +647,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
         console.error("[RealtimeSession] Failed to parse message:", e);
       }
     },
-    [
-      cancelActiveResponse,
-      getRemainingPlaybackMs,
-      handleFunctionCalls,
-      runAfterCurrentPlayback,
-      stopNativePlayback,
-    ]
+    [handleFunctionCalls, runAfterCurrentPlayback, stopNativePlayback]
   );
 
   const startAudioCapture = useCallback(

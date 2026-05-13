@@ -87,8 +87,6 @@ async function buildRealtimeInstructions(
 const TOKEN_RATE_LIMIT = new Map<string, { count: number; resetAt: number }>();
 const MAX_TOKENS_PER_MINUTE = 10;
 const MAX_RATE_LIMIT_ENTRIES = 1000;
-const REALTIME_TRANSCRIPTION_PROMPT =
-  "대화는 주로 한국어지만 기술 용어는 영어 원문으로 적는다.";
 const REALTIME_TRANSCRIPTION_LANGUAGE = "ko";
 
 function checkRateLimit(userId: string): boolean {
@@ -135,7 +133,6 @@ function buildRealtimeSessionBody(args: {
           transcription: {
             model: transcriptionModel,
             language: REALTIME_TRANSCRIPTION_LANGUAGE,
-            prompt: REALTIME_TRANSCRIPTION_PROMPT,
           },
           turn_detection: {
             type: "semantic_vad",
