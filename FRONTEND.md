@@ -126,7 +126,8 @@ Tailwind는 **컬러·spacing·typography의 단일 소스**다. 다음 누수�
 > 데스크탑 강제 게이트(현재 켜져 있음)를 라우트 단위로 단계적 해제. 모바일 디자인이 끝난 라우트부터 게이트를 푼다.
 
 ### 2.1 현재 게이트 위치
-- `src/hooks/useIsMobile.ts` — `(max-width: 768px)` boolean. 차단이 아닌 **레이아웃 분기**로 의미를 바꾼다.
+- `src/hooks/useMediaQuery.ts` — `useSyncExternalStore` 기반 미디어 쿼리 훅. `useIsMobile`, `useIsTabletUp`, `useIsDesktop` 등 편의 훅 포함. 차단이 아닌 **레이아웃 분기**용.
+- `src/hooks/useIsMobile.ts` — `useMediaQuery.useIsMobile`의 re-export. 기존 30+ 호출처 호환.
 - `src/lib/career/mobileBlocker.ts` — `/career_login`, `/career/*` 모바일 차단. 라우트별로 해제.
 - `src/components/landing/Orbit.tsx`, `FallingTagsSmall.tsx` 등 `useIsMobile()` 조건부 렌더는 모바일 전용 컴포넌트로 분기.
 
@@ -151,7 +152,7 @@ Tailwind는 **컬러·spacing·typography의 단일 소스**다. 다음 누수�
 | `dvh` (dynamic) | UI 상태에 따라 *실시간 변동* | URL bar 토글에 맞춰 늘었다 줄었다 해야 하는 경우 (드물게) — layout shift 주의 |
 | `vh` | 레거시 | **신규 코드 금지**. iOS Safari에서 100vh > visible area 문제 |
 
-**Tailwind 3.4+ 유틸리티 (이미 우리 버전에 포함)**:
+**Tailwind v4 유틸리티 (현재 빌드)**:
 - `h-svh`, `min-h-svh`, `max-h-svh`
 - `h-lvh`, `min-h-lvh`
 - `h-dvh`, `min-h-dvh`
@@ -174,25 +175,33 @@ Tailwind는 **컬러·spacing·typography의 단일 소스**다. 다음 누수�
 ```
 
 ### 2.4 미디어 쿼리는 React에서 어떻게 다루나
-CSS로 풀 수 있으면 CSS로. JS가 필요할 때만 `useSyncExternalStore`로 `matchMedia`를 구독한다.
+CSS로 풀 수 있으면 CSS로. JS가 필요할 때만 `src/hooks/useMediaQuery.ts`의 훅을 쓴다. `useSyncExternalStore` 기반이라 SSR 안전.
 
 ```ts
-// src/hooks/useMediaQuery.ts (권장 패턴, useEffect 대신 useSyncExternalStore)
-import { useSyncExternalStore } from "react";
+import {
+  useMediaQuery,
+  useIsMobile,
+  useIsTabletUp,
+  useIsDesktop,
+  useBreakpointUp,
+  useBreakpointDown,
+  usePrefersReducedMotion,
+  breakpoints,
+} from "@/hooks/useMediaQuery";
 
-export function useMediaQuery(query: string) {
-  const subscribe = (cb: () => void) => {
-    const mql = window.matchMedia(query);
-    mql.addEventListener("change", cb);
-    return () => mql.removeEventListener("change", cb);
-  };
-  const get = () => window.matchMedia(query).matches;
-  const getServer = () => false;
-  return useSyncExternalStore(subscribe, get, getServer);
-}
+// 편의 훅 (Tailwind md=768 기준)
+const isMobile = useIsMobile();         // < 768px
+const isTabletUp = useIsTabletUp();     // >= 768px
+const isDesktop = useIsDesktop();       // >= 1024px
+
+// 임의 브레이크포인트
+const isLargeUp = useBreakpointUp("xl"); // >= 1280px
+
+// 임의 쿼리
+const isLandscape = useMediaQuery("(orientation: landscape)");
 ```
 
-기존 `useIsMobile` (`useEffect` 기반)은 점진 마이그레이션.
+스크롤 방향에 따라 헤더를 숨기는 hide-on-scroll 패턴은 `src/hooks/useHideOnScroll.ts`로 통합 — 4곳 중복 코드(`network.tsx`, `landing-ko-vf.tsx`, `CareerAppBar.tsx`, `DemoSection.tsx`) 점진 이전.
 
 ### 2.5 터치 대응 체크리스트
 - 탭 타깃 최소 44×44px (`min-h-11 min-w-11` 또는 padding)
@@ -200,6 +209,100 @@ export function useMediaQuery(query: string) {
 - `:focus-visible` 유지 (키보드 접근성)
 - Safe area: `env(safe-area-inset-*)` 사용. 고정 헤더/푸터에 적용
 - 입력 폼: `<input>` `font-size: 16px` 이상 (iOS 줌 방지) — `text-base` 이상
+
+### 2.6 레이아웃 프리미티브 (Page · PageContainer · AppLayout · Dialog/Drawer)
+
+페이지 단위로 `max-width` · padding · safe-area를 매번 다시 결정하지 말 것. 다음 컴포넌트만 컴포즈한다.
+
+```tsx
+import { Page } from "@/components/layout/Page";
+import { PageContainer } from "@/components/layout/PageContainer";
+
+<Page background="beige" minHeight="svh" safeArea="bottom">
+  <Header />
+  <PageContainer as="main" size="default" padding="default">
+    {/* 콘텐츠 */}
+  </PageContainer>
+</Page>
+```
+
+| 컴포넌트 | prop | 값 |
+|---|---|---|
+| `Page` | `minHeight` | `svh` (기본), `fillScreen`, `none` |
+| | `background` | `beige`, `beigeAlt`, `paper`, `dark`, `none` |
+| | `safeArea` | `none` (기본), `top`, `bottom`, `y`, `x`, `all` |
+| `PageContainer` | `size` | `narrow`(720) · `default`(1260) · `wide`(1440) · `full` |
+| | `padding` | `default` (`px-4 md:px-6 lg:px-8`), `tight`, `loose`, `none` |
+| | `safeArea` | `none` (기본), `top`, `bottom`, `y`, `x`, `all` |
+| | `as` | `div` (기본), `main`, `section`, `article` 등 |
+
+**규칙**:
+- 페이지 최상위는 항상 `<Page>` — `h-screen`/`min-h-screen` 직접 작성 금지 (§2.3)
+- 콘텐츠 너비 제한은 `<PageContainer>` — `max-w-[Npx]` 직접 작성 금지
+- 고정 헤더/하단 CTA가 있는 페이지는 `<Page safeArea="bottom">` 또는 컨테이너에 `safeArea="bottom"`
+- 두 컴포넌트의 `className` prop은 **레이아웃 보강만** (margin/padding/flex). 컬러·max-width 덮어쓰기 금지
+
+**`AppLayout` (로그인 후 `/my/*` 셸, `src/components/layout/app.tsx`)**:
+- 데스크탑 = 사이드바, 모바일 (`< md`) = 상단 `sticky` AppBar + 햄버거 → 하단 `Drawer` 메뉴 (vaul)
+- `min-h-svh` + `env(safe-area-inset-top/bottom)` 적용
+- 모바일에서 nav 아이템 클릭 시 자동으로 drawer 닫힘 (`handleMobileNavigate`)
+
+**`Dialog` / `Drawer` / `ResponsiveDialog` (`src/components/ui/{dialog,drawer,responsive-dialog}.tsx`)**:
+- `Dialog` = Radix 기반 중앙 모달 (데스크탑)
+- `Drawer` = vaul 기반 bottom sheet (모바일)
+- `ResponsiveDialog` = `useIsMobile`로 두 변형을 자동 분기. 단일 API:
+
+```tsx
+import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
+
+<ResponsiveDialog
+  open={open}
+  onOpenChange={setOpen}
+  title="후보 공유"
+  description="이 후보의 공개 링크를 생성합니다."
+  footer={<Button onClick={handleShare}>공유</Button>}
+>
+  {/* 본문 */}
+</ResponsiveDialog>
+```
+
+- 데스크탑 = `Dialog` 중앙 모달, 모바일 = `Drawer` bottom sheet (drag-to-dismiss, snap)
+- 강제 분기: `forceVariant="dialog"` 또는 `"drawer"`
+- 기존 `BaseModal.tsx` 위에 만들어진 19개 모달은 점진 마이그레이션 (페이지 단위)
+
+### 2.7 라우트 모바일 활성화 표
+
+모바일 디자인이 끝난 라우트부터 게이트를 푼다. PR에서 신규 라우트를 추가하거나 모바일 디자인을 완료할 때 이 표를 업데이트한다.
+
+| 라우트 | 카테고리 | 모바일 상태 | 비고 |
+|---|---|---|---|
+| `/` | landing | partial | `CareerAppBar` 사용, hide-on-scroll 동작. 모바일 분기 검증 필요 |
+| `/landing-ko-vf` | landing | partial | inline AppBar, 모바일 hide-on-scroll 동작. 통합 헤더로 마이그레이션 대상 |
+| `/network` | landing | partial | inline AppBar + preloader. 통합 헤더로 마이그레이션 대상 |
+| `/company` | landing | desktop_only | inline nav, 모바일 분기 없음 |
+| `/find` | landing | partial | `LandingHeader` 햄버거 있음. 본문 모바일 미검증 |
+| `/pricing` | landing | partial | `LandingHeader` 햄버거 있음 |
+| `/search` | landing/app | partial | `SearchHeader` 햄버거 있음 |
+| `/radar` | app | desktop_only | inline header, 모바일 분기 없음 |
+| `/talent` | landing | desktop_only | `AppHeader` 사용, 모바일 미디자인 |
+| `/talents` | landing | partial | 카피 일부 모바일 분기, 본문 미디자인 |
+| `/join` | auth | desktop_only | 헤더 없음, 모바일 미디자인 |
+| `/invitation` | auth | desktop_only | 모바일 미디자인 |
+| `/onboard`, `/onboarding2` | auth | desktop_only | 모바일 미디자인 |
+| `/career_login`, `/career/*` | career | blocked | `CareerMobileViewportGate`로 명시적 차단 |
+| `/auths/*` | auth | designed | 단순 콜백 페이지, 시각 요소 거의 없음 |
+| `/my`, `/my/*` (13개) | app | partial | `AppLayout`이 모바일에서 햄버거 + 하단 시트 drawer로 분기됨. 콘텐츠 영역 페이지별 모바일 디자인 필요 |
+| `/ops/*` | ops | partial | `OpsShell` overflow-x-auto pill nav. 본문 미검증 |
+| `/adminpage` | ops | desktop_only | 자체 admin shell |
+| `/blog`, `/blog/[slug]` | public | partial | `LandingHeader`/`SearchHeader` 햄버거 |
+| `/share/*` | public | desktop_only | 셸 없음, 페이지 inline |
+| `/privacy`, `/terms` | public | designed | `LegalDocumentPage` |
+
+상태 정의:
+- `designed` — 모바일 디자인 완료, QA 통과
+- `partial` — 일부 컴포넌트만 모바일 분기 (헤더 등)
+- `desktop_only` — 모바일 분기 0건, 데스크탑 전용
+- `blocked` — `mobileBlocker.ts` 등으로 명시 차단
 
 ---
 

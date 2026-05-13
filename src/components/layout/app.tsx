@@ -3,7 +3,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   Search,
   List,
-  Target,
   PanelLeft,
   PanelLeftOpen,
   User,
@@ -11,13 +10,14 @@ import {
   HelpCircle,
   MessageSquareMore,
   Mail,
-  Scan,
   UserSearch,
+  Menu,
 } from "lucide-react";
 import { useRouter } from "next/router";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useCredits } from "@/hooks/useCredit";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 import { NavItem } from "./HistoryItem";
 import { Tooltips } from "../ui/tooltip";
 import { useMessages } from "@/i18n/useMessage";
@@ -28,18 +28,20 @@ import { useFeedbackModalStore } from "@/store/useFeedbackModalStore";
 import Link from "next/link";
 import Image from "next/image";
 import { ActionDropdown, ActionDropdownItem } from "../ui/action-dropdown";
+import { Drawer, DrawerContent, DrawerTrigger } from "../ui/drawer";
 import { canAccessAts } from "@/lib/internalAccess";
 import { useMatchWorkspace } from "@/hooks/useMatchWorkspace";
 import MatchSidebarRoles from "@/components/match/MatchSidebarRoles";
 
-const AppLayout = ({
-  children,
-  initialCollapse = true,
-}: {
+type AppLayoutProps = {
   children: React.ReactNode;
   initialCollapse?: boolean;
-}) => {
+};
+
+const AppLayout = ({ children, initialCollapse = true }: AppLayoutProps) => {
   const [collapsed, setCollapsed] = useState(initialCollapse);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const isMobile = useIsMobile();
   const { credits, isLoading: isLoadingCredits } = useCredits();
   const { m } = useMessages();
   const { companyUser, loading, initialized, clear } = useCompanyUserStore();
@@ -102,22 +104,275 @@ const AppLayout = ({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [pathname, router]);
-  // ✅ /my/c/[queryId] 라면 queryId 읽기 (쿼리스트링 유무 무관)
+
   const activeQueryId = useMemo(() => {
     const q = router.query.id;
     if (typeof q === "string" && q.length > 0) return q;
     if (Array.isArray(q) && q[0]) return q[0];
 
-    const m = pathname?.match(/^\/my\/c\/([^/?#]+)/);
-    return m?.[1] ?? null;
+    const match = pathname?.match(/^\/my\/c\/([^/?#]+)/);
+    return match?.[1] ?? null;
   }, [pathname, router.query.id]);
+
+  const handleMobileNavigate = () => setMobileNavOpen(false);
+
+  const navLinks = (
+    <>
+      <NavItem
+        collapsed={collapsed}
+        active={isHome}
+        label="Search"
+        icon={<Search size={16} />}
+        href="/my"
+        onNavigate={() => {
+          logEvent("enter_search");
+          handleMobileNavigate();
+        }}
+        shortcut="cmdK"
+      />
+      <NavItem
+        collapsed={collapsed}
+        active={isMatch}
+        label="Scout"
+        icon={<UserSearch size={16} />}
+        href="/my/match"
+        onNavigate={() => {
+          logEvent("enter_match");
+          handleMobileNavigate();
+        }}
+      />
+      {isMatch ? (
+        <MatchSidebarRoles
+          collapsed={collapsed}
+          roles={matchWorkspaceData?.roles ?? []}
+          workspace={matchWorkspaceData?.workspace ?? null}
+        />
+      ) : null}
+      <NavItem
+        collapsed={collapsed}
+        active={isList}
+        label="Shortlist"
+        icon={<List size={16} />}
+        href="/my/list"
+        onNavigate={() => {
+          logEvent("enter_shortlist");
+          handleMobileNavigate();
+        }}
+      />
+      {hasAtsAccess ? (
+        <NavItem
+          collapsed={collapsed}
+          active={isAts}
+          label="ATS"
+          icon={<Mail size={16} />}
+          href="/my/ats"
+          onNavigate={() => {
+            logEvent("enter_ats");
+            handleMobileNavigate();
+          }}
+        />
+      ) : null}
+    </>
+  );
+
+  const creditsBlock = collapsed ? (
+    <Link
+      href="/my/billing"
+      className="cursor-pointer"
+      onClick={() => {
+        logEvent("enter_billing");
+        handleMobileNavigate();
+      }}
+    >
+      <div className="rounded-lg p-1 py-2 flex flex-col gap-2 transition-colors duration-300 ease-out hover:bg-beige900/5">
+        <div className="w-full text-center text-[15px] text-xs text-beige900">
+          {credits?.remain_credit ?? 0}
+        </div>
+      </div>
+    </Link>
+  ) : (
+    <Link
+      href="/my/billing"
+      className="cursor-pointer"
+      onClick={() => {
+        logEvent("enter_billing");
+        handleMobileNavigate();
+      }}
+    >
+      <div className="rounded-lg p-3 flex flex-col gap-2 border border-beige900/8 transition-colors duration-300 ease-out hover:bg-beige900/5">
+        <div className="w-full flex flex-row items-center justify-between text-[15px]">
+          <div className="w-[68%] text-xs text-beige900/55">
+            이번 달 남은 열람 횟수
+          </div>
+          <div className="w-[20%] text-right text-xs text-beige900">
+            {credits?.remain_credit ?? 0}
+          </div>
+        </div>
+      </div>
+    </Link>
+  );
+
+  const accountDropdown = (
+    <ActionDropdown
+      align="start"
+      contentClassName="w-52"
+      trigger={
+        <button
+          className={[
+            "w-full flex text-base font-extralight items-center gap-3 rounded-[6px] px-2.5 py-2",
+            "transition duration-200 text-beige900 bg-transparent hover:bg-beige900/8",
+          ].join(" ")}
+        >
+          <div className="shrink-0">
+            {companyUser?.profile_picture ? (
+              <Image
+                src={companyUser?.profile_picture ?? ""}
+                alt="profile"
+                width={24}
+                height={24}
+                className="rounded-lg"
+              />
+            ) : (
+              <User size={18} />
+            )}
+          </div>
+          {!collapsed && (
+            <div className="truncate text-sm font-normal">
+              {companyUser?.name ?? "Settings"}
+            </div>
+          )}
+        </button>
+      }
+    >
+      <ActionDropdownItem
+        onSelect={(e) => {
+          e.preventDefault();
+          logEvent("enter_feedback");
+          openFeedbackModal();
+          handleMobileNavigate();
+        }}
+      >
+        <MessageSquareMore size={18} />
+        <div>피드백 남기기</div>
+      </ActionDropdownItem>
+      <ActionDropdownItem asChild className="mt-1 p-0">
+        <Link
+          href="/my/help"
+          className="w-full flex flex-row gap-1 px-3 py-2"
+          onClick={() => {
+            logEvent("enter_help");
+            handleMobileNavigate();
+          }}
+        >
+          <HelpCircle size={18} />
+          <div>도움말</div>
+        </Link>
+      </ActionDropdownItem>
+      <ActionDropdownItem asChild className="mt-1 p-0">
+        <Link
+          href="/my/account"
+          className="w-full flex flex-row gap-1 px-3 py-2"
+          onClick={() => {
+            logEvent("enter_account");
+            handleMobileNavigate();
+          }}
+        >
+          <User size={18} />
+          <div>{m.system.account}</div>
+        </Link>
+      </ActionDropdownItem>
+      <ActionDropdownItem
+        className="mt-1 flex flex-row gap-1"
+        onSelect={async (e) => {
+          e.preventDefault();
+          logEvent("logout");
+          await signOut();
+          clear();
+          router.push("/");
+        }}
+      >
+        <LogOut size={18} />
+        <div>{m.system.logout}</div>
+      </ActionDropdownItem>
+    </ActionDropdown>
+  );
+
+  if (isMobile) {
+    return (
+      <div className="flex min-h-svh w-full flex-col bg-beige100 font-sans text-beige900">
+        <header
+          className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-beige900/8 bg-beige100/95 px-4 backdrop-blur-md"
+          style={{ paddingTop: "env(safe-area-inset-top)" }}
+        >
+          <Drawer open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+            <DrawerTrigger asChild>
+              <button
+                type="button"
+                aria-label="메뉴 열기"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-md text-beige900 hover:bg-beige900/8"
+              >
+                <Menu size={20} />
+              </button>
+            </DrawerTrigger>
+            <DrawerContent className="max-h-[85svh]">
+              <div className="flex flex-col gap-1 px-3 pb-2 pt-2">
+                {navLinks}
+              </div>
+              <div className="mt-2 flex flex-col gap-2 border-t border-beige900/8 p-3">
+                {creditsBlock}
+                {accountDropdown}
+              </div>
+              <div className="flex-1 overflow-y-auto px-3 pb-4">
+                <HoverHistory
+                  collapsed={false}
+                  userId={userId}
+                  activeQueryId={activeQueryId ?? ""}
+                />
+              </div>
+            </DrawerContent>
+          </Drawer>
+          <Link
+            href="/my"
+            className="font-hedvig text-xl font-semibold"
+            onClick={() => logEvent("enter_search")}
+          >
+            Harper
+          </Link>
+          <div className="inline-flex h-11 w-11 items-center justify-center">
+            {companyUser?.profile_picture ? (
+              <Image
+                src={companyUser?.profile_picture ?? ""}
+                alt="profile"
+                width={28}
+                height={28}
+                className="rounded-lg"
+              />
+            ) : (
+              <User size={20} />
+            )}
+          </div>
+        </header>
+
+        <main
+          id="app-scroll"
+          className="flex-1 overflow-y-auto bg-beige100 text-beige900 scroll-smooth"
+          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        >
+          <div className="font-sans mx-auto pb-24 min-h-full flex flex-col items-center">
+            {!isLoadingCredits && userId && children}
+          </div>
+        </main>
+        <FeedbackRewardModal />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex h-screen font-sans w-full bg-beige100 text-beige900 overflow-hidden">
-      {/* Sidebar */}
+    <div className="flex h-svh font-sans w-full bg-beige100 text-beige900 overflow-hidden">
       <aside
         className={[
           "relative bg-beige100 text-beige900",
-          "border-r border-beige900/8 h-screen flex flex-col",
+          "border-r border-beige900/8 h-svh flex flex-col",
           collapsed ? "w-[66px]" : "w-[260px]",
           "transition-all duration-300 ease-out shrink-0",
         ].join(" ")}
@@ -150,50 +405,7 @@ const AppLayout = ({
           </Tooltips>
         </div>
         <div className="flex flex-col mt-4 px-3 gap-1 flex-1">
-          <NavItem
-            collapsed={collapsed}
-            active={isHome}
-            label="Search"
-            icon={<Search size={16} />}
-            href="/my"
-            onNavigate={() => logEvent("enter_search")}
-            shortcut="cmdK"
-          />
-          <NavItem
-            collapsed={collapsed}
-            active={isMatch}
-            label="Scout"
-            icon={<UserSearch size={16} />}
-            href="/my/match"
-            onNavigate={() => logEvent("enter_match")}
-          />
-          {isMatch ? (
-            <MatchSidebarRoles
-              collapsed={collapsed}
-              roles={matchWorkspaceData?.roles ?? []}
-              workspace={matchWorkspaceData?.workspace ?? null}
-            />
-          ) : (
-            <></>
-          )}
-          <NavItem
-            collapsed={collapsed}
-            active={isList}
-            label="Shortlist"
-            icon={<List size={16} />}
-            href="/my/list"
-            onNavigate={() => logEvent("enter_shortlist")}
-          />
-          {hasAtsAccess ? (
-            <NavItem
-              collapsed={collapsed}
-              active={isAts}
-              label="ATS"
-              icon={<Mail size={16} />}
-              href="/my/ats"
-              onNavigate={() => logEvent("enter_ats")}
-            />
-          ) : null}
+          {navLinks}
           {isMatch ? (
             <div className="flex h-2" />
           ) : (
@@ -206,126 +418,16 @@ const AppLayout = ({
           />
         </div>
 
-        {/* 3. Bottom Section: 고정 */}
         <div className="p-3 gap-2 flex flex-col shrink-0 border-t border-beige900/8 bg-beige100 absolute bottom-0 left-0 min-w-full">
-          {!collapsed && (
-            <>
-              <Link
-                href="/my/billing"
-                className="cursor-pointer"
-                onClick={() => logEvent("enter_billing")}
-              >
-                <div className="rounded-lg p-3 flex flex-col gap-2 border border-beige900/8 transition-colors duration-300 ease-out hover:bg-beige900/5">
-                  <div className="w-full flex flex-row items-center justify-between text-[15px]">
-                    {/* <Zap fill="#fff" size={14} /> */}
-                    <div className="w-[68%] text-xs text-beige900/55">
-                      이번 달 남은 열람 횟수
-                    </div>
-                    <div className="w-[20%] text-right text-xs text-beige900">
-                      {credits?.remain_credit ?? 0}
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            </>
-          )}
-          {collapsed && (
-            <Link
-              href="/my/billing"
-              className="cursor-pointer"
-              onClick={() => logEvent("enter_billing")}
-            >
-              <div className="rounded-lg p-1 py-2 flex flex-col gap-2 transition-colors duration-300 ease-out hover:bg-beige900/5">
-                <div className="w-full text-center text-[15px] text-xs text-beige900">
-                  {credits?.remain_credit ?? 0}
-                </div>
-              </div>
-            </Link>
-          )}
-          <ActionDropdown
-            align="start"
-            contentClassName="w-52"
-            trigger={
-              <button
-                className={[
-                  "w-full flex text-base font-extralight items-center gap-3 rounded-[6px] px-2.5 py-2",
-                  "transition duration-200 text-beige900 bg-transparent hover:bg-beige900/8",
-                ].join(" ")}
-              >
-                <div className="shrink-0">
-                  {companyUser?.profile_picture ? (
-                    <Image
-                      src={companyUser?.profile_picture ?? ""}
-                      alt="profile"
-                      width={24}
-                      height={24}
-                      className="rounded-lg"
-                    />
-                  ) : (
-                    <User size={18} />
-                  )}
-                </div>
-                {!collapsed && (
-                  <div className="truncate text-sm font-normal">
-                    {companyUser?.name ?? "Settings"}
-                  </div>
-                )}
-              </button>
-            }
-          >
-            <ActionDropdownItem
-              onSelect={(e) => {
-                e.preventDefault();
-                logEvent("enter_feedback");
-                openFeedbackModal();
-              }}
-            >
-              <MessageSquareMore size={18} />
-              <div>피드백 남기기</div>
-            </ActionDropdownItem>
-            <ActionDropdownItem asChild className="mt-1 p-0">
-              <Link
-                href="/my/help"
-                className="w-full flex flex-row gap-1 px-3 py-2"
-                onClick={() => logEvent("enter_help")}
-              >
-                <HelpCircle size={18} />
-                <div>도움말</div>
-              </Link>
-            </ActionDropdownItem>
-            <ActionDropdownItem asChild className="mt-1 p-0">
-              <Link
-                href="/my/account"
-                className="w-full flex flex-row gap-1 px-3 py-2"
-                onClick={() => logEvent("enter_account")}
-              >
-                <User size={18} />
-                <div>{m.system.account}</div>
-              </Link>
-            </ActionDropdownItem>
-            <ActionDropdownItem
-              className="mt-1 flex flex-row gap-1"
-              onSelect={async (e) => {
-                e.preventDefault();
-                logEvent("logout");
-                await signOut();
-                clear();
-                router.push("/");
-              }}
-            >
-              <LogOut size={18} />
-              <div>{m.system.logout}</div>
-            </ActionDropdownItem>
-          </ActionDropdown>
+          {creditsBlock}
+          {accountDropdown}
         </div>
       </aside>
 
-      {/* Main Content Area */}
       <main
         id="app-scroll"
-        className="flex-1 h-screen overflow-y-auto bg-beige100 text-beige900 scroll-smooth"
+        className="flex-1 h-svh overflow-y-auto bg-beige100 text-beige900 scroll-smooth"
       >
-        {/* overflow-scroll 대신 overflow-y-auto 사용 (필요할 때만 스크롤바 생성) */}
         <div className="font-sans mx-auto pb-24 min-h-full flex flex-col items-center h-full">
           {!isLoadingCredits && userId && children}
         </div>
