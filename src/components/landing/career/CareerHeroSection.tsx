@@ -64,6 +64,7 @@ export default function CareerHeroSection({
             alt="objects"
             width={288}
             height={288}
+            priority
             className="h-auto w-48 sm:w-64 md:w-72"
           />
         </div>

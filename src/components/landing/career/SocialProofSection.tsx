@@ -62,7 +62,7 @@ export default function SocialProofSection() {
                 alt={logo.key}
                 width={logo.width}
                 height={90}
-                className="object-contain opacity-90"
+                className="h-auto object-contain opacity-90"
               />
             </div>
           ))}
@@ -75,7 +75,7 @@ export default function SocialProofSection() {
                 alt={logo.key}
                 width={Math.max(84, logo.width - 24)}
                 height={80}
-                className="max-w-[38vw] object-contain opacity-90"
+                className="h-auto max-w-[38vw] object-contain opacity-90"
               />
             </div>
           ))}

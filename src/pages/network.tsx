@@ -2328,7 +2328,7 @@ const NetworkPage = () => {
                 alt="objects"
                 width={256}
                 height={256}
-                className="w-44 sm:w-52 md:w-64"
+                className="h-auto w-44 sm:w-52 md:w-64"
               />
               <div className="flex flex-col items-center gap-3">
                 <NetworkButton

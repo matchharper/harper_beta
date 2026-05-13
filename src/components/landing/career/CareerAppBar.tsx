@@ -57,7 +57,13 @@ export default function CareerAppBar({
     >
       <div className="mx-auto flex h-[64px] max-w-[1160px] items-center justify-between px-4">
         <a href="#top" className="font-instrument text-[28px] text-beige900">
-          <Image src="/svgs/logov2.svg" alt="Harper" width={70} height={60} />
+          <Image
+            src="/svgs/logov2.svg"
+            alt="Harper"
+            width={70}
+            height={60}
+            className="h-auto"
+          />
         </a>
         <div className="flex items-center gap-3 sm:gap-6">
           <div className="flex items-center gap-3 text-[12.5px] font-medium text-beige900/60 sm:gap-4 sm:text-[13px] md:gap-5 md:text-sm">
