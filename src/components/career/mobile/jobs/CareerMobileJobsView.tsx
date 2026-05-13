@@ -70,6 +70,14 @@ type CareerMobileJobsViewProps = {
 
 const SWIPE_THRESHOLD_PX = 40;
 const FADE_DURATION = 0.18;
+const MOBILE_SCROLL_CONTAINER_ID = "career-mobile-scroll";
+
+const resetMobileScrollOnMount = (el: HTMLDivElement | null) => {
+  if (!el) return;
+  document
+    .getElementById(MOBILE_SCROLL_CONTAINER_ID)
+    ?.scrollTo({ top: 0, behavior: "auto" });
+};
 
 export default function CareerMobileJobsView({
   activeWorkspaceTab,
@@ -167,6 +175,7 @@ export default function CareerMobileJobsView({
             {selectedOpportunity ? (
               <motion.div
                 key={selectedOpportunity.id}
+                ref={resetMobileScrollOnMount}
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
