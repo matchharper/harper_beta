@@ -82,6 +82,11 @@ const CareerSettingsModal = ({
 
   const handleClose = useCallback(() => {
     onClose();
+    window.setTimeout(() => {
+      setMobileView("menu");
+      setSnap(MENU_SNAP);
+      setActiveTab("profile");
+    }, 400);
   }, [onClose]);
 
   useEffect(() => {
@@ -90,26 +95,11 @@ const CareerSettingsModal = ({
     handleClose();
   }, [handleClose, open, user]);
 
-  useEffect(() => {
-    if (open) return;
-    const timer = window.setTimeout(() => {
-      setMobileView("menu");
-      setSnap(MENU_SNAP);
-      setActiveTab("profile");
-    }, 400);
-    return () => window.clearTimeout(timer);
-  }, [open]);
-
   const email = user?.email ?? "로그인 중";
 
   if (isMobile) {
     const handleOpenChange = (nextOpen: boolean) => {
-      if (nextOpen) {
-        setMobileView("menu");
-        setSnap(MENU_SNAP);
-        return;
-      }
-      onClose();
+      if (!nextOpen) handleClose();
     };
 
     const handleSelectTab = (tab: CareerSettingsTab) => {
