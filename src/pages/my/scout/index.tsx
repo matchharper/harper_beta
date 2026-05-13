@@ -82,6 +82,8 @@ export default function AutomationIndexPage() {
     queryKey: ["automationResultsCount", userId, automationIds],
     enabled: !!userId && automationIds.length > 0,
     queryFn: async () => {
+      if (!userId) return [];
+
       const { data: rows, error } = await supabase
         .from("automation_results")
         .select("automation_id")
@@ -443,7 +445,9 @@ function AutomationResultsList({
           >
             <ChevronRight size={16} className="text-accentBronze" />
           </span>
-          {isFetching && <span className="ml-2 text-beige900/45">Syncing…</span>}
+          {isFetching && (
+            <span className="ml-2 text-beige900/45">Syncing…</span>
+          )}
         </div>
       </div>
 

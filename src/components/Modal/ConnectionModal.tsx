@@ -41,7 +41,8 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({
   const [requestDate, setRequestDate] = useState("");
   const [requestSent, setRequestSent] = useState(false);
   const { m } = useMessages();
-  const { companyUser } = useCompanyUserStore.getState();
+  const companyUser = useCompanyUserStore((s) => s.companyUser);
+  const companyUserId = companyUser?.user_id ?? null;
 
   useEffect(() => {
     if (!open) return;
@@ -67,29 +68,32 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({
   }, [open, isRequested]);
 
   useEffect(() => {
-    if (!isRequested || !companyUser?.user_id) return;
+    if (!isRequested || !companyUserId) return;
 
-    supabase
-      .from("request")
-      .select("text, created_at")
-      .eq("user_id", companyUser.user_id)
-      .eq("candid_id", candidId)
-      .eq("status", 0)
-      .maybeSingle()
-      .then(({ data, error }) => {
-        if (error) {
-          console.error("error ", error);
-          return;
-        }
-        setRequestText(data?.text ?? "");
-        setRequestDate(dateToFormatLong(data?.created_at ?? ""));
-      });
-  }, [isRequested, companyUser.user_id, candidId]);
+    const loadRequest = async () => {
+      const { data, error } = await supabase
+        .from("request")
+        .select("text, created_at")
+        .eq("user_id", companyUserId)
+        .eq("candid_id", candidId)
+        .eq("status", 0)
+        .maybeSingle();
+
+      if (error) {
+        console.error("error ", error);
+        return;
+      }
+      setRequestText(data?.text ?? "");
+      setRequestDate(dateToFormatLong(data?.created_at ?? ""));
+    };
+
+    void loadRequest();
+  }, [isRequested, companyUserId, candidId]);
 
   const { mutate: toggleRequestMutation } = useToggleRequest();
 
   const onConfirmHandler = async () => {
-    if (!companyUser?.user_id || !candidId) {
+    if (!companyUserId || !candidId) {
       return;
     }
 
@@ -102,9 +106,9 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({
         });
         return;
       }
-      toggleRequestMutation({ userId: companyUser.user_id, candidId });
+      toggleRequestMutation({ userId: companyUserId, candidId });
       const { error } = await supabase.from("request").insert({
-        user_id: companyUser.user_id,
+        user_id: companyUserId,
         candid_id: candidId,
         text: introText,
       });
@@ -124,13 +128,13 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({
       return;
     }
 
-    toggleRequestMutation({ userId: companyUser.user_id, candidId });
+    toggleRequestMutation({ userId: companyUserId, candidId });
     const { error } = await supabase
       .from("request")
       .update({
         status: 1,
       })
-      .eq("user_id", companyUser.user_id)
+      .eq("user_id", companyUserId)
       .eq("candid_id", candidId);
     if (error) {
       return;
