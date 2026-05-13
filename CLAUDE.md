@@ -38,7 +38,7 @@ Path alias `@/*` → `src/*` (see `tsconfig.json`).
 - **ats / talent network** — candidate outreach, sequencing, workspace bookmarks (`lib/ats/`, `talentNetwork*.ts`, `candidateMark.ts`, `profileReveal.ts`)
 - **llm + search** — model calls, parsing, cursor/evidence for candidate search (`lib/llm/`, `lib/server/search.ts`, `lib/server/cursor.ts`, `searchEvidence.ts`, `searchSource.ts`, `searchParallelLimit.ts`)
 - **billing** — Toss Payments integration (`lib/billing/`, `lib/toss/`, `@tosspayments/tosspayments-sdk`)
-- **voice** — STT via Deepgram, TTS via ElevenLabs (`lib/stt/`, `lib/tts/`)
+- **voice** — career voice runs through OpenAI Realtime over WebRTC (`hooks/career/useRealtimeSession.ts`)
 - **ops / admin / internal** — operator tooling, admin metrics, internal API auth (`lib/admin.ts`, `lib/adminMetrics/`, `lib/internalAccess.ts`, `lib/internalApi*.ts`, `lib/opsNetwork*.ts`, `lib/networkOps.ts`)
 - **integrations** — Slack webhooks (`lib/slack.ts`), Notion (`lib/notion/`), GitHub & Scholar previews (`lib/githubPreview.ts`, `lib/scholarPreview.ts`)
 - **blog** — `lib/blog.ts` (client-safe) vs `lib/blog.server.ts` (server-only). Follow this `.server.ts` suffix convention when a module must not leak into the client bundle.

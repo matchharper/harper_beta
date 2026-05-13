@@ -5,23 +5,22 @@ import type { AppProps } from "next/app";
 import ReactQueryProvider from "@/components/Provider";
 import Head from "next/head";
 import { Analytics } from "@vercel/analytics/react";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import dynamic from "next/dynamic";
 
 const CompanyModalRoot = dynamic(
   () => import("@/components/Modal/CompanyModal"),
   { ssr: false, loading: () => null }
 );
-const PaperModalRoot = dynamic(
-  () => import("@/components/Modal/PaperModal"),
-  { ssr: false, loading: () => null }
-);
-const RepoModalRoot = dynamic(
-  () => import("@/components/Modal/RepoModal"),
-  { ssr: false, loading: () => null }
-);
+const PaperModalRoot = dynamic(() => import("@/components/Modal/PaperModal"), {
+  ssr: false,
+  loading: () => null,
+});
+const RepoModalRoot = dynamic(() => import("@/components/Modal/RepoModal"), {
+  ssr: false,
+  loading: () => null,
+});
 import Script from "next/script";
 import { useRouter } from "next/router";
 
@@ -46,20 +45,11 @@ const CRISP_BOOTSTRAP_SCRIPT = CRISP_WEBSITE_ID
 
 export default function App({ Component, pageProps }: AppProps) {
   const init = useAuthStore((s) => s.init);
-  const { user, loading } = useAuthStore();
-  const {
-    companyUser,
-    load,
-    loading: companyUserLoading,
-  } = useCompanyUserStore();
-  const lastFreeRefreshUserId = useRef<string | null>(null);
   const router = useRouter();
   const isCareerPage =
     router.pathname === "/career" ||
     router.pathname.startsWith("/career/") ||
     router.pathname === "/career_login";
-  const isMyPage =
-    router.pathname === "/my" || router.pathname.startsWith("/my/");
   const shouldHideCrisp =
     isCareerPage ||
     router.pathname === "/landing-ko-vf" ||
@@ -89,12 +79,6 @@ export default function App({ Component, pageProps }: AppProps) {
   }, [router.events]);
 
   useEffect(() => {
-    if (!loading && user && !companyUser && !companyUserLoading) {
-      load(user.id);
-    }
-  }, [loading, user, load, companyUser, companyUserLoading]);
-
-  useEffect(() => {
     if (!CRISP_WEBSITE_ID) return;
     if (typeof window === "undefined") return;
 
@@ -116,34 +100,6 @@ export default function App({ Component, pageProps }: AppProps) {
   useEffect(() => {
     init();
   }, [init]);
-
-  useEffect(() => {
-    if (!isMyPage) return;
-    if (!companyUser?.user_id) return;
-    if (companyUserLoading) return;
-    if (!companyUser.is_authenticated) return;
-    if (lastFreeRefreshUserId.current === companyUser.user_id) return;
-
-    lastFreeRefreshUserId.current = companyUser.user_id;
-
-    const payload = {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: companyUser.user_id }),
-    };
-
-    Promise.all([
-      fetch("/api/credits/free-refresh", payload),
-      fetch("/api/credits/annual-refresh", payload),
-    ]).catch((err) => {
-      console.error("Failed to refresh credits:", err);
-    });
-  }, [
-    isMyPage,
-    companyUser?.user_id,
-    companyUser?.is_authenticated,
-    companyUserLoading,
-  ]);
 
   return (
     <ReactQueryProvider>
