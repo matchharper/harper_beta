@@ -78,8 +78,12 @@ export const useCareerTalentSettings = ({
   const [savedProfileVisibility, setSavedProfileVisibility] =
     useState<CareerProfileVisibility>(DEFAULT_PROFILE_VISIBILITY);
   const [blockedCompanies, setBlockedCompanies] = useState<string[]>([]);
-  const [savedBlockedCompanies, setSavedBlockedCompanies] = useState<string[]>([]);
-  const [settingsUpdatedAt, setSettingsUpdatedAt] = useState<string | null>(null);
+  const [savedBlockedCompanies, setSavedBlockedCompanies] = useState<string[]>(
+    []
+  );
+  const [settingsUpdatedAt, setSettingsUpdatedAt] = useState<string | null>(
+    null
+  );
 
   const applyPersistedSettings = useCallback(
     (
@@ -87,16 +91,23 @@ export const useCareerTalentSettings = ({
         profileVisibility?: unknown;
         blockedCompanies?: unknown;
       },
-      updatedAt?: unknown
+      updatedAt?: unknown,
+      options?: {
+        preserveLocalBlockedCompanies?: boolean;
+      }
     ) => {
-      const nextVisibility = normalizeProfileVisibility(settings.profileVisibility);
+      const nextVisibility = normalizeProfileVisibility(
+        settings.profileVisibility
+      );
       const nextBlockedCompanies = normalizeBlockedCompanies(
         settings.blockedCompanies
       );
 
       setProfileVisibility(nextVisibility);
       setSavedProfileVisibility(nextVisibility);
-      setBlockedCompanies(nextBlockedCompanies);
+      if (!options?.preserveLocalBlockedCompanies) {
+        setBlockedCompanies(nextBlockedCompanies);
+      }
       setSavedBlockedCompanies(nextBlockedCompanies);
       setSettingsUpdatedAt(normalizeUpdatedAt(updatedAt));
     },
@@ -115,7 +126,9 @@ export const useCareerTalentSettings = ({
         .json()
         .catch(() => ({}))) as SettingsPayload;
       if (!response.ok) {
-        throw new Error(getErrorMessage(payload, "설정 정보를 불러오지 못했습니다."));
+        throw new Error(
+          getErrorMessage(payload, "설정 정보를 불러오지 못했습니다.")
+        );
       }
 
       if (requestId !== fetchRequestIdRef.current) {
@@ -127,7 +140,9 @@ export const useCareerTalentSettings = ({
         return;
       }
       const message =
-        error instanceof Error ? error.message : "설정 정보를 불러오지 못했습니다.";
+        error instanceof Error
+          ? error.message
+          : "설정 정보를 불러오지 못했습니다.";
       setSettingsError(message);
     } finally {
       if (requestId === fetchRequestIdRef.current) {
@@ -157,64 +172,107 @@ export const useCareerTalentSettings = ({
     void fetchSettings();
   }, [authLoading, fetchSettings, userId]);
 
+  const persistSettings = useCallback(
+    async (nextSettings: {
+      profileVisibility: CareerProfileVisibility;
+      blockedCompanies?: string[];
+      preserveLocalBlockedCompanies?: boolean;
+    }) => {
+      if (!userId || settingsSaving) return false;
+
+      const requestId = ++saveRequestIdRef.current;
+      const requestBody: {
+        profileVisibility: CareerProfileVisibility;
+        blockedCompanies?: string[];
+      } = {
+        profileVisibility: nextSettings.profileVisibility,
+      };
+      if (nextSettings.blockedCompanies !== undefined) {
+        requestBody.blockedCompanies = nextSettings.blockedCompanies;
+      }
+
+      setSettingsSaving(true);
+      setSettingsError("");
+      setSettingsSaveInfo("");
+      try {
+        const response = await fetchWithAuth("/api/talent/settings", {
+          method: "POST",
+          body: JSON.stringify(requestBody),
+        });
+        const payload = (await response
+          .json()
+          .catch(() => ({}))) as SettingsPayload;
+        if (!response.ok) {
+          throw new Error(
+            getErrorMessage(payload, "설정 저장에 실패했습니다.")
+          );
+        }
+
+        if (requestId !== saveRequestIdRef.current) {
+          return false;
+        }
+        applyPersistedSettings(payload.settings ?? {}, payload.updatedAt, {
+          preserveLocalBlockedCompanies:
+            nextSettings.preserveLocalBlockedCompanies,
+        });
+        setSettingsSaveInfo("프로필 설정을 저장했습니다.");
+        return true;
+      } catch (error) {
+        if (requestId !== saveRequestIdRef.current) {
+          return false;
+        }
+        const message =
+          error instanceof Error ? error.message : "설정 저장에 실패했습니다.";
+        setSettingsError(message);
+        return false;
+      } finally {
+        if (requestId === saveRequestIdRef.current) {
+          setSettingsSaving(false);
+        }
+      }
+    },
+    [applyPersistedSettings, fetchWithAuth, settingsSaving, userId]
+  );
+
   const saveSettings = useCallback(async () => {
-    if (!userId || settingsSaving) return false;
+    return persistSettings({
+      profileVisibility,
+      blockedCompanies,
+    });
+  }, [blockedCompanies, persistSettings, profileVisibility]);
 
-    const requestId = ++saveRequestIdRef.current;
-    setSettingsSaving(true);
-    setSettingsError("");
-    setSettingsSaveInfo("");
-    try {
-      const response = await fetchWithAuth("/api/talent/settings", {
-        method: "POST",
-        body: JSON.stringify({
-          profileVisibility,
-          blockedCompanies,
-        }),
+  const updateProfileVisibility = useCallback(
+    async (value: CareerProfileVisibility) => {
+      const nextVisibility = normalizeProfileVisibility(value);
+      if (
+        settingsLoading ||
+        settingsSaving ||
+        nextVisibility === profileVisibility
+      ) {
+        return false;
+      }
+
+      setProfileVisibility(nextVisibility);
+      setSettingsError("");
+      setSettingsSaveInfo("");
+
+      const saved = await persistSettings({
+        profileVisibility: nextVisibility,
+        preserveLocalBlockedCompanies: true,
       });
-      const payload = (await response
-        .json()
-        .catch(() => ({}))) as SettingsPayload;
-      if (!response.ok) {
-        throw new Error(getErrorMessage(payload, "설정 저장에 실패했습니다."));
+      if (!saved) {
+        setProfileVisibility(savedProfileVisibility);
       }
-
-      if (requestId !== saveRequestIdRef.current) {
-        return false;
-      }
-      applyPersistedSettings(payload.settings ?? {}, payload.updatedAt);
-      setSettingsSaveInfo("프로필 설정을 저장했습니다.");
-      return true;
-    } catch (error) {
-      if (requestId !== saveRequestIdRef.current) {
-        return false;
-      }
-      const message =
-        error instanceof Error ? error.message : "설정 저장에 실패했습니다.";
-      setSettingsError(message);
-      return false;
-    } finally {
-      if (requestId === saveRequestIdRef.current) {
-        setSettingsSaving(false);
-      }
-    }
-  }, [
-    applyPersistedSettings,
-    blockedCompanies,
-    fetchWithAuth,
-    profileVisibility,
-    settingsSaving,
-    userId,
-  ]);
-
-  const updateProfileVisibility = useCallback((value: CareerProfileVisibility) => {
-    const nextVisibility = normalizeProfileVisibility(value);
-    if (nextVisibility === profileVisibility) return;
-
-    setProfileVisibility(nextVisibility);
-    setSettingsError("");
-    setSettingsSaveInfo("");
-  }, [profileVisibility]);
+      return saved;
+    },
+    [
+      persistSettings,
+      profileVisibility,
+      savedProfileVisibility,
+      settingsLoading,
+      settingsSaving,
+    ]
+  );
 
   const addBlockedCompany = useCallback(
     (rawName: string) => {

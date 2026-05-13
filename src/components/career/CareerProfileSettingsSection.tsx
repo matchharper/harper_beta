@@ -84,6 +84,8 @@ export const CareerProfileSharingSettingsSection = ({
     onResetTalentSettings,
   } = useCareerSidebarContext();
   const [blockedCompanyDraft, setBlockedCompanyDraft] = useState("");
+  const [profileVisibilitySavePending, setProfileVisibilitySavePending] =
+    useState(false);
 
   const isSavePending = settingsSaving;
   const hasUnsavedChanges = hasUnsavedTalentSettingsChanges;
@@ -101,6 +103,26 @@ export const CareerProfileSharingSettingsSection = ({
   const handleSave = async () => {
     if (!hasUnsavedTalentSettingsChanges) return;
     await onSaveTalentSettings();
+  };
+
+  const handleProfileVisibilitySelect = async (
+    value: CareerProfileVisibility
+  ) => {
+    if (
+      value === profileVisibility ||
+      settingsLoading ||
+      isSavePending ||
+      profileVisibilitySavePending
+    ) {
+      return;
+    }
+
+    setProfileVisibilitySavePending(true);
+    try {
+      await onProfileVisibilityChange(value);
+    } finally {
+      setProfileVisibilitySavePending(false);
+    }
   };
 
   const handleRefresh = () => {
@@ -136,7 +158,17 @@ export const CareerProfileSharingSettingsSection = ({
 
       <div>
         <CareerField
-          label="프로필 공개"
+          label={
+            <span className="inline-flex items-center gap-2">
+              <span>프로필 공개</span>
+              {profileVisibilitySavePending ? (
+                <Loader2
+                  className="h-3.5 w-3.5 animate-spin text-beige900/60"
+                  aria-label="프로필 공개 저장 중"
+                />
+              ) : null}
+            </span>
+          }
           hint="어떤 수준의 매칭에서 회사가 프로필을 볼 수 있는지 정합니다."
         >
           <div className="space-y-3">
@@ -148,8 +180,14 @@ export const CareerProfileSharingSettingsSection = ({
                   <button
                     key={option.value}
                     type="button"
-                    onClick={() => onProfileVisibilityChange(option.value)}
-                    disabled={settingsLoading || isSavePending}
+                    onClick={() =>
+                      void handleProfileVisibilitySelect(option.value)
+                    }
+                    disabled={
+                      settingsLoading ||
+                      isSavePending ||
+                      profileVisibilitySavePending
+                    }
                     className={[
                       "rounded-[8px] border px-4 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60",
                       isSelected
@@ -253,7 +291,7 @@ export const CareerProfileSharingSettingsSection = ({
         </div>
       )}
 
-      {hasUnsavedChanges && (
+      {hasUnsavedChanges && !profileVisibilitySavePending && (
         <div className="fixed bottom-4 right-4 flex justify-end gap-2">
           <CareerSecondaryButton
             onClick={handleRefresh}

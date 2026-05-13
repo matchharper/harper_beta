@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { User } from "@supabase/supabase-js";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   getTalentSupabaseAdmin,
@@ -24,6 +25,9 @@ import {
   buildOpportunityFeedbackNoteContent,
   TALENT_MESSAGE_TYPE_OPPORTUNITY_FEEDBACK_NOTE,
 } from "@/lib/career/opportunityFeedbackNote";
+import { notifySlackActivity } from "@/lib/slackActivity";
+
+const POSITION_TAB_INTERACTION_SOURCE = "position_tab";
 
 const parsePositiveIntegerParam = (
   value: string | null,
@@ -102,6 +106,74 @@ async function insertExternalOpportunityFeedbackNoteMessage(args: {
   return toTalentMessageResponse(data as TalentMessageRow);
 }
 
+function parseFeedbackReasonForSlack(value: string | null | undefined) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw) as {
+      customReason?: unknown;
+      selectedOptions?: unknown;
+    };
+    const selectedOptions = Array.isArray(parsed.selectedOptions)
+      ? parsed.selectedOptions
+          .map((item) => String(item ?? "").trim())
+          .filter(Boolean)
+      : [];
+    const customReason =
+      typeof parsed.customReason === "string" ? parsed.customReason.trim() : "";
+    return (
+      [...selectedOptions, customReason].filter(Boolean).join(" / ") || null
+    );
+  } catch {
+    return raw;
+  }
+}
+
+async function notifyInternalPositionDecisionSlack(args: {
+  decision: TalentOpportunityFeedback;
+  feedbackReason?: string | null;
+  interactionSource?: string | null;
+  opportunity?: TalentOpportunityHistoryItem | null;
+  user: User;
+}) {
+  if (args.interactionSource !== POSITION_TAB_INTERACTION_SOURCE) return;
+  if (!args.opportunity || args.opportunity.sourceType !== "internal") return;
+
+  const accepted = args.decision === "positive";
+  const decisionLabel = accepted ? "accepted" : "rejected";
+
+  try {
+    await notifySlackActivity({
+      action: `Internal position ${decisionLabel}`,
+      user: args.user,
+      userId: args.user.id,
+      details: [
+        { label: "Decision", value: accepted ? "수락" : "거절" },
+        { label: "Source", value: "Position tab" },
+        { label: "Company", value: args.opportunity.companyName },
+        { label: "Role", value: args.opportunity.title },
+        { label: "Opportunity Type", value: args.opportunity.opportunityType },
+        { label: "Location", value: args.opportunity.location },
+        { label: "Work Mode", value: args.opportunity.workMode },
+        {
+          label: "Feedback Reason",
+          value: parseFeedbackReasonForSlack(args.feedbackReason),
+        },
+        { label: "Role ID", value: args.opportunity.roleId },
+        { label: "Opportunity ID", value: args.opportunity.id },
+        { label: "User ID", value: args.user.id },
+      ],
+    });
+  } catch (error) {
+    console.error("[career-history:internal-position-slack]", {
+      error: error instanceof Error ? error.message : String(error),
+      opportunityId: args.opportunity.id,
+      userId: args.user.id,
+    });
+  }
+}
+
 export async function GET(req: NextRequest) {
   try {
     const user = await getRequestUser(req);
@@ -162,6 +234,7 @@ export async function PATCH(req: NextRequest) {
       feedback?: TalentOpportunityFeedback | null;
       feedbackReason?: string | null;
       conversationId?: string | null;
+      interactionSource?: string | null;
       opportunityId?: string;
       promptImmediately?: boolean;
       savedStage?: TalentOpportunitySavedStage | null;
@@ -301,6 +374,16 @@ export async function PATCH(req: NextRequest) {
           userId: user.id,
         });
       }
+    }
+
+    if (action === "feedback" && body.feedback) {
+      await notifyInternalPositionDecisionSlack({
+        decision: body.feedback,
+        feedbackReason: body.feedbackReason ?? null,
+        interactionSource: body.interactionSource ?? null,
+        opportunity: updatedOpportunity ?? null,
+        user,
+      });
     }
 
     return NextResponse.json({

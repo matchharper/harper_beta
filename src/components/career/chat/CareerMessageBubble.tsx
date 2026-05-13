@@ -4,13 +4,13 @@ import type { CareerMessage } from "@/components/career/types";
 import CareerRichText from "@/components/career/ui/CareerRichText";
 import { TALENT_MESSAGE_TYPE_OPPORTUNITY_FEEDBACK_NOTE } from "@/lib/career/opportunityFeedbackNote";
 import { stripStandalonePostingLinksFromText } from "@/lib/career/postingLinks";
+import { compactUrlLabel } from "@/lib/urlDisplay";
 
 // User bubble 색상을 바꾸려면 이 클래스를 수정하세요.
 export const USER_BUBBLE_CLASS =
-  "ml-auto max-w-[820px] rounded-[8px] bg-beige900 px-4 py-2 text-beige100";
+  "ml-auto max-w-[820px] rounded-[14px] bg-beige900 px-3 py-1.5 text-beige100";
 
 export const ASSISTANT_BUBBLE_CLASS = "w-fit max-w-[920px] text-beige900/90";
-// "w-fit max-w-[920px] rounded-[8px] bg-white px-3 py-2 text-beige900/80";
 
 const ASSISTANT_RICH_TEXT_CLASS =
   "text-[14px] leading-7 [&_blockquote]:text-[14px] [&_blockquote]:leading-7 [&_li]:leading-7 [&_ol]:text-[14px] [&_ol]:leading-7 [&_p]:text-[14px] [&_p]:leading-7 [&_pre]:text-[12px] [&_pre]:leading-5 [&_table]:text-[13px] [&_td]:text-[13px] [&_th]:text-[13px] [&_ul]:text-[14px] [&_ul]:leading-7";
@@ -51,9 +51,10 @@ function renderTextWithLinks(content: string, keyPrefix: string): ReactNode[] {
         href={href}
         target="_blank"
         rel="noreferrer"
+        title={href}
         className="underline underline-offset-2 transition-opacity hover:opacity-70"
       >
-        {href}
+        {compactUrlLabel(href)}
       </a>
     );
     lastIndex = matchIndex + href.length;

@@ -524,6 +524,7 @@ export function useCareerHistoryState(args: {
       opportunityId: string;
       promptImmediately?: boolean;
       savedStage?: CareerOpportunitySavedStage | null;
+      interactionSource?: "position_tab";
     }) => {
       const response = await fetchWithAuth("/api/talent/opportunities", {
         method: "PATCH",
@@ -556,6 +557,7 @@ export function useCareerHistoryState(args: {
       options?: {
         feedbackReason?: string | null;
         fallbackOpportunity?: CareerHistoryOpportunity;
+        interactionSource?: "position_tab";
         promptImmediately?: boolean;
         savedStage?: CareerOpportunitySavedStage | null;
       }
@@ -615,6 +617,7 @@ export function useCareerHistoryState(args: {
           conversationId,
           feedback,
           feedbackReason: options?.feedbackReason ?? null,
+          interactionSource: options?.interactionSource,
           opportunityId: normalizedOpportunityId,
           promptImmediately: options?.promptImmediately === true,
           savedStage: nextSavedStage,

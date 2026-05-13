@@ -12,7 +12,10 @@ import {
   Handshake,
   LoaderCircle,
   Phone,
+  ShieldAlert,
+  ShieldCheck,
   Upload,
+  type LucideIcon,
 } from "lucide-react";
 import {
   useCallback,
@@ -39,15 +42,86 @@ import { cn } from "@/lib/cn";
 import { useAuthStore } from "@/store/useAuthStore";
 import LoadingState from "../../components/career/OnboardingLoadingState";
 
-const TOTAL_STEPS = 4;
 const ONBOARDING_BACKGROUND_CLASS =
   "bg-[#F8F1EA] bg-[linear-gradient(to_top,#F1E1D7_0%,#F8F1EA_58%,#FEFBF6_100%)]";
-const ONBOARDING_STEP_TITLES = [
-  "기본 정보",
-  "찾는 역할",
-  "프로필 자료",
-  "공개 범위",
+
+type OnboardingStepDefinition = {
+  label: string;
+  title: string[];
+  description: string[];
+  headerClassName: string;
+  titleClassName: string;
+  descriptionClassName: string;
+  bodyClassName: string;
+  secondaryBodyClassName?: string;
+  footnoteClassName?: string;
+};
+
+const ONBOARDING_STEPS: OnboardingStepDefinition[] = [
+  {
+    label: "기본 정보",
+    title: [
+      "모든 스포츠 스타에게 에이전트가 있듯,",
+      "커리어에도 에이전트가 필요합니다.",
+    ],
+    description: [
+      "Harper가 에이전트/헤드헌터처럼 좋은 기회를 먼저 살펴보고 알려드릴 수 있도록,",
+      "이름과 연락처만 먼저 확인할게요.",
+    ],
+    headerClassName: "mx-auto max-w-[720px]",
+    titleClassName: "text-2xl font-medium leading-[1.25] md:text-3xl",
+    descriptionClassName:
+      "mt-4 text-base leading-7 text-beige900/65 md:text-lg",
+    bodyClassName: "mx-auto mt-4 grid w-full max-w-[520px] gap-3 text-left",
+  },
+  {
+    label: "찾는 역할",
+    title: ["어떤 형태의 기회에 열려계신가요?"],
+    description: [
+      "풀타임 합류부터 현업과 병행하는 파트타임, 어드바이저 역할까지 관심 있는 것만 선택해주세요.",
+      "Harper가 24/7 쉬지않고 찾아드릴게요.",
+    ],
+    headerClassName: "mx-auto max-w-[720px]",
+    titleClassName: "text-2xl font-medium leading-[1.25] md:text-3xl",
+    descriptionClassName:
+      "mt-3 text-base leading-7 text-beige900/60 md:text-lg",
+    bodyClassName:
+      "mx-auto mt-5 grid w-full max-w-[860px] gap-3 md:grid-cols-3",
+  },
+  {
+    label: "프로필 자료",
+    title: ["가장 잘 보여주는 자료를 연결해주세요."],
+    description: [
+      "이력서나 LinkedIn 중 하나면 충분합니다.",
+      "GitHub, Scholar, 개인 사이트는 더 정확한 판단을 위한 보조 자료로 추가할 수 있습니다.",
+    ],
+    headerClassName: "mx-auto max-w-[720px]",
+    titleClassName: "text-2xl font-medium leading-[1.25] md:text-3xl",
+    descriptionClassName:
+      "mt-3 text-base leading-7 text-beige900/60 md:text-lg",
+    bodyClassName:
+      "mx-auto mt-3 flex max-w-[760px] flex-wrap justify-center gap-2",
+    secondaryBodyClassName:
+      "mx-auto mt-5 flex w-full max-w-[700px] flex-col gap-4 text-left",
+  },
+  {
+    label: "공개 범위",
+    title: ["회사에 프로필을 언제 공개할까요?"],
+    description: [
+      "공개 범위를 정해주세요. 대화 내용과 선택한 옵션은 회사에 공개되지 않습니다.",
+    ],
+    headerClassName: "mx-auto max-w-[720px]",
+    titleClassName: "text-2xl font-medium leading-[1.25] md:text-3xl",
+    descriptionClassName:
+      "mt-3 text-base leading-7 text-beige900/60 md:text-lg",
+    bodyClassName:
+      "mx-auto mt-5 grid w-full max-w-[760px] gap-3 text-left md:grid-cols-2",
+    footnoteClassName:
+      "mx-auto mt-2 max-w-[680px] text-[13px] leading-5 text-beige900/70",
+  },
 ];
+
+const TOTAL_STEPS = ONBOARDING_STEPS.length;
 
 const normalizeLink = (value: string) => {
   const trimmed = value.trim();
@@ -148,12 +222,12 @@ const ONBOARDING_ENGAGEMENT_COPY: Record<
     description: "기술 자문, 초기 팀 멘토링, 전략 검토 중심",
   },
   fractional: {
-    label: "파트타임·프로젝트",
-    description: "현업과 병행하며 깊게 기여하는 역할",
+    label: "파트타임 · 단기 프로젝트",
+    description: "현업과 병행하며<br />부가적인 수입을 얻고싶다면",
   },
   full_time: {
     label: "풀타임 합류",
-    description: "핵심 멤버로 검토할 만한 정규 포지션",
+    description: "정말 좋은 기회인 경우,<br />이직/취직에도 열려있다면",
   },
 };
 
@@ -221,7 +295,7 @@ const ProgressBar = ({ step }: { step: number }) => {
   const value = Math.min((step + 1) / TOTAL_STEPS, 1) * 100;
 
   return (
-    <div className="fixed left-0 top-0 z-30 h-2 w-full bg-beige500">
+    <div className="fixed left-0 top-0 z-30 h-1 w-full bg-beige500">
       <motion.div
         initial={{ width: 0 }}
         animate={{ width: `${value}%` }}
@@ -231,6 +305,29 @@ const ProgressBar = ({ step }: { step: number }) => {
     </div>
   );
 };
+
+const OnboardingStepHeader = ({
+  stepDefinition,
+}: {
+  stepDefinition: OnboardingStepDefinition;
+}) => (
+  <header className={stepDefinition.headerClassName}>
+    <h1 className={stepDefinition.titleClassName}>
+      {stepDefinition.title.map((line, index) => (
+        <span key={`${index}-${line}`} className="block">
+          {line}
+        </span>
+      ))}
+    </h1>
+    <p className={stepDefinition.descriptionClassName}>
+      {stepDefinition.description.map((line, index) => (
+        <span key={`${index}-${line}`} className="block">
+          {line}
+        </span>
+      ))}
+    </p>
+  </header>
+);
 
 const OnboardingFieldLabel = ({ children }: { children: ReactNode }) => (
   <label className="text-sm font-medium text-beige900/60">{children}</label>
@@ -345,12 +442,14 @@ const ProfileIconMask = ({
 const SelectionCardButton = ({
   active,
   description,
+  Icon,
   label,
   optionNumber,
   onClick,
 }: {
   active: boolean;
   description?: string;
+  Icon?: LucideIcon;
   label: string;
   optionNumber: number;
   onClick: () => void;
@@ -359,9 +458,9 @@ const SelectionCardButton = ({
     type="button"
     onClick={onClick}
     className={cn(
-      "flex min-h-[74px] w-full flex-col items-start justify-start rounded-md border-2 px-3 py-2.5 text-left transition duration-300",
+      "flex min-h-[74px] w-full flex-col items-start justify-start rounded-md border-2 px-3 py-4 text-left transition duration-300",
       active
-        ? "border-xprimary bg-[#FFF3E8] text-beige900 shadow-[0_14px_30px_rgba(211,84,0,0.12)]"
+        ? "border-xprimary bg-[#FFF3E8] text-beige900"
         : "border-beige900/10 bg-beige100 text-beige900 hover:border-xprimary/50 hover:bg-beige500/50"
     )}
   >
@@ -377,12 +476,24 @@ const SelectionCardButton = ({
         {optionNumber}
       </span>
       <span className="flex min-w-0 flex-col">
-        <span className="text-base font-normal">{label}</span>
-        {description ? (
+        <span className="flex flex-row items-center gap-2 text-[15px] font-medium">
+          {Icon && (
+            <span
+              className={cn(
+                "flex shrink-0 items-center justify-center transition-colors text-xprimary text-beige900/45"
+              )}
+              aria-hidden="true"
+            >
+              <Icon className="h-4 w-4" strokeWidth={1.7} />
+            </span>
+          )}
+          {label}
+        </span>
+        {description && (
           <span className="mt-1 text-sm leading-5 text-beige900/60">
             {description}
           </span>
-        ) : null}
+        )}
       </span>
     </span>
   </button>
@@ -395,20 +506,17 @@ const EngagementOptionIcon = ({
   active: boolean;
   id: TalentNetworkEngagementOptionId;
 }) => {
-  const className = cn(
-    "h-7 w-7 transition-colors",
-    active ? "text-white" : "text-xprimary"
-  );
+  const className = cn("h-6 w-6 transition-colors text-xprimary");
 
   if (id === "full_time") {
-    return <BriefcaseBusiness className={className} strokeWidth={1.7} />;
+    return <BriefcaseBusiness className={className} strokeWidth={1.5} />;
   }
 
   if (id === "fractional") {
-    return <Clock3 className={className} strokeWidth={1.7} />;
+    return <Clock3 className={className} strokeWidth={1.5} />;
   }
 
-  return <Handshake className={className} strokeWidth={1.7} />;
+  return <Handshake className={className} strokeWidth={1.5} />;
 };
 
 const EngagementCardButton = ({
@@ -432,30 +540,27 @@ const EngagementCardButton = ({
     className={cn(
       "flex min-h-[168px] w-full flex-col items-center justify-center rounded-[8px] border-2 px-5 py-5 text-center transition duration-300",
       active
-        ? "border-xprimary bg-[#FFF3E8] text-beige900 shadow-[0_18px_38px_rgba(211,84,0,0.16)]"
-        : "border-beige900/10 bg-beige100/90 text-beige900 hover:border-xprimary/55 hover:bg-white/80"
+        ? "border-xprimary bg-[#FFF3E8] text-beige900"
+        : "border-beige900/10 bg-beige100/90 text-beige900 hover:border-xprimary/55"
     )}
   >
     <span
       className={cn(
-        "flex h-14 w-14 items-center justify-center rounded-[8px] border transition-colors",
-        active
-          ? "border-xprimary bg-xprimary"
-          : "border-xprimary/20 bg-white/75"
+        "flex h-14 w-14 items-center justify-center rounded-[8px] transition-colors"
       )}
       aria-hidden="true"
     >
       <EngagementOptionIcon active={active} id={id} />
     </span>
-    <span className="mt-4 text-[11px] font-medium text-beige900/45">
-      {optionNumber}
-    </span>
-    <span className="mt-1 text-[17px] font-medium leading-6">{label}</span>
-    {description ? (
-      <span className="mt-2 min-h-10 text-sm leading-5 text-beige900/60">
-        {description}
-      </span>
-    ) : null}
+    <div className="mt-0 flex flex-row items-center gap-2">
+      <span className="text-[15px] leading-6">{label}</span>
+    </div>
+    {description && (
+      <span
+        className="mt-2 min-h-10 text-[13px] leading-5 text-beige900/60"
+        dangerouslySetInnerHTML={{ __html: description }}
+      />
+    )}
   </button>
 );
 
@@ -469,19 +574,23 @@ const ONBOARDING_PROFILE_VISIBILITY_OPTIONS: Array<{
   label: string;
   description: string;
   sub: string;
+  Icon: LucideIcon;
 }> = [
   {
     id: "open_to_matches",
-    label: "먼저 공유해도 좋아요",
+    label: "Open to matches",
     description:
-      "강하게 맞는 포지션이면 회사에 프로필을 먼저 공유하고, 구체적인 제안을 받은 뒤 판단합니다.",
-    sub: "매칭에 필요한 프로필 정보만 공유됩니다. 대화 내용과 선택한 공개 옵션은 회사에 전달되지 않습니다.",
+      "Harper가 회원님이 선호하실만한 포지션이라고 판단하면 회사에 익명 프로필을 먼저 공유하고, 제안을 먼저 받으실 수 있게 합니다.",
+    sub: "매칭에 필요한 프로필 정보만 공유됩니다. 공개하지 않을 회사를 설정할 수 있어요.",
+    Icon: ShieldCheck,
   },
   {
     id: "exceptional_only",
-    label: "확인 후 공유할게요",
-    description: "기회와 회사를 확인하고 허용한 경우에만 프로필이 공유됩니다.",
-    sub: "기회를 먼저 확인한 뒤 직접 허용하는 방식입니다. 기본적으로 회사에는 프로필이 보이지 않습니다.",
+    label: "Exceptional only",
+    description:
+      "Harper가 제안한 역할과 회사를 확인하고 허용한 경우에만 프로필이 공유됩니다.",
+    sub: "기회를 먼저 확인한 뒤 직접 허용하는 방식입니다. 기본적으로 회사에는 프로필이 공유되지 않습니다.",
+    Icon: ShieldAlert,
   },
 ];
 
@@ -576,7 +685,7 @@ const DoneState = ({
           transition={{ delay: 0.12, duration: 0.45, ease: "easeOut" }}
           className="flex justify-end"
         >
-          <p className="max-w-[520px] text-right text-[13px] leading-7 text-beige900/42 md:text-[15px]">
+          <p className="max-w-[520px] px-3 py-2 rounded-xl bg-beige50 text-right text-[13px] leading-7 text-beige900/42 md:text-[15px]">
             {userMessage || DEFAULT_DONE_USER_MESSAGE}
           </p>
         </motion.div>
@@ -593,9 +702,9 @@ const DoneState = ({
               return (
                 <p key={`${index}-${paragraph.slice(0, 10)}`}>
                   {paragraph}
-                  {isLast && !isStreamComplete ? (
+                  {isLast && !isStreamComplete && (
                     <span className="ml-1 inline-block h-4 w-[1px] translate-y-0.5 animate-pulse bg-beige900/55" />
-                  ) : null}
+                  )}
                 </p>
               );
             })}
@@ -603,7 +712,7 @@ const DoneState = ({
         </motion.div>
 
         <AnimatePresence>
-          {isStreamComplete ? (
+          {isStreamComplete && (
             <motion.div
               key="done-actions"
               initial={{ opacity: 0, y: 18, filter: "blur(6px)" }}
@@ -622,7 +731,7 @@ const DoneState = ({
                   animate
                   className="w-full sm:w-auto"
                 >
-                  5분 커리어 인터뷰 시작하기
+                  Harper와 통화하기 (5분)
                 </BeigeButton>
                 <BeigeButton
                   type="button"
@@ -641,7 +750,7 @@ const DoneState = ({
                 알려주실수록 연결이 더 정확해집니다.
               </p>
             </motion.div>
-          ) : null}
+          )}
         </AnimatePresence>
       </div>
     </div>
@@ -1115,9 +1224,9 @@ const CareerNetworkOnboardingContent = () => {
     }),
   };
 
-  const stepLabel = `Step ${step + 1} / ${TOTAL_STEPS} · ${
-    ONBOARDING_STEP_TITLES[step] ?? ""
-  }`;
+  const currentStepDefinition =
+    ONBOARDING_STEPS[step] ?? ONBOARDING_STEPS[0];
+  const stepLabel = `Step ${step + 1} / ${TOTAL_STEPS} · ${currentStepDefinition.label}`;
   const selectedVisibilityOption =
     ONBOARDING_PROFILE_VISIBILITY_OPTIONS.find(
       (option) => option.id === profileVisibility
@@ -1171,9 +1280,11 @@ const CareerNetworkOnboardingContent = () => {
           }
         />
 
-        {submitState === "loading" ? (
+        {submitState === "loading" && (
           <LoadingState />
-        ) : submitState === "done" ? (
+        )}
+
+        {submitState === "done" && (
           <DoneState
             kickoffText={doneKickoffText}
             onStartCall={() => navigateToCareerStart("call")}
@@ -1181,7 +1292,9 @@ const CareerNetworkOnboardingContent = () => {
             selectedEngagements={selectedEngagements}
             userMessage={doneUserMessage}
           />
-        ) : (
+        )}
+
+        {submitState === "form" && (
           <div className="mx-auto flex min-h-[calc(100dvh-8px)] w-full max-w-[960px] flex-col items-center px-4 py-8 md:justify-center md:px-6 md:py-12">
             <section className="flex w-full flex-col items-center text-center">
               <div className="mb-6 text-center text-[11px] font-medium text-xprimary">
@@ -1199,94 +1312,60 @@ const CareerNetworkOnboardingContent = () => {
                   transition={{ duration: 0.3, ease: "easeInOut" }}
                   className="flex w-full flex-col items-center gap-5"
                 >
-                  {step === 0 ? (
-                    <>
-                      <header className="mx-auto max-w-[720px]">
-                        <h1 className="text-2xl font-medium leading-[1.25] md:text-3xl">
-                          스포츠 스타에게 에이전트가 있듯,
-                          <br />
-                          커리어에도 에이전트가 필요합니다.
-                        </h1>
-                        <p className="mt-4 text-base leading-7 text-beige900/65 md:text-lg">
-                          Harper가 에이전트/헤드헌터처럼 맞는 기회를 먼저
-                          살펴보고 연결할 수 있도록,
-                          <br />
-                          이름과 연락처만 먼저 확인할게요.
-                        </p>
-                      </header>
-                      <div className="mx-auto mt-6 grid w-full max-w-[520px] gap-5 text-left">
-                        <div className="space-y-2">
-                          <OnboardingFieldLabel>이름</OnboardingFieldLabel>
-                          <BeigeInput
-                            autoFocus
-                            value={name}
-                            onChange={(event) => setName(event.target.value)}
-                            placeholder="이름"
-                            className="h-12 text-base"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <OnboardingFieldLabel>이메일</OnboardingFieldLabel>
-                          <BeigeInput
-                            type="email"
-                            value={email}
-                            onChange={(event) => setEmail(event.target.value)}
-                            placeholder="email@example.com"
-                            className="h-12 text-base"
-                          />
-                        </div>
+                  <OnboardingStepHeader
+                    stepDefinition={currentStepDefinition}
+                  />
+
+                  {step === 0 && (
+                    <div className={currentStepDefinition.bodyClassName}>
+                      <div className="space-y-1">
+                        <OnboardingFieldLabel>이름</OnboardingFieldLabel>
+                        <BeigeInput
+                          autoFocus
+                          value={name}
+                          onChange={(event) => setName(event.target.value)}
+                          placeholder="이름"
+                          className="h-12 text-base"
+                        />
                       </div>
-                    </>
-                  ) : null}
-
-                  {step === 1 ? (
-                    <>
-                      <header className="mx-auto max-w-[720px]">
-                        <h1 className="text-2xl font-medium leading-[1.25] md:text-3xl">
-                          어떤 형태의 기회를 열어둘까요?
-                        </h1>
-                        <p className="mt-3 text-base leading-7 text-beige900/60 md:text-lg">
-                          풀타임 합류부터 현업과 병행하는 파트타임, 어드바이저
-                          역할까지 관심 있는 것만 선택해주세요.
-                        </p>
-                      </header>
-                      <div className="mx-auto mt-5 grid w-full max-w-[860px] gap-3 md:grid-cols-3">
-                        {TALENT_NETWORK_ENGAGEMENT_OPTIONS.map(
-                          (option, index) => {
-                            const copy = ONBOARDING_ENGAGEMENT_COPY[option.id];
-
-                            return (
-                              <EngagementCardButton
-                                key={option.id}
-                                id={option.id}
-                                optionNumber={index + 1}
-                                label={copy.label}
-                                description={copy.description}
-                                active={selectedEngagements.includes(option.id)}
-                                onClick={() =>
-                                  handleEngagementToggle(option.id)
-                                }
-                              />
-                            );
-                          }
-                        )}
+                      <div className="space-y-1">
+                        <OnboardingFieldLabel>이메일</OnboardingFieldLabel>
+                        <BeigeInput
+                          type="email"
+                          value={email}
+                          onChange={(event) => setEmail(event.target.value)}
+                          placeholder="email@example.com"
+                          className="h-12 text-base"
+                        />
                       </div>
-                    </>
-                  ) : null}
+                    </div>
+                  )}
 
-                  {step === 2 ? (
+                  {step === 1 && (
+                    <div className={currentStepDefinition.bodyClassName}>
+                      {TALENT_NETWORK_ENGAGEMENT_OPTIONS.map(
+                        (option, index) => {
+                          const copy = ONBOARDING_ENGAGEMENT_COPY[option.id];
+
+                          return (
+                            <EngagementCardButton
+                              key={option.id}
+                              id={option.id}
+                              optionNumber={index + 1}
+                              label={copy.label}
+                              description={copy.description}
+                              active={selectedEngagements.includes(option.id)}
+                              onClick={() => handleEngagementToggle(option.id)}
+                            />
+                          );
+                        }
+                      )}
+                    </div>
+                  )}
+
+                  {step === 2 && (
                     <>
-                      <header className="mx-auto max-w-[720px]">
-                        <h1 className="text-2xl font-medium leading-[1.25] md:text-3xl">
-                          가장 잘 보여주는 자료를 연결해주세요.
-                        </h1>
-                        <p className="mt-3 text-base leading-7 text-beige900/60 md:text-lg">
-                          이력서나 LinkedIn 중 하나면 충분합니다. GitHub,
-                          Scholar, 개인 사이트는 더 정확한 판단을 위한 보조
-                          자료로 추가할 수 있습니다.
-                        </p>
-                      </header>
-                      <div className="mx-auto mt-3 flex max-w-[760px] flex-wrap justify-center gap-2">
+                      <div className={currentStepDefinition.bodyClassName}>
                         {TALENT_NETWORK_PROFILE_INPUT_OPTIONS.map((option) => (
                           <ProfileInputToggle
                             key={option.id}
@@ -1297,8 +1376,10 @@ const CareerNetworkOnboardingContent = () => {
                           />
                         ))}
                       </div>
-                      <div className="mx-auto mt-5 flex w-full max-w-[700px] flex-col gap-4 text-left">
-                        {selectedProfileInputs.includes("linkedin") ? (
+                      <div
+                        className={currentStepDefinition.secondaryBodyClassName}
+                      >
+                        {selectedProfileInputs.includes("linkedin") && (
                           <BeigeLinkInput
                             label="LinkedIn"
                             placeholder="https://linkedin.com/in/..."
@@ -1307,60 +1388,52 @@ const CareerNetworkOnboardingContent = () => {
                               setLinkedin(event.target.value)
                             }
                           />
-                        ) : null}
-                        {selectedProfileInputs.includes("github") ? (
+                        )}
+                        {selectedProfileInputs.includes("github") && (
                           <BeigeLinkInput
                             label="GitHub / Hugging Face"
                             placeholder="https://github.com/..."
                             value={github}
                             onChange={(event) => setGithub(event.target.value)}
                           />
-                        ) : null}
-                        {selectedProfileInputs.includes("scholar") ? (
+                        )}
+                        {selectedProfileInputs.includes("scholar") && (
                           <BeigeLinkInput
                             label="Google Scholar"
                             placeholder="https://scholar.google.com/..."
                             value={scholar}
                             onChange={(event) => setScholar(event.target.value)}
                           />
-                        ) : null}
-                        {selectedProfileInputs.includes("website") ? (
+                        )}
+                        {selectedProfileInputs.includes("website") && (
                           <BeigeLinkInput
                             label="개인 페이지"
                             placeholder="https://..."
                             value={website}
                             onChange={(event) => setWebsite(event.target.value)}
                           />
-                        ) : null}
-                        {selectedProfileInputs.includes("cv") ? (
+                        )}
+                        {selectedProfileInputs.includes("cv") && (
                           <ResumeUploadInput
                             fileName={resumeFile?.name ?? ""}
                             onChange={(event) =>
                               setResumeFile(event.target.files?.[0] ?? null)
                             }
                           />
-                        ) : null}
+                        )}
                       </div>
                     </>
-                  ) : null}
+                  )}
 
-                  {step === 3 ? (
+                  {step === 3 && (
                     <>
-                      <header className="mx-auto max-w-[720px]">
-                        <h1 className="text-2xl font-medium leading-[1.25] md:text-3xl">
-                          회사에 프로필을 언제 공개할까요?
-                        </h1>
-                        <p className="mt-3 text-base leading-7 text-beige900/60 md:text-lg">
-                          공개 범위를 정해주세요. 대화 내용과 선택한 옵션은
-                          회사에 공개되지 않습니다.
-                        </p>
-                      </header>
-                      <div className="mx-auto mt-5 grid w-full max-w-[760px] gap-3 text-left md:grid-cols-2">
+                      <div className={currentStepDefinition.bodyClassName}>
                         {ONBOARDING_PROFILE_VISIBILITY_OPTIONS.map(
                           (option, index) => (
                             <SelectionCardButton
                               key={option.id}
                               optionNumber={index + 1}
+                              Icon={option.Icon}
                               label={option.label}
                               description={option.description}
                               active={profileVisibility === option.id}
@@ -1369,38 +1442,38 @@ const CareerNetworkOnboardingContent = () => {
                           )
                         )}
                       </div>
-                      <p className="mx-auto mt-2 max-w-[680px] text-[13px] leading-5 text-beige900/70">
+                      <p className={currentStepDefinition.footnoteClassName}>
                         {selectedVisibilityOption.sub}
                       </p>
                     </>
-                  ) : null}
+                  )}
                 </motion.div>
               </AnimatePresence>
 
-              {submitError ? (
+              {submitError && (
                 <p className="mx-auto mt-5 w-full max-w-[680px] border border-xprimary/30 bg-white/45 px-3 py-2 text-left text-sm leading-6 text-xprimary">
                   {submitError}
                 </p>
-              ) : null}
+              )}
 
               <div className="mt-8 flex w-full flex-col-reverse items-stretch justify-center gap-3 sm:w-auto sm:flex-row sm:items-center">
-                {step > 0 ? (
+                {step > 0 && (
                   <BeigeButton
                     type="button"
                     variant="outline"
                     size="lg"
                     onClick={handlePrev}
-                    className="w-full sm:w-auto"
+                    className="font-normal w-full sm:w-auto"
                   >
                     이전
                   </BeigeButton>
-                ) : null}
+                )}
                 <BeigeButton
                   type="button"
                   variant="primary"
                   size="lg"
                   onClick={handleNext}
-                  className="w-full sm:w-auto"
+                  className="font-normal min-w-[76px] w-full sm:w-auto"
                 >
                   {step === TOTAL_STEPS - 1 ? (
                     <>

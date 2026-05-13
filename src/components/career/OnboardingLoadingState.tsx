@@ -9,7 +9,7 @@ const steps = [
   {
     icon: Linkedin,
     title: "프로필을 읽고 있어요",
-    description: "LinkedIn과 이력서에서 경력 흐름을 확인하고 있습니다.",
+    description: "LinkedIn과 이력서에서 프로필을 확인하고 있습니다.",
   },
   {
     icon: FileText,
@@ -19,7 +19,8 @@ const steps = [
   {
     icon: Search,
     title: "선호 조건을 해석하고 있어요",
-    description: "원하는 회사 조건과 잘 맞는 기회 기준을 만들고 있습니다.",
+    description:
+      "원하는 회사 조건과 찾아올 기회 기준을 만들고 있습니다. 다녔던 회사는 차단 목록에 넣어둘게요.",
   },
   {
     icon: Check,

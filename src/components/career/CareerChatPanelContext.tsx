@@ -77,6 +77,7 @@ export type CareerChatPanelContextValue = {
     options?: {
       feedbackReason?: string | null;
       fallbackOpportunity?: CareerHistoryOpportunity;
+      interactionSource?: "position_tab";
       promptImmediately?: boolean;
       savedStage?: CareerOpportunitySavedStage | null;
     }

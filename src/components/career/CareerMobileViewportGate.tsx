@@ -80,11 +80,11 @@ export const CareerMobileBlocker = ({
         <Image
           src="/svgs/harper-h-mark.svg"
           alt="Harper"
-          width={82}
-          height={82}
-          className="h-[82px] w-[82px]"
+          width={72}
+          height={72}
+          className="h-[72px] w-[72px]"
         />
-        <h1 className="font-instrument text-[36px] font-normal leading-[1.08] text-beige900 sm:text-[42px]">
+        <h1 className="font-instrument text-[24px] font-normal leading-[1.08] text-beige900 sm:text-[32px]">
           {headline}
         </h1>
 
@@ -93,11 +93,9 @@ export const CareerMobileBlocker = ({
             Harper는 대화하면서 동시에 연결된 기회, 프로필을 같이 보여드려요. 한
             화면에 다 보여야 도움이 되는데, 지금 화면이 좀 좁아요.
           </p>
-          <p>
-            데스크탑이나 큰 화면에서 다시 들어오시면 정확히 이어서 진행돼요.
-          </p>
+          <p>데스크탑이나 큰 화면에서 들어오시면 이어서 진행됩니다.</p>
           {supplementalLine ? <p>{supplementalLine}</p> : null}
-          <p className="pt-1 text-beige900">— Harper</p>
+          <p className="pt-1 font-medium text-beige900">Harper</p>
         </div>
       </section>
     </main>

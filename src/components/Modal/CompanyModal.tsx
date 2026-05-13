@@ -12,6 +12,8 @@ export default function CompanyModalRoot() {
   const { isOpen, payload, close } = useCompanyModalStore();
   const company = payload?.company;
   const closeOnBackdrop = payload?.closeOnBackdrop ?? true;
+  const tone = payload?.tone ?? "default";
+  const isCareerTone = tone === "career";
   const { m } = useMessages();
   const requestClose = useCallback(() => {
     if (
@@ -193,6 +195,32 @@ export default function CompanyModalRoot() {
     () => toStringArray(crunchbaseTaxonomy.location_groups).slice(0, 12),
     [crunchbaseTaxonomy.location_groups]
   );
+  const drawerClassName = [
+    "absolute right-0 top-0 h-full px-8 overflow-y-scroll pb-20",
+    "w-[min(560px,92vw)]",
+    isCareerTone ? "bg-[#fffdf8] text-beige900" : "bg-beige50 text-beige900",
+    "shadow-2xl",
+    isCareerTone ? "border-l border-xprimary/20" : "border-l border-beige900/8",
+  ].join(" ");
+  const closeButtonClassName = [
+    "rounded-sm bg-transparent px-1 py-1 text-sm cursor-pointer",
+    isCareerTone
+      ? "text-beige900/70 hover:bg-xprimary/10 hover:text-beige900"
+      : "hover:bg-beige50/80",
+  ].join(" ");
+  const accentLabelClassName = isCareerTone
+    ? "text-xprimary text-sm"
+    : "text-accentBronze text-sm";
+  const detailPanelClassName = [
+    "px-4 text-sm flex flex-col gap-4 py-4 rounded-lg",
+    isCareerTone ? "border border-xprimary/10 bg-white/70" : "bg-beige100",
+  ].join(" ");
+  const tagClassName = [
+    "rounded-md px-3 py-2 text-xs",
+    isCareerTone
+      ? "border border-xprimary/10 bg-white/70 text-beige900/75"
+      : "bg-beige500/55",
+  ].join(" ");
 
   return (
     <AnimatePresence>
@@ -221,13 +249,7 @@ export default function CompanyModalRoot() {
           <motion.aside
             role="dialog"
             aria-modal="true"
-            className={[
-              "absolute right-0 top-0 h-full px-8 overflow-y-scroll pb-20",
-              "w-[min(560px,92vw)]",
-              "bg-beige50 text-beige900",
-              "shadow-2xl",
-              "border-l border-beige900/8",
-            ].join(" ")}
+            className={drawerClassName}
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
@@ -237,7 +259,7 @@ export default function CompanyModalRoot() {
               <button
                 type="button"
                 onClick={requestClose}
-                className="rounded-sm bg-transparent px-1 py-1 text-sm hover:bg-beige50/80 cursor-pointer"
+                className={closeButtonClassName}
               >
                 <XIcon className="w-6 h-6" strokeWidth={1} />
               </button>
@@ -266,14 +288,14 @@ export default function CompanyModalRoot() {
             <div className="flex flex-col gap-8">
               {company.short_description && (
                 <div>
-                  <div className="text-accentBronze text-sm">한 줄 설명</div>
+                  <div className={accentLabelClassName}>한 줄 설명</div>
                   <div className="mt-2 text-base text-beige900">
                     {company.short_description}
                   </div>
                 </div>
               )}
               <Section title={`${company.name} 정보`}>
-                <div className="px-4 text-sm flex flex-col gap-4 bg-beige100 py-4 rounded-lg">
+                <div className={detailPanelClassName}>
                   <ColRow
                     label="본사 위치"
                     // label={m.company.hq}
@@ -292,10 +314,7 @@ export default function CompanyModalRoot() {
               <Section title={`전문 분야`}>
                 <div className="flex flex-wrap gap-2">
                   {tags.map((t) => (
-                    <span
-                      key={t}
-                      className="rounded-md bg-beige500/55 px-3 py-2 text-xs"
-                    >
+                    <span key={t} className={tagClassName}>
                       {t}
                     </span>
                   ))}
@@ -417,10 +436,7 @@ export default function CompanyModalRoot() {
                   <Section title={m.company.investors}>
                     <div className="flex flex-wrap gap-2">
                       {company.investors.split(",").map((i: string) => (
-                        <span
-                          key={i}
-                          className="rounded-md bg-beige500/55 px-3 py-2 text-xs"
-                        >
+                        <span key={i} className={tagClassName}>
                           {i}
                         </span>
                       ))}
@@ -430,7 +446,7 @@ export default function CompanyModalRoot() {
 
                 {company.related_links && (
                   <Section title={m.company.news}>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-col gap-3">
                       {company.related_links.map((l: string) => (
                         <LinkPreview key={l} url={l} />
                       ))}

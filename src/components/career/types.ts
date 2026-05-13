@@ -150,6 +150,7 @@ export type CareerPreferenceFitItem = {
 export type CareerHistoryOpportunity = {
   clickedAt: string | null;
   companyDescription: string | null;
+  companyDbId?: number | null;
   companyHomepageUrl: string | null;
   companyLinkedinUrl: string | null;
   companyLogoUrl: string | null;
