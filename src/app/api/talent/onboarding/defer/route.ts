@@ -272,6 +272,7 @@ export async function POST(req: NextRequest) {
       conversationId,
       currentInsightContent,
       logPrefix: "TalentOnboardingDefer",
+      sourceChannel: "text_chat",
       userId: user.id,
     });
 

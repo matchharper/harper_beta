@@ -4,7 +4,10 @@ import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelCo
 import { Tooltips } from "@/components/ui/tooltip";
 import { careerCx } from "@/components/career/ui/CareerPrimitives";
 import { useCareerVoiceInputStore } from "@/store/useCareerVoiceInputStore";
-import type { CallTranscriptEntry } from "../types";
+import type {
+  CallLiveTranscriptPlacement,
+  CallTranscriptEntry,
+} from "../types";
 import CareerCallEnvironmentNotice from "./CareerCallEnvironmentNotice";
 
 /* ─── Waveform Dots ─── */
@@ -71,9 +74,11 @@ const useCallTimer = (started: boolean) => {
 const TranscriptOverlay = memo(
   ({
     entries,
+    liveUserTranscriptPlacement = "beforeCurrentAssistant",
     currentUserTranscript,
   }: {
     entries: CallTranscriptEntry[];
+    liveUserTranscriptPlacement?: CallLiveTranscriptPlacement;
     currentUserTranscript?: string;
   }) => {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -82,17 +87,20 @@ const TranscriptOverlay = memo(
       (entry) => entry.role === "user" && entry.text.trim() === liveUserText
     );
     const lastEntry = entries[entries.length - 1];
-    const liveUserEntry =
-      liveUserText && !hasSameUserEntry
-        ? ({
-            role: "user",
-            text: liveUserText,
-            timestamp: "live",
-            isLive: true,
-          } as CallTranscriptEntry & { isLive: boolean })
-        : null;
+    const shouldShowLiveUserEntry = Boolean(liveUserText) && !hasSameUserEntry;
+    const liveUserEntry = shouldShowLiveUserEntry
+      ? ({
+          role: "user",
+          text: liveUserText,
+          timestamp: "live",
+          isLive: true,
+        } as CallTranscriptEntry & { isLive: boolean })
+      : null;
+    const shouldPlaceLiveUserBeforeCurrentAssistant =
+      liveUserTranscriptPlacement === "beforeCurrentAssistant" &&
+      lastEntry?.role === "assistant";
     const displayEntries = liveUserEntry
-      ? lastEntry?.role === "assistant"
+      ? shouldPlaceLiveUserBeforeCurrentAssistant
         ? [...entries.slice(0, -1), liveUserEntry, lastEntry]
         : [...entries, liveUserEntry]
       : entries;
@@ -128,20 +136,25 @@ const TranscriptOverlay = memo(
             </p>
           ) : (
             <div className="flex flex-col gap-2">
-              {displayEntries.map((entry, i) => (
-                <div
-                  key={`${entry.timestamp}-${entry.role}-${i}`}
-                  className={careerCx(
-                    "max-w-[80%] rounded-[8px] px-3 py-2 text-sm",
-                    entry.role === "user"
-                      ? "ml-auto bg-[#e87c3e]/85 text-white"
-                      : "mr-auto bg-beige900/5 text-beige900/80",
-                    "isLive" in entry && entry.isLive ? "opacity-75" : null
-                  )}
-                >
-                  {entry.text}
-                </div>
-              ))}
+              {displayEntries.map((entry, i) => {
+                const isLiveUserEntry =
+                  "isLive" in entry && entry.isLive && entry.role === "user";
+
+                return (
+                  <div
+                    key={`${entry.timestamp}-${entry.role}-${i}`}
+                    className={careerCx(
+                      "max-w-[80%] rounded-[8px] px-3 py-2 text-sm",
+                      entry.role === "user"
+                        ? "ml-auto bg-[#e87c3e]/85 text-white"
+                        : "mr-auto bg-beige900/5 text-beige900/80",
+                      isLiveUserEntry ? "opacity-80" : null
+                    )}
+                  >
+                    {entry.text}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -166,6 +179,7 @@ const CareerCallScreen = ({
   const {
     voiceMuted,
     voiceTranscript,
+    liveUserTranscriptPlacement,
     isOnboardingDone,
     forceCompletePending = false,
     interviewProgress,
@@ -276,6 +290,7 @@ const CareerCallScreen = ({
         <span className="mt-4 text-sm tabular-nums text-beige900/50">
           {timer}
         </span>
+
         {/* Speaking / Listening status */}
         <span
           className={`mt-3 rounded-full px-3 py-1 text-xs font-medium ${
@@ -286,6 +301,7 @@ const CareerCallScreen = ({
         >
           {isAssistantSpeaking ? "Speaking" : "Listening"}
         </span>
+
         {showInterviewCallProgress ? (
           <div className="mt-4 w-full max-w-[360px] min-w-[360px] rounded-[12px] border border-beige50/10 bg-beige900/90 px-4 py-3 text-beige50 shadow-[0_14px_32px_rgba(37,20,6,0.16)] backdrop-blur">
             <div className="flex items-center justify-between gap-3">
@@ -317,6 +333,7 @@ const CareerCallScreen = ({
       {showTranscript && (
         <TranscriptOverlay
           entries={callTranscriptEntries ?? []}
+          liveUserTranscriptPlacement={liveUserTranscriptPlacement}
           currentUserTranscript={voiceTranscript}
         />
       )}

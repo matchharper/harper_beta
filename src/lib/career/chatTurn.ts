@@ -481,6 +481,7 @@ export async function runCareerChatTurn(
           conversationId,
           currentInsightContent,
           logPrefix: "TalentChatTurn",
+          sourceChannel: requestChannel === "voice" ? "voice_call" : "text_chat",
           userId,
         })
       : Promise.resolve(0);

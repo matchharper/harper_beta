@@ -18,6 +18,7 @@ import {
 } from "@/lib/opportunityDiscovery/store";
 import { extractAndPersistChatInsights } from "@/lib/talentOnboarding/chatInsights";
 import { maybeSummarizeTalentConversation } from "@/lib/talentOnboarding/conversationSummary";
+import { normalizeTalentInsightContent } from "@/lib/talentOnboarding/stateStore";
 import { createOnboardingCompletionWrapupMessage } from "@/lib/talentOnboarding/onboardingCompletionWrapup";
 import {
   hasTalentOnboardingCompletionMarker,
@@ -119,6 +120,7 @@ export async function POST(req: NextRequest) {
             conversationId,
             currentInsightContent,
             logPrefix: "ChatSave",
+            sourceChannel: isCallMode ? "voice_call" : "text_chat",
             userId: user.id,
           })
         : Promise.resolve(0);
@@ -188,6 +190,13 @@ export async function POST(req: NextRequest) {
     > | null = null;
 
     const insightChangedKeysCount = await extractTurnInsights();
+    const latestInsights =
+      insightChangedKeysCount > 0
+        ? await fetchTalentInsights({ admin, userId: user.id })
+        : currentInsights;
+    const latestInsightContent = normalizeTalentInsightContent(
+      latestInsights?.content ?? null
+    );
     const assistantThinkingLogs =
       insightChangedKeysCount > 0 ? [INSIGHT_EXTRACTION_THINKING_LOG] : [];
     if (assistantThinkingLogs.length > 0) {
@@ -280,6 +289,12 @@ export async function POST(req: NextRequest) {
       opportunityRun: serializeOpportunityRun(opportunityRun),
       searchStatusMessage: null,
       shouldEndCall: false,
+      ...(insightChangedKeysCount > 0
+        ? {
+            insightUpdatedAt: latestInsights?.last_updated_at ?? null,
+            talentInsights: latestInsightContent ?? {},
+          }
+        : {}),
       progress: {
         answeredCount: userTurnCount,
         targetCount: TALENT_INTERVIEW_FINAL_STEP,

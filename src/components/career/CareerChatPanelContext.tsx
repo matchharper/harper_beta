@@ -1,6 +1,7 @@
 import type { User } from "@supabase/supabase-js";
 import React, { createContext, useContext } from "react";
 import type {
+  CallLiveTranscriptPlacement,
   CallTranscriptEntry,
   CareerInputMode,
   CareerHistoryOpportunity,
@@ -109,10 +110,9 @@ export type CareerChatPanelContextValue = {
 
   // Call mode (optional — not provided by preview.tsx)
   onStartCallMode?: (openingText?: string) => boolean | Promise<boolean>;
-  onEndCallMode?: (options?: {
-    forceCompleteOnboarding?: boolean;
-  }) => void;
+  onEndCallMode?: (options?: { forceCompleteOnboarding?: boolean }) => void;
   callTranscriptEntries?: CallTranscriptEntry[];
+  liveUserTranscriptPlacement?: CallLiveTranscriptPlacement;
   callConnectionStatus?: "connected" | "reconnecting" | "disconnected";
   isAssistantSpeaking?: boolean;
 };

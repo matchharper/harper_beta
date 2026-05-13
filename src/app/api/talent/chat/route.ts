@@ -495,6 +495,7 @@ export async function POST(req: NextRequest) {
             conversationId,
             currentInsightContent,
             logPrefix: "TalentChat",
+            sourceChannel: "text_chat",
             userId: user.id,
           })
         : Promise.resolve(0);
