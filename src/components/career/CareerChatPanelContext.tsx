@@ -19,7 +19,7 @@ export type CareerChatPanelContextValue = {
   conversationId: string | null;
   stage: CareerStage;
   messages: CareerMessage[];
-  scrollRef: React.RefObject<HTMLDivElement>;
+  scrollRef: React.RefObject<HTMLDivElement | null>;
   hasOlderMessages: boolean;
   loadingOlderMessages: boolean;
 

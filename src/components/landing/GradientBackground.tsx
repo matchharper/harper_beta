@@ -3,7 +3,7 @@ import React, { useEffect } from "react";
 const GradientBackground = ({
   interactiveRef,
 }: {
-  interactiveRef: React.RefObject<HTMLDivElement>;
+  interactiveRef: React.RefObject<HTMLDivElement | null>;
 }) => {
   useEffect(() => {
     const interBubble = interactiveRef.current;
