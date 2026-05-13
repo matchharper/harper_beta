@@ -18,9 +18,12 @@ import CareerWorkspaceNav, {
 import { careerCx } from "@/components/career/ui/CareerPrimitives";
 import CareerMobileJobsView, {
   JobActionBar,
-  type CareerMobileJobSummary,
+  type JobsDisplayTab,
 } from "@/components/career/mobile/jobs/CareerMobileJobsView";
+import { mapOpportunityToJobSummary } from "@/components/career/mobile/jobs/mapOpportunityToJobSummary";
 import CareerMobileChatLauncher from "@/components/career/mobile/CareerMobileChatLauncher";
+import CareerMobileShell from "@/components/career/mobile/CareerMobileShell";
+import CareerMobileTopBar from "@/components/career/mobile/CareerMobileTopBar";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 import React from "react";
 
@@ -376,22 +379,10 @@ const WORKSPACE_TAB_OPTIONS: Array<{
   { id: "profile", label: "프로필" },
 ];
 
-const DEMO_JOB: CareerMobileJobSummary = {
-  id: "demo-runbook-fse",
-  title: "Founding Software Engineer",
-  company: "Runbook",
-  companyLogoUrl: null,
-  location: "San Francisco (Hybrid)",
-  salary: "$120k - $180k (est)",
-  postedAgo: "2w ago",
-  sourceLabel: "Web-sourced",
-  bullets: [
-    "Runbook builds AI agents for the physical economy, you'd own the core platform.",
-    "Founding Engineer role aligns with your background in building scalable infrastructure.",
-    "Clarify specific salary, equity, and relocation support for O-1 visa.",
-  ],
-  roleDetailHtml:
-    'This <strong>early-stage AI startup</strong> is building an autonomous workforce for the physical economy, led by a founder who previously scaled Motive to a <strong>$5B+ valuation</strong>. As a <strong>Founding Software Engineer</strong>, you will join a high-trust, low-process team to develop AI agents that automate complex operational workflows for <strong>Fortune 500</strong> clients. This <strong>senior-level</strong> role requires <strong>5+ years of experience</strong> shipping production software with a strong <strong>full-stack range</strong> and a track record of driving ambiguous projects to completion. Key responsibilities include designing agent orchestration systems, building integrations with legacy ERP/TMS platforms, and working directly with customers to translate manual workflows into automated code. The stack is <strong>TypeScript-based</strong> and pragmatic. This is a <strong>full-time, on-site</strong> position in <strong>San Francisco</strong> with an "in-person bias." The role offers <strong>massive ownership</strong> and the unique opportunity to shape a category-defining product from day zero.',
+const JOBS_TAB_TO_FEEDBACK: Record<JobsDisplayTab, "new" | "positive" | "negative"> = {
+  new: "new",
+  tracking: "positive",
+  archived: "negative",
 };
 
 const CareerWorkspaceMobileLayout = ({
@@ -401,7 +392,16 @@ const CareerWorkspaceMobileLayout = ({
   activeTab: CareerWorkspaceTab;
   onChangeTab: (tab: CareerWorkspaceTab) => void;
 }) => {
-  const { user, onOpenSettings, talentProfile } = useCareerSidebarContext();
+  const {
+    user,
+    onOpenSettings,
+    talentProfile,
+    historyOpportunities,
+    historyOpportunityCounts,
+    historyLoading,
+    onUpdateHistoryOpportunityFeedback,
+  } = useCareerSidebarContext();
+  const [jobsTab, setJobsTab] = useState<JobsDisplayTab>("new");
 
   const displayName =
     user?.user_metadata?.full_name ??
@@ -414,28 +414,90 @@ const CareerWorkspaceMobileLayout = ({
     user?.user_metadata?.avatar_url ??
     null;
 
-  const selectedJob = activeTab === "history" ? DEMO_JOB : null;
-  const actionBar = selectedJob ? (
-    <JobActionBar
-      onTrack={() => undefined}
-      onDismiss={() => undefined}
+  const filterMode = JOBS_TAB_TO_FEEDBACK[jobsTab];
+  const currentOpportunity = useMemo(() => {
+    if (activeTab !== "history") return null;
+    return (
+      historyOpportunities.find((item) => {
+        if (filterMode === "new") return item.feedback === null;
+        return item.feedback === filterMode;
+      }) ?? null
+    );
+  }, [activeTab, historyOpportunities, filterMode]);
+
+  const selectedJob = useMemo(
+    () => (currentOpportunity ? mapOpportunityToJobSummary(currentOpportunity) : null),
+    [currentOpportunity]
+  );
+
+  const handleTrack = useCallback(() => {
+    if (!currentOpportunity) return;
+    void onUpdateHistoryOpportunityFeedback(currentOpportunity.id, "positive", {
+      interactionSource: "position_tab",
+    });
+  }, [currentOpportunity, onUpdateHistoryOpportunityFeedback]);
+  const handleDismiss = useCallback(() => {
+    if (!currentOpportunity) return;
+    void onUpdateHistoryOpportunityFeedback(currentOpportunity.id, "negative", {
+      interactionSource: "position_tab",
+    });
+  }, [currentOpportunity, onUpdateHistoryOpportunityFeedback]);
+
+  const actionBar =
+    selectedJob && jobsTab === "new" ? (
+      <JobActionBar onTrack={handleTrack} onDismiss={handleDismiss} />
+    ) : null;
+
+  if (activeTab === "history") {
+    return (
+      <>
+        <CareerMobileJobsView
+          activeWorkspaceTab={activeTab}
+          onChangeWorkspaceTab={onChangeTab}
+          workspaceTabOptions={WORKSPACE_TAB_OPTIONS}
+          selectedJob={selectedJob}
+          newCount={historyOpportunityCounts.new}
+          trackingCount={historyOpportunityCounts.saved}
+          archivedCount={historyOpportunityCounts.archived}
+          activeJobsTab={jobsTab}
+          onChangeJobsTab={setJobsTab}
+          profilePicture={profilePicture ?? null}
+          userName={displayName ?? null}
+          onOpenSettings={onOpenSettings}
+          bottomReservePx={actionBar ? 200 : 120}
+          isLoading={historyLoading}
+        />
+        <CareerMobileChatLauncher actionBar={actionBar}>
+          <CareerChatPanel />
+        </CareerMobileChatLauncher>
+      </>
+    );
+  }
+
+  const mobileHeader = (
+    <CareerMobileTopBar
+      activeTab={activeTab}
+      options={WORKSPACE_TAB_OPTIONS}
+      onChangeTab={onChangeTab}
+      profilePicture={profilePicture ?? null}
+      userName={displayName ?? null}
+      onOpenSettings={onOpenSettings}
     />
-  ) : null;
+  );
 
   return (
     <>
-      <CareerMobileJobsView
-        activeWorkspaceTab={activeTab}
-        onChangeWorkspaceTab={onChangeTab}
-        workspaceTabOptions={WORKSPACE_TAB_OPTIONS}
-        selectedJob={selectedJob}
-        newCount={activeTab === "history" ? 6 : undefined}
-        profilePicture={profilePicture ?? null}
-        userName={displayName ?? null}
-        onOpenSettings={onOpenSettings}
-        bottomReservePx={actionBar ? 200 : 120}
-      />
-      <CareerMobileChatLauncher actionBar={actionBar}>
+      <CareerMobileShell header={mobileHeader}>
+        <div
+          className="flex flex-1 items-center justify-center px-6 py-16 text-center text-[15px] text-beige900/55"
+          style={{ paddingBottom: "140px" }}
+        >
+          {activeTab === "home"
+            ? "홈 모바일 화면은 곧 추가됩니다."
+            : "프로필 모바일 화면은 곧 추가됩니다."}
+        </div>
+      </CareerMobileShell>
+      <CareerMobileChatLauncher>
         <CareerChatPanel />
       </CareerMobileChatLauncher>
     </>

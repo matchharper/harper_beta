@@ -2,13 +2,14 @@
 
 import React, { useState } from "react";
 import Image from "next/image";
-import { ThumbsUp, ThumbsDown, Globe } from "lucide-react";
+import { ThumbsUp, ThumbsDown, Globe, Loader2 } from "lucide-react";
 import CareerMobileShell from "../CareerMobileShell";
 import CareerMobileTopBar from "../CareerMobileTopBar";
 import CareerMobileSegmentedTabs, {
   type SegmentedTabItem,
 } from "../CareerMobileSegmentedTabs";
 import type { CareerWorkspaceTab } from "@/components/career/CareerWorkspaceNav";
+import CareerRichText from "@/components/career/ui/CareerRichText";
 import { cn } from "@/lib/utils";
 
 export type JobsDisplayTab = "new" | "tracking" | "archived";
@@ -23,7 +24,7 @@ export type CareerMobileJobSummary = {
   postedAgo?: string | null;
   sourceLabel?: string | null;
   bullets: string[];
-  roleDetailHtml: string;
+  roleDetail: string;
 };
 
 type WorkspaceTabOption = {
@@ -47,6 +48,7 @@ type CareerMobileJobsViewProps = {
   activeJobsTab?: JobsDisplayTab;
   onChangeJobsTab?: (tab: JobsDisplayTab) => void;
   bottomReservePx?: number;
+  isLoading?: boolean;
 };
 
 export default function CareerMobileJobsView({
@@ -65,6 +67,7 @@ export default function CareerMobileJobsView({
   activeJobsTab,
   onChangeJobsTab,
   bottomReservePx = 200,
+  isLoading = false,
 }: CareerMobileJobsViewProps) {
   const [internalTab, setInternalTab] = useState<JobsDisplayTab>("new");
   const tab = activeJobsTab ?? internalTab;
@@ -103,8 +106,10 @@ export default function CareerMobileJobsView({
           style={{ paddingBottom: `${bottomReservePx}px` }}
         >
           <JobSummaryCard job={selectedJob} />
-          <RoleSection roleDetailHtml={selectedJob.roleDetailHtml} />
+          <RoleSection roleDetail={selectedJob.roleDetail} />
         </div>
+      ) : isLoading ? (
+        <LoadingState />
       ) : (
         <EmptyState tab={tab} />
       )}
@@ -181,14 +186,15 @@ function JobSummaryCard({ job }: { job: CareerMobileJobSummary }) {
   );
 }
 
-function RoleSection({ roleDetailHtml }: { roleDetailHtml: string }) {
+function RoleSection({ roleDetail }: { roleDetail: string }) {
+  if (!roleDetail.trim()) return null;
   return (
     <section>
       <h3 className="text-[18px] font-medium text-beige900">Role</h3>
       <hr className="mt-3 border-beige900/10" />
-      <div
-        className="mt-4 rounded-2xl bg-white/55 p-5 text-[15px] leading-[1.75] text-beige900/85 [&_strong]:font-semibold [&_strong]:text-beige900"
-        dangerouslySetInnerHTML={{ __html: roleDetailHtml }}
+      <CareerRichText
+        content={roleDetail}
+        className="mt-4 rounded-2xl bg-white/55 p-5 text-[15px] leading-[1.75]"
       />
     </section>
   );
@@ -221,6 +227,15 @@ export function JobActionBar({
         <ThumbsUp className="h-4 w-4" />
         Track
       </button>
+    </div>
+  );
+}
+
+function LoadingState() {
+  return (
+    <div className="flex flex-1 items-center justify-center gap-2 px-6 py-20 text-[15px] text-beige900/55">
+      <Loader2 className="h-4 w-4 animate-spin text-beige900" />
+      <span>저장된 정보를 불러오는 중입니다...</span>
     </div>
   );
 }
