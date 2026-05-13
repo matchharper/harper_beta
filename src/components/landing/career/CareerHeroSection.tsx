@@ -63,7 +63,7 @@ export default function CareerHeroSection({
             src="/images/objects.png"
             alt="objects"
             width={288}
-            height={288}
+            height={192}
             priority
             className="h-auto w-48 sm:w-64 md:w-72"
           />

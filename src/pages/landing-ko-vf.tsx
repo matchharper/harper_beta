@@ -19,11 +19,11 @@ const schoolLogos = [
 ] as const;
 
 const partnerLogos = [
-  { key: "a16z2", src: "/svgs/a16z2.svg", width: 100 },
-  { key: "yc", src: "/svgs/yc.svg", width: 128 },
-  { key: "wonderful", src: "/images/wonderful.png", width: 154 },
-  { key: "mistral", src: "/images/mistral.png", width: 142 },
-  { key: "cohere", src: "/svgs/cohere.svg", width: 124 },
+  { key: "a16z2", src: "/svgs/a16z2.svg", width: 100, height: 56 },
+  { key: "yc", src: "/svgs/yc.svg", width: 128, height: 26 },
+  { key: "wonderful", src: "/images/wonderful.png", width: 154, height: 55 },
+  { key: "mistral", src: "/images/mistral.png", width: 142, height: 40 },
+  { key: "cohere", src: "/svgs/cohere.svg", width: 124, height: 21 },
 ] as const;
 
 const chatMessages = [
@@ -388,8 +388,8 @@ function SocialProofSection() {
                 src={logo.src}
                 alt={logo.key}
                 width={logo.width}
-                height={90}
-                className="h-auto object-contain opacity-90"
+                height={logo.height}
+                className="object-contain opacity-90"
               />
             </div>
           ))}
@@ -401,8 +401,10 @@ function SocialProofSection() {
                 src={logo.src}
                 alt={logo.key}
                 width={Math.max(84, logo.width - 24)}
-                height={80}
-                className="h-auto max-w-[38vw] object-contain opacity-90"
+                height={Math.round(
+                  (logo.height * Math.max(84, logo.width - 24)) / logo.width
+                )}
+                className="max-w-[38vw] object-contain opacity-90"
               />
             </div>
           ))}

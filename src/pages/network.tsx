@@ -2327,7 +2327,7 @@ const NetworkPage = () => {
                 src="/images/objects.png"
                 alt="objects"
                 width={256}
-                height={256}
+                height={171}
                 className="h-auto w-44 sm:w-52 md:w-64"
               />
               <div className="flex flex-col items-center gap-3">
@@ -2503,7 +2503,7 @@ function VCLogos() {
                 alt={vc.key}
                 width={vc.width}
                 height={vc.height}
-                className="h-auto object-contain opacity-90"
+                className="object-contain opacity-90"
               />
             </div>
           ))}
@@ -2519,7 +2519,7 @@ function VCLogos() {
                 alt={vc.key}
                 width={vc.width - 20}
                 height={Math.round((vc.height * (vc.width - 20)) / vc.width)}
-                className="h-auto object-contain max-w-[36vw] opacity-90"
+                className="object-contain max-w-[36vw] opacity-90"
               />
             </div>
           ))}

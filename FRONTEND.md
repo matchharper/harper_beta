@@ -56,11 +56,7 @@ const map = new Map<string, CandidateRecord>();          // 구체적 타입 파
 <div style={{ gridTemplateColumns, width: `${percent}%` }} />
 ```
 
-### 0.4 컴포넌트 300줄 한도
-
-한 파일 300줄을 넘으면 분리한다. (현재 `src/pages/network.tsx` 2500+줄, `src/pages/blog/[slug].tsx` 530+줄 등은 점진 분해 대상.)
-
-### 0.5 viewport 유닛은 `svh` 표준
+### 0.4 viewport 유닛은 `svh` 표준
 
 모바일 지원으로 전환 중이므로 `vh`를 사용하지 않는다. 자세한 규칙은 §2.3.
 
@@ -72,7 +68,7 @@ const map = new Map<string, CandidateRecord>();          // 구체적 타입 파
 <div className="h-svh min-h-svh" />
 ```
 
-### 0.6 신규 styled-jsx 금지
+### 0.5 신규 styled-jsx 금지
 
 기존 4건(`landing/VCLogosWidth.tsx`, `landing/Background.tsx`, `pages/network.tsx`, `pages/blog/[slug].tsx`)은 점진 제거. 신규 파일에는 도입 금지.
 
@@ -93,7 +89,7 @@ const map = new Map<string, CandidateRecord>();          // 구체적 타입 파
 Tailwind는 **컬러·spacing·typography의 단일 소스**다. 다음 누수는 PR에서 잡는다.
 
 - 신규 컴포넌트의 인라인 정적 스타일 → §0.3
-- 신규 styled-jsx → §0.6
+- 신규 styled-jsx → §0.5
 - 컬러 hex 리터럴 직접 사용 → `tailwind.config.js`의 토큰 사용
 
 `globals.css`는 다음만 둔다:
@@ -726,7 +722,7 @@ function Page() {
 6. **클라이언트 상태** — 페이지 내부면 `useState`, 페이지 간 공유면 Zustand. 서버 데이터 복제 금지.
 7. **부수효과** — `useEffect` 작성 전 §3.1 안티패턴 7개 재확인, 정당하면 `src/hooks/`에 캡슐화.
 8. **컬러/spacing** — 토큰만. 새 색은 `tailwind.config.js`에 추가.
-9. **인라인 style 없음** (§0.3), **styled-jsx 없음** (§0.6), **300줄 미만** (§0.4).
+9. **인라인 style 없음** (§0.3), **styled-jsx 없음** (§0.5).
 10. **prefetch** — hover/focus에서 route + query prefetch (§4.7) 필요 여부 검토.
 11. **a11y** — focus ring 유지, 탭 타깃 44px+, `aria-*` 누락 없음.
 12. **모바일 게이트** — `useIsMobile`/`mobileBlocker` 영향 범위 확인 후 라우트 단계적 해제.
@@ -757,10 +753,9 @@ function Page() {
 | 비싼 `useState(value)` 초기값 | 매 렌더 재계산 | `useState(() => compute())` (§6.3) |
 | 조건부 렌더 `{count && <X/>}` | `0` 렌더 버그 | 삼항 또는 `Boolean()` (§6.5) |
 | 인라인 정적 `style={{}}` | 일관성 부재 | Tailwind 클래스 (§0.3) |
-| 신규 styled-jsx | 일관성 부재 | Tailwind / globals.css `@layer` (§0.6) |
+| 신규 styled-jsx | 일관성 부재 | Tailwind / globals.css `@layer` (§0.5) |
 | `h-screen` / `100vh` | iOS Safari overflow | `h-svh` (§2.3) |
 | 컬러 hex 리터럴 직접 사용 | 토큰 우회 | `tailwind.config.js` 토큰 (§1.3) |
-| 300줄 초과 컴포넌트 | 유지보수 난도 | 분리 (§0.4) |
 | Radix primitive 직접 import | wrapper 우회 | `src/components/ui/` (§1.5) |
 
 ---
