@@ -454,7 +454,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
             break;
           }
 
-          case "response.audio.delta": {
+          case "response.output_audio.delta": {
             if (suppressCurrentResponseOutputRef.current) break;
             if (
               !hasAudioInResponseRef.current &&
@@ -469,7 +469,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
             break;
           }
 
-          case "response.audio_transcript.delta": {
+          case "response.output_audio_transcript.delta": {
             if (suppressCurrentResponseOutputRef.current) break;
             const delta = typeof msg.delta === "string" ? msg.delta : "";
             hasAudioInResponseRef.current = true;
@@ -479,15 +479,15 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
             break;
           }
 
-          case "response.text.delta": {
+          case "response.output_audio_transcript.done": {
             if (suppressCurrentResponseOutputRef.current) break;
-            // Native audio sessions surface display text through
-            // response.audio_transcript.delta.
+            const transcript =
+              typeof msg.transcript === "string" ? msg.transcript : "";
+            if (transcript) {
+              responseTextRef.current = transcript;
+            }
             break;
           }
-
-          case "response.text.done":
-            break;
 
           case "response.done": {
             responseInProgressRef.current = false;
