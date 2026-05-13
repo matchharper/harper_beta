@@ -80,20 +80,24 @@ const CareerSettingsModal = ({
   const [mobileView, setMobileView] = useState<MobileSettingsView>("menu");
   const [snap, setSnap] = useState<number | string | null>(MENU_SNAP);
 
+  const resetMobileSettings = useCallback(() => {
+    setMobileView("menu");
+    setSnap(MENU_SNAP);
+    setActiveTab("profile");
+  }, []);
+
   const handleClose = useCallback(() => {
     onClose();
-    window.setTimeout(() => {
-      setMobileView("menu");
-      setSnap(MENU_SNAP);
-      setActiveTab("profile");
-    }, 400);
-  }, [onClose]);
+    resetMobileSettings();
+  }, [onClose, resetMobileSettings]);
 
   useEffect(() => {
     if (!open) return;
     if (user) return;
-    handleClose();
-  }, [handleClose, open, user]);
+    onClose();
+    const timer = window.setTimeout(resetMobileSettings, 0);
+    return () => window.clearTimeout(timer);
+  }, [onClose, open, resetMobileSettings, user]);
 
   const email = user?.email ?? "로그인 중";
 
@@ -120,14 +124,11 @@ const CareerSettingsModal = ({
         snapPoints={SETTINGS_SNAP_POINTS}
         activeSnapPoint={snap}
         setActiveSnapPoint={setSnap}
+        fadeFromIndex={0}
         shouldScaleBackground={false}
       >
         <DrawerPrimitive.Portal>
-          <div
-            aria-hidden
-            className="pointer-events-none fixed inset-0 z-40 backdrop-blur-sm"
-          />
-          <DrawerPrimitive.Overlay className="fixed inset-0 z-50 bg-black/40" />
+          <DrawerPrimitive.Overlay className="fixed inset-0 z-50 bg-black/50" />
           <DrawerPrimitive.Content
             className="fixed inset-x-0 bottom-0 z-50 flex h-full max-h-[97svh] flex-col rounded-t-[20px] border-t border-beige900/10 bg-beige50 text-beige900 outline-none"
             style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
