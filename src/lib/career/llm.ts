@@ -960,7 +960,7 @@ export async function runOpsTalentRecommendation(args: {
 export function getCareerRealtimeSessionConfig(useElevenLabsTts: boolean) {
   return {
     model: CAREER_LLM_CONFIG.realtime.model,
-    modalities: useElevenLabsTts ? ["text"] : ["text", "audio"],
+    outputModalities: useElevenLabsTts ? ["text"] : ["audio"],
     transcriptionModel: CAREER_LLM_CONFIG.realtime.transcriptionModel,
     voice: useElevenLabsTts ? undefined : CAREER_LLM_CONFIG.realtime.voice,
   };

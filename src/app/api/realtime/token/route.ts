@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHash } from "crypto";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   buildTalentProfileContext,
@@ -109,6 +110,10 @@ function checkRateLimit(userId: string): boolean {
   return true;
 }
 
+function buildSafetyIdentifier(userId: string): string {
+  return createHash("sha256").update(`talent-user:${userId}`).digest("hex");
+}
+
 export async function POST(req: NextRequest) {
   try {
     const user = await getRequestUser(req);
@@ -157,34 +162,50 @@ export async function POST(req: NextRequest) {
     );
 
     const response = await fetch(
-      "https://api.openai.com/v1/realtime/sessions",
+      "https://api.openai.com/v1/realtime/client_secrets",
       {
         method: "POST",
         headers: {
           Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
           "Content-Type": "application/json",
+          "OpenAI-Safety-Identifier": buildSafetyIdentifier(user.id),
         },
         body: JSON.stringify({
-          model: realtimeConfig.model,
-          modalities: realtimeConfig.modalities,
-          ...(realtimeConfig.voice ? { voice: realtimeConfig.voice } : {}),
-          input_audio_transcription: {
-            model: realtimeConfig.transcriptionModel,
+          session: {
+            type: "realtime",
+            model: realtimeConfig.model,
+            output_modalities: realtimeConfig.outputModalities,
+            audio: {
+              input: {
+                transcription: {
+                  model: realtimeConfig.transcriptionModel,
+                  prompt:
+                    "대화는 주로 한국어지만 기술 용어는 영어 원문으로 적는다.",
+                },
+                turn_detection: {
+                  type: "semantic_vad",
+                  create_response: true,
+                  interrupt_response: true,
+                  eagerness: "auto",
+                },
+                noise_reduction: { type: "near_field" },
+              },
+              ...(realtimeConfig.voice
+                ? {
+                    output: {
+                      voice: realtimeConfig.voice,
+                    },
+                  }
+                : {}),
+            },
+            instructions,
+            ...(tools.length > 0
+              ? {
+                  tools,
+                  tool_choice: "auto" as const,
+                }
+              : {}),
           },
-          instructions,
-          ...(tools.length > 0
-            ? {
-                tools,
-                tool_choice: "auto" as const,
-              }
-            : {}),
-          turn_detection: {
-            type: "semantic_vad",
-            create_response: true,
-            interrupt_response: true,
-            eagerness: "auto",
-          },
-          input_audio_noise_reduction: { type: "near_field" },
         }),
       }
     );
@@ -200,10 +221,25 @@ export async function POST(req: NextRequest) {
 
     const data = await response.json();
 
+    const token = data.value ?? data.client_secret?.value;
+    if (typeof token !== "string" || token.length === 0) {
+      console.error("[RealtimeToken] OpenAI response did not include a token");
+      return NextResponse.json(
+        { error: "Failed to create realtime client secret" },
+        { status: 502 }
+      );
+    }
+
+    const expiresAt =
+      data.expires_at ??
+      data.client_secret?.expires_at ??
+      Math.floor(Date.now() / 1000) + 60;
+    const sessionId = data.session?.id ?? data.id ?? "";
+
     return NextResponse.json({
-      token: data.client_secret.value,
-      expiresAt: data.client_secret.expires_at,
-      sessionId: data.id,
+      token,
+      expiresAt,
+      sessionId,
       toolVoicePreambles,
     });
   } catch (error) {

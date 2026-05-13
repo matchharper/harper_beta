@@ -214,8 +214,11 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
 
   useEffect(() => {
     const hasWebSpeech = Boolean(getSpeechRecognitionCtor());
-    const hasWebSocket = typeof WebSocket !== "undefined";
-    setIsSpeechSupported(hasWebSpeech || hasWebSocket);
+    const hasWebRtc =
+      typeof RTCPeerConnection !== "undefined" &&
+      typeof navigator !== "undefined" &&
+      typeof navigator.mediaDevices?.getUserMedia === "function";
+    setIsSpeechSupported(hasWebSpeech || hasWebRtc);
   }, []);
 
   useEffect(() => {
@@ -479,7 +482,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
         autoResumeAfterResponseRef.current = true;
       }
 
-      // Route text through Realtime WebSocket when connected
+      // Route text through Realtime data channel when connected
       if (voiceEngine === "realtime" && realtimeControls?.isConnected) {
         realtimeControls.sendTextMessage(text);
         return;
