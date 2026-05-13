@@ -78,7 +78,6 @@ export const CAREER_LLM_CONFIG = {
     temperature: 0.1,
   },
   // OpenAI Realtime 세션 생성 설정.
-  // ElevenLabs TTS를 쓰면 OpenAI audio output은 끄고 text만 받는다.
   // 사용처: /api/realtime/token.
   realtime: {
     model: "gpt-realtime-1.5",
@@ -957,11 +956,11 @@ export async function runOpsTalentRecommendation(args: {
   });
 }
 
-export function getCareerRealtimeSessionConfig(useElevenLabsTts: boolean) {
+export function getCareerRealtimeSessionConfig() {
   return {
     model: CAREER_LLM_CONFIG.realtime.model,
-    outputModalities: useElevenLabsTts ? ["text"] : ["audio"],
+    outputModalities: ["audio"],
     transcriptionModel: CAREER_LLM_CONFIG.realtime.transcriptionModel,
-    voice: useElevenLabsTts ? undefined : CAREER_LLM_CONFIG.realtime.voice,
+    voice: CAREER_LLM_CONFIG.realtime.voice,
   };
 }

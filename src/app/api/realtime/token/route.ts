@@ -129,9 +129,8 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { conversationId: rawConversationId, useElevenLabsTts } = body as {
+    const { conversationId: rawConversationId } = body as {
       conversationId?: string;
-      useElevenLabsTts?: boolean;
     };
     const conversationId = rawConversationId?.trim();
 
@@ -157,9 +156,7 @@ export async function POST(req: NextRequest) {
     );
     const toolVoicePreambles =
       tools.length > 0 ? getTalentToolVoicePreambles("voice") : {};
-    const realtimeConfig = getCareerRealtimeSessionConfig(
-      Boolean(useElevenLabsTts)
-    );
+    const realtimeConfig = getCareerRealtimeSessionConfig();
 
     const response = await fetch(
       "https://api.openai.com/v1/realtime/client_secrets",

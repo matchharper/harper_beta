@@ -96,7 +96,6 @@ const isEditableTarget = (target: EventTarget | null) => {
 export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   const {
     canInteract,
-    messages,
     onSendMessage,
     onUnsupported,
     realtimeControls,
@@ -107,7 +106,6 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   const [voiceMuted, setVoiceMuted] = useState(false);
   const [voiceError, setVoiceError] = useState("");
   const [isSpeechSupported, setIsSpeechSupported] = useState(false);
-  const [assistantAudioBusy, setAssistantAudioBusy] = useState(false);
   const [voicePrimaryPressed, setVoicePrimaryPressed] = useState(false);
   const [voiceEngine, setVoiceEngine] = useState<VoiceEngine>("webspeech");
   const voiceEngineRef = useRef<VoiceEngine>("webspeech");
@@ -120,12 +118,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   const voiceDraftTextRef = useRef("");
   const commitOnEndRef = useRef(false);
   const autoResumeAfterResponseRef = useRef(false);
-  const spokenAssistantIdsRef = useRef<Set<string>>(new Set());
   const previousInputModeRef = useRef<CareerInputMode>("text");
-  const assistantAudioRef = useRef<HTMLAudioElement | null>(null);
-  const assistantAudioUrlRef = useRef<string | null>(null);
-  const assistantTtsAbortRef = useRef<AbortController | null>(null);
-  const assistantTtsRequestIdRef = useRef(0);
   const spacebarPressActiveRef = useRef(false);
   const voiceLevelStreamRef = useRef<MediaStream | null>(null);
   const voiceLevelAudioContextRef = useRef<AudioContext | null>(null);
@@ -421,40 +414,11 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     stopVoiceLevelMonitor,
   ]);
 
-  const releaseAssistantAudioUrl = useCallback(() => {
-    if (!assistantAudioUrlRef.current) return;
-    URL.revokeObjectURL(assistantAudioUrlRef.current);
-    assistantAudioUrlRef.current = null;
-  }, []);
-
-  const cleanupAssistantAudio = useCallback(
-    (options?: { preserveBusy?: boolean }) => {
-      const audio = assistantAudioRef.current;
-      if (audio) {
-        audio.onended = null;
-        audio.onerror = null;
-        audio.pause();
-        audio.src = "";
-        assistantAudioRef.current = null;
-      }
-
-      releaseAssistantAudioUrl();
-      assistantTtsAbortRef.current = null;
-
-      if (!options?.preserveBusy) {
-        setAssistantAudioBusy(false);
-      }
-    },
-    [releaseAssistantAudioUrl]
-  );
-
   const stopAssistantAudio = useCallback(
-    (options?: { preserveBusy?: boolean }) => {
-      assistantTtsRequestIdRef.current += 1;
-      assistantTtsAbortRef.current?.abort();
-      cleanupAssistantAudio(options);
+    (_options?: { preserveBusy?: boolean }) => {
+      // No-op while assistant speech is handled by Realtime native audio.
     },
-    [cleanupAssistantAudio]
+    []
   );
 
   useEffect(() => {
@@ -506,10 +470,6 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
 
     if (inputMode === "voice" || inputMode === "call") {
       stopAssistantAudio();
-      const existingAssistantIds = messages
-        .filter((message) => message.role === "assistant")
-        .map((message) => String(message.id));
-      spokenAssistantIdsRef.current = new Set(existingAssistantIds);
     } else if (
       previousInputModeRef.current === "voice" ||
       previousInputModeRef.current === "call"
@@ -518,7 +478,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     }
 
     previousInputModeRef.current = inputMode;
-  }, [inputMode, messages, stopAssistantAudio]);
+  }, [inputMode, stopAssistantAudio]);
 
   useEffect(() => {
     if (
@@ -549,126 +509,6 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     stopVoiceLevelMonitor,
     voiceListening,
     voiceMuted,
-  ]);
-
-  useEffect(() => {
-    if (inputMode !== "voice") return;
-    if (typeof window === "undefined") return;
-
-    const latestAssistantMessage = [...messages]
-      .reverse()
-      .find(
-        (message) =>
-          message.role === "assistant" &&
-          !message.typing &&
-          Boolean(message.content.trim()) &&
-          (message.messageType ?? "chat") === "chat"
-      );
-
-    if (!latestAssistantMessage) return;
-
-    const messageId = String(latestAssistantMessage.id);
-    if (spokenAssistantIdsRef.current.has(messageId)) return;
-    spokenAssistantIdsRef.current.add(messageId);
-
-    const controller = new AbortController();
-    stopAssistantAudio({ preserveBusy: true });
-
-    const requestId = assistantTtsRequestIdRef.current + 1;
-    assistantTtsRequestIdRef.current = requestId;
-    assistantTtsAbortRef.current = controller;
-    setAssistantAudioBusy(true);
-    setVoiceError("");
-
-    void (async () => {
-      try {
-        const response = await fetch("/api/tts", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            text: latestAssistantMessage.content,
-          }),
-          signal: controller.signal,
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text().catch(() => "");
-          throw new Error(
-            errorText || `TTS request failed with status ${response.status}`
-          );
-        }
-
-        if (
-          controller.signal.aborted ||
-          assistantTtsRequestIdRef.current !== requestId
-        ) {
-          return;
-        }
-
-        const audioBlob = await response.blob();
-
-        if (
-          controller.signal.aborted ||
-          assistantTtsRequestIdRef.current !== requestId
-        ) {
-          return;
-        }
-
-        const audioUrl = URL.createObjectURL(audioBlob);
-        if (
-          controller.signal.aborted ||
-          assistantTtsRequestIdRef.current !== requestId
-        ) {
-          URL.revokeObjectURL(audioUrl);
-          return;
-        }
-
-        assistantAudioUrlRef.current = audioUrl;
-
-        const audio = new Audio(audioUrl);
-        audio.preload = "auto";
-        assistantAudioRef.current = audio;
-
-        audio.onended = () => {
-          if (assistantTtsRequestIdRef.current !== requestId) return;
-          cleanupAssistantAudio();
-        };
-
-        audio.onerror = () => {
-          if (assistantTtsRequestIdRef.current !== requestId) return;
-          cleanupAssistantAudio();
-          setVoiceError("Harper 음성 응답을 재생하지 못했습니다.");
-          logVoiceDebug("assistant-tts-playback-error");
-        };
-
-        await audio.play();
-      } catch (error) {
-        if (
-          controller.signal.aborted ||
-          assistantTtsRequestIdRef.current !== requestId
-        ) {
-          return;
-        }
-
-        cleanupAssistantAudio();
-        const message =
-          error instanceof Error
-            ? error.message
-            : "assistant tts request failed";
-        setVoiceError("Harper 음성 응답을 재생하지 못했습니다.");
-        logVoiceDebug("assistant-tts-request-failed", {
-          error: message,
-        });
-      }
-    })();
-  }, [
-    cleanupAssistantAudio,
-    inputMode,
-    logVoiceDebug,
-    messages,
-    stopAssistantAudio,
   ]);
 
   const ensureSpeechRecognition = useCallback(() => {
@@ -869,13 +709,6 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     const tryAutoResume = () => {
       if (cancelled) return;
 
-      // TTS 오디오 재생과 네트워크 응답이 모두 끝난 뒤에만 마이크를 자동 재개한다.
-      if (assistantAudioBusy) {
-        idleChecks = 0;
-        timerId = window.setTimeout(tryAutoResume, 120);
-        return;
-      }
-
       idleChecks += 1;
       if (idleChecks < 2) {
         timerId = window.setTimeout(tryAutoResume, 120);
@@ -912,7 +745,6 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
       }
     };
   }, [
-    assistantAudioBusy,
     canInteract,
     inputMode,
     startVoiceListening,
@@ -1346,7 +1178,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     voiceListening,
     voiceMuted,
     voiceError,
-    assistantAudioBusy,
+    assistantAudioBusy: false,
     voicePrimaryPressed,
     voiceEngine,
     onboardingVoiceSupported: isSpeechSupported,

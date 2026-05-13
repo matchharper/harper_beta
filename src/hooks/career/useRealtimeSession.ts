@@ -5,7 +5,6 @@ import type { FetchWithAuth } from "./useCareerApi";
 
 type UseRealtimeSessionArgs = {
   conversationId: string | null;
-  useElevenLabsTts?: boolean;
   fetchWithAuth: FetchWithAuth;
   onTranscript: (text: string) => void;
   onAssistantDelta: (delta: string) => void;
@@ -66,7 +65,6 @@ function getErrorText(payload: unknown, fallback: string) {
 export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   const {
     conversationId,
-    useElevenLabsTts = false,
     fetchWithAuth,
     onTranscript,
     onAssistantDelta,
@@ -106,12 +104,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
 
   // TTFT measurement: speech_stopped → first audio playback
   const speechStoppedAtRef = useRef<number>(0);
-
-  // Stable value refs
-  const useElevenLabsTtsRef = useRef(useElevenLabsTts);
-  useEffect(() => {
-    useElevenLabsTtsRef.current = useElevenLabsTts;
-  }, [useElevenLabsTts]);
 
   // Stable callback refs
   const onTranscriptRef = useRef(onTranscript);
@@ -198,7 +190,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     try {
       const res = await fetchWithAuth("/api/realtime/token", {
         method: "POST",
-        body: JSON.stringify({ conversationId, useElevenLabsTts }),
+        body: JSON.stringify({ conversationId }),
       });
       if (!res.ok) {
         const errText = await res.text().catch(() => "");
@@ -219,7 +211,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
       console.error("[RealtimeSession] Token fetch error:", err);
       return null;
     }
-  }, [conversationId, fetchWithAuth, useElevenLabsTts]);
+  }, [conversationId, fetchWithAuth]);
 
   const sendEvent = useCallback((event: Record<string, unknown>) => {
     const dataChannel = dataChannelRef.current;
@@ -464,7 +456,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
 
           case "response.audio.delta": {
             if (suppressCurrentResponseOutputRef.current) break;
-            if (useElevenLabsTtsRef.current) break;
             if (
               !hasAudioInResponseRef.current &&
               speechStoppedAtRef.current > 0
@@ -481,10 +472,8 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
           case "response.audio_transcript.delta": {
             if (suppressCurrentResponseOutputRef.current) break;
             const delta = typeof msg.delta === "string" ? msg.delta : "";
-            if (!useElevenLabsTtsRef.current) {
-              hasAudioInResponseRef.current = true;
-              setIsAssistantSpeaking(true);
-            }
+            hasAudioInResponseRef.current = true;
+            setIsAssistantSpeaking(true);
             responseTextRef.current += delta;
             onAssistantDeltaRef.current(delta);
             break;
@@ -492,13 +481,8 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
 
           case "response.text.delta": {
             if (suppressCurrentResponseOutputRef.current) break;
-            const delta = typeof msg.delta === "string" ? msg.delta : "";
-            // Text-only sessions feed ElevenLabs. Native Realtime audio uses
-            // response.audio_transcript.delta for display text.
-            if (useElevenLabsTtsRef.current) {
-              responseTextRef.current += delta;
-              onAssistantDeltaRef.current(delta);
-            }
+            // Native audio sessions surface display text through
+            // response.audio_transcript.delta.
             break;
           }
 
@@ -508,13 +492,6 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
           case "response.done": {
             responseInProgressRef.current = false;
             responseCancelRequestedRef.current = false;
-            if (useElevenLabsTtsRef.current && speechStoppedAtRef.current > 0) {
-              const ttft = performance.now() - speechStoppedAtRef.current;
-              console.log(
-                `[TTFT] Realtime text response: ${ttft.toFixed(0)}ms (ElevenLabs fetch starts now)`
-              );
-              speechStoppedAtRef.current = 0;
-            }
             const fullText = responseTextRef.current;
             responseTextRef.current = "";
             hasAudioInResponseRef.current = false;
@@ -736,6 +713,8 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
         }
         tokenInfoRef.current = tokenInfo;
 
+        // TODO: Replace this direct OpenAI Realtime WebRTC connection with a
+        // LiveKit-based STT -> LLM -> TTS WebRTC architecture.
         const peerConnection = new RTCPeerConnection();
         peerConnectionRef.current = peerConnection;
 
