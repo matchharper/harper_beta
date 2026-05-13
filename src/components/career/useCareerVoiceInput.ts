@@ -39,6 +39,7 @@ type RealtimeControls = {
   cancelResponse: () => void;
   primePlayback?: () => void;
   getMediaStream: () => MediaStream | null;
+  setMicrophoneEnabled: (enabled: boolean) => void;
 };
 
 type UseCareerVoiceInputArgs = {
@@ -105,6 +106,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   const [voicePrimaryPressed, setVoicePrimaryPressed] = useState(false);
   const [voiceEngine, setVoiceEngine] = useState<VoiceEngine>("webspeech");
   const voiceEngineRef = useRef<VoiceEngine>("webspeech");
+  const voiceMutedRef = useRef(false);
   const [callTranscriptEntries, setCallTranscriptEntries] = useState<
     CallTranscriptEntry[]
   >([]);
@@ -217,6 +219,10 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
   useEffect(() => {
     voiceEngineRef.current = voiceEngine;
   }, [voiceEngine]);
+
+  useEffect(() => {
+    voiceMutedRef.current = voiceMuted;
+  }, [voiceMuted]);
 
   // Sync Realtime partial transcript to input field display
   useEffect(() => {
@@ -507,6 +513,17 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     voiceMuted,
   ]);
 
+  useEffect(() => {
+    if (voiceEngine !== "realtime") return;
+
+    const shouldEnableMicrophone =
+      !voiceMuted &&
+      voiceListening &&
+      (inputMode === "voice" || inputMode === "call");
+
+    realtimeControls?.setMicrophoneEnabled(shouldEnableMicrophone);
+  }, [inputMode, realtimeControls, voiceEngine, voiceListening, voiceMuted]);
+
   const ensureSpeechRecognition = useCallback(() => {
     if (recognitionRef.current) return recognitionRef.current;
 
@@ -608,6 +625,9 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
 
       // When Realtime is active, Web Speech is display-only — don't send, auto-restart
       if (voiceEngineRef.current === "realtime") {
+        if (voiceMutedRef.current || inputModeRef.current !== "voice") {
+          return;
+        }
         try {
           recognition.start();
         } catch {
@@ -763,6 +783,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     // Try Realtime first, fallback to Web Speech API
     if (realtimeControls) {
       logVoiceDebug("attempting-realtime-connect");
+      realtimeControls.setMicrophoneEnabled(true);
       const connected = await realtimeControls.connect();
       if (connected) {
         setVoiceEngine("realtime");
@@ -799,6 +820,10 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
       if (voiceMuted) {
         setVoiceMuted(false);
         setVoiceListening(true);
+        realtimeControls.setMicrophoneEnabled(true);
+        if (inputMode === "voice" && getSpeechRecognitionCtor()) {
+          startVoiceListening({ suppressError: true });
+        }
         return;
       }
       // Force-send: trigger response generation from current audio buffer
@@ -829,6 +854,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     startVoiceListening();
   }, [
     canInteract,
+    inputMode,
     realtimeControls,
     sendTranscript,
     startVoiceListening,
@@ -906,7 +932,11 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
       setVoiceMuted(false);
       setVoiceError("");
       if (voiceEngine === "realtime") {
+        realtimeControls?.setMicrophoneEnabled(true);
         setVoiceListening(true);
+        if (inputMode === "voice" && getSpeechRecognitionCtor()) {
+          startVoiceListening({ suppressError: true });
+        }
       } else {
         startVoiceListening();
       }
@@ -917,6 +947,9 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     commitOnEndRef.current = false;
     if (voiceEngine === "webspeech") {
       recognitionRef.current?.stop();
+    } else if (voiceEngine === "realtime") {
+      recognitionRef.current?.stop();
+      realtimeControls?.setMicrophoneEnabled(false);
     }
     setVoiceListening(false);
     stopVoiceLevelMonitor();
@@ -924,7 +957,9 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     logVoiceDebug("voice-muted");
   }, [
     canInteract,
+    inputMode,
     logVoiceDebug,
+    realtimeControls,
     startVoiceListening,
     stopVoiceLevelMonitor,
     voiceEngine,
@@ -939,13 +974,19 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     setVoicePrimaryPressed(false);
     recognitionRef.current?.stop();
     // Note: do NOT disconnect Realtime here — text input also uses the Realtime session
+    realtimeControls?.setMicrophoneEnabled(false);
     stopVoiceLevelMonitor();
     stopAssistantAudio();
     setVoiceListening(false);
     setVoiceMuted(false);
     setInputMode("text");
     logVoiceDebug("switch-to-text-mode");
-  }, [logVoiceDebug, stopAssistantAudio, stopVoiceLevelMonitor]);
+  }, [
+    logVoiceDebug,
+    realtimeControls,
+    stopAssistantAudio,
+    stopVoiceLevelMonitor,
+  ]);
 
   const switchToChatOnly = useCallback(() => {
     switchToTextMode();
@@ -969,6 +1010,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     stopVoiceLevelMonitor();
     stopAssistantAudio();
     // Disconnect Realtime session on full reset
+    realtimeControls?.setMicrophoneEnabled(false);
     realtimeControls?.disconnect();
     callAssistantTranscriptStreamingRef.current = false;
     setVoiceEngine("webspeech");
@@ -1000,6 +1042,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     callAssistantTranscriptStreamingRef.current = false;
 
     if (realtimeControls) {
+      realtimeControls.setMicrophoneEnabled(true);
       realtimeControls.disconnect();
       const connected = await realtimeControls.connect();
       if (connected) {
@@ -1039,6 +1082,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     recognitionRef.current?.stop();
     stopVoiceLevelMonitor();
     stopAssistantAudio();
+    realtimeControls?.setMicrophoneEnabled(false);
     realtimeControls?.disconnect();
     setVoiceEngine("webspeech");
     setVoiceListening(false);

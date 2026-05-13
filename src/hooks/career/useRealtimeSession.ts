@@ -95,6 +95,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   const connectPromiseRef = useRef<Promise<boolean> | null>(null);
   const connectAttemptIdRef = useRef(0);
   const partialTranscriptItemIdRef = useRef<string | null>(null);
+  const microphoneEnabledRef = useRef(true);
 
   const hasAudioInResponseRef = useRef(false);
   const interruptTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -224,6 +225,14 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     const dataChannel = dataChannelRef.current;
     if (!dataChannel || dataChannel.readyState !== "open") return;
     dataChannel.send(JSON.stringify(event));
+  }, []);
+
+  const setMicrophoneEnabled = useCallback((enabled: boolean) => {
+    microphoneEnabledRef.current = enabled;
+    mediaStreamRef.current?.getAudioTracks().forEach((track) => {
+      track.enabled = enabled;
+    });
+    logCareerVoiceDebug("microphone.enabled", { enabled });
   }, []);
 
   const requestExactSpeech = useCallback(
@@ -672,9 +681,10 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
         });
 
         mediaStreamRef.current = stream;
-        stream
-          .getAudioTracks()
-          .forEach((track) => peerConnection.addTrack(track, stream));
+        stream.getAudioTracks().forEach((track) => {
+          track.enabled = microphoneEnabledRef.current;
+          peerConnection.addTrack(track, stream);
+        });
 
         return true;
       } catch (err) {
@@ -996,6 +1006,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     generateSpeechFromInstructions,
     updateSessionInstructions,
     getMediaStream,
+    setMicrophoneEnabled,
     sendEvent,
   };
 }
