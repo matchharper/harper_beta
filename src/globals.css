@@ -264,8 +264,9 @@
 }
 
 @layer base {
-  html.noneoverscroll {
-    overscroll-behavior-y: none;
+  html.noneoverscroll,
+  html.noneoverscroll body {
+    overscroll-behavior: none;
   }
   :root {
     --background: 32 48.4% 93.9%;

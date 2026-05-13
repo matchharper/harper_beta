@@ -2,6 +2,7 @@
 
 import React from "react";
 import { cn } from "@/lib/utils";
+import { useHtmlClass } from "@/hooks/useHtmlClass";
 
 type CareerMobileShellProps = {
   header: React.ReactNode;
@@ -18,15 +19,16 @@ export default function CareerMobileShell({
   className,
   contentClassName,
 }: CareerMobileShellProps) {
+  useHtmlClass("noneoverscroll");
   return (
     <div
       className={cn(
-        "relative flex min-h-svh w-full flex-col bg-beige50 font-geist text-beige900",
+        "relative flex h-svh w-full flex-col overflow-hidden bg-beige50 font-geist text-beige900",
         className
       )}
     >
       <div
-        className="sticky top-0 z-30"
+        className="z-30 shrink-0"
         style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
         {header}
@@ -35,7 +37,7 @@ export default function CareerMobileShell({
       <main
         id="career-mobile-scroll"
         className={cn(
-          "relative flex-1 overflow-y-auto scroll-smooth bg-beige50",
+          "relative min-h-0 flex-1 overflow-y-auto scroll-smooth bg-beige50",
           contentClassName
         )}
       >
@@ -44,7 +46,7 @@ export default function CareerMobileShell({
 
       {bottom ? (
         <div
-          className="sticky bottom-0 z-30 border-t border-beige900/10 bg-beige50"
+          className="z-30 shrink-0 border-t border-beige900/10 bg-beige50"
           style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
         >
           {bottom}
