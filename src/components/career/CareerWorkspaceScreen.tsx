@@ -20,11 +20,13 @@ import CareerMobileJobsView, {
   JobActionBar,
   type JobsDisplayTab,
 } from "@/components/career/mobile/jobs/CareerMobileJobsView";
-import { mapOpportunityToJobSummary } from "@/components/career/mobile/jobs/mapOpportunityToJobSummary";
 import CareerMobileChatLauncher from "@/components/career/mobile/CareerMobileChatLauncher";
 import CareerMobileShell from "@/components/career/mobile/CareerMobileShell";
 import CareerMobileTopBar from "@/components/career/mobile/CareerMobileTopBar";
 import { useIsMobile } from "@/hooks/useMediaQuery";
+import { useCompanyModalStore } from "@/store/useModalStore";
+import { useQueryClient } from "@tanstack/react-query";
+import type { CareerHistoryOpportunity } from "@/components/career/types";
 import React from "react";
 
 type CareerWorkspaceHistoryTarget = {
@@ -385,7 +387,20 @@ const JOBS_TAB_TO_FEEDBACK: Record<JobsDisplayTab, "new" | "positive" | "negativ
   archived: "negative",
 };
 
-const CareerWorkspaceMobileLayout = ({
+const useMobileUserDisplay = () => {
+  const { user, talentProfile } = useCareerSidebarContext();
+  const displayName =
+    user?.user_metadata?.full_name ??
+    user?.user_metadata?.name ??
+    (typeof user?.email === "string" ? user.email.split("@")[0] : undefined);
+  const profilePicture =
+    talentProfile.talentUser?.profile_picture ??
+    user?.user_metadata?.avatar_url ??
+    null;
+  return { displayName: displayName ?? null, profilePicture };
+};
+
+const CareerWorkspaceMobileHistoryView = ({
   activeTab,
   onChangeTab,
 }: {
@@ -393,42 +408,84 @@ const CareerWorkspaceMobileLayout = ({
   onChangeTab: (tab: CareerWorkspaceTab) => void;
 }) => {
   const {
-    user,
     onOpenSettings,
-    talentProfile,
     historyOpportunities,
     historyOpportunityCounts,
     historyLoading,
     onUpdateHistoryOpportunityFeedback,
+    onMarkHistoryOpportunityClicked,
   } = useCareerSidebarContext();
-  const [jobsTab, setJobsTab] = useState<JobsDisplayTab>("new");
+  const { displayName, profilePicture } = useMobileUserDisplay();
+  const openCompanyModal = useCompanyModalStore((s) => s.handleOpenCompany);
+  const queryClient = useQueryClient();
 
-  const displayName =
-    user?.user_metadata?.full_name ??
-    user?.user_metadata?.name ??
-    (typeof user?.email === "string"
-      ? user.email.split("@")[0]
-      : undefined);
-  const profilePicture =
-    talentProfile.talentUser?.profile_picture ??
-    user?.user_metadata?.avatar_url ??
-    null;
+  const [jobsTab, setJobsTab] = useState<JobsDisplayTab>("new");
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [hintDismissed, setHintDismissed] = useState(false);
+
+  const handleOpenCompanyInfo = useCallback(
+    (item: CareerHistoryOpportunity) => {
+      const fallbackUrl = item.companyHomepageUrl ?? item.companyLinkedinUrl;
+      if (!item.companyDbId && !fallbackUrl) return;
+
+      void onMarkHistoryOpportunityClicked(item.id);
+
+      if (item.companyDbId) {
+        void openCompanyModal({
+          companyId: item.companyDbId,
+          fallbackUrl,
+          openWhenIncomplete: true,
+          queryClient,
+          tone: "career",
+        });
+        return;
+      }
+
+      if (fallbackUrl) {
+        window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+      }
+    },
+    [onMarkHistoryOpportunityClicked, openCompanyModal, queryClient]
+  );
 
   const filterMode = JOBS_TAB_TO_FEEDBACK[jobsTab];
-  const currentOpportunity = useMemo(() => {
-    if (activeTab !== "history") return null;
-    return (
-      historyOpportunities.find((item) => {
+  const filteredOpportunities = useMemo(
+    () =>
+      historyOpportunities.filter((item) => {
         if (filterMode === "new") return item.feedback === null;
         return item.feedback === filterMode;
-      }) ?? null
-    );
-  }, [activeTab, historyOpportunities, filterMode]);
-
-  const selectedJob = useMemo(
-    () => (currentOpportunity ? mapOpportunityToJobSummary(currentOpportunity) : null),
-    [currentOpportunity]
+      }),
+    [historyOpportunities, filterMode]
   );
+
+  const safeIndex = Math.min(
+    Math.max(currentIndex, 0),
+    Math.max(filteredOpportunities.length - 1, 0)
+  );
+  const currentOpportunity = filteredOpportunities[safeIndex] ?? null;
+
+  const handleChangeJobsTab = useCallback((nextTab: JobsDisplayTab) => {
+    setJobsTab(nextTab);
+    setCurrentIndex(0);
+  }, []);
+
+  const handleNavigate = useCallback(
+    (delta: -1 | 1) => {
+      setCurrentIndex((prev) => {
+        const next = prev + delta;
+        if (next < 0) return 0;
+        if (next > filteredOpportunities.length - 1) {
+          return Math.max(filteredOpportunities.length - 1, 0);
+        }
+        return next;
+      });
+    },
+    [filteredOpportunities.length]
+  );
+
+  const handleDismissHint = useCallback(() => {
+    setHintDismissed(true);
+  }, []);
 
   const handleTrack = useCallback(() => {
     if (!currentOpportunity) return;
@@ -444,33 +501,66 @@ const CareerWorkspaceMobileLayout = ({
   }, [currentOpportunity, onUpdateHistoryOpportunityFeedback]);
 
   const actionBar =
-    selectedJob && jobsTab === "new" ? (
-      <JobActionBar onTrack={handleTrack} onDismiss={handleDismiss} />
+    currentOpportunity && jobsTab === "new" ? (
+      <JobActionBar
+        opportunity={currentOpportunity}
+        onTrack={handleTrack}
+        onDismiss={handleDismiss}
+      />
     ) : null;
+
+  const showHint =
+    !hintDismissed &&
+    Boolean(currentOpportunity) &&
+    filteredOpportunities.length > 1;
+
+  return (
+    <>
+      <CareerMobileJobsView
+        activeWorkspaceTab={activeTab}
+        onChangeWorkspaceTab={onChangeTab}
+        workspaceTabOptions={WORKSPACE_TAB_OPTIONS}
+        selectedOpportunity={currentOpportunity}
+        selectionIndex={safeIndex}
+        selectionTotal={filteredOpportunities.length}
+        onNavigate={handleNavigate}
+        newCount={historyOpportunityCounts.new}
+        trackingCount={historyOpportunityCounts.saved}
+        archivedCount={historyOpportunityCounts.archived}
+        activeJobsTab={jobsTab}
+        onChangeJobsTab={handleChangeJobsTab}
+        profilePicture={profilePicture}
+        userName={displayName}
+        onOpenSettings={onOpenSettings}
+        bottomReservePx={actionBar ? 200 : 120}
+        isLoading={historyLoading}
+        showSwipeHint={showHint}
+        onDismissSwipeHint={handleDismissHint}
+        onOpenCompanyInfo={handleOpenCompanyInfo}
+      />
+      <CareerMobileChatLauncher actionBar={actionBar}>
+        <CareerChatPanel />
+      </CareerMobileChatLauncher>
+    </>
+  );
+};
+
+const CareerWorkspaceMobileLayout = ({
+  activeTab,
+  onChangeTab,
+}: {
+  activeTab: CareerWorkspaceTab;
+  onChangeTab: (tab: CareerWorkspaceTab) => void;
+}) => {
+  const { onOpenSettings } = useCareerSidebarContext();
+  const { displayName, profilePicture } = useMobileUserDisplay();
 
   if (activeTab === "history") {
     return (
-      <>
-        <CareerMobileJobsView
-          activeWorkspaceTab={activeTab}
-          onChangeWorkspaceTab={onChangeTab}
-          workspaceTabOptions={WORKSPACE_TAB_OPTIONS}
-          selectedJob={selectedJob}
-          newCount={historyOpportunityCounts.new}
-          trackingCount={historyOpportunityCounts.saved}
-          archivedCount={historyOpportunityCounts.archived}
-          activeJobsTab={jobsTab}
-          onChangeJobsTab={setJobsTab}
-          profilePicture={profilePicture ?? null}
-          userName={displayName ?? null}
-          onOpenSettings={onOpenSettings}
-          bottomReservePx={actionBar ? 200 : 120}
-          isLoading={historyLoading}
-        />
-        <CareerMobileChatLauncher actionBar={actionBar}>
-          <CareerChatPanel />
-        </CareerMobileChatLauncher>
-      </>
+      <CareerWorkspaceMobileHistoryView
+        activeTab={activeTab}
+        onChangeTab={onChangeTab}
+      />
     );
   }
 
@@ -479,8 +569,8 @@ const CareerWorkspaceMobileLayout = ({
       activeTab={activeTab}
       options={WORKSPACE_TAB_OPTIONS}
       onChangeTab={onChangeTab}
-      profilePicture={profilePicture ?? null}
-      userName={displayName ?? null}
+      profilePicture={profilePicture}
+      userName={displayName}
       onOpenSettings={onOpenSettings}
     />
   );
