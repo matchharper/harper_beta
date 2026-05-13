@@ -26,12 +26,10 @@ import {
   type ReactNode,
 } from "react";
 import { showToast } from "@/components/toast/toast";
-import CareerMobileViewportGate from "@/components/career/CareerMobileViewportGate";
 import { BeigeButton, BeigeInput } from "@/components/ui/beige";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { useOnboarding } from "@/hooks/useOnboarding";
-import { resolveCareerMobileEntryReason } from "@/lib/career/mobileBlocker";
 import {
   TALENT_NETWORK_ENGAGEMENT_OPTIONS,
   TALENT_NETWORK_PROFILE_INPUT_OPTIONS,
@@ -39,7 +37,6 @@ import {
   type TalentNetworkProfileInputType,
 } from "@/lib/talentNetworkOptions";
 import { cn } from "@/lib/cn";
-import { useAuthStore } from "@/store/useAuthStore";
 import LoadingState from "../../components/career/OnboardingLoadingState";
 
 const ONBOARDING_BACKGROUND_CLASS =
@@ -1500,19 +1497,7 @@ const CareerNetworkOnboardingContent = () => {
 };
 
 const CareerNetworkOnboardingPage = () => {
-  const router = useRouter();
-  const user = useAuthStore((state) => state.user);
-  const entryReason = resolveCareerMobileEntryReason(router.query);
-
-  return (
-    <CareerMobileViewportGate
-      desktopFallback={<LoadingState />}
-      entryReason={entryReason}
-      user={user}
-    >
-      <CareerNetworkOnboardingContent />
-    </CareerMobileViewportGate>
-  );
+  return <CareerNetworkOnboardingContent />;
 };
 
 export default CareerNetworkOnboardingPage;

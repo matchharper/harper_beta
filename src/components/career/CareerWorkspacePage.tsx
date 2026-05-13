@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 import { useRouter } from "next/router";
 import { CareerFlowProvider } from "@/components/career/CareerFlowProvider";
 import CareerLoginGate from "@/components/career/CareerLoginGate";
-import CareerMobileViewportGate from "@/components/career/CareerMobileViewportGate";
 import CareerSettingsModal from "@/components/career/CareerSettingsModal";
 import CareerWorkspaceScreen, {
   CareerLoadingState,
@@ -15,7 +14,6 @@ import {
 } from "@/components/career/CareerWorkspaceNav";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
-import { resolveCareerMobileEntryReason } from "@/lib/career/mobileBlocker";
 
 const CareerWorkspacePage = ({
   activeTab,
@@ -37,7 +35,6 @@ const CareerWorkspacePage = ({
     isRouterReady && typeof router.query.mail === "string"
       ? router.query.mail
       : null;
-  const entryReason = resolveCareerMobileEntryReason(router.query);
 
   useEffect(() => {
     setCurrentActiveTab(
@@ -169,15 +166,7 @@ const CareerWorkspacePage = ({
     );
   }
 
-  return (
-    <CareerMobileViewportGate
-      desktopFallback={<CareerLoadingState />}
-      entryReason={entryReason}
-      user={user}
-    >
-      {pageContent}
-    </CareerMobileViewportGate>
-  );
+  return <>{pageContent}</>;
 };
 
 export default CareerWorkspacePage;
