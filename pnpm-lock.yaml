@@ -44,9 +44,6 @@ importers:
       '@slack/webhook':
         specifier: ^7.0.6
         version: 7.0.7
-      '@supabase/ssr':
-        specifier: ^0.4.0
-        version: 0.4.1(@supabase/supabase-js@2.98.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))
       '@supabase/supabase-js':
         specifier: ^2.45.0
         version: 2.98.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
@@ -1736,11 +1733,6 @@ packages:
       react-redux:
         optional: true
 
-  '@rollup/rollup-linux-x64-gnu@4.59.0':
-    resolution: {integrity: sha512-3AHmtQq/ppNuUspKAlvA8HtLybkDflkMuLK4DPo77DfthRb71V84/c4MlWJXixZz4uruIH4uaa07IqoAkG64fg==}
-    cpu: [x64]
-    os: [linux]
-
   '@rtsao/scc@1.1.0':
     resolution: {integrity: sha512-zt6OdqaDoOnJ1ZYsCYGt9YmWzDXl4vQdKTyJev62gFhRGKdx7mcT54V9KIjg+d2wi9EXsPvAPKe7i7WjfVWB8g==}
 
@@ -1777,11 +1769,6 @@ packages:
   '@supabase/realtime-js@2.98.0':
     resolution: {integrity: sha512-rOWt28uGyFipWOSd+n0WVMr9kUXiWaa7J4hvyLCIHjRFqWm1z9CaaKAoYyfYMC1Exn3WT8WePCgiVhlAtWC2yw==}
     engines: {node: '>=20.0.0'}
-
-  '@supabase/ssr@0.4.1':
-    resolution: {integrity: sha512-000i7y4ITXjXU0T1JytZYU33VbUNklX9YN47hCweaLKsTBAEigJJJCeq3G+/IiwEggBt58Vu0KQ3UGXON7OmDQ==}
-    peerDependencies:
-      '@supabase/supabase-js': ^2.43.4
 
   '@supabase/storage-js@2.98.0':
     resolution: {integrity: sha512-tzr2mG+v7ILSAZSfZMSL9OPyIH4z1ikgQ8EcQTKfMRz4EwmlFt3UnJaGzSOxyvF5b+fc9So7qdSUWTqGgeLokQ==}
@@ -2559,10 +2546,6 @@ packages:
 
   convert-source-map@2.0.0:
     resolution: {integrity: sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==}
-
-  cookie@0.6.0:
-    resolution: {integrity: sha512-U71cyTamuh1CRNCfpGY6to28lxvNwPG4Guz/EVjgf3Jmzv0vlDp1atT9eS5dDjMYHucpHbWns6Lwf3BKz6svdw==}
-    engines: {node: '>= 0.6'}
 
   core-js-compat@3.48.0:
     resolution: {integrity: sha512-OM4cAF3D6VtH/WkLtWvyNC56EZVXsZdU3iqaMG2B4WvYrlqU831pc4UtG5yp0sE9z8Y02wVN7PjW5Zf9Gt0f1Q==}
@@ -6425,9 +6408,6 @@ snapshots:
       react: 19.2.6
       react-redux: 9.2.0(@types/react@19.2.14)(react@19.2.6)(redux@5.0.1)
 
-  '@rollup/rollup-linux-x64-gnu@4.59.0':
-    optional: true
-
   '@rtsao/scc@1.1.0': {}
 
   '@sindresorhus/is@4.6.0': {}
@@ -6467,13 +6447,6 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
-
-  '@supabase/ssr@0.4.1(@supabase/supabase-js@2.98.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))':
-    dependencies:
-      '@supabase/supabase-js': 2.98.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
-      cookie: 0.6.0
-    optionalDependencies:
-      '@rollup/rollup-linux-x64-gnu': 4.59.0
 
   '@supabase/storage-js@2.98.0':
     dependencies:
@@ -7247,8 +7220,6 @@ snapshots:
   content-type@1.0.5: {}
 
   convert-source-map@2.0.0: {}
-
-  cookie@0.6.0: {}
 
   core-js-compat@3.48.0:
     dependencies:
