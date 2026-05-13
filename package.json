@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "ops:workspace:sync-list": "node scripts/syncCompanyWorkspacesFromList.mjs",
     "index:help": "tsx scripts/index-help-chunks.ts",
     "prepare": "husky"
@@ -73,7 +73,7 @@
     "@types/turndown": "^5.0.6",
     "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.4.20",
-    "eslint": "^8",
+    "eslint": "^9",
     "eslint-config-next": "^16.2.6",
     "husky": "^9.1.7",
     "postcss": "^8.4.40",
