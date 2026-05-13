@@ -16,6 +16,12 @@ import CareerWorkspaceNav, {
   type CareerWorkspaceTab,
 } from "@/components/career/CareerWorkspaceNav";
 import { careerCx } from "@/components/career/ui/CareerPrimitives";
+import CareerMobileJobsView, {
+  JobActionBar,
+  type CareerMobileJobSummary,
+} from "@/components/career/mobile/jobs/CareerMobileJobsView";
+import CareerMobileChatLauncher from "@/components/career/mobile/CareerMobileChatLauncher";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 import React from "react";
 
 type CareerWorkspaceHistoryTarget = {
@@ -271,6 +277,16 @@ const CareerWorkspaceRoot = ({
   }, []);
   const hasPendingSetup = stage !== "completed";
 
+  const isMobileViewport = useIsMobile();
+  if (isMobileViewport) {
+    return (
+      <CareerWorkspaceMobileLayout
+        activeTab={activeTab}
+        onChangeTab={handleChangeTab}
+      />
+    );
+  }
+
   return (
     <div className="flex min-h-screen w-full flex-col lg:h-screen lg:overflow-hidden">
       <CareerWorkspaceNav />
@@ -348,5 +364,80 @@ const CareerWorkspaceRoot = ({
         </section>
       </div>
     </div>
+  );
+};
+
+const WORKSPACE_TAB_OPTIONS: Array<{
+  id: CareerWorkspaceTab;
+  label: string;
+}> = [
+  { id: "home", label: "홈" },
+  { id: "history", label: "포지션" },
+  { id: "profile", label: "프로필" },
+];
+
+const DEMO_JOB: CareerMobileJobSummary = {
+  id: "demo-runbook-fse",
+  title: "Founding Software Engineer",
+  company: "Runbook",
+  companyLogoUrl: null,
+  location: "San Francisco (Hybrid)",
+  salary: "$120k - $180k (est)",
+  postedAgo: "2w ago",
+  sourceLabel: "Web-sourced",
+  bullets: [
+    "Runbook builds AI agents for the physical economy, you'd own the core platform.",
+    "Founding Engineer role aligns with your background in building scalable infrastructure.",
+    "Clarify specific salary, equity, and relocation support for O-1 visa.",
+  ],
+  roleDetailHtml:
+    'This <strong>early-stage AI startup</strong> is building an autonomous workforce for the physical economy, led by a founder who previously scaled Motive to a <strong>$5B+ valuation</strong>. As a <strong>Founding Software Engineer</strong>, you will join a high-trust, low-process team to develop AI agents that automate complex operational workflows for <strong>Fortune 500</strong> clients. This <strong>senior-level</strong> role requires <strong>5+ years of experience</strong> shipping production software with a strong <strong>full-stack range</strong> and a track record of driving ambiguous projects to completion. Key responsibilities include designing agent orchestration systems, building integrations with legacy ERP/TMS platforms, and working directly with customers to translate manual workflows into automated code. The stack is <strong>TypeScript-based</strong> and pragmatic. This is a <strong>full-time, on-site</strong> position in <strong>San Francisco</strong> with an "in-person bias." The role offers <strong>massive ownership</strong> and the unique opportunity to shape a category-defining product from day zero.',
+};
+
+const CareerWorkspaceMobileLayout = ({
+  activeTab,
+  onChangeTab,
+}: {
+  activeTab: CareerWorkspaceTab;
+  onChangeTab: (tab: CareerWorkspaceTab) => void;
+}) => {
+  const { user, onOpenSettings, talentProfile } = useCareerSidebarContext();
+
+  const displayName =
+    user?.user_metadata?.full_name ??
+    user?.user_metadata?.name ??
+    (typeof user?.email === "string"
+      ? user.email.split("@")[0]
+      : undefined);
+  const profilePicture =
+    talentProfile.talentUser?.profile_picture ??
+    user?.user_metadata?.avatar_url ??
+    null;
+
+  const selectedJob = activeTab === "history" ? DEMO_JOB : null;
+  const actionBar = selectedJob ? (
+    <JobActionBar
+      onTrack={() => undefined}
+      onDismiss={() => undefined}
+    />
+  ) : null;
+
+  return (
+    <>
+      <CareerMobileJobsView
+        activeWorkspaceTab={activeTab}
+        onChangeWorkspaceTab={onChangeTab}
+        workspaceTabOptions={WORKSPACE_TAB_OPTIONS}
+        selectedJob={selectedJob}
+        newCount={activeTab === "history" ? 6 : undefined}
+        profilePicture={profilePicture ?? null}
+        userName={displayName ?? null}
+        onOpenSettings={onOpenSettings}
+        bottomReservePx={actionBar ? 200 : 120}
+      />
+      <CareerMobileChatLauncher actionBar={actionBar}>
+        <CareerChatPanel />
+      </CareerMobileChatLauncher>
+    </>
   );
 };
