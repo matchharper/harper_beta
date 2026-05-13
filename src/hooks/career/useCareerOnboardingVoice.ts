@@ -11,6 +11,7 @@ import type { User } from "@supabase/supabase-js";
 import { useCareerVoiceInput } from "@/components/career/useCareerVoiceInput";
 import { useRealtimeSession } from "@/hooks/career/useRealtimeSession";
 import type {
+  CallLiveTranscriptPlacement,
   CareerMessage,
   CareerMessagePayload,
   CareerOpportunityRun,
@@ -43,7 +44,8 @@ const CALL_OPENING_RESPONSE_INSTRUCTION = [
   "많은 정보를 들려줄수록 회사 연결 요청이나 맞춤 기회 추천이 더 정확해진다는 취지를 한 번만 짧게 말하고, 함께 헤드헌터의 입장에서 할만한 질문을 던져도 됩니다.",
   "만약 직전의 대화가 5분, 10분 이내로 최근이라면, ~~를 얘기했었는데 이어서 할까요? 정도로만 말해도 됩니다.",
 ].join("\n");
-
+const ASSISTANT_BUFFER_FLUSH_TIMEOUT_MS = 1_000;
+const USER_TRANSCRIPTION_TIMEOUT_MS = 5_000;
 type SendChatArgs = {
   channel?: "chat" | "voice";
   text: string;
@@ -102,6 +104,8 @@ export const useCareerOnboardingVoice = ({
   const [onboardingWrapupPending, setOnboardingWrapupPending] = useState(false);
   const [onboardingPausePending, setOnboardingPausePending] = useState(false);
   const [callStartPending, setCallStartPending] = useState(false);
+  const [liveUserTranscriptPlacement, setLiveUserTranscriptPlacement] =
+    useState<CallLiveTranscriptPlacement>("beforeCurrentAssistant");
 
   const beginOnboardingConversation = useCallback(
     async (options?: {
@@ -172,9 +176,13 @@ export const useCareerOnboardingVoice = ({
   const pendingAssistantDoneRef = useRef<{
     hasEndMarker: boolean;
     hasOnboardingDoneMarker: boolean;
+    rendered?: boolean;
     text: string;
   } | null>(null);
   const pendingAssistantDeltaTextRef = useRef("");
+  const assistantBufferFlushTimeoutRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
   const suppressNextAssistantDoneRef = useRef(false);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const clearVoiceBufferRef = useRef<(() => void) | null>(null);
@@ -190,6 +198,113 @@ export const useCareerOnboardingVoice = ({
   const isAssistantSpeakingRef = useRef(false);
   const callStartedAtRef = useRef<number | null>(null);
   const callWrapUpPendingRef = useRef(false);
+  const liveUserTranscriptPlacementRef = useRef<CallLiveTranscriptPlacement>(
+    "beforeCurrentAssistant"
+  );
+  const userSpeechObservedRef = useRef(false);
+  const userTranscriptionPendingRef = useRef(false);
+  const userSpeechWithoutTranscriptRef = useRef(false);
+  const userTranscriptionTimeoutRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+
+  const clearUserTranscriptionTimeout = useCallback(() => {
+    if (userTranscriptionTimeoutRef.current) {
+      clearTimeout(userTranscriptionTimeoutRef.current);
+      userTranscriptionTimeoutRef.current = null;
+    }
+  }, []);
+
+  const clearAssistantBufferFlushTimeout = useCallback(() => {
+    if (assistantBufferFlushTimeoutRef.current) {
+      clearTimeout(assistantBufferFlushTimeoutRef.current);
+      assistantBufferFlushTimeoutRef.current = null;
+    }
+  }, []);
+
+  const markUserTranscriptUnavailable = useCallback(
+    (options?: { forceSpeech?: boolean }) => {
+      clearUserTranscriptionTimeout();
+      clearAssistantBufferFlushTimeout();
+      if (
+        options?.forceSpeech ||
+        userSpeechObservedRef.current ||
+        userTranscriptionPendingRef.current
+      ) {
+        userSpeechWithoutTranscriptRef.current = true;
+      }
+      userSpeechObservedRef.current = false;
+      userTranscriptionPendingRef.current = false;
+      liveUserTranscriptPlacementRef.current = "beforeCurrentAssistant";
+      setLiveUserTranscriptPlacement("beforeCurrentAssistant");
+      clearVoiceBufferRef.current?.();
+
+      const pendingAssistantDelta = pendingAssistantDeltaTextRef.current;
+      pendingAssistantDeltaTextRef.current = "";
+      if (pendingAssistantDelta) {
+        appendCallAssistantTranscriptDeltaRef.current?.(pendingAssistantDelta);
+      }
+
+      const pendingAssistant = pendingAssistantDoneRef.current;
+      if (pendingAssistant && !pendingAssistant.rendered) {
+        finalizeCallAssistantTranscriptRef.current?.(pendingAssistant.text);
+        pendingAssistantDoneRef.current = {
+          ...pendingAssistant,
+          rendered: true,
+        };
+      }
+      if (
+        pendingAssistant?.hasEndMarker ||
+        pendingAssistant?.hasOnboardingDoneMarker
+      ) {
+        pendingCallEndRef.current = true;
+        if (!isAssistantSpeakingRef.current) {
+          pendingCallEndRef.current = false;
+          endCallModeRef.current?.();
+        }
+      }
+    },
+    [clearAssistantBufferFlushTimeout, clearUserTranscriptionTimeout]
+  );
+
+  const queueAssistantBufferFlush = useCallback(() => {
+    if (assistantBufferFlushTimeoutRef.current) return;
+    assistantBufferFlushTimeoutRef.current = setTimeout(() => {
+      assistantBufferFlushTimeoutRef.current = null;
+      markUserTranscriptUnavailable({ forceSpeech: true });
+    }, ASSISTANT_BUFFER_FLUSH_TIMEOUT_MS);
+  }, [markUserTranscriptUnavailable]);
+
+  const clearRealtimeTurnSyncState = useCallback(
+    (options?: { resetPlacement?: boolean }) => {
+      clearUserTranscriptionTimeout();
+      clearAssistantBufferFlushTimeout();
+      userSpeechObservedRef.current = false;
+      userTranscriptionPendingRef.current = false;
+      userSpeechWithoutTranscriptRef.current = false;
+      if (options?.resetPlacement ?? true) {
+        liveUserTranscriptPlacementRef.current = "beforeCurrentAssistant";
+        setLiveUserTranscriptPlacement("beforeCurrentAssistant");
+      }
+    },
+    [clearAssistantBufferFlushTimeout, clearUserTranscriptionTimeout]
+  );
+
+  const markUserTranscriptionPending = useCallback(
+    (options?: { resetTimeout?: boolean }) => {
+      if (inputModeRef.current !== "call") return;
+      if (options?.resetTimeout) {
+        clearUserTranscriptionTimeout();
+      }
+      userTranscriptionPendingRef.current = true;
+      if (userTranscriptionTimeoutRef.current) return;
+      userTranscriptionTimeoutRef.current = setTimeout(
+        markUserTranscriptUnavailable,
+        USER_TRANSCRIPTION_TIMEOUT_MS
+      );
+    },
+    [clearUserTranscriptionTimeout, markUserTranscriptUnavailable]
+  );
 
   const saveRealtimeTurn = useCallback(
     (args: {
@@ -301,7 +416,10 @@ export const useCareerOnboardingVoice = ({
     | ((
         role: "user" | "assistant",
         text: string,
-        options?: { beforeCurrentAssistant?: boolean }
+        options?: {
+          beforeCurrentAssistant?: boolean;
+          placement?: CallLiveTranscriptPlacement;
+        }
       ) => void)
     | null
   >(null);
@@ -323,7 +441,12 @@ export const useCareerOnboardingVoice = ({
   const handleRealtimeTranscript = useCallback(
     (text: string) => {
       const userText = text.trim();
-      if (!userText) return;
+      if (!userText) {
+        markUserTranscriptUnavailable();
+        return;
+      }
+
+      clearRealtimeTurnSyncState({ resetPlacement: false });
 
       const previousUserText = lastRealtimeUserTextRef.current;
       const combinedUserText = previousUserText
@@ -331,8 +454,11 @@ export const useCareerOnboardingVoice = ({
         : userText;
       lastRealtimeUserTextRef.current = combinedUserText;
       const pendingAssistant = pendingAssistantDoneRef.current;
+      const placement = liveUserTranscriptPlacementRef.current;
       addCallTranscriptEntryRef.current?.("user", userText, {
-        beforeCurrentAssistant: Boolean(pendingAssistant),
+        beforeCurrentAssistant:
+          placement === "beforeCurrentAssistant" && Boolean(pendingAssistant),
+        placement,
       });
 
       const pendingAssistantDelta = pendingAssistantDeltaTextRef.current;
@@ -341,11 +467,15 @@ export const useCareerOnboardingVoice = ({
         appendCallAssistantTranscriptDeltaRef.current?.(pendingAssistantDelta);
       }
       clearVoiceBufferRef.current?.();
+      liveUserTranscriptPlacementRef.current = "beforeCurrentAssistant";
+      setLiveUserTranscriptPlacement("beforeCurrentAssistant");
 
       if (!pendingAssistant || inputModeRef.current !== "call") return;
 
       pendingAssistantDoneRef.current = null;
-      finalizeCallAssistantTranscriptRef.current?.(pendingAssistant.text);
+      if (!pendingAssistant.rendered) {
+        finalizeCallAssistantTranscriptRef.current?.(pendingAssistant.text);
+      }
       void saveRealtimeTurn({
         userText: combinedUserText,
         assistantText: pendingAssistant.text,
@@ -365,28 +495,52 @@ export const useCareerOnboardingVoice = ({
         }
       }
     },
-    [saveRealtimeTurn]
+    [
+      clearRealtimeTurnSyncState,
+      markUserTranscriptUnavailable,
+      saveRealtimeTurn,
+    ]
   );
 
-  const handleRealtimeAssistantDelta = useCallback((delta: string) => {
-    if (inputModeRef.current !== "call") return;
-    const cleanDelta = delta
-      .replaceAll("##END##", "")
-      .replaceAll(TALENT_ONBOARDING_DONE_MARKER, "");
-    if (!cleanDelta) return;
+  const handleRealtimeAssistantDelta = useCallback(
+    (delta: string) => {
+      if (inputModeRef.current !== "call") return;
+      const cleanDelta = delta
+        .replaceAll("##END##", "")
+        .replaceAll(TALENT_ONBOARDING_DONE_MARKER, "");
+      if (!cleanDelta) return;
 
-    // Normal user turns can stream Harper text before Realtime gives us the
-    // final user transcript. Buffer that text so CC keeps user -> Harper order.
-    if (
-      !lastRealtimeUserTextRef.current &&
-      !suppressNextAssistantDoneRef.current
-    ) {
-      pendingAssistantDeltaTextRef.current += cleanDelta;
-      return;
-    }
+      if (
+        !lastRealtimeUserTextRef.current &&
+        !suppressNextAssistantDoneRef.current
+      ) {
+        const hasUnresolvedUserSpeech =
+          userSpeechObservedRef.current ||
+          userTranscriptionPendingRef.current ||
+          userSpeechWithoutTranscriptRef.current;
 
-    appendCallAssistantTranscriptDeltaRef.current?.(cleanDelta);
-  }, []);
+        if (hasUnresolvedUserSpeech) {
+          if (
+            userSpeechObservedRef.current ||
+            userTranscriptionPendingRef.current
+          ) {
+            liveUserTranscriptPlacementRef.current = "beforeCurrentAssistant";
+            setLiveUserTranscriptPlacement("beforeCurrentAssistant");
+            markUserTranscriptionPending();
+          }
+          appendCallAssistantTranscriptDeltaRef.current?.(cleanDelta);
+          return;
+        }
+
+        pendingAssistantDeltaTextRef.current += cleanDelta;
+        queueAssistantBufferFlush();
+        return;
+      }
+
+      appendCallAssistantTranscriptDeltaRef.current?.(cleanDelta);
+    },
+    [markUserTranscriptionPending, queueAssistantBufferFlush]
+  );
 
   const handleRealtimeAssistantDone = useCallback(
     (fullText: string) => {
@@ -414,11 +568,49 @@ export const useCareerOnboardingVoice = ({
             suppressNextAssistantDoneRef.current = false;
             return;
           }
+
+          const hasUnresolvedUserSpeech =
+            userSpeechObservedRef.current ||
+            userTranscriptionPendingRef.current ||
+            userSpeechWithoutTranscriptRef.current;
+          let renderedAssistant = false;
+          if (hasUnresolvedUserSpeech) {
+            if (
+              userSpeechObservedRef.current ||
+              userTranscriptionPendingRef.current
+            ) {
+              markUserTranscriptionPending();
+            }
+            finalizeCallAssistantTranscriptRef.current?.(cleanText);
+            renderedAssistant = true;
+          }
+
+          if (userSpeechWithoutTranscriptRef.current) {
+            userSpeechWithoutTranscriptRef.current = false;
+            userSpeechObservedRef.current = false;
+            userTranscriptionPendingRef.current = false;
+            liveUserTranscriptPlacementRef.current = "beforeCurrentAssistant";
+            setLiveUserTranscriptPlacement("beforeCurrentAssistant");
+
+            if (hasEndMarker || hasOnboardingDoneMarker) {
+              pendingCallEndRef.current = true;
+              if (!isAssistantSpeakingRef.current) {
+                pendingCallEndRef.current = false;
+                endCallModeRef.current?.();
+              }
+            }
+            return;
+          }
+
           pendingAssistantDoneRef.current = {
             hasEndMarker,
             hasOnboardingDoneMarker,
+            rendered: renderedAssistant,
             text: cleanText,
           };
+          if (!renderedAssistant) {
+            queueAssistantBufferFlush();
+          }
           return;
         }
 
@@ -491,7 +683,13 @@ export const useCareerOnboardingVoice = ({
       });
       lastRealtimeUserTextRef.current = "";
     },
-    [appendMessage, onMessagesChanged, saveRealtimeTurn]
+    [
+      appendMessage,
+      markUserTranscriptionPending,
+      onMessagesChanged,
+      queueAssistantBufferFlush,
+      saveRealtimeTurn,
+    ]
   );
 
   const handleRealtimeError = useCallback(
@@ -511,12 +709,31 @@ export const useCareerOnboardingVoice = ({
   }, []);
 
   const handleRealtimeUserSpeechStarted = useCallback(() => {
+    clearUserTranscriptionTimeout();
+    clearAssistantBufferFlushTimeout();
+    userSpeechObservedRef.current = true;
+    userTranscriptionPendingRef.current = false;
+    userSpeechWithoutTranscriptRef.current = false;
+    liveUserTranscriptPlacementRef.current = "afterCurrentAssistant";
+    setLiveUserTranscriptPlacement("afterCurrentAssistant");
+
     pendingAssistantDoneRef.current = null;
     pendingAssistantDeltaTextRef.current = "";
     suppressNextAssistantDoneRef.current = false;
     pendingCallEndRef.current = false;
     clearVoiceBufferRef.current?.();
-  }, []);
+  }, [clearAssistantBufferFlushTimeout, clearUserTranscriptionTimeout]);
+
+  const handleRealtimeUserSpeechStopped = useCallback(() => {
+    if (inputModeRef.current !== "call") return;
+    if (
+      !userSpeechObservedRef.current &&
+      !userTranscriptionPendingRef.current
+    ) {
+      return;
+    }
+    markUserTranscriptionPending({ resetTimeout: true });
+  }, [markUserTranscriptionPending]);
 
   const realtimeSession = useRealtimeSession({
     conversationId,
@@ -527,6 +744,7 @@ export const useCareerOnboardingVoice = ({
     onError: handleRealtimeError,
     onConnectionChange: handleRealtimeConnectionChange,
     onUserSpeechStarted: handleRealtimeUserSpeechStarted,
+    onUserSpeechStopped: handleRealtimeUserSpeechStopped,
   });
   realtimeSessionRef.current = realtimeSession;
   const sendRealtimeVoiceTextMessage = useCallback(
@@ -860,6 +1078,7 @@ export const useCareerOnboardingVoice = ({
         pendingAssistantDeltaTextRef.current = "";
         suppressNextAssistantDoneRef.current = false;
         lastRealtimeUserTextRef.current = "";
+        clearRealtimeTurnSyncState();
 
         const shouldBeginOnboarding =
           !customOpeningText && showVoiceStartPrompt;
@@ -921,6 +1140,7 @@ export const useCareerOnboardingVoice = ({
     [
       beginOnboardingConversation,
       callStartPending,
+      clearRealtimeTurnSyncState,
       onboardingBeginPending,
       showVoiceStartPrompt,
       startCallMode,
@@ -929,145 +1149,148 @@ export const useCareerOnboardingVoice = ({
 
   // Ends the call and turns the in-call transcript into one visible follow-up
   // chat message so the user has a clear next step after the phone UI closes.
-  const handleEndCallMode = useCallback((options?: EndCallModeOptions) => {
-    if (callWrapUpPendingRef.current) return;
-    const forceCompleteOnboarding = Boolean(
-      options?.forceCompleteOnboarding
-    );
+  const handleEndCallMode = useCallback(
+    (options?: EndCallModeOptions) => {
+      if (callWrapUpPendingRef.current) return;
+      const forceCompleteOnboarding = Boolean(options?.forceCompleteOnboarding);
 
-    // Capture transcript before ending (endCallMode doesn't clear it)
-    const transcript = callTranscriptEntries;
-    const startedAt = callStartedAtRef.current;
-    const durationSeconds = startedAt
-      ? Math.max(0, Math.round((Date.now() - startedAt) / 1000))
-      : 0;
-    callStartedAtRef.current = null;
-    pendingAssistantDoneRef.current = null;
-    pendingAssistantDeltaTextRef.current = "";
-    suppressNextAssistantDoneRef.current = false;
-    lastRealtimeUserTextRef.current = "";
-    endCallMode();
+      // Capture transcript before ending (endCallMode doesn't clear it)
+      const transcript = callTranscriptEntries;
+      const startedAt = callStartedAtRef.current;
+      const durationSeconds = startedAt
+        ? Math.max(0, Math.round((Date.now() - startedAt) / 1000))
+        : 0;
+      callStartedAtRef.current = null;
+      pendingAssistantDoneRef.current = null;
+      pendingAssistantDeltaTextRef.current = "";
+      suppressNextAssistantDoneRef.current = false;
+      lastRealtimeUserTextRef.current = "";
+      clearRealtimeTurnSyncState();
+      endCallMode();
 
-    if (!conversationId) {
-      return;
-    }
+      if (!conversationId) {
+        return;
+      }
 
-    const hasUserSpeech = transcript.some(
-      (entry) => entry.role === "user" && entry.text.trim().length > 0
-    );
-    if (!hasUserSpeech && !forceCompleteOnboarding) {
-      return;
-    }
+      const hasUserSpeech = transcript.some(
+        (entry) => entry.role === "user" && entry.text.trim().length > 0
+      );
+      if (!hasUserSpeech && !forceCompleteOnboarding) {
+        return;
+      }
 
-    callWrapUpPendingRef.current = true;
-    // Lock composer while generating follow-up so user can't send messages before it
-    setOnboardingBeginPending(true);
+      callWrapUpPendingRef.current = true;
+      // Lock composer while generating follow-up so user can't send messages before it
+      setOnboardingBeginPending(true);
 
-    void (async () => {
-      try {
-        await saveQueueRef.current.catch(() => undefined);
+      void (async () => {
+        try {
+          await saveQueueRef.current.catch(() => undefined);
 
-        const response = await fetchWithAuth("/api/talent/chat/call-wrapup", {
-          method: "POST",
-          body: JSON.stringify({
-            conversationId,
-            transcript: transcript.map((e) => ({
-              role: e.role,
-              text: e.text,
-            })),
-            durationSeconds,
-            forceCompleteOnboarding,
-          }),
-        });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          console.error("[CareerOnboardingVoice] Follow-up failed:", payload);
-          setChatError("종료 메시지 생성에 실패했습니다.");
-          return;
-        }
-
-        if (payload?.progress?.completed) {
-          setStage("completed" as CareerStage);
-        }
-        if (payload?.opportunityRun) {
-          onOpportunityRunChanged?.(
-            payload.opportunityRun as CareerOpportunityRun
-          );
-        }
-        if (payload?.opportunityDiscoveryQueued) {
-          showOpportunityDiscoveryStartedToast();
-        }
-        if (
-          payload &&
-          typeof payload === "object" &&
-          "talentInsights" in payload
-        ) {
-          onTalentInsightsRefreshed?.(
-            payload.talentInsights,
-            payload.insightUpdatedAt ?? null
-          );
-        }
-
-        const followUpMessages = Array.isArray(payload?.followUpMessages)
-          ? payload.followUpMessages
-          : payload?.followUpMessage
-            ? [payload.followUpMessage]
-            : [];
-
-        const savedFollowUpMessages: CareerMessagePayload[] = [];
-        for (const followMsg of followUpMessages) {
-          const id = followMsg.id ?? `followup-${Date.now()}`;
-          const role = followMsg.role === "user" ? "user" : "assistant";
-          const content = String(followMsg.content ?? "");
-          const messageType =
-            followMsg.message_type ?? followMsg.messageType ?? "chat";
-          const createdAt =
-            followMsg.created_at ??
-            followMsg.createdAt ??
-            new Date().toISOString();
-
-          await enqueueAssistantTypewriter({
-            id,
-            role,
-            content,
-            messageType,
-            createdAt,
+          const response = await fetchWithAuth("/api/talent/chat/call-wrapup", {
+            method: "POST",
+            body: JSON.stringify({
+              conversationId,
+              transcript: transcript.map((e) => ({
+                role: e.role,
+                text: e.text,
+              })),
+              durationSeconds,
+              forceCompleteOnboarding,
+            }),
           });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            console.error("[CareerOnboardingVoice] Follow-up failed:", payload);
+            setChatError("종료 메시지 생성에 실패했습니다.");
+            return;
+          }
 
-          const numericId = typeof id === "number" ? id : Number(id);
-          if (Number.isFinite(numericId)) {
-            savedFollowUpMessages.push({
-              id: numericId,
+          if (payload?.progress?.completed) {
+            setStage("completed" as CareerStage);
+          }
+          if (payload?.opportunityRun) {
+            onOpportunityRunChanged?.(
+              payload.opportunityRun as CareerOpportunityRun
+            );
+          }
+          if (payload?.opportunityDiscoveryQueued) {
+            showOpportunityDiscoveryStartedToast();
+          }
+          if (
+            payload &&
+            typeof payload === "object" &&
+            "talentInsights" in payload
+          ) {
+            onTalentInsightsRefreshed?.(
+              payload.talentInsights,
+              payload.insightUpdatedAt ?? null
+            );
+          }
+
+          const followUpMessages = Array.isArray(payload?.followUpMessages)
+            ? payload.followUpMessages
+            : payload?.followUpMessage
+              ? [payload.followUpMessage]
+              : [];
+
+          const savedFollowUpMessages: CareerMessagePayload[] = [];
+          for (const followMsg of followUpMessages) {
+            const id = followMsg.id ?? `followup-${Date.now()}`;
+            const role = followMsg.role === "user" ? "user" : "assistant";
+            const content = String(followMsg.content ?? "");
+            const messageType =
+              followMsg.message_type ?? followMsg.messageType ?? "chat";
+            const createdAt =
+              followMsg.created_at ??
+              followMsg.createdAt ??
+              new Date().toISOString();
+
+            await enqueueAssistantTypewriter({
+              id,
               role,
               content,
               messageType,
               createdAt,
             });
+
+            const numericId = typeof id === "number" ? id : Number(id);
+            if (Number.isFinite(numericId)) {
+              savedFollowUpMessages.push({
+                id: numericId,
+                role,
+                content,
+                messageType,
+                createdAt,
+              });
+            }
           }
+          if (savedFollowUpMessages.length > 0) {
+            await onMessagesChanged?.(savedFollowUpMessages);
+          }
+        } catch (error) {
+          console.error("[CareerOnboardingVoice] Follow-up error:", error);
+          setChatError("종료 메시지 생성에 실패했습니다.");
+        } finally {
+          setOnboardingBeginPending(false);
+          callWrapUpPendingRef.current = false;
         }
-        if (savedFollowUpMessages.length > 0) {
-          await onMessagesChanged?.(savedFollowUpMessages);
-        }
-      } catch (error) {
-        console.error("[CareerOnboardingVoice] Follow-up error:", error);
-        setChatError("종료 메시지 생성에 실패했습니다.");
-      } finally {
-        setOnboardingBeginPending(false);
-        callWrapUpPendingRef.current = false;
-      }
-    })();
-  }, [
-    callTranscriptEntries,
-    conversationId,
-    endCallMode,
-    enqueueAssistantTypewriter,
-    fetchWithAuth,
-    onMessagesChanged,
-    onOpportunityRunChanged,
-    onTalentInsightsRefreshed,
-    setChatError,
-    setStage,
-  ]);
+      })();
+    },
+    [
+      callTranscriptEntries,
+      clearRealtimeTurnSyncState,
+      conversationId,
+      endCallMode,
+      enqueueAssistantTypewriter,
+      fetchWithAuth,
+      onMessagesChanged,
+      onOpportunityRunChanged,
+      onTalentInsightsRefreshed,
+      setChatError,
+      setStage,
+    ]
+  );
 
   // Wire endCallModeRef for auto-end on interview completion
   useEffect(() => {
@@ -1099,7 +1322,8 @@ export const useCareerOnboardingVoice = ({
     pendingAssistantDeltaTextRef.current = "";
     suppressNextAssistantDoneRef.current = false;
     lastRealtimeUserTextRef.current = "";
-  }, []);
+    clearRealtimeTurnSyncState();
+  }, [clearRealtimeTurnSyncState]);
 
   return {
     showVoiceStartPrompt,
@@ -1109,6 +1333,7 @@ export const useCareerOnboardingVoice = ({
     onboardingPausePending,
     inputMode,
     voiceTranscript,
+    liveUserTranscriptPlacement,
     voiceListening,
     voiceMuted,
     voiceError,

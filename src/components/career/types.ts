@@ -6,6 +6,9 @@ export { OpportunityType as CareerOpportunityType };
 export type CareerStage = "profile" | "chat" | "completed";
 export type MessageRole = "assistant" | "user";
 export type CareerInputMode = "text" | "voice" | "call";
+export type CallLiveTranscriptPlacement =
+  | "beforeCurrentAssistant"
+  | "afterCurrentAssistant";
 
 export type CareerRecommendationSearchStatusState =
   | "running"

@@ -11,7 +11,8 @@ type UseRealtimeSessionArgs = {
   onAssistantDone: (fullText: string) => void;
   onError: (error: string) => void;
   onConnectionChange: (connected: boolean) => void;
-  onUserSpeechStarted?: () => void;
+  onUserSpeechStarted?: (event: { interruptedAssistant: boolean }) => void;
+  onUserSpeechStopped?: () => void;
 };
 
 type TokenInfo = {
@@ -72,6 +73,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     onError,
     onConnectionChange,
     onUserSpeechStarted,
+    onUserSpeechStopped,
   } = args;
 
   const [isConnected, setIsConnected] = useState(false);
@@ -92,6 +94,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   const connectRef = useRef<(() => Promise<boolean>) | null>(null);
   const connectPromiseRef = useRef<Promise<boolean> | null>(null);
   const connectAttemptIdRef = useRef(0);
+  const partialTranscriptItemIdRef = useRef<string | null>(null);
 
   const hasAudioInResponseRef = useRef(false);
   const interruptTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -112,6 +115,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   const onErrorRef = useRef(onError);
   const onConnectionChangeRef = useRef(onConnectionChange);
   const onUserSpeechStartedRef = useRef(onUserSpeechStarted);
+  const onUserSpeechStoppedRef = useRef(onUserSpeechStopped);
 
   useEffect(() => {
     onTranscriptRef.current = onTranscript;
@@ -131,6 +135,9 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   useEffect(() => {
     onUserSpeechStartedRef.current = onUserSpeechStarted;
   }, [onUserSpeechStarted]);
+  useEffect(() => {
+    onUserSpeechStoppedRef.current = onUserSpeechStopped;
+  }, [onUserSpeechStopped]);
 
   const ensureRemoteAudioElement = useCallback(() => {
     if (typeof document === "undefined") return null;
@@ -440,7 +447,20 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
 
           case "conversation.item.input_audio_transcription.delta": {
             const delta = typeof msg.delta === "string" ? msg.delta : "";
-            logCareerVoiceDebug("transcription.delta", { delta });
+            const itemId = typeof msg.item_id === "string" ? msg.item_id : "";
+            logCareerVoiceDebug("transcription.delta", { delta, itemId });
+            if (!delta) break;
+
+            const previousItemId = partialTranscriptItemIdRef.current;
+            if (itemId) {
+              partialTranscriptItemIdRef.current = itemId;
+            }
+
+            if (itemId && previousItemId && previousItemId !== itemId) {
+              setPartialTranscript(delta);
+              break;
+            }
+
             setPartialTranscript((prev) => prev + delta);
             break;
           }
@@ -448,9 +468,27 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
           case "conversation.item.input_audio_transcription.completed": {
             const transcript =
               typeof msg.transcript === "string" ? msg.transcript : "";
-            logCareerVoiceDebug("transcription.completed", { transcript });
-            setPartialTranscript("");
+            const itemId = typeof msg.item_id === "string" ? msg.item_id : "";
+            logCareerVoiceDebug("transcription.completed", {
+              itemId,
+              transcript,
+            });
+            if (!itemId || partialTranscriptItemIdRef.current === itemId) {
+              partialTranscriptItemIdRef.current = null;
+              setPartialTranscript("");
+            }
             onTranscriptRef.current(transcript);
+            break;
+          }
+
+          case "conversation.item.input_audio_transcription.failed": {
+            const itemId = typeof msg.item_id === "string" ? msg.item_id : "";
+            logCareerVoiceDebug("transcription.failed", { itemId });
+            if (!itemId || partialTranscriptItemIdRef.current === itemId) {
+              partialTranscriptItemIdRef.current = null;
+              setPartialTranscript("");
+            }
+            onTranscriptRef.current("");
             break;
           }
 
@@ -564,6 +602,8 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
 
           case "input_audio_buffer.speech_started": {
             logCareerVoiceDebug("speech.started");
+            partialTranscriptItemIdRef.current = null;
+            setPartialTranscript("");
             if (interruptTimerRef.current) {
               clearTimeout(interruptTimerRef.current);
               interruptTimerRef.current = null;
@@ -578,13 +618,16 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
             if (shouldInterrupt) {
               cancelActiveResponse();
             }
-            onUserSpeechStartedRef.current?.();
+            onUserSpeechStartedRef.current?.({
+              interruptedAssistant: shouldInterrupt,
+            });
             break;
           }
 
           case "input_audio_buffer.speech_stopped": {
             speechStoppedAtRef.current = performance.now();
             logCareerVoiceDebug("speech.stopped");
+            onUserSpeechStoppedRef.current?.();
             if (interruptTimerRef.current) {
               clearTimeout(interruptTimerRef.current);
               interruptTimerRef.current = null;
@@ -677,6 +720,8 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     responseCancelRequestedRef.current = false;
     suppressCurrentResponseOutputRef.current = false;
     suppressCancelledResponseDoneRef.current = false;
+    partialTranscriptItemIdRef.current = null;
+    setPartialTranscript("");
     setIsConnected(false);
     setIsConnecting(false);
     setConnectionStatus("disconnected");

@@ -148,13 +148,20 @@ const CareerMessageBubble = ({
     <article className={articleClassName}>
       <div className="flex items-start gap-2">
         {isCallTranscript && (
-          <AudioLines
+          <span
             className={[
-              "mt-[7px] h-3.5 w-3.5 shrink-0",
-              isUser ? "text-beige100/70" : "text-beige900/45",
+              "flex shrink-0 items-center justify-center",
+              isUser ? "h-6" : "h-7",
             ].join(" ")}
-            aria-label="전화 대화"
-          />
+          >
+            <AudioLines
+              className={[
+                "h-3.5 w-3.5",
+                isUser ? "text-beige100/70" : "text-beige900/45",
+              ].join(" ")}
+              aria-label="전화 대화"
+            />
+          </span>
         )}
         <div className="min-w-0 flex-1">
           {isUser ? (

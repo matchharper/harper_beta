@@ -87,6 +87,9 @@ async function buildRealtimeInstructions(
 const TOKEN_RATE_LIMIT = new Map<string, { count: number; resetAt: number }>();
 const MAX_TOKENS_PER_MINUTE = 10;
 const MAX_RATE_LIMIT_ENTRIES = 1000;
+const REALTIME_TRANSCRIPTION_PROMPT =
+  "대화는 주로 한국어지만 기술 용어는 영어 원문으로 적는다.";
+const REALTIME_TRANSCRIPTION_LANGUAGE = "ko";
 
 function checkRateLimit(userId: string): boolean {
   const now = Date.now();
@@ -112,6 +115,68 @@ function checkRateLimit(userId: string): boolean {
 
 function buildSafetyIdentifier(userId: string): string {
   return createHash("sha256").update(`talent-user:${userId}`).digest("hex");
+}
+
+function buildRealtimeSessionBody(args: {
+  instructions: string;
+  realtimeConfig: ReturnType<typeof getCareerRealtimeSessionConfig>;
+  tools: ReturnType<typeof getRealtimeTools>;
+  transcriptionModel: string;
+}) {
+  const { instructions, realtimeConfig, tools, transcriptionModel } = args;
+
+  return {
+    session: {
+      type: "realtime",
+      model: realtimeConfig.model,
+      output_modalities: realtimeConfig.outputModalities,
+      audio: {
+        input: {
+          transcription: {
+            model: transcriptionModel,
+            language: REALTIME_TRANSCRIPTION_LANGUAGE,
+            prompt: REALTIME_TRANSCRIPTION_PROMPT,
+          },
+          turn_detection: {
+            type: "semantic_vad",
+            create_response: true,
+            interrupt_response: true,
+            eagerness: "auto",
+          },
+          noise_reduction: { type: "near_field" },
+        },
+        ...(realtimeConfig.voice
+          ? {
+              output: {
+                voice: realtimeConfig.voice,
+              },
+            }
+          : {}),
+      },
+      instructions,
+      ...(tools.length > 0
+        ? {
+            tools,
+            tool_choice: "auto" as const,
+          }
+        : {}),
+    },
+  };
+}
+
+function createRealtimeClientSecret(args: {
+  body: ReturnType<typeof buildRealtimeSessionBody>;
+  safetyIdentifier: string;
+}) {
+  return fetch("https://api.openai.com/v1/realtime/client_secrets", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      "Content-Type": "application/json",
+      "OpenAI-Safety-Identifier": args.safetyIdentifier,
+    },
+    body: JSON.stringify(args.body),
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -157,55 +222,17 @@ export async function POST(req: NextRequest) {
     const toolVoicePreambles =
       tools.length > 0 ? getTalentToolVoicePreambles("voice") : {};
     const realtimeConfig = getCareerRealtimeSessionConfig();
+    const safetyIdentifier = buildSafetyIdentifier(user.id);
 
-    const response = await fetch(
-      "https://api.openai.com/v1/realtime/client_secrets",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-          "Content-Type": "application/json",
-          "OpenAI-Safety-Identifier": buildSafetyIdentifier(user.id),
-        },
-        body: JSON.stringify({
-          session: {
-            type: "realtime",
-            model: realtimeConfig.model,
-            output_modalities: realtimeConfig.outputModalities,
-            audio: {
-              input: {
-                transcription: {
-                  model: realtimeConfig.transcriptionModel,
-                  prompt:
-                    "대화는 주로 한국어지만 기술 용어는 영어 원문으로 적는다.",
-                },
-                turn_detection: {
-                  type: "semantic_vad",
-                  create_response: true,
-                  interrupt_response: true,
-                  eagerness: "auto",
-                },
-                noise_reduction: { type: "near_field" },
-              },
-              ...(realtimeConfig.voice
-                ? {
-                    output: {
-                      voice: realtimeConfig.voice,
-                    },
-                  }
-                : {}),
-            },
-            instructions,
-            ...(tools.length > 0
-              ? {
-                  tools,
-                  tool_choice: "auto" as const,
-                }
-              : {}),
-          },
-        }),
-      }
-    );
+    const response = await createRealtimeClientSecret({
+      safetyIdentifier,
+      body: buildRealtimeSessionBody({
+        instructions,
+        realtimeConfig,
+        tools,
+        transcriptionModel: realtimeConfig.transcriptionModel,
+      }),
+    });
 
     if (!response.ok) {
       const err = await response.text().catch(() => "");
@@ -230,6 +257,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       token,
       toolVoicePreambles,
+      transcriptionModel: realtimeConfig.transcriptionModel,
     });
   } catch (error) {
     console.error("[RealtimeToken] Error:", error);

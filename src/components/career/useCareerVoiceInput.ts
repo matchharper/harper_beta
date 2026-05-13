@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
+  CallLiveTranscriptPlacement,
   CallTranscriptEntry,
   CareerInputMode,
   CareerMessage,
@@ -94,12 +95,7 @@ const isEditableTarget = (target: EventTarget | null) => {
 };
 
 export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
-  const {
-    canInteract,
-    onSendMessage,
-    onUnsupported,
-    realtimeControls,
-  } = args;
+  const { canInteract, onSendMessage, onUnsupported, realtimeControls } = args;
   const [inputMode, setInputMode] = useState<CareerInputMode>("text");
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [voiceListening, setVoiceListening] = useState(false);
@@ -744,13 +740,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
         window.clearTimeout(timerId);
       }
     };
-  }, [
-    canInteract,
-    inputMode,
-    startVoiceListening,
-    voiceListening,
-    voiceMuted,
-  ]);
+  }, [canInteract, inputMode, startVoiceListening, voiceListening, voiceMuted]);
 
   const startVoiceCall = useCallback(async () => {
     if (!isSpeechSupported) {
@@ -1076,7 +1066,10 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
     (
       role: "user" | "assistant",
       text: string,
-      options?: { beforeCurrentAssistant?: boolean }
+      options?: {
+        beforeCurrentAssistant?: boolean;
+        placement?: CallLiveTranscriptPlacement;
+      }
     ) => {
       if (inputModeRef.current !== "call") return;
       if (!text.trim()) return;
@@ -1095,6 +1088,7 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
         const shouldInsertBeforeCurrentAssistant =
           role === "user" &&
           last?.role === "assistant" &&
+          options?.placement !== "afterCurrentAssistant" &&
           (options?.beforeCurrentAssistant ||
             callAssistantTranscriptStreamingRef.current);
 
