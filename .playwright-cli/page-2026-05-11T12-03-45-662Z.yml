@@ -1,0 +1,160 @@
+- generic [active] [ref=e1]:
+  - main [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e7]:
+        - generic [ref=e8]: Harper
+        - generic [ref=e9]:
+          - button "개선사항 및 문의사항" [ref=e10] [cursor=pointer]:
+            - img [ref=e11]
+          - button "설정" [ref=e14] [cursor=pointer]:
+            - img [ref=e15]
+          - button "프로필 메뉴" [ref=e18] [cursor=pointer]:
+            - generic [ref=e19]: PC
+      - generic [ref=e20]:
+        - generic [ref=e24]:
+          - generic [ref=e26]:
+            - separator "대화 날짜 2026년 4월 20일 월" [ref=e27]:
+              - generic [ref=e28]: 2026년 4월 20일 월
+            - generic [ref=e29]:
+              - img "Harper" [ref=e31]
+              - article [ref=e32]:
+                - paragraph [ref=e36]: 안녕하세요. 현재 프로필을 바탕으로 바로 대화를 이어갈 수 있어요. 지금 어떤 방향의 기회를 우선적으로 보고 싶은지 알려주세요.
+            - article [ref=e38]:
+              - generic [ref=e41]: 정규직과 fractional 둘 다 열려 있고, 제품에 바로 연결되는 applied AI 역할을 우선적으로 보고 싶어요.
+            - generic [ref=e42]:
+              - img "Harper" [ref=e44]
+              - article [ref=e45]:
+                - paragraph [ref=e49]: 좋습니다. 제품 임팩트가 빠르게 보이는 팀과 작은 조직에서 기술 의사결정 폭이 큰 역할을 우선적으로 보겠습니다.
+            - generic [ref=e50]:
+              - img "Harper" [ref=e52]
+              - article [ref=e53]:
+                - paragraph [ref=e57]: 필요하면 관심 있는 회사나 포지션을 기준으로 더 자세한 질문을 남겨주세요. 확인해서 답변을 준비해둘게요.
+          - generic [ref=e60]:
+            - generic [ref=e61]:
+              - generic [ref=e62]:
+                - generic [ref=e63]:
+                  - img [ref=e64]
+                  - generic [ref=e66]: 커리어 인터뷰 진행 중
+                - button "임의 종료" [ref=e68] [cursor=pointer]
+              - progressbar "커리어 인터뷰 진행률" [ref=e69]
+            - generic [ref=e72]:
+              - textbox "원하는 역할이나 조건을 편하게 답해주세요." [ref=e73]
+              - generic [ref=e74]:
+                - button "음성 모드" [ref=e75] [cursor=pointer]:
+                  - img [ref=e76]
+                - button "통화 모드" [ref=e79] [cursor=pointer]:
+                  - img [ref=e80]
+                - button [disabled] [ref=e82]:
+                  - img [ref=e83]
+        - separator "채팅 패널 너비 조절" [ref=e85]
+        - generic [ref=e90]:
+          - navigation [ref=e91]:
+            - button "홈 1" [ref=e92] [cursor=pointer]:
+              - img [ref=e93]
+              - text: 홈
+              - generic [ref=e96]: "1"
+            - button "포지션" [ref=e97] [cursor=pointer]:
+              - img [ref=e98]
+              - text: 포지션
+            - button "프로필" [ref=e100] [cursor=pointer]:
+              - img [ref=e101]
+              - text: 프로필
+          - generic [ref=e106]:
+            - generic [ref=e108]:
+              - heading "Welcome, Preview Candidate!" [level=2] [ref=e109]
+              - paragraph [ref=e110]:
+                - text: Harper는 회원님만을 위한 커리어 에이전트입니다.
+                - text: 현재 Harper 네트워크에서 2,568개의 기회를 스캔하고 있습니다. 매일매일 더 많은 기회를 발견합니다.
+              - generic [ref=e112]:
+                - img [ref=e114]
+                - generic [ref=e116]: 아직 5분 커리어 인터뷰가 완료되지 않았어요
+                - generic [ref=e118]:
+                  - text: 왼쪽에서 채팅 혹은 아래 통화로 간단한 질문에만 대답해주세요.
+                  - text: 대화가 끝나면 내용을 정리하고, 딱맞는 기회를 받아보실 수 있게 할게요.
+                - button "통화 시작" [disabled] [ref=e119]:
+                  - img [ref=e120]
+                  - text: 통화 시작
+              - generic [ref=e122]:
+                - generic [ref=e123]:
+                  - generic [ref=e124]: 커리어 인터뷰 진행 중
+                  - paragraph [ref=e125]: 원하는 기회의 기준을 확인하고 있어요.
+                - generic [ref=e126]:
+                  - generic [ref=e127]:
+                    - img [ref=e129]
+                    - generic [ref=e131]:
+                      - img [ref=e133]
+                      - paragraph [ref=e137]: 계정
+                  - generic [ref=e138]:
+                    - img [ref=e140]
+                    - generic [ref=e142]:
+                      - img [ref=e144]
+                      - paragraph [ref=e148]: 자료 제출
+                  - generic [ref=e149]:
+                    - img [ref=e151]
+                    - generic [ref=e153]:
+                      - img [ref=e155]
+                      - generic [ref=e157]:
+                        - paragraph [ref=e158]: 기준 확인
+                        - paragraph [ref=e159]: 역할과 조건을 짧게 확인
+                  - generic [ref=e160]:
+                    - img [ref=e162]
+                    - generic [ref=e164]:
+                      - img [ref=e166]
+                      - paragraph [ref=e170]: 추천 시작
+              - generic [ref=e171]:
+                - generic [ref=e173]:
+                  - generic [ref=e174]: Dev controls
+                  - generic [ref=e175]: "latest: latest run 없음"
+                - generic [ref=e176]:
+                  - button "discovery_run 추가" [ref=e177] [cursor=pointer]:
+                    - img [ref=e178]
+                    - text: discovery_run 추가
+                  - button "3일 경과 run 큐잉" [ref=e179] [cursor=pointer]:
+                    - img [ref=e180]
+                    - text: 3일 경과 run 큐잉
+                  - button "프로필 보기" [ref=e183] [cursor=pointer]:
+                    - img [ref=e184]
+                    - text: 프로필 보기
+                  - button "Chat 열기" [ref=e188] [cursor=pointer]:
+                    - img [ref=e189]
+                    - text: Chat 열기
+            - generic [ref=e193]:
+              - generic [ref=e194]:
+                - generic [ref=e195]:
+                  - generic [ref=e197]: 프로필 공개
+                  - generic [ref=e198]: 어떤 수준의 매칭에서 회사가 프로필을 볼 수 있는지 정합니다.
+                - generic [ref=e200]:
+                  - generic [ref=e201]:
+                    - button "Open to matches 강하게 맞는 포지션으로 판단되면 회사에 먼저 프로필을 공유하고, 구체적인 제안을 받으신 뒤 판단하실 수 있도록 합니다." [ref=e202] [cursor=pointer]:
+                      - generic [ref=e203]:
+                        - img [ref=e204]
+                        - generic [ref=e207]: Open to matches
+                      - paragraph [ref=e208]: 강하게 맞는 포지션으로 판단되면 회사에 먼저 프로필을 공유하고, 구체적인 제안을 받으신 뒤 판단하실 수 있도록 합니다.
+                    - button "Exceptional only 매칭된 기회/회사를 확인한 뒤 허용한 경우에만 프로필이 공유됩니다." [ref=e209] [cursor=pointer]:
+                      - generic [ref=e210]:
+                        - img [ref=e211]
+                        - generic [ref=e213]: Exceptional only
+                      - paragraph [ref=e214]: 매칭된 기회/회사를 확인한 뒤 허용한 경우에만 프로필이 공유됩니다.
+                    - button "Don't share 절대 어떤 경우에도 프로필이 공유되지 않습니다. 잠시 모든 매칭을 차단하고 싶다면 이 옵션을 선택해주세요." [ref=e215] [cursor=pointer]:
+                      - generic [ref=e216]:
+                        - img [ref=e217]
+                        - generic [ref=e220]: Don't share
+                      - paragraph [ref=e221]: 절대 어떤 경우에도 프로필이 공유되지 않습니다. 잠시 모든 매칭을 차단하고 싶다면 이 옵션을 선택해주세요.
+                  - generic [ref=e223]: 매칭된 기회/회사를 확인한 뒤 허용한 경우에만 프로필이 회사 측에 공유됩니다. 이 경우에도 대화 내용 및 선택하신 옵션이 공개되진 않고, 매칭에 필요한 정보만 공유됩니다.
+              - generic [ref=e224]:
+                - generic [ref=e225]:
+                  - generic [ref=e226]:
+                    - img [ref=e228]
+                    - generic [ref=e230]: 차단 기업
+                  - generic [ref=e231]: 여기에 등록된 회사와는 매칭이 일어나지 않고 프로필도 절대 공유되지 않습니다.
+                - generic [ref=e233]:
+                  - generic [ref=e234]:
+                    - textbox "회사명을 입력하고 Enter" [ref=e235]
+                    - button "추가" [ref=e236] [cursor=pointer]:
+                      - img [ref=e237]
+                      - text: 추가
+                  - generic [ref=e239]:
+                    - generic [ref=e240]: Stealth Robotics
+                    - button "Stealth Robotics 삭제" [ref=e241] [cursor=pointer]:
+                      - img [ref=e242]
+  - alert [ref=e245]

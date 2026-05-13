@@ -4,6 +4,8 @@ import {
   Building2,
   Eye,
   FileText,
+  ImagePlus,
+  Loader2,
   MapPin,
   MessageSquare,
   Pencil,
@@ -11,8 +13,8 @@ import {
   Save,
   SchoolIcon,
   Trash2,
+  UserRound,
 } from "lucide-react";
-import { initials } from "@/components/NameProfile";
 import { useCareerSidebarContext } from "../CareerSidebarContext";
 import type {
   CareerTalentEducation,
@@ -21,6 +23,7 @@ import type {
   CareerTalentProfile,
   CareerTalentUser,
 } from "../types";
+import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { locationEnToKo } from "@/utils/language_map";
 import { dateToFormat } from "@/utils/textprocess";
 import {
@@ -30,6 +33,11 @@ import {
   CareerTextarea,
   careerCx,
 } from "../ui/CareerPrimitives";
+import {
+  BeigeActionDropdown,
+  BeigeActionDropdownItem,
+  BeigeActionDropdownSeparator,
+} from "@/components/ui/beige/action-dropdown";
 
 type EditableExperience = CareerTalentExperience & { clientKey: string };
 type EditableEducation = CareerTalentEducation & { clientKey: string };
@@ -49,6 +57,21 @@ const PROFILE_RERANKING_INSIGHTS = [
   { key: "must_haves", label: "필수 조건" },
   { key: "deal_breakers", label: "회피 조건" },
 ] as const;
+
+type ProfileInsightKey = (typeof PROFILE_RERANKING_INSIGHTS)[number]["key"];
+
+type ProfileInsightItem = {
+  key: ProfileInsightKey;
+  label: string;
+  value: string;
+};
+
+type MergedTimelineEntry<
+  TExperience extends CareerTalentExperience,
+  TEducation extends CareerTalentEducation,
+> =
+  | { index: number; item: TExperience; kind: "exp" }
+  | { index: number; item: TEducation; kind: "edu" };
 
 const parseDate = (value: string | null | undefined) => {
   if (!value) return null;
@@ -70,6 +93,50 @@ const formatMonth = (months?: number | null) => {
   const years = Math.floor(months / 12);
   const remain = months % 12;
   return `${years > 0 ? `${years}년 ` : ""}${remain}개월`;
+};
+
+const parseProfileMonthDate = (
+  value?: string | null,
+  fallbackToToday = false
+) => {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) return null;
+
+  if (/^(present|current|now|현재)$/i.test(normalized)) {
+    return fallbackToToday ? new Date() : null;
+  }
+
+  const yearMonthMatch = normalized.match(/^(\d{4})[./-](\d{1,2})$/);
+  if (yearMonthMatch) {
+    const year = Number(yearMonthMatch[1]);
+    const month = Number(yearMonthMatch[2]);
+    if (month >= 1 && month <= 12) return new Date(year, month - 1, 1);
+  }
+
+  const yearMatch = normalized.match(/^(\d{4})$/);
+  if (yearMatch) return new Date(Number(yearMatch[1]), 0, 1);
+
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const calculateExperienceMonths = (
+  startDate?: string | null,
+  endDate?: string | null
+) => {
+  const start = parseProfileMonthDate(startDate);
+  if (!start) return null;
+
+  const end =
+    parseProfileMonthDate(endDate, true) ??
+    (!String(endDate ?? "").trim() ? new Date() : null);
+  if (!end || end.getTime() < start.getTime()) return null;
+
+  const monthDiff =
+    (end.getFullYear() - start.getFullYear()) * 12 +
+    (end.getMonth() - start.getMonth());
+
+  return Math.max(0, monthDiff);
 };
 
 const formatLastUpdated = (value: string | null) => {
@@ -151,7 +218,7 @@ const toComparableProfile = (
     employment_type: trimSingleLine(item.employment_type),
     start_date: trimDateText(item.start_date),
     end_date: trimDateText(item.end_date),
-    months: item.months ?? null,
+    months: calculateExperienceMonths(item.start_date, item.end_date),
     company_id: trimSingleLine(item.company_id),
     company_link: trimSingleLine(item.company_link),
     company_name: trimSingleLine(item.company_name),
@@ -197,6 +264,7 @@ const toStructuredProfile = (
       employment_type: trimSingleLine(item.employment_type),
       start_date: trimDateText(item.start_date),
       end_date: trimDateText(item.end_date),
+      months: calculateExperienceMonths(item.start_date, item.end_date),
       company_id: trimSingleLine(item.company_id),
       company_link: trimSingleLine(item.company_link),
       company_name: trimSingleLine(item.company_name),
@@ -228,6 +296,69 @@ const toStructuredProfile = (
     })
   ),
 });
+
+const mergeExperienceAndEducation = <
+  TExperience extends CareerTalentExperience,
+  TEducation extends CareerTalentEducation,
+>(
+  talentExperiences: readonly TExperience[],
+  talentEducations: readonly TEducation[]
+): MergedTimelineEntry<TExperience, TEducation>[] => {
+  const expItems = talentExperiences.map((item, index) => ({
+    kind: "exp" as const,
+    item,
+    index,
+  }));
+  const eduItems = talentEducations.map((item, index) => ({
+    kind: "edu" as const,
+    item,
+    index,
+  }));
+
+  const datedItems: MergedTimelineEntry<TExperience, TEducation>[] = [
+    ...expItems,
+    ...eduItems.filter((edu) => Boolean(parseDate(edu.item.start_date))),
+  ];
+
+  datedItems.sort((a, b) => {
+    const aIsOngoing = !parseDate(a.item.end_date);
+    const bIsOngoing = !parseDate(b.item.end_date);
+    if (aIsOngoing !== bIsOngoing) return aIsOngoing ? -1 : 1;
+
+    const aStartDate = parseDate(a.item.start_date);
+    const bStartDate = parseDate(b.item.start_date);
+    if (aStartDate && bStartDate) {
+      return bStartDate.getTime() - aStartDate.getTime();
+    }
+    if (aStartDate && !bStartDate) return -1;
+    if (!aStartDate && bStartDate) return 1;
+    return 0;
+  });
+
+  const undatedEdu = eduItems.filter((edu) => !parseDate(edu.item.start_date));
+  if (undatedEdu.length === 0) return datedItems;
+
+  const merged = [...datedItems];
+  undatedEdu.forEach((edu) => {
+    const nextDatedEdu = eduItems
+      .slice(edu.index + 1)
+      .find((next) => Boolean(parseDate(next.item.start_date)));
+
+    if (!nextDatedEdu) {
+      merged.push(edu);
+      return;
+    }
+
+    const insertAt = merged.findIndex(
+      (entry) => entry.kind === "edu" && entry.index === nextDatedEdu.index
+    );
+
+    if (insertAt === -1) merged.push(edu);
+    else merged.splice(insertAt, 0, edu);
+  });
+
+  return merged;
+};
 
 const TimelineBlock = ({
   title,
@@ -323,13 +454,11 @@ const TimelineBlock = ({
           </div>
         )}
         {memo && (
-          <div className="mt-3 flex items-start gap-2 rounded-[10px] border border-beige700/15 bg-beige100 px-3.5 py-3">
-            <MessageSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-beige700" />
+          <div className="mt-3 flex items-start gap-2 rounded-[10px] bg-beige100 px-3.5 py-3">
+            <MessageSquare className="mt-0.5 h-3 w-3 shrink-0 text-beige700" />
             <div className="min-w-0">
-              <div className="mb-1 text-[10.5px] font-medium text-beige700">
-                Harper의 메모
-              </div>
-              <div className="text-sm leading-6 text-beige900">{memo}</div>
+              <div className="mb-1 text-[11px] text-beige700">Harper 메모</div>
+              <div className="text-[13px] leading-5 text-beige900">{memo}</div>
             </div>
           </div>
         )}
@@ -337,21 +466,6 @@ const TimelineBlock = ({
     </div>
   );
 };
-
-const ProfileSection = ({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) => (
-  <section className="first:border-t-0 first:pt-0">
-    {title ? (
-      <div className="text-[14px] font-medium text-beige900/45">{title}</div>
-    ) : null}
-    <div className={title ? "mt-3" : ""}>{children}</div>
-  </section>
-);
 
 const ProfileSectionHeader = ({
   count,
@@ -362,39 +476,17 @@ const ProfileSectionHeader = ({
   icon: React.ReactNode;
   label: string;
 }) => (
-  <div className="flex items-center gap-3 px-1 pt-1">
+  <div className="flex items-center gap-2 px-1 pt-4">
     <span className="flex h-5 w-5 shrink-0 items-center justify-center text-beige900/65">
       {icon}
     </span>
-    <span className="font-halant text-[24px] leading-none text-beige900">
+    <span className="font-halant text-lg leading-none text-beige900">
       {label}
     </span>
     {typeof count === "number" ? (
       <span className="text-[13px] leading-none text-beige900/45">{count}</span>
     ) : null}
     <span className="h-px min-w-8 flex-1 bg-beige900/10" />
-  </div>
-);
-
-const EditSectionHeader = ({
-  title,
-  onAdd,
-  addLabel,
-}: {
-  title: string;
-  onAdd: () => void;
-  addLabel: string;
-}) => (
-  <div className="mb-3 flex items-center justify-between gap-3">
-    <div className="text-[14px] font-medium text-beige900/45">{title}</div>
-    <CareerSecondaryButton
-      type="button"
-      onClick={onAdd}
-      className="h-8 gap-1.5 px-3 text-xs"
-    >
-      <Plus className="h-3.5 w-3.5" />
-      {addLabel}
-    </CareerSecondaryButton>
   </div>
 );
 
@@ -415,16 +507,489 @@ const ItemRemoveButton = ({ onClick }: { onClick: () => void }) => (
   </button>
 );
 
+const profileEditInputClassName =
+  "h-9 border-beige900/15 bg-white/70 text-[13px] placeholder:text-beige900/35";
+
+const profileEditTextareaClassName =
+  "min-h-[92px] border-beige900/15 bg-white/70 text-[13px] leading-6 placeholder:text-beige900/35";
+
+const profileEditPlainInputClassName =
+  "h-auto rounded-[4px] border border-white/50 bg-white/80 px-1.5 py-1 shadow-none hover:bg-white/45 focus:border-beige900/15 focus:bg-white/75 focus:ring-1 focus:ring-beige900/20";
+
+const profileEditPlainTextareaClassName =
+  "min-h-[74px] rounded-[6px] border border-white/50 bg-white/80 px-1.5 py-1.5 shadow-none hover:bg-white/45 focus:border-beige900/15 focus:bg-white/75 focus:ring-1 focus:ring-beige900/20";
+
+const profileNoticeClassName =
+  "flex items-center gap-2.5 rounded-[14px] border border-beige900/10 bg-gradient-to-br from-beige100 to-white/80 px-3.5 py-2.5 text-[12.5px] leading-5 text-beige900/65";
+
+const profileCvLinkClassName =
+  "inline-flex h-9 items-center justify-center gap-1.5 rounded-[8px] border border-beige900/15 bg-white/70 px-3.5 text-[12.5px] font-medium text-beige900 transition-colors hover:border-beige900/30 hover:bg-beige100";
+
+const overviewEyebrowClassName = "text-[13px] font-medium text-beige900/70";
+
+const insightTermClassName = "text-[13px] font-medium text-beige900/70";
+
+const RecruiterProfileNotice = ({ copy }: { copy: string }) => (
+  <div className={profileNoticeClassName}>
+    <Eye className="h-3.5 w-3.5 shrink-0 text-beige700" />
+    <div>
+      <strong className="font-medium text-beige900">{copy}</strong>
+      <span> · 연결이 성사된 회사에만 공유돼요</span>
+    </div>
+  </div>
+);
+
+const ProfileAvatar = ({
+  imageUrl,
+  name,
+  onDeleteImage,
+  onFileChange,
+  uploadPending = false,
+}: {
+  imageUrl?: string | null;
+  name: string;
+  onDeleteImage?: () => void;
+  onFileChange?: (file: File) => void;
+  uploadPending?: boolean;
+}) => {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const shouldShowImage =
+    Boolean(imageUrl) && !String(imageUrl).includes("media.licdn.com");
+  const hasStoredImage = Boolean(imageUrl);
+  const imageActionDisabled = uploadPending || (!onFileChange && !onDeleteImage);
+
+  return (
+    <div className="relative h-14 w-14 shrink-0">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="sr-only"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = "";
+          if (file) onFileChange?.(file);
+        }}
+      />
+      <BeigeActionDropdown
+        open={menuOpen}
+        onOpenChange={setMenuOpen}
+        align="start"
+        side="bottom"
+        sideOffset={8}
+        contentClassName="w-[190px]"
+        trigger={
+          <button
+            type="button"
+            aria-label="프로필 사진 메뉴"
+            disabled={imageActionDisabled}
+            className={careerCx(
+              "group relative flex h-14 w-14 items-center justify-center rounded-full border border-beige900/10 bg-beige500 text-beige900/55 shadow-[0_2px_10px_rgba(46,23,6,0.06)] transition-all focus:outline-none focus-visible:ring-4 focus-visible:ring-[#22c55e]/20",
+              imageActionDisabled
+                ? "cursor-default"
+                : "cursor-pointer hover:border-[#22c55e]/45"
+            )}
+          >
+            <UserRound className="h-7 w-7" strokeWidth={1.7} />
+            {shouldShowImage ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={String(imageUrl)}
+                alt={name || "profile"}
+                className="absolute inset-0 h-full w-full rounded-full object-cover"
+                onError={(event) => {
+                  event.currentTarget.style.display = "none";
+                }}
+              />
+            ) : null}
+            {!imageActionDisabled ? (
+              <span className="pointer-events-none absolute right-[-3px] top-[-3px] z-[2] flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-[#22c55e] text-white opacity-0 shadow-[0_2px_7px_rgba(21,128,61,0.28)] transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                {uploadPending ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
+                )}
+              </span>
+            ) : null}
+          </button>
+        }
+      >
+        <BeigeActionDropdownItem
+          disabled={!onFileChange || uploadPending}
+          onSelect={() => {
+            setMenuOpen(false);
+            window.setTimeout(() => fileInputRef.current?.click(), 0);
+          }}
+          className="flex flex-row items-center gap-2.5 text-[13px]"
+        >
+          <ImagePlus className="h-4 w-4" />
+          사진 변경/업로드
+        </BeigeActionDropdownItem>
+        <BeigeActionDropdownSeparator />
+        <BeigeActionDropdownItem
+          disabled={!onDeleteImage || !hasStoredImage || uploadPending}
+          onSelect={() => {
+            setMenuOpen(false);
+            onDeleteImage?.();
+          }}
+          tone="danger"
+          className="flex flex-row items-center gap-2.5 text-[13px]"
+        >
+          <Trash2 className="h-4 w-4" />
+          사진 삭제
+        </BeigeActionDropdownItem>
+      </BeigeActionDropdown>
+    </div>
+  );
+};
+
+const ProfileHeader = ({
+  displayName,
+  isEditing,
+  onEdit,
+  onFieldChange,
+  onProfileImageDelete,
+  onProfileImageFileChange,
+  profileUpdatedText,
+  profileImageUploadPending,
+  savedResumeDownloadUrl,
+  user,
+}: {
+  displayName: string;
+  isEditing: boolean;
+  onEdit?: () => void;
+  onFieldChange?: (
+    field: keyof Omit<CareerTalentUser, "user_id">,
+    value: string
+  ) => void;
+  onProfileImageDelete?: () => void;
+  onProfileImageFileChange?: (file: File) => void;
+  profileUpdatedText: string | null;
+  profileImageUploadPending?: boolean;
+  savedResumeDownloadUrl?: string | null;
+  user: CareerTalentUser | null | undefined;
+}) => (
+  <section
+    className={careerCx(
+      "flex flex-col gap-4 px-1 pt-1 sm:flex-row",
+      isEditing ? "sm:items-start" : "sm:items-center"
+    )}
+  >
+    <ProfileAvatar
+      imageUrl={user?.profile_picture}
+      name={isEditing ? user?.name || "Unknown" : displayName}
+      onDeleteImage={onProfileImageDelete}
+      onFileChange={onProfileImageFileChange}
+      uploadPending={profileImageUploadPending}
+    />
+
+    <div className="min-w-0 flex-1">
+      <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+        {isEditing ? (
+          <CareerTextInput
+            value={user?.name ?? ""}
+            onChange={(event) => onFieldChange?.("name", event.target.value)}
+            placeholder="이름"
+            aria-label="이름"
+            className={careerCx(
+              profileEditInputClassName,
+              "h-10 max-w-[360px] font-hedvig text-[24px]"
+            )}
+          />
+        ) : (
+          <h2 className="font-hedvig text-[30px] leading-none text-beige900">
+            {displayName}
+          </h2>
+        )}
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-beige700/10 px-2.5 py-1 text-[11px] font-medium tracking-[0.02em] text-beige700">
+          <span className="h-1.5 w-1.5 rounded-full bg-beige700" />
+          Active
+        </span>
+      </div>
+
+      {isEditing ? (
+        <div className="mt-2 grid gap-2 md:grid-cols-2">
+          <CareerTextInput
+            value={user?.headline ?? ""}
+            onChange={(event) =>
+              onFieldChange?.("headline", event.target.value)
+            }
+            placeholder="한 줄 소개"
+            aria-label="한 줄 소개"
+            className={profileEditInputClassName}
+          />
+          <CareerTextInput
+            value={user?.location ?? ""}
+            onChange={(event) =>
+              onFieldChange?.("location", event.target.value)
+            }
+            placeholder="지역"
+            aria-label="지역"
+            className={profileEditInputClassName}
+          />
+        </div>
+      ) : (
+        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13.5px] leading-5 text-beige900/65">
+          {user?.headline ? <span>{user.headline}</span> : null}
+          {user?.headline && user?.location ? (
+            <span className="text-beige900/25">|</span>
+          ) : null}
+          {user?.location ? (
+            <span className="inline-flex items-center gap-1.5">
+              <MapPin className="h-3.5 w-3.5" />
+              {locationEnToKo(user.location)}
+            </span>
+          ) : null}
+        </div>
+      )}
+
+      {profileUpdatedText ? (
+        <div
+          className={careerCx(
+            "text-[11.5px] leading-5 tracking-[0.02em] text-beige900/45",
+            isEditing ? "mt-2" : "mt-1"
+          )}
+        >
+          Last updated · {profileUpdatedText}
+        </div>
+      ) : null}
+    </div>
+
+    <div
+      className={careerCx(
+        "flex shrink-0 gap-2",
+        isEditing ? "flex-wrap" : "flex-col items-end"
+      )}
+    >
+      {savedResumeDownloadUrl && (
+        <a
+          href={savedResumeDownloadUrl}
+          target="_blank"
+          rel="noreferrer"
+          className={profileCvLinkClassName}
+        >
+          <FileText className="h-3.5 w-3.5 text-beige900/60" />
+          View CV
+        </a>
+      )}
+      {!isEditing && onEdit ? (
+        <CareerSecondaryButton
+          type="button"
+          onClick={onEdit}
+          className="h-9 gap-1.5 px-3.5 text-[12.5px]"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+          수정하기
+        </CareerSecondaryButton>
+      ) : null}
+    </div>
+  </section>
+);
+
+const ProfileOverviewSection = ({
+  isEditing,
+  items,
+  onInsightChange,
+  onSummaryChange,
+  summary,
+}: {
+  isEditing: boolean;
+  items: ProfileInsightItem[];
+  onInsightChange?: (key: ProfileInsightKey, value: string) => void;
+  onSummaryChange?: (value: string) => void;
+  summary: string;
+}) => (
+  <section className="px-1">
+    {isEditing || summary ? (
+      <div className="mb-7">
+        <div className={overviewEyebrowClassName}>Summary</div>
+        {isEditing ? (
+          <CareerTextarea
+            value={summary}
+            onChange={(event) => onSummaryChange?.(event.target.value)}
+            placeholder="Summary"
+            aria-label="Summary"
+            className={careerCx(profileEditTextareaClassName, "mt-3")}
+          />
+        ) : (
+          <p className="mt-3 whitespace-pre-line text-[14px] leading-6 text-beige900">
+            {summary}
+          </p>
+        )}
+      </div>
+    ) : null}
+
+    <div className={overviewEyebrowClassName}>What they are looking for</div>
+    <dl className="mt-3 grid gap-x-4 gap-y-3 sm:grid-cols-[112px_minmax(0,1fr)]">
+      {items.map((item) => (
+        <React.Fragment key={item.key}>
+          <dt
+            className={careerCx(
+              insightTermClassName,
+              isEditing ? "pt-2" : "pt-0.5"
+            )}
+          >
+            {item.label}
+          </dt>
+          <dd className="m-0">
+            {isEditing ? (
+              <CareerTextarea
+                rows={2}
+                value={item.value}
+                onChange={(event) =>
+                  onInsightChange?.(item.key, event.target.value)
+                }
+                placeholder="아직 확인 중"
+                aria-label={item.label}
+                className={careerCx(
+                  profileEditTextareaClassName,
+                  "min-h-[52px]"
+                )}
+              />
+            ) : (
+              <div
+                className={careerCx(
+                  "text-[14px] leading-6",
+                  item.value ? "text-beige900" : "text-beige900/40"
+                )}
+              >
+                {item.value || "아직 확인 중"}
+              </div>
+            )}
+          </dd>
+        </React.Fragment>
+      ))}
+    </dl>
+  </section>
+);
+
+const TimelineEditBlock = ({
+  children,
+  kind = "work",
+  logoUrl,
+  logoAlt,
+  logoText,
+  isLast,
+  onRemove,
+  onLogoFileChange,
+  logoUploadPending = false,
+}: {
+  children: React.ReactNode;
+  kind?: "work" | "education" | "extra";
+  logoUrl?: string | null;
+  logoAlt?: string;
+  logoText?: string;
+  isLast?: boolean;
+  onRemove: () => void;
+  onLogoFileChange?: (file: File) => void;
+  logoUploadPending?: boolean;
+}) => {
+  const badgeClassName =
+    kind === "education"
+      ? "bg-beige900/10 text-beige900/60"
+      : kind === "extra"
+        ? "bg-beige200 text-beige900/60"
+        : "bg-beige700/10 text-beige700";
+
+  const badgeLabel =
+    kind === "education" ? "Education" : kind === "extra" ? "Extra" : "Work";
+
+  const fallbackLogoText = (logoText ?? logoAlt ?? badgeLabel)
+    .trim()
+    .slice(0, 1)
+    .toUpperCase();
+
+  return (
+    <div
+      className={careerCx(
+        "relative grid grid-cols-[40px_minmax(0,1fr)] gap-4 py-3 first:pt-0 last:pb-0",
+        !isLast && "pb-5"
+      )}
+    >
+      {!isLast && (
+        <div className="absolute bottom-[-8px] left-[19px] top-[46px] w-px bg-gradient-to-b from-beige900/15 via-beige900/10 to-transparent" />
+      )}
+      <label
+        className={careerCx(
+          "relative z-[1] flex h-10 w-10 items-center justify-center overflow-hidden rounded-[10px] border-2 border-white bg-beige500 text-[17px] font-semibold leading-none text-beige900/65 shadow-[0_1px_2px_rgba(46,23,6,0.05)]",
+          onLogoFileChange &&
+            "cursor-pointer transition-transform hover:scale-[1.03]",
+          logoUploadPending && "pointer-events-none opacity-75"
+        )}
+        aria-label={onLogoFileChange ? "로고 이미지 업로드" : undefined}
+      >
+        {onLogoFileChange ? (
+          <input
+            type="file"
+            accept="image/*"
+            className="sr-only"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (file) onLogoFileChange(file);
+            }}
+          />
+        ) : null}
+        <span className="absolute inset-0 flex items-center justify-center">
+          {fallbackLogoText}
+        </span>
+        {logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={logoUrl}
+            alt={logoAlt ?? badgeLabel}
+            className="relative h-full w-full object-cover"
+            onError={(event) => {
+              event.currentTarget.style.display = "none";
+            }}
+          />
+        ) : null}
+        {onLogoFileChange ? (
+          <span className="absolute bottom-[-3px] right-[-3px] z-[2] flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-[#22c55e] text-white shadow-[0_2px_7px_rgba(21,128,61,0.28)]">
+            {logoUploadPending ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
+            )}
+          </span>
+        ) : null}
+      </label>
+      <div className="min-w-0">
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+          <span
+            className={careerCx(
+              "rounded-[4px] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em]",
+              badgeClassName
+            )}
+          >
+            {badgeLabel}
+          </span>
+          <ItemRemoveButton onClick={onRemove} />
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+};
+
 const CareerTalentProfilePanel = ({
   className = "",
 }: {
   className?: string;
 }) => {
+  const { fetchWithAuth } = useCareerApi();
   const {
     savedResumeDownloadUrl,
     talentProfile,
     talentInsights,
     talentInsightsUpdatedAt,
+    talentInsightsSavePending,
+    talentInsightsSaveError,
+    hasUnsavedTalentInsightsChanges,
+    onTalentInsightsChange,
+    onSaveTalentInsights,
+    onResetTalentInsights,
     profileSavePending,
     profileSaveError,
     onSaveTalentProfile,
@@ -435,70 +1000,32 @@ const CareerTalentProfilePanel = ({
   const [draft, setDraft] = useState<EditableTalentProfile>(() =>
     createEditableProfile(talentProfile)
   );
+  const [logoUploadPendingKeys, setLogoUploadPendingKeys] = useState<
+    Record<string, boolean>
+  >({});
+  const [logoUploadError, setLogoUploadError] = useState("");
+  const [profileImageUploadPending, setProfileImageUploadPending] =
+    useState(false);
+  const [profileImageError, setProfileImageError] = useState("");
 
   useEffect(() => {
     if (isEditing) return;
     setDraft(createEditableProfile(talentProfile));
   }, [isEditing, talentProfile]);
 
-  const mergedExperience = useMemo(() => {
-    const expItems = talentExperiences.map((item) => ({
-      kind: "exp" as const,
-      item,
-    }));
-    const eduItems = talentEducations.map((item, index) => ({
-      kind: "edu" as const,
-      item,
-      index,
-    }));
+  const mergedExperience = useMemo(
+    () => mergeExperienceAndEducation(talentExperiences, talentEducations),
+    [talentEducations, talentExperiences]
+  );
 
-    const datedItems = [
-      ...expItems,
-      ...eduItems.filter((edu) => Boolean(parseDate(edu.item.start_date))),
-    ];
-
-    datedItems.sort((a, b) => {
-      const aIsOngoing = !parseDate(a.item.end_date);
-      const bIsOngoing = !parseDate(b.item.end_date);
-      if (aIsOngoing !== bIsOngoing) return aIsOngoing ? -1 : 1;
-
-      const aStartDate = parseDate(a.item.start_date);
-      const bStartDate = parseDate(b.item.start_date);
-      if (aStartDate && bStartDate) {
-        return bStartDate.getTime() - aStartDate.getTime();
-      }
-      if (aStartDate && !bStartDate) return -1;
-      if (!aStartDate && bStartDate) return 1;
-      return 0;
-    });
-
-    const undatedEdu = eduItems.filter(
-      (edu) => !parseDate(edu.item.start_date)
-    );
-
-    if (undatedEdu.length === 0) return datedItems;
-
-    const merged = [...datedItems];
-    undatedEdu.forEach((edu) => {
-      const nextDatedEdu = eduItems
-        .slice(edu.index + 1)
-        .find((next) => Boolean(parseDate(next.item.start_date)));
-
-      if (!nextDatedEdu) {
-        merged.push(edu);
-        return;
-      }
-
-      const insertAt = merged.findIndex(
-        (entry) => entry.kind === "edu" && entry.item === nextDatedEdu.item
-      );
-
-      if (insertAt === -1) merged.push(edu);
-      else merged.splice(insertAt, 0, edu);
-    });
-
-    return merged;
-  }, [talentEducations, talentExperiences]);
+  const draftMergedExperience = useMemo(
+    () =>
+      mergeExperienceAndEducation(
+        draft.talentExperiences,
+        draft.talentEducations
+      ),
+    [draft.talentEducations, draft.talentExperiences]
+  );
 
   const hasAnyProfileData =
     Boolean(
@@ -524,6 +1051,8 @@ const CareerTalentProfilePanel = ({
   );
   const profileSummary = talentUser?.bio?.trim() ?? "";
   const backgroundCount = mergedExperience.length + talentExtras.length;
+  const draftBackgroundCount =
+    draftMergedExperience.length + draft.talentExtras.length;
 
   const hasUnsavedChanges = useMemo(() => {
     return (
@@ -539,16 +1068,24 @@ const CareerTalentProfilePanel = ({
 
   const cancelEditing = () => {
     setDraft(createEditableProfile(talentProfile));
+    onResetTalentInsights();
     setIsEditing(false);
   };
 
   const handleSave = async () => {
-    const saved = await onSaveTalentProfile({
-      structuredProfile: toStructuredProfile(
-        draft,
-        talentProfile.talentUser?.user_id ?? null
-      ),
-    });
+    const profileSaved = hasUnsavedChanges
+      ? await onSaveTalentProfile({
+          structuredProfile: toStructuredProfile(
+            draft,
+            talentProfile.talentUser?.user_id ?? null
+          ),
+        })
+      : true;
+    const insightsSaved = hasUnsavedTalentInsightsChanges
+      ? await onSaveTalentInsights()
+      : true;
+    const saved = profileSaved && insightsSaved;
+
     if (saved) {
       setIsEditing(false);
     }
@@ -567,6 +1104,88 @@ const CareerTalentProfilePanel = ({
     }));
   };
 
+  const applyProfileImageUrl = async (imageUrl: string | null) => {
+    setProfileImageError("");
+
+    if (isEditing) {
+      updateTalentUserField("profile_picture", imageUrl ?? "");
+      return true;
+    }
+
+    const nextTalentUser = {
+      ...(talentProfile.talentUser ?? createBlankTalentUser()),
+      profile_picture: imageUrl,
+    };
+
+    return await onSaveTalentProfile({
+      structuredProfile: {
+        ...talentProfile,
+        talentUser: nextTalentUser,
+      },
+    });
+  };
+
+  const uploadProfileImage = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      setProfileImageError("이미지 파일만 업로드할 수 있습니다.");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setProfileImageError("프로필 이미지는 5MB 이하로 업로드해 주세요.");
+      return;
+    }
+
+    setProfileImageError("");
+    setProfileImageUploadPending(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetchWithAuth("/api/talent/profile/photo/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok || typeof payload?.profileImageUrl !== "string") {
+        throw new Error(payload?.error ?? "프로필 사진 업로드에 실패했습니다.");
+      }
+
+      const saved = await applyProfileImageUrl(payload.profileImageUrl);
+      if (!saved) {
+        throw new Error("프로필 사진 저장에 실패했습니다.");
+      }
+    } catch (error) {
+      setProfileImageError(
+        error instanceof Error
+          ? error.message
+          : "프로필 사진 업로드에 실패했습니다."
+      );
+    } finally {
+      setProfileImageUploadPending(false);
+    }
+  };
+
+  const deleteProfileImage = async () => {
+    setProfileImageError("");
+    setProfileImageUploadPending(true);
+
+    try {
+      const saved = await applyProfileImageUrl(null);
+      if (!saved) {
+        throw new Error("프로필 사진 삭제에 실패했습니다.");
+      }
+    } catch (error) {
+      setProfileImageError(
+        error instanceof Error ? error.message : "프로필 사진 삭제에 실패했습니다."
+      );
+    } finally {
+      setProfileImageUploadPending(false);
+    }
+  };
+
   const updateExperienceField = (
     index: number,
     field: keyof CareerTalentExperience,
@@ -578,6 +1197,55 @@ const CareerTalentProfilePanel = ({
         itemIndex === index ? { ...item, [field]: value } : item
       ),
     }));
+  };
+
+  const uploadCompanyLogo = async (
+    index: number,
+    clientKey: string,
+    file: File
+  ) => {
+    if (!file.type.startsWith("image/")) {
+      setLogoUploadError("이미지 파일만 업로드할 수 있습니다.");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setLogoUploadError("로고 이미지는 5MB 이하로 업로드해 주세요.");
+      return;
+    }
+
+    setLogoUploadError("");
+    setLogoUploadPendingKeys((current) => ({
+      ...current,
+      [clientKey]: true,
+    }));
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetchWithAuth("/api/talent/profile/logo/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok || typeof payload?.logoUrl !== "string") {
+        throw new Error(payload?.error ?? "로고 업로드에 실패했습니다.");
+      }
+
+      updateExperienceField(index, "company_logo", payload.logoUrl);
+    } catch (error) {
+      setLogoUploadError(
+        error instanceof Error ? error.message : "로고 업로드에 실패했습니다."
+      );
+    } finally {
+      setLogoUploadPendingKeys((current) => {
+        const next = { ...current };
+        delete next[clientKey];
+        return next;
+      });
+    }
   };
 
   const updateEducationField = (
@@ -704,13 +1372,13 @@ const CareerTalentProfilePanel = ({
   };
 
   return (
-    <div className={careerCx("space-y-5", className)}>
-      {isEditing ? (
-        <div className="flex flex-wrap items-center justify-end gap-2">
+    <div className={careerCx("space-y-5", isEditing && "pb-24", className)}>
+      {isEditing && (
+        <div className="fixed bottom-5 right-5 z-50 flex flex-wrap items-center justify-end gap-2 rounded-[12px] bg-beige50/40 p-1 shadow-[0_16px_44px_rgba(46,23,6,0.16)] backdrop-blur">
           <CareerSecondaryButton
             type="button"
             onClick={cancelEditing}
-            disabled={profileSavePending}
+            disabled={profileSavePending || talentInsightsSavePending}
             className="gap-1.5"
           >
             취소
@@ -718,507 +1386,525 @@ const CareerTalentProfilePanel = ({
           <CareerPrimaryButton
             type="button"
             onClick={() => void handleSave()}
-            disabled={profileSavePending || !hasUnsavedChanges}
+            disabled={
+              profileSavePending ||
+              talentInsightsSavePending ||
+              (!hasUnsavedChanges && !hasUnsavedTalentInsightsChanges)
+            }
             className="gap-1.5"
           >
             <Save className="h-4 w-4" />
-            {profileSavePending ? "저장 중..." : "저장하기"}
+            {profileSavePending || talentInsightsSavePending
+              ? "저장 중..."
+              : "저장하기"}
           </CareerPrimaryButton>
         </div>
-      ) : null}
+      )}
 
-      {profileSaveError ? (
+      {profileSaveError && (
         <p className="rounded-lg border border-beige900/20 bg-beige900/10 px-3 py-2 text-sm text-beige900">
           {profileSaveError}
         </p>
-      ) : null}
+      )}
+
+      {talentInsightsSaveError && (
+        <p className="rounded-lg border border-beige900/20 bg-beige900/10 px-3 py-2 text-sm text-beige900">
+          {talentInsightsSaveError}
+        </p>
+      )}
+
+      {logoUploadError && (
+        <p className="rounded-lg border border-beige900/20 bg-beige900/10 px-3 py-2 text-sm text-beige900">
+          {logoUploadError}
+        </p>
+      )}
+
+      {profileImageError && (
+        <p className="rounded-lg border border-beige900/20 bg-beige900/10 px-3 py-2 text-sm text-beige900">
+          {profileImageError}
+        </p>
+      )}
 
       {isEditing ? (
         <>
-          <ProfileSection title="">
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
-              <div className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-[8px] border border-beige900/10 bg-white/45 text-[24px] text-beige900/70">
-                {draft.talentUser.profile_picture &&
-                !draft.talentUser.profile_picture.includes(
-                  "media.licdn.com"
-                ) ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={draft.talentUser.profile_picture}
-                    alt={draft.talentUser.name ?? "profile"}
-                    className="h-[72px] w-[72px] rounded-[8px] object-cover"
-                  />
-                ) : (
-                  initials(draft.talentUser.name)
-                )}
-              </div>
+          <RecruiterProfileNotice copy={recruiterProfileCopy} />
 
-              <div className="grid flex-1 gap-3 md:grid-cols-2">
-                <CareerTextInput
-                  value={draft.talentUser.name ?? ""}
-                  onChange={(event) =>
-                    updateTalentUserField("name", event.target.value)
-                  }
-                  placeholder="이름"
-                  className="h-10"
-                />
-                <CareerTextInput
-                  value={draft.talentUser.location ?? ""}
-                  onChange={(event) =>
-                    updateTalentUserField("location", event.target.value)
-                  }
-                  placeholder="지역"
-                  className="h-10"
-                />
-                <div className="md:col-span-2">
-                  <CareerTextInput
-                    value={draft.talentUser.headline ?? ""}
-                    onChange={(event) =>
-                      updateTalentUserField("headline", event.target.value)
-                    }
-                    placeholder="한 줄 소개"
-                    className="h-10"
-                  />
-                </div>
-              </div>
-            </div>
-          </ProfileSection>
-
-          <ProfileSection title="bio">
-            <CareerTextarea
-              value={draft.talentUser.bio ?? ""}
-              onChange={(event) =>
-                updateTalentUserField("bio", event.target.value)
-              }
-              placeholder="bio를 입력해 주세요."
-              className="min-h-[140px]"
-            />
-          </ProfileSection>
-
-          <ProfileSection title="">
-            <EditSectionHeader
-              title="경력"
-              onAdd={addExperience}
-              addLabel="경력 추가"
-            />
-            <div className="space-y-3">
-              {draft.talentExperiences.length === 0 ? (
-                <EmptyEditState label="아직 경력이 없습니다. 항목을 추가해 주세요." />
-              ) : (
-                draft.talentExperiences.map((item, index) => (
-                  <div
-                    key={item.clientKey}
-                    className="rounded-[12px] bg-beige500/30 p-4"
-                  >
-                    <div className="mb-3 flex items-start justify-end">
-                      <ItemRemoveButton
-                        onClick={() => removeExperience(index)}
-                      />
-                    </div>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <CareerTextInput
-                        value={item.role ?? ""}
-                        onChange={(event) =>
-                          updateExperienceField(
-                            index,
-                            "role",
-                            event.target.value
-                          )
-                        }
-                        placeholder="직무"
-                        className="h-10"
-                      />
-                      <CareerTextInput
-                        value={item.company_name ?? ""}
-                        onChange={(event) =>
-                          updateExperienceField(
-                            index,
-                            "company_name",
-                            event.target.value
-                          )
-                        }
-                        placeholder="회사명"
-                        className="h-10"
-                      />
-                      <CareerTextInput
-                        value={item.company_location ?? ""}
-                        onChange={(event) =>
-                          updateExperienceField(
-                            index,
-                            "company_location",
-                            event.target.value
-                          )
-                        }
-                        placeholder="근무 지역"
-                        className="h-10"
-                      />
-                      <div className="grid grid-cols-2 gap-3">
-                        <CareerTextInput
-                          value={item.start_date ?? ""}
-                          onChange={(event) =>
-                            updateExperienceField(
-                              index,
-                              "start_date",
-                              event.target.value
-                            )
-                          }
-                          placeholder="시작일"
-                          className="h-10"
-                        />
-                        <CareerTextInput
-                          value={item.end_date ?? ""}
-                          onChange={(event) =>
-                            updateExperienceField(
-                              index,
-                              "end_date",
-                              event.target.value
-                            )
-                          }
-                          placeholder="종료일 또는 현재"
-                          className="h-10"
-                        />
-                      </div>
-                      <div className="md:col-span-2">
-                        <CareerTextarea
-                          value={item.description ?? ""}
-                          onChange={(event) =>
-                            updateExperienceField(
-                              index,
-                              "description",
-                              event.target.value
-                            )
-                          }
-                          placeholder="주요 업무와 성과"
-                          className="min-h-[120px]"
-                        />
-                      </div>
-                      <div className="md:col-span-2">
-                        <CareerTextarea
-                          value={item.memo ?? ""}
-                          onChange={(event) =>
-                            updateExperienceField(
-                              index,
-                              "memo",
-                              event.target.value
-                            )
-                          }
-                          placeholder="추가 메모"
-                          className="min-h-[90px]"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </ProfileSection>
-
-          <ProfileSection title="">
-            <EditSectionHeader
-              title="학력"
-              onAdd={addEducation}
-              addLabel="학력 추가"
-            />
-            <div className="space-y-3">
-              {draft.talentEducations.length === 0 ? (
-                <EmptyEditState label="아직 학력 정보가 없습니다. 항목을 추가해 주세요." />
-              ) : (
-                draft.talentEducations.map((item, index) => (
-                  <div
-                    key={item.clientKey}
-                    className="rounded-[12px] border border-beige900/10 bg-white/35 p-4"
-                  >
-                    <div className="mb-3 flex items-start justify-end">
-                      <ItemRemoveButton
-                        onClick={() => removeEducation(index)}
-                      />
-                    </div>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <CareerTextInput
-                        value={item.school ?? ""}
-                        onChange={(event) =>
-                          updateEducationField(
-                            index,
-                            "school",
-                            event.target.value
-                          )
-                        }
-                        placeholder="학교명"
-                        className="h-10"
-                      />
-                      <CareerTextInput
-                        value={item.degree ?? ""}
-                        onChange={(event) =>
-                          updateEducationField(
-                            index,
-                            "degree",
-                            event.target.value
-                          )
-                        }
-                        placeholder="학위"
-                        className="h-10"
-                      />
-                      <CareerTextInput
-                        value={item.field ?? ""}
-                        onChange={(event) =>
-                          updateEducationField(
-                            index,
-                            "field",
-                            event.target.value
-                          )
-                        }
-                        placeholder="전공"
-                        className="h-10"
-                      />
-                      <div className="grid grid-cols-2 gap-3">
-                        <CareerTextInput
-                          value={item.start_date ?? ""}
-                          onChange={(event) =>
-                            updateEducationField(
-                              index,
-                              "start_date",
-                              event.target.value
-                            )
-                          }
-                          placeholder="시작일"
-                          className="h-10"
-                        />
-                        <CareerTextInput
-                          value={item.end_date ?? ""}
-                          onChange={(event) =>
-                            updateEducationField(
-                              index,
-                              "end_date",
-                              event.target.value
-                            )
-                          }
-                          placeholder="종료일"
-                          className="h-10"
-                        />
-                      </div>
-                      <div className="md:col-span-2">
-                        <CareerTextarea
-                          value={item.description ?? ""}
-                          onChange={(event) =>
-                            updateEducationField(
-                              index,
-                              "description",
-                              event.target.value
-                            )
-                          }
-                          placeholder="학력 설명"
-                          className="min-h-[120px]"
-                        />
-                      </div>
-                      <div className="md:col-span-2">
-                        <CareerTextarea
-                          value={item.memo ?? ""}
-                          onChange={(event) =>
-                            updateEducationField(
-                              index,
-                              "memo",
-                              event.target.value
-                            )
-                          }
-                          placeholder="추가 메모"
-                          className="min-h-[90px]"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </ProfileSection>
-
-          <ProfileSection title="">
-            <EditSectionHeader
-              title="추가 정보"
-              onAdd={addExtra}
-              addLabel="추가 정보"
-            />
-            <div className="space-y-3">
-              {draft.talentExtras.length === 0 ? (
-                <EmptyEditState label="수상, 활동, 오픈소스 같은 추가 정보를 넣을 수 있습니다." />
-              ) : (
-                draft.talentExtras.map((item, index) => (
-                  <div
-                    key={item.clientKey}
-                    className="rounded-[12px] border border-beige900/10 bg-white/35 p-4"
-                  >
-                    <div className="mb-3 flex items-start justify-end">
-                      <ItemRemoveButton onClick={() => removeExtra(index)} />
-                    </div>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <CareerTextInput
-                        value={item.title ?? ""}
-                        onChange={(event) =>
-                          updateExtraField(index, "title", event.target.value)
-                        }
-                        placeholder="제목"
-                        className="h-10"
-                      />
-                      <CareerTextInput
-                        value={item.date ?? ""}
-                        onChange={(event) =>
-                          updateExtraField(index, "date", event.target.value)
-                        }
-                        placeholder="날짜"
-                        className="h-10"
-                      />
-                      <div className="md:col-span-2">
-                        <CareerTextarea
-                          value={item.description ?? ""}
-                          onChange={(event) =>
-                            updateExtraField(
-                              index,
-                              "description",
-                              event.target.value
-                            )
-                          }
-                          placeholder="설명"
-                          className="min-h-[120px]"
-                        />
-                      </div>
-                      <div className="md:col-span-2">
-                        <CareerTextarea
-                          value={item.memo ?? ""}
-                          onChange={(event) =>
-                            updateExtraField(index, "memo", event.target.value)
-                          }
-                          placeholder="추가 메모"
-                          className="min-h-[90px]"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </ProfileSection>
-        </>
-      ) : hasAnyProfileData ? (
-        <>
-          <div className="flex items-center gap-2.5 rounded-[14px] border border-beige900/10 bg-gradient-to-br from-beige100 to-white/80 px-4 py-3 text-[12.5px] leading-5 text-beige900/65">
-            <Eye className="h-3.5 w-3.5 shrink-0 text-beige700" />
-            <div>
-              <strong className="font-medium text-beige900">
-                {recruiterProfileCopy}
-              </strong>
-              <span> · 포지션 성사된 회사에만 공유돼요</span>
-            </div>
-          </div>
-
-          <section className="flex flex-col gap-4 px-1 pt-1 sm:flex-row sm:items-center">
-            <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-beige700 to-beige900 text-[26px] text-beige50">
-              <span className="font-halant italic leading-none">
-                {initials(profileDisplayName)}
-              </span>
-              {talentUser?.profile_picture &&
-              !talentUser.profile_picture.includes("media.licdn.com") ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={talentUser.profile_picture}
-                  alt={talentUser?.name ?? "profile"}
-                  className="absolute h-14 w-14 rounded-full object-cover"
-                />
-              ) : null}
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 flex-wrap items-center gap-2.5">
-                <h2 className="font-hedvig text-[30px] leading-none text-beige900">
-                  {profileDisplayName}
-                </h2>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-beige700/10 px-2.5 py-1 text-[11px] font-medium tracking-[0.02em] text-beige700">
-                  <span className="h-1.5 w-1.5 rounded-full bg-beige700" />
-                  Active
-                </span>
-              </div>
-
-              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13.5px] leading-5 text-beige900/65">
-                {talentUser?.headline ? (
-                  <span>{talentUser.headline}</span>
-                ) : null}
-                {talentUser?.headline && talentUser?.location ? (
-                  <span className="text-beige900/25">|</span>
-                ) : null}
-                {talentUser?.location ? (
-                  <span className="inline-flex items-center gap-1.5">
-                    <MapPin className="h-3.5 w-3.5" />
-                    {locationEnToKo(talentUser.location)}
-                  </span>
-                ) : null}
-              </div>
-
-              {profileUpdatedText ? (
-                <div className="mt-1 text-[11.5px] leading-5 tracking-[0.02em] text-beige900/45">
-                  Last updated · {profileUpdatedText}
-                </div>
-              ) : null}
-            </div>
-
-            <div className="flex shrink-0 flex-wrap gap-2">
-              {savedResumeDownloadUrl && (
-                <a
-                  href={savedResumeDownloadUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[8px] border border-beige900/15 bg-white/70 px-3.5 text-[12.5px] font-medium text-beige900 transition-colors hover:border-beige900/30 hover:bg-beige100"
-                >
-                  <FileText className="h-3.5 w-3.5 text-beige900/60" />
-                  View CV
-                </a>
-              )}
-              {/* <CareerSecondaryButton
-                type="button"
-                onClick={beginEditing}
-                className="h-9 gap-1.5 px-3.5 text-[12.5px]"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-                수정하기
-              </CareerSecondaryButton> */}
-            </div>
-          </section>
+          <ProfileHeader
+            displayName={draft.talentUser.name || "Unknown"}
+            isEditing
+            onProfileImageDelete={() => void deleteProfileImage()}
+            onProfileImageFileChange={(file) => void uploadProfileImage(file)}
+            onFieldChange={updateTalentUserField}
+            profileUpdatedText={profileUpdatedText}
+            profileImageUploadPending={
+              profileImageUploadPending || profileSavePending
+            }
+            savedResumeDownloadUrl={savedResumeDownloadUrl}
+            user={draft.talentUser}
+          />
 
           <ProfileSectionHeader
             icon={<Eye className="h-4 w-4" />}
             label="Overview"
           />
 
-          <section className="px-1">
-            {profileSummary ? (
-              <div className="mb-7">
-                <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-beige900/45">
-                  Summary
-                </div>
-                <p className="mt-3 whitespace-pre-line text-[14px] leading-6 text-beige900">
-                  {profileSummary}
-                </p>
-              </div>
-            ) : null}
+          <ProfileOverviewSection
+            isEditing
+            items={lookingForItems}
+            onInsightChange={(key, value) =>
+              onTalentInsightsChange((current) => ({
+                ...(current ?? {}),
+                [key]: value,
+              }))
+            }
+            onSummaryChange={(value) => updateTalentUserField("bio", value)}
+            summary={draft.talentUser.bio ?? ""}
+          />
 
-            <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-beige900/45">
-              What they are looking for
+          <ProfileSectionHeader
+            count={draftBackgroundCount}
+            icon={<Building2 className="h-4 w-4" />}
+            label="Background"
+          />
+
+          <section className="px-1">
+            <div className="mb-4 flex flex-wrap gap-2">
+              <CareerSecondaryButton
+                type="button"
+                onClick={addExperience}
+                className="h-8 gap-1.5 px-3 text-xs"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                경력 추가
+              </CareerSecondaryButton>
+              <CareerSecondaryButton
+                type="button"
+                onClick={addEducation}
+                className="h-8 gap-1.5 px-3 text-xs"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                학력 추가
+              </CareerSecondaryButton>
+              <CareerSecondaryButton
+                type="button"
+                onClick={addExtra}
+                className="h-8 gap-1.5 px-3 text-xs"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                추가 정보
+              </CareerSecondaryButton>
             </div>
-            <dl className="mt-3 grid gap-x-4 gap-y-3 sm:grid-cols-[112px_minmax(0,1fr)]">
-              {lookingForItems.map((item) => (
-                <React.Fragment key={item.key}>
-                  <dt className="pt-0.5 text-[11px] font-medium uppercase tracking-[0.14em] text-beige900/45">
-                    {item.label}
-                  </dt>
-                  <dd
-                    className={careerCx(
-                      "m-0 text-[14px] leading-6",
-                      item.value ? "text-beige900" : "text-beige900/40"
-                    )}
+
+            {draftBackgroundCount > 0 ? (
+              <div className="relative">
+                {draftMergedExperience.map((entry, index) => {
+                  const isLast =
+                    index === draftMergedExperience.length - 1 &&
+                    draft.talentExtras.length === 0;
+
+                  if (entry.kind === "exp") {
+                    const exp = entry.item;
+                    return (
+                      <TimelineEditBlock
+                        key={exp.clientKey}
+                        kind="work"
+                        logoUrl={exp.company_logo}
+                        logoAlt={exp.company_name ?? exp.role ?? "Company"}
+                        logoText={exp.company_name ?? exp.role ?? ""}
+                        isLast={isLast}
+                        onRemove={() => removeExperience(entry.index)}
+                        onLogoFileChange={(file) =>
+                          void uploadCompanyLogo(
+                            entry.index,
+                            exp.clientKey,
+                            file
+                          )
+                        }
+                        logoUploadPending={Boolean(
+                          logoUploadPendingKeys[exp.clientKey]
+                        )}
+                      >
+                        <div className="space-y-1.5">
+                          <CareerTextInput
+                            value={exp.role ?? ""}
+                            onChange={(event) =>
+                              updateExperienceField(
+                                entry.index,
+                                "role",
+                                event.target.value
+                              )
+                            }
+                            placeholder="직무"
+                            aria-label="직무"
+                            className={careerCx(
+                              profileEditPlainInputClassName,
+                              "text-[14px] font-medium leading-[1.35]"
+                            )}
+                          />
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] leading-5 text-beige900/65">
+                            <CareerTextInput
+                              value={exp.company_name ?? ""}
+                              onChange={(event) =>
+                                updateExperienceField(
+                                  entry.index,
+                                  "company_name",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="회사명"
+                              aria-label="회사명"
+                              className={careerCx(
+                                profileEditPlainInputClassName,
+                                "w-[180px] text-[12.5px] leading-5 text-beige900/65"
+                              )}
+                            />
+                            <span className="text-beige900/25">·</span>
+                            <CareerTextInput
+                              value={exp.company_location ?? ""}
+                              onChange={(event) =>
+                                updateExperienceField(
+                                  entry.index,
+                                  "company_location",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="근무 지역"
+                              aria-label="근무 지역"
+                              className={careerCx(
+                                profileEditPlainInputClassName,
+                                "w-[150px] text-[12.5px] leading-5 text-beige900/65"
+                              )}
+                            />
+                            <span className="text-beige900/25">·</span>
+                            <CareerTextInput
+                              value={exp.employment_type ?? ""}
+                              onChange={(event) =>
+                                updateExperienceField(
+                                  entry.index,
+                                  "employment_type",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="고용 형태"
+                              aria-label="고용 형태"
+                              className={careerCx(
+                                profileEditPlainInputClassName,
+                                "w-[120px] text-[12.5px] leading-5 text-beige900/65"
+                              )}
+                            />
+                          </div>
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] leading-5 text-beige900/40">
+                            <CareerTextInput
+                              value={exp.start_date ?? ""}
+                              onChange={(event) =>
+                                updateExperienceField(
+                                  entry.index,
+                                  "start_date",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="시작일"
+                              aria-label="시작일"
+                              className={careerCx(
+                                profileEditPlainInputClassName,
+                                "w-[92px] text-[11.5px] leading-5 text-beige900/40"
+                              )}
+                            />
+                            <span>-</span>
+                            <CareerTextInput
+                              value={exp.end_date ?? ""}
+                              onChange={(event) =>
+                                updateExperienceField(
+                                  entry.index,
+                                  "end_date",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="현재"
+                              aria-label="종료일 또는 현재"
+                              className={careerCx(
+                                profileEditPlainInputClassName,
+                                "w-[92px] text-[11.5px] leading-5 text-beige900/40"
+                              )}
+                            />
+                            <span className="text-beige900/25">·</span>
+                            <span className="rounded-[4px] bg-white/30 px-1.5 py-1 text-[11.5px] leading-5 text-beige900/45">
+                              {formatMonth(
+                                calculateExperienceMonths(
+                                  exp.start_date,
+                                  exp.end_date
+                                )
+                              ) || "기간 자동 계산"}
+                            </span>
+                            <span className="text-beige900/25">·</span>
+                            <CareerTextInput
+                              value={exp.company_link ?? ""}
+                              onChange={(event) =>
+                                updateExperienceField(
+                                  entry.index,
+                                  "company_link",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="회사 링크"
+                              aria-label="회사 링크"
+                              className={careerCx(
+                                profileEditPlainInputClassName,
+                                "min-w-[180px] flex-1 text-[11.5px] leading-5 text-beige900/40"
+                              )}
+                            />
+                          </div>
+                          <CareerTextarea
+                            value={exp.description ?? ""}
+                            onChange={(event) =>
+                              updateExperienceField(
+                                entry.index,
+                                "description",
+                                event.target.value
+                              )
+                            }
+                            placeholder="주요 업무와 성과"
+                            aria-label="주요 업무와 성과"
+                            className={careerCx(
+                              profileEditPlainTextareaClassName,
+                              "mt-2 text-[13px] leading-6 text-beige900/65"
+                            )}
+                          />
+                        </div>
+                      </TimelineEditBlock>
+                    );
+                  }
+
+                  const edu = entry.item;
+                  return (
+                    <TimelineEditBlock
+                      key={edu.clientKey}
+                      kind="education"
+                      logoText={edu.school ?? "Education"}
+                      isLast={isLast}
+                      onRemove={() => removeEducation(entry.index)}
+                    >
+                      <div className="space-y-1.5">
+                        <CareerTextInput
+                          value={edu.school ?? ""}
+                          onChange={(event) =>
+                            updateEducationField(
+                              entry.index,
+                              "school",
+                              event.target.value
+                            )
+                          }
+                          placeholder="학교명"
+                          aria-label="학교명"
+                          className={careerCx(
+                            profileEditPlainInputClassName,
+                            "text-[14px] font-medium leading-[1.35]"
+                          )}
+                        />
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] leading-5 text-beige900/65">
+                          <CareerTextInput
+                            value={edu.field ?? ""}
+                            onChange={(event) =>
+                              updateEducationField(
+                                entry.index,
+                                "field",
+                                event.target.value
+                              )
+                            }
+                            placeholder="전공"
+                            aria-label="전공"
+                            className={careerCx(
+                              profileEditPlainInputClassName,
+                              "w-[170px] text-[12.5px] leading-5 text-beige900/65"
+                            )}
+                          />
+                          <span className="text-beige900/25">·</span>
+                          <CareerTextInput
+                            value={edu.degree ?? ""}
+                            onChange={(event) =>
+                              updateEducationField(
+                                entry.index,
+                                "degree",
+                                event.target.value
+                              )
+                            }
+                            placeholder="학위"
+                            aria-label="학위"
+                            className={careerCx(
+                              profileEditPlainInputClassName,
+                              "w-[150px] text-[12.5px] leading-5 text-beige900/65"
+                            )}
+                          />
+                          <span className="text-beige900/25">·</span>
+                          <CareerTextInput
+                            value={edu.url ?? ""}
+                            onChange={(event) =>
+                              updateEducationField(
+                                entry.index,
+                                "url",
+                                event.target.value
+                              )
+                            }
+                            placeholder="학교/프로그램 링크"
+                            aria-label="학교/프로그램 링크"
+                            className={careerCx(
+                              profileEditPlainInputClassName,
+                              "min-w-[180px] flex-1 text-[12.5px] leading-5 text-beige900/65"
+                            )}
+                          />
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] leading-5 text-beige900/40">
+                          <CareerTextInput
+                            value={edu.start_date ?? ""}
+                            onChange={(event) =>
+                              updateEducationField(
+                                entry.index,
+                                "start_date",
+                                event.target.value
+                              )
+                            }
+                            placeholder="시작일"
+                            aria-label="시작일"
+                            className={careerCx(
+                              profileEditPlainInputClassName,
+                              "w-[92px] text-[11.5px] leading-5 text-beige900/40"
+                            )}
+                          />
+                          <span>-</span>
+                          <CareerTextInput
+                            value={edu.end_date ?? ""}
+                            onChange={(event) =>
+                              updateEducationField(
+                                entry.index,
+                                "end_date",
+                                event.target.value
+                              )
+                            }
+                            placeholder="종료일"
+                            aria-label="종료일"
+                            className={careerCx(
+                              profileEditPlainInputClassName,
+                              "w-[92px] text-[11.5px] leading-5 text-beige900/40"
+                            )}
+                          />
+                        </div>
+                        <CareerTextarea
+                          value={edu.description ?? ""}
+                          onChange={(event) =>
+                            updateEducationField(
+                              entry.index,
+                              "description",
+                              event.target.value
+                            )
+                          }
+                          placeholder="학력 설명"
+                          aria-label="학력 설명"
+                          className={careerCx(
+                            profileEditPlainTextareaClassName,
+                            "mt-2 text-[13px] leading-6 text-beige900/65"
+                          )}
+                        />
+                      </div>
+                    </TimelineEditBlock>
+                  );
+                })}
+
+                {draft.talentExtras.map((extra, extraIndex) => (
+                  <TimelineEditBlock
+                    key={extra.clientKey}
+                    kind="extra"
+                    logoText={extra.title ?? "Extra"}
+                    isLast={extraIndex === draft.talentExtras.length - 1}
+                    onRemove={() => removeExtra(extraIndex)}
                   >
-                    {item.value || "아직 확인 중"}
-                  </dd>
-                </React.Fragment>
-              ))}
-            </dl>
+                    <div className="space-y-1.5">
+                      <CareerTextInput
+                        value={extra.title ?? ""}
+                        onChange={(event) =>
+                          updateExtraField(
+                            extraIndex,
+                            "title",
+                            event.target.value
+                          )
+                        }
+                        placeholder="제목"
+                        aria-label="제목"
+                        className={careerCx(
+                          profileEditPlainInputClassName,
+                          "text-[14px] font-medium leading-[1.35]"
+                        )}
+                      />
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] leading-5 text-beige900/65">
+                        <CareerTextInput
+                          value={extra.date ?? ""}
+                          onChange={(event) =>
+                            updateExtraField(
+                              extraIndex,
+                              "date",
+                              event.target.value
+                            )
+                          }
+                          placeholder="날짜"
+                          aria-label="날짜"
+                          className={careerCx(
+                            profileEditPlainInputClassName,
+                            "w-[160px] text-[12.5px] leading-5 text-beige900/65"
+                          )}
+                        />
+                      </div>
+                      <CareerTextarea
+                        value={extra.description ?? ""}
+                        onChange={(event) =>
+                          updateExtraField(
+                            extraIndex,
+                            "description",
+                            event.target.value
+                          )
+                        }
+                        placeholder="설명"
+                        aria-label="설명"
+                        className={careerCx(
+                          profileEditPlainTextareaClassName,
+                          "mt-2 text-[13px] leading-6 text-beige900/65"
+                        )}
+                      />
+                    </div>
+                  </TimelineEditBlock>
+                ))}
+              </div>
+            ) : (
+              <EmptyEditState label="경력, 학력, 추가 정보를 추가해 주세요." />
+            )}
           </section>
+        </>
+      ) : hasAnyProfileData ? (
+        <>
+          <RecruiterProfileNotice copy={recruiterProfileCopy} />
+
+          <ProfileHeader
+            displayName={profileDisplayName}
+            isEditing={false}
+            onEdit={beginEditing}
+            onProfileImageDelete={() => void deleteProfileImage()}
+            onProfileImageFileChange={(file) => void uploadProfileImage(file)}
+            profileUpdatedText={profileUpdatedText}
+            profileImageUploadPending={
+              profileImageUploadPending || profileSavePending
+            }
+            savedResumeDownloadUrl={savedResumeDownloadUrl}
+            user={talentUser}
+          />
+
+          <ProfileSectionHeader
+            icon={<Eye className="h-4 w-4" />}
+            label="Overview"
+          />
+
+          <ProfileOverviewSection
+            isEditing={false}
+            items={lookingForItems}
+            summary={profileSummary}
+          />
 
           {backgroundCount > 0 ? (
             <>

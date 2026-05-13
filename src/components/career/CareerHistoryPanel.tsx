@@ -20,8 +20,10 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/router";
+import { useQueryClient } from "@tanstack/react-query";
 import { showToast } from "@/components/toast/toast";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
+import { useCompanyModalStore } from "@/store/useModalStore";
 import CareerInPageTabs from "./CareerInPageTabs";
 import {
   CareerInlinePanel,
@@ -482,6 +484,8 @@ const HistoryEmptyStatePanel = ({
 
 const CareerHistoryPanel = () => {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const openCompanyModal = useCompanyModalStore((s) => s.handleOpenCompany);
   const {
     stage,
     opportunityRun,
@@ -1122,6 +1126,29 @@ const CareerHistoryPanel = () => {
     [onMarkHistoryOpportunityClicked, openUrl]
   );
 
+  const openHistoryCompanyInfo = useCallback(
+    (item: CareerHistoryOpportunity) => {
+      const fallbackUrl = item.companyHomepageUrl ?? item.companyLinkedinUrl;
+      if (!item.companyDbId && !fallbackUrl) return;
+
+      void onMarkHistoryOpportunityClicked(item.id);
+
+      if (item.companyDbId) {
+        void openCompanyModal({
+          companyId: item.companyDbId,
+          fallbackUrl,
+          openWhenIncomplete: true,
+          queryClient,
+          tone: "career",
+        });
+        return;
+      }
+
+      openUrl(fallbackUrl);
+    },
+    [onMarkHistoryOpportunityClicked, openCompanyModal, openUrl, queryClient]
+  );
+
   const requestPositiveFeedback = useCallback(
     (item: CareerHistoryOpportunity) => {
       setPositivePromptOpportunityId(item.id);
@@ -1180,6 +1207,7 @@ const CareerHistoryPanel = () => {
     ) => {
       void onUpdateHistoryOpportunityFeedback(item.id, feedback, {
         feedbackReason: options?.feedbackReason ?? null,
+        interactionSource: "position_tab",
         savedStage:
           feedback === "positive"
             ? (options?.savedStage ?? getResolvedSavedStage(item))
@@ -1541,6 +1569,7 @@ const CareerHistoryPanel = () => {
                 item={activeOpportunity}
                 canMovePrev={activeIndex > 0}
                 canMoveNext={canMoveNextOpportunity}
+                onOpenCompanyInfo={openHistoryCompanyInfo}
                 onOpenLink={(url) => openHistoryLink(activeOpportunity.id, url)}
                 onOpenOpportunityInfo={setInfoOpportunityType}
                 onMovePrev={() => moveActiveOpportunity(-1)}
@@ -1582,6 +1611,7 @@ const CareerHistoryPanel = () => {
                         </CareerSecondaryButton>
                       }
                       onOpenOpportunityInfo={setInfoOpportunityType}
+                      onOpenCompanyInfo={openHistoryCompanyInfo}
                       onSavedStageChange={(stage) => {
                         void onUpdateHistoryOpportunitySavedStage(
                           item.id,
@@ -1624,6 +1654,7 @@ const CareerHistoryPanel = () => {
                     </CareerSecondaryButton>
                   }
                   onOpenOpportunityInfo={setInfoOpportunityType}
+                  onOpenCompanyInfo={openHistoryCompanyInfo}
                   onOpenDetail={() => openModalForItem(item)}
                 />
               ))}
@@ -1667,6 +1698,7 @@ const CareerHistoryPanel = () => {
             : false
         }
         onClose={closeOpportunityModal}
+        onOpenCompanyInfo={openHistoryCompanyInfo}
         onOpenLink={(url) => {
           if (!modalOpportunity) return;
           openHistoryLink(modalOpportunity.id, url);

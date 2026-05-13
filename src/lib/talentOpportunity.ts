@@ -30,7 +30,9 @@ type RawRecommendationRow = {
   company_role: {
     company_workspace: {
       company_description: string | null;
+      company_db_id: number | null;
       company_db: {
+        id: number | null;
         logo: string | null;
       } | null;
       company_name: string;
@@ -87,7 +89,9 @@ type RawPostingRoleRow = {
   work_mode: string | null;
   company_workspace: {
     company_description: string | null;
+    company_db_id: number | null;
     company_db: {
+      id: number | null;
       logo: string | null;
     } | null;
     company_name: string;
@@ -130,10 +134,12 @@ const TALENT_OPPORTUNITY_HISTORY_SELECT = `
     company_workspace:company_workspace!inner (
       company_name,
       company_description,
+      company_db_id,
       homepage_url,
       linkedin_url,
       logo_url,
       company_db:company_db (
+        id,
         logo
       )
     )
@@ -156,10 +162,12 @@ const TALENT_POSTING_ROLE_SELECT = `
   company_workspace:company_workspace!inner (
     company_name,
     company_description,
+    company_db_id,
     homepage_url,
     linkedin_url,
     logo_url,
     company_db:company_db (
+      id,
       logo
     )
   ),
@@ -196,6 +204,7 @@ export type TalentOpportunitySavedStage =
 export type TalentOpportunityHistoryItem = {
   clickedAt: string | null;
   companyDescription: string | null;
+  companyDbId: number | null;
   companyHomepageUrl: string | null;
   companyLinkedinUrl: string | null;
   companyLogoUrl: string | null;
@@ -613,6 +622,12 @@ function mapRecommendationRow(
   return {
     clickedAt: row.clicked_at ?? null,
     companyDescription: workspace.company_description ?? null,
+    companyDbId:
+      typeof workspace.company_db_id === "number"
+        ? workspace.company_db_id
+        : typeof workspace.company_db?.id === "number"
+          ? workspace.company_db.id
+          : null,
     companyHomepageUrl: homepageUrl,
     companyLinkedinUrl: linkedinUrl,
     companyLogoUrl: workspace.company_db?.logo ?? workspace.logo_url ?? null,
@@ -690,6 +705,12 @@ function mapPostingRoleRow(
   return {
     clickedAt: existingRecommendation?.clicked_at ?? null,
     companyDescription: workspace.company_description ?? null,
+    companyDbId:
+      typeof workspace.company_db_id === "number"
+        ? workspace.company_db_id
+        : typeof workspace.company_db?.id === "number"
+          ? workspace.company_db.id
+          : null,
     companyHomepageUrl: homepageUrl,
     companyLinkedinUrl: linkedinUrl,
     companyLogoUrl: workspace.company_db?.logo ?? workspace.logo_url ?? null,

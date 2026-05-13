@@ -175,7 +175,7 @@ export const CareerSecondaryButton = ({
     type="button"
     {...props}
     className={careerCx(
-      "inline-flex h-10 items-center justify-center rounded-[8px] border border-beige900/15 bg-white/45 px-4 text-sm text-beige900 transition-colors hover:border-beige900/30",
+      "inline-flex h-10 items-center justify-center rounded-[8px] border border-black/10 bg-white/45 px-4 text-sm text-black transition-colors hover:border-black/25",
       className
     )}
   >

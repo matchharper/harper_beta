@@ -17,6 +17,7 @@ export async function fetchCompanyDb(companyId: number) {
 type ModalPayload = {
   company: CompanyType;
   closeOnBackdrop?: boolean;
+  tone?: "default" | "career";
 };
 
 type ModalState = {
@@ -27,7 +28,10 @@ type ModalState = {
   // 새로 추가될 액션
   handleOpenCompany: (params: {
     companyId: number | string;
+    fallbackUrl?: string | null;
+    openWhenIncomplete?: boolean;
     queryClient: QueryClient;
+    tone?: ModalPayload["tone"];
   }) => Promise<void>;
 };
 
@@ -43,10 +47,19 @@ export const useCompanyModalStore = create<ModalState>((set, get) => ({
     set({ isOpen: false, payload: null });
   },
 
-  handleOpenCompany: async ({ companyId, queryClient }) => {
+  handleOpenCompany: async ({
+    companyId,
+    fallbackUrl,
+    openWhenIncomplete = false,
+    queryClient,
+    tone = "default",
+  }) => {
     const id = Number(companyId);
 
     if (!Number.isFinite(id) || id === 0) {
+      if (fallbackUrl) {
+        window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+      }
       return;
     }
 
@@ -60,17 +73,20 @@ export const useCompanyModalStore = create<ModalState>((set, get) => ({
       });
 
       // 3. 결과에 따른 분기
-      if (
-        data &&
-        data.founded_year !== null &&
-        data.founded_year !== undefined
-      ) {
-        get().open({ company: data });
+      if (data && (openWhenIncomplete || data.founded_year != null)) {
+        get().open({ company: data, tone });
       } else {
-        window.open(data?.linkedin_url ?? "https://www.linkedin.com", "_blank");
+        window.open(
+          data?.linkedin_url ?? fallbackUrl ?? "https://www.linkedin.com",
+          "_blank",
+          "noopener,noreferrer"
+        );
       }
     } catch (error) {
       console.error("Failed to fetch company data:", error);
+      if (fallbackUrl) {
+        window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+      }
     }
   },
 }));

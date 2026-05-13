@@ -58,6 +58,8 @@ export default function App({ Component, pageProps }: AppProps) {
     router.pathname === "/career" ||
     router.pathname.startsWith("/career/") ||
     router.pathname === "/career_login";
+  const isMyPage =
+    router.pathname === "/my" || router.pathname.startsWith("/my/");
   const shouldHideCrisp =
     isCareerPage ||
     router.pathname === "/landing-ko-vf" ||
@@ -116,6 +118,7 @@ export default function App({ Component, pageProps }: AppProps) {
   }, [init]);
 
   useEffect(() => {
+    if (!isMyPage) return;
     if (!companyUser?.user_id) return;
     if (companyUserLoading) return;
     if (!companyUser.is_authenticated) return;
@@ -135,7 +138,12 @@ export default function App({ Component, pageProps }: AppProps) {
     ]).catch((err) => {
       console.error("Failed to refresh credits:", err);
     });
-  }, [companyUser?.user_id, companyUser?.is_authenticated, companyUserLoading]);
+  }, [
+    isMyPage,
+    companyUser?.user_id,
+    companyUser?.is_authenticated,
+    companyUserLoading,
+  ]);
 
   return (
     <ReactQueryProvider>

@@ -8,6 +8,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import TurndownService from "turndown";
 import { POSTING_LINK_LABEL } from "@/lib/career/postingLinks";
+import { compactUrlLabel, isUrlText } from "@/lib/urlDisplay";
 import { careerCx } from "./CareerPrimitives";
 
 const turndownService = new TurndownService({
@@ -128,6 +129,89 @@ function renderNodeWithHighlights(
   return node;
 }
 
+function getPlainText(node: ReactNode): string {
+  if (typeof node === "string" || typeof node === "number") {
+    return String(node);
+  }
+
+  if (Array.isArray(node)) {
+    return node.map(getPlainText).join("");
+  }
+
+  if (isValidElement<{ children?: ReactNode }>(node)) {
+    return getPlainText(node.props.children);
+  }
+
+  return "";
+}
+
+function isBareUrlLinkNode(node: ReactNode) {
+  if (!isValidElement<{ href?: string; children?: ReactNode }>(node)) {
+    return false;
+  }
+
+  const href = node.props.href?.trim() ?? "";
+  if (!href) return false;
+
+  const childText = getPlainText(node.props.children).trim();
+  return isUrlText(childText) || childText === href;
+}
+
+function isSourceLabelText(value: string) {
+  const normalized = value.replace(/\s+/g, " ").trim().toLowerCase();
+  return (
+    !normalized ||
+    normalized === "출처:" ||
+    normalized === "출처" ||
+    normalized === "sources:" ||
+    normalized === "sources" ||
+    normalized === "source:" ||
+    normalized === "source"
+  );
+}
+
+function renderUrlLinkParagraph(children: ReactNode): ReactNode | null {
+  const childNodes = React.Children.toArray(children);
+  let linkCount = 0;
+  let hasOtherText = false;
+  const labelParts: string[] = [];
+
+  for (const child of childNodes) {
+    if (isBareUrlLinkNode(child)) {
+      linkCount += 1;
+      continue;
+    }
+
+    const plainText = getPlainText(child);
+    if (!isSourceLabelText(plainText)) {
+      hasOtherText = true;
+      break;
+    }
+
+    const normalizedLabel = plainText.replace(/\s+/g, " ").trim();
+    if (normalizedLabel) {
+      labelParts.push(normalizedLabel);
+    }
+  }
+
+  if (linkCount === 0 || hasOtherText) return null;
+
+  return (
+    <p className="mt-3 flex flex-wrap items-center gap-1.5 text-sm leading-6 text-beige900/80 first:mt-0">
+      {labelParts.length > 0 && (
+        <span className="mr-1 text-beige900/65">
+          {renderTextWithHighlights(labelParts.join(" "), "url-link-label")}
+        </span>
+      )}
+      {childNodes
+        .filter((child) => isBareUrlLinkNode(child))
+        .map((child, index) => (
+          <Fragment key={`url-link-${index}`}>{child}</Fragment>
+        ))}
+    </p>
+  );
+}
+
 export default function CareerRichText({
   content,
   className,
@@ -159,11 +243,12 @@ export default function CareerRichText({
               {renderNodeWithHighlights(children, "h3")}
             </h3>
           ),
-          p: ({ children }) => (
-            <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-beige900/80 first:mt-0">
-              {renderNodeWithHighlights(children, "p")}
-            </p>
-          ),
+          p: ({ children }) =>
+            renderUrlLinkParagraph(children) ?? (
+              <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-beige900/80 first:mt-0">
+                {renderNodeWithHighlights(children, "p")}
+              </p>
+            ),
           ul: ({ children }) => (
             <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-6 text-beige900/80 first:mt-0">
               {children}
@@ -187,9 +272,7 @@ export default function CareerRichText({
                 </span>
               );
             }
-            const childText = Array.isArray(children)
-              ? children.join("")
-              : String(children ?? "");
+            const childText = getPlainText(children);
             if (
               childText.trim().toLowerCase() === POSTING_LINK_LABEL &&
               !href.startsWith("http://") &&
@@ -204,9 +287,18 @@ export default function CareerRichText({
                 href={href}
                 target="_blank"
                 rel="noreferrer"
-                className="break-all text-beige900 underline decoration-dotted underline-offset-2 transition-colors hover:text-beige900/75"
+                title={href}
+                aria-label={href}
+                className={careerCx(
+                  "break-words underline decoration-dotted underline-offset-2 text-beige900 transition-colors hover:text-beige900/75",
+                  isUrlText(childText) ||
+                    (childText.trim() === href &&
+                      "inline-flex max-w-full items-center px-1 py-0.5 text-[13px] font-medium leading-5")
+                )}
               >
-                {renderNodeWithHighlights(children, "link")}
+                {isUrlText(childText) || childText.trim() === href
+                  ? compactUrlLabel(childText || href)
+                  : renderNodeWithHighlights(children, "link")}
               </a>
             );
           },

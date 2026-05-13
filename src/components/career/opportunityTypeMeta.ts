@@ -63,7 +63,7 @@ export const CAREER_OPPORTUNITY_TYPE_META: Record<
     defaultSavedStage: "saved",
     info: {
       description:
-        "Harper가 외부에 공개된 커리어 기회들을 선별해 추천한 기회입니다.",
+        "하퍼가 공개 채용 페이지와 JD를 탐색해 회원님의 경력, 선호 조건, 다음 커리어 방향과 맞춰 본 포지션입니다. 지원은 외부 JD에서 직접 진행하고, 저장한 항목은 추천 기준 개선과 가능한 연결 탐색에 활용됩니다.",
       title: "하퍼가 발견한 기회",
     },
     infoTag: {
@@ -121,15 +121,15 @@ export const CAREER_OPPORTUNITY_TYPE_META: Record<
     defaultSavedStage: "applied",
     info: {
       description:
-        "Harper의 추천입니다. 회원님의 연결 수락과 프로필 공개 가능 여부를 먼저 확인한 뒤 다음 단계를 진행합니다.",
-      title: "Harper 추천 기회",
+        "하퍼가 회사의 채용 니즈를 확인하고 회원님에게 먼저 연결 의사를 묻는 추천입니다. 수락 전에는 프로필을 회사에 전달하지 않고, 수락 후 하퍼가 소개와 후속 조율을 진행합니다.",
+      title: "하퍼의 연결 제안",
     },
     infoTag: {
       icon: Handshake,
       interactive: true,
       showHelpIcon: true,
     },
-    label: "하퍼의 제안",
+    label: "하퍼의 연결 제안",
     negativeActionLabel: "선호하지 않음",
     negativeFeedback: {
       modal: {
@@ -187,7 +187,7 @@ export const CAREER_OPPORTUNITY_TYPE_META: Record<
     defaultSavedStage: "connected",
     info: {
       description:
-        "채용담당자가 Harper를 통해 프로필을 확인했고 직접 연결을 요청했습니다. 연결을 수락하신다면 바로 Harper가 양쪽 일정을 조율하고 다음 대화를 이어가실 수 있게합니다.",
+        "회사 측이 하퍼를 통해 회원님에게 직접 연결을 요청한 케이스입니다. 수락 여부를 확인한 뒤에만 연락처 공유와 후속 조율을 진행합니다.",
       title: "직접 연결 요청",
     },
     infoTag: {

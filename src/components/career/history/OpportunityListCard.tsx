@@ -64,6 +64,7 @@ const OpportunityListCard = ({
   pending,
   showSavedStageSelect = false,
   onOpenDetail,
+  onOpenCompanyInfo,
   onOpenOpportunityInfo,
   onSavedStageChange,
 }: {
@@ -72,6 +73,7 @@ const OpportunityListCard = ({
   pending: boolean;
   showSavedStageSelect?: boolean;
   onOpenDetail: () => void;
+  onOpenCompanyInfo?: (item: CareerHistoryOpportunity) => void;
   onOpenOpportunityInfo: (type: CareerOpportunityType) => void;
   onSavedStageChange?: (stage: CareerOpportunitySavedStage) => void;
 }) => {
@@ -113,6 +115,7 @@ const OpportunityListCard = ({
         >
           <OpportunityHeader
             item={item}
+            onOpenCompanyInfo={onOpenCompanyInfo}
             onOpenOpportunityInfo={onOpenOpportunityInfo}
             extraComponent={
               <>

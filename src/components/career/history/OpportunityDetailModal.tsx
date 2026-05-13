@@ -19,6 +19,7 @@ const OpportunityDetailModal = ({
   open,
   pending,
   onClose,
+  onOpenCompanyInfo,
   onOpenLink,
   onOpenOpportunityInfo,
   onPositive,
@@ -30,6 +31,7 @@ const OpportunityDetailModal = ({
   open: boolean;
   pending: boolean;
   onClose: () => void;
+  onOpenCompanyInfo?: (item: CareerHistoryOpportunity) => void;
   onOpenLink: (url: string) => void;
   onOpenOpportunityInfo: (type: CareerOpportunityType) => void;
   onPositive: () => void;
@@ -100,6 +102,7 @@ const OpportunityDetailModal = ({
 
         <HistoryOpportunityDetailContent
           item={item}
+          onOpenCompanyInfo={onOpenCompanyInfo}
           onOpenLink={onOpenLink}
           onOpenOpportunityInfo={onOpenOpportunityInfo}
         />

@@ -26,16 +26,21 @@ import OpportunityPreferenceFit from "./OpportunityPreferenceFit";
 export const OpportunityHeader = ({
   item,
   layout = "responsive",
+  onOpenCompanyInfo,
   onOpenOpportunityInfo,
   extraComponent,
 }: {
   item: CareerHistoryOpportunity;
   layout?: "responsive" | "stacked";
+  onOpenCompanyInfo?: (item: CareerHistoryOpportunity) => void;
   onOpenOpportunityInfo: (type: CareerOpportunityType) => void;
   extraComponent?: ReactNode;
 }) => {
   const postedAgo = formatRelativeTime(item.postedAt);
   const companyInfoLink = item.companyHomepageUrl ?? item.companyLinkedinUrl;
+  const canOpenCompanyInfo = Boolean(
+    onOpenCompanyInfo || item.companyDbId || companyInfoLink
+  );
   const metaItems = getMetaItems(item);
   const stacked = layout === "stacked";
 
@@ -67,10 +72,22 @@ export const OpportunityHeader = ({
             {item.title}
           </div>
           <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[14px] text-beige900/80">
-            {companyInfoLink ? (
+            {canOpenCompanyInfo ? (
               <button
                 type="button"
-                onClick={() => window.open(companyInfoLink, "_blank")}
+                onClick={() => {
+                  if (onOpenCompanyInfo) {
+                    onOpenCompanyInfo(item);
+                    return;
+                  }
+                  if (companyInfoLink) {
+                    window.open(
+                      companyInfoLink,
+                      "_blank",
+                      "noopener,noreferrer"
+                    );
+                  }
+                }}
                 className="min-w-0 break-words text-left decoration-dotted underline underline-offset-2 transition-colors hover:text-beige900"
               >
                 {item.companyName}
@@ -176,6 +193,7 @@ const HistoryOpportunityDetailContent = ({
   item,
   canMoveNext = false,
   canMovePrev = false,
+  onOpenCompanyInfo,
   onOpenLink,
   onOpenOpportunityInfo,
   onMoveNext,
@@ -184,12 +202,14 @@ const HistoryOpportunityDetailContent = ({
   item: CareerHistoryOpportunity;
   canMoveNext?: boolean;
   canMovePrev?: boolean;
+  onOpenCompanyInfo?: (item: CareerHistoryOpportunity) => void;
   onOpenLink: (url: string) => void;
   onOpenOpportunityInfo: (type: CareerOpportunityType) => void;
   onMoveNext?: () => void;
   onMovePrev?: () => void;
 }) => {
   const companyInfoLink = item.companyHomepageUrl ?? item.companyLinkedinUrl;
+  const canOpenCompanyInfo = Boolean(item.companyDbId || companyInfoLink);
   const roleLink = item.href;
   const recommendationSummary = item.recommendationSummary?.trim() ?? "";
   const recommendationConcerns = item.recommendationConcerns ?? [];
@@ -209,6 +229,7 @@ const HistoryOpportunityDetailContent = ({
           <div className="flex w-full flex-col items-start justify-between rounded-2xl border border-beige200 bg-beige50 px-5 py-6">
             <OpportunityHeader
               item={item}
+              onOpenCompanyInfo={onOpenCompanyInfo}
               onOpenOpportunityInfo={onOpenOpportunityInfo}
             />
 
@@ -273,10 +294,22 @@ const HistoryOpportunityDetailContent = ({
               <HistorySectionTitle
                 icon={<Building2 className="h-4 w-4" />}
                 title={getCareerCompanySectionTitle(item.opportunityType)}
-                openText={companyInfoLink ? "링크 열기" : undefined}
+                openText={
+                  canOpenCompanyInfo
+                    ? item.companyDbId
+                      ? "회사 정보"
+                      : "링크 열기"
+                    : undefined
+                }
                 onClick={
-                  companyInfoLink
-                    ? () => onOpenLink(companyInfoLink)
+                  canOpenCompanyInfo
+                    ? () => {
+                        if (onOpenCompanyInfo) {
+                          onOpenCompanyInfo(item);
+                          return;
+                        }
+                        if (companyInfoLink) onOpenLink(companyInfoLink);
+                      }
                     : undefined
                 }
               />

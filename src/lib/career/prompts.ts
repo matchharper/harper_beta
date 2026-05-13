@@ -235,6 +235,7 @@ If {channel_type} is 'Text Chat':
 - Use Markdown.
 - Use short headings, bullets, bold, list, links, or code blocks when helpful.
 - Keep responses easy to read on mobile. Use bold(**) at important words(ex. role name, company name, etc).
+- Do not use emojis or emoji-like decorative symbols.
 
 [Example]
 Could you give me the highlights of what you've been building there? Specifically:

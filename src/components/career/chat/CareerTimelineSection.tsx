@@ -56,6 +56,7 @@ import CareerMessageBubble from "./CareerMessageBubble";
 import CareerRichText from "../ui/CareerRichText";
 import Image from "next/image";
 import { formatRelativeTime } from "@/lib/utils";
+import React from "react";
 
 const LOGIN_GREETING_TEXT =
   "안녕하세요.\n\n회원님의 정보를 저장하기 위해서 우선 계정으로 로그인을 해주세요.";
@@ -158,7 +159,7 @@ const TimelineDateDivider = ({ label }: { label: string }) => (
     className="flex justify-center py-2"
     aria-label={`대화 날짜 ${label}`}
   >
-    <span className="rounded-full border border-beige900/10 bg-white/55 px-3 py-1 text-[12px] font-medium text-beige900/45">
+    <span className="rounded-full bg-beige500 px-3 py-1 text-[12px] font-normal text-beige900/45">
       {label}
     </span>
   </div>
@@ -438,19 +439,19 @@ const OpportunityPreviewCards = memo(function OpportunityPreviewCards({
                 </div>
               </div>
 
-              {summary ? (
-                <div className="max-h-24 overflow-hidden rounded-[8px] border border-beige900/10 bg-white/55 px-3 py-2 text-[13px] leading-6 text-beige900/70">
+              {summary && (
+                <div className="max-h-24 overflow-hidden text-[13px] leading-6 text-beige900/70">
                   {summary}
                 </div>
-              ) : null}
+              )}
             </div>
-            <div className="flex w-full flex-col gap-2 md:w-[132px] md:justify-end">
+            <div className="flex w-full flex-col gap-1 md:w-[132px] md:justify-end">
               {item.href ? (
                 <a
                   href={item.href}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-[8px] border border-beige900/15 bg-white/45 px-3 text-xs text-beige900 transition-colors hover:border-beige900/30"
+                  className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] border border-beige900/15 bg-white/45 px-3 text-xs text-beige900 transition-colors hover:border-beige900/30"
                 >
                   <ExternalLink className="h-3.5 w-3.5" />
                   공고 보기
@@ -463,7 +464,7 @@ const OpportunityPreviewCards = memo(function OpportunityPreviewCards({
                 disabled={isUpdating}
                 aria-pressed={isPositive}
                 className={careerCx(
-                  "h-9 w-full gap-1.5 px-3 text-xs",
+                  "h-9 gap-1.5 px-3 text-xs",
                   isPositive && "ring-2 ring-beige900/15"
                 )}
               >
@@ -483,7 +484,7 @@ const OpportunityPreviewCards = memo(function OpportunityPreviewCards({
                 disabled={isUpdating}
                 aria-pressed={isNegative}
                 className={careerCx(
-                  "h-9 w-full px-3 text-xs",
+                  "h-9 px-3 text-xs",
                   isNegative && "border-beige900/25 bg-beige900/10 font-medium"
                 )}
               >
@@ -1384,4 +1385,4 @@ const CareerTimelineSection = () => {
   );
 };
 
-export default CareerTimelineSection;
+export default React.memo(CareerTimelineSection);
