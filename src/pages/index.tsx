@@ -9,7 +9,7 @@ import Image from "next/image";
 import Link from "next/link";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { User2 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import DemoSection from "@/components/landing/career/DemoSection";
 
 const CAREER_START_HREF =

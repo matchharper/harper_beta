@@ -1,6 +1,6 @@
 import Reveal from "@/components/landing/Animation/Reveal";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { ArrowUpRight, Clock, Loader, Lock } from "lucide-react";
 import Head from "next/head";
 import Image from "next/image";

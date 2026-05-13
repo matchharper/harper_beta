@@ -11,7 +11,7 @@ import {
   type MatchEmploymentType,
   type MatchRoleStatus,
 } from "@/lib/match/shared";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { ChevronDown, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 

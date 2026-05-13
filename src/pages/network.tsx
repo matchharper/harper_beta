@@ -27,7 +27,7 @@ import {
   TALENT_NETWORK_REFERRAL_SOURCE_LANDING_FOOTER,
   writeTalentNetworkStoredReferral,
 } from "@/lib/talentNetworkReferral";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowUpRight,
   ChevronLeft,

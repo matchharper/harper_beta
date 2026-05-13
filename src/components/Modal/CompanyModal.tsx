@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo } from "react";
 import { useCompanyModalStore } from "@/store/useModalStore";
 import LinkChips from "@/pages/my/p/components/LinkChips";
 import { Calendar, CircleHelp, MapPinHouse, Users, XIcon } from "lucide-react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import LinkPreview from "../LinkPreview";
 import { useMessages } from "@/i18n/useMessage";
 import { countryEnToKo } from "@/utils/language_map";

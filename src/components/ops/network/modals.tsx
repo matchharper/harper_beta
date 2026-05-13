@@ -1,6 +1,6 @@
 import { cx, opsTheme } from "@/components/ops/theme";
 import type { NetworkLeadSummary } from "@/lib/opsNetwork";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { LoaderCircle } from "lucide-react";
 
 export function QuickMemoModal({

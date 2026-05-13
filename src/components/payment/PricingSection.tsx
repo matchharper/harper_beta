@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { Check } from "lucide-react";
 import { useMessages } from "@/i18n/useMessage";
 import { useLogEvent } from "@/hooks/useLog";

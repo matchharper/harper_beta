@@ -20,7 +20,7 @@ import {
 } from "@/hooks/useMatchWorkspace";
 import { cn } from "@/lib/cn";
 import type { MatchRoleRecord } from "@/lib/match/shared";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowUpRight,
   Box,

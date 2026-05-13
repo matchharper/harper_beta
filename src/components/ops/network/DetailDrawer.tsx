@@ -5,7 +5,7 @@ import type {
   NetworkLeadSummary,
   TalentInternalEntry,
 } from "@/lib/opsNetwork";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { Copy, FileText, LoaderCircle, X, Sparkles } from "lucide-react";
 import InternalView from "./InternalView";
 import MessagesView from "./MessagesView";

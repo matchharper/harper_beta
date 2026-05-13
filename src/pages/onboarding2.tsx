@@ -9,7 +9,7 @@ import {
   Upload,
 } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { showToast } from "@/components/toast/toast";
 import { useCountryLang } from "@/hooks/useCountryLang";
 import { useIsMobile } from "@/hooks/useIsMobile";

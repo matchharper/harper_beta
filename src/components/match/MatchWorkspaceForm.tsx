@@ -2,7 +2,7 @@
 
 import { Input, inputSurfaceClassName } from "@/components/ui/input";
 import { cn } from "@/lib/cn";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 

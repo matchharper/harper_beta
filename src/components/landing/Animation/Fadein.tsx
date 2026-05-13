@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo } from "react";
-import { motion, useAnimation } from "framer-motion";
+import { motion, useAnimation, type Variants } from "motion/react";
 import { useInView } from "react-intersection-observer";
 
 const Animate = ({
@@ -34,16 +34,16 @@ const Animate = ({
 
   const transitionSet = useMemo(() => {
     return isSpring
-      ? {
+      ? ({
           type: "spring",
-          stiffness: 400, // 탄성 (클수록 더 탱탱)
-          damping: 22, // 감쇠 (작을수록 더 많이 튕김)
-          bounce: 0.3, // 0 ~ 1 정도로 조절해서 살짝만 튕기게
-        }
-      : {};
+          stiffness: 400,
+          damping: 22,
+          bounce: 0.3,
+        } as const)
+      : ({} as const);
   }, [isSpring]);
 
-  const variants = {
+  const variants: Variants = {
     hidden: { opacity: 0, y: isUp ? 40 : 0 },
     visible: {
       opacity: 1,

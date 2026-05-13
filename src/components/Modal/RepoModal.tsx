@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { Book, GitFork, Star, Users, XIcon } from "lucide-react";
 import Link from "next/link";
 import { initials } from "@/components/NameProfile";

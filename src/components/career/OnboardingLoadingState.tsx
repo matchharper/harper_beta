@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { Check, FileText, Linkedin, MessageCircle, Search } from "lucide-react";
 import React from "react";
 import { useEffect, useState } from "react";

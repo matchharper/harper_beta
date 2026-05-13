@@ -2,7 +2,7 @@ import Reveal from "@/components/landing/Animation/Reveal";
 import { ContributionGrid } from "@/components/landing/ContributionGrid";
 import FullBleedSection from "@/components/landing/FullBleedSection";
 import StaggerText from "@/components/landing/Animation/StaggerText";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { ArrowUpRight, Check, Dot, Plus, Quote, X } from "lucide-react";
 import Head from "next/head";
 import React, { CSSProperties, useEffect, useMemo, useState } from "react";

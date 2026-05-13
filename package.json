@@ -37,7 +37,6 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dotenv": "^17.2.3",
-    "framer-motion": "^11.3.21",
     "jsdom": "^27.4.0",
     "lucide-react": "^0.424.0",
     "motion": "^12.33.0",

@@ -3,7 +3,7 @@
 import ProgressBar from "@/components/apply/ProgressBar";
 import { ArrowRight, CornerDownLeft, LoaderCircle } from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import router from "next/router";
 import TextInput from "@/components/apply/TextInput";
 import LinkInput from "@/components/apply/LinkInput";
