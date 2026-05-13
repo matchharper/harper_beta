@@ -208,6 +208,12 @@ export async function extractAndPersistChatInsights(args: {
       systemPrompt,
       conversationMessages,
     });
+    logger.log("[llm-output]", {
+      label: "career/chat:insight_extraction",
+      logPrefix: args.logPrefix,
+      model: CAREER_LLM_CONFIG.insightExtraction.model,
+      output: rawExtraction,
+    });
 
     let parsedExtraction = parseExtractedInsights({
       logPrefix: args.logPrefix,
@@ -229,6 +235,12 @@ export async function extractAndPersistChatInsights(args: {
         systemPrompt,
         conversationMessages,
         usageLabel: "career/chat:insight_extraction:fallback",
+      });
+      logger.log("[llm-output]", {
+        label: "career/chat:insight_extraction:fallback",
+        logPrefix: args.logPrefix,
+        model: CAREER_LLM_CONFIG.insightExtraction.fallbackModel,
+        output: rawExtraction,
       });
       parsedExtraction = parseExtractedInsights({
         logPrefix: args.logPrefix,

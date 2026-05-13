@@ -66,6 +66,7 @@ const CareerComposerSection = () => {
     showVoiceStartPrompt ||
     profilePending ||
     isStartingCall ||
+    onboardingWrapupPending ||
     onboardingPausePending;
   const isComposerActionLocked =
     isTextInputLocked || chatPending || assistantTyping;
@@ -76,6 +77,8 @@ const CareerComposerSection = () => {
       ? "기본 정보 제출 후 대화가 시작됩니다."
       : showVoiceStartPrompt
         ? "아래 시작 버튼으로 대화를 시작해 주세요."
+        : onboardingWrapupPending
+          ? "통화 내용을 정리하는 중입니다."
         : onboardingPaused
           ? "바로 입력하면 대화가 이어집니다."
           : profilePending

@@ -252,15 +252,12 @@ function WorkflowVisual({
             "데이터 보안 자문 · 월 약 10시간",
           ],
         ].map(([company, fit, body]) => (
-          <div
-            key={company}
-            className="rounded-lg border border-beige900/10 bg-beige100 p-3"
-          >
+          <div key={company} className="rounded-lg bg-beige100 p-3">
             <div className="flex items-center justify-between gap-3">
               <span className="text-[12.5px] font-semibold text-beige900">
                 {company}
               </span>
-              <span className="font-instrument text-[13px] font-medium text-beige700">
+              <span className="text-[12px] font-medium text-beige700">
                 {fit}
               </span>
             </div>
@@ -792,10 +789,29 @@ export default function LandingKoVfPage() {
 }
 
 const labelStyle =
-  "transition text-[14px] text-beige900/45 hover:text-beige900/80 font-medium cursor-pointer duration-300";
+  "transition text-[14px] text-beige900/45 hover:text-beige900/85 font-medium cursor-pointer duration-300";
+
+const blockStyle = "flex flex-col items-start justify-start md:min-w-[140px]";
 
 const Footer = () => {
   const careerStartHref = useCareerStartHref();
+  const openCrispChat = () => {
+    if (typeof window === "undefined") return;
+
+    const crispWindow = window as Window & {
+      $crisp?: Array<unknown[]>;
+    };
+    const hasCrispLoader = Boolean(document.getElementById("crisp-loader"));
+
+    if (!crispWindow.$crisp && !hasCrispLoader) {
+      window.location.href = "mailto:hello@matchharper.com";
+      return;
+    }
+
+    crispWindow.$crisp = crispWindow.$crisp ?? [];
+    crispWindow.$crisp.push(["do", "chat:show"]);
+    crispWindow.$crisp.push(["do", "chat:open"]);
+  };
 
   return (
     <footer className="border-t border-beige900/10 bg-beige500/35 px-4 py-14 text-[12px] text-beige900 md:px-10 md:py-16">
@@ -809,10 +825,11 @@ const Footer = () => {
               height={34}
               className="h-auto w-[78px]"
             />
-            <p className="font-halant mt-5 text-[15px] font-medium leading-[1.65] text-beige900">
-              Get introduced to your dream roles.
+            <p className="font-halant mt-5 text-base font-medium leading-[1.65] text-beige900/70">
+              Get <span className="text-beige900">introduced</span> to your{" "}
+              <span className="text-beige900">dream role</span>.
               <br />
-              With Harper.
+              With <span className="text-beige900">Harper</span>.
             </p>
             {/* <a
               href="mailto:hello@matchharper.com"
@@ -824,24 +841,24 @@ const Footer = () => {
           </div>
 
           <div className="flex flex-row items-start justify-end gap-12">
-            <div className="flex flex-col items-start justify-start">
+            <div className={blockStyle}>
               <div className="w-full font-medium uppercase text-beige900">
                 For Talent
               </div>
               <div className="mt-4 flex flex-col gap-3 text-[14px] text-beige900/68">
                 <Link href={careerStartHref} className={labelStyle}>
-                  Harper 시작하기
+                  시작하기
                 </Link>
-                <a href="#demo" className={labelStyle}>
-                  기회 브리핑
-                </a>
                 <a href="#workflow" className={labelStyle}>
-                  직접 연결 방식
+                  How it works
+                </a>
+                <a href="#voices" className={labelStyle}>
+                  Success stories
                 </a>
               </div>
             </div>
 
-            <div className="flex flex-col items-start justify-start">
+            <div className={blockStyle}>
               <div className="w-full font-medium uppercase text-beige900">
                 For Companies
               </div>
@@ -850,15 +867,15 @@ const Footer = () => {
                   Harper for Companies
                 </Link>
                 <a
-                  href="mailto:hello@matchharper.com?subject=Harper%20for%20Companies"
+                  href="https://calendly.com/chris-matchharper/30min"
                   className={labelStyle}
                 >
-                  인재 추천 문의
+                  Schedule a call
                 </a>
               </div>
             </div>
 
-            <div className="flex flex-col items-start justify-start">
+            <div className={blockStyle}>
               <div className="w-full font-medium uppercase text-beige900">
                 Company
               </div>
@@ -874,9 +891,13 @@ const Footer = () => {
                 >
                   LinkedIn
                 </a>
-                <a href="mailto:hello@matchharper.com" className={labelStyle}>
+                <button
+                  type="button"
+                  onClick={openCrispChat}
+                  className={`${labelStyle} text-left`}
+                >
                   문의하기
-                </a>
+                </button>
               </div>
             </div>
           </div>

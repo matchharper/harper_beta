@@ -6,9 +6,11 @@ import {
 import { TALENT_ONBOARDING_DONE_MARKER } from "@/lib/talentOnboarding/completion";
 import { TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX } from "@/lib/talentOnboarding/onboarding";
 import { INSIGHT_CHECKLIST } from "@/lib/talentOnboarding/insightChecklist";
+import { logger } from "@/utils/logger";
 
 const TALENT_ONBOARDING_MIN_FILLED_INSIGHT_COUNT = 6;
 const TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN = 2;
+const CAREER_RECENT_CHAT_CONTINUATION_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 export type CareerPromptProfile = {
   resume_file_name?: string | null;
@@ -35,6 +37,12 @@ export type CareerPromptActivitySummary = {
 export type CareerTranscriptEntry = {
   role: "user" | "assistant";
   text: string;
+};
+
+type CareerRealtimeRecentMessage = {
+  content: string;
+  createdAt?: string | null;
+  role: string;
 };
 
 export type CareerPromptBlock = {
@@ -155,6 +163,9 @@ Additional question은 insight checklist를 직접 채우는 일반 선호 질�
 - 프로필 gap: 최근/중요 경험의 설명 부족, 직접 기여도 불명확, 대표 성과 부족
 - 직무 관련 depth/preference: 사용자의 직무에서 매칭 정확도를 높이는 구체 질문
 - 이력 전환/타임라인: 짧은 재직, 공백, 역할 변화, 도메인 전환의 맥락 확인
+
+### 대화 Tip
+- 비자가 없다는 식의 얘기를 하면 비자를 지원해주는 곳을 위주로 찾아볼 수 있다는 안내를 해주면 좋다.
 
 ### 종료 판단 조건
 온보딩을 종료하려면 아래 조건을 모두 만족해야 한다.
@@ -878,15 +889,49 @@ export function buildCareerTextChatPromptBlocks(args: {
   return plan;
 }
 
+function buildCareerRealtimeContinuationHint(
+  messages: CareerRealtimeRecentMessage[]
+) {
+  const lastMessage = [...messages]
+    .reverse()
+    .find((message) => message.createdAt && message.content.trim());
+  const lastMessageTime = lastMessage?.createdAt
+    ? Date.parse(lastMessage.createdAt)
+    : NaN;
+
+  if (!Number.isFinite(lastMessageTime)) return "";
+
+  const elapsedMs = Date.now() - lastMessageTime;
+  if (elapsedMs < 0 || elapsedMs > CAREER_RECENT_CHAT_CONTINUATION_WINDOW_MS) {
+    return "";
+  }
+
+  const minutesAgo = Math.max(1, Math.floor(elapsedMs / 60_000));
+
+  const out = [
+    "## 최근 대화 연속성",
+    `- 직전 채팅 시간: ${minutesAgo}분전`,
+    "- 이 시간 정보는 최근 2시간 이내 대화와의 연속성을 판단하기 위한 힌트다. 최근 대화라고 해서 무조건 이어서 시작하지 말고, 직전 내용과 현재 통화 시작 상황을 보고 판단하라. 직전 채팅 시간이 5분 이내라면 이어서 하는게 좋다.",
+    "- 이전 내용에서 이어서 말하는 게 자연스러우면 '방금 이야기하던 부분 이어서 질문드리자면...' 아니면 '이야기 하던걸 통화로 계속 진행해볼까요? ~~'처럼 시작하라.",
+    "- 새로 시작하는 게 더 자연스러우면 인사하고 시작해도 된다.",
+    "- 이전에 이미 답한 내용을 그대로 반복하지 말되, 이어가기 위해 필요하면 직전 대화의 마지막 질문이나 확인점을 짧게 다시 물어도 된다.",
+  ].join("\n");
+  logger.log("\n\nout : ", out, "\n\n");
+
+  return out;
+}
+
 export function buildCareerRealtimeRecentConversationSection(
-  messages: Array<{ content: string; role: string }>
+  messages: CareerRealtimeRecentMessage[]
 ) {
   const recentMessages = messages.filter((message) => message.content.trim());
   if (recentMessages.length === 0) return "";
 
   const maxTotal = 2200;
   const maxPerMessage = 280;
-  let section = "\n## 최근 대화 내역 (이전 흐름을 이어서 자연스럽게 대화)\n";
+  const continuationHint = buildCareerRealtimeContinuationHint(recentMessages);
+  let section = continuationHint ? `\n${continuationHint}\n\n` : "\n";
+  section += "## 최근 대화 내역 (이전 흐름을 이어서 자연스럽게 대화)\n";
   let totalLength = section.length;
 
   for (const message of recentMessages) {
@@ -1043,7 +1088,7 @@ export function buildCareerToolPolicyPrompt(args: {
           "- If the originally requested role is unrealistic for the profile, prefer an adjacent realistic query around the same company/domain unless the user explicitly insists on the original role. Example: a B2B SaaS Growth marketer asking for OpenAI Researcher should first be steered toward OpenAI-like AI company marketing/GTM/growth roles, with the research-track caveat clearly stated.",
           "- `recommend_job_postings` immediately returns and saves at most 5 high-fit postings. If the user asks for more, use the tool's larger-request guidance: explain that Harper will show the best 5 now and continue with periodic batches of up to 10 high-quality postings rather than dumping weak matches.",
           "- After `recommend_job_postings`, answer in Korean using the tool's `answerDraft` and keep the ranked roles, reasons, concerns, and links visible. Do not replace it with generic advice.",
-          "- Preserve the single standalone `[posting](role_id)` line from `answerDraft` exactly. Do not add more `[posting]` lines for other roles; the UI should render only the best posting card.",
+          "- Preserve every standalone `[posting](role_id)` line from `answerDraft` exactly. These lines drive the chat posting-card carousel, so do not remove or rewrite them.",
         ]
       : []),
     ...(hasUpdateTalentProfileTool
@@ -1088,7 +1133,7 @@ export function buildCareerToolPolicyPrompt(args: {
           "  - OMIT 규칙: (1) 후보 행이 두 개 이상 (예: '삼성' → Samsung Electronics + Samsung SDS 둘 다 존재) (2) 매칭되는 행이 없음 (3) 발화가 회사/학교 mention 없는 generic skill — 이런 케이스는 rowMemos 항목을 넣지 마라. 단순 프로필 사실이라면 talentInsights로 우회 저장하지도 마라.",
           "- 한 turn 에 여러 필드가 동시에 갱신될 수 있으면 한 번의 호출에 preferences/rowMemos 를 같이 담아라 (turn 당 가능하면 1회).",
           "- After calling this tool, continue the conversation naturally in Korean: acknowledge the substance of what the user said, ask the next relevant question if onboarding is still active, or close naturally with the required marker if enough information has been collected.",
-          "- If the tool result includes `autoRecommendation.result.answerDraft`, use that draft in the final answer, keep the ranked roles/reasons/links visible, preserve only its single standalone `[posting](role_id)` card line, and do not call `recommend_job_postings` again in the same turn.",
+          "- If the tool result includes `autoRecommendation.result.answerDraft`, use that draft in the final answer, keep the ranked roles/reasons/links visible, preserve every standalone `[posting](role_id)` card line, and do not call `recommend_job_postings` again in the same turn.",
           "",
         ]
       : []),
@@ -1196,7 +1241,7 @@ ${args.durationLabel ? `통화 시간은 ${args.durationLabel}입니다.` : ""}
 - 1~2문장, 최대 120자 정도
 - 제목, 불릿, 번호, 요약 섹션 금지
 - "통화 요약", "정리하면" 같은 표현 금지
-- 온보딩이 아직 끝나지 않았다면: 아직 온보딩이 덜 끝났다는 점을 부드럽게 전하고, 채팅으로 이어서 이야기하거나 다음에 다시 통화로 온보딩을 마무리한 뒤 좋은 기회를 찾아드릴 수 있다고 말하기
+- 온보딩이 아직 끝나지 않았다면: 아직 조금 더 확인할 내용이 남아 있지만, 통화가 끊겼으니 이 채팅에서 그대로 이어서 마무리할 수 있다고 말하기. 다시 통화해야 한다는 식으로 말하지 마라.
 - 온보딩이 끝났고 너무 짧은 대화였다면: 오늘은 짧게 들었으니 다음에 더 이야기해 달라고 부드럽게 안내
 - 온보딩이 끝났고 충분한 대화였다면: 좋은 정보를 알려줘서 고맙고, 만족하실 만한 기회를 가져오겠다고 자연스럽게 말하기
 - 과한 확신, 과장, 딱딱한 상담 문구 금지
@@ -1240,7 +1285,8 @@ export function buildCareerCallWrapupTurnInstruction(args: {
     "- Write one short natural Korean follow-up message for the chat after the call ends.",
     "- 1-2 sentences, no heading, no bullets, no markdown card.",
     "- Do not ask a new onboarding/interview question. The call has ended.",
-    "- If onboarding is not completed, say briefly that there is a little more to finish later in chat or another call.",
+    "- If onboarding is not completed, say briefly that there is a little more to finish and invite the user to continue from here in this chat.",
+    "- For incomplete onboarding, do not imply the user must start another call. The primary next step is continuing by chat.",
     "- If onboarding is completed and the call had useful substance, thank them and say Harper will reflect what they shared in future matching/search.",
     "- Do not claim you updated profile state unless `update_talent_profile` was actually called and returned a successful change.",
     "",
@@ -1254,7 +1300,7 @@ export function buildCareerCallWrapupFallbackFollowUp(args: {
   isOnboardingDone?: boolean;
 }) {
   if (!args.isOnboardingDone) {
-    return "아직 온보딩이 조금 남아 있어요. 채팅으로 이어서 이야기하시거나 다음에 다시 통화로 마무리해주시면, 온보딩이 끝난 뒤 좋은 기회를 찾아드릴게요.";
+    return "아직 온보딩이 조금 남아 있어요. 통화가 끊긴 지점부터 이 채팅에서 이어서 마무리하면, 그 기준으로 좋은 기회를 찾아드릴게요.";
   }
 
   if (args.isBrief) {

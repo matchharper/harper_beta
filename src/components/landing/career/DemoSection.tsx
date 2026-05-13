@@ -355,7 +355,7 @@ function ChatMatchCard({
   return (
     <div
       ref={refCallback}
-      className={`grid cursor-pointer grid-cols-[auto_1fr_auto] rounded-md items-center gap-2.5 border-b px-2.5 py-2.5 transition duration-300 last:border-b-0 ${
+      className={`grid cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-2 rounded-md border-b px-2.5 py-2 transition duration-300 last:border-b-0 ${
         visible ? "translate-x-0 opacity-100" : "-translate-x-2 opacity-0"
       } ${
         selected ? "border-[#D7B48F]/30 bg-[#3B2B1D]" : "border-white/[0.08]"
@@ -364,18 +364,18 @@ function ChatMatchCard({
       <CompanyMark>{match.mark}</CompanyMark>
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="border-l border-[#D7B48F]/45 pl-1.5 text-[10px] font-medium text-[#D7B48F]">
+          <span className="border-l border-[#D7B48F]/45 pl-1.5 text-[9.5px] font-medium text-[#D7B48F]">
             {match.type}
           </span>
-          <span className="truncate text-[13px] font-semibold text-[#FFF7EA]">
+          <span className="truncate text-[12.5px] font-semibold text-[#FFF7EA]">
             {match.company}
           </span>
         </div>
-        <div className="mt-1 truncate text-[11px] text-[#BDAF9E]">
+        <div className="mt-1 truncate text-[10.5px] text-[#BDAF9E]">
           {match.role}
         </div>
       </div>
-      <div className="shrink-0 text-[10.5px] font-semibold text-[#E4C6A0]">
+      <div className="shrink-0 text-[10px] font-semibold text-[#E4C6A0]">
         {match.fit}
       </div>
     </div>
@@ -419,7 +419,7 @@ function MessageBubble({
 
   return (
     <div
-      className={`max-w-[91%] rounded-md px-[13px] py-2 text-[12px] leading-[1.48] transition duration-300 md:max-w-[86%] md:text-[13px] md:leading-[1.45] ${
+      className={`max-w-[91%] rounded-md px-3 py-2 text-[11.5px] leading-[1.48] transition duration-300 md:max-w-[86%] md:text-[12.5px] md:leading-[1.45] ${
         visible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
       } ${
         isUser
@@ -440,12 +440,12 @@ function TypingBubble({ active }: { active: boolean }) {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 8 }}
-          className="flex w-fit rounded-md items-center gap-1 border-l border-[#D7B48F]/40 bg-[#2A2520] px-3 py-2"
+          className="flex w-fit rounded-md items-center gap-1 bg-[#2A2520] px-3 py-2"
         >
           {[0, 1, 2].map((index) => (
             <motion.span
               key={index}
-              animate={{ opacity: [0.35, 1, 0.35], y: [0, -3, 0] }}
+              animate={{ opacity: [0.35, 1, 0.35], y: [0, -2, 0] }}
               transition={{
                 duration: 1.1,
                 repeat: Infinity,
@@ -487,7 +487,7 @@ function VoiceBar({ active, done }: { active: boolean; done: boolean }) {
           />
         ))}
       </div>
-      <span className="text-[12.5px] font-medium">음성 메모 · 0:28</span>
+      <span className="text-[12px] font-medium">음성 메모 · 0:28</span>
     </motion.div>
   );
 }
@@ -786,9 +786,9 @@ function DemoSection() {
       </Reveal>
 
       <Reveal once className="mx-auto mt-8 max-w-[1180px] md:mt-12">
-        <div className="relative mx-auto lg:h-[846px]">
+        <div className="relative mx-auto lg:h-[820px]">
           <div
-            className={`relative z-20 mx-auto w-full max-w-[420px] text-left transition-[left,transform] duration-700 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] md:max-w-[460px] lg:absolute lg:top-0 lg:mx-0 lg:w-[430px] lg:max-w-none xl:w-[460px] ${
+            className={`relative z-20 mx-auto w-full max-w-[350px] text-left transition-[left,transform] duration-700 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] sm:max-w-[360px] md:max-w-[390px] lg:absolute lg:top-0 lg:mx-0 lg:w-[400px] lg:max-w-none xl:w-[440px] ${
               reportVisible
                 ? "lg:left-0 lg:translate-x-0"
                 : "lg:left-1/2 lg:-translate-x-1/2"
@@ -800,174 +800,184 @@ function DemoSection() {
                 기준 저장됨
               </span>
             </div>
-            <div
-              ref={phoneRef}
-              className="relative flex h-[min(590px,calc(100svh-96px))] min-h-[520px] flex-col rounded-[22px] bg-[#151311] p-2 text-left shadow-[0_16px_40px_rgba(33,23,13,0.16)] ring-1 ring-[#21170D]/[0.15] md:h-[820px] md:min-h-0 md:rounded-[24px] md:p-2.5"
-            >
-              <div className="flex items-center justify-between gap-3 border-b border-white/[0.08] px-3 pb-2.5 pt-1.5">
-                <div className="flex items-center gap-2.5">
-                  <div className="flex rounded-md h-9 w-9 items-center justify-center bg-[#D7B48F]">
-                    <Image
-                      src="/svgs/harper-h-mark.svg"
-                      alt="Harper"
-                      width={23}
-                      height={23}
-                    />
-                  </div>
-                  <div>
-                    <div className="text-[13px] font-semibold text-[#FFF7EA]">
-                      Harper
-                    </div>
-                    <div className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-[#BDAF9E]">
-                      <Lock className="h-3 w-3" strokeWidth={1.8} />
-                      비공개 대화
-                    </div>
-                  </div>
-                </div>
-                <div className="border-b border-[#D7B48F]/30 px-0.5 pb-0.5 text-[11px] font-medium text-[#D7B48F]">
-                  기준 4개
-                </div>
-              </div>
-
+            <div className="relative aspect-[434/842] w-full">
               <div
-                ref={phoneBodyRef}
-                className="no-scrollbar flex flex-1 flex-col gap-2.5 overflow-y-auto px-1 py-3.5 md:px-1.5 md:py-3"
+                ref={phoneRef}
+                className="absolute inset-x-[5%] bottom-[2%] top-[2%] p-2 z-10 flex flex-col overflow-hidden rounded-[40px] bg-[#151311] text-left"
               >
-                <VoiceBar active={voiceActive} done={voiceDone} />
-                {chatMessages.slice(0, 1).map((message) => (
-                  <MessageBubble
-                    key={message.step}
-                    role={message.role}
-                    text={message.text}
-                    visible={visibleStepSet.has(message.step)}
-                  />
-                ))}
-                <TypingBubble active={activeTyping === 3} />
-                {chatMessages.slice(1, 3).map((message) => (
-                  <MessageBubble
-                    key={message.step}
-                    role={message.role}
-                    text={message.text}
-                    visible={visibleStepSet.has(message.step)}
-                  />
-                ))}
-                <TypingBubble active={activeTyping === 6} />
-                {chatMessages.slice(3, 4).map((message) => (
-                  <MessageBubble
-                    key={message.step}
-                    role={message.role}
-                    text={message.text}
-                    visible={visibleStepSet.has(message.step)}
-                  />
-                ))}
+                <div className="flex items-center justify-between gap-3 border-b border-white/[0.08] px-3 pb-2.5 pt-[52px] md:pt-[56px]">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-md bg-[#D7B48F] md:h-9 md:w-9">
+                      <Image
+                        src="/svgs/harper-h-mark.svg"
+                        alt="Harper"
+                        width={23}
+                        height={23}
+                      />
+                    </div>
+                    <div>
+                      <div className="text-[12.5px] font-semibold text-[#FFF7EA]">
+                        Harper
+                      </div>
+                      <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-[#BDAF9E]">
+                        <Lock className="h-3 w-3" strokeWidth={1.8} />
+                        비공개 대화
+                      </div>
+                    </div>
+                  </div>
+                  <div className="border-b border-[#D7B48F]/30 px-0.5 pb-0.5 text-[10.5px] font-medium text-[#D7B48F]">
+                    기준 4개
+                  </div>
+                </div>
 
                 <div
-                  className={`flex flex-col border-y border-white/[0.08] bg-[#1B1815] px-2.5 py-2 transition ${
-                    matchesActive ? "opacity-100" : "hidden opacity-0"
-                  }`}
+                  ref={phoneBodyRef}
+                  className="no-scrollbar flex flex-1 flex-col gap-2.5 overflow-y-auto px-1 py-3 md:px-1.5"
                 >
-                  <div className="mb-0.5 flex items-center justify-between text-[10.5px] font-medium text-[#BDAF9E]">
-                    <span>정리된 기회</span>
-                    <span>4건</span>
-                  </div>
-                  {matches.map((match, index) => (
-                    <ChatMatchCard
-                      key={match.company}
-                      match={match}
-                      visible={visibleMatchCount > index}
-                      selected={index === 0 && selectedMatch}
-                      refCallback={
-                        index === 0
-                          ? (node) => {
-                              firstMatchRef.current = node;
-                            }
-                          : undefined
-                      }
+                  <VoiceBar active={voiceActive} done={voiceDone} />
+                  {chatMessages.slice(0, 1).map((message) => (
+                    <MessageBubble
+                      key={message.step}
+                      role={message.role}
+                      text={message.text}
+                      visible={visibleStepSet.has(message.step)}
                     />
                   ))}
+                  <TypingBubble active={activeTyping === 3} />
+                  {chatMessages.slice(1, 3).map((message) => (
+                    <MessageBubble
+                      key={message.step}
+                      role={message.role}
+                      text={message.text}
+                      visible={visibleStepSet.has(message.step)}
+                    />
+                  ))}
+                  <TypingBubble active={activeTyping === 6} />
+                  {chatMessages.slice(3, 4).map((message) => (
+                    <MessageBubble
+                      key={message.step}
+                      role={message.role}
+                      text={message.text}
+                      visible={visibleStepSet.has(message.step)}
+                    />
+                  ))}
+
+                  <div
+                    className={`flex flex-col border-y border-white/[0.08] bg-[#1B1815] px-2.5 py-2 transition ${
+                      matchesActive ? "opacity-100" : "hidden opacity-0"
+                    }`}
+                  >
+                    <div className="mb-0.5 flex items-center justify-between text-[10px] font-medium text-[#BDAF9E]">
+                      <span>정리된 기회</span>
+                      <span>4건</span>
+                    </div>
+                    {matches.map((match, index) => (
+                      <ChatMatchCard
+                        key={match.company}
+                        match={match}
+                        visible={visibleMatchCount > index}
+                        selected={index === 0 && selectedMatch}
+                        refCallback={
+                          index === 0
+                            ? (node) => {
+                                firstMatchRef.current = node;
+                              }
+                            : undefined
+                        }
+                      />
+                    ))}
+                  </div>
+
+                  <TypingBubble active={activeTyping === 9} />
+                  {chatMessages.slice(4, 5).map((message) => (
+                    <MessageBubble
+                      key={message.step}
+                      role={message.role}
+                      text={message.text}
+                      visible={visibleStepSet.has(message.step)}
+                    />
+                  ))}
+                  <TypingBubble active={activeTyping === 11} />
+                  {chatMessages.slice(5).map((message) => (
+                    <MessageBubble
+                      key={message.step}
+                      role={message.role}
+                      text={message.text}
+                      visible={visibleStepSet.has(message.step)}
+                    />
+                  ))}
+                  <div
+                    className={`flex max-w-[92%] items-center gap-2.5 bg-[#5E746C]/10 p-2.5 transition duration-300 md:max-w-[88%] ${
+                      visibleStepSet.has(13)
+                        ? "translate-y-0 opacity-100"
+                        : "translate-y-2 opacity-0"
+                    }`}
+                  >
+                    <CompanyMark>C</CompanyMark>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[12.5px] font-semibold leading-none text-[#FFF7EA]">
+                        <span className="mr-1.5 inline-flex pl-1.5 text-[9.5px] text-[#C9D7D1]">
+                          전문가 콜
+                        </span>
+                        LLM 추론 인프라 자문
+                      </div>
+                      <div className="mt-1 truncate text-[10px] text-[#BDAF9E]">
+                        Series C AI 스타트업 · 1시간 · 이번 주 가능
+                      </div>
+                    </div>
+                    <div className="text-[11.5px] font-semibold text-[#C9D7D1]">
+                      $500
+                    </div>
+                  </div>
                 </div>
 
-                <TypingBubble active={activeTyping === 9} />
-                {chatMessages.slice(4, 5).map((message) => (
-                  <MessageBubble
-                    key={message.step}
-                    role={message.role}
-                    text={message.text}
-                    visible={visibleStepSet.has(message.step)}
-                  />
-                ))}
-                <TypingBubble active={activeTyping === 11} />
-                {chatMessages.slice(5).map((message) => (
-                  <MessageBubble
-                    key={message.step}
-                    role={message.role}
-                    text={message.text}
-                    visible={visibleStepSet.has(message.step)}
-                  />
-                ))}
-                <div
-                  className={`flex max-w-[92%] items-center gap-2.5 bg-[#5E746C]/10 p-2.5 transition duration-300 md:max-w-[88%] ${
-                    visibleStepSet.has(13)
-                      ? "translate-y-0 opacity-100"
-                      : "translate-y-2 opacity-0"
-                  }`}
+                <motion.div
+                  animate={{
+                    opacity: cursor.active ? 1 : 0,
+                    left: cursor.x,
+                    top: cursor.y,
+                    scale: cursor.clicking ? 0.82 : 1,
+                  }}
+                  transition={
+                    cursor.immediate
+                      ? { duration: 0 }
+                      : { duration: 0.7, ease: [0.25, 0.8, 0.25, 1] }
+                  }
+                  className="pointer-events-none absolute z-10 h-7 w-[22px] -translate-x-1.5 -translate-y-1 drop-shadow-lg"
                 >
-                  <CompanyMark>C</CompanyMark>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[13px] font-semibold leading-none text-[#FFF7EA]">
-                      <span className="mr-1.5 inline-flex pl-1.5 text-[10px] text-[#C9D7D1]">
-                        전문가 콜
-                      </span>
-                      LLM 추론 인프라 자문
-                    </div>
-                    <div className="mt-1 truncate text-[10.5px] text-[#BDAF9E]">
-                      Series C AI 스타트업 · 1시간 · 이번 주 가능
-                    </div>
-                  </div>
-                  <div className="text-[12px] font-semibold text-[#C9D7D1]">
-                    $500
-                  </div>
-                </div>
+                  <svg viewBox="0 0 18 24" xmlns="http://www.w3.org/2000/svg">
+                    <path
+                      d="M0 0 L0 20 L5.2 15 L8 22 L11 20.5 L8 13.5 L15 13.5 Z"
+                      fill="currentColor"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinejoin="round"
+                      className="text-[#FFF7EA]"
+                    />
+                  </svg>
+                </motion.div>
+                <AnimatePresence>
+                  {cursor.rippleKey > 0 && cursor.clicking && (
+                    <motion.div
+                      key={cursor.rippleKey}
+                      initial={{ opacity: 0.85, scale: 0.2 }}
+                      animate={{ opacity: 0, scale: 2.2 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.65, ease: "easeOut" }}
+                      className="pointer-events-none absolute z-[9] h-9 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[#D7B48F] bg-[#D7B48F]/20"
+                      style={{ left: cursor.x, top: cursor.y }}
+                    />
+                  )}
+                </AnimatePresence>
               </div>
-
-              <motion.div
-                animate={{
-                  opacity: cursor.active ? 1 : 0,
-                  left: cursor.x,
-                  top: cursor.y,
-                  scale: cursor.clicking ? 0.82 : 1,
-                }}
-                transition={
-                  cursor.immediate
-                    ? { duration: 0 }
-                    : { duration: 0.7, ease: [0.25, 0.8, 0.25, 1] }
-                }
-                className="pointer-events-none absolute z-10 h-7 w-[22px] -translate-x-1.5 -translate-y-1 drop-shadow-lg"
-              >
-                <svg viewBox="0 0 18 24" xmlns="http://www.w3.org/2000/svg">
-                  <path
-                    d="M0 0 L0 20 L5.2 15 L8 22 L11 20.5 L8 13.5 L15 13.5 Z"
-                    fill="currentColor"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinejoin="round"
-                    className="text-[#FFF7EA]"
-                  />
-                </svg>
-              </motion.div>
-              <AnimatePresence>
-                {cursor.rippleKey > 0 && cursor.clicking && (
-                  <motion.div
-                    key={cursor.rippleKey}
-                    initial={{ opacity: 0.85, scale: 0.2 }}
-                    animate={{ opacity: 0, scale: 2.2 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.65, ease: "easeOut" }}
-                    className="pointer-events-none absolute z-[9] h-9 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[#D7B48F] bg-[#D7B48F]/20"
-                    style={{ left: cursor.x, top: cursor.y }}
-                  />
-                )}
-              </AnimatePresence>
+              <Image
+                src="/svgs/phone.svg"
+                alt=""
+                fill
+                aria-hidden="true"
+                sizes="(min-width: 1280px) 400px, (min-width: 1024px) 380px, (min-width: 768px) 390px, 350px"
+                className="pointer-events-none absolute inset-0 z-20 h-full w-full select-none object-contain mix-blend-multiply"
+              />
             </div>
           </div>
 
@@ -979,7 +989,7 @@ function DemoSection() {
                 animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
                 exit={{ opacity: 0, x: 80, y: 16, scale: 0.98 }}
                 transition={{ duration: 0.82, ease: [0.22, 1, 0.36, 1] }}
-                className="relative z-10 mx-auto mt-[-54px] hidden w-full max-w-[720px] text-left md:mt-[-72px] lg:absolute lg:right-0 lg:top-0 lg:mt-0 lg:block lg:w-[calc(100%-500px)] lg:max-w-none xl:w-[700px]"
+                className="relative z-10 mx-auto mt-[-54px] hidden w-full max-w-[720px] text-left md:mt-[-72px] lg:absolute lg:right-0 lg:top-0 lg:mt-0 lg:block lg:w-[calc(100%-440px)] lg:max-w-none xl:w-[700px]"
               >
                 <div className="mb-2 text-left text-[13px] font-medium text-[#6B5A49] lg:text-right">
                   기업 조사 및 브리핑

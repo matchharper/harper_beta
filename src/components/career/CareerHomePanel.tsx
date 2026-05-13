@@ -10,6 +10,7 @@ import {
   MessageSquareText,
   Phone,
   Plus,
+  RefreshCw,
   Search,
   UserRound,
 } from "lucide-react";
@@ -49,6 +50,9 @@ const formatMatchedAt = (value: string) => {
     day: "numeric",
   }).format(date);
 };
+
+const isLinkedinProfileLink = (value: string) =>
+  /linkedin\.com\/in\//i.test(value.trim());
 
 type HomeHistoryTarget = {
   historyTab: "new" | "saved" | "archived";
@@ -130,8 +134,14 @@ const CareerHomePanel = ({
     opportunityRun,
     opportunityRunTriggerPending,
     talentProfile,
+    savedProfileLinks,
+    savedResumeDownloadUrl,
+    savedResumeFileName,
+    savedResumeStoragePath,
+    profileSavePending,
     historyOpportunityCounts,
     historyOpportunities,
+    onRefreshTalentProfileSources,
     onRunPeriodicOpportunityDiscoveryTest,
     onRunOpportunityDiscoveryTest,
     onStartCallMode,
@@ -238,6 +248,16 @@ const CareerHomePanel = ({
     : "latest run 없음";
 
   const isOnboardingCompleted = isOnboardingDone || stage === "completed";
+  const hasSavedProfileSource =
+    Boolean(
+      savedResumeFileName || savedResumeStoragePath || savedResumeDownloadUrl
+    ) || savedProfileLinks.some(isLinkedinProfileLink);
+  const hasEmptyStructuredProfile =
+    talentProfile.talentExperiences.length === 0 &&
+    talentProfile.talentEducations.length === 0 &&
+    talentProfile.talentExtras.length === 0;
+  const shouldShowProfileImportRecovery =
+    hasSavedProfileSource && hasEmptyStructuredProfile;
 
   const callCardTitle = isOnboardingCompleted
     ? "Harper와 5분 통화"
@@ -292,6 +312,30 @@ const CareerHomePanel = ({
           <h2 className="mt-4 w-full text-center py-4 font-hedvig font-semibold text-[2rem] leading-none text-beige900 sm:text-[1.8rem]">
             Welcome, <span className="text-beige700">{displayName}</span>!
           </h2>
+          {shouldShowProfileImportRecovery ? (
+            <div className="mt-2 flex flex-col gap-3 rounded-3xl bg-[#e8f1ff] px-3 py-3 text-[#123d73] shadow-[0_8px_20px_rgba(31,111,235,0.08)] sm:flex-row sm:items-center sm:justify-between">
+              <div className="pl-2 min-w-0 text-[14px] font-medium leading-5">
+                정보를 가져오는데 문제가 있었던 것 같습니다.
+                <br />
+                <span className="text-[12px] text-beige900/60">
+                  오른쪽의 버튼을 통해 다시 시도해주세요. 불편을드려 죄송합니다.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => void onRefreshTalentProfileSources()}
+                disabled={profileSavePending}
+                className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-full bg-[#1f6feb] px-3.5 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {profileSavePending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3.5 w-3.5" />
+                )}
+                {profileSavePending ? "가져오는 중..." : "정보 다시 가져오기"}
+              </button>
+            </div>
+          ) : null}
           <p className="mt-4 max-w-[620px] text-[15px] leading-5 text-beige900/65">
             Harper는 회원님만을 위한 커리어 에이전트입니다.
             <br />

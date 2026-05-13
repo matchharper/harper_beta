@@ -11,7 +11,6 @@ import {
 } from "@/lib/career/prompts";
 import { maybeSummarizeTalentConversation } from "@/lib/talentOnboarding/conversationSummary";
 import { completeTalentOnboardingManually } from "@/lib/talentOnboarding/manualCompletion";
-import { TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP } from "@/lib/talentOnboarding/onboarding";
 import { runCareerChatTurn } from "@/lib/career/chatTurn";
 import { TALENT_TOOL_NAMES } from "@/lib/talentOnboarding/tools";
 
@@ -34,10 +33,29 @@ type TranscriptStats = {
   assistantChars: number;
 };
 
+const CALL_TRANSCRIPT_MESSAGE_TYPE = "call_transcript";
+const CALL_WRAPUP_MESSAGE_TYPE = "call_wrapup";
+const CALL_TRANSCRIPT_FALLBACK_LOOKBACK_MS = 60 * 60 * 1000;
+
 function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${m}분 ${s}초`;
+}
+
+function normalizeTranscriptEntries(entries: unknown): TranscriptEntry[] {
+  if (!Array.isArray(entries)) return [];
+
+  return entries
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") return null;
+      const record = entry as { role?: unknown; text?: unknown };
+      const role = record.role === "user" ? "user" : "assistant";
+      const text = String(record.text ?? "").trim();
+      if (!text) return null;
+      return { role, text };
+    })
+    .filter((entry): entry is TranscriptEntry => entry !== null);
 }
 
 function summarizeTranscript(transcript: TranscriptEntry[]): TranscriptStats {
@@ -61,6 +79,61 @@ function summarizeTranscript(transcript: TranscriptEntry[]): TranscriptStats {
       userChars: 0,
       assistantChars: 0,
     }
+  );
+}
+
+async function fetchSavedCallTranscript(args: {
+  conversationId: string;
+  supabase: ReturnType<typeof getTalentSupabaseAdmin>;
+  userId: string;
+}) {
+  const { data: latestWrapup, error: latestWrapupError } = await args.supabase
+    .from("talent_messages")
+    .select("id")
+    .eq("conversation_id", args.conversationId)
+    .eq("user_id", args.userId)
+    .eq("message_type", CALL_WRAPUP_MESSAGE_TYPE)
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (latestWrapupError) {
+    console.error("[call-wrapup] Failed to read latest call wrap-up", {
+      error: latestWrapupError,
+    });
+  }
+
+  let query = args.supabase
+    .from("talent_messages")
+    .select("id, role, content")
+    .eq("conversation_id", args.conversationId)
+    .eq("user_id", args.userId)
+    .eq("message_type", CALL_TRANSCRIPT_MESSAGE_TYPE)
+    .gte(
+      "created_at",
+      new Date(Date.now() - CALL_TRANSCRIPT_FALLBACK_LOOKBACK_MS).toISOString()
+    )
+    .in("role", ["user", "assistant"])
+    .order("id", { ascending: true })
+    .limit(80);
+
+  if (latestWrapup?.id) {
+    query = query.gt("id", latestWrapup.id);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.error("[call-wrapup] Failed to read saved call transcript", {
+      error,
+    });
+    return [];
+  }
+
+  return normalizeTranscriptEntries(
+    (data ?? []).map((row) => ({
+      role: row.role,
+      text: row.content,
+    }))
   );
 }
 
@@ -157,45 +230,19 @@ export async function POST(request: NextRequest) {
     const safeDurationSeconds = Math.max(0, Math.floor(durationSeconds ?? 0));
     const durationLabel =
       safeDurationSeconds > 0 ? formatDuration(safeDurationSeconds) : null;
-    const transcriptStats = summarizeTranscript(transcript);
-    if (transcriptStats.userTurns <= 0 && !forceCompleteOnboarding) {
-      return NextResponse.json({
-        followUpMessage: null,
-        skipped: "no_user_speech",
-      });
-    }
-
-    const briefConversation = isBriefConversation(
-      transcriptStats,
-      safeDurationSeconds
-    );
-    const [talentSetting, conversation, existingOnboardingWrapup] =
-      await Promise.all([
-        fetchTalentSetting({
-          admin: supabase,
-          userId: user.id,
-        }),
-        supabase
-          .from("talent_conversations")
-          .select("stage")
-          .eq("id", conversationId)
-          .eq("user_id", user.id)
-          .maybeSingle(),
-        supabase
-          .from("talent_messages")
-          .select("id")
-          .eq("conversation_id", conversationId)
-          .eq("user_id", user.id)
-          .eq("message_type", TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP)
-          .order("id", { ascending: true })
-          .limit(1)
-          .maybeSingle(),
-      ]);
-    if (existingOnboardingWrapup.error) {
-      console.error("[call-wrapup] Failed to read onboarding wrap-up", {
-        error: existingOnboardingWrapup.error,
-      });
-    }
+    const requestTranscript = normalizeTranscriptEntries(transcript);
+    const [talentSetting, conversation] = await Promise.all([
+      fetchTalentSetting({
+        admin: supabase,
+        userId: user.id,
+      }),
+      supabase
+        .from("talent_conversations")
+        .select("stage")
+        .eq("id", conversationId)
+        .eq("user_id", user.id)
+        .maybeSingle(),
+    ]);
     if (conversation.error) {
       return NextResponse.json(
         { error: conversation.error.message ?? "Failed to read conversation" },
@@ -208,12 +255,32 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       );
     }
-    if (existingOnboardingWrapup.data && !forceCompleteOnboarding) {
+
+    const requestTranscriptStats = summarizeTranscript(requestTranscript);
+    const savedTranscript =
+      requestTranscriptStats.userTurns <= 0
+        ? await fetchSavedCallTranscript({
+            conversationId,
+            supabase,
+            userId: user.id,
+          })
+        : [];
+    const resolvedTranscript =
+      requestTranscriptStats.userTurns > 0
+        ? requestTranscript
+        : savedTranscript;
+    const transcriptStats = summarizeTranscript(resolvedTranscript);
+    if (transcriptStats.userTurns <= 0 && !forceCompleteOnboarding) {
       return NextResponse.json({
         followUpMessage: null,
-        skipped: "onboarding_completion_wrapup_exists",
+        skipped: "no_user_speech",
       });
     }
+
+    const briefConversation = isBriefConversation(
+      transcriptStats,
+      safeDurationSeconds
+    );
     if (forceCompleteOnboarding) {
       const result = await completeTalentOnboardingManually({
         admin: supabase,
@@ -254,7 +321,7 @@ export async function POST(request: NextRequest) {
           durationLabel,
           isBrief: briefConversation,
           isOnboardingDone: inferredOnboardingDone,
-          transcript,
+          transcript: resolvedTranscript,
         }),
         userId: user.id,
       });

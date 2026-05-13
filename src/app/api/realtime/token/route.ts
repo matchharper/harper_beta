@@ -69,6 +69,7 @@ async function buildRealtimeInstructions(
       visibleMessages.map((message) => ({
         role: message.role,
         content: formatTalentMessageContentForLlmPrompt(message),
+        createdAt: message.created_at,
       }))
     );
   return buildCareerRealtimePromptPlan({

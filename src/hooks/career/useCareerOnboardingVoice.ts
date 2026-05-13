@@ -34,18 +34,24 @@ import {
 
 const SILENT_WAV_DATA_URI =
   "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAAZGF0YQQAAAAAAA==";
+
 const ELEVENLABS_STREAM_MIME_TYPE = "audio/mpeg";
+
 const DEFAULT_CALL_OPENING_TEXT =
-  "안녕하세요, 직접 통화로 이야기하게 되어 좋네요. 최근에 달라진 우선순위가 있으면 거기서 시작해도 좋고, 아니면 지금까지의 역할이나 경험 중 회사들이 꼭 알아야 할 부분부터 편하게 들려주세요. 정보가 많을수록 더 잘 맞는 연결 요청이나 기회를 골라드릴 수 있어요.";
+  "통화로 이야기해볼게요. 최근에 달라진 우선순위가 있으면 거기서 시작해도 좋고, 아니면 지금까지의 역할이나 경험 중 회사들이 꼭 알아야 할 부분부터 편하게 들려주세요. 정보가 많을수록 더 잘 맞는 연결 요청이나 기회를 골라드릴 수 있어요.";
+
 const CALL_OPENING_RESPONSE_INSTRUCTION = [
   "통화가 방금 시작되었습니다. 사용자가 먼저 할 말을 찾지 않아도 되도록 Harper가 먼저 대화를 시작하세요.",
-  "도구는 사용하지 마세요. 지금은 통화 시작 인사와 첫 질문만 합니다.",
+  "도구는 사용하지 마세요. 지금은 통화 시작 멘트와 첫 질문만 합니다.",
   "한국어 존댓말로, 실제 전화 첫마디처럼 자연스럽게 말하세요.",
   "1-3문장으로 짧게 말하고, 마지막은 사용자가 바로 답할 수 있는 하나의 질문으로 끝내세요.",
   "최근 대화나 활동 맥락이 보이면 구체적으로 연결하세요. 예를 들어 최근 연결 제안을 거절했거나 추천에 피드백을 남겼다면, 그 이후 달라진 점이 있는지 물어보세요.",
   "구체적 맥락이 약하면 최근에 달라진 우선순위, 현재 역할/경험 중 더 알려줄 부분, 개인적인 선호나 제약 중 하나를 물어보세요.",
   "많은 정보를 들려줄수록 회사 연결 요청이나 맞춤 기회 추천이 더 정확해진다는 취지를 한 번만 짧게 말하고, 함께 헤드헌터의 입장에서 할만한 질문을 던져도 됩니다.",
-  "만약 직전의 대화가 5분, 10분 이내로 최근이라면, ~~를 얘기했었는데 이어서 할까요? 정도로만 말해도 됩니다.",
+  "시스템 프롬프트에 '직전 채팅 시간: N분전'이 있으면 직전 대화가 최근 2시간 이내라는 뜻입니다.",
+  "이 시간 정보는 연속성 판단을 위한 힌트입니다. 무조건 이어서 시작하지 말고, 이전 내용에서 이어서 말하는 게 자연스러운 상황인지 판단하세요.",
+  "이어지는 게 자연스러우면 '방금 이야기하던 부분 이어서 볼게요'처럼 시작하고, 새로 시작하는 게 더 자연스러우면 짧게 인사하고 시작해도 됩니다.",
+  "이어가기 위해 필요하면 직전 대화의 마지막 질문이나 확인점을 짧게 다시 물어도 됩니다.",
 ].join("\n");
 
 type SendChatArgs = {
@@ -112,10 +118,7 @@ function throwIfAborted(signal: AbortSignal) {
   }
 }
 
-function waitForMediaSourceOpen(
-  mediaSource: MediaSource,
-  signal: AbortSignal
-) {
+function waitForMediaSourceOpen(mediaSource: MediaSource, signal: AbortSignal) {
   return new Promise<void>((resolve, reject) => {
     if (signal.aborted) {
       reject(createAbortError());
@@ -562,10 +565,7 @@ export const useCareerOnboardingVoice = ({
             };
 
             try {
-              await waitForMediaSourceOpen(
-                mediaSource,
-                abortController.signal
-              );
+              await waitForMediaSourceOpen(mediaSource, abortController.signal);
               const sourceBuffer = mediaSource.addSourceBuffer(
                 ELEVENLABS_STREAM_MIME_TYPE
               );
@@ -1261,6 +1261,16 @@ export const useCareerOnboardingVoice = ({
           );
         }
 
+        if (
+          payload &&
+          typeof payload === "object" &&
+          "talentInsights" in payload
+        ) {
+          onTalentInsightsRefreshed?.(
+            payload.talentInsights,
+            "insightUpdatedAt" in payload ? payload.insightUpdatedAt : null
+          );
+        }
         if (payload?.userMessage) {
           appendMessage(toUiMessage(payload.userMessage));
         }
@@ -1296,6 +1306,7 @@ export const useCareerOnboardingVoice = ({
       fetchWithAuth,
       onboardingPausePending,
       onMessagesChanged,
+      onTalentInsightsRefreshed,
       setChatError,
       setStage,
       user,
@@ -1447,147 +1458,141 @@ export const useCareerOnboardingVoice = ({
 
   // Ends the call and turns the in-call transcript into one visible follow-up
   // chat message so the user has a clear next step after the phone UI closes.
-  const handleEndCallMode = useCallback((options?: EndCallModeOptions) => {
-    if (callWrapUpPendingRef.current) return;
-    const forceCompleteOnboarding = Boolean(
-      options?.forceCompleteOnboarding
-    );
+  const handleEndCallMode = useCallback(
+    (options?: EndCallModeOptions) => {
+      if (callWrapUpPendingRef.current) return;
+      const forceCompleteOnboarding = Boolean(options?.forceCompleteOnboarding);
 
-    stopElevenLabsTts();
-    // Capture transcript before ending (endCallMode doesn't clear it)
-    const transcript = callTranscriptEntries;
-    const startedAt = callStartedAtRef.current;
-    const durationSeconds = startedAt
-      ? Math.max(0, Math.round((Date.now() - startedAt) / 1000))
-      : 0;
-    callStartedAtRef.current = null;
-    pendingAssistantDoneRef.current = null;
-    pendingAssistantDeltaTextRef.current = "";
-    suppressNextAssistantDoneRef.current = false;
-    lastRealtimeUserTextRef.current = "";
-    endCallMode();
+      stopElevenLabsTts();
+      // Capture transcript before ending (endCallMode doesn't clear it)
+      const transcript = callTranscriptEntries;
+      const startedAt = callStartedAtRef.current;
+      const durationSeconds = startedAt
+        ? Math.max(0, Math.round((Date.now() - startedAt) / 1000))
+        : 0;
+      callStartedAtRef.current = null;
+      pendingAssistantDoneRef.current = null;
+      pendingAssistantDeltaTextRef.current = "";
+      suppressNextAssistantDoneRef.current = false;
+      lastRealtimeUserTextRef.current = "";
+      endCallMode();
 
-    if (!conversationId) {
-      return;
-    }
+      if (!conversationId) {
+        return;
+      }
 
-    const hasUserSpeech = transcript.some(
-      (entry) => entry.role === "user" && entry.text.trim().length > 0
-    );
-    if (!hasUserSpeech && !forceCompleteOnboarding) {
-      return;
-    }
+      callWrapUpPendingRef.current = true;
+      // Lock composer while generating follow-up so user can't send messages before it.
+      setOnboardingWrapupPending(true);
 
-    callWrapUpPendingRef.current = true;
-    // Lock composer while generating follow-up so user can't send messages before it
-    setOnboardingBeginPending(true);
+      void (async () => {
+        try {
+          await saveQueueRef.current.catch(() => undefined);
 
-    void (async () => {
-      try {
-        await saveQueueRef.current.catch(() => undefined);
-
-        const response = await fetchWithAuth("/api/talent/chat/call-wrapup", {
-          method: "POST",
-          body: JSON.stringify({
-            conversationId,
-            transcript: transcript.map((e) => ({
-              role: e.role,
-              text: e.text,
-            })),
-            durationSeconds,
-            forceCompleteOnboarding,
-          }),
-        });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          console.error("[CareerOnboardingVoice] Follow-up failed:", payload);
-          setChatError("종료 메시지 생성에 실패했습니다.");
-          return;
-        }
-
-        if (payload?.progress?.completed) {
-          setStage("completed" as CareerStage);
-        }
-        if (payload?.opportunityRun) {
-          onOpportunityRunChanged?.(
-            payload.opportunityRun as CareerOpportunityRun
-          );
-        }
-        if (payload?.opportunityDiscoveryQueued) {
-          showOpportunityDiscoveryStartedToast();
-        }
-        if (
-          payload &&
-          typeof payload === "object" &&
-          "talentInsights" in payload
-        ) {
-          onTalentInsightsRefreshed?.(
-            payload.talentInsights,
-            payload.insightUpdatedAt ?? null
-          );
-        }
-
-        const followUpMessages = Array.isArray(payload?.followUpMessages)
-          ? payload.followUpMessages
-          : payload?.followUpMessage
-            ? [payload.followUpMessage]
-            : [];
-
-        const savedFollowUpMessages: CareerMessagePayload[] = [];
-        for (const followMsg of followUpMessages) {
-          const id = followMsg.id ?? `followup-${Date.now()}`;
-          const role = followMsg.role === "user" ? "user" : "assistant";
-          const content = String(followMsg.content ?? "");
-          const messageType =
-            followMsg.message_type ?? followMsg.messageType ?? "chat";
-          const createdAt =
-            followMsg.created_at ??
-            followMsg.createdAt ??
-            new Date().toISOString();
-
-          await enqueueAssistantTypewriter({
-            id,
-            role,
-            content,
-            messageType,
-            createdAt,
+          const response = await fetchWithAuth("/api/talent/chat/call-wrapup", {
+            method: "POST",
+            body: JSON.stringify({
+              conversationId,
+              transcript: transcript.map((e) => ({
+                role: e.role,
+                text: e.text,
+              })),
+              durationSeconds,
+              forceCompleteOnboarding,
+            }),
           });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            console.error("[CareerOnboardingVoice] Follow-up failed:", payload);
+            setChatError("종료 메시지 생성에 실패했습니다.");
+            return;
+          }
 
-          const numericId = typeof id === "number" ? id : Number(id);
-          if (Number.isFinite(numericId)) {
-            savedFollowUpMessages.push({
-              id: numericId,
+          if (payload?.progress?.completed) {
+            setStage("completed" as CareerStage);
+          }
+          if (payload?.opportunityRun) {
+            onOpportunityRunChanged?.(
+              payload.opportunityRun as CareerOpportunityRun
+            );
+          }
+          if (payload?.opportunityDiscoveryQueued) {
+            showOpportunityDiscoveryStartedToast();
+          }
+          if (
+            payload &&
+            typeof payload === "object" &&
+            "talentInsights" in payload
+          ) {
+            onTalentInsightsRefreshed?.(
+              payload.talentInsights,
+              payload.insightUpdatedAt ?? null
+            );
+          }
+
+          const followUpMessages = Array.isArray(payload?.followUpMessages)
+            ? payload.followUpMessages
+            : payload?.followUpMessage
+              ? [payload.followUpMessage]
+              : [];
+
+          const savedFollowUpMessages: CareerMessagePayload[] = [];
+          for (const followMsg of followUpMessages) {
+            const id = followMsg.id ?? `followup-${Date.now()}`;
+            const role = followMsg.role === "user" ? "user" : "assistant";
+            const content = String(followMsg.content ?? "");
+            const messageType =
+              followMsg.message_type ?? followMsg.messageType ?? "chat";
+            const createdAt =
+              followMsg.created_at ??
+              followMsg.createdAt ??
+              new Date().toISOString();
+
+            await enqueueAssistantTypewriter({
+              id,
               role,
               content,
               messageType,
               createdAt,
             });
+
+            const numericId = typeof id === "number" ? id : Number(id);
+            if (Number.isFinite(numericId)) {
+              savedFollowUpMessages.push({
+                id: numericId,
+                role,
+                content,
+                messageType,
+                createdAt,
+              });
+            }
           }
+          if (savedFollowUpMessages.length > 0) {
+            await onMessagesChanged?.(savedFollowUpMessages);
+          }
+        } catch (error) {
+          console.error("[CareerOnboardingVoice] Follow-up error:", error);
+          setChatError("종료 메시지 생성에 실패했습니다.");
+        } finally {
+          setOnboardingWrapupPending(false);
+          callWrapUpPendingRef.current = false;
         }
-        if (savedFollowUpMessages.length > 0) {
-          await onMessagesChanged?.(savedFollowUpMessages);
-        }
-      } catch (error) {
-        console.error("[CareerOnboardingVoice] Follow-up error:", error);
-        setChatError("종료 메시지 생성에 실패했습니다.");
-      } finally {
-        setOnboardingBeginPending(false);
-        callWrapUpPendingRef.current = false;
-      }
-    })();
-  }, [
-    callTranscriptEntries,
-    conversationId,
-    endCallMode,
-    enqueueAssistantTypewriter,
-    fetchWithAuth,
-    onMessagesChanged,
-    onOpportunityRunChanged,
-    onTalentInsightsRefreshed,
-    setChatError,
-    setStage,
-    stopElevenLabsTts,
-  ]);
+      })();
+    },
+    [
+      callTranscriptEntries,
+      conversationId,
+      endCallMode,
+      enqueueAssistantTypewriter,
+      fetchWithAuth,
+      onMessagesChanged,
+      onOpportunityRunChanged,
+      onTalentInsightsRefreshed,
+      setChatError,
+      setStage,
+      stopElevenLabsTts,
+    ]
+  );
 
   // Wire endCallModeRef for auto-end on interview completion
   useEffect(() => {

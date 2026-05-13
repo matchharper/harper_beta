@@ -217,10 +217,7 @@ async function attachPostingPreviewsToMessages(args: {
     const messageId = Number(message.id);
     if (!Number.isFinite(messageId)) continue;
 
-    const roleIds = extractPostingRoleIdsFromText(message.content ?? "").slice(
-      0,
-      1
-    );
+    const roleIds = extractPostingRoleIdsFromText(message.content ?? "");
     if (roleIds.length > 0) {
       roleIdsByMessageId.set(messageId, roleIds);
     }
@@ -539,6 +536,21 @@ export async function runCareerChatTurn(
       content: formatTalentMessageContentForLlmPrompt(item),
     }))
     .filter((item) => item.content.trim().length > 0);
+  const assistantTurnMessages = [...llmMessages];
+  if (
+    !rawUserMessage &&
+    proactiveContext &&
+    assistantTurnMessages[assistantTurnMessages.length - 1]?.role !== "user"
+  ) {
+    assistantTurnMessages.push({
+      role: "user",
+      content: [
+        "[Application-triggered follow-up]",
+        "Use the runtime context above to write the next assistant message now.",
+        "Do not mention this application event.",
+      ].join("\n"),
+    });
+  }
 
   const availableChatTools = getOpenAIChatTools("chat");
   const isOnboardingActiveForTools = !Boolean(
@@ -869,7 +881,7 @@ export async function runCareerChatTurn(
 
       return executeDefaultTalentTool({ name, input: toolInput });
     },
-    messages: llmMessages,
+    messages: assistantTurnMessages,
     stopAfterToolNames: getStopAfterTalentToolNames("chat"),
     systemBlocks: promptBlocks,
     tools: toolDefinitions,

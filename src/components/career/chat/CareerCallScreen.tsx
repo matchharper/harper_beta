@@ -1,4 +1,4 @@
-import { Loader2, Mic, MicOff, X, Captions } from "lucide-react";
+import { Loader2, Mic, MicOff, X, Captions, PhoneOff } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
 import { Tooltips } from "@/components/ui/tooltip";
@@ -287,14 +287,17 @@ const CareerCallScreen = ({
           {isAssistantSpeaking ? "Speaking" : "Listening"}
         </span>
         {showInterviewCallProgress ? (
-          <div className="mt-4 w-full max-w-[360px] rounded-[12px] border border-beige50/10 bg-beige900/90 px-4 py-3 text-beige50 shadow-[0_14px_32px_rgba(37,20,6,0.16)] backdrop-blur">
-            <div className="flex items-center gap-3">
+          <div className="mt-4 w-full max-w-[360px] min-w-[360px] rounded-[12px] border border-beige50/10 bg-beige900/90 px-4 py-3 text-beige50 shadow-[0_14px_32px_rgba(37,20,6,0.16)] backdrop-blur">
+            <div className="flex items-center justify-between gap-3">
               <span className="career-interview-shimmer text-[13px] font-semibold">
                 커리어 인터뷰 진행 중
               </span>
+              <span className="text-[13px] font-normal text-beige50/80">
+                완료율
+              </span>
             </div>
             <div
-              className="mt-2 h-1.5 overflow-hidden rounded-full bg-beige50/15"
+              className="mt-2 h-1 overflow-hidden rounded-full bg-beige50/15"
               role="progressbar"
               aria-label="커리어 인터뷰 진행률"
               aria-valuemin={0}
@@ -372,12 +375,12 @@ const CareerCallScreen = ({
                 className="flex h-12 items-center justify-center gap-2 rounded-full bg-red-500 px-4 text-sm font-semibold text-white transition-colors hover:bg-red-600 disabled:opacity-60"
                 aria-label="통화 종료 및 커리어 인터뷰 임의 종료"
               >
+                임의 종료
                 {forceCompletePending || onboardingWrapupPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <X className="h-5 w-5" />
+                  <PhoneOff className="h-4 w-4" strokeWidth={1.6} />
                 )}
-                임의 종료
               </button>
             </Tooltips>
           ) : (
@@ -388,7 +391,7 @@ const CareerCallScreen = ({
               className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500 text-white transition-opacity hover:opacity-90 disabled:opacity-60"
               aria-label="통화 종료"
             >
-              <X className="h-5 w-5" />
+              <PhoneOff className="h-4 w-4" strokeWidth={1.6} />
             </button>
           )}
         </div>

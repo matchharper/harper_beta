@@ -8,7 +8,7 @@ import { compactUrlLabel } from "@/lib/urlDisplay";
 
 // User bubble 색상을 바꾸려면 이 클래스를 수정하세요.
 export const USER_BUBBLE_CLASS =
-  "ml-auto max-w-[820px] rounded-[14px] bg-beige900 px-3 py-1.5 text-beige100";
+  "mt-1 ml-auto max-w-[820px] rounded-[14px] bg-beige900 px-3 py-1.5 text-beige100";
 
 export const ASSISTANT_BUBBLE_CLASS = "w-fit max-w-[920px] text-beige900/90";
 
