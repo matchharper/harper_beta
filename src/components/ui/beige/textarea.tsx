@@ -2,7 +2,7 @@ import * as React from "react";
 import { cn } from "@/lib/cn";
 
 export const beigeTextareaClassName =
-  "w-full rounded-[8px] border border-beige900/15 bg-white/60 px-3 py-2 text-[14px] font-normal leading-6 text-beige900 outline-none transition focus:ring-1 focus:ring-beige900/30 placeholder:text-beige900/30 disabled:cursor-not-allowed disabled:opacity-60";
+  "w-full rounded-[8px] border border-beige900/15 bg-white/60 px-3 py-2 text-base font-normal leading-6 text-beige900 outline-none transition focus:ring-1 focus:ring-beige900/30 placeholder:text-beige900/30 disabled:cursor-not-allowed disabled:opacity-60 md:text-[14px] md:leading-6";
 
 export type BeigeTextareaProps =
   React.TextareaHTMLAttributes<HTMLTextAreaElement>;

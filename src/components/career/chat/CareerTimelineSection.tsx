@@ -1111,7 +1111,7 @@ const CareerTimelineSection = () => {
         ) : null}
 
         {user && sessionPending && !hasTimelineMessages ? (
-          <div className="flex min-h-[52vh] items-center justify-center">
+          <div className="flex min-h-[52svh] items-center justify-center">
             <div className="flex items-center gap-2 text-sm text-beige900/60">
               <Loader2 className="h-4 w-4 animate-spin text-beige900" />
               하퍼가 들어오고 있습니다...

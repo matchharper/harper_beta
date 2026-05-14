@@ -655,7 +655,7 @@ const DoneState = ({
   const streamedParagraphs = streamedText.split(/\n{2,}/);
 
   return (
-    <div className="mx-auto flex min-h-[calc(100dvh-8px)] w-full max-w-[760px] flex-col px-5 py-10 md:justify-center md:py-14">
+    <div className="mx-auto flex min-h-[calc(100svh-8px)] w-full max-w-[760px] flex-col px-5 py-10 md:justify-center md:py-14">
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
@@ -1249,7 +1249,7 @@ const CareerNetworkOnboardingContent = () => {
     return (
       <main
         className={cn(
-          "flex min-h-screen items-center justify-center font-geist text-beige900",
+          "flex min-h-svh items-center justify-center font-geist text-beige900",
           ONBOARDING_BACKGROUND_CLASS
         )}
       >
@@ -1265,7 +1265,7 @@ const CareerNetworkOnboardingContent = () => {
       </Head>
       <main
         className={cn(
-          "min-h-dvh pt-2 font-geist text-beige900",
+          "min-h-svh pt-2 font-geist text-beige900",
           ONBOARDING_BACKGROUND_CLASS
         )}
       >
@@ -1292,7 +1292,7 @@ const CareerNetworkOnboardingContent = () => {
         )}
 
         {submitState === "form" && (
-          <div className="mx-auto flex min-h-[calc(100dvh-8px)] w-full max-w-[960px] flex-col items-center px-4 py-8 md:justify-center md:px-6 md:py-12">
+          <div className="mx-auto flex min-h-[calc(100svh-8px)] w-full max-w-[960px] flex-col items-center px-4 py-8 md:justify-center md:px-6 md:py-12">
             <section className="flex w-full flex-col items-center text-center">
               <div className="mb-6 text-center text-[11px] font-medium text-xprimary">
                 {stepLabel}

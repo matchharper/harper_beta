@@ -128,7 +128,7 @@ Tailwind는 **컬러·spacing·typography의 단일 소스**다. 다음 누수�
 ### 2.1 현재 게이트 위치
 - `src/hooks/useMediaQuery.ts` — `useSyncExternalStore` 기반 미디어 쿼리 훅. `useIsMobile`, `useIsTabletUp`, `useIsDesktop` 등 편의 훅 포함. 차단이 아닌 **레이아웃 분기**용.
 - `src/hooks/useIsMobile.ts` — `useMediaQuery.useIsMobile`의 re-export. 기존 30+ 호출처 호환.
-- `src/lib/career/mobileBlocker.ts` — `/career_login`, `/career/*` 모바일 차단. 라우트별로 해제.
+- `/career/*`/`/career_login` 모바일 차단은 제거됨(이전 `mobileBlocker.ts`). 신규 라우트를 모바일 차단해야 하면 동일 패턴으로 재도입.
 - `src/components/landing/Orbit.tsx`, `FallingTagsSmall.tsx` 등 `useIsMobile()` 조건부 렌더는 모바일 전용 컴포넌트로 분기.
 
 ### 2.2 Breakpoint 컨벤션 (Mobile-first)
@@ -289,7 +289,8 @@ import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 | `/join` | auth | desktop_only | 헤더 없음, 모바일 미디자인 |
 | `/invitation` | auth | desktop_only | 모바일 미디자인 |
 | `/onboard`, `/onboarding2` | auth | desktop_only | 모바일 미디자인 |
-| `/career_login`, `/career/*` | career | blocked | `CareerMobileViewportGate`로 명시적 차단 |
+| `/career_login` | career | designed | 모바일 로그인 카드 + 풋터 로고 wrap. svh + iOS 줌 방지(BeigeInput text-base). |
+| `/career`, `/career/onboarding`, `/career/preview` | career | designed | `CareerWorkspaceScreen` 모바일 분기(`CareerMobile*` 6종). onboarding은 단계별 모바일-퍼스트 그리드 + svh. preview는 workspace를 그대로 사용. |
 | `/auths/*` | auth | designed | 단순 콜백 페이지, 시각 요소 거의 없음 |
 | `/my`, `/my/*` (13개) | app | partial | `AppLayout`이 모바일에서 햄버거 + 하단 시트 drawer로 분기됨. 콘텐츠 영역 페이지별 모바일 디자인 필요 |
 | `/ops/*` | ops | partial | `OpsShell` overflow-x-auto pill nav. 본문 미검증 |

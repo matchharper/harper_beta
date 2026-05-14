@@ -46,7 +46,7 @@ const CareerUpdateNotesModal = ({
           </button>
         </header>
 
-        <div className="max-h-[min(68vh,640px)] overflow-y-auto px-5 py-4">
+        <div className="max-h-[min(68svh,640px)] overflow-y-auto px-5 py-4">
           <div className="space-y-3">
             {careerUpdateNotes.map((note) => {
               const isLatest = note.id === latestId;

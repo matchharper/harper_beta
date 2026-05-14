@@ -215,7 +215,7 @@ const CareerSettingsModal = ({
       onClose={handleClose}
       ariaLabel="커리어 설정"
       overlayClassName="items-start pt-14"
-      panelClassName="max-w-none h-[80vh] max-h-[860px] px-0 w-[min(1040px,90vw)]"
+      panelClassName="max-w-none h-[80svh] max-h-[860px] px-0 w-[min(1040px,90vw)]"
       bodyClassName="h-full p-0"
       closeButtonClassName="font-geist right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-hblack100 bg-beige50 text-hblack600 transition-colors hover:border-beige900 hover:text-beige900"
     >

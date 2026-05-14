@@ -253,8 +253,8 @@ const CareerResumeLinksSettingsSection = () => {
         closeOnBackdrop={false}
         showCloseButton={false}
         overlayClassName="z-120"
-        panelClassName="max-w-none w-[min(1080px,94vw)] max-h-[92dvh] border-0 bg-beige50"
-        bodyClassName="max-h-[92dvh] overflow-y-auto"
+        panelClassName="max-w-none w-[min(1080px,94vw)] max-h-[92svh] border-0 bg-beige50"
+        bodyClassName="max-h-[92svh] overflow-y-auto"
       >
         <LoadingState />
       </TalentCareerModal>

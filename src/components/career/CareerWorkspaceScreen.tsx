@@ -123,7 +123,7 @@ export const CareerWorkspace = () => {
 };
 
 export const CareerLoadingState = () => (
-  <main className="relative flex min-h-screen w-full items-center justify-center bg-hblack000 font-geist text-hblack900">
+  <main className="relative flex min-h-svh w-full items-center justify-center bg-hblack000 font-geist text-hblack900">
     <Loader2 className="h-5 w-5 animate-spin text-hblack400" />
     <span className="sr-only">커리어 페이지 로딩 중</span>
   </main>
@@ -141,7 +141,7 @@ const CareerWorkspaceScreen = ({
     options?: CareerWorkspaceNavigationOptions
   ) => void;
 }) => (
-  <main className="relative min-h-screen w-full bg-beige50 font-geist text-beige900">
+  <main className="relative min-h-svh w-full bg-beige50 font-geist text-beige900">
     {children ?? (
       <CareerWorkspaceRoot activeTab={activeTab} onChangeTab={onChangeTab} />
     )}
@@ -295,7 +295,7 @@ const CareerWorkspaceRoot = ({
   }
 
   return (
-    <div className="flex min-h-screen w-full flex-col lg:h-screen lg:overflow-hidden">
+    <div className="flex min-h-svh w-full flex-col lg:h-svh lg:overflow-hidden">
       <CareerWorkspaceNav />
       <div
         ref={workspaceRef}
@@ -303,7 +303,7 @@ const CareerWorkspaceRoot = ({
       >
         <section
           id="career-chat-panel"
-          className="flex h-[55vh] min-h-0 min-w-0 flex-col border-b border-beige900/10 bg-beige50 lg:h-auto lg:flex-none lg:border-b-0"
+          className="flex h-[55svh] min-h-0 min-w-0 flex-col border-b border-beige900/10 bg-beige50 lg:h-auto lg:flex-none lg:border-b-0"
           style={isDesktop ? { flexBasis: `${chatPanelWidth}%` } : undefined}
         >
           <div className="min-h-0 flex-1 bg-beige200 p-1">
@@ -329,7 +329,7 @@ const CareerWorkspaceRoot = ({
         </div>
 
         <section className="min-w-0 flex-1 lg:min-h-0 bg-beige50">
-          <div className="flex h-full min-h-[45vh] flex-col lg:min-h-0">
+          <div className="flex h-full min-h-[45svh] flex-col lg:min-h-0">
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-8">
               <nav className="flex shrink-0 flex-wrap items-center justify-center gap-2 border-y border-y-black/5 px-3 py-3.5">
                 {NAV_ITEMS.map((item) => {

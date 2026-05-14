@@ -50,7 +50,7 @@ const OpportunityDetailModal = ({
       ariaLabel={`${item.title} 상세`}
       overlayClassName="items-start pt-10"
       panelClassName="w-[min(1040px,56vw)] max-w-none border border-beige900/10 bg-beige50"
-      bodyClassName="max-h-[82vh] overflow-y-auto bg-beige50 px-5 pb-5 pt-14"
+      bodyClassName="max-h-[82svh] overflow-y-auto bg-beige50 px-5 pb-5 pt-14"
       closeButtonClassName="font-geist right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-beige200"
     >
       <div className="space-y-4">
