@@ -143,6 +143,16 @@ const CareerMessageBubble = ({
         isUser ? USER_BUBBLE_CLASS : ASSISTANT_BUBBLE_CLASS,
         !isUser && isAssistantSpeaking ? "ring-1 ring-beige900/10" : "",
       ].join(" ");
+  const typingCursor = message.typing ? (
+    <span
+      className={[
+        "inline-block w-2 animate-pulse align-baseline",
+        isUser ? "text-beige100" : "text-beige900",
+      ].join(" ")}
+    >
+      ▍
+    </span>
+  ) : null;
 
   return (
     <article className={articleClassName}>
@@ -167,11 +177,13 @@ const CareerMessageBubble = ({
           {isUser ? (
             <div className="whitespace-pre-wrap break-words">
               {renderHighlightedContent(displayContent)}
+              {typingCursor}
             </div>
           ) : (
             <CareerRichText
               content={assistantContent}
               className={ASSISTANT_RICH_TEXT_CLASS}
+              trailingInlineNode={typingCursor}
             />
           )}
           {hasCallAction && (
@@ -187,11 +199,6 @@ const CareerMessageBubble = ({
           )}
         </div>
       </div>
-      {message.typing && (
-        <span className="inline-block w-2 animate-pulse align-baseline text-beige900">
-          ▍
-        </span>
-      )}
     </article>
   );
 };

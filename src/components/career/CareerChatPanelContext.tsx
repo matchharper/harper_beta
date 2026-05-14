@@ -51,6 +51,7 @@ export type CareerChatPanelContextValue = {
   historyUpdatingOpportunityIds: string[];
   onboardingBeginPending: boolean;
   callStartPending?: boolean;
+  callWrapUpPending?: boolean;
   onboardingPausePending: boolean;
 
   onGoogleLogin: () => void | Promise<void>;

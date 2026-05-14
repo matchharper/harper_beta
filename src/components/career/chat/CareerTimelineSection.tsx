@@ -549,18 +549,31 @@ const OnboardingCompletionWrapup = memo(function OnboardingCompletionWrapup({
   );
 });
 
-const OnboardingWrapupLoadingPanel = memo(
-  function OnboardingWrapupLoadingPanel() {
-    return (
-      <div
-        className="text-[13px] leading-5 text-beige900/45"
-        aria-live="polite"
-      >
-        통화 내용을 정리하고 있어요.
+const TimelinePendingPanel = memo(function TimelinePendingPanel({
+  label,
+  detail,
+}: {
+  label: string;
+  detail: string;
+}) {
+  return (
+    <div
+      role="status"
+      className="flex w-full max-w-[760px] items-center gap-2 text-[13px] leading-5 text-beige900/50"
+      aria-live="polite"
+    >
+      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-beige900/45" />
+      <div className="min-w-0">
+        <div className="career-thinking-shimmer inline-block font-medium">
+          {label}
+        </div>
+        <div className="mt-0.5 break-words text-[12px] text-beige900/40">
+          {detail}
+        </div>
       </div>
-    );
-  }
-);
+    </div>
+  );
+});
 
 const TimelineMessageList = memo(function TimelineMessageList({
   messages,
@@ -713,6 +726,7 @@ const CareerTimelineSection = () => {
     chatPending,
     onboardingBeginPending,
     callStartPending = false,
+    callWrapUpPending = false,
     onboardingPausePending,
     onGoogleLogin,
     onEmailAuth,
@@ -742,7 +756,9 @@ const CareerTimelineSection = () => {
   const [selectedInterestOptions, setSelectedInterestOptions] = useState<
     TalentOnboardingInterestOptionId[]
   >([]);
-  const isStartingCall = onboardingBeginPending || callStartPending;
+  const isStartingCall =
+    (onboardingBeginPending && !callWrapUpPending) || callStartPending;
+  const isConversationActionLocked = isStartingCall || callWrapUpPending;
   const initialBottomSyncDoneRef = useRef(false);
 
   const handleEmailAuthSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -914,12 +930,15 @@ const CareerTimelineSection = () => {
     if (!hasTimelineMessages) return;
 
     const id = window.requestAnimationFrame(() => {
-      scrollToBottom(assistantTyping || chatPending ? "auto" : "smooth");
+      scrollToBottom(
+        assistantTyping || chatPending || callWrapUpPending ? "auto" : "smooth"
+      );
       syncScrollState();
     });
     return () => window.cancelAnimationFrame(id);
   }, [
     assistantTyping,
+    callWrapUpPending,
     chatPending,
     hasTimelineMessages,
     inputMode,
@@ -1117,13 +1136,27 @@ const CareerTimelineSection = () => {
           />
         ) : null}
 
-        {onboardingWrapupPending && !sessionPending && stage !== "profile" && (
-          <OnboardingWrapupLoadingPanel />
+        {callWrapUpPending && !sessionPending && stage !== "profile" && (
+          <TimelinePendingPanel
+            label="Call wrap-up..."
+            detail="통화 내용을 정리하고 다음 메시지를 준비하고 있어요."
+          />
         )}
+
+        {onboardingWrapupPending &&
+          !callWrapUpPending &&
+          !sessionPending &&
+          stage !== "profile" && (
+            <TimelinePendingPanel
+              label="Thinking..."
+              detail="대화 내용을 정리하고 있어요."
+            />
+          )}
 
         {!sessionPending &&
           stage !== "profile" &&
           !onboardingWrapupPending &&
+          !callWrapUpPending &&
           chatPending &&
           !assistantTyping &&
           (activeRecommendationSearchStatus ? (
@@ -1283,17 +1316,21 @@ const CareerTimelineSection = () => {
             <div className="mt-5 flex flex-row gap-2">
               <CareerPrimaryButton
                 onClick={() => onStartCallMode?.()}
-                disabled={isStartingCall}
+                disabled={isConversationActionLocked}
                 className="w-fit justify-center"
               >
-                {isStartingCall ? "통화 연결 중..." : "전화로 시작"}
+                {isStartingCall
+                  ? "통화 연결 중..."
+                  : callWrapUpPending
+                    ? "정리 중..."
+                    : "전화로 시작"}
               </CareerPrimaryButton>
               <CareerSecondaryButton
                 onClick={onUseChatOnly}
-                disabled={isStartingCall}
+                disabled={isConversationActionLocked}
                 className="w-fit justify-center"
               >
-                {isStartingCall ? "준비 중..." : "채팅으로 시작"}
+                {isConversationActionLocked ? "준비 중..." : "채팅으로 시작"}
               </CareerSecondaryButton>
               <CareerSecondaryButton
                 onClick={() => void onPauseOnboarding()}

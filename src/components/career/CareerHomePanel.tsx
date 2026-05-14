@@ -16,22 +16,15 @@ import {
 } from "lucide-react";
 import { useMemo } from "react";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
-import DeliveryCopyPromptTestPanel from "./DeliveryCopyPromptTestPanel";
 import { CareerProfileSharingSettingsSection } from "./CareerProfileSettingsSection";
 import {
   CareerPrimaryButton,
   CareerSecondaryButton,
 } from "./ui/CareerPrimitives";
-import {
-  CareerOpportunityType,
-  type CareerOpportunityAgentVariant,
-  type CareerHistoryOpportunity,
-  type CareerRecentOpportunity,
-} from "./types";
+import { type CareerOpportunityAgentVariant } from "./types";
 import React from "react";
 import { getCareerDefaultSavedStage } from "./opportunityTypeMeta";
 
-const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const countFormatter = new Intl.NumberFormat("ko-KR");
 const devAgentVariantOptions: Array<{
   label: string;
@@ -40,16 +33,6 @@ const devAgentVariantOptions: Array<{
   { label: "Tool agent", value: "tool_agent" },
   { label: "Rule flow", value: "scripted" },
 ];
-
-const formatMatchedAt = (value: string) => {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-
-  return new Intl.DateTimeFormat("ko-KR", {
-    month: "short",
-    day: "numeric",
-  }).format(date);
-};
 
 const isLinkedinProfileLink = (value: string) =>
   /linkedin\.com\/in\//i.test(value.trim());
@@ -336,11 +319,18 @@ const CareerHomePanel = ({
               </button>
             </div>
           ) : null}
-          <p className="mt-4 max-w-[620px] text-[15px] leading-5 text-beige900/65">
-            Harper는 회원님만을 위한 커리어 에이전트입니다.
-            <br />
+          <p className="mt-0 max-w-[620px] text-[15px] leading-5 text-beige900/65">
             {activeOpportunityLabel}
           </p>
+          <div className="mt-4 w-full flex flex-row items-center justify-center gap-4">
+            {/*  */}
+            <div className="cursor-pointer text-beige900 text-[14px] rounded-3xl border border-beige900/15 px-4 py-3 flex flex-row items-center justify-center gap-2">
+              선호 조건 업데이트하기
+            </div>
+            <div className="cursor-pointer text-beige900 text-[14px] rounded-3xl border border-beige900/15 px-4 py-3 flex flex-row items-center justify-center gap-2">
+              더 이야기하고 연결 퀄리티 높이기
+            </div>
+          </div>
           <div className="mt-4 rounded-3xl border border-beige900/5 bg-beige100 px-6 py-5">
             {isOnboardingCompleted ? (
               <div className="flex flex-row items-center justify-between gap-4">

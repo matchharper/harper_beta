@@ -201,6 +201,7 @@ export const useCareerOnboardingVoice = ({
   const [onboardingWrapupPending, setOnboardingWrapupPending] = useState(false);
   const [onboardingPausePending, setOnboardingPausePending] = useState(false);
   const [callStartPending, setCallStartPending] = useState(false);
+  const [callWrapUpPending, setCallWrapUpPending] = useState(false);
   const [liveUserTranscriptPlacement, setLiveUserTranscriptPlacement] =
     useState<CallLiveTranscriptPlacement>("beforeCurrentAssistant");
 
@@ -1324,6 +1325,7 @@ export const useCareerOnboardingVoice = ({
       }
 
       callWrapUpPendingRef.current = true;
+      setCallWrapUpPending(true);
       // Lock composer while generating follow-up so user can't send messages before it
       setOnboardingBeginPending(true);
 
@@ -1418,6 +1420,7 @@ export const useCareerOnboardingVoice = ({
         } finally {
           setOnboardingBeginPending(false);
           callWrapUpPendingRef.current = false;
+          setCallWrapUpPending(false);
         }
       })();
     },
@@ -1461,6 +1464,7 @@ export const useCareerOnboardingVoice = ({
     setOnboardingWrapupPending(false);
     setOnboardingPausePending(false);
     setCallStartPending(false);
+    setCallWrapUpPending(false);
     callStartedAtRef.current = null;
     callWrapUpPendingRef.current = false;
     pendingAssistantDoneRef.current = null;
@@ -1475,6 +1479,7 @@ export const useCareerOnboardingVoice = ({
     onboardingBeginPending,
     onboardingWrapupPending,
     callStartPending,
+    callWrapUpPending,
     onboardingPausePending,
     inputMode,
     voiceTranscript,

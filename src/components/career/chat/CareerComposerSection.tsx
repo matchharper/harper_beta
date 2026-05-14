@@ -31,6 +31,7 @@ const CareerComposerSection = () => {
     onboardingBeginPending,
     onboardingWrapupPending,
     callStartPending = false,
+    callWrapUpPending = false,
     forceCompletePending = false,
     interviewProgress,
     onboardingPausePending,
@@ -56,7 +57,9 @@ const CareerComposerSection = () => {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const isComposingRef = useRef(false);
   const onboardingPaused = isOnboardingPaused(messages);
-  const isStartingCall = onboardingBeginPending || callStartPending;
+  const isStartingCall =
+    (onboardingBeginPending && !callWrapUpPending) || callStartPending;
+  const isWorkflowPending = isStartingCall || callWrapUpPending;
 
   const isTextInputLocked =
     !user ||
@@ -65,7 +68,7 @@ const CareerComposerSection = () => {
     stage === "profile" ||
     showVoiceStartPrompt ||
     profilePending ||
-    isStartingCall ||
+    isWorkflowPending ||
     onboardingWrapupPending ||
     onboardingPausePending;
   const isComposerActionLocked =
@@ -77,15 +80,17 @@ const CareerComposerSection = () => {
       ? "기본 정보 제출 후 대화가 시작됩니다."
       : showVoiceStartPrompt
         ? "아래 시작 버튼으로 대화를 시작해 주세요."
-        : onboardingWrapupPending
-          ? "통화 내용을 정리하는 중입니다."
-          : onboardingPaused
-            ? "바로 입력하면 대화가 이어집니다."
-            : profilePending
-              ? "이력서와 링크를 분석 중입니다."
-              : stage === "completed"
-                ? "Harper에게 답변을 입력하세요."
-                : "원하는 역할이나 조건을 편하게 알려주세요.";
+        : callWrapUpPending
+          ? "Call wrap-up..."
+          : onboardingWrapupPending
+            ? "통화 내용을 정리하는 중입니다."
+            : onboardingPaused
+              ? "바로 입력하면 대화가 이어집니다."
+              : profilePending
+                ? "이력서와 링크를 분석 중입니다."
+                : stage === "completed"
+                  ? "Harper에게 답변을 입력하세요."
+                  : "원하는 역할이나 조건을 편하게 알려주세요.";
 
   const showCallQuickAction =
     Boolean(user) &&

@@ -25,6 +25,9 @@ const HTML_BLOCK_TAG_PATTERN =
   /<(p|br|ul|ol|li|strong|em|a|h[1-6]|div|span|blockquote|pre|code|table|thead|tbody|tr|td|th)\b/i;
 const HTML_PAIR_PATTERN = /<([a-z][\w:-]*)(\s[^>]*)?>[\s\S]*<\/\1>/i;
 const HIGHLIGHT_PATTERN = /<<([\s\S]+?)>>/g;
+const INLINE_FORMAT_TRAILING_BREAKS_PATTERN =
+  /(<(strong|b|em|i)\b[^>]*>)([\s\S]*?)(\s*(?:<br\s*\/?>\s*)+)<\/\2>/gi;
+const TRAILING_INLINE_NODE_MARKER = "[[CAREER_TRAILING_INLINE_NODE]]";
 
 function looksLikeHtml(value: string) {
   const trimmed = value.trim();
@@ -42,31 +45,67 @@ function normalizeRichText(value: string) {
     return trimmed;
   }
 
+  const normalizedHtml = normalizeInlineHtmlBreaks(trimmed);
   const markdown = turndownService
-    .turndown(trimmed)
+    .turndown(normalizedHtml)
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
   return markdown || trimmed;
 }
 
+function normalizeInlineHtmlBreaks(value: string) {
+  if (!value || !value.includes("<")) return value;
+
+  return value.replace(
+    INLINE_FORMAT_TRAILING_BREAKS_PATTERN,
+    (match, openTag: string, tagName: string, body: string, breaks: string) => {
+      const trimmedBody = body.replace(/\s+$/g, "");
+      if (!trimmedBody) return match;
+      return `${openTag}${trimmedBody}</${tagName}>${breaks}`;
+    }
+  );
+}
+
 function renderTextWithHighlights(
   content: string,
-  keyPrefix: string
+  keyPrefix: string,
+  trailingInlineNode?: ReactNode
 ): ReactNode {
   const nodes: ReactNode[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null = null;
+
+  const appendText = (text: string, key: string) => {
+    if (!text) return;
+    if (!trailingInlineNode || !text.includes(TRAILING_INLINE_NODE_MARKER)) {
+      nodes.push(<Fragment key={key}>{text}</Fragment>);
+      return;
+    }
+
+    const parts = text.split(TRAILING_INLINE_NODE_MARKER);
+    parts.forEach((part, index) => {
+      if (part) {
+        nodes.push(<Fragment key={`${key}-part-${index}`}>{part}</Fragment>);
+      }
+      if (index < parts.length - 1) {
+        nodes.push(
+          <Fragment key={`${key}-trailing-${index}`}>
+            {trailingInlineNode}
+          </Fragment>
+        );
+      }
+    });
+  };
 
   HIGHLIGHT_PATTERN.lastIndex = 0;
   while ((match = HIGHLIGHT_PATTERN.exec(content)) !== null) {
     const matchIndex = match.index;
 
     if (lastIndex < matchIndex) {
-      nodes.push(
-        <Fragment key={`${keyPrefix}-text-${matchIndex}`}>
-          {content.slice(lastIndex, matchIndex)}
-        </Fragment>
+      appendText(
+        content.slice(lastIndex, matchIndex),
+        `${keyPrefix}-text-${matchIndex}`
       );
     }
 
@@ -86,11 +125,7 @@ function renderTextWithHighlights(
   }
 
   if (lastIndex < content.length) {
-    nodes.push(
-      <Fragment key={`${keyPrefix}-tail-${lastIndex}`}>
-        {content.slice(lastIndex)}
-      </Fragment>
-    );
+    appendText(content.slice(lastIndex), `${keyPrefix}-tail-${lastIndex}`);
   }
 
   if (nodes.length === 0) return content;
@@ -99,16 +134,21 @@ function renderTextWithHighlights(
 
 function renderNodeWithHighlights(
   node: ReactNode,
-  keyPrefix: string
+  keyPrefix: string,
+  trailingInlineNode?: ReactNode
 ): ReactNode {
   if (typeof node === "string") {
-    return renderTextWithHighlights(node, keyPrefix);
+    return renderTextWithHighlights(node, keyPrefix, trailingInlineNode);
   }
 
   if (Array.isArray(node)) {
     return node.map((child, index) => (
       <Fragment key={`${keyPrefix}-${index}`}>
-        {renderNodeWithHighlights(child, `${keyPrefix}-${index}`)}
+        {renderNodeWithHighlights(
+          child,
+          `${keyPrefix}-${index}`,
+          trailingInlineNode
+        )}
       </Fragment>
     ));
   }
@@ -122,7 +162,11 @@ function renderNodeWithHighlights(
     return cloneElement(
       node,
       undefined,
-      renderNodeWithHighlights(childProps.children, `${keyPrefix}-child`)
+      renderNodeWithHighlights(
+        childProps.children,
+        `${keyPrefix}-child`,
+        trailingInlineNode
+      )
     );
   }
 
@@ -215,13 +259,24 @@ function renderUrlLinkParagraph(children: ReactNode): ReactNode | null {
 export default function CareerRichText({
   content,
   className,
+  trailingInlineNode,
 }: {
   content: string;
   className?: string;
+  trailingInlineNode?: ReactNode;
 }) {
   const normalizedContent = normalizeRichText(content);
+  const markdownContent = trailingInlineNode
+    ? `${normalizedContent}${TRAILING_INLINE_NODE_MARKER}`
+    : normalizedContent;
 
-  if (!normalizedContent) return null;
+  if (!normalizedContent) {
+    return trailingInlineNode ? (
+      <div className={careerCx("max-w-none text-sm leading-6", className)}>
+        {trailingInlineNode}
+      </div>
+    ) : null;
+  }
 
   return (
     <div className={careerCx("max-w-none text-sm leading-6", className)}>
@@ -230,23 +285,23 @@ export default function CareerRichText({
         components={{
           h1: ({ children }) => (
             <h1 className="mt-5 text-base font-semibold leading-6 text-beige900 first:mt-0">
-              {renderNodeWithHighlights(children, "h1")}
+              {renderNodeWithHighlights(children, "h1", trailingInlineNode)}
             </h1>
           ),
           h2: ({ children }) => (
             <h2 className="mt-5 text-[15px] font-semibold leading-6 text-beige900 first:mt-0">
-              {renderNodeWithHighlights(children, "h2")}
+              {renderNodeWithHighlights(children, "h2", trailingInlineNode)}
             </h2>
           ),
           h3: ({ children }) => (
             <h3 className="mt-4 text-sm font-semibold leading-6 text-beige900 first:mt-0">
-              {renderNodeWithHighlights(children, "h3")}
+              {renderNodeWithHighlights(children, "h3", trailingInlineNode)}
             </h3>
           ),
           p: ({ children }) =>
             renderUrlLinkParagraph(children) ?? (
               <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-beige900/80 first:mt-0">
-                {renderNodeWithHighlights(children, "p")}
+                {renderNodeWithHighlights(children, "p", trailingInlineNode)}
               </p>
             ),
           ul: ({ children }) => (
@@ -261,14 +316,18 @@ export default function CareerRichText({
           ),
           li: ({ children }) => (
             <li className="pl-1 [&_p]:mt-0">
-              {renderNodeWithHighlights(children, "li")}
+              {renderNodeWithHighlights(children, "li", trailingInlineNode)}
             </li>
           ),
           a: ({ href, children }) => {
             if (!href) {
               return (
                 <span>
-                  {renderNodeWithHighlights(children, "link-fallback")}
+                  {renderNodeWithHighlights(
+                    children,
+                    "link-fallback",
+                    trailingInlineNode
+                  )}
                 </span>
               );
             }
@@ -298,13 +357,21 @@ export default function CareerRichText({
               >
                 {isUrlText(childText) || childText.trim() === href
                   ? compactUrlLabel(childText || href)
-                  : renderNodeWithHighlights(children, "link")}
+                  : renderNodeWithHighlights(
+                      children,
+                      "link",
+                      trailingInlineNode
+                    )}
               </a>
             );
           },
           blockquote: ({ children }) => (
             <blockquote className="mt-4 border-l-2 border-beige900/20 bg-white/45 px-4 py-2 text-sm leading-6 text-beige900/70 first:mt-0 [&_p]:mt-0 [&_p]:text-inherit">
-              {renderNodeWithHighlights(children, "blockquote")}
+              {renderNodeWithHighlights(
+                children,
+                "blockquote",
+                trailingInlineNode
+              )}
             </blockquote>
           ),
           hr: () => (
@@ -319,12 +386,12 @@ export default function CareerRichText({
           ),
           th: ({ children }) => (
             <th className="border border-beige900/10 bg-white/55 px-3 py-2 font-medium text-beige900">
-              {renderNodeWithHighlights(children, "th")}
+              {renderNodeWithHighlights(children, "th", trailingInlineNode)}
             </th>
           ),
           td: ({ children }) => (
             <td className="border border-beige900/10 px-3 py-2 align-top">
-              {renderNodeWithHighlights(children, "td")}
+              {renderNodeWithHighlights(children, "td", trailingInlineNode)}
             </td>
           ),
           pre: ({ children }) => (
@@ -357,17 +424,17 @@ export default function CareerRichText({
           },
           em: ({ children }) => (
             <em className="italic text-beige900/80">
-              {renderNodeWithHighlights(children, "em")}
+              {renderNodeWithHighlights(children, "em", trailingInlineNode)}
             </em>
           ),
           strong: ({ children }) => (
             <strong className="font-semibold text-beige900">
-              {renderNodeWithHighlights(children, "strong")}
+              {renderNodeWithHighlights(children, "strong", trailingInlineNode)}
             </strong>
           ),
         }}
       >
-        {normalizedContent}
+        {markdownContent}
       </ReactMarkdown>
     </div>
   );
