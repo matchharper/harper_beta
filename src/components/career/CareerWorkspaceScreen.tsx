@@ -21,12 +21,14 @@ import CareerMobileJobsView, {
   type JobsDisplayTab,
 } from "@/components/career/mobile/jobs/CareerMobileJobsView";
 import CareerMobileChatLauncher from "@/components/career/mobile/CareerMobileChatLauncher";
+import CareerMobileHomeView from "@/components/career/mobile/CareerMobileHomeView";
 import CareerMobileShell from "@/components/career/mobile/CareerMobileShell";
 import CareerMobileTopBar from "@/components/career/mobile/CareerMobileTopBar";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 import { useCompanyModalStore } from "@/store/useModalStore";
 import { useQueryClient } from "@tanstack/react-query";
 import type { CareerHistoryOpportunity } from "@/components/career/types";
+import { AnimatePresence, motion } from "motion/react";
 import React from "react";
 
 type CareerWorkspaceHistoryTarget = {
@@ -403,9 +405,14 @@ const useMobileUserDisplay = () => {
 const CareerWorkspaceMobileHistoryView = ({
   activeTab,
   onChangeTab,
+  initialHistoryTarget,
 }: {
   activeTab: CareerWorkspaceTab;
-  onChangeTab: (tab: CareerWorkspaceTab) => void;
+  onChangeTab: (
+    tab: CareerWorkspaceTab,
+    options?: CareerWorkspaceNavigationOptions
+  ) => void;
+  initialHistoryTarget?: CareerWorkspaceHistoryTarget | null;
 }) => {
   const {
     onOpenSettings,
@@ -419,7 +426,11 @@ const CareerWorkspaceMobileHistoryView = ({
   const openCompanyModal = useCompanyModalStore((s) => s.handleOpenCompany);
   const queryClient = useQueryClient();
 
-  const [jobsTab, setJobsTab] = useState<JobsDisplayTab>("new");
+  const [jobsTab, setJobsTab] = useState<JobsDisplayTab>(() => {
+    if (initialHistoryTarget?.historyTab === "saved") return "tracking";
+    if (initialHistoryTarget?.historyTab === "archived") return "archived";
+    return "new";
+  });
   const [currentIndex, setCurrentIndex] = useState(0);
   const [hintDismissed, setHintDismissed] = useState(false);
 
@@ -545,30 +556,50 @@ const CareerWorkspaceMobileHistoryView = ({
   );
 };
 
+const TAB_TRANSITION = { duration: 0.18, ease: "easeOut" } as const;
+const TAB_MOTION_PROPS = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0 },
+  transition: TAB_TRANSITION,
+} as const;
+
 const CareerWorkspaceMobileLayout = ({
   activeTab,
   onChangeTab,
 }: {
   activeTab: CareerWorkspaceTab;
-  onChangeTab: (tab: CareerWorkspaceTab) => void;
+  onChangeTab: (
+    tab: CareerWorkspaceTab,
+    options?: CareerWorkspaceNavigationOptions
+  ) => void;
 }) => {
   const { onOpenSettings } = useCareerSidebarContext();
   const { displayName, profilePicture } = useMobileUserDisplay();
+  const [chatOpen, setChatOpen] = useState(false);
+  const [pendingHistoryTarget, setPendingHistoryTarget] =
+    useState<CareerWorkspaceHistoryTarget | null>(null);
 
-  if (activeTab === "history") {
-    return (
-      <CareerWorkspaceMobileHistoryView
-        activeTab={activeTab}
-        onChangeTab={onChangeTab}
-      />
-    );
-  }
+  const handleChangeTab = useCallback(
+    (
+      nextTab: CareerWorkspaceTab,
+      options?: CareerWorkspaceNavigationOptions
+    ) => {
+      if (nextTab === "history") {
+        setPendingHistoryTarget(options?.historyTarget ?? null);
+      } else if (activeTab === "history") {
+        setPendingHistoryTarget(null);
+      }
+      onChangeTab(nextTab, options);
+    },
+    [activeTab, onChangeTab]
+  );
 
   const mobileHeader = (
     <CareerMobileTopBar
       activeTab={activeTab}
       options={WORKSPACE_TAB_OPTIONS}
-      onChangeTab={onChangeTab}
+      onChangeTab={handleChangeTab}
       profilePicture={profilePicture}
       userName={displayName}
       onOpenSettings={onOpenSettings}
@@ -576,20 +607,43 @@ const CareerWorkspaceMobileLayout = ({
   );
 
   return (
-    <>
-      <CareerMobileShell header={mobileHeader}>
-        <div
-          className="flex flex-1 items-center justify-center px-6 py-16 text-center text-[15px] text-beige900/55"
-          style={{ paddingBottom: "140px" }}
-        >
-          {activeTab === "home"
-            ? "홈 모바일 화면은 곧 추가됩니다."
-            : "프로필 모바일 화면은 곧 추가됩니다."}
-        </div>
-      </CareerMobileShell>
-      <CareerMobileChatLauncher>
-        <CareerChatPanel />
-      </CareerMobileChatLauncher>
-    </>
+    <AnimatePresence mode="wait" initial={false}>
+      {activeTab === "history" ? (
+        <motion.div key="history" {...TAB_MOTION_PROPS}>
+          <CareerWorkspaceMobileHistoryView
+            activeTab={activeTab}
+            onChangeTab={handleChangeTab}
+            initialHistoryTarget={pendingHistoryTarget}
+          />
+        </motion.div>
+      ) : (
+        <motion.div key="shell" {...TAB_MOTION_PROPS}>
+          <CareerMobileShell header={mobileHeader}>
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div key={activeTab} {...TAB_MOTION_PROPS}>
+                {activeTab === "home" ? (
+                  <CareerMobileHomeView
+                    onOpenChat={() => setChatOpen(true)}
+                    onOpenHistory={(historyTarget) =>
+                      handleChangeTab("history", { historyTarget })
+                    }
+                  />
+                ) : (
+                  <div className="flex flex-1 items-center justify-center px-6 py-16 pb-[140px] text-center text-[15px] text-beige900/55">
+                    프로필 모바일 화면은 곧 추가됩니다.
+                  </div>
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </CareerMobileShell>
+          <CareerMobileChatLauncher
+            open={chatOpen}
+            onOpenChange={setChatOpen}
+          >
+            <CareerChatPanel />
+          </CareerMobileChatLauncher>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };

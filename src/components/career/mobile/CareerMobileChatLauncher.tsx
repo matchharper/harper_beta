@@ -2,8 +2,9 @@
 
 import React, { useRef, useState } from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
-import { X, AudioLines } from "lucide-react";
+import { X, AudioLines, Mic, MicOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
 
 type CareerMobileChatLauncherProps = {
   children: React.ReactNode;
@@ -11,6 +12,8 @@ type CareerMobileChatLauncherProps = {
   topOffsetPx?: number;
   placeholder?: string;
   className?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 };
 
 const DEFAULT_TOP_OFFSET_PX = 64;
@@ -22,9 +25,28 @@ export default function CareerMobileChatLauncher({
   topOffsetPx = DEFAULT_TOP_OFFSET_PX,
   placeholder = "Harper에게 답변을 입력하세요.",
   className,
+  open: controlledOpen,
+  onOpenChange,
 }: CareerMobileChatLauncherProps) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = (next: boolean) => {
+    if (!isControlled) setInternalOpen(next);
+    onOpenChange?.(next);
+  };
   const touchStartYRef = useRef<number | null>(null);
+
+  const {
+    callConnectionStatus,
+    voiceMuted,
+    onToggleVoiceMute,
+    onEndCallMode,
+  } = useCareerChatPanelContext();
+  const isCallActive =
+    callConnectionStatus === "connected" ||
+    callConnectionStatus === "reconnecting";
+  const showMinimizedCall = isCallActive && !open;
 
   const openDrawer = () => setOpen(true);
 
@@ -61,16 +83,54 @@ export default function CareerMobileChatLauncher({
         <div className="flex justify-center pt-2 pb-1">
           <div className="h-1 w-10 rounded-full bg-beige900/20" />
         </div>
-        {actionBar ? <div className="px-4 pt-1 pb-2">{actionBar}</div> : null}
+        {actionBar && !showMinimizedCall ? (
+          <div className="px-4 pt-1 pb-2">{actionBar}</div>
+        ) : null}
         <div className="flex items-center gap-2 px-4 pb-3 pt-1">
-          <button
-            type="button"
-            onClick={openDrawer}
-            className="flex h-12 flex-1 items-center justify-between rounded-full border border-beige900/10 bg-white px-4 text-left text-[15px] text-beige900/45 transition active:bg-beige100"
-          >
-            <span>{placeholder}</span>
-            <AudioLines className="h-5 w-5 text-beige900/60" />
-          </button>
+          {showMinimizedCall ? (
+            <div
+              className="flex w-full items-center justify-center"
+              onTouchStart={(event) => event.stopPropagation()}
+              onTouchMove={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-center gap-2 rounded-full bg-beige900/5 px-3 py-2">
+                <button
+                  type="button"
+                  onClick={onToggleVoiceMute}
+                  className={cn(
+                    "flex h-12 w-12 items-center justify-center rounded-full transition-colors",
+                    voiceMuted
+                      ? "bg-beige900/15 text-beige900/50"
+                      : "bg-white text-beige900"
+                  )}
+                  aria-label={voiceMuted ? "음소거 해제" : "음소거"}
+                >
+                  {voiceMuted ? (
+                    <MicOff className="h-5 w-5" />
+                  ) : (
+                    <Mic className="h-5 w-5" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onEndCallMode?.()}
+                  className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500 text-white transition-opacity hover:opacity-90"
+                  aria-label="통화 종료"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={openDrawer}
+              className="flex h-12 flex-1 items-center justify-between rounded-full border border-beige900/10 bg-white px-4 text-left text-[15px] text-beige900/45 transition active:bg-beige100"
+            >
+              <span>{placeholder}</span>
+              <AudioLines className="h-5 w-5 text-beige900/60" />
+            </button>
+          )}
         </div>
       </div>
 
