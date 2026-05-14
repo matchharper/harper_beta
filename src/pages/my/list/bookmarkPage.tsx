@@ -132,7 +132,7 @@ function BookmarkFolderTab({
       </button>
       {/* {isShared ? <Share2 className="h-3 w-3 text-accentBronze" /> : null} */}
       {isActive && (
-        <span className="absolute inset-x-0 bottom-[-1px] h-0.5 rounded-full bg-beige900" />
+        <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-beige900" />
       )}
 
       <ActionDropdown
@@ -667,7 +667,7 @@ export default function BookmarksPage() {
                   <span>{defaultFolder.name}</span>
                   {mode === "folder" &&
                     selectedFolderId === Number(defaultFolder.id) && (
-                      <span className="absolute inset-x-0 bottom-[-1px] h-0.5 rounded-full bg-beige900" />
+                      <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-beige900" />
                     )}
                 </button>
               )}
@@ -688,7 +688,7 @@ export default function BookmarksPage() {
               >
                 Intro 요청됨
                 {mode === "requested" && (
-                  <span className="absolute inset-x-0 bottom-[-1px] h-0.5 rounded-full bg-beige900" />
+                  <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-beige900" />
                 )}
               </button>
 

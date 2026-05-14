@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo } from "react";
 import { useCompanyModalStore } from "@/store/useModalStore";
 import LinkChips from "@/pages/my/p/components/LinkChips";
 import { Calendar, CircleHelp, MapPinHouse, Users, XIcon } from "lucide-react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import LinkPreview from "../LinkPreview";
 import { useMessages } from "@/i18n/useMessage";
 import { countryEnToKo } from "@/utils/language_map";
@@ -226,7 +226,7 @@ export default function CompanyModalRoot() {
     <AnimatePresence>
       {isOpen && payload && company ? (
         <motion.div
-          className="fixed inset-0 z-[9999] font-sans"
+          className="fixed inset-0 z-9999 font-sans"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}

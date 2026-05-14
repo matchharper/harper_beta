@@ -353,7 +353,7 @@ function CandidateRow({
               <Cell
                 key={columnId}
                 title={
-                  <div className="min-w-0 whitespace-normal break-words">
+                  <div className="min-w-0 whitespace-normal wrap-break-word">
                     {githubPreview?.company ?? githubPreview?.location ?? "-"}
                   </div>
                 }
@@ -373,7 +373,7 @@ function CandidateRow({
               <Cell
                 key={columnId}
                 title={
-                  <div className="min-w-0 whitespace-normal break-words">
+                  <div className="min-w-0 whitespace-normal wrap-break-word">
                     {scholarPreview?.affiliation ?? "-"}
                   </div>
                 }
@@ -393,7 +393,7 @@ function CandidateRow({
               <Cell
                 key={columnId}
                 title={
-                  <div className="min-w-0 whitespace-normal break-words">
+                  <div className="min-w-0 whitespace-normal wrap-break-word">
                     {scholarPreview?.affiliation ?? "-"}
                   </div>
                 }
@@ -420,7 +420,7 @@ function CandidateRow({
                         alt={latestCompany.company_db.name}
                       />
                     ) : null}
-                    <span className={`font-normal break-words ${isDark ? "text-hgray800" : "text-beige900/80"}`}>
+                    <span className={`font-normal wrap-break-word ${isDark ? "text-hgray800" : "text-beige900/80"}`}>
                       {companyEnToKo(latestCompany.company_db.name)}
                     </span>
                   </div>
@@ -446,7 +446,7 @@ function CandidateRow({
             <Cell
               key={columnId}
               title={
-                <div className="min-w-0 whitespace-normal break-words">
+                <div className="min-w-0 whitespace-normal wrap-break-word">
                   {evidencePaper?.title ?? "-"}
                 </div>
               }
@@ -555,7 +555,7 @@ function CandidateRow({
                         className="w-4 h-4 rounded-full object-cover"
                       />
                     )}
-                    <span className={`font-normal break-words ${isDark ? "text-hgray800" : "text-beige900/80"}`}>
+                    <span className={`font-normal wrap-break-word ${isDark ? "text-hgray800" : "text-beige900/80"}`}>
                       {koreaUniversityEnToKo(latestEdu.school)}
                     </span>
                   </div>
@@ -583,7 +583,7 @@ function CandidateRow({
           key={columnId}
           className="px-4 py-3 min-w-0 h-full flex items-center"
         >
-          <div className={`text-[13px] font-normal leading-5 whitespace-pre-wrap break-words line-clamp-3 ${isDark ? "text-hgray900" : "text-beige900"}`}>
+          <div className={`text-[13px] font-normal leading-5 whitespace-pre-wrap wrap-break-word line-clamp-3 ${isDark ? "text-hgray900" : "text-beige900"}`}>
             {shortlistSummaryText}
           </div>
         </div>
@@ -652,7 +652,7 @@ function CandidateRow({
               rows={2}
             />
           ) : shortlistMemo ? (
-            <div className={`w-full whitespace-pre-wrap break-words px-2 py-2 text-[13px] leading-5 ${isDark ? "text-hgray900" : "text-beige900"}`}>
+            <div className={`w-full whitespace-pre-wrap wrap-break-word px-2 py-2 text-[13px] leading-5 ${isDark ? "text-hgray900" : "text-beige900"}`}>
               {shortlistMemo}
             </div>
           ) : null}
@@ -744,7 +744,7 @@ function CandidateRow({
                 <RevealProfileButton
                   candidId={candidId}
                   overlay
-                  overlayClassName={`z-[80] justify-end pr-4 ${isDark ? "group-hover:border-accenta1/40 group-hover:bg-black/15" : "group-hover:border-accentBronze/40 group-hover:bg-beige900/8"}`}
+                  overlayClassName={`z-80 justify-end pr-4 ${isDark ? "group-hover:border-accenta1/40 group-hover:bg-black/15" : "group-hover:border-accentBronze/40 group-hover:bg-beige900/8"}`}
                   className="px-4 py-1.5 text-xs font-medium shadow-[0_8px_24px_rgba(0,0,0,0.32)]"
                 />
               ) : null}
@@ -854,7 +854,7 @@ const Cell = ({
         <div
           className={[
             `flex-1 min-w-0 text-[13px] ${isDark ? "text-hgray800" : "text-beige900/80"}`,
-            multiline ? "whitespace-normal break-words" : "truncate",
+            multiline ? "whitespace-normal wrap-break-word" : "truncate",
           ].join(" ")}
         >
           {title}
@@ -863,7 +863,7 @@ const Cell = ({
       <div
         className={[
           `text-[13px] mt-0.5 max-w-full ${isDark ? "text-hgray600" : "text-beige900/55"}`,
-          multiline ? "whitespace-normal break-words" : "truncate",
+          multiline ? "whitespace-normal wrap-break-word" : "truncate",
         ].join(" ")}
       >
         {description}
@@ -913,7 +913,7 @@ export const RoleBox = ({
           ) : (
             <BriefcaseBusiness className={`w-4 h-4 ${isDark ? "text-hgray800" : "text-beige900/80"}`} />
           )}
-          <span className={`font-normal break-words ${isDark ? "text-hgray800" : "text-beige900/80"}`}>
+          <span className={`font-normal wrap-break-word ${isDark ? "text-hgray800" : "text-beige900/80"}`}>
             {company && companyEnToKo(company)}
           </span>
         </div>
@@ -956,7 +956,7 @@ export const SchoolBox = ({
           ) : (
             <GraduationCap className={`w-4 h-4 ${isDark ? "text-hgray800" : "text-beige900/80"}`} />
           )}
-          <span className={`font-normal break-words ${isDark ? "text-hgray800" : "text-beige900/80"}`}>
+          <span className={`font-normal wrap-break-word ${isDark ? "text-hgray800" : "text-beige900/80"}`}>
             {school && koreaUniversityEnToKo(school)}
           </span>
         </div>
@@ -1004,7 +1004,7 @@ export const ScholarSignalBox = ({
       >
         <div className="flex flex-row items-start justify-start gap-x-2 min-w-0 relative">
           <Icon className={`absolute left-0 top-[2px] w-4 h-4 ${isDark ? "text-hgray800" : "text-beige900/80"}`} />
-          <span className={`font-normal break-words ${isDark ? "text-hgray800" : "text-beige900/80"}`}>
+          <span className={`font-normal wrap-break-word ${isDark ? "text-hgray800" : "text-beige900/80"}`}>
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             {title || "-"}
           </span>
@@ -1047,7 +1047,7 @@ export const GithubSignalBox = ({
       >
         <div className="flex flex-row items-start justify-start gap-x-2 min-w-0 relative">
           <Icon className={`absolute left-0 top-[2px] w-4 h-4 ${isDark ? "text-hgray800" : "text-beige900/80"}`} />
-          <span className={`font-normal break-words ${isDark ? "text-hgray800" : "text-beige900/80"}`}>
+          <span className={`font-normal wrap-break-word ${isDark ? "text-hgray800" : "text-beige900/80"}`}>
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             {title || "-"}
           </span>

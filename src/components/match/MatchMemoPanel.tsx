@@ -3,7 +3,7 @@
 import { showToast } from "@/components/toast/toast";
 import { useUpdateMatchCandidateDecision } from "@/hooks/useMatchWorkspace";
 import type { MatchCandidateDetailResponse } from "@/lib/match/shared";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { ArrowRight, Ban, Clock3 } from "lucide-react";
 import { useState } from "react";
 

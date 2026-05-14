@@ -69,11 +69,11 @@ const ProfileBio = ({
         </div>
         <div className="text-beige900 col-span-6 flex flex-col gap-2 mb-2">
           {displayLine ? (
-            <div className="whitespace-pre-wrap leading-relaxed text-[15px] break-words">
+            <div className="whitespace-pre-wrap leading-relaxed text-[15px] wrap-break-word">
               {displayLine}
             </div>
           ) : !profileRevealed ? (
-            <div className="whitespace-pre-wrap leading-relaxed text-[15px] break-words text-beige900/55">
+            <div className="whitespace-pre-wrap leading-relaxed text-[15px] wrap-break-word text-beige900/55">
               열람 후 확인할 수 있습니다.
             </div>
           ) : isLoadingOneline ? (

@@ -24,7 +24,7 @@ const CareerUpdateNotesModal = ({
       backdropClassName="bg-beige900/20 backdrop-blur-[3px]"
       panelClassName="max-w-none w-[min(560px,calc(100vw-32px))] rounded-[16px] border-beige900/10 bg-beige50 shadow-[0_24px_70px_rgba(37,20,6,0.18)]"
       bodyClassName="p-0"
-      closeButtonClassName="right-4 top-4 rounded-[8px] text-beige900/45 hover:bg-beige900/[0.06] hover:text-beige900"
+      closeButtonClassName="right-4 top-4 rounded-[8px] text-beige900/45 hover:bg-beige900/6 hover:text-beige900"
     >
       <section className="font-geist text-beige900">
         <header className="border-b border-beige900/10 px-5 pb-4 pt-5">
@@ -46,7 +46,7 @@ const CareerUpdateNotesModal = ({
           </button>
         </header>
 
-        <div className="max-h-[min(68vh,640px)] overflow-y-auto px-5 py-4">
+        <div className="max-h-[min(68svh,640px)] overflow-y-auto px-5 py-4">
           <div className="space-y-3">
             {careerUpdateNotes.map((note) => {
               const isLatest = note.id === latestId;

@@ -42,7 +42,7 @@ export default function ProfileDetailPage() {
         )}
         {candidId && data && isProfileRevealed && (
           <div
-            className={`flex-shrink-0 border-r w-[30%] min-w-[390px] border-beige900/10`}
+            className={`shrink-0 border-r w-[30%] min-w-[390px] border-beige900/10`}
           >
             <CandidChatPanel
               title={`${data?.name ?? ""}님`}

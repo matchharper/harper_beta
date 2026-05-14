@@ -300,7 +300,7 @@ export default function CareerRichText({
           ),
           p: ({ children }) =>
             renderUrlLinkParagraph(children) ?? (
-              <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-beige900/80 first:mt-0">
+              <p className="mt-3 whitespace-pre-wrap wrap-break-word text-sm leading-6 text-beige900/80 first:mt-0">
                 {renderNodeWithHighlights(children, "p", trailingInlineNode)}
               </p>
             ),
@@ -349,7 +349,7 @@ export default function CareerRichText({
                 title={href}
                 aria-label={href}
                 className={careerCx(
-                  "break-words underline decoration-dotted underline-offset-2 text-beige900 transition-colors hover:text-beige900/75",
+                  "wrap-break-word underline decoration-dotted underline-offset-2 text-beige900 transition-colors hover:text-beige900/75",
                   isUrlText(childText) ||
                     (childText.trim() === href &&
                       "inline-flex max-w-full items-center px-1 py-0.5 text-[13px] font-medium leading-5")

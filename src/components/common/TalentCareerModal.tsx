@@ -89,7 +89,7 @@ const TalentCareerModal = ({
   return (
     <div
       className={cn(
-        "fixed inset-0 z-[80] flex items-center justify-center px-4 py-6 sm:px-6",
+        "fixed inset-0 z-80 flex items-center justify-center px-4 py-6 sm:px-6",
         overlayClassName
       )}
     >
@@ -97,7 +97,7 @@ const TalentCareerModal = ({
         type="button"
         aria-label="모달 배경 닫기"
         className={cn(
-          "absolute inset-0 bg-black/55 backdrop-blur-[4px]",
+          "absolute inset-0 bg-black/55 backdrop-blur-xs",
           backdropClassName
         )}
         onClick={() => {
@@ -112,7 +112,7 @@ const TalentCareerModal = ({
         aria-describedby={hasDescription ? descriptionId : undefined}
         aria-label={!hasTitle ? ariaLabel : undefined}
         className={cn(
-          "relative z-[1] w-full max-w-[720px] overflow-hidden rounded-xl border border-hblack200 bg-hblack000 shadow-[0_24px_80px_rgba(17,24,39,0.2)]",
+          "relative z-1 w-full max-w-[720px] overflow-hidden rounded-xl border border-hblack200 bg-hblack000 shadow-[0_24px_80px_rgba(17,24,39,0.2)]",
           panelClassName
         )}
       >

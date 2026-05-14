@@ -428,7 +428,7 @@ function InsightsTab({
                   rows={2}
                   className={cx(
                     opsTheme.input,
-                    "mt-1 w-full text-sm font-geist resize-y min-h-[2.5rem]"
+                    "mt-1 w-full text-sm font-geist resize-y min-h-10"
                   )}
                   placeholder="값을 입력하세요..."
                 />

@@ -54,7 +54,7 @@ export default function ToastProvider() {
   if (!mounted) return null; // 👈 서버/첫 hydration과 동일한 출력 보장
 
   return createPortal(
-    <div className="pointer-events-none fixed inset-x-0 bottom-6 z-[9999] flex justify-center px-4">
+    <div className="pointer-events-none fixed inset-x-0 bottom-6 z-9999 flex justify-center px-4">
       <div className="flex w-full max-w-md flex-col items-center gap-2">
         {list.map((t) => (
           <Toast
@@ -89,14 +89,14 @@ function Toast({ item, onClose }: { item: Item; onClose: () => void }) {
           : item.variant === "error"
             ? "border-red-400/50 bg-red-500/50 text-black"
             : item.variant === "white"
-              ? "border-white/100 bg-white/80 text-black"
+              ? "border-white bg-white/80 text-black"
               : "border-xopp/15 bg-xopp/10 text-white/90",
         "",
       ].join(" ")}
       aria-live="polite"
     >
       {Icon ? <Icon className="h-4 w-4 shrink-0 opacity-90" /> : null}
-      <span className="flex-1 whitespace-pre-wrap break-words">
+      <span className="flex-1 whitespace-pre-wrap wrap-break-word">
         {normalizeToastMessage(item.message)}
       </span>
       {/* <button

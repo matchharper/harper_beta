@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { Check } from "lucide-react";
 import { useMessages } from "@/i18n/useMessage";
 import { useLogEvent } from "@/hooks/useLog";
@@ -294,9 +294,9 @@ function PlanCard({
     <div
       className={[
         "relative w-full rounded-xl md:rounded-3xl overflow-hidden shadow-md",
-        "bg-white/[0.05] border border-white/5",
+        "bg-white/5 border border-white/5",
         "px-5 md:px-7 pt-4 md:pt-6 pb-4 md:pb-20",
-        isPrimary ? "bg-white/[0.1]" : "",
+        isPrimary ? "bg-white/10" : "",
       ].join(" ")}
     >
       <div className="flex flex-col items-start justify-start">

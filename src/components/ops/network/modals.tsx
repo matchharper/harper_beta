@@ -1,6 +1,6 @@
 import { cx, opsTheme } from "@/components/ops/theme";
 import type { NetworkLeadSummary } from "@/lib/opsNetwork";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { LoaderCircle } from "lucide-react";
 
 export function QuickMemoModal({
@@ -21,7 +21,7 @@ export function QuickMemoModal({
   if (!lead) return null;
 
   return (
-    <div className="fixed inset-0 z-[80]">
+    <div className="fixed inset-0 z-80">
       <motion.button
         type="button"
         aria-label="Close quick memo modal"

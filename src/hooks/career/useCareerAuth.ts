@@ -1,10 +1,6 @@
 import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
-import {
-  appendCareerMobileEntryReason,
-  type CareerMobileEntryReason,
-} from "@/lib/career/mobileBlocker";
 
 const resolveSafeNextPath = (value: string | null) => {
   if (!value) return null;
@@ -19,41 +15,35 @@ export const useCareerAuth = () => {
   const [authError, setAuthError] = useState("");
   const [authInfo, setAuthInfo] = useState("");
 
-  const buildCareerRedirectPath = useCallback(
-    (entryReason?: CareerMobileEntryReason) => {
-      if (typeof window === "undefined") return undefined;
+  const buildCareerRedirectPath = useCallback(() => {
+    if (typeof window === "undefined") return undefined;
 
-      const currentUrl = new URL(window.location.href);
-      const explicitNextPath = resolveSafeNextPath(
-        currentUrl.searchParams.get("next")
-      );
-      const nextPath =
-        explicitNextPath ||
-        (currentUrl.pathname === "/career" ||
-        currentUrl.pathname.startsWith("/career/")
-          ? `${currentUrl.pathname}${currentUrl.search}`
-          : "/career");
-      const nextUrl = new URL(nextPath, window.location.origin);
-      const inviteToken =
-        currentUrl.searchParams.get("invite") ||
-        nextUrl.searchParams.get("invite");
-      const mail =
-        currentUrl.searchParams.get("mail") ||
-        nextUrl.searchParams.get("mail");
-      if (inviteToken) {
-        nextUrl.searchParams.set("invite", inviteToken);
-      }
-      if (mail) {
-        nextUrl.searchParams.set("mail", mail);
-      }
+    const currentUrl = new URL(window.location.href);
+    const explicitNextPath = resolveSafeNextPath(
+      currentUrl.searchParams.get("next")
+    );
+    const nextPath =
+      explicitNextPath ||
+      (currentUrl.pathname === "/career" ||
+      currentUrl.pathname.startsWith("/career/")
+        ? `${currentUrl.pathname}${currentUrl.search}`
+        : "/career");
+    const nextUrl = new URL(nextPath, window.location.origin);
+    const inviteToken =
+      currentUrl.searchParams.get("invite") ||
+      nextUrl.searchParams.get("invite");
+    const mail =
+      currentUrl.searchParams.get("mail") ||
+      nextUrl.searchParams.get("mail");
+    if (inviteToken) {
+      nextUrl.searchParams.set("invite", inviteToken);
+    }
+    if (mail) {
+      nextUrl.searchParams.set("mail", mail);
+    }
 
-      const nextHref = nextUrl.toString();
-      return entryReason
-        ? appendCareerMobileEntryReason(nextHref, entryReason)
-        : nextHref;
-    },
-    []
-  );
+    return nextUrl.toString();
+  }, []);
 
   const handleGoogleLogin = useCallback(async () => {
     if (authPending) return;
@@ -98,7 +88,7 @@ export const useCareerAuth = () => {
       setAuthInfo("");
       try {
         if (args.mode === "signup") {
-          const redirectTo = buildCareerRedirectPath("post_signup");
+          const redirectTo = buildCareerRedirectPath();
           const { data, error } = await supabase.auth.signUp({
             email,
             password: args.password,

@@ -68,7 +68,7 @@ export const OpportunityHeader = ({
         )}
 
         <div className="flex min-w-0 flex-col items-start">
-          <div className="break-words text-[18px] font-medium leading-6 text-beige900">
+          <div className="wrap-break-word text-[18px] font-medium leading-6 text-beige900">
             {item.title}
           </div>
           <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[14px] text-beige900/80">
@@ -88,12 +88,12 @@ export const OpportunityHeader = ({
                     );
                   }
                 }}
-                className="min-w-0 break-words text-left decoration-dotted underline underline-offset-2 transition-colors hover:text-beige900"
+                className="min-w-0 wrap-break-word text-left decoration-dotted underline underline-offset-2 transition-colors hover:text-beige900"
               >
                 {item.companyName}
               </button>
             ) : (
-              <span className="min-w-0 break-words">{item.companyName}</span>
+              <span className="min-w-0 wrap-break-word">{item.companyName}</span>
             )}
             {item.location && (
               <>
@@ -313,7 +313,7 @@ const HistoryOpportunityDetailContent = ({
                     : undefined
                 }
               />
-              <div className="h-[1px] w-full bg-beige900/10" />
+              <div className="h-px w-full bg-beige900/10" />
               <div className="text-sm leading-6">
                 {item.companyDescription?.trim() ||
                   "아직 회사 설명이 없습니다."}
@@ -322,7 +322,7 @@ const HistoryOpportunityDetailContent = ({
 
             <div className="space-y-2">
               <HistorySectionTitle icon={<></>} title="역할 설명" />
-              <div className="h-[1px] w-full bg-beige900/10" />
+              <div className="h-px w-full bg-beige900/10" />
               {item.description?.trim() ? (
                 <CareerRichText content={item.description} />
               ) : (

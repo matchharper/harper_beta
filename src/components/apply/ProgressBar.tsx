@@ -1,5 +1,5 @@
 import React from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 
 interface ProgressBarProps {
   currentStep: number; // 0-based index도, 1-based index도 둘 다 지원

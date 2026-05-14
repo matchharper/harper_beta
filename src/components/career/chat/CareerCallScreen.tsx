@@ -120,7 +120,7 @@ const TranscriptOverlay = memo(
     }, [transcriptScrollKey]);
 
     return (
-      <div className="absolute inset-x-4 bottom-24 z-10 max-h-[50vh] overflow-hidden rounded-[8px] border border-beige900/10 bg-white/95 shadow-[0_0_24px_rgba(0,0,0,0.1)]">
+      <div className="absolute inset-x-4 bottom-24 z-10 max-h-[50svh] overflow-hidden rounded-[8px] border border-beige900/10 bg-white/95 shadow-[0_0_24px_rgba(0,0,0,0.1)]">
         <div className="border-b border-beige900/10 px-4 py-3">
           <span className="text-sm font-medium text-beige900/70">
             Transcript
@@ -128,7 +128,7 @@ const TranscriptOverlay = memo(
         </div>
         <div
           ref={scrollContainerRef}
-          className="max-h-[calc(50vh-48px)] overflow-y-auto px-4 py-3"
+          className="max-h-[calc(50svh-48px)] overflow-y-auto px-4 py-3"
         >
           {displayEntries.length === 0 ? (
             <p className="text-center text-sm text-beige900/35">

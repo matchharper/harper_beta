@@ -9,7 +9,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
 import router from "next/router";
 import { supabase } from "@/lib/supabase";

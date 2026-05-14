@@ -107,8 +107,8 @@ const StartButton = React.memo(function StartButton({
 
       transition-all duration-200
       hover:shadow-[0_18px_60px_rgba(180,255,120,0.35)]
-      hover:-translate-y-[1px]
-      active:translate-y-[0px]
+      hover:-translate-y-px
+      active:translate-y-0
       active:shadow-[0_8px_20px_rgba(180,255,120,0.2)]
       ${sizeClass}`}
     >
@@ -790,7 +790,7 @@ const CandidatePage = () => {
           <div ref={lastTrackRef} data-section="last">
             <div className="relative bg-black w-screen py-10">
               <GradientBackground interactiveRef={interactiveRef} />
-              <div className="absolute top-0 left-0 w-full h-[50%] bg-gradient-to-t from-transparent to-black" />
+              <div className="absolute top-0 left-0 w-full h-[50%] bg-linear-to-t from-transparent to-black" />
               <div className="flex flex-col items-center justify-center w-full lg:w-[94%] py-40 text-white z-40">
                 <Head1 as="h2" className="text-xl md:text-[32px] z-40">
                   {m.companyLanding.closing.title}

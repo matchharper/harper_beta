@@ -191,7 +191,7 @@ const HistoryOpportunityInfoModal = ({
       description={copy.description}
       panelClassName="max-w-[680px] border border-beige900/10 bg-beige50"
       headerClassName="border-beige900/10 px-5 py-5 sm:px-6"
-      bodyClassName="max-h-[72vh] overflow-y-auto bg-beige50 px-5 py-5 pb-10 sm:px-6"
+      bodyClassName="max-h-[72svh] overflow-y-auto bg-beige50 px-5 py-5 pb-10 sm:px-6"
       closeButtonClassName="font-geist right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:border-beige900/25 hover:text-beige900"
     >
       {content()}

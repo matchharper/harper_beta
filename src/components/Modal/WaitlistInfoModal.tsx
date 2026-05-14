@@ -238,7 +238,7 @@ const Input = ({
             className="flex flex-row items-center gap-1 text-[12px] font-normal text-xgray600"
           >
             <div
-              className={`w-[14px] h-[14px] border border-xgray500 rounded-[3px] mt-[0px] flex items-center justify-center ${
+              className={`w-[14px] h-[14px] border border-xgray500 rounded-[3px] mt-0 flex items-center justify-center ${
                 isDisabled ? "bg-brightnavy" : "bg-white"
               }`}
             >

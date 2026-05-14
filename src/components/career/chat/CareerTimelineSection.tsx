@@ -220,7 +220,7 @@ const ThinkingLogPanel = memo(function ThinkingLogPanel({
             {logs.map((log, index) => (
               <li
                 key={`${index}-${log}`}
-                className="break-words text-[13px] leading-6 text-beige900/55"
+                className="wrap-break-word text-[13px] leading-6 text-beige900/55"
               >
                 {log}
               </li>
@@ -496,7 +496,7 @@ const OnboardingCompletionNotice = memo(function OnboardingCompletionNotice({
   return (
     <div className="w-full max-w-[760px] rounded-[8px] border border-beige900/10 bg-white/35 px-4 py-3 text-[12px] leading-5 text-beige900/50">
       <div className="mb-1 text-[11px] font-medium text-beige900/35">안내</div>
-      <div className="whitespace-pre-wrap break-words">{content}</div>
+      <div className="whitespace-pre-wrap wrap-break-word">{content}</div>
     </div>
   );
 });
@@ -515,7 +515,7 @@ const OnboardingCompletionWrapup = memo(function OnboardingCompletionWrapup({
     process.env.NEXT_PUBLIC_ENABLE_ONBOARDING_WRAPUP_REGENERATE === "1";
 
   return (
-    <div className="w-full max-w-[760px] overflow-hidden rounded-[8px] border border-beige700/25 bg-gradient-to-br from-white via-white to-beige100/75 shadow-[0_18px_60px_rgba(46,23,6,0.08)]">
+    <div className="w-full max-w-[760px] overflow-hidden rounded-[8px] border border-beige700/25 bg-linear-to-br from-white via-white to-beige100/75 shadow-[0_18px_60px_rgba(46,23,6,0.08)]">
       <div className="flex items-center justify-between gap-3 border-b border-beige900/10 px-4 py-3">
         <div className="flex min-w-0 items-center gap-3">
           <CheckCircle2 className="h-[18px] w-[18px] shrink-0 text-beige700" />

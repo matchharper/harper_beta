@@ -40,7 +40,7 @@ const TextInput = ({
           autoFocus={autoFocus}
         />
       )}
-      <div className="transition-colors duration-200 rounded-full w-full h-[1px] bg-white/0 group-focus-within:bg-brightnavy"></div>
+      <div className="transition-colors duration-200 rounded-full w-full h-px bg-white/0 group-focus-within:bg-brightnavy"></div>
     </div>
   );
 };

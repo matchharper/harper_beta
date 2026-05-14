@@ -1,7 +1,7 @@
 "use client";
 
 import type { MatchRoleRecord, MatchWorkspaceRecord } from "@/lib/match/shared";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";

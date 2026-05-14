@@ -13,7 +13,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { User2 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import DemoSection from "@/components/landing/career/DemoSection";
 
 const CAREER_START_HREF =
@@ -312,7 +312,7 @@ function WorkflowVisual({
         >
           <div
             aria-label="Gmail"
-            className="mt-0.5 h-8 w-8 shrink-0 rounded-lg bg-white bg-[length:24px_24px] bg-center bg-no-repeat shadow-[inset_0_0_0_1px_rgba(46,23,6,0.08)]"
+            className="mt-0.5 h-8 w-8 shrink-0 rounded-lg bg-white bg-size-[24px_24px] bg-center bg-no-repeat shadow-[inset_0_0_0_1px_rgba(46,23,6,0.08)]"
             style={{ backgroundImage: "url('/svgs/gmail.svg')" }}
           />
           <div className="min-w-0 flex-1">
@@ -455,7 +455,7 @@ function MatchFlowVisual({
         alt="회사에게 먼저 회원님을 제안하는 Harper 화면"
         width={571}
         height={375}
-        className="h-full w-full object-cover object-left-top"
+        className="h-full w-full object-cover object-top-left"
       />
     </div>
   );
@@ -719,7 +719,7 @@ export default function LandingKoVfPage() {
                 <Reveal key={card.title} once delay={index * 0.08}>
                   <div className="flex h-full flex-col rounded-[22px] border border-beige900/10 bg-beige100/60 p-6 md:p-7">
                     <WorkflowVisual type={card.visual} />
-                    <div className="font-instrument font-semibold leading-[1.25] mt-6 flex items-baseline gap-2">
+                    <div className="font-instrument font-semibold leading-tight mt-6 flex items-baseline gap-2">
                       <div className="text-beige700">{card.number}</div>
                       <h3 className="text-beige900">{card.title}</h3>
                     </div>

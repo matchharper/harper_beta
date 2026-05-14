@@ -72,10 +72,10 @@ export default function CandidateCarousel({
 
       <div className={`relative w-[480px] overflow-hidden ${className}`}>
         <div
-          className={`pointer-events-none absolute inset-y-0 left-0 z-10 w-[140px] bg-gradient-to-r ${styleType === "beige" ? "from-beige50" : "from-[#212121]"} to-transparent`}
+          className={`pointer-events-none absolute inset-y-0 left-0 z-10 w-[140px] bg-linear-to-r ${styleType === "beige" ? "from-beige50" : "from-[#212121]"} to-transparent`}
         />
         <div
-          className={`pointer-events-none absolute inset-y-0 right-0 z-10 w-[140px] bg-gradient-to-l ${styleType === "beige" ? "from-beige50" : "from-[#212121]"} to-transparent`}
+          className={`pointer-events-none absolute inset-y-0 right-0 z-10 w-[140px] bg-linear-to-l ${styleType === "beige" ? "from-beige50" : "from-[#212121]"} to-transparent`}
         />
 
         <div className="harper-track flex gap-3">
@@ -111,7 +111,7 @@ export default function CandidateCarousel({
                   />
                 </svg>
 
-                <div className="relative z-[1] flex h-full flex-col items-center gap-4">
+                <div className="relative z-1 flex h-full flex-col items-center gap-4">
                   <div
                     className={[
                       "harper-shimmer relative h-14 w-14 overflow-hidden rounded-full",
@@ -120,7 +120,7 @@ export default function CandidateCarousel({
                     style={{ backgroundColor: matched ? matchedFill : unmatchedFill }}
                   />
 
-                  <div className="relative z-[1] flex flex-col items-center gap-1.5">
+                  <div className="relative z-1 flex flex-col items-center gap-1.5">
                     <div
                       className="h-3 w-16 rounded-[5px]"
                       style={{ backgroundColor: matched ? matchedFill : unmatchedFill }}

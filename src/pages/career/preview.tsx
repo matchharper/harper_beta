@@ -1,19 +1,15 @@
 import type { User } from "@supabase/supabase-js";
 import { useCallback, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/router";
 import {
   CareerChatPanelProvider,
   type CareerChatPanelContextValue,
 } from "@/components/career/CareerChatPanelContext";
-import CareerMobileViewportGate from "@/components/career/CareerMobileViewportGate";
 import {
   CareerSidebarProvider,
   type CareerSidebarContextValue,
 } from "@/components/career/CareerSidebarContext";
 import CareerSettingsModal from "@/components/career/CareerSettingsModal";
-import CareerWorkspaceScreen, {
-  CareerLoadingState,
-} from "@/components/career/CareerWorkspaceScreen";
+import CareerWorkspaceScreen from "@/components/career/CareerWorkspaceScreen";
 import {
   CareerOpportunityType,
   type CareerHistoryOpportunity,
@@ -25,7 +21,6 @@ import {
 } from "@/components/career/types";
 import { getCareerDefaultSavedStage } from "@/components/career/opportunityTypeMeta";
 import { deriveHistoryOpportunityCounts } from "@/hooks/career/careerSessionData";
-import { resolveCareerMobileEntryReason } from "@/lib/career/mobileBlocker";
 import {
   DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS,
   DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
@@ -357,7 +352,6 @@ const initialHistoryOpportunities: CareerHistoryOpportunity[] = [
 ];
 
 const CareerPreviewPage = () => {
-  const router = useRouter();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<
     "home" | "chat" | "profile" | "history"
@@ -788,23 +782,18 @@ const CareerPreviewPage = () => {
   );
 
   return (
-    <CareerMobileViewportGate
-      desktopFallback={<CareerLoadingState />}
-      entryReason={resolveCareerMobileEntryReason(router.query)}
-    >
-      <CareerChatPanelProvider value={chatContextValue}>
-        <CareerSidebarProvider value={sidebarContextValue}>
-          <CareerWorkspaceScreen
-            activeTab={workspaceActiveTab}
-            onChangeTab={setActiveTab}
-          />
-          <CareerSettingsModal
-            open={isSettingsOpen}
-            onClose={() => setIsSettingsOpen(false)}
-          />
-        </CareerSidebarProvider>
-      </CareerChatPanelProvider>
-    </CareerMobileViewportGate>
+    <CareerChatPanelProvider value={chatContextValue}>
+      <CareerSidebarProvider value={sidebarContextValue}>
+        <CareerWorkspaceScreen
+          activeTab={workspaceActiveTab}
+          onChangeTab={setActiveTab}
+        />
+        <CareerSettingsModal
+          open={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+        />
+      </CareerSidebarProvider>
+    </CareerChatPanelProvider>
   );
 };
 

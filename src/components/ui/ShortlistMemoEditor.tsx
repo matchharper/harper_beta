@@ -129,12 +129,12 @@ export default function ShortlistMemoEditor({
       )}
     >
       {/* {!isEditing && hasMemo && (
-        <div className="absolute top-0 left-[-1px] h-full bg-accenta1 w-0.5 rounded-[1px]"></div>
+        <div className="absolute top-0 -left-px h-full bg-accenta1 w-0.5 rounded-[1px]"></div>
       )} */}
       {!isEditing ? (
         <>
           {hasMemo ? (
-            <div className="group flex items-center justify-between gap-2 whitespace-pre-wrap break-words">
+            <div className="group flex items-center justify-between gap-2 whitespace-pre-wrap wrap-break-word">
               <span>{memo}</span>
               <PencilLine
                 className="w-3 h-3 mr-1 text-beige900/45 shrink-0 group-hover:text-beige900"
@@ -142,7 +142,7 @@ export default function ShortlistMemoEditor({
               />
             </div>
           ) : (
-            <div className="group flex items-center justify-start gap-2.5 whitespace-pre-wrap break-words text-beige900">
+            <div className="group flex items-center justify-start gap-2.5 whitespace-pre-wrap wrap-break-word text-beige900">
               <PencilLine
                 className="w-2.5 h-2.5 shrink-0 text-beige900 group-hover:text-beige900"
                 strokeWidth={1.6}
@@ -184,7 +184,7 @@ export default function ShortlistMemoEditor({
             }}
             disabled={isPending}
             className={cn(
-              "absolute bottom-[-1px] right-0.5 text-xs transition-all duration-200 disabled:opacity-60",
+              "absolute -bottom-px right-0.5 text-xs transition-all duration-200 disabled:opacity-60",
               isChanged ? "text-accentBronze" : "text-beige900/45"
             )}
           >

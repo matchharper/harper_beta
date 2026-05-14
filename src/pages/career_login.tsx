@@ -3,14 +3,8 @@ import Head from "next/head";
 import Image from "next/image";
 import { useRouter } from "next/router";
 import { Loader2, Mail } from "lucide-react";
-import CareerMobileViewportGate from "@/components/career/CareerMobileViewportGate";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { BeigeButton, BeigeInput } from "@/components/ui/beige";
-import {
-  appendCareerMobileEntryReason,
-  resolveCareerMobileEntryReason,
-} from "@/lib/career/mobileBlocker";
-import { useAuthStore } from "@/store/useAuthStore";
 
 const schoolLogos = [
   { src: "/images/logos/sn.png", name: "서울대학교" },
@@ -32,7 +26,7 @@ const resolveSafeNextPath = (value: string | string[] | undefined) => {
 };
 
 const CareerLoginLoadingState = () => (
-  <main className="relative flex min-h-screen w-full items-center justify-center bg-beige100 font-geist text-beige900">
+  <main className="relative flex min-h-svh w-full items-center justify-center bg-beige100 font-geist text-beige900">
     <Loader2 className="h-5 w-5 animate-spin text-beige900/40" />
     <span className="sr-only">커리어 로그인 페이지 로딩 중</span>
   </main>
@@ -97,11 +91,7 @@ const CareerLoginContent = () => {
       password,
     });
     if (ok) {
-      const targetPath =
-        emailMode === "signup"
-          ? appendCareerMobileEntryReason(nextPath, "post_signup")
-          : nextPath;
-      void router.replace(targetPath);
+      void router.replace(nextPath);
     }
   };
 
@@ -114,7 +104,7 @@ const CareerLoginContent = () => {
       <Head>
         <link rel="icon" href="/images/logo.ico" />
       </Head>
-      <main className="flex min-h-screen w-full flex-col bg-beige100 px-4 py-5 font-geist text-beige900">
+      <main className="flex min-h-svh w-full flex-col bg-beige100 px-4 py-5 font-geist text-beige900">
         <div className="mx-auto flex w-full max-w-[1040px] items-center justify-between">
           <button
             type="button"
@@ -125,7 +115,7 @@ const CareerLoginContent = () => {
           </button>
         </div>
 
-        <section className="mx-auto flex w-full max-w-[420px] flex-1 flex-col justify-center py-12">
+        <section className="mx-auto flex w-full max-w-[420px] flex-1 flex-col justify-center py-8 md:py-12">
           <h1 className="text-center text-3xl font-medium tracking-[-0.04em]">
             Login
           </h1>
@@ -279,7 +269,7 @@ const CareerLoginContent = () => {
           <div className="mt-4 flex flex-wrap items-center justify-center text-sm font-medium text-beige900/65">
             <span>Companies from</span>
           </div>
-          <div className="mt-2 flex flex-wrap items-center justify-center gap-x-8 gap-y-4 opacity-80">
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-x-6 gap-y-4 opacity-80 md:gap-x-8">
             {companyLogos.map((logo) => (
               <img
                 key={logo.name}
@@ -297,19 +287,7 @@ const CareerLoginContent = () => {
 };
 
 const CareerLogin = () => {
-  const router = useRouter();
-  const user = useAuthStore((state) => state.user);
-  const entryReason = resolveCareerMobileEntryReason(router.query);
-
-  return (
-    <CareerMobileViewportGate
-      desktopFallback={<CareerLoginLoadingState />}
-      entryReason={entryReason}
-      user={user}
-    >
-      <CareerLoginContent />
-    </CareerMobileViewportGate>
-  );
+  return <CareerLoginContent />;
 };
 
 export default CareerLogin;

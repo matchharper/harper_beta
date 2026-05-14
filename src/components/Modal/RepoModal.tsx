@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { Book, GitFork, Star, Users, XIcon } from "lucide-react";
 import Link from "next/link";
 import { initials } from "@/components/NameProfile";
@@ -119,7 +119,7 @@ function CollapsibleMarkdownSection({
 
   return (
     <div className={className}>
-      <div className="[&_.prose]:max-w-none [&_.prose]:text-beige900/80 [&_.prose_a]:text-blue-600 [&_.prose_code]:text-beige900 [&_.prose_headings]:text-beige900 [&_.prose_p]:!my-2">
+      <div className="[&_.prose]:max-w-none [&_.prose]:text-beige900/80 [&_.prose_a]:text-blue-600 [&_.prose_code]:text-beige900 [&_.prose_headings]:text-beige900 [&_.prose_p]:my-2!">
         <MarkdownView markdown={displayMarkdown} />
       </div>
       {isLong && (
@@ -234,7 +234,7 @@ export default function RepoModalRoot() {
     <AnimatePresence>
       {isOpen ? (
         <motion.div
-          className="fixed inset-0 z-[10000] font-sans"
+          className="fixed inset-0 z-10000 font-sans"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}

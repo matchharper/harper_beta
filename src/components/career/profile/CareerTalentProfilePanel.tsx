@@ -406,9 +406,9 @@ const TimelineBlock = ({
       )}
     >
       {!isLast && (
-        <div className="absolute bottom-[-8px] left-[19px] top-[46px] w-px bg-gradient-to-b from-beige900/15 via-beige900/10 to-transparent" />
+        <div className="absolute bottom-[-8px] left-[19px] top-[46px] w-px bg-linear-to-b from-beige900/15 via-beige900/10 to-transparent" />
       )}
-      <div className="relative z-[1] flex h-10 w-10 items-center justify-center overflow-hidden rounded-[10px] border-2 border-white bg-beige500 text-[17px] font-semibold leading-none text-beige900/65 shadow-[0_1px_2px_rgba(46,23,6,0.05)]">
+      <div className="relative z-1 flex h-10 w-10 items-center justify-center overflow-hidden rounded-[10px] border-2 border-white bg-beige500 text-[17px] font-semibold leading-none text-beige900/65 shadow-[0_1px_2px_rgba(46,23,6,0.05)]">
         <span className="absolute inset-0 flex items-center justify-center">
           {fallbackLogoText || icon}
         </span>
@@ -520,7 +520,7 @@ const profileEditPlainTextareaClassName =
   "min-h-[74px] rounded-[6px] border border-white/50 bg-white/80 px-1.5 py-1.5 shadow-none hover:bg-white/45 focus:border-beige900/15 focus:bg-white/75 focus:ring-1 focus:ring-beige900/20";
 
 const profileNoticeClassName =
-  "flex items-center gap-2.5 rounded-[14px] border border-beige900/10 bg-gradient-to-br from-beige100 to-white/80 px-3.5 py-2.5 text-[12.5px] leading-5 text-beige900/65";
+  "flex items-center gap-2.5 rounded-[14px] border border-beige900/10 bg-linear-to-br from-beige100 to-white/80 px-3.5 py-2.5 text-[12.5px] leading-5 text-beige900/65";
 
 const profileCvLinkClassName =
   "inline-flex h-9 items-center justify-center gap-1.5 rounded-[8px] border border-beige900/15 bg-white/70 px-3.5 text-[12.5px] font-medium text-beige900 transition-colors hover:border-beige900/30 hover:bg-beige100";
@@ -605,7 +605,7 @@ const ProfileAvatar = ({
               />
             ) : null}
             {!imageActionDisabled ? (
-              <span className="pointer-events-none absolute right-[-3px] top-[-3px] z-[2] flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-[#22c55e] text-white opacity-0 shadow-[0_2px_7px_rgba(21,128,61,0.28)] transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+              <span className="pointer-events-none absolute right-[-3px] top-[-3px] z-2 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-[#22c55e] text-white opacity-0 shadow-[0_2px_7px_rgba(21,128,61,0.28)] transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
                 {uploadPending ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
                 ) : (
@@ -909,11 +909,11 @@ const TimelineEditBlock = ({
       )}
     >
       {!isLast && (
-        <div className="absolute bottom-[-8px] left-[19px] top-[46px] w-px bg-gradient-to-b from-beige900/15 via-beige900/10 to-transparent" />
+        <div className="absolute bottom-[-8px] left-[19px] top-[46px] w-px bg-linear-to-b from-beige900/15 via-beige900/10 to-transparent" />
       )}
       <label
         className={careerCx(
-          "relative z-[1] flex h-10 w-10 items-center justify-center overflow-hidden rounded-[10px] border-2 border-white bg-beige500 text-[17px] font-semibold leading-none text-beige900/65 shadow-[0_1px_2px_rgba(46,23,6,0.05)]",
+          "relative z-1 flex h-10 w-10 items-center justify-center overflow-hidden rounded-[10px] border-2 border-white bg-beige500 text-[17px] font-semibold leading-none text-beige900/65 shadow-[0_1px_2px_rgba(46,23,6,0.05)]",
           onLogoFileChange &&
             "cursor-pointer transition-transform hover:scale-[1.03]",
           logoUploadPending && "pointer-events-none opacity-75"
@@ -947,7 +947,7 @@ const TimelineEditBlock = ({
           />
         ) : null}
         {onLogoFileChange ? (
-          <span className="absolute bottom-[-3px] right-[-3px] z-[2] flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-[#22c55e] text-white shadow-[0_2px_7px_rgba(21,128,61,0.28)]">
+          <span className="absolute bottom-[-3px] right-[-3px] z-2 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-[#22c55e] text-white shadow-[0_2px_7px_rgba(21,128,61,0.28)]">
             {logoUploadPending ? (
               <Loader2 className="h-3 w-3 animate-spin" />
             ) : (

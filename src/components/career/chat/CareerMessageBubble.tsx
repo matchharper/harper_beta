@@ -175,7 +175,7 @@ const CareerMessageBubble = ({
         )}
         <div className="min-w-0 flex-1">
           {isUser ? (
-            <div className="whitespace-pre-wrap break-words">
+            <div className="whitespace-pre-wrap wrap-break-word">
               {renderHighlightedContent(displayContent)}
               {typingCursor}
             </div>

@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { useQueryClient } from "@tanstack/react-query";
 import Head from "next/head";
 import Image from "next/image";
@@ -26,12 +26,10 @@ import {
   type ReactNode,
 } from "react";
 import { showToast } from "@/components/toast/toast";
-import CareerMobileViewportGate from "@/components/career/CareerMobileViewportGate";
 import { BeigeButton, BeigeInput } from "@/components/ui/beige";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { useOnboarding } from "@/hooks/useOnboarding";
-import { resolveCareerMobileEntryReason } from "@/lib/career/mobileBlocker";
 import {
   TALENT_NETWORK_ENGAGEMENT_OPTIONS,
   TALENT_NETWORK_PROFILE_INPUT_OPTIONS,
@@ -39,7 +37,6 @@ import {
   type TalentNetworkProfileInputType,
 } from "@/lib/talentNetworkOptions";
 import { cn } from "@/lib/cn";
-import { useAuthStore } from "@/store/useAuthStore";
 import LoadingState from "../../components/career/OnboardingLoadingState";
 
 const ONBOARDING_BACKGROUND_CLASS =
@@ -652,7 +649,7 @@ const DoneState = ({
   const streamedParagraphs = streamedText.split(/\n{2,}/);
 
   return (
-    <div className="mx-auto flex min-h-[calc(100dvh-8px)] w-full max-w-[760px] flex-col px-5 py-10 md:justify-center md:py-14">
+    <div className="mx-auto flex min-h-[calc(100svh-8px)] w-full max-w-[760px] flex-col px-5 py-10 md:justify-center md:py-14">
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
@@ -697,7 +694,7 @@ const DoneState = ({
                 <p key={`${index}-${paragraph.slice(0, 10)}`}>
                   {paragraph}
                   {isLast && !isStreamComplete && (
-                    <span className="ml-1 inline-block h-4 w-[1px] translate-y-0.5 animate-pulse bg-beige900/55" />
+                    <span className="ml-1 inline-block h-4 w-px translate-y-0.5 animate-pulse bg-beige900/55" />
                   )}
                 </p>
               );
@@ -1247,7 +1244,7 @@ const CareerNetworkOnboardingContent = () => {
     return (
       <main
         className={cn(
-          "flex min-h-screen items-center justify-center font-geist text-beige900",
+          "flex min-h-svh items-center justify-center font-geist text-beige900",
           ONBOARDING_BACKGROUND_CLASS
         )}
       >
@@ -1263,7 +1260,7 @@ const CareerNetworkOnboardingContent = () => {
       </Head>
       <main
         className={cn(
-          "min-h-[100dvh] pt-2 font-geist text-beige900",
+          "min-h-svh pt-2 font-geist text-beige900",
           ONBOARDING_BACKGROUND_CLASS
         )}
       >
@@ -1288,7 +1285,7 @@ const CareerNetworkOnboardingContent = () => {
         )}
 
         {submitState === "form" && (
-          <div className="mx-auto flex min-h-[calc(100dvh-8px)] w-full max-w-[960px] flex-col items-center px-4 py-8 md:justify-center md:px-6 md:py-12">
+          <div className="mx-auto flex min-h-[calc(100svh-8px)] w-full max-w-[960px] flex-col items-center px-4 py-8 md:justify-center md:px-6 md:py-12">
             <section className="flex w-full flex-col items-center text-center">
               <div className="mb-6 text-center text-[11px] font-medium text-xprimary/60">
                 {stepLabel}
@@ -1495,19 +1492,7 @@ const CareerNetworkOnboardingContent = () => {
 };
 
 const CareerNetworkOnboardingPage = () => {
-  const router = useRouter();
-  const user = useAuthStore((state) => state.user);
-  const entryReason = resolveCareerMobileEntryReason(router.query);
-
-  return (
-    <CareerMobileViewportGate
-      desktopFallback={<LoadingState />}
-      entryReason={entryReason}
-      user={user}
-    >
-      <CareerNetworkOnboardingContent />
-    </CareerMobileViewportGate>
-  );
+  return <CareerNetworkOnboardingContent />;
 };
 
 export default CareerNetworkOnboardingPage;

@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { motion, type Variants } from "framer-motion";
+import { motion, type Variants } from "motion/react";
 import RotatingOrbTiles from "@/components/landing/Orbit";
 
 const fadeSlide: Variants = {
@@ -78,7 +78,7 @@ const RowImageSection = ({
       >
         {/* <div className="font-hedvig md:text-base text-sm text-accenta1">{label}</div> */}
         <h3
-          className="text-[26px] md:text-[32px] font-normal leading-[2.2rem] md:leading-[2.5rem]"
+          className="text-[26px] md:text-[32px] font-normal leading-[2.2rem] md:leading-10"
           dangerouslySetInnerHTML={{ __html: title }}
         />
         <div

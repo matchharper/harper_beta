@@ -48,7 +48,7 @@ export default function ChatAttachmentDraftList({
         return (
           <div
             key={attachment.id}
-            className="relative flex w-fit max-w-full items-start justify-between gap-3 overflow-hidden rounded-[14px] bg-white/[0.05] px-3 pr-5 py-2.5 text-left"
+            className="relative flex w-fit max-w-full items-start justify-between gap-3 overflow-hidden rounded-[14px] bg-white/5 px-3 pr-5 py-2.5 text-left"
           >
             <div className="min-w-0 max-w-full">
               <div className="flex min-w-0 flex-row items-center gap-2 text-[13px] text-hgray900">
