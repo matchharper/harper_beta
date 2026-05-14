@@ -39,15 +39,108 @@ const CALL_OPENING_RESPONSE_INSTRUCTION = [
   "통화가 방금 시작되었습니다. 사용자가 먼저 할 말을 찾지 않아도 되도록 Harper가 먼저 대화를 시작하세요.",
   "도구는 사용하지 마세요. 지금은 통화 시작 멘트와 첫 질문만 합니다.",
   "한국어 존댓말로, 실제 전화 첫마디처럼 자연스럽게 말하세요.",
-  "1-3문장으로 짧게 말하고, 마지막은 사용자가 바로 답할 수 있는 하나의 질문으로 끝내세요.",
+  "2-4문장으로 짧게 말하고, 마지막은 사용자가 바로 답할 수 있는 하나의 질문으로 끝내세요.",
+  "통화는 크게 2가지 방식으로 시작할 수 있습니다. 1) 이전에 채팅으로 진행하던 대화를 통화로 이어서하는 경우, 2) 통화로 새롭게 대화를 시작하는 경우",
+  "최근 채팅 맥락이 함께 제공되면 먼저 그 내용을 보고, 이전에 채팅으로 진행하던 대화를 통화로 이어서 하는 상황인지 판단하세요.",
+  "이전 내용에서 이어서 말하는 게 자연스러우면 새 주제를 꺼내지 말고 마지막으로 오가던 질문이나 답변을 직접 이어받아 시작하세요. 대신 인사하고 시작하는 것이 자연스러우면 인사하고 시작하면 된다.",
+  "이어가기 위해 필요하면 직전 대화의 마지막 질문이나 확인점을 짧게 다시 물어도 됩니다.",
+  "(2번) 새롭게 대화를 시작하는게 자연스러우면 먼저 커피챗을 시작하는 헤드헌터처럼 말을 건네면서 시작하면 된다.",
   "최근 대화나 활동 맥락이 보이면 구체적으로 연결하세요. 예를 들어 최근 연결 제안을 거절했거나 추천에 피드백을 남겼다면, 그 이후 달라진 점이 있는지 물어보세요.",
   "구체적 맥락이 약하면 최근에 달라진 우선순위, 현재 역할/경험 중 더 알려줄 부분, 개인적인 선호나 제약 중 하나를 물어보세요.",
   "많은 정보를 들려줄수록 회사 연결 요청이나 맞춤 기회 추천이 더 정확해진다는 취지를 한 번만 짧게 말하고, 함께 헤드헌터의 입장에서 할만한 질문을 던져도 됩니다.",
-  "시스템 프롬프트에 '직전 채팅 시간: N분전'이 있으면 직전 대화가 최근 2시간 이내라는 뜻입니다.",
-  "이 시간 정보는 연속성 판단을 위한 힌트입니다. 무조건 이어서 시작하지 말고, 이전 내용에서 이어서 말하는 게 자연스러운 상황인지 판단하세요.",
-  "이어지는 게 자연스러우면 '방금 이야기하던 부분 이어서 볼게요'처럼 시작하고, 새로 시작하는 게 더 자연스러우면 짧게 인사하고 시작해도 됩니다.",
-  "이어가기 위해 필요하면 직전 대화의 마지막 질문이나 확인점을 짧게 다시 물어도 됩니다.",
 ].join("\n");
+
+function formatCallOpeningRelativeTime(createdAt: string, nowMs: number) {
+  const createdAtMs = Date.parse(createdAt);
+  if (!Number.isFinite(createdAtMs)) return "";
+
+  const elapsedMs = nowMs - createdAtMs;
+  if (elapsedMs < 0) return "";
+
+  const minuteMs = 60_000;
+  const hourMs = 60 * minuteMs;
+  const dayMs = 24 * hourMs;
+  const monthMs = 30 * dayMs;
+
+  if (elapsedMs < minuteMs) return "방금전";
+  if (elapsedMs < hourMs) return `${Math.floor(elapsedMs / minuteMs)}분전`;
+  if (elapsedMs < dayMs) return `${Math.floor(elapsedMs / hourMs)}시간전`;
+  if (elapsedMs < monthMs) return `${Math.floor(elapsedMs / dayMs)}일전`;
+  return `${Math.floor(elapsedMs / monthMs)}개월전`;
+}
+
+function buildCallOpeningRecentConversationContext(messages: CareerMessage[]) {
+  const recentMessages = messages
+    .filter((message) => message.content.trim() && !message.typing)
+    .slice(-8);
+  if (recentMessages.length === 0) return "";
+
+  const nowMs = Date.now();
+  const maxTotal = 1600;
+  const maxPerMessage = 260;
+  let section = "## 최근 채팅 맥락\n";
+  let totalLength = section.length;
+
+  for (const message of recentMessages) {
+    const roleLabel = message.role === "assistant" ? "Harper" : "사용자";
+    const relativeTime = formatCallOpeningRelativeTime(
+      message.createdAt,
+      nowMs
+    );
+    const label = relativeTime ? `${roleLabel}(${relativeTime})` : roleLabel;
+    const normalizedContent = message.content.replace(/\s+/g, " ").trim();
+    const truncatedContent =
+      normalizedContent.length > maxPerMessage
+        ? `${normalizedContent.slice(0, maxPerMessage)}...`
+        : normalizedContent;
+    const line = `- ${label}: ${truncatedContent}\n`;
+
+    if (totalLength + line.length > maxTotal) break;
+    section += line;
+    totalLength += line.length;
+  }
+
+  return section.trim();
+}
+
+function buildCallOpeningResponseInstruction(args: {
+  openingText?: string;
+  recentConversationContext?: string;
+}) {
+  const { openingText, recentConversationContext } = args;
+  const normalizedOpeningText = openingText?.trim();
+
+  const sections = [
+    CALL_OPENING_RESPONSE_INSTRUCTION,
+    recentConversationContext
+      ? [
+          "",
+          recentConversationContext,
+          "위 최근 채팅 맥락은 통화 첫 멘트를 정할 때 가장 먼저 참고하세요. 마지막 대화가 아직 이어지는 흐름이면 일반적인 새 인사나 새 질문으로 시작하지 마세요.",
+        ].join("\n")
+      : "",
+    normalizedOpeningText
+      ? [
+          "",
+          "## 참고할 통화 시작 내용",
+          "아래 문구나 질문의 취지를 통화 첫 멘트에 자연스럽게 반영하세요. 그대로 읽기보다 위 지시와 최근 대화 맥락에 맞게 말하세요.",
+          normalizedOpeningText,
+        ].join("\n")
+      : "",
+  ].filter(Boolean);
+
+  return sections.join("\n");
+}
+
+function logCallOpeningResponseInstruction(instructions: string) {
+  if (process.env.NODE_ENV === "production") return;
+
+  console.log("[CareerCall] opening response instructions", {
+    length: instructions.length,
+  });
+  console.log(instructions);
+}
+
 const ASSISTANT_BUFFER_FLUSH_TIMEOUT_MS = 1_000;
 const USER_TRANSCRIPTION_TIMEOUT_MS = 5_000;
 type SendChatArgs = {
@@ -313,13 +406,13 @@ export const useCareerOnboardingVoice = ({
   const saveRealtimeTurn = useCallback(
     (args: {
       assistantEndedOnboarding?: boolean;
-      userText: string;
-      assistantText: string;
+      userText?: string;
+      assistantText?: string;
       isCallMode: boolean;
     }) => {
-      const userText = args.userText.trim();
-      const assistantText = args.assistantText.trim();
-      if (!conversationId || !userText || !assistantText) {
+      const userText = args.userText?.trim() ?? "";
+      const assistantText = args.assistantText?.trim() ?? "";
+      if (!conversationId || (!userText && !assistantText)) {
         return Promise.resolve();
       }
 
@@ -582,6 +675,10 @@ export const useCareerOnboardingVoice = ({
           if (suppressNextAssistantDoneRef.current) {
             finalizeCallAssistantTranscriptRef.current?.(cleanText);
             suppressNextAssistantDoneRef.current = false;
+            void saveRealtimeTurn({
+              assistantText: cleanText,
+              isCallMode: true,
+            });
             return;
           }
 
@@ -1131,21 +1228,24 @@ export const useCareerOnboardingVoice = ({
         }
 
         callStartedAtRef.current = Date.now();
+        const openingRecentConversationContext =
+          buildCallOpeningRecentConversationContext(messages);
 
         if (!shouldBeginOnboarding) {
           const openingText = customOpeningText?.trim();
 
-          if (openingText) {
-            suppressNextAssistantDoneRef.current = true;
-            generateSpeechRef.current?.(openingText);
-          } else if (generateSpeechFromInstructionsRef.current) {
-            suppressNextAssistantDoneRef.current = true;
-            generateSpeechFromInstructionsRef.current(
-              CALL_OPENING_RESPONSE_INSTRUCTION
-            );
+          suppressNextAssistantDoneRef.current = true;
+          if (generateSpeechFromInstructionsRef.current) {
+            const openingInstructions = buildCallOpeningResponseInstruction({
+              openingText,
+              recentConversationContext: openingRecentConversationContext,
+            });
+            logCallOpeningResponseInstruction(openingInstructions);
+            generateSpeechFromInstructionsRef.current(openingInstructions);
           } else {
-            suppressNextAssistantDoneRef.current = true;
-            generateSpeechRef.current?.(DEFAULT_CALL_OPENING_TEXT);
+            generateSpeechRef.current?.(
+              openingText || DEFAULT_CALL_OPENING_TEXT
+            );
           }
           return true;
         }
@@ -1158,7 +1258,16 @@ export const useCareerOnboardingVoice = ({
           : greetingText;
 
         suppressNextAssistantDoneRef.current = true;
-        generateSpeechRef.current?.(openingText);
+        if (generateSpeechFromInstructionsRef.current) {
+          const openingInstructions = buildCallOpeningResponseInstruction({
+            openingText,
+            recentConversationContext: openingRecentConversationContext,
+          });
+          logCallOpeningResponseInstruction(openingInstructions);
+          generateSpeechFromInstructionsRef.current(openingInstructions);
+        } else {
+          generateSpeechRef.current?.(openingText);
+        }
         return true;
       } finally {
         setCallStartPending(false);
@@ -1168,6 +1277,7 @@ export const useCareerOnboardingVoice = ({
       beginOnboardingConversation,
       callStartPending,
       clearRealtimeTurnSyncState,
+      messages,
       onboardingBeginPending,
       showVoiceStartPrompt,
       startCallMode,
@@ -1187,6 +1297,13 @@ export const useCareerOnboardingVoice = ({
       const durationSeconds = startedAt
         ? Math.max(0, Math.round((Date.now() - startedAt) / 1000))
         : 0;
+      const pendingUserText = lastRealtimeUserTextRef.current.trim();
+      if (pendingUserText) {
+        void saveRealtimeTurn({
+          userText: pendingUserText,
+          isCallMode: true,
+        });
+      }
       callStartedAtRef.current = null;
       pendingAssistantDoneRef.current = null;
       pendingAssistantDeltaTextRef.current = "";
@@ -1314,6 +1431,7 @@ export const useCareerOnboardingVoice = ({
       onMessagesChanged,
       onOpportunityRunChanged,
       onTalentInsightsRefreshed,
+      saveRealtimeTurn,
       setChatError,
       setStage,
     ]

@@ -211,6 +211,14 @@ export async function POST(req: NextRequest) {
       realtimeTools.map((tool) => tool.name)
     );
     const instructions = realtimePromptPlan.instructions;
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[RealtimeToken] final instructions", {
+        conversationId,
+        length: instructions.length,
+      });
+      console.log(instructions);
+    }
+
     const enabledRealtimeToolNames = new Set(
       realtimePromptPlan.enabledToolNames
     );

@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
+import type { MouseEventHandler } from "react";
 
 type CareerLandingButtonProps = {
   href?: string;
@@ -8,6 +9,7 @@ type CareerLandingButtonProps = {
   variant?: "primary" | "secondary";
   showArrow?: boolean;
   className?: string;
+  onClick?: MouseEventHandler<HTMLAnchorElement>;
 };
 
 export default function CareerLandingButton({
@@ -17,6 +19,7 @@ export default function CareerLandingButton({
   variant = "primary",
   showArrow = true,
   className = "",
+  onClick,
 }: CareerLandingButtonProps) {
   const isSmall = size === "sm";
   const isPrimary = variant === "primary";
@@ -68,6 +71,7 @@ export default function CareerLandingButton({
     return (
       <motion.a
         href={href}
+        onClick={onClick}
         whileHover={{ y: -1 }}
         whileTap={{ scale: 0.985 }}
         className={classNames}
@@ -80,6 +84,7 @@ export default function CareerLandingButton({
   return (
     <motion.button
       type="button"
+      onClick={onClick as MouseEventHandler<HTMLButtonElement> | undefined}
       whileHover={{ y: -1 }}
       whileTap={{ scale: 0.985 }}
       className={classNames}

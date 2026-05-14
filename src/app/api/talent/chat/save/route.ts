@@ -29,8 +29,8 @@ import {
 type Body = {
   assistantEndedOnboarding?: boolean;
   conversationId: string;
-  userMessage: string;
-  assistantMessage: string;
+  userMessage?: string;
+  assistantMessage?: string;
   isCallMode?: boolean;
 };
 
@@ -53,22 +53,23 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json()) as Body;
     const conversationId = body.conversationId?.trim();
-    const userMessageText = body.userMessage?.trim();
-    const assistantMessageTextWithMarkers = body.assistantMessage?.trim();
+    const userMessageText = body.userMessage?.trim() ?? "";
+    const assistantMessageTextWithMarkers = body.assistantMessage?.trim() ?? "";
     const assistantMessageText = stripTalentOnboardingCompletionMarker(
       assistantMessageTextWithMarkers
-    );
+    ).trim();
     const isCallMode = Boolean(body.isCallMode);
     const assistantEndedOnboarding =
-      Boolean(body.assistantEndedOnboarding) ||
-      hasTalentOnboardingCompletionMarker(assistantMessageTextWithMarkers);
+      Boolean(assistantMessageText) &&
+      (Boolean(body.assistantEndedOnboarding) ||
+        hasTalentOnboardingCompletionMarker(assistantMessageTextWithMarkers));
     const messageType = isCallMode ? "call_transcript" : "chat";
 
-    if (!conversationId || !userMessageText || !assistantMessageText) {
+    if (!conversationId || (!userMessageText && !assistantMessageText)) {
       return NextResponse.json(
         {
           error:
-            "conversationId, userMessage, and assistantMessage are required",
+            "conversationId and at least one message are required",
         },
         { status: 400 }
       );
@@ -105,9 +106,10 @@ export async function POST(req: NextRequest) {
       string,
       string
     > | null;
-    const shouldAutoExtractInsights = !Boolean(
-      talentSetting?.is_onboarding_done
-    );
+    const shouldAutoExtractInsights =
+      !Boolean(talentSetting?.is_onboarding_done) &&
+      Boolean(userMessageText) &&
+      Boolean(assistantMessageText);
     const extractTurnInsights = () =>
       shouldAutoExtractInsights
         ? extractAndPersistChatInsights({
@@ -141,29 +143,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Insert user message
-    const { data: insertedUserMessage, error: userMsgError } = await admin
-      .from("talent_messages")
-      .insert({
-        conversation_id: conversationId,
-        user_id: user.id,
-        role: "user",
-        content: userMessageText,
-        message_type: messageType,
-      })
-      .select("*")
-      .single();
+    let insertedUserMessage: TalentMessageRow | null = null;
+    if (userMessageText) {
+      const { data, error } = await admin
+        .from("talent_messages")
+        .insert({
+          conversation_id: conversationId,
+          user_id: user.id,
+          role: "user",
+          content: userMessageText,
+          message_type: messageType,
+        })
+        .select("*")
+        .single();
 
-    if (userMsgError) {
-      return NextResponse.json(
-        { error: userMsgError.message ?? "Failed to insert user message" },
-        { status: 500 }
-      );
+      if (error) {
+        return NextResponse.json(
+          { error: error.message ?? "Failed to insert user message" },
+          { status: 500 }
+        );
+      }
+      insertedUserMessage = data as TalentMessageRow;
     }
 
-    // Insert assistant message
-    const { data: insertedAssistantMessage, error: assistantMsgError } =
-      await admin
+    let insertedAssistantMessage: TalentMessageRow | null = null;
+    if (assistantMessageText) {
+      const { data, error } = await admin
         .from("talent_messages")
         .insert({
           conversation_id: conversationId,
@@ -175,14 +180,15 @@ export async function POST(req: NextRequest) {
         .select("*")
         .single();
 
-    if (assistantMsgError) {
-      return NextResponse.json(
-        {
-          error:
-            assistantMsgError.message ?? "Failed to insert assistant message",
-        },
-        { status: 500 }
-      );
+      if (error) {
+        return NextResponse.json(
+          {
+            error: error.message ?? "Failed to insert assistant message",
+          },
+          { status: 500 }
+        );
+      }
+      insertedAssistantMessage = data as TalentMessageRow;
     }
 
     let opportunityRun: Awaited<
@@ -199,7 +205,7 @@ export async function POST(req: NextRequest) {
     );
     const assistantThinkingLogs =
       insightChangedKeysCount > 0 ? [INSIGHT_EXTRACTION_THINKING_LOG] : [];
-    if (assistantThinkingLogs.length > 0) {
+    if (assistantThinkingLogs.length > 0 && insertedAssistantMessage) {
       const { error: thinkingLogsError } = await admin
         .from("talent_messages")
         .update({ thinking_logs: assistantThinkingLogs })
@@ -234,7 +240,7 @@ export async function POST(req: NextRequest) {
       assistantContent: assistantMessageTextWithMarkers ?? "",
       assistantEndedOnboarding,
     });
-    const isCompleted = completion.completed;
+    const isCompleted = Boolean(insertedAssistantMessage) && completion.completed;
 
     const now = new Date().toISOString();
     await admin
@@ -258,18 +264,21 @@ export async function POST(req: NextRequest) {
         startOpportunityDiscoveryInBackground(opportunityRun.id);
       }
     }
-    const insertedCompletionWrapupMessage = isCompleted
-      ? await createOnboardingCompletionWrapupMessage({
-          admin,
-          conversationId,
-          latestUserMessageId: insertedUserMessage.id,
-          userId: user.id,
-        })
+    const insertedCompletionWrapupMessage =
+      isCompleted && insertedUserMessage
+        ? await createOnboardingCompletionWrapupMessage({
+            admin,
+            conversationId,
+            latestUserMessageId: insertedUserMessage.id,
+            userId: user.id,
+          })
+        : null;
+    const assistantResponseMessage = insertedAssistantMessage
+      ? {
+          ...toResponseMessage(insertedAssistantMessage),
+          thinkingLogs: assistantThinkingLogs,
+        }
       : null;
-    const assistantResponseMessage = {
-      ...toResponseMessage(insertedAssistantMessage as TalentMessageRow),
-      thinkingLogs: assistantThinkingLogs,
-    };
     const assistantResponseMessages = [
       assistantResponseMessage,
       insertedCompletionWrapupMessage
@@ -282,7 +291,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      userMessage: toResponseMessage(insertedUserMessage as TalentMessageRow),
+      userMessage: insertedUserMessage
+        ? toResponseMessage(insertedUserMessage)
+        : null,
       assistantMessage: assistantResponseMessage,
       assistantMessages: assistantResponseMessages,
       opportunityDiscoveryQueued: Boolean(opportunityRun),

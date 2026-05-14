@@ -2,16 +2,23 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type MouseEventHandler,
+} from "react";
 import CareerLandingButton from "./CareerLandingButton";
 
 type CareerAppBarProps = {
   careerStartHref: string;
+  onCareerStartClick?: MouseEventHandler<HTMLAnchorElement>;
   mobileScrollDeltaThreshold?: number;
 };
 
 export default function CareerAppBar({
   careerStartHref,
+  onCareerStartClick,
   mobileScrollDeltaThreshold = 8,
 }: CareerAppBarProps) {
   const isMobile = useIsMobile();
@@ -78,6 +85,7 @@ export default function CareerAppBar({
             variant="secondary"
             showArrow={false}
             className="inline-flex"
+            onClick={onCareerStartClick}
           />
         </div>
       </div>

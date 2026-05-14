@@ -6,6 +6,7 @@ import CareerLandingButton from "./CareerLandingButton";
 
 type CareerHeroSectionProps = {
   careerStartHref: string;
+  onCareerStartClick?: React.MouseEventHandler<HTMLAnchorElement>;
 };
 
 const SectionTag = ({ children }: { children: React.ReactNode }) => (
@@ -16,6 +17,7 @@ const SectionTag = ({ children }: { children: React.ReactNode }) => (
 
 export default function CareerHeroSection({
   careerStartHref,
+  onCareerStartClick,
 }: CareerHeroSectionProps) {
   return (
     <section className="flex flex-col items-center justify-center px-4 pb-14 pt-[112px] text-center md:px-10 md:pb-20 md:pt-[20vh]">
@@ -40,7 +42,11 @@ export default function CareerHeroSection({
         </p>
       </Reveal>
       <Reveal once delay={0.46} className="mt-8">
-        <CareerLandingButton href={careerStartHref} label="Talk to Harper" />
+        <CareerLandingButton
+          href={careerStartHref}
+          label="Talk to Harper"
+          onClick={onCareerStartClick}
+        />
         <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[13px] text-beige900/80 md:flex-row md:text-sm">
           <div className="flex flex-row items-center gap-2 whitespace-nowrap">
             <Clock className="h-3.5 w-3.5" />

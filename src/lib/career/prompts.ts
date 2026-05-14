@@ -45,6 +45,28 @@ type CareerRealtimeRecentMessage = {
   role: string;
 };
 
+function formatCareerRealtimeRelativeTime(
+  createdAt: string | null | undefined,
+  nowMs: number
+) {
+  const createdAtMs = createdAt ? Date.parse(createdAt) : NaN;
+  if (!Number.isFinite(createdAtMs)) return "";
+
+  const elapsedMs = nowMs - createdAtMs;
+  if (elapsedMs < 0) return "";
+
+  const minuteMs = 60_000;
+  const hourMs = 60 * minuteMs;
+  const dayMs = 24 * hourMs;
+  const monthMs = 30 * dayMs;
+
+  if (elapsedMs < minuteMs) return "방금전";
+  if (elapsedMs < hourMs) return `${Math.floor(elapsedMs / minuteMs)}분전`;
+  if (elapsedMs < dayMs) return `${Math.floor(elapsedMs / hourMs)}시간전`;
+  if (elapsedMs < monthMs) return `${Math.floor(elapsedMs / dayMs)}일전`;
+  return `${Math.floor(elapsedMs / monthMs)}개월전`;
+}
+
 export type CareerPromptBlock = {
   cacheable?: boolean;
   key: string;
@@ -888,39 +910,6 @@ export function buildCareerTextChatPromptBlocks(args: {
 
   return plan;
 }
-
-function buildCareerRealtimeContinuationHint(
-  messages: CareerRealtimeRecentMessage[]
-) {
-  const lastMessage = [...messages]
-    .reverse()
-    .find((message) => message.createdAt && message.content.trim());
-  const lastMessageTime = lastMessage?.createdAt
-    ? Date.parse(lastMessage.createdAt)
-    : NaN;
-
-  if (!Number.isFinite(lastMessageTime)) return "";
-
-  const elapsedMs = Date.now() - lastMessageTime;
-  if (elapsedMs < 0 || elapsedMs > CAREER_RECENT_CHAT_CONTINUATION_WINDOW_MS) {
-    return "";
-  }
-
-  const minutesAgo = Math.max(1, Math.floor(elapsedMs / 60_000));
-
-  const out = [
-    "## 최근 대화 연속성",
-    `- 직전 채팅 시간: ${minutesAgo}분전`,
-    "- 이 시간 정보는 최근 2시간 이내 대화와의 연속성을 판단하기 위한 힌트다. 최근 대화라고 해서 무조건 이어서 시작하지 말고, 직전 내용과 현재 통화 시작 상황을 보고 판단하라. 직전 채팅 시간이 5분 이내라면 이어서 하는게 좋다.",
-    "- 이전 내용에서 이어서 말하는 게 자연스러우면 '방금 이야기하던 부분 이어서 질문드리자면...' 아니면 '이야기 하던걸 통화로 계속 진행해볼까요? ~~'처럼 시작하라.",
-    "- 새로 시작하는 게 더 자연스러우면 인사하고 시작해도 된다.",
-    "- 이전에 이미 답한 내용을 그대로 반복하지 말되, 이어가기 위해 필요하면 직전 대화의 마지막 질문이나 확인점을 짧게 다시 물어도 된다.",
-  ].join("\n");
-  logger.log("\n\nout : ", out, "\n\n");
-
-  return out;
-}
-
 export function buildCareerRealtimeRecentConversationSection(
   messages: CareerRealtimeRecentMessage[]
 ) {
@@ -929,13 +918,21 @@ export function buildCareerRealtimeRecentConversationSection(
 
   const maxTotal = 2200;
   const maxPerMessage = 280;
-  const continuationHint = buildCareerRealtimeContinuationHint(recentMessages);
-  let section = continuationHint ? `\n${continuationHint}\n\n` : "\n";
+  // let section = continuationHint ? `\n${continuationHint}\n\n` : "\n";
+  let section = "";
   section += "## 최근 대화 내역 (이전 흐름을 이어서 자연스럽게 대화)\n";
   let totalLength = section.length;
+  const nowMs = Date.now();
 
   for (const message of recentMessages) {
-    const roleLabel = message.role === "assistant" ? "Harper" : "사용자";
+    const baseRoleLabel = message.role === "assistant" ? "Harper" : "사용자";
+    const relativeTime = formatCareerRealtimeRelativeTime(
+      message.createdAt,
+      nowMs
+    );
+    const roleLabel = relativeTime
+      ? `${baseRoleLabel}(${relativeTime})`
+      : baseRoleLabel;
     const normalizedContent = message.content.replace(/\s+/g, " ").trim();
     const truncatedContent =
       normalizedContent.length > maxPerMessage
@@ -947,9 +944,8 @@ export function buildCareerRealtimeRecentConversationSection(
     section += line;
     totalLength += line.length;
   }
+  // console.log("\n\nsection : ", section, "\n\n");
 
-  section +=
-    "위 대화의 마지막 맥락에서 이어서 말하고, 이미 한 소개나 질문을 처음부터 반복하지 마라.";
   return section;
 }
 
