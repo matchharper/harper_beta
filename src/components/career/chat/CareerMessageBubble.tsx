@@ -8,7 +8,7 @@ import { compactUrlLabel } from "@/lib/urlDisplay";
 
 // User bubble 색상을 바꾸려면 이 클래스를 수정하세요.
 export const USER_BUBBLE_CLASS =
-  "ml-auto max-w-[820px] rounded-[14px] bg-beige900 px-3 py-1.5 text-beige100";
+  "mt-1 ml-auto max-w-[820px] rounded-[14px] bg-beige900 px-3 py-1.5 text-beige100";
 
 export const ASSISTANT_BUBBLE_CLASS = "w-fit max-w-[920px] text-beige900/90";
 
@@ -143,28 +143,47 @@ const CareerMessageBubble = ({
         isUser ? USER_BUBBLE_CLASS : ASSISTANT_BUBBLE_CLASS,
         !isUser && isAssistantSpeaking ? "ring-1 ring-beige900/10" : "",
       ].join(" ");
+  const typingCursor = message.typing ? (
+    <span
+      className={[
+        "inline-block w-2 animate-pulse align-baseline",
+        isUser ? "text-beige100" : "text-beige900",
+      ].join(" ")}
+    >
+      ▍
+    </span>
+  ) : null;
 
   return (
     <article className={articleClassName}>
       <div className="flex items-start gap-2">
         {isCallTranscript && (
-          <AudioLines
+          <span
             className={[
-              "mt-[7px] h-3.5 w-3.5 shrink-0",
-              isUser ? "text-beige100/70" : "text-beige900/45",
+              "flex shrink-0 items-center justify-center",
+              isUser ? "h-6" : "h-7",
             ].join(" ")}
-            aria-label="전화 대화"
-          />
+          >
+            <AudioLines
+              className={[
+                "h-3.5 w-3.5",
+                isUser ? "text-beige100/70" : "text-beige900/45",
+              ].join(" ")}
+              aria-label="전화 대화"
+            />
+          </span>
         )}
         <div className="min-w-0 flex-1">
           {isUser ? (
             <div className="whitespace-pre-wrap wrap-break-word">
               {renderHighlightedContent(displayContent)}
+              {typingCursor}
             </div>
           ) : (
             <CareerRichText
               content={assistantContent}
               className={ASSISTANT_RICH_TEXT_CLASS}
+              trailingInlineNode={typingCursor}
             />
           )}
           {hasCallAction && (
@@ -180,11 +199,6 @@ const CareerMessageBubble = ({
           )}
         </div>
       </div>
-      {message.typing && (
-        <span className="inline-block w-2 animate-pulse align-baseline text-beige900">
-          ▍
-        </span>
-      )}
     </article>
   );
 };

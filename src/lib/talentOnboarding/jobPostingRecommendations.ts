@@ -2182,7 +2182,7 @@ function formatAnswerDraft(args: {
     if (meta) lines.push(`   조건: ${meta}`);
     lines.push(`   추천 이유: ${why}`);
     if (concern) lines.push(`   확인할 점: ${concern}`);
-    if (index === 0 && roleId) lines.push(`   [posting](${roleId})`);
+    if (roleId) lines.push(`   [posting](${roleId})`);
     if (url) lines.push(`   공고 링크: ${url}`);
     lines.push("");
   });

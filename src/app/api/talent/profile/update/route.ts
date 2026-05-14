@@ -58,6 +58,7 @@ type Body = {
   resumeStoragePath?: string;
   resumeText?: string;
   links?: string[];
+  forceProfileIngestion?: boolean;
   structuredProfile?: StructuredProfileBody;
 };
 
@@ -256,6 +257,7 @@ export async function POST(req: NextRequest) {
     const resumeFileName = body.resumeFileName?.trim();
     const resumeStoragePath = body.resumeStoragePath?.trim();
     const resumeText = body.resumeText?.trim();
+    const forceProfileIngestion = body.forceProfileIngestion === true;
     const links = (body.links ?? [])
       .map((link) => String(link).trim())
       .filter(Boolean);
@@ -297,10 +299,19 @@ export async function POST(req: NextRequest) {
       existingProfile?.resume_links ?? []
     );
     const nextLinkedinUrl = pickLinkedinUrl(links);
+    const effectiveResumeText =
+      resumeText || String(existingProfile?.resume_text ?? "").trim();
+    const effectiveResumeFileName =
+      resumeFileName || String(existingProfile?.resume_file_name ?? "").trim();
+    const effectiveResumeStoragePath =
+      resumeStoragePath ||
+      String(existingProfile?.resume_storage_path ?? "").trim();
     const shouldMergeLatestSources =
       !structuredProfile &&
       (Boolean(resumeText) ||
-        Boolean(nextLinkedinUrl && nextLinkedinUrl !== previousLinkedinUrl));
+        Boolean(nextLinkedinUrl && nextLinkedinUrl !== previousLinkedinUrl) ||
+        (forceProfileIngestion &&
+          (Boolean(effectiveResumeText) || Boolean(nextLinkedinUrl))));
     const existingStructuredProfile = shouldMergeLatestSources
       ? await fetchTalentStructuredProfile({
           admin,
@@ -313,6 +324,11 @@ export async function POST(req: NextRequest) {
           ok: boolean;
           linkedinUrl?: string;
           stats?: Record<string, number>;
+          warnings?: Array<{
+            code: string;
+            message: string;
+            detail?: string | null;
+          }>;
           error?: string;
         }
       | null = null;
@@ -414,15 +430,16 @@ export async function POST(req: NextRequest) {
           admin,
           userId: user.id,
           links,
-          resumeText,
-          resumeFileName,
-          resumeStoragePath,
+          resumeText: effectiveResumeText,
+          resumeFileName: effectiveResumeFileName,
+          resumeStoragePath: effectiveResumeStoragePath,
           existingProfile: existingStructuredProfile,
         });
         profileIngestion = {
           ok: true,
           linkedinUrl: ingestion.linkedinUrl,
           stats: ingestion.stats,
+          warnings: ingestion.warnings,
         };
       } catch (ingestionError) {
         const ingestionMessage =
@@ -438,6 +455,11 @@ export async function POST(req: NextRequest) {
           error: ingestionMessage,
         };
       }
+    } else if (forceProfileIngestion && !structuredProfile) {
+      profileIngestion = {
+        ok: false,
+        error: "다시 가져올 LinkedIn 링크나 이력서 텍스트가 없습니다.",
+      };
     }
 
     const profile = await fetchTalentUserProfile({ admin, userId: user.id });

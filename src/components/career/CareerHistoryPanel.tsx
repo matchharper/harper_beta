@@ -27,6 +27,7 @@ import { useCompanyModalStore } from "@/store/useModalStore";
 import CareerInPageTabs from "./CareerInPageTabs";
 import {
   CareerInlinePanel,
+  CareerPrimaryButton,
   CareerSecondaryButton,
   careerCx,
 } from "./ui/CareerPrimitives";
@@ -59,7 +60,6 @@ import HistoryOpportunityDetailContent from "./history/HistoryOpportunityDetailC
 import HistoryOpportunityInfoModal from "./history/HistoryOppotunityInfoModal";
 import OpportunityDetailModal from "./history/OpportunityDetailModal";
 import HistoryShortcutPanel from "./history/HistoryShortcutPanel";
-import { BeigeButton } from "@/components/ui/beige/button";
 import React from "react";
 
 type HistoryTabId = "new" | "saved" | "archived";
@@ -69,6 +69,7 @@ type SavedTabId = CareerOpportunitySavedStage;
 const HISTORY_TAB_QUERY_KEY = "historyTab";
 const HISTORY_SAVED_STAGE_QUERY_KEY = "savedStage";
 const HISTORY_ROLE_QUERY_KEY = "id";
+const CAREER_HISTORY_PATHNAME = "/career/history";
 
 const isHistoryTabId = (value: unknown): value is HistoryTabId =>
   value === "new" || value === "saved" || value === "archived";
@@ -84,6 +85,9 @@ const getQueryValue = (value: string | string[] | undefined) =>
 
 const getNormalizedQueryValue = (value: string | string[] | undefined) =>
   String(getQueryValue(value) ?? "").trim();
+
+const getNormalizedPathname = (path: string) =>
+  path.split(/[?#]/)[0]?.replace(/\/+$/, "") || "/career";
 
 const getOpportunityUrlRoleId = (item: CareerHistoryOpportunity | null) =>
   String(item?.roleId ?? "").trim();
@@ -236,27 +240,6 @@ export const HistoryFeedbackButton = ({
 
 type HistoryEmptyStateVariant = "onboarding" | "searching" | "matching";
 
-const EMPTY_STATE_BRIEF_ITEMS = {
-  onboarding: [
-    { label: "경력 자료", state: "확인됨", status: "done" },
-    { label: "희망 역할", state: "필요", status: "needed" },
-    { label: "근무 조건", state: "필요", status: "needed" },
-    { label: "제외할 선택지", state: "필요", status: "needed" },
-  ],
-  searching: [
-    { label: "경력 자료", state: "확인됨", status: "done" },
-    { label: "추천 기준", state: "반영 중", status: "active" },
-    { label: "포지션 탐색", state: "진행 중", status: "active" },
-    { label: "추천 정리", state: "대기", status: "queued" },
-  ],
-  matching: [
-    { label: "경력 자료", state: "확인됨", status: "done" },
-    { label: "추천 기준", state: "확인됨", status: "done" },
-    { label: "후보 검토", state: "진행 중", status: "active" },
-    { label: "첫 추천", state: "대기", status: "queued" },
-  ],
-} as const;
-
 const HistoryEmptyStateDetail = ({
   body,
   icon,
@@ -266,11 +249,11 @@ const HistoryEmptyStateDetail = ({
   icon: ReactNode;
   title: string;
 }) => (
-  <div className="rounded-[8px] border border-beige900/10 bg-white/55 px-3.5 py-3">
-    <span className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] bg-beige500 text-beige900">
+  <div className="px-2 flex min-w-0 gap-3 border-t border-beige900/10 py-4 first:border-t-0 xl:block xl:border-t-0 xl:py-0 xl:pl-4 xl:first:pl-0">
+    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-beige500 text-beige900">
       {icon}
     </span>
-    <div className="mt-3">
+    <div className="min-w-0 xl:mt-3">
       <div className="text-[13px] font-medium leading-5 text-beige900">
         {title}
       </div>
@@ -294,7 +277,7 @@ const HistoryEmptyStatePanel = ({
           actionLabel: null,
           details: [
             {
-              body: "프로필과 대화에서 강한 경력 신호를 추립니다.",
+              body: "프로필과 대화에서 강한 경력 신호를 정리합니다.",
               icon: <FileCheck2 className="h-3.5 w-3.5" />,
               title: "신호 정리",
             },
@@ -304,52 +287,55 @@ const HistoryEmptyStatePanel = ({
               title: "포지션 탐색",
             },
             {
-              body: "보낼 만한 후보만 새 포지션에 남깁니다.",
+              body: "조건에 맞는 포지션만 새 목록에 남깁니다.",
               icon: <Target className="h-3.5 w-3.5" />,
               title: "적합도 정렬",
             },
           ],
           eyebrow: "탐색 진행 중",
           icon: <Loader2 className="h-5 w-5 animate-spin" />,
-          sideTitle: "추천 브리프",
-          title: "기준에 맞는 포지션을 추리는 중입니다.",
+          title: "좋은 기회를 찾고 있습니다.",
           toneClassName: "bg-beige900 text-beige50",
+          nextStep: "검토가 끝난 포지션은 새 포지션 탭에 바로 표시됩니다.",
           body: (
             <>
-              지금은 결과를 기다리는 상태입니다. 새 추천이 준비되면 이 탭에 바로
-              정리됩니다.
+              기준에 맞는 포지션만 남기고 있습니다. 준비되면 새 포지션에
+              표시됩니다.
             </>
           ),
         }
       : variant === "onboarding"
         ? {
-            actionLabel: "추천 기준 정리하기",
+            actionLabel: "Harper와 대화하기",
             details: [
               {
-                body: "다음에 집중하고 싶은 역할과 레벨을 정합니다.",
+                body: "다음에 맡고 싶은 역할과 레벨을 확인합니다.",
                 icon: <BriefcaseBusiness className="h-3.5 w-3.5" />,
                 title: "희망 역할",
               },
               {
-                body: "지역, 근무 형태, 보상처럼 놓치면 안 되는 조건을 남깁니다.",
+                body: "지역, 근무 형태, 보상 기준을 정합니다.",
                 icon: <MapPin className="h-3.5 w-3.5" />,
                 title: "근무 조건",
               },
               {
-                body: "관심 없는 산업, 회사 유형, 역할을 미리 제외합니다.",
+                body: "관심 없는 산업, 회사 유형, 역할을 제외합니다.",
                 icon: <SlidersHorizontal className="h-3.5 w-3.5" />,
                 title: "제외 기준",
               },
             ],
             eyebrow: "첫 추천 준비",
             icon: <ClipboardCheck className="h-5 w-5" />,
-            sideTitle: "추천 브리프",
-            title: "어떤 기회가 맞는지 먼저 좁혀야 합니다.",
+            title: "어떤 기회에 열려계신지 알려주세요..",
             toneClassName: "bg-beige700/10 text-beige700",
+            nextStep:
+              "대화를 통해 기준을 확인하면 첫 포지션 탐색을 시작합니다.",
             body: (
               <>
-                경력 자료는 확인했습니다. 지금 필요한 건 희망 역할, 근무 조건,
-                피하고 싶은 선택지를 짧게 정리하는 일입니다.
+                경력/이력은 확인했습니다.
+                <br />
+                희망 역할, 근무 방식, 제외 조건 등을 알려주시면 첫 추천을 시작할
+                수 있습니다.
               </>
             ),
           }
@@ -357,7 +343,7 @@ const HistoryEmptyStatePanel = ({
             actionLabel: null,
             details: [
               {
-                body: "저장된 경력과 선호 기준을 함께 보고 있습니다.",
+                body: "저장된 경력과 선호 기준을 함께 확인합니다.",
                 icon: <FileCheck2 className="h-3.5 w-3.5" />,
                 title: "자료 검토",
               },
@@ -374,108 +360,46 @@ const HistoryEmptyStatePanel = ({
             ],
             eyebrow: "검토 진행 중",
             icon: <Search className="h-5 w-5" />,
-            sideTitle: "추천 브리프",
             title: "첫 추천 후보를 검토하고 있습니다.",
             toneClassName: "bg-beige700/10 text-beige700",
+            nextStep:
+              "첫 추천이 준비되면 새 포지션 탭에서 바로 검토할 수 있습니다.",
             body: (
               <>
-                대화에서 정리한 기준으로 실제로 보낼 만한 역할만 남기는
-                중입니다.
+                대화에서 정리한 기준으로 실제로 보낼 만한 역할만 남기고
+                있습니다.
               </>
             ),
           };
-  const briefItems = EMPTY_STATE_BRIEF_ITEMS[variant];
 
   return (
-    <section className="overflow-hidden rounded-[8px] border border-beige900/10 bg-[#fffdf8] shadow-[0_18px_50px_rgba(46,23,6,0.08)]">
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="min-w-0 px-6 py-7 lg:px-8 lg:py-8">
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              className={careerCx(
-                "inline-flex h-11 w-11 items-center justify-center rounded-[8px]",
-                config.toneClassName
-              )}
-            >
-              {config.icon}
-            </span>
-            <span className="inline-flex h-8 items-center rounded-[8px] border border-beige900/10 bg-white px-3 text-[12px] font-medium text-beige900/55">
-              {config.eyebrow}
-            </span>
-          </div>
+    <section className="mt-6 overflow-hidden rounded-[8px] border border-beige900/10 bg-white/70">
+      <div className="min-w-0 px-5 py-6 md:px-7 xl:px-8">
+        <h4 className="mt-0 max-w-[640px] text-[16px] font-medium leading-7 text-beige900 sm:text-[18px]">
+          {config.title}
+        </h4>
+        <p className="mt-3 max-w-[620px] text-[14px] leading-6 text-beige900/65">
+          {config.body}
+        </p>
 
-          <h4 className="mt-6 max-w-[640px] font-hedvig text-[24px] font-medium leading-[1.08] text-beige900 sm:text-[30px]">
-            {config.title}
-          </h4>
-          <p className="mt-4 max-w-[600px] text-[14px] leading-7 text-beige900/65">
-            {config.body}
-          </p>
+        {config.actionLabel && (
+          <div className="mt-4">
+            <CareerPrimaryButton onClick={onOpenChat} className="gap-2">
+              {config.actionLabel}
+              <ArrowRight className="h-4 w-4" />
+            </CareerPrimaryButton>
+          </div>
+        )}
 
-          {config.actionLabel && (
-            <div className="mt-6">
-              <BeigeButton
-                label={config.actionLabel}
-                icon={<ArrowRight className="h-4 w-4" />}
-                size="md"
-                variant="primary"
-                onClick={onOpenChat}
-              />
-            </div>
-          )}
-
-          <div className="mt-8 grid gap-3 sm:grid-cols-3">
-            {config.details.map((detail) => (
-              <HistoryEmptyStateDetail
-                key={detail.title}
-                body={detail.body}
-                icon={detail.icon}
-                title={detail.title}
-              />
-            ))}
-          </div>
-        </div>
-
-        <div className="border-t border-beige900/10 bg-beige50/65 px-6 py-6 lg:border-l lg:border-t-0 lg:px-6 lg:py-8">
-          <div className="text-[12px] font-medium text-beige900">
-            {config.sideTitle}
-          </div>
-          <div className="mt-4 overflow-hidden rounded-[8px] border border-beige900/10 bg-white">
-            {briefItems.map((item) => (
-              <div
-                key={item.label}
-                className="flex items-center justify-between gap-3 border-b border-beige900/10 px-4 py-3 last:border-b-0"
-              >
-                <div className="flex min-w-0 items-center gap-2.5">
-                  <span
-                    className={careerCx(
-                      "inline-flex h-2.5 w-2.5 shrink-0 rounded-full",
-                      item.status === "done"
-                        ? "bg-beige900"
-                        : item.status === "active"
-                          ? "bg-beige700"
-                          : "border border-beige900/25 bg-white"
-                    )}
-                  />
-                  <span className="truncate text-[13px] text-beige900">
-                    {item.label}
-                  </span>
-                </div>
-                <span className="shrink-0 text-[12px] font-medium text-beige900/45">
-                  {item.state}
-                </span>
-              </div>
-            ))}
-          </div>
-          <div className="mt-5 rounded-[8px] border border-dashed border-beige900/15 bg-white/45 px-4 py-4">
-            <div className="text-[12px] font-medium text-beige900/65">
-              새 포지션
-            </div>
-            <div className="mt-4 space-y-2">
-              <div className="h-2.5 w-3/4 rounded-full bg-beige500" />
-              <div className="h-2.5 w-1/2 rounded-full bg-beige500/70" />
-              <div className="h-2.5 w-2/3 rounded-full bg-beige500/45" />
-            </div>
-          </div>
+        <div className="mt-7 w-full grid xl:grid-cols-3 xl:divide-x xl:divide-beige900/10">
+          {config.details.map((detail) => (
+            <HistoryEmptyStateDetail
+              key={detail.title}
+              body={detail.body}
+              icon={detail.icon}
+              title={detail.title}
+            />
+          ))}
         </div>
       </div>
     </section>
@@ -572,8 +496,11 @@ const CareerHistoryPanel = () => {
       const normalizedSavedStage = getQueryValue(currentSavedStageQuery);
       const normalizedRoleId = getNormalizedQueryValue(currentRoleQuery);
       const nextRoleId = String(options?.roleId ?? "").trim();
+      const isOnHistoryPath =
+        getNormalizedPathname(router.asPath) === CAREER_HISTORY_PATHNAME;
 
       if (
+        isOnHistoryPath &&
         normalizedHistoryTab === nextTab &&
         normalizedSavedStage === nextSavedStage &&
         normalizedRoleId === nextRoleId
@@ -586,6 +513,7 @@ const CareerHistoryPanel = () => {
         [HISTORY_TAB_QUERY_KEY]: nextTab,
         [HISTORY_SAVED_STAGE_QUERY_KEY]: nextSavedStage,
       };
+      delete query.tab;
 
       if (nextRoleId) {
         query[HISTORY_ROLE_QUERY_KEY] = nextRoleId;
@@ -594,7 +522,7 @@ const CareerHistoryPanel = () => {
       }
 
       const nextLocation = {
-        pathname: router.pathname,
+        pathname: CAREER_HISTORY_PATHNAME,
         query,
       };
 
@@ -618,18 +546,42 @@ const CareerHistoryPanel = () => {
     if (!router.isReady) return;
     if (!getNormalizedQueryValue(currentRoleQuery)) return;
 
-    const query = { ...router.query };
+    const query: Record<string, string | string[] | undefined> = {
+      ...router.query,
+    };
+    delete query.tab;
     delete query[HISTORY_ROLE_QUERY_KEY];
 
     void router.replace(
       {
-        pathname: router.pathname,
+        pathname: CAREER_HISTORY_PATHNAME,
         query,
       },
       undefined,
       { shallow: true, scroll: false }
     );
   }, [currentRoleQuery, router]);
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    if (getNormalizedPathname(router.asPath) === CAREER_HISTORY_PATHNAME) {
+      return;
+    }
+
+    const query: Record<string, string | string[] | undefined> = {
+      ...router.query,
+    };
+    delete query.tab;
+
+    void router.replace(
+      {
+        pathname: CAREER_HISTORY_PATHNAME,
+        query,
+      },
+      undefined,
+      { shallow: true, scroll: false }
+    );
+  }, [router]);
 
   const sortedOpportunities = useMemo(
     () => [...historyOpportunities].sort(compareRecommendedAtDesc),

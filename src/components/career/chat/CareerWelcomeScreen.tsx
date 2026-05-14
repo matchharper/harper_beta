@@ -59,7 +59,7 @@ const CareerWelcomeScreen = () => {
                 탐색으로 넘어갑니다.
               </p>
             </div>
-            <div className="max-w-[560px] space-y-3 text-[16px] leading-8 text-beige900/65 sm:text-[17px]">
+            <div className="max-w-[560px] space-y-3 text-[13px] leading-8 text-beige900/65 sm:text-[15px]">
               <StaggerText
                 text={`안녕하세요 ${displayName}님, 만나서 반갑습니다. 저는 하퍼입니다.`}
                 by="word"

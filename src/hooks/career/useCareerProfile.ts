@@ -30,6 +30,32 @@ const showProfileSaveToast = (message: string) => {
   showToast({ message, variant: "white" });
 };
 
+type ProfileIngestionPayload = {
+  ok?: boolean;
+  error?: string;
+  warnings?: Array<{
+    code?: string;
+    message?: string;
+    detail?: string | null;
+  }>;
+};
+
+const getProfileIngestionWarningMessage = (
+  ingestion: ProfileIngestionPayload | null | undefined
+) => {
+  const warning = ingestion?.warnings?.find(
+    (item) => item.code === "linkedin_fetch_failed"
+  );
+  if (warning?.message) return warning.message;
+  return null;
+};
+
+const getProfileIngestionFailureMessage = (
+  ingestion: ProfileIngestionPayload | null | undefined
+) =>
+  ingestion?.error ??
+  "LinkedIn 또는 이력서 정보를 자동으로 가져오지 못했습니다.";
+
 type UseCareerProfileArgs = {
   user: User | null;
   conversationId: string | null;
@@ -221,17 +247,23 @@ export const useCareerProfile = ({
           payload?.profileIngestion &&
           payload.profileIngestion.ok === false
         ) {
-          const ingestionError =
-            typeof payload?.profileIngestion?.error === "string"
-              ? payload.profileIngestion.error
-              : "원인을 확인하지 못했습니다.";
+          const ingestionError = getProfileIngestionFailureMessage(
+            payload.profileIngestion as ProfileIngestionPayload
+          );
           showProfileSaveToast(
-            `참고: LinkedIn 자동 구조화 저장에 실패했습니다. (${ingestionError})`
+            `이력서/링크는 저장했지만 자동 프로필 구성은 실패했습니다. (${ingestionError})`
           );
           console.warn(
             "[CareerProfile] profile ingestion failed:",
             payload.profileIngestion
           );
+        } else {
+          const warningMessage = getProfileIngestionWarningMessage(
+            payload?.profileIngestion as ProfileIngestionPayload | undefined
+          );
+          if (warningMessage) {
+            showProfileSaveToast(warningMessage);
+          }
         }
 
         setStage((payload?.conversation?.stage as CareerStage) ?? "chat");
@@ -395,12 +427,17 @@ export const useCareerProfile = ({
         const savedStructuredProfile = Boolean(structuredProfile);
         const savedResumeOrLinks = Boolean(resumeFile) || hasUnsavedLinkChanges;
         const ingestion = payload?.profileIngestion as
-          | { ok?: boolean; error?: string }
+          | ProfileIngestionPayload
           | null
           | undefined;
         if (ingestion?.ok === false) {
           showProfileSaveToast(
-            `이력서/링크는 저장했지만 자동 프로필 업데이트는 실패했습니다. (${ingestion.error ?? "원인을 확인하지 못했습니다."})`
+            `이력서/링크는 저장했지만 자동 프로필 업데이트는 실패했습니다. (${getProfileIngestionFailureMessage(ingestion)})`
+          );
+        } else if (getProfileIngestionWarningMessage(ingestion)) {
+          showProfileSaveToast(
+            getProfileIngestionWarningMessage(ingestion) ??
+              "일부 정보를 가져오지 못했지만 가능한 범위에서 프로필을 업데이트했습니다."
           );
         } else if (ingestion?.ok === true) {
           showProfileSaveToast(
@@ -442,6 +479,104 @@ export const useCareerProfile = ({
     ]
   );
 
+  const handleRefreshTalentProfileSources = useCallback(async () => {
+    if (!user || profileSavePending) return false;
+
+    const cleanedLinks = compactProfileLinks(
+      savedProfileLinks.length > 0 ? savedProfileLinks : profileLinks
+    );
+    const hasSavedResume = Boolean(
+      savedResumeFileName || savedResumeStoragePath || savedResumeDownloadUrl
+    );
+    const hasLinkedinLink = cleanedLinks.some((link) =>
+      /linkedin\.com\/in\//i.test(link)
+    );
+
+    if (!hasSavedResume && !hasLinkedinLink) {
+      const message = "다시 가져올 이력서나 LinkedIn 링크가 없습니다.";
+      setProfileSaveError(message);
+      showProfileSaveToast(message);
+      return false;
+    }
+
+    setProfileSavePending(true);
+    setProfileSaveError("");
+    setProfileSaveInfo("");
+
+    try {
+      const response = await fetchWithAuth("/api/talent/profile/update", {
+        method: "POST",
+        body: JSON.stringify({
+          links: cleanedLinks,
+          forceProfileIngestion: true,
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          getErrorMessage(payload, "프로필 정보를 다시 가져오지 못했습니다.")
+        );
+      }
+
+      const returnedLinks =
+        (payload?.profile?.resumeLinks as string[] | undefined) ?? cleanedLinks;
+      const normalizedLinks = toProfileLinks(returnedLinks);
+      setSavedResumeFileName(payload?.profile?.resumeFileName ?? null);
+      setSavedResumeStoragePath(payload?.profile?.resumeStoragePath ?? null);
+      setSavedResumeDownloadUrl(payload?.profile?.resumeDownloadUrl ?? null);
+      setSavedProfileLinks(normalizedLinks);
+      setProfileLinks(normalizedLinks);
+      setResumeFile(null);
+
+      if (payload?.talentProfile) {
+        applyTalentProfileSnapshot(
+          payload.talentProfile as SessionResponse["talentProfile"]
+        );
+      }
+
+      const ingestion = payload?.profileIngestion as
+        | ProfileIngestionPayload
+        | null
+        | undefined;
+      if (ingestion?.ok === false) {
+        const message = `프로필 정보를 다시 가져오지 못했습니다. (${getProfileIngestionFailureMessage(ingestion)})`;
+        setProfileSaveError(message);
+        showProfileSaveToast(message);
+        return false;
+      }
+
+      const warningMessage = getProfileIngestionWarningMessage(ingestion);
+      if (warningMessage) {
+        showProfileSaveToast(warningMessage);
+      } else {
+        showProfileSaveToast("저장된 이력서/링크에서 정보를 다시 가져왔습니다.");
+      }
+
+      return true;
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "프로필 정보를 다시 가져오지 못했습니다.";
+      setProfileSaveError(message);
+      showProfileSaveToast(message);
+      return false;
+    } finally {
+      setProfileSavePending(false);
+    }
+  }, [
+    applyTalentProfileSnapshot,
+    fetchWithAuth,
+    profileLinks,
+    profileSavePending,
+    savedProfileLinks,
+    savedResumeDownloadUrl,
+    savedResumeFileName,
+    savedResumeStoragePath,
+    user,
+  ]);
+
   const resetProfileState = useCallback(() => {
     setProfileLinks(toProfileLinks());
     setProfilePending(false);
@@ -482,6 +617,7 @@ export const useCareerProfile = ({
     handleRemoveProfileLink,
     handleAddProfileLink,
     handleSaveTalentProfile,
+    handleRefreshTalentProfileSources,
     resetProfileState,
   };
 };

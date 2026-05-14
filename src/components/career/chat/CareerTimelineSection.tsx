@@ -2,9 +2,9 @@ import {
   AlertCircle,
   Building2,
   CheckCircle2,
+  ChevronLeft,
   ChevronDown,
   ChevronRight,
-  ExternalLink,
   Loader2,
   Phone,
   Plus,
@@ -29,10 +29,6 @@ import type {
   CareerHistoryOpportunity,
   CareerRecommendationSearchStatus,
 } from "@/components/career/types";
-import {
-  getCareerPositiveActionIcon,
-  getCareerPositiveActionLabel,
-} from "@/components/career/opportunityTypeMeta";
 import { splitRecommendJobPostingStatusLogs } from "@/lib/talentOnboarding/recommendJobPostingStatus";
 import {
   TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NOTICE,
@@ -55,6 +51,7 @@ import {
 import CareerMessageBubble from "./CareerMessageBubble";
 import CareerRichText from "../ui/CareerRichText";
 import Image from "next/image";
+import { useRouter } from "next/router";
 import { formatRelativeTime } from "@/lib/utils";
 import React from "react";
 
@@ -69,6 +66,8 @@ const LOADING_EXAMPLES = [
 
 const VOICE_TRANSCRIPT_PREVIEW_LIMIT = 120;
 const BOTTOM_THRESHOLD_PX = 120;
+const HISTORY_TAB_QUERY_KEY = "historyTab";
+const HISTORY_ROLE_QUERY_KEY = "id";
 const CLAIMED_WORKSPACE_BOOTSTRAP_MESSAGE =
   "기존에 제출한 정보로 커리어 워크스페이스를 시작했습니다.";
 const MESSAGE_DATE_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
@@ -103,6 +102,9 @@ const getPreviousMessageDateKey = (
   }
   return "";
 };
+
+const getSingleQueryValue = (value: string | string[] | undefined) =>
+  Array.isArray(value) ? value[0] : value;
 
 const formatMessageDateLabel = (createdAt: string) => {
   const date = parseMessageDate(createdAt);
@@ -144,7 +146,7 @@ const TimelinePanel = ({
   children: React.ReactNode;
   className?: string;
 }) => (
-  <CareerInlinePanel className={careerCx("max-w-[980px] px-5 py-5", className)}>
+  <CareerInlinePanel className={careerCx("max-w-[980px]", className)}>
     {children}
   </CareerInlinePanel>
 );
@@ -315,10 +317,10 @@ const InterestChoiceButton = ({
     type="button"
     {...props}
     className={careerCx(
-      "w-full rounded-[8px] border px-4 py-3 text-left text-[14px] leading-6 transition-colors",
+      "w-fit rounded-[8px] border border-black/10 px-3 py-1.5 text-left text-[14px] leading-6 transition-colors",
       selected
         ? "border-beige900 bg-beige900 text-[#f5ecdd]"
-        : "border-beige900/10 bg-white/45 text-beige900/70 hover:border-beige900/25 hover:text-beige900",
+        : "bg-white/45 text-beige900/70 hover:border-beige900/25 hover:text-beige900",
       props.className
     )}
   >
@@ -328,172 +330,160 @@ const InterestChoiceButton = ({
 
 const OpportunityPreviewCards = memo(function OpportunityPreviewCards({
   items,
-  onFeedback,
-  updatingIds,
+  onOpenOpportunity,
 }: {
   items: CareerHistoryOpportunity[];
-  onFeedback: (
-    opportunity: CareerHistoryOpportunity,
-    feedback: "positive" | "negative",
-    options?: { promptImmediately?: boolean }
-  ) => void | Promise<void>;
-  updatingIds: string[];
+  onOpenOpportunity: (opportunity: CareerHistoryOpportunity) => void;
 }) {
-  const [optimisticFeedbackById, setOptimisticFeedbackById] = useState<
-    Record<string, "positive" | "negative" | undefined>
-  >({});
-  const optimisticFeedbackByIdRef = useRef(optimisticFeedbackById);
-
-  useEffect(() => {
-    optimisticFeedbackByIdRef.current = optimisticFeedbackById;
-  }, [optimisticFeedbackById]);
-
-  const submitFeedback = useCallback(
-    (item: CareerHistoryOpportunity, feedback: "positive" | "negative") => {
-      const nextOptimisticFeedbackById = {
-        ...optimisticFeedbackByIdRef.current,
-        [item.id]: feedback,
-      };
-      optimisticFeedbackByIdRef.current = nextOptimisticFeedbackById;
-
-      const promptImmediately = items.every((candidate) =>
-        Boolean(nextOptimisticFeedbackById[candidate.id] ?? candidate.feedback)
-      );
-      setOptimisticFeedbackById(nextOptimisticFeedbackById);
-      void onFeedback(item, feedback, { promptImmediately });
-    },
-    [items, onFeedback]
+  const [activeIndex, setActiveIndex] = useState(0);
+  const itemSignature = useMemo(
+    () => items.map((item) => item.id).join("|"),
+    [items]
   );
 
-  if (items.length === 0) return null;
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [itemSignature]);
+
+  const activeItemIndex = Math.min(activeIndex, Math.max(items.length - 1, 0));
+  const item = items[activeItemIndex] ?? null;
+  const hasMultipleItems = items.length > 1;
+
+  const moveActiveItem = useCallback(
+    (direction: -1 | 1) => {
+      if (items.length <= 1) return;
+      setActiveIndex((current) => {
+        const next = current + direction;
+        if (next < 0) return items.length - 1;
+        if (next >= items.length) return 0;
+        return next;
+      });
+    },
+    [items.length]
+  );
+
+  if (!item) return null;
+
+  const feedback = item.feedback;
+  const isPositive = feedback === "positive";
+  const postedAgo = formatRelativeTime(item.postedAt);
+  const metaItems = getChatOpportunityMetaItems(item);
+  const summary =
+    item.recommendationSummary?.trim() ||
+    item.recommendationReasons[0] ||
+    item.description ||
+    item.companyDescription ||
+    null;
 
   return (
     <div className="flex w-full max-w-[980px] flex-col gap-3">
-      {items.map((item) => {
-        const isUpdating = updatingIds.includes(item.id);
-        const feedback = optimisticFeedbackById[item.id] ?? item.feedback;
-        const isPositive = feedback === "positive";
-        const isNegative = feedback === "negative";
-        const PositiveActionIcon = getCareerPositiveActionIcon(
-          item.opportunityType
-        );
-        const postedAgo = formatRelativeTime(item.postedAt);
-        const metaItems = getChatOpportunityMetaItems(item);
-        const summary =
-          item.recommendationSummary?.trim() ||
-          item.recommendationReasons[0] ||
-          item.description ||
-          item.companyDescription ||
-          null;
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={(event) => {
+          const interactiveTarget = (event.target as HTMLElement).closest(
+            "button,a,input,select,textarea"
+          );
+          if (interactiveTarget) return;
+          onOpenOpportunity(item);
+        }}
+        onKeyDown={(event) => {
+          if (event.currentTarget !== event.target) return;
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          onOpenOpportunity(item);
+        }}
+        className="group relative flex min-h-[152px] cursor-pointer flex-col gap-4 rounded-[8px] border border-beige900/10 bg-white/70 px-4 py-4 text-left outline-none transition-colors hover:border-beige900/25 hover:bg-white/85 focus-visible:ring-2 focus-visible:ring-beige900/25"
+        aria-label={`${item.companyName} ${item.title} 공고 열기`}
+      >
+        {hasMultipleItems ? (
+          <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-full border border-beige900/10 bg-white/80 px-1 py-1 shadow-[0_8px_18px_rgba(37,20,6,0.06)]">
+            <button
+              type="button"
+              onClick={() => moveActiveItem(-1)}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-beige900/55 transition-colors hover:bg-beige100 hover:text-beige900"
+              aria-label="이전 공고"
+              title="이전 공고"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </button>
+            <span className="min-w-9 text-center text-[11px] font-medium leading-none text-beige900/45">
+              {activeItemIndex + 1}/{items.length}
+            </span>
+            <button
+              type="button"
+              onClick={() => moveActiveItem(1)}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-beige900/55 transition-colors hover:bg-beige100 hover:text-beige900"
+              aria-label="다음 공고"
+              title="다음 공고"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ) : null}
 
-        return (
-          <CareerInlinePanel
-            key={item.id}
-            className="flex min-h-[168px] flex-col gap-4 border border-beige900/10 bg-white/70 px-4 py-4 md:flex-row md:items-stretch"
+        <div className="flex min-w-0 flex-1 flex-col gap-3">
+          <div
+            className={careerCx(
+              "flex min-w-0 items-start gap-3",
+              hasMultipleItems && "pr-24"
+            )}
           >
-            <div className="flex min-w-0 flex-1 flex-col gap-3">
-              <div className="flex min-w-0 items-start gap-3">
-                {item.companyLogoUrl ? (
-                  <>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={item.companyLogoUrl}
-                      alt={item.companyName}
-                      className="h-11 w-11 shrink-0 rounded-[8px] border border-beige900/10 bg-white object-cover"
-                    />
-                  </>
-                ) : (
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] bg-beige900 text-[#f5ecdd]">
-                    <Building2 className="h-4 w-4" />
-                  </div>
-                )}
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-5 text-beige900/45">
-                    {postedAgo ? <span>{postedAgo}에 게시됨</span> : null}
-                    {postedAgo && metaItems.length > 0 ? <span>·</span> : null}
-                    {metaItems.length > 0 ? (
-                      <span className="wrap-break-word">
-                        {metaItems.join(" - ")}
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="mt-1 wrap-break-word text-[15px] font-medium leading-6 text-beige900">
-                    {item.title}
-                  </div>
-                  <div className="mt-1 wrap-break-word flex flex-row gap-2 items-center text-[13px] leading-5 text-beige900/65">
-                    {item.companyName}
-                    {feedback && (
-                      <div
-                        className={careerCx(
-                          "mt-1 inline-flex h-6 items-center rounded-full border px-2.5 text-[11px] font-medium",
-                          isPositive
-                            ? "border-beige900/20 bg-beige900 text-[#f5ecdd]"
-                            : "border-beige900/10 bg-white/60 text-beige900/55"
-                        )}
-                      >
-                        {isPositive ? "저장됨" : "맞지 않음"}
-                      </div>
-                    )}
-                  </div>
-                </div>
+            {item.companyLogoUrl ? (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={item.companyLogoUrl}
+                  alt={item.companyName}
+                  className="h-11 w-11 shrink-0 rounded-[8px] border border-beige900/10 bg-white object-cover"
+                />
+              </>
+            ) : (
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] bg-beige900 text-[#f5ecdd]">
+                <Building2 className="h-4 w-4" />
               </div>
+            )}
 
-              {summary && (
-                <div className="max-h-24 overflow-hidden text-[13px] leading-6 text-beige900/70">
-                  {summary}
-                </div>
-              )}
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-5 text-beige900/45">
+                {postedAgo && <span>{postedAgo}에 게시됨</span>}
+                {postedAgo && metaItems.length > 0 && <span>·</span>}
+                {metaItems.length > 0 && (
+                  <span className="break-words">{metaItems.join(" - ")}</span>
+                )}
+              </div>
+              <div className="mt-0.5 break-words text-[15px] font-medium text-beige900">
+                {item.title}
+              </div>
+              <div className="mt-0.5 flex flex-row items-center gap-2 break-words text-[13px] text-beige900/65">
+                {item.companyName}
+                {feedback && (
+                  <div
+                    className={careerCx(
+                      "mt-1 inline-flex h-6 items-center rounded-full border px-2.5 text-[11px] font-medium",
+                      isPositive
+                        ? "border-beige900/20 bg-beige900 text-[#f5ecdd]"
+                        : "border-beige900/10 bg-white/60 text-beige900/55"
+                    )}
+                  >
+                    {isPositive ? "저장됨" : "맞지 않음"}
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="flex w-full flex-col gap-1 md:w-[132px] md:justify-end">
-              {item.href ? (
-                <a
-                  href={item.href}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] border border-beige900/15 bg-white/45 px-3 text-xs text-beige900 transition-colors hover:border-beige900/30"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  공고 보기
-                </a>
-              ) : null}
-              <CareerPrimaryButton
-                onClick={() => {
-                  submitFeedback(item, "positive");
-                }}
-                disabled={isUpdating}
-                aria-pressed={isPositive}
-                className={careerCx(
-                  "h-9 gap-1.5 px-3 text-xs",
-                  isPositive && "ring-2 ring-beige900/15"
-                )}
-              >
-                {isPositive ? (
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                ) : (
-                  <PositiveActionIcon className="h-3.5 w-3.5" />
-                )}
-                {isPositive
-                  ? "저장됨"
-                  : getCareerPositiveActionLabel(item.opportunityType)}
-              </CareerPrimaryButton>
-              <CareerSecondaryButton
-                onClick={() => {
-                  submitFeedback(item, "negative");
-                }}
-                disabled={isUpdating}
-                aria-pressed={isNegative}
-                className={careerCx(
-                  "h-9 px-3 text-xs",
-                  isNegative && "border-beige900/25 bg-beige900/10 font-medium"
-                )}
-              >
-                {isNegative ? "표시됨" : "맞지 않음"}
-              </CareerSecondaryButton>
+
+            {!hasMultipleItems && (
+              <ChevronRight className="h-4 w-4 shrink-0 text-beige900/35 transition-transform group-hover:translate-x-0.5 group-hover:text-beige900/60" />
+            )}
+          </div>
+
+          {summary && (
+            <div className="max-h-24 overflow-hidden text-[13px] leading-6 text-beige900/70">
+              {summary}
             </div>
-          </CareerInlinePanel>
-        );
-      })}
+          )}
+        </div>
+      </div>
     </div>
   );
 });
@@ -559,38 +549,38 @@ const OnboardingCompletionWrapup = memo(function OnboardingCompletionWrapup({
   );
 });
 
-const OnboardingWrapupLoadingPanel = memo(
-  function OnboardingWrapupLoadingPanel() {
-    return (
-      <div
-        className="w-full max-w-[760px] rounded-[8px] border border-beige700/25 bg-linear-to-br from-white via-white to-beige100/75 px-5 py-5 shadow-[0_18px_60px_rgba(46,23,6,0.08)]"
-        aria-live="polite"
-      >
-        <div className="flex items-start gap-4">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-beige700 text-beige50 shadow-[0_10px_24px_rgba(46,23,6,0.16)]">
-            <Loader2 className="h-5 w-5 animate-spin" />
-          </div>
-          <div className="min-w-0">
-            <div className="text-[16px] font-semibold leading-6 text-beige900">
-              다음 스텝을 계획하고 있습니다...
-            </div>
-            <div className="mt-1 text-[13px] leading-6 text-beige900/55">
-              필요한 프로필을 업데이트하고, 대화 내용을 정리하고 있어요.
-            </div>
-          </div>
+const TimelinePendingPanel = memo(function TimelinePendingPanel({
+  label,
+  detail,
+}: {
+  label: string;
+  detail: string;
+}) {
+  return (
+    <div
+      role="status"
+      className="flex w-full max-w-[760px] items-center gap-2 text-[13px] leading-5 text-beige900/50"
+      aria-live="polite"
+    >
+      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-beige900/45" />
+      <div className="min-w-0">
+        <div className="career-thinking-shimmer inline-block font-medium">
+          {label}
+        </div>
+        <div className="mt-0.5 break-words text-[12px] text-beige900/40">
+          {detail}
         </div>
       </div>
-    );
-  }
-);
+    </div>
+  );
+});
 
 const TimelineMessageList = memo(function TimelineMessageList({
   messages,
   isVoiceMode,
   lastSpokenAssistantMessageIndex,
-  historyUpdatingOpportunityIds,
   thinkingLogsByMessageId,
-  onOpportunityFeedback,
+  onOpenOpportunity,
   onRegenerateOnboardingWrapup,
   onboardingWrapupPending,
   onStartCallMode,
@@ -599,17 +589,12 @@ const TimelineMessageList = memo(function TimelineMessageList({
   messages: CareerMessage[];
   isVoiceMode: boolean;
   lastSpokenAssistantMessageIndex: number;
-  historyUpdatingOpportunityIds: string[];
   thinkingLogsByMessageId: Record<string, string[]>;
   isStartingCall: boolean;
   onRegenerateOnboardingWrapup?: () => void | Promise<void>;
   onboardingWrapupPending: boolean;
   onStartCallMode?: (openingText?: string) => boolean | Promise<boolean>;
-  onOpportunityFeedback: (
-    opportunity: CareerHistoryOpportunity,
-    feedback: "positive" | "negative",
-    options?: { promptImmediately?: boolean }
-  ) => void | Promise<void>;
+  onOpenOpportunity: (opportunity: CareerHistoryOpportunity) => void;
 }) {
   return (
     <>
@@ -695,9 +680,8 @@ const TimelineMessageList = memo(function TimelineMessageList({
             )}
             {!isUser && (message.opportunityPreview?.length ?? 0) > 0 && (
               <OpportunityPreviewCards
-                items={(message.opportunityPreview ?? []).slice(0, 1)}
-                updatingIds={historyUpdatingOpportunityIds}
-                onFeedback={onOpportunityFeedback}
+                items={message.opportunityPreview ?? []}
+                onOpenOpportunity={onOpenOpportunity}
               />
             )}
           </div>
@@ -715,6 +699,7 @@ const TimelineMessageList = memo(function TimelineMessageList({
 });
 
 const CareerTimelineSection = () => {
+  const router = useRouter();
   const {
     user,
     conversationId,
@@ -739,9 +724,9 @@ const CareerTimelineSection = () => {
     onboardingWrapupPending,
     thinkingLogsByMessageId,
     chatPending,
-    historyUpdatingOpportunityIds,
     onboardingBeginPending,
     callStartPending = false,
+    callWrapUpPending = false,
     onboardingPausePending,
     onGoogleLogin,
     onEmailAuth,
@@ -751,7 +736,6 @@ const CareerTimelineSection = () => {
     onAddProfileLink,
     onProfileSubmit,
     onLoadOlderMessages,
-    onUpdateHistoryOpportunityFeedback,
     onRegenerateOnboardingWrapup,
     showVoiceStartPrompt,
     onStartCallMode,
@@ -772,7 +756,9 @@ const CareerTimelineSection = () => {
   const [selectedInterestOptions, setSelectedInterestOptions] = useState<
     TalentOnboardingInterestOptionId[]
   >([]);
-  const isStartingCall = onboardingBeginPending || callStartPending;
+  const isStartingCall =
+    (onboardingBeginPending && !callWrapUpPending) || callStartPending;
+  const isConversationActionLocked = isStartingCall || callWrapUpPending;
   const initialBottomSyncDoneRef = useRef(false);
 
   const handleEmailAuthSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -944,12 +930,15 @@ const CareerTimelineSection = () => {
     if (!hasTimelineMessages) return;
 
     const id = window.requestAnimationFrame(() => {
-      scrollToBottom(assistantTyping || chatPending ? "auto" : "smooth");
+      scrollToBottom(
+        assistantTyping || chatPending || callWrapUpPending ? "auto" : "smooth"
+      );
       syncScrollState();
     });
     return () => window.cancelAnimationFrame(id);
   }, [
     assistantTyping,
+    callWrapUpPending,
     chatPending,
     hasTimelineMessages,
     inputMode,
@@ -976,18 +965,117 @@ const CareerTimelineSection = () => {
     setSelectedInterestOptions([]);
   }, [onSubmitOnboardingInterest, selectedInterestOptions]);
 
-  const handleOpportunityFeedback = useCallback(
-    (
-      opportunity: CareerHistoryOpportunity,
-      feedback: "positive" | "negative",
-      options?: { promptImmediately?: boolean }
-    ) =>
-      onUpdateHistoryOpportunityFeedback(opportunity.id, feedback, {
-        fallbackOpportunity: opportunity,
-        promptImmediately: options?.promptImmediately === true,
-      }),
-    [onUpdateHistoryOpportunityFeedback]
+  const handleOpenOpportunity = useCallback(
+    (opportunity: CareerHistoryOpportunity) => {
+      const roleId = String(opportunity.roleId ?? "").trim();
+      if (!roleId) return;
+
+      const query: Record<string, string> = {
+        [HISTORY_TAB_QUERY_KEY]: "new",
+        [HISTORY_ROLE_QUERY_KEY]: roleId,
+      };
+      const invite = getSingleQueryValue(router.query.invite);
+      const mail = getSingleQueryValue(router.query.mail);
+
+      if (invite) query.invite = invite;
+      if (mail) query.mail = mail;
+
+      void router.push(
+        {
+          pathname: "/career/history",
+          query,
+        },
+        undefined,
+        { scroll: false, shallow: true }
+      );
+    },
+    [router]
   );
+
+  if (!user) {
+    return (
+      <>
+        <div className="flex flex-col gap-2">
+          <AssistantLabel>Harper</AssistantLabel>
+          <CareerMessageBubble
+            message={{
+              id: "login-greeting",
+              role: "assistant",
+              content: LOGIN_GREETING_TEXT,
+              createdAt: "",
+              messageType: "chat",
+            }}
+            isUser={false}
+          />
+        </div>
+
+        <TimelinePanel>
+          <CareerSecondaryButton
+            onClick={() => void onGoogleLogin()}
+            disabled={authPending}
+            className="w-full justify-center px-4"
+          >
+            {authPending ? "처리 중..." : "Google 로그인"}
+          </CareerSecondaryButton>
+
+          <div className="mt-5 text-[14px] font-medium text-beige900/55">
+            이메일 {authMode === "signup" ? "회원가입" : "로그인"}
+          </div>
+
+          <form onSubmit={handleEmailAuthSubmit} className="mt-3 space-y-3">
+            <CareerTextInput
+              value={authEmail}
+              onChange={(event) => setAuthEmail(event.target.value)}
+              type="email"
+              placeholder="ID (이메일)"
+              disabled={authPending}
+            />
+            <CareerTextInput
+              value={authPassword}
+              onChange={(event) => setAuthPassword(event.target.value)}
+              type="password"
+              placeholder="PW"
+              disabled={authPending}
+            />
+            <CareerPrimaryButton
+              type="submit"
+              disabled={authPending}
+              className="w-full justify-center"
+            >
+              {authMode === "signup" ? "회원가입" : "로그인"}
+            </CareerPrimaryButton>
+          </form>
+
+          <div className="mt-4 text-sm text-beige900/55">
+            {authMode === "signup"
+              ? "이미 계정이 있으신가요?"
+              : "첫 방문이신가요?"}{" "}
+            <button
+              type="button"
+              onClick={() =>
+                setAuthMode((prev) => (prev === "signin" ? "signup" : "signin"))
+              }
+              disabled={authPending}
+              className="font-medium text-beige900 underline underline-offset-4"
+            >
+              {authMode === "signup" ? "로그인" : "회원가입"}
+            </button>
+          </div>
+
+          {authError && (
+            <div className="mt-4 border border-[#7c2d12]/15 bg-[#7c2d12]/5 px-4 py-3 text-sm text-[#7c2d12]">
+              {authError}
+            </div>
+          )}
+          {authInfo && (
+            <div className="mt-4 border border-beige900/10 bg-white/40 px-4 py-3 text-sm text-beige900/50">
+              {authInfo}
+            </div>
+          )}
+        </TimelinePanel>
+      </>
+    );
+  }
 
   return (
     <div
@@ -996,7 +1084,7 @@ const CareerTimelineSection = () => {
       className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-0 py-4 pb-28 scrollbar-thin scrollbar-thumb-[rgba(92,61,34,0.15)] scrollbar-track-transparent"
     >
       <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-4 px-5 py-1">
-        {user && showLoadOlderButton && hasOlderMessages && (
+        {showLoadOlderButton && hasOlderMessages && (
           <div className="sticky top-0 z-10 flex justify-center pb-2">
             <button
               type="button"
@@ -1009,92 +1097,7 @@ const CareerTimelineSection = () => {
           </div>
         )}
 
-        {!user ? (
-          <>
-            <div className="flex flex-col gap-2">
-              <AssistantLabel>Harper</AssistantLabel>
-              <CareerMessageBubble
-                message={{
-                  id: "login-greeting",
-                  role: "assistant",
-                  content: LOGIN_GREETING_TEXT,
-                  createdAt: "",
-                  messageType: "chat",
-                }}
-                isUser={false}
-              />
-            </div>
-
-            <TimelinePanel>
-              <CareerSecondaryButton
-                onClick={() => void onGoogleLogin()}
-                disabled={authPending}
-                className="w-full justify-center px-4"
-              >
-                {authPending ? "처리 중..." : "Google 로그인"}
-              </CareerSecondaryButton>
-
-              <div className="mt-5 text-[14px] font-medium text-beige900/55">
-                이메일 {authMode === "signup" ? "회원가입" : "로그인"}
-              </div>
-
-              <form onSubmit={handleEmailAuthSubmit} className="mt-3 space-y-3">
-                <CareerTextInput
-                  value={authEmail}
-                  onChange={(event) => setAuthEmail(event.target.value)}
-                  type="email"
-                  placeholder="ID (이메일)"
-                  disabled={authPending}
-                />
-                <CareerTextInput
-                  value={authPassword}
-                  onChange={(event) => setAuthPassword(event.target.value)}
-                  type="password"
-                  placeholder="PW"
-                  disabled={authPending}
-                />
-                <CareerPrimaryButton
-                  type="submit"
-                  disabled={authPending}
-                  className="w-full justify-center"
-                >
-                  {authMode === "signup" ? "회원가입" : "로그인"}
-                </CareerPrimaryButton>
-              </form>
-
-              <div className="mt-4 text-sm text-beige900/55">
-                {authMode === "signup"
-                  ? "이미 계정이 있으신가요?"
-                  : "첫 방문이신가요?"}{" "}
-                <button
-                  type="button"
-                  onClick={() =>
-                    setAuthMode((prev) =>
-                      prev === "signin" ? "signup" : "signin"
-                    )
-                  }
-                  disabled={authPending}
-                  className="font-medium text-beige900 underline underline-offset-4"
-                >
-                  {authMode === "signup" ? "로그인" : "회원가입"}
-                </button>
-              </div>
-
-              {authError && (
-                <div className="mt-4 border border-[#7c2d12]/15 bg-[#7c2d12]/5 px-4 py-3 text-sm text-[#7c2d12]">
-                  {authError}
-                </div>
-              )}
-              {authInfo && (
-                <div className="mt-4 border border-beige900/10 bg-white/40 px-4 py-3 text-sm text-beige900/50">
-                  {authInfo}
-                </div>
-              )}
-            </TimelinePanel>
-          </>
-        ) : null}
-
-        {user && isVoiceMode && stage !== "profile" ? (
+        {isVoiceMode && stage !== "profile" ? (
           <div className="sticky top-0 z-20 flex justify-center">
             <div className="inline-flex items-center gap-3 rounded-[8px] border border-beige900 bg-beige900 px-4 py-2 text-sm text-[#f5ecdd]">
               <div className="flex h-7 w-7 items-center justify-center rounded-[8px] border border-[#f5ecdd]/25">
@@ -1110,8 +1113,8 @@ const CareerTimelineSection = () => {
           </div>
         ) : null}
 
-        {user && sessionPending && !hasTimelineMessages ? (
-          <div className="flex min-h-[52svh] items-center justify-center">
+        {sessionPending && !hasTimelineMessages ? (
+          <div className="flex min-h-[52vh] items-center justify-center">
             <div className="flex items-center gap-2 text-sm text-beige900/60">
               <Loader2 className="h-4 w-4 animate-spin text-beige900" />
               하퍼가 들어오고 있습니다...
@@ -1119,30 +1122,41 @@ const CareerTimelineSection = () => {
           </div>
         ) : null}
 
-        {user && hasTimelineMessages ? (
+        {hasTimelineMessages ? (
           <TimelineMessageList
             messages={timelineMessages}
             isVoiceMode={isVoiceMode}
             lastSpokenAssistantMessageIndex={lastSpokenAssistantMessageIndex}
-            historyUpdatingOpportunityIds={historyUpdatingOpportunityIds}
             thinkingLogsByMessageId={thinkingLogsByMessageId}
             onRegenerateOnboardingWrapup={onRegenerateOnboardingWrapup}
             onboardingWrapupPending={onboardingWrapupPending}
             onStartCallMode={onStartCallMode}
             isStartingCall={isStartingCall}
-            onOpportunityFeedback={handleOpportunityFeedback}
+            onOpenOpportunity={handleOpenOpportunity}
           />
         ) : null}
 
-        {user &&
-          onboardingWrapupPending &&
-          !sessionPending &&
-          stage !== "profile" && <OnboardingWrapupLoadingPanel />}
+        {callWrapUpPending && !sessionPending && stage !== "profile" && (
+          <TimelinePendingPanel
+            label="Call wrap-up..."
+            detail="통화 내용을 정리하고 다음 메시지를 준비하고 있어요."
+          />
+        )}
 
-        {user &&
+        {onboardingWrapupPending &&
+          !callWrapUpPending &&
           !sessionPending &&
+          stage !== "profile" && (
+            <TimelinePendingPanel
+              label="Thinking..."
+              detail="대화 내용을 정리하고 있어요."
+            />
+          )}
+
+        {!sessionPending &&
           stage !== "profile" &&
           !onboardingWrapupPending &&
+          !callWrapUpPending &&
           chatPending &&
           !assistantTyping &&
           (activeRecommendationSearchStatus ? (
@@ -1160,7 +1174,7 @@ const CareerTimelineSection = () => {
             </StatusMessage>
           ))}
 
-        {user && profilePending && (
+        {profilePending && (
           <TimelinePanel className="max-w-[980px]">
             <div className="flex items-center gap-2 text-sm text-beige900/50">
               <Loader2 className="h-4 w-4 animate-spin text-beige900" />
@@ -1179,7 +1193,7 @@ const CareerTimelineSection = () => {
           </TimelinePanel>
         )}
 
-        {user && !profilePending && !sessionPending && stage === "profile" && (
+        {!profilePending && !sessionPending && stage === "profile" && (
           <TimelinePanel className="max-w-[980px]">
             <div className="grid gap-6">
               <section>
@@ -1279,48 +1293,49 @@ const CareerTimelineSection = () => {
           </TimelinePanel>
         )}
 
-        {user && sessionError && (
+        {sessionError && (
           <div className="border border-[#7c2d12]/15 bg-[#7c2d12]/5 px-4 py-3 text-sm text-[#7c2d12]">
             {sessionError}
           </div>
         )}
 
-        {user && chatError && (
+        {chatError && (
           <div className="border border-[#7c2d12]/15 bg-[#7c2d12]/5 px-4 py-3 text-sm text-[#7c2d12]">
             {chatError}
           </div>
         )}
 
-        {user && showVoiceStartPrompt && (
-          <TimelinePanel className="max-w-[620px]">
-            <div className="text-[15px] leading-7 text-beige900/70">
-              첫 추천 기준을 정리할 차례입니다.
+        {showVoiceStartPrompt && (
+          <TimelinePanel className="max-w-[620px] p-0 text-[14px] leading-7 text-beige900/90">
+            <div className="">
+              좋은 회사와 역할, 기회를 연결해드리기 위해 몇가지 질문을 더 하고
+              싶어요.
               <br />
               희망 역할과 피하고 싶은 조건만 짧게 확인할게요.
             </div>
-            <div className="mt-3 rounded-[8px] border border-beige900/10 bg-beige50 px-3 py-3 text-[13px] leading-6 text-beige900/55">
-              역할, 지역/근무 방식, 보상, 제외할 회사를 남기면 첫 탐색으로
-              넘어갑니다.
-            </div>
-            <div className="mt-5 grid gap-2">
+            <div className="mt-5 flex flex-row gap-2">
               <CareerPrimaryButton
                 onClick={() => onStartCallMode?.()}
-                disabled={isStartingCall}
-                className="w-full justify-center"
+                disabled={isConversationActionLocked}
+                className="w-fit justify-center"
               >
-                {isStartingCall ? "통화 연결 중..." : "전화로 시작"}
+                {isStartingCall
+                  ? "통화 연결 중..."
+                  : callWrapUpPending
+                    ? "정리 중..."
+                    : "전화로 시작"}
               </CareerPrimaryButton>
               <CareerSecondaryButton
                 onClick={onUseChatOnly}
-                disabled={isStartingCall}
-                className="w-full justify-center"
+                disabled={isConversationActionLocked}
+                className="w-fit justify-center"
               >
-                {isStartingCall ? "준비 중..." : "채팅으로 시작"}
+                {isConversationActionLocked ? "준비 중..." : "채팅으로 시작"}
               </CareerSecondaryButton>
               <CareerSecondaryButton
                 onClick={() => void onPauseOnboarding()}
                 disabled={onboardingPausePending}
-                className="w-full justify-center"
+                className="w-fit justify-center"
               >
                 {onboardingPausePending
                   ? "준비 중..."
@@ -1330,13 +1345,13 @@ const CareerTimelineSection = () => {
           </TimelinePanel>
         )}
 
-        {user && showInterestSelector && (
-          <TimelinePanel className="max-w-[900px]">
+        {showInterestSelector && (
+          <TimelinePanel className="max-w-[900px] p-0">
             <div className="text-[12px] font-medium text-beige900/40">
               복수 선택 가능
             </div>
 
-            <div className="mt-3 space-y-2">
+            <div className="mt-3 space-y-2 flex flex-col">
               {TALENT_ONBOARDING_INTEREST_OPTIONS.map((option) => {
                 const selected = selectedInterestOptions.includes(option.id);
                 return (
@@ -1357,16 +1372,16 @@ const CareerTimelineSection = () => {
               disabled={
                 onboardingPausePending || selectedInterestOptions.length === 0
               }
-              className="mt-5 w-full justify-center"
+              className="mt-5 w-fit justify-center"
             >
               {onboardingPausePending ? "저장 중..." : "선택 저장하기"}
             </CareerPrimaryButton>
           </TimelinePanel>
         )}
 
-        {user && showContinueConversation && (
-          <TimelinePanel className="max-w-[620px]">
-            <div className="text-[15px] leading-7 text-beige900/55">
+        {showContinueConversation && (
+          <TimelinePanel className="max-w-[620px] p-0">
+            <div className="text-[14px] leading-7 text-beige900/90">
               5분 커리어 인터뷰가 아직 완료되지 않았어요.
               <br />
               이어서 답변하면 맞춤 기회 탐색을 시작할 수 있습니다.

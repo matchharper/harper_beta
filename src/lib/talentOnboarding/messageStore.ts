@@ -144,7 +144,6 @@ export async function fetchVisibleMessagesPage(args: {
         "id, conversation_id, user_id, role, content, message_type, thinking_logs, created_at"
       )
       .eq("conversation_id", conversationId)
-      .or("message_type.is.null,message_type.neq.call_wrapup")
       .not("content", "like", `${TALENT_PENDING_QUESTION_PREFIX}%`)
       .order("id", { ascending: false })
       .limit(batchSize);

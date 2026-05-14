@@ -9,7 +9,7 @@ const resolveSafeNextPath = (value: string | null) => {
 };
 
 export const useCareerAuth = () => {
-  const { user, loading: authLoading } = useAuthStore();
+  const { user, loading: authLoading, signOut } = useAuthStore();
 
   const [authPending, setAuthPending] = useState(false);
   const [authError, setAuthError] = useState("");
@@ -122,8 +122,8 @@ export const useCareerAuth = () => {
   );
 
   const handleLogout = useCallback(async () => {
-    await supabase.auth.signOut();
-  }, []);
+    await signOut();
+  }, [signOut]);
 
   return {
     user,

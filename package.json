@@ -13,8 +13,6 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@deepgram/sdk": "^4.11.2",
-    "@elevenlabs/elevenlabs-js": "^2.26.0",
     "@google/genai": "^1.34.0",
     "@mendable/firecrawl-js": "^1.21.1",
     "@mozilla/readability": "^0.6.0",

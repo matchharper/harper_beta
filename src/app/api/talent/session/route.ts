@@ -579,7 +579,7 @@ export async function GET(req: NextRequest) {
       if (!Number.isFinite(messageId)) continue;
       const postingRoleIds = extractPostingRoleIdsFromText(
         String(message.content ?? "")
-      ).slice(0, 1);
+      );
       if (postingRoleIds.length > 0) {
         postingRoleIdsByMessageId.set(messageId, postingRoleIds);
       }

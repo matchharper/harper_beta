@@ -41,9 +41,10 @@ type CareerWorkspaceNavigationOptions = {
 };
 
 const DESKTOP_MEDIA_QUERY = "(min-width: 720px)";
-const CHAT_PANEL_MIN_WIDTH = 36;
-const CHAT_PANEL_MAX_WIDTH = 64;
-const CHAT_PANEL_DEFAULT_WIDTH = 50;
+const CHAT_PANEL_MIN_WIDTH = 34;
+const CHAT_PANEL_MAX_WIDTH = 62;
+const CHAT_PANEL_DEFAULT_WIDTH = 52;
+const CHAT_PANEL_RESIZE_HANDLE_WIDTH_PX = 8;
 
 export const NAV_ITEMS: Array<{
   id: CareerWorkspaceTab;
@@ -303,8 +304,16 @@ const CareerWorkspaceRoot = ({
       >
         <section
           id="career-chat-panel"
-          className="flex h-[55svh] min-h-0 min-w-0 flex-col border-b border-beige900/10 bg-beige50 lg:h-auto lg:flex-none lg:border-b-0"
-          style={isDesktop ? { flexBasis: `${chatPanelWidth}%` } : undefined}
+          className="flex h-[55vh] min-h-0 min-w-0 flex-col border-b border-beige900/10 bg-beige50 lg:h-auto lg:flex-none lg:border-b-0"
+          style={
+            isDesktop
+              ? {
+                  flexBasis: `calc(${chatPanelWidth}% - ${
+                    CHAT_PANEL_RESIZE_HANDLE_WIDTH_PX / 2
+                  }px)`,
+                }
+              : undefined
+          }
         >
           <div className="min-h-0 flex-1 bg-beige200 p-1">
             <CareerChatPanel />
@@ -359,7 +368,7 @@ const CareerWorkspaceRoot = ({
                   );
                 })}
               </nav>
-              <div className="mx-auto flex w-full max-w-[920px] flex-1 flex-col">
+              <div className="mx-auto flex w-full max-w-[1120px] flex-1 flex-col">
                 <CareerWorkspaceContent
                   activeTab={activeTab}
                   onChangeTab={handleChangeTab}
@@ -383,7 +392,10 @@ const WORKSPACE_TAB_OPTIONS: Array<{
   { id: "profile", label: "프로필" },
 ];
 
-const JOBS_TAB_TO_FEEDBACK: Record<JobsDisplayTab, "new" | "positive" | "negative"> = {
+const JOBS_TAB_TO_FEEDBACK: Record<
+  JobsDisplayTab,
+  "new" | "positive" | "negative"
+> = {
   new: "new",
   tracking: "positive",
   archived: "negative",
@@ -636,10 +648,7 @@ const CareerWorkspaceMobileLayout = ({
               </motion.div>
             </AnimatePresence>
           </CareerMobileShell>
-          <CareerMobileChatLauncher
-            open={chatOpen}
-            onOpenChange={setChatOpen}
-          >
+          <CareerMobileChatLauncher open={chatOpen} onOpenChange={setChatOpen}>
             <CareerChatPanel />
           </CareerMobileChatLauncher>
         </motion.div>

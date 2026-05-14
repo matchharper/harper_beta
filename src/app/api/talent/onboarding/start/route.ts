@@ -46,6 +46,18 @@ type TalentProfileUpdatePayload = {
   resume_storage_path?: string;
 };
 
+type ProfileIngestionSummary = {
+  ok: boolean;
+  linkedinUrl?: string;
+  stats?: Record<string, number>;
+  warnings?: Array<{
+    code: string;
+    message: string;
+    detail?: string | null;
+  }>;
+  error?: string;
+};
+
 const ONBOARDING_SUBMITTED_EVENT_TYPE = "career_onboarding_submitted";
 
 const normalizeLink = (value: string) => {
@@ -273,12 +285,8 @@ export async function POST(req: NextRequest) {
               ok: true,
               linkedinUrl: ingestion.linkedinUrl,
               stats: ingestion.stats,
-            } as {
-              ok: boolean;
-              linkedinUrl?: string;
-              stats?: Record<string, number>;
-              error?: string;
-            };
+              warnings: ingestion.warnings,
+            } as ProfileIngestionSummary;
           } catch (ingestionError) {
             const ingestionMessage =
               ingestionError instanceof Error
@@ -296,12 +304,7 @@ export async function POST(req: NextRequest) {
         })()
       : Promise.resolve({
           ok: true,
-        } as {
-          ok: boolean;
-          linkedinUrl?: string;
-          stats?: Record<string, number>;
-          error?: string;
-        });
+        } as ProfileIngestionSummary);
 
     const [llmRaw, profileIngestion] = await Promise.all([
       kickoffLlmPromise,

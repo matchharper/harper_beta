@@ -54,8 +54,6 @@ const FOLLOW_UP_FALLBACKS = [
   "좋아요. 이어서 더 강조하고 싶은 강점이나 원하는 조건이 있다면 자유롭게 말씀해 주세요.",
 ];
 
-const NO_OP_SEND_AUDIO = () => {};
-
 const wait = (ms: number) =>
   new Promise<void>((resolve) => {
     window.setTimeout(resolve, ms);
@@ -115,10 +113,7 @@ const requestAssistantText = async ({
 };
 
 export const useConversation = (
-  startMicRecording: (
-    sendAudio: (pcm16: any) => void,
-    changeIsRecording?: boolean
-  ) => Promise<void> | void,
+  startMicRecording: (changeIsRecording?: boolean) => Promise<void> | void,
   stopMicCompletely: (changeIsRecording?: boolean) => void
 ) => {
   const [callStatus, setCallStatus] = useState<CallStatus>("idle");
@@ -256,7 +251,7 @@ export const useConversation = (
     syncTranscript("");
 
     try {
-      await startMicRecording(NO_OP_SEND_AUDIO);
+      await startMicRecording();
     } catch (error) {
       console.error("[useConversation] mic recorder failed", error);
       showToast({
@@ -412,7 +407,7 @@ export const useConversation = (
     await stopListening();
   };
 
-  const sendAudioCommit = async () => {
+  const submitVoiceTranscript = async () => {
     await stopListening();
 
     const currentUserTranscript = liveTranscriptRef.current.trim();
@@ -471,7 +466,7 @@ export const useConversation = (
     callStatus,
     harperSaying,
     startCall,
-    sendAudioCommit,
+    submitVoiceTranscript,
     endCall,
     userTranscript,
     toggleMute,
