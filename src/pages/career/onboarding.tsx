@@ -29,6 +29,7 @@ import { showToast } from "@/components/toast/toast";
 import { BeigeButton, BeigeInput } from "@/components/ui/beige";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
+import { useHtmlClass } from "@/hooks/useHtmlClass";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import {
   TALENT_NETWORK_ENGAGEMENT_OPTIONS,
@@ -38,6 +39,23 @@ import {
 } from "@/lib/talentNetworkOptions";
 import { cn } from "@/lib/cn";
 import LoadingState from "../../components/career/OnboardingLoadingState";
+
+const SLIDE_VARIANTS = {
+  enter: (isNext: boolean) => ({
+    opacity: 0,
+    y: isNext ? 36 : -36,
+  }),
+  center: {
+    opacity: 1,
+    y: 0,
+  },
+  exit: (isNext: boolean) => ({
+    opacity: 0,
+    y: isNext ? -36 : 36,
+  }),
+};
+
+const SLIDE_TRANSITION = { duration: 0.22, ease: "easeOut" } as const;
 
 const ONBOARDING_BACKGROUND_CLASS =
   "bg-[#F8F1EA] bg-[linear-gradient(to_top,#F1E1D7_0%,#F8F1EA_58%,#FEFBF6_100%)]";
@@ -310,14 +328,20 @@ const OnboardingStepHeader = ({
   <header className={stepDefinition.headerClassName}>
     <h1 className={stepDefinition.titleClassName}>
       {stepDefinition.title.map((line, index) => (
-        <span key={`${index}-${line}`} className="block">
+        <span
+          key={`${index}-${line}`}
+          className="block text-balance break-keep"
+        >
           {line}
         </span>
       ))}
     </h1>
     <p className={stepDefinition.descriptionClassName}>
       {stepDefinition.description.map((line, index) => (
-        <span key={`${index}-${line}`} className="block">
+        <span
+          key={`${index}-${line}`}
+          className="block text-balance break-keep"
+        >
           {line}
         </span>
       ))}
@@ -749,6 +773,7 @@ const DoneState = ({
 };
 
 const CareerNetworkOnboardingContent = () => {
+  useHtmlClass("noneoverscroll");
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user, authLoading } = useCareerAuth();
@@ -1200,21 +1225,6 @@ const CareerNetworkOnboardingContent = () => {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [handleEngagementToggle, step]);
 
-  const slideVariants = {
-    enter: (isNext: boolean) => ({
-      opacity: 0,
-      y: isNext ? 36 : -36,
-    }),
-    center: {
-      opacity: 1,
-      y: 0,
-    },
-    exit: (isNext: boolean) => ({
-      opacity: 0,
-      y: isNext ? -36 : 36,
-    }),
-  };
-
   const currentStepDefinition = ONBOARDING_STEPS[step] ?? ONBOARDING_STEPS[0];
   const stepLabel = `${step + 1} / ${TOTAL_STEPS}`;
   // const stepLabel = `Step ${step + 1} / ${TOTAL_STEPS} · ${currentStepDefinition.label}`;
@@ -1297,9 +1307,9 @@ const CareerNetworkOnboardingContent = () => {
                   initial="enter"
                   animate="center"
                   exit="exit"
-                  variants={slideVariants}
+                  variants={SLIDE_VARIANTS}
                   custom={isNextRef.current}
-                  transition={{ duration: 0.3, ease: "easeInOut" }}
+                  transition={SLIDE_TRANSITION}
                   className="flex w-full flex-col items-center gap-5"
                 >
                   <OnboardingStepHeader

@@ -205,18 +205,18 @@ const CareerLoginContent = () => {
                 size="lg"
                 variant="primary"
                 disabled={authPending}
+                icon={
+                  authPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : undefined
+                }
                 className="w-full"
               >
-                {authPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    처리 중...
-                  </>
-                ) : emailMode === "signin" ? (
-                  "로그인"
-                ) : (
-                  "회원가입"
-                )}
+                {authPending
+                  ? "처리 중..."
+                  : emailMode === "signin"
+                    ? "로그인"
+                    : "회원가입"}
               </BeigeButton>
               <button
                 type="button"
