@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import CareerInPageTabs from "../CareerInPageTabs";
 import CareerTalentProfilePanel from "./CareerTalentProfilePanel";
@@ -36,38 +36,40 @@ const PROFILE_SECTION_ITEMS: Array<{
 
 const CareerProfileWorkspace = () => {
   const router = useRouter();
-  const [activeSection, setActiveSection] =
-    useState<ProfileSectionId>("profile");
-  const requestedSection = useMemo(() => {
-    const raw =
-      typeof router.query.profileSection === "string"
-        ? router.query.profileSection
-        : null;
-    return isProfileSectionId(raw) ? raw : null;
+
+  const activeSection: ProfileSectionId = useMemo(() => {
+    const raw = router.query.profileSection;
+    return typeof raw === "string" && isProfileSectionId(raw) ? raw : "profile";
   }, [router.query.profileSection]);
 
-  useEffect(() => {
-    if (!router.isReady || !requestedSection) return;
-    setActiveSection(requestedSection);
-  }, [requestedSection, router.isReady]);
+  const handleChangeSection = useCallback(
+    (next: ProfileSectionId) => {
+      void router.replace(
+        {
+          pathname: router.pathname,
+          query: { ...router.query, profileSection: next },
+        },
+        undefined,
+        { shallow: true }
+      );
+    },
+    [router]
+  );
 
-  const tabs = useMemo(() => PROFILE_SECTION_ITEMS, []);
-
-  const activeContent = useMemo(() => {
-    if (activeSection === "links") {
-      return <CareerResumeLinksSettingsSection />;
-    }
-
-    return <CareerTalentProfilePanel />;
-  }, [activeSection]);
+  const activeContent =
+    activeSection === "links" ? (
+      <CareerResumeLinksSettingsSection />
+    ) : (
+      <CareerTalentProfilePanel />
+    );
 
   return (
     <>
       <div className="my-4">
         <CareerInPageTabs
-          items={tabs}
+          items={PROFILE_SECTION_ITEMS}
           activeId={activeSection}
-          onChange={setActiveSection}
+          onChange={handleChangeSection}
         />
       </div>
 

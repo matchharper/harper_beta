@@ -1,16 +1,10 @@
 import { GalleryVerticalEnd, House, Loader2, User } from "lucide-react";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent,
-} from "react";
+import { useCallback, useMemo, useState } from "react";
 import CareerChatPanel from "@/components/career/CareerChatPanel";
 import CareerHistoryPanel from "@/components/career/CareerHistoryPanel";
 import CareerHomePanel from "@/components/career/CareerHomePanel";
 import CareerProfileWorkspace from "@/components/career/profile/CareerProfileWorkspace";
+import CareerSupportInquiryModal from "@/components/career/CareerSupportInquiryModal";
 import { useCareerSidebarContext } from "@/components/career/CareerSidebarContext";
 import CareerWorkspaceNav, {
   type CareerWorkspaceTab,
@@ -24,7 +18,8 @@ import CareerMobileChatLauncher from "@/components/career/mobile/CareerMobileCha
 import CareerMobileHomeView from "@/components/career/mobile/CareerMobileHomeView";
 import CareerMobileShell from "@/components/career/mobile/CareerMobileShell";
 import CareerMobileTopBar from "@/components/career/mobile/CareerMobileTopBar";
-import { useIsMobile } from "@/hooks/useMediaQuery";
+import { useIsMobile, useMediaQuery } from "@/hooks/useMediaQuery";
+import { useResizableSplitPanel } from "@/hooks/useResizableSplitPanel";
 import { useCompanyModalStore } from "@/store/useModalStore";
 import { useQueryClient } from "@tanstack/react-query";
 import type { CareerHistoryOpportunity } from "@/components/career/types";
@@ -161,112 +156,25 @@ const CareerWorkspaceRoot = ({
     options?: CareerWorkspaceNavigationOptions
   ) => void;
 }) => {
-  const workspaceRef = useRef<HTMLDivElement>(null);
-  const draggingRef = useRef(false);
   const [activeTabState, setActiveTabState] =
     useState<CareerWorkspaceTab>("home");
-  const [isDesktop, setIsDesktop] = useState(false);
-  const [chatPanelWidth, setChatPanelWidth] = useState(
-    CHAT_PANEL_DEFAULT_WIDTH
-  );
+  const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
+  const {
+    containerRef: workspaceRef,
+    widthPct: chatPanelWidth,
+    handleResizeStart,
+    handleResizeKeyDown,
+  } = useResizableSplitPanel({
+    enabled: isDesktop,
+    minPct: CHAT_PANEL_MIN_WIDTH,
+    maxPct: CHAT_PANEL_MAX_WIDTH,
+    defaultPct: CHAT_PANEL_DEFAULT_WIDTH,
+  });
   const { stage } = useCareerSidebarContext();
   const activeTab = controlledActiveTab ?? activeTabState;
   const handleChangeTab =
     controlledOnChangeTab ??
     ((nextTab: CareerWorkspaceTab) => setActiveTabState(nextTab));
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const mediaQuery = window.matchMedia(DESKTOP_MEDIA_QUERY);
-    const syncDesktopState = () => setIsDesktop(mediaQuery.matches);
-
-    syncDesktopState();
-
-    if (typeof mediaQuery.addEventListener === "function") {
-      mediaQuery.addEventListener("change", syncDesktopState);
-      return () => mediaQuery.removeEventListener("change", syncDesktopState);
-    }
-
-    mediaQuery.addListener(syncDesktopState);
-    return () => mediaQuery.removeListener(syncDesktopState);
-  }, []);
-
-  const updateChatPanelWidth = useCallback((clientX: number) => {
-    const workspace = workspaceRef.current;
-    if (!workspace) return;
-
-    const bounds = workspace.getBoundingClientRect();
-    if (bounds.width <= 0) return;
-
-    const nextWidth = ((clientX - bounds.left) / bounds.width) * 100;
-    const clampedWidth = Math.min(
-      CHAT_PANEL_MAX_WIDTH,
-      Math.max(CHAT_PANEL_MIN_WIDTH, nextWidth)
-    );
-
-    setChatPanelWidth(clampedWidth);
-  }, []);
-
-  useEffect(() => {
-    if (!isDesktop) return;
-
-    const handlePointerMove = (event: PointerEvent) => {
-      if (!draggingRef.current) return;
-      event.preventDefault();
-      updateChatPanelWidth(event.clientX);
-    };
-
-    const handlePointerUp = () => {
-      if (!draggingRef.current) return;
-      draggingRef.current = false;
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", handlePointerUp);
-
-    return () => {
-      draggingRef.current = false;
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", handlePointerUp);
-    };
-  }, [isDesktop, updateChatPanelWidth]);
-
-  const handleResizeStart = useCallback(
-    (clientX: number) => {
-      if (!isDesktop) return;
-      draggingRef.current = true;
-      document.body.style.cursor = "col-resize";
-      document.body.style.userSelect = "none";
-      updateChatPanelWidth(clientX);
-    },
-    [isDesktop, updateChatPanelWidth]
-  );
-
-  const handleResizeKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLDivElement>) => {
-      if (!isDesktop) return;
-
-      if (event.key === "ArrowLeft") {
-        event.preventDefault();
-        setChatPanelWidth((current) =>
-          Math.max(CHAT_PANEL_MIN_WIDTH, current - 2)
-        );
-      }
-
-      if (event.key === "ArrowRight") {
-        event.preventDefault();
-        setChatPanelWidth((current) =>
-          Math.min(CHAT_PANEL_MAX_WIDTH, current + 2)
-        );
-      }
-    },
-    [isDesktop]
-  );
 
   const handleRequestChatFocus = useCallback(() => {
     if (typeof document === "undefined") return;
@@ -411,13 +319,19 @@ const useMobileUserDisplay = () => {
     talentProfile.talentUser?.profile_picture ??
     user?.user_metadata?.avatar_url ??
     null;
-  return { displayName: displayName ?? null, profilePicture };
+  const userEmail = user?.email ?? "";
+  return {
+    displayName: displayName ?? null,
+    profilePicture,
+    userEmail,
+  };
 };
 
 const CareerWorkspaceMobileHistoryView = ({
   activeTab,
   onChangeTab,
   initialHistoryTarget,
+  onOpenSupport,
 }: {
   activeTab: CareerWorkspaceTab;
   onChangeTab: (
@@ -425,16 +339,18 @@ const CareerWorkspaceMobileHistoryView = ({
     options?: CareerWorkspaceNavigationOptions
   ) => void;
   initialHistoryTarget?: CareerWorkspaceHistoryTarget | null;
+  onOpenSupport: () => void;
 }) => {
   const {
     onOpenSettings,
+    onLogout,
     historyOpportunities,
     historyOpportunityCounts,
     historyLoading,
     onUpdateHistoryOpportunityFeedback,
     onMarkHistoryOpportunityClicked,
   } = useCareerSidebarContext();
-  const { displayName, profilePicture } = useMobileUserDisplay();
+  const { displayName, profilePicture, userEmail } = useMobileUserDisplay();
   const openCompanyModal = useCompanyModalStore((s) => s.handleOpenCompany);
   const queryClient = useQueryClient();
 
@@ -554,7 +470,10 @@ const CareerWorkspaceMobileHistoryView = ({
         onChangeJobsTab={handleChangeJobsTab}
         profilePicture={profilePicture}
         userName={displayName}
+        userEmail={userEmail}
         onOpenSettings={onOpenSettings}
+        onOpenSupport={onOpenSupport}
+        onLogout={onLogout}
         bottomReservePx={actionBar ? 200 : 120}
         isLoading={historyLoading}
         showSwipeHint={showHint}
@@ -586,11 +505,17 @@ const CareerWorkspaceMobileLayout = ({
     options?: CareerWorkspaceNavigationOptions
   ) => void;
 }) => {
-  const { onOpenSettings } = useCareerSidebarContext();
-  const { displayName, profilePicture } = useMobileUserDisplay();
-  const [chatOpen, setChatOpen] = useState(false);
+  const { onOpenSettings, onLogout } = useCareerSidebarContext();
+  const { displayName, profilePicture, userEmail } = useMobileUserDisplay();
+  const [chatOpen, setChatOpen] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const startQuery = new URLSearchParams(window.location.search).get("start");
+    return startQuery === "call" || startQuery === "chat";
+  });
+  const [inquiryOpen, setInquiryOpen] = useState(false);
   const [pendingHistoryTarget, setPendingHistoryTarget] =
     useState<CareerWorkspaceHistoryTarget | null>(null);
+  const handleOpenSupport = useCallback(() => setInquiryOpen(true), []);
 
   const handleChangeTab = useCallback(
     (
@@ -614,45 +539,60 @@ const CareerWorkspaceMobileLayout = ({
       onChangeTab={handleChangeTab}
       profilePicture={profilePicture}
       userName={displayName}
+      userEmail={userEmail}
       onOpenSettings={onOpenSettings}
+      onOpenSupport={handleOpenSupport}
+      onLogout={onLogout}
     />
   );
 
   return (
-    <AnimatePresence mode="wait" initial={false}>
-      {activeTab === "history" ? (
-        <motion.div key="history" {...TAB_MOTION_PROPS}>
-          <CareerWorkspaceMobileHistoryView
-            activeTab={activeTab}
-            onChangeTab={handleChangeTab}
-            initialHistoryTarget={pendingHistoryTarget}
-          />
-        </motion.div>
-      ) : (
-        <motion.div key="shell" {...TAB_MOTION_PROPS}>
-          <CareerMobileShell header={mobileHeader}>
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.div key={activeTab} {...TAB_MOTION_PROPS}>
-                {activeTab === "home" ? (
-                  <CareerMobileHomeView
-                    onOpenChat={() => setChatOpen(true)}
-                    onOpenHistory={(historyTarget) =>
-                      handleChangeTab("history", { historyTarget })
-                    }
-                  />
-                ) : (
-                  <div className="flex flex-1 items-center justify-center px-6 py-16 pb-[140px] text-center text-[15px] text-beige900/55">
-                    프로필 모바일 화면은 곧 추가됩니다.
-                  </div>
-                )}
-              </motion.div>
-            </AnimatePresence>
-          </CareerMobileShell>
-          <CareerMobileChatLauncher open={chatOpen} onOpenChange={setChatOpen}>
-            <CareerChatPanel />
-          </CareerMobileChatLauncher>
-        </motion.div>
+    <>
+      <AnimatePresence mode="wait" initial={false}>
+        {activeTab === "history" ? (
+          <motion.div key="history" {...TAB_MOTION_PROPS}>
+            <CareerWorkspaceMobileHistoryView
+              activeTab={activeTab}
+              onChangeTab={handleChangeTab}
+              initialHistoryTarget={pendingHistoryTarget}
+              onOpenSupport={handleOpenSupport}
+            />
+          </motion.div>
+        ) : (
+          <motion.div key="shell" {...TAB_MOTION_PROPS}>
+            <CareerMobileShell header={mobileHeader}>
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div key={activeTab} {...TAB_MOTION_PROPS}>
+                  {activeTab === "home" ? (
+                    <CareerMobileHomeView
+                      onOpenChat={() => setChatOpen(true)}
+                      onOpenHistory={(historyTarget) =>
+                        handleChangeTab("history", { historyTarget })
+                      }
+                    />
+                  ) : (
+                    <div className="px-4 pb-[140px] pt-2">
+                      <CareerProfileWorkspace />
+                    </div>
+                  )}
+                </motion.div>
+              </AnimatePresence>
+            </CareerMobileShell>
+            <CareerMobileChatLauncher
+              open={chatOpen}
+              onOpenChange={setChatOpen}
+            >
+              <CareerChatPanel />
+            </CareerMobileChatLauncher>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {inquiryOpen && (
+        <CareerSupportInquiryModal
+          onClose={() => setInquiryOpen(false)}
+          defaultEmail={userEmail}
+        />
       )}
-    </AnimatePresence>
+    </>
   );
 };

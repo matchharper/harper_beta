@@ -37,7 +37,7 @@ export default function CareerMobileShell({
       <main
         id="career-mobile-scroll"
         className={cn(
-          "relative min-h-0 flex-1 overflow-y-auto scroll-smooth bg-beige50",
+          "relative min-h-0 flex-1 overflow-y-auto overscroll-contain scroll-smooth bg-beige50",
           contentClassName
         )}
       >

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   AwardIcon,
   Building2,
@@ -500,7 +500,7 @@ const ItemRemoveButton = ({ onClick }: { onClick: () => void }) => (
   <button
     type="button"
     onClick={onClick}
-    className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-beige900/10 bg-white/60 text-beige900/60 transition-colors hover:border-beige900/25 hover:text-beige900"
+    className="inline-flex h-11 w-11 items-center justify-center rounded-[8px] border border-beige900/10 bg-white/60 text-beige900/60 transition-colors hover:border-beige900/25 hover:text-beige900 md:h-8 md:w-8"
     aria-label="항목 삭제"
   >
     <Trash2 className="h-4 w-4" />
@@ -508,10 +508,10 @@ const ItemRemoveButton = ({ onClick }: { onClick: () => void }) => (
 );
 
 const profileEditInputClassName =
-  "h-9 border-beige900/15 bg-white/70 text-[13px] placeholder:text-beige900/35";
+  "h-11 border-beige900/15 bg-white/70 text-base placeholder:text-beige900/35 md:h-9 md:text-[13px]";
 
 const profileEditTextareaClassName =
-  "min-h-[92px] border border-white/0 rounded-md px-1.5 py-1 bg-white/70 text-[13px] leading-6 placeholder:text-beige900/35 focus:border-beige900/15 focus:ring-1 focus:ring-beige900/20";
+  "min-h-[92px] border-beige900/15 bg-white/70 text-base leading-6 placeholder:text-beige900/35 md:text-[13px]";
 
 const profileEditPlainInputClassName =
   "h-auto rounded-[4px] border border-white/50 bg-white/80 px-1.5 py-1 shadow-none hover:bg-white/45 focus:border-beige900/15 focus:bg-white/75 focus:ring-1 focus:ring-beige900/20";
@@ -523,7 +523,7 @@ const profileNoticeClassName =
   "flex items-center gap-2.5 rounded-[14px] border border-beige900/10 bg-linear-to-br from-beige100 to-white/80 px-3.5 py-2.5 text-[12.5px] leading-5 text-beige900/65";
 
 const profileCvLinkClassName =
-  "inline-flex h-9 items-center justify-center gap-1.5 rounded-[8px] border border-beige900/15 bg-white/70 px-3.5 text-[12.5px] font-medium text-beige900 transition-colors hover:border-beige900/30 hover:bg-beige100";
+  "inline-flex h-11 items-center justify-center gap-1.5 rounded-[8px] border border-beige900/15 bg-white/70 px-4 text-[13.5px] font-medium text-beige900 transition-colors hover:border-beige900/30 hover:bg-beige100 md:h-9 md:px-3.5 md:text-[12.5px]";
 
 const overviewEyebrowClassName = "text-[13px] font-medium text-beige900/70";
 
@@ -604,13 +604,9 @@ const ProfileAvatar = ({
                 }}
               />
             ) : null}
-            {!imageActionDisabled ? (
-              <span className="pointer-events-none absolute right-[-3px] top-[-3px] z-2 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-[#22c55e] text-white opacity-0 shadow-[0_2px_7px_rgba(21,128,61,0.28)] transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-                {uploadPending ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
-                )}
+            {uploadPending ? (
+              <span className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full bg-beige900/30 text-white">
+                <Loader2 className="h-4 w-4 animate-spin" />
               </span>
             ) : null}
           </button>
@@ -673,7 +669,7 @@ const ProfileHeader = ({
 }) => (
   <section
     className={careerCx(
-      "flex flex-col gap-4 px-1 pt-1 sm:flex-row",
+      "relative flex flex-col gap-4 px-1 pt-1 sm:flex-row",
       isEditing ? "sm:items-start" : "sm:items-center"
     )}
   >
@@ -759,7 +755,7 @@ const ProfileHeader = ({
 
     <div
       className={careerCx(
-        "flex shrink-0 gap-2",
+        "absolute right-1 top-1 flex shrink-0 gap-2 sm:static sm:right-auto sm:top-auto",
         isEditing ? "flex-wrap" : "flex-col items-end"
       )}
     >
@@ -1008,11 +1004,6 @@ const CareerTalentProfilePanel = ({
   const [profileImageUploadPending, setProfileImageUploadPending] =
     useState(false);
   const [profileImageError, setProfileImageError] = useState("");
-
-  useEffect(() => {
-    if (isEditing) return;
-    setDraft(createEditableProfile(talentProfile));
-  }, [isEditing, talentProfile]);
 
   const mergedExperience = useMemo(
     () => mergeExperienceAndEducation(talentExperiences, talentEducations),
@@ -1377,7 +1368,7 @@ const CareerTalentProfilePanel = ({
   return (
     <div className={careerCx("space-y-5", isEditing && "pb-24", className)}>
       {isEditing && (
-        <div className="fixed bottom-5 right-5 z-50 flex flex-wrap items-center justify-end gap-2 rounded-[12px] bg-beige50/40 p-1 shadow-[0_16px_44px_rgba(46,23,6,0.16)] backdrop-blur">
+        <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+104px)] right-3 z-50 flex flex-wrap items-center justify-end gap-2 rounded-[12px] bg-beige50/40 p-1 shadow-[0_16px_44px_rgba(46,23,6,0.16)] backdrop-blur md:bottom-5 md:right-5">
           <CareerSecondaryButton
             type="button"
             onClick={cancelEditing}
@@ -1475,7 +1466,7 @@ const CareerTalentProfilePanel = ({
               <CareerSecondaryButton
                 type="button"
                 onClick={addExperience}
-                className="h-8 gap-1.5 px-3 text-xs"
+                className="h-11 gap-1.5 px-4 text-[13px] md:h-8 md:px-3 md:text-xs"
               >
                 <Plus className="h-3.5 w-3.5" />
                 경력 추가
@@ -1483,7 +1474,7 @@ const CareerTalentProfilePanel = ({
               <CareerSecondaryButton
                 type="button"
                 onClick={addEducation}
-                className="h-8 gap-1.5 px-3 text-xs"
+                className="h-11 gap-1.5 px-4 text-[13px] md:h-8 md:px-3 md:text-xs"
               >
                 <Plus className="h-3.5 w-3.5" />
                 학력 추가
@@ -1491,7 +1482,7 @@ const CareerTalentProfilePanel = ({
               <CareerSecondaryButton
                 type="button"
                 onClick={addExtra}
-                className="h-8 gap-1.5 px-3 text-xs"
+                className="h-11 gap-1.5 px-4 text-[13px] md:h-8 md:px-3 md:text-xs"
               >
                 <Plus className="h-3.5 w-3.5" />
                 추가 정보
@@ -2000,7 +1991,7 @@ const CareerTalentProfilePanel = ({
           <CareerSecondaryButton
             type="button"
             onClick={beginEditing}
-            className="mt-4 h-9 gap-1.5 px-3.5 text-[12.5px]"
+            className="mt-4 h-11 gap-1.5 px-4 text-[13.5px] md:h-9 md:px-3.5 md:text-[12.5px]"
           >
             <Pencil className="h-3.5 w-3.5" />
             수정하기
