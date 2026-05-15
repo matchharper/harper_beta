@@ -1,10 +1,15 @@
 import React, { type ReactNode } from "react";
+import { useRouter } from "next/router";
 import { AudioLines, Phone } from "lucide-react";
 import type { CareerMessage } from "@/components/career/types";
 import CareerRichText from "@/components/career/ui/CareerRichText";
 import { TALENT_MESSAGE_TYPE_OPPORTUNITY_FEEDBACK_NOTE } from "@/lib/career/opportunityFeedbackNote";
 import { stripStandalonePostingLinksFromText } from "@/lib/career/postingLinks";
-import { compactUrlLabel } from "@/lib/urlDisplay";
+import {
+  compactUrlLabel,
+  getHarperOwnedUrlRoute,
+  isHarperOwnedUrl,
+} from "@/lib/urlDisplay";
 
 // User bubble 색상을 바꾸려면 이 클래스를 수정하세요.
 export const USER_BUBBLE_CLASS =
@@ -33,7 +38,11 @@ function stripCallActionMarker(content: string) {
   return content.replaceAll(CALL_ACTION_MARKER, "").trim();
 }
 
-function renderTextWithLinks(content: string, keyPrefix: string): ReactNode[] {
+function renderTextWithLinks(
+  content: string,
+  keyPrefix: string,
+  onHarperLinkClick: (href: string) => void
+): ReactNode[] {
   const nodes: ReactNode[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null = null;
@@ -44,6 +53,21 @@ function renderTextWithLinks(content: string, keyPrefix: string): ReactNode[] {
     const href = match[0] ?? "";
     if (lastIndex < matchIndex) {
       nodes.push(content.slice(lastIndex, matchIndex));
+    }
+    if (isHarperOwnedUrl(href)) {
+      nodes.push(
+        <button
+          key={`${keyPrefix}-internal-link-${matchIndex}`}
+          type="button"
+          onClick={() => onHarperLinkClick(href)}
+          title={href}
+          className="inline cursor-pointer border-0 bg-transparent p-0 text-left font-[inherit] text-inherit underline underline-offset-2 transition-opacity hover:opacity-70"
+        >
+          {compactUrlLabel(href)}
+        </button>
+      );
+      lastIndex = matchIndex + href.length;
+      continue;
     }
     nodes.push(
       <a
@@ -67,7 +91,10 @@ function renderTextWithLinks(content: string, keyPrefix: string): ReactNode[] {
   return nodes.length > 0 ? nodes : [content];
 }
 
-function renderHighlightedContent(content: string): ReactNode {
+function renderHighlightedContent(
+  content: string,
+  onHarperLinkClick: (href: string) => void
+): ReactNode {
   const nodes: ReactNode[] = [];
   let lastIndex = 0;
   const pattern = new RegExp(HIGHLIGHT_PATTERN);
@@ -81,7 +108,8 @@ function renderHighlightedContent(content: string): ReactNode {
         <React.Fragment key={`text-${matchIndex}`}>
           {renderTextWithLinks(
             content.slice(lastIndex, matchIndex),
-            `text-${matchIndex}`
+            `text-${matchIndex}`,
+            onHarperLinkClick
           )}
         </React.Fragment>
       );
@@ -107,13 +135,16 @@ function renderHighlightedContent(content: string): ReactNode {
       <React.Fragment key={`text-tail-${lastIndex}`}>
         {renderTextWithLinks(
           content.slice(lastIndex),
-          `text-tail-${lastIndex}`
+          `text-tail-${lastIndex}`,
+          onHarperLinkClick
         )}
       </React.Fragment>
     );
   }
 
-  return nodes.length > 0 ? nodes : renderTextWithLinks(content, "full");
+  return nodes.length > 0
+    ? nodes
+    : renderTextWithLinks(content, "full", onHarperLinkClick);
 }
 
 const CareerMessageBubble = ({
@@ -123,6 +154,15 @@ const CareerMessageBubble = ({
   isCallStartPending = false,
   onStartCallMode,
 }: Props) => {
+  const router = useRouter();
+  const handleHarperLinkClick = React.useCallback(
+    (href: string) => {
+      const route = getHarperOwnedUrlRoute(href);
+      if (!route) return;
+      void router.push(route);
+    },
+    [router]
+  );
   const isCallTranscript = message.messageType === "call_transcript";
   const hasCallAction = !isUser && message.content.includes(CALL_ACTION_MARKER);
   const isOpportunityFeedbackNote =
@@ -176,7 +216,7 @@ const CareerMessageBubble = ({
         <div className="min-w-0 flex-1">
           {isUser ? (
             <div className="whitespace-pre-wrap wrap-break-word">
-              {renderHighlightedContent(displayContent)}
+              {renderHighlightedContent(displayContent, handleHarperLinkClick)}
               {typingCursor}
             </div>
           ) : (
@@ -184,6 +224,7 @@ const CareerMessageBubble = ({
               content={assistantContent}
               className={ASSISTANT_RICH_TEXT_CLASS}
               trailingInlineNode={typingCursor}
+              onHarperLinkClick={handleHarperLinkClick}
             />
           )}
           {hasCallAction && (

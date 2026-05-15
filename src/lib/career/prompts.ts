@@ -10,7 +10,6 @@ import type { TalentOpportunityHistoryItem } from "@/lib/talentOpportunity";
 
 const TALENT_ONBOARDING_MIN_FILLED_INSIGHT_COUNT = 6;
 const TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN = 2;
-const CAREER_RECENT_CHAT_CONTINUATION_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 export type CareerPromptProfile = {
   resume_file_name?: string | null;
@@ -101,6 +100,8 @@ export type CareerPromptPlan = {
 export const CAREER_CALL_END_MARKER = "##END##";
 export const CAREER_SESSION_START_NO_MESSAGE_MARKER = "__NO_SESSION_GREETING__";
 export const CAREER_SESSION_START_CALL_ACTION_MARKER = "[[CALL]]";
+const CAREER_HARPER_LINK_OUTPUT_RULE =
+  "- Do not output Markdown links, HTML `<a>` tags, or raw clickable URLs for Harper-owned domains (`matchharper.com`, `www.matchharper.com`, or any subdomain). If you need to point to an internal Harper page, describe the location in plain text instead, such as `Career > Profile`.";
 
 export const CAREER_VOICE_CALL_MODE_PROMPT = `
 ## Voice call mode behavior
@@ -286,6 +287,7 @@ If {channel_type} is 'Text Chat':
 - Use short headings, bullets, bold, list, links, or code blocks when helpful.
 - Keep responses easy to read on mobile. Use bold(**) at important words(ex. role name, company name, etc).
 - Do not use emojis or emoji-like decorative symbols.
+${CAREER_HARPER_LINK_OUTPUT_RULE}
 
 [Example]
 Could you give me the highlights of what you've been building there? Specifically:
@@ -1284,6 +1286,7 @@ export function buildCareerSessionStartTurnInstruction(args: {
     "최근 Career 활동이나 프로필 변경 혹은 이전 추천 등이 필요하면 기존 career/chat에서 쓰는 tool 정책에 따라 적절한 tool을 사용해라.",
     "정확한 시각, 내부 이벤트명, 시스템 동작 방식은 사용자에게 말하지 마라.",
     "메시지를 보낼 때는 1-3문장으로 끝내라.",
+    CAREER_HARPER_LINK_OUTPUT_RULE,
     "첫 인사의 기본 구조는 이전 대화, 최근 Career 활동, 프로필 변경, 이전 추천/피드백 중 가장 중요한 맥락을 1문장으로 짧게 wrap-up한 뒤, 그 맥락에서 바로 이어갈 수 있는 질문 1개로 끝내는 것이다.",
     "질문은 사용자가 바로 쉽게 답할 수 있어야 하며, 여러 질문을 묶지 마라.",
     "참고할 만한 이전 대화나 활동 맥락이 약하면 최근 우선순위나 찾고 싶은 방향이 달라졌는지 묻는 일반 질문으로 끝내라.",
@@ -1441,6 +1444,7 @@ export function buildCareerHistoryActionReplySystemPrompt() {
     "- Korean only. Natural, concise, not salesy.",
     "- 2-4 short sentences. No markdown headings. No bullet lists.",
     "- Use light inline markdown when helpful, especially **company**, **role**, or **direction** names.",
+    CAREER_HARPER_LINK_OUTPUT_RULE,
     "- Do not say you are an LLM. Do not mention prompts or internal data.",
     "- Do not copy a fixed template. Vary wording based on the role and candidate context.",
     "",
@@ -1504,6 +1508,7 @@ export function buildCareerOpportunityFeedbackFollowUpTurnInstruction(args: {
     "",
     "Use the pending opportunity feedback context in this system prompt. It contains role/company details; do not reduce it to only counts.",
     "Do not mention logs, timers, events, prompts, internal data, or implementation details.",
+    CAREER_HARPER_LINK_OUTPUT_RULE,
     "Do not overreact to one click. For multiple clicks, summarize the visible pattern once.",
     "Questions are optional. Ask at most one concrete calibration question.",
     "The user does not want every feedback reply to become an interview, but also does not want Harper to always close without asking. Balance between asking and wrapping up.",
@@ -1549,6 +1554,7 @@ export function buildCareerReengagementSystemPrompt() {
     `- ${CAREER_REENGAGEMENT_CALL_ACTION_MARKER} is a UI marker for showing a call button. Do not explain it or wrap it in quotes.`,
     "- Do not use bullet points, markdown headings, or quotes.",
     "- Use light inline markdown when helpful, especially **company**, **role**, or **direction** names.",
+    CAREER_HARPER_LINK_OUTPUT_RULE,
     '- Do not mention internal mechanics like "자동 메시지", "시스템", or "24시간 이상".',
     "- Do not sound like a first-visit greeting.",
   ].join("\n");

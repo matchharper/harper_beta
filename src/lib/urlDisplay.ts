@@ -1,5 +1,6 @@
 const DEFAULT_COMPACT_URL_MAX_LENGTH = 44;
 const URL_TEXT_PATTERN = /^(https?:\/\/|mailto:|www\.)\S+$/i;
+const HARPER_OWNED_DOMAIN = "matchharper.com";
 const COMMON_SECOND_LEVEL_TLDS = new Set([
   "ac",
   "co",
@@ -22,6 +23,35 @@ function truncateLabel(value: string, maxLength: number) {
 
 export function isUrlText(value: string) {
   return URL_TEXT_PATTERN.test(value.trim());
+}
+
+export function isHarperOwnedUrl(value: string) {
+  return getHarperOwnedUrlRoute(value) !== null;
+}
+
+export function getHarperOwnedUrlRoute(value: string) {
+  const raw = value.trim();
+  if (!raw) return null;
+  if (raw.startsWith("/") && !raw.startsWith("//")) return raw;
+
+  const urlText = raw.startsWith("//")
+    ? `https:${raw}`
+    : /^www\./i.test(raw)
+      ? `https://${raw}`
+      : raw;
+
+  try {
+    const url = new URL(urlText);
+    const hostname = url.hostname.toLowerCase().replace(/\.$/, "");
+    const isHarperOwned =
+      hostname === HARPER_OWNED_DOMAIN ||
+      hostname.endsWith(`.${HARPER_OWNED_DOMAIN}`);
+    if (!isHarperOwned) return null;
+
+    return `${url.pathname || "/"}${url.search}${url.hash}`;
+  } catch {
+    return null;
+  }
 }
 
 export function compactUrlLabel(

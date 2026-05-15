@@ -1263,7 +1263,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const hasRecommendationChangingUpdate =
         preferenceChanges.length > 0 || talentInsightKeys.length > 0;
       const shouldRecommendJobPostings =
-        impactLevel === "high" &&
+        // impactLevel === "high" &&
         hasRecommendationChangingUpdate &&
         Boolean((await loadExistingSetting())?.is_onboarding_done);
       const recommendationTrigger = shouldRecommendJobPostings

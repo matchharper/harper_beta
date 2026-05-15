@@ -4,8 +4,13 @@ export type CareerConversationStarterId = "preference_update" | "match_quality";
 
 export type CareerConversationStarterMode = "chat" | "call";
 
+export type CareerConversationStarterIcon =
+  | "sliders-horizontal"
+  | "message-circle-more";
+
 export type CareerConversationStarterAction = {
   id: CareerConversationStarterId;
+  icon: CareerConversationStarterIcon;
   label: string;
   shortLabel: string;
   chatMessage: string;
@@ -15,6 +20,7 @@ export type CareerConversationStarterAction = {
 export const CAREER_CONVERSATION_STARTERS: CareerConversationStarterAction[] = [
   {
     id: "preference_update",
+    icon: "sliders-horizontal",
     label: "선호 조건 업데이트하기",
     shortLabel: "선호 조건 업데이트",
     chatMessage: "선호 조건을 업데이트하고 싶어요.",
@@ -23,6 +29,7 @@ export const CAREER_CONVERSATION_STARTERS: CareerConversationStarterAction[] = [
   },
   {
     id: "match_quality",
+    icon: "message-circle-more",
     label: "더 이야기하고 더 좋은 연결 받기",
     shortLabel: "경험 더 들려주기",
     chatMessage: "제 정보와 경험을 조금 더 자세히 이야기할 수 있어요.",

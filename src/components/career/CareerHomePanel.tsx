@@ -17,14 +17,14 @@ import {
 import { useMemo } from "react";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
 import { CareerProfileSharingSettingsSection } from "./CareerProfileSettingsSection";
-import {
-  CareerPrimaryButton,
-  CareerSecondaryButton,
-} from "./ui/CareerPrimitives";
 import { type CareerOpportunityAgentVariant } from "./types";
 import React from "react";
 import { getCareerDefaultSavedStage } from "./opportunityTypeMeta";
 import { ConversationStarterActions } from "./ConversationStarterActions";
+import {
+  CareerActionButton,
+  CareerInteractiveCard,
+} from "./ui/CareerActionButton";
 import type {
   CareerConversationStarterId,
   CareerConversationStarterMode,
@@ -66,10 +66,9 @@ const HomeOpportunitySummaryCard = ({
   status: string;
   title: string;
 }) => (
-  <button
-    type="button"
+  <CareerInteractiveCard
     onClick={onClick}
-    className="group flex min-h-[154px] w-full flex-col justify-between rounded-xl border border-beige900/10 bg-white px-4 py-4 text-left transition-all hover:-translate-y-0.5 hover:border-beige900/15 focus:outline-none focus-visible:ring-4 focus-visible:ring-beige700/20"
+    className="group flex min-h-[154px] w-full flex-col items-stretch justify-between whitespace-normal px-4 py-4 text-left"
   >
     <div className="flex items-start justify-between gap-3">
       <div>
@@ -96,12 +95,12 @@ const HomeOpportunitySummaryCard = ({
           {description}
         </span>
       </div>
-      <span className="mt-3 inline-flex min-h-[32px] items-center gap-1 rounded-full border border-beige900/10 bg-beige50 px-3 text-[12px] font-normal text-beige900 transition-colors group-hover:border-beige900/20 group-hover:bg-beige100">
+      <span className="mt-3 inline-flex items-center gap-1 text-[12px] font-normal text-beige900">
         {buttonLabel}
-        <ChevronRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
+        <ChevronRight className="h-3 w-3" />
       </span>
     </div>
-  </button>
+  </CareerInteractiveCard>
 );
 
 const CareerHomePanel = ({
@@ -335,11 +334,11 @@ const CareerHomePanel = ({
                   오른쪽의 버튼을 통해 다시 시도해주세요. 불편을드려 죄송합니다.
                 </span>
               </div>
-              <button
-                type="button"
+              <CareerActionButton
                 onClick={() => void onRefreshTalentProfileSources()}
                 disabled={profileSavePending}
-                className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-full bg-[#1f6feb] px-3.5 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                actionVariant="primary"
+                className="shrink-0"
               >
                 {profileSavePending ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -347,7 +346,7 @@ const CareerHomePanel = ({
                   <RefreshCw className="h-3.5 w-3.5" />
                 )}
                 {profileSavePending ? "가져오는 중..." : "정보 다시 가져오기"}
-              </button>
+              </CareerActionButton>
             </div>
           ) : null}
           <p className="mt-0 max-w-[620px] text-[15px] leading-5 text-beige900/65">
@@ -363,21 +362,21 @@ const CareerHomePanel = ({
           )}
           <div className="mt-4 rounded-3xl border border-beige900/5 bg-beige100 px-6 py-5">
             {isOnboardingCompleted ? (
-              <div className="flex flex-row items-center justify-between gap-4">
+              <div className="flex flex-row items-center justify-between gap-2">
                 <div className="flex h-12 w-12 min-w-12 items-center justify-center rounded-2xl bg-beige200">
                   <Phone className="h-6 w-6 text-beige700" strokeWidth={1.6} />
                 </div>
-                <div className="flex w-full flex-col items-start justify-center gap-1 px-4">
-                  <div className="font-medium">{callCardTitle}</div>
+                <div className="flex w-full flex-col items-start justify-center gap-1 px-2">
+                  <div className="text-sm font-medium">{callCardTitle}</div>
                   <div className="text-sm text-beige900/80">
                     {callCardDescription}
                   </div>
                 </div>
-                <button
-                  type="button"
+                <CareerActionButton
                   onClick={handleStartCall}
                   disabled={callStartPending || !onStartCallMode}
-                  className="flex min-w-[130px] flex-row items-center justify-center gap-2 rounded-full bg-beige700 px-4 py-3 text-base text-beige100 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                  actionVariant="primary"
+                  className="min-w-[130px]"
                 >
                   {callStartPending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -385,7 +384,7 @@ const CareerHomePanel = ({
                     <Phone className="h-4 w-4" strokeWidth={1.6} />
                   )}
                   {callStartPending ? "연결 중..." : "통화 시작"}
-                </button>
+                </CareerActionButton>
               </div>
             ) : (
               <div className="flex w-full flex-col items-center justify-center gap-1 px-4 py-2">
@@ -396,11 +395,11 @@ const CareerHomePanel = ({
                 <div className="mt-2 text-center text-sm text-beige900/80">
                   <div>{callCardDescription}</div>
                 </div>
-                <button
-                  type="button"
+                <CareerActionButton
                   onClick={handleStartCall}
                   disabled={callStartPending || !onStartCallMode}
-                  className="mt-6 flex min-w-[130px] flex-row items-center justify-center gap-2 rounded-full bg-beige700 px-4 py-3 text-base text-beige100 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                  actionVariant="primary"
+                  className="mt-6 min-w-[130px]"
                 >
                   {callStartPending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -408,7 +407,7 @@ const CareerHomePanel = ({
                     <Phone className="h-4 w-4" strokeWidth={1.6} />
                   )}
                   {callStartPending ? "연결 중..." : "통화 시작"}
-                </button>
+                </CareerActionButton>
               </div>
             )}
           </div>
@@ -540,30 +539,25 @@ const CareerHomePanel = ({
                 {devAgentVariantOptions.map((option) => {
                   const selected = option.value === devAgentVariant;
                   return (
-                    <button
+                    <CareerActionButton
                       key={option.value}
-                      type="button"
                       onClick={() => setDevAgentVariant(option.value)}
                       disabled={opportunityRunLocked}
-                      className={[
-                        "inline-flex h-8 items-center rounded-full border px-3 text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60",
-                        selected
-                          ? "border-beige700 bg-beige700 text-white"
-                          : "border-beige900/10 bg-beige50 text-beige900/65 hover:border-beige900/20",
-                      ].join(" ")}
+                      active={selected}
+                      actionVariant="secondary"
                     >
                       {option.label}
-                    </button>
+                    </CareerActionButton>
                   );
                 })}
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
-                <CareerSecondaryButton
+                <CareerActionButton
                   onClick={() =>
                     void onRunOpportunityDiscoveryTest(devAgentVariant)
                   }
                   disabled={opportunityRunLocked}
-                  className="h-10 gap-2 px-4 text-[13px]"
+                  actionVariant="secondary"
                 >
                   {opportunityRunTriggerPending ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -571,13 +565,13 @@ const CareerHomePanel = ({
                     <Plus className="h-3.5 w-3.5" />
                   )}
                   discovery_run 추가
-                </CareerSecondaryButton>
-                <CareerSecondaryButton
+                </CareerActionButton>
+                <CareerActionButton
                   onClick={() =>
                     void onRunPeriodicOpportunityDiscoveryTest(devAgentVariant)
                   }
                   disabled={opportunityRunLocked}
-                  className="h-10 gap-2 px-4 text-[13px]"
+                  actionVariant="secondary"
                 >
                   {opportunityRunTriggerPending ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -585,11 +579,11 @@ const CareerHomePanel = ({
                     <Clock3 className="h-3.5 w-3.5" />
                   )}
                   3일 경과 run 큐잉
-                </CareerSecondaryButton>
-                <CareerSecondaryButton
+                </CareerActionButton>
+                <CareerActionButton
                   onClick={() => void onRunSessionReengagementTest()}
                   disabled={sessionReengagementTestPending}
-                  className="h-10 gap-2 px-4 text-[13px]"
+                  actionVariant="secondary"
                 >
                   {sessionReengagementTestPending ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -597,21 +591,21 @@ const CareerHomePanel = ({
                     <RefreshCw className="h-3.5 w-3.5" />
                   )}
                   최근 메시지 삭제 + 6시간 인사
-                </CareerSecondaryButton>
-                <CareerSecondaryButton
+                </CareerActionButton>
+                <CareerActionButton
                   onClick={onOpenProfile}
-                  className="h-10 gap-2 px-4 text-[13px]"
+                  actionVariant="secondary"
                 >
                   <BriefcaseBusiness className="h-3.5 w-3.5" />
                   프로필 보기
-                </CareerSecondaryButton>
-                <CareerPrimaryButton
+                </CareerActionButton>
+                <CareerActionButton
                   onClick={onOpenChat}
-                  className="h-10 gap-2 px-4 text-[13px]"
+                  actionVariant="primary"
                 >
                   <MessageSquareText className="h-3.5 w-3.5" />
                   Chat 열기
-                </CareerPrimaryButton>
+                </CareerActionButton>
               </div>
             </div>
           ) : null}

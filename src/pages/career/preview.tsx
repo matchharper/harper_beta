@@ -396,7 +396,6 @@ const CareerPreviewPage = () => {
     useState(previewDate());
   const [talentInsightsSaveInfo, setTalentInsightsSaveInfo] = useState("");
   const [profileSaveInfo, setProfileSaveInfo] = useState("");
-  const [settingsSaveInfo, setSettingsSaveInfo] = useState("");
   const [profileVisibility, setProfileVisibility] = useState<
     "open_to_matches" | "exceptional_only" | "dont_share"
   >("exceptional_only");
@@ -599,7 +598,6 @@ const CareerPreviewPage = () => {
       settingsLoading: false,
       settingsSaving: false,
       settingsError: "",
-      settingsSaveInfo,
       settingsUpdatedAt,
       profileVisibility,
       blockedCompanies,
@@ -608,7 +606,6 @@ const CareerPreviewPage = () => {
         JSON.stringify(blockedCompanies) !==
           JSON.stringify(savedBlockedCompanies),
       onProfileVisibilityChange: (value) => {
-        setSettingsSaveInfo("프로필 설정을 저장했습니다.");
         setProfileVisibility(value);
         setSavedProfileVisibility(value);
         setSettingsUpdatedAt(new Date().toISOString());
@@ -618,7 +615,6 @@ const CareerPreviewPage = () => {
         const nextBlockedCompanies = blockedCompanies.includes(name)
           ? blockedCompanies
           : [...blockedCompanies, name];
-        setSettingsSaveInfo("프로필 설정을 저장했습니다.");
         setBlockedCompanies(nextBlockedCompanies);
         setSavedBlockedCompanies(nextBlockedCompanies);
         setSettingsUpdatedAt(new Date().toISOString());
@@ -628,7 +624,6 @@ const CareerPreviewPage = () => {
         const nextBlockedCompanies = blockedCompanies.filter(
           (item) => item !== name
         );
-        setSettingsSaveInfo("프로필 설정을 저장했습니다.");
         setBlockedCompanies(nextBlockedCompanies);
         setSavedBlockedCompanies(nextBlockedCompanies);
         setSettingsUpdatedAt(new Date().toISOString());
@@ -638,11 +633,9 @@ const CareerPreviewPage = () => {
         setSavedProfileVisibility(profileVisibility);
         setSavedBlockedCompanies(blockedCompanies);
         setSettingsUpdatedAt(new Date().toISOString());
-        setSettingsSaveInfo("프로필 설정을 저장했습니다.");
         return true;
       },
       onResetTalentSettings: () => {
-        setSettingsSaveInfo("");
         setProfileVisibility(savedProfileVisibility);
         setBlockedCompanies(savedBlockedCompanies);
       },
@@ -659,7 +652,6 @@ const CareerPreviewPage = () => {
       savedProfileVisibility,
       savedResumeFileName,
       savedTalentPreferences,
-      settingsSaveInfo,
       settingsUpdatedAt,
       talentPreferences,
       talentInsights,

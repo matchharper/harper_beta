@@ -145,7 +145,6 @@ export type CareerSidebarContextValue = {
   settingsLoading: boolean;
   settingsSaving: boolean;
   settingsError: string;
-  settingsSaveInfo: string;
   settingsUpdatedAt: string | null;
   profileVisibility: CareerProfileVisibility;
   blockedCompanies: string[];

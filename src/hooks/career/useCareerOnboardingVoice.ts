@@ -1317,6 +1317,7 @@ export const useCareerOnboardingVoice = ({
   // chat message so the user has a clear next step after the phone UI closes.
   const handleEndCallMode = useCallback(
     (options?: EndCallModeOptions) => {
+      setCallStartPending(false);
       if (callWrapUpPendingRef.current) return;
       const forceCompleteOnboarding = Boolean(options?.forceCompleteOnboarding);
 

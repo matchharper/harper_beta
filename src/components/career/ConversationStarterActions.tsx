@@ -1,12 +1,15 @@
 "use client";
 
+import { Loader2, MessageCircleMore, SlidersHorizontal } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
   CAREER_CONVERSATION_STARTERS,
+  type CareerConversationStarterIcon,
   type CareerConversationStarterId,
   type CareerConversationStarterMode,
 } from "@/lib/career/conversationStarters";
+import { CareerActionButton } from "./ui/CareerActionButton";
 
 type ConversationStarterActionsProps = {
   callStartPending?: boolean;
@@ -23,6 +26,14 @@ type PendingStarterAction = {
   mode: CareerConversationStarterMode;
   starterId: CareerConversationStarterId;
 } | null;
+
+const STARTER_ICON_BY_NAME: Record<
+  CareerConversationStarterIcon,
+  typeof SlidersHorizontal
+> = {
+  "message-circle-more": MessageCircleMore,
+  "sliders-horizontal": SlidersHorizontal,
+};
 
 export function ConversationStarterActions({
   callStartPending = false,
@@ -69,7 +80,7 @@ export function ConversationStarterActions({
           ? "career-reengagement-actions flex flex-wrap gap-2"
           : isMobile
             ? "flex w-full flex-col gap-2"
-            : "flex w-full flex-row flex-wrap items-center justify-center gap-4",
+            : "flex w-full flex-row flex-wrap items-center justify-center gap-2",
         className
       )}
       aria-busy={pendingAction !== null || callStartPending || undefined}
@@ -79,28 +90,46 @@ export function ConversationStarterActions({
         const callPending =
           pendingAction?.starterId === starter.id &&
           pendingAction.mode === "call";
+        const StarterIcon = STARTER_ICON_BY_NAME[starter.icon];
 
         return (
-          <button
+          <CareerActionButton
             key={starter.id}
-            type="button"
             onClick={() =>
               void handleStart({ mode: "call", starterId: starter.id })
             }
             disabled={actionDisabled}
             aria-label={`${starter.label} 통화 시작`}
             aria-busy={callPending || undefined}
+            actionVariant="secondary"
             className={cn(
-              "inline-flex items-center justify-center rounded-3xl border border-beige900/15 bg-white/40 text-center text-beige900 transition-all hover:border-beige900/25 hover:bg-white/65 focus:outline-none focus-visible:ring-4 focus-visible:ring-beige700/20 disabled:cursor-not-allowed disabled:opacity-50",
-              isReengagement &&
-                "border-beige900/5 bg-hgray900 px-3 py-1.5 text-beige900 hover:bg-hgray800",
-              isMobile
-                ? "w-full px-4 py-2"
-                : isReengagement
-                  ? "min-w-0"
-                  : "px-4 py-2"
+              "text-center font-normal",
+              isMobile ? "w-full" : isReengagement ? "min-w-0" : "pl-2 pr-4",
+              isReengagement && "border-beige900/5 bg-hgray900 hover:bg-hgray800"
             )}
           >
+            <span
+              className={cn(
+                "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-beige900/5 text-beige900/75",
+                isReengagement && "h-5 w-5"
+              )}
+              aria-hidden="true"
+            >
+              {callPending ? (
+                <Loader2
+                  className={cn(
+                    "h-3.5 w-3.5 animate-spin",
+                    isReengagement && "h-3 w-3"
+                  )}
+                  strokeWidth={1.8}
+                />
+              ) : (
+                <StarterIcon
+                  className={cn("h-3.5 w-3.5", isReengagement && "h-3 w-3")}
+                  strokeWidth={1.8}
+                />
+              )}
+            </span>
             <span
               className={cn(
                 "min-w-0 text-[14px] font-medium leading-5",
@@ -109,7 +138,7 @@ export function ConversationStarterActions({
             >
               {callPending ? "연결 중..." : label}
             </span>
-          </button>
+          </CareerActionButton>
         );
       })}
     </div>

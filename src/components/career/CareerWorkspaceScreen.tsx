@@ -16,6 +16,7 @@ import CareerWorkspaceNav, {
   type CareerWorkspaceTab,
 } from "@/components/career/CareerWorkspaceNav";
 import { careerCx } from "@/components/career/ui/CareerPrimitives";
+import { CareerActionButton } from "@/components/career/ui/CareerActionButton";
 import CareerMobileJobsView, {
   JobActionBar,
   type JobsDisplayTab,
@@ -284,8 +285,6 @@ const CareerWorkspaceRoot = ({
     });
     composer?.focus();
   }, []);
-  const hasPendingSetup = stage !== "completed";
-
   const isMobileViewport = useIsMobile();
   if (isMobileViewport) {
     return (
@@ -347,25 +346,16 @@ const CareerWorkspaceRoot = ({
                   const active = item.id === activeTab;
 
                   return (
-                    <button
+                    <CareerActionButton
                       key={item.id}
-                      type="button"
                       onClick={() => handleChangeTab(item.id)}
-                      className={careerCx(
-                        "inline-flex h-10 items-center gap-2 rounded-full border px-6 text-sm font-medium transition-all",
-                        active
-                          ? "border-beige700 bg-white text-beige700"
-                          : "text-beige900 hover:bg-beige500 border-transparent"
-                      )}
+                      active={active}
+                      actionVariant="secondary"
+                      className="px-6"
                     >
                       <Icon className="h-4 w-4" />
                       {item.label}
-                      {item.id === "home" && hasPendingSetup ? (
-                        <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-beige900 px-1.5 text-[11px] leading-none text-beige50">
-                          1
-                        </span>
-                      ) : null}
-                    </button>
+                    </CareerActionButton>
                   );
                 })}
               </nav>

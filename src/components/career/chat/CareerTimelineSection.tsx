@@ -1201,7 +1201,7 @@ const CareerTimelineSection = () => {
               type="button"
               onClick={() => void handleLoadOlderMessages()}
               disabled={loadingOlderMessages}
-              className="inline-flex h-9 items-center justify-center rounded-[8px] border border-beige900/15 bg-white/45 px-4 text-xs text-beige900/55 transition-colors hover:border-beige900/30 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-9 items-center justify-center rounded-[8px] bg-white/45 px-4 text-xs text-beige900/55 transition-colors hover:border-beige900/30 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loadingOlderMessages ? "불러오는 중..." : "이전 대화 더 보기"}
             </button>

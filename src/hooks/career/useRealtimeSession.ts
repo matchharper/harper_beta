@@ -100,6 +100,8 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     ((options?: RealtimeConnectOptions) => Promise<boolean>) | null
   >(null);
   const connectPromiseRef = useRef<Promise<boolean> | null>(null);
+  const pendingConnectAbortControllerRef = useRef<AbortController | null>(null);
+  const pendingConnectCancelRef = useRef<(() => void) | null>(null);
   const connectAttemptIdRef = useRef(0);
   const partialTranscriptItemIdRef = useRef<string | null>(null);
 
@@ -207,8 +209,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
           method: "POST",
           body: JSON.stringify({
             conversationId,
-            conversationStarterId:
-              options?.conversationStarterId ?? undefined,
+            conversationStarterId: options?.conversationStarterId ?? undefined,
           }),
         });
         if (!res.ok) {
@@ -702,6 +703,10 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
 
   const disconnect = useCallback(() => {
     connectAttemptIdRef.current += 1;
+    pendingConnectAbortControllerRef.current?.abort();
+    pendingConnectAbortControllerRef.current = null;
+    pendingConnectCancelRef.current?.();
+    pendingConnectCancelRef.current = null;
     connectPromiseRef.current = null;
     if (interruptTimerRef.current) {
       clearTimeout(interruptTimerRef.current);
@@ -734,176 +739,203 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
       setIsConnecting(true);
       const attemptId = connectAttemptIdRef.current + 1;
       connectAttemptIdRef.current = attemptId;
+      const abortController =
+        typeof AbortController !== "undefined" ? new AbortController() : null;
+      pendingConnectAbortControllerRef.current = abortController;
 
       const clearPendingConnect = () => {
         if (connectAttemptIdRef.current !== attemptId) return;
         connectPromiseRef.current = null;
+        if (pendingConnectAbortControllerRef.current === abortController) {
+          pendingConnectAbortControllerRef.current = null;
+        }
+        pendingConnectCancelRef.current = null;
         setIsConnecting(false);
       };
 
-      const connectPromise = (async (): Promise<boolean> => {
-      try {
-        if (typeof RTCPeerConnection === "undefined") {
-          return false;
-        }
+      const cancelPromise = new Promise<boolean>((resolve) => {
+        pendingConnectCancelRef.current = () => resolve(false);
+      });
 
-        const tokenInfo = await fetchToken(options);
-        if (!tokenInfo?.token) {
-          return false;
-        }
-        if (connectAttemptIdRef.current !== attemptId) {
-          return false;
-        }
-        tokenInfoRef.current = tokenInfo;
-
-        // TODO: Replace this direct OpenAI Realtime WebRTC connection with a
-        // LiveKit-based STT -> LLM -> TTS WebRTC architecture.
-        const peerConnection = new RTCPeerConnection();
-        peerConnectionRef.current = peerConnection;
-
-        peerConnection.ontrack = (event) => {
-          const audio = ensureRemoteAudioElement();
-          if (!audio) return;
-
-          const stream = event.streams[0] ?? new MediaStream([event.track]);
-          remoteStreamRef.current = stream;
-          audio.srcObject = stream;
-          void audio.play().catch((error) => {
-            console.warn("[RealtimeSession] Remote audio play failed:", error);
-          });
-        };
-
-        peerConnection.onconnectionstatechange = () => {
-          const state = peerConnection.connectionState;
-          logCareerVoiceDebug("webrtc.connection_state", { state });
-          if (
-            connectAttemptIdRef.current !== attemptId ||
-            state === "connected" ||
-            state === "connecting" ||
-            state === "new"
-          ) {
-            return;
+      const connectWorkPromise = (async (): Promise<boolean> => {
+        try {
+          if (typeof RTCPeerConnection === "undefined") {
+            return false;
           }
 
-          if (state === "failed" || state === "closed") {
+          const tokenInfo = await fetchToken(options);
+          if (!tokenInfo?.token) {
+            return false;
+          }
+          if (connectAttemptIdRef.current !== attemptId) {
+            return false;
+          }
+          tokenInfoRef.current = tokenInfo;
+
+          // TODO: Replace this direct OpenAI Realtime WebRTC connection with a
+          // LiveKit-based STT -> LLM -> TTS WebRTC architecture.
+          const peerConnection = new RTCPeerConnection();
+          peerConnectionRef.current = peerConnection;
+
+          peerConnection.ontrack = (event) => {
+            const audio = ensureRemoteAudioElement();
+            if (!audio) return;
+
+            const stream = event.streams[0] ?? new MediaStream([event.track]);
+            remoteStreamRef.current = stream;
+            audio.srcObject = stream;
+            void audio.play().catch((error) => {
+              console.warn(
+                "[RealtimeSession] Remote audio play failed:",
+                error
+              );
+            });
+          };
+
+          peerConnection.onconnectionstatechange = () => {
+            const state = peerConnection.connectionState;
+            logCareerVoiceDebug("webrtc.connection_state", { state });
+            if (
+              connectAttemptIdRef.current !== attemptId ||
+              state === "connected" ||
+              state === "connecting" ||
+              state === "new"
+            ) {
+              return;
+            }
+
+            if (state === "failed" || state === "closed") {
+              setIsConnected(false);
+              setConnectionStatus("disconnected");
+              onConnectionChangeRef.current(false);
+            }
+          };
+
+          const audioOk = await startAudioCapture(peerConnection);
+          if (!audioOk) {
+            cleanupTransport();
             setIsConnected(false);
             setConnectionStatus("disconnected");
             onConnectionChangeRef.current(false);
+            return false;
           }
-        };
 
-        const audioOk = await startAudioCapture(peerConnection);
-        if (!audioOk) {
+          if (connectAttemptIdRef.current !== attemptId) {
+            cleanupTransport();
+            return false;
+          }
+
+          const dataChannel = peerConnection.createDataChannel("oai-events");
+          dataChannelRef.current = dataChannel;
+          dataChannel.onmessage = handleMessage;
+          dataChannel.onerror = () => {
+            console.error("[RealtimeSession] WebRTC data channel error");
+          };
+
+          const dataChannelOpen = new Promise<boolean>((resolve) => {
+            let opened = false;
+            let settled = false;
+            let timeout: ReturnType<typeof setTimeout>;
+
+            const settle = (ok: boolean) => {
+              if (settled) return;
+              settled = true;
+              clearTimeout(timeout);
+              resolve(ok);
+            };
+
+            timeout = setTimeout(() => {
+              settle(false);
+            }, 10_000);
+
+            dataChannel.onopen = () => {
+              opened = true;
+              settle(true);
+            };
+
+            dataChannel.onclose = () => {
+              if (!opened) {
+                settle(false);
+                return;
+              }
+              if (connectAttemptIdRef.current !== attemptId) return;
+              setIsConnected(false);
+              setConnectionStatus("disconnected");
+              cleanupTransport();
+              onConnectionChangeRef.current(false);
+              onErrorRef.current(
+                "Realtime connection lost. Falling back to text mode."
+              );
+            };
+          });
+
+          const offer = await peerConnection.createOffer();
+          await peerConnection.setLocalDescription(offer);
+
+          const sdp = peerConnection.localDescription?.sdp ?? offer.sdp;
+          if (!sdp) {
+            cleanupTransport();
+            return false;
+          }
+
+          const sdpResponse = await fetch(
+            "https://api.openai.com/v1/realtime/calls",
+            {
+              method: "POST",
+              body: sdp,
+              signal: abortController?.signal,
+              headers: {
+                Authorization: `Bearer ${tokenInfo.token}`,
+                "Content-Type": "application/sdp",
+              },
+            }
+          );
+
+          if (connectAttemptIdRef.current !== attemptId) {
+            cleanupTransport();
+            return false;
+          }
+
+          if (!sdpResponse.ok) {
+            const errText = await sdpResponse.text().catch(() => "");
+            console.error("[RealtimeSession] SDP exchange failed:", errText);
+            cleanupTransport();
+            return false;
+          }
+
+          await peerConnection.setRemoteDescription({
+            type: "answer",
+            sdp: await sdpResponse.text(),
+          });
+
+          const opened = await dataChannelOpen;
+          if (!opened || connectAttemptIdRef.current !== attemptId) {
+            cleanupTransport();
+            return false;
+          }
+
+          setIsConnected(true);
+          setConnectionStatus("connected");
+          onConnectionChangeRef.current(true);
+          return true;
+        } catch (err) {
+          if (
+            abortController?.signal.aborted ||
+            connectAttemptIdRef.current !== attemptId
+          ) {
+            return false;
+          }
+          console.error("[RealtimeSession] Connect error:", err);
           cleanupTransport();
           setIsConnected(false);
           setConnectionStatus("disconnected");
           onConnectionChangeRef.current(false);
           return false;
+        } finally {
+          clearPendingConnect();
         }
-
-        if (connectAttemptIdRef.current !== attemptId) {
-          cleanupTransport();
-          return false;
-        }
-
-        const dataChannel = peerConnection.createDataChannel("oai-events");
-        dataChannelRef.current = dataChannel;
-        dataChannel.onmessage = handleMessage;
-        dataChannel.onerror = () => {
-          console.error("[RealtimeSession] WebRTC data channel error");
-        };
-
-        const dataChannelOpen = new Promise<boolean>((resolve) => {
-          let opened = false;
-          let settled = false;
-          let timeout: ReturnType<typeof setTimeout>;
-
-          const settle = (ok: boolean) => {
-            if (settled) return;
-            settled = true;
-            clearTimeout(timeout);
-            resolve(ok);
-          };
-
-          timeout = setTimeout(() => {
-            settle(false);
-          }, 10_000);
-
-          dataChannel.onopen = () => {
-            opened = true;
-            settle(true);
-          };
-
-          dataChannel.onclose = () => {
-            if (!opened) {
-              settle(false);
-              return;
-            }
-            if (connectAttemptIdRef.current !== attemptId) return;
-            setIsConnected(false);
-            setConnectionStatus("disconnected");
-            cleanupTransport();
-            onConnectionChangeRef.current(false);
-            onErrorRef.current(
-              "Realtime connection lost. Falling back to text mode."
-            );
-          };
-        });
-
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
-
-        const sdp = peerConnection.localDescription?.sdp ?? offer.sdp;
-        if (!sdp) {
-          cleanupTransport();
-          return false;
-        }
-
-        const sdpResponse = await fetch(
-          "https://api.openai.com/v1/realtime/calls",
-          {
-            method: "POST",
-            body: sdp,
-            headers: {
-              Authorization: `Bearer ${tokenInfo.token}`,
-              "Content-Type": "application/sdp",
-            },
-          }
-        );
-
-        if (!sdpResponse.ok) {
-          const errText = await sdpResponse.text().catch(() => "");
-          console.error("[RealtimeSession] SDP exchange failed:", errText);
-          cleanupTransport();
-          return false;
-        }
-
-        await peerConnection.setRemoteDescription({
-          type: "answer",
-          sdp: await sdpResponse.text(),
-        });
-
-        const opened = await dataChannelOpen;
-        if (!opened || connectAttemptIdRef.current !== attemptId) {
-          cleanupTransport();
-          return false;
-        }
-
-        setIsConnected(true);
-        setConnectionStatus("connected");
-        onConnectionChangeRef.current(true);
-        return true;
-      } catch (err) {
-        console.error("[RealtimeSession] Connect error:", err);
-        cleanupTransport();
-        setIsConnected(false);
-        setConnectionStatus("disconnected");
-        onConnectionChangeRef.current(false);
-        return false;
-      } finally {
-        clearPendingConnect();
-      }
-    })();
+      })();
+      const connectPromise = Promise.race([connectWorkPromise, cancelPromise]);
 
       connectPromiseRef.current = connectPromise;
       return connectPromise;

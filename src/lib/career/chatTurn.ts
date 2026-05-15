@@ -166,7 +166,7 @@ function shouldAutoRecommendAfterProfileUpdate(result: unknown) {
   return (
     isRecord(result) &&
     result.ok === true &&
-    result.impactLevel === "high" &&
+    // result.impactLevel === "high" &&
     result.shouldRecommendJobPostings === true
   );
 }

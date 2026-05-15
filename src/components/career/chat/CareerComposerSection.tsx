@@ -14,7 +14,8 @@ import { KeyboardEvent, useRef, useState } from "react";
 import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
 import { Tooltips } from "@/components/ui/tooltip";
 import { isOnboardingPaused } from "@/hooks/career/careerHelpers";
-import { CareerSecondaryButton, careerCx } from "../ui/CareerPrimitives";
+import { careerCx } from "../ui/CareerPrimitives";
+import { CareerActionButton } from "../ui/CareerActionButton";
 import CareerVoiceInputLevelFill from "./CareerVoiceInputLevelFill";
 
 const CareerComposerSection = () => {
@@ -196,10 +197,10 @@ const CareerComposerSection = () => {
               </span>
             </button>
 
-            <CareerSecondaryButton
+            <CareerActionButton
               onClick={onToggleVoiceMute}
               disabled={isComposerActionLocked}
-              className="h-12 w-12 px-0"
+              actionVariant="icon"
               aria-label={voiceMuted ? "음소거 해제" : "음소거"}
             >
               {voiceMuted ? (
@@ -207,13 +208,14 @@ const CareerComposerSection = () => {
               ) : (
                 <Mic className="h-4 w-4" />
               )}
-            </CareerSecondaryButton>
-            <CareerSecondaryButton
+            </CareerActionButton>
+            <CareerActionButton
               onClick={onSwitchToTextMode}
-              className="h-12 w-12 border-[#7c2d12]/20 bg-[#7c2d12]/5 px-0 text-[#7c2d12] hover:border-[#7c2d12]/30"
+              actionVariant="icon"
+              className="border-[#7c2d12]/20 bg-[#7c2d12]/5 text-[#7c2d12] hover:border-[#7c2d12]/30 hover:text-[#7c2d12]"
             >
               <PhoneOff className="h-3.5 w-3.5" />
-            </CareerSecondaryButton>
+            </CareerActionButton>
           </div>
         ) : null}
 
@@ -271,7 +273,7 @@ const CareerComposerSection = () => {
               </div>
             </div>
           ) : null}
-          <div className="rounded-[16px] border border-beige900/20 bg-white px-3 py-3 shadow-[0_0_16px_rgba(0,0,0,0.05)] transition-all duration-200 focus-within:border-beige900/40 focus-within:shadow-[0_0_16px_rgba(0,0,0,0.1)]">
+          <div className="rounded-[16px] border border-beige900/20 bg-white shadow-[0_0_16px_rgba(0,0,0,0.05)] transition-all duration-200 focus-within:border-beige900/40 focus-within:shadow-[0_0_16px_rgba(0,0,0,0.1)]">
             <div className="relative flex items-end gap-2">
               <textarea
                 key={textareaResetVersion}
@@ -295,53 +297,45 @@ const CareerComposerSection = () => {
                       : "듣는 중..."
                     : composerPlaceholder
                 }
+                rows={3}
                 disabled={isTextInputLocked}
                 className={careerCx(
-                  "min-w-0 flex-1 resize-none border-none px-0.5 py-1 text-[14px] leading-5 text-beige900 outline-none transition-all placeholder:text-beige900/35 disabled:cursor-not-allowed",
-                  isVoiceMode ? "min-h-[64px]" : "min-h-[80px]"
+                  "min-h-[72px] min-w-0 flex-1 resize-none border-none px-3.5 py-4 text-[14px] leading-5 text-black outline-none transition-all placeholder:text-beige900/35 disabled:cursor-not-allowed"
                 )}
               />
               {!isVoiceMode && (
-                <div className="absolute bottom-0 right-0 flex items-center gap-2">
+                <div className="absolute bottom-2 right-2 flex items-center gap-2">
                   {showCallQuickAction && (
                     <>
-                      {/* <button
-                        type="button"
-                        onClick={() => onStartVoiceCall()}
-                        disabled={isComposerActionLocked || isStartingCall}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-beige900/15 bg-white/45 text-beige900/50 transition-colors hover:border-beige900/30 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-50"
-                        aria-label="음성 모드"
-                      >
-                        <Mic className="h-3.5 w-3.5" />
-                      </button> */}
-                      <button
-                        type="button"
+                      <CareerActionButton
                         onClick={() => onStartCallMode?.()}
                         disabled={isComposerActionLocked || isStartingCall}
-                        className="inline-flex h-9 px-3 gap-2 text-sm items-center justify-center rounded-[8px] border border-beige900/50 bg-beige900 text-beige50 transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                        actionVariant="icon"
+                        buttonRadius="pill"
+                        className="h-8 w-8 border border-black/15 bg-white/45 text-beige900"
                         aria-label="통화 모드"
                       >
                         {isStartingCall ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
-                          <Phone className="h-3.5 w-3.5" />
+                          <Phone className="h-3 w-3" />
                         )}
-                        {isStartingCall ? "연결 중..." : ""}
-                      </button>
+                      </CareerActionButton>
                     </>
                   )}
-                  <button
-                    type="button"
+                  <CareerActionButton
                     onClick={() => void handleSend()}
                     disabled={isComposerActionLocked || !draft.trim()}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-beige900 bg-beige900 text-[#f5ecdd] transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
+                    actionVariant="icon"
+                    buttonRadius="pill"
+                    className="h-8 w-8 border-beige900 bg-beige900 text-beige50 hover:bg-beige800 hover:text-beige50"
                   >
                     {chatPending || assistantTyping ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : (
-                      <ArrowUp className="h-3.5 w-3.5" />
+                      <ArrowUp className="h-4 w-4" />
                     )}
-                  </button>
+                  </CareerActionButton>
                 </div>
               )}
             </div>
