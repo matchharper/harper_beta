@@ -1,9 +1,7 @@
 import { CalendarDays, CheckCircle2, MessageSquareText } from "lucide-react";
 import React from "react";
-import { createPortal } from "react-dom";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { careerUpdateNotes } from "@/content/careerUpdateNotes";
-import { useIsMounted } from "@/hooks/useIsMounted";
 import { careerCx } from "./ui/CareerPrimitives";
 
 const CareerUpdateNotesModal = ({
@@ -16,11 +14,8 @@ const CareerUpdateNotesModal = ({
   onSuggestUpdate: () => void;
 }) => {
   const latestId = careerUpdateNotes[0]?.id;
-  const mounted = useIsMounted();
 
-  if (!mounted || typeof document === "undefined") return null;
-
-  return createPortal(
+  return (
     <TalentCareerModal
       open={open}
       onClose={onClose}
@@ -114,8 +109,7 @@ const CareerUpdateNotesModal = ({
           </div>
         </div>
       </section>
-    </TalentCareerModal>,
-    document.body
+    </TalentCareerModal>
   );
 };
 
