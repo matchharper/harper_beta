@@ -1,11 +1,11 @@
 import React from "react";
 import {
   CareerHistoryOpportunity,
+  CareerHistoryOpportunityFeedback,
   CareerOpportunitySavedStage,
   CareerOpportunityType,
 } from "../types";
 import { careerCx, CareerInlinePanel } from "../ui/CareerPrimitives";
-import { SAVED_TABS } from "../CareerHistoryPanel";
 import { getOpportunityPanelTone } from "../CareerHistoryPanel";
 import { ChevronDown, Dot } from "lucide-react";
 import {
@@ -13,69 +13,131 @@ import {
   BeigeActionDropdownItem,
 } from "@/components/ui/beige/action-dropdown";
 import {
+  getOpportunityStatusLabel,
   getResolvedSavedStage,
-  getSavedStageLabel,
 } from "../CareerHistoryPanel";
 import { OpportunityHeader } from "./HistoryOpportunityDetailContent";
 import OpportunityPreferenceFit from "./OpportunityPreferenceFit";
 
-const HistorySavedStageDropdown = ({
+type HistoryStatusDropdownValue = "new" | "saved" | "negative";
+
+const HISTORY_STATUS_OPTIONS: Array<{
+  value: HistoryStatusDropdownValue;
+  label: string;
+}> = [
+  { value: "new", label: "새 포지션" },
+  { value: "saved", label: "저장함" },
+  { value: "negative", label: "선호하지 않음" },
+];
+
+const getStatusDropdownValue = (
+  item: CareerHistoryOpportunity
+): HistoryStatusDropdownValue | null => {
+  if (item.feedback === "negative") return "negative";
+  if (item.feedback === "positive") {
+    return getResolvedSavedStage(item) === "saved" ? "saved" : null;
+  }
+  return "new";
+};
+
+const getStatusDropdownTriggerLabel = (item: CareerHistoryOpportunity) => {
+  if (item.feedback === "negative") return "선호하지 않음";
+  return getOpportunityStatusLabel(item) ?? "새 포지션";
+};
+
+const stopCardActivation = (event: React.SyntheticEvent) => {
+  event.stopPropagation();
+};
+
+const HistoryStatusDropdown = ({
   disabled,
   item,
   onChange,
 }: {
   disabled: boolean;
   item: CareerHistoryOpportunity;
-  onChange: (stage: CareerOpportunitySavedStage) => void;
+  onChange: (value: HistoryStatusDropdownValue) => void;
 }) => {
-  const value = getResolvedSavedStage(item);
+  const value = getStatusDropdownValue(item);
 
   return (
-    <BeigeActionDropdown
-      align="end"
-      contentClassName="min-w-[180px]"
-      trigger={
-        <button
-          type="button"
-          disabled={disabled}
-          className="inline-flex h-9 min-w-[148px] items-center justify-between gap-2 rounded-md border border-beige900/15 bg-white/60 px-3 text-sm text-beige900 transition-colors hover:border-beige900/30 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <span>{getSavedStageLabel(value, item)}</span>
-          <ChevronDown className="h-4 w-4 text-beige900/50" />
-        </button>
-      }
+    <div
+      data-career-card-action="true"
+      onClick={stopCardActivation}
+      onPointerDown={stopCardActivation}
     >
-      {SAVED_TABS.map((stage) => (
-        <BeigeActionDropdownItem
-          key={stage.id}
-          selected={stage.id === value}
-          onSelect={() => onChange(stage.id)}
-        >
-          {getSavedStageLabel(stage.id, item)}
-        </BeigeActionDropdownItem>
-      ))}
-    </BeigeActionDropdown>
+      <BeigeActionDropdown
+        align="end"
+        contentClassName="min-w-[180px]"
+        trigger={
+          <button
+            type="button"
+            disabled={disabled}
+            className="inline-flex h-9 min-w-[148px] items-center justify-between gap-2 rounded-md border border-beige900/15 bg-white/60 px-3 text-sm text-beige900 transition-colors hover:border-beige900/30 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <span>{getStatusDropdownTriggerLabel(item)}</span>
+            <ChevronDown className="h-4 w-4 text-beige900/50" />
+          </button>
+        }
+      >
+        {HISTORY_STATUS_OPTIONS.map((option) => (
+          <BeigeActionDropdownItem
+            key={option.value}
+            selected={option.value === value}
+            disabled={disabled}
+            onSelect={() => onChange(option.value)}
+          >
+            {option.label}
+          </BeigeActionDropdownItem>
+        ))}
+      </BeigeActionDropdown>
+    </div>
   );
 };
+
+export const getFeedbackForStatusDropdownValue = (
+  value: HistoryStatusDropdownValue
+): {
+  feedback: CareerHistoryOpportunityFeedback | null;
+  savedStage: CareerOpportunitySavedStage | null;
+} => {
+  if (value === "saved") {
+    return { feedback: "positive", savedStage: "saved" };
+  }
+  if (value === "negative") {
+    return { feedback: "negative", savedStage: null };
+  }
+  return { feedback: null, savedStage: null };
+};
+
+const CardActionArea = ({ children }: { children: React.ReactNode }) => (
+  <div
+    data-career-card-action="true"
+    onClick={stopCardActivation}
+    onPointerDown={stopCardActivation}
+  >
+    {children}
+  </div>
+);
 
 const OpportunityListCard = ({
   action,
   item,
   pending,
-  showSavedStageSelect = false,
+  showStatusSelect = false,
   onOpenDetail,
   onOpenCompanyInfo,
   onOpenOpportunityInfo,
-  onSavedStageChange,
+  onStatusChange,
 }: {
   action?: React.ReactNode;
   item: CareerHistoryOpportunity;
   pending: boolean;
-  showSavedStageSelect?: boolean;
+  showStatusSelect?: boolean;
   onOpenDetail: () => void;
   onOpenCompanyInfo?: (item: CareerHistoryOpportunity) => void;
   onOpenOpportunityInfo: (type: CareerOpportunityType) => void;
-  onSavedStageChange?: (stage: CareerOpportunitySavedStage) => void;
+  onStatusChange?: (value: HistoryStatusDropdownValue) => void;
 }) => {
   const recommendationReasons = item.recommendationReasons.slice(0, 2);
   const recommendationSummary = item.recommendationSummary?.trim() ?? "";
@@ -84,7 +146,7 @@ const OpportunityListCard = ({
     1
   );
   const hasActionArea = Boolean(
-    action || (showSavedStageSelect && onSavedStageChange)
+    action || (showStatusSelect && onStatusChange)
   );
 
   return (
@@ -100,7 +162,7 @@ const OpportunityListCard = ({
           tabIndex={0}
           onClick={(event) => {
             const interactiveTarget = (event.target as HTMLElement).closest(
-              "a,button,input,select,textarea"
+              "a,button,input,select,textarea,[data-career-card-action='true']"
             );
             if (interactiveTarget) return;
             onOpenDetail();
@@ -121,13 +183,14 @@ const OpportunityListCard = ({
               <>
                 {hasActionArea && (
                   <div className="flex shrink-0 flex-col items-end gap-2">
-                    {showSavedStageSelect && onSavedStageChange && (
-                      <HistorySavedStageDropdown
+                    {showStatusSelect && onStatusChange && (
+                      <HistoryStatusDropdown
                         item={item}
                         disabled={pending}
-                        onChange={onSavedStageChange}
+                        onChange={onStatusChange}
                       />
                     )}
+                    {action ? <CardActionArea>{action}</CardActionArea> : null}
                   </div>
                 )}
               </>

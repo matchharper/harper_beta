@@ -72,7 +72,6 @@ export const useCareerTalentSettings = ({
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsError, setSettingsError] = useState("");
-  const [settingsSaveInfo, setSettingsSaveInfo] = useState("");
   const [profileVisibility, setProfileVisibility] =
     useState<CareerProfileVisibility>(DEFAULT_PROFILE_VISIBILITY);
   const [savedProfileVisibility, setSavedProfileVisibility] =
@@ -160,7 +159,6 @@ export const useCareerTalentSettings = ({
       setSettingsLoading(false);
       setSettingsSaving(false);
       setSettingsError("");
-      setSettingsSaveInfo("");
       setProfileVisibility(DEFAULT_PROFILE_VISIBILITY);
       setSavedProfileVisibility(DEFAULT_PROFILE_VISIBILITY);
       setBlockedCompanies([]);
@@ -193,7 +191,6 @@ export const useCareerTalentSettings = ({
 
       setSettingsSaving(true);
       setSettingsError("");
-      setSettingsSaveInfo("");
       try {
         const response = await fetchWithAuth("/api/talent/settings", {
           method: "POST",
@@ -215,7 +212,6 @@ export const useCareerTalentSettings = ({
           preserveLocalBlockedCompanies:
             nextSettings.preserveLocalBlockedCompanies,
         });
-        setSettingsSaveInfo("프로필 설정을 저장했습니다.");
         return true;
       } catch (error) {
         if (requestId !== saveRequestIdRef.current) {
@@ -254,7 +250,6 @@ export const useCareerTalentSettings = ({
 
       setProfileVisibility(nextVisibility);
       setSettingsError("");
-      setSettingsSaveInfo("");
 
       const saved = await persistSettings({
         profileVisibility: nextVisibility,
@@ -287,7 +282,6 @@ export const useCareerTalentSettings = ({
 
       setBlockedCompanies(nextBlockedCompanies);
       setSettingsError("");
-      setSettingsSaveInfo("");
 
       const saved = await persistSettings({
         profileVisibility,
@@ -318,7 +312,6 @@ export const useCareerTalentSettings = ({
 
       setBlockedCompanies(nextBlockedCompanies);
       setSettingsError("");
-      setSettingsSaveInfo("");
 
       const saved = await persistSettings({
         profileVisibility,
@@ -342,7 +335,6 @@ export const useCareerTalentSettings = ({
     setProfileVisibility(savedProfileVisibility);
     setBlockedCompanies(savedBlockedCompanies);
     setSettingsError("");
-    setSettingsSaveInfo("");
   }, [savedBlockedCompanies, savedProfileVisibility]);
 
   const hasUnsavedTalentSettingsChanges = useMemo(
@@ -362,7 +354,6 @@ export const useCareerTalentSettings = ({
       settingsLoading,
       settingsSaving,
       settingsError,
-      settingsSaveInfo,
       settingsUpdatedAt,
       profileVisibility,
       blockedCompanies,
@@ -385,7 +376,6 @@ export const useCareerTalentSettings = ({
       saveSettings,
       settingsError,
       settingsLoading,
-      settingsSaveInfo,
       settingsSaving,
       settingsUpdatedAt,
       updateProfileVisibility,

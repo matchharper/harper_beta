@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import {
   buildCareerInsightExtractionPrompt,
   buildCareerTextChatPromptBlocks,
@@ -93,6 +94,7 @@ export type RunCareerChatTurnArgs = {
   pendingOpportunityFeedbackContext?: string | null;
   proactiveContext?: string | null;
   shouldInsertAssistantMessage?: () => Promise<boolean>;
+  skipConversationWrites?: boolean;
   userId: string;
   userMessage?: string | null;
 };
@@ -128,7 +130,6 @@ export type CareerChatTurnResult = {
 
 const EMPTY_ASSISTANT_TEXT_FALLBACK =
   "말씀해주신 내용 확인했습니다. 이어서 조금만 더 여쭤볼게요.";
-const INSIGHT_EXTRACTION_THINKING_LOG = "인사이트 추출";
 
 const optionalToolString = (value: unknown) => {
   const text = typeof value === "string" ? value.trim() : "";
@@ -165,7 +166,7 @@ function shouldAutoRecommendAfterProfileUpdate(result: unknown) {
   return (
     isRecord(result) &&
     result.ok === true &&
-    result.impactLevel === "high" &&
+    // result.impactLevel === "high" &&
     result.shouldRecommendJobPostings === true
   );
 }
@@ -357,6 +358,7 @@ export async function runCareerChatTurn(
   const requestChannel = args.channel === "voice" ? "voice" : "chat";
   const assistantMessageType =
     String(args.assistantMessageType ?? "").trim() || "chat";
+  const skipConversationWrites = Boolean(args.skipConversationWrites);
   const rawUserMessage = String(args.userMessage ?? "").trim();
   const link = String(args.link ?? "").trim();
   const allowedToolNameSet = Array.isArray(args.allowedToolNames)
@@ -412,7 +414,23 @@ export async function runCareerChatTurn(
         error: error instanceof Error ? error.message : String(error),
         userId,
       });
-    });
+      });
+  };
+  const touchConversationIfAllowed = async () => {
+    if (skipConversationWrites) return;
+    await touchConversation(admin, conversationId, userId);
+  };
+  const updateConversationStageIfAllowed = async (isCompleted: boolean) => {
+    if (skipConversationWrites) return;
+    const now = new Date().toISOString();
+    await admin
+      .from("talent_conversations")
+      .update({
+        stage: isCompleted ? "completed" : "chat",
+        updated_at: now,
+      })
+      .eq("id", conversationId)
+      .eq("user_id", userId);
   };
 
   const [
@@ -634,26 +652,32 @@ export async function runCareerChatTurn(
       thinkingLogs = appendRecommendationStatusLog(thinkingLogs, status);
     }
   };
-  const persistInsightExtractionThinkingLogForMessage = async (payload: {
+  const scheduleInsightExtractionForAssistantMessage = (payload: {
+    content: string;
     messageId: number | string | null | undefined;
-    thinkingLogs: string[];
   }) => {
-    const nextThinkingLogs = appendThinkingLog(
-      payload.thinkingLogs,
-      INSIGHT_EXTRACTION_THINKING_LOG
-    );
-    if (nextThinkingLogs === payload.thinkingLogs) {
-      return payload.thinkingLogs;
+    if (!shouldAutoExtractInsights || !payload.content.trim()) {
+      return;
     }
 
-    await persistThinkingLogsForMessage({
-      admin,
-      conversationId,
-      messageId: payload.messageId,
-      thinkingLogs: nextThinkingLogs,
-      userId,
-    });
-    return nextThinkingLogs;
+    const runBackgroundInsightExtraction = async () => {
+      try {
+        await extractTurnInsights(payload.content);
+      } catch (error) {
+        console.error("[TalentChatTurn] Failed to extract insights", {
+          conversationId,
+          error: error instanceof Error ? error.message : String(error),
+          messageId: payload.messageId ?? null,
+          userId,
+        });
+      }
+    };
+
+    try {
+      after(runBackgroundInsightExtraction);
+    } catch {
+      void runBackgroundInsightExtraction();
+    }
   };
   const executeRecommendJobPostings = async (
     input: Record<string, unknown>
@@ -737,7 +761,7 @@ export async function runCareerChatTurn(
       });
       autoRecommendationAttemptedAfterProfileUpdate = true;
       recordThinkingLog(
-        "Finding fresh job postings based on the updated high-impact preferences."
+        "변경된 추천 조건을 반영해 새 채용공고를 찾고 있습니다."
       );
 
       try {
@@ -834,7 +858,7 @@ export async function runCareerChatTurn(
                 "Failed to insert company_snapshot result message."
             );
           }
-          await touchConversation(admin, conversationId, userId);
+          await touchConversationIfAllowed();
           preparedCompanySnapshotRef.current = {
             messages: [
               toTalentMessageResponse(cacheMessage as TalentMessageRow),
@@ -871,7 +895,7 @@ export async function runCareerChatTurn(
               "Failed to insert company_snapshot result message."
           );
         }
-        await touchConversation(admin, conversationId, userId);
+        await touchConversationIfAllowed();
         preparedCompanySnapshotRef.current = {
           messages: [
             toTalentMessageResponse(researchMessage as TalentMessageRow),
@@ -945,29 +969,24 @@ export async function runCareerChatTurn(
       preparedCompanySnapshot.messages[
         preparedCompanySnapshot.messages.length - 1
       ]?.content ?? "";
-    const insightChangedKeysCount = await extractTurnInsights(
-      preparedAssistantText
-    );
-    const finalThinkingLogs =
-      insightChangedKeysCount > 0
-        ? await persistInsightExtractionThinkingLogForMessage({
-            messageId:
-              preparedCompanySnapshot.messages[
-                preparedCompanySnapshot.messages.length - 1
-              ]?.id,
-            thinkingLogs,
-          })
-        : thinkingLogs;
+    const preparedMessageId =
+      preparedCompanySnapshot.messages[
+        preparedCompanySnapshot.messages.length - 1
+      ]?.id;
+    scheduleInsightExtractionForAssistantMessage({
+      content: preparedAssistantText,
+      messageId: preparedMessageId,
+    });
+    const finalThinkingLogs = thinkingLogs;
     const messagesWithThinkingLogs = attachThinkingLogsToLastMessage(
       preparedCompanySnapshot.messages,
       finalThinkingLogs
     );
-    if (insightChangedKeysCount === 0 && finalThinkingLogs.length > 0) {
+    if (finalThinkingLogs.length > 0) {
       await persistThinkingLogsForMessage({
         admin,
         conversationId,
-        messageId:
-          messagesWithThinkingLogs[messagesWithThinkingLogs.length - 1]?.id,
+        messageId: preparedMessageId,
         thinkingLogs: finalThinkingLogs,
         userId,
       });
@@ -1052,29 +1071,19 @@ export async function runCareerChatTurn(
     );
   }
 
-  const insightChangedKeysCount = await extractTurnInsights(safeAssistantText);
-  const finalAssistantThinkingLogs =
-    insightChangedKeysCount > 0
-      ? await persistInsightExtractionThinkingLogForMessage({
-          messageId: insertedAssistantMessage.id,
-          thinkingLogs,
-        })
-      : thinkingLogs;
+  scheduleInsightExtractionForAssistantMessage({
+    content: safeAssistantText,
+    messageId: insertedAssistantMessage.id,
+  });
+  const finalAssistantThinkingLogs = thinkingLogs;
   summarizeConversationInBackground();
 
   const isCompleted = Boolean(insertedUserMessage && completion.completed);
-  const now = new Date().toISOString();
-  await admin
-    .from("talent_conversations")
-    .update({
-      stage: isCompleted ? "completed" : "chat",
-      updated_at: now,
-    })
-    .eq("id", conversationId)
-    .eq("user_id", userId);
+  const shouldApplyCompletion = isCompleted && !skipConversationWrites;
+  await updateConversationStageIfAllowed(isCompleted);
 
   const completedOpportunityRun =
-    isCompleted && completion.reason
+    shouldApplyCompletion && completion.reason
       ? await completeOnboardingAndQueueInitialOpportunityRun({
           admin,
           completionReason: completion.reason,
@@ -1087,7 +1096,7 @@ export async function runCareerChatTurn(
     startOpportunityDiscoveryInBackground(completedOpportunityRun.id);
   }
   const insertedCompletionWrapupMessage =
-    isCompleted && insertedUserMessage
+    shouldApplyCompletion && insertedUserMessage
       ? await createOnboardingCompletionWrapupMessage({
           admin,
           conversationId,
@@ -1108,6 +1117,6 @@ export async function runCareerChatTurn(
         ? toTalentMessageResponse(insertedCompletionWrapupMessage)
         : null,
     ].filter((message): message is TalentMessageResponse => message !== null),
-    { completed: isCompleted, opportunityRun: completedOpportunityRun }
+    { completed: shouldApplyCompletion, opportunityRun: completedOpportunityRun }
   );
 }

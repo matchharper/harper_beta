@@ -6,9 +6,10 @@ export type TalentRecommendationSettingsUpdateSource =
 export const DEFAULT_TALENT_PERIODIC_ENABLED = true;
 export const DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS = 3;
 export const DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE = 5;
+export const TALENT_RECOMMENDATION_STOP_SENTINEL = -1;
 
-export const TALENT_PERIODIC_INTERVAL_DAYS_MIN = 1;
-export const TALENT_PERIODIC_INTERVAL_DAYS_MAX = 30;
+export const TALENT_PERIODIC_INTERVAL_DAYS_MIN = 2;
+export const TALENT_PERIODIC_INTERVAL_DAYS_MAX = 7;
 export const TALENT_RECOMMENDATION_BATCH_SIZE_MIN = 1;
 export const TALENT_RECOMMENDATION_BATCH_SIZE_MAX = 10;
 
@@ -16,7 +17,8 @@ function clampInteger(
   value: unknown,
   min: number,
   max: number,
-  fallback: number
+  fallback: number,
+  allowedSentinels: number[] = []
 ) {
   const parsed =
     typeof value === "number"
@@ -26,6 +28,7 @@ function clampInteger(
         : Number.NaN;
 
   if (!Number.isFinite(parsed)) return fallback;
+  if (allowedSentinels.includes(parsed)) return parsed;
 
   return Math.max(min, Math.min(max, Math.floor(parsed)));
 }
@@ -39,7 +42,8 @@ export function normalizeTalentPeriodicIntervalDays(value: unknown) {
     value,
     TALENT_PERIODIC_INTERVAL_DAYS_MIN,
     TALENT_PERIODIC_INTERVAL_DAYS_MAX,
-    DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS
+    DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS,
+    [TALENT_RECOMMENDATION_STOP_SENTINEL]
   );
 }
 
@@ -48,6 +52,7 @@ export function normalizeTalentRecommendationBatchSize(value: unknown) {
     value,
     TALENT_RECOMMENDATION_BATCH_SIZE_MIN,
     TALENT_RECOMMENDATION_BATCH_SIZE_MAX,
-    DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE
+    DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
+    [TALENT_RECOMMENDATION_STOP_SENTINEL]
   );
 }

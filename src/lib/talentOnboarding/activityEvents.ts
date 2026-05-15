@@ -161,10 +161,12 @@ function formatPreferenceActivityValue(field: string, value: unknown) {
     return getTalentCareerMoveIntentLabel(value) ?? formatActivityValue(value);
   }
   if (field === "periodicIntervalDays") {
+    if (Number(value) === -1) return "off";
     const formatted = formatActivityValue(value);
     return formatted === "none" ? formatted : `${formatted} days`;
   }
   if (field === "recommendationBatchSize") {
+    if (Number(value) === -1) return "off";
     const formatted = formatActivityValue(value);
     return formatted === "none" ? formatted : `${formatted} opportunities`;
   }

@@ -451,7 +451,7 @@ const Onboard: React.FC = () => {
                           setIsDirty(true);
                           setLinks((prev) => [...prev, ""]);
                         }}
-                        className="text-sm px-3 py-1.5 text-brightnavy rounded-[5px] hover:bg-xlightgray"
+                        className="text-[13px] px-3 py-1 text-brightnavy rounded-[5px] hover:bg-xlightgray"
                       >
                         + 추가
                       </button>

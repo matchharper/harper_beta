@@ -209,6 +209,11 @@ type AnthropicStreamToolState = {
   name: string;
 };
 
+type AnthropicToolUseStart = {
+  id: string;
+  name: string;
+};
+
 function cleanModelText(raw: string) {
   return raw
     .replace(/^```json\s*/i, "")
@@ -374,6 +379,7 @@ async function createAnthropicMessageStreamResponse(args: {
   messages: AnthropicMessage[];
   model: string;
   onTextDelta: (delta: string) => void | Promise<void>;
+  onToolUseStart?: (tool: AnthropicToolUseStart) => void | Promise<void>;
   systemBlocks: CareerChatSystemBlock[];
   temperature: number;
   tools?: TalentChatTool[];
@@ -526,6 +532,7 @@ async function createAnthropicMessageStreamResponse(args: {
               : "",
           name,
         });
+        await args.onToolUseStart?.({ id, name });
       }
       return;
     }
@@ -913,7 +920,9 @@ export async function runCareerChatAssistantStream(args: {
     content: string;
     role: "user" | "assistant";
   }>;
+  onStopToolStart?: (tool: AnthropicToolUseStart) => void | Promise<void>;
   onTextDelta: (delta: string) => void | Promise<void>;
+  onToolStart?: (tool: AnthropicToolUseStart) => void | Promise<void>;
   stopAfterToolNames?: string[];
   systemBlocks: CareerChatSystemBlock[];
   tools: TalentChatTool[];
@@ -943,6 +952,7 @@ export async function runCareerChatAssistantStream(args: {
     }));
 
   let streamedAnyText = false;
+  let startedAnyTool = false;
   let executedAnyTool = false;
   const stopAfterToolNameSet = new Set(args.stopAfterToolNames ?? []);
   const forwardTextDelta = async (delta: string) => {
@@ -968,7 +978,14 @@ export async function runCareerChatAssistantStream(args: {
       const response = await createAnthropicMessageStreamResponse({
         messages: workingMessages,
         model: modelConfig.primaryModel,
-        onTextDelta: forwardTextDelta,
+        onToolUseStart: async (tool) => {
+          startedAnyTool = true;
+          await args.onToolStart?.(tool);
+          if (stopAfterToolNameSet.has(tool.name)) {
+            await args.onStopToolStart?.(tool);
+          }
+        },
+        onTextDelta: () => undefined,
         systemBlocks: args.systemBlocks,
         temperature: CAREER_LLM_CONFIG.chat.temperature,
         tools: args.tools,
@@ -983,7 +1000,11 @@ export async function runCareerChatAssistantStream(args: {
       );
 
       if (toolUseBlocks.length === 0) {
-        return cleanModelText(extractAnthropicText(assistantBlocks));
+        const responseText = cleanModelText(
+          extractAnthropicText(assistantBlocks)
+        );
+        await forwardTextDelta(responseText);
+        return responseText;
       }
 
       workingMessages.push({
@@ -1076,12 +1097,39 @@ export async function runCareerChatAssistantStream(args: {
       if (shouldStopAfterTool) {
         return "";
       }
+
+      return await createAnthropicMessageStream({
+        messages: workingMessages,
+        model: modelConfig.primaryModel,
+        onTextDelta: forwardTextDelta,
+        systemBlocks: args.systemBlocks,
+        temperature: CAREER_LLM_CONFIG.chat.temperature,
+        usageLabel: "career/chat:assistant",
+      });
+    }
+
+    if (executedAnyTool) {
+      return await createAnthropicMessageStream({
+        messages: workingMessages,
+        model: modelConfig.primaryModel,
+        onTextDelta: forwardTextDelta,
+        systemBlocks: args.systemBlocks,
+        temperature: CAREER_LLM_CONFIG.chat.temperature,
+        usageLabel: "career/chat:assistant",
+      });
     }
 
     const finalResponse = await createAnthropicMessageStreamResponse({
       messages: workingMessages,
       model: modelConfig.primaryModel,
-      onTextDelta: forwardTextDelta,
+      onToolUseStart: async (tool) => {
+        startedAnyTool = true;
+        await args.onToolStart?.(tool);
+        if (stopAfterToolNameSet.has(tool.name)) {
+          await args.onStopToolStart?.(tool);
+        }
+      },
+      onTextDelta: () => undefined,
       systemBlocks: args.systemBlocks,
       temperature: CAREER_LLM_CONFIG.chat.temperature,
       tools: args.tools,
@@ -1089,9 +1137,11 @@ export async function runCareerChatAssistantStream(args: {
     });
 
     const finalText = extractAnthropicText(finalResponse.content);
-    return cleanModelText(finalText);
+    const cleanFinalText = cleanModelText(finalText);
+    await forwardTextDelta(cleanFinalText);
+    return cleanFinalText;
   } catch (error) {
-    if (streamedAnyText || executedAnyTool) {
+    if (streamedAnyText || startedAnyTool || executedAnyTool) {
       throw error;
     }
 

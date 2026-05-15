@@ -35,10 +35,14 @@ import {
   serializeOpportunityRun,
 } from "@/lib/opportunityDiscovery/store";
 import { runCareerChatTurn } from "@/lib/career/chatTurn";
+import {
+  buildCareerSessionStartTurnInstruction,
+  CAREER_SESSION_START_NO_MESSAGE_MARKER,
+} from "@/lib/career/prompts";
 
 // const REENGAGEMENT_IDLE_MS = 60 * 1000;
 const REENGAGEMENT_IDLE_MS = 6 * 60 * 60 * 1000; // 6시간 지나서 접속시 인사
-const DEFAULT_OPPORTUNITY_LIMIT = 20;
+const DEFAULT_OPPORTUNITY_LIMIT = 10;
 
 const getLatestUpdatedAt = (...values: Array<string | null | undefined>) => {
   const timestamps = values
@@ -87,64 +91,20 @@ const hasProfileResumeLink = (value: unknown) =>
   Array.isArray(value) &&
   value.some((entry) => normalizeProfileSignalText(entry).length > 0);
 
-const hasTalentFirstSubmission = (profile: {
-  resume_file_name?: unknown;
-  resume_links?: unknown;
-  resume_storage_path?: unknown;
-  resume_text?: unknown;
-} | null) =>
+const hasTalentFirstSubmission = (
+  profile: {
+    resume_file_name?: unknown;
+    resume_links?: unknown;
+    resume_storage_path?: unknown;
+    resume_text?: unknown;
+  } | null
+) =>
   Boolean(
     normalizeProfileSignalText(profile?.resume_file_name) ||
-      normalizeProfileSignalText(profile?.resume_storage_path) ||
-      normalizeProfileSignalText(profile?.resume_text) ||
-      hasProfileResumeLink(profile?.resume_links)
+    normalizeProfileSignalText(profile?.resume_storage_path) ||
+    normalizeProfileSignalText(profile?.resume_text) ||
+    hasProfileResumeLink(profile?.resume_links)
   );
-
-const SESSION_GREETING_NO_MESSAGE_MARKER = "__NO_SESSION_GREETING__";
-const SESSION_GREETING_CALL_ACTION_MARKER = "[[CALL]]";
-
-function buildSessionStartInstruction(args: {
-  currentAccessAt: string;
-  idleMs: number;
-  previousChatAt: string | null;
-}) {
-  const anchorIdleHours = Math.max(
-    0,
-    Math.floor(args.idleMs / (60 * 60 * 1000))
-  );
-  const currentAccessMs = parseTimestampMs(args.currentAccessAt);
-  const previousChatMs = parseTimestampMs(args.previousChatAt);
-  const previousChatIdleHours =
-    currentAccessMs > 0 && previousChatMs > 0
-      ? Math.max(
-          0,
-          Math.floor((currentAccessMs - previousChatMs) / (60 * 60 * 1000))
-        )
-      : null;
-
-  return [
-    "## Session-start assistant turn",
-    "사용자가 방금 Career 화면에 다시 접속했다. 사용자가 아직 새 메시지를 보내지 않았지만, Harper가 먼저 짧게 말을 건넬 수 있는 차례다.",
-    `- currentAccessAt: ${args.currentAccessAt}`,
-    `- previousChatAt: ${args.previousChatAt ?? "(없음)"}`,
-    `- hoursSincePreviousChat: ${previousChatIdleHours ?? "(계산 불가)"}`,
-    `- hoursSinceReengagementAnchor: ${anchorIdleHours}`,
-    "대화 맥락상 지금 아무 말도 하지 않는 편이 더 자연스럽거나 도움이 되지 않는다고 판단되면 아무 것도 출력하지 않아도 된다.",
-    `아무 말도 하지 않기로 결정하면 응답 본문을 비우거나 ${SESSION_GREETING_NO_MESSAGE_MARKER} 만 출력해라. 이 경우 다른 설명을 붙이지 마라.`,
-    "이전 대화 맥락을 이어서 말하고, 처음 온 사람처럼 Harper를 길게 소개하지 마라.",
-    "최근 Career 활동이나 프로필 변경 혹은 이전 추천 등이 필요하면 기존 career/chat에서 쓰는 tool 정책에 따라 적절한 tool을 사용해라.",
-    // "이미 추천된 기회나 사용자의 피드백을 짧게 짚는 것이 자연스러우면 `read_recommended_opportunities`를 호출해라.",
-    "정확한 시각, 내부 이벤트명, 시스템 동작 방식은 사용자에게 말하지 마라.",
-    "메시지를 보낼 때는 1-3문장으로 끝내라.",
-    "첫 인사의 기본 구조는 이전 대화, 최근 Career 활동, 프로필 변경, 이전 추천/피드백 중 가장 중요한 맥락을 1문장으로 짧게 wrap-up한 뒤, 그 맥락에서 바로 이어갈 수 있는 질문 1개로 끝내는 것이다.",
-    "질문은 사용자가 바로 쉽게 답할 수 있어야 하며, 여러 질문을 묶지 마라.",
-    "참고할 만한 이전 대화나 활동 맥락이 약하면 최근 우선순위나 찾고 싶은 방향이 달라졌는지 묻는 일반 질문으로 끝내라.",
-    "이미 명확한 다음 액션이 진행 중이라 사용자의 답이 필요 없거나, 질문이 오히려 어색하면 질문 없이 짧은 상태 공유로 닫아도 된다.",
-    `hoursSincePreviousChat이 168 이상이고, 최근 활동/추천/프로필 변경에서 바로 이어갈 만한 명확한 업데이트가 없다면 "오랜만이라 최근 업데이트나 재밌게 하는 일이 있는지 통화로 한번 듣고 싶다"는 취지로 자연스럽게 말한 뒤 응답 맨 끝에 ${SESSION_GREETING_CALL_ACTION_MARKER} 를 붙여라.`,
-    `${SESSION_GREETING_CALL_ACTION_MARKER} 는 UI가 전화하기 버튼을 표시하는 데 쓰는 마커다. 이 마커를 설명하거나 따옴표로 감싸지 마라.`,
-    "텍스트 채팅에 표시되므로 필요하면 회사명, 역할명, 방향성 같은 핵심 단어에 가벼운 inline markdown 강조(**...**)를 사용해라. 긴 heading이나 bullet list는 쓰지 마라.",
-  ].join("\n");
-}
 
 async function generateSessionStartGreeting(args: {
   admin: ReturnType<typeof getTalentSupabaseAdmin>;
@@ -166,8 +126,8 @@ async function generateSessionStartGreeting(args: {
   const result = await runCareerChatTurn({
     admin,
     conversationId,
-    noMessageMarker: SESSION_GREETING_NO_MESSAGE_MARKER,
-    proactiveContext: buildSessionStartInstruction({
+    noMessageMarker: CAREER_SESSION_START_NO_MESSAGE_MARKER,
+    proactiveContext: buildCareerSessionStartTurnInstruction({
       currentAccessAt,
       idleMs,
       previousChatAt,
@@ -389,7 +349,7 @@ export async function GET(req: NextRequest) {
                 conversation_id: conversation.id,
                 user_id: user.id,
                 role: "assistant",
-                content: SESSION_GREETING_NO_MESSAGE_MARKER,
+                content: CAREER_SESSION_START_NO_MESSAGE_MARKER,
                 message_type: TALENT_MESSAGE_TYPE_SESSION_REENGAGEMENT_SKIP,
                 created_at: now,
               });

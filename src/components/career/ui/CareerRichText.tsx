@@ -8,7 +8,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import TurndownService from "turndown";
 import { POSTING_LINK_LABEL } from "@/lib/career/postingLinks";
-import { compactUrlLabel, isUrlText } from "@/lib/urlDisplay";
+import { compactUrlLabel, isHarperOwnedUrl, isUrlText } from "@/lib/urlDisplay";
 import { careerCx } from "./CareerPrimitives";
 
 const turndownService = new TurndownService({
@@ -259,10 +259,12 @@ function renderUrlLinkParagraph(children: ReactNode): ReactNode | null {
 export default function CareerRichText({
   content,
   className,
+  onHarperLinkClick,
   trailingInlineNode,
 }: {
   content: string;
   className?: string;
+  onHarperLinkClick?: (href: string) => void;
   trailingInlineNode?: ReactNode;
 }) {
   const normalizedContent = normalizeRichText(content);
@@ -339,6 +341,43 @@ export default function CareerRichText({
               !href.startsWith("mailto:")
             ) {
               return null;
+            }
+            if (isHarperOwnedUrl(href)) {
+              const shouldShowHrefText =
+                isUrlText(childText) ||
+                childText.trim() === href ||
+                !childText.trim();
+              const contentNode = shouldShowHrefText
+                ? compactUrlLabel(childText || href)
+                : renderNodeWithHighlights(
+                    children,
+                    "link-disabled",
+                    trailingInlineNode
+                  );
+
+              if (onHarperLinkClick) {
+                return (
+                  <button
+                    type="button"
+                    onClick={() => onHarperLinkClick(href)}
+                    title={href}
+                    aria-label={href}
+                    className={careerCx(
+                      "inline cursor-pointer border-0 bg-transparent p-0 text-left font-[inherit] wrap-break-word underline decoration-dotted underline-offset-2 text-beige900 transition-colors hover:text-beige900/75",
+                      shouldShowHrefText &&
+                        "max-w-full px-1 py-0.5 text-[13px] font-medium leading-5"
+                    )}
+                  >
+                    {contentNode}
+                  </button>
+                );
+              }
+
+              return (
+                <span className="wrap-break-word text-inherit" title={href}>
+                  {contentNode}
+                </span>
+              );
             }
 
             return (

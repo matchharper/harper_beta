@@ -21,6 +21,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ChangeEvent,
   type ReactNode,
@@ -814,6 +815,7 @@ const CareerNetworkOnboardingContent = () => {
     () => careerOnboardingSessionKey(userId, inviteToken, mail),
     [inviteToken, mail, userId]
   );
+  const lastSavedBasicInfoRef = useRef("");
 
   const fetchOnboardingSession = useCallback(async () => {
     const bootstrapRes = await fetchWithAuth("/api/talent/auth/bootstrap", {
@@ -934,6 +936,52 @@ const CareerNetworkOnboardingContent = () => {
     sessionQueryKey,
     userId,
   ]);
+
+  const saveBasicInfo = useCallback(async () => {
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim().toLowerCase();
+
+    if (!trimmedName || !isValidEmail(trimmedEmail)) return;
+
+    const signature = `${trimmedName}\n${trimmedEmail}`;
+    if (lastSavedBasicInfoRef.current === signature) return;
+
+    const response = await fetchWithAuth("/api/talent/onboarding/basic-info", {
+      method: "POST",
+      body: JSON.stringify({
+        email: trimmedEmail,
+        name: trimmedName,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(
+        getErrorMessage(payload, "기본 정보를 저장하지 못했습니다.")
+      );
+    }
+
+    lastSavedBasicInfoRef.current = signature;
+    queryClient.removeQueries({ queryKey: ["career-session"] });
+  }, [email, fetchWithAuth, name, queryClient]);
+
+  const saveCurrentStep = useCallback(
+    async (currentStep: number) => {
+      if (currentStep !== 0) return;
+
+      try {
+        await saveBasicInfo();
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "기본 정보를 저장하지 못했습니다.";
+        showToast({ message, variant: "white" });
+        throw error;
+      }
+    },
+    [saveBasicInfo]
+  );
 
   const handleProfileInputToggle = useCallback(
     (option: TalentNetworkProfileInputType) => {
@@ -1186,10 +1234,10 @@ const CareerNetworkOnboardingContent = () => {
   ]);
 
   const { step, handleNext, handlePrev, isNextRef } = useOnboarding({
-    save: () => undefined,
+    save: saveCurrentStep,
     totalSteps: TOTAL_STEPS,
     beforeNext: validateStep,
-    onComplete: () => void submitOnboarding(),
+    onComplete: submitOnboarding,
     enableWheelNavigation: false,
   });
 

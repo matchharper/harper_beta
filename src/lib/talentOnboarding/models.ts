@@ -10,10 +10,6 @@ export type TalentConversationRow = {
   id: string;
   user_id: string;
   stage: "profile" | "chat" | "completed";
-  title: string | null;
-  resume_file_name: string | null;
-  resume_text: string | null;
-  resume_links: string[] | null;
   relief_nudge_sent: boolean | null;
   created_at: string;
   updated_at: string;
