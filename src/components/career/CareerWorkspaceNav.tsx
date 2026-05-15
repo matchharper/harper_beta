@@ -83,11 +83,12 @@ const CareerWorkspaceNav = () => {
           </div>
         </div>
       </header>
-      <CareerSupportInquiryModal
-        open={inquiryOpen}
-        onClose={() => setInquiryOpen(false)}
-        defaultEmail={profileEmail}
-      />
+      {inquiryOpen && (
+        <CareerSupportInquiryModal
+          onClose={() => setInquiryOpen(false)}
+          defaultEmail={profileEmail}
+        />
+      )}
     </>
   );
 };

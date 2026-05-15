@@ -1,27 +1,19 @@
 import { LoaderCircle, X } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { showToast } from "@/components/toast/toast";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 
 const CareerSupportInquiryModal = ({
-  open,
   onClose,
   defaultEmail = "",
 }: {
-  open: boolean;
   onClose: () => void;
   defaultEmail?: string;
 }) => {
   const { fetchWithAuth } = useCareerApi();
-  const [email, setEmail] = useState(defaultEmail);
+  const [email, setEmail] = useState(() => defaultEmail);
   const [content, setContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    setEmail(defaultEmail);
-    setContent("");
-  }, [defaultEmail, open]);
 
   const handleClose = () => {
     if (submitting) return;
@@ -88,8 +80,6 @@ const CareerSupportInquiryModal = ({
       setSubmitting(false);
     }
   };
-
-  if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-80 flex items-center justify-center p-4">

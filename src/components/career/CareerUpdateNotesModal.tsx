@@ -1,7 +1,9 @@
 import { CalendarDays, CheckCircle2, MessageSquareText } from "lucide-react";
 import React from "react";
+import { createPortal } from "react-dom";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { careerUpdateNotes } from "@/content/careerUpdateNotes";
+import { useIsMounted } from "@/hooks/useIsMounted";
 import { careerCx } from "./ui/CareerPrimitives";
 
 const CareerUpdateNotesModal = ({
@@ -14,14 +16,16 @@ const CareerUpdateNotesModal = ({
   onSuggestUpdate: () => void;
 }) => {
   const latestId = careerUpdateNotes[0]?.id;
+  const mounted = useIsMounted();
 
-  return (
+  if (!mounted || typeof document === "undefined") return null;
+
+  return createPortal(
     <TalentCareerModal
       open={open}
       onClose={onClose}
       ariaLabel="업데이트 노트"
       overlayClassName="items-start pt-14"
-      backdropClassName="bg-beige900/20 backdrop-blur-[3px]"
       panelClassName="max-w-none w-[min(560px,calc(100vw-32px))] rounded-[16px] border-beige900/10 bg-beige50 shadow-[0_24px_70px_rgba(37,20,6,0.18)]"
       bodyClassName="p-0"
       closeButtonClassName="right-4 top-4 rounded-[8px] text-beige900/45 hover:bg-beige900/6 hover:text-beige900"
@@ -110,7 +114,8 @@ const CareerUpdateNotesModal = ({
           </div>
         </div>
       </section>
-    </TalentCareerModal>
+    </TalentCareerModal>,
+    document.body
   );
 };
 

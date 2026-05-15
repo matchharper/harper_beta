@@ -1,5 +1,5 @@
 import { LogOut, Megaphone } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import CareerUpdateNotesModal from "./CareerUpdateNotesModal";
 import { careerCx } from "./ui/CareerPrimitives";
 import {
@@ -8,10 +8,7 @@ import {
   BeigeActionDropdownSeparator,
 } from "@/components/ui/beige/action-dropdown";
 import { DropdownMenuLabel } from "@/components/ui/beige/dropdown-menu";
-import {
-  CAREER_UPDATE_NOTES_STORAGE_KEY,
-  latestCareerUpdateNote,
-} from "@/content/careerUpdateNotes";
+import { useUnreadCareerUpdateNote } from "@/hooks/career/useCareerUpdateNotes";
 
 type CareerProfileMenuVariant = "desktop" | "mobile";
 
@@ -32,8 +29,8 @@ const CareerProfileMenu = ({
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [updateNotesOpen, setUpdateNotesOpen] = useState(false);
-  const [hasUnreadUpdateNote, setHasUnreadUpdateNote] = useState(false);
-  const latestUpdateNoteId = latestCareerUpdateNote?.id ?? "";
+  const { hasUnread: hasUnreadUpdateNote, markSeen: markLatestUpdateNoteSeen } =
+    useUnreadCareerUpdateNote();
 
   const normalizedProfileName = String(profileName ?? "Candidate");
   const profileInitial =
@@ -46,33 +43,6 @@ const CareerProfileMenu = ({
   const hasUploadedImage = Boolean(
     profileImageUrl && !profileImageUrl.includes("media.licdn.com")
   );
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !latestUpdateNoteId) return;
-
-    try {
-      setHasUnreadUpdateNote(
-        window.localStorage.getItem(CAREER_UPDATE_NOTES_STORAGE_KEY) !==
-          latestUpdateNoteId
-      );
-    } catch {
-      setHasUnreadUpdateNote(false);
-    }
-  }, [latestUpdateNoteId]);
-
-  const markLatestUpdateNoteSeen = () => {
-    if (typeof window === "undefined" || !latestUpdateNoteId) return;
-
-    try {
-      window.localStorage.setItem(
-        CAREER_UPDATE_NOTES_STORAGE_KEY,
-        latestUpdateNoteId
-      );
-      setHasUnreadUpdateNote(false);
-    } catch {
-      setHasUnreadUpdateNote(false);
-    }
-  };
 
   const handleOpenUpdateNotes = () => {
     setUpdateNotesOpen(true);

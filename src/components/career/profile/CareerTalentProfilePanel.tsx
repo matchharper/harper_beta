@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   AwardIcon,
   Building2,
@@ -1008,11 +1008,6 @@ const CareerTalentProfilePanel = ({
   const [profileImageUploadPending, setProfileImageUploadPending] =
     useState(false);
   const [profileImageError, setProfileImageError] = useState("");
-
-  useEffect(() => {
-    if (isEditing) return;
-    setDraft(createEditableProfile(talentProfile));
-  }, [isEditing, talentProfile]);
 
   const mergedExperience = useMemo(
     () => mergeExperienceAndEducation(talentExperiences, talentEducations),
