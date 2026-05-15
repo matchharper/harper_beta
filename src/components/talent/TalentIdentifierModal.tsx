@@ -211,7 +211,7 @@ const TalentIdentifierModal = ({
               "Google 회원가입"
             )}
           </button>
-          <div className="w-full bg-hblack50 h-[1px]"></div>
+          <div className="w-full bg-hblack50 h-px"></div>
           <button
             type="button"
             onClick={() => void handleGoogleLogin(false)}

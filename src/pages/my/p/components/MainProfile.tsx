@@ -31,7 +31,7 @@ const MainProfile = ({
   const MetaIcon = metaIcon ?? MapPin;
 
   return (
-    <div className="items-start w-[100%] grid grid-cols-7">
+    <div className="items-start w-full grid grid-cols-7">
       <div className="col-span-1">
         <div className="w-24 h-24 rounded-full overflow-hidden bg-beige900 border border-beige900/5 shrink-0">
           {profile_picture && !profile_picture.includes("media.licdn.com") ? (

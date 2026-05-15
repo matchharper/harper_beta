@@ -179,7 +179,7 @@ export default function AdminMetricsTab({
         </div>
       ) : (
         <div
-          className="grid grid-cols-1 gap-4 md:[grid-template-columns:var(--admin-metrics-grid)]"
+          className="grid grid-cols-1 gap-4 md:grid-cols-(--admin-metrics-grid)"
           style={
             {
               "--admin-metrics-grid": `repeat(${gridCols}, minmax(0, 1fr))`,

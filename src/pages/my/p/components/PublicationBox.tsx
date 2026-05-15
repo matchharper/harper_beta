@@ -42,7 +42,7 @@ const PublicationBox = ({
     >
       <div className="flex flex-col items-start justify-start w-full">
         <div className="w-full text-sm flex flex-row items-start justify-between gap-2 font-light">
-          <div className="flex-1 min-w-0 text-base break-words">{title}</div>
+          <div className="flex-1 min-w-0 text-base wrap-break-word">{title}</div>
           <div className="shrink-0 whitespace-nowrap text-beige900/55 text-sm pt-0.5">
             {citation_num >= 0 ? `${citation_num} Cite` : ""}
           </div>
@@ -64,14 +64,14 @@ const PublicationBox = ({
       {isInteractive ? (
         <div className="inline-flex items-center gap-1 text-sm text-beige900/55 hover:underline">
           <ArrowUpRight
-            className="group-hover:translate-x-[1px] group-hover:translate-y-[-1px] transition-all duration-200"
+            className="group-hover:translate-x-px group-hover:-translate-y-px transition-all duration-200"
             size={16}
           />
         </div>
       ) : (
         <div className="text-sm text-beige900/45">
           <ArrowUpRight
-            className="opacity-0 group-hover:translate-x-[1px] group-hover:translate-y-[-1px] transition-all duration-200"
+            className="opacity-0 group-hover:translate-x-px group-hover:-translate-y-px transition-all duration-200"
             size={16}
           />
         </div>

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { Lock } from "lucide-react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import Reveal from "../Animation/Reveal";
@@ -107,7 +107,7 @@ function HarperReport({
         reportVisible ? "translate-y-0 opacity-100" : "translate-y-5 opacity-0"
       }`}
     >
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-b from-[#FFFCF6]/0 to-[#FFFCF6]" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-linear-to-b from-[#FFFCF6]/0 to-[#FFFCF6]" />
 
       <ReportItem index={0} visibleCount={reportItemsVisible}>
         <div className="flex items-start justify-between gap-4 pb-4">
@@ -357,9 +357,7 @@ function ChatMatchCard({
       ref={refCallback}
       className={`grid cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-2 rounded-md border-b px-2.5 py-2 transition duration-300 last:border-b-0 ${
         visible ? "translate-x-0 opacity-100" : "-translate-x-2 opacity-0"
-      } ${
-        selected ? "border-[#D7B48F]/30 bg-[#3B2B1D]" : "border-white/[0.08]"
-      }`}
+      } ${selected ? "border-[#D7B48F]/30 bg-[#3B2B1D]" : "border-white/8"}`}
     >
       <CompanyMark>{match.mark}</CompanyMark>
       <div className="min-w-0 flex-1">
@@ -501,7 +499,7 @@ function CompanyMark({
 }) {
   return (
     <div
-      className={`flex rounded-md shrink-0 items-center justify-center border border-[#E3D3BE]/[0.15] bg-[#201811] font-geist font-semibold text-[#F7E8D2] ${
+      className={`flex rounded-md shrink-0 items-center justify-center border border-[#E3D3BE]/15 bg-[#201811] font-geist font-semibold text-[#F7E8D2] ${
         size === "lg" ? "h-[52px] w-[52px] text-[21px]" : "h-7 w-7 text-[12px]"
       }`}
     >
@@ -757,7 +755,7 @@ function DemoSection() {
     >
       <Reveal once>
         <WavyTag left="1.">외부 기회 탐색</WavyTag>
-        <h2 className="font-halant mx-auto mt-4 max-w-[820px] text-[26px] font-semibold leading-[1.15] text-[#21170D] md:text-[2rem] md:leading-[1.25]">
+        <h2 className="font-halant mx-auto mt-4 max-w-[820px] text-[26px] font-semibold leading-[1.15] text-[#21170D] md:text-[2rem] md:leading-tight">
           “이런 역할 찾아줘”
           <br />
           <span className="text-beige700">가벼운 대화</span> 한 번이면

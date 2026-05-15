@@ -2,11 +2,13 @@ import React, { useCallback, useEffect, useMemo } from "react";
 import { useCompanyModalStore } from "@/store/useModalStore";
 import LinkChips from "@/pages/my/p/components/LinkChips";
 import { Calendar, CircleHelp, MapPinHouse, Users, XIcon } from "lucide-react";
-import { AnimatePresence, motion } from "framer-motion";
+import { Drawer as DrawerPrimitive } from "vaul";
 import LinkPreview from "../LinkPreview";
 import { useMessages } from "@/i18n/useMessage";
 import { countryEnToKo } from "@/utils/language_map";
 import { Tooltips } from "../ui/tooltip";
+import { useIsMobile } from "@/hooks/useMediaQuery";
+import { cn } from "@/lib/utils";
 
 export default function CompanyModalRoot() {
   const { isOpen, payload, close } = useCompanyModalStore();
@@ -14,6 +16,7 @@ export default function CompanyModalRoot() {
   const closeOnBackdrop = payload?.closeOnBackdrop ?? true;
   const tone = payload?.tone ?? "default";
   const isCareerTone = tone === "career";
+  const isMobile = useIsMobile();
   const { m } = useMessages();
   const requestClose = useCallback(() => {
     if (
@@ -42,16 +45,6 @@ export default function CompanyModalRoot() {
       window.removeEventListener("popstate", onPopState);
     };
   }, [isOpen, close]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") requestClose();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isOpen, requestClose]);
 
   const tags = useMemo(() => {
     const raw = company?.specialities ?? "";
@@ -195,13 +188,29 @@ export default function CompanyModalRoot() {
     () => toStringArray(crunchbaseTaxonomy.location_groups).slice(0, 12),
     [crunchbaseTaxonomy.location_groups]
   );
-  const drawerClassName = [
-    "absolute right-0 top-0 h-full px-8 overflow-y-scroll pb-20",
-    "w-[min(560px,92vw)]",
+  const drawerClassName = cn(
+    "fixed z-9999 outline-none flex flex-col",
     isCareerTone ? "bg-[#fffdf8] text-beige900" : "bg-beige50 text-beige900",
-    "shadow-2xl",
-    isCareerTone ? "border-l border-xprimary/20" : "border-l border-beige900/8",
-  ].join(" ");
+    isMobile
+      ? cn(
+          "inset-x-0 bottom-0 h-full max-h-[92dvh] rounded-t-[20px]",
+          isCareerTone
+            ? "border-t border-xprimary/20"
+            : "border-t border-beige900/8"
+        )
+      : cn(
+          "right-0 top-0 h-full w-[min(560px,92vw)] shadow-2xl",
+          isCareerTone
+            ? "border-l border-xprimary/20"
+            : "border-l border-beige900/8"
+        )
+  );
+  const bodyClassName = cn(
+    "min-h-0 flex-1 overflow-y-auto",
+    isMobile
+      ? "px-5 pb-[calc(env(safe-area-inset-bottom)+16px)]"
+      : "px-8 pb-12"
+  );
   const closeButtonClassName = [
     "rounded-sm bg-transparent px-1 py-1 text-sm cursor-pointer",
     isCareerTone
@@ -222,51 +231,63 @@ export default function CompanyModalRoot() {
       : "bg-beige500/55",
   ].join(" ");
 
+  const handleOpenChange = useCallback(
+    (next: boolean) => {
+      if (next) return;
+      if (!closeOnBackdrop) return;
+      requestClose();
+    },
+    [closeOnBackdrop, requestClose]
+  );
+
   return (
-    <AnimatePresence>
-      {isOpen && payload && company ? (
-        <motion.div
-          className="fixed inset-0 z-[9999] font-sans"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-        >
-          {/* Backdrop */}
-          <motion.button
-            type="button"
-            aria-label="Close modal backdrop"
-            className="absolute inset-0 bg-black/50"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.18 }}
-            onClick={() => {
-              if (closeOnBackdrop) requestClose();
-            }}
-          />
+    <DrawerPrimitive.Root
+      open={isOpen && !!payload && !!company}
+      onOpenChange={handleOpenChange}
+      direction={isMobile ? "bottom" : "right"}
+      shouldScaleBackground={false}
+      dismissible={closeOnBackdrop}
+    >
+      <DrawerPrimitive.Portal>
+        <DrawerPrimitive.Overlay className="fixed inset-0 z-9999 bg-black/50" />
+        <DrawerPrimitive.Content className={cn("font-sans", drawerClassName)}>
+          <DrawerPrimitive.Title className="sr-only">
+            {company?.name ?? "회사 정보"}
+          </DrawerPrimitive.Title>
+          <DrawerPrimitive.Description className="sr-only">
+            회사 상세 정보
+          </DrawerPrimitive.Description>
 
-          {/* Right drawer */}
-          <motion.aside
-            role="dialog"
-            aria-modal="true"
-            className={drawerClassName}
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "tween", ease: "easeOut", duration: 0.22 }}
-          >
-            <div className="absolute top-4 right-4">
-              <button
-                type="button"
-                onClick={requestClose}
-                className={closeButtonClassName}
-              >
-                <XIcon className="w-6 h-6" strokeWidth={1} />
-              </button>
+          {isMobile && (
+            <div className="flex shrink-0 justify-center pt-3 pb-2">
+              <div className="h-1.5 w-12 rounded-full bg-beige900/20" />
             </div>
+          )}
 
-            {/* Header */}
-            <div className="flex items-start justify-between gap-4 pb-8 pt-12">
+          {company ? (
+            <div className={bodyClassName}>
+              <div
+                className={cn(
+                  "absolute right-4",
+                  isMobile ? "top-3" : "top-4"
+                )}
+              >
+                <button
+                  type="button"
+                  onClick={requestClose}
+                  className={closeButtonClassName}
+                >
+                  <XIcon className="w-6 h-6" strokeWidth={1} />
+                </button>
+              </div>
+
+              {/* Header */}
+              <div
+                className={cn(
+                  "flex items-start justify-between gap-4 pb-8",
+                  isMobile ? "pt-2" : "pt-12"
+                )}
+              >
               <div className="flex flex-row gap-6 items-start justify-start">
                 <img
                   src={company.logo ?? ""}
@@ -393,7 +414,7 @@ export default function CompanyModalRoot() {
               )}
 
               {/* Body */}
-              <div className="h-[calc(100%-64px)] py-4 flex flex-col gap-8">
+              <div className="flex flex-col gap-8">
                 {/* <Section title={m.company.information}>
                 <div className="space-y-2 text-sm w-full">
                   <Row
@@ -424,10 +445,10 @@ export default function CompanyModalRoot() {
                 </div>
               </Section> */}
 
-                {!company.short_description && company.description ? (
+                {!company.short_description && company.description?.trim() ? (
                   <Section title={m.company.description}>
                     <p className="text-sm leading-6 whitespace-pre-wrap font-light">
-                      {company.description}
+                      {company.description.trim()}
                     </p>
                   </Section>
                 ) : null}
@@ -453,14 +474,13 @@ export default function CompanyModalRoot() {
                     </div>
                   </Section>
                 )}
-                <br />
-                <br />
               </div>
             </div>
-          </motion.aside>
-        </motion.div>
-      ) : null}
-    </AnimatePresence>
+            </div>
+          ) : null}
+        </DrawerPrimitive.Content>
+      </DrawerPrimitive.Portal>
+    </DrawerPrimitive.Root>
   );
 }
 

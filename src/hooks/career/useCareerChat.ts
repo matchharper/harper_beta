@@ -11,9 +11,12 @@ import type {
 import { getErrorMessage, sleep, toUiMessage } from "./careerHelpers";
 import { showOpportunityDiscoveryStartedToast } from "./opportunityDiscoveryToast";
 import type { FetchWithAuth } from "./useCareerApi";
+import type { CareerConversationStarterId } from "@/lib/career/conversationStarters";
+import { createRecommendJobPostingStatusLog } from "@/lib/talentOnboarding/recommendJobPostingStatus";
 
 type SendChatArgs = {
   channel?: "chat" | "voice";
+  conversationStarterId?: CareerConversationStarterId;
   text: string;
   link?: string;
   onError?: () => void;
@@ -54,45 +57,39 @@ const mergeMessages = (
 
   const merged = [...persistedMessages];
   const persistedIndexById = new Map<string, number>();
+  const rebuildIndex = () => {
+    persistedIndexById.clear();
+    for (let index = 0; index < merged.length; index += 1) {
+      persistedIndexById.set(String(merged[index].id), index);
+    }
+  };
 
-  for (let index = 0; index < persistedMessages.length; index += 1) {
-    persistedIndexById.set(String(persistedMessages[index].id), index);
-  }
+  rebuildIndex();
+
+  let nextLocalInsertIndex = merged.length;
 
   for (const message of localMessages) {
     const id = String(message.id);
     const existingIndex = persistedIndexById.get(id);
     if (typeof existingIndex === "number") {
-      merged[existingIndex] = {
-        ...merged[existingIndex],
-        ...message,
-      };
+      if (message.typing) {
+        merged[existingIndex] = {
+          ...merged[existingIndex],
+          ...message,
+        };
+      }
+      nextLocalInsertIndex = existingIndex + 1;
+      rebuildIndex();
       continue;
     }
 
-    persistedIndexById.set(id, merged.length);
-    merged.push(message);
+    const insertIndex = Math.min(nextLocalInsertIndex, merged.length);
+    merged.splice(insertIndex, 0, message);
+    nextLocalInsertIndex = insertIndex + 1;
+    rebuildIndex();
   }
 
-  return merged.sort(compareCareerMessages);
-};
-
-const compareCareerMessages = (left: CareerMessage, right: CareerMessage) => {
-  const leftTime = Date.parse(left.createdAt);
-  const rightTime = Date.parse(right.createdAt);
-
-  if (Number.isFinite(leftTime) && Number.isFinite(rightTime)) {
-    if (leftTime !== rightTime) return leftTime - rightTime;
-  }
-
-  const leftId = typeof left.id === "number" ? left.id : Number(left.id);
-  const rightId = typeof right.id === "number" ? right.id : Number(right.id);
-
-  if (Number.isFinite(leftId) && Number.isFinite(rightId)) {
-    return leftId - rightId;
-  }
-
-  return 0;
+  return merged;
 };
 
 const replaceMessageById = (
@@ -215,21 +212,6 @@ export const useCareerChat = ({
     };
   }, []);
 
-  useEffect(() => {
-    if (persistedMessages.length === 0) return;
-
-    const persistedIds = new Set(
-      persistedMessages.map((message) => String(message.id))
-    );
-
-    setLocalMessages((prev) =>
-      prev.filter((message) => {
-        if (message.typing) return true;
-        return !persistedIds.has(String(message.id));
-      })
-    );
-  }, [persistedMessages]);
-
   const enqueueAssistantTypewriter = useCallback((message: CareerMessage) => {
     typingQueueRef.current = typingQueueRef.current.then(async () => {
       if (!mountedRef.current) return;
@@ -322,6 +304,7 @@ export const useCareerChat = ({
     setLocalMessages([]);
     activeThinkingLogsRef.current = [];
     setActiveThinkingLogs([]);
+    setActiveRecommendationSearchStatus(null);
     setOnboardingWrapupPending(false);
     setThinkingLogsByMessageId({});
     setToolStatusMessage("");
@@ -427,6 +410,7 @@ export const useCareerChat = ({
           },
           body: JSON.stringify({
             channel: args.channel ?? "chat",
+            conversationStarterId: args.conversationStarterId,
             conversationId,
             message: text,
             link,
@@ -447,6 +431,8 @@ export const useCareerChat = ({
           let realUserMessage: CareerMessagePayload | null = null;
           let assistantPayloads: CareerMessagePayload[] = [];
           let recommendationRefreshPromise: Promise<void> | null = null;
+          let messagesChangedPromise: Promise<void> | null = null;
+          let lastMessagesChangedKey = "";
           let streamAssistantVisible = false;
           let streamDone = false;
 
@@ -484,6 +470,39 @@ export const useCareerChat = ({
             setScrollTick((t) => t + 1);
           };
 
+          const setStreamAssistantThinkingLogs = (logs: string[]) => {
+            if (logs.length === 0) return;
+            ensureStreamAssistant();
+            setAssistantTyping(true);
+            setLocalMessages((prev) =>
+              prev.map((item) =>
+                String(item.id) === streamAssistantId
+                  ? {
+                      ...item,
+                      thinkingLogs: logs,
+                      typing:
+                        item.content.trim().length > 0 ? item.typing : false,
+                    }
+                  : item
+              )
+            );
+            setScrollTick((t) => t + 1);
+          };
+
+          const appendRecommendationStatusLog = (
+            status: CareerRecommendationSearchStatus
+          ) => {
+            const log = createRecommendJobPostingStatusLog(status);
+            const current = activeThinkingLogsRef.current;
+            const next =
+              current[current.length - 1] === log
+                ? current
+                : [...current, log].slice(-12);
+            activeThinkingLogsRef.current = next;
+            setActiveThinkingLogs(next);
+            setStreamAssistantThinkingLogs(next);
+          };
+
           const upsertFinalAssistantMessages = (
             currentMessages: CareerMessage[],
             payloads: CareerMessagePayload[]
@@ -511,6 +530,27 @@ export const useCareerChat = ({
             pendingAssistantMessageId = null;
             setAssistantTyping(false);
             setScrollTick((t) => t + 1);
+          };
+
+          const commitStreamMessages = (
+            payloads: CareerMessagePayload[] = assistantPayloads
+          ) => {
+            assistantPayloads = payloads;
+            if (!realUserMessage && payloads.length === 0) return;
+
+            const nextKey = [
+              realUserMessage?.id ?? "",
+              ...payloads.map((payload) => payload.id),
+            ].join(":");
+            if (nextKey === lastMessagesChangedKey) return;
+            lastMessagesChangedKey = nextKey;
+
+            messagesChangedPromise = Promise.resolve(
+              onMessagesChanged?.([
+                ...(realUserMessage ? [realUserMessage] : []),
+                ...payloads,
+              ])
+            ).catch(() => undefined);
           };
 
           const refreshOpportunityRecommendations = () => {
@@ -551,6 +591,44 @@ export const useCareerChat = ({
               return;
             }
 
+            if (event === "assistant_text_replace") {
+              const content =
+                isRecord(data) && typeof data.content === "string"
+                  ? data.content
+                  : "";
+              ensureStreamAssistant();
+              setAssistantTyping(true);
+              setLocalMessages((prev) =>
+                prev.map((item) =>
+                  String(item.id) === streamAssistantId
+                    ? {
+                        ...item,
+                        content,
+                        typing: content.length > 0,
+                      }
+                    : item
+                )
+              );
+              setScrollTick((t) => t + 1);
+              return;
+            }
+
+            if (event === "assistant_text_done") {
+              setLocalMessages((prev) =>
+                prev.map((item) =>
+                  String(item.id) === streamAssistantId
+                    ? {
+                        ...item,
+                        typing: false,
+                      }
+                    : item
+                )
+              );
+              resetActiveThinkingLogs();
+              setScrollTick((t) => t + 1);
+              return;
+            }
+
             if (event === "tool_status") {
               const message =
                 isRecord(data) && typeof data.message === "string"
@@ -558,6 +636,7 @@ export const useCareerChat = ({
                   : "";
               if (!message) return;
               appendThinkingLog(message);
+              setStreamAssistantThinkingLogs(activeThinkingLogsRef.current);
               return;
             }
 
@@ -565,6 +644,7 @@ export const useCareerChat = ({
               const status = toRecommendationSearchStatus(data);
               if (!status) return;
               setActiveRecommendationSearchStatus(status);
+              appendRecommendationStatusLog(status);
               if (
                 status.state === "completed" &&
                 (status.recommendationCount ?? 0) > 0
@@ -596,8 +676,9 @@ export const useCareerChat = ({
               if (!payload) return;
               attachThinkingLogsToMessage(payload.id);
               resetActiveThinkingLogs();
-              assistantPayloads = [payload];
               settleAssistantMessage(payload);
+              commitStreamMessages([payload]);
+              setChatPending(false);
               return;
             }
 
@@ -613,13 +694,14 @@ export const useCareerChat = ({
               if (payloads.length === 0) return;
               attachThinkingLogsToMessage(payloads[0].id);
               resetActiveThinkingLogs();
-              assistantPayloads = payloads;
               setLocalMessages((prev) => {
                 return upsertFinalAssistantMessages(prev, payloads);
               });
               streamAssistantVisible = false;
               pendingAssistantMessageId = null;
               setAssistantTyping(false);
+              commitStreamMessages(payloads);
+              setChatPending(false);
               setScrollTick((t) => t + 1);
               return;
             }
@@ -678,11 +760,11 @@ export const useCareerChat = ({
               if (recommendationRefreshPromise) {
                 await recommendationRefreshPromise;
               }
-              if (realUserMessage || assistantPayloads.length > 0) {
-                await onMessagesChanged?.([
-                  ...(realUserMessage ? [realUserMessage] : []),
-                  ...assistantPayloads,
-                ]);
+              if (!lastMessagesChangedKey) {
+                commitStreamMessages();
+              }
+              if (messagesChangedPromise) {
+                await messagesChangedPromise;
               }
               setChatPending(false);
               setAssistantTyping(false);

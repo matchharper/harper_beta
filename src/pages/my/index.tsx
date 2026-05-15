@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { NextPage } from "next";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import {
   ArrowUp,
   Github,
@@ -12,6 +12,7 @@ import {
 import ChatAttachmentActionMenu from "@/components/chat/ChatAttachmentActionMenu";
 import ChatAttachmentDraftList from "@/components/chat/ChatAttachmentDraftList";
 import AppLayout from "@/components/layout/app";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { useRouter } from "next/router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -74,6 +75,7 @@ const Home: NextPage = () => {
   const companyUserId = companyUser?.user_id ?? null;
   const { open: openFeedbackModal } = useFeedbackModalStore();
   const router = useRouter();
+  const isMobile = useIsMobile();
   const isQueryEmpty = query.trim().length === 0;
   const canSend =
     (query.trim().length > 0 || attachments.length > 0) &&
@@ -475,8 +477,8 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
 
   return (
     <AppLayout initialCollapse={false}>
-      <main className="flex-1 flex relative font-sans items-center justify-center px-6 w-full pt-[25vh]">
-        <div className="absolute top-2 right-2 flex flex-row items-end gap-2">
+      <main className="relative flex flex-1 w-full flex-col items-center font-sans px-4 md:px-6 lg:px-8 pt-16 md:pt-24 lg:pt-[20vh]">
+        <div className="absolute top-2 right-2 hidden md:flex flex-row items-end gap-2">
           <button
             onClick={openFeedbackModal}
             className="cursor-pointer hover:bg-beige500/70 transition text-sm text-beige900 px-4 py-1.5 rounded-full bg-beige500/55 font-normal flex flex-row items-center gap-2"
@@ -487,7 +489,7 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
         </div>
         <div className="w-full flex flex-col items-center">
           <h1
-            className="text-2xl sm:text-3xl font-medium tracking-tight text-center leading-relaxed"
+            className="text-xl sm:text-2xl md:text-3xl font-medium tracking-tight text-center leading-relaxed"
             // onClick={testSqlQuery}
           >
             {m.system.hello}, {companyUser?.name?.split(" ")[0] ?? ""}님
@@ -495,7 +497,7 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
             {selectedSourceConfig.prompt}
           </h1>
 
-          <form className="mt-8 w-full max-w-[640px]">
+          <form className="mt-6 md:mt-8 w-full max-w-[640px]">
             <div className="w-full relative rounded-3xl p-2 bg-beige50 border border-beige900/8 shadow-sm">
               <ChatAttachmentDraftList
                 attachments={attachments}
@@ -507,7 +509,7 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
               <div className="relative rounded-2xl backdrop-blur-xl">
                 {isQueryEmpty && (
                   <div
-                    className="pointer-events-none absolute left-4 right-20 top-4 h-6 overflow-hidden text-[15px] leading-6 text-beige900/55"
+                    className="pointer-events-none absolute left-4 right-24 md:right-20 top-4 h-6 overflow-hidden text-base md:text-[15px] leading-6 text-beige900/55"
                     aria-hidden="true"
                   >
                     <div
@@ -542,19 +544,19 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
                   placeholder=""
                   aria-label={selectedSourceConfig.prompt}
                   rows={4}
-                  autoFocus={true}
+                  autoFocus={!isMobile}
                   className={[
                     "w-full resize-none rounded-2xl bg-transparent",
-                    "px-4 py-4 text-[15px] leading-6 text-beige900",
+                    "px-4 py-4 text-base md:text-[15px] leading-6 text-beige900",
                     "placeholder:text-transparent",
                     "outline-none",
-                    "min-h-[140px]",
+                    "min-h-[120px] md:min-h-[140px]",
                     "disabled:cursor-not-allowed disabled:opacity-60",
                   ].join(" ")}
                 />
               </div>
 
-              <div className="absolute bottom-3 right-3 flex flex-row items-center justify-center gap-2">
+              <div className="absolute bottom-2 right-2 md:bottom-3 md:right-3 flex flex-row items-center justify-center gap-2">
                 <ChatAttachmentActionMenu
                   disabled={isLoading || isPreparingAttachments}
                   onAddFile={(file) =>
@@ -563,6 +565,7 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
                   onAddLink={(url) =>
                     handleAddAttachment(createDraftLinkAttachment(url))
                   }
+                  className="h-11 w-11 md:h-9 md:w-9"
                 />
                 <button
                   type="button"
@@ -570,7 +573,7 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
                   disabled={!canSend}
                   className={[
                     "inline-flex items-center justify-center rounded-[12px] cursor-pointer hover:opacity-90",
-                    "h-9 w-9",
+                    "h-11 w-11 md:h-9 md:w-9",
                     canSend
                       ? "bg-beige900 text-beige100 cursor-not-allowed"
                       : "bg-beige900/50 text-beige100",
@@ -638,7 +641,7 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
               })}
             </div>
           </fieldset> */}
-          <div className="grid grid-cols-1 md:grid-cols-3 items-start justify-between gap-4 mt-[25vh] max-w-[1080px] w-[90%] pb-20">
+          <div className="grid grid-cols-1 md:grid-cols-3 items-start justify-between gap-3 md:gap-4 mt-12 md:mt-16 lg:mt-[20vh] max-w-[1080px] w-full pb-20">
             {selectedSourceConfig.examples.map((example) => (
               <ExampleQuery
                 key={`${example.label}-${example.query}`}
@@ -671,12 +674,12 @@ const ExampleQuery = ({
     <div
       className={[
         "group relative col-span-1 cursor-pointer",
-        "rounded-2xl py-5 px-6",
+        "rounded-2xl py-4 px-5 md:py-5 md:px-6",
         "bg-beige50 text-beige900 text-sm",
         "border border-beige900/8",
         "transition-all duration-200 ease-out",
-        "hover:border-beige900/16 hover:-translate-y-[2px]",
-        "active:translate-y-[0px] active:scale-[0.99]",
+        "hover:border-beige900/16 hover:translate-y-[-2px]",
+        "active:translate-y-0 active:scale-[0.99]",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-beige900/20",
       ].join(" ")}
       onClick={() => onClick(query)}

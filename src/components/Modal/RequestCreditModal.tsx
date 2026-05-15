@@ -105,7 +105,7 @@ const RequestCreditModal = ({
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="start"
-                className="rounded-2xl w-[var(--radix-popper-anchor-width)] p-1 backdrop-blur-sm bg-beige50/95"
+                className="rounded-2xl w-(--radix-popper-anchor-width) p-1 backdrop-blur-sm bg-beige50/95"
               >
                 <DropdownMenuGroup>
                   {CREDIT_OPTIONS.map((option) => (

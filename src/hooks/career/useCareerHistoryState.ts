@@ -8,6 +8,7 @@ import type {
   CareerHistoryOpportunity,
   CareerHistoryOpportunityCounts,
   CareerHistoryOpportunityFeedback,
+  CareerHistoryOpportunityPageFilter,
   CareerMessagePayload,
   CareerOpportunitySavedStage,
 } from "@/components/career/types";
@@ -21,7 +22,7 @@ import {
 } from "@/hooks/career/careerSessionData";
 import type { FetchWithAuth } from "@/hooks/career/useCareerApi";
 
-const CAREER_HISTORY_PAGE_SIZE = 20;
+const CAREER_HISTORY_PAGE_SIZE = 10;
 const CAREER_HISTORY_GC_TIME = 30 * 60_000;
 const CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_DELAY_MS = 15_000;
 
@@ -36,6 +37,13 @@ type InitialCareerHistoryPage = {
   items?: CareerHistoryOpportunity[];
   nextOffset?: number | null;
 } | null;
+
+type FilteredPageState = {
+  loading: boolean;
+  nextOffset: number | null;
+};
+
+type FilteredPageStateMap = Record<string, FilteredPageState | undefined>;
 
 export const careerHistoryOpportunitiesKey = (userId: string | null) =>
   ["career-history-opportunities", userId] as const;
@@ -56,6 +64,15 @@ const getHistoryBucket = (item: CareerHistoryOpportunity) => {
   if (item.feedback === "positive") return "saved";
   if (item.feedback === "negative") return "archived";
   return "new";
+};
+
+const getHistoryFilterKey = (
+  filter: CareerHistoryOpportunityPageFilter
+): string => {
+  if (filter.historyTab === "saved") {
+    return `saved:${filter.savedStage ?? "all"}`;
+  }
+  return filter.historyTab;
 };
 
 const cloneHistoryCounts = (
@@ -125,6 +142,9 @@ export function useCareerHistoryState(args: {
   const [historyUpdatingOpportunityIds, setHistoryUpdatingOpportunityIds] =
     useState<string[]>([]);
   const [historyUpdateError, setHistoryUpdateError] = useState("");
+  const [filteredPageState, setFilteredPageState] =
+    useState<FilteredPageStateMap>({});
+  const filteredPageStateRef = useRef<FilteredPageStateMap>({});
   const feedbackFollowUpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
@@ -135,6 +155,17 @@ export function useCareerHistoryState(args: {
     clearTimeout(feedbackFollowUpTimerRef.current);
     feedbackFollowUpTimerRef.current = null;
   }, []);
+
+  const updateFilteredPageState = useCallback(
+    (
+      updater: (current: FilteredPageStateMap) => FilteredPageStateMap
+    ) => {
+      const next = updater(filteredPageStateRef.current);
+      filteredPageStateRef.current = next;
+      setFilteredPageState(next);
+    },
+    []
+  );
 
   const requestOpportunityFeedbackFollowUp = useCallback(async () => {
     if (!conversationId) return;
@@ -188,7 +219,10 @@ export function useCareerHistoryState(args: {
   );
 
   const fetchHistoryPage = useCallback(
-    async (offset: number) => {
+    async (
+      offset: number,
+      filter?: CareerHistoryOpportunityPageFilter
+    ) => {
       if (!userId) {
         return {
           counts: null,
@@ -201,6 +235,12 @@ export function useCareerHistoryState(args: {
         limit: String(CAREER_HISTORY_PAGE_SIZE),
         offset: String(Math.max(0, offset)),
       });
+      if (filter?.historyTab) {
+        searchParams.set("historyTab", filter.historyTab);
+      }
+      if (filter?.savedStage) {
+        searchParams.set("savedStage", filter.savedStage);
+      }
       const response = await fetchWithAuth(
         `/api/talent/opportunities?${searchParams.toString()}`
       );
@@ -920,6 +960,29 @@ export function useCareerHistoryState(args: {
     }
   }, [enabled, fetchHistoryPage, queryClient, queryKey, userId]);
 
+  const appendHistoryOpportunityPage = useCallback(
+    (page: CareerHistoryPage, offset: number) => {
+      queryClient.setQueryData<InfiniteData<CareerHistoryPage, number>>(
+        queryKey,
+        (current) => {
+          if (!current || current.pages.length === 0) {
+            return {
+              pages: [page],
+              pageParams: [offset],
+            };
+          }
+
+          return {
+            ...current,
+            pages: [...current.pages, page],
+            pageParams: [...current.pageParams, offset],
+          };
+        }
+      );
+    },
+    [queryClient, queryKey]
+  );
+
   const loadHistoryOpportunityByRoleId = useCallback(
     async (roleId: string) => {
       const normalizedRoleId = String(roleId ?? "").trim();
@@ -953,26 +1016,90 @@ export function useCareerHistoryState(args: {
     [enabled, fetchWithAuth, upsertHistoryOpportunityLocally, userId]
   );
 
-  const loadMoreHistoryOpportunities = useCallback(async () => {
-    if (!infinite.hasNextPage || infinite.isFetchingNextPage) return;
-    await infinite.fetchNextPage();
-  }, [infinite]);
+  const loadMoreHistoryOpportunities = useCallback(
+    async (filter?: CareerHistoryOpportunityPageFilter) => {
+      if (!filter) {
+        if (!infinite.hasNextPage || infinite.isFetchingNextPage) return;
+        await infinite.fetchNextPage();
+        return;
+      }
+
+      if (!enabled || !userId) return;
+
+      const filterKey = getHistoryFilterKey(filter);
+      const currentState = filteredPageStateRef.current[filterKey];
+      if (currentState?.loading || currentState?.nextOffset === null) return;
+
+      const offset = currentState?.nextOffset ?? 0;
+      updateFilteredPageState((current) => ({
+        ...current,
+        [filterKey]: {
+          loading: true,
+          nextOffset: offset,
+        },
+      }));
+
+      try {
+        const page = await fetchHistoryPage(offset, filter);
+        appendHistoryOpportunityPage(page, offset);
+        if (page.counts) {
+          setHistoryOpportunityCounts(page.counts);
+        }
+        setHistoryLoaded(true);
+        setHistoryUpdateError("");
+        updateFilteredPageState((current) => ({
+          ...current,
+          [filterKey]: {
+            loading: false,
+            nextOffset: page.nextOffset,
+          },
+        }));
+      } catch (error) {
+        updateFilteredPageState((current) => ({
+          ...current,
+          [filterKey]: {
+            loading: false,
+            nextOffset: offset,
+          },
+        }));
+        setHistoryUpdateError(
+          error instanceof Error
+            ? error.message
+            : "기회 목록을 더 불러오지 못했습니다."
+        );
+      }
+    },
+    [
+      appendHistoryOpportunityPage,
+      enabled,
+      fetchHistoryPage,
+      infinite,
+      updateFilteredPageState,
+      userId,
+    ]
+  );
 
   const resetHistoryState = useCallback(() => {
     cancelPendingOpportunityFeedbackFollowUp();
     queryClient.removeQueries({ queryKey: ["career-history-opportunities"] });
     setHistoryLoaded(false);
     setHistoryOpportunityCounts(null);
+    filteredPageStateRef.current = {};
+    setFilteredPageState({});
     setHistoryUpdatingOpportunityIds([]);
     setHistoryUpdateError("");
   }, [cancelPendingOpportunityFeedbackFollowUp, queryClient]);
+
+  const isFilteredPageLoading = Object.values(filteredPageState).some(
+    (state) => state?.loading
+  );
 
   return {
     hasMoreHistoryOpportunities: Boolean(infinite.hasNextPage),
     historyOpportunityCounts: resolvedHistoryOpportunityCounts,
     historyInitialLoading: infinite.isPending && !infinite.data,
     historyLoaded: historyLoaded || Boolean(infinite.data),
-    historyLoadingMore: infinite.isFetchingNextPage,
+    historyLoadingMore: infinite.isFetchingNextPage || isFilteredPageLoading,
     historyOpportunities,
     historyOpportunityById,
     historyUpdateError,

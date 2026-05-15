@@ -6,6 +6,7 @@ import type {
   CareerMessage,
 } from "./types";
 import { useCareerVoiceInputStore } from "@/store/useCareerVoiceInputStore";
+import type { CareerConversationStarterId } from "@/lib/career/conversationStarters";
 
 type SpeechRecognitionLike = {
   lang: string;
@@ -32,7 +33,9 @@ type RealtimeControls = {
   isConnecting: boolean;
   partialTranscript: string;
   connectionStatus: "connected" | "reconnecting" | "disconnected";
-  connect: () => Promise<boolean>;
+  connect: (options?: {
+    conversationStarterId?: CareerConversationStarterId | null;
+  }) => Promise<boolean>;
   disconnect: () => void;
   sendTextMessage: (text: string) => void;
   triggerResponse: () => void;
@@ -988,44 +991,51 @@ export function useCareerVoiceInput(args: UseCareerVoiceInputArgs) {
 
   // Opens the call UI only after Realtime is connected, so the user does not
   // land on a dead call screen.
-  const startCallMode = useCallback(async () => {
-    void logEnvironmentSnapshot();
-    logVoiceDebug("start-call-mode");
-    setVoiceError("");
-    setVoiceMuted(false);
-    stopAssistantAudio();
-    recognitionRef.current?.abort();
-    clearVoiceBuffer();
-    setCallTranscriptEntries([]);
-    callAssistantTranscriptStreamingRef.current = false;
+  const startCallMode = useCallback(
+    async (options?: {
+      conversationStarterId?: CareerConversationStarterId | null;
+    }) => {
+      void logEnvironmentSnapshot();
+      logVoiceDebug("start-call-mode");
+      setVoiceError("");
+      setVoiceMuted(false);
+      stopAssistantAudio();
+      recognitionRef.current?.abort();
+      clearVoiceBuffer();
+      setCallTranscriptEntries([]);
+      callAssistantTranscriptStreamingRef.current = false;
 
-    if (realtimeControls) {
-      realtimeControls.disconnect();
-      const connected = await realtimeControls.connect();
-      if (connected) {
-        setVoiceEngine("realtime");
-        setVoiceListening(true);
-        setInputMode("call");
-        inputModeRef.current = "call";
-        logVoiceDebug("call-mode-connected");
+      if (realtimeControls) {
+        realtimeControls.disconnect();
+        const connected = await realtimeControls.connect({
+          conversationStarterId: options?.conversationStarterId ?? null,
+        });
+        if (connected) {
+          setVoiceEngine("realtime");
+          setVoiceListening(true);
+          setInputMode("call");
+          inputModeRef.current = "call";
+          logVoiceDebug("call-mode-connected");
 
-        void startVoiceLevelMonitor();
-        return true;
+          void startVoiceLevelMonitor();
+          return true;
+        }
       }
-    }
 
-    // Fallback: can't connect realtime, stay in text mode
-    onUnsupported("실시간 연결에 실패했습니다. 채팅으로 진행해 주세요.");
-    return false;
-  }, [
-    clearVoiceBuffer,
-    logEnvironmentSnapshot,
-    logVoiceDebug,
-    onUnsupported,
-    realtimeControls,
-    startVoiceLevelMonitor,
-    stopAssistantAudio,
-  ]);
+      // Fallback: can't connect realtime, stay in text mode
+      onUnsupported("실시간 연결에 실패했습니다. 채팅으로 진행해 주세요.");
+      return false;
+    },
+    [
+      clearVoiceBuffer,
+      logEnvironmentSnapshot,
+      logVoiceDebug,
+      onUnsupported,
+      realtimeControls,
+      startVoiceLevelMonitor,
+      stopAssistantAudio,
+    ]
+  );
 
   // Leaves call mode, closes Realtime/mic resources, and keeps the transcript
   // in memory for the wrap-up request.

@@ -3,7 +3,7 @@
 import ProgressBar from "@/components/apply/ProgressBar";
 import { ArrowRight, CornerDownLeft, LoaderCircle } from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import router from "next/router";
 import TextInput from "@/components/apply/TextInput";
 import LinkInput from "@/components/apply/LinkInput";
@@ -451,7 +451,7 @@ const Onboard: React.FC = () => {
                           setIsDirty(true);
                           setLinks((prev) => [...prev, ""]);
                         }}
-                        className="text-sm px-3 py-1.5 text-brightnavy rounded-[5px] hover:bg-xlightgray"
+                        className="text-[13px] px-3 py-1 text-brightnavy rounded-[5px] hover:bg-xlightgray"
                       >
                         + 추가
                       </button>

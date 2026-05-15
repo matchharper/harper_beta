@@ -311,6 +311,36 @@ export async function POST(req: NextRequest) {
       profileIngestionPromise,
     ]);
 
+    const submittedIdentityPayload: {
+      email?: string;
+      name?: string;
+      updated_at: string;
+    } = { updated_at: now };
+    if (submittedName) {
+      submittedIdentityPayload.name = submittedName.slice(0, 240);
+    }
+    if (submittedEmail) {
+      submittedIdentityPayload.email = submittedEmail.slice(0, 320);
+    }
+
+    if (submittedIdentityPayload.name || submittedIdentityPayload.email) {
+      const { error: submittedIdentityUpdateError } = await admin
+        .from("talent_users")
+        .update(submittedIdentityPayload)
+        .eq("user_id", user.id);
+
+      if (submittedIdentityUpdateError) {
+        return NextResponse.json(
+          {
+            error:
+              submittedIdentityUpdateError.message ??
+              "Failed to save submitted identity",
+          },
+          { status: 500 }
+        );
+      }
+    }
+
     const kickoff = llmRaw;
     const profileSubmitContent = buildProfileSubmitMessage({
       hasResume,

@@ -1,19 +1,15 @@
 import type { User } from "@supabase/supabase-js";
 import { useCallback, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/router";
 import {
   CareerChatPanelProvider,
   type CareerChatPanelContextValue,
 } from "@/components/career/CareerChatPanelContext";
-import CareerMobileViewportGate from "@/components/career/CareerMobileViewportGate";
 import {
   CareerSidebarProvider,
   type CareerSidebarContextValue,
 } from "@/components/career/CareerSidebarContext";
 import CareerSettingsModal from "@/components/career/CareerSettingsModal";
-import CareerWorkspaceScreen, {
-  CareerLoadingState,
-} from "@/components/career/CareerWorkspaceScreen";
+import CareerWorkspaceScreen from "@/components/career/CareerWorkspaceScreen";
 import {
   CareerOpportunityType,
   type CareerHistoryOpportunity,
@@ -25,7 +21,6 @@ import {
 } from "@/components/career/types";
 import { getCareerDefaultSavedStage } from "@/components/career/opportunityTypeMeta";
 import { deriveHistoryOpportunityCounts } from "@/hooks/career/careerSessionData";
-import { resolveCareerMobileEntryReason } from "@/lib/career/mobileBlocker";
 import {
   DEFAULT_TALENT_PERIODIC_INTERVAL_DAYS,
   DEFAULT_TALENT_RECOMMENDATION_BATCH_SIZE,
@@ -357,7 +352,6 @@ const initialHistoryOpportunities: CareerHistoryOpportunity[] = [
 ];
 
 const CareerPreviewPage = () => {
-  const router = useRouter();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<
     "home" | "chat" | "profile" | "history"
@@ -402,7 +396,6 @@ const CareerPreviewPage = () => {
     useState(previewDate());
   const [talentInsightsSaveInfo, setTalentInsightsSaveInfo] = useState("");
   const [profileSaveInfo, setProfileSaveInfo] = useState("");
-  const [settingsSaveInfo, setSettingsSaveInfo] = useState("");
   const [profileVisibility, setProfileVisibility] = useState<
     "open_to_matches" | "exceptional_only" | "dont_share"
   >("exceptional_only");
@@ -435,6 +428,8 @@ const CareerPreviewPage = () => {
       activeCompanyRoleCount: 1284,
       opportunityRun: null,
       opportunityRunTriggerPending: false,
+      sessionReengagementTestPending: false,
+      onRunSessionReengagementTest: () => undefined,
       onRunPeriodicOpportunityDiscoveryTest: () => undefined,
       onRunOpportunityDiscoveryTest: () => undefined,
       recentOpportunities: initialRecentOpportunities,
@@ -603,7 +598,6 @@ const CareerPreviewPage = () => {
       settingsLoading: false,
       settingsSaving: false,
       settingsError: "",
-      settingsSaveInfo,
       settingsUpdatedAt,
       profileVisibility,
       blockedCompanies,
@@ -612,7 +606,6 @@ const CareerPreviewPage = () => {
         JSON.stringify(blockedCompanies) !==
           JSON.stringify(savedBlockedCompanies),
       onProfileVisibilityChange: (value) => {
-        setSettingsSaveInfo("프로필 설정을 저장했습니다.");
         setProfileVisibility(value);
         setSavedProfileVisibility(value);
         setSettingsUpdatedAt(new Date().toISOString());
@@ -622,7 +615,6 @@ const CareerPreviewPage = () => {
         const nextBlockedCompanies = blockedCompanies.includes(name)
           ? blockedCompanies
           : [...blockedCompanies, name];
-        setSettingsSaveInfo("프로필 설정을 저장했습니다.");
         setBlockedCompanies(nextBlockedCompanies);
         setSavedBlockedCompanies(nextBlockedCompanies);
         setSettingsUpdatedAt(new Date().toISOString());
@@ -632,7 +624,6 @@ const CareerPreviewPage = () => {
         const nextBlockedCompanies = blockedCompanies.filter(
           (item) => item !== name
         );
-        setSettingsSaveInfo("프로필 설정을 저장했습니다.");
         setBlockedCompanies(nextBlockedCompanies);
         setSavedBlockedCompanies(nextBlockedCompanies);
         setSettingsUpdatedAt(new Date().toISOString());
@@ -642,11 +633,9 @@ const CareerPreviewPage = () => {
         setSavedProfileVisibility(profileVisibility);
         setSavedBlockedCompanies(blockedCompanies);
         setSettingsUpdatedAt(new Date().toISOString());
-        setSettingsSaveInfo("프로필 설정을 저장했습니다.");
         return true;
       },
       onResetTalentSettings: () => {
-        setSettingsSaveInfo("");
         setProfileVisibility(savedProfileVisibility);
         setBlockedCompanies(savedBlockedCompanies);
       },
@@ -663,7 +652,6 @@ const CareerPreviewPage = () => {
       savedProfileVisibility,
       savedResumeFileName,
       savedTalentPreferences,
-      settingsSaveInfo,
       settingsUpdatedAt,
       talentPreferences,
       talentInsights,
@@ -705,6 +693,7 @@ const CareerPreviewPage = () => {
       onboardingWrapupPending: false,
       thinkingLogsByMessageId: {},
       chatPending: false,
+      sessionReengagementPending: false,
       opportunityRun: null,
       opportunitySearchLocked: false,
       historyUpdatingOpportunityIds: [],
@@ -788,23 +777,18 @@ const CareerPreviewPage = () => {
   );
 
   return (
-    <CareerMobileViewportGate
-      desktopFallback={<CareerLoadingState />}
-      entryReason={resolveCareerMobileEntryReason(router.query)}
-    >
-      <CareerChatPanelProvider value={chatContextValue}>
-        <CareerSidebarProvider value={sidebarContextValue}>
-          <CareerWorkspaceScreen
-            activeTab={workspaceActiveTab}
-            onChangeTab={setActiveTab}
-          />
-          <CareerSettingsModal
-            open={isSettingsOpen}
-            onClose={() => setIsSettingsOpen(false)}
-          />
-        </CareerSidebarProvider>
-      </CareerChatPanelProvider>
-    </CareerMobileViewportGate>
+    <CareerChatPanelProvider value={chatContextValue}>
+      <CareerSidebarProvider value={sidebarContextValue}>
+        <CareerWorkspaceScreen
+          activeTab={workspaceActiveTab}
+          onChangeTab={setActiveTab}
+        />
+        <CareerSettingsModal
+          open={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+        />
+      </CareerSidebarProvider>
+    </CareerChatPanelProvider>
   );
 };
 

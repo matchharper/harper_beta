@@ -278,10 +278,10 @@ export async function ensureTalentUserRecord(args: {
   const nextPayload: Database["public"]["Tables"]["talent_users"]["Update"] =
     {};
 
-  if (normalizeComparableString(existing.email) !== email) {
+  if (!normalizeComparableString(existing.email) && email) {
     nextPayload.email = email;
   }
-  if (normalizeComparableString(existing.name) !== name) {
+  if (!normalizeComparableString(existing.name) && name) {
     nextPayload.name = name;
   }
   if (

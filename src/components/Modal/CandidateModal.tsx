@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { useCandidateModalStore } from "@/store/useCandidateModalStore";
 import CandidateProfileDetailPage from "@/components/profile/CandidateProfileDetailPage";
 import { ExpandIcon, XIcon } from "lucide-react";

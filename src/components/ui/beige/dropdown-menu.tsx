@@ -25,7 +25,7 @@ export const beigeDropdownContentClassName =
   "rounded-[12px] border border-beige900/10 bg-beige50 p-1 text-beige900 shadow-[0_18px_40px_rgba(37,20,6,0.1)]";
 
 export const beigeDropdownItemClassName =
-  "cursor-pointer rounded-[10px] px-3 py-2 text-sm text-beige900 focus:bg-beige200/70 focus:text-beige900 data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50";
+  "cursor-pointer rounded-[10px] px-3 py-2 text-sm text-beige900 focus:bg-beige200/70 focus:text-beige900 data-disabled:cursor-not-allowed data-disabled:opacity-50";
 
 const BeigeDropdownMenu = BaseDropdownMenu;
 const BeigeDropdownMenuTrigger = BaseDropdownMenuTrigger;

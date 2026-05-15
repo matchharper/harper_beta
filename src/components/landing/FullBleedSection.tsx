@@ -5,7 +5,7 @@ type FullBleedSectionProps = {
   children: React.ReactNode;
   backgroundClassName?: string;
   contentClassName?: string;
-  as?: keyof JSX.IntrinsicElements;
+  as?: keyof React.JSX.IntrinsicElements;
 };
 
 const FullBleedSection = ({

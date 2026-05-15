@@ -11,6 +11,7 @@ import {
   fetchTalentOpportunityHistoryByIds,
   fetchTalentOpportunityHistoryByRoleIds,
   fetchTalentOpportunityHistoryPage,
+  type TalentOpportunityHistoryTab,
   type TalentOpportunitySavedStage,
   updateTalentOpportunityHistoryItem,
   type TalentOpportunityFeedback,
@@ -43,6 +44,29 @@ const parseOffsetParam = (value: string | null) => {
   const parsed = Number(value ?? 0);
   if (!Number.isFinite(parsed)) return 0;
   return Math.max(0, Math.floor(parsed));
+};
+
+const parseHistoryTabParam = (
+  value: string | null
+): TalentOpportunityHistoryTab | undefined => {
+  if (value === "new" || value === "saved" || value === "archived") {
+    return value;
+  }
+  return undefined;
+};
+
+const parseSavedStageParam = (
+  value: string | null
+): TalentOpportunitySavedStage | undefined => {
+  if (
+    value === "saved" ||
+    value === "applied" ||
+    value === "connected" ||
+    value === "closed"
+  ) {
+    return value;
+  }
+  return undefined;
 };
 
 async function assertConversationAccess(args: {
@@ -184,11 +208,17 @@ export async function GET(req: NextRequest) {
     const admin = getTalentSupabaseAdmin();
     const limit = parsePositiveIntegerParam(
       req.nextUrl.searchParams.get("limit"),
-      20,
+      10,
       100
     );
     const offset = parseOffsetParam(req.nextUrl.searchParams.get("offset"));
     const roleId = String(req.nextUrl.searchParams.get("id") ?? "").trim();
+    const historyTab = parseHistoryTabParam(
+      req.nextUrl.searchParams.get("historyTab")
+    );
+    const savedStage = parseSavedStageParam(
+      req.nextUrl.searchParams.get("savedStage")
+    );
 
     if (roleId) {
       const items = await fetchTalentOpportunityHistoryByRoleIds({
@@ -209,8 +239,10 @@ export async function GET(req: NextRequest) {
 
     const page = await fetchTalentOpportunityHistoryPage({
       admin,
+      historyTab,
       limit,
       offset,
+      savedStage,
       userId: user.id,
     });
 

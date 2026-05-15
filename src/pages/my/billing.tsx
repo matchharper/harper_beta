@@ -1407,14 +1407,14 @@ const Billing = () => {
         />
 
         {tossPreview ? (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center px-4">
+          <div className="fixed inset-0 z-70 flex items-center justify-center px-4">
             <button
               type="button"
               aria-label="close toss preview modal"
               className="absolute inset-0 bg-beige900/60 backdrop-blur-[2px]"
               onClick={closeTossPreview}
             />
-            <div className="relative z-[71] w-full max-w-[560px] rounded-[24px] border border-beige900/8 bg-beige100 p-6 shadow-xl">
+            <div className="relative z-71 w-full max-w-[560px] rounded-[24px] border border-beige900/8 bg-beige100 p-6 shadow-xl">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="text-sm text-beige900">

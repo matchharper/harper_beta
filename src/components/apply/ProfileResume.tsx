@@ -499,7 +499,7 @@
 //             className="flex flex-row items-center gap-1.5 text-[12px] font-normal text-xgray700 cursor-pointer"
 //           >
 //             <div
-//               className={`w-[14px] h-[14px] border border-xgray400 rounded-[3px] mt-[1px] ${
+//               className={`w-[14px] h-[14px] border border-xgray400 rounded-[3px] mt-px ${
 //                 value === "default" ? "bg-brightnavy" : "bg-white"
 //               }`}
 //             />

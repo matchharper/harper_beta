@@ -427,7 +427,7 @@ const CandidatePage = () => {
           </div>
         </BaseSectionLayout>
       </Animate>
-      <div className="flex flex-row items-end justify-between border-t border-white/20 py-10 md:py-8 w-[100%] md:w-[94%] mx-auto px-4 md:px-0">
+      <div className="flex flex-row items-end justify-between border-t border-white/20 py-10 md:py-8 w-full md:w-[94%] mx-auto px-4 md:px-0">
         <div className="flex flex-row items-end justify-start gap-8 md:gap-10">
           <div className="text-3xl font-semibold font-garamond">Harper</div>
           <div className="text-xs md:text-sm font-extralight">
@@ -581,7 +581,7 @@ const ImageSection = ({
       </div>
       <div className="flex flex-col items-start justify-start w-full text-left gap-5">
         <div
-          className="text-[26px] md:text-[32px] font-normal leading-[2.2rem] md:leading-[2.5rem]"
+          className="text-[26px] md:text-[32px] font-normal leading-[2.2rem] md:leading-10"
           dangerouslySetInnerHTML={{ __html: title }}
         />
         <div
@@ -621,7 +621,7 @@ const WhyImageSection = ({
       </div>
       <div className="flex flex-col items-start justify-start w-full gap-4 text-left">
         <div
-          className="text-[26px] md:text-3xl font-normal leading-[2.2rem] md:leading-[2.5rem]"
+          className="text-[26px] md:text-3xl font-normal leading-[2.2rem] md:leading-10"
           dangerouslySetInnerHTML={{ __html: title }}
         />
         <div

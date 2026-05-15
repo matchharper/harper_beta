@@ -651,7 +651,7 @@ const CandidateViews = ({
                             isDark
                               ? hasCheckedCandidates
                                 ? "border border-accenta1 bg-accenta1 text-black hover:opacity-90"
-                                : "border border-white/80 bg-gradient-to-br from-white/85 via-white/75 to-white/70 text-black hover:bg-white"
+                                : "border border-white/80 bg-linear-to-br from-white/85 via-white/75 to-white/70 text-black hover:bg-white"
                               : hasCheckedCandidates
                                 ? "border border-beige900 bg-beige900 text-beige100 hover:opacity-90"
                                 : "border border-beige900/20 bg-white/80 text-beige900 hover:bg-white"
@@ -859,7 +859,7 @@ const CandidateViews = ({
         <div
           className={`mx-auto mt-8 flex w-full max-w-[720px] flex-col items-center justify-center gap-3 rounded-2xl px-6 py-10 text-center ${
             isDark
-              ? "border border-white/10 bg-white/[0.03]"
+              ? "border border-white/10 bg-white/3"
               : "border border-beige900/10 bg-white/60"
           }`}
         >
@@ -977,9 +977,9 @@ const CandidateViews = ({
                             }`}
                           >
                             {isFolded ? (
-                              <ChevronRight className="w-3 h-3 absolute top-[1px] right-[1px]" />
+                              <ChevronRight className="w-3 h-3 absolute top-px right-px" />
                             ) : (
-                              <ChevronLeft className="w-3 h-3 absolute top-[1px] right-[1px]" />
+                              <ChevronLeft className="w-3 h-3 absolute top-px right-px" />
                             )}
                           </div>
                         )}

@@ -133,7 +133,7 @@ const HoverPopover = ({
 
       <div className="mt-3">
         <div
-          className={`text-[14px] leading-relaxed whitespace-pre-wrap break-words ${isDark ? "text-hgray800" : "text-beige900/80"}`}
+          className={`text-[14px] leading-relaxed whitespace-pre-wrap wrap-break-word ${isDark ? "text-hgray800" : "text-beige900/80"}`}
           dangerouslySetInnerHTML={{ __html: reasonText || "No details" }}
         />
       </div>

@@ -1,8 +1,8 @@
+const supabaseHostname = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname;
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    serverComponentsExternalPackages: ["apify-client", "proxy-agent"],
-  },
+  serverExternalPackages: ["apify-client", "proxy-agent"],
   images: {
     remotePatterns: [
       // Google auth avatar
@@ -15,6 +15,12 @@ const nextConfig = {
       // Scholar / Google user content (paper & profile assets)
       { protocol: "https", hostname: "scholar.google.com" },
       { protocol: "https", hostname: "scholar.googleusercontent.com" },
+      // Supabase public storage (company logos, resumes, etc.)
+      {
+        protocol: "https",
+        hostname: supabaseHostname,
+        pathname: "/storage/v1/object/public/**",
+      },
     ],
   },
   reactStrictMode: false,
@@ -52,13 +58,13 @@ const nextConfig = {
       },
     ];
   },
-  webpack(config) {
-    config.module.rules.push({
-      test: /\.svg$/i,
-      issuer: /\.[jt]sx?$/,
-      use: ["@svgr/webpack"],
-    });
-    return config;
+  turbopack: {
+    rules: {
+      "*.svg": {
+        loaders: ["@svgr/webpack"],
+        as: "*.js",
+      },
+    },
   },
 };
 

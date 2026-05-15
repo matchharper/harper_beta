@@ -173,7 +173,7 @@ export default function BlogListPage({ posts, categories }: BlogListPageProps) {
                   className="group relative overflow-hidden bg-white/5 ring-1 ring-white/10 lg:col-span-6"
                   aria-label={`Read ${featured.title}`}
                 >
-                  <div className="relative aspect-[16/8] w-full overflow-hidden">
+                  <div className="relative aspect-16/8 w-full overflow-hidden">
                     {/* ✅ requested thumbnail style */}
                     <Image
                       src={featured.thumbnail}
@@ -184,7 +184,7 @@ export default function BlogListPage({ posts, categories }: BlogListPageProps) {
                       sizes="(min-width: 768px) 512px, 100vw"
                     />
                     {/* dark overlay for readability */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-black/10" />
+                    <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/25 to-black/10" />
                   </div>
 
                   <div className="p-6 md:p-8">
@@ -194,7 +194,7 @@ export default function BlogListPage({ posts, categories }: BlogListPageProps) {
                       </span>
                     </div>
 
-                    <h2 className="mt-3 text-xl leading-[1.25] md:leading-[1.05] text-white md:text-2xl">
+                    <h2 className="mt-3 text-xl leading-tight md:leading-[1.05] text-white md:text-2xl">
                       {featured.title}
                     </h2>
 
@@ -234,7 +234,7 @@ export default function BlogListPage({ posts, categories }: BlogListPageProps) {
                     <Link
                       key={post.slug}
                       href={`/blog/${post.slug}`}
-                      className="group flex gap-4 bg-white/[0.05] ring-1 ring-white/10 transition-colors hover:bg-white/[0.05]"
+                      className="group flex gap-4 bg-white/5 ring-1 ring-white/10 transition-colors hover:bg-white/5"
                       aria-label={`Read ${post.title}`}
                     >
                       <div className="relative h-[112px] w-[112px] flex-none overflow-hidden bg-white/5 ring-1 ring-white/10">

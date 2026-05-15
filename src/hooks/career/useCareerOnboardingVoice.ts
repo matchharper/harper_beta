@@ -31,6 +31,7 @@ import {
   stripTalentOnboardingCompletionMarker,
   TALENT_ONBOARDING_DONE_MARKER,
 } from "@/lib/talentOnboarding/completion";
+import type { CareerConversationStarterId } from "@/lib/career/conversationStarters";
 
 const DEFAULT_CALL_OPENING_TEXT =
   "통화로 이야기해볼게요. 최근에 달라진 우선순위가 있으면 거기서 시작해도 좋고, 아니면 지금까지의 역할이나 경험 중 회사들이 꼭 알아야 할 부분부터 편하게 들려주세요. 정보가 많을수록 더 잘 맞는 연결 요청이나 기회를 골라드릴 수 있어요.";
@@ -145,10 +146,18 @@ const ASSISTANT_BUFFER_FLUSH_TIMEOUT_MS = 1_000;
 const USER_TRANSCRIPTION_TIMEOUT_MS = 5_000;
 type SendChatArgs = {
   channel?: "chat" | "voice";
+  conversationStarterId?: CareerConversationStarterId;
   text: string;
   link?: string;
   onError?: () => void;
 };
+
+type StartCallModeArgs =
+  | string
+  | {
+      conversationStarterId?: CareerConversationStarterId | null;
+      openingText?: string;
+    };
 
 type BeginOnboardingResult = {
   ok: boolean;
@@ -201,6 +210,7 @@ export const useCareerOnboardingVoice = ({
   const [onboardingWrapupPending, setOnboardingWrapupPending] = useState(false);
   const [onboardingPausePending, setOnboardingPausePending] = useState(false);
   const [callStartPending, setCallStartPending] = useState(false);
+  const [callWrapUpPending, setCallWrapUpPending] = useState(false);
   const [liveUserTranscriptPlacement, setLiveUserTranscriptPlacement] =
     useState<CallLiveTranscriptPlacement>("beforeCurrentAssistant");
 
@@ -283,6 +293,8 @@ export const useCareerOnboardingVoice = ({
   const suppressNextAssistantDoneRef = useRef(false);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const clearVoiceBufferRef = useRef<(() => void) | null>(null);
+  const activeCallConversationStarterIdRef =
+    useRef<CareerConversationStarterId | null>(null);
 
   const updateSessionInstructionsRef = useRef<
     ((instructions: string) => void) | null
@@ -426,6 +438,8 @@ export const useCareerOnboardingVoice = ({
             method: "POST",
             body: JSON.stringify({
               conversationId,
+              conversationStarterId:
+                activeCallConversationStarterIdRef.current ?? undefined,
               userMessage: userText,
               assistantMessage: assistantText,
               assistantEndedOnboarding: Boolean(args.assistantEndedOnboarding),
@@ -1193,10 +1207,19 @@ export const useCareerOnboardingVoice = ({
   // Starts the full-screen call flow: prepare onboarding if needed, connect
   // Realtime audio, then play the opening line once the call screen is live.
   const handleStartCallMode = useCallback(
-    async (customOpeningText?: string) => {
+    async (startArgs?: StartCallModeArgs) => {
       if (onboardingBeginPending || callStartPending) return false;
 
+      const customOpeningText =
+        typeof startArgs === "string" ? startArgs : startArgs?.openingText;
+      const conversationStarterId =
+        typeof startArgs === "object"
+          ? (startArgs.conversationStarterId ?? null)
+          : null;
+      activeCallConversationStarterIdRef.current = conversationStarterId;
+
       setCallStartPending(true);
+      let callStartedSuccessfully = false;
       try {
         pendingAssistantDoneRef.current = null;
         pendingAssistantDeltaTextRef.current = "";
@@ -1214,20 +1237,23 @@ export const useCareerOnboardingVoice = ({
           });
           if (!beginResult.ok) {
             setShowVoiceStartPrompt(true);
+            activeCallConversationStarterIdRef.current = null;
             return false;
           }
           openingAssistantMessage = beginResult.assistantMessage;
         }
 
-        const callStarted = await startCallMode();
+        const callStarted = await startCallMode({ conversationStarterId });
         if (!callStarted) {
           if (shouldBeginOnboarding) {
             setShowVoiceStartPrompt(true);
           }
+          activeCallConversationStarterIdRef.current = null;
           return false;
         }
 
         callStartedAtRef.current = Date.now();
+        callStartedSuccessfully = true;
         const openingRecentConversationContext =
           buildCallOpeningRecentConversationContext(messages);
 
@@ -1270,6 +1296,9 @@ export const useCareerOnboardingVoice = ({
         }
         return true;
       } finally {
+        if (!callStartedSuccessfully) {
+          activeCallConversationStarterIdRef.current = null;
+        }
         setCallStartPending(false);
       }
     },
@@ -1288,6 +1317,7 @@ export const useCareerOnboardingVoice = ({
   // chat message so the user has a clear next step after the phone UI closes.
   const handleEndCallMode = useCallback(
     (options?: EndCallModeOptions) => {
+      setCallStartPending(false);
       if (callWrapUpPendingRef.current) return;
       const forceCompleteOnboarding = Boolean(options?.forceCompleteOnboarding);
 
@@ -1297,6 +1327,8 @@ export const useCareerOnboardingVoice = ({
       const durationSeconds = startedAt
         ? Math.max(0, Math.round((Date.now() - startedAt) / 1000))
         : 0;
+      const activeCallConversationStarterId =
+        activeCallConversationStarterIdRef.current;
       const pendingUserText = lastRealtimeUserTextRef.current.trim();
       if (pendingUserText) {
         void saveRealtimeTurn({
@@ -1313,6 +1345,7 @@ export const useCareerOnboardingVoice = ({
       endCallMode();
 
       if (!conversationId) {
+        activeCallConversationStarterIdRef.current = null;
         return;
       }
 
@@ -1320,10 +1353,12 @@ export const useCareerOnboardingVoice = ({
         (entry) => entry.role === "user" && entry.text.trim().length > 0
       );
       if (!hasUserSpeech && !forceCompleteOnboarding) {
+        activeCallConversationStarterIdRef.current = null;
         return;
       }
 
       callWrapUpPendingRef.current = true;
+      setCallWrapUpPending(true);
       // Lock composer while generating follow-up so user can't send messages before it
       setOnboardingBeginPending(true);
 
@@ -1335,6 +1370,8 @@ export const useCareerOnboardingVoice = ({
             method: "POST",
             body: JSON.stringify({
               conversationId,
+              conversationStarterId:
+                activeCallConversationStarterId ?? undefined,
               transcript: transcript.map((e) => ({
                 role: e.role,
                 text: e.text,
@@ -1418,6 +1455,8 @@ export const useCareerOnboardingVoice = ({
         } finally {
           setOnboardingBeginPending(false);
           callWrapUpPendingRef.current = false;
+          setCallWrapUpPending(false);
+          activeCallConversationStarterIdRef.current = null;
         }
       })();
     },
@@ -1461,6 +1500,7 @@ export const useCareerOnboardingVoice = ({
     setOnboardingWrapupPending(false);
     setOnboardingPausePending(false);
     setCallStartPending(false);
+    setCallWrapUpPending(false);
     callStartedAtRef.current = null;
     callWrapUpPendingRef.current = false;
     pendingAssistantDoneRef.current = null;
@@ -1475,6 +1515,7 @@ export const useCareerOnboardingVoice = ({
     onboardingBeginPending,
     onboardingWrapupPending,
     callStartPending,
+    callWrapUpPending,
     onboardingPausePending,
     inputMode,
     voiceTranscript,

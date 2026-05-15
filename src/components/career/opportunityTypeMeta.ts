@@ -99,7 +99,7 @@ export const CAREER_OPPORTUNITY_TYPE_META: Record<
     },
     panelToneClassName: "bg-white",
     positiveActionIcon: ThumbsUp,
-    positiveActionLabel: "저장하기",
+    positiveActionLabel: "저장함",
     positiveFeedback: {
       modal: {
         description:
@@ -118,7 +118,7 @@ export const CAREER_OPPORTUNITY_TYPE_META: Record<
   },
   [OpportunityType.InternalRecommendation]: {
     companySectionTitle: "회사 정보",
-    defaultSavedStage: "applied",
+    defaultSavedStage: "connected",
     info: {
       description:
         "하퍼가 회사의 채용 니즈를 확인하고 회원님에게 먼저 연결 의사를 묻는 추천입니다. 수락 전에는 프로필을 회사에 전달하지 않고, 수락 후 하퍼가 소개와 후속 조율을 진행합니다.",
@@ -177,7 +177,7 @@ export const CAREER_OPPORTUNITY_TYPE_META: Record<
       requiresComment: true,
     },
     savedStageLabels: {
-      applied: "연결 수락함",
+      applied: "연결됨",
     },
     shortLabel: "회사 추천",
     sortPriority: 1,
@@ -242,7 +242,7 @@ export const CAREER_OPPORTUNITY_TYPE_META: Record<
       requiresComment: true,
     },
     savedStageLabels: {
-      applied: "연결 수락함",
+      applied: "연결됨",
     },
     shortLabel: "Intro 요청",
     sortPriority: 0,

@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
-import React, { useEffect, useId, type RefObject } from "react";
+import React from "react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { cn } from "@/lib/cn";
 
 type TalentCareerModalProps = {
@@ -20,7 +21,6 @@ type TalentCareerModalProps = {
   bodyClassName?: string;
   footerClassName?: string;
   closeButtonClassName?: string;
-  initialFocusRef?: RefObject<HTMLElement | null>;
 };
 
 const TalentCareerModal = ({
@@ -41,131 +41,102 @@ const TalentCareerModal = ({
   bodyClassName,
   footerClassName,
   closeButtonClassName,
-  initialFocusRef,
 }: TalentCareerModalProps) => {
-  const titleId = useId();
-  const descriptionId = useId();
   const hasTitle = title !== undefined && title !== null;
   const hasDescription = description !== undefined && description !== null;
 
-  useEffect(() => {
-    if (!open || typeof document === "undefined") return;
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (!open || typeof window === "undefined") return;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, open]);
-
-  useEffect(() => {
-    if (!open || typeof window === "undefined") return;
-    if (!initialFocusRef?.current) return;
-
-    const timeoutId = window.setTimeout(() => {
-      initialFocusRef.current?.focus();
-    }, 0);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [initialFocusRef, open]);
-
-  if (!open) return null;
-
   return (
-    <div
-      className={cn(
-        "fixed inset-0 z-[80] flex items-center justify-center px-4 py-6 sm:px-6",
-        overlayClassName
-      )}
+    <DialogPrimitive.Root
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
     >
-      <button
-        type="button"
-        aria-label="모달 배경 닫기"
-        className={cn(
-          "absolute inset-0 bg-black/55 backdrop-blur-[4px]",
-          backdropClassName
-        )}
-        onClick={() => {
-          if (closeOnBackdrop) onClose();
-        }}
-      />
-
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={hasTitle ? titleId : undefined}
-        aria-describedby={hasDescription ? descriptionId : undefined}
-        aria-label={!hasTitle ? ariaLabel : undefined}
-        className={cn(
-          "relative z-[1] w-full max-w-[720px] overflow-hidden rounded-xl border border-hblack200 bg-hblack000 shadow-[0_24px_80px_rgba(17,24,39,0.2)]",
-          panelClassName
-        )}
-      >
-        {showCloseButton ? (
-          <button
-            type="button"
-            onClick={onClose}
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay
+          className={cn(
+            "fixed inset-0 z-80 bg-black/55 backdrop-blur-xs",
+            "data-[state=open]:animate-in data-[state=closed]:animate-out",
+            "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+            backdropClassName
+          )}
+        />
+        <div
+          className={cn(
+            "fixed inset-0 z-80 flex items-center justify-center px-4 py-6 sm:px-6 pointer-events-none",
+            overlayClassName
+          )}
+        >
+          <DialogPrimitive.Content
+            aria-label={!hasTitle ? ariaLabel : undefined}
+            onPointerDownOutside={(event) => {
+              if (!closeOnBackdrop) event.preventDefault();
+            }}
+            onInteractOutside={(event) => {
+              if (!closeOnBackdrop) event.preventDefault();
+            }}
             className={cn(
-              "absolute right-4 top-4 z-10 inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors",
-              closeButtonClassName
-            )}
-            aria-label="모달 닫기"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        ) : null}
-        {eyebrow || hasTitle || hasDescription ? (
-          <header
-            className={cn(
-              "border-b border-hblack100/80 px-4 py-5 sm:px-5",
-              headerClassName
+              "relative w-full max-w-[720px] overflow-hidden rounded-xl border border-hblack200 bg-hblack000 shadow-[0_24px_80px_rgba(17,24,39,0.2)] outline-none pointer-events-auto",
+              "data-[state=open]:animate-in data-[state=closed]:animate-out",
+              "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+              "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+              "duration-200",
+              panelClassName
             )}
           >
-            {eyebrow && (
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-hblack500">
-                {eyebrow}
-              </div>
-            )}
-            {hasTitle && (
-              <h2
-                id={titleId}
-                className="mt-2 text-base font-semibold tracking-[-0.02em] text-beige900"
+            {showCloseButton ? (
+              <DialogPrimitive.Close
+                className={cn(
+                  "absolute right-4 top-4 z-10 inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors",
+                  closeButtonClassName
+                )}
+                aria-label="모달 닫기"
               >
-                {title}
-              </h2>
+                <X className="h-4 w-4" />
+              </DialogPrimitive.Close>
+            ) : null}
+            {eyebrow || hasTitle || hasDescription ? (
+              <header
+                className={cn(
+                  "border-b border-hblack100/80 px-4 py-5 sm:px-5",
+                  headerClassName
+                )}
+              >
+                {eyebrow && (
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-hblack500">
+                    {eyebrow}
+                  </div>
+                )}
+                {hasTitle && (
+                  <DialogPrimitive.Title className="mt-2 text-base font-semibold tracking-[-0.02em] text-beige900">
+                    {title}
+                  </DialogPrimitive.Title>
+                )}
+                {hasDescription &&
+                  (typeof description === "string" ? (
+                    <DialogPrimitive.Description
+                      className="mt-2 max-w-[56ch] text-sm leading-relaxed text-hblack700"
+                      dangerouslySetInnerHTML={{ __html: description }}
+                    />
+                  ) : (
+                    <DialogPrimitive.Description className="mt-2 max-w-[56ch] text-sm leading-relaxed text-hblack700">
+                      {description}
+                    </DialogPrimitive.Description>
+                  ))}
+              </header>
+            ) : null}
+            <div className={cn("py-0", bodyClassName)}>{children}</div>
+            {footer && (
+              <footer
+                className={cn("px-4 py-5 sm:px-5", footerClassName)}
+              >
+                {footer}
+              </footer>
             )}
-            {hasDescription && (
-              <p
-                id={descriptionId}
-                className="mt-2 max-w-[56ch] text-sm leading-relaxed text-hblack700"
-                dangerouslySetInnerHTML={{ __html: description }}
-              />
-            )}
-          </header>
-        ) : null}
-        <div className={cn("py-0", bodyClassName)}>{children}</div>
-        {footer && (
-          <footer className={cn("px-4 py-5 sm:px-5", footerClassName)}>
-            {footer}
-          </footer>
-        )}
-      </section>
-    </div>
+          </DialogPrimitive.Content>
+        </div>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 };
 

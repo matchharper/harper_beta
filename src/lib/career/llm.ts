@@ -174,7 +174,17 @@ type AnthropicMessageResponse = {
 };
 
 type AnthropicStreamEvent = {
+  content_block?: {
+    id?: string;
+    input?: Record<string, unknown>;
+    name?: string;
+    text?: string;
+    type?: string;
+  };
   delta?: {
+    partial_json?: string;
+    stop_reason?: string | null;
+    stop_sequence?: string | null;
     text?: string;
     type?: string;
   };
@@ -182,11 +192,26 @@ type AnthropicStreamEvent = {
     message?: string;
     type?: string;
   };
+  index?: number;
   message?: {
+    id?: string;
+    model?: string;
+    stop_reason?: string | null;
     usage?: Record<string, unknown>;
   };
   type?: string;
   usage?: Record<string, unknown>;
+};
+
+type AnthropicStreamToolState = {
+  id: string;
+  inputJson: string;
+  name: string;
+};
+
+type AnthropicToolUseStart = {
+  id: string;
+  name: string;
 };
 
 function cleanModelText(raw: string) {
@@ -259,6 +284,20 @@ function serializeToolResult(result: unknown) {
       ok: false,
       error: "Failed to serialize tool result",
     });
+  }
+}
+
+function parseAnthropicToolInput(raw: string): Record<string, unknown> {
+  const text = raw.trim();
+  if (!text) return {};
+
+  try {
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed
+      : { value: parsed };
+  } catch {
+    return { _raw: raw };
   }
 }
 
@@ -336,18 +375,21 @@ async function createAnthropicMessage(args: {
   return json;
 }
 
-async function createAnthropicMessageStream(args: {
+async function createAnthropicMessageStreamResponse(args: {
   messages: AnthropicMessage[];
   model: string;
   onTextDelta: (delta: string) => void | Promise<void>;
+  onToolUseStart?: (tool: AnthropicToolUseStart) => void | Promise<void>;
   systemBlocks: CareerChatSystemBlock[];
   temperature: number;
+  tools?: TalentChatTool[];
   usageLabel?: string;
-}) {
+}): Promise<AnthropicMessageResponse> {
   const apiKey = (process.env.ANTHROPIC_API_KEY ?? "").trim();
   if (!apiKey) {
     throw new Error("ANTHROPIC_API_KEY is required for Anthropic Messages API");
   }
+  const tools = args.tools?.length ? buildAnthropicTools(args.tools) : [];
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -363,6 +405,12 @@ async function createAnthropicMessageStream(args: {
       messages: args.messages,
       temperature: args.temperature,
       stream: true,
+      ...(tools.length > 0
+        ? {
+            tool_choice: { type: "auto" as const },
+            tools,
+          }
+        : {}),
     }),
     cache: "no-store",
   });
@@ -380,8 +428,34 @@ async function createAnthropicMessageStream(args: {
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
-  let content = "";
+  let messageId: string | undefined;
+  let messageModel: string | undefined;
+  let stopReason: string | null = null;
   let usage: Record<string, unknown> = {};
+  const contentBlocks: AnthropicAssistantContentBlock[] = [];
+  const toolStates = new Map<number, AnthropicStreamToolState>();
+
+  const getEventIndex = (parsed: AnthropicStreamEvent) =>
+    typeof parsed.index === "number" && Number.isFinite(parsed.index)
+      ? parsed.index
+      : contentBlocks.length;
+
+  const appendTextToBlock = async (index: number, text: string) => {
+    if (!text) return;
+    const existing = contentBlocks[index];
+    if (existing?.type === "text") {
+      contentBlocks[index] = {
+        ...existing,
+        text: `${existing.text}${text}`,
+      };
+    } else {
+      contentBlocks[index] = {
+        type: "text",
+        text,
+      };
+    }
+    await args.onTextDelta(text);
+  };
 
   const handleRawEvent = async (rawEvent: string) => {
     const lines = rawEvent.split("\n");
@@ -408,13 +482,58 @@ async function createAnthropicMessageStream(args: {
       );
     }
 
-    if (parsed.type === "message_start" && parsed.message?.usage) {
-      usage = { ...usage, ...parsed.message.usage };
+    if (parsed.type === "message_start") {
+      messageId = parsed.message?.id ?? messageId;
+      messageModel = parsed.message?.model ?? messageModel;
+      stopReason = parsed.message?.stop_reason ?? stopReason;
+      if (parsed.message?.usage) {
+        usage = { ...usage, ...parsed.message.usage };
+      }
       return;
     }
 
-    if (parsed.type === "message_delta" && parsed.usage) {
-      usage = { ...usage, ...parsed.usage };
+    if (parsed.type === "message_delta") {
+      stopReason = parsed.delta?.stop_reason ?? stopReason;
+      if (parsed.usage) {
+        usage = { ...usage, ...parsed.usage };
+      }
+      return;
+    }
+
+    if (parsed.type === "content_block_start") {
+      const index = getEventIndex(parsed);
+      const block = parsed.content_block;
+      if (block?.type === "text") {
+        const text = typeof block.text === "string" ? block.text : "";
+        contentBlocks[index] = {
+          type: "text",
+          text,
+        };
+        if (text) {
+          await args.onTextDelta(text);
+        }
+        return;
+      }
+
+      if (block?.type === "tool_use") {
+        const id = String(block.id ?? crypto.randomUUID());
+        const name = String(block.name ?? "").trim();
+        contentBlocks[index] = {
+          type: "tool_use",
+          id,
+          name,
+          input: {},
+        };
+        toolStates.set(index, {
+          id,
+          inputJson:
+            block.input && Object.keys(block.input).length > 0
+              ? JSON.stringify(block.input)
+              : "",
+          name,
+        });
+        await args.onToolUseStart?.({ id, name });
+      }
       return;
     }
 
@@ -424,8 +543,38 @@ async function createAnthropicMessageStream(args: {
       typeof parsed.delta.text === "string" &&
       parsed.delta.text
     ) {
-      content += parsed.delta.text;
-      await args.onTextDelta(parsed.delta.text);
+      await appendTextToBlock(getEventIndex(parsed), parsed.delta.text);
+      return;
+    }
+
+    if (
+      parsed.type === "content_block_delta" &&
+      parsed.delta?.type === "input_json_delta"
+    ) {
+      const index = getEventIndex(parsed);
+      const existing = toolStates.get(index);
+      const partial = parsed.delta.partial_json ?? "";
+      if (existing) {
+        toolStates.set(index, {
+          ...existing,
+          inputJson: `${existing.inputJson}${partial}`,
+        });
+      }
+      return;
+    }
+
+    if (parsed.type === "content_block_stop") {
+      const index = getEventIndex(parsed);
+      const state = toolStates.get(index);
+      if (state) {
+        contentBlocks[index] = {
+          type: "tool_use",
+          id: state.id,
+          name: state.name,
+          input: parseAnthropicToolInput(state.inputJson),
+        };
+        toolStates.delete(index);
+      }
     }
   };
 
@@ -458,13 +607,34 @@ async function createAnthropicMessageStream(args: {
     label: args.usageLabel,
     messageCount: args.messages.length,
     model: args.model,
+    stopReason,
     systemBlockCount: args.systemBlocks.length,
     systemCacheableKeys: args.systemBlocks
       .filter((block) => block.cacheable)
       .map((block) => block.key ?? "system"),
+    toolCount: tools.length,
   });
 
-  return cleanModelText(content);
+  return {
+    content: contentBlocks.filter(Boolean),
+    id: messageId,
+    model: messageModel ?? args.model,
+    stop_reason: stopReason,
+    usage,
+  };
+}
+
+async function createAnthropicMessageStream(args: {
+  messages: AnthropicMessage[];
+  model: string;
+  onTextDelta: (delta: string) => void | Promise<void>;
+  systemBlocks: CareerChatSystemBlock[];
+  temperature: number;
+  tools?: TalentChatTool[];
+  usageLabel?: string;
+}) {
+  const response = await createAnthropicMessageStreamResponse(args);
+  return cleanModelText(extractAnthropicText(response.content));
 }
 
 async function runDirectTextCompletion(args: {
@@ -750,17 +920,16 @@ export async function runCareerChatAssistantStream(args: {
     content: string;
     role: "user" | "assistant";
   }>;
+  onStopToolStart?: (tool: AnthropicToolUseStart) => void | Promise<void>;
   onTextDelta: (delta: string) => void | Promise<void>;
+  onToolStart?: (tool: AnthropicToolUseStart) => void | Promise<void>;
   stopAfterToolNames?: string[];
   systemBlocks: CareerChatSystemBlock[];
   tools: TalentChatTool[];
   modelConfig?: CareerAssistantModelConfig;
 }) {
   const modelConfig = args.modelConfig ?? assistantModelConfig();
-  if (
-    args.tools.length > 0 ||
-    !shouldUseAnthropicNativeMessages(modelConfig.primaryModel)
-  ) {
+  if (!shouldUseAnthropicNativeMessages(modelConfig.primaryModel)) {
     const text = await runCareerChatAssistant({
       executeTool: args.executeTool,
       messages: args.messages,
@@ -783,20 +952,196 @@ export async function runCareerChatAssistantStream(args: {
     }));
 
   let streamedAnyText = false;
+  let startedAnyTool = false;
+  let executedAnyTool = false;
+  const stopAfterToolNameSet = new Set(args.stopAfterToolNames ?? []);
+  const forwardTextDelta = async (delta: string) => {
+    if (!delta) return;
+    streamedAnyText = true;
+    await args.onTextDelta(delta);
+  };
+
   try {
-    return await createAnthropicMessageStream({
+    if (args.tools.length === 0) {
+      return await createAnthropicMessageStream({
+        messages: workingMessages,
+        model: modelConfig.primaryModel,
+        onTextDelta: forwardTextDelta,
+        systemBlocks: args.systemBlocks,
+        temperature: CAREER_LLM_CONFIG.chat.temperature,
+        usageLabel: "career/chat:assistant",
+      });
+    }
+
+    let totalToolCalls = 0;
+    for (let loop = 0; loop < 3; loop += 1) {
+      const response = await createAnthropicMessageStreamResponse({
+        messages: workingMessages,
+        model: modelConfig.primaryModel,
+        onToolUseStart: async (tool) => {
+          startedAnyTool = true;
+          await args.onToolStart?.(tool);
+          if (stopAfterToolNameSet.has(tool.name)) {
+            await args.onStopToolStart?.(tool);
+          }
+        },
+        onTextDelta: () => undefined,
+        systemBlocks: args.systemBlocks,
+        temperature: CAREER_LLM_CONFIG.chat.temperature,
+        tools: args.tools,
+        usageLabel: "career/chat:assistant",
+      });
+
+      const assistantBlocks = Array.isArray(response.content)
+        ? response.content
+        : [];
+      const toolUseBlocks = assistantBlocks.filter(
+        (block): block is AnthropicToolUseBlock => block.type === "tool_use"
+      );
+
+      if (toolUseBlocks.length === 0) {
+        const responseText = cleanModelText(
+          extractAnthropicText(assistantBlocks)
+        );
+        await forwardTextDelta(responseText);
+        return responseText;
+      }
+
+      workingMessages.push({
+        role: "assistant",
+        content: assistantBlocks,
+      });
+
+      const remainingToolCalls = 4 - totalToolCalls;
+      const executableToolCalls =
+        remainingToolCalls > 0
+          ? toolUseBlocks.slice(0, remainingToolCalls)
+          : [];
+      const skippedToolCalls = toolUseBlocks.slice(executableToolCalls.length);
+      const toolResultBlocks: AnthropicToolResultBlock[] = [];
+      let shouldStopAfterTool = false;
+
+      for (const skippedToolCall of skippedToolCalls) {
+        toolResultBlocks.push({
+          type: "tool_result",
+          tool_use_id: skippedToolCall.id,
+          content: JSON.stringify({
+            error: "Tool call limit reached. Continue without more tool usage.",
+          }),
+          is_error: true,
+        });
+      }
+
+      for (const toolCall of executableToolCalls) {
+        totalToolCalls += 1;
+
+        const toolInput =
+          toolCall.input && typeof toolCall.input === "object"
+            ? toolCall.input
+            : {};
+        logTalentToolCall({
+          callId: toolCall.id,
+          input: toolInput,
+          loop,
+          name: toolCall.name,
+          source: "career/chat:assistant:anthropic-stream",
+        });
+        const toolStartedAt = Date.now();
+        executedAnyTool = true;
+        try {
+          const result = await args.executeTool({
+            name: toolCall.name,
+            input: toolInput,
+          });
+          logTalentToolResult({
+            callId: toolCall.id,
+            durationMs: Date.now() - toolStartedAt,
+            name: toolCall.name,
+            result,
+            source: "career/chat:assistant:anthropic-stream",
+          });
+          toolResultBlocks.push({
+            type: "tool_result",
+            tool_use_id: toolCall.id,
+            content: serializeToolResult(result),
+          });
+          if (stopAfterToolNameSet.has(toolCall.name)) {
+            shouldStopAfterTool = true;
+            break;
+          }
+        } catch (error) {
+          logTalentToolError({
+            callId: toolCall.id,
+            durationMs: Date.now() - toolStartedAt,
+            error,
+            name: toolCall.name,
+            source: "career/chat:assistant:anthropic-stream",
+          });
+          toolResultBlocks.push({
+            type: "tool_result",
+            tool_use_id: toolCall.id,
+            content:
+              error instanceof Error ? error.message : "Tool execution failed",
+            is_error: true,
+          });
+        }
+      }
+
+      if (toolResultBlocks.length > 0) {
+        workingMessages.push({
+          role: "user",
+          content: toolResultBlocks,
+        });
+      }
+
+      if (shouldStopAfterTool) {
+        return "";
+      }
+
+      return await createAnthropicMessageStream({
+        messages: workingMessages,
+        model: modelConfig.primaryModel,
+        onTextDelta: forwardTextDelta,
+        systemBlocks: args.systemBlocks,
+        temperature: CAREER_LLM_CONFIG.chat.temperature,
+        usageLabel: "career/chat:assistant",
+      });
+    }
+
+    if (executedAnyTool) {
+      return await createAnthropicMessageStream({
+        messages: workingMessages,
+        model: modelConfig.primaryModel,
+        onTextDelta: forwardTextDelta,
+        systemBlocks: args.systemBlocks,
+        temperature: CAREER_LLM_CONFIG.chat.temperature,
+        usageLabel: "career/chat:assistant",
+      });
+    }
+
+    const finalResponse = await createAnthropicMessageStreamResponse({
       messages: workingMessages,
       model: modelConfig.primaryModel,
-      onTextDelta: async (delta) => {
-        streamedAnyText = true;
-        await args.onTextDelta(delta);
+      onToolUseStart: async (tool) => {
+        startedAnyTool = true;
+        await args.onToolStart?.(tool);
+        if (stopAfterToolNameSet.has(tool.name)) {
+          await args.onStopToolStart?.(tool);
+        }
       },
+      onTextDelta: () => undefined,
       systemBlocks: args.systemBlocks,
       temperature: CAREER_LLM_CONFIG.chat.temperature,
+      tools: args.tools,
       usageLabel: "career/chat:assistant",
     });
+
+    const finalText = extractAnthropicText(finalResponse.content);
+    const cleanFinalText = cleanModelText(finalText);
+    await forwardTextDelta(cleanFinalText);
+    return cleanFinalText;
   } catch (error) {
-    if (streamedAnyText) {
+    if (streamedAnyText || startedAnyTool || executedAnyTool) {
       throw error;
     }
 

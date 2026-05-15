@@ -14,13 +14,17 @@ import type {
   CareerStage,
 } from "./types";
 import type { TalentOnboardingInterestOptionId } from "@/lib/talentOnboarding/onboarding";
+import type {
+  CareerConversationStarterId,
+  CareerConversationStarterMode,
+} from "@/lib/career/conversationStarters";
 
 export type CareerChatPanelContextValue = {
   user: User | null;
   conversationId: string | null;
   stage: CareerStage;
   messages: CareerMessage[];
-  scrollRef: React.RefObject<HTMLDivElement>;
+  scrollRef: React.RefObject<HTMLDivElement | null>;
   hasOlderMessages: boolean;
   loadingOlderMessages: boolean;
 
@@ -46,11 +50,14 @@ export type CareerChatPanelContextValue = {
   onboardingWrapupPending: boolean;
   thinkingLogsByMessageId: Record<string, string[]>;
   chatPending: boolean;
+  sessionReengagementPending: boolean;
+  sessionReengagementActionMessageId?: string | null;
   opportunityRun: CareerOpportunityRun | null;
   opportunitySearchLocked: boolean;
   historyUpdatingOpportunityIds: string[];
   onboardingBeginPending: boolean;
   callStartPending?: boolean;
+  callWrapUpPending?: boolean;
   onboardingPausePending: boolean;
 
   onGoogleLogin: () => void | Promise<void>;
@@ -68,10 +75,15 @@ export type CareerChatPanelContextValue = {
 
   onSendChatMessage: (args: {
     channel?: "chat" | "voice";
+    conversationStarterId?: CareerConversationStarterId;
     text: string;
     link?: string;
     onError?: () => void;
   }) => void | Promise<void>;
+  onStartConversationStarter?: (args: {
+    mode: CareerConversationStarterMode;
+    starterId: CareerConversationStarterId;
+  }) => boolean | Promise<boolean>;
   onUpdateHistoryOpportunityFeedback: (
     opportunityId: string,
     feedback: CareerHistoryOpportunityFeedback | null,

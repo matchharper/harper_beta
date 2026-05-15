@@ -4113,40 +4113,25 @@ export type Database = {
       talent_conversations: {
         Row: {
           created_at: string
-          current_step: number
           id: string
           relief_nudge_sent: boolean
-          resume_file_name: string | null
-          resume_links: string[]
-          resume_text: string | null
           stage: string
-          title: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
-          current_step?: number
           id?: string
           relief_nudge_sent?: boolean
-          resume_file_name?: string | null
-          resume_links?: string[]
-          resume_text?: string | null
           stage?: string
-          title?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
-          current_step?: number
           id?: string
           relief_nudge_sent?: boolean
-          resume_file_name?: string | null
-          resume_links?: string[]
-          resume_text?: string | null
           stage?: string
-          title?: string | null
           updated_at?: string
           user_id?: string
         }

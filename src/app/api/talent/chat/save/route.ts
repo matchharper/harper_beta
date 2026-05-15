@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   countUserChatTurns,
@@ -18,23 +18,22 @@ import {
 } from "@/lib/opportunityDiscovery/store";
 import { extractAndPersistChatInsights } from "@/lib/talentOnboarding/chatInsights";
 import { maybeSummarizeTalentConversation } from "@/lib/talentOnboarding/conversationSummary";
-import { normalizeTalentInsightContent } from "@/lib/talentOnboarding/stateStore";
 import { createOnboardingCompletionWrapupMessage } from "@/lib/talentOnboarding/onboardingCompletionWrapup";
 import {
   hasTalentOnboardingCompletionMarker,
   resolveTalentOnboardingCompletion,
   stripTalentOnboardingCompletionMarker,
 } from "@/lib/talentOnboarding/completion";
+import { getCareerConversationStarterPrompt } from "@/lib/career/conversationStarterPrompts";
 
 type Body = {
   assistantEndedOnboarding?: boolean;
+  conversationStarterId?: string | null;
   conversationId: string;
   userMessage?: string;
   assistantMessage?: string;
   isCallMode?: boolean;
 };
-
-const INSIGHT_EXTRACTION_THINKING_LOG = "인사이트 추출";
 
 const toResponseMessage = toTalentMessageResponse;
 
@@ -53,6 +52,14 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json()) as Body;
     const conversationId = body.conversationId?.trim();
+    const conversationStarterId =
+      typeof body.conversationStarterId === "string"
+        ? body.conversationStarterId.trim()
+        : "";
+    const conversationStarter = conversationStarterId
+      ? getCareerConversationStarterPrompt(conversationStarterId)
+      : null;
+    const skipConversationWrites = Boolean(conversationStarter);
     const userMessageText = body.userMessage?.trim() ?? "";
     const assistantMessageTextWithMarkers = body.assistantMessage?.trim() ?? "";
     const assistantMessageText = stripTalentOnboardingCompletionMarker(
@@ -71,6 +78,12 @@ export async function POST(req: NextRequest) {
           error:
             "conversationId and at least one message are required",
         },
+        { status: 400 }
+      );
+    }
+    if (conversationStarterId && !conversationStarter) {
+      return NextResponse.json(
+        { error: "Invalid conversationStarterId" },
         { status: 400 }
       );
     }
@@ -110,9 +123,12 @@ export async function POST(req: NextRequest) {
       !Boolean(talentSetting?.is_onboarding_done) &&
       Boolean(userMessageText) &&
       Boolean(assistantMessageText);
-    const extractTurnInsights = () =>
-      shouldAutoExtractInsights
-        ? extractAndPersistChatInsights({
+    const scheduleInsightExtraction = () => {
+      if (!shouldAutoExtractInsights) return;
+
+      const runBackgroundInsightExtraction = async () => {
+        try {
+          await extractAndPersistChatInsights({
             admin,
             assistantContent: assistantMessageText,
             buildPrompt: (promptArgs) =>
@@ -124,8 +140,22 @@ export async function POST(req: NextRequest) {
             logPrefix: "ChatSave",
             sourceChannel: isCallMode ? "voice_call" : "text_chat",
             userId: user.id,
-          })
-        : Promise.resolve(0);
+          });
+        } catch (error) {
+          console.error("[ChatSave] Failed to extract insights", {
+            conversationId,
+            error: error instanceof Error ? error.message : String(error),
+            userId: user.id,
+          });
+        }
+      };
+
+      try {
+        after(runBackgroundInsightExtraction);
+      } catch {
+        void runBackgroundInsightExtraction();
+      }
+    };
 
     const activeRun = await getActiveOpportunityRun({
       admin,
@@ -195,29 +225,7 @@ export async function POST(req: NextRequest) {
       ReturnType<typeof completeOnboardingAndQueueInitialOpportunityRun>
     > | null = null;
 
-    const insightChangedKeysCount = await extractTurnInsights();
-    const latestInsights =
-      insightChangedKeysCount > 0
-        ? await fetchTalentInsights({ admin, userId: user.id })
-        : currentInsights;
-    const latestInsightContent = normalizeTalentInsightContent(
-      latestInsights?.content ?? null
-    );
-    const assistantThinkingLogs =
-      insightChangedKeysCount > 0 ? [INSIGHT_EXTRACTION_THINKING_LOG] : [];
-    if (assistantThinkingLogs.length > 0 && insertedAssistantMessage) {
-      const { error: thinkingLogsError } = await admin
-        .from("talent_messages")
-        .update({ thinking_logs: assistantThinkingLogs })
-        .eq("id", insertedAssistantMessage.id)
-        .eq("conversation_id", conversationId)
-        .eq("user_id", user.id);
-      if (thinkingLogsError) {
-        throw new Error(
-          thinkingLogsError.message ?? "Failed to persist thinking logs"
-        );
-      }
-    }
+    scheduleInsightExtraction();
     void maybeSummarizeTalentConversation({
       admin,
       conversationId,
@@ -241,18 +249,21 @@ export async function POST(req: NextRequest) {
       assistantEndedOnboarding,
     });
     const isCompleted = Boolean(insertedAssistantMessage) && completion.completed;
+    const shouldApplyCompletion = isCompleted && !skipConversationWrites;
 
-    const now = new Date().toISOString();
-    await admin
-      .from("talent_conversations")
-      .update({
-        stage: isCompleted ? "completed" : "chat",
-        updated_at: now,
-      })
-      .eq("id", conversationId)
-      .eq("user_id", user.id);
+    if (!skipConversationWrites) {
+      const now = new Date().toISOString();
+      await admin
+        .from("talent_conversations")
+        .update({
+          stage: isCompleted ? "completed" : "chat",
+          updated_at: now,
+        })
+        .eq("id", conversationId)
+        .eq("user_id", user.id);
+    }
 
-    if (!opportunityRun && isCompleted && completion.reason) {
+    if (!opportunityRun && shouldApplyCompletion && completion.reason) {
       opportunityRun = await completeOnboardingAndQueueInitialOpportunityRun({
         admin,
         completionReason: completion.reason,
@@ -265,7 +276,7 @@ export async function POST(req: NextRequest) {
       }
     }
     const insertedCompletionWrapupMessage =
-      isCompleted && insertedUserMessage
+      shouldApplyCompletion && insertedUserMessage
         ? await createOnboardingCompletionWrapupMessage({
             admin,
             conversationId,
@@ -274,10 +285,7 @@ export async function POST(req: NextRequest) {
           })
         : null;
     const assistantResponseMessage = insertedAssistantMessage
-      ? {
-          ...toResponseMessage(insertedAssistantMessage),
-          thinkingLogs: assistantThinkingLogs,
-        }
+      ? toResponseMessage(insertedAssistantMessage)
       : null;
     const assistantResponseMessages = [
       assistantResponseMessage,
@@ -300,16 +308,10 @@ export async function POST(req: NextRequest) {
       opportunityRun: serializeOpportunityRun(opportunityRun),
       searchStatusMessage: null,
       shouldEndCall: false,
-      ...(insightChangedKeysCount > 0
-        ? {
-            insightUpdatedAt: latestInsights?.last_updated_at ?? null,
-            talentInsights: latestInsightContent ?? {},
-          }
-        : {}),
       progress: {
         answeredCount: userTurnCount,
         targetCount: TALENT_INTERVIEW_FINAL_STEP,
-        completed: isCompleted,
+        completed: shouldApplyCompletion,
         currentStep: currentProgressStep,
       },
     });

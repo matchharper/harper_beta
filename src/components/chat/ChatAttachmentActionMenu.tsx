@@ -127,7 +127,7 @@ export default function ChatAttachmentActionMenu({
 
         {isLinkEditorOpen && (
           <div className="px-1 pb-1 pt-2">
-            <div className="rounded-[12px] bg-white/[0.05] px-2 py-2">
+            <div className="rounded-[12px] bg-white/5 px-2 py-2">
               <input
                 ref={linkInputRef}
                 type="url"

@@ -183,7 +183,7 @@ function ChatMessageList({
             <div
               className={`max-w-[98%] rounded-3xl text-sm leading-relaxed ${bubbleCls}`}
             >
-              <div className="whitespace-pre-wrap break-words">
+              <div className="whitespace-pre-wrap wrap-break-word">
                 {showToolToggle && <ToolStatusToggle items={toolSegments} theme={theme} />}
                 {segmentsToRender.map((s, si) => {
                   if (s.type === "text") {
@@ -191,7 +191,7 @@ function ChatMessageList({
                     return (
                       <span
                         key={`text-${idx}-${si}`}
-                        className="whitespace-pre-wrap break-words"
+                        className="whitespace-pre-wrap wrap-break-word"
                       >
                         <span>
                           {renderHighlightedChatText(

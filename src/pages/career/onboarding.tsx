@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { useQueryClient } from "@tanstack/react-query";
 import Head from "next/head";
 import Image from "next/image";
@@ -21,17 +21,17 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ChangeEvent,
   type ReactNode,
 } from "react";
 import { showToast } from "@/components/toast/toast";
-import CareerMobileViewportGate from "@/components/career/CareerMobileViewportGate";
 import { BeigeButton, BeigeInput } from "@/components/ui/beige";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
+import { useHtmlClass } from "@/hooks/useHtmlClass";
 import { useOnboarding } from "@/hooks/useOnboarding";
-import { resolveCareerMobileEntryReason } from "@/lib/career/mobileBlocker";
 import {
   TALENT_NETWORK_ENGAGEMENT_OPTIONS,
   TALENT_NETWORK_PROFILE_INPUT_OPTIONS,
@@ -39,8 +39,24 @@ import {
   type TalentNetworkProfileInputType,
 } from "@/lib/talentNetworkOptions";
 import { cn } from "@/lib/cn";
-import { useAuthStore } from "@/store/useAuthStore";
 import LoadingState from "../../components/career/OnboardingLoadingState";
+
+const SLIDE_VARIANTS = {
+  enter: (isNext: boolean) => ({
+    opacity: 0,
+    y: isNext ? 36 : -36,
+  }),
+  center: {
+    opacity: 1,
+    y: 0,
+  },
+  exit: (isNext: boolean) => ({
+    opacity: 0,
+    y: isNext ? -36 : 36,
+  }),
+};
+
+const SLIDE_TRANSITION = { duration: 0.22, ease: "easeOut" } as const;
 
 const ONBOARDING_BACKGROUND_CLASS =
   "bg-[#F8F1EA] bg-[linear-gradient(to_top,#F1E1D7_0%,#F8F1EA_58%,#FEFBF6_100%)]";
@@ -313,14 +329,20 @@ const OnboardingStepHeader = ({
   <header className={stepDefinition.headerClassName}>
     <h1 className={stepDefinition.titleClassName}>
       {stepDefinition.title.map((line, index) => (
-        <span key={`${index}-${line}`} className="block">
+        <span
+          key={`${index}-${line}`}
+          className="block text-balance break-keep"
+        >
           {line}
         </span>
       ))}
     </h1>
     <p className={stepDefinition.descriptionClassName}>
       {stepDefinition.description.map((line, index) => (
-        <span key={`${index}-${line}`} className="block">
+        <span
+          key={`${index}-${line}`}
+          className="block text-balance break-keep"
+        >
           {line}
         </span>
       ))}
@@ -652,7 +674,7 @@ const DoneState = ({
   const streamedParagraphs = streamedText.split(/\n{2,}/);
 
   return (
-    <div className="mx-auto flex min-h-[calc(100dvh-8px)] w-full max-w-[760px] flex-col px-5 py-10 md:justify-center md:py-14">
+    <div className="mx-auto flex min-h-[calc(100svh-8px)] w-full max-w-[760px] flex-col px-5 py-10 md:justify-center md:py-14">
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
@@ -697,7 +719,7 @@ const DoneState = ({
                 <p key={`${index}-${paragraph.slice(0, 10)}`}>
                   {paragraph}
                   {isLast && !isStreamComplete && (
-                    <span className="ml-1 inline-block h-4 w-[1px] translate-y-0.5 animate-pulse bg-beige900/55" />
+                    <span className="ml-1 inline-block h-4 w-px translate-y-0.5 animate-pulse bg-beige900/55" />
                   )}
                 </p>
               );
@@ -752,6 +774,7 @@ const DoneState = ({
 };
 
 const CareerNetworkOnboardingContent = () => {
+  useHtmlClass("noneoverscroll");
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user, authLoading } = useCareerAuth();
@@ -778,7 +801,6 @@ const CareerNetworkOnboardingContent = () => {
   const [submitState, setSubmitState] = useState<"form" | "loading" | "done">(
     "form"
   );
-  const [submitError, setSubmitError] = useState("");
   const [doneUserMessage, setDoneUserMessage] = useState(
     DEFAULT_DONE_USER_MESSAGE
   );
@@ -793,6 +815,7 @@ const CareerNetworkOnboardingContent = () => {
     () => careerOnboardingSessionKey(userId, inviteToken, mail),
     [inviteToken, mail, userId]
   );
+  const lastSavedBasicInfoRef = useRef("");
 
   const fetchOnboardingSession = useCallback(async () => {
     const bootstrapRes = await fetchWithAuth("/api/talent/auth/bootstrap", {
@@ -850,7 +873,6 @@ const CareerNetworkOnboardingContent = () => {
       if (!cachedSession && !conversationId) {
         setBootstrapLoading(true);
       }
-      setSubmitError("");
 
       try {
         const payload = await queryClient.ensureQueryData({
@@ -881,11 +903,14 @@ const CareerNetworkOnboardingContent = () => {
         setSubmitState(payload?.hasFirstSubmission ? "done" : "form");
       } catch (error) {
         if (cancelled) return;
-        setSubmitError(
-          error instanceof Error
-            ? error.message
-            : "온보딩 세션을 불러오지 못했습니다."
-        );
+        showToast({
+          message:
+            error instanceof Error
+              ? error.message
+              : "온보딩 세션을 불러오지 못했습니다.",
+          variant: "error",
+          duration: 5000,
+        });
       } finally {
         if (!cancelled) {
           setBootstrapLoading(false);
@@ -911,6 +936,52 @@ const CareerNetworkOnboardingContent = () => {
     sessionQueryKey,
     userId,
   ]);
+
+  const saveBasicInfo = useCallback(async () => {
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim().toLowerCase();
+
+    if (!trimmedName || !isValidEmail(trimmedEmail)) return;
+
+    const signature = `${trimmedName}\n${trimmedEmail}`;
+    if (lastSavedBasicInfoRef.current === signature) return;
+
+    const response = await fetchWithAuth("/api/talent/onboarding/basic-info", {
+      method: "POST",
+      body: JSON.stringify({
+        email: trimmedEmail,
+        name: trimmedName,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(
+        getErrorMessage(payload, "기본 정보를 저장하지 못했습니다.")
+      );
+    }
+
+    lastSavedBasicInfoRef.current = signature;
+    queryClient.removeQueries({ queryKey: ["career-session"] });
+  }, [email, fetchWithAuth, name, queryClient]);
+
+  const saveCurrentStep = useCallback(
+    async (currentStep: number) => {
+      if (currentStep !== 0) return;
+
+      try {
+        await saveBasicInfo();
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "기본 정보를 저장하지 못했습니다.";
+        showToast({ message, variant: "white" });
+        throw error;
+      }
+    },
+    [saveBasicInfo]
+  );
 
   const handleProfileInputToggle = useCallback(
     (option: TalentNetworkProfileInputType) => {
@@ -1042,12 +1113,15 @@ const CareerNetworkOnboardingContent = () => {
   const submitOnboarding = useCallback(async () => {
     if (submitState === "loading") return;
     if (!conversationId) {
-      setSubmitError("온보딩 세션을 아직 준비하지 못했습니다.");
+      showToast({
+        message: "온보딩 세션을 아직 준비하지 못했습니다.",
+        variant: "error",
+        duration: 5000,
+      });
       return;
     }
 
     setSubmitState("loading");
-    setSubmitError("");
 
     try {
       let resumeFileName: string | undefined;
@@ -1134,11 +1208,14 @@ const CareerNetworkOnboardingContent = () => {
       setDoneKickoffText(getOnboardingKickoffText(payload));
       setSubmitState("done");
     } catch (error) {
-      setSubmitError(
-        error instanceof Error
-          ? error.message
-          : "온보딩 제출 중 오류가 발생했습니다."
-      );
+      showToast({
+        message:
+          error instanceof Error
+            ? error.message
+            : "온보딩 제출 중 오류가 발생했습니다.",
+        variant: "error",
+        duration: 5000,
+      });
       setSubmitState("form");
     }
   }, [
@@ -1157,10 +1234,10 @@ const CareerNetworkOnboardingContent = () => {
   ]);
 
   const { step, handleNext, handlePrev, isNextRef } = useOnboarding({
-    save: () => undefined,
+    save: saveCurrentStep,
     totalSteps: TOTAL_STEPS,
     beforeNext: validateStep,
-    onComplete: () => void submitOnboarding(),
+    onComplete: submitOnboarding,
     enableWheelNavigation: false,
   });
 
@@ -1203,21 +1280,6 @@ const CareerNetworkOnboardingContent = () => {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [handleEngagementToggle, step]);
 
-  const slideVariants = {
-    enter: (isNext: boolean) => ({
-      opacity: 0,
-      y: isNext ? 36 : -36,
-    }),
-    center: {
-      opacity: 1,
-      y: 0,
-    },
-    exit: (isNext: boolean) => ({
-      opacity: 0,
-      y: isNext ? -36 : 36,
-    }),
-  };
-
   const currentStepDefinition = ONBOARDING_STEPS[step] ?? ONBOARDING_STEPS[0];
   const stepLabel = `${step + 1} / ${TOTAL_STEPS}`;
   // const stepLabel = `Step ${step + 1} / ${TOTAL_STEPS} · ${currentStepDefinition.label}`;
@@ -1247,7 +1309,7 @@ const CareerNetworkOnboardingContent = () => {
     return (
       <main
         className={cn(
-          "flex min-h-screen items-center justify-center font-geist text-beige900",
+          "flex min-h-svh items-center justify-center font-geist text-beige900",
           ONBOARDING_BACKGROUND_CLASS
         )}
       >
@@ -1263,7 +1325,7 @@ const CareerNetworkOnboardingContent = () => {
       </Head>
       <main
         className={cn(
-          "min-h-[100dvh] pt-2 font-geist text-beige900",
+          "min-h-svh pt-2 font-geist text-beige900",
           ONBOARDING_BACKGROUND_CLASS
         )}
       >
@@ -1288,7 +1350,7 @@ const CareerNetworkOnboardingContent = () => {
         )}
 
         {submitState === "form" && (
-          <div className="mx-auto flex min-h-[calc(100dvh-8px)] w-full max-w-[960px] flex-col items-center px-4 py-8 md:justify-center md:px-6 md:py-12">
+          <div className="mx-auto flex min-h-[calc(100svh-8px)] w-full max-w-[960px] flex-col items-center px-4 py-8 md:justify-center md:px-6 md:py-12">
             <section className="flex w-full flex-col items-center text-center">
               <div className="mb-6 text-center text-[11px] font-medium text-xprimary/60">
                 {stepLabel}
@@ -1300,9 +1362,9 @@ const CareerNetworkOnboardingContent = () => {
                   initial="enter"
                   animate="center"
                   exit="exit"
-                  variants={slideVariants}
+                  variants={SLIDE_VARIANTS}
                   custom={isNextRef.current}
-                  transition={{ duration: 0.3, ease: "easeInOut" }}
+                  transition={SLIDE_TRANSITION}
                   className="flex w-full flex-col items-center gap-5"
                 >
                   <OnboardingStepHeader
@@ -1445,12 +1507,6 @@ const CareerNetworkOnboardingContent = () => {
                 </motion.div>
               </AnimatePresence>
 
-              {submitError && (
-                <p className="mx-auto mt-5 w-full max-w-[680px] border border-xprimary/30 bg-white/45 px-3 py-2 text-left text-sm leading-6 text-xprimary">
-                  {submitError}
-                </p>
-              )}
-
               <div className="mt-8 flex w-full flex-col-reverse items-stretch justify-center gap-3 sm:w-auto sm:flex-row sm:items-center">
                 {step > 0 && (
                   <BeigeButton
@@ -1495,19 +1551,7 @@ const CareerNetworkOnboardingContent = () => {
 };
 
 const CareerNetworkOnboardingPage = () => {
-  const router = useRouter();
-  const user = useAuthStore((state) => state.user);
-  const entryReason = resolveCareerMobileEntryReason(router.query);
-
-  return (
-    <CareerMobileViewportGate
-      desktopFallback={<LoadingState />}
-      entryReason={entryReason}
-      user={user}
-    >
-      <CareerNetworkOnboardingContent />
-    </CareerMobileViewportGate>
-  );
+  return <CareerNetworkOnboardingContent />;
 };
 
 export default CareerNetworkOnboardingPage;

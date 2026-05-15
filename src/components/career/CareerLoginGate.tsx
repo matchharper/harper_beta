@@ -41,8 +41,8 @@ const CareerLoginGate = ({
   onGoogleLogin: () => void | Promise<void>;
 }) => {
   return (
-    <div className="relative flex min-h-screen w-full flex-col bg-beige50 lg:flex-row">
-      <section className="flex min-h-[52vh] min-w-0 flex-col border-b border-beige900/10 bg-[#f4eadb] lg:min-h-screen lg:w-1/2 lg:flex-none lg:border-b-0 lg:border-r">
+    <div className="relative flex min-h-svh w-full flex-col bg-beige50 lg:flex-row">
+      <section className="flex min-h-[52svh] min-w-0 flex-col border-b border-beige900/10 bg-[#f4eadb] lg:min-h-svh lg:w-1/2 lg:flex-none lg:border-b-0 lg:border-r">
         <div className="border-b border-beige900/10 px-5 py-5 sm:px-6 lg:px-7">
           <div className="text-[11px] uppercase tracking-[0.24em] text-beige900/35">
             Always-On Chat
@@ -57,7 +57,7 @@ const CareerLoginGate = ({
       </section>
 
       <section className="min-w-0 flex-1 bg-beige50/75">
-        <div className="flex h-full min-h-[45vh] flex-col lg:h-screen">
+        <div className="flex h-full min-h-[45svh] flex-col lg:h-svh">
           <header className="border-b border-beige900/10 bg-[rgba(250,243,231,0.9)] px-4 py-4 backdrop-blur-xl sm:px-6 lg:px-8">
             <div className="flex items-center justify-between gap-4">
               <div>
@@ -113,7 +113,7 @@ const CareerLoginGate = ({
 
       <div className="absolute inset-0 bg-beige900/15 backdrop-blur-[3px]" />
 
-      <div className="absolute inset-0 flex h-screen items-center justify-center p-4">
+      <div className="absolute inset-0 flex h-svh items-center justify-center p-4">
         <section
           role="dialog"
           aria-modal="true"

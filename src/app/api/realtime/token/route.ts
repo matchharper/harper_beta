@@ -22,6 +22,7 @@ import {
 } from "@/lib/career/prompts";
 import { getCareerRealtimeSessionConfig } from "@/lib/career/llm";
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
+import { getCareerConversationStarterPrompt } from "@/lib/career/conversationStarterPrompts";
 
 /**
  * Build realtime instructions from the shared Harper system prompt plus
@@ -30,7 +31,8 @@ import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunity
 async function buildRealtimeInstructions(
   userId: string,
   conversationId: string,
-  toolNames: string[]
+  toolNames: string[],
+  conversationStarterId?: string | null
 ) {
   const admin = getTalentSupabaseAdmin();
 
@@ -64,6 +66,9 @@ async function buildRealtimeInstructions(
     string
   > | null;
   const promptToolNames = talentSetting?.is_onboarding_done ? toolNames : [];
+  const conversationStarter = conversationStarterId
+    ? getCareerConversationStarterPrompt(conversationStarterId)
+    : null;
 
   const recentConversationSection =
     buildCareerRealtimeRecentConversationSection(
@@ -79,6 +84,8 @@ async function buildRealtimeInstructions(
     interruptHandling: getCareerInterruptHandlingPrompt(),
     isOnboardingDone: talentSetting?.is_onboarding_done,
     profile,
+    proactiveTurnInstruction:
+      conversationStarter?.voiceProactiveInstruction ?? undefined,
     recentConversationSection,
     structuredProfileText,
     toolNames: promptToolNames,
@@ -192,14 +199,31 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { conversationId: rawConversationId } = body as {
+    const {
+      conversationId: rawConversationId,
+      conversationStarterId: rawConversationStarterId,
+    } = body as {
       conversationId?: string;
+      conversationStarterId?: string;
     };
     const conversationId = rawConversationId?.trim();
+    const conversationStarterId =
+      typeof rawConversationStarterId === "string"
+        ? rawConversationStarterId.trim()
+        : "";
 
     if (!conversationId) {
       return NextResponse.json(
         { error: "conversationId is required" },
+        { status: 400 }
+      );
+    }
+    if (
+      conversationStarterId &&
+      !getCareerConversationStarterPrompt(conversationStarterId)
+    ) {
+      return NextResponse.json(
+        { error: "Invalid conversationStarterId" },
         { status: 400 }
       );
     }
@@ -208,7 +232,8 @@ export async function POST(req: NextRequest) {
     const realtimePromptPlan = await buildRealtimeInstructions(
       user.id,
       conversationId,
-      realtimeTools.map((tool) => tool.name)
+      realtimeTools.map((tool) => tool.name),
+      conversationStarterId
     );
     const instructions = realtimePromptPlan.instructions;
     if (process.env.NODE_ENV !== "production") {

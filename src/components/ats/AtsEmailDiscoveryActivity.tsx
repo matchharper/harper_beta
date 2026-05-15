@@ -100,7 +100,7 @@ function createLinkNode(label: string, href: string, key: string) {
       rel="noreferrer"
       className={LINK_CLASS_NAME}
     >
-      <span className="min-w-0 break-all [overflow-wrap:anywhere]">
+      <span className="min-w-0 break-all wrap-anywhere">
         {label}
       </span>
       <ArrowUpRight className="h-3 w-3 shrink-0" />
@@ -211,7 +211,7 @@ function renderTraceMeta(
   if (!serialized) return null;
 
   return (
-    <pre className="mt-2 max-w-full whitespace-pre-wrap break-words rounded-md border border-beige900/8 bg-beige50 p-2 text-xs leading-5 text-beige900/45 [overflow-wrap:anywhere]">
+    <pre className="mt-2 max-w-full whitespace-pre-wrap wrap-break-word rounded-md border border-beige900/8 bg-beige50 p-2 text-xs leading-5 text-beige900/45 wrap-anywhere">
       {renderLinkedText(serialized, `${key}-meta`)}
     </pre>
   );
@@ -256,7 +256,7 @@ export default function AtsEmailDiscoveryActivity({
                 : ""}
             </div>
           </div>
-          <div className="mt-3 min-w-0 break-words text-sm leading-6 text-beige900/80 [overflow-wrap:anywhere]">
+          <div className="mt-3 min-w-0 wrap-break-word text-sm leading-6 text-beige900/80 wrap-anywhere">
             {renderLinkedText(summary, "summary")}
           </div>
           {isSearching && (
@@ -298,7 +298,7 @@ export default function AtsEmailDiscoveryActivity({
                   {formatDateTime(item.at)}
                 </span>
               </div>
-              <div className="mt-2 min-w-0 break-words text-sm leading-6 text-beige900/55 [overflow-wrap:anywhere]">
+              <div className="mt-2 min-w-0 wrap-break-word text-sm leading-6 text-beige900/55 wrap-anywhere">
                 {renderLinkedText(item.content, `trace-${index}`)}
               </div>
               {renderTraceMeta(item.meta, `trace-${index}`)}

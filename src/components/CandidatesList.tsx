@@ -311,7 +311,7 @@ function CandidateCard({
       >
         {canSelectCard ? (
           <div
-            className="absolute left-[-40px] top-1 z-[60]"
+            className="absolute left-[-40px] top-1 z-60"
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();
@@ -358,11 +358,11 @@ function CandidateCard({
                       </div>
                       {isOnlyScholar ? (
                         <div className="inline-flex w-fit items-center gap-1 rounded text-[13px] text-blue-500">
-                          <div className="mt-[1px]">Scholar Profile</div>
+                          <div className="mt-px">Scholar Profile</div>
                         </div>
                       ) : isOnlyGithub ? (
                         <div className="inline-flex w-fit items-center gap-1 rounded text-[13px] text-blue-500">
-                          <div className="mt-[1px]">GitHub Profile</div>
+                          <div className="mt-px">GitHub Profile</div>
                         </div>
                       ) : c.location ? (
                         <div className={`text-sm font-normal ${isDark ? "text-hgray600" : "text-beige900/55"}`}>
@@ -554,7 +554,7 @@ function CandidateCard({
                 )}
                 {isMyList && shortlistSummaryText.length > 0 && (
                   <div
-                    className={`whitespace-pre-wrap break-words text-[14px] ${
+                    className={`whitespace-pre-wrap wrap-break-word text-[14px] ${
                       synthesizedSummary.length !== 0 ? "mt-6" : ""
                     }`}
                     dangerouslySetInnerHTML={{ __html: shortlistSummaryText }}
@@ -681,7 +681,7 @@ const CriteriaBox = ({
       </Tooltips>
       {/* </Tooltips> */}
       {reason && (
-        <div className="mt-2 text-[14px] font-normal whitespace-pre-wrap break-words">
+        <div className="mt-2 text-[14px] font-normal whitespace-pre-wrap wrap-break-word">
           <div dangerouslySetInnerHTML={{ __html: safeReasonText }} />
         </div>
       )}

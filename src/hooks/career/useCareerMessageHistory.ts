@@ -173,6 +173,31 @@ export const useCareerMessageHistory = ({
     [queryClient, queryKey]
   );
 
+  const removeMessagesFromCache = useCallback(
+    (messageIds: Array<number | string>) => {
+      if (messageIds.length === 0) return;
+
+      const idsToRemove = new Set(messageIds.map((id) => String(id)));
+      queryClient.setQueryData<InfiniteData<CareerMessagesPage, number | null>>(
+        queryKey,
+        (current) => {
+          if (!current?.pages?.length) return current;
+
+          return {
+            ...current,
+            pages: current.pages.map((page) => ({
+              ...page,
+              messages: page.messages.filter(
+                (message) => !idsToRemove.has(String(message.id))
+              ),
+            })),
+          };
+        }
+      );
+    },
+    [queryClient, queryKey]
+  );
+
   return {
     ...infinite,
     messages,
@@ -181,5 +206,6 @@ export const useCareerMessageHistory = ({
     loadingOlderMessages: infinite.isFetchingNextPage,
     invalidateMessageHistory,
     appendLatestMessagesToCache,
+    removeMessagesFromCache,
   };
 };

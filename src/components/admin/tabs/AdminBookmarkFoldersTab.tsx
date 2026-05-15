@@ -309,7 +309,7 @@ export default function AdminBookmarkFoldersTab({
                     <div className="mb-1 text-[11px] uppercase tracking-[0.18em] text-[#9a8667]">
                       Memo
                     </div>
-                    <div className="whitespace-pre-wrap break-words">
+                    <div className="whitespace-pre-wrap wrap-break-word">
                       {item.memo || "유저가 남긴 메모 없음"}
                     </div>
                   </div>

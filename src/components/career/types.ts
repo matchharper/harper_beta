@@ -108,6 +108,13 @@ export type CareerOpportunitySavedStage =
   | "connected"
   | "closed";
 
+export type CareerHistoryTabId = "new" | "saved" | "archived";
+
+export type CareerHistoryOpportunityPageFilter = {
+  historyTab: CareerHistoryTabId;
+  savedStage?: CareerOpportunitySavedStage;
+};
+
 export type CareerHistoryOpportunityCounts = {
   archived: number;
   new: number;
@@ -249,7 +256,6 @@ export type SessionResponse = {
   conversation: {
     id: string;
     stage: CareerStage;
-    title: string | null;
     resumeFileName: string | null;
     resumeStoragePath?: string | null;
     resumeDownloadUrl?: string | null;

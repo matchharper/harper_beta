@@ -27,7 +27,7 @@ import type { NetworkLeadSummary, TalentInternalEntry } from "@/lib/opsNetwork";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useOpsNetworkStore } from "@/store/useOpsNetworkStore";
-import { AnimatePresence } from "framer-motion";
+import { AnimatePresence } from "motion/react";
 import { Download, RefreshCw } from "lucide-react";
 import Head from "next/head";
 import { useRouter } from "next/router";

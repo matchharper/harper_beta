@@ -17,7 +17,7 @@ export type BeigeCheckboxProps = Omit<
 };
 
 export const beigeCheckboxClassName =
-  "peer h-4 w-4 shrink-0 cursor-pointer appearance-none rounded-[6px] border border-beige900/20 bg-beige100 bg-center bg-no-repeat [background-size:12px_12px] shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_2px_8px_rgba(46,23,6,0.1)] outline-none transition-[background-color,border-color,box-shadow,transform] duration-200 hover:bg-beige900/60 focus-visible:ring-2 focus-visible:ring-beige500/80 focus-visible:ring-offset-2 focus-visible:ring-offset-white checked:border-beige900 checked:bg-beige900 checked:shadow-[0_10px_20px_rgba(46,23,6,0.15)] disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.97]";
+  "peer h-4 w-4 shrink-0 cursor-pointer appearance-none rounded-[6px] border border-beige900/20 bg-beige100 bg-center bg-no-repeat bg-size-[12px_12px] shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_2px_8px_rgba(46,23,6,0.1)] outline-none transition-[background-color,border-color,box-shadow,transform] duration-200 hover:bg-beige900/60 focus-visible:ring-2 focus-visible:ring-beige500/80 focus-visible:ring-offset-2 focus-visible:ring-offset-white checked:border-beige900 checked:bg-beige900 checked:shadow-[0_10px_20px_rgba(46,23,6,0.15)] disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.97]";
 
 const BeigeCheckbox = React.forwardRef<HTMLInputElement, BeigeCheckboxProps>(
   (

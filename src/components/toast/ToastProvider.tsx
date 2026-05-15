@@ -2,16 +2,10 @@
 
 import React from "react";
 import { createPortal } from "react-dom";
-import { setToast, ToastOptions } from "./toast";
 import { CheckCircle2, XCircle } from "lucide-react";
 import Animate from "../landing/Animate";
-
-type Item = {
-  id: string;
-  message: string;
-  variant: "default" | "success" | "error" | "white";
-  ttl: number;
-};
+import { useIsMounted } from "@/hooks/useIsMounted";
+import { useToastStore, type ToastItem } from "@/store/useToastStore";
 
 function normalizeToastMessage(message: string) {
   return String(message ?? "")
@@ -20,48 +14,17 @@ function normalizeToastMessage(message: string) {
 }
 
 export default function ToastProvider() {
-  const [mounted, setMounted] = React.useState(false);
-  const [list, setList] = React.useState<Item[]>([]);
+  const mounted = useIsMounted();
+  const list = useToastStore((s) => s.list);
+  const remove = useToastStore((s) => s.remove);
 
-  // ✅ 클라이언트 마운트 이후에만 포털 렌더
-  React.useEffect(() => {
-    setMounted(true);
-
-    // facade 연결도 마운트 후에
-    setToast((input: ToastOptions | string) => {
-      const opts: ToastOptions =
-        typeof input === "string" ? { message: input } : input;
-
-      const id = opts.id ?? Math.random().toString(36).slice(2);
-      const duration = opts.duration ?? 3000;
-
-      setList((prev) => [
-        ...prev,
-        {
-          id,
-          message: opts.message,
-          variant: opts.variant ?? "default",
-          ttl: duration,
-        },
-      ]);
-
-      window.setTimeout(() => {
-        setList((prev) => prev.filter((t) => t.id !== id));
-      }, duration);
-    });
-  }, []);
-
-  if (!mounted) return null; // 👈 서버/첫 hydration과 동일한 출력 보장
+  if (!mounted) return null;
 
   return createPortal(
-    <div className="pointer-events-none fixed inset-x-0 bottom-6 z-[9999] flex justify-center px-4">
+    <div className="pointer-events-none fixed inset-x-0 bottom-6 z-9999 flex justify-center px-4">
       <div className="flex w-full max-w-md flex-col items-center gap-2">
         {list.map((t) => (
-          <Toast
-            key={t.id}
-            item={t}
-            onClose={() => setList((p) => p.filter((x) => x.id !== t.id))}
-          />
+          <Toast key={t.id} item={t} onClose={() => remove(t.id)} />
         ))}
       </div>
     </div>,
@@ -69,7 +32,7 @@ export default function ToastProvider() {
   );
 }
 
-function Toast({ item, onClose }: { item: Item; onClose: () => void }) {
+function Toast({ item, onClose }: { item: ToastItem; onClose: () => void }) {
   const Icon =
     item.variant === "success"
       ? CheckCircle2
@@ -89,23 +52,16 @@ function Toast({ item, onClose }: { item: Item; onClose: () => void }) {
           : item.variant === "error"
             ? "border-red-400/50 bg-red-500/50 text-black"
             : item.variant === "white"
-              ? "border-white/100 bg-white/80 text-black"
+              ? "border-white bg-white/80 text-black"
               : "border-xopp/15 bg-xopp/10 text-white/90",
         "",
       ].join(" ")}
       aria-live="polite"
     >
       {Icon ? <Icon className="h-4 w-4 shrink-0 opacity-90" /> : null}
-      <span className="flex-1 whitespace-pre-wrap break-words">
+      <span className="flex-1 whitespace-pre-wrap wrap-break-word">
         {normalizeToastMessage(item.message)}
       </span>
-      {/* <button
-        onClick={onClose}
-        className="rounded-full p-1 hover:bg-xopp/10"
-        aria-label="Dismiss"
-      >
-        <X className="h-4 w-4" />
-      </button> */}
     </Animate>
   );
 }

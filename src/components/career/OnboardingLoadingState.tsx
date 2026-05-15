@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { Check, FileText, Linkedin, MessageCircle, Search } from "lucide-react";
 import React from "react";
 import { useEffect, useState } from "react";
@@ -50,10 +50,10 @@ const SkeletonLine = ({
   delay?: number;
 }) => (
   <div
-    className={`relative overflow-hidden rounded-full bg-beige900/[0.06] ${className}`}
+    className={`relative overflow-hidden rounded-full bg-beige900/6 ${className}`}
   >
     <motion.div
-      className="absolute inset-y-0 w-1/2 rounded-full bg-gradient-to-r from-transparent via-beige50/80 to-transparent"
+      className="absolute inset-y-0 w-1/2 rounded-full bg-linear-to-r from-transparent via-beige50/80 to-transparent"
       initial={{ x: "-120%" }}
       animate={{ x: "220%" }}
       transition={{
@@ -94,9 +94,9 @@ const StepProgressBar = ({
 const ProfilePreview = ({ activeStep }: { activeStep: number }) => {
   return (
     <div className="relative w-full max-w-[520px]">
-      <div className="absolute inset-0 translate-y-3 rounded-[32px] bg-beige900/[0.04]" />
+      <div className="absolute inset-0 translate-y-3 rounded-[32px] bg-beige900/4" />
 
-      <div className="relative overflow-hidden rounded-[32px] border border-beige900/[0.08] bg-beige50/90 p-5 text-left shadow-[0_24px_80px_rgba(54,45,36,0.08)] backdrop-blur-xl md:p-6">
+      <div className="relative overflow-hidden rounded-[32px] border border-beige900/8 bg-beige50/90 p-5 text-left shadow-[0_24px_80px_rgba(54,45,36,0.08)] backdrop-blur-xl md:p-6">
         <div className="flex items-center justify-between border-b border-beige900/[0.07] pb-4">
           <div>
             <p className="text-xs font-medium tracking-[-0.01em] text-beige900/40">
@@ -107,7 +107,7 @@ const ProfilePreview = ({ activeStep }: { activeStep: number }) => {
             </p>
           </div>
 
-          <div className="flex items-center gap-1.5 rounded-full bg-beige900/[0.04] px-3 py-1.5">
+          <div className="flex items-center gap-1.5 rounded-full bg-beige900/4 px-3 py-1.5">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-xprimary/50" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-xprimary" />
@@ -119,7 +119,7 @@ const ProfilePreview = ({ activeStep }: { activeStep: number }) => {
         </div>
 
         <div className="mt-6 flex items-start gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-beige900/[0.06]">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-beige900/6">
             <SkeletonLine className="h-6 w-6 rounded-xl" />
           </div>
 
@@ -130,7 +130,7 @@ const ProfilePreview = ({ activeStep }: { activeStep: number }) => {
         </div>
 
         <div className="mt-7 space-y-4">
-          <div className="rounded-2xl border border-beige900/[0.06] bg-white/[0.28] p-4">
+          <div className="rounded-2xl border border-beige900/6 bg-white/[0.28] p-4">
             <div className="mb-3 flex items-center justify-between">
               <p className="text-xs font-semibold text-beige900/40">
                 Career signals
@@ -143,7 +143,7 @@ const ProfilePreview = ({ activeStep }: { activeStep: number }) => {
             <SkeletonLine className="mt-2.5 h-3 w-[64%]" delay={0.3} />
           </div>
 
-          <div className="rounded-2xl border border-beige900/[0.06] bg-white/[0.28] p-4">
+          <div className="rounded-2xl border border-beige900/6 bg-white/[0.28] p-4">
             <div className="mb-3 flex items-center justify-between">
               <p className="text-xs font-semibold text-beige900/40">
                 Preferred companies
@@ -158,7 +158,7 @@ const ProfilePreview = ({ activeStep }: { activeStep: number }) => {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-beige900/[0.06] bg-white/[0.28] p-4">
+          <div className="rounded-2xl border border-beige900/6 bg-white/[0.28] p-4">
             <div className="mb-3 flex items-center justify-between">
               <p className="text-xs font-semibold text-beige900/40">
                 Conversation context
@@ -171,7 +171,7 @@ const ProfilePreview = ({ activeStep }: { activeStep: number }) => {
           </div>
         </div>
 
-        <div className="mt-6 h-1.5 overflow-hidden rounded-full bg-beige900/[0.06]">
+        <div className="mt-6 h-1.5 overflow-hidden rounded-full bg-beige900/6">
           <motion.div
             className="h-full rounded-full bg-beige900/70"
             animate={{
@@ -210,15 +210,15 @@ const LoadingState = () => {
   const ActiveIcon = steps[activeStep].icon;
 
   return (
-    <div className="relative mx-auto flex min-h-[calc(100dvh-8px)] w-full max-w-[980px] flex-col items-center justify-center overflow-hidden px-4 py-10">
+    <div className="relative mx-auto flex min-h-[calc(100svh-8px)] w-full max-w-[980px] flex-col items-center justify-center overflow-hidden px-4 py-10">
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute left-1/2 top-1/2 h-[520px] w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-beige900/[0.035] blur-3xl" />
-        <div className="absolute left-[12%] top-[18%] h-48 w-48 rounded-full bg-xprimary/[0.055] blur-3xl" />
+        <div className="absolute left-[12%] top-[18%] h-48 w-48 rounded-full bg-xprimary/5.5 blur-3xl" />
       </div>
 
       <div className="relative z-10 grid w-full items-center gap-10 md:grid-cols-[1fr_520px] md:gap-12">
         <div className="text-center md:text-left">
-          <div className="mx-auto mb-5 flex w-fit items-center gap-2 rounded-full border border-beige900/[0.08] bg-beige50/70 px-3 py-1.5 text-xs font-medium text-beige900/45 backdrop-blur md:mx-0">
+          <div className="mx-auto mb-5 flex w-fit items-center gap-2 rounded-full border border-beige900/8 bg-beige50/70 px-3 py-1.5 text-xs font-medium text-beige900/45 backdrop-blur md:mx-0">
             <ActiveIcon className="h-3.5 w-3.5" />
             <span>Harper is coming</span>
             <span className="min-w-[4ch] font-mono tabular-nums text-beige900/35">
@@ -238,7 +238,7 @@ const LoadingState = () => {
                 {steps[activeStep].title}
               </h1>
 
-              <p className="mt-3 max-w-[520px] text-base font-medium leading-7 tracking-[-0.025em] text-beige900/55 md:text-lg md:leading-8">
+              <p className="mt-3 max-w-[520px] text-base font-medium leading-7 tracking-tight text-beige900/55 md:text-lg md:leading-8">
                 {steps[activeStep].description}
               </p>
             </motion.div>
@@ -265,7 +265,7 @@ const LoadingState = () => {
                         ? "bg-xprimary/10 text-xprimary"
                         : isActive
                           ? "bg-beige900 text-beige50"
-                          : "bg-beige900/[0.06] text-beige900/40",
+                          : "bg-beige900/6 text-beige900/40",
                     ].join(" ")}
                   >
                     {isDone ? (

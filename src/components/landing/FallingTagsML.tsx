@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import React, { useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import { useIsMobile } from "@/hooks/useIsMobile";

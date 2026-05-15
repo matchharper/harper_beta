@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo } from "react";
 import { CornerDownLeft, Loader2 } from "lucide-react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import type { CareerHistoryOpportunity } from "../types";
@@ -150,8 +150,6 @@ export const HistoryPositiveFeedbackModal = ({
   onClose: () => void;
   onSubmit: () => void;
 }) => {
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-
   if (!item) return null;
 
   const positiveFeedbackModalCopy = getCareerPositiveFeedbackModalCopy(
@@ -185,11 +183,10 @@ export const HistoryPositiveFeedbackModal = ({
         </div>
       }
       closeButtonClassName="font-geist right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-beige900/10 bg-white/70 text-beige900/70 transition-colors hover:border-beige900/25 hover:text-beige900"
-      initialFocusRef={textareaRef}
     >
       <div className="space-y-3">
         <textarea
-          ref={textareaRef}
+          autoFocus
           value={draft}
           onChange={(event) => onChangeDraft(event.target.value)}
           onKeyDown={(event) => {
@@ -228,7 +225,6 @@ export const HistoryNegativeFeedbackModal = ({
   onClose: () => void;
   onSubmit: () => void;
 }) => {
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const options = useMemo(
     () => (item ? getCareerNegativeFeedbackOptions(item.opportunityType) : []),
     [item]
@@ -300,7 +296,6 @@ export const HistoryNegativeFeedbackModal = ({
         </div>
       }
       closeButtonClassName="font-geist right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-beige900/10 bg-white/70 text-beige900/70 transition-colors hover:border-beige900/25 hover:text-beige900"
-      initialFocusRef={textareaRef}
     >
       <div className="space-y-4">
         <div className="grid gap-2 sm:grid-cols-2">
@@ -334,7 +329,6 @@ export const HistoryNegativeFeedbackModal = ({
 
         {requiresTextInput && (
           <textarea
-            ref={textareaRef}
             autoFocus
             value={customReason}
             onChange={(event) => onChangeCustomReason(event.target.value)}
@@ -371,8 +365,6 @@ export const HistoryQuestionModal = ({
   onClose: () => void;
   onSubmit: () => void | Promise<void>;
 }) => {
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-
   if (!item) return null;
 
   return (
@@ -398,11 +390,10 @@ export const HistoryQuestionModal = ({
         </div>
       }
       closeButtonClassName="font-geist right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-beige900/10 bg-white/70 text-beige900/70 transition-colors hover:border-beige900/25 hover:text-beige900"
-      initialFocusRef={textareaRef}
     >
       <div className="space-y-3">
         <textarea
-          ref={textareaRef}
+          autoFocus
           value={draft}
           onChange={(event) => onChangeDraft(event.target.value)}
           onKeyDown={(event) => {

@@ -2,15 +2,9 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import Head from "next/head";
 import Image from "next/image";
 import { useRouter } from "next/router";
-import { Loader2, Mail } from "lucide-react";
-import CareerMobileViewportGate from "@/components/career/CareerMobileViewportGate";
+import { Loader2, Mail, MailCheck } from "lucide-react";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
 import { BeigeButton, BeigeInput } from "@/components/ui/beige";
-import {
-  appendCareerMobileEntryReason,
-  resolveCareerMobileEntryReason,
-} from "@/lib/career/mobileBlocker";
-import { useAuthStore } from "@/store/useAuthStore";
 
 const schoolLogos = [
   { src: "/images/logos/sn.png", name: "서울대학교" },
@@ -32,7 +26,7 @@ const resolveSafeNextPath = (value: string | string[] | undefined) => {
 };
 
 const CareerLoginLoadingState = () => (
-  <main className="relative flex min-h-screen w-full items-center justify-center bg-beige100 font-geist text-beige900">
+  <main className="relative flex min-h-svh w-full items-center justify-center bg-beige100 font-geist text-beige900">
     <Loader2 className="h-5 w-5 animate-spin text-beige900/40" />
     <span className="sr-only">커리어 로그인 페이지 로딩 중</span>
   </main>
@@ -60,6 +54,8 @@ const CareerLoginContent = () => {
     () => resolveSafeNextPath(router.query.next) ?? "/career",
     [router.query.next]
   );
+  const emailConfirmationSent = Boolean(authInfo);
+  const submittedEmail = email.trim();
 
   useEffect(() => {
     if (authLoading || !user || !router.isReady) return;
@@ -97,11 +93,7 @@ const CareerLoginContent = () => {
       password,
     });
     if (ok) {
-      const targetPath =
-        emailMode === "signup"
-          ? appendCareerMobileEntryReason(nextPath, "post_signup")
-          : nextPath;
-      void router.replace(targetPath);
+      void router.replace(nextPath);
     }
   };
 
@@ -114,7 +106,7 @@ const CareerLoginContent = () => {
       <Head>
         <link rel="icon" href="/images/logo.ico" />
       </Head>
-      <main className="flex min-h-screen w-full flex-col bg-beige100 px-4 py-5 font-geist text-beige900">
+      <main className="flex min-h-svh w-full flex-col bg-beige100 px-4 py-5 font-geist text-beige900">
         <div className="mx-auto flex w-full max-w-[1040px] items-center justify-between">
           <button
             type="button"
@@ -125,191 +117,208 @@ const CareerLoginContent = () => {
           </button>
         </div>
 
-        <section className="mx-auto flex w-full max-w-[420px] flex-1 flex-col justify-center py-12">
-          <h1 className="text-center text-3xl font-medium tracking-[-0.04em]">
-            Login
-          </h1>
+        <section className="mx-auto flex w-full max-w-[420px] flex-1 flex-col justify-center py-8 md:py-12">
+          {emailConfirmationSent ? (
+            <div className="text-center" role="status" aria-live="polite">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-beige900/10 bg-white/55 text-beige900">
+                <MailCheck className="h-5 w-5" />
+              </div>
+              <h1 className="mt-5 text-3xl font-medium tracking-[-0.04em]">
+                인증 메일을 보냈습니다
+              </h1>
+              <p className="mt-4 text-[15px] leading-7 text-beige900/70">
+                {submittedEmail ? `${submittedEmail}로 ` : ""}
+                보낸 메일의 인증 링크를 열어 회원가입을 완료해 주세요. 인증이
+                끝나면 다시 이 페이지로 돌아와 이메일 로그인으로 계속할 수
+                있습니다.
+              </p>
+              <p className="mt-3 text-[13px] leading-6 text-beige900/50">
+                메일이 보이지 않으면 스팸함이나 프로모션함도 확인해 주세요.
+              </p>
+            </div>
+          ) : (
+            <>
+              <h1 className="text-center text-3xl font-medium tracking-[-0.04em]">
+                Login
+              </h1>
 
-          <div className="mt-8 flex flex-col gap-3">
-            <BeigeButton
-              type="button"
-              size="lg"
-              variant="primary"
-              onClick={() => void handleGoogleLogin()}
-              disabled={authPending}
-              icon={
-                authPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Image
-                    src="/images/logos/google.png"
-                    alt=""
-                    width={16}
-                    height={16}
-                    aria-hidden="true"
-                  />
-                )
-              }
-              className="w-full"
-            >
-              {authPending ? "처리 중..." : "구글 로그인"}
-            </BeigeButton>
-
-            <BeigeButton
-              type="button"
-              size="lg"
-              variant="outline"
-              icon={<Mail className="h-4 w-4" />}
-              onClick={() => setShowEmailForm((current) => !current)}
-              disabled={authPending}
-              className="w-full"
-            >
-              이메일로 로그인
-            </BeigeButton>
-          </div>
-
-          {showEmailForm ? (
-            <form
-              onSubmit={(event) => void handleSubmitEmailAuth(event)}
-              className="mt-4 space-y-3 border-t border-beige900/10 pt-4"
-            >
-              <BeigeInput
-                type="email"
-                placeholder="email@example.com"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                autoComplete="email"
-                disabled={authPending}
-                className="h-11"
-              />
-              <BeigeInput
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(event) => {
-                  setPassword(event.target.value);
-                  setFormError("");
-                }}
-                autoComplete={
-                  emailMode === "signin" ? "current-password" : "new-password"
-                }
-                disabled={authPending}
-                className="h-11"
-              />
-              {emailMode === "signup" ? (
-                <BeigeInput
-                  type="password"
-                  placeholder="Password check"
-                  value={passwordConfirm}
-                  onChange={(event) => {
-                    setPasswordConfirm(event.target.value);
-                    setFormError("");
-                  }}
-                  autoComplete="new-password"
+              <div className="mt-8 flex flex-col gap-3">
+                <BeigeButton
+                  type="button"
+                  size="lg"
+                  variant="primary"
+                  onClick={() => void handleGoogleLogin()}
                   disabled={authPending}
-                  className="h-11"
-                />
-              ) : null}
-              <BeigeButton
-                type="submit"
-                size="lg"
-                variant="primary"
-                disabled={authPending}
-                className="w-full"
-              >
-                {authPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    처리 중...
-                  </>
-                ) : emailMode === "signin" ? (
-                  "로그인"
-                ) : (
-                  "회원가입"
-                )}
-              </BeigeButton>
-              <button
-                type="button"
-                onClick={() => {
-                  setFormError("");
-                  setPasswordConfirm("");
-                  setEmailMode((current) =>
-                    current === "signin" ? "signup" : "signin"
-                  );
-                }}
-                className="w-full text-center text-sm text-beige900/60 underline underline-offset-4 transition hover:text-beige900"
-              >
-                {emailMode === "signin"
-                  ? "처음이라면 회원가입"
-                  : "이미 계정이 있다면 로그인"}
-              </button>
-            </form>
-          ) : null}
+                  icon={
+                    authPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Image
+                        src="/images/logos/google.png"
+                        alt=""
+                        width={16}
+                        height={16}
+                        aria-hidden="true"
+                      />
+                    )
+                  }
+                  className="w-full"
+                >
+                  {authPending ? "처리 중..." : "구글 로그인"}
+                </BeigeButton>
 
-          {formError || authError ? (
-            <p className="mt-4 border border-xprimary/30 bg-white/45 px-3 py-2 text-sm leading-6 text-xprimary">
-              {formError || authError}
-            </p>
-          ) : null}
-          {authInfo ? (
-            <p className="mt-3 border border-beige900/10 bg-white/45 px-3 py-2 text-sm leading-6 text-beige900/70">
-              {authInfo}
-            </p>
-          ) : null}
+                <BeigeButton
+                  type="button"
+                  size="lg"
+                  variant="outline"
+                  icon={<Mail className="h-4 w-4" />}
+                  onClick={() => setShowEmailForm((current) => !current)}
+                  disabled={authPending}
+                  className="w-full"
+                >
+                  이메일로 로그인
+                </BeigeButton>
+              </div>
+
+              {showEmailForm ? (
+                <form
+                  onSubmit={(event) => void handleSubmitEmailAuth(event)}
+                  className="mt-4 space-y-3 border-t border-beige900/10 pt-4"
+                >
+                  <BeigeInput
+                    type="email"
+                    placeholder="email@example.com"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    autoComplete="email"
+                    disabled={authPending}
+                    className="h-11"
+                  />
+                  <BeigeInput
+                    type="password"
+                    placeholder="Password"
+                    value={password}
+                    onChange={(event) => {
+                      setPassword(event.target.value);
+                      setFormError("");
+                    }}
+                    autoComplete={
+                      emailMode === "signin"
+                        ? "current-password"
+                        : "new-password"
+                    }
+                    disabled={authPending}
+                    className="h-11"
+                  />
+                  {emailMode === "signup" ? (
+                    <BeigeInput
+                      type="password"
+                      placeholder="Password check"
+                      value={passwordConfirm}
+                      onChange={(event) => {
+                        setPasswordConfirm(event.target.value);
+                        setFormError("");
+                      }}
+                      autoComplete="new-password"
+                      disabled={authPending}
+                      className="h-11"
+                    />
+                  ) : null}
+                  <BeigeButton
+                    type="submit"
+                    size="lg"
+                    variant="primary"
+                    disabled={authPending}
+                    icon={
+                      authPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : undefined
+                    }
+                    className="w-full"
+                  >
+                    {authPending
+                      ? "처리 중..."
+                      : emailMode === "signin"
+                        ? "로그인"
+                        : "회원가입"}
+                  </BeigeButton>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormError("");
+                      setPasswordConfirm("");
+                      setEmailMode((current) =>
+                        current === "signin" ? "signup" : "signin"
+                      );
+                    }}
+                    className="w-full text-center text-sm text-beige900/60 underline underline-offset-4 transition hover:text-beige900"
+                  >
+                    {emailMode === "signin"
+                      ? "처음이라면 회원가입"
+                      : "이미 계정이 있다면 로그인"}
+                  </button>
+                </form>
+              ) : null}
+
+              {formError || authError ? (
+                <p className="mt-4 border border-xprimary/30 bg-white/45 px-3 py-2 text-sm leading-6 text-xprimary">
+                  {formError || authError}
+                </p>
+              ) : null}
+            </>
+          )}
         </section>
 
-        <section className="mx-auto w-full max-w-[760px] pb-6 text-center">
-          <div className="flex flex-wrap items-center justify-center gap-2 text-sm font-medium text-beige900/65">
-            <span>100+ engineers and researchers from</span>
-            <span className="flex -space-x-2">
-              {schoolLogos.map((school) => (
+        {!emailConfirmationSent ? (
+          <section className="mx-auto w-full max-w-[760px] pb-6 text-center">
+            <div className="flex flex-wrap items-center justify-center gap-2 text-sm font-medium text-beige900/65">
+              <span>100+ engineers and researchers from</span>
+              <span className="flex -space-x-2">
+                {schoolLogos.map((school) => (
+                  <span
+                    key={school.name}
+                    className="relative inline-flex h-8 w-8 overflow-hidden rounded-full border border-beige900/20 bg-beige500"
+                  >
+                    <Image
+                      src={school.src}
+                      alt={school.name}
+                      fill
+                      sizes="32px"
+                      className="object-cover"
+                    />
+                  </span>
+                ))}
+              </span>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center justify-center text-sm font-medium text-beige900/65">
+              <span>Companies from</span>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center justify-center gap-x-6 gap-y-4 opacity-80 md:gap-x-8">
+              {companyLogos.map((logo) => (
                 <span
-                  key={school.name}
-                  className="inline-flex h-8 w-8 overflow-hidden rounded-full border border-beige900/20 bg-beige500"
+                  key={logo.name}
+                  className="relative block h-8"
+                  style={{ width: logo.width }}
                 >
-                  <img
-                    src={school.src}
-                    alt={school.name}
-                    className="h-full w-full object-cover"
+                  <Image
+                    src={logo.src}
+                    alt={logo.name}
+                    fill
+                    sizes={`${logo.width}px`}
+                    className="object-contain"
                   />
                 </span>
               ))}
-            </span>
-          </div>
-          <div className="mt-4 flex flex-wrap items-center justify-center text-sm font-medium text-beige900/65">
-            <span>Companies from</span>
-          </div>
-          <div className="mt-2 flex flex-wrap items-center justify-center gap-x-8 gap-y-4 opacity-80">
-            {companyLogos.map((logo) => (
-              <img
-                key={logo.name}
-                src={logo.src}
-                alt={logo.name}
-                className="object-contain"
-                style={{ width: logo.width }}
-              />
-            ))}
-          </div>
-        </section>
+            </div>
+          </section>
+        ) : null}
       </main>
     </>
   );
 };
 
 const CareerLogin = () => {
-  const router = useRouter();
-  const user = useAuthStore((state) => state.user);
-  const entryReason = resolveCareerMobileEntryReason(router.query);
-
-  return (
-    <CareerMobileViewportGate
-      desktopFallback={<CareerLoginLoadingState />}
-      entryReason={entryReason}
-      user={user}
-    >
-      <CareerLoginContent />
-    </CareerMobileViewportGate>
-  );
+  return <CareerLoginContent />;
 };
 
 export default CareerLogin;

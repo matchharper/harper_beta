@@ -224,7 +224,7 @@ const AppHeader = ({ topClassName = "top-0" }: AppHeaderProps) => {
                   Google 로그인
                 </button>
 
-                <p className="mt-4 text-xs font-medium uppercase tracking-[0.1em] text-hblack500">
+                <p className="mt-4 text-xs font-medium uppercase tracking-widest text-hblack500">
                   이메일 {authMode === "signup" ? "회원가입" : "로그인"}
                 </p>
                 <form onSubmit={handleEmailAuth} className="mt-2 space-y-2">

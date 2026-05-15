@@ -109,7 +109,7 @@ function RoleDescriptionMarkdownPreview({ markdown }: { markdown: string }) {
               rehypePlugins={[rehypeSanitize]}
               components={{
                 h1: ({ children }) => (
-                  <h1 className="font-halant text-[1.7rem] leading-[1] tracking-[-0.05em] text-beige900">
+                  <h1 className="font-halant text-[1.7rem] leading-none tracking-tighter text-beige900">
                     {children}
                   </h1>
                 ),

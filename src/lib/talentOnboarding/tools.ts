@@ -646,7 +646,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE]: {
     name: TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
     description:
-      "Update internal profile state with new information about the user. It can update talent_users.bio, talent_preferences, and row memos during onboarding and after onboarding. It can update talent_insights only after onboarding is already complete, and only for future recommendation/search memory, not profile-row facts that belong in experiences, educations, or extras. Call when the user's latest statement directly maps to writable state, including explicit durable hard-filter search commands such as '미국 회사로만 찾아줘', '앞으로 리모트만 보내줘', '대기업은 빼고 찾아줘', or '다음부터 Series B 이상만 봐줘'. Do not call for user questions, one-off browsing/curiosity/search requests, hypotheticals/conditional speech ('만약 ~라면'), assistant statements, aspirational/off-profile role mentions without explicit future intent, or information already saved in current state. If a post-onboarding update is marked high-impact and actually changes recommendation-relevant state, Harper will automatically run a fresh job-posting recommendation search after this tool, so reserve high impact for material changes. After the tool result, produce a normal user-facing chat reply in Korean; do not return an empty assistant message or only an onboarding marker.",
+      "Update internal profile state with new information about the user. It can update talent_users.bio, talent_preferences, and row memos during onboarding and after onboarding. It can update talent_insights only after onboarding is already complete, and only for future recommendation/search memory, not profile-row facts that belong in experiences, educations, or extras. Call when the user's latest statement directly maps to writable state, including explicit durable hard-filter search commands such as '미국 회사로만 찾아줘', '앞으로 리모트만 보내줘', '대기업은 빼고 찾아줘', or '다음부터 Series B 이상만 봐줘'. For recommendation cadence, normal periodicIntervalDays values are 2-7. If the user says to stop recommendations entirely, set preferences.periodicIntervalDays=-1 and preferences.recommendationBatchSize=-1. If the user wants only internal Harper-connected recommendations, set preferences.periodicIntervalDays=-1 and preferences.recommendationBatchSize=1. Do not call for user questions, one-off browsing/curiosity/search requests, hypotheticals/conditional speech ('만약 ~라면'), assistant statements, aspirational/off-profile role mentions without explicit future intent, or information already saved in current state. If a post-onboarding update is marked high-impact and actually changes recommendation-relevant state, Harper will automatically run a fresh job-posting recommendation search after this tool, so reserve high impact for material changes. After the tool result, produce a normal user-facing chat reply in Korean; do not return an empty assistant message or only an onboarding marker.",
     parameters: {
       type: "object",
       properties: {
@@ -666,21 +666,23 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         preferences: {
           type: "object",
           description:
-            "Structured talent_preferences fields. Provide ONLY fields the user newly disclosed. Only numeric recommendation cadence fields are writable here.",
+            "Structured talent_preferences fields. Provide ONLY fields the user newly disclosed. Only numeric recommendation cadence fields are writable here. Special paired values: stop all recommendations = periodicIntervalDays -1 and recommendationBatchSize -1; internal-only recommendations = periodicIntervalDays -1 and recommendationBatchSize 1.",
           properties: {
             periodicIntervalDays: {
-              type: "integer",
+              anyOf: [
+                { type: "integer", enum: [-1] },
+                { type: "integer", minimum: 2, maximum: 7 },
+              ],
               description:
-                "How often (in days, 1-30) the user wants opportunity batches. Set only when user states a clear cadence.",
-              minimum: 1,
-              maximum: 30,
+                "How often (in days) the user wants opportunity batches. Normal values must be 2-7. Use -1 only as part of the special stop-all or internal-only paired values.",
             },
             recommendationBatchSize: {
-              type: "integer",
+              anyOf: [
+                { type: "integer", enum: [-1] },
+                { type: "integer", minimum: 1, maximum: 10 },
+              ],
               description:
-                "Number of opportunities per batch (1-10). Set only when user states a clear preferred batch size.",
-              minimum: 1,
-              maximum: 10,
+                "Number of opportunities per batch (1-10). Use -1 only with periodicIntervalDays -1 when the user wants to stop recommendations entirely; use 1 with periodicIntervalDays -1 when the user wants only internal Harper-connected recommendations.",
             },
           },
           additionalProperties: false,
@@ -1261,7 +1263,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const hasRecommendationChangingUpdate =
         preferenceChanges.length > 0 || talentInsightKeys.length > 0;
       const shouldRecommendJobPostings =
-        impactLevel === "high" &&
+        // impactLevel === "high" &&
         hasRecommendationChangingUpdate &&
         Boolean((await loadExistingSetting())?.is_onboarding_done);
       const recommendationTrigger = shouldRecommendJobPostings

@@ -11,12 +11,8 @@ import {
 import React, { KeyboardEvent, useMemo, useState } from "react";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
 import type { CareerProfileVisibility } from "@/hooks/career/useCareerTalentSettings";
-import {
-  CareerField,
-  CareerPrimaryButton,
-  CareerSecondaryButton,
-  CareerTextInput,
-} from "./ui/CareerPrimitives";
+import { CareerField, CareerTextInput } from "./ui/CareerPrimitives";
+import { CareerActionButton, CareerChoiceCard } from "./ui/CareerActionButton";
 
 const PROFILE_VISIBILITY_OPTIONS: Array<{
   value: CareerProfileVisibility;
@@ -72,7 +68,6 @@ export const CareerProfileSharingSettingsSection = ({
     settingsLoading,
     settingsSaving,
     settingsError,
-    settingsSaveInfo,
     settingsUpdatedAt,
     profileVisibility,
     blockedCompanies,
@@ -93,7 +88,6 @@ export const CareerProfileSharingSettingsSection = ({
   const hasUnsavedChanges = hasUnsavedTalentSettingsChanges;
   const canSaveProfileSettings = hasUnsavedChanges && !settingsLoading;
   const saveError = settingsError;
-  const saveInfo = settingsSaveInfo;
   const selectedVisibilityOption = useMemo(
     () =>
       PROFILE_VISIBILITY_OPTIONS.find(
@@ -207,9 +201,8 @@ export const CareerProfileSharingSettingsSection = ({
                 const isSelected = option.value === profileVisibility;
 
                 return (
-                  <button
+                  <CareerChoiceCard
                     key={option.value}
-                    type="button"
                     onClick={() =>
                       void handleProfileVisibilitySelect(option.value)
                     }
@@ -218,21 +211,17 @@ export const CareerProfileSharingSettingsSection = ({
                       isSavePending ||
                       profileVisibilitySavePending
                     }
-                    className={[
-                      "rounded-[8px] border px-4 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60",
-                      isSelected
-                        ? "border-beige900 bg-beige200/80 text-beige900 outline outline-[0.5px] outline-beige900"
-                        : "border-beige900/15 bg-white/45 text-beige900/70 hover:border-beige900/40 hover:text-beige900",
-                    ].join(" ")}
+                    selected={isSelected}
+                    className="block h-auto whitespace-normal"
                   >
                     <div className="flex items-center gap-2 text-sm font-medium">
                       <option.Icon className="h-4 w-4" />
                       <span>{option.label}</span>
                     </div>
-                    <p className="mt-2 text-[13px] leading-5 text-inherit/80">
+                    <p className="mt-2 text-[13px] leading-5 opacity-80">
                       {option.description}
                     </p>
-                  </button>
+                  </CareerChoiceCard>
                 );
               })}
             </div>
@@ -284,22 +273,24 @@ export const CareerProfileSharingSettingsSection = ({
                 }
                 className="flex-1"
               />
-              <CareerSecondaryButton
+              <CareerActionButton
                 onClick={() => void handleAddBlockedCompany()}
                 disabled={
                   settingsLoading ||
                   isSavePending ||
                   blockedCompaniesSavePending
                 }
-                className="gap-2 px-4"
+                actionVariant="secondary"
+                buttonRadius="rounded"
+                className="py-0 h-9"
               >
                 {blockedCompaniesSavePending ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <Loader2 className="h-3 w-3 animate-spin" />
                 ) : (
-                  <Plus className="h-3.5 w-3.5" />
+                  <Plus className="h-3 w-3" />
                 )}
                 {blockedCompaniesSavePending ? "저장 중..." : "추가"}
-              </CareerSecondaryButton>
+              </CareerActionButton>
             </div>
 
             {blockedCompanies.length === 0 ? (
@@ -314,8 +305,7 @@ export const CareerProfileSharingSettingsSection = ({
                     className="inline-flex items-center gap-2 rounded-[8px] border border-beige900/10 bg-white/45 pl-3 pr-1.5 py-1.5 text-sm text-beige900"
                   >
                     <span>{companyName}</span>
-                    <button
-                      type="button"
+                    <CareerActionButton
                       onClick={() =>
                         void handleRemoveBlockedCompany(companyName)
                       }
@@ -324,11 +314,13 @@ export const CareerProfileSharingSettingsSection = ({
                         isSavePending ||
                         blockedCompaniesSavePending
                       }
-                      className="inline-flex h-6 w-6 items-center justify-center rounded-md text-beige900/45 transition-colors hover:bg-beige900/10 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-60"
+                      actionVariant="icon"
+                      buttonRadius="rounded"
+                      className="h-6 w-6 border-transparent bg-transparent text-beige900/45 hover:bg-beige900/10"
                       aria-label={`${companyName} 삭제`}
                     >
                       <X className="h-3.5 w-3.5" />
-                    </button>
+                    </CareerActionButton>
                   </div>
                 ))}
               </div>
@@ -343,28 +335,23 @@ export const CareerProfileSharingSettingsSection = ({
         </div>
       )}
 
-      {saveInfo && (
-        <div className="mt-5 border border-beige900/10 bg-white/40 px-4 py-3 text-sm text-beige900/50">
-          {saveInfo}
-        </div>
-      )}
-
       {hasUnsavedChanges &&
         !profileVisibilitySavePending &&
         !blockedCompaniesSavePending && (
           <div className="fixed bottom-4 right-4 flex justify-end gap-2">
-            <CareerSecondaryButton
+            <CareerActionButton
               onClick={handleRefresh}
               disabled={isSavePending || settingsLoading}
-              className="gap-2 px-4 bg-beige50/70"
+              actionVariant="secondary"
+              className="bg-beige50/70"
             >
               <Undo2 className="h-4 w-4" />
               되돌리기
-            </CareerSecondaryButton>
-            <CareerPrimaryButton
+            </CareerActionButton>
+            <CareerActionButton
               onClick={() => void handleSave()}
               disabled={isSavePending || !canSaveProfileSettings}
-              className="gap-2 px-5"
+              actionVariant="primary"
             >
               {isSavePending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -372,7 +359,7 @@ export const CareerProfileSharingSettingsSection = ({
                 <Save className="h-4 w-4" />
               )}
               {isSavePending ? "저장 중..." : "설정 저장"}
-            </CareerPrimaryButton>
+            </CareerActionButton>
           </div>
         )}
     </div>

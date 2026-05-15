@@ -471,7 +471,7 @@ export default function ResultPage() {
       >
         <div
           style={leftPaneStyle}
-          className={`relative flex-shrink-0 border-r ${
+          className={`relative shrink-0 border-r ${
             isResizing
               ? "transition-none"
               : "transition-all duration-300 ease-in-out"
@@ -489,7 +489,7 @@ export default function ResultPage() {
           {!isChatFull && (
             <div
               onMouseDown={handleResizeStart}
-              className={`absolute top-0 -right-[3px] z-50 h-full w-[2px] cursor-col-resize ${
+              className={`absolute top-0 right-[-3px] z-50 h-full w-[2px] cursor-col-resize ${
                 isResizing ? "bg-beige900/50" : "bg-transparent hover:bg-beige900/20"
               }`}
             />

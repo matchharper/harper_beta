@@ -2,7 +2,7 @@
 
 import { Input, inputSurfaceClassName } from "@/components/ui/input";
 import { cn } from "@/lib/cn";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -86,7 +86,7 @@ export default function MatchWorkspaceForm({
   const labelStyle = "mb-3 text-xs text-beige900/80";
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center px-4 py-6 sm:px-6">
+    <div className="fixed inset-0 z-80 flex items-center justify-center px-4 py-6 sm:px-6">
       <motion.button
         type="button"
         aria-label="워크스페이스 폼 닫기"
@@ -105,7 +105,7 @@ export default function MatchWorkspaceForm({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 20, scale: 0.98 }}
         transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-        className="relative z-[1] w-full max-w-[560px] overflow-hidden rounded-[16px] bg-beige50 shadow-[0_32px_90px_rgba(0,0,0,0.12)] ring-1 ring-beige900/8"
+        className="relative z-1 w-full max-w-[560px] overflow-hidden rounded-[16px] bg-beige50 shadow-[0_32px_90px_rgba(0,0,0,0.12)] ring-1 ring-beige900/8"
       >
         <div className="px-5 py-4">
           <div className="flex flex-row items-center justify-between gap-6">

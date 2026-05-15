@@ -658,7 +658,7 @@ function ContactHistoryCell({
                   </span>
                 </div>
                 {item.note && (
-                  <div className="mt-1.5 break-words text-xs leading-5 text-beige900/60">
+                  <div className="mt-1.5 wrap-break-word text-xs leading-5 text-beige900/60">
                     {item.note}
                   </div>
                 )}

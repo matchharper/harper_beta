@@ -2,7 +2,7 @@ import Reveal from "@/components/landing/Animation/Reveal";
 import { ContributionGrid } from "@/components/landing/ContributionGrid";
 import FullBleedSection from "@/components/landing/FullBleedSection";
 import StaggerText from "@/components/landing/Animation/StaggerText";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { ArrowUpRight, Check, Dot, Plus, Quote, X } from "lucide-react";
 import Head from "next/head";
 import React, { CSSProperties, useEffect, useMemo, useState } from "react";
@@ -190,7 +190,7 @@ const RadarButton = ({
     className={`group inline-flex h-[50px] items-center gap-2 rounded-full bg-beige100 px-6 font-geist text-[15px] font-medium tracking-[-0.03em] text-black shadow-[0_14px_30px_rgba(0,0,0,0.22)] transition-shadow duration-300 hover:shadow-[0_18px_40px_rgba(0,0,0,0.3)] ${className}`}
   >
     <span>{label}</span>
-    <ArrowUpRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-[2px] group-hover:-translate-y-[2px]" />
+    <ArrowUpRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-[2px] group-hover:translate-y-[-2px]" />
   </motion.a>
 );
 
@@ -353,7 +353,7 @@ const ComparisonCard = ({
       >
         {title}
       </h3>
-      <div className="space-y-4 text-lg leading-[1.42] tracking-[-0.00em] max-[809px]:text-[16px] text-white/90">
+      <div className="space-y-4 text-lg leading-[1.42] tracking-normal max-[809px]:text-[16px] text-white/90">
         {items.map((item) => (
           <div key={item} className="flex flex-row items-center gap-2">
             {isPositive ? (
@@ -492,7 +492,7 @@ const Beige = () => {
                     ease: [0.76, 0, 0.24, 1],
                   },
                 }}
-                className="fixed inset-0 z-[120] flex items-center justify-center bg-beige500"
+                className="fixed inset-0 z-120 flex items-center justify-center bg-beige500"
               >
                 <div className="font-hedvig text-7xl tracking-[-0.08em] text-beige900">
                   <StaggerText text="Harper" by="char" delay={0.08} />
@@ -617,7 +617,7 @@ const Beige = () => {
                 <h2 className="mt-7 max-w-[520px] font-hedvig text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[0.95] tracking-[-0.08em] text-beige900">
                   Hire at the speed of AI
                 </h2>
-                <p className="mt-8 max-w-[540px] text-[20px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
+                <p className="mt-8 max-w-[540px] text-[20px] leading-normal tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
                   We’ve eliminated the months of friction in technical hiring.
                   <br />
                   Harper leverages deep technical indexing to replace manual
@@ -646,7 +646,7 @@ const Beige = () => {
                       </div>
                       <div>
                         <div className="flex items-start gap-3 max-[809px]:flex-col-reverse max-[809px]:gap-2">
-                          <h3 className="text-xl font-medium leading-[1.12] tracking-[-0.05em] text-beige900 max-[809px]:mt-2">
+                          <h3 className="text-xl font-medium leading-[1.12] tracking-tighter text-beige900 max-[809px]:mt-2">
                             {item.title}
                           </h3>
                           {/* <span className="rounded-md bg-beige500/80 px-3 py-1 text-sm font-medium tracking-[-0.02em] text-beige900/80">
@@ -654,7 +654,7 @@ const Beige = () => {
                           </span> */}
                         </div>
                         <p
-                          className="mt-2 max-w-[420px] text-[18px] leading-[1.5] tracking-[-0.03em] text-beige900/50"
+                          className="mt-2 max-w-[420px] text-[18px] leading-normal tracking-[-0.03em] text-beige900/50"
                           dangerouslySetInnerHTML={{ __html: item.description }}
                         />
                       </div>
@@ -702,7 +702,7 @@ const Beige = () => {
                 >
                   Hiring, simplified
                 </h2>
-                <p className="mx-auto mt-6 max-w-[680px] text-[20px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
+                <p className="mx-auto mt-6 max-w-[680px] text-[20px] leading-normal tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
                   Tell us who you need. We find, shortlist, and deliver
                   candidates you can review and interview right away.
                 </p>
@@ -745,7 +745,7 @@ const Beige = () => {
                 </div>
 
                 <Reveal once direction="right" delay={0.08}>
-                  <div className="relative min-h-[33rem] max-[1199px]:min-h-0">
+                  <div className="relative min-h-132 max-[1199px]:min-h-0">
                     <AnimatePresence mode="wait">
                       <motion.div
                         key={activeProcess.title}
@@ -768,7 +768,7 @@ const Beige = () => {
                           />
                         </div>
                         <div>
-                          <h3 className="text-[28px] sm:text-[30px] md:text-[32px] lg:text-[34px] font-semibold leading-[1.08] tracking-[-0.05em] text-beige900">
+                          <h3 className="text-[28px] sm:text-[30px] md:text-[32px] lg:text-[34px] font-semibold leading-[1.08] tracking-tighter text-beige900">
                             {activeProcess.title}
                           </h3>
                           <p className="mt-4 max-w-[520px] text-[19px] leading-[1.56] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[17px]">
@@ -793,7 +793,7 @@ const Beige = () => {
                   <br />
                   to 2 hours of interviewing.
                 </h2>
-                <div className="mt-8 max-w-[540px] space-y-6 text-[18px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[16px]">
+                <div className="mt-8 max-w-[540px] space-y-6 text-[18px] leading-normal tracking-[-0.03em] text-beige900/50 max-[809px]:text-[16px]">
                   <p>
                     For a leading tech organization known for its rigorous
                     engineering standards, manual sourcing was a massive
@@ -850,7 +850,7 @@ const Beige = () => {
                     Faster, Cheaper,{" "}
                     <span className="text-beige900/50">Better</span>
                   </h2>
-                  <p className="text-right text-[20px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
+                  <p className="text-right text-[20px] leading-normal tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
                     We replace manual recruiting with
                     <br />
                     AI-driven search, evaluation, and matching.
@@ -869,7 +869,7 @@ const Beige = () => {
                   Hyper-focused on{" "}
                   <span className="text-beige900/40">AI/ML</span>
                 </h2>
-                <p className="mx-auto mt-6 max-w-[640px] text-[20px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
+                <p className="mx-auto mt-6 max-w-[640px] text-[20px] leading-normal tracking-[-0.03em] text-beige900/50 max-[809px]:text-[18px]">
                   We are your{" "}
                   <span className="text-beige900">recruiting partner</span> for
                   the 1% of technical talent
@@ -932,7 +932,7 @@ const Beige = () => {
                   <div className="absolute inset-0 bg-[linear-gradient(135deg,transparent_0%,rgba(255,255,255,0.04)_100%)]" />
                   <div className="relative">
                     <div className="rounded-[22px]">
-                      <div className="max-w-[28rem] font-geist text-base md:text-lg leading-[1.55] tracking-[-0.03em] text-white/90">
+                      <div className="max-w-md font-geist text-base md:text-lg leading-[1.55] tracking-[-0.03em] text-white/90">
                         Find multimodal ML engineers who shipped production
                         systems and also published or contributed meaningful
                         research work.
@@ -1065,7 +1065,7 @@ const Beige = () => {
                   We are open for{" "}
                   <span className="text-beige900/40">questions</span>
                 </h2>
-                <p className="mx-auto mt-6 max-w-[500px] text-[19px] leading-[1.5] tracking-[-0.03em] text-beige900/50 max-[809px]:text-[17px]">
+                <p className="mx-auto mt-6 max-w-[500px] text-[19px] leading-normal tracking-[-0.03em] text-beige900/50 max-[809px]:text-[17px]">
                   Or request access to learn more.
                 </p>
               </Reveal>
