@@ -16,7 +16,7 @@ type Options = {
 };
 
 type Result = {
-  containerRef: RefObject<HTMLDivElement>;
+  containerRef: RefObject<HTMLDivElement | null>;
   widthPct: number;
   handleResizeStart: (clientX: number) => void;
   handleResizeKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
