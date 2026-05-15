@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/router";
+import { useCallback, useMemo, useState } from "react";
 import { useCareerChatPanelContext } from "./CareerChatPanelContext";
 import CareerCallScreen from "./chat/CareerCallScreen";
 import CareerCallEnvironmentNotice from "./chat/CareerCallEnvironmentNotice";
@@ -7,6 +6,7 @@ import CareerComposerSection from "./chat/CareerComposerSection";
 import CareerTimelineSection from "./chat/CareerTimelineSection";
 import CareerWelcomeScreen from "./chat/CareerWelcomeScreen";
 import { careerCx } from "./ui/CareerPrimitives";
+import { useCareerAutoStart } from "@/hooks/career/useCareerAutoStart";
 import React from "react";
 
 const CareerCallLoadingScreen = ({
@@ -40,10 +40,33 @@ const CareerCallLoadingScreen = ({
   </div>
 );
 
+const CallSessionView = ({
+  inputMode,
+  callStartPending,
+}: {
+  inputMode: string;
+  callStartPending: boolean;
+}) => {
+  const [collapsed, setCollapsed] = useState(false);
+  const toggle = useCallback(() => setCollapsed((prev) => !prev), []);
+
+  if (inputMode === "call") {
+    return (
+      <CareerCallScreen noticeCollapsed={collapsed} onToggleNotice={toggle} />
+    );
+  }
+  if (callStartPending) {
+    return (
+      <CareerCallLoadingScreen
+        noticeCollapsed={collapsed}
+        onToggleNotice={toggle}
+      />
+    );
+  }
+  return null;
+};
+
 const CareerChatPanel = () => {
-  const router = useRouter();
-  const autoStartHandledRef = useRef(false);
-  const [isCallNoticeCollapsed, setIsCallNoticeCollapsed] = useState(false);
   const {
     user,
     inputMode,
@@ -55,50 +78,14 @@ const CareerChatPanel = () => {
     onStartCallMode,
     onUseChatOnly,
   } = useCareerChatPanelContext();
-  const showCallEnvironmentNotice = callStartPending || inputMode === "call";
 
-  const clearStartQuery = useCallback(() => {
-    if (typeof window === "undefined") return;
-    const nextUrl = new URL(window.location.href);
-    nextUrl.searchParams.delete("start");
-    const nextPathname =
-      nextUrl.pathname.replace(/\/+$/, "") === "/career/chat"
-        ? "/career"
-        : nextUrl.pathname;
-    void router.replace(`${nextPathname}${nextUrl.search}`, undefined, {
-      shallow: true,
-    });
-  }, [router]);
-
-  useEffect(() => {
-    if (!router.isReady || autoStartHandledRef.current) return;
-    if (!user || onboardingBeginPending || !showVoiceStartPrompt) return;
-
-    const startMode =
-      router.query.start === "call" || router.query.start === "chat"
-        ? router.query.start
-        : null;
-    if (!startMode) return;
-
-    autoStartHandledRef.current = true;
-    clearStartQuery();
-
-    if (startMode === "call" && onStartCallMode) {
-      void onStartCallMode();
-      return;
-    }
-
-    void onUseChatOnly();
-  }, [
-    clearStartQuery,
+  useCareerAutoStart({
+    user,
     onboardingBeginPending,
+    showVoiceStartPrompt,
     onStartCallMode,
     onUseChatOnly,
-    router.isReady,
-    router.query.start,
-    showVoiceStartPrompt,
-    user,
-  ]);
+  });
 
   const hasConversationActivity = useMemo(
     () =>
@@ -114,14 +101,6 @@ const CareerChatPanel = () => {
     !isOnboardingDone &&
     !hasConversationActivity &&
     showVoiceStartPrompt;
-  const handleToggleCallNotice = useCallback(() => {
-    setIsCallNoticeCollapsed((prev) => !prev);
-  }, []);
-
-  useEffect(() => {
-    if (showCallEnvironmentNotice) return;
-    setIsCallNoticeCollapsed(false);
-  }, [showCallEnvironmentNotice]);
 
   const chatContent = showInitialWelcome ? (
     <CareerWelcomeScreen />
@@ -132,32 +111,27 @@ const CareerChatPanel = () => {
     </>
   );
 
+  const callSessionActive = callStartPending || inputMode === "call";
+
   return (
     <section className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-      {inputMode === "call" ? (
-        <CareerCallScreen
-          noticeCollapsed={isCallNoticeCollapsed}
-          onToggleNotice={handleToggleCallNotice}
-        />
-      ) : (
-        <>
-          <div
-            className={careerCx(
-              "flex min-h-0 flex-1 flex-col transition-all duration-500 ease-out",
-              callStartPending
-                ? "pointer-events-none translate-y-2 scale-[0.985] opacity-0 blur-[2px]"
-                : "translate-y-0 scale-100 opacity-100 blur-0"
-            )}
-          >
-            {chatContent}
-          </div>
-          {callStartPending && (
-            <CareerCallLoadingScreen
-              noticeCollapsed={isCallNoticeCollapsed}
-              onToggleNotice={handleToggleCallNotice}
-            />
+      {inputMode !== "call" && (
+        <div
+          className={careerCx(
+            "flex min-h-0 flex-1 flex-col transition-all duration-500 ease-out",
+            callStartPending
+              ? "pointer-events-none translate-y-2 scale-[0.985] opacity-0 blur-[2px]"
+              : "translate-y-0 scale-100 opacity-100 blur-0"
           )}
-        </>
+        >
+          {chatContent}
+        </div>
+      )}
+      {callSessionActive && (
+        <CallSessionView
+          inputMode={inputMode}
+          callStartPending={callStartPending}
+        />
       )}
     </section>
   );

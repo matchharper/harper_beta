@@ -21,7 +21,6 @@ const CareerUpdateNotesModal = ({
       onClose={onClose}
       ariaLabel="업데이트 노트"
       overlayClassName="items-start pt-14"
-      backdropClassName="bg-beige900/20 backdrop-blur-[3px]"
       panelClassName="max-w-none w-[min(560px,calc(100vw-32px))] rounded-[16px] border-beige900/10 bg-beige50 shadow-[0_24px_70px_rgba(37,20,6,0.18)]"
       bodyClassName="p-0"
       closeButtonClassName="right-4 top-4 rounded-[8px] text-beige900/45 hover:bg-beige900/6 hover:text-beige900"

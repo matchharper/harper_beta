@@ -64,6 +64,9 @@ export const useOnboarding = ({
     }
   }, [beforeNext, isLastStep, onComplete, save, step, totalSteps]);
 
+  const handleNextRef = useRef(handleNext);
+  handleNextRef.current = handleNext;
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.isComposing) return;
@@ -77,7 +80,7 @@ export const useOnboarding = ({
 
       e.preventDefault();
 
-      handleNext();
+      handleNextRef.current();
 
       lock.current = true;
       setTimeout(() => {
@@ -87,7 +90,7 @@ export const useOnboarding = ({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [allowTextareaEnterSubmit, handleNext]);
+  }, [allowTextareaEnterSubmit]);
 
   useEffect(() => {
     if (!enableWheelNavigation) return;
@@ -112,7 +115,7 @@ export const useOnboarding = ({
         }, 500);
       } else if (e.deltaY > 75) {
         lock.current = true;
-        handleNext();
+        handleNextRef.current();
 
         setTimeout(() => {
           lock.current = false;
@@ -122,7 +125,7 @@ export const useOnboarding = ({
 
     window.addEventListener("wheel", handleWheel);
     return () => window.removeEventListener("wheel", handleWheel);
-  }, [enableWheelNavigation, handleNext, totalSteps]);
+  }, [enableWheelNavigation]);
 
   const handlePrev = useCallback(() => {
     isNextRef.current = false;

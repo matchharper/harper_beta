@@ -56,9 +56,10 @@ type CareerMobileJobsViewProps = {
   onNavigate: (delta: -1 | 1) => void;
   profilePicture?: string | null;
   userName?: string | null;
+  userEmail?: string | null;
   onOpenSettings?: () => void;
-  onOpenHelp?: () => void;
-  onOpenProfile?: () => void;
+  onOpenSupport?: () => void;
+  onLogout?: () => void | Promise<void>;
   activeJobsTab?: JobsDisplayTab;
   onChangeJobsTab?: (tab: JobsDisplayTab) => void;
   bottomReservePx?: number;
@@ -94,9 +95,10 @@ export default function CareerMobileJobsView({
   onNavigate,
   profilePicture,
   userName,
+  userEmail,
   onOpenSettings,
-  onOpenHelp,
-  onOpenProfile,
+  onOpenSupport,
+  onLogout,
   activeJobsTab,
   onChangeJobsTab,
   bottomReservePx = 200,
@@ -159,9 +161,10 @@ export default function CareerMobileJobsView({
           onChangeTab={onChangeWorkspaceTab}
           profilePicture={profilePicture}
           userName={userName}
+          userEmail={userEmail}
           onOpenSettings={onOpenSettings}
-          onOpenHelp={onOpenHelp}
-          onOpenProfile={onOpenProfile}
+          onOpenSupport={onOpenSupport}
+          onLogout={onLogout}
         />
       }
     >

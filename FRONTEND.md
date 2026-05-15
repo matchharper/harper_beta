@@ -64,7 +64,7 @@ const map = new Map<string, CandidateRecord>();          // 구체적 타입 파
 // ❌ 금지 — iOS Safari URL bar에서 100vh가 viewport를 넘침
 <div className="h-screen min-h-screen" />
 
-// ✅ Tailwind 3.4+ svh 유틸리티
+// ✅ Tailwind v4 svh 유틸리티
 <div className="h-svh min-h-svh" />
 ```
 
@@ -77,37 +77,42 @@ const map = new Map<string, CandidateRecord>();          // 구체적 타입 파
 ## 1. 디자인 시스템
 
 ### 1.1 스택
-- **CSS**: Tailwind CSS 3.4 + `tailwind-merge` + `tailwindcss-animate` + `tailwind-scrollbar`
+- **CSS**: Tailwind CSS 4 (`tailwindcss@^4.3`) + `@tailwindcss/postcss` + `tailwind-merge` + `tw-animate-css` + `tailwind-scrollbar`
 - **컴포넌트**: shadcn/ui (`new-york` preset) + Radix UI primitives
   - `src/components/ui/` — shadcn 기본
   - `src/components/ui/beige/` — beige 테마 오버라이드
 - **아이콘**: `lucide-react` (신규 코드는 lucide만)
 - **애니메이션**: `framer-motion` (페이지 단위) + Tailwind keyframes (`upDown`, `shake`, `textGlow`)
-- **폰트**: `PretendardVariable` (sans 기본), `Instrument Serif` (serif) — `tailwind.config.js` `fontFamily`에 등록
+- **폰트**: `PretendardVariable` (sans 기본), `Instrument Serif` (serif) — `src/globals.css`의 `@theme`에 `--font-*` 변수로 등록
+
+설정 파일은 **`src/globals.css` 한 곳**이다 (`tailwind.config.js` 없음). 토큰을 추가하려면 `@theme` 블록에 변수 한 줄, 유틸리티가 필요하면 `@utility` 블록을 추가한다.
 
 ### 1.2 SSOT 원칙
 Tailwind는 **컬러·spacing·typography의 단일 소스**다. 다음 누수는 PR에서 잡는다.
 
 - 신규 컴포넌트의 인라인 정적 스타일 → §0.3
 - 신규 styled-jsx → §0.5
-- 컬러 hex 리터럴 직접 사용 → `tailwind.config.js`의 토큰 사용
+- 컬러 hex 리터럴 직접 사용 → `globals.css` `@theme`의 `--color-*` 토큰 사용
 
-`globals.css`는 다음만 둔다:
-- `@tailwind` 디렉티브, `@font-face`
-- shadcn HSL CSS 변수 (`--background`, `--primary`, …)
+`src/globals.css`는 다음만 둔다 (v4 구성):
+- `@import 'tailwindcss';` (진입), `@import 'tw-animate-css';`, `@plugin '...';`
+- `@custom-variant` (dark 등 커스텀 variant)
+- `@theme { --color-*, --font-*, --background-image-*, ... }` — 디자인 토큰
+- shadcn HSL CSS 변수 (`--background`, `--primary`, …) — `:root` / `.dark`
 - 키프레임/글로벌 리셋 (`@layer base`, `@keyframes`)
-- 토큰화 어려운 유틸리티 (`@layer utilities`)
+- 커스텀 유틸리티 (`@utility name { ... }`)
+- `@font-face`
 
-새 유틸리티 클래스가 필요하면 `globals.css`의 `@layer utilities`나 `tailwind.config.js`의 `theme.extend`에 추가한다 — 컴포넌트 내부에 박지 않는다.
+새 디자인 토큰이 필요하면 `@theme`에 변수를 추가한다. 새 유틸리티가 필요하면 `@utility`를 추가한다. 컴포넌트 내부에는 박지 않는다.
 
 ### 1.3 컬러 토큰
-모든 컬러는 `tailwind.config.js`의 `colors`를 사용. **hex 리터럴을 className/style에 직접 쓰지 않는다.**
+모든 컬러는 `src/globals.css`의 `@theme` 안 `--color-*` 변수를 사용. v4는 변수에서 자동으로 유틸리티를 생성한다 (예: `--color-beige50` → `bg-beige50` / `text-beige50` / `border-beige50`). **hex 리터럴을 className/style에 직접 쓰지 않는다.**
 
 - 그레이스케일: `hgray100..hgray1000`, `hblack000..hblack1000` (앱 UI 기본)
 - 베이지: `beige50..beige900` (마케팅/온보딩)
 - 어두운 배경: `bgDark300..bgDark900`
 - 액센트: `brightnavy(#0624A8)`, `accenta1(#EFFF3F)`, `accentBronze`
-- shadcn 토큰: `background`, `foreground`, `primary`, `muted`, `border` (다크모드는 `.dark` 클래스로 오버라이드)
+- shadcn 토큰: `background`, `foreground`, `primary`, `muted`, `border` — `:root` HSL 변수로 정의, 다크는 `@custom-variant dark (&:is(.dark *))` 변형으로 오버라이드
 
 ### 1.4 타이포그래피 / spacing
 - `font-sans` (Pretendard) 기본. 헤드라인은 `font-instrument` / `font-hedvig`.

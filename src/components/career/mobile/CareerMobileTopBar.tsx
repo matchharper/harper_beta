@@ -1,8 +1,7 @@
 "use client";
 
 import React from "react";
-import Image from "next/image";
-import { ChevronDown, Settings, HelpCircle, User } from "lucide-react";
+import { ChevronDown, Settings, HelpCircle } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import type { CareerWorkspaceTab } from "@/components/career/CareerWorkspaceNav";
+import CareerProfileMenu from "@/components/career/CareerProfileMenu";
 
 type TabOption = {
   id: CareerWorkspaceTab;
@@ -23,9 +23,10 @@ type CareerMobileTopBarProps = {
   onChangeTab: (tab: CareerWorkspaceTab) => void;
   profilePicture?: string | null;
   userName?: string | null;
+  userEmail?: string | null;
   onOpenSettings?: () => void;
-  onOpenHelp?: () => void;
-  onOpenProfile?: () => void;
+  onOpenSupport?: () => void;
+  onLogout?: () => void | Promise<void>;
   className?: string;
 };
 
@@ -35,9 +36,10 @@ export default function CareerMobileTopBar({
   onChangeTab,
   profilePicture,
   userName,
+  userEmail,
   onOpenSettings,
-  onOpenHelp,
-  onOpenProfile,
+  onOpenSupport,
+  onLogout,
   className,
 }: CareerMobileTopBarProps) {
   const activeLabel =
@@ -82,35 +84,25 @@ export default function CareerMobileTopBar({
 
       <div className="flex items-center gap-1.5">
         <IconButton
+          ariaLabel="개선사항 및 문의사항"
+          onClick={onOpenSupport}
+          icon={<HelpCircle className="h-5 w-5" />}
+        />
+        <IconButton
           ariaLabel="설정"
           onClick={onOpenSettings}
           icon={<Settings className="h-5 w-5" />}
         />
-        <IconButton
-          ariaLabel="도움말"
-          onClick={onOpenHelp}
-          icon={<HelpCircle className="h-5 w-5" />}
-        />
-        <button
-          type="button"
-          aria-label="프로필"
-          onClick={onOpenProfile}
-          className="inline-flex h-11 w-11 items-center justify-center rounded-full transition active:bg-beige900/5"
-        >
-          {profilePicture ? (
-            <Image
-              src={profilePicture}
-              alt={userName ?? "profile"}
-              width={32}
-              height={32}
-              className="h-8 w-8 rounded-full border border-beige900/10 object-cover"
-            />
-          ) : (
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-beige900/10 bg-white/75 text-beige900">
-              <User className="h-4 w-4" />
-            </span>
-          )}
-        </button>
+        {onLogout ? (
+          <CareerProfileMenu
+            variant="mobile"
+            profileImageUrl={profilePicture ?? null}
+            profileName={userName ?? "Candidate"}
+            profileEmail={userEmail ?? ""}
+            onLogout={onLogout}
+            onSuggestUpdate={() => onOpenSupport?.()}
+          />
+        ) : null}
       </div>
     </header>
   );
@@ -130,7 +122,8 @@ function IconButton({
       type="button"
       aria-label={ariaLabel}
       onClick={onClick}
-      className="inline-flex h-11 w-11 items-center justify-center rounded-full text-beige900/70 transition active:bg-beige900/5"
+      disabled={!onClick}
+      className="inline-flex h-11 w-11 items-center justify-center rounded-full text-beige900/70 transition active:bg-beige900/5 disabled:opacity-40"
     >
       {icon}
     </button>
