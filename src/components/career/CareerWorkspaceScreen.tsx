@@ -11,6 +11,7 @@ import CareerChatPanel from "@/components/career/CareerChatPanel";
 import CareerHistoryPanel from "@/components/career/CareerHistoryPanel";
 import CareerHomePanel from "@/components/career/CareerHomePanel";
 import CareerProfileWorkspace from "@/components/career/profile/CareerProfileWorkspace";
+import CareerSupportInquiryModal from "@/components/career/CareerSupportInquiryModal";
 import { useCareerSidebarContext } from "@/components/career/CareerSidebarContext";
 import CareerWorkspaceNav, {
   type CareerWorkspaceTab,
@@ -411,13 +412,19 @@ const useMobileUserDisplay = () => {
     talentProfile.talentUser?.profile_picture ??
     user?.user_metadata?.avatar_url ??
     null;
-  return { displayName: displayName ?? null, profilePicture };
+  const userEmail = user?.email ?? "";
+  return {
+    displayName: displayName ?? null,
+    profilePicture,
+    userEmail,
+  };
 };
 
 const CareerWorkspaceMobileHistoryView = ({
   activeTab,
   onChangeTab,
   initialHistoryTarget,
+  onOpenSupport,
 }: {
   activeTab: CareerWorkspaceTab;
   onChangeTab: (
@@ -425,16 +432,18 @@ const CareerWorkspaceMobileHistoryView = ({
     options?: CareerWorkspaceNavigationOptions
   ) => void;
   initialHistoryTarget?: CareerWorkspaceHistoryTarget | null;
+  onOpenSupport: () => void;
 }) => {
   const {
     onOpenSettings,
+    onLogout,
     historyOpportunities,
     historyOpportunityCounts,
     historyLoading,
     onUpdateHistoryOpportunityFeedback,
     onMarkHistoryOpportunityClicked,
   } = useCareerSidebarContext();
-  const { displayName, profilePicture } = useMobileUserDisplay();
+  const { displayName, profilePicture, userEmail } = useMobileUserDisplay();
   const openCompanyModal = useCompanyModalStore((s) => s.handleOpenCompany);
   const queryClient = useQueryClient();
 
@@ -554,7 +563,10 @@ const CareerWorkspaceMobileHistoryView = ({
         onChangeJobsTab={handleChangeJobsTab}
         profilePicture={profilePicture}
         userName={displayName}
+        userEmail={userEmail}
         onOpenSettings={onOpenSettings}
+        onOpenSupport={onOpenSupport}
+        onLogout={onLogout}
         bottomReservePx={actionBar ? 200 : 120}
         isLoading={historyLoading}
         showSwipeHint={showHint}
@@ -586,11 +598,13 @@ const CareerWorkspaceMobileLayout = ({
     options?: CareerWorkspaceNavigationOptions
   ) => void;
 }) => {
-  const { onOpenSettings } = useCareerSidebarContext();
-  const { displayName, profilePicture } = useMobileUserDisplay();
+  const { onOpenSettings, onLogout } = useCareerSidebarContext();
+  const { displayName, profilePicture, userEmail } = useMobileUserDisplay();
   const [chatOpen, setChatOpen] = useState(false);
+  const [inquiryOpen, setInquiryOpen] = useState(false);
   const [pendingHistoryTarget, setPendingHistoryTarget] =
     useState<CareerWorkspaceHistoryTarget | null>(null);
+  const handleOpenSupport = useCallback(() => setInquiryOpen(true), []);
 
   const handleChangeTab = useCallback(
     (
@@ -614,45 +628,59 @@ const CareerWorkspaceMobileLayout = ({
       onChangeTab={handleChangeTab}
       profilePicture={profilePicture}
       userName={displayName}
+      userEmail={userEmail}
       onOpenSettings={onOpenSettings}
+      onOpenSupport={handleOpenSupport}
+      onLogout={onLogout}
     />
   );
 
   return (
-    <AnimatePresence mode="wait" initial={false}>
-      {activeTab === "history" ? (
-        <motion.div key="history" {...TAB_MOTION_PROPS}>
-          <CareerWorkspaceMobileHistoryView
-            activeTab={activeTab}
-            onChangeTab={handleChangeTab}
-            initialHistoryTarget={pendingHistoryTarget}
-          />
-        </motion.div>
-      ) : (
-        <motion.div key="shell" {...TAB_MOTION_PROPS}>
-          <CareerMobileShell header={mobileHeader}>
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.div key={activeTab} {...TAB_MOTION_PROPS}>
-                {activeTab === "home" ? (
-                  <CareerMobileHomeView
-                    onOpenChat={() => setChatOpen(true)}
-                    onOpenHistory={(historyTarget) =>
-                      handleChangeTab("history", { historyTarget })
-                    }
-                  />
-                ) : (
-                  <div className="px-4 pb-[140px] pt-2">
-                    <CareerProfileWorkspace />
-                  </div>
-                )}
-              </motion.div>
-            </AnimatePresence>
-          </CareerMobileShell>
-          <CareerMobileChatLauncher open={chatOpen} onOpenChange={setChatOpen}>
-            <CareerChatPanel />
-          </CareerMobileChatLauncher>
-        </motion.div>
-      )}
-    </AnimatePresence>
+    <>
+      <AnimatePresence mode="wait" initial={false}>
+        {activeTab === "history" ? (
+          <motion.div key="history" {...TAB_MOTION_PROPS}>
+            <CareerWorkspaceMobileHistoryView
+              activeTab={activeTab}
+              onChangeTab={handleChangeTab}
+              initialHistoryTarget={pendingHistoryTarget}
+              onOpenSupport={handleOpenSupport}
+            />
+          </motion.div>
+        ) : (
+          <motion.div key="shell" {...TAB_MOTION_PROPS}>
+            <CareerMobileShell header={mobileHeader}>
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div key={activeTab} {...TAB_MOTION_PROPS}>
+                  {activeTab === "home" ? (
+                    <CareerMobileHomeView
+                      onOpenChat={() => setChatOpen(true)}
+                      onOpenHistory={(historyTarget) =>
+                        handleChangeTab("history", { historyTarget })
+                      }
+                    />
+                  ) : (
+                    <div className="px-4 pb-[140px] pt-2">
+                      <CareerProfileWorkspace />
+                    </div>
+                  )}
+                </motion.div>
+              </AnimatePresence>
+            </CareerMobileShell>
+            <CareerMobileChatLauncher
+              open={chatOpen}
+              onOpenChange={setChatOpen}
+            >
+              <CareerChatPanel />
+            </CareerMobileChatLauncher>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <CareerSupportInquiryModal
+        open={inquiryOpen}
+        onClose={() => setInquiryOpen(false)}
+        defaultEmail={userEmail}
+      />
+    </>
   );
 };
