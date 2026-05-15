@@ -35,7 +35,7 @@ import { useKeyboardArrows } from "@/hooks/useKeyboardArrows";
 import { formatRelativeTime, cn } from "@/lib/utils";
 import type { CareerHistoryOpportunity } from "@/components/career/types";
 
-export type JobsDisplayTab = "new" | "tracking" | "archived";
+export type JobsDisplayTab = "new" | "saved" | "archived" | "connected";
 
 type WorkspaceTabOption = {
   id: CareerWorkspaceTab;
@@ -47,8 +47,9 @@ type CareerMobileJobsViewProps = {
   onChangeWorkspaceTab: (tab: CareerWorkspaceTab) => void;
   workspaceTabOptions: WorkspaceTabOption[];
   newCount?: number;
-  trackingCount?: number;
+  savedCount?: number;
   archivedCount?: number;
+  connectedCount?: number;
   selectedOpportunity: CareerHistoryOpportunity | null;
   selectionIndex: number;
   selectionTotal: number;
@@ -84,8 +85,9 @@ export default function CareerMobileJobsView({
   onChangeWorkspaceTab,
   workspaceTabOptions,
   newCount,
-  trackingCount,
+  savedCount,
   archivedCount,
+  connectedCount,
   selectedOpportunity,
   selectionIndex,
   selectionTotal,
@@ -142,9 +144,10 @@ export default function CareerMobileJobsView({
   );
 
   const items: SegmentedTabItem<JobsDisplayTab>[] = [
-    { id: "new", label: "New", count: newCount },
-    { id: "tracking", label: "Tracking", count: trackingCount },
-    { id: "archived", label: "Archived", count: archivedCount },
+    { id: "new", label: "새 포지션", count: newCount },
+    { id: "saved", label: "저장함", count: savedCount },
+    { id: "archived", label: "선호하지 않음", count: archivedCount },
+    { id: "connected", label: "연결됨", count: connectedCount },
   ];
 
   return (
@@ -248,8 +251,9 @@ export default function CareerMobileJobsView({
 
 function emptyStateMessage(tab: JobsDisplayTab) {
   if (tab === "new") return "아직 새로 추천된 포지션이 없습니다.";
-  if (tab === "tracking") return "트래킹 중인 포지션이 없습니다.";
-  return "보관된 포지션이 없습니다.";
+  if (tab === "saved") return "저장한 포지션이 없습니다.";
+  if (tab === "connected") return "연결된 포지션이 없습니다.";
+  return "선호하지 않음으로 보낸 포지션이 없습니다.";
 }
 
 function OpportunitySummaryCard({

@@ -6,7 +6,7 @@ import {
 import { TALENT_ONBOARDING_DONE_MARKER } from "@/lib/talentOnboarding/completion";
 import { TALENT_ONBOARDING_ADDITIONAL_QUESTION_MAX } from "@/lib/talentOnboarding/onboarding";
 import { INSIGHT_CHECKLIST } from "@/lib/talentOnboarding/insightChecklist";
-import { logger } from "@/utils/logger";
+import type { TalentOpportunityHistoryItem } from "@/lib/talentOpportunity";
 
 const TALENT_ONBOARDING_MIN_FILLED_INSIGHT_COUNT = 6;
 const TALENT_ONBOARDING_ADDITIONAL_QUESTION_MIN = 2;
@@ -38,6 +38,21 @@ export type CareerTranscriptEntry = {
   role: "user" | "assistant";
   text: string;
 };
+
+export type CareerHistoryActionReplyAction =
+  | "negative"
+  | "positive"
+  | "question";
+
+export type CareerOpportunityFeedbackFollowUpTrigger =
+  | "all_visible_feedback_submitted"
+  | "delayed_external_feedback"
+  | "immediate_internal_feedback";
+
+export type CareerOpportunityFeedbackFollowUpResponseMode =
+  | "question_preferred"
+  | "wrap_up_preferred"
+  | "use_judgment";
 
 type CareerRealtimeRecentMessage = {
   content: string;
@@ -84,6 +99,8 @@ export type CareerPromptPlan = {
 };
 
 export const CAREER_CALL_END_MARKER = "##END##";
+export const CAREER_SESSION_START_NO_MESSAGE_MARKER = "__NO_SESSION_GREETING__";
+export const CAREER_SESSION_START_CALL_ACTION_MARKER = "[[CALL]]";
 
 export const CAREER_VOICE_CALL_MODE_PROMPT = `
 ## Voice call mode behavior
@@ -613,6 +630,17 @@ function buildKnownPreferencesSection(
   ) {
     lines.push(`- recommendationBatchSize: ${prefs.recommendationBatchSize}`);
   }
+  if (
+    prefs.periodicIntervalDays === -1 &&
+    prefs.recommendationBatchSize === -1
+  ) {
+    lines.push("- recommendationMode: recommendations_disabled");
+  } else if (
+    prefs.periodicIntervalDays === -1 &&
+    prefs.recommendationBatchSize === 1
+  ) {
+    lines.push("- recommendationMode: internal_only");
+  }
   if (lines.length === 0) return "";
 
   return [
@@ -956,6 +984,7 @@ export function buildCareerRealtimePromptPlan(args: {
   isOnboardingDone?: boolean;
   callEndInstruction: string;
   opportunityStatus?: CareerPromptOpportunityStatus | null;
+  proactiveTurnInstruction?: string;
   recentConversationSection: string;
   structuredProfileText: string;
   toolNames?: readonly string[] | string;
@@ -970,6 +999,7 @@ export function buildCareerRealtimePromptPlan(args: {
     isOnboardingDone: args.isOnboardingDone,
     opportunityStatus: args.opportunityStatus,
     profile: args.profile,
+    proactiveTurnInstruction: args.proactiveTurnInstruction,
     recentConversationSection: args.recentConversationSection,
     structuredProfileText: args.structuredProfileText,
     toolNames: args.toolNames,
@@ -1103,7 +1133,7 @@ export function buildCareerToolPolicyPrompt(args: {
           "- After this tool returns, produce a normal user-facing chat reply. Do not return an empty assistant message, and do not return only an onboarding marker.",
           "- Trigger conditions: call ONLY when the user's latest statement directly maps to a writable field in this tool:",
           "  1) talentUser.bio: the user explicitly provides, rewrites, corrects, or asks to clear their profile Summary/About/Bio text. Do not invent this from assistant-only summaries.",
-          "  2) talent_preferences: periodicIntervalDays, recommendationBatchSize.",
+          "  2) talent_preferences: periodicIntervalDays, recommendationBatchSize. Normal periodicIntervalDays values are 2-7 only.",
           "  3) rowMemos: a short fact clearly tied to exactly one visible experience/education/extra row. This includes recent/representative experience details, project descriptions, responsibilities, achievements, and education details.",
           "  4) talentInsights: post-onboarding durable future preference/memory changes. Use descriptive English snake_case keys and final integrated Korean complete sentences as values.",
           "- Do NOT call this tool during onboarding for general answers that only update insight-like understanding, such as search intensity, desired next role, compensation, must-haves, deal-breakers, team style, environment preference, career-change reason, or optional-question answers. Those are handled outside this tool until onboarding completes.",
@@ -1114,6 +1144,9 @@ export function buildCareerToolPolicyPrompt(args: {
           "- Read-merge-write 규칙:",
           "  - talentUser.bio 는 talent_users.bio 전체를 교체한다. 사용자가 의도한 최종 Summary/About 문장만 보내라. 삭제/비우기를 명확히 요청한 경우에만 null 또는 빈 문자열을 보낸다.",
           "  - periodicIntervalDays / recommendationBatchSize 는 사용자가 명확한 숫자 선호를 말했을 때만 보내고, 보내면 그 값으로 덮어쓰기된다.",
+          "  - 일반 추천 주기는 periodicIntervalDays 2-7 사이만 사용한다. 2보다 빠른 주기는 2로, 7보다 느린 주기는 7로 맞춘다.",
+          "  - 사용자가 '이제 그만 추천해', '더 이상 추천하지 마', '추천 그만'처럼 추천 중단을 명확히 요청하면 preferences에 periodicIntervalDays: -1, recommendationBatchSize: -1 을 함께 보낸다.",
+          "  - 사용자가 internal 추천만, 내부 추천만, Harper가 직접 연결해줄 수 있는 기회만 받겠다고 하면 preferences에 periodicIntervalDays: -1, recommendationBatchSize: 1 을 함께 보낸다.",
           "  - talentInsights.content 는 partial patch 이다. 기존 값과 통합된 최종 문장만 보내고, 단순 중복이면 보내지 않는다.",
           "  - 새 정보가 기존/current insight 또는 checklist 축에 속하면 새 synonym key를 만들지 말고 그 key를 업데이트해라. 예: target_role 계열은 next_scope, deal_breaker 계열은 deal_breakers, must_have 계열은 must_haves, team_style 계열은 team_style_fit, compensation_floor 계열은 compensation, location_preference 계열은 location.",
           "  - 정말 기존 key로 표현하기 어려운 별도 축이면 새 영어 snake_case key를 만들어도 된다. 단, `representative_experience`, `recent_experience`처럼 프로필 row fact를 담는 key는 만들지 마라.",
@@ -1213,6 +1246,54 @@ export function buildCareerInsightExtractionOnlyPrompt(args: {
     .join("\n\n");
 }
 
+const parseCareerPromptTimestampMs = (value: string | null | undefined) => {
+  if (typeof value !== "string") return 0;
+  const time = Date.parse(value);
+  return Number.isNaN(time) ? 0 : time;
+};
+
+export function buildCareerSessionStartTurnInstruction(args: {
+  currentAccessAt: string;
+  idleMs: number;
+  previousChatAt: string | null;
+}) {
+  const anchorIdleHours = Math.max(
+    0,
+    Math.floor(args.idleMs / (60 * 60 * 1000))
+  );
+  const currentAccessMs = parseCareerPromptTimestampMs(args.currentAccessAt);
+  const previousChatMs = parseCareerPromptTimestampMs(args.previousChatAt);
+  const previousChatIdleHours =
+    currentAccessMs > 0 && previousChatMs > 0
+      ? Math.max(
+          0,
+          Math.floor((currentAccessMs - previousChatMs) / (60 * 60 * 1000))
+        )
+      : null;
+
+  return [
+    "## Session-start assistant turn",
+    "사용자가 방금 Career 화면에 다시 접속했다. 사용자가 아직 새 메시지를 보내지 않았지만, Harper가 먼저 짧게 말을 건넬 수 있는 차례다.",
+    `- currentAccessAt: ${args.currentAccessAt}`,
+    `- previousChatAt: ${args.previousChatAt ?? "(없음)"}`,
+    `- hoursSincePreviousChat: ${previousChatIdleHours ?? "(계산 불가)"}`,
+    `- hoursSinceReengagementAnchor: ${anchorIdleHours}`,
+    "대화 맥락상 지금 아무 말도 하지 않는 편이 더 자연스럽거나 도움이 되지 않는다고 판단되면 아무 것도 출력하지 않아도 된다.",
+    `아무 말도 하지 않기로 결정하면 응답 본문을 비우거나 ${CAREER_SESSION_START_NO_MESSAGE_MARKER} 만 출력해라. 이 경우 다른 설명을 붙이지 마라.`,
+    "이전 대화 맥락을 이어서 말하고, 처음 온 사람처럼 Harper를 길게 소개하지 마라.",
+    "최근 Career 활동이나 프로필 변경 혹은 이전 추천 등이 필요하면 기존 career/chat에서 쓰는 tool 정책에 따라 적절한 tool을 사용해라.",
+    "정확한 시각, 내부 이벤트명, 시스템 동작 방식은 사용자에게 말하지 마라.",
+    "메시지를 보낼 때는 1-3문장으로 끝내라.",
+    "첫 인사의 기본 구조는 이전 대화, 최근 Career 활동, 프로필 변경, 이전 추천/피드백 중 가장 중요한 맥락을 1문장으로 짧게 wrap-up한 뒤, 그 맥락에서 바로 이어갈 수 있는 질문 1개로 끝내는 것이다.",
+    "질문은 사용자가 바로 쉽게 답할 수 있어야 하며, 여러 질문을 묶지 마라.",
+    "참고할 만한 이전 대화나 활동 맥락이 약하면 최근 우선순위나 찾고 싶은 방향이 달라졌는지 묻는 일반 질문으로 끝내라.",
+    "이미 명확한 다음 액션이 진행 중이라 사용자의 답이 필요 없거나, 질문이 오히려 어색하면 질문 없이 짧은 상태 공유로 닫아도 된다.",
+    `hoursSincePreviousChat이 168 이상이고, 최근 활동/추천/프로필 변경에서 바로 이어갈 만한 명확한 업데이트가 없다면 "오랜만이라 최근 업데이트나 재밌게 하는 일이 있는지 통화로 한번 듣고 싶다"는 취지로 자연스럽게 말한 뒤 응답 맨 끝에 ${CAREER_SESSION_START_CALL_ACTION_MARKER} 를 붙여라.`,
+    `${CAREER_SESSION_START_CALL_ACTION_MARKER} 는 UI가 전화하기 버튼을 표시하는 데 쓰는 마커다. 이 마커를 설명하거나 따옴표로 감싸지 마라.`,
+    "텍스트 채팅에 표시되므로 필요하면 회사명, 역할명, 방향성 같은 핵심 단어에 가벼운 inline markdown 강조(**...**)를 사용해라. 긴 heading이나 bullet list는 쓰지 마라.",
+  ].join("\n");
+}
+
 export function buildCareerCallWrapupPrompt(args: {
   durationLabel: string | null;
   isBrief: boolean;
@@ -1304,6 +1385,145 @@ export function buildCareerCallWrapupFallbackFollowUp(args: {
   }
 
   return "좋은 이야기 들려주셔서 감사합니다. 말씀해주신 내용을 바탕으로 만족하실 만한 기회를 잘 골라서 가져와볼게요.";
+}
+
+const truncateCareerPromptText = (
+  value: string | null | undefined,
+  maxLength: number
+) => {
+  const text = String(value ?? "").trim();
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength - 3).trim()}...`;
+};
+
+const stripCareerPromptHtml = (value: string) =>
+  value
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const buildCareerHistoryActionOpportunityContext = (
+  item: TalentOpportunityHistoryItem
+) =>
+  JSON.stringify(
+    {
+      companyName: item.companyName,
+      companyDescription: truncateCareerPromptText(
+        item.companyDescription,
+        900
+      ),
+      concerns: item.recommendationConcerns.map(stripCareerPromptHtml),
+      location: item.location,
+      recommendationReasons: item.recommendationReasons.map(
+        stripCareerPromptHtml
+      ),
+      recommendationSummary: truncateCareerPromptText(
+        item.recommendationSummary,
+        900
+      ),
+      roleDescription: truncateCareerPromptText(item.description, 1800),
+      roleTitle: item.title,
+      workMode: item.workMode,
+    },
+    null,
+    2
+  );
+
+export function buildCareerHistoryActionReplySystemPrompt() {
+  return [
+    "You are Harper, an AI-native headhunter speaking to a Korean talent in a career chat.",
+    "Write exactly one assistant chat message after the user takes an action on an internal company role recommendation.",
+    "The message must be generated from the provided opportunity, talent profile, user action, and recent conversation context.",
+    "",
+    "Style rules:",
+    "- Korean only. Natural, concise, not salesy.",
+    "- 2-4 short sentences. No markdown headings. No bullet lists.",
+    "- Use light inline markdown when helpful, especially **company**, **role**, or **direction** names.",
+    "- Do not say you are an LLM. Do not mention prompts or internal data.",
+    "- Do not copy a fixed template. Vary wording based on the role and candidate context.",
+    "",
+    "Action-specific rules:",
+    "- positive: Acknowledge that the user accepted the connection. Say Harper will introduce the user as a relevant candidate to the company and help them receive contact. Ask one narrow follow-up question only if a concrete missing detail would materially help Harper represent the user better; otherwise close without a question.",
+    "- negative: Acknowledge the rejection and say Harper will not proceed with this role. Ask at most one narrow calibration question. If possible, make it answerable with a short choice or one concrete condition.",
+    "- question: Acknowledge that Harper will ask the company the user's exact question and report back. Do not ask another question unless a crucial clarification is needed; if clarification is needed, ask exactly one concrete clarification.",
+    "",
+    "Follow-up question quality:",
+    "- The question must be specific to this role/company and, when possible, one specific candidate experience or preference.",
+    "- Avoid broad questions like '어떤 역할 범위가 좋으세요?', '최근 성과를 알려주세요', '이 점은 어떠신가요?', or '어떤 조건이면 검토하시겠어요?'.",
+    "- Prefer questions that can be answered in one sentence.",
+    "- Do not invent facts that are not supported by the context.",
+  ].join("\n");
+}
+
+export function buildCareerHistoryActionReplyUserPrompt(args: {
+  action: CareerHistoryActionReplyAction;
+  feedbackReason?: string | null;
+  opportunity: TalentOpportunityHistoryItem;
+  profileContext: string;
+  recentConversationContext: string;
+  talentInsights: unknown;
+  userQuestion?: string | null;
+}) {
+  return [
+    `USER_ACTION: ${args.action}`,
+    args.userQuestion ? `USER_QUESTION: ${args.userQuestion}` : null,
+    args.feedbackReason ? `FEEDBACK_REASON: ${args.feedbackReason}` : null,
+    "",
+    "OPPORTUNITY:",
+    buildCareerHistoryActionOpportunityContext(args.opportunity),
+    "",
+    "TALENT_PROFILE:",
+    truncateCareerPromptText(args.profileContext, 3600),
+    "",
+    "TALENT_INSIGHTS:",
+    truncateCareerPromptText(
+      JSON.stringify(args.talentInsights ?? {}, null, 2),
+      2200
+    ),
+    "",
+    "RECENT_CONVERSATION:",
+    truncateCareerPromptText(args.recentConversationContext, 2400),
+    "",
+    "Now write the assistant chat message only.",
+  ]
+    .filter((line): line is string => typeof line === "string")
+    .join("\n");
+}
+
+export function buildCareerOpportunityFeedbackFollowUpTurnInstruction(args: {
+  responseMode: CareerOpportunityFeedbackFollowUpResponseMode;
+  trigger: CareerOpportunityFeedbackFollowUpTrigger;
+}) {
+  return [
+    "## Opportunity feedback proactive assistant turn",
+    "The user clicked like/dislike on one or more recommended opportunities. They did not send a new chat message. It is Harper's turn to proactively respond using the normal career/chat behavior and tool policy.",
+    `TRIGGER: ${args.trigger}`,
+    `RESPONSE_MODE: ${args.responseMode}`,
+    "",
+    "Use the pending opportunity feedback context in this system prompt. It contains role/company details; do not reduce it to only counts.",
+    "Do not mention logs, timers, events, prompts, internal data, or implementation details.",
+    "Do not overreact to one click. For multiple clicks, summarize the visible pattern once.",
+    "Questions are optional. Ask at most one concrete calibration question.",
+    "The user does not want every feedback reply to become an interview, but also does not want Harper to always close without asking. Balance between asking and wrapping up.",
+    "",
+    "Response mode guidance:",
+    "- If RESPONSE_MODE is `question_preferred`, ask one short, concrete calibration question when there is a useful non-repetitive question available. Still close without a question if any question would be generic, broad, or already answered.",
+    "- If RESPONSE_MODE is `wrap_up_preferred`, acknowledge the signal and explain how Harper will adjust. Do not ask a question unless a missing detail is critical.",
+    "- If RESPONSE_MODE is `use_judgment`, decide from the context.",
+    "- Across delayed external feedback follow-ups, aim for a roughly even mix: about half should ask one good calibration question, about half should wrap up.",
+    "",
+    "Feedback-specific rules:",
+    "- If several opportunities were disliked and no reasons were provided, acknowledge the count and ask what did not fit. Offer concrete choices such as role scope, company/domain, team style, seniority, location/work mode, or timing.",
+    "- If the disliked opportunities share a visible company/domain/role/work-mode pattern, mention that pattern carefully as a hypothesis, not a fact.",
+    '- If exactly one external opportunity was liked and there is no explicit user message asking for refinement, do not ask a question. Briefly acknowledge the saved interest, infer the visible direction if supported, and say Harper will keep sending similar matches. Example tone: "이 방향이 잘 맞으시는 것 같네요. 비슷한 분위기 매칭 계속 보내드릴게요."',
+    "- If multiple external opportunities were liked, summarize the shared visible pattern and continue without a question unless the pattern is unclear or contradictory.",
+    "- If internal connection/request opportunities were liked, acknowledge that Harper will proceed with the connection. Ask one narrow follow-up only if a concrete missing detail would materially help represent the talent better; otherwise close without a question.",
+    "- If internal opportunities were rejected, say Harper will not proceed with those roles and ask one narrow calibration question.",
+    "- If external opportunities were liked, treat them as saved interest and ask what similar opportunities Harper should keep finding only when the feedback set is mixed, unclear, or too broad to act on.",
+    "- Do not invent facts beyond the provided context.",
+  ].join("\n");
 }
 
 export const CAREER_REENGAGEMENT_FALLBACK_MESSAGE =

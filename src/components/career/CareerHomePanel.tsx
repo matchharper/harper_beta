@@ -24,6 +24,11 @@ import {
 import { type CareerOpportunityAgentVariant } from "./types";
 import React from "react";
 import { getCareerDefaultSavedStage } from "./opportunityTypeMeta";
+import { ConversationStarterActions } from "./ConversationStarterActions";
+import type {
+  CareerConversationStarterId,
+  CareerConversationStarterMode,
+} from "@/lib/career/conversationStarters";
 
 const countFormatter = new Intl.NumberFormat("ko-KR");
 const devAgentVariantOptions: Array<{
@@ -64,7 +69,7 @@ const HomeOpportunitySummaryCard = ({
   <button
     type="button"
     onClick={onClick}
-    className="group flex min-h-[154px] w-full flex-col justify-between rounded-[16px] border border-beige900/10 bg-white px-4 py-4 text-left shadow-[0_8px_20px_rgba(37,20,6,0.05)] transition-all hover:-translate-y-0.5 hover:border-beige900/15 hover:shadow-[0_12px_28px_rgba(37,20,6,0.08)] focus:outline-none focus-visible:ring-4 focus-visible:ring-beige700/20"
+    className="group flex min-h-[154px] w-full flex-col justify-between rounded-xl border border-beige900/10 bg-white px-4 py-4 text-left transition-all hover:-translate-y-0.5 hover:border-beige900/15 focus:outline-none focus-visible:ring-4 focus-visible:ring-beige700/20"
   >
     <div className="flex items-start justify-between gap-3">
       <div>
@@ -127,7 +132,10 @@ const CareerHomePanel = ({
     onRefreshTalentProfileSources,
     onRunPeriodicOpportunityDiscoveryTest,
     onRunOpportunityDiscoveryTest,
+    onRunSessionReengagementTest,
     onStartCallMode,
+    onStartConversationStarter,
+    sessionReengagementTestPending,
   } = useCareerSidebarContext();
   const [devAgentVariant, setDevAgentVariant] =
     React.useState<CareerOpportunityAgentVariant>("tool_agent");
@@ -152,36 +160,48 @@ const CareerHomePanel = ({
           newInternalOpportunityCount
         )}개 연결 가능`
       : "추천된 기회";
-  const trackingPositionCount = historyOpportunityCounts.savedStages.saved;
-  const appliedPositionCount = historyOpportunityCounts.savedStages.applied;
-  const inProgressPositionCount = trackingPositionCount + appliedPositionCount;
+  const savedPositionCount = historyOpportunityCounts.savedStages.saved;
+  const connectedPositionCount =
+    historyOpportunityCounts.savedStages.applied +
+    historyOpportunityCounts.savedStages.connected +
+    historyOpportunityCounts.savedStages.closed;
+  const inProgressPositionCount = savedPositionCount + connectedPositionCount;
   const inProgressTargetSavedStage =
-    trackingPositionCount > 0 || appliedPositionCount === 0
+    savedPositionCount > 0 || connectedPositionCount === 0
       ? "saved"
-      : "applied";
+      : "connected";
   const inProgressOpportunities = useMemo(
     () =>
       historyOpportunities.flatMap((item) => {
         if (item.feedback !== "positive") return [];
         const savedStage =
           item.savedStage ?? getCareerDefaultSavedStage(item.opportunityType);
-        if (savedStage !== "saved" && savedStage !== "applied") return [];
+        if (
+          savedStage !== "saved" &&
+          savedStage !== "applied" &&
+          savedStage !== "connected" &&
+          savedStage !== "closed"
+        ) {
+          return [];
+        }
         return [{ item, savedStage }];
       }),
     [historyOpportunities]
   );
   const inProgressCompanyLabel = useMemo(() => {
     if (inProgressPositionCount === 0) {
-      return "아직 추적 중인 포지션 없음";
+      return "아직 저장하거나 연결된 포지션 없음";
     }
 
     const firstCompanyName = (
-      inProgressOpportunities.find(
-        (opportunity) => opportunity.savedStage === inProgressTargetSavedStage
+      inProgressOpportunities.find((opportunity) =>
+        inProgressTargetSavedStage === "saved"
+          ? opportunity.savedStage === "saved"
+          : opportunity.savedStage !== "saved"
       ) ?? inProgressOpportunities[0]
     )?.item.companyName?.trim();
     const statusLabel =
-      inProgressTargetSavedStage === "saved" ? "추적 중" : "지원 중";
+      inProgressTargetSavedStage === "saved" ? "저장함" : "연결됨";
 
     if (!firstCompanyName) {
       return `${countFormatter.format(inProgressPositionCount)}개 ${statusLabel}`;
@@ -288,6 +308,17 @@ const CareerHomePanel = ({
     void onStartCallMode?.();
   };
 
+  const handleStartConversationStarter = ({
+    mode,
+    starterId,
+  }: {
+    mode: CareerConversationStarterMode;
+    starterId: CareerConversationStarterId;
+  }) => {
+    onOpenChat();
+    return onStartConversationStarter?.({ mode, starterId }) ?? false;
+  };
+
   return (
     <div className="space-y-12">
       <section className="w-full">
@@ -296,7 +327,7 @@ const CareerHomePanel = ({
             Welcome, <span className="text-beige700">{displayName}</span>!
           </h2>
           {shouldShowProfileImportRecovery ? (
-            <div className="mt-2 flex flex-col gap-3 rounded-3xl bg-[#e8f1ff] px-3 py-3 text-[#123d73] shadow-[0_8px_20px_rgba(31,111,235,0.08)] sm:flex-row sm:items-center sm:justify-between">
+            <div className="mt-2 mb-4 flex flex-col gap-3 rounded-3xl bg-[#e8f1ff] px-3 py-3 text-[#123d73] shadow-[0_8px_20px_rgba(31,111,235,0.08)] sm:flex-row sm:items-center sm:justify-between">
               <div className="pl-2 min-w-0 text-[14px] font-medium leading-5">
                 정보를 가져오는데 문제가 있었던 것 같습니다.
                 <br />
@@ -322,15 +353,14 @@ const CareerHomePanel = ({
           <p className="mt-0 max-w-[620px] text-[15px] leading-5 text-beige900/65">
             {activeOpportunityLabel}
           </p>
-          <div className="mt-4 w-full flex flex-row items-center justify-center gap-4">
-            {/*  */}
-            <div className="cursor-pointer text-beige900 text-[14px] rounded-3xl border border-beige900/15 px-4 py-3 flex flex-row items-center justify-center gap-2">
-              선호 조건 업데이트하기
-            </div>
-            <div className="cursor-pointer text-beige900 text-[14px] rounded-3xl border border-beige900/15 px-4 py-3 flex flex-row items-center justify-center gap-2">
-              더 이야기하고 연결 퀄리티 높이기
-            </div>
-          </div>
+          {isOnboardingCompleted && (
+            <ConversationStarterActions
+              callStartPending={callStartPending}
+              className="mt-4"
+              disabled={!onStartConversationStarter}
+              onStart={handleStartConversationStarter}
+            />
+          )}
           <div className="mt-4 rounded-3xl border border-beige900/5 bg-beige100 px-6 py-5">
             {isOnboardingCompleted ? (
               <div className="flex flex-row items-center justify-between gap-4">
@@ -467,8 +497,8 @@ const CareerHomePanel = ({
                 }
               />
               <HomeOpportunitySummaryCard
-                title="진행 중"
-                status="추적 + 지원"
+                title="저장 / 연결"
+                status="저장함 + 연결됨"
                 count={inProgressPositionCount}
                 description={inProgressCompanyLabel}
                 buttonLabel="상세 보기"
@@ -555,6 +585,18 @@ const CareerHomePanel = ({
                     <Clock3 className="h-3.5 w-3.5" />
                   )}
                   3일 경과 run 큐잉
+                </CareerSecondaryButton>
+                <CareerSecondaryButton
+                  onClick={() => void onRunSessionReengagementTest()}
+                  disabled={sessionReengagementTestPending}
+                  className="h-10 gap-2 px-4 text-[13px]"
+                >
+                  {sessionReengagementTestPending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-3.5 w-3.5" />
+                  )}
+                  최근 메시지 삭제 + 6시간 인사
                 </CareerSecondaryButton>
                 <CareerSecondaryButton
                   onClick={onOpenProfile}

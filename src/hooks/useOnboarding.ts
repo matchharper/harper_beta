@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+type MaybePromise<T> = T | Promise<T>;
+
 export const useOnboarding = ({
   save,
   totalSteps,
@@ -10,10 +12,10 @@ export const useOnboarding = ({
   enableWheelNavigation = true,
   allowTextareaEnterSubmit = false,
 }: {
-  save: () => void;
+  save: (step: number) => MaybePromise<void>;
   totalSteps: number;
-  beforeNext?: (step: number) => boolean;
-  onComplete?: () => void;
+  beforeNext?: (step: number) => MaybePromise<boolean>;
+  onComplete?: () => MaybePromise<void>;
   enableWheelNavigation?: boolean;
   allowTextareaEnterSubmit?: boolean;
 }) => {
@@ -22,35 +24,44 @@ export const useOnboarding = ({
 
   const lock = useRef(false);
   const isNextRef = useRef(true);
+  const pendingNextRef = useRef(false);
 
   const isLastStep = useMemo(() => step === totalSteps - 1, [step, totalSteps]);
 
-  const handleNext = useCallback(() => {
+  const handleNext = useCallback(async () => {
+    if (pendingNextRef.current) return;
+    pendingNextRef.current = true;
     isNextRef.current = true;
 
-    if (beforeNext && !beforeNext(step)) {
-      return;
-    }
-
-    if (save) {
-      save();
-    }
-
-    if (isLastStep) {
-      if (onComplete) {
-        onComplete();
+    try {
+      if (beforeNext && !(await beforeNext(step))) {
         return;
       }
 
-      setSubmitLoading(true);
-      setTimeout(() => {
-        setSubmitLoading(false);
-        setStep(totalSteps);
-      }, 1000);
-      return;
-    }
+      if (save) {
+        await save(step);
+      }
 
-    setStep((prev) => Math.min(prev + 1, totalSteps - 1));
+      if (isLastStep) {
+        if (onComplete) {
+          await onComplete();
+          return;
+        }
+
+        setSubmitLoading(true);
+        setTimeout(() => {
+          setSubmitLoading(false);
+          setStep(totalSteps);
+        }, 1000);
+        return;
+      }
+
+      setStep((prev) => Math.min(prev + 1, totalSteps - 1));
+    } catch (error) {
+      console.error("[useOnboarding] failed to advance step:", error);
+    } finally {
+      pendingNextRef.current = false;
+    }
   }, [beforeNext, isLastStep, onComplete, save, step, totalSteps]);
 
   useEffect(() => {

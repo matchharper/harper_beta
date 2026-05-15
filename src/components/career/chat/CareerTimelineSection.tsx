@@ -11,6 +11,8 @@ import {
   RefreshCw,
   Upload,
   X,
+  ArrowRight,
+  ArrowLeft,
 } from "lucide-react";
 import {
   FormEvent,
@@ -29,6 +31,10 @@ import type {
   CareerHistoryOpportunity,
   CareerRecommendationSearchStatus,
 } from "@/components/career/types";
+import type {
+  CareerConversationStarterId,
+  CareerConversationStarterMode,
+} from "@/lib/career/conversationStarters";
 import { splitRecommendJobPostingStatusLogs } from "@/lib/talentOnboarding/recommendJobPostingStatus";
 import {
   TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NOTICE,
@@ -187,10 +193,7 @@ const ThinkingLogPanel = memo(function ThinkingLogPanel({
   logs: string[];
 }) {
   const [expanded, setExpanded] = useState(active);
-
-  useEffect(() => {
-    if (active) setExpanded(true);
-  }, [active, logs.length]);
+  const isExpanded = active || expanded;
 
   if (logs.length === 0) return null;
 
@@ -202,19 +205,19 @@ const ThinkingLogPanel = memo(function ThinkingLogPanel({
       <button
         type="button"
         onClick={() => setExpanded((prev) => !prev)}
-        aria-expanded={expanded}
+        aria-expanded={isExpanded}
         className="cursor-pointer inline-flex w-fit items-center gap-1.5 rounded-[8px] py-1 text-[13px] font-medium text-beige900/55 transition-colors hover:text-beige900/75"
       >
         {active ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin text-beige900/45" />
-        ) : expanded ? (
+        ) : isExpanded ? (
           <ChevronDown className="h-3.5 w-3.5 text-beige900/45" />
         ) : (
           <ChevronRight className="h-3.5 w-3.5 text-beige900/45" />
         )}
         <span>Thinking</span>
       </button>
-      {expanded ? (
+      {isExpanded ? (
         <div className="ml-[7px] border-l border-beige900/10 pl-4">
           <ol className="flex flex-col gap-1.5">
             {logs.map((log, index) => (
@@ -276,7 +279,7 @@ const RecommendationSearchStatusPanel = memo(
       >
         <div className="flex items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-2.5">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-beige900/10 bg-[#f5ecdd]/60">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-[#f5ecdd]/60">
               {icon}
             </div>
             <div className="min-w-0">
@@ -335,16 +338,17 @@ const OpportunityPreviewCards = memo(function OpportunityPreviewCards({
   items: CareerHistoryOpportunity[];
   onOpenOpportunity: (opportunity: CareerHistoryOpportunity) => void;
 }) {
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [activeItemState, setActiveItemState] = useState({
+    index: 0,
+    signature: "",
+  });
   const itemSignature = useMemo(
     () => items.map((item) => item.id).join("|"),
     [items]
   );
 
-  useEffect(() => {
-    setActiveIndex(0);
-  }, [itemSignature]);
-
+  const activeIndex =
+    activeItemState.signature === itemSignature ? activeItemState.index : 0;
   const activeItemIndex = Math.min(activeIndex, Math.max(items.length - 1, 0));
   const item = items[activeItemIndex] ?? null;
   const hasMultipleItems = items.length > 1;
@@ -352,14 +356,29 @@ const OpportunityPreviewCards = memo(function OpportunityPreviewCards({
   const moveActiveItem = useCallback(
     (direction: -1 | 1) => {
       if (items.length <= 1) return;
-      setActiveIndex((current) => {
-        const next = current + direction;
-        if (next < 0) return items.length - 1;
-        if (next >= items.length) return 0;
-        return next;
+      setActiveItemState((current) => {
+        const currentIndex =
+          current.signature === itemSignature ? current.index : 0;
+        const next = currentIndex + direction;
+        if (next < 0) {
+          return {
+            index: items.length - 1,
+            signature: itemSignature,
+          };
+        }
+        if (next >= items.length) {
+          return {
+            index: 0,
+            signature: itemSignature,
+          };
+        }
+        return {
+          index: next,
+          signature: itemSignature,
+        };
       });
     },
-    [items.length]
+    [itemSignature, items.length]
   );
 
   if (!item) return null;
@@ -397,27 +416,27 @@ const OpportunityPreviewCards = memo(function OpportunityPreviewCards({
         aria-label={`${item.companyName} ${item.title} 공고 열기`}
       >
         {hasMultipleItems ? (
-          <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-full border border-beige900/10 bg-white/80 px-1 py-1 shadow-[0_8px_18px_rgba(37,20,6,0.06)]">
+          <div className="absolute right-3 top-3 z-10 flex items-center gap-1">
             <button
               type="button"
               onClick={() => moveActiveItem(-1)}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-beige900/55 transition-colors hover:bg-beige100 hover:text-beige900"
+              className="inline-flex h-5 w-5 rounded-sm bg-hgray900 text-hgray500 cursor-pointer hover:bg-hgray800 items-center justify-center"
               aria-label="이전 공고"
               title="이전 공고"
             >
-              <ChevronLeft className="h-3.5 w-3.5" />
+              <ArrowLeft className="h-3.5 w-3.5" />
             </button>
-            <span className="min-w-9 text-center text-[11px] font-medium leading-none text-beige900/45">
+            <span className="min-w-8 text-center text-[11px] font-medium leading-none text-hgray500">
               {activeItemIndex + 1}/{items.length}
             </span>
             <button
               type="button"
               onClick={() => moveActiveItem(1)}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-beige900/55 transition-colors hover:bg-beige100 hover:text-beige900"
+              className="inline-flex h-5 w-5 rounded-sm bg-hgray900 text-hgray500 cursor-pointer hover:bg-hgray800 items-center justify-center"
               aria-label="다음 공고"
               title="다음 공고"
             >
-              <ChevronRight className="h-3.5 w-3.5" />
+              <ArrowRight className="h-3.5 w-3.5" />
             </button>
           </div>
         ) : null}
@@ -466,7 +485,7 @@ const OpportunityPreviewCards = memo(function OpportunityPreviewCards({
                         : "border-beige900/10 bg-white/60 text-beige900/55"
                     )}
                   >
-                    {isPositive ? "저장됨" : "맞지 않음"}
+                    {isPositive ? "저장함" : "선호하지 않음"}
                   </div>
                 )}
               </div>
@@ -575,8 +594,14 @@ const TimelinePendingPanel = memo(function TimelinePendingPanel({
   );
 });
 
+type StartConversationStarterHandler = (args: {
+  mode: CareerConversationStarterMode;
+  starterId: CareerConversationStarterId;
+}) => boolean | Promise<boolean>;
+
 const TimelineMessageList = memo(function TimelineMessageList({
   messages,
+  assistantTyping,
   isVoiceMode,
   lastSpokenAssistantMessageIndex,
   thinkingLogsByMessageId,
@@ -584,9 +609,12 @@ const TimelineMessageList = memo(function TimelineMessageList({
   onRegenerateOnboardingWrapup,
   onboardingWrapupPending,
   onStartCallMode,
+  onStartConversationStarter,
+  sessionReengagementActionMessageId,
   isStartingCall,
 }: {
   messages: CareerMessage[];
+  assistantTyping: boolean;
   isVoiceMode: boolean;
   lastSpokenAssistantMessageIndex: number;
   thinkingLogsByMessageId: Record<string, string[]>;
@@ -594,6 +622,8 @@ const TimelineMessageList = memo(function TimelineMessageList({
   onRegenerateOnboardingWrapup?: () => void | Promise<void>;
   onboardingWrapupPending: boolean;
   onStartCallMode?: (openingText?: string) => boolean | Promise<boolean>;
+  onStartConversationStarter?: StartConversationStarterHandler;
+  sessionReengagementActionMessageId?: string | null;
   onOpenOpportunity: (opportunity: CareerHistoryOpportunity) => void;
 }) {
   return (
@@ -622,6 +652,21 @@ const TimelineMessageList = memo(function TimelineMessageList({
         const isOnboardingCompletionWrapup =
           message.messageType ===
           TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP;
+        const isLatestAssistantMessage =
+          !isUser && index === messages.length - 1;
+        const isAssistantStreamActive =
+          isLatestAssistantMessage && assistantTyping;
+        const shouldRenderChatBubble =
+          isUser ||
+          Boolean(message.typing) ||
+          message.content.trim().length > 0;
+        const showReengagementActions =
+          !isUser &&
+          index === messages.length - 1 &&
+          !message.typing &&
+          Boolean(onStartConversationStarter) &&
+          sessionReengagementActionMessageId != null &&
+          String(message.id) === sessionReengagementActionMessageId;
         const messageNode = (
           <div
             className={careerCx(
@@ -631,13 +676,16 @@ const TimelineMessageList = memo(function TimelineMessageList({
                 "opacity-70"
             )}
           >
-            {!isUser && latestStatus && (
-              <RecommendationSearchStatusPanel status={latestStatus} />
-            )}
             {!isUser && textLogs.length > 0 && (
               <ThinkingLogPanel
-                active={isOnboardingCompletionWrapup}
+                active={isAssistantStreamActive || isOnboardingCompletionWrapup}
                 logs={textLogs}
+              />
+            )}
+            {!isUser && latestStatus && (
+              <RecommendationSearchStatusPanel
+                active={isAssistantStreamActive}
+                status={latestStatus}
               />
             )}
             {isOnboardingCompletionWrapup ? (
@@ -648,7 +696,7 @@ const TimelineMessageList = memo(function TimelineMessageList({
               />
             ) : isOnboardingCompletionNotice ? (
               <OnboardingCompletionNotice content={message.content} />
-            ) : (
+            ) : shouldRenderChatBubble ? (
               <>
                 {!isUser && (
                   <AssistantLabel>
@@ -676,8 +724,20 @@ const TimelineMessageList = memo(function TimelineMessageList({
                       : undefined
                   }
                 />
+                {/* {showReengagementActions && (
+                  <div className="mt-1">
+                    <ConversationStarterActions
+                      callStartPending={isStartingCall}
+                      disabled={isStartingCall}
+                      onStart={(startArgs) => {
+                        return onStartConversationStarter?.(startArgs) ?? false;
+                      }}
+                      variant="reengagement"
+                    />
+                  </div>
+                )} */}
               </>
-            )}
+            ) : null}
             {!isUser && (message.opportunityPreview?.length ?? 0) > 0 && (
               <OpportunityPreviewCards
                 items={message.opportunityPreview ?? []}
@@ -724,6 +784,8 @@ const CareerTimelineSection = () => {
     onboardingWrapupPending,
     thinkingLogsByMessageId,
     chatPending,
+    sessionReengagementPending,
+    sessionReengagementActionMessageId,
     onboardingBeginPending,
     callStartPending = false,
     callWrapUpPending = false,
@@ -737,6 +799,7 @@ const CareerTimelineSection = () => {
     onProfileSubmit,
     onLoadOlderMessages,
     onRegenerateOnboardingWrapup,
+    onStartConversationStarter,
     showVoiceStartPrompt,
     onStartCallMode,
     onUseChatOnly,
@@ -753,12 +816,39 @@ const CareerTimelineSection = () => {
   const [authPassword, setAuthPassword] = useState("");
   const [showLoadOlderButton, setShowLoadOlderButton] = useState(false);
   const [stickToBottom, setStickToBottom] = useState(true);
-  const [selectedInterestOptions, setSelectedInterestOptions] = useState<
-    TalentOnboardingInterestOptionId[]
-  >([]);
+  const [interestSelectionState, setInterestSelectionState] = useState<{
+    messageKey: string;
+    options: TalentOnboardingInterestOptionId[];
+  }>({
+    messageKey: "",
+    options: [],
+  });
   const isStartingCall =
     (onboardingBeginPending && !callWrapUpPending) || callStartPending;
   const isConversationActionLocked = isStartingCall || callWrapUpPending;
+  const showSessionReengagementPending =
+    sessionReengagementPending &&
+    !isConversationActionLocked &&
+    !chatPending &&
+    !assistantTyping &&
+    !onboardingWrapupPending &&
+    !onboardingPausePending &&
+    !profilePending &&
+    !sessionPending &&
+    inputMode !== "call" &&
+    stage !== "profile";
+  const visibleSessionReengagementActionMessageId =
+    !isConversationActionLocked &&
+    !chatPending &&
+    !assistantTyping &&
+    !onboardingWrapupPending &&
+    !onboardingPausePending &&
+    !profilePending &&
+    !sessionPending &&
+    inputMode !== "call" &&
+    stage !== "profile"
+      ? sessionReengagementActionMessageId
+      : null;
   const initialBottomSyncDoneRef = useRef(false);
 
   const handleEmailAuthSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -890,16 +980,18 @@ const CareerTimelineSection = () => {
     () => shouldShowOnboardingInterestSelector(messages),
     [messages]
   );
+  const selectedInterestOptions = useMemo(
+    () =>
+      showInterestSelector &&
+      interestSelectionState.messageKey === latestTimelineMessageKey
+        ? interestSelectionState.options
+        : [],
+    [interestSelectionState, latestTimelineMessageKey, showInterestSelector]
+  );
   const showContinueConversation = useMemo(
     () => shouldShowContinueConversationAction(messages) && !pauseCloseTyping,
     [messages, pauseCloseTyping]
   );
-
-  useEffect(() => {
-    if (!showInterestSelector) {
-      setSelectedInterestOptions([]);
-    }
-  }, [showInterestSelector]);
 
   useEffect(() => {
     initialBottomSyncDoneRef.current = false;
@@ -931,7 +1023,12 @@ const CareerTimelineSection = () => {
 
     const id = window.requestAnimationFrame(() => {
       scrollToBottom(
-        assistantTyping || chatPending || callWrapUpPending ? "auto" : "smooth"
+        assistantTyping ||
+          chatPending ||
+          callWrapUpPending ||
+          showSessionReengagementPending
+          ? "auto"
+          : "smooth"
       );
       syncScrollState();
     });
@@ -944,26 +1041,40 @@ const CareerTimelineSection = () => {
     inputMode,
     latestTimelineMessageKey,
     scrollToBottom,
+    showSessionReengagementPending,
     stickToBottom,
     syncScrollState,
   ]);
 
   const handleToggleInterestOption = useCallback(
     (optionId: TalentOnboardingInterestOptionId) => {
-      setSelectedInterestOptions((prev) =>
-        prev.includes(optionId)
-          ? prev.filter((item) => item !== optionId)
-          : [...prev, optionId]
-      );
+      setInterestSelectionState((prev) => {
+        const currentOptions =
+          prev.messageKey === latestTimelineMessageKey ? prev.options : [];
+        const options = currentOptions.includes(optionId)
+          ? currentOptions.filter((item) => item !== optionId)
+          : [...currentOptions, optionId];
+        return {
+          messageKey: latestTimelineMessageKey,
+          options,
+        };
+      });
     },
-    []
+    [latestTimelineMessageKey]
   );
 
   const handleSubmitInterestOptions = useCallback(async () => {
     const saved = await onSubmitOnboardingInterest(selectedInterestOptions);
     if (!saved) return;
-    setSelectedInterestOptions([]);
-  }, [onSubmitOnboardingInterest, selectedInterestOptions]);
+    setInterestSelectionState({
+      messageKey: latestTimelineMessageKey,
+      options: [],
+    });
+  }, [
+    latestTimelineMessageKey,
+    onSubmitOnboardingInterest,
+    selectedInterestOptions,
+  ]);
 
   const handleOpenOpportunity = useCallback(
     (opportunity: CareerHistoryOpportunity) => {
@@ -1125,16 +1236,28 @@ const CareerTimelineSection = () => {
         {hasTimelineMessages ? (
           <TimelineMessageList
             messages={timelineMessages}
+            assistantTyping={assistantTyping}
             isVoiceMode={isVoiceMode}
             lastSpokenAssistantMessageIndex={lastSpokenAssistantMessageIndex}
             thinkingLogsByMessageId={thinkingLogsByMessageId}
             onRegenerateOnboardingWrapup={onRegenerateOnboardingWrapup}
             onboardingWrapupPending={onboardingWrapupPending}
             onStartCallMode={onStartCallMode}
+            onStartConversationStarter={onStartConversationStarter}
+            sessionReengagementActionMessageId={
+              visibleSessionReengagementActionMessageId
+            }
             isStartingCall={isStartingCall}
             onOpenOpportunity={handleOpenOpportunity}
           />
         ) : null}
+
+        {showSessionReengagementPending && (
+          <TimelinePendingPanel
+            label="Thinking..."
+            detail="오랜만에 이어갈 대화를 준비하고 있어요."
+          />
+        )}
 
         {callWrapUpPending && !sessionPending && stage !== "profile" && (
           <TimelinePendingPanel

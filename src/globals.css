@@ -715,12 +715,33 @@
   will-change: background-position;
 }
 
+.career-reengagement-actions {
+  animation: career-reengagement-actions-in 520ms var(--ease-out-expo) both;
+  max-height: 120px;
+  overflow: hidden;
+  transform-origin: top left;
+  will-change: max-height, opacity, transform;
+}
+
 @keyframes career-thinking-shimmer {
   0% {
     background-position: -160% 0;
   }
   100% {
     background-position: 160% 0;
+  }
+}
+
+@keyframes career-reengagement-actions-in {
+  0% {
+    max-height: 0;
+    opacity: 0;
+    transform: translateY(-8px) scaleY(0.96);
+  }
+  100% {
+    max-height: 120px;
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
   }
 }
 
@@ -739,6 +760,10 @@
     animation: none;
     background-image: none;
     -webkit-text-fill-color: currentColor;
+  }
+
+  .career-reengagement-actions {
+    animation: none;
   }
 }
 

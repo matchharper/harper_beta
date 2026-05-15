@@ -15,6 +15,11 @@ import {
 import { cn } from "@/lib/utils";
 import { useCareerSidebarContext } from "@/components/career/CareerSidebarContext";
 import { getCareerDefaultSavedStage } from "@/components/career/opportunityTypeMeta";
+import { ConversationStarterActions } from "@/components/career/ConversationStarterActions";
+import type {
+  CareerConversationStarterId,
+  CareerConversationStarterMode,
+} from "@/lib/career/conversationStarters";
 
 const countFormatter = new Intl.NumberFormat("ko-KR");
 
@@ -226,6 +231,7 @@ const CareerMobileHomeView = ({
     historyOpportunityCounts,
     historyOpportunities,
     onStartCallMode,
+    onStartConversationStarter,
     talentProfile,
   } = useCareerSidebarContext();
 
@@ -252,13 +258,16 @@ const CareerMobileHomeView = ({
         )}개 연결 가능`
       : "추천된 기회";
 
-  const trackingPositionCount = historyOpportunityCounts.savedStages.saved;
-  const appliedPositionCount = historyOpportunityCounts.savedStages.applied;
-  const inProgressPositionCount = trackingPositionCount + appliedPositionCount;
+  const savedPositionCount = historyOpportunityCounts.savedStages.saved;
+  const connectedPositionCount =
+    historyOpportunityCounts.savedStages.applied +
+    historyOpportunityCounts.savedStages.connected +
+    historyOpportunityCounts.savedStages.closed;
+  const inProgressPositionCount = savedPositionCount + connectedPositionCount;
   const inProgressTargetSavedStage =
-    trackingPositionCount > 0 || appliedPositionCount === 0
+    savedPositionCount > 0 || connectedPositionCount === 0
       ? "saved"
-      : "applied";
+      : "connected";
 
   const inProgressOpportunities = useMemo(
     () =>
@@ -266,7 +275,14 @@ const CareerMobileHomeView = ({
         if (item.feedback !== "positive") return [];
         const savedStage =
           item.savedStage ?? getCareerDefaultSavedStage(item.opportunityType);
-        if (savedStage !== "saved" && savedStage !== "applied") return [];
+        if (
+          savedStage !== "saved" &&
+          savedStage !== "applied" &&
+          savedStage !== "connected" &&
+          savedStage !== "closed"
+        ) {
+          return [];
+        }
         return [{ item, savedStage }];
       }),
     [historyOpportunities]
@@ -274,15 +290,18 @@ const CareerMobileHomeView = ({
 
   const inProgressCompanyLabel = useMemo(() => {
     if (inProgressPositionCount === 0) {
-      return "아직 추적 중인 포지션 없음";
+      return "아직 저장하거나 연결된 포지션 없음";
     }
     const firstCompanyName = (
       inProgressOpportunities.find(
-        (opportunity) => opportunity.savedStage === inProgressTargetSavedStage
+        (opportunity) =>
+          inProgressTargetSavedStage === "saved"
+            ? opportunity.savedStage === "saved"
+            : opportunity.savedStage !== "saved"
       ) ?? inProgressOpportunities[0]
     )?.item.companyName?.trim();
     const statusLabel =
-      inProgressTargetSavedStage === "saved" ? "추적 중" : "지원 중";
+      inProgressTargetSavedStage === "saved" ? "저장함" : "연결됨";
     if (!firstCompanyName) {
       return `${countFormatter.format(inProgressPositionCount)}개 ${statusLabel}`;
     }
@@ -318,6 +337,17 @@ const CareerMobileHomeView = ({
     void onStartCallMode?.();
   };
 
+  const handleStartConversationStarter = ({
+    mode,
+    starterId,
+  }: {
+    mode: CareerConversationStarterMode;
+    starterId: CareerConversationStarterId;
+  }) => {
+    onOpenChat();
+    return onStartConversationStarter?.({ mode, starterId }) ?? false;
+  };
+
   return (
     <div className="flex flex-col gap-6 px-4 pb-[160px] pt-4">
       <header className="px-1">
@@ -337,6 +367,15 @@ const CareerMobileHomeView = ({
         onStartCall={handleStartCall}
         title={callButtonTitle}
       />
+
+      {isOnboardingCompleted ? (
+        <ConversationStarterActions
+          callStartPending={callStartPending}
+          disabled={!onStartConversationStarter}
+          onStart={handleStartConversationStarter}
+          variant="mobile"
+        />
+      ) : null}
 
       {!isOnboardingCompleted ? (
         <section className="rounded-3xl bg-beige100 px-5 py-5">
@@ -390,8 +429,8 @@ const CareerMobileHomeView = ({
             }
           />
           <SummaryCard
-            title="진행 중"
-            status="추적 + 지원"
+            title="저장 / 연결"
+            status="저장함 + 연결됨"
             count={inProgressPositionCount}
             description={inProgressCompanyLabel}
             buttonLabel="상세 보기"

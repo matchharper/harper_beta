@@ -24,6 +24,7 @@ import CareerMobileChatLauncher from "@/components/career/mobile/CareerMobileCha
 import CareerMobileHomeView from "@/components/career/mobile/CareerMobileHomeView";
 import CareerMobileShell from "@/components/career/mobile/CareerMobileShell";
 import CareerMobileTopBar from "@/components/career/mobile/CareerMobileTopBar";
+import { getCareerDefaultSavedStage } from "@/components/career/opportunityTypeMeta";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 import { useCompanyModalStore } from "@/store/useModalStore";
 import { useQueryClient } from "@tanstack/react-query";
@@ -392,15 +393,6 @@ const WORKSPACE_TAB_OPTIONS: Array<{
   { id: "profile", label: "프로필" },
 ];
 
-const JOBS_TAB_TO_FEEDBACK: Record<
-  JobsDisplayTab,
-  "new" | "positive" | "negative"
-> = {
-  new: "new",
-  tracking: "positive",
-  archived: "negative",
-};
-
 const useMobileUserDisplay = () => {
   const { user, talentProfile } = useCareerSidebarContext();
   const displayName =
@@ -439,7 +431,12 @@ const CareerWorkspaceMobileHistoryView = ({
   const queryClient = useQueryClient();
 
   const [jobsTab, setJobsTab] = useState<JobsDisplayTab>(() => {
-    if (initialHistoryTarget?.historyTab === "saved") return "tracking";
+    if (initialHistoryTarget?.historyTab === "saved") {
+      const stage = initialHistoryTarget.savedStage;
+      return stage === "connected" || stage === "applied" || stage === "closed"
+        ? "connected"
+        : "saved";
+    }
     if (initialHistoryTarget?.historyTab === "archived") return "archived";
     return "new";
   });
@@ -471,14 +468,19 @@ const CareerWorkspaceMobileHistoryView = ({
     [onMarkHistoryOpportunityClicked, openCompanyModal, queryClient]
   );
 
-  const filterMode = JOBS_TAB_TO_FEEDBACK[jobsTab];
   const filteredOpportunities = useMemo(
     () =>
       historyOpportunities.filter((item) => {
-        if (filterMode === "new") return item.feedback === null;
-        return item.feedback === filterMode;
+        if (jobsTab === "new") return item.feedback === null;
+        if (jobsTab === "archived") return item.feedback === "negative";
+        if (item.feedback !== "positive") return false;
+
+        const savedStage =
+          item.savedStage ?? getCareerDefaultSavedStage(item.opportunityType);
+        if (jobsTab === "connected") return savedStage !== "saved";
+        return savedStage === "saved";
       }),
-    [historyOpportunities, filterMode]
+    [historyOpportunities, jobsTab]
   );
 
   const safeIndex = Math.min(
@@ -548,8 +550,13 @@ const CareerWorkspaceMobileHistoryView = ({
         selectionTotal={filteredOpportunities.length}
         onNavigate={handleNavigate}
         newCount={historyOpportunityCounts.new}
-        trackingCount={historyOpportunityCounts.saved}
+        savedCount={historyOpportunityCounts.savedStages.saved}
         archivedCount={historyOpportunityCounts.archived}
+        connectedCount={
+          historyOpportunityCounts.savedStages.applied +
+          historyOpportunityCounts.savedStages.connected +
+          historyOpportunityCounts.savedStages.closed
+        }
         activeJobsTab={jobsTab}
         onChangeJobsTab={handleChangeJobsTab}
         profilePicture={profilePicture}

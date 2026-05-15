@@ -13,6 +13,7 @@ import { maybeSummarizeTalentConversation } from "@/lib/talentOnboarding/convers
 import { completeTalentOnboardingManually } from "@/lib/talentOnboarding/manualCompletion";
 import { runCareerChatTurn } from "@/lib/career/chatTurn";
 import { TALENT_TOOL_NAMES } from "@/lib/talentOnboarding/tools";
+import { getCareerConversationStarterPrompt } from "@/lib/career/conversationStarterPrompts";
 
 type TranscriptEntry = {
   role: "user" | "assistant";
@@ -20,6 +21,7 @@ type TranscriptEntry = {
 };
 
 type Body = {
+  conversationStarterId?: string | null;
   conversationId: string;
   forceCompleteOnboarding?: boolean;
   transcript: TranscriptEntry[];
@@ -214,14 +216,29 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as Body;
     const {
       conversationId,
+      conversationStarterId: rawConversationStarterId,
       forceCompleteOnboarding = false,
       transcript,
       durationSeconds,
     } = body;
+    const conversationStarterId =
+      typeof rawConversationStarterId === "string"
+        ? rawConversationStarterId.trim()
+        : "";
+    const conversationStarter = conversationStarterId
+      ? getCareerConversationStarterPrompt(conversationStarterId)
+      : null;
+    const skipConversationWrites = Boolean(conversationStarter);
 
     if (!conversationId || !Array.isArray(transcript)) {
       return NextResponse.json(
         { error: "Missing required fields" },
+        { status: 400 }
+      );
+    }
+    if (conversationStarterId && !conversationStarter) {
+      return NextResponse.json(
+        { error: "Invalid conversationStarterId" },
         { status: 400 }
       );
     }
@@ -281,7 +298,7 @@ export async function POST(request: NextRequest) {
       transcriptStats,
       safeDurationSeconds
     );
-    if (forceCompleteOnboarding) {
+    if (forceCompleteOnboarding && !skipConversationWrites) {
       const result = await completeTalentOnboardingManually({
         admin: supabase,
         conversationId,
@@ -323,6 +340,7 @@ export async function POST(request: NextRequest) {
           isOnboardingDone: inferredOnboardingDone,
           transcript: resolvedTranscript,
         }),
+        skipConversationWrites,
         userId: user.id,
       });
 

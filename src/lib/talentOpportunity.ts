@@ -201,6 +201,8 @@ export type TalentOpportunitySavedStage =
   | "connected"
   | "closed";
 
+export type TalentOpportunityHistoryTab = "new" | "saved" | "archived";
+
 export type TalentOpportunityHistoryItem = {
   clickedAt: string | null;
   companyDescription: string | null;
@@ -428,13 +430,14 @@ const getDefaultSavedStageForOpportunityType = (
 ): TalentOpportunitySavedStage => {
   if (opportunityType === OpportunityType.IntroRequest) return "connected";
   if (opportunityType === OpportunityType.InternalRecommendation) {
-    return "applied";
+    return "connected";
   }
   return "saved";
 };
 
 function buildTalentOpportunityHistoryQuery(args: {
   admin: AdminClient;
+  feedback?: "like" | "dislike" | null;
   sourceType?: TalentOpportunitySourceType;
   userId: string;
 }) {
@@ -447,6 +450,13 @@ function buildTalentOpportunityHistoryQuery(args: {
 
   if (args.sourceType) {
     query = query.eq("company_role.source_type", args.sourceType);
+  }
+
+  if ("feedback" in args) {
+    query =
+      args.feedback === null
+        ? query.is("feedback", null)
+        : query.eq("feedback", args.feedback);
   }
 
   return query;
@@ -761,6 +771,7 @@ function mapPostingRoleRow(
 
 export async function fetchTalentOpportunityHistory(args: {
   admin: AdminClient;
+  feedback?: "like" | "dislike" | null;
   limit?: number;
   offset?: number;
   sourceType?: TalentOpportunitySourceType;
@@ -777,6 +788,9 @@ export async function fetchTalentOpportunityHistory(args: {
 
   let query = buildTalentOpportunityHistoryQuery({
     admin: args.admin,
+    ...(Object.prototype.hasOwnProperty.call(args, "feedback")
+      ? { feedback: args.feedback }
+      : {}),
     sourceType: args.sourceType,
     userId: args.userId,
   });
@@ -796,20 +810,100 @@ export async function fetchTalentOpportunityHistory(args: {
     .filter((item): item is TalentOpportunityHistoryItem => item !== null);
 }
 
+function getResolvedTalentOpportunitySavedStage(
+  item: TalentOpportunityHistoryItem
+) {
+  return item.savedStage ?? getDefaultSavedStageForOpportunityType(item.opportunityType);
+}
+
+function getDatabaseFeedbackForHistoryTab(
+  tab: TalentOpportunityHistoryTab
+): "like" | "dislike" | null {
+  if (tab === "saved") return "like";
+  if (tab === "archived") return "dislike";
+  return null;
+}
+
+function filterHistoryItemsForSavedStage(
+  items: TalentOpportunityHistoryItem[],
+  savedStage?: TalentOpportunitySavedStage
+) {
+  if (!savedStage) return items;
+
+  return items.filter((item) => {
+    const resolvedStage = getResolvedTalentOpportunitySavedStage(item);
+    if (savedStage === "connected") {
+      return resolvedStage !== "saved";
+    }
+    return resolvedStage === savedStage;
+  });
+}
+
+async function fetchFilteredTalentOpportunityHistoryPage(args: {
+  admin: AdminClient;
+  historyTab: TalentOpportunityHistoryTab;
+  limit: number;
+  offset: number;
+  savedStage?: TalentOpportunitySavedStage;
+  userId: string;
+}): Promise<TalentOpportunityHistoryPage> {
+  const [allItems, counts] = await Promise.all([
+    fetchTalentOpportunityHistory({
+      admin: args.admin,
+      feedback: getDatabaseFeedbackForHistoryTab(args.historyTab),
+      userId: args.userId,
+    }),
+    fetchTalentOpportunityHistoryCounts({
+      admin: args.admin,
+      userId: args.userId,
+    }),
+  ]);
+  const filteredItems =
+    args.historyTab === "saved"
+      ? filterHistoryItemsForSavedStage(allItems, args.savedStage)
+      : allItems;
+  const items = filteredItems.slice(args.offset, args.offset + args.limit);
+
+  return {
+    counts,
+    items,
+    limit: args.limit,
+    nextOffset:
+      args.offset + items.length < filteredItems.length
+        ? args.offset + items.length
+        : null,
+    offset: args.offset,
+  };
+}
+
 export async function fetchTalentOpportunityHistoryPage(args: {
   admin: AdminClient;
+  historyTab?: TalentOpportunityHistoryTab;
   limit?: number;
   offset?: number;
+  savedStage?: TalentOpportunitySavedStage;
   userId: string;
 }): Promise<TalentOpportunityHistoryPage> {
   const limit =
     typeof args.limit === "number" && Number.isFinite(args.limit)
       ? Math.max(1, Math.min(Math.floor(args.limit), 100))
-      : 20;
+      : 10;
   const offset =
     typeof args.offset === "number" && Number.isFinite(args.offset)
       ? Math.max(0, Math.floor(args.offset))
       : 0;
+
+  if (args.historyTab) {
+    return fetchFilteredTalentOpportunityHistoryPage({
+      admin: args.admin,
+      historyTab: args.historyTab,
+      limit,
+      offset,
+      savedStage: args.savedStage,
+      userId: args.userId,
+    });
+  }
+
   const [externalItems, internalItems, counts] = await Promise.all([
     fetchTalentOpportunityHistory({
       admin: args.admin,

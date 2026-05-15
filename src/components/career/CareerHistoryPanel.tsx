@@ -1,6 +1,5 @@
 import {
   ArrowRight,
-  ArchiveRestore,
   BriefcaseBusiness,
   ClipboardCheck,
   FileCheck2,
@@ -28,13 +27,13 @@ import CareerInPageTabs from "./CareerInPageTabs";
 import {
   CareerInlinePanel,
   CareerPrimaryButton,
-  CareerSecondaryButton,
   careerCx,
 } from "./ui/CareerPrimitives";
 import {
   CareerOpportunityType,
   type CareerHistoryOpportunity,
   type CareerHistoryOpportunityFeedback,
+  type CareerHistoryOpportunityPageFilter,
   type CareerOpportunitySavedStage,
 } from "./types";
 import {
@@ -55,7 +54,9 @@ import {
   parseNegativeFeedbackReason,
   serializeNegativeFeedbackReason,
 } from "./history/FeedbackModal";
-import OpportunityListCard from "./history/OpportunityListCard";
+import OpportunityListCard, {
+  getFeedbackForStatusDropdownValue,
+} from "./history/OpportunityListCard";
 import HistoryOpportunityDetailContent from "./history/HistoryOpportunityDetailContent";
 import HistoryOpportunityInfoModal from "./history/HistoryOppotunityInfoModal";
 import OpportunityDetailModal from "./history/OpportunityDetailModal";
@@ -63,7 +64,7 @@ import HistoryShortcutPanel from "./history/HistoryShortcutPanel";
 import React from "react";
 
 type HistoryTabId = "new" | "saved" | "archived";
-type HistoryDisplayTabId = "new" | "tracking" | "applied" | "archived";
+type HistoryDisplayTabId = "new" | "saved" | "archived" | "connected";
 type SavedTabId = CareerOpportunitySavedStage;
 
 const HISTORY_TAB_QUERY_KEY = "historyTab";
@@ -97,25 +98,15 @@ const HISTORY_DISPLAY_TABS: Array<{
   label: string;
 }> = [
   { id: "new", label: "새 포지션" },
-  { id: "tracking", label: "추적 중" },
-  { id: "applied", label: "지원함" },
-  { id: "archived", label: "보관함" },
+  { id: "saved", label: "저장함" },
+  { id: "archived", label: "선호하지 않음" },
+  { id: "connected", label: "연결됨" },
 ];
 
 const compareRecommendedAtDesc = (
   left: CareerHistoryOpportunity,
   right: CareerHistoryOpportunity
 ) => Date.parse(right.recommendedAt) - Date.parse(left.recommendedAt);
-
-export const SAVED_TABS: Array<{
-  id: SavedTabId;
-  label: string;
-}> = [
-  { id: "saved", label: "저장됨" },
-  { id: "applied", label: "연결 수락함 / 지원함" },
-  { id: "connected", label: "연결됨" },
-  { id: "closed", label: "종료됨" },
-];
 
 const formatEmploymentType = (value: string) => {
   if (value === "full_time") return "";
@@ -170,7 +161,7 @@ export const getSavedStageLabel = (
   }
   if (stage === "connected") return "연결됨";
   if (stage === "closed") return "종료됨";
-  return "저장됨";
+  return "저장함";
 };
 
 export const getOpportunityStatusLabel = (item: CareerHistoryOpportunity) => {
@@ -418,7 +409,6 @@ const CareerHistoryPanel = () => {
     historyOpportunities,
     historyLoading,
     historyLoadingMore,
-    hasMoreHistoryOpportunities,
     historyUpdatingOpportunityIds,
     historyUpdateError,
     onLoadMoreHistoryOpportunities,
@@ -426,7 +416,6 @@ const CareerHistoryPanel = () => {
     onMarkHistoryOpportunityClicked,
     onMarkHistoryOpportunityViewed,
     onUpdateHistoryOpportunityFeedback,
-    onUpdateHistoryOpportunitySavedStage,
     onSendHistoryOpportunityQuestion,
   } = useCareerSidebarContext();
   const [activeTab, setActiveTab] = useState<HistoryTabId>("new");
@@ -443,6 +432,7 @@ const CareerHistoryPanel = () => {
   const autoAdvanceRequestedRef = useRef(false);
   const wasHistoryLoadingMoreRef = useRef(false);
   const missingRoleIdRef = useRef<string | null>(null);
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
   const [loadingRoleId, setLoadingRoleId] = useState<string | null>(null);
   const [modalOpportunityId, setModalOpportunityId] = useState<string | null>(
     null
@@ -587,6 +577,8 @@ const CareerHistoryPanel = () => {
     () => [...historyOpportunities].sort(compareRecommendedAtDesc),
     [historyOpportunities]
   );
+  const hasKnownHistoryOpportunities =
+    sortedOpportunities.length > 0 || historyOpportunityCounts.total > 0;
   const { archivedItems, newItems, savedItemsByStage } = useMemo(() => {
     const nextNewItems: CareerHistoryOpportunity[] = [];
     const nextArchivedItems: CareerHistoryOpportunity[] = [];
@@ -631,7 +623,21 @@ const CareerHistoryPanel = () => {
       savedItemsByStage: nextSavedItemsByStage,
     };
   }, [sortedOpportunities]);
-  const filteredSavedItems = savedItemsByStage[activeSavedTab];
+  const connectedSavedItems = useMemo(
+    () =>
+      [
+        ...savedItemsByStage.applied,
+        ...savedItemsByStage.connected,
+        ...savedItemsByStage.closed,
+      ].sort(compareRecommendedAtDesc),
+    [
+      savedItemsByStage.applied,
+      savedItemsByStage.connected,
+      savedItemsByStage.closed,
+    ]
+  );
+  const filteredSavedItems =
+    activeSavedTab === "saved" ? savedItemsByStage.saved : connectedSavedItems;
   const opportunityById = useMemo(
     () => new Map(sortedOpportunities.map((item) => [item.id, item])),
     [sortedOpportunities]
@@ -710,9 +716,10 @@ const CareerHistoryPanel = () => {
     : -1;
 
   const activeOpportunity = activeIndex >= 0 ? newItems[activeIndex] : null;
+  const hasMoreNewOpportunities = newItems.length < historyOpportunityCounts.new;
   const canMoveNextOpportunity =
     activeIndex >= 0 &&
-    (activeIndex < newItems.length - 1 || hasMoreHistoryOpportunities);
+    (activeIndex < newItems.length - 1 || hasMoreNewOpportunities);
   const nextOpportunityPending =
     activeTab === "new" && autoAdvanceTargetIndex !== null;
 
@@ -951,7 +958,7 @@ const CareerHistoryPanel = () => {
 
   const loadNextOpportunityPage = useCallback(() => {
     if (
-      !hasMoreHistoryOpportunities ||
+      !hasMoreNewOpportunities ||
       historyLoadingMore ||
       autoAdvanceRequestedRef.current
     ) {
@@ -960,9 +967,9 @@ const CareerHistoryPanel = () => {
     autoAdvanceRequestedRef.current = true;
     activeOpportunityUrlSyncRequestedRef.current = true;
     setAutoAdvanceTargetIndex(newItems.length);
-    void onLoadMoreHistoryOpportunities();
+    void onLoadMoreHistoryOpportunities({ historyTab: "new" });
   }, [
-    hasMoreHistoryOpportunities,
+    hasMoreNewOpportunities,
     historyLoadingMore,
     newItems.length,
     onLoadMoreHistoryOpportunities,
@@ -1003,7 +1010,7 @@ const CareerHistoryPanel = () => {
         return;
       }
 
-      if (hasMoreHistoryOpportunities) {
+      if (hasMoreNewOpportunities) {
         setAutoAdvanceTargetIndex(feedbackAdvanceTargetIndex);
         return;
       }
@@ -1015,7 +1022,7 @@ const CareerHistoryPanel = () => {
     setActiveOpportunityId(newItems[0]?.id ?? null);
   }, [
     activeOpportunityId,
-    hasMoreHistoryOpportunities,
+    hasMoreNewOpportunities,
     newItemIndexById,
     newItems,
   ]);
@@ -1036,7 +1043,7 @@ const CareerHistoryPanel = () => {
 
     if (historyLoadingMore) return;
 
-    if (hasMoreHistoryOpportunities) {
+    if (hasMoreNewOpportunities) {
       if (autoAdvanceRequestedRef.current && !completedPageLoad) {
         return;
       }
@@ -1050,7 +1057,7 @@ const CareerHistoryPanel = () => {
     autoAdvanceRequestedRef.current = false;
   }, [
     autoAdvanceTargetIndex,
-    hasMoreHistoryOpportunities,
+    hasMoreNewOpportunities,
     historyLoadingMore,
     loadNextOpportunityPage,
     newItems,
@@ -1179,6 +1186,25 @@ const CareerHistoryPanel = () => {
       updateFeedbackForItem(item, null);
     },
     [activeSavedTab, updateFeedbackForItem, updateHistoryLocation]
+  );
+
+  const handleStatusDropdownChange = useCallback(
+    (
+      item: CareerHistoryOpportunity,
+      value: Parameters<typeof getFeedbackForStatusDropdownValue>[0]
+    ) => {
+      const next = getFeedbackForStatusDropdownValue(value);
+
+      if (next.feedback === null) {
+        handleRestoreAction(item);
+        return;
+      }
+
+      updateFeedbackForItem(item, next.feedback, {
+        savedStage: next.savedStage,
+      });
+    },
+    [handleRestoreAction, updateFeedbackForItem]
   );
 
   const handlePositiveAction = useCallback(
@@ -1381,11 +1407,15 @@ const CareerHistoryPanel = () => {
         label,
         count: (() => {
           if (id === "new") return historyOpportunityCounts.new;
-          if (id === "tracking") {
+          if (id === "saved") {
             return historyOpportunityCounts.savedStages.saved;
           }
-          if (id === "applied") {
-            return historyOpportunityCounts.savedStages.applied;
+          if (id === "connected") {
+            return (
+              historyOpportunityCounts.savedStages.applied +
+              historyOpportunityCounts.savedStages.connected +
+              historyOpportunityCounts.savedStages.closed
+            );
           }
           return historyOpportunityCounts.archived;
         })(),
@@ -1394,14 +1424,16 @@ const CareerHistoryPanel = () => {
       historyOpportunityCounts.archived,
       historyOpportunityCounts.new,
       historyOpportunityCounts.savedStages.applied,
+      historyOpportunityCounts.savedStages.closed,
+      historyOpportunityCounts.savedStages.connected,
       historyOpportunityCounts.savedStages.saved,
     ]
   );
   const activeDisplayTab: HistoryDisplayTabId =
     activeTab === "saved"
-      ? activeSavedTab === "applied"
-        ? "applied"
-        : "tracking"
+      ? activeSavedTab === "saved"
+        ? "saved"
+        : "connected"
       : activeTab;
 
   const handleDisplayTabChange = useCallback(
@@ -1414,12 +1446,12 @@ const CareerHistoryPanel = () => {
         });
         return;
       }
-      if (nextTab === "tracking") {
+      if (nextTab === "saved") {
         updateHistoryLocation("saved", "saved");
         return;
       }
-      if (nextTab === "applied") {
-        updateHistoryLocation("saved", "applied");
+      if (nextTab === "connected") {
+        updateHistoryLocation("saved", "connected");
         return;
       }
       updateHistoryLocation("archived", activeSavedTab);
@@ -1464,6 +1496,67 @@ const CareerHistoryPanel = () => {
   );
 
   const listItems = activeTab === "saved" ? filteredSavedItems : archivedItems;
+  const listTotal =
+    activeTab === "saved"
+      ? activeDisplayTab === "connected"
+        ? historyOpportunityCounts.savedStages.applied +
+          historyOpportunityCounts.savedStages.connected +
+          historyOpportunityCounts.savedStages.closed
+        : historyOpportunityCounts.savedStages.saved
+      : activeTab === "archived"
+        ? historyOpportunityCounts.archived
+        : 0;
+  const hasMoreListItems =
+    (activeTab === "saved" || activeTab === "archived") &&
+    listItems.length < listTotal;
+  const activeListFilter = useMemo<CareerHistoryOpportunityPageFilter | null>(
+    () => {
+      if (activeTab === "archived") {
+        return { historyTab: "archived" };
+      }
+      if (activeTab === "saved") {
+        return {
+          historyTab: "saved",
+          savedStage: activeDisplayTab === "connected" ? "connected" : "saved",
+        };
+      }
+      return null;
+    },
+    [activeDisplayTab, activeTab]
+  );
+  const loadMoreListItems = useCallback(() => {
+    if (!activeListFilter || !hasMoreListItems || historyLoadingMore) return;
+    void onLoadMoreHistoryOpportunities(activeListFilter);
+  }, [
+    activeListFilter,
+    hasMoreListItems,
+    historyLoadingMore,
+    onLoadMoreHistoryOpportunities,
+  ]);
+
+  useEffect(() => {
+    if (activeTab !== "saved" && activeTab !== "archived") return;
+    if (listItems.length > 0) return;
+    loadMoreListItems();
+  }, [activeTab, listItems.length, loadMoreListItems]);
+
+  useEffect(() => {
+    const sentinel = loadMoreSentinelRef.current;
+    if (!sentinel || !hasMoreListItems || historyLoadingMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          loadMoreListItems();
+        }
+      },
+      { rootMargin: "360px 0px" }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMoreListItems, historyLoadingMore, loadMoreListItems]);
+
   const isConversationCompleted = stage === "completed";
   const isOpportunitySearchActive =
     opportunityRunTriggerPending || Boolean(opportunityRun?.inputLocked);
@@ -1484,7 +1577,7 @@ const CareerHistoryPanel = () => {
     );
   }
 
-  if (sortedOpportunities.length === 0) {
+  if (!hasKnownHistoryOpportunities) {
     return (
       <HistoryEmptyStatePanel
         onOpenChat={openChatTab}
@@ -1547,29 +1640,12 @@ const CareerHistoryPanel = () => {
                       key={item.id}
                       item={item}
                       pending={pendingOpportunityIds.has(item.id)}
-                      showSavedStageSelect
-                      action={
-                        <CareerSecondaryButton
-                          onClick={() => handleRestoreAction(item)}
-                          disabled={pendingOpportunityIds.has(item.id)}
-                          className="h-9 gap-2 px-3"
-                        >
-                          {pendingOpportunityIds.has(item.id) ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <ArchiveRestore className="h-4 w-4" />
-                          )}
-                          새 기회로 되돌리기
-                        </CareerSecondaryButton>
-                      }
+                      showStatusSelect
                       onOpenOpportunityInfo={setInfoOpportunityType}
                       onOpenCompanyInfo={openHistoryCompanyInfo}
-                      onSavedStageChange={(stage) => {
-                        void onUpdateHistoryOpportunitySavedStage(
-                          item.id,
-                          stage
-                        );
-                      }}
+                      onStatusChange={(value) =>
+                        handleStatusDropdownChange(item, value)
+                      }
                       onOpenDetail={() => openModalForItem(item)}
                     />
                   ))}
@@ -1583,6 +1659,19 @@ const CareerHistoryPanel = () => {
                   </div>
                 </CareerInlinePanel>
               )}
+
+              {hasMoreListItems && (
+                <div
+                  ref={loadMoreSentinelRef}
+                  className="flex min-h-12 items-center justify-center text-[13px] text-beige900/45"
+                >
+                  {historyLoadingMore ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-beige900/55" />
+                  ) : (
+                    "더 불러올 항목이 있습니다."
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -1593,20 +1682,12 @@ const CareerHistoryPanel = () => {
                   key={item.id}
                   item={item}
                   pending={pendingOpportunityIds.has(item.id)}
-                  action={
-                    <CareerSecondaryButton
-                      onClick={() => handleRestoreAction(item)}
-                      disabled={pendingOpportunityIds.has(item.id)}
-                      className="h-9 gap-2 px-3"
-                    >
-                      {pendingOpportunityIds.has(item.id) && (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      )}
-                      복구하기
-                    </CareerSecondaryButton>
-                  }
+                  showStatusSelect
                   onOpenOpportunityInfo={setInfoOpportunityType}
                   onOpenCompanyInfo={openHistoryCompanyInfo}
+                  onStatusChange={(value) =>
+                    handleStatusDropdownChange(item, value)
+                  }
                   onOpenDetail={() => openModalForItem(item)}
                 />
               ))}
@@ -1620,6 +1701,19 @@ const CareerHistoryPanel = () => {
                   이 탭에 해당하는 기회가 아직 없습니다.
                 </div>
               </CareerInlinePanel>
+            </div>
+          )}
+
+          {activeTab === "archived" && hasMoreListItems && (
+            <div
+              ref={loadMoreSentinelRef}
+              className="flex min-h-12 items-center justify-center text-[13px] text-beige900/45"
+            >
+              {historyLoadingMore ? (
+                <Loader2 className="h-4 w-4 animate-spin text-beige900/55" />
+              ) : (
+                "더 불러올 항목이 있습니다."
+              )}
             </div>
           )}
         </div>

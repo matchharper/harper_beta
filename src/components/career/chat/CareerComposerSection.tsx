@@ -305,7 +305,7 @@ const CareerComposerSection = () => {
                 <div className="absolute bottom-0 right-0 flex items-center gap-2">
                   {showCallQuickAction && (
                     <>
-                      <button
+                      {/* <button
                         type="button"
                         onClick={() => onStartVoiceCall()}
                         disabled={isComposerActionLocked || isStartingCall}
@@ -313,7 +313,7 @@ const CareerComposerSection = () => {
                         aria-label="음성 모드"
                       >
                         <Mic className="h-3.5 w-3.5" />
-                      </button>
+                      </button> */}
                       <button
                         type="button"
                         onClick={() => onStartCallMode?.()}

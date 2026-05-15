@@ -4,6 +4,7 @@ import type {
   CareerHistoryOpportunity,
   CareerHistoryOpportunityCounts,
   CareerHistoryOpportunityFeedback,
+  CareerHistoryOpportunityPageFilter,
   CareerOpportunitySavedStage,
   CareerRecentOpportunity,
   CareerStage,
@@ -14,6 +15,10 @@ import type {
   CareerOpportunityAgentVariant,
 } from "./types";
 import type { CareerProfileVisibility } from "@/hooks/career/useCareerTalentSettings";
+import type {
+  CareerConversationStarterId,
+  CareerConversationStarterMode,
+} from "@/lib/career/conversationStarters";
 
 export type CareerSidebarContextValue = {
   user: User | null;
@@ -28,6 +33,11 @@ export type CareerSidebarContextValue = {
   activeCompanyRoleCount: number;
   opportunityRun: CareerOpportunityRun | null;
   opportunityRunTriggerPending: boolean;
+  sessionReengagementTestPending: boolean;
+  onRunSessionReengagementTest: () =>
+    | boolean
+    | void
+    | Promise<boolean | void>;
   onRunPeriodicOpportunityDiscoveryTest: (
     agentVariant?: CareerOpportunityAgentVariant
   ) => void | Promise<void>;
@@ -36,6 +46,10 @@ export type CareerSidebarContextValue = {
   ) => void | Promise<void>;
   callStartPending?: boolean;
   onStartCallMode?: (openingText?: string) => boolean | Promise<boolean>;
+  onStartConversationStarter?: (args: {
+    mode: CareerConversationStarterMode;
+    starterId: CareerConversationStarterId;
+  }) => boolean | Promise<boolean>;
   recentOpportunities: CareerRecentOpportunity[];
   historyOpportunityCounts: CareerHistoryOpportunityCounts;
   historyOpportunities: CareerHistoryOpportunity[];
@@ -44,10 +58,15 @@ export type CareerSidebarContextValue = {
   hasMoreHistoryOpportunities: boolean;
   historyUpdatingOpportunityIds: string[];
   historyUpdateError: string;
-  onLoadMoreHistoryOpportunities: () => void | Promise<void>;
+  onLoadMoreHistoryOpportunities: (
+    filter?: CareerHistoryOpportunityPageFilter
+  ) => void | Promise<void>;
   onLoadHistoryOpportunityByRoleId: (
     roleId: string
-  ) => CareerHistoryOpportunity | null | Promise<CareerHistoryOpportunity | null>;
+  ) =>
+    | CareerHistoryOpportunity
+    | null
+    | Promise<CareerHistoryOpportunity | null>;
   onUpdateHistoryOpportunityFeedback: (
     opportunityId: string,
     feedback: CareerHistoryOpportunityFeedback | null,

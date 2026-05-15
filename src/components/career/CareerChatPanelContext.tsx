@@ -14,6 +14,10 @@ import type {
   CareerStage,
 } from "./types";
 import type { TalentOnboardingInterestOptionId } from "@/lib/talentOnboarding/onboarding";
+import type {
+  CareerConversationStarterId,
+  CareerConversationStarterMode,
+} from "@/lib/career/conversationStarters";
 
 export type CareerChatPanelContextValue = {
   user: User | null;
@@ -46,6 +50,8 @@ export type CareerChatPanelContextValue = {
   onboardingWrapupPending: boolean;
   thinkingLogsByMessageId: Record<string, string[]>;
   chatPending: boolean;
+  sessionReengagementPending: boolean;
+  sessionReengagementActionMessageId?: string | null;
   opportunityRun: CareerOpportunityRun | null;
   opportunitySearchLocked: boolean;
   historyUpdatingOpportunityIds: string[];
@@ -69,10 +75,15 @@ export type CareerChatPanelContextValue = {
 
   onSendChatMessage: (args: {
     channel?: "chat" | "voice";
+    conversationStarterId?: CareerConversationStarterId;
     text: string;
     link?: string;
     onError?: () => void;
   }) => void | Promise<void>;
+  onStartConversationStarter?: (args: {
+    mode: CareerConversationStarterMode;
+    starterId: CareerConversationStarterId;
+  }) => boolean | Promise<boolean>;
   onUpdateHistoryOpportunityFeedback: (
     opportunityId: string,
     feedback: CareerHistoryOpportunityFeedback | null,

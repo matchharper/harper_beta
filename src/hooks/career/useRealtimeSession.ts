@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FetchWithAuth } from "./useCareerApi";
+import type { CareerConversationStarterId } from "@/lib/career/conversationStarters";
 
 type UseRealtimeSessionArgs = {
   conversationId: string | null;
@@ -13,6 +14,10 @@ type UseRealtimeSessionArgs = {
   onConnectionChange: (connected: boolean) => void;
   onUserSpeechStarted?: () => void;
   onUserSpeechStopped?: () => void;
+};
+
+type RealtimeConnectOptions = {
+  conversationStarterId?: CareerConversationStarterId | null;
 };
 
 type TokenInfo = {
@@ -91,7 +96,9 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
-  const connectRef = useRef<(() => Promise<boolean>) | null>(null);
+  const connectRef = useRef<
+    ((options?: RealtimeConnectOptions) => Promise<boolean>) | null
+  >(null);
   const connectPromiseRef = useRef<Promise<boolean> | null>(null);
   const connectAttemptIdRef = useRef(0);
   const partialTranscriptItemIdRef = useRef<string | null>(null);
@@ -192,33 +199,40 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     cleanupMedia();
   }, [cleanupMedia]);
 
-  const fetchToken = useCallback(async (): Promise<TokenInfo | null> => {
-    if (!conversationId) return null;
-    try {
-      const res = await fetchWithAuth("/api/realtime/token", {
-        method: "POST",
-        body: JSON.stringify({ conversationId }),
-      });
-      if (!res.ok) {
-        const errText = await res.text().catch(() => "");
-        console.error("[RealtimeSession] Token fetch failed:", errText);
+  const fetchToken = useCallback(
+    async (options?: RealtimeConnectOptions): Promise<TokenInfo | null> => {
+      if (!conversationId) return null;
+      try {
+        const res = await fetchWithAuth("/api/realtime/token", {
+          method: "POST",
+          body: JSON.stringify({
+            conversationId,
+            conversationStarterId:
+              options?.conversationStarterId ?? undefined,
+          }),
+        });
+        if (!res.ok) {
+          const errText = await res.text().catch(() => "");
+          console.error("[RealtimeSession] Token fetch failed:", errText);
+          return null;
+        }
+        const data = await res.json();
+        return {
+          token: data.token,
+          toolVoicePreambles:
+            data.toolVoicePreambles &&
+            typeof data.toolVoicePreambles === "object" &&
+            !Array.isArray(data.toolVoicePreambles)
+              ? (data.toolVoicePreambles as Record<string, string>)
+              : {},
+        };
+      } catch (err) {
+        console.error("[RealtimeSession] Token fetch error:", err);
         return null;
       }
-      const data = await res.json();
-      return {
-        token: data.token,
-        toolVoicePreambles:
-          data.toolVoicePreambles &&
-          typeof data.toolVoicePreambles === "object" &&
-          !Array.isArray(data.toolVoicePreambles)
-            ? (data.toolVoicePreambles as Record<string, string>)
-            : {},
-      };
-    } catch (err) {
-      console.error("[RealtimeSession] Token fetch error:", err);
-      return null;
-    }
-  }, [conversationId, fetchWithAuth]);
+    },
+    [conversationId, fetchWithAuth]
+  );
 
   const sendEvent = useCallback((event: Record<string, unknown>) => {
     const dataChannel = dataChannelRef.current;
@@ -710,29 +724,30 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     setConnectionStatus("disconnected");
   }, [cleanupTransport]);
 
-  const connect = useCallback((): Promise<boolean> => {
-    if (dataChannelRef.current?.readyState === "open") {
-      return Promise.resolve(true);
-    }
-    if (connectPromiseRef.current) return connectPromiseRef.current;
+  const connect = useCallback(
+    (options?: RealtimeConnectOptions): Promise<boolean> => {
+      if (dataChannelRef.current?.readyState === "open") {
+        return Promise.resolve(true);
+      }
+      if (connectPromiseRef.current) return connectPromiseRef.current;
 
-    setIsConnecting(true);
-    const attemptId = connectAttemptIdRef.current + 1;
-    connectAttemptIdRef.current = attemptId;
+      setIsConnecting(true);
+      const attemptId = connectAttemptIdRef.current + 1;
+      connectAttemptIdRef.current = attemptId;
 
-    const clearPendingConnect = () => {
-      if (connectAttemptIdRef.current !== attemptId) return;
-      connectPromiseRef.current = null;
-      setIsConnecting(false);
-    };
+      const clearPendingConnect = () => {
+        if (connectAttemptIdRef.current !== attemptId) return;
+        connectPromiseRef.current = null;
+        setIsConnecting(false);
+      };
 
-    const connectPromise = (async (): Promise<boolean> => {
+      const connectPromise = (async (): Promise<boolean> => {
       try {
         if (typeof RTCPeerConnection === "undefined") {
           return false;
         }
 
-        const tokenInfo = await fetchToken();
+        const tokenInfo = await fetchToken(options);
         if (!tokenInfo?.token) {
           return false;
         }
@@ -890,15 +905,17 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
       }
     })();
 
-    connectPromiseRef.current = connectPromise;
-    return connectPromise;
-  }, [
-    cleanupTransport,
-    ensureRemoteAudioElement,
-    fetchToken,
-    handleMessage,
-    startAudioCapture,
-  ]);
+      connectPromiseRef.current = connectPromise;
+      return connectPromise;
+    },
+    [
+      cleanupTransport,
+      ensureRemoteAudioElement,
+      fetchToken,
+      handleMessage,
+      startAudioCapture,
+    ]
+  );
 
   useEffect(() => {
     connectRef.current = connect;
