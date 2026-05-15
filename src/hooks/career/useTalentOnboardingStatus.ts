@@ -1,0 +1,61 @@
+import { useEffect } from "react";
+import { useRouter } from "next/router";
+import { queryOptions, useQuery } from "@tanstack/react-query";
+import { useCareerApi } from "@/hooks/career/useCareerApi";
+
+type OnboardingStatus = {
+  needsOnboarding: boolean;
+};
+
+export function talentOnboardingStatusQueryOptions(
+  fetchWithAuth: (url: string, init?: RequestInit) => Promise<Response>,
+  enabled: boolean
+) {
+  return queryOptions({
+    queryKey: ["talentOnboardingStatus"] as const,
+    queryFn: async (): Promise<OnboardingStatus> => {
+      const response = await fetchWithAuth("/api/talent/onboarding/status");
+      if (!response.ok) {
+        return { needsOnboarding: false };
+      }
+      const payload = (await response.json().catch(() => ({}))) as {
+        needsOnboarding?: boolean;
+      };
+      return { needsOnboarding: payload.needsOnboarding === true };
+    },
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
+export function useTalentOnboardingStatus(enabled: boolean) {
+  const { fetchWithAuth } = useCareerApi();
+  return useQuery(talentOnboardingStatusQueryOptions(fetchWithAuth, enabled));
+}
+
+export function useTalentOnboardingRedirect({
+  enabled,
+  inviteToken,
+  mail,
+}: {
+  enabled: boolean;
+  inviteToken: string | null;
+  mail: string | null;
+}) {
+  const router = useRouter();
+  const { data } = useTalentOnboardingStatus(enabled);
+  const needsOnboarding = data?.needsOnboarding === true;
+
+  useEffect(() => {
+    if (!needsOnboarding) return;
+
+    const query: Record<string, string> = {};
+    if (inviteToken) query.invite = inviteToken;
+    if (mail) query.mail = mail;
+
+    void router.replace({
+      pathname: "/career/onboarding",
+      query: Object.keys(query).length > 0 ? query : undefined,
+    });
+  }, [inviteToken, mail, needsOnboarding, router]);
+}

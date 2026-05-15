@@ -478,6 +478,18 @@ const CareerHistoryPanel = () => {
     });
   }, [router]);
 
+  const applyActiveTab = useCallback((nextTab: HistoryTabId) => {
+    setActiveTab((current) => {
+      if (current === nextTab) return current;
+      feedbackAdvanceTargetIndexRef.current = null;
+      activeOpportunityUrlSyncRequestedRef.current = false;
+      autoAdvanceRequestedRef.current = false;
+      wasHistoryLoadingMoreRef.current = false;
+      setAutoAdvanceTargetIndex(null);
+      return nextTab;
+    });
+  }, []);
+
   const updateHistoryLocation = useCallback(
     (
       nextTab: HistoryTabId,
@@ -487,7 +499,7 @@ const CareerHistoryPanel = () => {
         roleId?: string | null;
       }
     ) => {
-      setActiveTab(nextTab);
+      applyActiveTab(nextTab);
       setActiveSavedTab(nextSavedStage);
 
       if (!router.isReady) return;
@@ -539,7 +551,13 @@ const CareerHistoryPanel = () => {
         scroll: false,
       });
     },
-    [currentHistoryTabQuery, currentRoleQuery, currentSavedStageQuery, router]
+    [
+      applyActiveTab,
+      currentHistoryTabQuery,
+      currentRoleQuery,
+      currentSavedStageQuery,
+      router,
+    ]
   );
 
   const clearHistoryRoleId = useCallback(() => {
@@ -667,43 +685,9 @@ const CareerHistoryPanel = () => {
     const nextActiveTab = getQueryValue(currentHistoryTabQuery);
     const nextSavedTab = getQueryValue(currentSavedStageQuery);
 
-    setActiveTab(isHistoryTabId(nextActiveTab) ? nextActiveTab : "new");
+    applyActiveTab(isHistoryTabId(nextActiveTab) ? nextActiveTab : "new");
     setActiveSavedTab(isSavedTabId(nextSavedTab) ? nextSavedTab : "saved");
-  }, [currentHistoryTabQuery, currentSavedStageQuery, router.isReady]);
-
-  useEffect(() => {
-    if (!modalOpportunityId) return;
-    if (sortedOpportunityIds.has(modalOpportunityId)) return;
-    setModalOpportunityId(null);
-  }, [modalOpportunityId, sortedOpportunityIds]);
-
-  useEffect(() => {
-    if (!positivePromptOpportunityId) return;
-    if (sortedOpportunityIds.has(positivePromptOpportunityId)) {
-      return;
-    }
-    setPositivePromptOpportunityId(null);
-    setPositivePromptDraft("");
-  }, [positivePromptOpportunityId, sortedOpportunityIds]);
-
-  useEffect(() => {
-    if (!negativePromptOpportunityId) return;
-    if (sortedOpportunityIds.has(negativePromptOpportunityId)) {
-      return;
-    }
-    setNegativePromptOpportunityId(null);
-    setNegativePromptSelectedOptions([]);
-    setNegativePromptCustomReason("");
-  }, [negativePromptOpportunityId, sortedOpportunityIds]);
-
-  useEffect(() => {
-    if (!questionPromptOpportunityId) return;
-    if (sortedOpportunityIds.has(questionPromptOpportunityId)) {
-      return;
-    }
-    setQuestionPromptOpportunityId(null);
-    setQuestionPromptDraft("");
-  }, [questionPromptOpportunityId, sortedOpportunityIds]);
+  }, [applyActiveTab, currentHistoryTabQuery, currentSavedStageQuery, router.isReady]);
 
   const activeIndex = activeOpportunityId
     ? (newItemIndexById.get(activeOpportunityId) ?? -1)
@@ -1056,13 +1040,6 @@ const CareerHistoryPanel = () => {
     newItems,
   ]);
 
-  useEffect(() => {
-    feedbackAdvanceTargetIndexRef.current = null;
-    activeOpportunityUrlSyncRequestedRef.current = false;
-    setAutoAdvanceTargetIndex(null);
-    autoAdvanceRequestedRef.current = false;
-    wasHistoryLoadingMoreRef.current = false;
-  }, [activeTab]);
 
   const openUrl = useCallback((url: string | null | undefined) => {
     if (!url) return;
