@@ -629,8 +629,8 @@ const CareerWorkspaceMobileLayout = ({
                     }
                   />
                 ) : (
-                  <div className="flex flex-1 items-center justify-center px-6 py-16 pb-[140px] text-center text-[15px] text-beige900/55">
-                    프로필 모바일 화면은 곧 추가됩니다.
+                  <div className="px-4 pb-[140px] pt-2">
+                    <CareerProfileWorkspace />
                   </div>
                 )}
               </motion.div>

@@ -26,7 +26,7 @@ const CareerInPageTabs = <T extends string>({
               type="button"
               onClick={() => onChange(item.id)}
               className={careerCx(
-                "inline-flex h-7 items-center rounded-full px-3.5 text-[13px] font-medium transition-all",
+                "inline-flex h-9 items-center rounded-full px-4 text-[14px] font-medium transition-all md:h-7 md:px-3.5 md:text-[13px]",
                 active
                   ? "bg-white text-beige900 shadow-[0_1px_2px_rgba(46,23,6,0.08)]"
                   : "text-beige900/60 hover:bg-beige100/70 hover:text-beige900"
