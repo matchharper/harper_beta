@@ -234,7 +234,7 @@ const LoadingState = () => {
               exit={{ opacity: 0, y: -8, filter: "blur(6px)" }}
               transition={{ duration: 0.35, ease: "easeOut" }}
             >
-              <h1 className="text-2xl font-semibold leading-tight tracking-[-0.045em] text-beige900 md:text-3xl">
+              <h1 className="text-xl font-semibold leading-tight tracking-[-0.045em] text-beige900 md:text-2xl">
                 {steps[activeStep].title}
               </h1>
 

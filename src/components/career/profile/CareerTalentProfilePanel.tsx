@@ -557,7 +557,8 @@ const ProfileAvatar = ({
   const shouldShowImage =
     Boolean(imageUrl) && !String(imageUrl).includes("media.licdn.com");
   const hasStoredImage = Boolean(imageUrl);
-  const imageActionDisabled = uploadPending || (!onFileChange && !onDeleteImage);
+  const imageActionDisabled =
+    uploadPending || (!onFileChange && !onDeleteImage);
 
   return (
     <div className="relative h-14 w-14 shrink-0">
@@ -698,7 +699,7 @@ const ProfileHeader = ({
             )}
           />
         ) : (
-          <h2 className="font-hedvig text-[30px] leading-none text-beige900">
+          <h2 className="font-hedvig text-[24px] leading-none text-beige900">
             {displayName}
           </h2>
         )}
@@ -1179,7 +1180,9 @@ const CareerTalentProfilePanel = ({
       }
     } catch (error) {
       setProfileImageError(
-        error instanceof Error ? error.message : "프로필 사진 삭제에 실패했습니다."
+        error instanceof Error
+          ? error.message
+          : "프로필 사진 삭제에 실패했습니다."
       );
     } finally {
       setProfileImageUploadPending(false);

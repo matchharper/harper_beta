@@ -48,6 +48,7 @@ const CareerChatPanel = () => {
     user,
     inputMode,
     messages,
+    isOnboardingDone,
     showVoiceStartPrompt,
     onboardingBeginPending,
     callStartPending = false,
@@ -99,19 +100,20 @@ const CareerChatPanel = () => {
     user,
   ]);
 
-  const hasStartedChatConversation = useMemo(
+  const hasConversationActivity = useMemo(
     () =>
       messages.some((message) => {
         const messageType = message.messageType ?? "chat";
-        return messageType === "chat" || messageType === "call_wrapup";
+        return messageType !== "profile_submit";
       }),
     [messages]
   );
   const showInitialWelcome =
     Boolean(user) &&
     inputMode !== "call" &&
-    !hasStartedChatConversation &&
-    (showVoiceStartPrompt || onboardingBeginPending);
+    !isOnboardingDone &&
+    !hasConversationActivity &&
+    showVoiceStartPrompt;
   const handleToggleCallNotice = useCallback(() => {
     setIsCallNoticeCollapsed((prev) => !prev);
   }, []);

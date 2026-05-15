@@ -86,6 +86,8 @@ export const CareerProfileSharingSettingsSection = ({
   const [blockedCompanyDraft, setBlockedCompanyDraft] = useState("");
   const [profileVisibilitySavePending, setProfileVisibilitySavePending] =
     useState(false);
+  const [blockedCompaniesSavePending, setBlockedCompaniesSavePending] =
+    useState(false);
 
   const isSavePending = settingsSaving;
   const hasUnsavedChanges = hasUnsavedTalentSettingsChanges;
@@ -130,11 +132,39 @@ export const CareerProfileSharingSettingsSection = ({
     setBlockedCompanyDraft("");
   };
 
-  const handleAddBlockedCompany = () => {
+  const handleAddBlockedCompany = async () => {
     const nextCompany = blockedCompanyDraft.trim();
-    if (!nextCompany) return;
-    onAddBlockedCompany(nextCompany);
-    setBlockedCompanyDraft("");
+    if (
+      !nextCompany ||
+      settingsLoading ||
+      isSavePending ||
+      blockedCompaniesSavePending
+    ) {
+      return;
+    }
+
+    setBlockedCompaniesSavePending(true);
+    try {
+      const saved = await onAddBlockedCompany(nextCompany);
+      if (saved) {
+        setBlockedCompanyDraft("");
+      }
+    } finally {
+      setBlockedCompaniesSavePending(false);
+    }
+  };
+
+  const handleRemoveBlockedCompany = async (companyName: string) => {
+    if (settingsLoading || isSavePending || blockedCompaniesSavePending) {
+      return;
+    }
+
+    setBlockedCompaniesSavePending(true);
+    try {
+      await onRemoveBlockedCompany(companyName);
+    } finally {
+      setBlockedCompaniesSavePending(false);
+    }
   };
 
   const handleBlockedCompanyKeyDown = (
@@ -142,7 +172,7 @@ export const CareerProfileSharingSettingsSection = ({
   ) => {
     if (event.key !== "Enter") return;
     event.preventDefault();
-    handleAddBlockedCompany();
+    void handleAddBlockedCompany();
   };
 
   return (
@@ -226,7 +256,17 @@ export const CareerProfileSharingSettingsSection = ({
         </CareerField>
 
         <CareerField
-          label="차단 기업"
+          label={
+            <span className="inline-flex items-center gap-2">
+              <span>차단 기업</span>
+              {blockedCompaniesSavePending ? (
+                <Loader2
+                  className="h-3.5 w-3.5 animate-spin text-beige900/60"
+                  aria-label="차단 기업 저장 중"
+                />
+              ) : null}
+            </span>
+          }
           icon={<ShieldAlert className="h-4 w-4" />}
           hint="여기에 등록된 회사와는 매칭이 일어나지 않고 프로필도 절대 공유되지 않습니다."
         >
@@ -237,16 +277,28 @@ export const CareerProfileSharingSettingsSection = ({
                 onChange={(event) => setBlockedCompanyDraft(event.target.value)}
                 onKeyDown={handleBlockedCompanyKeyDown}
                 placeholder="회사명을 입력하고 Enter"
-                disabled={settingsLoading || isSavePending}
+                disabled={
+                  settingsLoading ||
+                  isSavePending ||
+                  blockedCompaniesSavePending
+                }
                 className="flex-1"
               />
               <CareerSecondaryButton
-                onClick={handleAddBlockedCompany}
-                disabled={settingsLoading || isSavePending}
+                onClick={() => void handleAddBlockedCompany()}
+                disabled={
+                  settingsLoading ||
+                  isSavePending ||
+                  blockedCompaniesSavePending
+                }
                 className="gap-2 px-4"
               >
-                <Plus className="h-3.5 w-3.5" />
-                추가
+                {blockedCompaniesSavePending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Plus className="h-3.5 w-3.5" />
+                )}
+                {blockedCompaniesSavePending ? "저장 중..." : "추가"}
               </CareerSecondaryButton>
             </div>
 
@@ -264,8 +316,14 @@ export const CareerProfileSharingSettingsSection = ({
                     <span>{companyName}</span>
                     <button
                       type="button"
-                      onClick={() => onRemoveBlockedCompany(companyName)}
-                      disabled={settingsLoading || isSavePending}
+                      onClick={() =>
+                        void handleRemoveBlockedCompany(companyName)
+                      }
+                      disabled={
+                        settingsLoading ||
+                        isSavePending ||
+                        blockedCompaniesSavePending
+                      }
                       className="inline-flex h-6 w-6 items-center justify-center rounded-md text-beige900/45 transition-colors hover:bg-beige900/10 hover:text-beige900 disabled:cursor-not-allowed disabled:opacity-60"
                       aria-label={`${companyName} 삭제`}
                     >
@@ -291,30 +349,32 @@ export const CareerProfileSharingSettingsSection = ({
         </div>
       )}
 
-      {hasUnsavedChanges && !profileVisibilitySavePending && (
-        <div className="fixed bottom-4 right-4 flex justify-end gap-2">
-          <CareerSecondaryButton
-            onClick={handleRefresh}
-            disabled={isSavePending || settingsLoading}
-            className="gap-2 px-4 bg-beige50/70"
-          >
-            <Undo2 className="h-4 w-4" />
-            되돌리기
-          </CareerSecondaryButton>
-          <CareerPrimaryButton
-            onClick={() => void handleSave()}
-            disabled={isSavePending || !canSaveProfileSettings}
-            className="gap-2 px-5"
-          >
-            {isSavePending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Save className="h-4 w-4" />
-            )}
-            {isSavePending ? "저장 중..." : "설정 저장"}
-          </CareerPrimaryButton>
-        </div>
-      )}
+      {hasUnsavedChanges &&
+        !profileVisibilitySavePending &&
+        !blockedCompaniesSavePending && (
+          <div className="fixed bottom-4 right-4 flex justify-end gap-2">
+            <CareerSecondaryButton
+              onClick={handleRefresh}
+              disabled={isSavePending || settingsLoading}
+              className="gap-2 px-4 bg-beige50/70"
+            >
+              <Undo2 className="h-4 w-4" />
+              되돌리기
+            </CareerSecondaryButton>
+            <CareerPrimaryButton
+              onClick={() => void handleSave()}
+              disabled={isSavePending || !canSaveProfileSettings}
+              className="gap-2 px-5"
+            >
+              {isSavePending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              {isSavePending ? "저장 중..." : "설정 저장"}
+            </CareerPrimaryButton>
+          </div>
+        )}
     </div>
   );
 };

@@ -36,7 +36,16 @@ export const getCareerWorkspaceHref = (tab: CareerWorkspaceTab) =>
 
 export const getCareerWorkspaceTabFromPath = (path: string) => {
   const pathname = path.split(/[?#]/)[0]?.replace(/\/+$/, "") || "/career";
-  if (pathname === "/career") return "home";
+  const queryString = path.split("?")[1]?.split("#")[0] ?? "";
+  const searchParams = new URLSearchParams(queryString);
+
+  if (pathname === "/career") {
+    return searchParams.has("historyTab") ||
+      searchParams.has("savedStage") ||
+      searchParams.has("id")
+      ? "history"
+      : "home";
+  }
 
   const [, root, tab] = pathname.split("/");
   if (root !== "career") return "home";

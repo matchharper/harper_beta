@@ -73,6 +73,8 @@ export default function AutomationDetailPage() {
 
   const fetchActiveAutomationCount = useCallback(
     async (excludeId?: string) => {
+      if (!userId) return 0;
+
       let query = supabase
         .from("automation")
         .select("id", { count: "exact", head: true })

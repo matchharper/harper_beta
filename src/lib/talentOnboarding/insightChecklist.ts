@@ -67,18 +67,11 @@ export const INSIGHT_CHECKLIST: InsightChecklistItem[] = [
   },
   {
     key: "team_style_fit",
-    label: "잘 맞는 팀/협업 방식",
+    label: "선호하는 회사 종류 혹은 팀의 특성",
     promptHint:
-      "What kind of team, manager, and collaboration style helps the user do their best work, and what styles feel frustrating",
+      "Preferred company type or team characteristics, such as startup vs. big tech, product stage, early startup, growth-stage, large org, company size, culture, decision-making style, ownership level, or collaboration style",
     priority: 8,
   },
-  // {
-  //   key: "environment_preference",
-  //   label: "선호하는 회사 단계/환경",
-  //   promptHint:
-  //     "The company stage or working environment the user prefers, such as early startup, growth-stage, large org, research-heavy, or product-driven",
-  //   priority: 9,
-  // },
 ];
 
 /** Map of checklist key -> Korean label for UI display */

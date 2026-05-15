@@ -72,6 +72,7 @@ const Home: NextPage = () => {
   const { locale, m } = useMessages();
 
   const { companyUser } = useCompanyUserStore();
+  const companyUserId = companyUser?.user_id ?? null;
   const { open: openFeedbackModal } = useFeedbackModalStore();
   const router = useRouter();
   const isMobile = useIsMobile();
@@ -424,7 +425,9 @@ const Home: NextPage = () => {
       headers: authHeaders,
       body: JSON.stringify({ queryId, queryText: keywordSource }),
     }).catch((err) => console.error("keyword enqueue failed", err));
-    refreshQueriesHistory(qc, companyUser.user_id);
+    if (companyUserId) {
+      refreshQueriesHistory(qc, companyUserId);
+    }
     setIsLoading(false);
     setQuery("");
     setAttachments([]);
@@ -489,7 +492,7 @@ Criteria: [네카라쿠배 근무 경력, 프로덕트 매니저(PM/PO) 직무 �
             className="text-xl sm:text-2xl md:text-3xl font-medium tracking-tight text-center leading-relaxed"
             // onClick={testSqlQuery}
           >
-            {m.system.hello}, {companyUser?.name.split(" ")[0]}님
+            {m.system.hello}, {companyUser?.name?.split(" ")[0] ?? ""}님
             <div className="h-3" />
             {selectedSourceConfig.prompt}
           </h1>

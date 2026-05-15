@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHash } from "crypto";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   buildTalentProfileContext,
@@ -69,6 +70,7 @@ async function buildRealtimeInstructions(
       visibleMessages.map((message) => ({
         role: message.role,
         content: formatTalentMessageContentForLlmPrompt(message),
+        createdAt: message.created_at,
       }))
     );
   return buildCareerRealtimePromptPlan({
@@ -86,6 +88,7 @@ async function buildRealtimeInstructions(
 const TOKEN_RATE_LIMIT = new Map<string, { count: number; resetAt: number }>();
 const MAX_TOKENS_PER_MINUTE = 10;
 const MAX_RATE_LIMIT_ENTRIES = 1000;
+const REALTIME_TRANSCRIPTION_LANGUAGE = "ko";
 
 function checkRateLimit(userId: string): boolean {
   const now = Date.now();
@@ -109,6 +112,71 @@ function checkRateLimit(userId: string): boolean {
   return true;
 }
 
+function buildSafetyIdentifier(userId: string): string {
+  return createHash("sha256").update(`talent-user:${userId}`).digest("hex");
+}
+
+function buildRealtimeSessionBody(args: {
+  instructions: string;
+  realtimeConfig: ReturnType<typeof getCareerRealtimeSessionConfig>;
+  tools: ReturnType<typeof getRealtimeTools>;
+  transcriptionModel: string;
+}) {
+  const { instructions, realtimeConfig, tools, transcriptionModel } = args;
+
+  return {
+    session: {
+      type: "realtime",
+      model: realtimeConfig.model,
+      output_modalities: realtimeConfig.outputModalities,
+      audio: {
+        input: {
+          transcription: {
+            model: transcriptionModel,
+            language: REALTIME_TRANSCRIPTION_LANGUAGE,
+          },
+          turn_detection: {
+            type: "semantic_vad",
+            create_response: true,
+            interrupt_response: true,
+            eagerness: "auto",
+          },
+          noise_reduction: { type: "near_field" },
+        },
+        ...(realtimeConfig.voice
+          ? {
+              output: {
+                voice: realtimeConfig.voice,
+              },
+            }
+          : {}),
+      },
+      instructions,
+      ...(tools.length > 0
+        ? {
+            tools,
+            tool_choice: "auto" as const,
+          }
+        : {}),
+    },
+  };
+}
+
+function createRealtimeClientSecret(args: {
+  body: ReturnType<typeof buildRealtimeSessionBody>;
+  safetyIdentifier: string;
+}) {
+  return fetch("https://api.openai.com/v1/realtime/client_secrets", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      "Content-Type": "application/json",
+      "OpenAI-Safety-Identifier": args.safetyIdentifier,
+    },
+    body: JSON.stringify(args.body),
+  });
+}
+
 export async function POST(req: NextRequest) {
   try {
     const user = await getRequestUser(req);
@@ -124,9 +192,8 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { conversationId: rawConversationId, useElevenLabsTts } = body as {
+    const { conversationId: rawConversationId } = body as {
       conversationId?: string;
-      useElevenLabsTts?: boolean;
     };
     const conversationId = rawConversationId?.trim();
 
@@ -144,6 +211,14 @@ export async function POST(req: NextRequest) {
       realtimeTools.map((tool) => tool.name)
     );
     const instructions = realtimePromptPlan.instructions;
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[RealtimeToken] final instructions", {
+        conversationId,
+        length: instructions.length,
+      });
+      console.log(instructions);
+    }
+
     const enabledRealtimeToolNames = new Set(
       realtimePromptPlan.enabledToolNames
     );
@@ -152,42 +227,18 @@ export async function POST(req: NextRequest) {
     );
     const toolVoicePreambles =
       tools.length > 0 ? getTalentToolVoicePreambles("voice") : {};
-    const realtimeConfig = getCareerRealtimeSessionConfig(
-      Boolean(useElevenLabsTts)
-    );
+    const realtimeConfig = getCareerRealtimeSessionConfig();
+    const safetyIdentifier = buildSafetyIdentifier(user.id);
 
-    const response = await fetch(
-      "https://api.openai.com/v1/realtime/sessions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: realtimeConfig.model,
-          modalities: realtimeConfig.modalities,
-          ...(realtimeConfig.voice ? { voice: realtimeConfig.voice } : {}),
-          input_audio_transcription: {
-            model: realtimeConfig.transcriptionModel,
-          },
-          instructions,
-          ...(tools.length > 0
-            ? {
-                tools,
-                tool_choice: "auto" as const,
-              }
-            : {}),
-          turn_detection: {
-            type: "semantic_vad",
-            create_response: true,
-            interrupt_response: true,
-            eagerness: "auto",
-          },
-          input_audio_noise_reduction: { type: "near_field" },
-        }),
-      }
-    );
+    const response = await createRealtimeClientSecret({
+      safetyIdentifier,
+      body: buildRealtimeSessionBody({
+        instructions,
+        realtimeConfig,
+        tools,
+        transcriptionModel: realtimeConfig.transcriptionModel,
+      }),
+    });
 
     if (!response.ok) {
       const err = await response.text().catch(() => "");
@@ -200,11 +251,19 @@ export async function POST(req: NextRequest) {
 
     const data = await response.json();
 
+    const token = data.value ?? data.client_secret?.value;
+    if (typeof token !== "string" || token.length === 0) {
+      console.error("[RealtimeToken] OpenAI response did not include a token");
+      return NextResponse.json(
+        { error: "Failed to create realtime client secret" },
+        { status: 502 }
+      );
+    }
+
     return NextResponse.json({
-      token: data.client_secret.value,
-      expiresAt: data.client_secret.expires_at,
-      sessionId: data.id,
+      token,
       toolVoicePreambles,
+      transcriptionModel: realtimeConfig.transcriptionModel,
     });
   } catch (error) {
     console.error("[RealtimeToken] Error:", error);

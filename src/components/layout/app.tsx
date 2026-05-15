@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Search,
   List,
@@ -44,12 +44,15 @@ const AppLayout = ({ children, initialCollapse = true }: AppLayoutProps) => {
   const isMobile = useIsMobile();
   const { credits, isLoading: isLoadingCredits } = useCredits();
   const { m } = useMessages();
-  const { companyUser, loading, initialized, clear } = useCompanyUserStore();
+  const { companyUser, loading, initialized, loadedUserId, load, clear } =
+    useCompanyUserStore();
   const { user, loading: authLoading, signOut } = useAuthStore();
   const logEvent = useLogEvent();
   const { open: openFeedbackModal } = useFeedbackModalStore();
+  const lastFreeRefreshUserId = useRef<string | null>(null);
 
   const router = useRouter();
+  const companyUserId = companyUser?.user_id ?? null;
   const pathname = useMemo(() => {
     const path = router.asPath ?? router.pathname ?? "";
     return path.split("?")[0] ?? "";
@@ -58,14 +61,77 @@ const AppLayout = ({ children, initialCollapse = true }: AppLayoutProps) => {
   useEffect(() => {
     if (authLoading) return;
     if (!user) {
+      clear();
       router.replace("/");
       return;
     }
+
+    if (loadedUserId && loadedUserId !== user.id) {
+      clear();
+      return;
+    }
+
+    if (companyUserId && companyUserId !== user.id) {
+      clear();
+      return;
+    }
+
+    if (!initialized && !loading) {
+      void load(user.id).catch((error) => {
+        console.error("[company persona] failed to load company user:", error);
+      });
+    }
+  }, [
+    authLoading,
+    user,
+    loadedUserId,
+    companyUserId,
+    initialized,
+    loading,
+    load,
+    clear,
+    router,
+  ]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) return;
     if (!initialized || loading) return;
+    if (loadedUserId !== user.id) return;
     if (!companyUser || !companyUser.is_authenticated) {
       router.replace("/");
     }
-  }, [authLoading, user, loading, initialized, companyUser, router]);
+  }, [
+    authLoading,
+    user,
+    loadedUserId,
+    loading,
+    initialized,
+    companyUser,
+    router,
+  ]);
+
+  useEffect(() => {
+    if (!companyUser?.user_id) return;
+    if (loading) return;
+    if (!companyUser.is_authenticated) return;
+    if (lastFreeRefreshUserId.current === companyUser.user_id) return;
+
+    lastFreeRefreshUserId.current = companyUser.user_id;
+
+    const payload = {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: companyUser.user_id }),
+    };
+
+    Promise.all([
+      fetch("/api/credits/free-refresh", payload),
+      fetch("/api/credits/annual-refresh", payload),
+    ]).catch((err) => {
+      console.error("Failed to refresh credits:", err);
+    });
+  }, [companyUser?.user_id, companyUser?.is_authenticated, loading]);
 
   const isHome = pathname === "/my";
   const isList = pathname === "/my/list";
@@ -323,11 +389,13 @@ const AppLayout = ({ children, initialCollapse = true }: AppLayoutProps) => {
                 {accountDropdown}
               </div>
               <div className="flex-1 overflow-y-auto px-3 pb-4">
-                <HoverHistory
-                  collapsed={false}
-                  userId={userId}
-                  activeQueryId={activeQueryId ?? ""}
-                />
+                {userId && activeQueryId && (
+                  <HoverHistory
+                    collapsed={false}
+                    userId={userId}
+                    activeQueryId={activeQueryId}
+                  />
+                )}
               </div>
             </DrawerContent>
           </Drawer>
@@ -413,7 +481,7 @@ const AppLayout = ({ children, initialCollapse = true }: AppLayoutProps) => {
           )}
           <HoverHistory
             collapsed={collapsed}
-            userId={userId}
+            userId={userId ?? ""}
             activeQueryId={activeQueryId ?? ""}
           />
         </div>

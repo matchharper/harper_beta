@@ -5,6 +5,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { useRouter } from "next/router";
 import type {
   CareerInterviewProgress,
   CareerMessagePayload,
@@ -81,6 +82,7 @@ export const CareerFlowProvider = ({
   mail?: string | null;
   onOpenSettings: () => void;
 }) => {
+  const router = useRouter();
   const {
     user,
     authLoading,
@@ -110,6 +112,11 @@ export const CareerFlowProvider = ({
   const refreshLatestHistoryOpportunitiesRef = useRef<
     (() => void | Promise<void>) | null
   >(null);
+
+  const handleCareerLogout = useCallback(async () => {
+    await handleLogout();
+    await router.replace("/");
+  }, [handleLogout, router]);
 
   const {
     conversationId,
@@ -279,6 +286,7 @@ export const CareerFlowProvider = ({
     handleRemoveProfileLink,
     handleAddProfileLink,
     handleSaveTalentProfile,
+    handleRefreshTalentProfileSources,
     resetProfileState,
   } = useCareerProfile({
     user,
@@ -493,9 +501,11 @@ export const CareerFlowProvider = ({
     onboardingBeginPending,
     onboardingWrapupPending: voiceOnboardingWrapupPending,
     callStartPending,
+    callWrapUpPending,
     onboardingPausePending,
     inputMode,
     voiceTranscript,
+    liveUserTranscriptPlacement,
     voiceListening,
     voiceMuted,
     voiceError,
@@ -908,6 +918,7 @@ export const CareerFlowProvider = ({
       historyUpdatingOpportunityIds,
       onboardingBeginPending: onboardingBeginPending || forceCompletePending,
       callStartPending,
+      callWrapUpPending,
       onboardingPausePending,
       onGoogleLogin: handleGoogleLogin,
       onEmailAuth: handleEmailAuth,
@@ -942,6 +953,7 @@ export const CareerFlowProvider = ({
       onStartCallMode: handleStartCallMode,
       onEndCallMode: handleEndCallMode,
       callTranscriptEntries,
+      liveUserTranscriptPlacement,
       callConnectionStatus: connectionStatus,
       isAssistantSpeaking,
     }),
@@ -975,6 +987,7 @@ export const CareerFlowProvider = ({
       handleStartCallMode,
       handleEndCallMode,
       callTranscriptEntries,
+      liveUserTranscriptPlacement,
       connectionStatus,
       handleSwitchToTextMode,
       handleSubmitOnboardingInterest,
@@ -991,6 +1004,7 @@ export const CareerFlowProvider = ({
       regenerateOnboardingWrapup,
       onboardingBeginPending,
       callStartPending,
+      callWrapUpPending,
       onboardingPausePending,
       opportunityRun,
       profileError,
@@ -1024,7 +1038,7 @@ export const CareerFlowProvider = ({
       targetQuestions: TALENT_INTERVIEW_FINAL_STEP,
       progressPercent,
       onOpenSettings,
-      onLogout: handleLogout,
+      onLogout: handleCareerLogout,
       activeCompanyRoleCount,
       opportunityRun,
       opportunityRunTriggerPending,
@@ -1062,6 +1076,7 @@ export const CareerFlowProvider = ({
       onAddProfileLink: handleAddProfileLink,
       onRemoveProfileLink: handleRemoveProfileLink,
       onSaveTalentProfile: handleSaveTalentProfile,
+      onRefreshTalentProfileSources: handleRefreshTalentProfileSources,
       talentProfile: {
         talentUser,
         talentExperiences,
@@ -1114,7 +1129,7 @@ export const CareerFlowProvider = ({
       hasUnsavedTalentInsightsChanges,
       hasUnsavedTalentPreferencesChanges,
       hasUnsavedTalentSettingsChanges,
-      handleLogout,
+      handleCareerLogout,
       handleProfileLinkChange,
       onResetTalentInsights,
       onResetTalentPreferences,
@@ -1130,6 +1145,7 @@ export const CareerFlowProvider = ({
       handleRemoveProfileLink,
       onRemoveBlockedCompany,
       handleSaveTalentProfile,
+      handleRefreshTalentProfileSources,
       hasMoreHistoryOpportunities,
       historyOpportunityCounts,
       historyLoading,

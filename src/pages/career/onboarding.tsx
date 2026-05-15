@@ -54,11 +54,14 @@ type OnboardingStepDefinition = {
   footnoteClassName?: string;
 };
 
+const descriptionClassName =
+  "mt-4 text-sm leading-7 text-beige900/65 md:text-base";
+
 const ONBOARDING_STEPS: OnboardingStepDefinition[] = [
   {
     label: "기본 정보",
     title: [
-      "모든 스포츠 스타에게 에이전트가 있듯,",
+      "모든 스포츠 스타에게 에이전트가 있듯이,",
       "커리어에도 에이전트가 필요합니다.",
     ],
     description: [
@@ -66,9 +69,8 @@ const ONBOARDING_STEPS: OnboardingStepDefinition[] = [
       "이름과 연락처만 먼저 확인할게요.",
     ],
     headerClassName: "mx-auto max-w-[720px]",
-    titleClassName: "text-2xl font-medium leading-tight md:text-3xl",
-    descriptionClassName:
-      "mt-4 text-base leading-7 text-beige900/65 md:text-lg",
+    titleClassName: "text-xl font-medium leading-[1.25] md:text-2xl",
+    descriptionClassName,
     bodyClassName: "mx-auto mt-4 grid w-full max-w-[520px] gap-3 text-left",
   },
   {
@@ -79,23 +81,21 @@ const ONBOARDING_STEPS: OnboardingStepDefinition[] = [
       "Harper가 24/7 쉬지않고 찾아드릴게요.",
     ],
     headerClassName: "mx-auto max-w-[720px]",
-    titleClassName: "text-2xl font-medium leading-tight md:text-3xl",
-    descriptionClassName:
-      "mt-3 text-base leading-7 text-beige900/60 md:text-lg",
+    titleClassName: "text-xl font-medium leading-[1.25] md:text-2xl",
+    descriptionClassName,
     bodyClassName:
       "mx-auto mt-5 grid w-full max-w-[860px] gap-3 md:grid-cols-3",
   },
   {
     label: "프로필 자료",
-    title: ["가장 잘 보여주는 자료를 연결해주세요."],
+    title: ["본인을 가장 잘 보여주는 자료를 연결해주세요."],
     description: [
-      "이력서나 LinkedIn 중 하나면 충분합니다.",
+      "이력서(CV)/LinkedIn 중 1개 필수",
       "GitHub, Scholar, 개인 사이트는 더 정확한 판단을 위한 보조 자료로 추가할 수 있습니다.",
     ],
     headerClassName: "mx-auto max-w-[720px]",
-    titleClassName: "text-2xl font-medium leading-tight md:text-3xl",
-    descriptionClassName:
-      "mt-3 text-base leading-7 text-beige900/60 md:text-lg",
+    titleClassName: "text-xl font-medium leading-[1.25] md:text-2xl",
+    descriptionClassName,
     bodyClassName:
       "mx-auto mt-3 flex max-w-[760px] flex-wrap justify-center gap-2",
     secondaryBodyClassName:
@@ -108,9 +108,8 @@ const ONBOARDING_STEPS: OnboardingStepDefinition[] = [
       "공개 범위를 정해주세요. 대화 내용과 선택한 옵션은 회사에 공개되지 않습니다.",
     ],
     headerClassName: "mx-auto max-w-[720px]",
-    titleClassName: "text-2xl font-medium leading-tight md:text-3xl",
-    descriptionClassName:
-      "mt-3 text-base leading-7 text-beige900/60 md:text-lg",
+    titleClassName: "text-xl font-medium leading-[1.25] md:text-2xl",
+    descriptionClassName,
     bodyClassName:
       "mx-auto mt-5 grid w-full max-w-[760px] gap-3 text-left md:grid-cols-2",
     footnoteClassName:
@@ -202,7 +201,7 @@ const DEFAULT_DONE_KICKOFF_TEXT = [
 ].join("\n\n");
 
 const DONE_AGENT_INTRO_BASE =
-  "이제 제가 맞을 만한 기회들을 찾아보고, 괜찮은 곳이 있으면 회사와의 연결까지 챙겨드릴게요. 더 잘 맞는 추천을 드리기 위해 지금 어떤 상황이신지, 어떤 기회를 원하시는지 몇 가지만 더 여쭤보고 싶어요. 보통 5분 정도면 충분합니다.";
+  "이제 제가 맞을 만한 기회들을 찾아보고, 인재 연결을 요청한 회사 중 괜찮은 곳이 있으면 소개 및 연결까지 해드릴게요. 더 좋은 연결을 도와드리기 위해 지금 어떤 상황이신지, 어떤 기회를 원하시는지 몇 가지만 더 여쭤보고 싶어요. 보통 5분 정도면 충분합니다.";
 
 const DONE_ENGAGEMENT_COPY: Record<TalentNetworkEngagementOptionId, string> = {
   advisor: "부담 없이 이야기 나눠볼 수 있는 어드바이저 기회",
@@ -237,7 +236,7 @@ const buildDoneAgentIntro = (
   const targetCopy =
     selectedCopies.length > 0
       ? selectedCopies.join(", ")
-      : "잘 맞는 커리어 기회";
+      : "가장 좋아하실만한 기회들";
 
   return `${DONE_AGENT_INTRO_BASE} 대화가 끝나면 내용을 정리해서 ${targetCopy}부터 찾아볼게요.`;
 };
@@ -541,15 +540,10 @@ const EngagementCardButton = ({
         : "border-beige900/10 bg-beige100/90 text-beige900 hover:border-xprimary/55"
     )}
   >
-    <span
-      className={cn(
-        "flex h-14 w-14 items-center justify-center rounded-[8px] transition-colors"
-      )}
-      aria-hidden="true"
-    >
+    <span className={cn("flex items-center justify-center")} aria-hidden="true">
       <EngagementOptionIcon active={active} id={id} />
     </span>
-    <div className="mt-0 flex flex-row items-center gap-2">
+    <div className="mt-2 flex flex-row items-center gap-2">
       <span className="text-[15px] leading-6">{label}</span>
     </div>
     {description && (
@@ -660,7 +654,7 @@ const DoneState = ({
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: "easeOut" }}
-        className="flex flex-col items-center gap-4 text-center"
+        className="flex flex-col items-center gap-3 text-center"
       >
         <Image
           src="/svgs/harper-h-mark.svg"
@@ -670,7 +664,7 @@ const DoneState = ({
           priority
           className="h-[34px] w-[34px]"
         />
-        <p className="text-[20px] font-medium text-beige900/45">
+        <p className="text-[18px] font-medium text-beige900/45">
           정보를 확인했습니다
         </p>
       </motion.div>
@@ -682,7 +676,7 @@ const DoneState = ({
           transition={{ delay: 0.12, duration: 0.45, ease: "easeOut" }}
           className="flex justify-end"
         >
-          <p className="max-w-[520px] px-3 py-2 rounded-xl bg-beige50 text-right text-[13px] leading-7 text-beige900/42 md:text-[15px]">
+          <p className="max-w-[520px] px-3 py-2 rounded-xl bg-beige50 text-right text-[13px] leading-5 text-beige900/42 md:text-[14px]">
             {userMessage || DEFAULT_DONE_USER_MESSAGE}
           </p>
         </motion.div>
@@ -693,7 +687,7 @@ const DoneState = ({
           transition={{ delay: 0.36, duration: 0.45, ease: "easeOut" }}
           className="mt-10 max-w-[660px]"
         >
-          <div className="space-y-5 text-left text-[15px] leading-8 text-beige900 md:text-[16px] md:leading-9">
+          <div className="space-y-5 text-left text-[13px] leading-5 text-beige900 md:text-[14px] md:leading-7">
             {streamedParagraphs.map((paragraph, index) => {
               const isLast = index === streamedParagraphs.length - 1;
               return (
@@ -721,25 +715,25 @@ const DoneState = ({
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <BeigeButton
                   type="button"
-                  size="lg"
+                  size="md"
                   variant="primary"
-                  icon={<Phone className="h-4 w-4" />}
+                  icon={<Phone className="h-3.5 w-3.5" />}
                   onClick={onStartCall}
                   animate
-                  className="w-full sm:w-auto"
+                  className="w-full text-sm font-normal sm:w-auto"
                 >
                   Harper와 통화하기 (5분)
                 </BeigeButton>
                 <BeigeButton
                   type="button"
-                  size="lg"
+                  size="md"
                   variant="outline"
-                  icon={<ArrowRight className="h-4 w-4" />}
+                  icon={<ArrowRight className="h-3.5 w-3.5" />}
                   onClick={onStartChat}
                   animate
-                  className="w-full sm:w-auto"
+                  className="w-full text-sm font-normal sm:w-auto"
                 >
-                  채팅으로 계속 하기
+                  채팅으로 이어가기
                 </BeigeButton>
               </div>
               <p className="mt-4 text-[13px] leading-6 text-beige900/45">
@@ -1221,9 +1215,10 @@ const CareerNetworkOnboardingContent = () => {
     }),
   };
 
-  const currentStepDefinition =
-    ONBOARDING_STEPS[step] ?? ONBOARDING_STEPS[0];
-  const stepLabel = `Step ${step + 1} / ${TOTAL_STEPS} · ${currentStepDefinition.label}`;
+  const currentStepDefinition = ONBOARDING_STEPS[step] ?? ONBOARDING_STEPS[0];
+  const stepLabel = `${step + 1} / ${TOTAL_STEPS}`;
+  // const stepLabel = `Step ${step + 1} / ${TOTAL_STEPS} · ${currentStepDefinition.label}`;
+
   const selectedVisibilityOption =
     ONBOARDING_PROFILE_VISIBILITY_OPTIONS.find(
       (option) => option.id === profileVisibility
@@ -1277,9 +1272,7 @@ const CareerNetworkOnboardingContent = () => {
           }
         />
 
-        {submitState === "loading" && (
-          <LoadingState />
-        )}
+        {submitState === "loading" && <LoadingState />}
 
         {submitState === "done" && (
           <DoneState
@@ -1294,7 +1287,7 @@ const CareerNetworkOnboardingContent = () => {
         {submitState === "form" && (
           <div className="mx-auto flex min-h-[calc(100svh-8px)] w-full max-w-[960px] flex-col items-center px-4 py-8 md:justify-center md:px-6 md:py-12">
             <section className="flex w-full flex-col items-center text-center">
-              <div className="mb-6 text-center text-[11px] font-medium text-xprimary">
+              <div className="mb-6 text-center text-[11px] font-medium text-xprimary/60">
                 {stepLabel}
               </div>
 
@@ -1316,7 +1309,9 @@ const CareerNetworkOnboardingContent = () => {
                   {step === 0 && (
                     <div className={currentStepDefinition.bodyClassName}>
                       <div className="space-y-1">
-                        <OnboardingFieldLabel>이름</OnboardingFieldLabel>
+                        <OnboardingFieldLabel>
+                          이름 (한글 이름의 경우 한글로 적어주세요.)
+                        </OnboardingFieldLabel>
                         <BeigeInput
                           autoFocus
                           value={name}

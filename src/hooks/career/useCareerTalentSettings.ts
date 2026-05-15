@@ -275,35 +275,67 @@ export const useCareerTalentSettings = ({
   );
 
   const addBlockedCompany = useCallback(
-    (rawName: string) => {
+    async (rawName: string) => {
       const nextCompany = String(rawName ?? "").trim();
-      if (!nextCompany) return;
+      if (!nextCompany || settingsLoading || settingsSaving) return false;
 
       const nextBlockedCompanies = normalizeBlockedCompanies([
         ...blockedCompanies,
         nextCompany,
       ]);
-      if (sameStringArray(nextBlockedCompanies, blockedCompanies)) return;
+      if (sameStringArray(nextBlockedCompanies, blockedCompanies)) return true;
 
       setBlockedCompanies(nextBlockedCompanies);
       setSettingsError("");
       setSettingsSaveInfo("");
+
+      const saved = await persistSettings({
+        profileVisibility,
+        blockedCompanies: nextBlockedCompanies,
+      });
+      if (!saved) {
+        setBlockedCompanies(blockedCompanies);
+      }
+      return saved;
     },
-    [blockedCompanies]
+    [
+      blockedCompanies,
+      persistSettings,
+      profileVisibility,
+      settingsLoading,
+      settingsSaving,
+    ]
   );
 
   const removeBlockedCompany = useCallback(
-    (companyName: string) => {
+    async (companyName: string) => {
+      if (settingsLoading || settingsSaving) return false;
+
       const nextBlockedCompanies = blockedCompanies.filter(
         (company) => company !== companyName
       );
-      if (sameStringArray(nextBlockedCompanies, blockedCompanies)) return;
+      if (sameStringArray(nextBlockedCompanies, blockedCompanies)) return true;
 
       setBlockedCompanies(nextBlockedCompanies);
       setSettingsError("");
       setSettingsSaveInfo("");
+
+      const saved = await persistSettings({
+        profileVisibility,
+        blockedCompanies: nextBlockedCompanies,
+      });
+      if (!saved) {
+        setBlockedCompanies(blockedCompanies);
+      }
+      return saved;
     },
-    [blockedCompanies]
+    [
+      blockedCompanies,
+      persistSettings,
+      profileVisibility,
+      settingsLoading,
+      settingsSaving,
+    ]
   );
 
   const resetTalentSettings = useCallback(() => {

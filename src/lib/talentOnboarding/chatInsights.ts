@@ -18,6 +18,8 @@ type AdminClient = ReturnType<typeof getTalentSupabaseAdmin>;
 
 type ExtractionConversationMessage = {
   content: string;
+  id?: number | string;
+  messageType?: string | null;
   role: "user" | "assistant";
 };
 
@@ -167,6 +169,15 @@ function extractJsonObjectCandidates(value: string) {
   return candidates;
 }
 
+function formatRecentMessagesForLog(messages: ExtractionConversationMessage[]) {
+  return messages.slice(-2).map((message) => ({
+    content: clamp(message.content.replace(/\s+/g, " ").trim(), 800),
+    id: message.id ?? null,
+    messageType: message.messageType ?? null,
+    role: message.role,
+  }));
+}
+
 export async function extractAndPersistChatInsights(args: {
   admin: AdminClient;
   assistantContent: string;
@@ -174,6 +185,7 @@ export async function extractAndPersistChatInsights(args: {
   conversationId: string;
   currentInsightContent: Record<string, string> | null;
   logPrefix: string;
+  sourceChannel?: "text_chat" | "voice_call" | "unknown";
   userId: string;
 }) {
   const assistantContent = args.assistantContent.trim();
@@ -190,11 +202,15 @@ export async function extractAndPersistChatInsights(args: {
       .map(
         (item) =>
           ({
+            id: item.id,
+            messageType: item.message_type,
             role: item.role as "user" | "assistant",
             content: formatTalentMessageContentForLlmPrompt(item).trim(),
           }) satisfies ExtractionConversationMessage
       )
       .filter((item) => item.content.length > 0);
+    const recentMessagesForLog =
+      formatRecentMessagesForLog(recentExtractionMessages);
 
     const conversationMessages = buildExtractionConversationMessages({
       assistantContent,
@@ -207,6 +223,14 @@ export async function extractAndPersistChatInsights(args: {
     let rawExtraction = await runCareerInsightExtraction({
       systemPrompt,
       conversationMessages,
+    });
+    logger.log("[llm-output]", {
+      label: "career/chat:insight_extraction",
+      logPrefix: args.logPrefix,
+      model: CAREER_LLM_CONFIG.insightExtraction.model,
+      output: rawExtraction,
+      recentMessages: recentMessagesForLog,
+      sourceChannel: args.sourceChannel ?? "unknown",
     });
 
     let parsedExtraction = parseExtractedInsights({
@@ -229,6 +253,14 @@ export async function extractAndPersistChatInsights(args: {
         systemPrompt,
         conversationMessages,
         usageLabel: "career/chat:insight_extraction:fallback",
+      });
+      logger.log("[llm-output]", {
+        label: "career/chat:insight_extraction:fallback",
+        logPrefix: args.logPrefix,
+        model: CAREER_LLM_CONFIG.insightExtraction.fallbackModel,
+        output: rawExtraction,
+        recentMessages: recentMessagesForLog,
+        sourceChannel: args.sourceChannel ?? "unknown",
       });
       parsedExtraction = parseExtractedInsights({
         logPrefix: args.logPrefix,

@@ -42,7 +42,7 @@ const Call: React.FC = () => {
     startCall,
     isThinking,
     endCall,
-    sendAudioCommit,
+    submitVoiceTranscript,
     callStatus,
     assistantTexts,
     userTranscript,
@@ -164,7 +164,7 @@ const Call: React.FC = () => {
   };
 
   const handleStopRecording = async () => {
-    await sendAudioCommit();
+    await submitVoiceTranscript();
   };
 
   return (

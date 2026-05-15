@@ -4,6 +4,8 @@ import type {
   MessageRole,
 } from "@/components/career/types";
 import {
+  TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NOTICE,
+  TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP,
   TALENT_MESSAGE_TYPE_ONBOARDING_INTEREST_PROMPT,
   TALENT_MESSAGE_TYPE_ONBOARDING_PAUSE_CLOSE,
   TALENT_MESSAGE_TYPE_ONBOARDING_STATUS,
@@ -156,6 +158,17 @@ const hasChatAfterIndex = (messages: CareerMessage[], index: number) =>
     .slice(index + 1)
     .some((message) => (message.messageType ?? "chat") === "chat");
 
+const CAREER_CONVERSATION_ACTIVITY_MESSAGE_TYPES = new Set([
+  "chat",
+  "call_transcript",
+  "call_wrapup",
+  TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NOTICE,
+  TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP,
+  TALENT_MESSAGE_TYPE_ONBOARDING_INTEREST_PROMPT,
+  TALENT_MESSAGE_TYPE_ONBOARDING_PAUSE_CLOSE,
+  TALENT_MESSAGE_TYPE_ONBOARDING_STATUS,
+]);
+
 export const shouldShowVoiceStartPrompt = (
   stage: CareerStage,
   messages: CareerMessage[]
@@ -163,28 +176,18 @@ export const shouldShowVoiceStartPrompt = (
   const hasProfileSubmit = messages.some(
     (message) => message.messageType === "profile_submit"
   );
-  const hasUserChat = messages.some(
+  const hasConversationActivity = messages.some(
     (message) =>
-      message.role === "user" && (message.messageType ?? "chat") === "chat"
-  );
-  const hasAssistantQuestion = messages.some(
-    (message) =>
-      message.role === "assistant" && (message.messageType ?? "chat") === "chat"
-  );
-  const hasDeferredFlow = messages.some((message) =>
-    [
-      TALENT_MESSAGE_TYPE_ONBOARDING_INTEREST_PROMPT,
-      TALENT_MESSAGE_TYPE_ONBOARDING_STATUS,
-      TALENT_MESSAGE_TYPE_ONBOARDING_PAUSE_CLOSE,
-    ].includes(message.messageType)
+      CAREER_CONVERSATION_ACTIVITY_MESSAGE_TYPES.has(
+        message.messageType ?? "chat"
+      )
   );
 
   return (
     stage !== "profile" &&
+    stage !== "completed" &&
     hasProfileSubmit &&
-    !hasDeferredFlow &&
-    !hasUserChat &&
-    !hasAssistantQuestion
+    !hasConversationActivity
   );
 };
 
