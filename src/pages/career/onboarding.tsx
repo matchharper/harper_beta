@@ -800,7 +800,6 @@ const CareerNetworkOnboardingContent = () => {
   const [submitState, setSubmitState] = useState<"form" | "loading" | "done">(
     "form"
   );
-  const [submitError, setSubmitError] = useState("");
   const [doneUserMessage, setDoneUserMessage] = useState(
     DEFAULT_DONE_USER_MESSAGE
   );
@@ -872,7 +871,6 @@ const CareerNetworkOnboardingContent = () => {
       if (!cachedSession && !conversationId) {
         setBootstrapLoading(true);
       }
-      setSubmitError("");
 
       try {
         const payload = await queryClient.ensureQueryData({
@@ -903,11 +901,14 @@ const CareerNetworkOnboardingContent = () => {
         setSubmitState(payload?.hasFirstSubmission ? "done" : "form");
       } catch (error) {
         if (cancelled) return;
-        setSubmitError(
-          error instanceof Error
-            ? error.message
-            : "온보딩 세션을 불러오지 못했습니다."
-        );
+        showToast({
+          message:
+            error instanceof Error
+              ? error.message
+              : "온보딩 세션을 불러오지 못했습니다.",
+          variant: "error",
+          duration: 5000,
+        });
       } finally {
         if (!cancelled) {
           setBootstrapLoading(false);
@@ -1064,12 +1065,15 @@ const CareerNetworkOnboardingContent = () => {
   const submitOnboarding = useCallback(async () => {
     if (submitState === "loading") return;
     if (!conversationId) {
-      setSubmitError("온보딩 세션을 아직 준비하지 못했습니다.");
+      showToast({
+        message: "온보딩 세션을 아직 준비하지 못했습니다.",
+        variant: "error",
+        duration: 5000,
+      });
       return;
     }
 
     setSubmitState("loading");
-    setSubmitError("");
 
     try {
       let resumeFileName: string | undefined;
@@ -1156,11 +1160,14 @@ const CareerNetworkOnboardingContent = () => {
       setDoneKickoffText(getOnboardingKickoffText(payload));
       setSubmitState("done");
     } catch (error) {
-      setSubmitError(
-        error instanceof Error
-          ? error.message
-          : "온보딩 제출 중 오류가 발생했습니다."
-      );
+      showToast({
+        message:
+          error instanceof Error
+            ? error.message
+            : "온보딩 제출 중 오류가 발생했습니다.",
+        variant: "error",
+        duration: 5000,
+      });
       setSubmitState("form");
     }
   }, [
@@ -1451,12 +1458,6 @@ const CareerNetworkOnboardingContent = () => {
                   )}
                 </motion.div>
               </AnimatePresence>
-
-              {submitError && (
-                <p className="mx-auto mt-5 w-full max-w-[680px] border border-xprimary/30 bg-white/45 px-3 py-2 text-left text-sm leading-6 text-xprimary">
-                  {submitError}
-                </p>
-              )}
 
               <div className="mt-8 flex w-full flex-col-reverse items-stretch justify-center gap-3 sm:w-auto sm:flex-row sm:items-center">
                 {step > 0 && (

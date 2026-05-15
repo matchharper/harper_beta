@@ -214,7 +214,6 @@ export async function GET(req: NextRequest) {
         .insert({
           user_id: user.id,
           stage: "profile",
-          title: "Career Onboarding",
           relief_nudge_sent: false,
           created_at: now,
           updated_at: now,
@@ -282,7 +281,6 @@ export async function GET(req: NextRequest) {
         conversation: {
           id: conversation.id,
           stage: conversation.stage,
-          title: conversation.title,
           resumeFileName: profile?.resume_file_name ?? null,
           resumeStoragePath: profile?.resume_storage_path ?? null,
           resumeDownloadUrl: null,
@@ -626,7 +624,6 @@ export async function GET(req: NextRequest) {
       conversation: {
         id: conversation.id,
         stage: conversation.stage,
-        title: conversation.title,
         resumeFileName: profile?.resume_file_name ?? null,
         resumeStoragePath: profile?.resume_storage_path ?? null,
         resumeDownloadUrl,

@@ -604,13 +604,9 @@ const ProfileAvatar = ({
                 }}
               />
             ) : null}
-            {!imageActionDisabled ? (
-              <span className="pointer-events-none absolute right-[-3px] top-[-3px] z-2 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-[#22c55e] text-white opacity-100 shadow-[0_2px_7px_rgba(21,128,61,0.28)] transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-visible:opacity-100">
-                {uploadPending ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
-                )}
+            {uploadPending ? (
+              <span className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full bg-beige900/30 text-white">
+                <Loader2 className="h-4 w-4 animate-spin" />
               </span>
             ) : null}
           </button>
@@ -673,7 +669,7 @@ const ProfileHeader = ({
 }) => (
   <section
     className={careerCx(
-      "flex flex-col gap-4 px-1 pt-1 sm:flex-row",
+      "relative flex flex-col gap-4 px-1 pt-1 sm:flex-row",
       isEditing ? "sm:items-start" : "sm:items-center"
     )}
   >
@@ -759,7 +755,7 @@ const ProfileHeader = ({
 
     <div
       className={careerCx(
-        "flex shrink-0 gap-2",
+        "absolute right-1 top-1 flex shrink-0 gap-2 sm:static sm:right-auto sm:top-auto",
         isEditing ? "flex-wrap" : "flex-col items-end"
       )}
     >
@@ -778,7 +774,7 @@ const ProfileHeader = ({
         <CareerSecondaryButton
           type="button"
           onClick={onEdit}
-          className="h-11 gap-1.5 px-4 text-[13.5px] md:h-9 md:px-3.5 md:text-[12.5px]"
+          className="h-9 gap-1.5 px-3.5 text-[12.5px]"
         >
           <Pencil className="h-3.5 w-3.5" />
           수정하기

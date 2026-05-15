@@ -507,7 +507,11 @@ const CareerWorkspaceMobileLayout = ({
 }) => {
   const { onOpenSettings, onLogout } = useCareerSidebarContext();
   const { displayName, profilePicture, userEmail } = useMobileUserDisplay();
-  const [chatOpen, setChatOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const startQuery = new URLSearchParams(window.location.search).get("start");
+    return startQuery === "call" || startQuery === "chat";
+  });
   const [inquiryOpen, setInquiryOpen] = useState(false);
   const [pendingHistoryTarget, setPendingHistoryTarget] =
     useState<CareerWorkspaceHistoryTarget | null>(null);
