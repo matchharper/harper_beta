@@ -12,7 +12,7 @@ import {
   WaitlistExtraInfoModal,
 } from "@/components/Modal/WaitlistInfoModal";
 import { useCountdown } from "@/hooks/useCountDown";
-import { DropdownMenu } from "@/components/ui/menu";
+import { DropdownMenu } from "@/components/landing/navigation/DropdownMenu";
 import { v4 } from "uuid";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { notifyToSlack } from "@/lib/slack";

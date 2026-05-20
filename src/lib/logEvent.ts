@@ -22,7 +22,6 @@ export async function postLogEvent(
     }
 
     if (!accessToken) {
-      console.error("postLogEvent failed: missing access token");
       return false;
     }
 
@@ -37,14 +36,16 @@ export async function postLogEvent(
     });
 
     if (!response.ok) {
+      if (response.status === 401 || response.status === 204) return false;
+
       const message = await response.text().catch(() => "");
-      console.error("postLogEvent failed:", response.status, message);
+      console.warn("postLogEvent failed:", response.status, message);
       return false;
     }
 
     return true;
   } catch (error) {
-    console.error("postLogEvent failed:", error);
+    console.warn("postLogEvent failed:", error);
     return false;
   }
 }

@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { initials } from "@/components/NameProfile";
-import RevealProfileButton from "@/components/ui/RevealProfileButton";
+import RevealProfileButton from "@/components/candidates/RevealProfileButton";
 import { usePaperModalStore } from "@/store/usePaperModalStore";
 import { usePaperDetail } from "@/hooks/usePaperDetail";
 import LinkChips from "@/pages/my/p/components/LinkChips";

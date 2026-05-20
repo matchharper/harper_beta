@@ -22,7 +22,9 @@ const isTrigger = (value: unknown): value is OpportunityDiscoveryTrigger =>
 const isAgentVariant = (
   value: unknown
 ): value is OpportunityDiscoveryAgentVariant =>
-  value === "tool_agent" || value === "scripted";
+  value === "tool_agent" ||
+  value === "scripted" ||
+  value === "scripted_human";
 
 export async function GET(req: NextRequest) {
   try {
@@ -49,10 +51,8 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json().catch(() => ({}))) as {
-      chatPreviewCount?: number;
       conversationId?: string;
       agentVariant?: unknown;
-      targetRecommendationCount?: number;
       trigger?: unknown;
       triggerPayload?: Record<string, unknown>;
     };
@@ -93,10 +93,8 @@ export async function POST(req: NextRequest) {
 
     const run = await createOpportunityDiscoveryRun({
       admin,
-      chatPreviewCount: body.chatPreviewCount,
       conversationId,
       talentId: user.id,
-      targetRecommendationCount: body.targetRecommendationCount,
       trigger: body.trigger,
       triggerPayload,
     });

@@ -198,7 +198,6 @@ export type CareerHistoryOpportunity = {
 
 export type CareerOpportunityRun = {
   agentVariant: CareerOpportunityAgentVariant | null;
-  chatPreviewCount: number;
   completedAt: string | null;
   coverage: Record<string, unknown>;
   createdAt: string;
@@ -207,7 +206,6 @@ export type CareerOpportunityRun = {
   inputLocked: boolean;
   startedAt: string | null;
   status: string;
-  targetRecommendationCount: number;
   trigger: string;
 };
 

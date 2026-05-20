@@ -1,4 +1,5 @@
 import type { User } from "@supabase/supabase-js";
+import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import {
   ATS_ALLOWED_EMAILS,
@@ -18,9 +19,7 @@ export class InternalApiError extends Error {
   }
 }
 
-export async function requireInternalApiUser(
-  req: NextRequest
-): Promise<User> {
+export async function requireInternalApiUser(req: NextRequest): Promise<User> {
   const user = await getRequestUser(req);
   if (!user) {
     throw new InternalApiError(401, "Unauthorized");
@@ -52,6 +51,32 @@ export async function requireAtsApiUser(req: NextRequest): Promise<User> {
   return user;
 }
 
+export function requireInternalWorkerSecret(req: NextRequest) {
+  const configured = process.env.INTERNAL_WORKER_API_SECRET?.trim();
+  if (!configured) {
+    throw new InternalApiError(500, "Internal worker secret is not configured");
+  }
+
+  const authHeader =
+    req.headers.get("authorization") ?? req.headers.get("Authorization");
+  const provided = authHeader?.toLowerCase().startsWith("bearer ")
+    ? authHeader.slice(7).trim()
+    : "";
+
+  if (!provided) {
+    throw new InternalApiError(401, "Unauthorized");
+  }
+
+  const expectedBuffer = Buffer.from(configured);
+  const actualBuffer = Buffer.from(provided);
+  if (
+    expectedBuffer.length !== actualBuffer.length ||
+    !timingSafeEqual(expectedBuffer, actualBuffer)
+  ) {
+    throw new InternalApiError(401, "Unauthorized");
+  }
+}
+
 export function toInternalApiErrorResponse(
   error: unknown,
   fallbackMessage: string
@@ -65,8 +90,7 @@ export function toInternalApiErrorResponse(
 
   return NextResponse.json(
     {
-      error:
-        error instanceof Error ? error.message : fallbackMessage,
+      error: error instanceof Error ? error.message : fallbackMessage,
     },
     { status: 500 }
   );

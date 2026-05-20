@@ -1,4 +1,4 @@
-import { LogOut, Megaphone } from "lucide-react";
+import { HelpCircle, LogOut, Scroll } from "lucide-react";
 import React, { useState } from "react";
 import CareerUpdateNotesModal from "./CareerUpdateNotesModal";
 import { careerCx } from "./ui/CareerPrimitives";
@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/beige/action-dropdown";
 import { DropdownMenuLabel } from "@/components/ui/beige/dropdown-menu";
 import { useUnreadCareerUpdateNote } from "@/hooks/career/useCareerUpdateNotes";
+import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 
 type CareerProfileMenuVariant = "desktop" | "mobile";
 
@@ -27,6 +28,7 @@ const CareerProfileMenu = ({
   onSuggestUpdate: () => void;
   variant?: CareerProfileMenuVariant;
 }) => {
+  const logCareerEvent = useCareerLogEvent();
   const [menuOpen, setMenuOpen] = useState(false);
   const [updateNotesOpen, setUpdateNotesOpen] = useState(false);
   const { hasUnread: hasUnreadUpdateNote, markSeen: markLatestUpdateNoteSeen } =
@@ -45,6 +47,7 @@ const CareerProfileMenu = ({
   );
 
   const handleOpenUpdateNotes = () => {
+    logCareerEvent("click_profile_menu_update_notes");
     setUpdateNotesOpen(true);
     setMenuOpen(false);
     markLatestUpdateNoteSeen();
@@ -56,6 +59,12 @@ const CareerProfileMenu = ({
     onSuggestUpdate();
   };
 
+  const handleOpenSupport = () => {
+    logCareerEvent("click_profile_menu_support");
+    setMenuOpen(false);
+    onSuggestUpdate();
+  };
+
   const isMobile = variant === "mobile";
   const triggerClassName = isMobile
     ? careerCx(
@@ -63,16 +72,16 @@ const CareerProfileMenu = ({
         menuOpen ? "bg-beige100" : "active:bg-beige900/5"
       )
     : careerCx(
-        "relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-[12px] border bg-white/80 shadow-[0_8px_24px_rgba(37,20,6,0.05)] transition-all",
+        "relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-[12px] border bg-beige100 transition-all",
         menuOpen
-          ? "border-beige900/20 ring-4 ring-white/70"
+          ? "border-beige900/20 ring-4 ring-beige200"
           : "border-beige900/10 hover:border-beige900/20 hover:bg-white"
       );
 
   const avatarBody = isMobile ? (
     <span
       className={careerCx(
-        "inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border bg-white/80",
+        "inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border bg-beige100",
         menuOpen ? "border-beige900/20" : "border-beige900/10"
       )}
     >
@@ -136,22 +145,31 @@ const CareerProfileMenu = ({
             {profileEmail || "Career profile"}
           </div>
         </DropdownMenuLabel>
-        <BeigeActionDropdownSeparator />
+        <BeigeActionDropdownItem
+          onSelect={() => handleOpenSupport()}
+          className="flex flex-row items-center gap-2.5 mt-2"
+        >
+          <HelpCircle className="h-4 w-4" />
+          문의하기
+        </BeigeActionDropdownItem>
         <BeigeActionDropdownItem
           onSelect={() => handleOpenUpdateNotes()}
           className="flex flex-row items-center gap-2.5"
         >
-          <Megaphone className="h-4 w-4" />
+          <Scroll className="h-4 w-4" />
           <span className="min-w-0 flex-1">업데이트 노트</span>
-          {hasUnreadUpdateNote ? (
-            <span className="rounded-full bg-beige900 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-beige50">
+          {!hasUnreadUpdateNote && (
+            <span className="rounded-full bg-beige900 px-1.5 py-1 text-[10px] font-normal leading-none text-beige50">
               NEW
             </span>
-          ) : null}
+          )}
         </BeigeActionDropdownItem>
         <BeigeActionDropdownSeparator />
         <BeigeActionDropdownItem
-          onSelect={() => void onLogout()}
+          onSelect={() => {
+            logCareerEvent("click_profile_menu_logout");
+            void onLogout();
+          }}
           tone="danger"
           className="flex flex-row items-center gap-2.5"
         >

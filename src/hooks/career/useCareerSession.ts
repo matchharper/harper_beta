@@ -10,6 +10,7 @@ type LoadSessionOptions = {
 };
 
 type UseCareerSessionArgs = {
+  emailOnboardingToken?: string | null;
   enabled: boolean;
   fetchWithAuth: FetchWithAuth;
   inviteToken?: string | null;
@@ -30,16 +31,19 @@ const shouldRetryCareerSession = (failureCount: number, error: unknown) => {
 export const careerSessionKey = (
   userId: string | null,
   inviteToken?: string | null,
-  mail?: string | null
+  mail?: string | null,
+  emailOnboardingToken?: string | null
 ) =>
   [
     "career-session",
     userId,
     inviteToken?.trim() || null,
     mail?.trim() || null,
+    emailOnboardingToken?.trim() || null,
   ] as const;
 
 export const useCareerSession = ({
+  emailOnboardingToken,
   enabled,
   fetchWithAuth,
   inviteToken,
@@ -49,16 +53,33 @@ export const useCareerSession = ({
   const queryClient = useQueryClient();
   const normalizedInviteToken = inviteToken?.trim() || null;
   const normalizedMail = mail?.trim() || null;
+  const normalizedEmailOnboardingToken = emailOnboardingToken?.trim() || null;
   const queryKey = useMemo(
-    () => careerSessionKey(userId, normalizedInviteToken, normalizedMail),
-    [normalizedInviteToken, normalizedMail, userId]
+    () =>
+      careerSessionKey(
+        userId,
+        normalizedInviteToken,
+        normalizedMail,
+        normalizedEmailOnboardingToken
+      ),
+    [
+      normalizedEmailOnboardingToken,
+      normalizedInviteToken,
+      normalizedMail,
+      userId,
+    ]
   );
 
   const fetchSession = useCallback(async () => {
-    if (normalizedInviteToken || normalizedMail) {
+    if (
+      normalizedInviteToken ||
+      normalizedMail ||
+      normalizedEmailOnboardingToken
+    ) {
       const bootstrapRes = await fetchWithAuth("/api/talent/auth/bootstrap", {
         method: "POST",
         body: JSON.stringify({
+          emailOnboardingToken: normalizedEmailOnboardingToken || undefined,
           inviteToken: normalizedInviteToken || undefined,
           mail: normalizedMail || undefined,
         }),
@@ -86,7 +107,12 @@ export const useCareerSession = ({
     }
 
     return payload;
-  }, [fetchWithAuth, normalizedInviteToken, normalizedMail]);
+  }, [
+    fetchWithAuth,
+    normalizedEmailOnboardingToken,
+    normalizedInviteToken,
+    normalizedMail,
+  ]);
 
   const sessionQuery = useQuery({
     queryKey,

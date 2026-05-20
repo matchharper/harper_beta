@@ -2,12 +2,7 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { motion } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
-import {
-  useEffect,
-  useRef,
-  useState,
-  type MouseEventHandler,
-} from "react";
+import { useEffect, useRef, useState, type MouseEventHandler } from "react";
 import CareerLandingButton from "./CareerLandingButton";
 
 type CareerAppBarProps = {
@@ -74,12 +69,6 @@ export default function CareerAppBar({
         </a>
         <div className="flex items-center gap-3 sm:gap-6">
           <div className="flex items-center gap-3 text-[12.5px] font-medium text-beige900/60 sm:gap-4 sm:text-[13px] md:gap-5 md:text-sm">
-            <a
-              href="#voices"
-              className="hidden transition hover:text-beige900 md:flex"
-            >
-              Success Stories
-            </a>
             <Link href="/company" className="transition hover:text-beige900">
               For Companies
             </Link>

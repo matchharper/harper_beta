@@ -1,6 +1,7 @@
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import {
   TALENT_MESSAGE_TYPE_ONBOARDING_ADDITIONAL_QUESTION_SELECTION,
+  TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NEXT_STEPS,
   TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP,
   TALENT_MESSAGE_TYPE_SESSION_REENGAGEMENT_SKIP,
 } from "@/lib/talentOnboarding/onboarding";
@@ -66,6 +67,33 @@ export async function fetchOnboardingCompletionWrapupMessage(args: {
   return existing ? (existing as TalentMessageRow) : null;
 }
 
+export async function fetchOnboardingCompletionNextStepsMessage(args: {
+  admin: TalentAdminClient;
+  conversationId: string;
+  userId: string;
+}) {
+  const { data: existing, error: existingError } = await args.admin
+    .from("talent_messages")
+    .select(
+      "id, conversation_id, user_id, role, content, message_type, thinking_logs, created_at"
+    )
+    .eq("conversation_id", args.conversationId)
+    .eq("user_id", args.userId)
+    .eq("message_type", TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NEXT_STEPS)
+    .order("id", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingError) {
+    throw new Error(
+      existingError.message ??
+        "Failed to read onboarding completion next steps"
+    );
+  }
+
+  return existing ? (existing as TalentMessageRow) : null;
+}
+
 export async function insertOnboardingCompletionWrapupMessage(args: {
   admin: TalentAdminClient;
   content: string;
@@ -97,6 +125,41 @@ export async function insertOnboardingCompletionWrapupMessage(args: {
   if (error || !data) {
     throw new Error(
       error?.message ?? "Failed to insert onboarding completion wrap-up"
+    );
+  }
+
+  return data as TalentMessageRow;
+}
+
+export async function insertOnboardingCompletionNextStepsMessage(args: {
+  admin: TalentAdminClient;
+  content: string;
+  conversationId: string;
+  userId: string;
+}) {
+  const content = args.content.trim();
+  if (!content) {
+    throw new Error("Onboarding completion next steps content is required");
+  }
+
+  const existing = await fetchOnboardingCompletionNextStepsMessage(args);
+  if (existing) return existing;
+
+  const { data, error } = await args.admin
+    .from("talent_messages")
+    .insert({
+      conversation_id: args.conversationId,
+      content,
+      message_type: TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NEXT_STEPS,
+      role: "assistant",
+      user_id: args.userId,
+    })
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    throw new Error(
+      error?.message ?? "Failed to insert onboarding completion next steps"
     );
   }
 

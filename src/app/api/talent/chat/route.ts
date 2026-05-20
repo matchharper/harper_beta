@@ -30,6 +30,7 @@ import {
   buildCareerInsightExtractionPrompt,
 } from "@/lib/career/prompts";
 import {
+  recoverCareerChatAssistantText,
   runCareerChatAssistant,
   runCareerChatAssistantStream,
 } from "@/lib/career/llm";
@@ -43,7 +44,7 @@ import {
   fetchRecentMessagesWithSummary,
   maybeSummarizeTalentConversation,
 } from "@/lib/talentOnboarding/conversationSummary";
-import { createOnboardingCompletionWrapupMessage } from "@/lib/talentOnboarding/onboardingCompletionWrapup";
+import { createOnboardingCompletionMessages } from "@/lib/talentOnboarding/onboardingCompletionWrapup";
 import { getTalentCareerMoveIntentLabel } from "@/lib/talentNetworkOptions";
 import { extractAndPersistChatInsights } from "@/lib/talentOnboarding/chatInsights";
 import {
@@ -94,9 +95,6 @@ type Body = {
 type CompanySnapshotToolResult = {
   messages: ReturnType<typeof toTalentMessageResponse>[];
 };
-
-const EMPTY_ASSISTANT_TEXT_FALLBACK =
-  "말씀해주신 내용 확인했습니다. 이어서 조금만 더 여쭤볼게요.";
 
 const toResponseMessage = toTalentMessageResponse;
 
@@ -171,9 +169,10 @@ async function buildTalentProfileSnapshot(args: {
   admin: ReturnType<typeof getTalentSupabaseAdmin>;
   userId: string;
 }) {
-  const [setting, insights] = await Promise.all([
+  const [setting, insights, talentProfile] = await Promise.all([
     fetchTalentSetting({ admin: args.admin, userId: args.userId }),
     fetchTalentInsights({ admin: args.admin, userId: args.userId }),
+    fetchTalentStructuredProfile({ admin: args.admin, userId: args.userId }),
   ]);
   const careerMoveIntent = sanitizeTalentCareerMoveIntent(
     setting?.career_move_intent
@@ -195,6 +194,7 @@ async function buildTalentProfileSnapshot(args: {
       ),
     },
     talentInsights: normalizeTalentInsightContent(insights?.content ?? null),
+    talentProfile,
     preferencesUpdatedAt: setting?.updated_at ?? null,
     insightUpdatedAt: insights?.last_updated_at ?? null,
   };
@@ -407,7 +407,9 @@ export async function POST(req: NextRequest) {
     const conversationStarter = conversationStarterId
       ? getCareerConversationStarterPrompt(conversationStarterId)
       : null;
-    const skipConversationWrites = Boolean(conversationStarter);
+    const skipConversationWrites = Boolean(
+      conversationStarter && message === conversationStarter.chatMessage
+    );
     const streamResponse = wantsSseStream(req);
 
     if (!conversationId) {
@@ -667,6 +669,9 @@ export async function POST(req: NextRequest) {
       opportunityStatus,
       pendingOpportunityFeedbackContext,
       profile,
+      proactiveTurnInstructionMode: conversationStarter
+        ? "conversation_starter"
+        : undefined,
       proactiveTurnInstruction:
         conversationStarter?.chatProactiveInstruction ?? undefined,
       recentActivitySummaries,
@@ -1111,18 +1116,54 @@ export async function POST(req: NextRequest) {
               return;
             }
 
-            const assistantTextSource =
+            let assistantTextSource =
               selectedAdditionalQuestionRef.current ?? assistantText.trim();
-            const assistantTextWithMarkers =
-              assistantTextSource || EMPTY_ASSISTANT_TEXT_FALLBACK;
+            if (!assistantTextSource) {
+              assistantTextSource = (
+                await recoverCareerChatAssistantText({
+                  latestUserMessage: normalizedContent,
+                  messages: llmMessages,
+                  onTextDelta: sendVisibleTextDelta,
+                  systemBlocks,
+                })
+              ).trim();
+            }
+            if (!assistantTextSource) {
+              throw new Error(
+                "Career assistant returned no visible text after recovery."
+              );
+            }
+
+            let assistantTextWithMarkers = assistantTextSource;
 
             const completion = resolveTalentOnboardingCompletion({
               assistantContent: assistantTextWithMarkers,
             });
 
-            const safeAssistantText =
-              stripTalentOnboardingCompletionMarker(assistantTextWithMarkers) ||
-              EMPTY_ASSISTANT_TEXT_FALLBACK;
+            let safeAssistantText = stripTalentOnboardingCompletionMarker(
+              assistantTextWithMarkers
+            );
+            if (!safeAssistantText) {
+              const recoveredText = (
+                await recoverCareerChatAssistantText({
+                  latestUserMessage: normalizedContent,
+                  messages: llmMessages,
+                  onTextDelta: sendVisibleTextDelta,
+                  systemBlocks,
+                })
+              ).trim();
+              if (!recoveredText) {
+                throw new Error(
+                  "Career assistant returned only control markers after recovery."
+                );
+              }
+              assistantTextWithMarkers = completion.completed
+                ? `${recoveredText}\n\n${TALENT_ONBOARDING_DONE_MARKER}`
+                : recoveredText;
+              safeAssistantText = stripTalentOnboardingCompletionMarker(
+                assistantTextWithMarkers
+              );
+            }
             flushVisibleText(safeAssistantText);
             send("assistant_text_done", { ok: true });
 
@@ -1154,7 +1195,8 @@ export async function POST(req: NextRequest) {
             summarizeConversationInBackground();
 
             const isCompleted = completion.completed;
-            const shouldApplyCompletion = isCompleted && !skipConversationWrites;
+            const shouldApplyCompletion =
+              isCompleted && !skipConversationWrites;
             await updateConversationStageIfAllowed(isCompleted);
 
             const completedOpportunityRun =
@@ -1173,6 +1215,8 @@ export async function POST(req: NextRequest) {
 
             let sentFinalAssistantMessage = false;
             let insertedCompletionWrapupMessage: TalentMessageRow | null = null;
+            let insertedCompletionNextStepsMessage: TalentMessageRow | null =
+              null;
             if (shouldApplyCompletion) {
               send("assistant_message", {
                 message: {
@@ -1186,13 +1230,17 @@ export async function POST(req: NextRequest) {
               send("onboarding_wrapup_status", {
                 state: "running",
               });
-              insertedCompletionWrapupMessage =
-                await createOnboardingCompletionWrapupMessage({
+              const completionMessages =
+                await createOnboardingCompletionMessages({
                   admin,
                   conversationId,
                   latestUserMessageId: insertedUserMessage.id,
                   userId: user.id,
                 });
+              insertedCompletionWrapupMessage =
+                completionMessages.wrapupMessage;
+              insertedCompletionNextStepsMessage =
+                completionMessages.nextStepsMessage;
             }
             const assistantResponseMessages =
               await attachPostingPreviewsToMessages({
@@ -1206,6 +1254,9 @@ export async function POST(req: NextRequest) {
                   },
                   insertedCompletionWrapupMessage
                     ? toResponseMessage(insertedCompletionWrapupMessage)
+                    : null,
+                  insertedCompletionNextStepsMessage
+                    ? toResponseMessage(insertedCompletionNextStepsMessage)
                     : null,
                 ].filter(
                   (message): message is ReturnType<typeof toResponseMessage> =>
@@ -1413,18 +1464,52 @@ export async function POST(req: NextRequest) {
 
     logger.log("\n\nassistantText : ", assistantText, "\n\n");
 
-    const assistantTextSource =
+    let assistantTextSource =
       selectedAdditionalQuestionRef.current ?? assistantText.trim();
-    const assistantTextWithMarkers =
-      assistantTextSource || EMPTY_ASSISTANT_TEXT_FALLBACK;
+    if (!assistantTextSource) {
+      assistantTextSource = (
+        await recoverCareerChatAssistantText({
+          latestUserMessage: normalizedContent,
+          messages: llmMessages,
+          systemBlocks,
+        })
+      ).trim();
+    }
+    if (!assistantTextSource) {
+      throw new Error(
+        "Career assistant returned no visible text after recovery."
+      );
+    }
+
+    let assistantTextWithMarkers = assistantTextSource;
 
     const completion = resolveTalentOnboardingCompletion({
       assistantContent: assistantTextWithMarkers,
     });
 
-    const safeAssistantText =
-      stripTalentOnboardingCompletionMarker(assistantTextWithMarkers) ||
-      EMPTY_ASSISTANT_TEXT_FALLBACK;
+    let safeAssistantText = stripTalentOnboardingCompletionMarker(
+      assistantTextWithMarkers
+    );
+    if (!safeAssistantText) {
+      const recoveredText = (
+        await recoverCareerChatAssistantText({
+          latestUserMessage: normalizedContent,
+          messages: llmMessages,
+          systemBlocks,
+        })
+      ).trim();
+      if (!recoveredText) {
+        throw new Error(
+          "Career assistant returned only control markers after recovery."
+        );
+      }
+      assistantTextWithMarkers = completion.completed
+        ? `${recoveredText}\n\n${TALENT_ONBOARDING_DONE_MARKER}`
+        : recoveredText;
+      safeAssistantText = stripTalentOnboardingCompletionMarker(
+        assistantTextWithMarkers
+      );
+    }
 
     // --- Save assistant message ---
     const { data: insertedAssistantMessage, error: assistantError } =
@@ -1476,14 +1561,18 @@ export async function POST(req: NextRequest) {
     if (completedOpportunityRun) {
       startOpportunityDiscoveryInBackground(completedOpportunityRun.id);
     }
-    const insertedCompletionWrapupMessage = shouldApplyCompletion
-      ? await createOnboardingCompletionWrapupMessage({
+    const completionMessages = shouldApplyCompletion
+      ? await createOnboardingCompletionMessages({
           admin,
           conversationId,
           latestUserMessageId: insertedUserMessage.id,
           userId: user.id,
         })
       : null;
+    const insertedCompletionWrapupMessage =
+      completionMessages?.wrapupMessage ?? null;
+    const insertedCompletionNextStepsMessage =
+      completionMessages?.nextStepsMessage ?? null;
 
     const profileSnapshot = await buildTalentProfileSnapshot({
       admin,
@@ -1498,6 +1587,9 @@ export async function POST(req: NextRequest) {
         },
         insertedCompletionWrapupMessage
           ? toResponseMessage(insertedCompletionWrapupMessage)
+          : null,
+        insertedCompletionNextStepsMessage
+          ? toResponseMessage(insertedCompletionNextStepsMessage)
           : null,
       ].filter(
         (message): message is ReturnType<typeof toResponseMessage> =>

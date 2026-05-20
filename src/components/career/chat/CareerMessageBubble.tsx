@@ -15,10 +15,10 @@ import {
 export const USER_BUBBLE_CLASS =
   "mt-1 ml-auto max-w-[820px] rounded-[14px] bg-beige900 px-3 py-1.5 text-beige100";
 
-export const ASSISTANT_BUBBLE_CLASS = "w-fit max-w-[920px] text-beige900/90";
+export const ASSISTANT_BUBBLE_CLASS = "w-fit max-w-[920px] text-beige900";
 
 const ASSISTANT_RICH_TEXT_CLASS =
-  "text-[14px] leading-7 [&_blockquote]:text-[14px] [&_blockquote]:leading-7 [&_li]:leading-7 [&_ol]:text-[14px] [&_ol]:leading-7 [&_p]:text-[14px] [&_p]:leading-7 [&_pre]:text-[12px] [&_pre]:leading-5 [&_table]:text-[13px] [&_td]:text-[13px] [&_th]:text-[13px] [&_ul]:text-[14px] [&_ul]:leading-7";
+  "text-[13px] leading-6 md:text-[14px] md:leading-7 [&_blockquote]:text-[13px] [&_blockquote]:leading-6 [&_li]:leading-6 [&_ol]:text-[13px] [&_ol]:leading-6 [&_p]:text-[13px] [&_p]:leading-6 [&_pre]:text-[12px] [&_pre]:leading-5 [&_table]:text-[12px] [&_td]:text-[12px] [&_th]:text-[12px] [&_ul]:text-[13px] [&_ul]:leading-6 md:[&_blockquote]:text-[14px] md:[&_blockquote]:leading-7 md:[&_li]:leading-7 md:[&_ol]:text-[14px] md:[&_ol]:leading-7 md:[&_p]:text-[14px] md:[&_p]:leading-7 md:[&_table]:text-[13px] md:[&_td]:text-[13px] md:[&_th]:text-[13px] md:[&_ul]:text-[14px] md:[&_ul]:leading-7";
 
 const HIGHLIGHT_PATTERN = /<<([\s\S]+?)>>/g;
 const URL_PATTERN = /(https?:\/\/[^\s]+)/g;
@@ -179,7 +179,7 @@ const CareerMessageBubble = ({
   const articleClassName = isOpportunityFeedbackNote
     ? "ml-auto max-w-[820px] px-1 py-0 text-right text-[11px] leading-4 text-beige900/45"
     : [
-        "max-w-[92%] text-[14px] leading-6 transition-colors duration-300",
+        "max-w-[92%] text-[13px] leading-5 transition-colors duration-300 md:text-[14px] md:leading-6",
         isUser ? USER_BUBBLE_CLASS : ASSISTANT_BUBBLE_CLASS,
         !isUser && isAssistantSpeaking ? "ring-1 ring-beige900/10" : "",
       ].join(" ");

@@ -1,9 +1,18 @@
 import OpsShell from "@/components/ops/OpsShell";
 import { cx, opsTheme } from "@/components/ops/theme";
-import { useOpsCareerTalents, useOpsCareerDetail, useAddChecklistItem, useRefreshInsights, useUpdateInsights, useDeleteChecklistItem } from "@/hooks/useOpsCareer";
+import {
+  useOpsCareerTalents,
+  useOpsCareerDetail,
+  useAddChecklistItem,
+  useRefreshInsights,
+  useUpdateInsights,
+  useDeleteChecklistItem,
+  useIngestCareerProfile,
+} from "@/hooks/useOpsCareer";
 import type { CareerTalentDetailResponse } from "@/lib/opsCareerServer";
 import {
   ChevronRight,
+  ExternalLink,
   LoaderCircle,
   MessageSquareText,
   Plus,
@@ -544,21 +553,27 @@ function MessagesTab({
   );
 }
 
-function ProfileTab({
-  detail,
-}: {
-  detail: {
-    bio: string | null;
-    location: string | null;
-    structuredProfile: {
-      experiences: unknown[];
-      educations: unknown[];
-      extras: unknown[];
-    } | null;
-  };
-}) {
+const getLinkedinProfileUrl = (links: string[]) =>
+  links.find((link) => /linkedin\.com\/in\//i.test(link)) ?? null;
+
+const normalizeRegisteredLinkHref = (link: string) =>
+  /^https?:\/\//i.test(link) ? link : `https://${link}`;
+
+const formatRegisteredLinkLabel = (link: string) => {
+  try {
+    const url = new URL(normalizeRegisteredLinkHref(link));
+    const host = url.hostname.replace(/^www\./, "");
+    const path = url.pathname.replace(/\/$/, "");
+    return `${host}${path}`;
+  } catch {
+    return link;
+  }
+};
+
+function ProfileTab({ detail }: { detail: CareerTalentDetailResponse }) {
   const experiences = (detail.structuredProfile?.experiences ?? []) as Array<{
     role?: string;
+    description?: string | null;
     company_name?: string;
     start_date?: string;
     end_date?: string;
@@ -566,11 +581,132 @@ function ProfileTab({
   const educations = (detail.structuredProfile?.educations ?? []) as Array<{
     school?: string;
     degree?: string;
+    description?: string | null;
     field?: string;
   }>;
+  const extras = (detail.structuredProfile?.extras ?? []) as Array<{
+    title?: string | null;
+    description?: string | null;
+    date?: string | null;
+  }>;
+  const registeredLinks = detail.registeredLinks;
+  const linkedinUrl = useMemo(
+    () => getLinkedinProfileUrl(registeredLinks),
+    [registeredLinks]
+  );
+  const ingestProfileMutation = useIngestCareerProfile(detail.userId);
+  const [ingestStatus, setIngestStatus] = useState<{
+    userId: string;
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+  const visibleIngestStatus =
+    ingestStatus?.userId === detail.userId ? ingestStatus : null;
+
+  function handleIngestProfile() {
+    if (!linkedinUrl || ingestProfileMutation.isPending) return;
+    if (
+      !window.confirm(
+        "등록된 LinkedIn 링크로 프로필 정보를 가져와 talent_* 테이블을 갱신합니다."
+      )
+    ) {
+      return;
+    }
+
+    setIngestStatus(null);
+    ingestProfileMutation.mutate(undefined, {
+      onSuccess: (result) => {
+        const stats = result.ingestion.stats;
+        setIngestStatus({
+          userId: detail.userId,
+          type: "success",
+          text: `완료: 경력 ${stats.experiencesSaved}개, 학력 ${stats.educationsSaved}개, 기타 ${stats.extrasSaved}개 저장`,
+        });
+      },
+      onError: (error) => {
+        setIngestStatus({
+          userId: detail.userId,
+          type: "error",
+          text:
+            error instanceof Error
+              ? error.message
+              : "프로필 정보를 가져오지 못했습니다.",
+        });
+      },
+    });
+  }
 
   return (
     <div className="space-y-4">
+      <div className={cx(opsTheme.panelSoft, "p-4")}>
+        <div className="flex items-center justify-between gap-3">
+          <div className={cx(opsTheme.eyebrow)}>등록 링크</div>
+          {linkedinUrl ? (
+            <button
+              type="button"
+              onClick={handleIngestProfile}
+              disabled={ingestProfileMutation.isPending}
+              className={cx(
+                opsTheme.buttonSecondary,
+                "h-8 px-3 text-xs flex items-center gap-1.5 shrink-0",
+                ingestProfileMutation.isPending && "opacity-50 cursor-not-allowed"
+              )}
+            >
+              {ingestProfileMutation.isPending ? (
+                <>
+                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                  가져오는 중...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  LinkedIn으로 프로필 생성
+                </>
+              )}
+            </button>
+          ) : null}
+        </div>
+
+        {registeredLinks.length > 0 ? (
+          <div className="mt-3 space-y-2">
+            {registeredLinks.map((link) => {
+              const isLinkedin = /linkedin\.com\/in\//i.test(link);
+              return (
+                <a
+                  key={link}
+                  href={normalizeRegisteredLinkHref(link)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-between gap-3 rounded-md border border-beige900/10 bg-white/45 px-3 py-2 font-geist text-xs text-beige900/70 transition hover:border-beige900/20 hover:bg-white/70"
+                >
+                  <span className="min-w-0 truncate">
+                    {isLinkedin ? "LinkedIn · " : ""}
+                    {formatRegisteredLinkLabel(link)}
+                  </span>
+                  <ExternalLink className="h-3.5 w-3.5 shrink-0 text-beige900/35" />
+                </a>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="mt-2 font-geist text-sm text-beige900/35">
+            등록된 링크가 없습니다.
+          </div>
+        )}
+
+        {visibleIngestStatus ? (
+          <div
+            className={
+              visibleIngestStatus.type === "success"
+                ? "mt-3 rounded-md border border-[#9FB795]/35 bg-[#E4EDE2]/70 px-3 py-2 font-geist text-xs text-[#29513A]"
+                : cx(opsTheme.errorNotice, "mt-3 text-xs")
+            }
+          >
+            {visibleIngestStatus.text}
+          </div>
+        ) : null}
+      </div>
+
       {detail.bio && (
         <div className={cx(opsTheme.panelSoft, "p-4")}>
           <div className={cx(opsTheme.eyebrow, "mb-1")}>소개</div>
@@ -600,6 +736,11 @@ function ProfileTab({
                   {exp.company_name ?? ""}{" "}
                   {exp.start_date ? `(${exp.start_date} ~ ${exp.end_date ?? "현재"})` : ""}
                 </div>
+                {exp.description?.trim() ? (
+                  <div className="mt-2 whitespace-pre-wrap font-geist text-xs leading-5 text-beige900/70">
+                    {exp.description.trim()}
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>
@@ -618,13 +759,43 @@ function ProfileTab({
                 <div className="font-geist text-xs text-beige900/50">
                   {[edu.degree, edu.field].filter(Boolean).join(" · ")}
                 </div>
+                {edu.description?.trim() ? (
+                  <div className="mt-2 whitespace-pre-wrap font-geist text-xs leading-5 text-beige900/70">
+                    {edu.description.trim()}
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {!detail.bio && !detail.location && experiences.length === 0 && educations.length === 0 && (
+      {extras.length > 0 && (
+        <div>
+          <div className={cx(opsTheme.eyebrow, "mb-2")}>기타</div>
+          <div className="space-y-2">
+            {extras.map((extra, i) => (
+              <div key={i} className={cx(opsTheme.panelSoft, "p-3")}>
+                <div className="font-geist text-sm font-medium text-beige900">
+                  {extra.title ?? "제목 없음"}
+                </div>
+                {extra.date ? (
+                  <div className="font-geist text-xs text-beige900/50">
+                    {extra.date}
+                  </div>
+                ) : null}
+                {extra.description?.trim() ? (
+                  <div className="mt-2 whitespace-pre-wrap font-geist text-xs leading-5 text-beige900/70">
+                    {extra.description.trim()}
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!detail.bio && !detail.location && experiences.length === 0 && educations.length === 0 && extras.length === 0 && (
         <div className="rounded-md border border-dashed border-beige900/15 bg-white/30 px-4 py-6 text-center font-geist text-sm text-beige900/40">
           프로필 정보가 없습니다.
         </div>

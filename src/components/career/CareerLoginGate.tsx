@@ -8,8 +8,9 @@ const GUEST_NAV_ITEMS: Array<{
   label: string;
 }> = [
   { id: "home", label: "홈" },
-  { id: "profile", label: "프로필" },
   { id: "history", label: "발견한 기회" },
+  // Watchlist is hidden for the deploy until the tab is ready.
+  { id: "profile", label: "프로필" },
 ];
 
 const ContentSkeleton = ({

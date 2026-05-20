@@ -31,6 +31,7 @@ import {
   readTalentNetworkStoredReferral,
   TALENT_NETWORK_REFERRAL_SOURCE_ONBOARDING_STEP6,
 } from "@/lib/talentNetworkReferral";
+import { withLandingLogSource } from "@/lib/landingLogTypes";
 import { notifyToSlack } from "@/lib/slack";
 import { supabase } from "@/lib/supabase";
 import { useOnboarding } from "@/hooks/useOnboarding";
@@ -54,6 +55,7 @@ const isValidEmail = (value: string) =>
 
 const QUESTION_STEP_COUNT = 5;
 const TOTAL_STEPS = QUESTION_STEP_COUNT + 2;
+const TALENT_NETWORK_ONBOARDING_LOG_SOURCE = "talent_network_onboarding";
 
 const ENGAGEMENT_OPTIONS = [
   {
@@ -498,7 +500,10 @@ export const Onboarding2Content = ({
       try {
         await supabase.from("landing_logs").insert({
           local_id: resolvedLocalId,
-          type,
+          type: withLandingLogSource(
+            type,
+            TALENT_NETWORK_ONBOARDING_LOG_SOURCE
+          ),
           abtest_type: resolvedAbtestType,
           is_mobile: isMobile,
           country_lang: countryLang,

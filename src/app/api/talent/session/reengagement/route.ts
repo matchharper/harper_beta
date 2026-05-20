@@ -6,7 +6,10 @@ import {
   type TalentConversationRow,
 } from "@/lib/talentOnboarding/server";
 import { TALENT_MESSAGE_TYPE_SESSION_REENGAGEMENT_SKIP } from "@/lib/talentOnboarding/onboarding";
-import { runCareerChatTurn } from "@/lib/career/chatTurn";
+import {
+  runCareerChatTurn,
+  type CareerChatTurnResult,
+} from "@/lib/career/chatTurn";
 import {
   buildCareerSessionStartTurnInstruction,
   CAREER_SESSION_START_NO_MESSAGE_MARKER,
@@ -20,6 +23,19 @@ const parseTimestampMs = (value: string | null | undefined) => {
   return Number.isNaN(time) ? 0 : time;
 };
 
+const wantsSseStream = (req: NextRequest) =>
+  (req.headers.get("accept") ?? "").includes("text/event-stream");
+
+const createSseMessage = (event: string, data: unknown) =>
+  `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+
+const createSseHeaders = () => ({
+  "Cache-Control": "no-cache, no-transform",
+  Connection: "keep-alive",
+  "Content-Type": "text/event-stream; charset=utf-8",
+  "X-Accel-Buffering": "no",
+});
+
 type ReengagementBody = {
   conversationId?: string | null;
   devDeleteLatestMessage?: boolean;
@@ -31,6 +47,71 @@ type DeletedTalentMessage = {
   message_type: string | null;
   role: string;
 };
+
+async function finalizeSessionReengagement(args: {
+  admin: ReturnType<typeof getTalentSupabaseAdmin>;
+  conversation: TalentConversationRow;
+  deletedMessage: DeletedTalentMessage | null;
+  isReengagementAnchorCurrent: () => Promise<boolean>;
+  now: string;
+  result: CareerChatTurnResult;
+  userId: string;
+}) {
+  const {
+    admin,
+    conversation,
+    deletedMessage,
+    isReengagementAnchorCurrent,
+    now,
+    result,
+    userId,
+  } = args;
+
+  if (conversation.stage === "completed") {
+    await admin
+      .from("talent_conversations")
+      .update({ stage: "completed" })
+      .eq("id", conversation.id)
+      .eq("user_id", userId);
+  }
+
+  if (
+    (result.noMessage || result.assistantMessages.length === 0) &&
+    (await isReengagementAnchorCurrent())
+  ) {
+    const { error: insertReengagementError } = await admin
+      .from("talent_messages")
+      .insert({
+        conversation_id: conversation.id,
+        user_id: userId,
+        role: "assistant",
+        content: CAREER_SESSION_START_NO_MESSAGE_MARKER,
+        message_type: TALENT_MESSAGE_TYPE_SESSION_REENGAGEMENT_SKIP,
+        created_at: now,
+      });
+
+    if (insertReengagementError) {
+      throw new Error(
+        insertReengagementError.message ?? "Failed to insert re-engagement skip"
+      );
+    }
+  }
+
+  return {
+    ok: true,
+    assistantMessage: result.assistantMessage,
+    assistantMessages: result.assistantMessages,
+    deletedMessage,
+    noMessage: result.noMessage,
+    opportunityDiscoveryQueued: result.opportunityDiscoveryQueued,
+    opportunityRun: result.opportunityRun,
+    insightUpdatedAt: result.insightUpdatedAt,
+    preferencesUpdatedAt: result.preferencesUpdatedAt,
+    skipped: false,
+    talentInsights: result.talentInsights,
+    talentPreferences: result.talentPreferences,
+  };
+}
 
 const DEV_SESSION_REENGAGEMENT_TEST_EMAILS = new Set([
   "hyunbin.bk@gmail.com",
@@ -238,64 +319,82 @@ export async function POST(req: NextRequest) {
     };
 
     const now = new Date().toISOString();
+    const proactiveContext = buildCareerSessionStartTurnInstruction({
+      currentAccessAt: now,
+      idleMs: effectiveIdleMs,
+      previousChatAt: latestChatMessage?.created_at ?? null,
+    });
+
+    if (wantsSseStream(req)) {
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          const send = (event: string, data: unknown) => {
+            controller.enqueue(encoder.encode(createSseMessage(event, data)));
+          };
+
+          try {
+            const result = await runCareerChatTurn({
+              admin,
+              conversationId: conversation.id,
+              noMessageMarker: CAREER_SESSION_START_NO_MESSAGE_MARKER,
+              onRecommendationStatus: (status) => {
+                send("recommendation_search_status", status);
+              },
+              onThinkingLog: (message) => {
+                send("tool_status", { message });
+              },
+              proactiveContext,
+              shouldInsertAssistantMessage: isReengagementAnchorCurrent,
+              userId: user.id,
+            });
+            const payload = await finalizeSessionReengagement({
+              admin,
+              conversation,
+              deletedMessage,
+              isReengagementAnchorCurrent,
+              now,
+              result,
+              userId: user.id,
+            });
+            send("reengagement_result", payload);
+            send("done", { ok: true });
+          } catch (error) {
+            const message =
+              error instanceof Error
+                ? error.message
+                : "Failed to run session re-engagement";
+            send("error", { error: message });
+          } finally {
+            controller.close();
+          }
+        },
+      });
+
+      return new Response(stream, {
+        headers: createSseHeaders(),
+      });
+    }
+
     const result = await runCareerChatTurn({
       admin,
       conversationId: conversation.id,
       noMessageMarker: CAREER_SESSION_START_NO_MESSAGE_MARKER,
-      proactiveContext: buildCareerSessionStartTurnInstruction({
-        currentAccessAt: now,
-        idleMs: effectiveIdleMs,
-        previousChatAt: latestChatMessage?.created_at ?? null,
-      }),
+      proactiveContext,
       shouldInsertAssistantMessage: isReengagementAnchorCurrent,
       userId: user.id,
     });
-
-    if (conversation.stage === "completed") {
-      await admin
-        .from("talent_conversations")
-        .update({ stage: "completed" })
-        .eq("id", conversation.id)
-        .eq("user_id", user.id);
-    }
-
-    if (
-      (result.noMessage || result.assistantMessages.length === 0) &&
-      (await isReengagementAnchorCurrent())
-    ) {
-      const { error: insertReengagementError } = await admin
-        .from("talent_messages")
-        .insert({
-          conversation_id: conversation.id,
-          user_id: user.id,
-          role: "assistant",
-          content: CAREER_SESSION_START_NO_MESSAGE_MARKER,
-          message_type: TALENT_MESSAGE_TYPE_SESSION_REENGAGEMENT_SKIP,
-          created_at: now,
-        });
-
-      if (insertReengagementError) {
-        throw new Error(
-          insertReengagementError.message ??
-            "Failed to insert re-engagement skip"
-        );
-      }
-    }
-
-    return NextResponse.json({
-      ok: true,
-      assistantMessage: result.assistantMessage,
-      assistantMessages: result.assistantMessages,
+    const payload = await finalizeSessionReengagement({
+      admin,
+      conversation,
       deletedMessage,
-      noMessage: result.noMessage,
-      opportunityDiscoveryQueued: result.opportunityDiscoveryQueued,
-      opportunityRun: result.opportunityRun,
-      insightUpdatedAt: result.insightUpdatedAt,
-      preferencesUpdatedAt: result.preferencesUpdatedAt,
-      skipped: false,
-      talentInsights: result.talentInsights,
-      talentPreferences: result.talentPreferences,
+      isReengagementAnchorCurrent,
+      now,
+      result,
+      userId: user.id,
     });
+
+    return NextResponse.json(payload);
   } catch (error) {
     const message =
       error instanceof Error

@@ -308,10 +308,17 @@ export async function POST(request: NextRequest) {
       const followUpMessage = result.wrapupMessage
         ? toTalentMessageResponse(result.wrapupMessage)
         : null;
+      const nextStepsMessage = result.nextStepsMessage
+        ? toTalentMessageResponse(result.nextStepsMessage)
+        : null;
+      const followUpMessages = [followUpMessage, nextStepsMessage].filter(
+        (message): message is ReturnType<typeof toTalentMessageResponse> =>
+          message !== null
+      );
 
       return NextResponse.json({
         followUpMessage,
-        followUpMessages: followUpMessage ? [followUpMessage] : [],
+        followUpMessages,
         insightUpdatedAt: result.insightUpdatedAt,
         opportunityDiscoveryQueued: result.opportunityDiscoveryQueued,
         opportunityRun: result.opportunityRun,
@@ -348,11 +355,21 @@ export async function POST(request: NextRequest) {
         result.assistantMessage?.content ?? ""
       );
       if (normalized && result.assistantMessage) {
+        const followUpMessage = {
+          ...result.assistantMessage,
+          content: normalized,
+        };
         return NextResponse.json({
-          followUpMessage: {
-            ...result.assistantMessage,
-            content: normalized,
-          },
+          followUpMessage,
+          followUpMessages: [followUpMessage],
+          insightUpdatedAt: result.insightUpdatedAt,
+          opportunityDiscoveryQueued: result.opportunityDiscoveryQueued,
+          opportunityRun: result.opportunityRun,
+          preferencesUpdatedAt: result.preferencesUpdatedAt,
+          progress: result.progress,
+          talentInsights: result.talentInsights,
+          talentPreferences: result.talentPreferences,
+          talentProfile: result.talentProfile,
         });
       }
     } catch (error) {

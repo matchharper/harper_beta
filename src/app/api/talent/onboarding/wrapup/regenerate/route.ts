@@ -5,7 +5,7 @@ import {
   toTalentMessageResponse,
   type TalentMessageRow,
 } from "@/lib/talentOnboarding/server";
-import { regenerateOnboardingCompletionWrapupMessage } from "@/lib/talentOnboarding/onboardingCompletionWrapup";
+import { regenerateOnboardingCompletionMessages } from "@/lib/talentOnboarding/onboardingCompletionWrapup";
 
 function isRegenerateEnabled() {
   return (
@@ -56,14 +56,25 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const message = await regenerateOnboardingCompletionWrapupMessage({
-    admin,
-    conversationId,
-    userId: user.id,
-  });
+  const { nextStepsMessage, wrapupMessage } =
+    await regenerateOnboardingCompletionMessages({
+      admin,
+      conversationId,
+      userId: user.id,
+    });
+  const message = wrapupMessage
+    ? toTalentMessageResponse(wrapupMessage as TalentMessageRow)
+    : null;
+  const nextMessage = nextStepsMessage
+    ? toTalentMessageResponse(nextStepsMessage as TalentMessageRow)
+    : null;
+  const messages = [message, nextMessage].filter(
+    (item): item is ReturnType<typeof toTalentMessageResponse> => item !== null
+  );
 
   return NextResponse.json({
-    message: toTalentMessageResponse(message as TalentMessageRow),
+    message,
+    messages,
     ok: true,
   });
 }

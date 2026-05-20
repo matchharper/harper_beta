@@ -4,7 +4,10 @@ import {
   serializeOpportunityRun,
 } from "@/lib/opportunityDiscovery/store";
 import { maybeSummarizeTalentConversation } from "@/lib/talentOnboarding/conversationSummary";
-import { createOnboardingCompletionWrapupMessage } from "@/lib/talentOnboarding/onboardingCompletionWrapup";
+import {
+  createOnboardingCompletionMessages,
+  regenerateOnboardingCompletionMessages,
+} from "@/lib/talentOnboarding/onboardingCompletionWrapup";
 import {
   fetchTalentInsights,
   type TalentAdminClient,
@@ -15,6 +18,7 @@ export async function completeTalentOnboardingManually(args: {
   admin: TalentAdminClient;
   conversationId: string;
   latestUserMessageId?: number | string | null;
+  regenerateWrapup?: boolean;
   source: string;
   userId: string;
 }) {
@@ -49,7 +53,9 @@ export async function completeTalentOnboardingManually(args: {
     });
   }
 
-  const wrapupMessage = await createOnboardingCompletionWrapupMessage({
+  const completionMessages = await (args.regenerateWrapup
+    ? regenerateOnboardingCompletionMessages
+    : createOnboardingCompletionMessages)({
     admin: args.admin,
     conversationId: args.conversationId,
     latestUserMessageId: args.latestUserMessageId ?? null,
@@ -84,6 +90,9 @@ export async function completeTalentOnboardingManually(args: {
     opportunityDiscoveryQueued: Boolean(queuedRun),
     opportunityRun: serializeOpportunityRun(activeRun),
     talentInsights: latestInsights?.content ?? {},
-    wrapupMessage: (wrapupMessage ?? null) as TalentMessageRow | null,
+    nextStepsMessage: (completionMessages.nextStepsMessage ??
+      null) as TalentMessageRow | null,
+    wrapupMessage: (completionMessages.wrapupMessage ??
+      null) as TalentMessageRow | null,
   };
 }

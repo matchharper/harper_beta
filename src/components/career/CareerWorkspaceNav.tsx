@@ -3,14 +3,18 @@ import { useState } from "react";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
 import CareerProfileMenu from "./CareerProfileMenu";
 import CareerSupportInquiryModal from "./CareerSupportInquiryModal";
+import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import React from "react";
 
-export type CareerWorkspaceTab = "home" | "profile" | "history";
+export type CareerWorkspaceTab = "home" | "profile" | "history" | "watchlist";
 
 export const isCareerWorkspaceTab = (
   value: string | null | undefined
 ): value is CareerWorkspaceTab =>
-  value === "home" || value === "profile" || value === "history";
+  value === "home" ||
+  value === "profile" ||
+  value === "history" ||
+  value === "watchlist";
 
 export const getCareerWorkspaceHref = (tab: CareerWorkspaceTab) =>
   tab === "home" ? "/career" : `/career/${tab}`;
@@ -34,6 +38,7 @@ export const getCareerWorkspaceTabFromPath = (path: string) => {
 };
 
 const CareerWorkspaceNav = () => {
+  const logCareerEvent = useCareerLogEvent();
   const { user, onLogout, onOpenSettings, talentProfile } =
     useCareerSidebarContext();
 
@@ -58,9 +63,12 @@ const CareerWorkspaceNav = () => {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setInquiryOpen(true)}
+              onClick={() => {
+                logCareerEvent("click_open_support");
+                setInquiryOpen(true);
+              }}
               aria-label="개선사항 및 문의사항"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-beige900/10 bg-white/75 text-beige900 shadow-[0_8px_24px_rgba(37,20,6,0.05)] transition-colors hover:border-beige900/20 hover:bg-white"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-beige900/10 bg-beige100 text-beige900"
             >
               <CircleHelp className="h-4 w-4" />
             </button>
@@ -68,7 +76,7 @@ const CareerWorkspaceNav = () => {
               type="button"
               onClick={onOpenSettings}
               aria-label="설정"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-beige900/10 bg-white/75 text-beige900 shadow-[0_8px_24px_rgba(37,20,6,0.05)] transition-colors hover:border-beige900/20 hover:bg-white"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-beige900/10 bg-beige200 text-beige900"
             >
               <Settings2 className="h-4 w-4" />
             </button>

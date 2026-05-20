@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   getTalentFirstVisitText,
-  TalentConversationRow,
-  TalentMessageRow,
   ensureTalentUserRecord,
   fetchTalentInsights,
   fetchTalentSetting,
@@ -12,9 +10,14 @@ import {
   fetchTalentUserProfile,
   getTalentResumeSignedUrl,
   getTalentSupabaseAdmin,
+  markTalentUserLoggedIn,
   normalizeTalentEngagementTypes,
   normalizeTalentInsightContent,
   sanitizeTalentCareerMoveIntent,
+  type TalentConversationRow,
+  type TalentMessageRow,
+  type TalentStructuredProfile,
+  type TalentUserProfileRow,
   toTalentMessageResponse,
 } from "@/lib/talentOnboarding/server";
 import {
@@ -28,6 +31,7 @@ import {
   fetchTalentOpportunityHistoryByIds,
   fetchTalentOpportunityHistoryPage,
   fetchTalentPostingCardsByRoleIds,
+  type TalentOpportunityHistoryPage,
 } from "@/lib/talentOpportunity";
 import { extractPostingRoleIdsFromText } from "@/lib/career/postingLinks";
 import {
@@ -106,6 +110,82 @@ const hasTalentFirstSubmission = (
     hasProfileResumeLink(profile?.resume_links)
   );
 
+const createEmptyHistoryCounts = () => ({
+  archived: 0,
+  new: 0,
+  saved: 0,
+  savedStages: {
+    saved: 0,
+    applied: 0,
+    connected: 0,
+    closed: 0,
+  },
+  total: 0,
+});
+
+const createEmptyHistoryPage = (
+  limit: number,
+  offset: number
+): TalentOpportunityHistoryPage => ({
+  counts: createEmptyHistoryCounts(),
+  items: [],
+  limit,
+  nextOffset: null,
+  offset,
+});
+
+const createFallbackTalentProfile = (
+  profile: TalentUserProfileRow | null
+): TalentStructuredProfile => ({
+  talentUser: profile
+    ? {
+        user_id: profile.user_id,
+        name: profile.name,
+        profile_picture: profile.profile_picture,
+        headline: profile.headline,
+        bio: profile.bio,
+        location: profile.location,
+      }
+    : null,
+  talentExperiences: [],
+  talentEducations: [],
+  talentExtras: [],
+});
+
+async function withSessionFallback<T>(args: {
+  fallback: T;
+  label: string;
+  promise: Promise<T>;
+  userId: string;
+}): Promise<T> {
+  try {
+    return await args.promise;
+  } catch (error) {
+    console.warn(`[TalentSession] optional load failed: ${args.label}`, {
+      error: error instanceof Error ? error.message : "Unknown error",
+      userId: args.userId,
+    });
+    return args.fallback;
+  }
+}
+
+async function fetchActiveCompanyRoleCount(args: {
+  admin: ReturnType<typeof getTalentSupabaseAdmin>;
+}) {
+  const { count, error } = await args.admin
+    .from("company_roles")
+    .select("role_id", { count: "exact", head: true })
+    .eq("status", "active")
+    .not("is_expired", "is", true)
+    .or(`expires_at.is.null,expires_at.gte.${new Date().toISOString()}`);
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to count active company roles");
+  }
+
+  return Math.max(0, count ?? 0);
+}
+
 async function generateSessionStartGreeting(args: {
   admin: ReturnType<typeof getTalentSupabaseAdmin>;
   conversationId: string;
@@ -147,6 +227,7 @@ export async function GET(req: NextRequest) {
 
     const admin = getTalentSupabaseAdmin();
     await ensureTalentUserRecord({ admin, user });
+    await markTalentUserLoggedIn({ admin, userId: user.id });
 
     const { data: existing, error: existingError } = await admin
       .from("talent_conversations")
@@ -408,47 +489,82 @@ export async function GET(req: NextRequest) {
       talentInsights,
       historyOpportunitiesPage,
       latestOpportunityRun,
-      activeCompanyRolesResponse,
+      activeCompanyRoleCount,
     ] = await Promise.all([
-      fetchVisibleMessagesPage({
-        admin,
-        conversationId: conversation.id,
-        limit: messageLimit,
-        beforeMessageId,
-      }),
-      fetchTalentStructuredProfile({
-        admin,
-        userId: user.id,
-        talentUser: profile,
-      }),
-      getTalentResumeSignedUrl({
-        admin,
-        storagePath: profile?.resume_storage_path,
-      }),
-      fetchTalentSetting({
-        admin,
+      withSessionFallback({
+        fallback: { messages: [], nextBeforeMessageId: null },
+        label: "visible messages",
+        promise: fetchVisibleMessagesPage({
+          admin,
+          conversationId: conversation.id,
+          limit: messageLimit,
+          beforeMessageId,
+        }),
         userId: user.id,
       }),
-      fetchTalentInsights({
-        admin,
+      withSessionFallback({
+        fallback: createFallbackTalentProfile(profile),
+        label: "structured profile",
+        promise: fetchTalentStructuredProfile({
+          admin,
+          userId: user.id,
+          talentUser: profile,
+        }),
         userId: user.id,
       }),
-      fetchTalentOpportunityHistoryPage({
-        admin,
-        limit: opportunityLimit,
-        offset: opportunityOffset,
+      withSessionFallback({
+        fallback: null,
+        label: "resume signed URL",
+        promise: getTalentResumeSignedUrl({
+          admin,
+          storagePath: profile?.resume_storage_path,
+        }),
         userId: user.id,
       }),
-      fetchLatestOpportunityRun({
-        admin,
+      withSessionFallback({
+        fallback: null,
+        label: "talent setting",
+        promise: fetchTalentSetting({
+          admin,
+          userId: user.id,
+        }),
         userId: user.id,
       }),
-      admin
-        .from("company_roles")
-        .select("role_id", { count: "exact", head: true })
-        .eq("status", "active")
-        .not("is_expired", "is", true)
-        .or(`expires_at.is.null,expires_at.gte.${new Date().toISOString()}`),
+      withSessionFallback({
+        fallback: null,
+        label: "talent insights",
+        promise: fetchTalentInsights({
+          admin,
+          userId: user.id,
+        }),
+        userId: user.id,
+      }),
+      withSessionFallback({
+        fallback: createEmptyHistoryPage(opportunityLimit, opportunityOffset),
+        label: "opportunity history",
+        promise: fetchTalentOpportunityHistoryPage({
+          admin,
+          limit: opportunityLimit,
+          offset: opportunityOffset,
+          userId: user.id,
+        }),
+        userId: user.id,
+      }),
+      withSessionFallback({
+        fallback: null,
+        label: "latest opportunity run",
+        promise: fetchLatestOpportunityRun({
+          admin,
+          userId: user.id,
+        }),
+        userId: user.id,
+      }),
+      withSessionFallback({
+        fallback: 0,
+        label: "active company role count",
+        promise: fetchActiveCompanyRoleCount({ admin }),
+        userId: user.id,
+      }),
     ]);
     const { messages, nextBeforeMessageId } = messagePage;
     const visibleMessages = messages.filter(
@@ -457,9 +573,6 @@ export async function GET(req: NextRequest) {
     const normalizedInsights = normalizeTalentInsightContent(
       talentInsights?.content
     );
-    const activeCompanyRoleCount = activeCompanyRolesResponse.error
-      ? 0
-      : (activeCompanyRolesResponse.count ?? 0);
     const historyOpportunities = historyOpportunitiesPage.items;
     const careerMoveIntent = sanitizeTalentCareerMoveIntent(
       talentSetting?.career_move_intent

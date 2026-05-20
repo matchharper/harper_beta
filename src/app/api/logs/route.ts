@@ -9,7 +9,7 @@ type LogBody = {
 export async function POST(req: NextRequest) {
   const user = await getRequestUser(req);
   if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return new NextResponse(null, { status: 204 });
   }
 
   let body: LogBody;

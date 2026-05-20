@@ -15,7 +15,10 @@ export type OpportunityDiscoveryTrigger =
 
 export type OpportunityRunMode = "initial" | "immediate" | "refine" | "refresh";
 
-export type OpportunityDiscoveryAgentVariant = "tool_agent" | "scripted";
+export type OpportunityDiscoveryAgentVariant =
+  | "tool_agent"
+  | "scripted"
+  | "scripted_human";
 
 export type OpportunityIngestionTrigger =
   | "scheduled_refresh"
@@ -23,7 +26,6 @@ export type OpportunityIngestionTrigger =
   | "scope_expanded";
 
 export type OpportunityRunRow = {
-  chat_preview_count: number;
   completed_at: string | null;
   conversation_id: string | null;
   coverage: Json;
@@ -36,7 +38,6 @@ export type OpportunityRunRow = {
   started_at: string | null;
   status: OpportunityRunStatus;
   talent_id: string | null;
-  target_recommendation_count: number;
   trigger: OpportunityDiscoveryTrigger;
   trigger_payload: Json;
   user_brief: Json;

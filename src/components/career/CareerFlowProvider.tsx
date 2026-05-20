@@ -10,6 +10,7 @@ import type {
   CareerInterviewProgress,
   CareerMessagePayload,
   CareerOpportunityRun,
+  CareerRecommendationSearchStatus,
   CareerRecentOpportunity,
   SessionResponse,
 } from "@/components/career/types";
@@ -19,6 +20,8 @@ import {
 } from "./CareerChatPanelContext";
 import {
   CareerSidebarProvider,
+  type CareerCompanyFollowActionResult,
+  type CareerCompanyRecommendationResult,
   type CareerSidebarContextValue,
 } from "./CareerSidebarContext";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
@@ -52,6 +55,8 @@ const getCompletedOpportunityRunRefreshKey = (
   return `${run.id}:${run.completedAt ?? run.status}`;
 };
 
+const CAREER_COMPANY_FOLLOW_UP_DELAY_MS = 15_000;
+
 type SessionReengagementPayload = {
   assistantMessage?: CareerMessagePayload | null;
   assistantMessages?: CareerMessagePayload[];
@@ -66,6 +71,58 @@ type SessionReengagementPayload = {
   skipped?: boolean;
   talentInsights?: unknown;
   talentPreferences?: unknown;
+};
+
+type CareerSseEvent = {
+  data: unknown;
+  event: string;
+};
+
+const parseCareerSseEvent = (rawEvent: string): CareerSseEvent | null => {
+  let event = "message";
+  const dataLines: string[] = [];
+
+  for (const line of rawEvent.split("\n")) {
+    if (line.startsWith("event:")) {
+      event = line.slice("event:".length).trim();
+      continue;
+    }
+    if (line.startsWith("data:")) {
+      dataLines.push(line.slice("data:".length).trimStart());
+    }
+  }
+
+  const rawData = dataLines.join("\n").trim();
+  if (!rawData) return { event, data: null };
+
+  try {
+    return { event, data: JSON.parse(rawData) };
+  } catch {
+    return { event, data: rawData };
+  }
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+const toRecommendationSearchStatus = (
+  value: unknown
+): CareerRecommendationSearchStatus | null => {
+  if (!isRecord(value)) return null;
+  const state = value.state;
+  if (state !== "running" && state !== "completed" && state !== "error") {
+    return null;
+  }
+
+  return {
+    candidateCount:
+      typeof value.candidateCount === "number" ? value.candidateCount : null,
+    recommendationCount:
+      typeof value.recommendationCount === "number"
+        ? value.recommendationCount
+        : null,
+    state,
+  };
 };
 
 type OnboardingManualCompletionPayload = {
@@ -83,11 +140,13 @@ type OnboardingManualCompletionPayload = {
 
 export const CareerFlowProvider = ({
   children,
+  emailOnboardingToken,
   inviteToken,
   mail,
   onOpenSettings,
 }: {
   children: React.ReactNode;
+  emailOnboardingToken?: string | null;
   inviteToken?: string | null;
   mail?: string | null;
   onOpenSettings: () => void;
@@ -121,6 +180,9 @@ export const CareerFlowProvider = ({
   const completedOpportunityRunRefreshRef = useRef<string | null>(null);
   const emptyCompletedHistoryProbeRef = useRef<string | null>(null);
   const sessionReengagementRef = useRef<string | null>(null);
+  const companyFollowUpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
   const [
     sessionReengagementActionMessageId,
     setSessionReengagementActionMessageId,
@@ -128,15 +190,52 @@ export const CareerFlowProvider = ({
   const sessionReengagementActionVersionRef = useRef(0);
   const [sessionReengagementPending, setSessionReengagementPending] =
     useState(false);
+  const [sessionReengagementThinkingLogs, setSessionReengagementThinkingLogs] =
+    useState<string[]>([]);
+  const [
+    sessionReengagementRecommendationStatus,
+    setSessionReengagementRecommendationStatus,
+  ] = useState<CareerRecommendationSearchStatus | null>(null);
   const refreshLatestHistoryOpportunitiesRef = useRef<
     (() => void | Promise<void>) | null
   >(null);
 
+  const cancelPendingCompanyFollowUp = useCallback(() => {
+    if (!companyFollowUpTimerRef.current) return;
+    clearTimeout(companyFollowUpTimerRef.current);
+    companyFollowUpTimerRef.current = null;
+  }, []);
+
+  useEffect(
+    () => () => {
+      cancelPendingCompanyFollowUp();
+    },
+    [cancelPendingCompanyFollowUp]
+  );
+
   const clearSessionReengagementAction = useCallback(() => {
     sessionReengagementActionVersionRef.current += 1;
     setSessionReengagementPending(false);
+    setSessionReengagementThinkingLogs([]);
+    setSessionReengagementRecommendationStatus(null);
     setSessionReengagementActionMessageId(null);
   }, []);
+
+  const appendSessionReengagementThinkingLog = useCallback(
+    (message: string) => {
+      const normalized = message.replace(/\s+/g, " ").trim();
+      if (!normalized) return;
+
+      setSessionReengagementThinkingLogs((current) => {
+        const next =
+          current[current.length - 1] === normalized
+            ? current
+            : [...current, normalized].slice(-12);
+        return next;
+      });
+    },
+    []
+  );
 
   const handleCareerLogout = useCallback(async () => {
     await handleLogout();
@@ -152,6 +251,7 @@ export const CareerFlowProvider = ({
     loadSession,
     resetSessionState,
   } = useCareerSession({
+    emailOnboardingToken,
     enabled: !authLoading && Boolean(userId),
     fetchWithAuth,
     inviteToken,
@@ -179,6 +279,9 @@ export const CareerFlowProvider = ({
   const applyPersistedTalentInsightsRef = useRef<
     ((insights: unknown, updatedAt: unknown) => void) | null
   >(null);
+  const applyTalentProfileSnapshotRef = useRef<
+    ((profile: SessionResponse["talentProfile"] | undefined) => void) | null
+  >(null);
   const handleTalentPreferencesRefreshedFromChat = useCallback(
     (preferences: unknown, updatedAt: unknown) => {
       applyPersistedTalentPreferencesRef.current?.(preferences, updatedAt);
@@ -188,6 +291,12 @@ export const CareerFlowProvider = ({
   const handleTalentInsightsRefreshedFromChat = useCallback(
     (insights: unknown, updatedAt: unknown) => {
       applyPersistedTalentInsightsRef.current?.(insights, updatedAt);
+    },
+    []
+  );
+  const handleTalentProfileRefreshedFromChat = useCallback(
+    (profile: SessionResponse["talentProfile"] | undefined) => {
+      applyTalentProfileSnapshotRef.current?.(profile);
     },
     []
   );
@@ -226,6 +335,7 @@ export const CareerFlowProvider = ({
       handleOpportunityRecommendationsChanged,
     onTalentPreferencesRefreshed: handleTalentPreferencesRefreshedFromChat,
     onTalentInsightsRefreshed: handleTalentInsightsRefreshedFromChat,
+    onTalentProfileRefreshed: handleTalentProfileRefreshedFromChat,
     onMessagesChanged: appendLatestMessagesToCache,
   });
 
@@ -245,6 +355,64 @@ export const CareerFlowProvider = ({
       appendLatestMessagesToCache([message]);
     },
     [appendLatestMessagesToCache, appendMessage]
+  );
+
+  const requestCompanyFollowUp = useCallback(
+    async (companyDbId: number) => {
+      if (!conversationId) return;
+
+      try {
+        const response = await fetchWithAuth(
+          "/api/talent/company-watchlist/follow-followup",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              companyDbId,
+              conversationId,
+            }),
+          }
+        );
+        const payload = (await response.json().catch(() => ({}))) as {
+          assistantMessage?: CareerMessagePayload | null;
+        } & Record<string, unknown>;
+
+        if (!response.ok) {
+          throw new Error(
+            getErrorMessage(
+              payload,
+              "회사 팔로우 후속 메시지를 만들지 못했습니다."
+            )
+          );
+        }
+
+        if (payload.assistantMessage) {
+          enqueueHistoryActionAssistantMessage(payload.assistantMessage);
+        }
+      } catch (error) {
+        setChatError(
+          error instanceof Error
+            ? error.message
+            : "회사 팔로우 후속 메시지를 만들지 못했습니다."
+        );
+      }
+    },
+    [
+      conversationId,
+      enqueueHistoryActionAssistantMessage,
+      fetchWithAuth,
+      setChatError,
+    ]
+  );
+
+  const scheduleCompanyFollowUp = useCallback(
+    (companyDbId: number) => {
+      cancelPendingCompanyFollowUp();
+      companyFollowUpTimerRef.current = setTimeout(() => {
+        companyFollowUpTimerRef.current = null;
+        void requestCompanyFollowUp(companyDbId);
+      }, CAREER_COMPANY_FOLLOW_UP_DELAY_MS);
+    },
+    [cancelPendingCompanyFollowUp, requestCompanyFollowUp]
   );
 
   const {
@@ -311,6 +479,7 @@ export const CareerFlowProvider = ({
     handleProfileLinkChange,
     handleRemoveProfileLink,
     handleAddProfileLink,
+    applyTalentProfileSnapshot,
     handleSaveTalentProfile,
     handleRefreshTalentProfileSources,
     resetProfileState,
@@ -368,6 +537,9 @@ export const CareerFlowProvider = ({
   useEffect(() => {
     applyPersistedTalentInsightsRef.current = applyPersistedTalentInsights;
   }, [applyPersistedTalentInsights]);
+  useEffect(() => {
+    applyTalentProfileSnapshotRef.current = applyTalentProfileSnapshot;
+  }, [applyTalentProfileSnapshot]);
 
   const {
     settingsLoading,
@@ -406,12 +578,14 @@ export const CareerFlowProvider = ({
       onError?: () => void;
     }) => {
       clearSessionReengagementAction();
+      cancelPendingCompanyFollowUp();
       cancelPendingOpportunityFeedbackFollowUp();
       await sendChatMessageBase(args, {
         profilePending,
       });
     },
     [
+      cancelPendingCompanyFollowUp,
       cancelPendingOpportunityFeedbackFollowUp,
       clearSessionReengagementAction,
       profilePending,
@@ -440,75 +614,95 @@ export const CareerFlowProvider = ({
     [appendLatestMessagesToCache, enqueueAssistantTypewriter]
   );
 
-  const handleForceCompleteOnboarding = useCallback(async () => {
-    if (!conversationId || forceCompletePending || stage === "profile") {
-      return false;
-    }
+  const completeOnboardingFromCurrentConversation = useCallback(
+    async (args?: { regenerateWrapup?: boolean }) => {
+      if (!conversationId || forceCompletePending || stage === "profile") {
+        return false;
+      }
 
-    setForceCompletePending(true);
-    setChatError("");
-    try {
-      const response = await fetchWithAuth("/api/talent/onboarding/complete", {
-        method: "POST",
-        body: JSON.stringify({ conversationId }),
-      });
-      const payload = (await response
-        .json()
-        .catch(() => ({}))) as OnboardingManualCompletionPayload;
-
-      if (!response.ok) {
-        throw new Error(
-          getErrorMessage(payload, "커리어 인터뷰 종료에 실패했습니다.")
+      const regenerateWrapup = args?.regenerateWrapup === true;
+      setForceCompletePending(true);
+      setChatError("");
+      try {
+        const response = await fetchWithAuth(
+          "/api/talent/onboarding/complete",
+          {
+            method: "POST",
+            body: JSON.stringify({ conversationId, regenerateWrapup }),
+          }
         );
-      }
+        const payload = (await response
+          .json()
+          .catch(() => ({}))) as OnboardingManualCompletionPayload;
 
-      if (payload.opportunityRun) {
-        setOpportunityRun(payload.opportunityRun);
-      }
-      if (payload.opportunityDiscoveryQueued) {
-        showOpportunityDiscoveryStartedToast();
-      }
-      if ("talentInsights" in payload) {
-        handleTalentInsightsRefreshedFromChat(
-          payload.talentInsights,
-          payload.insightUpdatedAt ?? null
-        );
-      }
+        if (!response.ok) {
+          throw new Error(
+            getErrorMessage(payload, "커리어 인터뷰 종료에 실패했습니다.")
+          );
+        }
 
-      const assistantMessages = Array.isArray(payload.assistantMessages)
-        ? payload.assistantMessages
-        : payload.assistantMessage
-          ? [payload.assistantMessage]
-          : [];
+        if (payload.opportunityRun) {
+          setOpportunityRun(payload.opportunityRun);
+        }
+        if (payload.opportunityDiscoveryQueued) {
+          showOpportunityDiscoveryStartedToast();
+        }
+        if ("talentInsights" in payload) {
+          handleTalentInsightsRefreshedFromChat(
+            payload.talentInsights,
+            payload.insightUpdatedAt ?? null
+          );
+        }
 
-      if (assistantMessages.length > 0) {
-        await enqueueAssistantMessages(assistantMessages);
-      }
-      if (payload.progress?.completed) {
-        setStage("completed");
-      }
+        const assistantMessages = Array.isArray(payload.assistantMessages)
+          ? payload.assistantMessages
+          : payload.assistantMessage
+            ? [payload.assistantMessage]
+            : [];
 
-      return true;
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "커리어 인터뷰 종료 중 오류가 발생했습니다.";
-      setChatError(message);
-      return false;
-    } finally {
-      setForceCompletePending(false);
-    }
-  }, [
-    conversationId,
-    enqueueAssistantMessages,
-    fetchWithAuth,
-    forceCompletePending,
-    handleTalentInsightsRefreshedFromChat,
-    setChatError,
-    setStage,
-    stage,
-  ]);
+        if (assistantMessages.length > 0) {
+          await enqueueAssistantMessages(assistantMessages);
+        }
+        if (payload.progress?.completed) {
+          setStage("completed");
+        }
+
+        return true;
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "커리어 인터뷰 종료 중 오류가 발생했습니다.";
+        setChatError(message);
+        return false;
+      } finally {
+        setForceCompletePending(false);
+      }
+    },
+    [
+      conversationId,
+      enqueueAssistantMessages,
+      fetchWithAuth,
+      forceCompletePending,
+      handleTalentInsightsRefreshedFromChat,
+      setChatError,
+      setStage,
+      stage,
+    ]
+  );
+
+  const handleForceCompleteOnboarding = useCallback(
+    () => completeOnboardingFromCurrentConversation(),
+    [completeOnboardingFromCurrentConversation]
+  );
+
+  const handleRunOnboardingCompletionTest = useCallback(
+    () =>
+      completeOnboardingFromCurrentConversation({
+        regenerateWrapup: true,
+      }),
+    [completeOnboardingFromCurrentConversation]
+  );
 
   const {
     handleRunOpportunityDiscoveryTest,
@@ -565,7 +759,9 @@ export const CareerFlowProvider = ({
     isVoiceInteractionLocked,
     onSendChatMessage: sendChatMessage,
     onOpportunityRunChanged: setOpportunityRun,
+    onTalentPreferencesRefreshed: handleTalentPreferencesRefreshedFromChat,
     onTalentInsightsRefreshed: handleTalentInsightsRefreshedFromChat,
+    onTalentProfileRefreshed: handleTalentProfileRefreshedFromChat,
     appendMessage,
     setChatError,
     setStage,
@@ -604,6 +800,118 @@ export const CareerFlowProvider = ({
       return true;
     },
     [clearSessionReengagementAction, handleStartCallModeFromUi, sendChatMessage]
+  );
+
+  const handleUpdateCompanyFollow = useCallback(
+    async (args: {
+      action: "follow" | "unfollow";
+      companyDbId: number;
+      companyWorkspaceId?: string | null;
+      source?: string | null;
+    }): Promise<CareerCompanyFollowActionResult | null> => {
+      if (!userId) return null;
+
+      setChatError("");
+      try {
+        const response = await fetchWithAuth(
+          "/api/talent/company-watchlist/follow",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              action: args.action,
+              companyDbId: args.companyDbId,
+              companyWorkspaceId: args.companyWorkspaceId ?? null,
+              conversationId,
+              source: args.source ?? "watchlist",
+            }),
+          }
+        );
+        const payload = (await response
+          .json()
+          .catch(() => ({}))) as CareerCompanyFollowActionResult &
+          Record<string, unknown>;
+
+        if (!response.ok) {
+          throw new Error(
+            getErrorMessage(payload, "회사 팔로우 상태를 변경하지 못했습니다.")
+          );
+        }
+
+        if (args.action === "unfollow") {
+          cancelPendingCompanyFollowUp();
+        } else if (payload.followUp?.delayed) {
+          const followUpCompanyDbId = Number(
+            payload.followUp.companyDbId ?? args.companyDbId
+          );
+          if (Number.isFinite(followUpCompanyDbId) && followUpCompanyDbId > 0) {
+            scheduleCompanyFollowUp(Math.floor(followUpCompanyDbId));
+          }
+        }
+
+        return payload;
+      } catch (error) {
+        setChatError(
+          error instanceof Error
+            ? error.message
+            : "회사 팔로우 상태를 변경하지 못했습니다."
+        );
+        return null;
+      }
+    },
+    [
+      cancelPendingCompanyFollowUp,
+      conversationId,
+      fetchWithAuth,
+      scheduleCompanyFollowUp,
+      setChatError,
+      userId,
+    ]
+  );
+
+  const handleGenerateCompanyRecommendations = useCallback(
+    async (args?: {
+      forceRefresh?: boolean;
+      limit?: number;
+      request?: string | null;
+    }): Promise<CareerCompanyRecommendationResult | null> => {
+      if (!userId) return null;
+
+      setChatError("");
+      try {
+        const response = await fetchWithAuth(
+          "/api/talent/company-watchlist/recommendations",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              conversationId,
+              forceRefresh: args?.forceRefresh === true,
+              limit: args?.limit ?? 24,
+              request: args?.request ?? null,
+            }),
+          }
+        );
+        const payload = (await response
+          .json()
+          .catch(() => ({}))) as CareerCompanyRecommendationResult &
+          Record<string, unknown>;
+
+        if (!response.ok) {
+          throw new Error(
+            getErrorMessage(payload, "추천 회사를 만들지 못했습니다.")
+          );
+        }
+
+        return payload;
+      } catch (error) {
+        setChatError(
+          error instanceof Error
+            ? error.message
+            : "추천 회사를 만들지 못했습니다."
+        );
+        return null;
+      }
+    },
+    [conversationId, fetchWithAuth, setChatError, userId]
   );
 
   const handleProfileSubmit = useCallback(async () => {
@@ -648,97 +956,101 @@ export const CareerFlowProvider = ({
     ]
   );
 
-  const handleRunSessionReengagementTest = useCallback(async (): Promise<void> => {
-    if (
-      !conversationId ||
-      sessionReengagementTestPending ||
-      stage === "profile"
-    ) {
-      return;
-    }
+  const handleRunSessionReengagementTest =
+    useCallback(async (): Promise<void> => {
+      if (
+        !conversationId ||
+        sessionReengagementTestPending ||
+        stage === "profile"
+      ) {
+        return;
+      }
 
-    clearSessionReengagementAction();
-    setSessionReengagementTestPending(true);
-    setChatError("");
-    try {
-      const response = await fetchWithAuth("/api/talent/session/reengagement", {
-        method: "POST",
-        body: JSON.stringify({
-          conversationId,
-          devDeleteLatestMessage: true,
-          devForce: true,
-        }),
-      });
-      const payload = (await response
-        .json()
-        .catch(() => ({}))) as SessionReengagementPayload;
-
-      if (!response.ok) {
-        throw new Error(
-          getErrorMessage(payload, "6시간 인사 테스트 실행에 실패했습니다.")
+      clearSessionReengagementAction();
+      setSessionReengagementTestPending(true);
+      setChatError("");
+      try {
+        const response = await fetchWithAuth(
+          "/api/talent/session/reengagement",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              conversationId,
+              devDeleteLatestMessage: true,
+              devForce: true,
+            }),
+          }
         );
-      }
-      if (payload.skipped) {
-        throw new Error("6시간 인사 테스트가 스킵되었습니다.");
-      }
+        const payload = (await response
+          .json()
+          .catch(() => ({}))) as SessionReengagementPayload;
 
-      if (payload.opportunityRun) {
-        setOpportunityRun(payload.opportunityRun);
-      }
-      if ("talentPreferences" in payload) {
-        handleTalentPreferencesRefreshedFromChat(
-          payload.talentPreferences,
-          payload.preferencesUpdatedAt ?? null
-        );
-      }
-      if ("talentInsights" in payload) {
-        handleTalentInsightsRefreshedFromChat(
-          payload.talentInsights,
-          payload.insightUpdatedAt ?? null
-        );
-      }
-
-      const deletedMessageId = payload.deletedMessage?.id;
-      if (deletedMessageId != null) {
-        removeMessagesFromCache([deletedMessageId]);
-      }
-
-      const sessionPayload = await loadSession({ force: true });
-      if (sessionPayload) {
-        hydrateSession(sessionPayload);
-      } else {
-        const assistantMessages = Array.isArray(payload.assistantMessages)
-          ? payload.assistantMessages
-          : payload.assistantMessage
-            ? [payload.assistantMessage]
-            : [];
-        if (assistantMessages.length > 0) {
-          await enqueueAssistantMessages(assistantMessages);
+        if (!response.ok) {
+          throw new Error(
+            getErrorMessage(payload, "6시간 인사 테스트 실행에 실패했습니다.")
+          );
         }
+        if (payload.skipped) {
+          throw new Error("6시간 인사 테스트가 스킵되었습니다.");
+        }
+
+        if (payload.opportunityRun) {
+          setOpportunityRun(payload.opportunityRun);
+        }
+        if ("talentPreferences" in payload) {
+          handleTalentPreferencesRefreshedFromChat(
+            payload.talentPreferences,
+            payload.preferencesUpdatedAt ?? null
+          );
+        }
+        if ("talentInsights" in payload) {
+          handleTalentInsightsRefreshedFromChat(
+            payload.talentInsights,
+            payload.insightUpdatedAt ?? null
+          );
+        }
+
+        const deletedMessageId = payload.deletedMessage?.id;
+        if (deletedMessageId != null) {
+          removeMessagesFromCache([deletedMessageId]);
+        }
+
+        const sessionPayload = await loadSession({ force: true });
+        if (sessionPayload) {
+          hydrateSession(sessionPayload);
+        } else {
+          const assistantMessages = Array.isArray(payload.assistantMessages)
+            ? payload.assistantMessages
+            : payload.assistantMessage
+              ? [payload.assistantMessage]
+              : [];
+          if (assistantMessages.length > 0) {
+            await enqueueAssistantMessages(assistantMessages);
+          }
+        }
+      } catch (error) {
+        setChatError(
+          error instanceof Error
+            ? error.message
+            : "6시간 인사 테스트 실행 중 오류가 발생했습니다."
+        );
+      } finally {
+        setSessionReengagementTestPending(false);
       }
-    } catch (error) {
-      setChatError(
-        error instanceof Error
-          ? error.message
-          : "6시간 인사 테스트 실행 중 오류가 발생했습니다."
-      );
-    } finally {
-      setSessionReengagementTestPending(false);
-    }
-  }, [
-    clearSessionReengagementAction,
-    conversationId,
-    enqueueAssistantMessages,
-    fetchWithAuth,
-    handleTalentInsightsRefreshedFromChat,
-    handleTalentPreferencesRefreshedFromChat,
-    hydrateSession,
-    loadSession,
-    removeMessagesFromCache,
-    sessionReengagementTestPending,
-    setChatError,
-    stage,
-  ]);
+    }, [
+      clearSessionReengagementAction,
+      conversationId,
+      enqueueAssistantMessages,
+      fetchWithAuth,
+      handleTalentInsightsRefreshedFromChat,
+      handleTalentPreferencesRefreshedFromChat,
+      hydrateSession,
+      loadSession,
+      removeMessagesFromCache,
+      sessionReengagementTestPending,
+      setChatError,
+      stage,
+    ]);
 
   const loadSessionForCompletedOpportunityRun = useCallback(
     async (run: CareerOpportunityRun | null) => {
@@ -813,6 +1125,130 @@ export const CareerFlowProvider = ({
     let cancelled = false;
     let pendingTimer: ReturnType<typeof setTimeout> | null = null;
 
+    const applyReengagementPayload = async (
+      payload: SessionReengagementPayload
+    ) => {
+      if (cancelled || payload.skipped) return;
+
+      if (payload.opportunityRun) {
+        setOpportunityRun(payload.opportunityRun);
+      }
+      if ("talentPreferences" in payload) {
+        handleTalentPreferencesRefreshedFromChat(
+          payload.talentPreferences,
+          payload.preferencesUpdatedAt ?? null
+        );
+      }
+      if ("talentInsights" in payload) {
+        handleTalentInsightsRefreshedFromChat(
+          payload.talentInsights,
+          payload.insightUpdatedAt ?? null
+        );
+      }
+
+      const assistantMessages = Array.isArray(payload.assistantMessages)
+        ? payload.assistantMessages
+        : payload.assistantMessage
+          ? [payload.assistantMessage]
+          : [];
+
+      if (assistantMessages.length > 0) {
+        if (!cancelled) {
+          setSessionReengagementPending(false);
+          setSessionReengagementThinkingLogs([]);
+          setSessionReengagementRecommendationStatus(null);
+        }
+        await enqueueAssistantMessages(assistantMessages);
+        if (
+          !cancelled &&
+          sessionReengagementActionVersionRef.current ===
+            reengagementActionVersion
+        ) {
+          const lastAssistantMessage =
+            assistantMessages[assistantMessages.length - 1];
+          setSessionReengagementActionMessageId(
+            String(lastAssistantMessage.id)
+          );
+        }
+      }
+    };
+
+    const consumeReengagementStream = async (response: Response) => {
+      if (!response.body) return;
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let streamDone = false;
+
+      const handleStreamEvent = async ({ data, event }: CareerSseEvent) => {
+        if (event === "tool_status") {
+          const message =
+            isRecord(data) && typeof data.message === "string"
+              ? data.message
+              : "";
+          appendSessionReengagementThinkingLog(message);
+          return;
+        }
+
+        if (event === "recommendation_search_status") {
+          const status = toRecommendationSearchStatus(data);
+          if (status) {
+            setSessionReengagementRecommendationStatus(status);
+          }
+          return;
+        }
+
+        if (event === "reengagement_result") {
+          await applyReengagementPayload(data as SessionReengagementPayload);
+          return;
+        }
+
+        if (event === "error") {
+          throw new Error(
+            isRecord(data) && typeof data.error === "string"
+              ? data.error
+              : "6시간 인사 생성에 실패했습니다."
+          );
+        }
+
+        if (event === "done") {
+          streamDone = true;
+        }
+      };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder
+          .decode(value, { stream: true })
+          .replace(/\r\n/g, "\n");
+        let boundaryIndex = buffer.indexOf("\n\n");
+        while (boundaryIndex >= 0) {
+          const rawEvent = buffer.slice(0, boundaryIndex);
+          buffer = buffer.slice(boundaryIndex + 2);
+          const parsedEvent = parseCareerSseEvent(rawEvent);
+          if (parsedEvent) {
+            await handleStreamEvent(parsedEvent);
+          }
+          boundaryIndex = buffer.indexOf("\n\n");
+        }
+      }
+
+      const tail = buffer.trim();
+      if (tail) {
+        const parsedEvent = parseCareerSseEvent(tail);
+        if (parsedEvent) {
+          await handleStreamEvent(parsedEvent);
+        }
+      }
+
+      if (!streamDone) {
+        throw new Error("6시간 인사 스트림이 완료되기 전에 종료되었습니다.");
+      }
+    };
+
     const triggerReengagement = async () => {
       pendingTimer = setTimeout(() => {
         if (
@@ -829,54 +1265,29 @@ export const CareerFlowProvider = ({
           "/api/talent/session/reengagement",
           {
             method: "POST",
+            headers: {
+              Accept: "text/event-stream",
+            },
             body: JSON.stringify({ conversationId }),
           }
         );
+
+        const contentType = response.headers.get("content-type") ?? "";
+        if (
+          response.ok &&
+          response.body &&
+          contentType.includes("text/event-stream")
+        ) {
+          await consumeReengagementStream(response);
+          return;
+        }
+
         const payload = (await response
           .json()
           .catch(() => ({}))) as SessionReengagementPayload;
 
         if (!response.ok || cancelled || payload.skipped) return;
-
-        if (payload.opportunityRun) {
-          setOpportunityRun(payload.opportunityRun);
-        }
-        if ("talentPreferences" in payload) {
-          handleTalentPreferencesRefreshedFromChat(
-            payload.talentPreferences,
-            payload.preferencesUpdatedAt ?? null
-          );
-        }
-        if ("talentInsights" in payload) {
-          handleTalentInsightsRefreshedFromChat(
-            payload.talentInsights,
-            payload.insightUpdatedAt ?? null
-          );
-        }
-
-        const assistantMessages = Array.isArray(payload.assistantMessages)
-          ? payload.assistantMessages
-          : payload.assistantMessage
-            ? [payload.assistantMessage]
-            : [];
-
-        if (assistantMessages.length > 0) {
-          if (!cancelled) {
-            setSessionReengagementPending(false);
-          }
-          await enqueueAssistantMessages(assistantMessages);
-          if (
-            !cancelled &&
-            sessionReengagementActionVersionRef.current ===
-              reengagementActionVersion
-          ) {
-            const lastAssistantMessage =
-              assistantMessages[assistantMessages.length - 1];
-            setSessionReengagementActionMessageId(
-              String(lastAssistantMessage.id)
-            );
-          }
-        }
+        await applyReengagementPayload(payload);
       } catch (error) {
         console.error("[CareerFlowProvider] session re-engagement failed", {
           error: error instanceof Error ? error.message : String(error),
@@ -887,6 +1298,8 @@ export const CareerFlowProvider = ({
         }
         if (!cancelled) {
           setSessionReengagementPending(false);
+          setSessionReengagementThinkingLogs([]);
+          setSessionReengagementRecommendationStatus(null);
         }
       }
     };
@@ -899,8 +1312,11 @@ export const CareerFlowProvider = ({
         clearTimeout(pendingTimer);
       }
       setSessionReengagementPending(false);
+      setSessionReengagementThinkingLogs([]);
+      setSessionReengagementRecommendationStatus(null);
     };
   }, [
+    appendSessionReengagementThinkingLog,
     conversationId,
     clearSessionReengagementAction,
     enqueueAssistantMessages,
@@ -1109,6 +1525,8 @@ export const CareerFlowProvider = ({
       thinkingLogsByMessageId,
       chatPending,
       sessionReengagementPending,
+      sessionReengagementThinkingLogs,
+      sessionReengagementRecommendationStatus,
       sessionReengagementActionMessageId,
       opportunityRun,
       opportunitySearchLocked: Boolean(opportunityRun?.inputLocked),
@@ -1168,6 +1586,8 @@ export const CareerFlowProvider = ({
       chatPending,
       thinkingLogsByMessageId,
       toolStatusMessage,
+      sessionReengagementThinkingLogs,
+      sessionReengagementRecommendationStatus,
       conversationId,
       handleAddProfileLink,
       handleEmailAuth,
@@ -1232,6 +1652,7 @@ export const CareerFlowProvider = ({
   const sidebarContextValue: CareerSidebarContextValue = useMemo(
     () => ({
       user,
+      conversationId,
       stage,
       isOnboardingDone,
       userChatCount,
@@ -1243,7 +1664,9 @@ export const CareerFlowProvider = ({
       activeCompanyRoleCount,
       opportunityRun,
       opportunityRunTriggerPending,
+      onboardingCompletionTestPending: forceCompletePending,
       sessionReengagementTestPending,
+      onRunOnboardingCompletionTest: handleRunOnboardingCompletionTest,
       onRunSessionReengagementTest: handleRunSessionReengagementTest,
       onRunPeriodicOpportunityDiscoveryTest:
         handleRunPeriodicOpportunityDiscoveryTest,
@@ -1265,6 +1688,8 @@ export const CareerFlowProvider = ({
       onUpdateHistoryOpportunitySavedStage,
       onMarkHistoryOpportunityViewed,
       onMarkHistoryOpportunityClicked,
+      onUpdateCompanyFollow: handleUpdateCompanyFollow,
+      onGenerateCompanyRecommendations: handleGenerateCompanyRecommendations,
       onSendHistoryOpportunityQuestion,
       resumeFile,
       savedResumeFileName,
@@ -1324,6 +1749,7 @@ export const CareerFlowProvider = ({
       activeCompanyRoleCount,
       blockedCompanies,
       callStartPending,
+      conversationId,
       handleAddProfileLink,
       handleRunPeriodicOpportunityDiscoveryTest,
       handleRunOpportunityDiscoveryTest,
@@ -1334,7 +1760,10 @@ export const CareerFlowProvider = ({
       hasUnsavedTalentPreferencesChanges,
       hasUnsavedTalentSettingsChanges,
       handleCareerLogout,
+      handleGenerateCompanyRecommendations,
       handleProfileLinkChange,
+      handleRunOnboardingCompletionTest,
+      forceCompletePending,
       onResetTalentInsights,
       onResetTalentPreferences,
       onResetTalentSettings,
@@ -1347,6 +1776,7 @@ export const CareerFlowProvider = ({
       onReloadTalentSettings,
       onOpenSettings,
       handleRemoveProfileLink,
+      handleUpdateCompanyFollow,
       onRemoveBlockedCompany,
       handleSaveTalentProfile,
       handleRefreshTalentProfileSources,

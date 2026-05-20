@@ -7,10 +7,13 @@ import type {
   LandingSummary,
   SectionProgressSummary,
 } from "@/components/admin/types";
-import { formatKST, formatPercent, formatSectionName } from "@/components/admin/utils";
+import {
+  formatKST,
+  formatPercent,
+  formatSectionName,
+} from "@/components/admin/utils";
+import { isLandingLogEntryType } from "@/lib/landingLogTypes";
 import { Loading } from "@/components/ui/loading";
-
-const ENTRY_TYPES = new Set(["new_visit", "new_session"]);
 
 type AdminLandingLogsTabProps = {
   deviceFilterLabel: string;
@@ -71,10 +74,12 @@ export default function AdminLandingLogsTab({
         <div className="font-semibold text-black mb-1">Loaded user summary</div>
         <div className="leading-6">
           전체 유저:{" "}
-          <span className="text-black font-medium">{landingSummary.totalUsers}</span>{" "}
+          <span className="text-black font-medium">
+            {landingSummary.totalUsers}
+          </span>{" "}
           · 디바이스:{" "}
-          <span className="text-black font-medium">{deviceFilterLabel}</span>{" "}
-          · 스크롤 다운:{" "}
+          <span className="text-black font-medium">{deviceFilterLabel}</span> ·
+          스크롤 다운:{" "}
           <span className="text-black font-medium">
             {landingSummary.scrolledUsers}
           </span>{" "}
@@ -169,8 +174,12 @@ export default function AdminLandingLogsTab({
                 key={item.abtestType}
                 className="border-t border-black/10 pt-3 first:border-t-0 first:pt-0"
               >
-                <div className="font-semibold text-black">{item.abtestType}</div>
-                <div className="mt-1 text-black/55">Users: {item.totalUsers}</div>
+                <div className="font-semibold text-black">
+                  {item.abtestType}
+                </div>
+                <div className="mt-1 text-black/55">
+                  Users: {item.totalUsers}
+                </div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {item.sections.map((section) => (
                     <div
@@ -193,8 +202,8 @@ export default function AdminLandingLogsTab({
 
       <div className="mb-4 flex items-center justify-between w-full">
         <div className="text-[12px] text-black/55">
-          Loaded logs: <span className="text-black">{logs.length}</span> · Users:{" "}
-          <span className="text-black">{grouped.length}</span> · Device:{" "}
+          Loaded logs: <span className="text-black">{logs.length}</span> ·
+          Users: <span className="text-black">{grouped.length}</span> · Device:{" "}
           <span className="text-black">{deviceFilterLabel}</span>
         </div>
 
@@ -227,7 +236,10 @@ export default function AdminLandingLogsTab({
         </div>
       ) : null}
 
-      <div className="border border-black/10 w-full" style={{ borderRadius: 0 }}>
+      <div
+        className="border border-black/10 w-full"
+        style={{ borderRadius: 0 }}
+      >
         {loading ? (
           <Loading
             size="sm"
@@ -252,14 +264,15 @@ export default function AdminLandingLogsTab({
                   local_id: {group.local_id} - {group.country_lang}
                 </div>
                 <div className="text-[12px] text-black/55 mt-1">
-                  entry: {formatKST(group.entryTime)} · abtest: {group.abtest_type}
+                  entry: {formatKST(group.entryTime)} · abtest:{" "}
+                  {group.abtest_type}
                 </div>
 
                 <div className="mt-3 text-[13px] text-black/80 w-full space-y-1">
                   {group.logs.map((log) => (
                     <div key={log.id} className="flex gap-2 w-full">
                       <span className="text-black/50">•</span>
-                      {ENTRY_TYPES.has(log.type) ? (
+                      {isLandingLogEntryType(log.type) ? (
                         `${log.type} (${formatKST(log.created_at)})`
                       ) : (
                         <div className="flex flex-row w-full items-center justify-between">

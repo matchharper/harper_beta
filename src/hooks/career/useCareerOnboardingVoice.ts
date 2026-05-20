@@ -105,14 +105,25 @@ function buildCallOpeningRecentConversationContext(messages: CareerMessage[]) {
 }
 
 function buildCallOpeningResponseInstruction(args: {
+  isConversationStarter?: boolean;
   openingText?: string;
   recentConversationContext?: string;
 }) {
-  const { openingText, recentConversationContext } = args;
+  const { isConversationStarter, openingText, recentConversationContext } =
+    args;
   const normalizedOpeningText = openingText?.trim();
 
   const sections = [
     CALL_OPENING_RESPONSE_INSTRUCTION,
+    isConversationStarter
+      ? [
+          "",
+          "## Conversation starter opening",
+          "이번 통화는 사용자가 특정 conversation starter 버튼을 눌러 시작했습니다.",
+          "아래 starter 내용의 목적과 질문 방향을 가장 우선하세요.",
+          "최근 우선순위, 선호 조건, 일반적인 기회 탐색 질문을 임의로 고르지 마세요.",
+        ].join("\n")
+      : "",
     recentConversationContext
       ? [
           "",
@@ -174,7 +185,14 @@ type UseCareerOnboardingVoiceArgs = {
   isVoiceInteractionLocked: boolean;
   onSendChatMessage: (args: SendChatArgs) => void | Promise<void>;
   onOpportunityRunChanged?: (run: CareerOpportunityRun | null) => void;
+  onTalentPreferencesRefreshed?: (
+    preferences: unknown,
+    updatedAt: unknown
+  ) => void;
   onTalentInsightsRefreshed?: (insights: unknown, updatedAt: unknown) => void;
+  onTalentProfileRefreshed?: (
+    profile: SessionResponse["talentProfile"] | undefined
+  ) => void;
   appendMessage: (message: CareerMessage) => void;
   setChatError: Dispatch<SetStateAction<string>>;
   setStage: Dispatch<SetStateAction<CareerStage>>;
@@ -198,7 +216,9 @@ export const useCareerOnboardingVoice = ({
   isVoiceInteractionLocked,
   onSendChatMessage,
   onOpportunityRunChanged,
+  onTalentPreferencesRefreshed,
   onTalentInsightsRefreshed,
+  onTalentProfileRefreshed,
   appendMessage,
   setChatError,
   setStage,
@@ -1263,6 +1283,7 @@ export const useCareerOnboardingVoice = ({
           suppressNextAssistantDoneRef.current = true;
           if (generateSpeechFromInstructionsRef.current) {
             const openingInstructions = buildCallOpeningResponseInstruction({
+              isConversationStarter: Boolean(conversationStarterId),
               openingText,
               recentConversationContext: openingRecentConversationContext,
             });
@@ -1286,6 +1307,7 @@ export const useCareerOnboardingVoice = ({
         suppressNextAssistantDoneRef.current = true;
         if (generateSpeechFromInstructionsRef.current) {
           const openingInstructions = buildCallOpeningResponseInstruction({
+            isConversationStarter: Boolean(conversationStarterId),
             openingText,
             recentConversationContext: openingRecentConversationContext,
           });
@@ -1401,11 +1423,32 @@ export const useCareerOnboardingVoice = ({
           if (
             payload &&
             typeof payload === "object" &&
+            "talentPreferences" in payload
+          ) {
+            onTalentPreferencesRefreshed?.(
+              payload.talentPreferences,
+              "preferencesUpdatedAt" in payload
+                ? payload.preferencesUpdatedAt
+                : null
+            );
+          }
+          if (
+            payload &&
+            typeof payload === "object" &&
             "talentInsights" in payload
           ) {
             onTalentInsightsRefreshed?.(
               payload.talentInsights,
               payload.insightUpdatedAt ?? null
+            );
+          }
+          if (
+            payload &&
+            typeof payload === "object" &&
+            "talentProfile" in payload
+          ) {
+            onTalentProfileRefreshed?.(
+              payload.talentProfile as SessionResponse["talentProfile"]
             );
           }
 
@@ -1469,7 +1512,9 @@ export const useCareerOnboardingVoice = ({
       fetchWithAuth,
       onMessagesChanged,
       onOpportunityRunChanged,
+      onTalentPreferencesRefreshed,
       onTalentInsightsRefreshed,
+      onTalentProfileRefreshed,
       saveRealtimeTurn,
       setChatError,
       setStage,

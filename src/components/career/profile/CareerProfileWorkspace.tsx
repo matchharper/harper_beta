@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import CareerInPageTabs from "../CareerInPageTabs";
 import CareerTalentProfilePanel from "./CareerTalentProfilePanel";
 import CareerResumeLinksSettingsSection from "../settings/CareerResumeLinksSettingsSection";
+import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import React from "react";
 
 type ProfileSectionId = "profile" | "links";
@@ -36,6 +37,7 @@ const PROFILE_SECTION_ITEMS: Array<{
 
 const CareerProfileWorkspace = () => {
   const router = useRouter();
+  const logCareerEvent = useCareerLogEvent();
 
   const activeSection: ProfileSectionId = useMemo(() => {
     const raw = router.query.profileSection;
@@ -44,6 +46,7 @@ const CareerProfileWorkspace = () => {
 
   const handleChangeSection = useCallback(
     (next: ProfileSectionId) => {
+      logCareerEvent(`click_profile_section_${next}`);
       void router.replace(
         {
           pathname: router.pathname,
@@ -53,7 +56,7 @@ const CareerProfileWorkspace = () => {
         { shallow: true }
       );
     },
-    [router]
+    [logCareerEvent, router]
   );
 
   const activeContent =
@@ -65,13 +68,13 @@ const CareerProfileWorkspace = () => {
 
   return (
     <>
-      <div className="my-4">
-        <CareerInPageTabs
-          items={PROFILE_SECTION_ITEMS}
-          activeId={activeSection}
-          onChange={handleChangeSection}
-        />
-      </div>
+      <CareerInPageTabs
+        items={PROFILE_SECTION_ITEMS}
+        activeId={activeSection}
+        onChange={handleChangeSection}
+        mobileFloating
+        className="md:my-4"
+      />
 
       <div className="flex flex-col gap-4">
         <div className="w-full">{activeContent}</div>

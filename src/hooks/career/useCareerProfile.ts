@@ -616,6 +616,7 @@ export const useCareerProfile = ({
     handleProfileLinkChange,
     handleRemoveProfileLink,
     handleAddProfileLink,
+    applyTalentProfileSnapshot,
     handleSaveTalentProfile,
     handleRefreshTalentProfileSources,
     resetProfileState,

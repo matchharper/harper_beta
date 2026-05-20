@@ -9,6 +9,25 @@ import {
 
 type Body = {
   conversationId?: string;
+  regenerateWrapup?: boolean;
+};
+
+const DEV_ONBOARDING_COMPLETION_TEST_EMAILS = new Set([
+  "hyunbin.bk@gmail.com",
+  "khj605123@gmail.com",
+]);
+
+const canRunDevOnboardingCompletionTest = (
+  email: string | null | undefined
+) => {
+  if (process.env.NODE_ENV !== "production") return true;
+  const normalizedEmail = String(email ?? "")
+    .trim()
+    .toLowerCase();
+  return (
+    normalizedEmail.endsWith("@matchharper.com") ||
+    DEV_ONBOARDING_COMPLETION_TEST_EMAILS.has(normalizedEmail)
+  );
 };
 
 export async function POST(req: NextRequest) {
@@ -25,6 +44,13 @@ export async function POST(req: NextRequest) {
         { error: "conversationId is required" },
         { status: 400 }
       );
+    }
+    const regenerateWrapup = body.regenerateWrapup === true;
+    if (
+      regenerateWrapup &&
+      !canRunDevOnboardingCompletionTest(user.email ?? null)
+    ) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const admin = getTalentSupabaseAdmin();
@@ -83,17 +109,27 @@ export async function POST(req: NextRequest) {
         typeof latestUserMessage?.id === "number"
           ? latestUserMessage.id
           : null,
-      source: "career_chat_manual_completion",
+      regenerateWrapup,
+      source: regenerateWrapup
+        ? "career_dev_onboarding_completion_test"
+        : "career_chat_manual_completion",
       userId: user.id,
     });
     const assistantMessage = result.wrapupMessage
       ? toTalentMessageResponse(result.wrapupMessage)
       : null;
+    const nextStepsMessage = result.nextStepsMessage
+      ? toTalentMessageResponse(result.nextStepsMessage)
+      : null;
+    const assistantMessages = [assistantMessage, nextStepsMessage].filter(
+      (message): message is ReturnType<typeof toTalentMessageResponse> =>
+        message !== null
+    );
 
     return NextResponse.json({
       ok: true,
       assistantMessage,
-      assistantMessages: assistantMessage ? [assistantMessage] : [],
+      assistantMessages,
       conversation: {
         id: conversationId,
         stage: "completed",

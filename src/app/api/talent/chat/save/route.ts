@@ -18,7 +18,7 @@ import {
 } from "@/lib/opportunityDiscovery/store";
 import { extractAndPersistChatInsights } from "@/lib/talentOnboarding/chatInsights";
 import { maybeSummarizeTalentConversation } from "@/lib/talentOnboarding/conversationSummary";
-import { createOnboardingCompletionWrapupMessage } from "@/lib/talentOnboarding/onboardingCompletionWrapup";
+import { createOnboardingCompletionMessages } from "@/lib/talentOnboarding/onboardingCompletionWrapup";
 import {
   hasTalentOnboardingCompletionMarker,
   resolveTalentOnboardingCompletion,
@@ -275,15 +275,19 @@ export async function POST(req: NextRequest) {
         startOpportunityDiscoveryInBackground(opportunityRun.id);
       }
     }
-    const insertedCompletionWrapupMessage =
+    const completionMessages =
       shouldApplyCompletion && insertedUserMessage
-        ? await createOnboardingCompletionWrapupMessage({
+        ? await createOnboardingCompletionMessages({
             admin,
             conversationId,
             latestUserMessageId: insertedUserMessage.id,
             userId: user.id,
           })
         : null;
+    const insertedCompletionWrapupMessage =
+      completionMessages?.wrapupMessage ?? null;
+    const insertedCompletionNextStepsMessage =
+      completionMessages?.nextStepsMessage ?? null;
     const assistantResponseMessage = insertedAssistantMessage
       ? toResponseMessage(insertedAssistantMessage)
       : null;
@@ -291,6 +295,9 @@ export async function POST(req: NextRequest) {
       assistantResponseMessage,
       insertedCompletionWrapupMessage
         ? toResponseMessage(insertedCompletionWrapupMessage)
+        : null,
+      insertedCompletionNextStepsMessage
+        ? toResponseMessage(insertedCompletionNextStepsMessage)
         : null,
     ].filter(
       (message): message is ReturnType<typeof toResponseMessage> =>

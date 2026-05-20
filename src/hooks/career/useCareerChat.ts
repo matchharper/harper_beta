@@ -43,6 +43,9 @@ type UseCareerChatArgs = {
     updatedAt: unknown
   ) => void;
   onTalentInsightsRefreshed?: (insights: unknown, updatedAt: unknown) => void;
+  onTalentProfileRefreshed?: (
+    profile: SessionResponse["talentProfile"] | undefined
+  ) => void;
   persistedMessages: CareerMessage[];
   onMessagesChanged?: (
     messages: CareerMessagePayload[]
@@ -182,6 +185,7 @@ export const useCareerChat = ({
   onOpportunityRecommendationsChanged,
   onTalentPreferencesRefreshed,
   onTalentInsightsRefreshed,
+  onTalentProfileRefreshed,
   persistedMessages,
   onMessagesChanged,
 }: UseCareerChatArgs) => {
@@ -203,6 +207,10 @@ export const useCareerChat = ({
   const [scrollTick, setScrollTick] = useState(0);
 
   const activeThinkingLogsRef = useRef<string[]>([]);
+  const activeConversationStarterRef = useRef<{
+    remainingFollowUpTurns: number;
+    starterId: CareerConversationStarterId;
+  } | null>(null);
   const typingQueueRef = useRef<Promise<void>>(Promise.resolve());
   const mountedRef = useRef(true);
 
@@ -302,6 +310,7 @@ export const useCareerChat = ({
   const applySessionConversation = useCallback((payload: SessionResponse) => {
     setStage(payload.conversation.stage);
     setLocalMessages([]);
+    activeConversationStarterRef.current = null;
     activeThinkingLogsRef.current = [];
     setActiveThinkingLogs([]);
     setActiveRecommendationSearchStatus(null);
@@ -335,17 +344,37 @@ export const useCareerChat = ({
         );
       }
 
-      const messagePayload = isRecord(payload)
+      const messagePayloads =
+        isRecord(payload) && Array.isArray(payload.messages)
+          ? payload.messages
+              .map(toStreamMessagePayload)
+              .filter((item): item is CareerMessagePayload => item !== null)
+          : [];
+      const fallbackMessagePayload = isRecord(payload)
         ? toStreamMessagePayload(payload.message)
         : null;
-      if (!messagePayload) {
+      const nextMessagePayloads =
+        messagePayloads.length > 0
+          ? messagePayloads
+          : fallbackMessagePayload
+            ? [fallbackMessagePayload]
+            : [];
+      if (nextMessagePayloads.length === 0) {
         throw new Error("Call Wrap-up 응답이 비어 있습니다.");
       }
 
       setLocalMessages((prev) =>
-        replaceMessageById(prev, messagePayload.id, toUiMessage(messagePayload))
+        nextMessagePayloads.reduce(
+          (messages, messagePayload) =>
+            replaceMessageById(
+              messages,
+              messagePayload.id,
+              toUiMessage(messagePayload)
+            ),
+          prev
+        )
       );
-      await onMessagesChanged?.([messagePayload]);
+      await onMessagesChanged?.(nextMessagePayloads);
       setScrollTick((t) => t + 1);
     } catch (error) {
       setChatError(
@@ -382,6 +411,16 @@ export const useCareerChat = ({
       const link = (args.link ?? "").trim();
       if (!text) return;
 
+      const explicitConversationStarterId = args.conversationStarterId;
+      if (explicitConversationStarterId) {
+        activeConversationStarterRef.current = {
+          remainingFollowUpTurns: 6,
+          starterId: explicitConversationStarterId,
+        };
+      }
+      const activeConversationStarterId =
+        explicitConversationStarterId ??
+        activeConversationStarterRef.current?.starterId;
       const composed = link ? `${text}\n\n참고 링크: ${link}` : text;
       const tempId = `temp-user-${Date.now()}`;
       const nowIso = new Date().toISOString();
@@ -410,7 +449,7 @@ export const useCareerChat = ({
           },
           body: JSON.stringify({
             channel: args.channel ?? "chat",
-            conversationStarterId: args.conversationStarterId,
+            conversationStarterId: activeConversationStarterId,
             conversationId,
             message: text,
             link,
@@ -731,6 +770,11 @@ export const useCareerChat = ({
                     data.insightUpdatedAt
                   );
                 }
+                if ("talentProfile" in data) {
+                  onTalentProfileRefreshed?.(
+                    data.talentProfile as SessionResponse["talentProfile"]
+                  );
+                }
               }
               return;
             }
@@ -826,6 +870,11 @@ export const useCareerChat = ({
             payload.insightUpdatedAt
           );
         }
+        if (isRecord(payload) && "talentProfile" in payload) {
+          onTalentProfileRefreshed?.(
+            payload.talentProfile as SessionResponse["talentProfile"]
+          );
+        }
         if (!response.ok) {
           throw new Error(
             getErrorMessage(payload, "메시지 전송에 실패했습니다.")
@@ -870,6 +919,22 @@ export const useCareerChat = ({
         setChatError(message);
         args.onError?.();
       } finally {
+        if (
+          !explicitConversationStarterId &&
+          activeConversationStarterId &&
+          activeConversationStarterRef.current?.starterId ===
+            activeConversationStarterId
+        ) {
+          const remainingFollowUpTurns =
+            activeConversationStarterRef.current.remainingFollowUpTurns - 1;
+          activeConversationStarterRef.current =
+            remainingFollowUpTurns > 0
+              ? {
+                  ...activeConversationStarterRef.current,
+                  remainingFollowUpTurns,
+                }
+              : null;
+        }
         setChatPending(false);
       }
     },
@@ -889,6 +954,7 @@ export const useCareerChat = ({
       onOpportunityRecommendationsChanged,
       onTalentInsightsRefreshed,
       onTalentPreferencesRefreshed,
+      onTalentProfileRefreshed,
       resetActiveThinkingLogs,
     ]
   );

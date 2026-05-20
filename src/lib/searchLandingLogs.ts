@@ -1,3 +1,9 @@
+import {
+  isFirstScrollLandingLogType,
+  isLandingLogEntryType,
+  isStartLandingLogType,
+} from "@/lib/landingLogTypes";
+
 export const SEARCH_LANDING_ABTEST_TYPE_KEY =
   "harper_search_landing_abtest_type_v1";
 export const SEARCH_LANDING_LEGACY_ABTEST_TYPE = "search_landing_v1";
@@ -44,8 +50,6 @@ export type SearchLandingFunnelSummary = {
   loggedInUsers: number;
 };
 
-const ENTRY_TYPES = new Set(["new_visit", "new_session"]);
-
 export function createSearchLandingId() {
   if (
     typeof crypto !== "undefined" &&
@@ -60,7 +64,8 @@ export function createSearchLandingId() {
 export const isSearchLandingAbtestType = (
   value: string | null | undefined
 ): value is SearchLandingAbtestType =>
-  value === SEARCH_LANDING_ABTEST_TYPE_A || value === SEARCH_LANDING_ABTEST_TYPE_B;
+  value === SEARCH_LANDING_ABTEST_TYPE_A ||
+  value === SEARCH_LANDING_ABTEST_TYPE_B;
 
 export const getRandomSearchLandingAbtestType = (): SearchLandingAbtestType =>
   Math.random() < 0.5
@@ -70,9 +75,7 @@ export const getRandomSearchLandingAbtestType = (): SearchLandingAbtestType =>
 export const resolveSearchLandingAssignmentType = (
   value: string | null | undefined
 ): SearchLandingAbtestType =>
-  isSearchLandingAbtestType(value)
-    ? value
-    : getRandomSearchLandingAbtestType();
+  isSearchLandingAbtestType(value) ? value : getRandomSearchLandingAbtestType();
 
 export const usesSearchLandingBExperience = (
   value: string | null | undefined
@@ -105,8 +108,7 @@ export const getSearchLandingVariantDescription = (
 };
 
 export function isSearchLandingStartLogType(type: string) {
-  if (type === "click_start") return true;
-  return type.startsWith("click_") && type.endsWith("_start");
+  return isStartLandingLogType(type);
 }
 
 export function groupSearchLandingLogsByUser(logItems: SearchLandingLog[]) {
@@ -123,15 +125,17 @@ export function groupSearchLandingLogsByUser(logItems: SearchLandingLog[]) {
   const groups: SearchLandingUserGroup[] = [];
 
   for (const [local_id, list] of Array.from(byUser.entries())) {
-    const entryCandidates = list.filter((log) => ENTRY_TYPES.has(log.type));
+    const entryCandidates = list.filter((log) =>
+      isLandingLogEntryType(log.type)
+    );
     const entryTimeSource =
       entryCandidates.length > 0
         ? entryCandidates
             .slice()
             .sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
-        : list.slice().sort((a, b) => b.created_at.localeCompare(a.created_at))[
-            0
-          ];
+        : list
+            .slice()
+            .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
 
     groups.push({
       local_id,
@@ -151,7 +155,7 @@ export function summarizeSearchLandingFunnel(logItems: SearchLandingLog[]) {
   const summary: SearchLandingFunnelSummary = {
     totalUsers: groups.length,
     scrolledUsers: groups.filter((group) =>
-      group.logs.some((log) => log.type === "first_scroll_down")
+      group.logs.some((log) => isFirstScrollLandingLogType(log.type))
     ).length,
     startClickedUsers: groups.filter((group) =>
       group.logs.some((log) => isSearchLandingStartLogType(log.type))

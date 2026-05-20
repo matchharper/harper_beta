@@ -4,6 +4,15 @@ import { useRouter } from "next/router";
 import { supabase } from "@/lib/supabase";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { finalizePendingTalentCapture } from "@/lib/talentCapture/client";
+import { buildLandingLoginEmailType } from "@/lib/landingLogTypes";
+
+function inferLandingLogSource(args: { flow: string; nextPath: string }) {
+  if (args.nextPath.startsWith("/search")) return "search";
+  if (args.nextPath.startsWith("/career")) return "career";
+  if (args.nextPath.startsWith("/find")) return "company";
+  if (args.flow === "talent_capture") return "career";
+  return null;
+}
 
 export default function AuthCallback() {
   const router = useRouter();
@@ -22,6 +31,12 @@ export default function AuthCallback() {
         typeof router.query.cl === "string" ? router.query.cl : null;
       const abtestType =
         typeof router.query.ab === "string" ? router.query.ab : null;
+      const querySource =
+        typeof router.query.src === "string"
+          ? router.query.src
+          : typeof router.query.source === "string"
+            ? router.query.source
+            : null;
       const code =
         typeof router.query.code === "string" ? router.query.code : "";
 
@@ -46,11 +61,13 @@ export default function AuthCallback() {
       }
 
       if (lid && user.email) {
+        const landingLogSource =
+          querySource || inferLandingLogSource({ flow, nextPath });
         const { error: loginLogError } = await supabase
           .from("landing_logs")
           .insert({
             local_id: lid,
-            type: `login_email:${user.email}`,
+            type: buildLandingLoginEmailType(user.email, landingLogSource),
             abtest_type: abtestType,
             is_mobile: null,
             country_lang: countryLang,

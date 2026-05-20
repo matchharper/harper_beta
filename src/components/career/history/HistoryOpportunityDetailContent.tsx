@@ -18,6 +18,7 @@ import {
   Building2,
   CircleHelp,
   Dot,
+  MapPin,
 } from "lucide-react";
 import { careerCx, CareerInlinePanel } from "../ui/CareerPrimitives";
 import { OpportunityType } from "@/lib/opportunityType";
@@ -41,37 +42,52 @@ export const OpportunityHeader = ({
   const canOpenCompanyInfo = Boolean(
     onOpenCompanyInfo || item.companyDbId || companyInfoLink
   );
-  const metaItems = getMetaItems(item);
+  const metaItems: { label: string; value: string | null }[] = getMetaItems(
+    item
+  ).map((meta) => ({
+    label: meta,
+    value: meta,
+  }));
+  const detailMetaItems = [
+    {
+      label: "location",
+      value: item.location,
+    },
+    ...metaItems,
+  ].filter(
+    (meta): meta is { label: string; value: string } =>
+      typeof meta.value === "string" && meta.value.trim().length > 0
+  );
   const stacked = layout === "stacked";
 
   return (
     <div
       className={careerCx(
-        "flex w-full flex-col gap-3",
+        "flex w-full flex-col gap-3 relative",
         !stacked && "sm:flex-row sm:items-start sm:justify-between"
       )}
     >
-      <div className="flex min-w-0 flex-row items-start gap-3 sm:gap-4">
+      <div className="flex min-w-0 w-full flex-row items-start gap-3 sm:gap-4">
         {item.companyLogoUrl ? (
-          <>
+          <div className="shrink-0 flex p-1 items-center justify-center rounded-lg border border-beige900/10 bg-white">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={item.companyLogoUrl}
               alt={item.companyName}
               className="h-10 w-10 rounded-lg object-cover"
             />
-          </>
+          </div>
         ) : (
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-beige900 text-beige100">
             <Building2 className="h-4 w-4" />
           </div>
         )}
 
-        <div className="flex min-w-0 flex-col items-start">
-          <div className="wrap-break-word text-[18px] font-medium leading-6 text-beige900">
+        <div className="flex min-w-0 flex-col items-start w-full">
+          <div className="wrap-break-word text-lg font-medium leading-tight">
             {item.title}
           </div>
-          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[14px] text-beige900/80">
+          <div className="mt-2 flex w-full min-w-0 flex-wrap items-center justify-between text-sm">
             {canOpenCompanyInfo ? (
               <button
                 type="button"
@@ -88,53 +104,48 @@ export const OpportunityHeader = ({
                     );
                   }
                 }}
-                className="min-w-0 wrap-break-word text-left decoration-dotted underline underline-offset-2 transition-colors hover:text-beige900"
+                className="min-w-0 wrap-break-word text-left decoration-dotted underline underline-offset-2 text-black/90 font-medium text-[14px] transition-colors hover:text-black"
               >
                 {item.companyName}
               </button>
             ) : (
-              <span className="min-w-0 wrap-break-word">{item.companyName}</span>
+              <span className="min-w-0 wrap-break-word">
+                {item.companyName}
+              </span>
             )}
-            {item.location && (
-              <>
-                <span>·</span>
-                <span>{item.location}</span>
-              </>
+            {postedAgo ? (
+              <div className="text-xs text-black/60">{postedAgo}에 게시됨</div>
+            ) : (
+              <></>
             )}
-            {metaItems.map((meta) => (
-              <React.Fragment key={`${item.id}-${meta}`}>
-                <span>·</span>
-                <span>{meta}</span>
-              </React.Fragment>
-            ))}
           </div>
-          {postedAgo && (
-            <div className="mt-1 text-[14px] leading-6 text-beige900/60">
-              {postedAgo}에 게시됨
+          <div className="flex flex-row items-center justify-between w-full mt-2 text-sm font-normal">
+            <div className="flex flex-row items-center gap-x-2">
+              {detailMetaItems.map((meta, index) => (
+                <span
+                  key={`${item.id}-detail-meta-${index}`}
+                  className="inline-flex min-w-0 items-center gap-x-1 text-black/90 text-[14px]"
+                >
+                  {meta.label === "location" ? (
+                    <MapPin className="h-3 w-3" />
+                  ) : (
+                    <span className="shrink-0 mr-1">·</span>
+                  )}
+                  <span className="min-w-0 wrap-break-word">{meta.value}</span>
+                </span>
+              ))}
             </div>
-          )}
+            <HistoryOpportunityInfoTag
+              item={item}
+              onOpenInfo={onOpenOpportunityInfo}
+            />
+          </div>
         </div>
       </div>
 
-      <div
-        className={careerCx(
-          "flex w-full flex-col items-start gap-3",
-          !stacked && "sm:w-auto sm:shrink-0 sm:items-end sm:justify-between"
-        )}
-      >
-        <div
-          className={careerCx(
-            "flex flex-wrap items-center justify-start gap-2",
-            !stacked && "sm:justify-end"
-          )}
-        >
-          {extraComponent && extraComponent}
-        </div>
-        <HistoryOpportunityInfoTag
-          item={item}
-          onOpenInfo={onOpenOpportunityInfo}
-        />
-      </div>
+      {extraComponent && (
+        <div className="absolute right-[-8px] top-[-8px]">{extraComponent}</div>
+      )}
     </div>
   );
 };
@@ -226,51 +237,37 @@ const HistoryOpportunityDetailContent = ({
         <CareerInlinePanel
           className={careerCx("rounded-2xl p-1", getOpportunityPanelTone(item))}
         >
-          <div className="flex w-full flex-col items-start justify-between rounded-2xl border border-beige200 bg-beige50 px-5 py-6">
+          <div className="flex w-full flex-col items-start justify-between rounded-2xl bg-beige50 px-5 py-6">
             <OpportunityHeader
               item={item}
               onOpenCompanyInfo={onOpenCompanyInfo}
               onOpenOpportunityInfo={onOpenOpportunityInfo}
             />
 
-            {recommendationSummary && (
-              <div className="mt-4 w-full rounded-[6px] border border-beige900/10 bg-white/65 px-3 py-2 text-sm leading-6 text-beige900/90">
-                {recommendationSummary}
-              </div>
-            )}
-
-            {item.recommendationReasons.length > 0 && (
-              <div className="mt-4 w-full space-y-2">
-                {item.recommendationReasons.map((reason, index) => (
+            <div className="mt-8 flex flex-col gap-3 text-sm text-black">
+              {recommendationSummary && <div>{recommendationSummary}</div>}
+              {item.recommendationReasons.map((reason, index) => (
+                <div
+                  key={`${item.id}-${index}`}
+                  className="flex w-full flex-row items-center justify-start gap-1"
+                >
+                  <Dot className="h-5 w-5 min-w-5" />
                   <div
-                    key={`${item.id}-${index}`}
-                    className="flex w-full flex-row items-center justify-start gap-1"
-                  >
-                    <Dot className="h-5 w-5" />
-                    <div
-                      className="text-sm text-beige900"
-                      dangerouslySetInnerHTML={{ __html: reason }}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {recommendationConcerns.length > 0 && (
-              <div className="mt-2 w-full space-y-2">
-                {recommendationConcerns.map((concern, index) => (
-                  <div
-                    key={`${item.id}-concern-${index}`}
-                    className="flex w-full flex-row items-center justify-start gap-1"
-                  >
-                    <Dot className="h-5 w-5 text-[#9a7b39]" />
-                    <div className="text-sm leading-6 text-beige900/80">
-                      불안 요소 : {concern}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                    className="text-sm"
+                    dangerouslySetInnerHTML={{ __html: reason }}
+                  />
+                </div>
+              ))}
+              {recommendationConcerns.map((concern, index) => (
+                <div
+                  key={`${item.id}-concern-${index}`}
+                  className="flex w-full flex-row items-center justify-start gap-1"
+                >
+                  <Dot className="h-5 w-5 min-w-5" />
+                  <div>불안 요소 : {concern}</div>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="flex flex-col gap-8 px-5 py-4 font-inter text-[15px] font-normal text-black/80">
@@ -279,7 +276,7 @@ const HistoryOpportunityDetailContent = ({
                 <button
                   type="button"
                   onClick={() => onOpenLink(roleLink)}
-                  className="flex min-h-9 w-full items-center justify-center gap-2 rounded-[8px] border border-beige900 bg-beige900 px-4 py-3 text-sm font-medium text-[#f5ecdd] transition-opacity hover:opacity-95"
+                  className="flex min-h-9 w-full items-center justify-center gap-2 rounded-[8px] bg-beige900 px-4 py-3 text-sm font-medium text-beige50 transition-opacity hover:opacity-95"
                 >
                   JD 확인하기
                   <ArrowUpRight className="h-4 w-4" />
@@ -353,11 +350,13 @@ export const HistoryOpportunityInfoTag = ({
   const textColor =
     item.opportunityType === OpportunityType.IntroRequest
       ? "text-xprimary"
-      : "text-beige900/80";
+      : "text-black/80";
 
   if (!infoTagMeta.interactive) {
     return (
-      <div className={`flex flex-row items-center gap-2 text-sm ${textColor}`}>
+      <div
+        className={`flex shrink-0 flex-row items-center gap-2 text-[13px] ${textColor}`}
+      >
         <LeadingIcon className="h-3.5 w-3.5" />
         <span>{label}</span>
       </div>
@@ -368,7 +367,7 @@ export const HistoryOpportunityInfoTag = ({
     <button
       type="button"
       onClick={() => onOpenInfo(item.opportunityType)}
-      className={`flex flex-row items-center gap-2 text-sm decoration-dotted underline underline-offset-2 transition-colors hover:opacity-90 ${textColor}`}
+      className={`flex shrink-0 flex-row items-center gap-2 text-[13px] decoration-dotted underline underline-offset-2 transition-colors hover:opacity-90 ${textColor}`}
     >
       <LeadingIcon className="h-3.5 w-3.5" />
       <span>{label}</span>
