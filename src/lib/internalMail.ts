@@ -13,6 +13,7 @@ function readEnv(name: string) {
 
 export async function sendInternalEmail(args: {
   from: string;
+  html?: string;
   subject: string;
   text: string;
   to: string;
@@ -32,7 +33,7 @@ export async function sendInternalEmail(args: {
       to: [args.to],
       subject: args.subject,
       text: renderEmailBodyText(args.text),
-      html: renderEmailBodyHtml(args.text),
+      html: args.html ?? renderEmailBodyHtml(args.text),
     }),
   });
 

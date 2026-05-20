@@ -7,7 +7,7 @@ import type { Database } from "@/types/database.types";
 
 export type TalentAdminClient = SupabaseClient<Database>;
 const SUPABASE_ADMIN_FETCH_TIMEOUT_MS = Number(
-  process.env.SUPABASE_ADMIN_FETCH_TIMEOUT_MS ?? 5000
+  process.env.SUPABASE_ADMIN_FETCH_TIMEOUT_MS ?? 30000
 );
 
 function readEnv(name: string) {

@@ -1,6 +1,6 @@
 const UNDERLINE_OPEN_TOKEN = "ATS_UNDERLINE_OPEN_TOKEN";
 const UNDERLINE_CLOSE_TOKEN = "ATS_UNDERLINE_CLOSE_TOKEN";
-const SAFE_SPAN_TOKEN_PREFIX = "ATS_SAFE_SPAN_TOKEN_";
+const SAFE_SPAN_TOKEN_PREFIX = "ATSSAFESPANTOKEN";
 
 function normalizeSource(value: string) {
   return value.replace(/\r/g, "").trim();
@@ -26,47 +26,58 @@ function preserveUnderlineTags(value: string) {
   );
 }
 
-function getSafeInlineSpanColor(style: string) {
+function getSafeInlineSpanStyle(style: string) {
+  let color: string | null = null;
+  let fontSize: string | null = null;
   const declarations = style.split(";");
 
   for (const declaration of declarations) {
     const [rawName, ...rawValueParts] = declaration.split(":");
     const name = String(rawName ?? "").trim().toLowerCase();
-    if (name !== "color") continue;
 
     const value = rawValueParts.join(":").trim();
-    if (!value) return null;
+    if (!value) continue;
 
-    if (/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value)) {
-      return value;
+    if (name === "color") {
+      if (/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value)) {
+        color = value;
+      }
+
+      if (
+        /^rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}(?:\s*,\s*(?:0|1|0?\.\d+))?\s*\)$/i.test(
+          value
+        )
+      ) {
+        color = value;
+      }
     }
 
-    if (
-      /^rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}(?:\s*,\s*(?:0|1|0?\.\d+))?\s*\)$/i.test(
-        value
-      )
-    ) {
-      return value;
+    if (name === "font-size" && /^(?:[8-9]|1[0-9]|2[0-4])px$/i.test(value)) {
+      fontSize = value;
     }
   }
 
-  return null;
+  const safeDeclarations = [];
+  if (fontSize) safeDeclarations.push(`font-size: ${fontSize}`);
+  if (color) safeDeclarations.push(`color: ${color}`);
+
+  return safeDeclarations.length ? `${safeDeclarations.join("; ")};` : null;
 }
 
 function tokenizeSafeInlineSpans(value: string) {
-  const spans: Array<{ color: string; content: string; token: string }> = [];
+  const spans: Array<{ content: string; style: string; token: string }> = [];
   const text = value.replace(
     /<span\b[^>]*style\s*=\s*(['"])([\s\S]*?)\1[^>]*>([\s\S]*?)<\/span>/gi,
     (_, _quote, rawStyle, rawContent) => {
-      const color = getSafeInlineSpanColor(String(rawStyle ?? ""));
+      const style = getSafeInlineSpanStyle(String(rawStyle ?? ""));
       const content = String(rawContent ?? "");
 
-      if (!color) {
+      if (!style) {
         return content;
       }
 
-      const token = `${SAFE_SPAN_TOKEN_PREFIX}${spans.length}__`;
-      spans.push({ color, content, token });
+      const token = `${SAFE_SPAN_TOKEN_PREFIX}${spans.length}PLACEHOLDER`;
+      spans.push({ content, style, token });
       return token;
     }
   );
@@ -128,9 +139,9 @@ function formatInlineWithoutLinks(value: string) {
   for (const span of spans) {
     formatted = formatted.replaceAll(
       span.token,
-      `<span style="color: ${escapeAttribute(
-        span.color
-      )};">${formatInlineWithoutLinks(span.content)}</span>`
+      `<span style="${escapeAttribute(span.style)}">${formatInlineWithoutLinks(
+        span.content
+      )}</span>`
     );
   }
 
@@ -149,7 +160,7 @@ function formatInline(value: string) {
       : isSafeUrl(normalizedUrl)
         ? `<a href="${escapeAttribute(
             normalizedUrl
-          )}" target="_blank" rel="noreferrer" style="color: inherit; text-decoration: underline;">${labelHtml}</a>`
+          )}" target="_blank" rel="noreferrer" style="color: #2563eb; text-decoration: underline;">${labelHtml}</a>`
         : labelHtml;
 
     formatted = formatted.replaceAll(link.token, replacement);
