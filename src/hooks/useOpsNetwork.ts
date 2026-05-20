@@ -69,14 +69,14 @@ export function useOpsNetworkLeads(args: {
   });
 }
 
-export function useOpsNetworkDetail(leadId?: number | null) {
+export function useOpsNetworkDetail(leadId?: number | null, enabled = true) {
   return useQuery({
     queryKey: opsNetworkDetailKey(leadId),
     queryFn: () =>
       fetchWithInternalAuth<NetworkLeadDetailResponse>(
         `/api/internal/network/detail?id=${leadId}`
       ),
-    enabled: typeof leadId === "number" && leadId > 0,
+    enabled: enabled && typeof leadId === "number" && leadId > 0,
     staleTime: 15_000,
   });
 }

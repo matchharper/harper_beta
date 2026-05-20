@@ -117,13 +117,14 @@ type UpdateCompanyHumanQualityLabelInput = {
   workspaceId: string;
 };
 
-export function useOpsOpportunityCatalog() {
+export function useOpsOpportunityCatalog(args: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: queryKeys.opsOpportunity.catalog,
     queryFn: () =>
       fetchWithInternalAuth<OpsOpportunityCatalogResponse>(
         "/api/internal/opportunities/catalog"
       ),
+    enabled: args.enabled ?? true,
     staleTime: 15_000,
   });
 }

@@ -8,22 +8,43 @@ export async function getInternalAccessToken() {
   return session?.access_token ?? null;
 }
 
+async function refreshInternalAccessToken() {
+  const {
+    data: { session },
+  } = await supabase.auth.refreshSession();
+
+  return session?.access_token ?? null;
+}
+
 export async function fetchWithInternalAuth<T>(
   input: string,
   init?: RequestInit
 ) {
-  const accessToken = await getInternalAccessToken();
+  let accessToken = await getInternalAccessToken();
+  if (!accessToken) {
+    accessToken = await refreshInternalAccessToken();
+  }
+
   if (!accessToken) {
     throw new Error("로그인 세션을 찾지 못했습니다. 다시 로그인해 주세요.");
   }
 
-  const response = await fetch(input, {
-    ...init,
-    headers: {
-      ...(init?.headers ?? {}),
-      Authorization: `Bearer ${accessToken}`,
-    },
-  });
+  const fetchWithToken = (token: string) =>
+    fetch(input, {
+      ...init,
+      headers: {
+        ...(init?.headers ?? {}),
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+  let response = await fetchWithToken(accessToken);
+  if (response.status === 401) {
+    const refreshedAccessToken = await refreshInternalAccessToken();
+    if (refreshedAccessToken && refreshedAccessToken !== accessToken) {
+      response = await fetchWithToken(refreshedAccessToken);
+    }
+  }
 
   const payload = (await response.json().catch(() => ({}))) as T & {
     error?: string;

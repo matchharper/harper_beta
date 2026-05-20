@@ -6,11 +6,17 @@ import type {
   CareerTalentProfileIngestResponse,
 } from "@/lib/opsCareerServer";
 
+type SendCareerTalentMailResponse = {
+  ok: true;
+  recipientEmail: string;
+  recipientName: string | null;
+};
+
 export const opsCareerListKey = ["ops-career-list"] as const;
 export const opsCareerDetailKey = (userId?: string | null) =>
   ["ops-career-detail", userId] as const;
 
-export function useOpsCareerTalents(limit = 40) {
+export function useOpsCareerTalents(limit = 40, enabled = true) {
   return useInfiniteQuery({
     queryKey: [...opsCareerListKey, limit],
     queryFn: ({ pageParam }) =>
@@ -19,18 +25,19 @@ export function useOpsCareerTalents(limit = 40) {
       ),
     getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
     initialPageParam: 0,
+    enabled,
     staleTime: 30_000,
   });
 }
 
-export function useOpsCareerDetail(userId?: string | null) {
+export function useOpsCareerDetail(userId?: string | null, enabled = true) {
   return useQuery({
     queryKey: opsCareerDetailKey(userId),
     queryFn: () =>
       fetchWithInternalAuth<CareerTalentDetailResponse>(
         `/api/internal/career/detail?userId=${userId}`
       ),
-    enabled: typeof userId === "string" && userId.length > 0,
+    enabled: enabled && typeof userId === "string" && userId.length > 0,
     staleTime: 15_000,
   });
 }
@@ -111,5 +118,24 @@ export function useIngestCareerProfile(userId: string) {
       queryClient.invalidateQueries({ queryKey: opsCareerDetailKey(userId) });
       queryClient.invalidateQueries({ queryKey: opsCareerListKey });
     },
+  });
+}
+
+export function useSendCareerTalentMail() {
+  return useMutation({
+    mutationFn: (args: {
+      content: string;
+      fromEmail: string;
+      subject: string;
+      userId: string;
+    }) =>
+      fetchWithInternalAuth<SendCareerTalentMailResponse>(
+        "/api/internal/career/mail",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(args),
+        }
+      ),
   });
 }

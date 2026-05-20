@@ -8,13 +8,14 @@ import type {
 
 export const opsRequestAccessQueueKey = ["ops-request-access-queue"] as const;
 
-export function useOpsRequestAccessQueue() {
+export function useOpsRequestAccessQueue(enabled = true) {
   return useQuery({
     queryKey: opsRequestAccessQueueKey,
     queryFn: () =>
       fetchWithInternalAuth<RequestAccessReviewQueueResponse>(
         "/api/internal/request-access/requests"
       ),
+    enabled,
     staleTime: 20_000,
   });
 }

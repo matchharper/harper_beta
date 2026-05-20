@@ -25,7 +25,7 @@ const partnerLogos: PartnerLogo[] = [
   { src: "/images/mistral.png", name: "Mistral AI", width: 78 },
   { src: "/svgs/cohere.svg", name: "Cohere", width: 76 },
   { src: "/svgs/sequoia2.svg", name: "Sequoia", width: 82 },
-  { src: "/svgs/nvidia.svg", name: "NVIDIA", width: 78, invert: true },
+  { src: "/images/wonderful.png", name: "Wonderful", width: 78, invert: true },
 ];
 
 const resolveSafeNextPath = (value: string | string[] | undefined) => {
@@ -342,7 +342,7 @@ const CareerLoginContent = () => {
         {!emailConfirmationSent ? (
           <section className="relative z-10 mx-auto w-full max-w-[1280px] px-6 pb-7 pt-10 text-center sm:pt-12 md:pb-9">
             <h2 className="font-halant text-[17px] font-medium leading-tight tracking-[-0.02em] text-[#21170d] sm:text-[19px]">
-              Harper 네트워크에서 만나는 팀
+              {/* Harper 네트워크에서 만나는 팀 */}
             </h2>
             <div className="mt-6 grid grid-cols-2 items-center gap-x-6 gap-y-5 sm:grid-cols-3 lg:grid-cols-6">
               {partnerLogos.map((logo) => (
