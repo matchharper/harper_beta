@@ -2,26 +2,50 @@
 
 import React, { useMemo } from "react";
 import {
+  Bookmark,
   Check,
   ChevronRight,
   FileText,
-  Loader2,
+  GalleryVerticalEnd,
   Mail,
   MessageSquareText,
-  Phone,
   Search,
   UserRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import CareerCallCard from "@/components/career/CareerCallCard";
 import { useCareerSidebarContext } from "@/components/career/CareerSidebarContext";
+import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { getCareerDefaultSavedStage } from "@/components/career/opportunityTypeMeta";
 import { ConversationStarterActions } from "@/components/career/ConversationStarterActions";
 import type {
   CareerConversationStarterId,
   CareerConversationStarterMode,
 } from "@/lib/career/conversationStarters";
+import { CareerActionButton } from "../ui/CareerActionButton";
 
 const countFormatter = new Intl.NumberFormat("ko-KR");
+
+const getCurrentTimeGreeting = (date: Date) => {
+  const hour = date.getHours();
+
+  if (hour < 5) return "이른 새벽이네요.";
+  if (hour < 11) return "좋은 아침입니다.";
+  if (hour < 17) return "좋은 하루 보내고 계신가요?";
+  if (hour < 21) return "오늘 하루는 어떠셨나요.";
+  return "편안한 밤입니다.";
+};
+
+const formatMobileHomeGreetingName = (name: string) => {
+  const trimmedName = name.trim();
+
+  if (!trimmedName) return "Welcome";
+  if (/[A-Za-z]/.test(trimmedName)) return `Welcome, ${trimmedName}`;
+  if (/^[가-힣\s]+$/.test(trimmedName)) {
+    return `안녕하세요 ${trimmedName}님`;
+  }
+  return `Welcome, ${trimmedName}`;
+};
 
 type HomeHistoryTarget = {
   historyTab: "new" | "saved" | "archived";
@@ -46,7 +70,7 @@ const ChecklistItem = ({
   meta: string | null;
   state: ChecklistState;
 }) => (
-  <div className="flex items-start gap-3">
+  <div className="flex items-start gap-3 text-sm">
     <span
       aria-hidden
       className={cn(
@@ -86,62 +110,28 @@ const ChecklistItem = ({
 );
 
 const SummaryCard = ({
-  buttonLabel,
   count,
-  description,
   icon,
-  iconClassName,
   onClick,
-  status,
-  title,
+  label,
 }: {
-  buttonLabel: string;
   count: number;
-  description: string;
   icon: React.ReactNode;
-  iconClassName: string;
   onClick: () => void;
-  status: string;
-  title: string;
+  label: string;
 }) => (
-  <button
-    type="button"
+  <CareerActionButton
+    actionVariant="secondary"
     onClick={onClick}
-    className="group flex w-full flex-col justify-between gap-4 rounded-2xl border border-beige900/10 bg-white px-4 py-4 text-left shadow-[0_6px_16px_rgba(46,23,6,0.05)] transition-transform active:scale-[0.99] focus:outline-none focus-visible:ring-4 focus-visible:ring-beige700/20"
+    className="w-full flex flex-col items-center justify-center gap-3 h-24 rounded-3xl shadow-md shadow-black/5"
   >
-    <div className="flex items-start justify-between gap-3">
-      <div>
-        <div className="text-[15px] font-semibold leading-5 text-beige900">
-          {title}
-        </div>
-        <div className="mt-1 text-[12px] font-medium leading-4 text-beige900/55">
-          {status}
-        </div>
-      </div>
-      <span
-        className={cn(
-          "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px]",
-          iconClassName
-        )}
-      >
-        {icon}
-      </span>
+    <span className={cn("inline-flex items-center justify-center")}>
+      {icon}
+    </span>
+    <div className="text-sm font-medium text-black/50">
+      {countFormatter.format(count)}개의 {label}
     </div>
-    <div>
-      <div className="flex items-end gap-2.5">
-        <span className="font-hedvig text-[32px] font-medium leading-[0.9] text-beige900">
-          {countFormatter.format(count)}
-        </span>
-        <span className="pb-0.5 text-[12px] font-medium leading-4 text-beige900/55">
-          {description}
-        </span>
-      </div>
-      <span className="mt-3 inline-flex min-h-[32px] items-center gap-1 rounded-full border border-beige900/10 bg-beige50 px-3 text-[12px] font-normal text-beige900">
-        {buttonLabel}
-        <ChevronRight className="h-3 w-3" />
-      </span>
-    </div>
-  </button>
+  </CareerActionButton>
 );
 
 const CallHero = ({
@@ -151,70 +141,27 @@ const CallHero = ({
   isOnboardingCompleted,
   onStartCall,
   title,
+  extraComponent,
 }: {
   callDisabled: boolean;
   callStartPending: boolean;
-  description: string;
+  description: React.ReactNode;
   isOnboardingCompleted: boolean;
   onStartCall: () => void;
-  title: string;
+  title: React.ReactNode;
+  extraComponent: React.ReactNode;
 }) => (
-  <section className="relative overflow-hidden rounded-[28px] border border-beige900/8 bg-gradient-to-b from-beige200/55 via-beige100 to-beige50 px-6 pt-9 pb-7">
-    <div
-      aria-hidden
-      className="pointer-events-none absolute -top-24 left-1/2 h-64 w-64 -translate-x-1/2 rounded-full bg-beige300/30 blur-3xl"
+  <section className="relative flex flex-col gap-2 min-h-[44svh] items-center justify-center overflow-hidden pb-2">
+    <CareerCallCard
+      callDisabled={callDisabled}
+      callStartPending={callStartPending}
+      className="mt-0 w-full"
+      description={description}
+      isOnboardingCompleted={isOnboardingCompleted}
+      onStartCall={onStartCall}
+      title={title}
     />
-
-    <div className="relative flex flex-col items-center text-center">
-      <div className="relative flex h-36 w-36 items-center justify-center">
-        {!callStartPending ? (
-          <>
-            <span
-              aria-hidden
-              className="absolute inset-0 animate-ping rounded-full bg-beige700/12"
-            />
-            <span
-              aria-hidden
-              className="absolute inset-3 rounded-full bg-beige700/8"
-            />
-          </>
-        ) : null}
-        <div className="relative flex h-32 w-32 items-center justify-center rounded-full bg-gradient-to-br from-beige200 via-beige100 to-beige50 shadow-[0_18px_40px_rgba(46,23,6,0.15)] ring-1 ring-beige900/10">
-          <Phone className="h-12 w-12 text-beige700" strokeWidth={1.4} />
-        </div>
-      </div>
-
-      <div className="mt-5 font-hedvig text-[26px] font-medium leading-[1.1] text-beige900">
-        Harper
-      </div>
-      <div className="mt-1 text-[12px] font-medium uppercase tracking-[0.18em] text-beige900/45">
-        {isOnboardingCompleted ? "5분 통화" : "5분 커리어 인터뷰"}
-      </div>
-      <p className="mt-5 max-w-[300px] text-[14px] leading-5 text-beige900/65">
-        {description}
-      </p>
-
-      <button
-        type="button"
-        onClick={onStartCall}
-        disabled={callDisabled || callStartPending}
-        className="mt-8 inline-flex h-16 w-16 items-center justify-center rounded-full bg-beige700 text-beige50 shadow-[0_14px_32px_rgba(46,23,6,0.22)] transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
-        aria-label={title}
-      >
-        {callStartPending ? (
-          <Loader2 className="h-7 w-7 animate-spin" strokeWidth={1.6} />
-        ) : (
-          <Phone
-            className="h-7 w-7"
-            strokeWidth={1.6}
-            fill="currentColor"
-          />
-        )}
-      </button>
-      <span className="mt-3 text-[13px] font-medium text-beige900/70">
-        {callStartPending ? "연결 중..." : title}
-      </span>
-    </div>
+    {extraComponent}
   </section>
 );
 
@@ -222,6 +169,7 @@ const CareerMobileHomeView = ({
   onOpenChat,
   onOpenHistory,
 }: CareerMobileHomeViewProps) => {
+  const logCareerEvent = useCareerLogEvent();
   const {
     user,
     stage,
@@ -240,6 +188,7 @@ const CareerMobileHomeView = ({
     user?.user_metadata?.full_name ??
     user?.user_metadata?.name ??
     (typeof user?.email === "string" ? user.email.split("@")[0] : "Candidate");
+  const displayGreetingName = formatMobileHomeGreetingName(displayName);
 
   const isOnboardingCompleted = isOnboardingDone || stage === "completed";
 
@@ -293,11 +242,10 @@ const CareerMobileHomeView = ({
       return "아직 저장하거나 연결된 포지션 없음";
     }
     const firstCompanyName = (
-      inProgressOpportunities.find(
-        (opportunity) =>
-          inProgressTargetSavedStage === "saved"
-            ? opportunity.savedStage === "saved"
-            : opportunity.savedStage !== "saved"
+      inProgressOpportunities.find((opportunity) =>
+        inProgressTargetSavedStage === "saved"
+          ? opportunity.savedStage === "saved"
+          : opportunity.savedStage !== "saved"
       ) ?? inProgressOpportunities[0]
     )?.item.companyName?.trim();
     const statusLabel =
@@ -317,22 +265,26 @@ const CareerMobileHomeView = ({
     inProgressTargetSavedStage,
   ]);
 
-  const activeOpportunityLabel =
-    activeCompanyRoleCount > 0
-      ? `Harper가 ${countFormatter.format(
-          activeCompanyRoleCount * 2
-        )}개의 기회를 스캔 중`
-      : "Harper가 새 기회를 탐색 중";
+  const callCardTitle = isOnboardingCompleted
+    ? "Harper와 5분 통화"
+    : "아직 5분 커리어 인터뷰가 완료되지 않았어요";
+  const currentTimeGreeting = useMemo(
+    () => getCurrentTimeGreeting(new Date()),
+    []
+  );
 
-  const callButtonTitle = isOnboardingCompleted
-    ? "통화 시작"
-    : "커리어 인터뷰 시작";
-
-  const callDescription = isOnboardingCompleted
-    ? "변경된 사항이나 요청이 있으면 통화가 가장 빠릅니다."
-    : "간단한 질문에만 대답해주시면 추천을 준비할게요.";
+  const callCardDescription = isOnboardingCompleted ? (
+    "변경된 사항이 있거나 요구사항이 있을 때 — 통화하면 빨라요"
+  ) : (
+    <>
+      왼쪽 채팅에서 혹은 아래 통화로 간단한 질문에만 대답해주세요.
+      <br />
+      대화가 끝나면 내용을 정리하고, 딱맞는 기회를 받아보실 수 있게 할게요.
+    </>
+  );
 
   const handleStartCall = () => {
+    logCareerEvent("click_mobile_home_start_call");
     onOpenChat();
     void onStartCallMode?.();
   };
@@ -344,38 +296,31 @@ const CareerMobileHomeView = ({
     mode: CareerConversationStarterMode;
     starterId: CareerConversationStarterId;
   }) => {
+    logCareerEvent(`click_mobile_home_starter_${mode}_${starterId}`);
     onOpenChat();
     return onStartConversationStarter?.({ mode, starterId }) ?? false;
   };
 
   return (
     <div className="flex flex-col gap-6 px-4 pb-[160px] pt-4">
-      <header className="px-1">
-        <h2 className="font-hedvig text-[26px] font-medium leading-tight text-beige900">
-          안녕하세요, <span className="text-beige700">{displayName}</span>
-        </h2>
-        <p className="mt-2 text-[13px] leading-5 text-beige900/55">
-          {activeOpportunityLabel}
-        </p>
-      </header>
-
       <CallHero
         callDisabled={!onStartCallMode}
         callStartPending={callStartPending}
-        description={callDescription}
+        description={callCardDescription}
         isOnboardingCompleted={isOnboardingCompleted}
         onStartCall={handleStartCall}
-        title={callButtonTitle}
+        title={callCardTitle}
+        extraComponent={<></>}
       />
 
-      {isOnboardingCompleted ? (
-        <ConversationStarterActions
-          callStartPending={callStartPending}
-          disabled={!onStartConversationStarter}
-          onStart={handleStartConversationStarter}
-          variant="mobile"
-        />
-      ) : null}
+      <div className="px-1 text-center">
+        <h2 className="text-black/70 font-hedvig text-[24px] font-normal">
+          {displayGreetingName}
+        </h2>
+        <p className="mt-2 text-sm font-medium text-black/50">
+          {currentTimeGreeting} 필요하신게 있다면 알려주세요.
+        </p>
+      </div>
 
       {!isOnboardingCompleted ? (
         <section className="rounded-3xl bg-beige100 px-5 py-5">
@@ -414,28 +359,27 @@ const CareerMobileHomeView = ({
         </section>
       ) : null}
 
-      {isOnboardingCompleted ? (
-        <section className="flex flex-col gap-3">
+      {isOnboardingCompleted && (
+        <section className="flex flex-row items-center justify-between gap-2">
           <SummaryCard
-            title="새 포지션"
-            status="검토 대기 중"
+            label="추천된 기회"
             count={newPositionCount}
-            description={newPositionDescription}
-            buttonLabel="검토하기"
-            icon={<Mail className="h-5 w-5 text-[#b77a4e]" strokeWidth={1.8} />}
-            iconClassName="bg-[#f3ede8]"
+            icon={
+              <GalleryVerticalEnd
+                className="!h-5 !w-5 text-black/70"
+                strokeWidth={2.4}
+              />
+            }
             onClick={() =>
               onOpenHistory({ historyTab: "new", savedStage: "saved" })
             }
           />
           <SummaryCard
-            title="저장 / 연결"
-            status="저장함 + 연결됨"
+            label="저장/연결된 기회"
             count={inProgressPositionCount}
-            description={inProgressCompanyLabel}
-            buttonLabel="상세 보기"
-            icon={<Check className="h-6 w-6 text-[#4f8062]" strokeWidth={1.9} />}
-            iconClassName="bg-[#e8f0eb]"
+            icon={
+              <Bookmark className="!h-5 !w-5 text-black/70" strokeWidth={2.4} />
+            }
             onClick={() =>
               onOpenHistory({
                 historyTab: "saved",
@@ -444,7 +388,13 @@ const CareerMobileHomeView = ({
             }
           />
         </section>
-      ) : null}
+      )}
+      <ConversationStarterActions
+        callStartPending={callStartPending}
+        disabled={!onStartConversationStarter}
+        onStart={handleStartConversationStarter}
+        variant="mobile"
+      />
     </div>
   );
 };

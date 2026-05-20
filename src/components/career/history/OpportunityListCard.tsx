@@ -5,9 +5,8 @@ import {
   CareerOpportunitySavedStage,
   CareerOpportunityType,
 } from "../types";
-import { careerCx, CareerInlinePanel } from "../ui/CareerPrimitives";
-import { getOpportunityPanelTone } from "../CareerHistoryPanel";
-import { ChevronDown, Dot } from "lucide-react";
+import { CareerInlinePanel } from "../ui/CareerPrimitives";
+import { ChevronDown } from "lucide-react";
 import {
   BeigeActionDropdown,
   BeigeActionDropdownItem,
@@ -73,7 +72,7 @@ const HistoryStatusDropdown = ({
           <button
             type="button"
             disabled={disabled}
-            className="inline-flex h-9 min-w-[148px] items-center justify-between gap-2 rounded-md border border-beige900/15 bg-white/60 px-3 text-sm text-beige900 transition-colors hover:border-beige900/30 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-9 min-w-[148px] items-center justify-between gap-2 rounded-md border border-beige900/15 bg-white/60 px-3 text-sm text-beige900  hover:border-beige900/30 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <span>{getStatusDropdownTriggerLabel(item)}</span>
             <ChevronDown className="h-4 w-4 text-beige900/50" />
@@ -145,17 +144,10 @@ const OpportunityListCard = ({
     0,
     1
   );
-  const hasActionArea = Boolean(
-    action || (showStatusSelect && onStatusChange)
-  );
+  const hasActionArea = Boolean(action || (showStatusSelect && onStatusChange));
 
   return (
-    <CareerInlinePanel
-      className={careerCx(
-        "rounded-[8px] px-4 py-4 transition-colors hover:border-beige900/20",
-        getOpportunityPanelTone(item)
-      )}
-    >
+    <CareerInlinePanel className="rounded-2xl p-4 bg-white/40 hover:bg-white/80  border-1 border-black/10">
       <div className="flex items-start justify-between gap-4">
         <div
           role="button"
@@ -197,17 +189,13 @@ const OpportunityListCard = ({
             }
           />
 
-          <div className="mt-4 space-y-2">
-            {recommendationSummary ? (
-              <div className="rounded-[8px] border border-beige900/10 bg-white/65 px-3 py-2 text-[14px] leading-6 text-beige900/90">
-                {recommendationSummary}
-              </div>
-            ) : null}
+          <div className="mt-4 text-sm text-black space-y-3">
+            {recommendationSummary && <div>{recommendationSummary}</div>}
             {recommendationReasons.length > 0 &&
               recommendationReasons.map((reason, index) => (
                 <div
                   key={`${item.id}-reason-${index}`}
-                  className="flex items-start gap-2 text-[14px] leading-6 text-beige900/70"
+                  className="flex items-start gap-2 text-sm"
                 >
                   <span className="mt-[10px] h-1 w-1 shrink-0 rounded-full bg-beige900/40" />
                   <div
@@ -220,7 +208,7 @@ const OpportunityListCard = ({
               recommendationConcerns.map((concern, index) => (
                 <div
                   key={`${item.id}-concern-${index}`}
-                  className="flex items-start gap-2 text-[14px] leading-6"
+                  className="flex items-start gap-2 text-sm"
                 >
                   <span className="mt-[10px] h-1 w-1 shrink-0 rounded-full bg-beige700" />
                   <div className="text-sm leading-6 text-beige700">

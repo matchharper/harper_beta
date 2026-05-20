@@ -17,8 +17,10 @@ import { isOnboardingPaused } from "@/hooks/career/careerHelpers";
 import { careerCx } from "../ui/CareerPrimitives";
 import { CareerActionButton } from "../ui/CareerActionButton";
 import CareerVoiceInputLevelFill from "./CareerVoiceInputLevelFill";
+import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 
 const CareerComposerSection = () => {
+  const logCareerEvent = useCareerLogEvent();
   const {
     user,
     conversationId,
@@ -135,6 +137,9 @@ const CareerComposerSection = () => {
     setShowLinkInput(false);
     window.requestAnimationFrame(() => textareaRef.current?.focus());
 
+    logCareerEvent(
+      link ? "click_chat_send_message_with_link" : "click_chat_send_message"
+    );
     await onSendChatMessage({
       text,
       link,
@@ -156,6 +161,7 @@ const CareerComposerSection = () => {
 
   const handleForceComplete = () => {
     if (!onForceCompleteOnboarding || manualCompletionDisabled) return;
+    logCareerEvent("click_chat_force_complete");
     void onForceCompleteOnboarding();
   };
 
@@ -166,7 +172,10 @@ const CareerComposerSection = () => {
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={onVoicePrimaryAction}
+              onClick={() => {
+                logCareerEvent("click_chat_voice_primary");
+                onVoicePrimaryAction();
+              }}
               disabled={isComposerActionLocked}
               className={careerCx(
                 "group relative flex min-h-[44px] flex-1 items-center justify-center overflow-hidden rounded-[8px] border px-4 py-3 text-sm transition-all duration-150",
@@ -198,7 +207,14 @@ const CareerComposerSection = () => {
             </button>
 
             <CareerActionButton
-              onClick={onToggleVoiceMute}
+              onClick={() => {
+                logCareerEvent(
+                  voiceMuted
+                    ? "click_chat_voice_unmute"
+                    : "click_chat_voice_mute"
+                );
+                onToggleVoiceMute();
+              }}
               disabled={isComposerActionLocked}
               actionVariant="icon"
               aria-label={voiceMuted ? "음소거 해제" : "음소거"}
@@ -210,7 +226,10 @@ const CareerComposerSection = () => {
               )}
             </CareerActionButton>
             <CareerActionButton
-              onClick={onSwitchToTextMode}
+              onClick={() => {
+                logCareerEvent("click_chat_switch_text_mode");
+                onSwitchToTextMode();
+              }}
               actionVariant="icon"
               className="border-[#7c2d12]/20 bg-[#7c2d12]/5 text-[#7c2d12] hover:border-[#7c2d12]/30 hover:text-[#7c2d12]"
             >
@@ -300,7 +319,7 @@ const CareerComposerSection = () => {
                 rows={3}
                 disabled={isTextInputLocked}
                 className={careerCx(
-                  "min-h-[72px] min-w-0 flex-1 resize-none border-none px-3.5 py-4 text-[14px] leading-5 text-black outline-none transition-all placeholder:text-beige900/35 disabled:cursor-not-allowed"
+                  "min-h-[72px] min-w-0 flex-1 resize-none border-none px-3.5 py-4 text-sm leading-5 text-black outline-none transition-all placeholder:text-beige900/35 disabled:cursor-not-allowed lg:text-[14px]"
                 )}
               />
               {!isVoiceMode && (
@@ -308,7 +327,10 @@ const CareerComposerSection = () => {
                   {showCallQuickAction && (
                     <>
                       <CareerActionButton
-                        onClick={() => onStartCallMode?.()}
+                        onClick={() => {
+                          logCareerEvent("click_chat_start_call");
+                          onStartCallMode?.();
+                        }}
                         disabled={isComposerActionLocked || isStartingCall}
                         actionVariant="icon"
                         buttonRadius="pill"

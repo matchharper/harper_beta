@@ -3,6 +3,7 @@ import StaggerText from "@/components/landing/Animation/StaggerText";
 import { showToast } from "@/components/toast/toast";
 import { useCountryLang } from "@/hooks/useCountryLang";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { withLandingLogSource } from "@/lib/landingLogTypes";
 import { supabase } from "@/lib/supabase";
 import {
   TALENT_NETWORK_ABTEST_TYPE_KEY,
@@ -60,6 +61,8 @@ type CompanyRequest = {
   compensation: string;
   whoThisIsFor?: string[];
 };
+
+const TALENT_NETWORK_LANDING_LOG_SOURCE = "network";
 
 const companyRequests: CompanyRequest[] = [
   {
@@ -1141,7 +1144,7 @@ const NetworkPage = () => {
       try {
         await supabase.from("landing_logs").insert({
           local_id: resolvedLocalId,
-          type,
+          type: withLandingLogSource(type, TALENT_NETWORK_LANDING_LOG_SOURCE),
           abtest_type: resolvedAbtestType,
           is_mobile: isMobile,
           country_lang: countryLang,

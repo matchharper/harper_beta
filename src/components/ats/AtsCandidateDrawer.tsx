@@ -22,7 +22,7 @@ import AtsEmailBodyContent from "@/components/ats/AtsEmailBodyContent";
 import AtsEmailBodyEditor from "@/components/ats/AtsEmailBodyEditor";
 import AtsEmailDiscoveryActivity from "@/components/ats/AtsEmailDiscoveryActivity";
 import AtsSequenceStageMarks from "@/components/ats/AtsSequenceStageMarks";
-import AtsSequenceMarkButton from "@/components/ui/AtsSequenceMarkButton";
+import AtsSequenceMarkButton from "@/components/ats/AtsSequenceMarkButton";
 import {
   ATS_SEQUENCE_STEP_COUNT,
   createDefaultAtsSequenceSchedule,

@@ -4,7 +4,7 @@ import { BaseSectionLayout } from "@/components/landing/GridSectionLayout";
 import Head1 from "@/components/landing/Head1";
 import CandidateGithubCardDark from "@/components/landing/Rad";
 import ScholarProfile from "@/components/landing/ScholarProfile";
-import { DropdownMenu } from "@/components/ui/menu";
+import { DropdownMenu } from "@/components/landing/navigation/DropdownMenu";
 import { useMessages } from "@/i18n/useMessage";
 import { en } from "@/lang/en";
 import { supabase } from "@/lib/supabase";

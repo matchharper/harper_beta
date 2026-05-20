@@ -471,10 +471,7 @@ async function countTalentOpportunityRecommendations(args: {
   let query = (
     args.admin.from("talent_opportunity_recommendation" as any) as any
   )
-    .select(
-      "id, company_role:company_roles!inner(source_type, company_workspace:company_workspace!inner(company_name))",
-      { count: "exact", head: true }
-    )
+    .select("id", { count: "exact", head: true })
     .eq("talent_id", args.userId) as any;
 
   query =
@@ -608,6 +605,21 @@ export async function fetchTalentOpportunityHistoryCounts(args: {
   }
 
   return counts;
+}
+
+async function fetchTalentOpportunityHistoryCountsFallback(args: {
+  admin: AdminClient;
+  userId: string;
+}) {
+  try {
+    return await fetchTalentOpportunityHistoryCounts(args);
+  } catch (error) {
+    console.warn("[TalentOpportunity] failed to load history counts", {
+      error: error instanceof Error ? error.message : "Unknown error",
+      userId: args.userId,
+    });
+    return createEmptyHistoryCounts();
+  }
 }
 
 function mapRecommendationRow(
@@ -813,7 +825,10 @@ export async function fetchTalentOpportunityHistory(args: {
 function getResolvedTalentOpportunitySavedStage(
   item: TalentOpportunityHistoryItem
 ) {
-  return item.savedStage ?? getDefaultSavedStageForOpportunityType(item.opportunityType);
+  return (
+    item.savedStage ??
+    getDefaultSavedStageForOpportunityType(item.opportunityType)
+  );
 }
 
 function getDatabaseFeedbackForHistoryTab(
@@ -853,7 +868,7 @@ async function fetchFilteredTalentOpportunityHistoryPage(args: {
       feedback: getDatabaseFeedbackForHistoryTab(args.historyTab),
       userId: args.userId,
     }),
-    fetchTalentOpportunityHistoryCounts({
+    fetchTalentOpportunityHistoryCountsFallback({
       admin: args.admin,
       userId: args.userId,
     }),
@@ -915,11 +930,12 @@ export async function fetchTalentOpportunityHistoryPage(args: {
     offset === 0
       ? fetchTalentOpportunityHistory({
           admin: args.admin,
+          limit: Math.max(limit, 20),
           sourceType: "internal",
           userId: args.userId,
         })
       : Promise.resolve([]),
-    fetchTalentOpportunityHistoryCounts({
+    fetchTalentOpportunityHistoryCountsFallback({
       admin: args.admin,
       userId: args.userId,
     }),

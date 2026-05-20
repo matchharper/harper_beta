@@ -22,6 +22,7 @@ import {
   usesSearchLandingBExperience,
   type SearchLandingAssignmentType,
 } from "@/lib/searchLandingLogs";
+import { withLandingLogSource } from "@/lib/landingLogTypes";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
@@ -67,6 +68,7 @@ const RADAR_LOGIN_MODAL_COPY = {
   sessionExpired: "Your login session has expired. Please sign in again.",
   bootstrapFailed: "Failed to initialize your account. Please try again.",
 };
+const SEARCH_LANDING_LOG_SOURCE = "search";
 
 export const START_BUTTON_LABEL = "Try for Free";
 const PLACEHOLDER_SWITCH_MS = 2800;
@@ -444,7 +446,7 @@ export default function RadarLandingPage() {
       try {
         await supabase.from("landing_logs").insert({
           local_id: resolvedLocalId,
-          type,
+          type: withLandingLogSource(type, SEARCH_LANDING_LOG_SOURCE),
           abtest_type: resolvedAbtestType,
           is_mobile: isMobile,
           country_lang: countryLang,
@@ -802,7 +804,7 @@ export default function RadarLandingPage() {
 
     const redirectTo =
       typeof window !== "undefined"
-        ? `${window.location.origin}/auths/callback?lid=${resolvedLandingId}&cl=${encodeURIComponent(countryLang)}&ab=${encodeURIComponent(resolvedAbtestType)}&next=${encodeURIComponent(SEARCH_REQUEST_ACCESS_CALLBACK_PATH)}`
+        ? `${window.location.origin}/auths/callback?lid=${resolvedLandingId}&cl=${encodeURIComponent(countryLang)}&ab=${encodeURIComponent(resolvedAbtestType)}&next=${encodeURIComponent(SEARCH_REQUEST_ACCESS_CALLBACK_PATH)}&src=${SEARCH_LANDING_LOG_SOURCE}`
         : undefined;
 
     const { data, error } = await supabase.auth.signInWithOAuth({

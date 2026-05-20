@@ -634,6 +634,23 @@
   height: 100%;
 }
 
+.career-mobile-lofi-bg {
+  background-color: #fdfaf3;
+  background-image:
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.86' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.25'/%3E%3C/svg%3E"),
+    radial-gradient(rgba(255, 255, 255, 0.28) 0.5px, transparent 0.5px),
+    radial-gradient(rgba(46, 23, 6, 0.055) 0.45px, transparent 0.45px);
+  background-blend-mode: soft-light, normal, normal;
+  background-position:
+    0 0,
+    0 0,
+    2px 3px;
+  background-size:
+    180px 180px,
+    6px 6px,
+    9px 9px;
+}
+
 .cell1 {
   padding: 0px 16px;
   height: 100%;

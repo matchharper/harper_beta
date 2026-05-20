@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/router";
 import { CareerFlowProvider } from "@/components/career/CareerFlowProvider";
@@ -13,7 +13,10 @@ import {
   type CareerWorkspaceTab,
 } from "@/components/career/CareerWorkspaceNav";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
+import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
+import { useCareerVisitLog } from "@/hooks/career/useCareerVisitLog";
 import { useTalentOnboardingRedirect } from "@/hooks/career/useTalentOnboardingStatus";
+import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
 
 const CareerWorkspacePage = ({
   activeTab,
@@ -21,6 +24,7 @@ const CareerWorkspacePage = ({
   activeTab: CareerWorkspaceTab;
 }) => {
   const router = useRouter();
+  const logCareerEvent = useCareerLogEvent();
   const { user, authLoading, authPending, authError, handleGoogleLogin } =
     useCareerAuth();
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -33,6 +37,11 @@ const CareerWorkspacePage = ({
     isRouterReady && typeof router.query.mail === "string"
       ? router.query.mail
       : null;
+  const emailOnboardingToken =
+    isRouterReady &&
+    typeof router.query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM] === "string"
+      ? router.query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM]
+      : null;
 
   const currentActiveTab = useMemo(
     () =>
@@ -42,49 +51,72 @@ const CareerWorkspacePage = ({
 
   useTalentOnboardingRedirect({
     enabled: !authLoading && isRouterReady && Boolean(user),
+    emailOnboardingToken,
     inviteToken,
     mail,
   });
+  useCareerVisitLog(!authLoading && isRouterReady && Boolean(user));
 
-  const handleChangeTab = (
-    nextTab: CareerWorkspaceTab,
-    options?: {
-      historyTarget?: {
-        historyTab: "new" | "saved" | "archived";
-        savedStage?: "saved" | "applied" | "connected" | "closed";
-      };
-    }
-  ) => {
-    const nextHref = getCareerWorkspaceHref(nextTab);
-    const historyTarget =
-      nextTab === "history" ? options?.historyTarget : undefined;
-    const query: Record<string, string> = {};
+  const handleOpenSettings = useCallback(() => {
+    logCareerEvent("click_open_settings");
+    setIsSettingsModalOpen(true);
+  }, [logCareerEvent]);
 
-    if (historyTarget) {
-      query.historyTab = historyTarget.historyTab;
-      if (historyTarget.savedStage) {
-        query.savedStage = historyTarget.savedStage;
+  const handleChangeTab = useCallback(
+    (
+      nextTab: CareerWorkspaceTab,
+      options?: {
+        historyTarget?: {
+          historyTab: "new" | "saved" | "archived";
+          savedStage?: "saved" | "applied" | "connected" | "closed";
+        };
       }
-    }
+    ) => {
+      const nextHref = getCareerWorkspaceHref(nextTab);
+      const historyTarget =
+        nextTab === "history" ? options?.historyTarget : undefined;
+      const query: Record<string, string> = {};
 
-    if (inviteToken && nextHref.startsWith("/career")) {
-      query.invite = inviteToken;
-    }
-    if (mail && nextHref.startsWith("/career")) {
-      query.mail = mail;
-    }
+      if (historyTarget) {
+        query.historyTab = historyTarget.historyTab;
+        if (historyTarget.savedStage) {
+          query.savedStage = historyTarget.savedStage;
+        }
+      }
 
-    const nextQuery = Object.keys(query).length > 0 ? query : undefined;
+      if (inviteToken && nextHref.startsWith("/career")) {
+        query.invite = inviteToken;
+      }
+      if (mail && nextHref.startsWith("/career")) {
+        query.mail = mail;
+      }
+      if (emailOnboardingToken && nextHref.startsWith("/career")) {
+        query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM] = emailOnboardingToken;
+      }
 
-    void router.push(
-      {
-        pathname: nextHref,
-        query: nextQuery,
-      },
-      undefined,
-      { scroll: false, shallow: true }
-    );
-  };
+      if (historyTarget) {
+        logCareerEvent(
+          `click_open_history_${historyTarget.historyTab}${
+            historyTarget.savedStage ? `_${historyTarget.savedStage}` : ""
+          }`
+        );
+      } else {
+        logCareerEvent(`click_nav_${nextTab}`);
+      }
+
+      const nextQuery = Object.keys(query).length > 0 ? query : undefined;
+
+      void router.push(
+        {
+          pathname: nextHref,
+          query: nextQuery,
+        },
+        undefined,
+        { scroll: false, shallow: true }
+      );
+    },
+    [emailOnboardingToken, inviteToken, logCareerEvent, mail, router]
+  );
 
   let pageContent: ReactNode;
 
@@ -104,9 +136,10 @@ const CareerWorkspacePage = ({
   } else {
     pageContent = (
       <CareerFlowProvider
+        emailOnboardingToken={emailOnboardingToken}
         inviteToken={inviteToken}
         mail={mail}
-        onOpenSettings={() => setIsSettingsModalOpen(true)}
+        onOpenSettings={handleOpenSettings}
       >
         <CareerWorkspaceScreen
           activeTab={currentActiveTab}

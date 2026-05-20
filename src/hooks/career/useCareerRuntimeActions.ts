@@ -42,10 +42,8 @@ export function useCareerRuntimeActions(args: {
         const response = await fetchWithAuth("/api/talent/opportunity-runs", {
           method: "POST",
           body: JSON.stringify({
-            chatPreviewCount: 3,
             conversationId: conversationId ?? null,
             agentVariant,
-            targetRecommendationCount: isPeriodic ? undefined : 150,
             trigger: isPeriodic
               ? "periodic_refresh_due"
               : "immediate_opportunity_requested",

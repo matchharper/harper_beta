@@ -302,17 +302,17 @@ export default function CareerRichText({
           ),
           p: ({ children }) =>
             renderUrlLinkParagraph(children) ?? (
-              <p className="mt-3 whitespace-pre-wrap wrap-break-word text-sm leading-6 text-beige900/80 first:mt-0">
+              <p className="mt-3 whitespace-pre-wrap wrap-break-word text-sm leading-6 first:mt-0">
                 {renderNodeWithHighlights(children, "p", trailingInlineNode)}
               </p>
             ),
           ul: ({ children }) => (
-            <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-6 text-beige900/80 first:mt-0">
+            <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-6 first:mt-0">
               {children}
             </ul>
           ),
           ol: ({ children }) => (
-            <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm leading-6 text-beige900/80 first:mt-0">
+            <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm leading-6 first:mt-0">
               {children}
             </ol>
           ),

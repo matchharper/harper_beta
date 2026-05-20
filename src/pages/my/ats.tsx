@@ -22,7 +22,7 @@ import AtsCandidateDrawer, {
 } from "@/components/ats/AtsCandidateDrawer";
 import AtsSequenceStageMarks from "@/components/ats/AtsSequenceStageMarks";
 import AtsWorkspacePanel from "@/components/ats/AtsWorkspacePanel";
-import AtsSequenceMarkButton from "@/components/ui/AtsSequenceMarkButton";
+import AtsSequenceMarkButton from "@/components/ats/AtsSequenceMarkButton";
 import { showToast } from "@/components/toast/toast";
 import {
   useAddAtsContactHistory,

@@ -89,7 +89,7 @@ const OpportunityPreferenceFit = ({
             >
               <span
                 className={careerCx(
-                  "mt-0.5 inline-flex shrink-0 items-center justify-center rounded-full bg-beige500 text-beige900/80",
+                  "mt-0.5 inline-flex shrink-0 items-center justify-center rounded-full bg-black/[0.04] text-black/90",
                   variant === "detail" ? "h-7 w-7" : "h-6 w-6"
                 )}
               >
@@ -99,7 +99,7 @@ const OpportunityPreferenceFit = ({
               </span>
               <span className="min-w-0 flex-1">
                 <span className="flex min-w-0 flex-wrap items-center gap-0.5">
-                  <span className="text-[13px] font-medium leading-5 text-beige900">
+                  <span className="text-[13px] font-medium leading-5 text-black/90">
                     {item.label}
                   </span>
                   <span
@@ -114,7 +114,7 @@ const OpportunityPreferenceFit = ({
                 {variant !== "compact" && (
                   <span
                     className={careerCx(
-                      "mt-0.5 block text-[13px] leading-5 text-beige900/80"
+                      "mt-0.5 block text-[13px] leading-5 text-black/80"
                     )}
                   >
                     {item.note}

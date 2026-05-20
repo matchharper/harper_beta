@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/router";
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
+import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
 
 type OnboardingStatus = {
   needsOnboarding: boolean;
@@ -34,10 +35,12 @@ export function useTalentOnboardingStatus(enabled: boolean) {
 }
 
 export function useTalentOnboardingRedirect({
+  emailOnboardingToken,
   enabled,
   inviteToken,
   mail,
 }: {
+  emailOnboardingToken?: string | null;
   enabled: boolean;
   inviteToken: string | null;
   mail: string | null;
@@ -52,10 +55,13 @@ export function useTalentOnboardingRedirect({
     const query: Record<string, string> = {};
     if (inviteToken) query.invite = inviteToken;
     if (mail) query.mail = mail;
+    if (emailOnboardingToken) {
+      query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM] = emailOnboardingToken;
+    }
 
     void router.replace({
       pathname: "/career/onboarding",
       query: Object.keys(query).length > 0 ? query : undefined,
     });
-  }, [inviteToken, mail, needsOnboarding, router]);
+  }, [emailOnboardingToken, inviteToken, mail, needsOnboarding, router]);
 }

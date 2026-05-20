@@ -1,7 +1,7 @@
 import router from "next/router";
 import React, { useCallback } from "react";
 import { ArrowRightIcon, ArrowUpRight, Menu } from "lucide-react";
-import { DropdownMenu } from "@/components/ui/menu";
+import { DropdownMenu } from "@/components/landing/navigation/DropdownMenu";
 import { useMessages } from "@/i18n/useMessage";
 
 type LandingHeaderProps = {

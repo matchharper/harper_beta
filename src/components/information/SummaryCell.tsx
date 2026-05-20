@@ -109,17 +109,20 @@ const HoverPopover = ({
           absolute z-50 top-[calc(100%+8px)] left-0
           w-[420px]
           rounded-xl p-4
-          shadow-[0_16px_60px_rgba(0,0,0,0.45)]
-          ${isDark
-            ? "border border-white/5 bg-hgray100/50 backdrop-blur-md"
-            : "border border-beige900/8 bg-beige50 backdrop-blur-md"
+          shadow-[0_16px_60px_rgba(0,0,0,0.12)]
+          ${
+            isDark
+              ? "border border-white/5 bg-hgray100/50 backdrop-blur-md"
+              : "border border-beige900/8 bg-beige50 backdrop-blur-md"
           }
         `}
       onClick={(e) => e.stopPropagation()}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className={`text-[14px] font-normal truncate ${isDark ? "text-white" : "text-beige900"}`}>
+          <div
+            className={`text-[14px] font-normal truncate ${isDark ? "text-white" : "text-beige900"}`}
+          >
             {criteria || "-"}
           </div>
         </div>
@@ -129,7 +132,9 @@ const HoverPopover = ({
         </div>
       </div>
 
-      <div className={`mt-3 h-px ${isDark ? "bg-white/10" : "bg-beige900/8"}`} />
+      <div
+        className={`mt-3 h-px ${isDark ? "bg-white/10" : "bg-beige900/8"}`}
+      />
 
       <div className="mt-3">
         <div
@@ -139,7 +144,11 @@ const HoverPopover = ({
       </div>
 
       {title && (
-        <div className={`mt-3 text-[12px] truncate ${isDark ? "text-hgray700" : "text-beige900/65"}`}>{title}</div>
+        <div
+          className={`mt-3 text-[12px] truncate ${isDark ? "text-hgray700" : "text-beige900/65"}`}
+        >
+          {title}
+        </div>
       )}
     </div>
   );

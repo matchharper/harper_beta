@@ -16,8 +16,8 @@ import SummaryCell, { SynthItem } from "./information/SummaryCell";
 import { useLogEvent } from "@/hooks/useLog";
 import { getSchoolLogo } from "@/utils/school_logo";
 import Link from "next/link";
-import ShortlistMemoEditor from "./ui/ShortlistMemoEditor";
-import CandidateMarkButton from "./ui/CandidateMarkButton";
+import ShortlistMemoEditor from "@/components/candidates/ShortlistMemoEditor";
+import CandidateMarkButton from "@/components/candidates/CandidateMarkButton";
 import SharedFolderCandidateNotes from "./shared/SharedFolderCandidateNotes";
 import type { CandidateMarkStatus } from "@/lib/candidateMark";
 import {
@@ -50,7 +50,7 @@ import {
   locationEnToKo,
   majorEnToKo,
 } from "@/utils/language_map";
-import Bookmarkbutton from "./ui/bookmarkbutton";
+import BookmarkButton from "@/components/candidates/BookmarkButton";
 import Image from "next/image";
 import { SharedFolderViewerIdentity } from "@/lib/sharedFolder";
 import {
@@ -59,7 +59,7 @@ import {
   isCriteriaColumnId,
   type CandidateTableColumnId,
 } from "./candidateTableColumns";
-import RevealProfileButton from "./ui/RevealProfileButton";
+import RevealProfileButton from "@/components/candidates/RevealProfileButton";
 import { showToast } from "./toast/toast";
 
 const asArr = (v: any) => (Array.isArray(v) ? v : []);
@@ -340,7 +340,11 @@ function CandidateRow({
           key={columnId}
           className="min-w-0 h-full flex items-center justify-center"
         >
-          <SummaryCell criteria={criteria} item={synthList[idx]} theme={theme} />
+          <SummaryCell
+            criteria={criteria}
+            item={synthList[idx]}
+            theme={theme}
+          />
         </div>
       );
     }
@@ -420,7 +424,9 @@ function CandidateRow({
                         alt={latestCompany.company_db.name}
                       />
                     ) : null}
-                    <span className={`font-normal wrap-break-word ${isDark ? "text-hgray800" : "text-beige900/80"}`}>
+                    <span
+                      className={`font-normal wrap-break-word ${isDark ? "text-hgray800" : "text-beige900/80"}`}
+                    >
                       {companyEnToKo(latestCompany.company_db.name)}
                     </span>
                   </div>
@@ -555,7 +561,9 @@ function CandidateRow({
                         className="w-4 h-4 rounded-full object-cover"
                       />
                     )}
-                    <span className={`font-normal wrap-break-word ${isDark ? "text-hgray800" : "text-beige900/80"}`}>
+                    <span
+                      className={`font-normal wrap-break-word ${isDark ? "text-hgray800" : "text-beige900/80"}`}
+                    >
                       {koreaUniversityEnToKo(latestEdu.school)}
                     </span>
                   </div>
@@ -583,7 +591,9 @@ function CandidateRow({
           key={columnId}
           className="px-4 py-3 min-w-0 h-full flex items-center"
         >
-          <div className={`text-[13px] font-normal leading-5 whitespace-pre-wrap wrap-break-word line-clamp-3 ${isDark ? "text-hgray900" : "text-beige900"}`}>
+          <div
+            className={`text-[13px] font-normal leading-5 whitespace-pre-wrap wrap-break-word line-clamp-3 ${isDark ? "text-hgray900" : "text-beige900"}`}
+          >
             {shortlistSummaryText}
           </div>
         </div>
@@ -652,7 +662,9 @@ function CandidateRow({
               rows={2}
             />
           ) : shortlistMemo ? (
-            <div className={`w-full whitespace-pre-wrap wrap-break-word px-2 py-2 text-[13px] leading-5 ${isDark ? "text-hgray900" : "text-beige900"}`}>
+            <div
+              className={`w-full whitespace-pre-wrap wrap-break-word px-2 py-2 text-[13px] leading-5 ${isDark ? "text-hgray900" : "text-beige900"}`}
+            >
               {shortlistMemo}
             </div>
           ) : null}
@@ -697,7 +709,9 @@ function CandidateRow({
             className={`inline-grid items-center border-b ${isDark ? "border-white/5" : "border-beige900/15"}`}
             style={{ gridTemplateColumns }}
           >
-            <div className={`sticky left-0 z-30 h-full px-3 flex items-center justify-center text-xs transition-colors ${isDark ? "text-hgray700 bg-hgray200 group-hover:bg-[#242424]" : "text-beige900/65 bg-beige100 group-hover:bg-beige50/80"}`}>
+            <div
+              className={`sticky left-0 z-30 h-full px-3 flex items-center justify-center text-xs transition-colors ${isDark ? "text-hgray700 bg-hgray200 group-hover:bg-[#242424]" : "text-beige900/65 bg-beige100 group-hover:bg-beige50/80"}`}
+            >
               {canSelectRow ? (
                 <div className="relative flex w-full items-center justify-center">
                   <div
@@ -731,7 +745,11 @@ function CandidateRow({
                       }}
                       disabled={selectionDisabled}
                       aria-label={`${c.name ?? "candidate"} 선택`}
-                      className={isDark ? "h-5 w-5 rounded-[4px] border-white/50 bg-black/20" : "h-5 w-5 rounded-[4px] border-beige900/30 bg-beige900/10"}
+                      className={
+                        isDark
+                          ? "h-5 w-5 rounded-[4px] border-white/50 bg-black/20"
+                          : "h-5 w-5 rounded-[4px] border-beige900/30 bg-beige900/10"
+                      }
                     />
                   </div>
                 </div>
@@ -739,16 +757,20 @@ function CandidateRow({
                 leadingContent
               )}
             </div>
-            <div className={`sticky left-14 z-20 h-full px-4 py-3 flex items-center gap-3 min-w-0 transition-colors border-r ${isDark ? "bg-hgray200 border-white/5 group-hover:bg-[#242424]" : "bg-beige100 border-beige900/15 group-hover:bg-beige50/80"}`}>
+            <div
+              className={`sticky left-14 z-20 h-full px-4 py-3 flex items-center gap-3 min-w-0 transition-colors border-r ${isDark ? "bg-hgray200 border-white/5 group-hover:bg-[#242424]" : "bg-beige100 border-beige900/15 group-hover:bg-beige50/80"}`}
+            >
               {!isProfileRevealed && !sharedFolderContext?.token ? (
                 <RevealProfileButton
                   candidId={candidId}
                   overlay
                   overlayClassName={`z-80 justify-end pr-4 ${isDark ? "group-hover:border-accenta1/40 group-hover:bg-black/15" : "group-hover:border-accentBronze/40 group-hover:bg-beige900/8"}`}
-                  className="px-4 py-1.5 text-xs font-medium shadow-[0_8px_24px_rgba(0,0,0,0.32)]"
+                  className="px-4 py-1.5 text-xs font-medium shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
                 />
               ) : null}
-              <div className={`shrink-0 rounded-full border border-transparent transition-colors ${isDark ? "hover:border-accenta1/80" : "hover:border-accentBronze/60"}`}>
+              <div
+                className={`shrink-0 rounded-full border border-transparent transition-colors ${isDark ? "hover:border-accenta1/80" : "hover:border-accentBronze/60"}`}
+              >
                 <Avatar
                   url={c.profile_picture}
                   name={c.name}
@@ -758,10 +780,14 @@ function CandidateRow({
               </div>
 
               <div className="min-w-0 flex-1 self-center">
-                <div className={`text-[14px] font-normal truncate ${isDark ? "text-white" : "text-beige900"}`}>
+                <div
+                  className={`text-[14px] font-normal truncate ${isDark ? "text-white" : "text-beige900"}`}
+                >
                   {c.name}
                 </div>
-                <div className={`text-xs truncate ${isDark ? "text-hgray700" : "text-beige900/65"}`}>
+                <div
+                  className={`text-xs truncate ${isDark ? "text-hgray700" : "text-beige900/65"}`}
+                >
                   {isOnlyScholar ? (
                     <div className="inline-flex w-fit items-center justify-center gap-1 text-xs rounded text-blue-500">
                       <div>Scholar Profile</div>
@@ -790,7 +816,7 @@ function CandidateRow({
                       isBookmarked && !isMyList ? "opacity-100" : "opacity-0"
                     } group-hover:opacity-100`}
                   >
-                    <Bookmarkbutton
+                    <BookmarkButton
                       userId={userId}
                       candidId={c.id}
                       connection={c.connection}
@@ -911,14 +937,22 @@ export const RoleBox = ({
               className=""
             />
           ) : (
-            <BriefcaseBusiness className={`w-4 h-4 ${isDark ? "text-hgray800" : "text-beige900/80"}`} />
+            <BriefcaseBusiness
+              className={`w-4 h-4 ${isDark ? "text-hgray800" : "text-beige900/80"}`}
+            />
           )}
-          <span className={`font-normal wrap-break-word ${isDark ? "text-hgray800" : "text-beige900/80"}`}>
+          <span
+            className={`font-normal wrap-break-word ${isDark ? "text-hgray800" : "text-beige900/80"}`}
+          >
             {company && companyEnToKo(company)}
           </span>
         </div>
       </Tooltips>
-      <div className={`font-normal ${isDark ? "text-hgray600" : "text-beige900/55"}`}>{role}</div>
+      <div
+        className={`font-normal ${isDark ? "text-hgray600" : "text-beige900/55"}`}
+      >
+        {role}
+      </div>
     </div>
   );
 };
@@ -954,20 +988,38 @@ export const SchoolBox = ({
               className="w-4 h-4 rounded-full object-cover"
             />
           ) : (
-            <GraduationCap className={`w-4 h-4 ${isDark ? "text-hgray800" : "text-beige900/80"}`} />
+            <GraduationCap
+              className={`w-4 h-4 ${isDark ? "text-hgray800" : "text-beige900/80"}`}
+            />
           )}
-          <span className={`font-normal wrap-break-word ${isDark ? "text-hgray800" : "text-beige900/80"}`}>
+          <span
+            className={`font-normal wrap-break-word ${isDark ? "text-hgray800" : "text-beige900/80"}`}
+          >
             {school && koreaUniversityEnToKo(school)}
           </span>
         </div>
       </Tooltips>
       <div className="flex flex-row items-start justify-start gap-x-1 min-w-0 relative">
         {field && (
-          <div className={`font-normal ${isDark ? "text-hgray600" : "text-beige900/55"}`}>{majorEnToKo(field)}</div>
+          <div
+            className={`font-normal ${isDark ? "text-hgray600" : "text-beige900/55"}`}
+          >
+            {majorEnToKo(field)}
+          </div>
         )}
-        {field && role && <div className={`font-normal ${isDark ? "text-hgray600" : "text-beige900/55"}`}>•</div>}
+        {field && role && (
+          <div
+            className={`font-normal ${isDark ? "text-hgray600" : "text-beige900/55"}`}
+          >
+            •
+          </div>
+        )}
         {role && (
-          <div className={`font-normal ${isDark ? "text-hgray600" : "text-beige900/55"}`}>{degreeEnToKo(role)}</div>
+          <div
+            className={`font-normal ${isDark ? "text-hgray600" : "text-beige900/55"}`}
+          >
+            {degreeEnToKo(role)}
+          </div>
         )}
       </div>
     </div>
@@ -1003,15 +1055,21 @@ export const ScholarSignalBox = ({
         side={tooltipSide}
       >
         <div className="flex flex-row items-start justify-start gap-x-2 min-w-0 relative">
-          <Icon className={`absolute left-0 top-[2px] w-4 h-4 ${isDark ? "text-hgray800" : "text-beige900/80"}`} />
-          <span className={`font-normal wrap-break-word ${isDark ? "text-hgray800" : "text-beige900/80"}`}>
+          <Icon
+            className={`absolute left-0 top-[2px] w-4 h-4 ${isDark ? "text-hgray800" : "text-beige900/80"}`}
+          />
+          <span
+            className={`font-normal wrap-break-word ${isDark ? "text-hgray800" : "text-beige900/80"}`}
+          >
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             {title || "-"}
           </span>
         </div>
       </Tooltips>
       {hasDescription || !hideDescriptionWhenEmpty ? (
-        <div className={`font-normal ${isDark ? "text-hgray600" : "text-beige900/55"}`}>
+        <div
+          className={`font-normal ${isDark ? "text-hgray600" : "text-beige900/55"}`}
+        >
           {hasDescription ? description : "-"}
         </div>
       ) : null}
@@ -1046,15 +1104,23 @@ export const GithubSignalBox = ({
         side={tooltipSide}
       >
         <div className="flex flex-row items-start justify-start gap-x-2 min-w-0 relative">
-          <Icon className={`absolute left-0 top-[2px] w-4 h-4 ${isDark ? "text-hgray800" : "text-beige900/80"}`} />
-          <span className={`font-normal wrap-break-word ${isDark ? "text-hgray800" : "text-beige900/80"}`}>
+          <Icon
+            className={`absolute left-0 top-[2px] w-4 h-4 ${isDark ? "text-hgray800" : "text-beige900/80"}`}
+          />
+          <span
+            className={`font-normal wrap-break-word ${isDark ? "text-hgray800" : "text-beige900/80"}`}
+          >
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             {title || "-"}
           </span>
         </div>
       </Tooltips>
       {hasDescription ? (
-        <div className={`font-normal ${isDark ? "text-hgray600" : "text-beige900/55"}`}>{description}</div>
+        <div
+          className={`font-normal ${isDark ? "text-hgray600" : "text-beige900/55"}`}
+        >
+          {description}
+        </div>
       ) : null}
     </div>
   );

@@ -232,6 +232,7 @@ function buildCompanyResearchPrompt(args: {
     `최신 공개 정보를 우선시하고, 가능한 경우 한국 시장 맥락도 함께 고려하세요.`,
     ``,
     `반드시 아래 JSON 스키마를 그대로 채워서 단일 JSON 객체로만 답하세요. 마크다운 코드펜스나 설명 텍스트를 추가하지 마세요.`,
+    `JSON 문법을 엄격히 지키고, 객체나 배열의 마지막 항목 뒤에 trailing comma를 넣지 마세요.`,
     `{`,
     `  "summary": "한국어로 작성된 4~8문장 요약. 회사가 무엇을 하는지, 핵심 강점/리스크, 채용 맥락이 자연스럽게 녹아 있어야 합니다.",`,
     `  "sections": {`,
@@ -248,8 +249,8 @@ function buildCompanyResearchPrompt(args: {
   ].join("\n");
 }
 
-function parseCompanyResearchOutput(response: any): Record<string, unknown> {
-  const outputText: string = (() => {
+function extractCompanyResearchOutputText(response: any): string {
+  return (() => {
     if (typeof response?.output_text === "string" && response.output_text) {
       return response.output_text;
     }
@@ -272,31 +273,164 @@ function parseCompanyResearchOutput(response: any): Record<string, unknown> {
       return "";
     }
   })();
+}
 
-  const fallback: Record<string, unknown> = {
-    summary: outputText,
+function stripMarkdownJsonFence(value: string) {
+  const trimmed = value.trim();
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  return (fenced?.[1] ?? trimmed).trim();
+}
+
+function extractFirstJsonObject(value: string) {
+  const start = value.indexOf("{");
+  if (start < 0) return null;
+
+  let depth = 0;
+  let escaped = false;
+  let inString = false;
+  for (let index = start; index < value.length; index += 1) {
+    const char = value[index];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+    if (char === "{") {
+      depth += 1;
+      continue;
+    }
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) return value.slice(start, index + 1);
+    }
+  }
+
+  return null;
+}
+
+function removeTrailingCommasOutsideStrings(value: string) {
+  let result = "";
+  let escaped = false;
+  let inString = false;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+
+    if (inString) {
+      result += char;
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      result += char;
+      continue;
+    }
+
+    if (char === ",") {
+      let nextIndex = index + 1;
+      while (/\s/.test(value[nextIndex] ?? "")) {
+        nextIndex += 1;
+      }
+      if (value[nextIndex] === "}" || value[nextIndex] === "]") {
+        continue;
+      }
+    }
+
+    result += char;
+  }
+
+  return result;
+}
+
+function tryParseCompanyResearchJsonText(
+  outputText: string
+): Record<string, unknown> | null {
+  const stripped = stripMarkdownJsonFence(outputText);
+  const jsonObject = extractFirstJsonObject(stripped);
+  const candidates = Array.from(
+    new Set([stripped, jsonObject].filter(Boolean) as string[])
+  );
+
+  for (const candidate of candidates) {
+    for (const jsonText of [
+      candidate,
+      removeTrailingCommasOutsideStrings(candidate),
+    ]) {
+      try {
+        const parsed = JSON.parse(jsonText);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          return parsed as Record<string, unknown>;
+        }
+      } catch {
+        // Try the next normalized candidate.
+      }
+    }
+  }
+
+  return null;
+}
+
+function looksLikeCompanyResearchJsonLeak(value: string) {
+  const text = stripMarkdownJsonFence(value);
+  const firstBraceIndex = text.indexOf("{");
+  const jsonText =
+    extractFirstJsonObject(text) ??
+    (firstBraceIndex >= 0 ? text.slice(firstBraceIndex) : text);
+  return (
+    jsonText.startsWith("{") &&
+    /"summary"\s*:/.test(jsonText) &&
+    (/"sections"\s*:/.test(jsonText) || /"sources"\s*:/.test(jsonText))
+  );
+}
+
+export function parseCompanyResearchOutput(
+  response: any
+): Record<string, unknown> {
+  const outputText = extractCompanyResearchOutputText(response);
+  const parsed = tryParseCompanyResearchJsonText(outputText);
+  if (parsed) return parsed;
+
+  const fallbackText = stripMarkdownJsonFence(outputText);
+  if (!fallbackText || looksLikeCompanyResearchJsonLeak(fallbackText)) {
+    return {
+      error: "invalid_research_output",
+      reason: "malformed_json",
+    };
+  }
+
+  return {
+    summary: fallbackText.slice(0, 4000),
     sections: {},
     sources: [],
   };
+}
 
-  if (!outputText) return fallback;
-
-  const trimmed = outputText.trim();
-  // Strip code fences if the model returned them despite instructions
-  const stripped = trimmed
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```$/i, "")
-    .trim();
-
-  try {
-    const parsed = JSON.parse(stripped);
-    if (parsed && typeof parsed === "object") {
-      return parsed as Record<string, unknown>;
-    }
-  } catch {
-    // fall through to plain-text fallback
+function normalizeSourceUrl(value: unknown) {
+  const text = String(value ?? "").trim();
+  if (/^https?:\/\//i.test(text)) return text;
+  if (/^[a-z0-9.-]+\.[a-z]{2,}(?:\/\S*)?$/i.test(text)) {
+    return `https://${text}`;
   }
-  return fallback;
+  return "";
 }
 
 function extractSourceUrls(content: Record<string, unknown>): string[] {
@@ -304,10 +438,10 @@ function extractSourceUrls(content: Record<string, unknown>): string[] {
   if (!Array.isArray(sources)) return [];
   return sources
     .map((entry) => {
-      if (typeof entry === "string") return entry.trim();
+      if (typeof entry === "string") return normalizeSourceUrl(entry);
       if (entry && typeof entry === "object") {
         const url = (entry as { url?: unknown }).url;
-        if (typeof url === "string") return url.trim();
+        if (typeof url === "string") return normalizeSourceUrl(url);
       }
       return "";
     })
@@ -319,10 +453,17 @@ export function formatCompanySnapshotMessage(args: {
   reused: boolean;
   snapshot: CompanySnapshotRow;
 }) {
-  const content =
+  const rawContent =
     args.snapshot.content && typeof args.snapshot.content === "object"
       ? (args.snapshot.content as Record<string, unknown>)
       : {};
+  const repairedContent =
+    typeof rawContent.summary === "string"
+      ? tryParseCompanyResearchJsonText(rawContent.summary)
+      : null;
+  const content = repairedContent
+    ? { ...rawContent, ...repairedContent }
+    : rawContent;
   const errorReason = (content as { error?: unknown }).error;
   if (typeof errorReason === "string" && errorReason.length > 0) {
     return [
@@ -332,16 +473,22 @@ export function formatCompanySnapshotMessage(args: {
     ].join("\n");
   }
   const summary =
-    typeof content.summary === "string" && content.summary.trim()
+    typeof content.summary === "string" &&
+    content.summary.trim() &&
+    !looksLikeCompanyResearchJsonLeak(content.summary)
       ? content.summary.trim()
       : null;
-  const sourceText = Array.isArray(args.snapshot.source_urls)
-    ? args.snapshot.source_urls
-        .map((item) => String(item ?? "").trim())
-        .filter(Boolean)
-        .slice(0, 5)
-        .join("\n")
-    : "";
+  const sourceUrls = Array.from(
+    new Set([
+      ...(Array.isArray(args.snapshot.source_urls)
+        ? args.snapshot.source_urls.map((item) => normalizeSourceUrl(item))
+        : []),
+      ...extractSourceUrls(content),
+    ])
+  )
+    .filter(Boolean)
+    .slice(0, 5);
+  const sourceText = sourceUrls.join("\n");
 
   if (summary) {
     return [
@@ -363,7 +510,7 @@ export function formatCompanySnapshotMessage(args: {
       ? `${args.snapshot.company_name} 회사 조사 snapshot을 최근 저장분에서 불러왔습니다.`
       : `${args.snapshot.company_name} 회사 조사 snapshot을 저장했습니다.`,
     "",
-    "현재 회사 조사 함수는 아직 비어 있어서 표시할 분석 내용은 없습니다. 조사 로직을 연결하면 이 메시지에 실제 snapshot 요약이 표시됩니다.",
+    "회사 조사 결과를 채팅용 요약으로 정리하지 못했습니다. 잠시 후 다시 시도해주세요.",
     "",
     COMPANY_SNAPSHOT_FOLLOW_UP,
   ].join("\n");

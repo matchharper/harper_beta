@@ -3,7 +3,10 @@ import {
   buildCareerInsightExtractionPrompt,
   buildCareerTextChatPromptBlocks,
 } from "@/lib/career/prompts";
-import { runCareerChatAssistant } from "@/lib/career/llm";
+import {
+  recoverCareerChatAssistantText,
+  runCareerChatAssistant,
+} from "@/lib/career/llm";
 import {
   buildTalentProfileContext,
   countAdditionalOnboardingQuestionSelections,
@@ -45,7 +48,7 @@ import {
   resolveTalentOnboardingCompletion,
   stripTalentOnboardingCompletionMarker,
 } from "@/lib/talentOnboarding/completion";
-import { createOnboardingCompletionWrapupMessage } from "@/lib/talentOnboarding/onboardingCompletionWrapup";
+import { createOnboardingCompletionMessages } from "@/lib/talentOnboarding/onboardingCompletionWrapup";
 import {
   completeOnboardingAndQueueInitialOpportunityRun,
   getActiveOpportunityRun,
@@ -91,6 +94,8 @@ export type RunCareerChatTurnArgs = {
   conversationId: string;
   link?: string | null;
   noMessageMarker?: string;
+  onRecommendationStatus?: (status: RecommendJobPostingStatus) => void;
+  onThinkingLog?: (status: string) => void;
   pendingOpportunityFeedbackContext?: string | null;
   proactiveContext?: string | null;
   shouldInsertAssistantMessage?: () => Promise<boolean>;
@@ -115,6 +120,7 @@ export type CareerChatTurnResult = {
   };
   userMessage: TalentMessageResponse | null;
   talentInsights: Record<string, string> | null;
+  talentProfile: Awaited<ReturnType<typeof fetchTalentStructuredProfile>>;
   talentPreferences: {
     careerMoveIntent: string | null;
     careerMoveIntentLabel: string | null;
@@ -127,9 +133,6 @@ export type CareerChatTurnResult = {
   insightUpdatedAt: string | null;
   preferencesUpdatedAt: string | null;
 };
-
-const EMPTY_ASSISTANT_TEXT_FALLBACK =
-  "말씀해주신 내용 확인했습니다. 이어서 조금만 더 여쭤볼게요.";
 
 const optionalToolString = (value: unknown) => {
   const text = typeof value === "string" ? value.trim() : "";
@@ -160,6 +163,21 @@ function appendRecommendationStatusLog(
   status: RecommendJobPostingStatus
 ) {
   return appendThinkingLog(logs, createRecommendJobPostingStatusLog(status));
+}
+
+function getToolStartThinkingLog(toolName: string) {
+  switch (toolName) {
+    case TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE:
+      return "프로필과 추천 선호를 업데이트하고 있습니다.";
+    case TALENT_TOOL_NAMES.SELECT_ADDITIONAL_ONBOARDING_QUESTION:
+      return "다음에 확인할 온보딩 질문을 고르고 있습니다.";
+    case TALENT_TOOL_NAMES.OPEN_URL:
+      return "공유된 링크 내용을 확인하고 있습니다.";
+    case TALENT_TOOL_NAMES.RESEARCH_COMPANY:
+      return "회사 정보를 확인하고 있습니다.";
+    default:
+      return "";
+  }
 }
 
 function shouldAutoRecommendAfterProfileUpdate(result: unknown) {
@@ -297,9 +315,10 @@ async function buildTalentProfileSnapshot(args: {
   admin: TalentAdminClient;
   userId: string;
 }) {
-  const [setting, insights] = await Promise.all([
+  const [setting, insights, talentProfile] = await Promise.all([
     fetchTalentSetting({ admin: args.admin, userId: args.userId }),
     fetchTalentInsights({ admin: args.admin, userId: args.userId }),
+    fetchTalentStructuredProfile({ admin: args.admin, userId: args.userId }),
   ]);
   const careerMoveIntent = sanitizeTalentCareerMoveIntent(
     setting?.career_move_intent
@@ -321,6 +340,7 @@ async function buildTalentProfileSnapshot(args: {
       ),
     },
     talentInsights: normalizeTalentInsightContent(insights?.content ?? null),
+    talentProfile,
     preferencesUpdatedAt: setting?.updated_at ?? null,
     insightUpdatedAt: insights?.last_updated_at ?? null,
   };
@@ -352,6 +372,8 @@ export async function runCareerChatTurn(
     admin,
     conversationId,
     noMessageMarker,
+    onRecommendationStatus,
+    onThinkingLog,
     shouldInsertAssistantMessage,
     userId,
   } = args;
@@ -414,7 +436,7 @@ export async function runCareerChatTurn(
         error: error instanceof Error ? error.message : String(error),
         userId,
       });
-      });
+    });
   };
   const touchConversationIfAllowed = async () => {
     if (skipConversationWrites) return;
@@ -499,7 +521,8 @@ export async function runCareerChatTurn(
           conversationId,
           currentInsightContent,
           logPrefix: "TalentChatTurn",
-          sourceChannel: requestChannel === "voice" ? "voice_call" : "text_chat",
+          sourceChannel:
+            requestChannel === "voice" ? "voice_call" : "text_chat",
           userId,
         })
       : Promise.resolve(0);
@@ -642,12 +665,18 @@ export async function runCareerChatTurn(
     (tool) => tool.function.name === TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS
   );
   const recordThinkingLog = (status: string) => {
+    const previousLast = thinkingLogs[thinkingLogs.length - 1];
     thinkingLogs = appendThinkingLog(thinkingLogs, status);
+    const currentLast = thinkingLogs[thinkingLogs.length - 1];
+    if (currentLast && currentLast !== previousLast) {
+      onThinkingLog?.(currentLast);
+    }
   };
   const recordRecommendationStatus = (
     status: RecommendJobPostingStatus,
     options?: { persist?: boolean }
   ) => {
+    onRecommendationStatus?.(status);
     if (options?.persist) {
       thinkingLogs = appendRecommendationStatusLog(thinkingLogs, status);
     }
@@ -814,6 +843,17 @@ export async function runCareerChatTurn(
   };
 
   const assistantText = await runCareerChatAssistant({
+    onToolStart: ({ name }) => {
+      if (name === TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS) {
+        recordRecommendationStatus({ state: "running" });
+        return;
+      }
+
+      const status = getToolStartThinkingLog(name);
+      if (status) {
+        recordThinkingLog(status);
+      }
+    },
     executeTool: async ({ name, input }) => {
       const { _uiStatusMessage: rawStatus, ...toolInput } = input;
       const status =
@@ -995,8 +1035,17 @@ export async function runCareerChatTurn(
     return buildResult(messagesWithThinkingLogs);
   }
 
-  const assistantTextSource =
+  let assistantTextSource =
     selectedAdditionalQuestionRef.current ?? assistantText.trim();
+  if (!assistantTextSource && !noMessageMarker) {
+    assistantTextSource = (
+      await recoverCareerChatAssistantText({
+        latestUserMessage: normalizedContent || proactiveContext,
+        messages: assistantTurnMessages,
+        systemBlocks: promptBlocks,
+      })
+    ).trim();
+  }
   const normalizedNoMessageContent = normalizeNoMessageContent(
     assistantTextSource,
     noMessageMarker
@@ -1022,14 +1071,39 @@ export async function runCareerChatTurn(
     };
   }
 
-  const assistantTextWithMarkers =
-    normalizedNoMessageContent || EMPTY_ASSISTANT_TEXT_FALLBACK;
+  if (!normalizedNoMessageContent) {
+    throw new Error(
+      "Career assistant returned no visible text after recovery."
+    );
+  }
+
+  let assistantTextWithMarkers = normalizedNoMessageContent;
   const completion = resolveTalentOnboardingCompletion({
     assistantContent: assistantTextWithMarkers,
   });
-  const safeAssistantText =
-    stripTalentOnboardingCompletionMarker(assistantTextWithMarkers) ||
-    EMPTY_ASSISTANT_TEXT_FALLBACK;
+  let safeAssistantText = stripTalentOnboardingCompletionMarker(
+    assistantTextWithMarkers
+  );
+  if (!safeAssistantText) {
+    const recoveredText = (
+      await recoverCareerChatAssistantText({
+        latestUserMessage: normalizedContent || proactiveContext,
+        messages: assistantTurnMessages,
+        systemBlocks: promptBlocks,
+      })
+    ).trim();
+    if (!recoveredText) {
+      throw new Error(
+        "Career assistant returned only control markers after recovery."
+      );
+    }
+    assistantTextWithMarkers = completion.completed
+      ? `${recoveredText}\n\n${TALENT_ONBOARDING_DONE_MARKER}`
+      : recoveredText;
+    safeAssistantText = stripTalentOnboardingCompletionMarker(
+      assistantTextWithMarkers
+    );
+  }
 
   if (shouldInsertAssistantMessage && !(await shouldInsertAssistantMessage())) {
     const profileSnapshot = await buildTalentProfileSnapshot({
@@ -1095,15 +1169,19 @@ export async function runCareerChatTurn(
   if (completedOpportunityRun) {
     startOpportunityDiscoveryInBackground(completedOpportunityRun.id);
   }
-  const insertedCompletionWrapupMessage =
+  const completionMessages =
     shouldApplyCompletion && insertedUserMessage
-      ? await createOnboardingCompletionWrapupMessage({
+      ? await createOnboardingCompletionMessages({
           admin,
           conversationId,
           latestUserMessageId: insertedUserMessage.id,
           userId,
         })
       : null;
+  const insertedCompletionWrapupMessage =
+    completionMessages?.wrapupMessage ?? null;
+  const insertedCompletionNextStepsMessage =
+    completionMessages?.nextStepsMessage ?? null;
 
   return buildResult(
     [
@@ -1116,7 +1194,13 @@ export async function runCareerChatTurn(
       insertedCompletionWrapupMessage
         ? toTalentMessageResponse(insertedCompletionWrapupMessage)
         : null,
+      insertedCompletionNextStepsMessage
+        ? toTalentMessageResponse(insertedCompletionNextStepsMessage)
+        : null,
     ].filter((message): message is TalentMessageResponse => message !== null),
-    { completed: shouldApplyCompletion, opportunityRun: completedOpportunityRun }
+    {
+      completed: shouldApplyCompletion,
+      opportunityRun: completedOpportunityRun,
+    }
   );
 }

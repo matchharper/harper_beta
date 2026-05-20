@@ -40,21 +40,24 @@ export const CareerActionButton = React.forwardRef<
   {
     active = false,
     actionVariant = "secondary",
+    asChild = false,
     buttonRadius,
     className,
-    type = "button",
+    type,
     ...props
   },
   ref
 ) {
   const resolvedRadius =
     buttonRadius ?? (actionVariant === "icon" ? "rounded" : "pill");
+  const resolvedType = type ?? (asChild ? undefined : "button");
 
   return (
     <Button
       ref={ref}
-      type={type}
+      type={resolvedType}
       variant="ghost"
+      asChild={asChild}
       className={cn(
         "gap-2 whitespace-nowrap font-medium transition-all duration-150 ease-out hover:-translate-y-px focus-visible:ring-4 focus-visible:ring-beige700/20 disabled:pointer-events-auto disabled:cursor-not-allowed disabled:opacity-60",
         buttonVariantClassName[actionVariant],

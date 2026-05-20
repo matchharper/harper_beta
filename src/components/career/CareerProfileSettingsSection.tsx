@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import React, { KeyboardEvent, useMemo, useState } from "react";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
+import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import type { CareerProfileVisibility } from "@/hooks/career/useCareerTalentSettings";
 import { CareerField, CareerTextInput } from "./ui/CareerPrimitives";
 import { CareerActionButton, CareerChoiceCard } from "./ui/CareerActionButton";
@@ -64,6 +65,7 @@ export const CareerProfileSharingSettingsSection = ({
 }: {
   showLastUpdated?: boolean;
 }) => {
+  const logCareerEvent = useCareerLogEvent();
   const {
     settingsLoading,
     settingsSaving,
@@ -98,6 +100,7 @@ export const CareerProfileSharingSettingsSection = ({
 
   const handleSave = async () => {
     if (!hasUnsavedTalentSettingsChanges) return;
+    logCareerEvent("click_profile_settings_save");
     await onSaveTalentSettings();
   };
 
@@ -113,6 +116,7 @@ export const CareerProfileSharingSettingsSection = ({
       return;
     }
 
+    logCareerEvent(`click_profile_visibility_${value}`);
     setProfileVisibilitySavePending(true);
     try {
       await onProfileVisibilityChange(value);
@@ -122,6 +126,7 @@ export const CareerProfileSharingSettingsSection = ({
   };
 
   const handleRefresh = () => {
+    logCareerEvent("click_profile_settings_reset");
     onResetTalentSettings();
     setBlockedCompanyDraft("");
   };
@@ -137,6 +142,7 @@ export const CareerProfileSharingSettingsSection = ({
       return;
     }
 
+    logCareerEvent("click_profile_settings_add_blocked_company");
     setBlockedCompaniesSavePending(true);
     try {
       const saved = await onAddBlockedCompany(nextCompany);
@@ -153,6 +159,7 @@ export const CareerProfileSharingSettingsSection = ({
       return;
     }
 
+    logCareerEvent("click_profile_settings_remove_blocked_company");
     setBlockedCompaniesSavePending(true);
     try {
       await onRemoveBlockedCompany(companyName);

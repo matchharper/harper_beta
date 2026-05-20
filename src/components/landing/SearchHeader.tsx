@@ -2,7 +2,7 @@ import { START_BUTTON_LABEL, StartButton } from "@/pages/search";
 import { ArrowUpRight, Menu } from "lucide-react";
 import React, { useCallback } from "react";
 import router from "next/router";
-import { DropdownMenu } from "@/components/ui/menu";
+import { DropdownMenu } from "@/components/landing/navigation/DropdownMenu";
 
 export enum RadarSection {
   Intro = "home",

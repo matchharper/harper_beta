@@ -80,8 +80,7 @@ async function createTalentChatCompletion(args: {
   usageLabel?: string;
 }) {
   const {
-    anthropicOverloadFallbackModel =
-      DEFAULT_TALENT_ANTHROPIC_OVERLOAD_FALLBACK_MODEL,
+    anthropicOverloadFallbackModel = DEFAULT_TALENT_ANTHROPIC_OVERLOAD_FALLBACK_MODEL,
     fallbackModel = DEFAULT_TALENT_FALLBACK_MODEL,
     messages,
     primaryModel = DEFAULT_TALENT_PRIMARY_MODEL,
@@ -123,8 +122,7 @@ export async function runTalentAssistantCompletion(args: {
   usageLabel?: string;
 }) {
   const {
-    anthropicOverloadFallbackModel =
-      DEFAULT_TALENT_ANTHROPIC_OVERLOAD_FALLBACK_MODEL,
+    anthropicOverloadFallbackModel = DEFAULT_TALENT_ANTHROPIC_OVERLOAD_FALLBACK_MODEL,
     fallbackModel = DEFAULT_TALENT_FALLBACK_MODEL,
     messages,
     primaryModel = DEFAULT_TALENT_PRIMARY_MODEL,
@@ -165,6 +163,10 @@ export async function runTalentAssistantToolLoop(args: {
   maxTotalToolCalls?: number;
   modelConfig?: TalentAssistantModelConfig;
   messages: TalentChatMessage[];
+  onToolStart?: (args: {
+    input: Record<string, unknown>;
+    name: string;
+  }) => void | Promise<void>;
   stopAfterToolNames?: string[];
   temperature?: number;
   tools: TalentChatTool[];
@@ -176,6 +178,7 @@ export async function runTalentAssistantToolLoop(args: {
     maxTotalToolCalls = 4,
     modelConfig,
     messages,
+    onToolStart,
     stopAfterToolNames = [],
     temperature = 0.35,
     tools,
@@ -274,6 +277,10 @@ export async function runTalentAssistantToolLoop(args: {
       });
       const toolStartedAt = Date.now();
       try {
+        await onToolStart?.({
+          name: toolName,
+          input: parsedArguments,
+        });
         const result = await executeTool({
           name: toolName,
           input: parsedArguments,

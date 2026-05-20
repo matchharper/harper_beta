@@ -13,7 +13,7 @@ import ProfileBio from "@/pages/my/p/components/ProfileBio";
 import ItemBox from "@/pages/my/p/components/ItemBox";
 import PublicationBox from "@/pages/my/p/components/PublicationBox";
 import { Box } from "@/components/profile/CandidateProfileDetailPage";
-import CandidateMemoDock from "@/components/ui/CandidateMemoDock";
+import CandidateMemoDock from "@/components/candidates/CandidateMemoDock";
 import {
   companyEnToKo,
   degreeEnToKo,

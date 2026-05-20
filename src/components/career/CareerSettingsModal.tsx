@@ -11,6 +11,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { useIsMobile } from "@/hooks/useMediaQuery";
+import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
 import CareerProfileSettingsSection from "./CareerProfileSettingsSection";
 import CareerResumeLinksSettingsSection from "./settings/CareerResumeLinksSettingsSection";
@@ -38,24 +39,39 @@ const AccountSection = ({
 }: {
   email: string;
   onLogout: () => void | Promise<void>;
-}) => (
-  <div className="space-y-4">
-    <div>
-      <h2 className="text-lg font-semibold text-hblack1000">계정 관리</h2>
-      <p className="mt-1 text-sm text-hblack600">계정 세션을 종료합니다.</p>
-    </div>
+}) => <AccountSectionContent email={email} onLogout={onLogout} />;
 
-    <p className="font-geist text-sm text-hblack700">{email}</p>
-    <button
-      type="button"
-      onClick={() => void onLogout()}
-      className="mt-3 inline-flex h-10 items-center gap-2 rounded-lg bg-beige500 px-4 text-sm text-hblack700 transition-colors hover:border-beige900 hover:bg-beige200 hover:text-beige900"
-    >
-      <LogOut className="h-4 w-4" />
-      로그아웃
-    </button>
-  </div>
-);
+const AccountSectionContent = ({
+  email,
+  onLogout,
+}: {
+  email: string;
+  onLogout: () => void | Promise<void>;
+}) => {
+  const logCareerEvent = useCareerLogEvent();
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-lg font-semibold text-hblack1000">계정 관리</h2>
+        <p className="mt-1 text-sm text-hblack600">계정 세션을 종료합니다.</p>
+      </div>
+
+      <p className="font-geist text-sm text-hblack700">{email}</p>
+      <button
+        type="button"
+        onClick={() => {
+          logCareerEvent("click_settings_logout");
+          void onLogout();
+        }}
+        className="mt-3 inline-flex h-10 items-center gap-2 rounded-lg bg-beige500 px-4 text-sm text-hblack700 transition-colors hover:border-beige900 hover:bg-beige200 hover:text-beige900"
+      >
+        <LogOut className="h-4 w-4" />
+        로그아웃
+      </button>
+    </div>
+  );
+};
 
 const renderSection = (
   tab: CareerSettingsTab,
@@ -74,6 +90,7 @@ const CareerSettingsModal = ({
   open: boolean;
   onClose: () => void;
 }) => {
+  const logCareerEvent = useCareerLogEvent();
   const { onLogout, user } = useCareerSidebarContext();
   const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState<CareerSettingsTab>("profile");
@@ -87,9 +104,10 @@ const CareerSettingsModal = ({
   }, []);
 
   const handleClose = useCallback(() => {
+    logCareerEvent("click_settings_close");
     onClose();
     resetMobileSettings();
-  }, [onClose, resetMobileSettings]);
+  }, [logCareerEvent, onClose, resetMobileSettings]);
 
   useEffect(() => {
     if (!open) return;
@@ -107,12 +125,14 @@ const CareerSettingsModal = ({
     };
 
     const handleSelectTab = (tab: CareerSettingsTab) => {
+      logCareerEvent(`click_settings_tab_${tab}`);
       setActiveTab(tab);
       setMobileView(tab);
       setSnap(FULL_SNAP);
     };
 
     const handleBackToMenu = () => {
+      logCareerEvent("click_settings_back_to_menu");
       setMobileView("menu");
       setSnap(MENU_SNAP);
     };
@@ -137,7 +157,8 @@ const CareerSettingsModal = ({
               커리어 설정
             </DrawerPrimitive.Title>
             <DrawerPrimitive.Description className="sr-only">
-              아래로 드래그하면 메뉴 크기로 축소되고, 위로 드래그하면 전체화면으로 확장됩니다.
+              아래로 드래그하면 메뉴 크기로 축소되고, 위로 드래그하면
+              전체화면으로 확장됩니다.
             </DrawerPrimitive.Description>
 
             <div className="flex shrink-0 justify-center pt-3 pb-2">
@@ -237,7 +258,10 @@ const CareerSettingsModal = ({
                   <button
                     key={tab.key}
                     type="button"
-                    onClick={() => setActiveTab(tab.key)}
+                    onClick={() => {
+                      logCareerEvent(`click_settings_tab_${tab.key}`);
+                      setActiveTab(tab.key);
+                    }}
                     className={[
                       "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors",
                       isActive

@@ -19,10 +19,8 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/router";
-import { useQueryClient } from "@tanstack/react-query";
 import { showToast } from "@/components/toast/toast";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
-import { useCompanyModalStore } from "@/store/useModalStore";
 import CareerInPageTabs from "./CareerInPageTabs";
 import {
   CareerInlinePanel,
@@ -61,6 +59,8 @@ import HistoryOpportunityDetailContent from "./history/HistoryOpportunityDetailC
 import HistoryOpportunityInfoModal from "./history/HistoryOppotunityInfoModal";
 import OpportunityDetailModal from "./history/OpportunityDetailModal";
 import HistoryShortcutPanel from "./history/HistoryShortcutPanel";
+import CareerCompanyDetailDrawer from "./watchlist/CareerCompanyDetailDrawer";
+import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import React from "react";
 
 type HistoryTabId = "new" | "saved" | "archived";
@@ -71,6 +71,7 @@ const HISTORY_TAB_QUERY_KEY = "historyTab";
 const HISTORY_SAVED_STAGE_QUERY_KEY = "savedStage";
 const HISTORY_ROLE_QUERY_KEY = "id";
 const CAREER_HISTORY_PATHNAME = "/career/history";
+const CAREER_PREVIEW_PATHNAME = "/career/preview";
 
 const isHistoryTabId = (value: unknown): value is HistoryTabId =>
   value === "new" || value === "saved" || value === "archived";
@@ -89,6 +90,18 @@ const getNormalizedQueryValue = (value: string | string[] | undefined) =>
 
 const getNormalizedPathname = (path: string) =>
   path.split(/[?#]/)[0]?.replace(/\/+$/, "") || "/career";
+
+const getCareerHistoryLocationPathname = (path: string) =>
+  getNormalizedPathname(path) === CAREER_PREVIEW_PATHNAME
+    ? CAREER_PREVIEW_PATHNAME
+    : CAREER_HISTORY_PATHNAME;
+
+const isCareerHistoryPanelPathname = (path: string) => {
+  const pathname = getNormalizedPathname(path);
+  return (
+    pathname === CAREER_HISTORY_PATHNAME || pathname === CAREER_PREVIEW_PATHNAME
+  );
+};
 
 const getOpportunityUrlRoleId = (item: CareerHistoryOpportunity | null) =>
   String(item?.roleId ?? "").trim();
@@ -109,12 +122,14 @@ const compareRecommendedAtDesc = (
 ) => Date.parse(right.recommendedAt) - Date.parse(left.recommendedAt);
 
 const formatEmploymentType = (value: string) => {
-  if (value === "full_time") return "";
-  if (value === "part_time") return "파트타임";
-  if (value === "internship") return "인턴";
-  if (value === "contract") return "계약직";
-  if (value === "fractional") return "Fractional";
-  return value.replaceAll("_", " ");
+  const normalized = value.trim().toLowerCase().replaceAll("-", "_");
+  if (!normalized) return null;
+  if (normalized === "full_time") return "풀타임";
+  if (normalized === "part_time") return "파트타임";
+  if (normalized === "internship") return "인턴";
+  if (normalized === "contract") return "계약직";
+  if (normalized === "fractional") return "Fractional";
+  return value.trim().replaceAll("_", " ");
 };
 
 const formatWorkMode = (value: string | null) => {
@@ -398,9 +413,8 @@ const HistoryEmptyStatePanel = ({
 };
 
 const CareerHistoryPanel = () => {
+  const logCareerEvent = useCareerLogEvent();
   const router = useRouter();
-  const queryClient = useQueryClient();
-  const openCompanyModal = useCompanyModalStore((s) => s.handleOpenCompany);
   const {
     stage,
     opportunityRun,
@@ -451,11 +465,15 @@ const CareerHistoryPanel = () => {
   const [questionPromptOpportunityId, setQuestionPromptOpportunityId] =
     useState<string | null>(null);
   const [questionPromptDraft, setQuestionPromptDraft] = useState("");
+  const [companyDetailCompanyDbId, setCompanyDetailCompanyDbId] = useState<
+    number | null
+  >(null);
   const currentHistoryTabQuery = router.query[HISTORY_TAB_QUERY_KEY];
   const currentSavedStageQuery = router.query[HISTORY_SAVED_STAGE_QUERY_KEY];
   const currentRoleQuery = router.query[HISTORY_ROLE_QUERY_KEY];
 
   const openChatTab = useCallback(() => {
+    logCareerEvent("click_history_empty_open_chat");
     const query: Record<string, string> = {};
     const invite = getQueryValue(router.query.invite);
     const mail = getQueryValue(router.query.mail);
@@ -466,7 +484,7 @@ const CareerHistoryPanel = () => {
       pathname: "/career",
       query: Object.keys(query).length > 0 ? query : undefined,
     });
-  }, [router]);
+  }, [logCareerEvent, router]);
 
   const applyActiveTab = useCallback((nextTab: HistoryTabId) => {
     setActiveTab((current) => {
@@ -498,8 +516,9 @@ const CareerHistoryPanel = () => {
       const normalizedSavedStage = getQueryValue(currentSavedStageQuery);
       const normalizedRoleId = getNormalizedQueryValue(currentRoleQuery);
       const nextRoleId = String(options?.roleId ?? "").trim();
+      const nextPathname = getCareerHistoryLocationPathname(router.asPath);
       const isOnHistoryPath =
-        getNormalizedPathname(router.asPath) === CAREER_HISTORY_PATHNAME;
+        getNormalizedPathname(router.asPath) === nextPathname;
 
       if (
         isOnHistoryPath &&
@@ -524,7 +543,7 @@ const CareerHistoryPanel = () => {
       }
 
       const nextLocation = {
-        pathname: CAREER_HISTORY_PATHNAME,
+        pathname: nextPathname,
         query,
       };
 
@@ -562,7 +581,7 @@ const CareerHistoryPanel = () => {
 
     void router.replace(
       {
-        pathname: CAREER_HISTORY_PATHNAME,
+        pathname: getCareerHistoryLocationPathname(router.asPath),
         query,
       },
       undefined,
@@ -572,7 +591,7 @@ const CareerHistoryPanel = () => {
 
   useEffect(() => {
     if (!router.isReady) return;
-    if (getNormalizedPathname(router.asPath) === CAREER_HISTORY_PATHNAME) {
+    if (isCareerHistoryPanelPathname(router.asPath)) {
       return;
     }
 
@@ -693,14 +712,20 @@ const CareerHistoryPanel = () => {
 
     applyActiveTab(isHistoryTabId(nextActiveTab) ? nextActiveTab : "new");
     setActiveSavedTab(isSavedTabId(nextSavedTab) ? nextSavedTab : "saved");
-  }, [applyActiveTab, currentHistoryTabQuery, currentSavedStageQuery, router.isReady]);
+  }, [
+    applyActiveTab,
+    currentHistoryTabQuery,
+    currentSavedStageQuery,
+    router.isReady,
+  ]);
 
   const activeIndex = activeOpportunityId
     ? (newItemIndexById.get(activeOpportunityId) ?? -1)
     : -1;
 
   const activeOpportunity = activeIndex >= 0 ? newItems[activeIndex] : null;
-  const hasMoreNewOpportunities = newItems.length < historyOpportunityCounts.new;
+  const hasMoreNewOpportunities =
+    newItems.length < historyOpportunityCounts.new;
   const canMoveNextOpportunity =
     activeIndex >= 0 &&
     (activeIndex < newItems.length - 1 || hasMoreNewOpportunities);
@@ -924,6 +949,9 @@ const CareerHistoryPanel = () => {
   const moveActiveOpportunity = useCallback(
     (direction: -1 | 1) => {
       if (newItems.length === 0) return;
+      logCareerEvent(
+        direction > 0 ? "click_history_next" : "click_history_prev"
+      );
 
       const baseIndex = activeIndex >= 0 ? activeIndex : 0;
       const nextIndex = Math.min(
@@ -937,7 +965,7 @@ const CareerHistoryPanel = () => {
         setActiveOpportunityId(nextOpportunityId);
       }
     },
-    [activeIndex, newItems]
+    [activeIndex, logCareerEvent, newItems]
   );
 
   const loadNextOpportunityPage = useCallback(() => {
@@ -965,9 +993,11 @@ const CareerHistoryPanel = () => {
       return;
     }
 
+    logCareerEvent("click_history_next");
     loadNextOpportunityPage();
   }, [
     activeIndex,
+    logCareerEvent,
     loadNextOpportunityPage,
     moveActiveOpportunity,
     newItems.length,
@@ -1047,7 +1077,6 @@ const CareerHistoryPanel = () => {
     newItems,
   ]);
 
-
   const openUrl = useCallback((url: string | null | undefined) => {
     if (!url) return;
     window.open(url, "_blank", "noopener,noreferrer");
@@ -1056,10 +1085,11 @@ const CareerHistoryPanel = () => {
   const openHistoryLink = useCallback(
     (opportunityId: string, url: string | null | undefined) => {
       if (!url) return;
+      logCareerEvent("click_history_open_jd");
       void onMarkHistoryOpportunityClicked(opportunityId);
       openUrl(url);
     },
-    [onMarkHistoryOpportunityClicked, openUrl]
+    [logCareerEvent, onMarkHistoryOpportunityClicked, openUrl]
   );
 
   const openHistoryCompanyInfo = useCallback(
@@ -1067,22 +1097,17 @@ const CareerHistoryPanel = () => {
       const fallbackUrl = item.companyHomepageUrl ?? item.companyLinkedinUrl;
       if (!item.companyDbId && !fallbackUrl) return;
 
+      logCareerEvent("click_history_open_company");
       void onMarkHistoryOpportunityClicked(item.id);
 
       if (item.companyDbId) {
-        void openCompanyModal({
-          companyId: item.companyDbId,
-          fallbackUrl,
-          openWhenIncomplete: true,
-          queryClient,
-          tone: "career",
-        });
+        setCompanyDetailCompanyDbId(item.companyDbId);
         return;
       }
 
       openUrl(fallbackUrl);
     },
-    [onMarkHistoryOpportunityClicked, openCompanyModal, openUrl, queryClient]
+    [logCareerEvent, onMarkHistoryOpportunityClicked, openUrl]
   );
 
   const requestPositiveFeedback = useCallback(
@@ -1155,6 +1180,7 @@ const CareerHistoryPanel = () => {
 
   const handleRestoreAction = useCallback(
     (item: CareerHistoryOpportunity) => {
+      logCareerEvent("click_history_restore");
       setModalOpportunityId(null);
       setActiveOpportunityId(item.id);
       updateHistoryLocation("new", activeSavedTab, {
@@ -1162,7 +1188,12 @@ const CareerHistoryPanel = () => {
       });
       updateFeedbackForItem(item, null);
     },
-    [activeSavedTab, updateFeedbackForItem, updateHistoryLocation]
+    [
+      activeSavedTab,
+      logCareerEvent,
+      updateFeedbackForItem,
+      updateHistoryLocation,
+    ]
   );
 
   const handleStatusDropdownChange = useCallback(
@@ -1170,6 +1201,7 @@ const CareerHistoryPanel = () => {
       item: CareerHistoryOpportunity,
       value: Parameters<typeof getFeedbackForStatusDropdownValue>[0]
     ) => {
+      logCareerEvent(`click_history_status_${value}`);
       const next = getFeedbackForStatusDropdownValue(value);
 
       if (next.feedback === null) {
@@ -1181,11 +1213,12 @@ const CareerHistoryPanel = () => {
         savedStage: next.savedStage,
       });
     },
-    [handleRestoreAction, updateFeedbackForItem]
+    [handleRestoreAction, logCareerEvent, updateFeedbackForItem]
   );
 
   const handlePositiveAction = useCallback(
     (item: CareerHistoryOpportunity) => {
+      logCareerEvent("click_history_positive");
       if (shouldCollectPositiveReason(item)) {
         requestPositiveFeedback(item);
         return;
@@ -1198,6 +1231,7 @@ const CareerHistoryPanel = () => {
     },
     [
       rememberFeedbackAdvanceTarget,
+      logCareerEvent,
       requestPositiveFeedback,
       updateFeedbackForItem,
     ]
@@ -1216,9 +1250,10 @@ const CareerHistoryPanel = () => {
 
   const handleNegativeAction = useCallback(
     (item: CareerHistoryOpportunity) => {
+      logCareerEvent("click_history_negative");
       requestNegativeFeedback(item);
     },
-    [requestNegativeFeedback]
+    [logCareerEvent, requestNegativeFeedback]
   );
 
   const handleModalNegativeAction = useCallback(
@@ -1232,9 +1267,10 @@ const CareerHistoryPanel = () => {
 
   const handleQuestionAction = useCallback(
     (item: CareerHistoryOpportunity) => {
+      logCareerEvent("click_history_question");
       requestQuestionPrompt(item);
     },
-    [requestQuestionPrompt]
+    [logCareerEvent, requestQuestionPrompt]
   );
 
   const handleModalQuestionAction = useCallback(
@@ -1249,6 +1285,7 @@ const CareerHistoryPanel = () => {
   const handleSubmitPositivePrompt = useCallback(() => {
     if (!positivePromptOpportunity) return;
 
+    logCareerEvent("click_history_submit_positive_reason");
     const feedbackReason = positivePromptDraft.trim();
 
     rememberFeedbackAdvanceTarget(positivePromptOpportunity);
@@ -1263,6 +1300,7 @@ const CareerHistoryPanel = () => {
   }, [
     positivePromptDraft,
     positivePromptOpportunity,
+    logCareerEvent,
     rememberFeedbackAdvanceTarget,
     updateFeedbackForItem,
   ]);
@@ -1270,6 +1308,7 @@ const CareerHistoryPanel = () => {
   const handleSubmitNegativePrompt = useCallback(() => {
     if (!negativePromptOpportunity) return;
 
+    logCareerEvent("click_history_submit_negative_reason");
     const feedbackReason = serializeNegativeFeedbackReason({
       customReason: negativePromptCustomReason,
       item: negativePromptOpportunity,
@@ -1287,6 +1326,7 @@ const CareerHistoryPanel = () => {
     negativePromptCustomReason,
     negativePromptOpportunity,
     negativePromptSelectedOptions,
+    logCareerEvent,
     rememberFeedbackAdvanceTarget,
     updateFeedbackForItem,
   ]);
@@ -1294,6 +1334,7 @@ const CareerHistoryPanel = () => {
   const handleSubmitQuestionPrompt = useCallback(async () => {
     if (!questionPromptOpportunity || !questionPromptDraft.trim()) return;
 
+    logCareerEvent("click_history_submit_question");
     const didSend = await onSendHistoryOpportunityQuestion(
       questionPromptOpportunity.id,
       questionPromptDraft.trim()
@@ -1308,6 +1349,7 @@ const CareerHistoryPanel = () => {
     setQuestionPromptOpportunityId(null);
     setQuestionPromptDraft("");
   }, [
+    logCareerEvent,
     onSendHistoryOpportunityQuestion,
     questionPromptDraft,
     questionPromptOpportunity,
@@ -1415,6 +1457,7 @@ const CareerHistoryPanel = () => {
 
   const handleDisplayTabChange = useCallback(
     (nextTab: HistoryDisplayTabId) => {
+      logCareerEvent(`click_history_tab_${nextTab}`);
       setModalOpportunityId(null);
 
       if (nextTab === "new") {
@@ -1433,11 +1476,12 @@ const CareerHistoryPanel = () => {
       }
       updateHistoryLocation("archived", activeSavedTab);
     },
-    [activeOpportunity, activeSavedTab, updateHistoryLocation]
+    [activeOpportunity, activeSavedTab, logCareerEvent, updateHistoryLocation]
   );
 
   const openModalForItem = useCallback(
     (item: CareerHistoryOpportunity) => {
+      logCareerEvent("click_history_open_detail");
       const roleId = getOpportunityUrlRoleId(item);
       setModalOpportunityId(item.id);
 
@@ -1456,7 +1500,15 @@ const CareerHistoryPanel = () => {
         });
       }
     },
-    [activeSavedTab, updateHistoryLocation]
+    [activeSavedTab, logCareerEvent, updateHistoryLocation]
+  );
+
+  const openOpportunityInfo = useCallback(
+    (opportunityType: CareerOpportunityType) => {
+      logCareerEvent(`click_history_open_opportunity_info_${opportunityType}`);
+      setInfoOpportunityType(opportunityType);
+    },
+    [logCareerEvent]
   );
 
   const closeOpportunityModal = useCallback(() => {
@@ -1486,8 +1538,8 @@ const CareerHistoryPanel = () => {
   const hasMoreListItems =
     (activeTab === "saved" || activeTab === "archived") &&
     listItems.length < listTotal;
-  const activeListFilter = useMemo<CareerHistoryOpportunityPageFilter | null>(
-    () => {
+  const activeListFilter =
+    useMemo<CareerHistoryOpportunityPageFilter | null>(() => {
       if (activeTab === "archived") {
         return { historyTab: "archived" };
       }
@@ -1498,9 +1550,7 @@ const CareerHistoryPanel = () => {
         };
       }
       return null;
-    },
-    [activeDisplayTab, activeTab]
-  );
+    }, [activeDisplayTab, activeTab]);
   const loadMoreListItems = useCallback(() => {
     if (!activeListFilter || !hasMoreListItems || historyLoadingMore) return;
     void onLoadMoreHistoryOpportunities(activeListFilter);
@@ -1593,7 +1643,7 @@ const CareerHistoryPanel = () => {
                 canMoveNext={canMoveNextOpportunity}
                 onOpenCompanyInfo={openHistoryCompanyInfo}
                 onOpenLink={(url) => openHistoryLink(activeOpportunity.id, url)}
-                onOpenOpportunityInfo={setInfoOpportunityType}
+                onOpenOpportunityInfo={openOpportunityInfo}
                 onMovePrev={() => moveActiveOpportunity(-1)}
                 onMoveNext={handleMoveNextOpportunity}
               />
@@ -1618,7 +1668,7 @@ const CareerHistoryPanel = () => {
                       item={item}
                       pending={pendingOpportunityIds.has(item.id)}
                       showStatusSelect
-                      onOpenOpportunityInfo={setInfoOpportunityType}
+                      onOpenOpportunityInfo={openOpportunityInfo}
                       onOpenCompanyInfo={openHistoryCompanyInfo}
                       onStatusChange={(value) =>
                         handleStatusDropdownChange(item, value)
@@ -1660,7 +1710,7 @@ const CareerHistoryPanel = () => {
                   item={item}
                   pending={pendingOpportunityIds.has(item.id)}
                   showStatusSelect
-                  onOpenOpportunityInfo={setInfoOpportunityType}
+                  onOpenOpportunityInfo={openOpportunityInfo}
                   onOpenCompanyInfo={openHistoryCompanyInfo}
                   onStatusChange={(value) =>
                     handleStatusDropdownChange(item, value)
@@ -1726,7 +1776,7 @@ const CareerHistoryPanel = () => {
           if (!modalOpportunity) return;
           openHistoryLink(modalOpportunity.id, url);
         }}
-        onOpenOpportunityInfo={setInfoOpportunityType}
+        onOpenOpportunityInfo={openOpportunityInfo}
         onPositive={() => {
           if (!modalOpportunity) return;
           handleModalPositiveAction(modalOpportunity);
@@ -1749,6 +1799,12 @@ const CareerHistoryPanel = () => {
       <HistoryOpportunityInfoModal
         opportunityType={infoOpportunityType}
         onClose={() => setInfoOpportunityType(null)}
+      />
+
+      <CareerCompanyDetailDrawer
+        companyDbId={companyDetailCompanyDbId}
+        open={companyDetailCompanyDbId !== null}
+        onClose={() => setCompanyDetailCompanyDbId(null)}
       />
 
       <HistoryPositiveFeedbackModal

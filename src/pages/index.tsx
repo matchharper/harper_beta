@@ -1,10 +1,12 @@
 import Reveal from "@/components/landing/Animation/Reveal";
 import CareerAppBar from "@/components/landing/career/CareerAppBar";
+import CareerEmailOnboardingModal from "@/components/landing/career/CareerEmailOnboardingModal";
 import CareerHeroSection from "@/components/landing/career/CareerHeroSection";
 import LandingButton from "@/components/landing/career/CareerLandingButton";
 import SocialProofSection from "@/components/landing/career/SocialProofSection";
 import { useCountryLang } from "@/hooks/useCountryLang";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { withLandingLogSource } from "@/lib/landingLogTypes";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
 import Head from "next/head";
@@ -15,16 +17,22 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { User2 } from "lucide-react";
 import { motion } from "motion/react";
 import DemoSection from "@/components/landing/career/DemoSection";
+import {
+  CAREER_EMAIL_ONBOARDING_ABTEST_TYPE,
+  CAREER_EMAIL_ONBOARDING_VARIANT,
+} from "@/lib/careerEmailOnboarding/constants";
+import { resolveCareerOnboardingLandingVariant } from "@/lib/careerEmailOnboarding/experiment";
 
 const CAREER_START_HREF =
   "/career_login?next=%2Fcareer%2Fonboarding&source=network";
 const CAREER_AUTHENTICATED_START_HREF = "/career";
 const CAREER_ONBOARDING_HREF = "/career/onboarding";
 const CAREER_LANDING_ABTEST_TYPE = "career_landing_v1";
+const CAREER_EMAIL_ONBOARDING_OVERRIDE_PARAM = "career_onboarding_variant";
 const CAREER_LANDING_LOCAL_ID_KEY = "harper_career_landing_id_v1";
-const CAREER_LANDING_LAST_VISIT_AT_KEY =
-  "harper_career_landing_last_visit_at";
+const CAREER_LANDING_LAST_VISIT_AT_KEY = "harper_career_landing_last_visit_at";
 const CAREER_LANDING_SESSION_GAP_MS = 30 * 60 * 1000;
+const CAREER_LANDING_LOG_SOURCE = "career";
 
 const createCareerLandingId = () => {
   if (
@@ -561,14 +569,18 @@ export default function LandingKoVfPage() {
   const careerStartHref = useCareerStartHref();
   const countryLang = useCountryLang();
   const isMobile = useIsMobile();
+  const authLoading = useAuthStore((state) => state.loading);
+  const user = useAuthStore((state) => state.user);
   const [landingId, setLandingId] = useState("");
+  const [emailOnboardingModalOpen, setEmailOnboardingModalOpen] =
+    useState(false);
   const hasLoggedFirstScrollRef = useRef(false);
 
   const addLandingLog = useCallback(
     async (type: string, overrides?: { localId?: string }) => {
       const storedLocalId =
         typeof window !== "undefined"
-          ? localStorage.getItem(CAREER_LANDING_LOCAL_ID_KEY) ?? ""
+          ? (localStorage.getItem(CAREER_LANDING_LOCAL_ID_KEY) ?? "")
           : "";
       const resolvedLocalId = overrides?.localId || landingId || storedLocalId;
       if (!resolvedLocalId) return;
@@ -576,7 +588,7 @@ export default function LandingKoVfPage() {
       try {
         const { error } = await supabase.from("landing_logs").insert({
           local_id: resolvedLocalId,
-          type,
+          type: withLandingLogSource(type, CAREER_LANDING_LOG_SOURCE),
           abtest_type: CAREER_LANDING_ABTEST_TYPE,
           is_mobile: isMobile,
           country_lang: countryLang,
@@ -616,9 +628,7 @@ export default function LandingKoVfPage() {
     if (!landingId || typeof window === "undefined") return;
 
     const now = Date.now();
-    const lastVisitRaw = localStorage.getItem(
-      CAREER_LANDING_LAST_VISIT_AT_KEY
-    );
+    const lastVisitRaw = localStorage.getItem(CAREER_LANDING_LAST_VISIT_AT_KEY);
     const lastVisitAt = lastVisitRaw ? Number(lastVisitRaw) : null;
 
     if (
@@ -650,10 +660,37 @@ export default function LandingKoVfPage() {
     (event: React.MouseEvent<HTMLAnchorElement>) => {
       event.preventDefault();
       void addLandingLog("click_start");
+
+      const override =
+        typeof router.query[CAREER_EMAIL_ONBOARDING_OVERRIDE_PARAM] === "string"
+          ? router.query[CAREER_EMAIL_ONBOARDING_OVERRIDE_PARAM]
+          : null;
+      const variant = resolveCareerOnboardingLandingVariant({
+        localId: landingId,
+        override,
+        salt: CAREER_EMAIL_ONBOARDING_ABTEST_TYPE,
+      });
+
+      if (
+        !authLoading &&
+        !user &&
+        variant === CAREER_EMAIL_ONBOARDING_VARIANT
+      ) {
+        void addLandingLog("email_onboarding_modal_open");
+        setEmailOnboardingModalOpen(true);
+        return;
+      }
+
       void router.push(careerStartHref);
     },
-    [addLandingLog, careerStartHref, router]
+    [addLandingLog, authLoading, careerStartHref, landingId, router, user]
   );
+
+  const handleEmailOnboardingWebStart = useCallback(() => {
+    void addLandingLog("email_onboarding_web_login_click");
+    setEmailOnboardingModalOpen(false);
+    void router.push(careerStartHref);
+  }, [addLandingLog, careerStartHref, router]);
 
   return (
     <>
@@ -675,11 +712,27 @@ export default function LandingKoVfPage() {
 
       <div
         id="top"
-        className="min-h-screen overflow-x-clip break-keep bg-beige200 font-sans text-beige900 antialiased"
+        className="min-h-screen overflow-x-clip break-keep bg-beige100 font-sans text-beige900 antialiased"
       >
         <CareerAppBar
           careerStartHref={careerStartHref}
           onCareerStartClick={handleCareerStartClick}
+        />
+        <CareerEmailOnboardingModal
+          abtestType={CAREER_EMAIL_ONBOARDING_ABTEST_TYPE}
+          countryLang={countryLang}
+          isMobile={isMobile}
+          localId={landingId}
+          onClose={() => {
+            void addLandingLog("email_onboarding_modal_close");
+            setEmailOnboardingModalOpen(false);
+          }}
+          onSubmitted={() =>
+            void addLandingLog("email_onboarding_submit_success")
+          }
+          onWebStart={handleEmailOnboardingWebStart}
+          open={emailOnboardingModalOpen}
+          variant={CAREER_EMAIL_ONBOARDING_VARIANT}
         />
 
         <main>

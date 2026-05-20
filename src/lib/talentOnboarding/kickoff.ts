@@ -39,6 +39,10 @@ type TalentKickoffPreferences = {
   insightContent: TalentInsightContent | null;
 };
 
+const CAREER_KICKOFF_TIMEOUT_MS = Number(
+  process.env.CAREER_KICKOFF_TIMEOUT_MS ?? 3500
+);
+
 export const buildTalentKickoffOpeningMessage =
   buildCareerKickoffOpeningMessage;
 
@@ -157,7 +161,7 @@ export async function generateTalentKickoff(args: {
   resumeFileName?: string | null;
   resumeText?: string | null;
 }) {
-  const llmRaw = await runCareerKickoff({
+  const llmPromise = runCareerKickoff({
     messages: [
       {
         role: "system",
@@ -176,7 +180,20 @@ export async function generateTalentKickoff(args: {
         }),
       },
     ],
+  }).catch((error) => {
+    console.warn("[TalentKickoff] LLM kickoff failed", {
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+    return null;
   });
+  const timeoutMs = Number.isFinite(CAREER_KICKOFF_TIMEOUT_MS)
+    ? Math.max(1000, CAREER_KICKOFF_TIMEOUT_MS)
+    : 3500;
+  const timeoutPromise = new Promise<null>((resolve) => {
+    setTimeout(() => resolve(null), timeoutMs);
+  });
+  const llmRaw = await Promise.race([llmPromise, timeoutPromise]);
+  if (!llmRaw) return CAREER_KICKOFF_FALLBACK;
 
   return parseKickoffPayload(llmRaw) ?? CAREER_KICKOFF_FALLBACK;
 }

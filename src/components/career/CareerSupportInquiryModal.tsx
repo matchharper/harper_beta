@@ -2,6 +2,7 @@ import { LoaderCircle, X } from "lucide-react";
 import React, { useState } from "react";
 import { showToast } from "@/components/toast/toast";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
+import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 
 const CareerSupportInquiryModal = ({
   onClose,
@@ -10,6 +11,7 @@ const CareerSupportInquiryModal = ({
   onClose: () => void;
   defaultEmail?: string;
 }) => {
+  const logCareerEvent = useCareerLogEvent();
   const { fetchWithAuth } = useCareerApi();
   const [email, setEmail] = useState(() => defaultEmail);
   const [content, setContent] = useState("");
@@ -17,6 +19,7 @@ const CareerSupportInquiryModal = ({
 
   const handleClose = () => {
     if (submitting) return;
+    logCareerEvent("click_support_close");
     onClose();
   };
 
@@ -44,6 +47,7 @@ const CareerSupportInquiryModal = ({
       return;
     }
 
+    logCareerEvent("click_support_submit");
     setSubmitting(true);
 
     try {
@@ -110,26 +114,15 @@ const CareerSupportInquiryModal = ({
             개선사항 혹은 문의사항을 알려주세요.
           </h2>
           <p className="mt-2 text-sm leading-6 text-beige900/55">
-            확인 후 입력하신 이메일로 답변드리겠습니다.
+            확인 후 {email}로 답변드리겠습니다.
           </p>
         </div>
         <div className="mt-5 space-y-4">
           <label className="block">
             <span className="mb-2 block text-sm font-medium text-beige900/70">
-              이메일
-            </span>
-            <input
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              disabled={submitting}
-              placeholder="example@example.com"
-              className="h-11 w-full rounded-xl border border-beige900/10 bg-white/75 px-3 text-base text-beige900 outline-none transition placeholder:text-beige900/30 focus:border-beige900/30 focus:ring-2 focus:ring-beige900/10 disabled:cursor-not-allowed disabled:opacity-60 md:text-sm"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-2 block text-sm font-medium text-beige900/70">
-              내용
+              Harper가 커리어 에이전트로써 어떤걸 해주기를 원하시나요?
+              <br />
+              아래에서 자유롭게 작성해주세요.
             </span>
             <textarea
               value={content}

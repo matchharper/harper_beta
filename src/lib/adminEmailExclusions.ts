@@ -7,6 +7,7 @@ import {
   INTERNAL_EMAIL_DOMAIN,
   getEmailDomain,
 } from "@/lib/internalAccess";
+import { extractEmailFromLandingLoginType } from "@/lib/landingLogTypes";
 
 type LandingLogIdentity = {
   local_id: string | null | undefined;
@@ -49,11 +50,7 @@ export function isEmailExcluded(
 export function extractLoginEmailFromLandingLogType(
   type: string | null | undefined
 ) {
-  const value = String(type ?? "").trim();
-  const prefix = "login_email:";
-  if (!value.startsWith(prefix)) return null;
-
-  const email = normalizeEmail(value.slice(prefix.length));
+  const email = normalizeEmail(extractEmailFromLandingLoginType(type));
   return email || null;
 }
 
