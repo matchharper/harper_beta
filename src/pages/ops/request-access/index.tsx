@@ -9,6 +9,7 @@ import {
   buildBulkRequestAccessApprovedEmailTemplates,
   REQUEST_ACCESS_APPROVAL_TEMPLATE_VARIABLES,
 } from "@/lib/requestAccess/emailTemplate";
+import { isInternalEmail } from "@/lib/internalAccess";
 import type {
   RequestAccessApprovalEmailLocale,
   RequestAccessReviewQueueItem,
@@ -30,6 +31,7 @@ import {
 import Head from "next/head";
 import { useRouter } from "next/router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useAuthStore } from "@/store/useAuthStore";
 
 const STATUS_OPTIONS: Array<{
   id: "all" | RequestAccessReviewStatus;
@@ -141,6 +143,9 @@ function formatSelectedRecipients(items: RequestAccessReviewQueueItem[]) {
 
 export default function OpsRequestAccessPage() {
   const router = useRouter();
+  const authLoading = useAuthStore((state) => state.loading);
+  const user = useAuthStore((state) => state.user);
+  const canFetchInternal = !authLoading && isInternalEmail(user?.email);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "all" | RequestAccessReviewStatus
@@ -156,7 +161,7 @@ export default function OpsRequestAccessPage() {
   const [bulkNotice, setBulkNotice] = useState("");
   const [bulkError, setBulkError] = useState("");
 
-  const queueQuery = useOpsRequestAccessQueue();
+  const queueQuery = useOpsRequestAccessQueue(canFetchInternal);
   const bulkSendMutation = useBulkSendOpsRequestAccessApproval();
   const queue = queueQuery.data;
   const selectedRequestSet = useMemo(

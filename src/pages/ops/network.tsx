@@ -23,6 +23,7 @@ import {
   useSendOpsNetworkMail,
   useUpdateOpsNetworkInternalEntry,
 } from "@/hooks/useOpsNetwork";
+import { isInternalEmail } from "@/lib/internalAccess";
 import type { NetworkLeadSummary, TalentInternalEntry } from "@/lib/opsNetwork";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -59,9 +60,10 @@ Harper 드림`;
 
 export default function NetworkOpsPage() {
   const router = useRouter();
-  const { user } = useAuthStore();
+  const { loading: authLoading, user } = useAuthStore();
   const pageSize = useOpsNetworkStore((state) => state.pageSize);
   const setPageSize = useOpsNetworkStore((state) => state.setPageSize);
+  const canFetchInternal = !authLoading && isInternalEmail(user?.email);
 
   const currentPage = parsePositiveQueryNumber(router.query.page) ?? 1;
   const selectedLeadId = parsePositiveQueryNumber(router.query.leadId);
@@ -96,16 +98,16 @@ export default function NetworkOpsPage() {
 
   const leadsQuery = useOpsNetworkLeads({
     cvOnly,
-    enabled: router.isReady,
+    enabled: router.isReady && canFetchInternal,
     limit: pageSize,
     move: moveFilter !== "all" ? moveFilter : null,
     offset: currentOffset,
     query,
     role: roleFilter !== "all" ? roleFilter : null,
   });
-  const detailQuery = useOpsNetworkDetail(selectedLeadId);
+  const detailQuery = useOpsNetworkDetail(selectedLeadId, canFetchInternal);
   const messagesQuery = useOpsNetworkMessages({
-    enabled: detailTab === "messages",
+    enabled: canFetchInternal && detailTab === "messages",
     leadId: selectedLeadId,
     limit: 20,
   });

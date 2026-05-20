@@ -8,17 +8,24 @@ import {
   useUpdateInsights,
   useDeleteChecklistItem,
   useIngestCareerProfile,
+  useSendCareerTalentMail,
 } from "@/hooks/useOpsCareer";
+import { renderEmailBodyHtmlWithHarperFooter } from "@/lib/email/harperFooter";
+import { isInternalEmail } from "@/lib/internalAccess";
 import type { CareerTalentDetailResponse } from "@/lib/opsCareerServer";
+import { useAuthStore } from "@/store/useAuthStore";
 import {
   ChevronRight,
   ExternalLink,
+  Link2,
   LoaderCircle,
+  Mail,
   MessageSquareText,
   Plus,
   RefreshCw,
   Save,
   Search,
+  Send,
   Trash2,
   User,
 } from "lucide-react";
@@ -76,9 +83,7 @@ function TalentListItem({
       onClick={onClick}
       className={cx(
         "w-full text-left px-4 py-3 transition border-b border-beige900/5",
-        isActive
-          ? "bg-beige900/5"
-          : "hover:bg-white/60"
+        isActive ? "bg-beige900/5" : "hover:bg-white/60"
       )}
     >
       <div className="flex items-center justify-between gap-2">
@@ -114,7 +119,9 @@ function TalentListItem({
 
 function TalentDetail({ userId }: { userId: string }) {
   const { data: detail, isLoading, error } = useOpsCareerDetail(userId);
-  const [activeTab, setActiveTab] = useState<"insights" | "messages" | "profile">("insights");
+  const [activeTab, setActiveTab] = useState<
+    "insights" | "messages" | "profile" | "mail"
+  >("insights");
 
   if (isLoading) {
     return (
@@ -127,7 +134,9 @@ function TalentDetail({ userId }: { userId: string }) {
   if (error || !detail) {
     return (
       <div className={cx(opsTheme.errorNotice, "m-4")}>
-        {error instanceof Error ? error.message : "데이터를 불러오지 못했습니다."}
+        {error instanceof Error
+          ? error.message
+          : "데이터를 불러오지 못했습니다."}
       </div>
     );
   }
@@ -136,6 +145,7 @@ function TalentDetail({ userId }: { userId: string }) {
     { id: "insights" as const, label: "인사이트" },
     { id: "messages" as const, label: "대화 내역" },
     { id: "profile" as const, label: "프로필" },
+    { id: "mail" as const, label: "메일" },
   ];
 
   return (
@@ -171,7 +181,12 @@ function TalentDetail({ userId }: { userId: string }) {
         <div className="mt-2 flex items-center gap-3 font-geist text-xs text-beige900/40">
           <span>
             대화:{" "}
-            <span className={cx("font-medium", stageBadgeClass(detail.conversationStage))}>
+            <span
+              className={cx(
+                "font-medium",
+                stageBadgeClass(detail.conversationStage)
+              )}
+            >
               {stageLabel(detail.conversationStage)}
             </span>
           </span>
@@ -201,10 +216,18 @@ function TalentDetail({ userId }: { userId: string }) {
       {/* Tab Content */}
       <div className="p-5">
         {activeTab === "insights" && (
-          <InsightsTab userId={userId} insights={detail.insights} mergedChecklist={detail.mergedChecklist} preferences={detail.preferences} />
+          <InsightsTab
+            userId={userId}
+            insights={detail.insights}
+            mergedChecklist={detail.mergedChecklist}
+            preferences={detail.preferences}
+          />
         )}
         {activeTab === "messages" && <MessagesTab messages={detail.messages} />}
         {activeTab === "profile" && <ProfileTab detail={detail} />}
+        {activeTab === "mail" && (
+          <MailTab key={detail.userId} detail={detail} />
+        )}
       </div>
     </div>
   );
@@ -245,7 +268,8 @@ function InsightsTab({
   }, [insights, isEditing]);
 
   const emptyCount = useMemo(() => {
-    return mergedChecklist.filter((item) => !insights?.[item.key]?.trim()).length;
+    return mergedChecklist.filter((item) => !insights?.[item.key]?.trim())
+      .length;
   }, [mergedChecklist, insights]);
 
   const hasChanges = useMemo(() => {
@@ -276,7 +300,12 @@ function InsightsTab({
   }
 
   function handleDeleteChecklistItem(key: string, label: string) {
-    if (!window.confirm(`'${label}' (${key}) 항목을 삭제하시겠습니까? 모든 인재에서 제거됩니다.`)) return;
+    if (
+      !window.confirm(
+        `'${label}' (${key}) 항목을 삭제하시겠습니까? 모든 인재에서 제거됩니다.`
+      )
+    )
+      return;
     deleteChecklistItemMutation.mutate(key);
   }
 
@@ -284,9 +313,18 @@ function InsightsTab({
     const trimmedKey = newKey.trim();
     const trimmedLabel = newLabel.trim();
     if (!trimmedKey || !trimmedLabel) return;
-    if (!window.confirm(`'${trimmedLabel}' (${trimmedKey}) 항목을 추가하시겠습니까? 이 항목은 모든 인재에게 적용됩니다.`)) return;
+    if (
+      !window.confirm(
+        `'${trimmedLabel}' (${trimmedKey}) 항목을 추가하시겠습니까? 이 항목은 모든 인재에게 적용됩니다.`
+      )
+    )
+      return;
     addChecklistItemMutation.mutate(
-      { key: trimmedKey, label: trimmedLabel, promptHint: newPromptHint.trim() || undefined },
+      {
+        key: trimmedKey,
+        label: trimmedLabel,
+        promptHint: newPromptHint.trim() || undefined,
+      },
       {
         onSuccess: () => {
           setNewKey("");
@@ -298,7 +336,12 @@ function InsightsTab({
   }
 
   function handleRefresh() {
-    if (!window.confirm(`빈 인사이트 항목 ${emptyCount}개를 LLM으로 추출합니다. 기존 값은 변경되지 않습니다.`)) return;
+    if (
+      !window.confirm(
+        `빈 인사이트 항목 ${emptyCount}개를 LLM으로 추출합니다. 기존 값은 변경되지 않습니다.`
+      )
+    )
+      return;
     refreshInsightsMutation.mutate();
   }
 
@@ -339,7 +382,10 @@ function InsightsTab({
             <>
               <button
                 type="button"
-                onClick={() => { setIsEditing(false); setEditedValues({}); }}
+                onClick={() => {
+                  setIsEditing(false);
+                  setEditedValues({});
+                }}
                 className={cx(opsTheme.buttonSecondary, "h-8 px-3 text-xs")}
               >
                 취소
@@ -351,13 +397,20 @@ function InsightsTab({
                 className={cx(
                   opsTheme.buttonSecondary,
                   "h-8 px-3 text-xs flex items-center gap-1.5",
-                  (!hasChanges || updateInsightsMutation.isPending) && "opacity-50 cursor-not-allowed"
+                  (!hasChanges || updateInsightsMutation.isPending) &&
+                    "opacity-50 cursor-not-allowed"
                 )}
               >
                 {updateInsightsMutation.isPending ? (
-                  <><LoaderCircle className="h-3.5 w-3.5 animate-spin" />저장 중...</>
+                  <>
+                    <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                    저장 중...
+                  </>
                 ) : (
-                  <><Save className="h-3.5 w-3.5" />저장</>
+                  <>
+                    <Save className="h-3.5 w-3.5" />
+                    저장
+                  </>
                 )}
               </button>
             </>
@@ -377,13 +430,20 @@ function InsightsTab({
                 className={cx(
                   opsTheme.buttonSecondary,
                   "h-8 px-3 text-xs flex items-center gap-1.5",
-                  (emptyCount === 0 || refreshInsightsMutation.isPending) && "opacity-50 cursor-not-allowed"
+                  (emptyCount === 0 || refreshInsightsMutation.isPending) &&
+                    "opacity-50 cursor-not-allowed"
                 )}
               >
                 {refreshInsightsMutation.isPending ? (
-                  <><LoaderCircle className="h-3.5 w-3.5 animate-spin" />추출 중...</>
+                  <>
+                    <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                    추출 중...
+                  </>
                 ) : (
-                  <><RefreshCw className="h-3.5 w-3.5" />빈 항목 {emptyCount}개 추출</>
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5" />빈 항목 {emptyCount}개
+                    추출
+                  </>
                 )}
               </button>
             </>
@@ -421,7 +481,9 @@ function InsightsTab({
                 {item.source === "db" && !isEditing && (
                   <button
                     type="button"
-                    onClick={() => handleDeleteChecklistItem(item.key, item.label)}
+                    onClick={() =>
+                      handleDeleteChecklistItem(item.key, item.label)
+                    }
                     disabled={deleteChecklistItemMutation.isPending}
                     className="p-1 rounded hover:bg-beige500/30 text-beige900/30 hover:text-red-500 transition-colors"
                     title="항목 삭제"
@@ -446,7 +508,9 @@ function InsightsTab({
                   {displayValue}
                 </div>
               ) : (
-                <div className="mt-1 font-geist text-sm text-beige900/30 italic">미입력</div>
+                <div className="mt-1 font-geist text-sm text-beige900/30 italic">
+                  미입력
+                </div>
               )}
             </div>
           );
@@ -466,7 +530,9 @@ function InsightsTab({
             type="text"
             placeholder="영문 키 (snake_case)"
             value={newKey}
-            onChange={(e) => setNewKey(e.target.value.replace(/[^a-z0-9_]/g, ""))}
+            onChange={(e) =>
+              setNewKey(e.target.value.replace(/[^a-z0-9_]/g, ""))
+            }
             className={cx(opsTheme.input, "h-8 text-xs flex-1")}
           />
           <input
@@ -491,11 +557,18 @@ function InsightsTab({
           <button
             type="button"
             onClick={handleAddItem}
-            disabled={!newKey.trim() || !newLabel.trim() || addChecklistItemMutation.isPending}
+            disabled={
+              !newKey.trim() ||
+              !newLabel.trim() ||
+              addChecklistItemMutation.isPending
+            }
             className={cx(
               opsTheme.buttonSecondary,
               "h-8 px-3 text-xs flex items-center gap-1.5 shrink-0",
-              (!newKey.trim() || !newLabel.trim() || addChecklistItemMutation.isPending) && "opacity-50 cursor-not-allowed"
+              (!newKey.trim() ||
+                !newLabel.trim() ||
+                addChecklistItemMutation.isPending) &&
+                "opacity-50 cursor-not-allowed"
             )}
           >
             <Plus className="h-3.5 w-3.5" />
@@ -549,6 +622,204 @@ function MessagesTab({
           <div className="whitespace-pre-wrap">{msg.content}</div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function MailTab({ detail }: { detail: CareerTalentDetailResponse }) {
+  const user = useAuthStore((state) => state.user);
+  const sendMail = useSendCareerTalentMail();
+  const [fromEmail, setFromEmail] = useState("Harper <hello@matchharper.com>");
+  const [subject, setSubject] = useState("");
+  const [content, setContent] = useState("");
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+  const [previewDate] = useState(() =>
+    new Date().toLocaleString("ko-KR", {
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+  );
+
+  const recipientLabel = detail.name
+    ? `${detail.name} <${detail.email ?? "email 없음"}>`
+    : (detail.email ?? "email 없음");
+  const previewHtml = useMemo(
+    () => renderEmailBodyHtmlWithHarperFooter(content),
+    [content]
+  );
+  const canSend =
+    Boolean(detail.email?.trim()) &&
+    Boolean(fromEmail.trim()) &&
+    Boolean(subject.trim()) &&
+    Boolean(content.trim()) &&
+    !sendMail.isPending;
+
+  async function handleSend() {
+    if (!canSend) return;
+    const recipient = detail.email?.trim();
+    if (!recipient) return;
+    if (!window.confirm(`${recipient}에게 메일을 발송할까요?`)) return;
+
+    setNotice("");
+    setError("");
+
+    try {
+      const result = await sendMail.mutateAsync({
+        content: content.trim(),
+        fromEmail: fromEmail.trim(),
+        subject: subject.trim(),
+        userId: detail.userId,
+      });
+      setNotice(`${result.recipientEmail}로 발송했습니다.`);
+    } catch (sendError) {
+      setError(
+        sendError instanceof Error
+          ? sendError.message
+          : "메일 발송에 실패했습니다."
+      );
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className={opsTheme.eyebrow}>Recipient</div>
+          <div className="mt-1 break-all font-geist text-sm font-medium text-beige900">
+            {recipientLabel}
+          </div>
+        </div>
+        <Mail className="h-5 w-5 shrink-0 text-beige900/25" />
+      </div>
+
+      {!detail.email?.trim() ? (
+        <div className={opsTheme.errorNotice}>
+          이 talent에는 등록된 이메일이 없어 발송할 수 없습니다.
+        </div>
+      ) : null}
+      {notice ? <div className={opsTheme.successNotice}>{notice}</div> : null}
+      {error ? <div className={opsTheme.errorNotice}>{error}</div> : null}
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(360px,1.05fr)]">
+        <div className={cx("space-y-3")}>
+          <label className="block">
+            <span className={opsTheme.label}>From</span>
+            <input
+              type="text"
+              value={fromEmail}
+              onChange={(event) => setFromEmail(event.target.value)}
+              placeholder="Harper <chris@matchharper.com>"
+              className={cx(opsTheme.input, "mt-2")}
+            />
+          </label>
+          <label className="block">
+            <span className={opsTheme.label}>Subject</span>
+            <input
+              type="text"
+              value={subject}
+              onChange={(event) => setSubject(event.target.value)}
+              placeholder="메일 제목"
+              className={cx(opsTheme.input, "mt-2")}
+            />
+          </label>
+          <label className="block">
+            <span className={opsTheme.label}>Body</span>
+            <textarea
+              value={content}
+              onChange={(event) => setContent(event.target.value)}
+              placeholder={`안녕하세요 ${detail.name ?? "후보자"}님,\n\n\n\n감사합니다.\nHarper 드림`}
+              className={cx(opsTheme.textarea, "mt-2 min-h-[260px]")}
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => void handleSend()}
+            disabled={!canSend}
+            className={cx(opsTheme.buttonPrimary, "h-11 w-full")}
+          >
+            {sendMail.isPending ? (
+              <LoaderCircle className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+            발송
+          </button>
+        </div>
+
+        <div className="rounded-lg border border-black/10 bg-white shadow-[0_16px_42px_rgba(0,0,0,0.08)]">
+          <div className="border-b border-black/10 px-5 py-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="truncate font-geist text-base font-semibold text-[#202124]">
+                  {subject.trim() || "(제목 없음)"}
+                </div>
+                <div className="mt-1 truncate font-geist text-xs text-[#5f6368]">
+                  From: {fromEmail.trim() || "sender@matchharper.com"}
+                </div>
+                <div className="mt-0.5 truncate font-geist text-xs text-[#5f6368]">
+                  To: {recipientLabel}
+                </div>
+              </div>
+              <div className="shrink-0 font-geist text-xs text-[#5f6368]">
+                {previewDate}
+              </div>
+            </div>
+          </div>
+          <div className="min-h-[300px] px-5 py-5 font-geist text-sm leading-6 text-[#202124]">
+            {content.trim() ? (
+              <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
+            ) : (
+              <div className="text-[#5f6368]">
+                본문을 입력하면 발송될 이메일 형태로 표시됩니다.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className={cx(opsTheme.panelSoft, "p-4")}>
+        <div className="flex items-center gap-2">
+          <Link2 className="h-4 w-4 text-beige900/35" />
+          <div className={opsTheme.eyebrow}>Link Format</div>
+        </div>
+        <div className="mt-3 space-y-2 font-geist text-xs leading-5 text-beige900/65">
+          <div>
+            링크는{" "}
+            <code className="rounded bg-beige500/60 px-1.5 py-0.5 font-mono text-[11px]">
+              [보여줄 문구](https://example.com)
+            </code>{" "}
+            형식으로 넣으면 됩니다.
+          </div>
+          <div>
+            이메일 링크는{" "}
+            <code className="rounded bg-beige500/60 px-1.5 py-0.5 font-mono text-[11px]">
+              [Chris에게 문의](mailto:chris@matchharper.com)
+            </code>
+            처럼 넣으세요.
+          </div>
+          <div>
+            발신자 표시명을 바꾸려면 From에{" "}
+            <code className="rounded bg-beige500/60 px-1.5 py-0.5 font-mono text-[11px]">
+              Harper &lt;chris@matchharper.com&gt;
+            </code>
+            처럼 쓰면 됩니다. Resend에서 인증된 도메인의 주소만 실제 발송됩니다.
+          </div>
+          <div>
+            굵게는{" "}
+            <code className="rounded bg-beige500/60 px-1.5 py-0.5 font-mono text-[11px]">
+              **텍스트**
+            </code>
+            , 목록은 줄 앞에{" "}
+            <code className="rounded bg-beige500/60 px-1.5 py-0.5 font-mono text-[11px]">
+              -
+            </code>
+            를 붙이면 미리보기와 발송 HTML에 반영됩니다.
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -649,7 +920,8 @@ function ProfileTab({ detail }: { detail: CareerTalentDetailResponse }) {
               className={cx(
                 opsTheme.buttonSecondary,
                 "h-8 px-3 text-xs flex items-center gap-1.5 shrink-0",
-                ingestProfileMutation.isPending && "opacity-50 cursor-not-allowed"
+                ingestProfileMutation.isPending &&
+                  "opacity-50 cursor-not-allowed"
               )}
             >
               {ingestProfileMutation.isPending ? (
@@ -719,7 +991,9 @@ function ProfileTab({ detail }: { detail: CareerTalentDetailResponse }) {
       {detail.location && (
         <div className={cx(opsTheme.panelSoft, "p-4")}>
           <div className={cx(opsTheme.eyebrow, "mb-1")}>위치</div>
-          <div className="font-geist text-sm text-beige900/80">{detail.location}</div>
+          <div className="font-geist text-sm text-beige900/80">
+            {detail.location}
+          </div>
         </div>
       )}
 
@@ -734,7 +1008,9 @@ function ProfileTab({ detail }: { detail: CareerTalentDetailResponse }) {
                 </div>
                 <div className="font-geist text-xs text-beige900/50">
                   {exp.company_name ?? ""}{" "}
-                  {exp.start_date ? `(${exp.start_date} ~ ${exp.end_date ?? "현재"})` : ""}
+                  {exp.start_date
+                    ? `(${exp.start_date} ~ ${exp.end_date ?? "현재"})`
+                    : ""}
                 </div>
                 {exp.description?.trim() ? (
                   <div className="mt-2 whitespace-pre-wrap font-geist text-xs leading-5 text-beige900/70">
@@ -795,16 +1071,22 @@ function ProfileTab({ detail }: { detail: CareerTalentDetailResponse }) {
         </div>
       )}
 
-      {!detail.bio && !detail.location && experiences.length === 0 && educations.length === 0 && extras.length === 0 && (
-        <div className="rounded-md border border-dashed border-beige900/15 bg-white/30 px-4 py-6 text-center font-geist text-sm text-beige900/40">
-          프로필 정보가 없습니다.
-        </div>
-      )}
+      {!detail.bio &&
+        !detail.location &&
+        experiences.length === 0 &&
+        educations.length === 0 &&
+        extras.length === 0 && (
+          <div className="rounded-md border border-dashed border-beige900/15 bg-white/30 px-4 py-6 text-center font-geist text-sm text-beige900/40">
+            프로필 정보가 없습니다.
+          </div>
+        )}
     </div>
   );
 }
 
 export default function OpsCareerPage() {
+  const { loading: authLoading, user } = useAuthStore();
+  const canFetchInternal = !authLoading && isInternalEmail(user?.email);
   const {
     data,
     isLoading,
@@ -812,7 +1094,7 @@ export default function OpsCareerPage() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useOpsCareerTalents(FETCH_LIMIT);
+  } = useOpsCareerTalents(FETCH_LIMIT, canFetchInternal);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -869,11 +1151,15 @@ export default function OpsCareerPage() {
                 </div>
               ) : error ? (
                 <div className={cx(opsTheme.errorNotice, "m-4")}>
-                  {error instanceof Error ? error.message : "데이터를 불러오지 못했습니다."}
+                  {error instanceof Error
+                    ? error.message
+                    : "데이터를 불러오지 못했습니다."}
                 </div>
               ) : filteredTalents.length === 0 ? (
                 <div className="px-4 py-12 text-center font-geist text-sm text-beige900/40">
-                  {searchQuery ? "검색 결과가 없습니다." : "등록된 talent가 없습니다."}
+                  {searchQuery
+                    ? "검색 결과가 없습니다."
+                    : "등록된 talent가 없습니다."}
                 </div>
               ) : (
                 <>
@@ -891,7 +1177,10 @@ export default function OpsCareerPage() {
                         type="button"
                         onClick={() => void fetchNextPage()}
                         disabled={isFetchingNextPage}
-                        className={cx(opsTheme.buttonSecondary, "w-full h-9 text-xs")}
+                        className={cx(
+                          opsTheme.buttonSecondary,
+                          "w-full h-9 text-xs"
+                        )}
                       >
                         {isFetchingNextPage ? "불러오는 중..." : "더 보기"}
                       </button>

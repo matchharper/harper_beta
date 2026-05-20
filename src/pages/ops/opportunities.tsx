@@ -60,6 +60,7 @@ import type {
   OpsOpportunityType,
 } from "@/lib/opsOpportunity";
 import { OpportunityType } from "@/lib/opportunityType";
+import { isInternalEmail } from "@/lib/internalAccess";
 import { useAuthStore } from "@/store/useAuthStore";
 import { DEFAULT_OPS_TALENT_RECOMMENDATION_PROMPT } from "@/lib/opsOpportunityRecommendationPrompt";
 import { useOpsOpportunityRecommendationPromptStore } from "@/store/useOpsOpportunityRecommendationPromptStore";
@@ -85,7 +86,9 @@ const CATALOG_PAGE_SIZE = 10;
 
 export default function OpsOpportunitiesPage() {
   const router = useRouter();
+  const authLoading = useAuthStore((state) => state.loading);
   const user = useAuthStore((state) => state.user);
+  const canFetchInternal = !authLoading && isInternalEmail(user?.email);
   const savedRecommendationPromptTemplate =
     useOpsOpportunityRecommendationPromptStore((state) => state.promptTemplate);
   const setSavedRecommendationPromptTemplate =
@@ -230,10 +233,10 @@ export default function OpsOpportunitiesPage() {
     recommendationRoleSearch.trim().toLowerCase()
   );
 
-  const catalogQuery = useOpsOpportunityCatalog();
+  const catalogQuery = useOpsOpportunityCatalog({ enabled: canFetchInternal });
   const companyManagementQuery = useOpsOpportunityCompanies({
     companyName: companyManagementAppliedFilters.companyName,
-    enabled: view === "company_management",
+    enabled: canFetchInternal && view === "company_management",
     employeeCountRange: companyManagementAppliedFilters.employeeCountRange,
     foundedYearMin: companyManagementAppliedFilters.foundedYearMin,
     hasCareerUrlOnly: companyManagementAppliedFilters.hasCareerUrlOnly,
@@ -367,13 +370,13 @@ export default function OpsOpportunitiesPage() {
   );
 
   const companyCandidateQuery = useOpsOpportunityCandidates({
-    enabled: view === "company_match",
+    enabled: canFetchInternal && view === "company_match",
     query: companyTalentSearchQuery,
     roleId: selectedCompanyRoleId,
   });
 
   const recommendationTalentQuery = useOpsOpportunityCandidates({
-    enabled: view === "talent_recommendation",
+    enabled: canFetchInternal && view === "talent_recommendation",
     query: recommendationTalentSearchQuery,
   });
 
@@ -385,12 +388,16 @@ export default function OpsOpportunitiesPage() {
   }, [currentViewQuery, router.isReady]);
 
   const roleMatchesQuery = useOpsOpportunityMatches({
-    enabled: view === "company_match" && Boolean(selectedCompanyRoleId),
+    enabled:
+      canFetchInternal &&
+      view === "company_match" &&
+      Boolean(selectedCompanyRoleId),
     roleId: selectedCompanyRoleId,
   });
 
   const talentRecommendationsQuery = useOpsOpportunityRecommendations({
     enabled:
+      canFetchInternal &&
       view === "talent_recommendation" &&
       Boolean(selectedRecommendationTalent?.talentId),
     talentId: selectedRecommendationTalent?.talentId,

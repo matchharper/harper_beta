@@ -95,6 +95,12 @@ export type CareerTalentProfileIngestResponse = {
   };
 };
 
+export type CareerTalentMailRecipient = {
+  email: string;
+  name: string | null;
+  userId: string;
+};
+
 const DEFAULT_LIMIT = 40;
 const MAX_LIMIT = 100;
 
@@ -285,6 +291,35 @@ export async function fetchCareerTalentDetail(
         }
       : null,
     messages,
+  };
+}
+
+export async function fetchCareerTalentMailRecipient(
+  userId: string
+): Promise<CareerTalentMailRecipient> {
+  const admin = getTalentSupabaseAdmin();
+  const { data, error } = await admin
+    .from("talent_users")
+    .select("user_id, name, email")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to load talent recipient");
+  }
+  if (!data) {
+    throw new Error("Talent user was not found");
+  }
+
+  const email = String(data.email ?? "").trim();
+  if (!email) {
+    throw new Error("Talent user does not have an email address");
+  }
+
+  return {
+    email,
+    name: data.name ?? null,
+    userId: data.user_id,
   };
 }
 
